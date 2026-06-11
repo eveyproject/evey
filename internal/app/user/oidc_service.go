@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +29,17 @@ var ErrStateExpired = errors.New("OIDC state expired")
 
 const oidcStateTTL = 10 * time.Minute
 
+// oidcHTTPTimeout bounds every outbound call to the IdP (discovery, token
+// exchange, JWKS fetch). Without it those calls ride http.DefaultClient
+// (Timeout=0, no ResponseHeaderTimeout): a hung issuer used to block server
+// BOOT indefinitely (discovery runs at startup — on a NAS that auto-restarts,
+// that's a boot-loop while the IdP is down) and stall login-callback handler
+// goroutines. A plain timeout, NOT the ssrf.SafeHTTPClient: the issuer is
+// ADMIN-configured (trusted operator input), and self-hosted IdPs on private
+// LAN addresses are a first-class deployment for a self-hosted media server —
+// the SSRF dialer would block exactly those.
+const oidcHTTPTimeout = 15 * time.Second
+
 type OIDCConfig struct {
 	Enabled             bool
 	Issuer              string
@@ -38,9 +50,13 @@ type OIDCConfig struct {
 }
 
 type OIDCService struct {
-	provider            *gooidc.Provider
-	oauth2Cfg           oauth2.Config
-	verifier            *gooidc.IDTokenVerifier
+	provider  *gooidc.Provider
+	oauth2Cfg oauth2.Config
+	verifier  *gooidc.IDTokenVerifier
+	// httpClient carries the bounded-timeout client every IdP call must use
+	// (see oidcHTTPTimeout). nil (hand-built test instances) falls back to the
+	// caller's ctx client / http.DefaultClient.
+	httpClient          *http.Client
 	userRepo            domainuser.UserRepository
 	profiles            domainuser.ProfileRepository
 	refreshTkns         domainuser.RefreshTokenRepository
@@ -72,7 +88,10 @@ func NewOIDCService(
 	if cfg.ClientSecret == "" {
 		return nil, errors.New("OIDC: client secret must not be empty")
 	}
-	provider, err := gooidc.NewProvider(ctx, cfg.Issuer)
+	// Discovery runs at BOOT (wire.go) on a root ctx with no deadline — the
+	// bounded client is what keeps a hung issuer from blocking startup.
+	httpClient := &http.Client{Timeout: oidcHTTPTimeout}
+	provider, err := gooidc.NewProvider(gooidc.ClientContext(ctx, httpClient), cfg.Issuer)
 	if err != nil {
 		return nil, fmt.Errorf("oidc provider discovery: %w", err)
 	}
@@ -94,6 +113,7 @@ func NewOIDCService(
 		provider:            provider,
 		oauth2Cfg:           oauth2Cfg,
 		verifier:            verifier,
+		httpClient:          httpClient,
 		userRepo:            userRepo,
 		profiles:            profiles,
 		refreshTkns:         refreshTkns,
@@ -170,6 +190,15 @@ func (s *OIDCService) signState(nonce string) string {
 func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce string) (accessToken, refreshToken, rawOIDCIDToken string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.HandleCallback")
 	defer span.End()
+	// Bound the token exchange and the verifier's JWKS fetch: without the
+	// injected client both ride http.DefaultClient (no timeout) on a request
+	// ctx the server never deadlines (no ReadTimeout/TimeoutHandler), so a
+	// slow IdP stalls login handler goroutines indefinitely. nil-safe for
+	// hand-built test instances.
+	if s.httpClient != nil {
+		ctx = gooidc.ClientContext(ctx, s.httpClient)                 // JWKS (verifier.Verify)
+		ctx = context.WithValue(ctx, oauth2.HTTPClient, s.httpClient) // token exchange
+	}
 	oauth2Token, err := s.oauth2Cfg.Exchange(ctx, code)
 	if err != nil {
 		return "", "", "", fmt.Errorf("token exchange: %w", err)
