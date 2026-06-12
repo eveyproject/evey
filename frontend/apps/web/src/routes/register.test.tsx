@@ -11,6 +11,7 @@ const mockRegister = {
   isPending: false,
   error: null as Error | null,
 };
+const mockEveyFetch = vi.fn(async () => ({ valid: true, isAdmin: false }));
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (def: Record<string, unknown>) => {
@@ -19,10 +20,13 @@ vi.mock("@tanstack/react-router", () => ({
   },
   redirect: vi.fn(),
   useNavigate: () => mockNavigate,
+  Link: ({ children, to, ...rest }: { children?: React.ReactNode; to: string } & Record<string, unknown>) =>
+    React.createElement("a", { href: to, ...rest }, children),
 }));
 
 vi.mock("@evey/api", () => ({
   useUserServiceRegisterWithInvite: (_opts?: unknown) => mockRegister,
+  eveyFetch: (...args: unknown[]) => mockEveyFetch(...(args as [])),
 }));
 
 vi.mock("@evey/store", () => ({
@@ -51,6 +55,7 @@ describe("RegisterPage", () => {
     mockRegister.error = null;
     mockRegister.isPending = false;
     mockUseSearch.mockReturnValue({ invite: undefined });
+    mockEveyFetch.mockResolvedValue({ valid: true, isAdmin: false });
   });
 
   it("renders username, email, password, confirm, and invite code inputs", async () => {
@@ -63,13 +68,23 @@ describe("RegisterPage", () => {
     expect(screen.getByLabelText(/invite/i)).toBeInTheDocument();
   });
 
-  it("hides invite code input when invite search param provided", async () => {
+  it("hides invite code input when a VALID invite search param is provided", async () => {
     mockUseSearch.mockReturnValue({ invite: "ABC123" });
     const Page = await getRegisterPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
-    // Invite code is shown as display text, not an input
-    expect(screen.getByText("ABC123")).toBeInTheDocument();
+    // Form appears only after the invite validates; invite shown as text.
+    expect(await screen.findByText("ABC123")).toBeInTheDocument();
   });
+
+  it("shows the invalid-link state (no form) for a disabled/expired invite", async () => {
+    mockUseSearch.mockReturnValue({ invite: "DEAD" });
+    mockEveyFetch.mockResolvedValue({ valid: false, isAdmin: false });
+    const Page = await getRegisterPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(await screen.findByTestId("invite-invalid")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/username/i)).not.toBeInTheDocument();
+  });
+
 
   it("shows password mismatch error", async () => {
     const Page = await getRegisterPage();

@@ -751,6 +751,18 @@ func (h *userHandler) RegisterWithInvite(ctx context.Context, req *eveyv1.Regist
 	}, nil
 }
 
+func (h *userHandler) ValidateInvite(ctx context.Context, req *eveyv1.ValidateInviteRequest) (*eveyv1.ValidateInviteResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.ValidateInvite")
+	defer span.End()
+	valid, isAdmin, err := h.access.ValidateInvite(ctx, req.Code)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	return &eveyv1.ValidateInviteResponse{Valid: valid, IsAdmin: isAdmin}, nil
+}
+
 func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.InitiateQuickConnect")
 	defer span.End()

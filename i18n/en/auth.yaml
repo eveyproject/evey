@@ -81,6 +81,10 @@ register:
   registrationFailed: Registration failed
   alreadyHaveAccount: Already have an account?
   signIn: Sign in
+  inviteInvalidTitle: "Invitation no longer valid"
+  inviteInvalidMessage: "This invitation link has been disabled, has expired, or has already been used. Ask the server owner for a new one."
+  inviteChecking: "Checking your invitation…"
+  backToLogin: "Back to sign in"
 profile:
   edit: Edit
   username: Username

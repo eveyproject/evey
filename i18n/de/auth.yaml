@@ -81,6 +81,10 @@ register:
   registrationFailed: Registrierung fehlgeschlagen
   alreadyHaveAccount: Bereits ein Konto?
   signIn: Anmelden
+  inviteInvalidTitle: "Einladung ungültig"
+  inviteInvalidMessage: "Dieser Einladungslink wurde deaktiviert, ist abgelaufen oder wurde bereits verwendet. Bitte den Serverbesitzer um einen neuen."
+  inviteChecking: "Einladung wird geprüft…"
+  backToLogin: "Zurück zur Anmeldung"
 profile:
   edit: Bearbeiten
   username: Benutzername

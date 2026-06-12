@@ -95,6 +95,24 @@ func (s *AccessService) RevokeInviteLink(ctx context.Context, inviteID string) e
 	return nil
 }
 
+// ValidateInvite reports whether an invite code is still usable and whether it
+// would create an admin account. Used by the registration page to gate the
+// form. An unknown/expired/revoked/exhausted code returns (false, false, nil) —
+// not an error — so the caller shows the same neutral "link no longer valid"
+// state regardless of the reason (no oracle on which codes ever existed).
+func (s *AccessService) ValidateInvite(ctx context.Context, token string) (valid bool, isAdmin bool, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.ValidateInvite")
+	defer span.End()
+	invite, err := s.invites.GetByToken(ctx, token)
+	if err != nil {
+		return false, false, nil
+	}
+	if !invite.IsUsable() {
+		return false, false, nil
+	}
+	return true, invite.IsAdmin, nil
+}
+
 func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username, password, email string) (*user.User, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.RegisterWithInvite")
 	defer span.End()

@@ -81,6 +81,10 @@ register:
   registrationFailed: "Error en el registro"
   alreadyHaveAccount: "¿Ya tienes una cuenta?"
   signIn: "Iniciar sesión"
+  inviteInvalidTitle: "Invitación no válida"
+  inviteInvalidMessage: "Este enlace de invitación se ha desactivado, ha caducado o ya se ha usado. Pide uno nuevo al propietario del servidor."
+  inviteChecking: "Comprobando tu invitación…"
+  backToLogin: "Volver al inicio de sesión"
 profile:
   edit: "Editar"
   username: "Nombre de usuario"

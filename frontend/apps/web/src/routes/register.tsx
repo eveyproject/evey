@@ -1,12 +1,19 @@
 import { useState } from "react";
-import { Play } from "lucide-react";
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
-import { useUserServiceRegisterWithInvite } from "@evey/api";
+import { Play, XCircle } from "lucide-react";
+import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { useUserServiceRegisterWithInvite, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { Spinner } from "@/components/ui/Spinner";
+
+interface InviteValidation {
+  valid?: boolean;
+  isAdmin?: boolean;
+}
 
 type RegisterSearch = {
   invite?: string;
@@ -35,6 +42,24 @@ function RegisterPage() {
   const [confirm, setConfirm] = useState("");
   const [inviteCode, setInviteCode] = useState(invite ?? "");
   const [validationError, setValidationError] = useState("");
+  // Set when a submit is rejected because the invite is no longer usable (the
+  // page may have been open since before the link was disabled).
+  const [inviteRejected, setInviteRejected] = useState(false);
+
+  // Validate the link from the URL up front, so a disabled/expired/used invite
+  // shows a clear message instead of a full form that only fails on submit.
+  const { data: validation, isLoading: validating } = useQuery<InviteValidation>({
+    queryKey: ["invite-validate", invite],
+    queryFn: () =>
+      eveyFetch<InviteValidation>({
+        url: `/api/v1/invites/${encodeURIComponent(invite ?? "")}/validate`,
+        method: "GET",
+      }),
+    enabled: !!invite,
+    retry: false,
+    staleTime: 30_000,
+  });
+  const inviteUnusable = !!invite && (inviteRejected || (!validating && validation?.valid === false));
 
   const register = useUserServiceRegisterWithInvite({
     mutation: {
@@ -43,6 +68,11 @@ function RegisterPage() {
           setTokens(data.accessToken);
           void navigate({ to: "/home" });
         }
+      },
+      onError: () => {
+        // The server rejects any unusable invite at submit time; surface the
+        // dedicated "link no longer valid" state rather than a raw error.
+        setInviteRejected(true);
       },
     },
   });
@@ -66,6 +96,36 @@ function RegisterPage() {
         password,
       },
     });
+  }
+
+  // Validating the link from the URL — hold the form until we know it's usable.
+  if (invite && validating && !inviteRejected) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 gradient-auth-page">
+        <Card className="w-full max-w-sm p-8 shadow-2xl flex flex-col items-center gap-4" data-testid="invite-checking">
+          <Spinner size="md" />
+          <p className="text-[var(--text-muted)] text-sm">{t("auth.register.inviteChecking")}</p>
+        </Card>
+      </div>
+    );
+  }
+
+  // Disabled / expired / already-used invite — no form, just a clear message.
+  if (inviteUnusable) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 gradient-auth-page">
+        <Card className="w-full max-w-sm p-8 shadow-2xl flex flex-col items-center text-center gap-4" data-testid="invite-invalid">
+          <div className="w-12 h-12 rounded-[var(--radius-md)] flex items-center justify-center bg-[var(--badge-error-bg,#7f1d1d)]">
+            <XCircle size={24} className="text-[var(--badge-error-text,#fca5a5)]" />
+          </div>
+          <h1 className="text-xl font-bold text-[var(--text)]">{t("auth.register.inviteInvalidTitle")}</h1>
+          <p className="text-[var(--text-muted)] text-sm">{t("auth.register.inviteInvalidMessage")}</p>
+          <Link to="/login" className="text-sm underline text-[var(--accent)] hover:opacity-80">
+            {t("auth.register.backToLogin")}
+          </Link>
+        </Card>
+      </div>
+    );
   }
 
   return (

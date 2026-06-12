@@ -81,6 +81,10 @@ register:
   registrationFailed: "पंजीकरण विफल"
   alreadyHaveAccount: "पहले से खाता है?"
   signIn: "साइन इन"
+  inviteInvalidTitle: "आमंत्रण अमान्य"
+  inviteInvalidMessage: "यह आमंत्रण लिंक अक्षम, समाप्त या पहले ही उपयोग किया जा चुका है। सर्वर स्वामी से नया मांगें।"
+  inviteChecking: "आपका आमंत्रण जांचा जा रहा है…"
+  backToLogin: "लॉगिन पर वापस"
 profile:
   edit: "संपादित करें"
   username: "उपयोगकर्ता नाम"

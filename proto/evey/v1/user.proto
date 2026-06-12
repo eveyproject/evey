@@ -126,6 +126,17 @@ service UserService {
     };
   }
 
+  // ValidateInvite reports whether an invite code can still be used to
+  // register, so the registration form can show a clear "link no longer
+  // valid" state instead of a full form that only fails on submit. Public
+  // (the code is the capability); reveals nothing beyond usability + whether
+  // the resulting account is an admin one.
+  rpc ValidateInvite(ValidateInviteRequest) returns (ValidateInviteResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/invites/{code}/validate"
+    };
+  }
+
   rpc InitiateQuickConnect(InitiateQuickConnectRequest) returns (QuickConnectResponse) {
     option (google.api.http) = {
       post: "/api/v1/auth/quick-connect/initiate"
@@ -383,6 +394,15 @@ message RegisterWithInviteRequest {
   string username = 2;
   string password = 3;
   string email = 4;
+}
+
+message ValidateInviteRequest {
+  string code = 1;
+}
+
+message ValidateInviteResponse {
+  bool valid = 1;    // false = revoked, expired, or exhausted
+  bool is_admin = 2; // the account this invite would create is an admin one
 }
 
 message InitiateQuickConnectRequest {}

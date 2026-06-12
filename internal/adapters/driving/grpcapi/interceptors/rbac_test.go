@@ -19,6 +19,7 @@ func TestDefaultRBACConfig_PublicMethods(t *testing.T) {
 		"/evey.v1.UserService/Login",
 		"/evey.v1.UserService/RefreshToken",
 		"/evey.v1.UserService/RegisterWithInvite",
+		"/evey.v1.UserService/ValidateInvite",
 		"/evey.v1.AdminSystemService/SetupWizard",
 		"/evey.v1.AdminSystemService/GetSetupStatus",
 		"/evey.v1.UserService/InitiateQuickConnect",

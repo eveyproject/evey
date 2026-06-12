@@ -81,6 +81,10 @@ register:
   registrationFailed: "Échec de l'inscription"
   alreadyHaveAccount: "Vous avez déjà un compte ?"
   signIn: "Se connecter"
+  inviteInvalidTitle: "Invitation invalide"
+  inviteInvalidMessage: "Ce lien d'invitation a été désactivé, a expiré ou a déjà été utilisé. Demande-en un nouveau au propriétaire du serveur."
+  inviteChecking: "Vérification de ton invitation…"
+  backToLogin: "Retour à la connexion"
 profile:
   edit: "Modifier"
   username: "Nom d'utilisateur"
