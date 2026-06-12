@@ -273,6 +273,23 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
+	// Password change: routed through ChangePassword so it is hashed, length-
+	// validated, and accompanied by refresh-token deletion + token_epoch bump
+	// (the field-update path above never touched the hash, so admin password
+	// changes were silently dropped). Skipped when the field is absent/empty
+	// ("leave blank to keep current").
+	if req.Password != nil && *req.Password != "" {
+		if err := h.userSvc.ChangePassword(ctx, req.Id, *req.Password); err != nil {
+			if errors.Is(err, appuser.ErrPasswordTooShort) {
+				span.SetStatus(otelcodes.Error, "password too short")
+				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
+			}
+			slog.Error("update user password", slog.Any("err", err))
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, status.Errorf(codes.Internal, "internal error")
+		}
+	}
 	return userToProto(u), nil
 }
 

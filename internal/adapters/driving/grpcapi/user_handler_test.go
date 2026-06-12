@@ -267,6 +267,61 @@ func TestUpdateUser_AdminCanSetCaps(t *testing.T) {
 	}
 }
 
+// An admin changing another user's password via UpdateUser must actually
+// persist the new hash — the field used to be silently ignored, so the user
+// could never log in with the new password.
+func TestUpdateUser_AdminChangesPassword(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-admin", Username: "root", Email: "r@b.com", IsAdmin: true}, "pass12345678")
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "oldpassword")
+
+	newPass := "brandnewpass1"
+	if _, err := env.handler.UpdateUser(adminCtx(), &eveyv1.UpdateUserRequest{
+		Id:       "usr-1",
+		Password: &newPass,
+	}); err != nil {
+		t.Fatalf("UpdateUser: %v", err)
+	}
+
+	u, err := env.userRepo.GetByID(context.Background(), "usr-1")
+	if err != nil {
+		t.Fatalf("reload user: %v", err)
+	}
+	// FakePasswordHasher stores "hashed:<password>".
+	if u.PasswordHash != "hashed:"+newPass {
+		t.Fatalf("password hash not updated: got %q", u.PasswordHash)
+	}
+}
+
+func TestUpdateUser_PasswordTooShort_InvalidArgument(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-admin", Username: "root", Email: "r@b.com", IsAdmin: true}, "pass12345678")
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "oldpassword")
+
+	short := "abc"
+	_, err := env.handler.UpdateUser(adminCtx(), &eveyv1.UpdateUserRequest{Id: "usr-1", Password: &short})
+	assertCode(t, err, codes.InvalidArgument)
+}
+
+// An empty/omitted password leaves the existing hash intact ("leave blank to
+// keep current").
+func TestUpdateUser_EmptyPassword_KeepsCurrent(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "oldpassword")
+
+	empty := ""
+	newName := "alice2"
+	if _, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
+		Id: "usr-1", Username: &newName, Password: &empty,
+	}); err != nil {
+		t.Fatalf("UpdateUser: %v", err)
+	}
+	u, _ := env.userRepo.GetByID(context.Background(), "usr-1")
+	if u.PasswordHash != "hashed:oldpassword" {
+		t.Fatalf("password should be unchanged, got %q", u.PasswordHash)
+	}
+}
+
 // --- ListUsers test ---
 
 func TestListUsers_Success(t *testing.T) {
