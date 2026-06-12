@@ -3,16 +3,20 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockScan = vi.fn();
-const mockRefetch = vi.fn();
+const mockJob = vi.fn();
+const startScanMutate = vi.fn();
 const repairOneMutate = vi.fn();
 const rollbackOneMutate = vi.fn();
 const repairLibMutate = vi.fn();
 const rollbackLibMutate = vi.fn();
+const invalidateQueries = vi.fn();
 const mockToast = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
 
 vi.mock("@evey/api", () => ({
   useLibraryServiceListLibraries: () => ({ data: { libraries: [{ id: "lib-1", name: "Films" }] } }),
   useAdminMediaServiceScanSeekIndex: (...args: unknown[]) => mockScan(...args),
+  useAdminMediaServiceGetSeekIndexJob: (...args: unknown[]) => mockJob(...args),
+  useAdminMediaServiceStartSeekIndexScan: () => ({ mutate: startScanMutate, isPending: false }),
   useAdminMediaServiceReindexMediaSeekIndex: () => ({ mutate: repairOneMutate, isPending: false, variables: undefined }),
   useAdminMediaServiceRollbackMediaSeekIndex: () => ({ mutate: rollbackOneMutate, isPending: false, variables: undefined }),
   useAdminMediaServiceReindexLibrarySeekIndex: () => ({ mutate: repairLibMutate, isPending: false }),
@@ -25,6 +29,10 @@ vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,
 }));
 
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries }),
+}));
+
 const scanned = {
   data: {
     items: [
@@ -35,14 +43,43 @@ const scanned = {
     total: 3,
     missingIndex: 1,
     withBackup: 1,
+    scannedAtMs: "1765584000000",
   },
-  isFetching: false,
   isError: false,
   error: null,
-  refetch: mockRefetch,
 };
 
-const notScanned = { data: undefined, isFetching: false, isError: false, error: null, refetch: mockRefetch };
+const notScanned = { data: { items: [], scannedAtMs: "0" }, isError: false, error: null };
+
+const idleJob = { data: { running: false }, queryKey: ["job"] };
+const runningRepairJob = {
+  data: {
+    running: true,
+    kind: "reindex",
+    phase: "processing",
+    done: 3,
+    failed: 1,
+    total: 10,
+    currentPath: "/media/a.mkv",
+  },
+  queryKey: ["job"],
+};
+const finishedWithFailures = {
+  data: {
+    running: false,
+    last: {
+      kind: "reindex",
+      done: 5,
+      failed: 2,
+      total: 5,
+      readOnly: true,
+      failures: [
+        { path: "/media/x.mkv", error: "open /media/x.mkv: read-only file system", readOnly: true },
+      ],
+    },
+  },
+  queryKey: ["job"],
+};
 
 async function getPage() {
   const mod = await import("./seek-index.lazy");
@@ -53,6 +90,7 @@ describe("SeekIndexPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockScan.mockReturnValue(notScanned);
+    mockJob.mockReturnValue(idleJob);
   });
 
   it("renders heading, read-only note and scan button before any scan", async () => {
@@ -64,22 +102,30 @@ describe("SeekIndexPage", () => {
     expect(screen.queryByTestId("seek-index-repair-all-btn")).not.toBeInTheDocument();
   });
 
-  it("clicking Scan triggers a refetch", async () => {
+  it("clicking Scan starts a background scan job", async () => {
     const Page = await getPage();
     render(React.createElement(Page));
     fireEvent.click(screen.getByTestId("seek-index-scan-btn"));
-    expect(mockRefetch).toHaveBeenCalled();
+    expect(startScanMutate).toHaveBeenCalledWith({ data: {} });
   });
 
-  it("after a scan, shows rollups and only files needing attention", async () => {
+  it("after a scan, shows rollups, scan date and only files needing attention", async () => {
     mockScan.mockReturnValue(scanned);
     const Page = await getPage();
     render(React.createElement(Page));
     expect(screen.getByTestId("seek-index-missing-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("seek-index-scanned-at")).toBeInTheDocument();
     // mi-3 is healthy (indexed, no backup) → hidden by the default filter.
     expect(screen.getAllByTestId("seek-index-row")).toHaveLength(2);
     expect(screen.getByText("Movie A")).toBeInTheDocument();
     expect(screen.queryByText("Movie C")).not.toBeInTheDocument();
+  });
+
+  it("a cached response with scannedAtMs 0 is treated as no scan yet", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.queryByTestId("seek-index-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("seek-index-repair-all-btn")).not.toBeInTheDocument();
   });
 
   it("unchecking the attention filter reveals every scanned file", async () => {
@@ -127,5 +173,26 @@ describe("SeekIndexPage", () => {
     fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
     expect(rollbackLibMutate).toHaveBeenCalledWith({ data: {} });
     expect(repairLibMutate).not.toHaveBeenCalled();
+  });
+
+  it("while a job runs, shows the progress card and disables actions", async () => {
+    mockScan.mockReturnValue(scanned);
+    mockJob.mockReturnValue(runningRepairJob);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.getByTestId("seek-index-job-card")).toBeInTheDocument();
+    expect(screen.getByTestId("seek-index-job-progress")).toHaveTextContent("3/10");
+    expect(screen.getByText("a.mkv")).toBeInTheDocument();
+    expect(screen.getByTestId("seek-index-repair-all-btn")).toBeDisabled();
+    expect(screen.getByTestId("seek-index-repair-btn")).toBeDisabled();
+  });
+
+  it("when idle, shows the last job summary with failures and read-only hint", async () => {
+    mockJob.mockReturnValue(finishedWithFailures);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.getByTestId("seek-index-last-job")).toBeInTheDocument();
+    expect(screen.getByTestId("seek-index-ro-hint")).toBeInTheDocument();
+    expect(screen.getAllByText(/x\.mkv/).length).toBeGreaterThan(0);
   });
 });

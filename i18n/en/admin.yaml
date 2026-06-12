@@ -792,14 +792,25 @@ seekIndex:
   backupBadge: Backup
   repair: Repair
   rollback: Roll back
-  repairFailed: Repair failed
-  rollbackFailed: Rollback failed
-  repaired: Seek index rebuilt — the original was kept as a backup
-  skippedAlreadyIndexed: File already has a seek index — nothing to do
-  rolledBack: Original file restored from its backup
-  queuedRepair: "{{count}} file(s) queued for background repair — re-run the scan to follow progress"
-  queuedRollback: "{{count}} file(s) queued for background restore — re-run the scan to follow progress"
-  nothingQueued: Nothing to queue for this scope
+  startFailed: Could not start the operation
+  scanStarted: Scan started — it runs in the background, progress shows below
+  repairStarted: Repair started in the background — progress shows below
+  rollbackStarted: Restore started in the background — progress shows below
+  jobScan: Scan
+  jobReindex: Repair
+  jobRollback: Restore
+  phaseScanning: walking the files
+  phaseProcessing: rewriting the files
+  jobRunning: "{{kind}} in progress — {{phase}}"
+  jobFailedCount: "{{count}} failed"
+  lastJob: Last operation
+  lastJobLine: "{{kind}} — {{done}}/{{total}} file(s) processed"
+  lastJobOk: Completed
+  lastJobError: "The operation failed: {{error}}"
+  jobCompleted: "{{kind}} finished — {{done}} file(s) processed"
+  jobCompletedFailures: "{{kind}} finished — {{done}} file(s) processed, {{failed}} failed"
+  jobReadOnlyHint: "Some files are on a read-only volume. Remount your media folders read-write (remove :ro in docker-compose) and restart the containers, then retry."
+  scannedAt: "Scanned {{date}}"
   repairAllConfirmTitle: Repair library seek indexes
   repairAllConfirm: "Rebuild the seek index of {{count}} file(s) in the background? Each file is validated then swapped atomically; originals are kept as .mkvgobak backups."
   rollbackAllConfirmTitle: Restore originals from backups

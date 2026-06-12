@@ -38,7 +38,13 @@ export type { V1SetupWizardRequest, V1DashboardInfo, V1SystemInfo } from "./gene
 export type { V1Plugin, V1PluginResourceLimits } from "./generated/admin_plugin.schemas";
 export { V1PluginState } from "./generated/admin_plugin.schemas";
 export type { V1ActiveSession, V1AuditLogEntry } from "./generated/admin_session.schemas";
-export type { V1SeekIndexItem, V1ScanSeekIndexResponse } from "./generated/admin_media.schemas";
+export type {
+  V1SeekIndexItem,
+  V1ScanSeekIndexResponse,
+  V1GetSeekIndexJobResponse,
+  V1SeekIndexJobSummary,
+  V1SeekIndexJobFailure,
+} from "./generated/admin_media.schemas";
 export type {
   V1Artwork, V1MediaItem, V1MediaPerson, V1Trailer, V1MediaStream,
   V1Library,

@@ -7,6 +7,7 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
@@ -100,39 +101,121 @@ func (f fakeSeekCatalog) GetMediaFile(context.Context, string) (appmaintenance.M
 type fakeReindexer struct {
 	reindexErr error
 	restoreErr error
+	gate       chan struct{} // when non-nil, ReindexInPlace blocks until closed
 }
 
 func (f fakeReindexer) HasSeekIndex(context.Context, string) (bool, error) { return false, nil }
 func (f fakeReindexer) HasBackup(context.Context, string) (bool, error)    { return false, nil }
 func (f fakeReindexer) ReindexInPlace(context.Context, string, mkv.ReindexOptions) (mkv.ReindexResult, error) {
+	if f.gate != nil {
+		<-f.gate
+	}
 	return mkv.ReindexResult{}, f.reindexErr
 }
 func (f fakeReindexer) RestoreBackup(context.Context, string) error { return f.restoreErr }
 
-// A read-only media volume must surface as FailedPrecondition with the
-// actionable remount message, not as a sanitized 500.
-func TestReindexMediaSeekIndex_ReadOnlyVolume(t *testing.T) {
+// waitJobDone polls the handler's job endpoint until the job finishes and
+// returns the final response (every seek-index entry point is async now).
+func waitJobDone(t *testing.T, d *adminMediaHandler) *eveyv1.GetSeekIndexJobResponse {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		res, err := d.GetSeekIndexJob(context.Background(), &eveyv1.GetSeekIndexJobRequest{})
+		if err != nil {
+			t.Fatalf("GetSeekIndexJob: %v", err)
+		}
+		if !res.Running {
+			return res
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("seek-index job did not finish")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// A read-only media volume must surface in the job summary with the read_only
+// flag so the UI can show the actionable remount message — the repair itself
+// is async (a sync rewrite of a multi-GB file 504s behind a reverse proxy).
+func TestReindexMediaSeekIndex_ReadOnlyVolume_FlagsJobSummary(t *testing.T) {
 	svc := appmaintenance.NewSeekIndexService(
 		fakeReindexer{reindexErr: &os.PathError{Op: "open", Path: "/media/m.mkv", Err: syscall.EROFS}},
 		fakeSeekCatalog{ref: appmaintenance.MediaRef{MediaID: "mi-1", Path: "/media/m.mkv"}},
 		nil,
 	)
 	d := &adminMediaHandler{seekIndex: svc}
-	_, err := d.ReindexMediaSeekIndex(context.Background(), &eveyv1.ReindexMediaSeekIndexRequest{MediaId: "mi-1"})
-	if status.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("want FailedPrecondition, got %v (%v)", status.Code(err), err)
+	res, err := d.ReindexMediaSeekIndex(context.Background(), &eveyv1.ReindexMediaSeekIndexRequest{MediaId: "mi-1"})
+	if err != nil {
+		t.Fatalf("start repair: %v", err)
+	}
+	if !res.Accepted {
+		t.Fatal("repair must be accepted as a background job")
+	}
+	job := waitJobDone(t, d)
+	if job.Last == nil {
+		t.Fatal("finished job must publish a summary")
+	}
+	if !job.Last.ReadOnly {
+		t.Error("EROFS failure must flag the summary read_only")
+	}
+	if len(job.Last.Failures) != 1 || !job.Last.Failures[0].ReadOnly {
+		t.Errorf("want one read-only failure, got %+v", job.Last.Failures)
 	}
 }
 
-func TestRollbackMediaSeekIndex_ReadOnlyVolume(t *testing.T) {
+// While a job runs, every other entry point is refused with ResourceExhausted
+// (mapped from ErrJobRunning) instead of a 500.
+func TestSeekIndexJob_ConcurrentStartRefused(t *testing.T) {
+	gate := make(chan struct{})
 	svc := appmaintenance.NewSeekIndexService(
-		fakeReindexer{restoreErr: &os.PathError{Op: "rename", Path: "/media/m.mkv", Err: syscall.EROFS}},
+		fakeReindexer{gate: gate},
 		fakeSeekCatalog{ref: appmaintenance.MediaRef{MediaID: "mi-1", Path: "/media/m.mkv"}},
 		nil,
 	)
 	d := &adminMediaHandler{seekIndex: svc}
-	_, err := d.RollbackMediaSeekIndex(context.Background(), &eveyv1.RollbackMediaSeekIndexRequest{MediaId: "mi-1"})
-	if status.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("want FailedPrecondition, got %v (%v)", status.Code(err), err)
+	if _, err := d.ReindexMediaSeekIndex(context.Background(), &eveyv1.ReindexMediaSeekIndexRequest{MediaId: "mi-1"}); err != nil {
+		t.Fatalf("start repair: %v", err)
+	}
+	_, err := d.StartSeekIndexScan(context.Background(), &eveyv1.StartSeekIndexScanRequest{})
+	if status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("want ResourceExhausted while a job runs, got %v (%v)", status.Code(err), err)
+	}
+	close(gate)
+	waitJobDone(t, d)
+}
+
+// ScanSeekIndex serves the cached scan: empty with scanned_at_ms == 0 before
+// any scan, populated after a StartSeekIndexScan job completes.
+func TestScanSeekIndex_ServesCachedResult(t *testing.T) {
+	svc := appmaintenance.NewSeekIndexService(
+		fakeReindexer{},
+		fakeSeekCatalog{ref: appmaintenance.MediaRef{MediaID: "mi-1", Path: "/media/m.mkv"}},
+		nil,
+	)
+	d := &adminMediaHandler{seekIndex: svc}
+
+	res, err := d.ScanSeekIndex(context.Background(), &eveyv1.ScanSeekIndexRequest{})
+	if err != nil {
+		t.Fatalf("cached scan: %v", err)
+	}
+	if res.ScannedAtMs != 0 || len(res.Items) != 0 {
+		t.Fatalf("want empty cache before first scan, got %+v", res)
+	}
+
+	if _, err := d.StartSeekIndexScan(context.Background(), &eveyv1.StartSeekIndexScanRequest{}); err != nil {
+		t.Fatalf("start scan: %v", err)
+	}
+	waitJobDone(t, d)
+
+	res, err = d.ScanSeekIndex(context.Background(), &eveyv1.ScanSeekIndexRequest{})
+	if err != nil {
+		t.Fatalf("cached scan: %v", err)
+	}
+	if res.ScannedAtMs == 0 {
+		t.Error("scanned_at_ms must be set after a completed scan")
+	}
+	// The fake catalog's only file doesn't exist on disk → walked but skipped.
+	if res.Total != 0 {
+		t.Errorf("ghost file must not be counted, got total=%d", res.Total)
 	}
 }

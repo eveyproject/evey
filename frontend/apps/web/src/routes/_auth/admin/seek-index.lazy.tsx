@@ -1,17 +1,20 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScanSearch } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import {
   useLibraryServiceListLibraries,
   useAdminMediaServiceScanSeekIndex,
+  useAdminMediaServiceStartSeekIndexScan,
+  useAdminMediaServiceGetSeekIndexJob,
   useAdminMediaServiceReindexMediaSeekIndex,
   useAdminMediaServiceRollbackMediaSeekIndex,
   useAdminMediaServiceReindexLibrarySeekIndex,
   useAdminMediaServiceRollbackLibrarySeekIndex,
 } from "@evey/api";
-import type { V1SeekIndexItem } from "@evey/api";
+import type { V1SeekIndexItem, V1GetSeekIndexJobResponse, V1SeekIndexJobFailure } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -26,6 +29,16 @@ export const Route = createLazyFileRoute("/_auth/admin/seek-index")({
   component: SeekIndexPage,
 });
 
+// Base path of the cached-scan GET — invalidating it refreshes every scope's
+// cached result once a job finishes (the job key has a different base string).
+const SCAN_QUERY_BASE = "/api/v1/admin/media/seek-index";
+
+const KIND_KEYS: Record<string, string> = {
+  scan: "admin.seekIndex.jobScan",
+  reindex: "admin.seekIndex.jobReindex",
+  rollback: "admin.seekIndex.jobRollback",
+};
+
 function formatSize(bytes: number): string {
   if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -37,8 +50,113 @@ function errText(err: { message?: string } | null | undefined, fallback: string)
   return err?.message || fallback;
 }
 
+function baseName(p: string): string {
+  const i = p.lastIndexOf("/");
+  return i >= 0 ? p.slice(i + 1) : p;
+}
+
+function JobProgressCard({ job }: { job: V1GetSeekIndexJobResponse }) {
+  const { t } = useTranslation();
+  const done = job.done ?? 0;
+  const total = job.total ?? 0;
+  const failed = job.failed ?? 0;
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+  const kind = t(KIND_KEYS[job.kind ?? ""] ?? KIND_KEYS.scan);
+  const phase =
+    job.phase === "processing"
+      ? t("admin.seekIndex.phaseProcessing")
+      : t("admin.seekIndex.phaseScanning");
+
+  return (
+    <Card data-testid="seek-index-job-card">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Spinner size="sm" />
+          <span className="text-sm font-medium text-[var(--text)]">
+            {t("admin.seekIndex.jobRunning", { kind, phase })}
+          </span>
+        </div>
+        <span className="text-sm text-[var(--text-muted)]" data-testid="seek-index-job-progress">
+          {total > 0 ? `${done}/${total}` : "…"}
+          {failed > 0 && (
+            <span className="text-[var(--color-danger)] ml-2">
+              {t("admin.seekIndex.jobFailedCount", { count: failed })}
+            </span>
+          )}
+        </span>
+      </div>
+      <div className="h-2 rounded-full bg-[var(--surface-hover)] overflow-hidden">
+        <div
+          className={`h-full bg-[var(--accent)] transition-all ${total === 0 ? "w-full opacity-40 animate-pulse" : ""}`}
+          style={total > 0 ? { width: `${pct}%` } : undefined}
+        />
+      </div>
+      {job.currentPath && (
+        <p
+          className="mt-2 font-mono text-xs text-[var(--text-muted)] truncate"
+          title={job.currentPath}
+        >
+          {baseName(job.currentPath)}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+function LastJobCard({ last }: { last: NonNullable<V1GetSeekIndexJobResponse["last"]> }) {
+  const { t } = useTranslation();
+  const kind = t(KIND_KEYS[last.kind ?? ""] ?? KIND_KEYS.scan);
+  const failed = last.failed ?? 0;
+  const failures = last.failures ?? [];
+
+  return (
+    <Card data-testid="seek-index-last-job">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-medium text-[var(--text)]">{t("admin.seekIndex.lastJob")}</span>
+        <span className="text-[var(--text-muted)]">
+          {t("admin.seekIndex.lastJobLine", {
+            kind,
+            done: last.done ?? 0,
+            total: last.total ?? 0,
+            failed,
+          })}
+        </span>
+        {failed > 0 ? (
+          <Badge variant="warning">{t("admin.seekIndex.jobFailedCount", { count: failed })}</Badge>
+        ) : !last.error ? (
+          <Badge variant="success">{t("admin.seekIndex.lastJobOk")}</Badge>
+        ) : null}
+      </div>
+      {last.error && (
+        <p className="mt-2 text-sm text-[var(--color-danger)]" role="alert">
+          {t("admin.seekIndex.lastJobError", { error: last.error })}
+        </p>
+      )}
+      {last.readOnly && (
+        <p className="mt-2 text-sm text-[var(--color-warning)]" data-testid="seek-index-ro-hint">
+          {t("admin.seekIndex.jobReadOnlyHint")}
+        </p>
+      )}
+      {failures.length > 0 && (
+        <ul className="mt-2 flex flex-col gap-1">
+          {failures.map((f: V1SeekIndexJobFailure) => (
+            <li key={f.path} className="text-xs text-[var(--text-muted)]">
+              <span className="font-mono" title={f.path}>
+                {baseName(f.path ?? "")}
+              </span>
+              {" — "}
+              {f.error}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 function SeekIndexPage() {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [libraryId, setLibraryId] = useState("");
   const [onlyAttention, setOnlyAttention] = useState(true);
   const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | null>(null);
@@ -46,68 +164,94 @@ function SeekIndexPage() {
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
 
-  // Scanning walks every MKV/WebM of the scope on disk — manual trigger only.
-  const scan = useAdminMediaServiceScanSeekIndex(libraryId ? { libraryId } : undefined, {
-    query: { enabled: false, retry: false },
+  // The job endpoint is the live heartbeat: poll fast while a job runs so the
+  // progress bar moves, slowly otherwise to pick up jobs started elsewhere.
+  const jobQuery = useAdminMediaServiceGetSeekIndexJob({
+    query: {
+      refetchInterval: (q) => (q.state.data?.running ? 1500 : 10_000),
+      refetchIntervalInBackground: false,
+    },
   });
-  const result = scan.data;
+  const job = jobQuery.data;
+  const running = job?.running ?? false;
+
+  // Serves the cached result of the last completed scan — instant.
+  const scan = useAdminMediaServiceScanSeekIndex(libraryId ? { libraryId } : undefined, {
+    query: { retry: false },
+  });
+  const hasScan = Number(scan.data?.scannedAtMs ?? 0) > 0;
+  const result = hasScan ? scan.data : undefined;
   const items = result?.items ?? [];
   const missing = result?.missingIndex ?? 0;
   const withBackup = result?.withBackup ?? 0;
 
-  const refreshScan = () => void scan.refetch();
+  // When the running job finishes, refresh the cached scans and report the
+  // outcome — completion happens server-side, not in a mutation callback.
+  const prevRunning = useRef(false);
+  useEffect(() => {
+    if (prevRunning.current && !running) {
+      void queryClient.invalidateQueries({ queryKey: [SCAN_QUERY_BASE] });
+      const last = job?.last;
+      if (last) {
+        const kind = t(KIND_KEYS[last.kind ?? ""] ?? KIND_KEYS.scan);
+        if (last.error) {
+          toast.error(t("admin.seekIndex.lastJobError", { error: last.error }));
+        } else if ((last.failed ?? 0) > 0) {
+          toast.error(
+            t("admin.seekIndex.jobCompletedFailures", {
+              kind,
+              done: last.done ?? 0,
+              failed: last.failed ?? 0,
+            }),
+          );
+        } else {
+          toast.success(t("admin.seekIndex.jobCompleted", { kind, done: last.done ?? 0 }));
+        }
+      }
+    }
+    prevRunning.current = running;
+  }, [running, job?.last, queryClient, t]);
 
+  const onStarted = (msgKey: string) => () => {
+    toast.info(t(msgKey));
+    void queryClient.invalidateQueries({ queryKey: jobQuery.queryKey ?? [] });
+  };
+  const onStartError = (err: { message?: string } | null) =>
+    toast.error(errText(err, t("admin.seekIndex.startFailed")));
+
+  const startScan = useAdminMediaServiceStartSeekIndexScan({
+    mutation: {
+      onSuccess: onStarted("admin.seekIndex.scanStarted"),
+      onError: onStartError,
+    },
+  });
   const repairOne = useAdminMediaServiceReindexMediaSeekIndex({
     mutation: {
-      onSuccess: (res) => {
-        if (res.skipped) toast.info(t("admin.seekIndex.skippedAlreadyIndexed"));
-        else toast.success(t("admin.seekIndex.repaired"));
-        refreshScan();
-      },
-      onError: (err) => toast.error(errText(err, t("admin.seekIndex.repairFailed"))),
+      onSuccess: onStarted("admin.seekIndex.repairStarted"),
+      onError: onStartError,
     },
   });
-
   const rollbackOne = useAdminMediaServiceRollbackMediaSeekIndex({
     mutation: {
-      onSuccess: () => {
-        toast.success(t("admin.seekIndex.rolledBack"));
-        refreshScan();
-      },
-      onError: (err) => toast.error(errText(err, t("admin.seekIndex.rollbackFailed"))),
+      onSuccess: onStarted("admin.seekIndex.rollbackStarted"),
+      onError: onStartError,
     },
   });
-
   const repairLib = useAdminMediaServiceReindexLibrarySeekIndex({
     mutation: {
-      onSuccess: (res) => {
-        const queued = res.queued ?? 0;
-        if (queued === 0) toast.info(t("admin.seekIndex.nothingQueued"));
-        else toast.success(t("admin.seekIndex.queuedRepair", { count: queued }));
-      },
-      onError: (err) => toast.error(errText(err, t("admin.seekIndex.repairFailed"))),
+      onSuccess: onStarted("admin.seekIndex.repairStarted"),
+      onError: onStartError,
     },
   });
-
   const rollbackLib = useAdminMediaServiceRollbackLibrarySeekIndex({
     mutation: {
-      onSuccess: (res) => {
-        const queued = res.queued ?? 0;
-        if (queued === 0) toast.info(t("admin.seekIndex.nothingQueued"));
-        else toast.success(t("admin.seekIndex.queuedRollback", { count: queued }));
-      },
-      onError: (err) => toast.error(errText(err, t("admin.seekIndex.rollbackFailed"))),
+      onSuccess: onStarted("admin.seekIndex.rollbackStarted"),
+      onError: onStartError,
     },
   });
 
   const visible = onlyAttention ? items.filter((it) => !it.hasIndex || it.hasBackup) : items;
-
-  function rowRepairPending(it: V1SeekIndexItem): boolean {
-    return repairOne.isPending && repairOne.variables?.mediaId === it.mediaId;
-  }
-  function rowRollbackPending(it: V1SeekIndexItem): boolean {
-    return rollbackOne.isPending && rollbackOne.variables?.mediaId === it.mediaId;
-  }
+  const busy = running || startScan.isPending;
 
   return (
     <div className="flex flex-col gap-6" data-testid="seek-index-page">
@@ -132,14 +276,18 @@ function SeekIndexPage() {
             ]}
           />
         </div>
-        <Button onClick={refreshScan} loading={scan.isFetching} data-testid="seek-index-scan-btn">
+        <Button
+          onClick={() => startScan.mutate({ data: libraryId ? { libraryId } : {} })}
+          loading={busy}
+          data-testid="seek-index-scan-btn"
+        >
           {result ? t("admin.seekIndex.scanAgain") : t("admin.seekIndex.scan")}
         </Button>
         {result && (
           <>
             <Button
               variant="secondary"
-              disabled={missing === 0}
+              disabled={missing === 0 || busy}
               onClick={() => setConfirmBatch("repair")}
               data-testid="seek-index-repair-all-btn"
             >
@@ -147,7 +295,7 @@ function SeekIndexPage() {
             </Button>
             <Button
               variant="secondary"
-              disabled={withBackup === 0}
+              disabled={withBackup === 0 || busy}
               onClick={() => setConfirmBatch("rollback")}
               data-testid="seek-index-rollback-all-btn"
             >
@@ -157,17 +305,16 @@ function SeekIndexPage() {
         )}
       </div>
 
+      {running && job && <JobProgressCard job={job} />}
+      {!running && job?.last && <LastJobCard last={job.last} />}
+
       {scan.isError && (
         <p className="text-sm text-[var(--color-danger)]" role="alert">
           {errText(scan.error, t("admin.seekIndex.scanFailed"))}
         </p>
       )}
 
-      {scan.isFetching ? (
-        <div className="flex justify-center py-16">
-          <Spinner size="lg" />
-        </div>
-      ) : !result ? (
+      {!result ? (
         <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
           <EmptyState
             icon={<ScanSearch size={48} strokeWidth={1.5} />}
@@ -200,11 +347,18 @@ function SeekIndexPage() {
             </Card>
           </div>
 
-          <Checkbox
-            label={t("admin.seekIndex.onlyAttention")}
-            checked={onlyAttention}
-            onChange={setOnlyAttention}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Checkbox
+              label={t("admin.seekIndex.onlyAttention")}
+              checked={onlyAttention}
+              onChange={setOnlyAttention}
+            />
+            <span className="text-xs text-[var(--text-muted)]" data-testid="seek-index-scanned-at">
+              {t("admin.seekIndex.scannedAt", {
+                date: new Date(Number(result.scannedAtMs)).toLocaleString(),
+              })}
+            </span>
+          </div>
 
           {items.length === 0 ? (
             <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
@@ -235,7 +389,7 @@ function SeekIndexPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {visible.map((it) => (
+                  {visible.map((it: V1SeekIndexItem) => (
                     <tr key={it.mediaId} className="border-b border-[var(--border)]" data-testid="seek-index-row">
                       <td className="px-4 py-3">
                         <div className="text-[var(--text)]">{it.title || it.path}</div>
@@ -270,7 +424,8 @@ function SeekIndexPage() {
                             <Button
                               variant="secondary"
                               className="text-xs"
-                              loading={rowRepairPending(it)}
+                              disabled={busy}
+                              loading={repairOne.isPending && repairOne.variables?.mediaId === it.mediaId}
                               onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId })}
                               data-testid="seek-index-repair-btn"
                             >
@@ -281,7 +436,8 @@ function SeekIndexPage() {
                             <Button
                               variant="ghost"
                               className="text-xs"
-                              loading={rowRollbackPending(it)}
+                              disabled={busy}
+                              loading={rollbackOne.isPending && rollbackOne.variables?.mediaId === it.mediaId}
                               onClick={() => it.mediaId && rollbackOne.mutate({ mediaId: it.mediaId })}
                               data-testid="seek-index-rollback-btn"
                             >
