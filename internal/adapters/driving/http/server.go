@@ -285,7 +285,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// (which creates the session) transitively protects the segment handler.
 	parentalChk := NewParentalChecker(s.UserQuerySvc)
 
-	mhOpts := []mediaServeOption{withParental(parentalChk)}
+	mhOpts := []mediaServeOption{withParental(parentalChk), withLibraryLister(s.LibQuerySvc)}
 	if s.ImageConverter != nil {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}

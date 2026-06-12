@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -328,3 +329,75 @@ var errTest = &testError{"test error"}
 type testError struct{ msg string }
 
 func (e *testError) Error() string { return e.msg }
+
+// --- tests: handleStream path confinement ---
+
+// newStreamConfinementHandler builds the stream handler with a real on-disk
+// media file and the given library roots wired through withLibraryLister.
+func newStreamConfinementHandler(t *testing.T, mediaPath string, roots []string) http.HandlerFunc {
+	t.Helper()
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{Path: mediaPath},
+	}
+	var libs []*domainlibrary.Library
+	if roots != nil {
+		libs = []*domainlibrary.Library{{ID: "lib1", Paths: roots}}
+	}
+	return mediaHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeMediaItemGetter{item: item},
+		&fakeArtworkRepo{},
+		"http://localhost",
+		allowAll(),
+		withLibraryLister(&fakeLibraryLister{libs: libs}),
+	)
+}
+
+func streamRequest(h http.HandlerFunc) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/stream", nil)
+	req.SetPathValue("id", "m1")
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, testClaims(false)))
+	w := httptest.NewRecorder()
+	h(w, req)
+	return w
+}
+
+// A DB path outside every configured library root must 404 instead of being
+// served — otherwise a poisoned media_files row reads arbitrary host files.
+func TestStream_PathOutsideRoots_404(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	libRoot := t.TempDir() // roots elsewhere
+	w := streamRequest(newStreamConfinementHandler(t, outside, []string{libRoot}))
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("want 404 for out-of-roots path, got %d", w.Code)
+	}
+}
+
+func TestStream_PathInsideRoots_200(t *testing.T) {
+	root := t.TempDir()
+	media := filepath.Join(root, "movie.mkv")
+	if err := os.WriteFile(media, []byte("mkv-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := streamRequest(newStreamConfinementHandler(t, media, []string{root}))
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200 for in-roots path, got %d (%s)", w.Code, w.Body.String())
+	}
+}
+
+// No roots known (empty library list) keeps the historical fail-open
+// behaviour — confinement is defense-in-depth, not the access gate.
+func TestStream_NoRootsKnown_FailsOpen(t *testing.T) {
+	media := filepath.Join(t.TempDir(), "movie.mkv")
+	if err := os.WriteFile(media, []byte("mkv-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	w := streamRequest(newStreamConfinementHandler(t, media, nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200 when roots unknown, got %d", w.Code)
+	}
+}

@@ -95,6 +95,7 @@ type mediaServe struct {
 	baseURL       string
 	libraryAccess LibraryAccessChecker
 	parental      ParentalChecker
+	libLister     LibraryLister // optional: confines streamed paths to library roots
 }
 
 // ArtworkWebPWriter updates the WebP path on an artwork record.
@@ -115,6 +116,13 @@ func withImageConverter(conv ImageConverter, writer ArtworkWebPWriter) mediaServ
 // option so the many mediaHandler test call sites stay unchanged.
 func withParental(pc ParentalChecker) mediaServeOption {
 	return func(h *mediaServe) { h.parental = pc }
+}
+
+// withLibraryLister wires library-root path confinement onto the stream
+// handler (the same defense-in-depth serveDownload applies): a poisoned DB
+// path must not turn the stream endpoint into an arbitrary-file read.
+func withLibraryLister(ll LibraryLister) mediaServeOption {
+	return func(h *mediaServe) { h.libLister = ll }
 }
 
 func mediaHandler(tokens TokenVerifier, libSvc MediaItemGetter, artworkRepo ArtworkReader, baseURL string, libraryAccess LibraryAccessChecker, opts ...mediaServeOption) http.HandlerFunc {
@@ -164,6 +172,16 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	}
 	if item.File == nil || item.File.Path == "" {
 		span.SetStatus(codes.Error, "media file missing")
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	// Mirror serveDownload's confinement: only files under the configured
+	// library roots are served, so a DB-poisoned path can't exfiltrate
+	// arbitrary host files. Same fail-open semantics on unknown roots.
+	if h.libLister != nil && !pathWithinRoots(mediaRoots(r.Context(), h.libLister), item.File.Path) {
+		span.SetStatus(codes.Error, "file outside library roots")
+		slog.Warn("stream: file path outside configured library roots",
+			slog.String("media_id", mediaID), slog.String("path", item.File.Path))
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -315,7 +333,7 @@ func archivableFile(it *library.MediaItem, roots []string) bool {
 // mediaRoots returns the cleaned set of configured library paths. Returns nil
 // on error or when none are configured — callers treat nil as "unknown" and
 // fall open (the path confinement is defense-in-depth, not the access gate).
-func mediaRoots(ctx context.Context, libSvc MediaArchiveSource) []string {
+func mediaRoots(ctx context.Context, libSvc LibraryLister) []string {
 	libs, err := libSvc.ListLibraries(ctx)
 	if err != nil {
 		slog.Warn("download archive: list libraries for path confinement", slog.Any("err", err))
