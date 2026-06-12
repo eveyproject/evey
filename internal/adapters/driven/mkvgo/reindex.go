@@ -21,6 +21,44 @@ import (
 // reads derive DurationMs.
 const durToleranceMs = 50
 
+// backupSuffix is the extension appended to an original file before a reindex
+// swaps the rebuilt version in. Kept in one place so HasBackup/RestoreBackup and
+// ReindexInPlace agree.
+const backupSuffix = ".mkvgobak"
+
+// HasBackup reports whether path has a reindex backup it can be rolled back to.
+func (a *Adapter) HasBackup(_ context.Context, path string) (bool, error) {
+	_, err := os.Stat(path + backupSuffix)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+// RestoreBackup atomically replaces path with its backup, undoing a reindex.
+func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
+	_, span := tracing.StartSpan(ctx, "mkvgo.RestoreBackup")
+	defer span.End()
+
+	bak := path + backupSuffix
+	if _, err := os.Stat(bak); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("restore: no backup at %q", bak)
+		}
+		return fmt.Errorf("restore: stat backup: %w", err)
+	}
+	// os.Rename is atomic on the same filesystem (the backup sits beside path),
+	// so the original is swapped back in a single step and the reindexed file is
+	// discarded.
+	if err := os.Rename(bak, path); err != nil {
+		return fmt.Errorf("restore: swap backup in: %w", err)
+	}
+	return nil
+}
+
 // HasSeekIndex reports whether the EBML file at path already has a Cues index.
 func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.HasSeekIndex")
@@ -132,7 +170,7 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	}
 
 	// (5) Atomic swap with a recoverable backup.
-	bak := path + ".mkvgobak"
+	bak := path + backupSuffix
 	if err := os.Rename(path, bak); err != nil {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: back up original: %w", err)
 	}

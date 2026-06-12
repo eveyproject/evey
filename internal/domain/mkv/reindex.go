@@ -19,6 +19,14 @@ type Reindexer interface {
 	// failure the original file is left byte-for-byte untouched. Returns
 	// Skipped=true when the file already has an index or is not an EBML container.
 	ReindexInPlace(ctx context.Context, path string, opts ReindexOptions) (ReindexResult, error)
+
+	// HasBackup reports whether a reindex backup ("<path>.mkvgobak") exists, i.e.
+	// whether path can be rolled back to its pre-reindex state.
+	HasBackup(ctx context.Context, path string) (bool, error)
+
+	// RestoreBackup undoes a prior reindex by atomically replacing path with its
+	// "<path>.mkvgobak" backup. Returns an error if no backup exists.
+	RestoreBackup(ctx context.Context, path string) error
 }
 
 // ReindexOptions tunes the safe-replace behaviour.

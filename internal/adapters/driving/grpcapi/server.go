@@ -15,6 +15,7 @@ import (
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	appfeed "github.com/evey-project/evey/internal/app/feed"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmedia "github.com/evey-project/evey/internal/app/media"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
@@ -58,7 +59,7 @@ type GRPCServerDeps struct {
 	PluginRunner           pluginResourceController
 	PluginResourceDefaults appplugin.ResourceDefaults
 	// PluginData backs the iframe-facing plugin preference RPCs.
-	PluginData plugin.PluginDataRepository
+	PluginData      plugin.PluginDataRepository
 	MetadataCmd     *appmetadata.CommandService
 	MetadataQuery   *appmetadata.QueryService
 	ActivityCmd     *appactivity.CommandService
@@ -77,31 +78,34 @@ type GRPCServerDeps struct {
 	CfgStore        remoteAccessConfigStore
 	Version         string
 	// Fields previously set via Set* methods
-	HLSVODOrch     *apptranscoding.SegmentOrchestrator
-	Scheduler      *applibrary.Scheduler
-	LogDir         string
-	ServerCtx      context.Context
-	Translator     *eveyi18n.Translator
-	SMTPConfigured bool
-	ServerCfgSvc   *appconfig.Service    // optional: nil = service not registered
-	ShareSvc       *appmedia.ShareService   // optional
-	BioEnricher    appmetadata.PeopleBioEnricher // optional
-	Music          *appmusic.Service    // optional
-	Photo          *appphoto.Service    // optional
-	PushEnabled    bool // optional
-	VAPIDPubKey    string
-	PushRegisterRL *ratelimit.Limiter
-	SyncplayHub    *appsyncplay.Hub     // optional
-	StarRating       *apprating.Service
-	QuickConnectHub  *quickconnecthub.Hub
-	IntroCache       IntroCacheInvalidator // optional
-	IntroBackfill    IntroBackfiller       // optional
+	HLSVODOrch      *apptranscoding.SegmentOrchestrator
+	Scheduler       *applibrary.Scheduler
+	LogDir          string
+	ServerCtx       context.Context
+	Translator      *eveyi18n.Translator
+	SMTPConfigured  bool
+	ServerCfgSvc    *appconfig.Service            // optional: nil = service not registered
+	ShareSvc        *appmedia.ShareService        // optional
+	BioEnricher     appmetadata.PeopleBioEnricher // optional
+	Music           *appmusic.Service             // optional
+	Photo           *appphoto.Service             // optional
+	PushEnabled     bool                          // optional
+	VAPIDPubKey     string
+	PushRegisterRL  *ratelimit.Limiter
+	SyncplayHub     *appsyncplay.Hub // optional
+	StarRating      *apprating.Service
+	QuickConnectHub *quickconnecthub.Hub
+	IntroCache      IntroCacheInvalidator // optional
+	IntroBackfill   IntroBackfiller       // optional
+	// SeekIndex backs the admin MKV/WebM seek-index scan/reindex/rollback RPCs.
+	// Optional: nil → those RPCs return Unimplemented ("service not configured").
+	SeekIndex *appmaintenance.SeekIndexService
 }
 
 type GRPCServer struct {
-	server    *grpc.Server
-	deps      GRPCServerDeps
-	startTime time.Time
+	server     *grpc.Server
+	deps       GRPCServerDeps
+	startTime  time.Time
 	ffmpegPath string
 }
 
@@ -165,6 +169,7 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterAdminMediaServiceServer(s.server, &adminMediaHandler{
 		metadataCmd:      d.MetadataCmd,
 		libCmd:           d.LibCmd,
+		seekIndex:        d.SeekIndex,
 		heavyOpSemaphore: make(chan struct{}, 1),
 		translator:       d.Translator,
 	})

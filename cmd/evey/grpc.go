@@ -6,8 +6,10 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	"github.com/evey-project/evey/internal/config"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
@@ -25,6 +27,15 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		}
 	}
 	grpcLog := eveylogger.NewWith(rootLog, "grpc")
+
+	// Admin MKV/WebM seek-index maintenance (scan/reindex/rollback). The mkvgo
+	// adapter is stateless, and the catalog paginates the library to feed every
+	// file to the scanner.
+	seekIndexSvc := appmaintenance.NewSeekIndexService(
+		mkvgo.New(),
+		seekIndexCatalog{lib: deps.library.querySvc},
+		eveylogger.NewWith(rootLog, "seek-index"),
+	)
 
 	grpcDeps := grpcapi.GRPCServerDeps{
 		LibCmd:                 deps.library.cmdSvc,
@@ -77,6 +88,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		QuickConnectHub:        qcHub,
 		IntroCache:             deps.repos.introMetaCache,
 		IntroBackfill:          deps.library.introDetectionSvc,
+		SeekIndex:              seekIndexSvc,
 	}
 
 	if deps.repos.pushSubRepo != nil {

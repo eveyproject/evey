@@ -37,6 +37,113 @@ service AdminMediaService {
       delete: "/api/v1/admin/media/{id}"
     };
   }
+
+  // ScanSeekIndex inspects every MKV/WebM media file in a library (or all
+  // libraries) and reports whether it carries a seek index (Cues). Read-only:
+  // it never modifies a file. Files without an index seek/resume slowly because
+  // the player has to scan linearly; has_backup reports whether a prior reindex
+  // left a restorable .mkvgobak.
+  rpc ScanSeekIndex(ScanSeekIndexRequest) returns (ScanSeekIndexResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/media/seek-index"
+    };
+  }
+
+  // ReindexMediaSeekIndex rebuilds one media file's seek index in place. The
+  // rebuild is validated + cross-checked before an atomic swap and the original
+  // is kept as a .mkvgobak; on any failure the original is left untouched.
+  rpc ReindexMediaSeekIndex(ReindexMediaSeekIndexRequest) returns (ReindexMediaSeekIndexResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/{media_id}/seek-index/reindex"
+    };
+  }
+
+  // RollbackMediaSeekIndex restores one media file from its .mkvgobak backup,
+  // undoing a prior reindex. Fails if no backup exists.
+  rpc RollbackMediaSeekIndex(RollbackMediaSeekIndexRequest) returns (RollbackMediaSeekIndexResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/{media_id}/seek-index/rollback"
+    };
+  }
+
+  // ReindexLibrarySeekIndex reindexes every un-indexed file in a library in the
+  // background and returns immediately with the number of candidates queued.
+  // Progress is observable by re-running ScanSeekIndex (has_index flips true).
+  rpc ReindexLibrarySeekIndex(ReindexLibrarySeekIndexRequest) returns (ReindexLibrarySeekIndexResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/seek-index/reindex-library"
+      body: "*"
+    };
+  }
+
+  // RollbackLibrarySeekIndex restores every media file in a library that has a
+  // .mkvgobak backup, in the background. Returns the number queued.
+  rpc RollbackLibrarySeekIndex(RollbackLibrarySeekIndexRequest) returns (RollbackLibrarySeekIndexResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/seek-index/rollback-library"
+      body: "*"
+    };
+  }
+}
+
+// SeekIndexItem is the per-file diagnosis surfaced by ScanSeekIndex.
+message SeekIndexItem {
+  string media_id = 1;
+  string title = 2;
+  string path = 3;
+  bool has_index = 4;    // false = muxed without Cues → slow seek/resume
+  bool has_backup = 5;   // a .mkvgobak exists → a prior reindex is rollback-able
+  int64 size_bytes = 6;
+  string container = 7;  // e.g. "mkv", "webm"
+}
+
+message ScanSeekIndexRequest {
+  // Optional: when set, only this library is scanned. Empty = every library.
+  string library_id = 1;
+}
+
+message ScanSeekIndexResponse {
+  repeated SeekIndexItem items = 1;
+  int32 total = 2;        // EBML files inspected
+  int32 missing_index = 3; // count with has_index == false
+  int32 with_backup = 4;   // count with has_backup == true
+}
+
+message ReindexMediaSeekIndexRequest {
+  string media_id = 1;
+}
+
+message ReindexMediaSeekIndexResponse {
+  bool skipped = 1;        // already indexed / not an EBML container
+  bool reindexed = 2;
+  string backup_path = 3;
+  repeated string warnings = 4;
+  int64 src_bytes = 5;
+  int64 dst_bytes = 6;
+}
+
+message RollbackMediaSeekIndexRequest {
+  string media_id = 1;
+}
+
+message RollbackMediaSeekIndexResponse {
+  bool restored = 1;
+}
+
+message ReindexLibrarySeekIndexRequest {
+  string library_id = 1;
+}
+
+message ReindexLibrarySeekIndexResponse {
+  int32 queued = 1; // un-indexed files scheduled for background reindex
+}
+
+message RollbackLibrarySeekIndexRequest {
+  string library_id = 1;
+}
+
+message RollbackLibrarySeekIndexResponse {
+  int32 queued = 1; // backed-up files scheduled for background restore
 }
 
 message RefreshAllMetadataRequest {
