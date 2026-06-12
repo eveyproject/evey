@@ -270,7 +270,7 @@ function ActivityPage() {
         const data = await activityServiceGetPlayHistory({ "pagination.pageSize": 10000 });
         downloadJSON(data, `play-history-${timestamp}.json`);
       } else if (tab === "audit") {
-        const data = await eveyFetch<unknown>({ url: "/api/v1/admin/audit?limit=10000", method: "GET" });
+        const data = await eveyFetch<unknown>({ url: "/api/v1/admin/audit-log?limit=10000", method: "GET" });
         downloadJSON(data, `audit-log-${timestamp}.json`);
       } else {
         const data = await activityServiceGetServerStats();
