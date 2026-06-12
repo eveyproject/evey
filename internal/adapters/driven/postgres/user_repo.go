@@ -231,6 +231,48 @@ func (r *UserRepository) CountEnabledAdmins(ctx context.Context) (int, error) {
 	return count, nil
 }
 
+// GetTokenEpoch returns the user's current access-token revocation counter.
+// Kept out of userColumns/Update on purpose: token_epoch is only ever mutated
+// through the atomic BumpTokenEpoch, never overwritten by a stale struct.
+func (r *UserRepository) GetTokenEpoch(ctx context.Context, id shared.UserID) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.GetTokenEpoch")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var epoch int64
+	err := r.db.QueryRowContext(ctx, `SELECT token_epoch FROM users WHERE id = $1`, string(id)).Scan(&epoch)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, shared.ErrNotFound
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, fmt.Errorf("get token epoch: %w", err)
+	}
+	return epoch, nil
+}
+
+// BumpTokenEpoch atomically increments the revocation counter, invalidating
+// every access token minted with the previous value.
+func (r *UserRepository) BumpTokenEpoch(ctx context.Context, id shared.UserID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.BumpTokenEpoch")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(id)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE users SET token_epoch = token_epoch + 1 WHERE id = $1`, string(id))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("bump token epoch: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 	u := &user.User{}
 	err := row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.Enabled,

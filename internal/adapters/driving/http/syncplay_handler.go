@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -15,18 +16,17 @@ import (
 
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type syncplayHandler struct {
 	hub        *appsyncplay.Hub
-	tokenGen   *auth.JWTGenerator
+	tokenGen   domainuser.TokenGenerator
 	media      mediaLibraryGetter
 	libChecker LibraryAccessChecker
 }
 
-func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *auth.JWTGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker) {
+func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen domainuser.TokenGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker) {
 	h := &syncplayHandler{
 		hub:        hub,
 		tokenGen:   tokenGen,
@@ -40,7 +40,7 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen *
 type wsCtxKey string
 
 const (
-	wsCtxUserID  wsCtxKey = "userID"
+	wsCtxUserID   wsCtxKey = "userID"
 	wsCtxUsername wsCtxKey = "username"
 )
 

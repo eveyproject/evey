@@ -122,6 +122,11 @@ type Claims struct {
 	ProfileID   string
 	Locale      string
 	Permissions []string
+	// TokenEpoch is the user's revocation counter at mint time. A validator
+	// comparing it against the current users.token_epoch can invalidate every
+	// outstanding access token by bumping the counter (see TokenEpochRepository).
+	// Tokens minted before the claim existed carry 0, matching the column default.
+	TokenEpoch int64
 }
 
 func (c *Claims) HasPermission(perm string) bool {
@@ -142,4 +147,15 @@ type TokenGenerator interface {
 	// profile id. Used to gate switching out of a kids profile.
 	GeneratePINToken(profileID string, ttl time.Duration) (string, error)
 	ParsePINToken(raw string) (string, error)
+}
+
+// TokenEpochRepository is the narrow slice of user storage backing access-token
+// revocation. Kept separate from UserRepository so its many fakes stay
+// untouched and so token_epoch can only be mutated through the atomic bump
+// (never overwritten by a stale Update).
+type TokenEpochRepository interface {
+	GetTokenEpoch(ctx context.Context, id shared.UserID) (int64, error)
+	// BumpTokenEpoch atomically increments the counter, invalidating every
+	// access token minted with the previous value.
+	BumpTokenEpoch(ctx context.Context, id shared.UserID) error
 }

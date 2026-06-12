@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -10,7 +11,6 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -21,7 +21,7 @@ const remoteAccessConfigKey = "remote_access"
 // RemoteAccessConfigKey is the server config key for remote access settings.
 const RemoteAccessConfigKey = remoteAccessConfigKey
 
-func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, store remoteAccessPersister, writeRL *ratelimit.Limiter) {
+func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen domainuser.TokenGenerator, store remoteAccessPersister, writeRL *ratelimit.Limiter) {
 	var mu sync.RWMutex
 	admin := httpAdminMiddleware(tokenGen)
 
@@ -120,7 +120,7 @@ func registerRemoteAccessRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen
 	}))
 }
 
-func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen *auth.JWTGenerator, writeRL *ratelimit.Limiter) {
+func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, tokenGen domainuser.TokenGenerator, writeRL *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
 	admin := httpAdminMiddleware(tokenGen)
 	var mu sync.RWMutex
@@ -175,4 +175,3 @@ func registerPlaybackSettingsRoutes(mux *http.ServeMux, cfg *config.Config, toke
 		}
 	})))
 }
-

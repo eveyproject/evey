@@ -50,7 +50,7 @@ func setupPluginAssetTest(t *testing.T) (*http.ServeMux, string, *pluginfakes.Fa
 	require.NoError(t, os.WriteFile(filepath.Join(distDir, "image.png"), []byte("fake-png-bytes"), 0o644))
 
 	mux := http.NewServeMux()
-	registerPluginAssetRoutes(mux, tokenGen, repo, dir, func(data []byte) ([]byte, []string) { return data, nil })
+	registerPluginAssetRoutes(mux, tokenGen, tokenGen, repo, dir, func(data []byte) ([]byte, []string) { return data, nil })
 
 	token, err := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "user1", IsAdmin: false})
 	require.NoError(t, err)
@@ -176,7 +176,7 @@ func TestPluginAsset_CSSSanitizerInvoked(t *testing.T) {
 
 	called := false
 	mux := http.NewServeMux()
-	registerPluginAssetRoutes(mux, tokenGen, repo, dir, func(data []byte) ([]byte, []string) {
+	registerPluginAssetRoutes(mux, tokenGen, tokenGen, repo, dir, func(data []byte) ([]byte, []string) {
 		called = true
 		return []byte("/* sanitized */"), []string{"removed-rule"}
 	})
@@ -226,7 +226,7 @@ func TestPluginAsset_NoWebRootConfigured(t *testing.T) {
 		// WebRoot intentionally empty
 	}))
 	mux := http.NewServeMux()
-	registerPluginAssetRoutes(mux, tokenGen, repo, dir, nil)
+	registerPluginAssetRoutes(mux, tokenGen, tokenGen, repo, dir, nil)
 
 	tok, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1"})
 	req := httptest.NewRequest("GET", "/api/v1/plugins/pnw/assets/front.js", nil)

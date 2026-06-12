@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,12 +15,11 @@ import (
 
 	appbackup "github.com/evey-project/evey/internal/app/backup"
 	backupdomain "github.com/evey-project/evey/internal/domain/backup"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen *auth.JWTGenerator, heavyRL, writeRL *ratelimit.Limiter) {
+func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen domainuser.TokenGenerator, heavyRL, writeRL *ratelimit.Limiter) {
 	admin := httpAdminMiddleware(tokenGen)
 
 	mux.HandleFunc("POST /api/v1/admin/backups", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {

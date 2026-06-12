@@ -62,7 +62,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		SearchHealth: deps.searchHealth,
 
-		TokenGen:         deps.auth.tokenGen,
+		TokenGen:         deps.auth.userTokenGen,
+		PluginTokenGen:   deps.auth.tokenGen,
 		Cfg:              cfg,
 		StreamTokenStore: deps.media.streamTokenStore,
 		ShareSvc:         deps.media.shareSvc,

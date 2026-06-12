@@ -37,7 +37,6 @@ import (
 	domainshared "github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/i18n"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
@@ -69,7 +68,12 @@ type HTTPServer struct {
 	// SearchHealth is used for health checks; nil means search not configured.
 	SearchHealth SearchHealthChecker
 
-	TokenGen         *auth.JWTGenerator
+	// TokenGen validates and mints user access tokens. An interface so wire
+	// can inject the epoch-guarded decorator (token_epoch revocation) rather
+	// than the raw JWT generator.
+	TokenGen domainuser.TokenGenerator
+	// PluginTokenGen parses scoped plugin tokens (outside user.TokenGenerator).
+	PluginTokenGen   PluginTokenParser
 	Cfg              *config.Config
 	StreamTokenStore *appmedia.StreamTokenStore
 	ShareSvc         *appmedia.ShareService
@@ -518,7 +522,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	if s.PluginRepo != nil && s.PluginDir != "" {
-		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir, s.CSSSanitizer)
+		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginTokenGen, s.PluginRepo, s.PluginDir, s.CSSSanitizer)
 		registerThemeAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir)
 		if s.PluginSvc != nil {
 			registerPluginUploadRoute(mux, s.TokenGen, s.PluginSvc, s.AdminWriteRL)

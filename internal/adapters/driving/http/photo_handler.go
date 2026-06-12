@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	domainphoto "github.com/evey-project/evey/internal/domain/photo"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/exifstrip"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -27,10 +27,10 @@ type PhotoTranscoder interface {
 }
 
 type photoHandler struct {
-	photoSvc     *appphoto.Service
-	libChecker   LibraryAccessChecker
-	transcoder   PhotoTranscoder
-	cacheDir     string
+	photoSvc   *appphoto.Service
+	libChecker LibraryAccessChecker
+	transcoder PhotoTranscoder
+	cacheDir   string
 }
 
 func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
@@ -157,7 +157,7 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 	return true
 }
 
-func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, _ context.Context, transcoder PhotoTranscoder, cacheDir string) {
+func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, _ context.Context, transcoder PhotoTranscoder, cacheDir string) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &photoHandler{
 		photoSvc:   photoSvc,

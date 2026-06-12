@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	"github.com/google/uuid"
 )
 
 const requestIDHeader = "X-Request-ID"

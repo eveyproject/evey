@@ -2,11 +2,11 @@ package httpapi
 
 import (
 	"encoding/json"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 )
@@ -56,7 +56,7 @@ func toPublicPlugin(p *domainplugin.Plugin) publicPlugin {
 //
 //	GET /api/v1/plugins            → list enabled+running plugins (public shape)
 //	GET /api/v1/plugins/{id}/config → read saved config for an enabled+running plugin
-func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository) {
+func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, repo domainplugin.PluginRepository) {
 	authMw := httpAuthMiddleware(tokenGen)
 
 	mux.HandleFunc("GET /api/v1/plugins", authMw(func(w http.ResponseWriter, r *http.Request) {

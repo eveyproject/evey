@@ -134,4 +134,3 @@ func TestAdminLogsStream_NonAdmin_Forbidden(t *testing.T) {
 		t.Errorf("expected 403, got %d", w.Code)
 	}
 }
-

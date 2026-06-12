@@ -230,3 +230,27 @@ func TestUserRepo_Create_NullOIDCSubject_NoConflict(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, newTestUser("u-local-2")),
 		"two local users (NULL oidc_subject) must not collide on the partial index")
 }
+
+func TestUserRepo_TokenEpoch_GetAndBump(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewUserRepository(db)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Create(ctx, newTestUser("epoch1")))
+
+	epoch, err := repo.GetTokenEpoch(ctx, "epoch1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), epoch, "fresh user starts at the column default")
+
+	require.NoError(t, repo.BumpTokenEpoch(ctx, "epoch1"))
+	require.NoError(t, repo.BumpTokenEpoch(ctx, "epoch1"))
+
+	epoch, err = repo.GetTokenEpoch(ctx, "epoch1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), epoch, "bump is an atomic increment")
+
+	_, err = repo.GetTokenEpoch(ctx, "missing-user")
+	require.ErrorIs(t, err, shared.ErrNotFound)
+	require.ErrorIs(t, repo.BumpTokenEpoch(ctx, "missing-user"), shared.ErrNotFound)
+}

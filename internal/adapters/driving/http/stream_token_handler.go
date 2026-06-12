@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 
@@ -9,11 +10,10 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	appmedia "github.com/evey-project/evey/internal/app/media"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-func streamTokenHandler(tokenGen *auth.JWTGenerator, store *appmedia.StreamTokenStore, libAccess LibraryAccessChecker, mediaGetter mediaLibraryGetter, parental ParentalChecker) http.HandlerFunc {
+func streamTokenHandler(tokenGen domainuser.TokenGenerator, store *appmedia.StreamTokenStore, libAccess LibraryAccessChecker, mediaGetter mediaLibraryGetter, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.stream_token.Issue")
 		defer span.End()

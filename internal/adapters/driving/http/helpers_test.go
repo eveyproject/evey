@@ -47,8 +47,8 @@ func (f *fakeLibraryAccessChecker) HasAccess(_ context.Context, _ shared.UserID,
 	return f.allowed, f.err
 }
 
-func allowAll() *fakeLibraryAccessChecker  { return &fakeLibraryAccessChecker{allowed: true} }
-func denyAll() *fakeLibraryAccessChecker   { return &fakeLibraryAccessChecker{allowed: false} }
+func allowAll() *fakeLibraryAccessChecker { return &fakeLibraryAccessChecker{allowed: true} }
+func denyAll() *fakeLibraryAccessChecker  { return &fakeLibraryAccessChecker{allowed: false} }
 
 // fakeMediaGetter implements mediaLibraryGetter for tests.
 type fakeMediaGetter struct {

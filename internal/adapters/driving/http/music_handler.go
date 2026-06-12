@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"fmt"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -31,7 +31,7 @@ type musicHandler struct {
 
 var albumArtHashRe = regexp.MustCompile(`^[a-f0-9]{16,128}$`)
 
-func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource) {
+func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource) {
 	authMw := httpAuthMiddleware(tokenGen)
 	adminMw := httpAdminMiddleware(tokenGen)
 	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister}

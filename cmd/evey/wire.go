@@ -334,15 +334,23 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// reset is wired through constructor options, not post-hoc. The actual
 	// email Register() calls happen further down after the services exist.
 	smtpConfigured := cfg.SMTP.Host != ""
+	// guardedTokens enforces users.token_epoch on every access-token mint and
+	// validation: bumping the epoch (disable, role change, password change,
+	// admin session kill) revokes outstanding tokens within ~30s instead of
+	// the full 15min expiry. Every consumer below gets the guard; the concrete
+	// JWTGenerator stays only where plugin-token methods are needed.
+	guardedTokens, stopEpochCache := appuser.NewEpochGuardedTokens(infra.tokenGen, r.User)
+	_ = stopEpochCache // cache janitor lives for the process lifetime
 	userAuthOpts := []appuser.CommandServiceOption{
 		appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured),
 		appuser.WithUnitOfWork(postgres.NewTxUnit(db)),
 		appuser.WithLoginAttemptRepository(r.LoginAttempt),
+		appuser.CommandWithTokenRevoker(guardedTokens),
 	}
 	userAuthSvc := appuser.NewCommandService(
 		r.User, r.Profile, r.RefreshToken,
 		r.Role, r.UserRole,
-		infra.hasher, infra.tokenGen, bus,
+		infra.hasher, guardedTokens, bus,
 		7*24*time.Hour, r.QuickConnect,
 		userAuthOpts...,
 	)
@@ -356,7 +364,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}
 		return cfg.Metadata.Language
 	}
-	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), appuser.WithDefaultLocale(serverLocaleFn))
+	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), appuser.WithDefaultLocale(serverLocaleFn), appuser.WithTokenRevoker(guardedTokens))
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess), appuser.WithAccessDefaultLocale(serverLocaleFn), appuser.WithAccessUnitOfWork(postgres.NewTxUnit(db)))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
@@ -373,7 +381,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 				AllowedEmailDomains: cfg.OIDC.AllowedEmailDomains,
 			},
 			r.User, r.Profile, r.RefreshToken, r.UserRole,
-			infra.tokenGen, bus, postgres.NewTxUnit(db), 7*24*time.Hour,
+			guardedTokens, bus, postgres.NewTxUnit(db), 7*24*time.Hour,
 		)
 		if oidcErr != nil {
 			return nil, fmt.Errorf("oidc init: %w", oidcErr)
@@ -966,8 +974,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			pluginSecurityDashboardSvc: pluginSecurityDashboardSvc,
 		},
 		auth: authDeps{
-			tokenGen: infra.tokenGen,
-			hasher:   infra.hasher,
+			tokenGen:     infra.tokenGen,
+			userTokenGen: guardedTokens,
+			hasher:       infra.hasher,
 		},
 		repos: repoDeps{
 			artworkRepo:       r.Artwork,

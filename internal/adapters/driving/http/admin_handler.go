@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 
@@ -12,14 +13,13 @@ import (
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/runtimedetect"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 type adminHandler struct {
-	tokenGen       *auth.JWTGenerator
+	tokenGen       domainuser.TokenGenerator
 	metaCmd        *appmetadata.CommandService
 	metaQuery      *appmetadata.QueryService
 	heavyRL        *ratelimit.Limiter
@@ -54,7 +54,7 @@ func (h *adminHandler) audit(r *http.Request, action, resourceType string, resou
 
 // --- register functions ---
 
-func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen *auth.JWTGenerator, heavyRL, writeRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService) {
+func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen domainuser.TokenGenerator, heavyRL, writeRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService) {
 	admin := httpAdminMiddleware(tokenGen)
 	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc}
 	// Explicit method+path routes (Go 1.22+ mux): without them, the default
@@ -71,14 +71,14 @@ func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService
 	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", ratelimit.MiddlewareFunc(writeRL, admin(h.handleRefreshAll)))
 }
 
-func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen *auth.JWTGenerator) {
+func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen domainuser.TokenGenerator) {
 	admin := httpAdminMiddleware(tokenGen)
 	h := &adminHandler{tokenGen: tokenGen, logDir: logDir}
 	mux.HandleFunc("GET /api/v1/admin/logs", admin(h.handleGetLogs))
 	mux.HandleFunc("GET /api/v1/admin/logs/stream", admin(h.handleStreamLogs))
 }
 
-func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator) {
+func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen domainuser.TokenGenerator) {
 	admin := httpAdminMiddleware(tokenGen)
 	mux.HandleFunc("GET /api/v1/admin/plugin-runtimes/available", admin(func(w http.ResponseWriter, r *http.Request) {
 		_, span := tracing.StartSpan(r.Context(), "http.admin.AvailableRuntimes")

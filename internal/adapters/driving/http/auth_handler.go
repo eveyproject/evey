@@ -15,7 +15,6 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -162,7 +161,7 @@ type parentalHandler struct {
 	profileRepo domainuser.ProfileRepository
 	userRepo    domainuser.UserRepository
 	hasher      domainuser.PasswordHasher
-	tokenGen    *auth.JWTGenerator
+	tokenGen    domainuser.TokenGenerator
 	pinRL       *ratelimit.Limiter
 }
 
@@ -457,7 +456,7 @@ func registerParentalRoutes(
 	profileRepo domainuser.ProfileRepository,
 	userRepo domainuser.UserRepository,
 	hasher domainuser.PasswordHasher,
-	tokenGen *auth.JWTGenerator,
+	tokenGen domainuser.TokenGenerator,
 ) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &parentalHandler{

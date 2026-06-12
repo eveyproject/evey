@@ -252,6 +252,6 @@ type discardResponseWriter struct {
 	status int
 }
 
-func (d *discardResponseWriter) Header() http.Header        { return d.header }
+func (d *discardResponseWriter) Header() http.Header         { return d.header }
 func (d *discardResponseWriter) Write(b []byte) (int, error) { return len(b), nil }
 func (d *discardResponseWriter) WriteHeader(code int)        { d.status = code }

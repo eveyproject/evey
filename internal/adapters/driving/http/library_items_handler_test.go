@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 

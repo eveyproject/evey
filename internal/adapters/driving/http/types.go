@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"github.com/evey-project/evey/internal/pkg/auth"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
@@ -33,6 +34,13 @@ type remoteAccessPersister interface {
 // TokenVerifier validates access tokens and returns claims.
 type TokenVerifier interface {
 	ValidateAccessToken(token string) (*domainuser.Claims, error)
+}
+
+// PluginTokenParser validates scoped plugin tokens (plugin iframes send them
+// instead of user access tokens). Satisfied by the raw *auth.JWTGenerator —
+// plugin tokens carry no user epoch, so they bypass the epoch guard on purpose.
+type PluginTokenParser interface {
+	ParsePluginToken(raw string) (*auth.PluginClaims, error)
 }
 
 // UserMaxStreamsGetter returns the MaxStreams limit for a given user ID (nil = unlimited).

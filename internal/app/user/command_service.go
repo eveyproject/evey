@@ -52,6 +52,7 @@ type CommandService struct {
 	setupMu         sync.Mutex
 	setupDone       bool
 	uow             shared.TransactionalUnit
+	tokenRevoker    TokenRevoker // optional: bumps token_epoch on security events
 }
 
 func NewCommandService(
@@ -109,6 +110,12 @@ func WithUnitOfWork(uow shared.TransactionalUnit) CommandServiceOption {
 // shared across instances.
 func WithLoginAttemptRepository(repo user.LoginAttemptRepository) CommandServiceOption {
 	return func(s *CommandService) { s.loginAttempts = repo }
+}
+
+// CommandWithTokenRevoker wires access-token revocation (token_epoch bump)
+// into the security-event paths owned by CommandService (password reset).
+func CommandWithTokenRevoker(rev TokenRevoker) CommandServiceOption {
+	return func(s *CommandService) { s.tokenRevoker = rev }
 }
 
 func (s *CommandService) InitSetupState(ctx context.Context) {
@@ -798,6 +805,11 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 	}
 	if err := s.refreshTkns.DeleteByUserID(ctx, u.ID); err != nil {
 		slog.Warn("delete refresh tokens after password reset", slog.Any("err", err))
+	}
+	if s.tokenRevoker != nil {
+		if err := s.tokenRevoker.Revoke(ctx, string(u.ID)); err != nil {
+			slog.Warn("revoke access tokens after password reset", slog.Any("err", err))
+		}
 	}
 
 	evt := user.PasswordChanged{UserID: u.ID, OccurredAt: time.Now()}

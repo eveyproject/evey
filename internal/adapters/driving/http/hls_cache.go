@@ -14,9 +14,9 @@ const hlsCacheTTL = 30 * time.Second
 
 // CachedMediaItemGetter wraps a MediaItemGetter with a short-TTL in-memory cache.
 type CachedMediaItemGetter struct {
-	inner   MediaItemGetter
-	c       *cache.TTLCache[*domainlibrary.MediaItem]
-	stopFn  func()
+	inner  MediaItemGetter
+	c      *cache.TTLCache[*domainlibrary.MediaItem]
+	stopFn func()
 }
 
 func NewCachedMediaItemGetter(inner MediaItemGetter) *CachedMediaItemGetter {

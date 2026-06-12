@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"mime"
@@ -17,7 +18,6 @@ import (
 
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -30,10 +30,11 @@ type pluginManager interface {
 type cssSanitizer func(data []byte) (sanitized []byte, warnings []string)
 
 type pluginAssetHandler struct {
-	pluginDir   string
-	repo        domainplugin.PluginRepository
-	tokenGen    *auth.JWTGenerator
-	sanitizeCSS cssSanitizer
+	pluginDir    string
+	repo         domainplugin.PluginRepository
+	tokenGen     domainuser.TokenGenerator
+	pluginTokens PluginTokenParser
+	sanitizeCSS  cssSanitizer
 }
 
 // maxPluginAssetBytes is the per-file size limit for plugin asset responses.
@@ -51,9 +52,9 @@ var corsRequiredAssetExt = map[string]bool{
 	".wasm": true,
 }
 
-func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer) {
+func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, pluginTokens PluginTokenParser, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer) {
 	authMw := httpAuthMiddleware(tokenGen)
-	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen, sanitizeCSS: sanitize}
+	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen, pluginTokens: pluginTokens, sanitizeCSS: sanitize}
 	// Generic asset route — serves any file under <install_dir>/<web_root>/.
 	// Single-bundle frontends only in v1 (no dynamic-import code splitting).
 	// Authentication accepts a user access token OR the scoped plugin token
@@ -71,7 +72,7 @@ func (h *pluginAssetHandler) authorizeFrontJS(r *http.Request, pluginID string) 
 	if tok == "" {
 		return false
 	}
-	if pc, err := h.tokenGen.ParsePluginToken(tok); err == nil {
+	if pc, err := h.pluginTokens.ParsePluginToken(tok); err == nil {
 		return pc.PluginID == pluginID
 	}
 	if _, err := h.tokenGen.ValidateAccessToken(tok); err == nil {
@@ -354,7 +355,7 @@ func stripCSSComments(s string) string {
 	return b.String()
 }
 
-func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager, writeRL *ratelimit.Limiter) {
+func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, svc pluginManager, writeRL *ratelimit.Limiter) {
 	admin := httpAdminMiddleware(tokenGen)
 	mux.HandleFunc("POST /api/v1/admin/plugins/upload", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Upload")
@@ -485,7 +486,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, 
 	})))
 }
 
-func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginManager, writeRL *ratelimit.Limiter) {
+func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, svc pluginManager, writeRL *ratelimit.Limiter) {
 	admin := httpAdminMiddleware(tokenGen)
 	mux.HandleFunc("POST /api/v1/admin/plugins/preview", ratelimit.MiddlewareFunc(writeRL, admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Preview")

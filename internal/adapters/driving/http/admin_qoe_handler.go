@@ -3,12 +3,12 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 	"time"
 
 	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -22,7 +22,7 @@ type qoeDashboardProvider interface {
 // Admin-only; pure read. Returns {} when the QoE service isn't wired yet
 // (dev without Phase 1 storage), never 5xx — the dashboard UI handles the
 // empty state gracefully.
-func registerQoEDashboardRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc qoeDashboardProvider) {
+func registerQoEDashboardRoute(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, svc qoeDashboardProvider) {
 	if svc == nil {
 		// No service wired (tests without Postgres). Don't register the route
 		// so callers get a clean 404 rather than a confusing 500.

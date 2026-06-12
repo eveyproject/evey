@@ -250,7 +250,6 @@ func TestArtworkAdmin_DownloadAll_Lifecycle(t *testing.T) {
 	}
 }
 
-
 // --- POST /api/v1/admin/artworks/backfill-blurhashes ---
 
 func TestArtworkAdmin_BackfillBlurhashes_NoAuth_401(t *testing.T) {

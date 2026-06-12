@@ -115,4 +115,4 @@ var errBenchmarkUnexpected = newTestErr("bench crashed unexpectedly")
 type testErr string
 
 func (e testErr) Error() string { return string(e) }
-func newTestErr(s string) error  { return testErr(s) }
+func newTestErr(s string) error { return testErr(s) }

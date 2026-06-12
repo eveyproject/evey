@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -27,6 +28,11 @@ type adminSessionHandler struct {
 	playbackCmd *appplayback.CommandService
 	playbackQry *appplayback.QueryService
 	hlsManager  HLSSessionRemover
+	// userSvc + userQuery let KillSession revoke the session owner's
+	// credentials (refresh delete + token_epoch bump). Optional: nil keeps the
+	// historical stop-playback-only behaviour.
+	userSvc   *appuser.UserService
+	userQuery *appuser.QueryService
 }
 
 func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAuditLogRequest) (*eveyv1.GetAuditLogResponse, error) {
@@ -117,6 +123,20 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	// Send stop command so the player closes gracefully
 	if err := d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, "stop"); err != nil {
 		slog.Warn("set remote command failed", slog.String("session_id", req.SessionId), slog.Any("err", err))
+	}
+	// Killing a session is a security action: revoke the owner's credentials
+	// (refresh tokens now, access tokens within the epoch-cache TTL) so the
+	// client can't simply restart the stream with the tokens it still holds.
+	if d.userSvc != nil && d.userQuery != nil {
+		if p, pErr := d.userQuery.GetProfileByID(ctx, string(session.ProfileID)); pErr == nil {
+			if rErr := d.userSvc.RevokeUserTokens(ctx, string(p.UserID)); rErr != nil {
+				slog.Warn("kill session: revoke user tokens failed",
+					slog.String("session_id", req.SessionId), slog.Any("err", rErr))
+			}
+		} else {
+			slog.Warn("kill session: resolve session owner failed",
+				slog.String("session_id", req.SessionId), slog.Any("err", pErr))
+		}
 	}
 	// Defer the actual kill to give the player time to receive the command
 	mediaItemID := session.MediaItemID

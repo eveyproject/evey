@@ -46,9 +46,9 @@ func resolveAutoDownloadDefault(ctx context.Context, cfg *appconfig.Service) boo
 
 // registerArtworkAdminRoutes mounts the three artwork-cache admin endpoints:
 //
-//   GET  /api/v1/admin/artworks/stats
-//   POST /api/v1/admin/artworks/download-all
-//   GET  /api/v1/admin/artworks/download-all/{jobId}
+//	GET  /api/v1/admin/artworks/stats
+//	POST /api/v1/admin/artworks/download-all
+//	GET  /api/v1/admin/artworks/download-all/{jobId}
 //
 // dataDir is the server data directory (e.g. "/data"); it is used to derive
 // local storage paths for downloaded artworks.

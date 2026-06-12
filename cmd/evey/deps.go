@@ -120,8 +120,15 @@ type engagementDeps struct {
 
 // authDeps groups authentication infrastructure.
 type authDeps struct {
+	// tokenGen is the raw JWT generator — kept concrete for the plugin-token
+	// methods that sit outside user.TokenGenerator.
 	tokenGen *auth.JWTGenerator
-	hasher   auth.BcryptHasher
+	// userTokenGen is the epoch-guarded decorator: every user access-token
+	// mint/validation in HTTP and gRPC goes through it so token_epoch
+	// revocation (disable, role change, password change, session kill) is
+	// enforced within the cache TTL instead of the token expiry.
+	userTokenGen domainuser.TokenGenerator
+	hasher       auth.BcryptHasher
 }
 
 // repoDeps groups repository interfaces used directly by HTTP/gRPC layers.

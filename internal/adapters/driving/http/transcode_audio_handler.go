@@ -25,13 +25,13 @@ type AudioSegmentEnsurer interface {
 // audioServe groups the shared dependencies for the three audio-rendition
 // HTTP handlers (playlist / init / segment). Constructed once and shared.
 type audioServe struct {
-	cfg          *config.Config
-	libSvc       MediaStreamsGetter
+	cfg           *config.Config
+	libSvc        MediaStreamsGetter
 	libraryAccess LibraryAccessChecker
-	parental     ParentalChecker
-	manifestGen  *apptranscoding.ManifestGenerator
-	cache        *apptranscoding.SegmentCache
-	audioOrch    AudioSegmentEnsurer
+	parental      ParentalChecker
+	manifestGen   *apptranscoding.ManifestGenerator
+	cache         *apptranscoding.SegmentCache
+	audioOrch     AudioSegmentEnsurer
 
 	// audioNormalizeGetter mirrors the video pipeline knob.
 	audioNormalizeGetter func(ctx context.Context) bool

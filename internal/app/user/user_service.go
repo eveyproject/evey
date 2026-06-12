@@ -21,6 +21,7 @@ type UserService struct {
 	events        shared.EventBus
 	uow           shared.TransactionalUnit
 	defaultLocale func() string // optional: resolves server.language, defaults to "en"
+	tokenRevoker  TokenRevoker  // optional: bumps token_epoch on security events
 }
 
 type UserServiceOption func(*UserService)
@@ -30,6 +31,38 @@ type UserServiceOption func(*UserService)
 // Profile.Locale is set to this value at creation when empty.
 func WithDefaultLocale(fn func() string) UserServiceOption {
 	return func(s *UserService) { s.defaultLocale = fn }
+}
+
+// WithTokenRevoker wires access-token revocation (token_epoch bump) into the
+// security-event mutations: disable, delete, role change, password change.
+func WithTokenRevoker(rev TokenRevoker) UserServiceOption {
+	return func(s *UserService) { s.tokenRevoker = rev }
+}
+
+// RevokeUserTokens invalidates every credential of the user: refresh tokens
+// are deleted immediately and outstanding access tokens are revoked via the
+// token_epoch bump. Used by admin KillSession so killing a session actually
+// logs the device out instead of only stopping the playback.
+func (s *UserService) RevokeUserTokens(ctx context.Context, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.RevokeUserTokens")
+	defer span.End()
+	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
+		return fmt.Errorf("UserService.RevokeUserTokens: %w", err)
+	}
+	s.revokeTokens(ctx, userID)
+	return nil
+}
+
+// revokeTokens bumps the user's token_epoch (nil-safe). Best-effort like the
+// neighbouring refresh-token deletes: the mutation itself already succeeded,
+// and a failed bump only leaves the old 15min expiry window.
+func (s *UserService) revokeTokens(ctx context.Context, userID string) {
+	if s.tokenRevoker == nil {
+		return
+	}
+	if err := s.tokenRevoker.Revoke(ctx, userID); err != nil {
+		slog.Warn("revoke access tokens", slog.String("userID", userID), slog.Any("err", err))
+	}
 }
 
 func NewUserService(
@@ -135,9 +168,20 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.UpdateUser")
 	defer span.End()
+	// A role change must invalidate outstanding access tokens (the JWT carries
+	// is_admin). Compare against the stored row to detect it.
+	roleChanged := false
+	if s.tokenRevoker != nil {
+		if before, err := s.users.GetByID(ctx, u.ID); err == nil {
+			roleChanged = before.IsAdmin != u.IsAdmin
+		}
+	}
 	u.UpdatedAt = time.Now()
 	if err := s.users.Update(ctx, u); err != nil {
 		return fmt.Errorf("UserService.UpdateUser: %w", err)
+	}
+	if roleChanged {
+		s.revokeTokens(ctx, string(u.ID))
 	}
 	return nil
 }
@@ -179,6 +223,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword st
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		slog.Warn("delete refresh tokens after password change", slog.String("userID", userID), slog.Any("err", err))
 	}
+	s.revokeTokens(ctx, userID)
 	evt := user.PasswordChanged{UserID: shared.UserID(userID), OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
@@ -208,6 +253,8 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		slog.Warn("delete refresh tokens for deleted user failed", slog.String("userID", userID), slog.Any("err", err))
 	}
+	// No epoch bump: the row is gone, so the fail-closed epoch lookup already
+	// rejects any outstanding token for this user.
 	evtDeleted := user.UserDeleted{UserID: shared.UserID(userID), OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtDeleted); err != nil {
 		slog.Warn("publish event", slog.String("event", evtDeleted.EventName()), slog.Any("err", err))
@@ -239,6 +286,7 @@ func (s *UserService) DisableUser(ctx context.Context, userID string) error {
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		slog.Warn("delete refresh tokens for disabled user failed", slog.String("userID", userID), slog.Any("err", err))
 	}
+	s.revokeTokens(ctx, userID)
 	evtDisabled := user.UserDisabled{UserID: shared.UserID(userID), OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtDisabled); err != nil {
 		slog.Warn("publish event", slog.String("event", evtDisabled.EventName()), slog.Any("err", err))

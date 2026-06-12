@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 
@@ -10,7 +11,6 @@ import (
 
 	appcollection "github.com/evey-project/evey/internal/app/collection"
 	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -32,7 +32,7 @@ type collectionHandler struct {
 	baseURL    string
 }
 
-func registerCollectionRoutes(mux *http.ServeMux, collSvc *appcollection.Service, libSvc MediaArchiveSource, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, baseURL string, rl *ratelimit.Limiter) {
+func registerCollectionRoutes(mux *http.ServeMux, collSvc *appcollection.Service, libSvc MediaArchiveSource, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, baseURL string, rl *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &collectionHandler{collSvc: collSvc, libSvc: libSvc, libChecker: libChecker, baseURL: baseURL}
 	// A collection ZIP can fan out to many large files, so it's a heavier

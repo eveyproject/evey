@@ -213,3 +213,36 @@ func TestPINToken_Rejections(t *testing.T) {
 	_, err = g.ParsePINToken(access)
 	assert.Error(t, err, "access token must not pass as a pin token")
 }
+
+// The epoch claim must round-trip mint→validate, and legacy tokens without it
+// must parse as epoch 0 (the users.token_epoch column default).
+func TestAccessToken_EpochRoundTrip(t *testing.T) {
+	t.Parallel()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	gen := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	token, err := gen.GenerateAccessToken(user.Claims{UserID: "u1", Username: "u", TokenEpoch: 7})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	claims, err := gen.ValidateAccessToken(token)
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if claims.TokenEpoch != 7 {
+		t.Errorf("epoch: want 7, got %d", claims.TokenEpoch)
+	}
+
+	legacy, err := gen.GenerateAccessToken(user.Claims{UserID: "u1", Username: "u"})
+	if err != nil {
+		t.Fatalf("generate legacy: %v", err)
+	}
+	lc, err := gen.ValidateAccessToken(legacy)
+	if err != nil {
+		t.Fatalf("validate legacy: %v", err)
+	}
+	if lc.TokenEpoch != 0 {
+		t.Errorf("zero-value epoch: want 0, got %d", lc.TokenEpoch)
+	}
+}

@@ -34,6 +34,7 @@ func (g *JWTGenerator) GenerateAccessToken(claims user.Claims) (string, error) {
 		"profile_id":  claims.ProfileID,
 		"locale":      claims.Locale,
 		"permissions": claims.Permissions,
+		"epoch":       claims.TokenEpoch,
 		"iat":         now.Unix(),
 		"exp":         now.Add(g.accessTTL).Unix(),
 	})
@@ -146,6 +147,11 @@ func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error
 				claims.Permissions = append(claims.Permissions, s)
 			}
 		}
+	}
+	// Tokens minted before the epoch claim existed default to 0, matching the
+	// users.token_epoch column default — they stay valid until the first bump.
+	if epoch, ok := mapClaims["epoch"].(float64); ok {
+		claims.TokenEpoch = int64(epoch)
 	}
 	return claims, nil
 }

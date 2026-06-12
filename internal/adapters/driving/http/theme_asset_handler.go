@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,7 +12,6 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -24,7 +24,7 @@ type themeAssetHandler struct {
 	repo      domainplugin.PluginRepository
 }
 
-func registerThemeAssetRoutes(mux *http.ServeMux, tokenGen *auth.JWTGenerator, repo domainplugin.PluginRepository, pluginDir string) {
+func registerThemeAssetRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, repo domainplugin.PluginRepository, pluginDir string) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &themeAssetHandler{pluginDir: pluginDir, repo: repo}
 

@@ -20,9 +20,9 @@ import (
 // fakeQoEDashboardSvc implements qoeDashboardProvider for tests.
 // It records the last window it received and returns a canned dashboard or error.
 type fakeQoEDashboardSvc struct {
-	dashboard    *appqoe.Dashboard
-	err          error
-	lastWindow   time.Duration
+	dashboard  *appqoe.Dashboard
+	err        error
+	lastWindow time.Duration
 }
 
 func (f *fakeQoEDashboardSvc) GetDashboard(_ context.Context, window time.Duration) (*appqoe.Dashboard, error) {

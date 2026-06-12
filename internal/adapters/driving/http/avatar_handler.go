@@ -12,7 +12,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -23,7 +22,7 @@ const maxAvatarSize = 5 << 20 // 5 MB
 func registerAvatarRoutes(
 	mux *http.ServeMux,
 	profileRepo domainuser.ProfileRepository,
-	tokenGen *auth.JWTGenerator,
+	tokenGen domainuser.TokenGenerator,
 	dataDir string,
 ) {
 	authMw := httpAuthMiddleware(tokenGen)

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -28,10 +28,10 @@ const deviceCmdMaxBody = 4 << 10 // 4 KiB — commands are tiny JSON
 
 type devicesHandler struct {
 	registry *appsyncplay.DeviceRegistry
-	tokenGen *auth.JWTGenerator
+	tokenGen domainuser.TokenGenerator
 }
 
-func registerDeviceRoutes(mux *http.ServeMux, registry *appsyncplay.DeviceRegistry, tokenGen *auth.JWTGenerator) {
+func registerDeviceRoutes(mux *http.ServeMux, registry *appsyncplay.DeviceRegistry, tokenGen domainuser.TokenGenerator) {
 	h := &devicesHandler{registry: registry, tokenGen: tokenGen}
 	authMW := httpAuthMiddleware(tokenGen)
 	mux.HandleFunc("GET /api/v1/devices", authMW(h.list))

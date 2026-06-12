@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -17,7 +18,6 @@ import (
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/playlist"
 	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -49,7 +49,7 @@ type playlistHandler struct {
 	baseURL    string
 }
 
-func registerPlaylistRoutes(mux *http.ServeMux, plSvc *appplaylist.Service, gen playlistGenerator, libSvc MediaArchiveSource, musicSvc musicTrackResolver, tokenGen *auth.JWTGenerator, libChecker LibraryAccessChecker, baseURL string, rl *ratelimit.Limiter) {
+func registerPlaylistRoutes(mux *http.ServeMux, plSvc *appplaylist.Service, gen playlistGenerator, libSvc MediaArchiveSource, musicSvc musicTrackResolver, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, baseURL string, rl *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &playlistHandler{plSvc: plSvc, gen: gen, libSvc: libSvc, music: musicSvc, libChecker: libChecker, baseURL: baseURL}
 	// Like a collection ZIP, a playlist can fan out to many large files — a

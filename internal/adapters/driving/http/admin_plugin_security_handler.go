@@ -3,12 +3,12 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -20,7 +20,7 @@ type pluginSecurityDashboardProvider interface {
 
 // registerPluginSecurityDashboardRoute mounts GET /api/v1/admin/plugins/security-dashboard.
 // Admin-only; no mutation; no library_id/media_id → no checkLibraryAccess needed.
-func registerPluginSecurityDashboardRoute(mux *http.ServeMux, tokenGen *auth.JWTGenerator, svc pluginSecurityDashboardProvider) {
+func registerPluginSecurityDashboardRoute(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, svc pluginSecurityDashboardProvider) {
 	admin := httpAdminMiddleware(tokenGen)
 	mux.HandleFunc("GET /api/v1/admin/plugins/security-dashboard", admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.adminpluginsec.GetSecurityDashboard")
