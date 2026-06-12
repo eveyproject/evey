@@ -75,6 +75,7 @@ type tmdbDetailResponse struct {
 	OriginalTitle        string           `json:"original_title"`
 	Name                 string           `json:"name"`
 	OriginalName         string           `json:"original_name"`
+	OriginalLanguage     string           `json:"original_language"`
 	Overview             string           `json:"overview"`
 	Tagline              string           `json:"tagline"`
 	ReleaseDate          string           `json:"release_date"`
@@ -92,6 +93,32 @@ type tmdbDetailResponse struct {
 	BelongsToCollection *tmdbCollection      `json:"belongs_to_collection"`
 	ReleaseDates        *tmdbReleaseDates    `json:"release_dates"`
 	ContentRatings      *tmdbContentRatings  `json:"content_ratings"`
+	AlternativeTitles   *tmdbAltTitles       `json:"alternative_titles"`
+}
+
+// tmdbAltTitles holds the regional alternative titles appended to a detail
+// response. Movies expose them under "titles", TV under "results"; both carry
+// an ISO-3166 country code so a foreign-language title can be replaced with the
+// regional one for the server's locale.
+type tmdbAltTitles struct {
+	Titles  []tmdbAltTitle `json:"titles"`
+	Results []tmdbAltTitle `json:"results"`
+}
+
+type tmdbAltTitle struct {
+	Region string `json:"iso_3166_1"`
+	Title  string `json:"title"`
+}
+
+// all returns movie + tv entries regardless of which field TMDB populated.
+func (a *tmdbAltTitles) all() []tmdbAltTitle {
+	if a == nil {
+		return nil
+	}
+	if len(a.Titles) > 0 {
+		return a.Titles
+	}
+	return a.Results
 }
 
 type tmdbReleaseDates struct {

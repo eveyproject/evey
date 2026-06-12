@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	domain "github.com/evey-project/evey/internal/domain/metadata"
@@ -63,6 +64,7 @@ func mapDetailResult(d tmdbDetailResponse, mediaType string, serverLang string) 
 
 	mapDetailExternalIDs(&result, d.ExternalIDs)
 	mapDetailTitleAndDate(&result, d, mediaType)
+	applyRegionalTitle(&result, d, serverLang)
 	mapDetailRating(&result, d.VoteAverage)
 
 	for _, g := range d.Genres {
@@ -152,6 +154,63 @@ func mapDetailTitleAndDate(result *domain.MetadataResult, d tmdbDetailResponse, 
 	if result.PremiereDate != nil {
 		y := result.PremiereDate.Year()
 		result.Year = &y
+	}
+}
+
+// applyRegionalTitle replaces a foreign-language title with the regional
+// alternative title for the server's locale. TMDB only translates a `title`
+// when an editor added a localized one; for many foreign productions it returns
+// the original-language title even for `language=fr`, while the French title
+// lives only in alternative_titles (e.g. a German doc whose FR title is
+// "Les grottes immergées …"). We override only when TMDB clearly gave us no
+// localized title — result.Title still equals the original title AND the work
+// is in a different language than the server — so a genuine localized title is
+// never clobbered.
+func applyRegionalTitle(result *domain.MetadataResult, d tmdbDetailResponse, serverLang string) {
+	if serverLang == "" || result.Title == "" || result.Title != result.OriginalTitle {
+		return
+	}
+	lang := strings.ToLower(strings.SplitN(serverLang, "-", 2)[0])
+	if d.OriginalLanguage != "" && d.OriginalLanguage == lang {
+		return // already in the server's language — nothing to localize
+	}
+	regions := regionsForLanguage(lang)
+	if len(regions) == 0 {
+		return
+	}
+	alts := d.AlternativeTitles.all()
+	for _, want := range regions {
+		for _, a := range alts {
+			if strings.EqualFold(a.Region, want) && a.Title != "" {
+				result.Title = a.Title
+				return
+			}
+		}
+	}
+}
+
+// regionsForLanguage maps a language code to the ISO-3166 country codes whose
+// alternative titles are most likely to carry that language's release title,
+// in priority order. Falls back to the uppercased language code (correct for
+// fr→FR, de→DE, es→ES, it→IT, … where language and country codes coincide).
+func regionsForLanguage(lang string) []string {
+	switch lang {
+	case "en":
+		return []string{"US", "GB", "CA", "AU"}
+	case "pt":
+		return []string{"BR", "PT"}
+	case "zh":
+		return []string{"CN", "TW", "HK", "SG"}
+	case "ja":
+		return []string{"JP"}
+	case "ko":
+		return []string{"KR"}
+	case "hi":
+		return []string{"IN"}
+	case "":
+		return nil
+	default:
+		return []string{strings.ToUpper(lang)}
 	}
 }
 
