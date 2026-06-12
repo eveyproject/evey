@@ -60,12 +60,17 @@ func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
 }
 
 // HasSeekIndex reports whether the EBML file at path already has a Cues index.
+// It first tries the head-SeekHead probe (a few KB of reads — what makes a
+// whole-library scan feasible); only undecidable files pay the full parse.
 func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.HasSeekIndex")
 	defer span.End()
 
 	if !IsEBMLContainer(path) {
 		return false, nil
+	}
+	if has, confirmed := probeCuesPresence(path); confirmed {
+		return has, nil
 	}
 	c, err := reader.Open(ctx, path)
 	if err != nil {
