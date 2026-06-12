@@ -229,3 +229,34 @@ func TestGetSecurityDashboard_RepoError(t *testing.T) {
 		t.Fatal("expected error when repo fails")
 	}
 }
+
+func TestSandboxStatus_FallbackFromModeFn(t *testing.T) {
+	repo := fakes.NewFakePluginRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "basic" })
+
+	st := svc.SandboxStatus()
+	if st.Effective != "basic" || st.Configured != "basic" {
+		t.Errorf("fallback status should mirror sandboxModeFn, got %+v", st)
+	}
+	if st.LandlockKernel || st.LauncherPresent || st.BubblewrapUsable {
+		t.Errorf("fallback status should not invent probe results, got %+v", st)
+	}
+}
+
+func TestSandboxStatus_WithSandboxStatus(t *testing.T) {
+	repo := fakes.NewFakePluginRepository()
+	bus := sharedfakes.NewFakeEventBus()
+	want := appplugin.SandboxStatus{
+		Configured:      "auto",
+		Effective:       "landlock",
+		LandlockKernel:  true,
+		LauncherPresent: true,
+	}
+	svc := appplugin.NewSecurityDashboardService(repo, bus, func() string { return "landlock" }).
+		WithSandboxStatus(func() appplugin.SandboxStatus { return want })
+
+	if got := svc.SandboxStatus(); got != want {
+		t.Errorf("SandboxStatus: want %+v, got %+v", want, got)
+	}
+}

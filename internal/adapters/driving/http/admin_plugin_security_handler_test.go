@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
@@ -19,11 +20,16 @@ import (
 // fakeSecurityDashboardSvc implements pluginSecurityDashboardProvider for tests.
 type fakeSecurityDashboardSvc struct {
 	snapshots []domainplugin.PluginSecuritySnapshot
+	sandbox   appplugin.SandboxStatus
 	err       error
 }
 
 func (f *fakeSecurityDashboardSvc) GetSecurityDashboard(_ context.Context) ([]domainplugin.PluginSecuritySnapshot, error) {
 	return f.snapshots, f.err
+}
+
+func (f *fakeSecurityDashboardSvc) SandboxStatus() appplugin.SandboxStatus {
+	return f.sandbox
 }
 
 func newSecurityDashboardTestMux(t *testing.T, svc pluginSecurityDashboardProvider) (mux *http.ServeMux, adminToken, userToken string) {
@@ -63,6 +69,12 @@ func TestPluginSecurityDashboard_NonAdmin_403(t *testing.T) {
 func TestPluginSecurityDashboard_Admin_200(t *testing.T) {
 	installed := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
 	svc := &fakeSecurityDashboardSvc{
+		sandbox: appplugin.SandboxStatus{
+			Configured:      "auto",
+			Effective:       "landlock",
+			LandlockKernel:  true,
+			LauncherPresent: true,
+		},
 		snapshots: []domainplugin.PluginSecuritySnapshot{
 			{
 				ID:           "plugin-1",
@@ -90,9 +102,16 @@ func TestPluginSecurityDashboard_Admin_200(t *testing.T) {
 
 	var body struct {
 		Plugins []domainplugin.PluginSecuritySnapshot `json:"plugins"`
+		Sandbox appplugin.SandboxStatus               `json:"sandbox"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
+	}
+	if body.Sandbox.Effective != "landlock" || body.Sandbox.Configured != "auto" {
+		t.Errorf("unexpected sandbox status: %+v", body.Sandbox)
+	}
+	if !body.Sandbox.LandlockKernel {
+		t.Error("expected landlockKernel=true in sandbox status")
 	}
 	if len(body.Plugins) != 1 {
 		t.Fatalf("expected 1 plugin, got %d", len(body.Plugins))

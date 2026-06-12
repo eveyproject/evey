@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -14,6 +15,7 @@ import (
 // pluginSecurityDashboardProvider is the minimal service interface the handler needs.
 type pluginSecurityDashboardProvider interface {
 	GetSecurityDashboard(ctx context.Context) ([]domainplugin.PluginSecuritySnapshot, error)
+	SandboxStatus() appplugin.SandboxStatus
 }
 
 // registerPluginSecurityDashboardRoute mounts GET /api/v1/admin/plugins/security-dashboard.
@@ -39,7 +41,12 @@ func registerPluginSecurityDashboardRoute(mux *http.ServeMux, tokenGen *auth.JWT
 			snapshots = []domainplugin.PluginSecuritySnapshot{}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{"plugins": snapshots}); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"plugins": snapshots,
+			// Host-level diagnosis: shown even with zero plugins installed, so
+			// an admin learns about a degraded sandbox before installing one.
+			"sandbox": svc.SandboxStatus(),
+		}); err != nil {
 			slog.Warn("plugin security dashboard: json encode", slog.Any("err", err))
 		}
 	}))

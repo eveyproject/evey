@@ -142,6 +142,13 @@ plugins:
     noData: Aucune donnée de sécurité disponible.
     signed: Signé
     unsigned: Non signé
+    sandboxHost: "Sandbox de l'hôte"
+    sandboxResolvedFrom: "résolu depuis {{mode}}"
+    sandboxBasicWarning: "Les plugins tournent avec UID-drop + seccomp uniquement — cet hôte n'offre aucune isolation du système de fichiers par chemin."
+    sandboxBasicHint: "Un noyau ≥ 5.13 avec Landlock dans la liste LSM active apporte une isolation forte sans autre changement sur l'hôte."
+    probeLandlock: "Noyau Landlock"
+    probeLauncher: "Lanceur sandbox"
+    probeBubblewrap: "Bubblewrap"
 
 dashboard:
   title: "Tableau de bord"

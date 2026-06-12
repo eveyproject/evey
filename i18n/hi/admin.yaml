@@ -143,6 +143,13 @@ plugins:
     noData: कोई सुरक्षा डेटा उपलब्ध नहीं।
     signed: हस्ताक्षरित
     unsigned: अहस्ताक्षरित
+    sandboxHost: "होस्ट सैंडबॉक्स"
+    sandboxResolvedFrom: "{{mode}} से निर्धारित"
+    sandboxBasicWarning: "प्लगइन केवल UID-ड्रॉप + seccomp के साथ चलते हैं — यह होस्ट पथ-आधारित फ़ाइल सिस्टम अलगाव प्रदान नहीं करता।"
+    sandboxBasicHint: "सक्रिय LSM सूची में Landlock के साथ कर्नेल ≥ 5.13 बिना किसी अन्य होस्ट बदलाव के मज़बूत अलगाव सक्षम करता है।"
+    probeLandlock: "Landlock कर्नेल"
+    probeLauncher: "सैंडबॉक्स लॉन्चर"
+    probeBubblewrap: "Bubblewrap"
 
 dashboard:
   title: "डैशबोर्ड"

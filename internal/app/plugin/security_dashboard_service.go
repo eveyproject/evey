@@ -20,12 +20,25 @@ type SecurityDashboardBus interface {
 	Subscribe(eventName string, handler func(ctx context.Context, event shared.Event)) string
 }
 
+// SandboxStatus is the host-level sandbox diagnosis shown on the security
+// dashboard: configured vs effective mode plus the host probes explaining a
+// degradation (an admin on Docker Desktop or an old NAS otherwise only sees a
+// boot-time WARN log they will never read).
+type SandboxStatus struct {
+	Configured       string `json:"configured"`
+	Effective        string `json:"effective"`
+	LandlockKernel   bool   `json:"landlockKernel"`
+	LauncherPresent  bool   `json:"launcherPresent"`
+	BubblewrapUsable bool   `json:"bubblewrapUsable"`
+}
+
 // SecurityDashboardService aggregates security-relevant data for all installed plugins.
 // lastError events are stored in an in-memory bounded map (tail-50 per plugin),
 // since the domain has no persistent error-log repository.
 type SecurityDashboardService struct {
-	plugins       domainplugin.PluginRepository
-	sandboxModeFn func() string // returns the effective sandbox mode in force (resolves "auto")
+	plugins         domainplugin.PluginRepository
+	sandboxModeFn   func() string        // returns the effective sandbox mode in force (resolves "auto")
+	sandboxStatusFn func() SandboxStatus // optional richer host diagnosis (see WithSandboxStatus)
 
 	mu            sync.RWMutex
 	lastErrors    map[string]*domainplugin.PluginLastError // pluginID → last error
@@ -54,6 +67,25 @@ func NewSecurityDashboardService(
 		bus.Subscribe("plugin.started", s.handlePluginStarted)
 	}
 	return s
+}
+
+// WithSandboxStatus wires the richer host sandbox diagnosis (configured mode,
+// effective mode, probe results). Without it, SandboxStatus falls back to a
+// minimal status built from sandboxModeFn.
+func (s *SecurityDashboardService) WithSandboxStatus(fn func() SandboxStatus) *SecurityDashboardService {
+	if fn != nil {
+		s.sandboxStatusFn = fn
+	}
+	return s
+}
+
+// SandboxStatus returns the host-level sandbox diagnosis for the dashboard.
+func (s *SecurityDashboardService) SandboxStatus() SandboxStatus {
+	if s.sandboxStatusFn != nil {
+		return s.sandboxStatusFn()
+	}
+	mode := s.sandboxModeFn()
+	return SandboxStatus{Configured: mode, Effective: mode}
 }
 
 func (s *SecurityDashboardService) handlePluginError(_ context.Context, event shared.Event) {

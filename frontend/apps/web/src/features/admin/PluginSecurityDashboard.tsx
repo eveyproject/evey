@@ -40,10 +40,70 @@ interface PluginSecuritySnapshot {
   sizeBytes: number;
 }
 
+interface SandboxStatus {
+  configured: string;
+  effective: string;
+  landlockKernel: boolean;
+  launcherPresent: boolean;
+  bubblewrapUsable: boolean;
+}
+
 function sandboxBadgeVariant(mode: string): "success" | "warning" | "default" {
-  if (mode === "strict" || mode === "bubblewrap") return "success";
+  if (mode === "strict" || mode === "bubblewrap" || mode === "landlock") return "success";
   if (mode === "basic") return "warning";
   return "default";
+}
+
+// Host-level sandbox summary: which isolation is actually in force (the runner
+// resolves "auto"), with the probe results explaining a degradation to basic.
+// Shown even with zero plugins installed — that's exactly when an admin should
+// learn their host can't isolate plugins.
+function SandboxStatusCard({ sandbox }: { sandbox: SandboxStatus }) {
+  const { t } = useTranslation();
+  const degraded = sandbox.effective === "basic";
+  const probes: Array<{ key: string; ok: boolean; label: string }> = [
+    { key: "landlock", ok: sandbox.landlockKernel, label: t("admin.plugins.security.probeLandlock") },
+    { key: "launcher", ok: sandbox.launcherPresent, label: t("admin.plugins.security.probeLauncher") },
+    { key: "bwrap", ok: sandbox.bubblewrapUsable, label: t("admin.plugins.security.probeBubblewrap") },
+  ];
+
+  return (
+    <div
+      className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-4 py-3 flex flex-col gap-2"
+      data-testid="sandbox-status-card"
+    >
+      <div className="flex items-center gap-2 flex-wrap text-sm">
+        <span className="text-[var(--text-muted)]">{t("admin.plugins.security.sandboxHost")}</span>
+        <Badge variant={sandboxBadgeVariant(sandbox.effective)}>{sandbox.effective}</Badge>
+        {sandbox.configured !== sandbox.effective && (
+          <span className="text-xs text-[var(--text-muted)]">
+            {t("admin.plugins.security.sandboxResolvedFrom", { mode: sandbox.configured })}
+          </span>
+        )}
+      </div>
+      {degraded && (
+        <div
+          className="text-xs p-3 rounded-[var(--radius-sm)] bg-[var(--badge-warning-bg,#713f12)]/40 border border-[var(--badge-warning-text,#fde047)]/30 flex flex-col gap-1.5"
+          data-testid="sandbox-degraded-warning"
+        >
+          <p className="text-[var(--badge-warning-text,#fde047)] font-medium">
+            {t("admin.plugins.security.sandboxBasicWarning")}
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[var(--text-muted)]">
+            {probes.map((p) => (
+              <span key={p.key}>
+                <span className={p.ok ? "text-[var(--badge-success-text,#6ee7b7)]" : "text-[var(--badge-error-text,#fca5a5)]"}>
+                  {p.ok ? "✓" : "✗"}
+                </span>{" "}
+                {p.label}
+              </span>
+            ))}
+          </div>
+          <p className="text-[var(--text-muted)]">{t("admin.plugins.security.sandboxBasicHint")}</p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function countBySeverity(findings: SecurityFinding[]) {
@@ -185,7 +245,7 @@ export function PluginSecurityDashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ["/api/v1/admin/plugins/security-dashboard"],
     queryFn: () =>
-      eveyFetch<{ plugins: PluginSecuritySnapshot[] }>({
+      eveyFetch<{ plugins: PluginSecuritySnapshot[]; sandbox?: SandboxStatus }>({
         url: "/api/v1/admin/plugins/security-dashboard",
         method: "GET",
       }),
@@ -208,16 +268,21 @@ export function PluginSecurityDashboard() {
         <div className="flex justify-center py-8">
           <Spinner size="sm" />
         </div>
-      ) : snapshots.length === 0 ? (
-        <p className="text-sm text-[var(--text-muted)] py-2">
-          {t("admin.plugins.security.noData")}
-        </p>
       ) : (
-        <div className="flex flex-col gap-2">
-          {snapshots.map((snap) => (
-            <SnapshotRow key={snap.id} snap={snap} />
-          ))}
-        </div>
+        <>
+          {data?.sandbox && <SandboxStatusCard sandbox={data.sandbox} />}
+          {snapshots.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)] py-2">
+              {t("admin.plugins.security.noData")}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {snapshots.map((snap) => (
+                <SnapshotRow key={snap.id} snap={snap} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

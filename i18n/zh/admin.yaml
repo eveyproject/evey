@@ -143,6 +143,13 @@ plugins:
     noData: 暂无安全数据。
     signed: 已签名
     unsigned: 未签名
+    sandboxHost: "主机沙箱"
+    sandboxResolvedFrom: "由 {{mode}} 解析"
+    sandboxBasicWarning: "插件仅以 UID 降权 + seccomp 运行——此主机不提供按路径的文件系统隔离。"
+    sandboxBasicHint: "内核 ≥ 5.13 且 Landlock 在活动 LSM 列表中，即可获得强隔离，无需其他主机改动。"
+    probeLandlock: "Landlock 内核"
+    probeLauncher: "沙箱启动器"
+    probeBubblewrap: "Bubblewrap"
 
 dashboard:
   title: "仪表盘"

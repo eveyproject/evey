@@ -107,6 +107,10 @@ type Runner struct {
 	autoResolveOnce     sync.Once // resolves sandboxModeAuto to a concrete mode once
 	autoResolved        string
 	resMonOnce          sync.Once // starts the resource-monitor sweeper at most once
+	sandboxProbeOnce    sync.Once // memoises the host sandbox probes for SandboxStatus
+	probeLandlock       bool
+	probeLauncher       bool
+	probeBwrap          bool
 
 	// limMu guards the live-editable runtime knobs below. They are read by the
 	// resource-monitor sweeper and by Start while the admin may update them at
@@ -878,6 +882,41 @@ func (r *Runner) WithUIDSeparation(mode string) *Runner {
 // Exposed so the admin dashboard can show what's really active, not just "auto".
 func (r *Runner) EffectiveSandboxMode() string {
 	return r.effectiveMode()
+}
+
+// SandboxStatus is the host-level sandbox diagnosis surfaced by the admin
+// security dashboard: the configured vs effective mode plus the individual
+// host probes, so a degradation to "basic" comes with its reason (old kernel
+// without Landlock, missing launcher binary, bubblewrap blocked by seccomp…).
+type SandboxStatus struct {
+	Configured       string
+	Effective        string
+	LandlockKernel   bool // kernel enforces Landlock
+	LauncherPresent  bool // evey-plugin-launcher binary located
+	BubblewrapUsable bool // a throwaway bwrap sandbox actually builds here
+}
+
+// SandboxStatus reports the host sandbox diagnosis. The probes are host facts
+// (kernel LSM, shipped binaries, container seccomp) so they are memoised; the
+// bwrap probe in particular spawns a throwaway sandbox and must not run on
+// every dashboard refresh.
+func (r *Runner) SandboxStatus() SandboxStatus {
+	r.sandboxProbeOnce.Do(func() {
+		r.probeLandlock = landlockAvailable()
+		r.probeLauncher = launcherAvailable()
+		r.probeBwrap = ProbeSandbox(sandboxModeBubblewrap) == nil
+	})
+	configured := r.sandboxModeValue()
+	if configured == "" {
+		configured = sandboxModeBasic // mirror effectiveMode's test fallback
+	}
+	return SandboxStatus{
+		Configured:       configured,
+		Effective:        r.effectiveMode(),
+		LandlockKernel:   r.probeLandlock,
+		LauncherPresent:  r.probeLauncher,
+		BubblewrapUsable: r.probeBwrap,
+	}
 }
 
 // trackLifecycle runs cmd.Wait in a goroutine and cleans up once the

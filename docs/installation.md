@@ -152,6 +152,11 @@ is hardened so this stays the recommended containerised posture — **no
   userspace monitor — **no cgroup / `mem_limit` / `cpus` settings needed** — and
   all **admin-editable at runtime** from Admin → Plugins.
 
+After the first start, verify the sandbox actually in force in **Admin → Plugins
+→ Security Dashboard** (host sandbox card): `auto` should show `landlock` on a
+modern kernel; `basic` means the host can't isolate plugin filesystem access —
+see the deployment guide below.
+
 Which setup for your machine (old NAS, bare-metal, what to enable/disable, the risks in plain words): [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md). Full threat model and per-layer detail: [plugins/security-model.md](plugins/security-model.md).
 You can keep the default `auto` (recommended) or pin `EVEY_PLUGINS_SANDBOX_MODE:
 landlock` in compose to be explicit and fail-closed (`landlock` refuses to start

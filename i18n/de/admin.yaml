@@ -143,6 +143,13 @@ plugins:
     noData: Keine Sicherheitsdaten verfügbar.
     signed: Signiert
     unsigned: Nicht signiert
+    sandboxHost: "Host-Sandbox"
+    sandboxResolvedFrom: "aufgelöst aus {{mode}}"
+    sandboxBasicWarning: "Plugins laufen nur mit UID-Drop + seccomp — dieser Host bietet keine pfadbasierte Dateisystem-Isolation."
+    sandboxBasicHint: "Ein Kernel ≥ 5.13 mit Landlock in der aktiven LSM-Liste ermöglicht starke Isolation ohne weitere Host-Änderungen."
+    probeLandlock: "Landlock-Kernel"
+    probeLauncher: "Sandbox-Launcher"
+    probeBubblewrap: "Bubblewrap"
 
 dashboard:
   title: Dashboard
