@@ -1,0 +1,66 @@
+import { describe, it, expect } from "vitest";
+import { applyCuePosition, cueFontSizePx } from "./useSubtitleManager";
+
+function fakeCue(line: number | "auto" = "auto", snapToLines = true) {
+  return { line, snapToLines } as unknown as VTTCue;
+}
+
+function fakeVideo(tracks: Array<{ mode: TextTrackMode; cues: VTTCue[] }>): HTMLVideoElement {
+  return { textTracks: tracks } as unknown as HTMLVideoElement;
+}
+
+describe("applyCuePosition", () => {
+  it("anchors bottom cues at 88% with percentage lines (not glued to the edge)", () => {
+    const c1 = fakeCue();
+    const c2 = fakeCue(100, true); // the old buggy state
+    const video = fakeVideo([{ mode: "showing", cues: [c1, c2] }]);
+
+    applyCuePosition(video, "bottom");
+
+    for (const c of [c1, c2]) {
+      expect(c.snapToLines).toBe(false); // percentage interpretation
+      expect(c.line).toBe(88);
+    }
+  });
+
+  it("anchors top cues at 8%", () => {
+    const c = fakeCue();
+    const video = fakeVideo([{ mode: "showing", cues: [c] }]);
+    applyCuePosition(video, "top");
+    expect(c.line).toBe(8);
+    expect(c.snapToLines).toBe(false);
+  });
+
+  it("leaves hidden tracks untouched", () => {
+    const shown = fakeCue();
+    const hidden = fakeCue(42, true);
+    const video = fakeVideo([
+      { mode: "showing", cues: [shown] },
+      { mode: "hidden", cues: [hidden] },
+    ]);
+    applyCuePosition(video, "bottom");
+    expect(shown.line).toBe(88);
+    expect(hidden.line).toBe(42);
+    expect(hidden.snapToLines).toBe(true);
+  });
+});
+
+describe("cueFontSizePx", () => {
+  it("reproduces the native 5%-of-height size at fontSize=100", () => {
+    expect(cueFontSizePx(1000, 100)).toBe(50);
+    expect(cueFontSizePx(720, 100)).toBe(36);
+  });
+
+  it("scales with the user preference", () => {
+    expect(cueFontSizePx(1000, 50)).toBe(25);
+    expect(cueFontSizePx(1000, 150)).toBe(75);
+  });
+
+  it("clamps to a readable minimum on tiny players", () => {
+    expect(cueFontSizePx(200, 50)).toBe(13);
+  });
+
+  it("returns 0 when the element has no measurable height", () => {
+    expect(cueFontSizePx(0, 100)).toBe(0);
+  });
+});

@@ -13,6 +13,48 @@ interface UseSubtitleManagerArgs {
   subtitleStyle: SubtitleStyle;
 }
 
+// Cue anchor as a percentage of the video element height (snapToLines=false).
+// 88% places the cue top in the upper quarter of the bottom letterbox band on
+// scope (2.39:1) content and in the standard subtitle zone on 16:9 — instead
+// of the browser default that glues the text to the very bottom edge.
+const CUE_LINE_BOTTOM_PCT = 88;
+const CUE_LINE_TOP_PCT = 8;
+
+// Native cue text is 5% of the video viewport height per the WebVTT rendering
+// rules; fontSize=100 reproduces that baseline.
+const NATIVE_CUE_HEIGHT_RATIO = 0.05;
+const MIN_CUE_FONT_PX = 13;
+
+// cueFontSizePx converts the user's percentage preference into an absolute
+// pixel size for ::cue. An absolute size is required: percentage font-size in
+// ::cue resolves against the page default (16px) in Chromium — not against
+// the native 5%-of-video cue size — which rendered subtitles tiny on any
+// large player. Exported for tests.
+export function cueFontSizePx(videoHeightPx: number, fontSizePct: number): number {
+  if (videoHeightPx <= 0) return 0;
+  return Math.max(MIN_CUE_FONT_PX, videoHeightPx * NATIVE_CUE_HEIGHT_RATIO * (fontSizePct / 100));
+}
+
+// applyCuePosition re-anchors every cue of the showing tracks. Percentage
+// lines (snapToLines=false) are used instead of line numbers: the previous
+// `line=100, snapToLines=true` meant "the 100th text line from the top",
+// which the browser clamps to the bottom edge. Exported for tests.
+export function applyCuePosition(video: HTMLVideoElement, position: SubtitleStyle["position"]) {
+  const line = position === "top" ? CUE_LINE_TOP_PCT : CUE_LINE_BOTTOM_PCT;
+  for (let i = 0; i < video.textTracks.length; i++) {
+    const tt = video.textTracks[i];
+    if (tt.mode !== "showing") continue;
+    const cues = tt.cues;
+    if (!cues) continue;
+    for (let j = 0; j < cues.length; j++) {
+      const cue = cues[j] as VTTCue;
+      if (typeof cue.line === "undefined") continue;
+      cue.snapToLines = false; // before line: percentages outside 0-100 throw
+      cue.line = line;
+    }
+  }
+}
+
 export function useSubtitleManager({
   videoRef,
   currentSubtitle,
@@ -26,6 +68,10 @@ export function useSubtitleManager({
 }: UseSubtitleManagerArgs) {
   const externalSubUrlRef = useRef<string | null>(null);
   const styleElRef = useRef<HTMLStyleElement | null>(null);
+  // The track effect must see the current position without re-creating the
+  // <track> element on a position toggle.
+  const positionRef = useRef(subtitleStyle.position);
+  positionRef.current = subtitleStyle.position;
 
   // Dynamic <track> element management
   useEffect(() => {
@@ -57,6 +103,10 @@ export function useSubtitleManager({
     track.label = externalSubUrl ? externalSubUrl.label : "Selected";
     track.src = src;
     track.default = true;
+    // Re-anchor the cues once the VTT is parsed — without this, a freshly
+    // loaded track keeps the browser default (glued to the bottom edge) until
+    // the user happens to toggle the position setting.
+    track.addEventListener("load", () => applyCuePosition(video, positionRef.current));
     video.appendChild(track);
 
     // Force browser to load the track (Firefox compat: mode="showing")
@@ -69,27 +119,16 @@ export function useSubtitleManager({
     }
   }, [currentSubtitle, externalSubUrl, mediaId, streamToken, transcodeStartTime, currentTrackIndex]);
 
-  // Subtitle position (top/bottom) via cue line setting
+  // Subtitle position (top/bottom) live toggle
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const line = subtitleStyle.position === "top" ? 5 : 100;
-    for (let i = 0; i < video.textTracks.length; i++) {
-      const tt = video.textTracks[i];
-      if (tt.mode !== "showing") continue;
-      const cues = tt.cues;
-      if (!cues) continue;
-      for (let j = 0; j < cues.length; j++) {
-        const cue = cues[j] as VTTCue;
-        if (typeof cue.line !== "undefined") {
-          cue.line = line;
-          cue.snapToLines = true;
-        }
-      }
-    }
+    applyCuePosition(video, subtitleStyle.position);
   }, [subtitleStyle.position]);
 
-  // ::cue style injection for subtitle appearance
+  // ::cue style injection for subtitle appearance. Font size is computed in
+  // px from the live element height (see cueFontSizePx) and tracks resizes /
+  // fullscreen transitions via ResizeObserver.
   useEffect(() => {
     if (!styleElRef.current) {
       styleElRef.current = document.createElement("style");
@@ -105,8 +144,25 @@ export function useSubtitleManager({
     const b = parseInt(bgColor.slice(5, 7), 16);
     const bgRule = `background: rgba(${r},${g},${b},${opacity});`;
     const shadowRule = shadow ? "text-shadow: 0 1px 2px rgba(0,0,0,0.8);" : "text-shadow: none;";
-    styleElRef.current.textContent = `::cue { font-size: ${fontSize}%; color: ${color}; ${fontFamilyRule} ${bgRule} ${shadowRule} }`;
+
+    const apply = () => {
+      const px = cueFontSizePx(videoRef.current?.clientHeight ?? 0, fontSize);
+      // Element not measurable yet → fall back to the percentage (better than
+      // nothing); the ResizeObserver re-applies as soon as it has a size.
+      const fontRule = px > 0 ? `font-size: ${px.toFixed(1)}px;` : `font-size: ${fontSize}%;`;
+      if (styleElRef.current) {
+        styleElRef.current.textContent = `::cue { ${fontRule} color: ${color}; ${fontFamilyRule} ${bgRule} ${shadowRule} }`;
+      }
+    };
+    apply();
+
+    let ro: ResizeObserver | undefined;
+    if (videoRef.current && typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(apply);
+      ro.observe(videoRef.current);
+    }
     return () => {
+      ro?.disconnect();
       styleElRef.current?.remove();
       styleElRef.current = null;
     };
