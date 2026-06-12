@@ -51,6 +51,36 @@ func (s *QueryService) ListOverrides(ctx context.Context, mediaItemID string) ([
 	return overrides, err
 }
 
+// BatchListOverrides returns the overrides for each of the given items, keyed
+// by media item ID and only including items that actually have overrides.
+// Overrides are rare, so it first asks which items have any (one query) and
+// fetches the full rows only for those, avoiding an N+1 over a whole grid.
+func (s *QueryService) BatchListOverrides(ctx context.Context, mediaItemIDs []string) (map[string][]*metadata.MetadataOverride, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.BatchListOverrides")
+	defer span.End()
+	out := map[string][]*metadata.MetadataOverride{}
+	if len(mediaItemIDs) == 0 {
+		return out, nil
+	}
+	overridden, err := s.overrides.ListOverriddenMediaItemIDs(ctx, mediaItemIDs)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return out, err
+	}
+	for id := range overridden {
+		ovs, err := s.overrides.GetByMediaItem(ctx, id)
+		if err != nil {
+			span.RecordError(err)
+			continue
+		}
+		if len(ovs) > 0 {
+			out[id] = ovs
+		}
+	}
+	return out, nil
+}
+
 func (s *QueryService) GetArtwork(ctx context.Context, mediaItemID string) ([]*metadata.ArtworkRecord, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.GetArtwork")
 	defer span.End()

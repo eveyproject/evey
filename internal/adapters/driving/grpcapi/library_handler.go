@@ -236,12 +236,8 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 		span.SetStatus(otelcodes.Error, "parental restricted")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.library.parental_restricted")
 	}
-	if h.metadataSvc != nil {
-		if overrides, oErr := h.metadataSvc.ListOverrides(ctx, req.Id); oErr == nil {
-			applyOverridesToItem(item, overrides)
-		}
-	}
-	// Overlay translated metadata (always, including fallback locale — base title may be in another language)
+	// Overlay translated metadata first (always, including fallback locale — the
+	// base title may be in another language).
 	locale := eveyi18n.LocaleFromCtx(ctx)
 	if locale != "" {
 		if trans, tErr := h.query.GetMediaItemTranslation(ctx, req.Id, locale); tErr == nil && trans != nil {
@@ -254,6 +250,15 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 			if trans.Tagline != "" {
 				item.Tagline = trans.Tagline
 			}
+		}
+	}
+	// Manual overrides win over the auto-translation: an admin's explicit edit
+	// is deliberate intent and must take precedence over a fetched localized
+	// title (also the only way to correct a wrong-match title that a stale
+	// translation row would otherwise keep showing).
+	if h.metadataSvc != nil {
+		if overrides, oErr := h.metadataSvc.ListOverrides(ctx, req.Id); oErr == nil {
+			applyOverridesToItem(item, overrides)
 		}
 	}
 	pb := mediaItemToProto(item)
@@ -446,6 +451,17 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 			}
 		} else {
 			slog.Warn("list media items: localize titles", slog.Any("err", tErr))
+		}
+	}
+	// Manual overrides win over the auto-translation here too (same precedence
+	// as the detail view) so a corrected title shows in the grid/season list.
+	if h.metadataSvc != nil && len(ids) > 0 {
+		if ovMap, oErr := h.metadataSvc.BatchListOverrides(ctx, ids); oErr == nil {
+			for _, item := range items {
+				if ovs := ovMap[string(item.ID)]; len(ovs) > 0 {
+					applyOverridesToItem(item, ovs)
+				}
+			}
 		}
 	}
 	var artworkMap map[string][]*domainmetadata.ArtworkRecord

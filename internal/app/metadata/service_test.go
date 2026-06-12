@@ -1025,3 +1025,24 @@ func TestSearchMetadata_ProviderErrorSkipped(t *testing.T) {
 	assert.Len(t, results, 1)
 	assert.Equal(t, "OK Result", results[0].Title)
 }
+
+func TestBatchListOverrides(t *testing.T) {
+	cmdSvc, querySvc, _, _ := newTestServices()
+	ctx := context.Background()
+	_ = cmdSvc.SetOverride(ctx, &metadata.MetadataOverride{ID: "mo-1", MediaItemID: "item-1", FieldName: "title", CustomValue: "Fixed"})
+	_ = cmdSvc.SetOverride(ctx, &metadata.MetadataOverride{ID: "mo-2", MediaItemID: "item-1", FieldName: "overview", CustomValue: "ov"})
+
+	out, err := querySvc.BatchListOverrides(ctx, []string{"item-1", "item-2", "item-3"})
+	require.NoError(t, err)
+	// only item-1 has overrides; item-2/3 absent from the map
+	require.Len(t, out["item-1"], 2)
+	_, has2 := out["item-2"]
+	assert.False(t, has2)
+}
+
+func TestBatchListOverrides_Empty(t *testing.T) {
+	_, querySvc, _, _ := newTestServices()
+	out, err := querySvc.BatchListOverrides(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, out)
+}
