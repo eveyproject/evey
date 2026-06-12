@@ -49,45 +49,36 @@ func (s *refreshStream) RecvMsg(any) error                 { return nil }
 // compile-time check: refreshStream satisfies the stream interface.
 var _ grpc.ServerStreamingServer[eveyv1.RefreshMetadataProgress] = (*refreshStream)(nil)
 
-func newRefreshMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvider) {
+// newRefreshMetadataHandler wires a metadataCmd with a no-op enricher + a real
+// media-item repo so the handler can resolve the item's provider IDs and run a
+// re-enrich (the production path). Returns the handler, the seeded provider,
+// and the repo for test setup.
+func newRefreshMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvider, *libfakes.FakeMediaItemRepository) {
 	provider := metafakes.NewFakeMetadataProvider("tmdb")
 	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 	events := sharedfakes.NewFakeEventBus()
 	providers := []domainmetadata.MetadataProvider{provider}
-	cmd := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), events, providers)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	cmd := appmetadata.NewCommandService(overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(), events, providers,
+		appmetadata.WithEnricher(orphanBulkEnricher{}, mediaRepo),
+	)
 	query := appmetadata.NewQueryService(overrideRepo, artworkRepo, providers)
-	return &metadataHandler{cmd: cmd, query: query}, provider
+	return &metadataHandler{cmd: cmd, query: query}, provider, mediaRepo
 }
 
-func TestRefreshMetadata_WithPreferredProvider_HappyPath(t *testing.T) {
-	h, provider := newRefreshMetadataHandler()
-	// Seed the provider so GetByProviderID("tmdb-42") succeeds.
-	provider.ByProviderID["tmdb-42"] = &domainmetadata.MetadataResult{Title: "Interstellar"}
+// Forcing provider=tmdb resolves the item's stored TMDB id and re-enriches —
+// it no longer passes an empty media type (the old 500) nor discards the result.
+func TestRefreshMetadata_PreferredTMDB_ReenrichesFromStoredID(t *testing.T) {
+	h, provider, mediaRepo := newRefreshMetadataHandler()
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "mi-1", Type: library.MovieItem, Title: "a prod title",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "9772"}},
+	}))
+	provider.ByProviderID["9772"] = &domainmetadata.MetadataResult{Title: "a prod title"}
 
-	stream := newRefreshStream(context.Background())
-	err := h.RefreshMetadata(&eveyv1.RefreshMetadataRequest{
-		MediaItemId:       "mi-1",
-		PreferredProvider: "tmdb",
-	}, stream)
-
-	// provider_id="" → cmd.RefreshMetadata looks up "" in ByProviderID → ErrNotFound
-	// This tests the error mapping.  The seeded key is "tmdb-42", not "".
-	// The call signature passes providerID="" so the provider returns ErrNotFound.
-	// Expect internal error from the handler.
-	require.Error(t, err)
-	assert.Equal(t, codes.Internal, status.Code(err))
-}
-
-// TestRefreshMetadata_WithPreferredProvider_ProviderFound seeds providerID="" so
-// the handler path with PreferredProvider succeeds all the way to stream.Send.
-func TestRefreshMetadata_WithPreferredProvider_ProviderFound(t *testing.T) {
-	h, provider := newRefreshMetadataHandler()
-	// The handler calls cmd.RefreshMetadata(ctx, mediaItemID, "", providerName, "")
-	// → provider.GetByProviderID(ctx, "", "") — seed the empty key.
-	provider.ByProviderID[""] = &domainmetadata.MetadataResult{Title: "Found"}
-
-	stream := newRefreshStream(context.Background())
+	stream := newRefreshStream(ctx)
 	err := h.RefreshMetadata(&eveyv1.RefreshMetadataRequest{
 		MediaItemId:       "mi-1",
 		PreferredProvider: "tmdb",
@@ -95,9 +86,51 @@ func TestRefreshMetadata_WithPreferredProvider_ProviderFound(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, stream.Sent, 1)
-	assert.Equal(t, "mi-1", stream.Sent[0].MediaItemId)
 	assert.Equal(t, "complete", stream.Sent[0].Phase)
-	assert.InDelta(t, float64(100), stream.Sent[0].Percent, 0.001)
+}
+
+// Forcing provider=imdb routes through the IMDB re-enrich path (keyed by the
+// stored IMDB id), which the omdb/imdbapi-origin items need.
+func TestRefreshMetadata_PreferredIMDB_UsesStoredIMDBID(t *testing.T) {
+	h, provider, mediaRepo := newRefreshMetadataHandler()
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "mi-2", Type: library.MovieItem, Title: "a prod title",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"imdb": "tt0118571"}},
+	}))
+	provider.ByProviderID["tt0118571"] = &domainmetadata.MetadataResult{Title: "a prod title"}
+
+	stream := newRefreshStream(ctx)
+	err := h.RefreshMetadata(&eveyv1.RefreshMetadataRequest{
+		MediaItemId:       "mi-2",
+		PreferredProvider: "imdb",
+	}, stream)
+
+	require.NoError(t, err)
+	require.Len(t, stream.Sent, 1)
+}
+
+// A forced provider the item has no ID for fails cleanly (precondition), not 500.
+func TestRefreshMetadata_PreferredTMDB_NoID_FailedPrecondition(t *testing.T) {
+	h, _, mediaRepo := newRefreshMetadataHandler()
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "mi-3", Type: library.MovieItem, Title: "X"}))
+
+	stream := newRefreshStream(ctx)
+	err := h.RefreshMetadata(&eveyv1.RefreshMetadataRequest{MediaItemId: "mi-3", PreferredProvider: "tmdb"}, stream)
+	require.Error(t, err)
+	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
+}
+
+func TestRefreshMetadata_UnsupportedProvider_InvalidArgument(t *testing.T) {
+	h, _, mediaRepo := newRefreshMetadataHandler()
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{ID: "mi-4", Type: library.MovieItem, Title: "X"}))
+
+	stream := newRefreshStream(ctx)
+	err := h.RefreshMetadata(&eveyv1.RefreshMetadataRequest{MediaItemId: "mi-4", PreferredProvider: "wikipedia"}, stream)
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestRefreshMetadata_NoProvider_NoTMDBID_FailedPrecondition(t *testing.T) {

@@ -100,15 +100,16 @@ func TestTMDBPersonFetcher_FetchPersonTranslations_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchPersonTranslations: %v", err)
 	}
-	// Base language (en) is skipped by TMDBProvider.FetchPersonTranslations; fr/de should be present.
+	// Every requested locale is fetched, including the base language (en) —
+	// the overlay applies a bio row for the default locale too.
 	if out["fr"] != "bio-fr" {
 		t.Errorf("fr = %q, want bio-fr", out["fr"])
 	}
 	if out["de"] != "bio-de" {
 		t.Errorf("de = %q, want bio-de", out["de"])
 	}
-	if _, ok := out["en"]; ok {
-		t.Errorf("en should be skipped (base language)")
+	if out["en"] != "bio-en" {
+		t.Errorf("en = %q, want bio-en (base language no longer skipped)", out["en"])
 	}
 }
 

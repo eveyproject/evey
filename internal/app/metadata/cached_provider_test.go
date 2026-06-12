@@ -158,3 +158,52 @@ func TestCachedProvider_StackedWithRetry_UnwrapReachesBase(t *testing.T) {
 		t.Fatalf("unwrap chain did not reach inner: got %T", cur)
 	}
 }
+
+// langAwareFake adds a settable Language() so the cache key folds it in.
+type langAwareFake struct {
+	*decoratorFakeProvider
+	lang string
+}
+
+func (f *langAwareFake) Language() string { return f.lang }
+
+// A language change must not serve a result fetched under another language —
+// otherwise a synopsis fetched in one language sticks under another.
+func TestCachedProvider_SearchKeyDiscriminatesLanguage(t *testing.T) {
+	inner := &langAwareFake{
+		decoratorFakeProvider: &decoratorFakeProvider{name: "tmdb", searchResult: []domainmetadata.MetadataResult{{Title: "x"}}},
+		lang:                  "en",
+	}
+	c := NewCachedProvider(inner, time.Minute)
+
+	_, _ = c.Search(context.Background(), "dune", nil, "movie") // miss → fetch (en)
+	_, _ = c.Search(context.Background(), "dune", nil, "movie") // hit (en)
+	if inner.searchCalls != 1 {
+		t.Fatalf("after same-language repeat: searchCalls=%d, want 1", inner.searchCalls)
+	}
+
+	inner.lang = "fr"
+	_, _ = c.Search(context.Background(), "dune", nil, "movie") // miss → fetch (fr)
+	if inner.searchCalls != 2 {
+		t.Fatalf("after language switch: searchCalls=%d, want 2 (not served from en cache)", inner.searchCalls)
+	}
+}
+
+func TestCachedProvider_GetByIDKeyDiscriminatesLanguage(t *testing.T) {
+	inner := &langAwareFake{
+		decoratorFakeProvider: &decoratorFakeProvider{name: "tmdb", idResult: &domainmetadata.MetadataResult{Title: "x"}},
+		lang:                  "en",
+	}
+	c := NewCachedProvider(inner, time.Minute)
+
+	_, _ = c.GetByProviderID(context.Background(), "9772", "movie")
+	_, _ = c.GetByProviderID(context.Background(), "9772", "movie")
+	if inner.getByIDCalls != 1 {
+		t.Fatalf("same-language repeat: getByIDCalls=%d, want 1", inner.getByIDCalls)
+	}
+	inner.lang = "fr"
+	_, _ = c.GetByProviderID(context.Background(), "9772", "movie")
+	if inner.getByIDCalls != 2 {
+		t.Fatalf("language switch: getByIDCalls=%d, want 2", inner.getByIDCalls)
+	}
+}

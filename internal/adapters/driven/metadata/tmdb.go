@@ -29,6 +29,10 @@ type TMDBProvider struct {
 
 func (p *TMDBProvider) language() string { return p.languageFn() }
 
+// Language exposes the provider's current language so a fronting cache can key
+// on it (implements domain.LanguageAware).
+func (p *TMDBProvider) Language() string { return p.language() }
+
 func NewTMDBProviderWithGetter(apiKey string, languageFn func() string, httpClient *http.Client) *TMDBProvider {
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 30 * time.Second}
@@ -82,7 +86,10 @@ func (p *TMDBProvider) Search(ctx context.Context, query string, year *int, medi
 		return nil, err
 	}
 
-	cacheKey := "tmdb:search:" + mediaType + ":" + query
+	// Language is part of the key: the same query in a different language is a
+	// different result, and omitting it let a result fetched in one language
+	// stick under another (the cause of synopses frozen in the wrong language).
+	cacheKey := "tmdb:search:" + p.language() + ":" + mediaType + ":" + query
 	if year != nil {
 		cacheKey += ":" + strconv.Itoa(*year)
 	}
@@ -266,7 +273,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.GetByProviderID")
 	defer span.End()
 
-	cacheKey := "tmdb:detail:" + mediaType + ":" + providerID
+	cacheKey := "tmdb:detail:" + p.language() + ":" + mediaType + ":" + providerID
 	if cached, ok := p.detailCache.Get(cacheKey); ok {
 		return &cached, nil
 	}
@@ -345,16 +352,20 @@ func (p *TMDBProvider) LookupByExternalID(ctx context.Context, providerName, ext
 	}, nil
 }
 
-// FetchTranslations fetches title/overview/tagline in each locale, skipping the provider's default language.
+// FetchTranslations fetches title/overview/tagline for each requested locale.
+//
+// It deliberately does NOT skip the provider's default language: the read path
+// overlays media_item_translations for every locale (including the default),
+// so a row must exist for the default locale too. Skipping it left items whose
+// base columns ended up in the wrong language (e.g. an OMDb-origin item later
+// matched to TMDB) with no correct row to serve — permanently stuck in the
+// wrong language with no re-enrichment able to fix it.
 func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string, mediaType string, locales []string) (map[string]domain.MetadataResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.FetchTranslations")
 	defer span.End()
 
 	results := make(map[string]domain.MetadataResult)
 	for _, locale := range locales {
-		if locale == p.language() {
-			continue
-		}
 		endpoint, err := detailEndpoint(mediaType, providerID)
 		if err != nil {
 			return nil, err
@@ -390,11 +401,11 @@ func (p *TMDBProvider) FetchPersonTranslations(ctx context.Context, personID str
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.FetchPersonTranslations")
 	defer span.End()
 
+	// Like FetchTranslations, the default language is NOT skipped: the bio
+	// overlay applies for every locale including the default, so a row is
+	// needed there too.
 	results := make(map[string]string)
 	for _, locale := range locales {
-		if locale == p.language() {
-			continue
-		}
 		u := fmt.Sprintf("%s/person/%s?language=%s", p.baseURL, personID, locale)
 		body, err := p.doRequestWithRetry(ctx, u)
 		if err != nil {

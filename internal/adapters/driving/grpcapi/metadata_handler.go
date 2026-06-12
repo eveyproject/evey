@@ -69,33 +69,48 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
 		return err
 	}
-	if req.PreferredProvider != "" {
-		_, err := h.cmd.RefreshMetadata(ctx, req.MediaItemId, "", req.PreferredProvider, "")
-		if err != nil {
-			return internalError("refresh metadata", err)
-		}
-	} else {
-		// Auto-detect: look up TMDB ID from the item and do a full re-enrich
-		item, err := h.cmd.GetMediaItem(ctx, req.MediaItemId)
-		if err != nil {
-			return internalError("get item", err)
-		}
-		var tmdbID string
-		if item.Catalog != nil {
-			tmdbID = item.Catalog.ProviderIDs["tmdb"]
-		}
-		mediaType := "movie"
-		if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
-			mediaType = "tv"
-		}
-		if tmdbID != "" {
-			if err := h.cmd.RefreshItemMetadata(ctx, req.MediaItemId, tmdbID, mediaType); err != nil {
-				return internalError("refresh metadata", err)
-			}
-		} else {
+
+	// Both the auto path (no preferred provider) and the forced-provider path
+	// resolve the provider ID + media type from the stored item and run a real
+	// re-enrich. The old forced-provider branch passed empty IDs to the provider
+	// (→ "unsupported media type" 500) and discarded the result without ever
+	// persisting it; route everything through the enriching entry points.
+	item, err := h.cmd.GetMediaItem(ctx, req.MediaItemId)
+	if err != nil {
+		return internalError("get item", err)
+	}
+	providerIDs := map[string]string{}
+	if item.Catalog != nil {
+		providerIDs = item.Catalog.ProviderIDs
+	}
+	mediaType := "movie"
+	if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
+		mediaType = "tv"
+	}
+
+	switch req.PreferredProvider {
+	case "", "tmdb":
+		tmdbID := providerIDs["tmdb"]
+		if tmdbID == "" {
 			return status.Errorf(codes.FailedPrecondition, "no TMDB ID for this item")
 		}
+		if err := h.cmd.RefreshItemMetadata(ctx, req.MediaItemId, tmdbID, mediaType); err != nil {
+			return internalError("refresh metadata", err)
+		}
+	case "imdb", "omdb", "imdbapi":
+		// omdb/imdbapi are keyed by the IMDB id; the enrich path cross-refs
+		// IMDB → TMDB so locale translations land on the right record.
+		imdbID := providerIDs["imdb"]
+		if imdbID == "" {
+			return status.Errorf(codes.FailedPrecondition, "no IMDB ID for this item")
+		}
+		if err := h.cmd.RefreshItemMetadataByIMDB(ctx, req.MediaItemId, imdbID, mediaType); err != nil {
+			return internalError("refresh metadata", err)
+		}
+	default:
+		return status.Errorf(codes.InvalidArgument, "unsupported provider %q", req.PreferredProvider)
 	}
+
 	return stream.Send(&eveyv1.RefreshMetadataProgress{
 		MediaItemId: req.MediaItemId,
 		Phase:       "complete",

@@ -87,6 +87,14 @@ type TranslationProvider interface {
 	FetchPersonTranslations(ctx context.Context, personName string, locales []string) (map[string]string, error)
 }
 
+// LanguageAware is implemented by providers whose results depend on a
+// configured language (e.g. TMDB). Caches in front of such a provider must
+// fold the language into their key, else a result fetched in one language is
+// served under another.
+type LanguageAware interface {
+	Language() string
+}
+
 // AlternativeTitlesProvider fetches locale-variant release titles for a
 // specific provider ID. Used on the ambiguous-match path to resolve
 // filenames that differ from the localised search-language title

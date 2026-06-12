@@ -8,7 +8,11 @@ import (
 	"testing"
 )
 
-func TestTMDB_FetchTranslations_MovieSkipsBaseLanguage(t *testing.T) {
+// FetchTranslations must fetch EVERY requested locale, including the provider's
+// default language. The read overlay applies a translation row for every locale
+// (default included), so a missing default-language row left items whose base
+// columns held the wrong language stuck — the synopsis-frozen-in-English bug.
+func TestTMDB_FetchTranslations_IncludesBaseLanguage(t *testing.T) {
 	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.HasPrefix(r.URL.Path, "/movie/42") {
 			http.NotFound(w, r)
@@ -34,8 +38,10 @@ func TestTMDB_FetchTranslations_MovieSkipsBaseLanguage(t *testing.T) {
 	if out["de"].Title != "Title-de" {
 		t.Errorf("de = %+v", out["de"])
 	}
-	if _, ok := out["en"]; ok {
-		t.Error("en (base language) should be skipped")
+	// "en" is the provider's default language (newTestServer) — it must now be
+	// fetched too, not skipped.
+	if out["en"].Overview != "Overview-en" {
+		t.Errorf("base language en must be fetched, got %+v", out["en"])
 	}
 }
 

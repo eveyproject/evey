@@ -72,6 +72,15 @@ func NewCachedProvider(inner domainmetadata.MetadataProvider, ttl time.Duration)
 	}
 }
 
+// lang returns the inner provider's current language for cache-key folding, or
+// "" when the provider's results don't depend on a language.
+func (c *CachedProvider) lang() string {
+	if la, ok := c.inner.(domainmetadata.LanguageAware); ok {
+		return la.Language()
+	}
+	return ""
+}
+
 func (c *CachedProvider) Name() string                        { return c.inner.Name() }
 func (c *CachedProvider) Unwrap() domainmetadata.MetadataProvider { return c.inner }
 
@@ -79,7 +88,7 @@ func (c *CachedProvider) Search(ctx context.Context, query string, year *int, me
 	if c.ttl <= 0 {
 		return c.inner.Search(ctx, query, year, mediaType)
 	}
-	key := searchKey(c.inner.Name(), query, year, mediaType)
+	key := searchKey(c.inner.Name(), c.lang(), query, year, mediaType)
 	if results, ok := c.getSearch(key); ok {
 		return results, nil
 	}
@@ -95,7 +104,7 @@ func (c *CachedProvider) GetByProviderID(ctx context.Context, providerID, mediaT
 	if c.ttl <= 0 {
 		return c.inner.GetByProviderID(ctx, providerID, mediaType)
 	}
-	key := fmt.Sprintf("%s|%s|%s", c.inner.Name(), providerID, mediaType)
+	key := fmt.Sprintf("%s|%s|%s|%s", c.inner.Name(), c.lang(), providerID, mediaType)
 	if result, ok := c.getByID(key); ok {
 		return result, nil
 	}
@@ -147,10 +156,10 @@ func (c *CachedProvider) putByID(key string, result *domainmetadata.MetadataResu
 	c.mu.Unlock()
 }
 
-func searchKey(name, query string, year *int, mediaType string) string {
+func searchKey(name, lang, query string, year *int, mediaType string) string {
 	y := ""
 	if year != nil {
 		y = strconv.Itoa(*year)
 	}
-	return name + "|s|" + query + "|" + y + "|" + mediaType
+	return name + "|s|" + lang + "|" + query + "|" + y + "|" + mediaType
 }
