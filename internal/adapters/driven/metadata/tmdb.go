@@ -371,7 +371,8 @@ func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string,
 			return nil, err
 		}
 		params := url.Values{
-			"language": {locale},
+			"language":           {locale},
+			"append_to_response": {"alternative_titles"},
 		}
 		u := fmt.Sprintf("%s%s?%s", p.baseURL, endpoint, params.Encode())
 		body, err := p.doRequestWithRetry(ctx, u)
@@ -388,9 +389,17 @@ func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string,
 		}
 		if mediaType == "tv" {
 			r.Title = detail.Name
+			r.OriginalTitle = detail.OriginalName
 		} else {
 			r.Title = detail.Title
+			r.OriginalTitle = detail.OriginalTitle
 		}
+		// Same regional fallback as the base enrichment: a foreign-language
+		// work with no localized title in this locale takes its regional
+		// alternative title — otherwise the per-locale translation row would
+		// hold the original-language title and the read overlay would clobber
+		// the (correct, regional) base title with it.
+		applyRegionalTitle(&r, detail, locale)
 		results[locale] = r
 	}
 	return results, nil

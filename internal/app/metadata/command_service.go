@@ -1020,6 +1020,12 @@ type ForceSingleItemEnricher interface {
 	ForceAutoEnrichItem(ctx context.Context, item *library.MediaItem, log *slog.Logger)
 }
 
+// TranslationClearer wipes an item's stored locale translations. Optional
+// capability used by ResearchMetadata to drop rows tied to a wrong match.
+type TranslationClearer interface {
+	ClearTranslations(ctx context.Context, mediaItemID string)
+}
+
 // ResearchMetadataResult is what the gRPC handler reports back: did we land on
 // a different title (i.e. the re-search produced a new match) and what is it.
 type ResearchMetadataResult struct {
@@ -1067,6 +1073,13 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("delete overrides: %w", err)
+	}
+
+	// 1b. Drop stored locale translations — they belong to the wrong match and
+	// would otherwise overlay the corrected base title on the read path (this
+	// is what kept a re-matched season showing the foreign show's title).
+	if tc, ok := s.enricher.(TranslationClearer); ok {
+		tc.ClearTranslations(ctx, mediaItemID)
 	}
 
 	// 2. Strip wrong provider IDs + year so the next enrichment runs a fresh

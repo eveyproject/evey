@@ -72,3 +72,34 @@ func TestTMDB_FetchTranslations_UnsupportedMediaType(t *testing.T) {
 		t.Fatal("expected error for unsupported media type")
 	}
 }
+
+// A foreign-language work whose per-locale title is the original-language one
+// must get its regional alternative title in the translation row too — else
+// the read overlay clobbers the (regional) base title.
+func TestTMDB_FetchTranslations_RegionalTitleForForeignWork(t *testing.T) {
+	srv, p := newTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/movie/77") {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(tmdbDetailResponse{
+			Title:            "Deutscher Titel",
+			OriginalTitle:    "Deutscher Titel",
+			OriginalLanguage: "de",
+			Overview:         "ov",
+			AlternativeTitles: &tmdbAltTitles{Titles: []tmdbAltTitle{
+				{Region: "FR", Title: "Titre français"},
+			}},
+		})
+	})
+	defer srv.Close()
+
+	out, err := p.FetchTranslations(context.Background(), "77", "movie", []string{"fr"})
+	if err != nil {
+		t.Fatalf("FetchTranslations: %v", err)
+	}
+	if out["fr"].Title != "Titre français" {
+		t.Errorf("fr translation should use regional title, got %q", out["fr"].Title)
+	}
+}

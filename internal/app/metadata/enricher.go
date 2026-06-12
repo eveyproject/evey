@@ -518,6 +518,20 @@ func (e *Enricher) EnrichTranslationsForItem(ctx context.Context, item *domainli
 	e.enrichTranslations(ctx, item, providerID, mediaType)
 }
 
+// ClearTranslations removes every stored locale translation for an item. Used
+// when correcting a wrong match (ResearchMetadata): the old translation rows
+// belong to the bad match and would otherwise overlay the corrected base title
+// via the read path (e.g. a season left showing a foreign show's title even
+// after its base was fixed). Re-enrichment repopulates them for a valid match.
+func (e *Enricher) ClearTranslations(ctx context.Context, mediaItemID string) {
+	if e.mediaTranslations == nil {
+		return
+	}
+	if err := e.mediaTranslations.DeleteByMediaItem(ctx, mediaItemID); err != nil {
+		slog.Warn("clear media translations", slog.String("item", mediaItemID), slog.Any("err", err))
+	}
+}
+
 func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.MediaItem, providerID, mediaType string) {
 	if e.mediaTranslations == nil || len(e.translationLocales) == 0 {
 		return

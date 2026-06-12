@@ -559,16 +559,20 @@ func TestMatchOrphansInLibrary_DetachesFromCallerContext(t *testing.T) {
 // fakeForceEnricher implements ForceSingleItemEnricher and writes a known
 // post-enrichment state so the test can verify the post-enrich GetByID path.
 type fakeForceEnricher struct {
-	mediaRepo *libfakes.FakeMediaItemRepository
-	newTitle  string
-	overview  string
-	tmdbID    string
+	mediaRepo     *libfakes.FakeMediaItemRepository
+	newTitle      string
+	overview      string
+	tmdbID        string
+	clearedItemID string // records ClearTranslations(mediaItemID)
 }
 
 func (f *fakeForceEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metadata.MetadataResult) error {
 	return nil
 }
 func (f *fakeForceEnricher) EnrichTranslationsForItem(_ context.Context, _ *library.MediaItem, _, _ string) {
+}
+func (f *fakeForceEnricher) ClearTranslations(_ context.Context, mediaItemID string) {
+	f.clearedItemID = mediaItemID
 }
 func (f *fakeForceEnricher) ForceAutoEnrichItem(ctx context.Context, item *library.MediaItem, _ *slog.Logger) {
 	stored, err := f.mediaRepo.GetByID(ctx, item.ID)
@@ -639,6 +643,9 @@ func TestResearchMetadata_ResetsAndReEnrichesFromScanTitle(t *testing.T) {
 	// overrides removed
 	ovs, _ := overrideRepo.GetByMediaItem(ctx, "m1")
 	assert.Empty(t, ovs)
+
+	// stale locale translations from the bad match were cleared
+	assert.Equal(t, "m1", enricher.clearedItemID, "ResearchMetadata must clear stale translations")
 
 	// final state in repo
 	final, err := mediaRepo.GetByID(ctx, shared.MediaItemID("m1"))
