@@ -6,6 +6,7 @@ package maintenance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,6 +16,11 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/mkv"
 )
+
+// ErrJobRunning is returned by the batch entry points when a seek-index batch
+// is already in flight for the requested scope (or a conflicting one). Handlers
+// can map it to a user-actionable "try again later" instead of a 500.
+var ErrJobRunning = errors.New("a seek-index job is already running for this scope")
 
 // MediaRef is the minimal media-file info the seek-index tools need. It is
 // resolved from the library by a MediaCatalog adapter.
@@ -203,7 +209,7 @@ func (s *SeekIndexService) startBatch(libraryID, op string, paths []string, fn f
 	}
 	key := jobKey(libraryID)
 	if !s.tryStart(key) {
-		return 0, fmt.Errorf("a seek-index job is already running for this scope")
+		return 0, ErrJobRunning
 	}
 	go s.runBatch(key, op, paths, fn)
 	return len(paths), nil

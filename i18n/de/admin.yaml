@@ -10,6 +10,7 @@ nav:
   libraries: Bibliotheken
   transcoding: Transkodierung
   artworks: Artwork-Cache
+  seekIndex: Seek-Index
   usersAccess: Benutzer & Zugriff
   users: Benutzer
   integrations: Integrationen
@@ -754,3 +755,45 @@ segments:
   propagate: Auf Staffel anwenden
   lockedHint: Dieses Segment ist manuell gesperrt und wird durch die automatische Erkennung nicht überschrieben.
   propagateSuccess: "Auf {{count}} Folge(n) übertragen"
+
+seekIndex:
+  title: "Seek-Index-Reparatur"
+  description: "MKV/WebM-Dateien ohne Seek-Index (Cues) springen und setzen nur langsam fort — der Player muss sie linear durchlesen. Der Scan ist schreibgeschützt; die Reparatur baut den Index direkt in der Datei neu auf und behält das Original als .mkvgobak-Sicherung, die jederzeit wiederherstellbar ist."
+  readOnlyNote: "Die Reparatur schreibt in deine Medienordner. Sind sie schreibgeschützt eingebunden (:ro in docker-compose), binde sie zuerst beschreibbar ein und starte die Container neu — der Scan funktioniert trotzdem."
+  library: "Bibliothek"
+  allLibraries: "Alle Bibliotheken"
+  scan: "Scannen"
+  scanAgain: "Erneut scannen"
+  scanFailed: "Scan fehlgeschlagen"
+  repairAll: "Alle reparieren ({{count}})"
+  rollbackAll: "Alle wiederherstellen ({{count}})"
+  statsInspected: "Geprüfte Dateien"
+  statsMissing: "Ohne Seek-Index"
+  statsBackup: "Mit Sicherung"
+  onlyAttention: "Nur Dateien mit Handlungsbedarf anzeigen"
+  emptyTitle: "Noch kein Scan"
+  emptyDescription: "Wähle eine Bibliothek und scanne, um MKV/WebM-Dateien ohne Seek-Index zu finden."
+  noEbml: "Keine MKV/WebM-Dateien in diesem Bereich — andere Container brauchen keinen Seek-Index."
+  allGood: "Kein Handlungsbedarf — jede gescannte Datei hat einen Seek-Index."
+  tableHeaders:
+    file: "Datei"
+    container: "Container"
+    size: "Größe"
+    status: "Seek-Index"
+  statusIndexed: "Indiziert"
+  statusMissing: "Fehlt"
+  backupBadge: "Sicherung"
+  repair: "Reparieren"
+  rollback: "Wiederherstellen"
+  repairFailed: "Reparatur fehlgeschlagen"
+  rollbackFailed: "Wiederherstellung fehlgeschlagen"
+  repaired: "Seek-Index neu aufgebaut — das Original wurde als Sicherung behalten"
+  skippedAlreadyIndexed: "Datei hat bereits einen Seek-Index — nichts zu tun"
+  rolledBack: "Originaldatei aus der Sicherung wiederhergestellt"
+  queuedRepair: "{{count}} Datei(en) für Hintergrund-Reparatur eingereiht — scanne erneut, um den Fortschritt zu verfolgen"
+  queuedRollback: "{{count}} Datei(en) für Hintergrund-Wiederherstellung eingereiht — scanne erneut, um den Fortschritt zu verfolgen"
+  nothingQueued: "Nichts einzureihen für diesen Bereich"
+  repairAllConfirmTitle: "Seek-Indizes der Bibliothek reparieren"
+  repairAllConfirm: "Den Seek-Index von {{count}} Datei(en) im Hintergrund neu aufbauen? Jede Datei wird validiert und atomar ausgetauscht; Originale bleiben als .mkvgobak-Sicherungen erhalten."
+  rollbackAllConfirmTitle: "Originale aus Sicherungen wiederherstellen"
+  rollbackAllConfirm: "{{count}} Datei(en) aus ihren .mkvgobak-Sicherungen wiederherstellen? Das macht vorherige Reparaturen in diesem Bereich rückgängig."

@@ -2,6 +2,9 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
+	"strings"
+	"syscall"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	applibrary "github.com/evey-project/evey/internal/app/library"
@@ -121,6 +124,27 @@ func (d *adminMediaHandler) seekIndexConfigured(ctx context.Context, span trace.
 	return nil
 }
 
+// isReadOnlyFS reports whether err ultimately comes from a read-only mount —
+// the common hardening where media volumes are bound :ro in docker-compose.
+// The string fallback covers error chains that didn't wrap with %w.
+func isReadOnlyFS(err error) bool {
+	return errors.Is(err, syscall.EROFS) || strings.Contains(err.Error(), "read-only file system")
+}
+
+// seekIndexError maps the user-actionable seek-index failures (read-only media
+// volume, batch already running) to translated, non-500 statuses; everything
+// else stays a sanitized internal error.
+func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err error) error {
+	switch {
+	case isReadOnlyFS(err):
+		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.seek_index_read_only")
+	case errors.Is(err, appmaintenance.ErrJobRunning):
+		return d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.seek_index_job_running")
+	default:
+		return internalError(op, err)
+	}
+}
+
 func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanSeekIndexRequest) (*eveyv1.ScanSeekIndexResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ScanSeekIndex")
 	defer span.End()
@@ -162,7 +186,7 @@ func (d *adminMediaHandler) ReindexMediaSeekIndex(ctx context.Context, req *evey
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("reindex media seek index", err)
+		return nil, d.seekIndexError(ctx, "reindex media seek index", err)
 	}
 	return &eveyv1.ReindexMediaSeekIndexResponse{
 		Skipped:    res.Skipped,
@@ -183,7 +207,7 @@ func (d *adminMediaHandler) RollbackMediaSeekIndex(ctx context.Context, req *eve
 	if err := d.seekIndex.RollbackMedia(ctx, req.GetMediaId()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("rollback media seek index", err)
+		return nil, d.seekIndexError(ctx, "rollback media seek index", err)
 	}
 	return &eveyv1.RollbackMediaSeekIndexResponse{Restored: true}, nil
 }
@@ -198,7 +222,7 @@ func (d *adminMediaHandler) ReindexLibrarySeekIndex(ctx context.Context, req *ev
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("reindex library seek index", err)
+		return nil, d.seekIndexError(ctx, "reindex library seek index", err)
 	}
 	return &eveyv1.ReindexLibrarySeekIndexResponse{Queued: int32(queued)}, nil
 }
@@ -213,7 +237,7 @@ func (d *adminMediaHandler) RollbackLibrarySeekIndex(ctx context.Context, req *e
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("rollback library seek index", err)
+		return nil, d.seekIndexError(ctx, "rollback library seek index", err)
 	}
 	return &eveyv1.RollbackLibrarySeekIndexResponse{Queued: int32(queued)}, nil
 }

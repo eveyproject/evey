@@ -19,6 +19,7 @@ import {
   SlidersHorizontal,
   ChevronDown,
   Image,
+  ScanSearch,
   type LucideIcon,
 } from "lucide-react";
 import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
@@ -51,6 +52,7 @@ const sectionsDef: NavSection[] = [
       { href: "/admin/libraries", labelKey: "admin.nav.libraries", icon: Library },
       { href: "/admin/transcode-cache", labelKey: "admin.nav.transcoding", icon: HardDrive },
       { href: "/admin/artworks", labelKey: "admin.nav.artworks", icon: Image },
+      { href: "/admin/seek-index", labelKey: "admin.nav.seekIndex", icon: ScanSearch },
     ],
   },
   {

@@ -9,6 +9,7 @@ nav:
   libraries: Bibliothèques
   transcoding: Transcodage
   artworks: Cache artworks
+  seekIndex: "Index de lecture"
   usersAccess: Utilisateurs et accès
   users: Utilisateurs
   integrations: Intégrations
@@ -753,3 +754,45 @@ segments:
   propagate: "Appliquer à la saison"
   lockedHint: "Ce segment est verrouillé manuellement et ne sera pas écrasé par la détection auto."
   propagateSuccess: "Propagé sur {{count}} épisode(s)"
+
+seekIndex:
+  title: "Réparation de l'index de lecture"
+  description: "Les fichiers MKV/WebM muxés sans index de lecture (Cues) sautent et reprennent lentement — le lecteur doit les parcourir linéairement. L'analyse est en lecture seule ; la réparation reconstruit l'index sur place et conserve l'original en sauvegarde .mkvgobak, restaurable à tout moment."
+  readOnlyNote: "La réparation écrit dans tes dossiers médias. S'ils sont montés en lecture seule (:ro dans docker-compose), remonte-les en lecture-écriture et redémarre les conteneurs d'abord — l'analyse, elle, fonctionne."
+  library: "Bibliothèque"
+  allLibraries: "Toutes les bibliothèques"
+  scan: "Analyser"
+  scanAgain: "Réanalyser"
+  scanFailed: "Échec de l'analyse"
+  repairAll: "Tout réparer ({{count}})"
+  rollbackAll: "Tout restaurer ({{count}})"
+  statsInspected: "Fichiers inspectés"
+  statsMissing: "Sans index de lecture"
+  statsBackup: "Avec sauvegarde"
+  onlyAttention: "N'afficher que les fichiers à traiter"
+  emptyTitle: "Aucune analyse"
+  emptyDescription: "Choisis une bibliothèque et lance l'analyse pour trouver les MKV/WebM sans index de lecture."
+  noEbml: "Aucun fichier MKV/WebM dans ce périmètre — les autres conteneurs n'ont pas besoin d'index."
+  allGood: "Rien à traiter — tous les fichiers analysés ont un index de lecture."
+  tableHeaders:
+    file: "Fichier"
+    container: "Conteneur"
+    size: "Taille"
+    status: "Index de lecture"
+  statusIndexed: "Indexé"
+  statusMissing: "Manquant"
+  backupBadge: "Sauvegarde"
+  repair: "Réparer"
+  rollback: "Restaurer"
+  repairFailed: "Échec de la réparation"
+  rollbackFailed: "Échec de la restauration"
+  repaired: "Index reconstruit — l'original est conservé en sauvegarde"
+  skippedAlreadyIndexed: "Le fichier a déjà un index de lecture — rien à faire"
+  rolledBack: "Fichier original restauré depuis sa sauvegarde"
+  queuedRepair: "{{count}} fichier(s) en file pour réparation en arrière-plan — relance l'analyse pour suivre la progression"
+  queuedRollback: "{{count}} fichier(s) en file pour restauration en arrière-plan — relance l'analyse pour suivre la progression"
+  nothingQueued: "Rien à mettre en file pour ce périmètre"
+  repairAllConfirmTitle: "Réparer les index de la bibliothèque"
+  repairAllConfirm: "Reconstruire l'index de lecture de {{count}} fichier(s) en arrière-plan ? Chaque fichier est validé puis remplacé atomiquement ; les originaux sont conservés en sauvegardes .mkvgobak."
+  rollbackAllConfirmTitle: "Restaurer les originaux depuis les sauvegardes"
+  rollbackAllConfirm: "Restaurer {{count}} fichier(s) depuis leur sauvegarde .mkvgobak ? Cela annule les réparations précédentes sur ce périmètre."

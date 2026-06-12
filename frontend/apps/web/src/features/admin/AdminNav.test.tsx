@@ -37,6 +37,7 @@ vi.mock("lucide-react", () => {
     Key: Icon,
     Image: Icon,
     Gauge: Icon,
+    ScanSearch: Icon,
   };
 });
 

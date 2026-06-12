@@ -49,6 +49,7 @@ import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admi
 import { Route as AuthAdminSystemHealthRouteImport } from './routes/_auth/admin/system-health'
 import { Route as AuthAdminSessionsRouteImport } from './routes/_auth/admin/sessions'
 import { Route as AuthAdminServerConfigRouteImport } from './routes/_auth/admin/server-config'
+import { Route as AuthAdminSeekIndexRouteImport } from './routes/_auth/admin/seek-index'
 import { Route as AuthAdminRemoteAccessRouteImport } from './routes/_auth/admin/remote-access'
 import { Route as AuthAdminQoeRouteImport } from './routes/_auth/admin/qoe'
 import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugins'
@@ -325,6 +326,13 @@ const AuthAdminServerConfigRoute = AuthAdminServerConfigRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/server-config.lazy').then((d) => d.Route),
 )
+const AuthAdminSeekIndexRoute = AuthAdminSeekIndexRouteImport.update({
+  id: '/seek-index',
+  path: '/seek-index',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/seek-index.lazy').then((d) => d.Route),
+)
 const AuthAdminRemoteAccessRoute = AuthAdminRemoteAccessRouteImport.update({
   id: '/remote-access',
   path: '/remote-access',
@@ -457,6 +465,7 @@ export interface FileRoutesByFullPath {
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/qoe': typeof AuthAdminQoeRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
+  '/admin/seek-index': typeof AuthAdminSeekIndexRoute
   '/admin/server-config': typeof AuthAdminServerConfigRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/system-health': typeof AuthAdminSystemHealthRoute
@@ -511,6 +520,7 @@ export interface FileRoutesByTo {
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/qoe': typeof AuthAdminQoeRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
+  '/admin/seek-index': typeof AuthAdminSeekIndexRoute
   '/admin/server-config': typeof AuthAdminServerConfigRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/system-health': typeof AuthAdminSystemHealthRoute
@@ -568,6 +578,7 @@ export interface FileRoutesById {
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
   '/_auth/admin/qoe': typeof AuthAdminQoeRoute
   '/_auth/admin/remote-access': typeof AuthAdminRemoteAccessRoute
+  '/_auth/admin/seek-index': typeof AuthAdminSeekIndexRoute
   '/_auth/admin/server-config': typeof AuthAdminServerConfigRoute
   '/_auth/admin/sessions': typeof AuthAdminSessionsRoute
   '/_auth/admin/system-health': typeof AuthAdminSystemHealthRoute
@@ -625,6 +636,7 @@ export interface FileRouteTypes {
     | '/admin/plugins'
     | '/admin/qoe'
     | '/admin/remote-access'
+    | '/admin/seek-index'
     | '/admin/server-config'
     | '/admin/sessions'
     | '/admin/system-health'
@@ -679,6 +691,7 @@ export interface FileRouteTypes {
     | '/admin/plugins'
     | '/admin/qoe'
     | '/admin/remote-access'
+    | '/admin/seek-index'
     | '/admin/server-config'
     | '/admin/sessions'
     | '/admin/system-health'
@@ -735,6 +748,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/plugins'
     | '/_auth/admin/qoe'
     | '/_auth/admin/remote-access'
+    | '/_auth/admin/seek-index'
     | '/_auth/admin/server-config'
     | '/_auth/admin/sessions'
     | '/_auth/admin/system-health'
@@ -1058,6 +1072,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminServerConfigRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/seek-index': {
+      id: '/_auth/admin/seek-index'
+      path: '/seek-index'
+      fullPath: '/admin/seek-index'
+      preLoaderRoute: typeof AuthAdminSeekIndexRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/remote-access': {
       id: '/_auth/admin/remote-access'
       path: '/remote-access'
@@ -1171,6 +1192,7 @@ interface AuthAdminRouteChildren {
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
   AuthAdminQoeRoute: typeof AuthAdminQoeRoute
   AuthAdminRemoteAccessRoute: typeof AuthAdminRemoteAccessRoute
+  AuthAdminSeekIndexRoute: typeof AuthAdminSeekIndexRoute
   AuthAdminServerConfigRoute: typeof AuthAdminServerConfigRoute
   AuthAdminSessionsRoute: typeof AuthAdminSessionsRoute
   AuthAdminSystemHealthRoute: typeof AuthAdminSystemHealthRoute
@@ -1194,6 +1216,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,
   AuthAdminQoeRoute: AuthAdminQoeRoute,
   AuthAdminRemoteAccessRoute: AuthAdminRemoteAccessRoute,
+  AuthAdminSeekIndexRoute: AuthAdminSeekIndexRoute,
   AuthAdminServerConfigRoute: AuthAdminServerConfigRoute,
   AuthAdminSessionsRoute: AuthAdminSessionsRoute,
   AuthAdminSystemHealthRoute: AuthAdminSystemHealthRoute,

@@ -10,6 +10,7 @@ nav:
   libraries: Bibliotecas
   transcoding: Transcodificación
   artworks: Cache de artworks
+  seekIndex: "Índice de búsqueda"
   usersAccess: Usuarios y acceso
   users: Usuarios
   integrations: Integraciones
@@ -754,3 +755,45 @@ segments:
   propagate: "Aplicar a la temporada"
   lockedHint: "Este segmento está bloqueado manualmente y no será sobreescrito por la detección automática."
   propagateSuccess: "Propagado a {{count}} episodio(s)"
+
+seekIndex:
+  title: "Reparación del índice de búsqueda"
+  description: "Los archivos MKV/WebM muxados sin índice de búsqueda (Cues) saltan y reanudan lentamente — el reproductor debe leerlos linealmente. El análisis es de solo lectura; la reparación reconstruye el índice en el propio archivo y conserva el original como copia .mkvgobak, restaurable en cualquier momento."
+  readOnlyNote: "La reparación escribe en tus carpetas de medios. Si están montadas en solo lectura (:ro en docker-compose), móntalas con escritura y reinicia los contenedores primero — el análisis sí funciona."
+  library: "Biblioteca"
+  allLibraries: "Todas las bibliotecas"
+  scan: "Analizar"
+  scanAgain: "Analizar de nuevo"
+  scanFailed: "Error en el análisis"
+  repairAll: "Reparar todo ({{count}})"
+  rollbackAll: "Restaurar todo ({{count}})"
+  statsInspected: "Archivos inspeccionados"
+  statsMissing: "Sin índice de búsqueda"
+  statsBackup: "Con copia de seguridad"
+  onlyAttention: "Mostrar solo archivos que requieren atención"
+  emptyTitle: "Sin análisis todavía"
+  emptyDescription: "Elige una biblioteca y analiza para encontrar archivos MKV/WebM sin índice de búsqueda."
+  noEbml: "No hay archivos MKV/WebM en este ámbito — otros contenedores no necesitan índice."
+  allGood: "Nada que atender — todos los archivos analizados tienen índice de búsqueda."
+  tableHeaders:
+    file: "Archivo"
+    container: "Contenedor"
+    size: "Tamaño"
+    status: "Índice de búsqueda"
+  statusIndexed: "Indexado"
+  statusMissing: "Falta"
+  backupBadge: "Copia"
+  repair: "Reparar"
+  rollback: "Restaurar"
+  repairFailed: "Error al reparar"
+  rollbackFailed: "Error al restaurar"
+  repaired: "Índice reconstruido — el original se conservó como copia de seguridad"
+  skippedAlreadyIndexed: "El archivo ya tiene índice de búsqueda — nada que hacer"
+  rolledBack: "Archivo original restaurado desde su copia de seguridad"
+  queuedRepair: "{{count}} archivo(s) en cola para reparación en segundo plano — vuelve a analizar para seguir el progreso"
+  queuedRollback: "{{count}} archivo(s) en cola para restauración en segundo plano — vuelve a analizar para seguir el progreso"
+  nothingQueued: "Nada que poner en cola para este ámbito"
+  repairAllConfirmTitle: "Reparar los índices de la biblioteca"
+  repairAllConfirm: "¿Reconstruir el índice de búsqueda de {{count}} archivo(s) en segundo plano? Cada archivo se valida y se reemplaza atómicamente; los originales se conservan como copias .mkvgobak."
+  rollbackAllConfirmTitle: "Restaurar originales desde las copias"
+  rollbackAllConfirm: "¿Restaurar {{count}} archivo(s) desde sus copias .mkvgobak? Esto deshace reparaciones previas en el ámbito seleccionado."

@@ -9,6 +9,7 @@ nav:
   libraries: Libraries
   transcoding: Transcoding
   artworks: Artworks Cache
+  seekIndex: Seek Index
   usersAccess: Users & Access
   users: Users
   integrations: Integrations
@@ -754,3 +755,45 @@ segments:
   propagate: Apply to season
   lockedHint: This segment is locked manually and will not be overwritten by auto detection.
   propagateSuccess: "Propagated to {{count}} episode(s)"
+
+seekIndex:
+  title: Seek Index Repair
+  description: "MKV/WebM files muxed without a seek index (Cues) seek and resume slowly — the player has to read them linearly. Scanning is read-only; repairing rebuilds the index in place and keeps the original as a .mkvgobak backup you can roll back to."
+  readOnlyNote: "Repairing writes to your media folders. If they are mounted read-only (:ro in docker-compose), remount them read-write and restart the containers first — scanning still works."
+  library: Library
+  allLibraries: All libraries
+  scan: Scan
+  scanAgain: Scan again
+  scanFailed: Scan failed
+  repairAll: "Repair all ({{count}})"
+  rollbackAll: "Roll back all ({{count}})"
+  statsInspected: Files inspected
+  statsMissing: Missing seek index
+  statsBackup: With backup
+  onlyAttention: Only show files needing attention
+  emptyTitle: No scan yet
+  emptyDescription: Pick a library and scan to find MKV/WebM files without a seek index.
+  noEbml: No MKV/WebM files in this scope — other containers don't need a seek index.
+  allGood: Nothing needs attention — every scanned file has a seek index.
+  tableHeaders:
+    file: File
+    container: Container
+    size: Size
+    status: Seek index
+  statusIndexed: Indexed
+  statusMissing: Missing
+  backupBadge: Backup
+  repair: Repair
+  rollback: Roll back
+  repairFailed: Repair failed
+  rollbackFailed: Rollback failed
+  repaired: Seek index rebuilt — the original was kept as a backup
+  skippedAlreadyIndexed: File already has a seek index — nothing to do
+  rolledBack: Original file restored from its backup
+  queuedRepair: "{{count}} file(s) queued for background repair — re-run the scan to follow progress"
+  queuedRollback: "{{count}} file(s) queued for background restore — re-run the scan to follow progress"
+  nothingQueued: Nothing to queue for this scope
+  repairAllConfirmTitle: Repair library seek indexes
+  repairAllConfirm: "Rebuild the seek index of {{count}} file(s) in the background? Each file is validated then swapped atomically; originals are kept as .mkvgobak backups."
+  rollbackAllConfirmTitle: Restore originals from backups
+  rollbackAllConfirm: "Restore {{count}} file(s) from their .mkvgobak backups? This undoes prior repairs in the selected scope."
