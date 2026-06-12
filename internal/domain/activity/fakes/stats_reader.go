@@ -11,7 +11,15 @@ type FakePlaySessionStatsReader struct {
 	UserStatsResult   *activity.UserStats
 	ServerStatsResult *activity.ServerStatsResult
 	MostPopular       []activity.MediaPlayCount
+	ActiveSessionsBps int64
 	Err               error
+}
+
+func (r *FakePlaySessionStatsReader) GetActiveSessionsBitrate(_ context.Context) (int64, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	return r.ActiveSessionsBps, nil
 }
 
 func NewFakePlaySessionStatsReader() *FakePlaySessionStatsReader {

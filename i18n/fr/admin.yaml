@@ -441,9 +441,12 @@ activity:
     totalUsers: "Total d'utilisateurs"
     totalMedia: "Total de médias"
     bandwidth: "Bande passante"
+    totalPlayTime: "Temps de lecture total"
+    storage: "Taille du catalogue"
   popularMedia: "Médias populaires"
   mostActiveUsers: "Utilisateurs les plus actifs"
   plays: "{{count}} lectures"
+  viewers: "{{count}} spectateur(s)"
 
 feeds:
   noSections: "Aucune section de flux configurée"
@@ -561,6 +564,9 @@ systemHealth:
   autoRefresh: "Mis à jour {{time}} · actualisation automatique toutes les 5s"
   cpuUsage: "Utilisation CPU"
   memoryUsage: "Utilisation mémoire"
+  bandwidth: "Bande passante streaming"
+  bandwidthTheoretical: "Théorique (sessions actives) : {{rate}}"
+  bandwidthServed: "Servi depuis le démarrage : {{size}}"
   storage: "Stockage"
   activitySection: "Activité"
   server: "Serveur"

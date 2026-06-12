@@ -164,6 +164,10 @@ func run() error {
 	// forever) so an existing deployment never silently loses history;
 	// server_metric rides its long-standing EVEY_METRICS_RETENTION_DAYS.
 	deps.engagement.activityCmdSvc.StartRetentionPurge(ctx, cfg.Log.AuditRetentionDays, cfg.Metrics.RetentionDays)
+	// Minute-grained server-metric samples (CPU/RAM, streams, measured
+	// streaming bandwidth) — feeds the dashboard rate + the activity stats'
+	// consumed-bandwidth integral.
+	go deps.engagement.metricsSampler.Run(ctx)
 	// env-var-based fallback scheduler (used when DB row has enabled=false and EVEY_BACKUP_INTERVAL_HOURS>0)
 	deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
 	// DB-driven cron scheduler (admin-configurable via /api/v1/admin/backup-schedule)

@@ -117,13 +117,22 @@ message ActiveUser {
 }
 
 message ServerStats {
+  // All-time number of play sessions.
   int32 total_plays = 1;
+  // Streaming bytes actually served, integrated from the periodic
+  // server-metric samples (real measurement, accumulates from the moment the
+  // sampler first ran — bounded by EVEY_METRICS_RETENTION_DAYS).
   int64 total_bandwidth_bytes = 2;
+  // Top played items over the last 90 days.
   repeated PopularMedia popular_media = 3;
+  // Most active users over the last 30 days.
   repeated ActiveUser active_users = 4;
   int32 total_users = 5;
   int32 total_media_items = 6;
+  // Total on-disk size of every media file in the catalog.
   int64 total_storage_bytes = 7;
+  // All-time cumulative watch time across every session.
+  int64 total_play_time_ms = 8;
 }
 
 message LoginEntry {

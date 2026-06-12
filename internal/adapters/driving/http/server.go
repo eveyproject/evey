@@ -39,6 +39,7 @@ import (
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/i18n"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/evey-project/evey/internal/pkg/netmeter"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
@@ -238,6 +239,11 @@ type HTTPServer struct {
 	// IntroDetector triggers async intro/outro detection for a media item.
 	IntroDetector IntroDetectionTrigger
 
+	// StreamMeter counts the bytes served by the streaming routes (direct
+	// play, HLS, downloads) for the admin dashboard's measured bandwidth.
+	// nil = no counting (middleware is a pass-through).
+	StreamMeter *netmeter.Meter
+
 	// WebDir is the path to the built frontend dist (e.g. /srv).
 	// If set and the directory exists, the server serves the SPA from it.
 	WebDir string
@@ -290,18 +296,18 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}
 	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), s.LibraryAccessRepo, mhOpts...)
-	mux.HandleFunc("GET /api/v1/media/{id}/stream", streamAuth(mh))
+	mux.HandleFunc("GET /api/v1/media/{id}/stream", streamAuth(s.StreamMeter.Middleware(mh)))
 	// Artwork is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", streamAuth(mh))
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
-	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk))))
+	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
 	// Public share download: no auth — the uuid token is the capability.
 	// Admin-only to CREATE (RBAC), but the resulting link must resolve without
 	// a login. Rate-limited per-IP as defence-in-depth (the uuid entropy is the
 	// real guard against token guessing).
 	if s.ShareSvc != nil {
-		mux.HandleFunc("GET /api/v1/share/{token}/download", ratelimit.MiddlewareFunc(s.GlobalRL, shareDownloadHandler(s.ShareSvc, s.LibQuerySvc, s.BaseURL())))
+		mux.HandleFunc("GET /api/v1/share/{token}/download", ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(shareDownloadHandler(s.ShareSvc, s.LibQuerySvc, s.BaseURL()))))
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", auth(streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
 
@@ -383,7 +389,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// few seconds per stream) — the DoS vector the GlobalRL was wrong for
 			// (its per-IP 429 would 1) false-positive a multi-profile household
 			// and 2) stall hls.js).
-			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, vodHandler.serveHTTP)))
+			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, s.StreamMeter.Middleware(vodHandler.serveHTTP))))
 			// Predictive warm-up: the player POSTs at ~85% progress of an
 			// episode so the next ep's transcode is pre-spawned and the
 			// autoplay handoff feels instant. Auth-required (logged-in user

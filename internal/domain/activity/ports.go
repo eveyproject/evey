@@ -27,6 +27,9 @@ type ServerMetricRepository interface {
 	Create(ctx context.Context, metric *ServerMetric) error
 	GetByTimeRange(ctx context.Context, from, to time.Time) ([]*ServerMetric, error)
 	Purge(ctx context.Context, before time.Time) error
+	// TotalBandwidthBytes integrates the sampled streaming rate over the whole
+	// metric history: the real bytes served, bounded by the retention window.
+	TotalBandwidthBytes(ctx context.Context) (int64, error)
 }
 
 type AuditLogFilter struct {
@@ -49,6 +52,10 @@ type PlaySessionStatsReader interface {
 	GetUserStats(ctx context.Context, profileID shared.ProfileID) (*UserStats, error)
 	GetServerStats(ctx context.Context) (*ServerStatsResult, error)
 	GetMostPopular(ctx context.Context, profileID string, limit int) ([]MediaPlayCount, error)
+	// GetActiveSessionsBitrate sums the source bitrate of every active play
+	// session — the dashboard's "theoretical outgoing rate". Uncached: the
+	// dashboard polls every few seconds and the active set is small.
+	GetActiveSessionsBitrate(ctx context.Context) (int64, error)
 }
 
 // PlayHistoryCursor keysets by (started_at, id) DESC. Same shape as

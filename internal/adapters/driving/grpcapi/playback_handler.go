@@ -236,12 +236,28 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		}
 	}
 
+	// Resolve the item once: its source bitrate stamps the session (feeds the
+	// dashboard's theoretical outgoing rate — the column was never populated)
+	// and its title lands in the audit entry below.
+	var itemTitle string
+	var sourceBps int64
+	if item, err := h.librarySvc.GetMediaItem(ctx, req.MediaItemId); err == nil {
+		itemTitle = item.Title
+		if item.File != nil {
+			sourceBps = item.File.Bitrate
+			if sourceBps == 0 && item.File.Size > 0 && item.File.Duration.Seconds() > 0 {
+				sourceBps = int64(float64(item.File.Size) * 8 / item.File.Duration.Seconds())
+			}
+		}
+	}
+
 	session, err := playback.NewPlaySession(
 		id.New("ps-"),
 		shared.ProfileID(profileID),
 		shared.MediaItemID(req.MediaItemId),
 		playback.WithPlaySessionMethod(playback.PlayMethod(playMethodFromProto[req.PlayMethod])),
 		playback.WithPlaySessionDevice(req.DeviceName, req.ClientName),
+		playback.WithPlaySessionBandwidth(sourceBps),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -270,8 +286,8 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	details := map[string]any{"media_id": req.MediaItemId, "method": req.PlayMethod.String()}
-	if item, err := h.librarySvc.GetMediaItem(ctx, req.MediaItemId); err == nil {
-		details["title"] = item.Title
+	if itemTitle != "" {
+		details["title"] = itemTitle
 	}
 	h.audit(ctx, claims.UserID, "start_stream", "media", &req.MediaItemId, details)
 	return playSessionToProto(session), nil

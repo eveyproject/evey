@@ -139,10 +139,33 @@ func (h *activityHandler) GetServerStats(ctx context.Context, _ *eveyv1.GetServe
 	if err != nil {
 		return nil, internalError("get server stats", err)
 	}
-	return &eveyv1.ServerStats{
-		TotalUsers:      int32(stats.TotalUsers),
-		TotalMediaItems: int32(stats.TotalItems),
-	}, nil
+	out := &eveyv1.ServerStats{
+		TotalUsers:          int32(stats.TotalUsers),
+		TotalMediaItems:     int32(stats.TotalItems),
+		TotalPlays:          int32(stats.TotalPlays),
+		TotalPlayTimeMs:     stats.TotalPlayTimeMs,
+		TotalBandwidthBytes: stats.TotalBandwidthBytes,
+		TotalStorageBytes:   stats.TotalStorageBytes,
+	}
+	for _, m := range stats.PopularMedia {
+		out.PopularMedia = append(out.PopularMedia, &eveyv1.PopularMedia{
+			MediaItemId:   m.MediaItemID,
+			Title:         m.Title,
+			Type:          mediaItemTypeToProto[m.Type],
+			PlayCount:     int32(m.PlayCount),
+			UniqueViewers: int32(m.UniqueViewers),
+		})
+	}
+	for _, u := range stats.ActiveUsers {
+		out.ActiveUsers = append(out.ActiveUsers, &eveyv1.ActiveUser{
+			UserId:           u.UserID,
+			Username:         u.Username,
+			PlayCount:        int32(u.PlayCount),
+			TotalWatchTimeMs: u.TotalWatchTimeMs,
+			LastActiveAt:     timestamppb.New(u.LastActiveAt),
+		})
+	}
+	return out, nil
 }
 
 func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLoginHistoryRequest) (*eveyv1.GetLoginHistoryResponse, error) {

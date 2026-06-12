@@ -18,6 +18,23 @@ func NewFakeServerMetricRepository() *FakeServerMetricRepository {
 	return &FakeServerMetricRepository{}
 }
 
+// TotalBandwidthBytes mirrors the SQL integral with a fixed 60s sample gap.
+func (r *FakeServerMetricRepository) TotalBandwidthBytes(_ context.Context) (int64, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var total int64
+	for i, m := range r.items {
+		if i == 0 {
+			continue
+		}
+		total += m.BandwidthBps * 60 / 8
+	}
+	return total, nil
+}
+
 func (r *FakeServerMetricRepository) Create(_ context.Context, metric *activity.ServerMetric) error {
 	if r.Err != nil {
 		return r.Err

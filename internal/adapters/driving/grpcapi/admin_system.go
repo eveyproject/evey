@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math"
 	"runtime"
+	"sync"
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -28,12 +29,36 @@ type adminSystemHandler struct {
 	activitySvc    *appactivity.QueryService
 	hlsManager     *apptranscoding.SegmentOrchestrator
 	libLister      adminLibraryLister
+	streamMeter    appactivity.BytesTotaler // optional: nil = no measured bandwidth
 	version        string
 	startTime      time.Time
 	ffmpegPath     string
 	translator     *eveyi18n.Translator
 	smtpConfigured bool
 	serverCfgSvc   *appconfig.Service // optional: nil = server.language/region can't be persisted via setup
+
+	// last meter sample, to derive the served rate between dashboard polls.
+	meterMu        sync.Mutex
+	meterLastTotal int64
+	meterLastAt    time.Time
+}
+
+// streamingRate derives the measured streaming bits/s since the previous
+// dashboard call. Returns -1 on the very first call (nothing to diff against)
+// — the frontend shows a dash instead of a misleading 0.
+func (d *adminSystemHandler) streamingRate(total int64) int64 {
+	d.meterMu.Lock()
+	defer d.meterMu.Unlock()
+	now := time.Now()
+	defer func() { d.meterLastTotal, d.meterLastAt = total, now }()
+	if d.meterLastAt.IsZero() {
+		return -1
+	}
+	elapsed := now.Sub(d.meterLastAt).Seconds()
+	if elapsed <= 0 || total < d.meterLastTotal {
+		return -1
+	}
+	return int64(float64(total-d.meterLastTotal) * 8 / elapsed)
 }
 
 func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSetupStatusRequest) (*eveyv1.SetupStatusResponse, error) {
@@ -188,6 +213,18 @@ func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDash
 		TotalUsers:       int32(stats.TotalUsers),
 		CpuPercent:       sys.CPUPercent,
 		MemoryPercent:    sys.MemoryPercent,
+		StreamingBps:     -1,
+	}
+
+	if d.streamMeter != nil {
+		total := d.streamMeter.Total()
+		resp.StreamingBytesTotal = total
+		resp.StreamingBps = d.streamingRate(total)
+	}
+	// Theoretical outgoing rate: summed source bitrate of active sessions.
+	// Best effort — the dashboard stays useful without it.
+	if bps, err := d.activitySvc.GetActiveSessionsBitrate(ctx); err == nil {
+		resp.ActiveSessionsBps = bps
 	}
 
 	if d.libLister != nil {

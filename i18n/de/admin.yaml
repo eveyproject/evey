@@ -442,9 +442,12 @@ activity:
     totalUsers: Benutzer gesamt
     totalMedia: Medien gesamt
     bandwidth: Bandbreite
+    totalPlayTime: Gesamte Wiedergabezeit
+    storage: Bibliotheksgröße
   popularMedia: Beliebte Medien
   mostActiveUsers: Aktivste Benutzer
   plays: "{{count}} Wiedergaben"
+  viewers: "{{count}} Zuschauer"
 
 feeds:
   noSections: Keine Feed-Abschnitte konfiguriert
@@ -562,6 +565,9 @@ systemHealth:
   autoRefresh: "Aktualisiert {{time}} · automatische Aktualisierung alle 5s"
   cpuUsage: CPU-Auslastung
   memoryUsage: Speicherauslastung
+  bandwidth: "Streaming-Bandbreite"
+  bandwidthTheoretical: "Theoretisch (aktive Sitzungen): {{rate}}"
+  bandwidthServed: "Seit Start ausgeliefert: {{size}}"
   storage: Speicherplatz
   activitySection: Aktivität
   server: Server

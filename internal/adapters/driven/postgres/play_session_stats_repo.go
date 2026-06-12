@@ -164,9 +164,22 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 			(SELECT COUNT(*) FROM transcode_sessions WHERE status IN ('queued', 'running')),
 			(SELECT COUNT(*) FROM users),
 			(SELECT COUNT(*) FROM media_items),
-			(SELECT COALESCE(SUM(duration_ms), 0) FROM play_sessions)`,
-	).Scan(&stats.ActiveStreams, &stats.ActiveTranscodes, &stats.TotalUsers, &stats.TotalItems, &stats.TotalPlayTimeMs)
+			(SELECT COALESCE(SUM(duration_ms), 0) FROM play_sessions),
+			(SELECT COUNT(*) FROM play_sessions),
+			(SELECT COALESCE(SUM(file_size), 0) FROM media_files)`,
+	).Scan(&stats.ActiveStreams, &stats.ActiveTranscodes, &stats.TotalUsers, &stats.TotalItems,
+		&stats.TotalPlayTimeMs, &stats.TotalPlays, &stats.TotalStorageBytes)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	if stats.PopularMedia, err = r.popularMediaRollup(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	if stats.ActiveUsers, err = r.activeUsersRollup(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
@@ -177,6 +190,83 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 
 	cached := *stats
 	return &cached, nil
+}
+
+// popularMediaRollup returns the most-played items of the last 90 days with
+// their distinct-viewer counts (admin stats tab).
+func (r *PlaySessionStatsReader) popularMediaRollup(ctx context.Context) ([]activity.ServerPopularMedia, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT ps.media_item_id, mi.title, mi.type,
+		        COUNT(*) AS plays, COUNT(DISTINCT ps.profile_id) AS viewers
+		 FROM play_sessions ps
+		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		 WHERE ps.started_at >= NOW() - INTERVAL '90 days'
+		 GROUP BY ps.media_item_id, mi.title, mi.type
+		 ORDER BY plays DESC, mi.title
+		 LIMIT 5`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []activity.ServerPopularMedia
+	for rows.Next() {
+		var m activity.ServerPopularMedia
+		if err := rows.Scan(&m.MediaItemID, &m.Title, &m.Type, &m.PlayCount, &m.UniqueViewers); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// activeUsersRollup returns the most active users of the last 30 days
+// (admin stats tab). Watch time prefers the session duration and falls back
+// to the last playhead position for sessions that never reported a duration.
+func (r *PlaySessionStatsReader) activeUsersRollup(ctx context.Context) ([]activity.ServerActiveUser, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT u.id, u.username, COUNT(*) AS plays,
+		        COALESCE(SUM(COALESCE(ps.duration_ms, ps.position_ms, 0)), 0) AS watch_ms,
+		        MAX(ps.started_at) AS last_active
+		 FROM play_sessions ps
+		 INNER JOIN profiles p ON p.id = ps.profile_id
+		 INNER JOIN users u ON u.id = p.user_id
+		 WHERE ps.started_at >= NOW() - INTERVAL '30 days'
+		 GROUP BY u.id, u.username
+		 ORDER BY plays DESC, u.username
+		 LIMIT 5`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []activity.ServerActiveUser
+	for rows.Next() {
+		var u activity.ServerActiveUser
+		if err := rows.Scan(&u.UserID, &u.Username, &u.PlayCount, &u.TotalWatchTimeMs, &u.LastActiveAt); err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// GetActiveSessionsBitrate sums the source bitrate of the active sessions —
+// the dashboard's theoretical outgoing rate. Uncached on purpose: the active
+// set is tiny and the dashboard polls every few seconds.
+func (r *PlaySessionStatsReader) GetActiveSessionsBitrate(ctx context.Context) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.play_session_stats.GetActiveSessionsBitrate")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var bps int64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(bandwidth_bps), 0) FROM play_sessions WHERE ended_at IS NULL`,
+	).Scan(&bps)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return bps, nil
 }
 
 // GetMostPopular returns the top-N most-played items in the last 90 days.

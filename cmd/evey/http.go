@@ -155,6 +155,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		FrameExtractor:       deps.frameExtractor,
 		CopySeekProber:       deps.copySeekProber,
 		IntroDetector:        deps.library.introDetectionSvc,
+		StreamMeter:          deps.engagement.streamMeter,
 	}
 
 	srv.RegisterRoutes(mux, gwMux)

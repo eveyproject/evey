@@ -91,6 +91,16 @@ message DashboardInfo {
   repeated StorageInfo storage = 5;
   int32 total_media_items = 6;
   int32 total_users = 7;
+  // Measured streaming throughput: bytes actually written to stream/HLS/
+  // download responses since the previous GetDashboard call, as bits/s.
+  // -1 on the very first call (no previous sample to diff against).
+  int64 streaming_bps = 8;
+  // Cumulative streaming bytes served since the server started.
+  int64 streaming_bytes_total = 9;
+  // Theoretical outgoing rate: the summed source bitrate of every active
+  // play session — what the server would push if every client pulled at
+  // full speed.
+  int64 active_sessions_bps = 10;
 }
 
 message StorageInfo {

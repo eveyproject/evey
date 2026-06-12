@@ -442,9 +442,12 @@ activity:
     totalUsers: "总用户数"
     totalMedia: "总媒体数"
     bandwidth: "带宽"
+    totalPlayTime: "总观看时长"
+    storage: "媒体库大小"
   popularMedia: "热门媒体"
   mostActiveUsers: "最活跃用户"
   plays: "{{count}} 次播放"
+  viewers: "{{count}} 位观众"
 
 feeds:
   noSections: "未配置任何信息流分区"
@@ -562,6 +565,9 @@ systemHealth:
   autoRefresh: "更新于 {{time}} · 每 5 秒自动刷新"
   cpuUsage: "CPU 使用率"
   memoryUsage: "内存使用率"
+  bandwidth: "流媒体带宽"
+  bandwidthTheoretical: "理论值（活跃会话）：{{rate}}"
+  bandwidthServed: "启动以来已传输：{{size}}"
   storage: "存储"
   activitySection: "活动"
   server: "服务器"

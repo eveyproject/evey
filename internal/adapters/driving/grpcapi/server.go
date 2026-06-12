@@ -100,6 +100,9 @@ type GRPCServerDeps struct {
 	// SeekIndex backs the admin MKV/WebM seek-index scan/reindex/rollback RPCs.
 	// Optional: nil → those RPCs return Unimplemented ("service not configured").
 	SeekIndex *appmaintenance.SeekIndexService
+	// StreamMeter exposes the cumulative streaming bytes served (HLS/direct/
+	// download) for the dashboard's measured bandwidth. Optional.
+	StreamMeter appactivity.BytesTotaler
 }
 
 type GRPCServer struct {
@@ -137,6 +140,7 @@ func (s *GRPCServer) RegisterServices() {
 		activitySvc:    d.ActivityQuery,
 		hlsManager:     d.HLSVODOrch,
 		libLister:      d.LibQuery,
+		streamMeter:    d.StreamMeter,
 		version:        d.Version,
 		startTime:      s.startTime,
 		ffmpegPath:     s.ffmpegPath,

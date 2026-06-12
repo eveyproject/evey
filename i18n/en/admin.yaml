@@ -442,9 +442,12 @@ activity:
     totalUsers: Total Users
     totalMedia: Total Media
     bandwidth: Bandwidth
+    totalPlayTime: Total Watch Time
+    storage: Library Size
   popularMedia: Popular Media
   mostActiveUsers: Most Active Users
   plays: "{{count}} plays"
+  viewers: "{{count}} viewer(s)"
 
 feeds:
   noSections: No feed sections configured
@@ -562,6 +565,9 @@ systemHealth:
   autoRefresh: "Updated {{time}} · auto-refreshes every 5s"
   cpuUsage: CPU Usage
   memoryUsage: Memory Usage
+  bandwidth: Streaming Bandwidth
+  bandwidthTheoretical: "Theoretical (active sessions): {{rate}}"
+  bandwidthServed: "Served since start: {{size}}"
   storage: Storage
   activitySection: Activity
   server: Server

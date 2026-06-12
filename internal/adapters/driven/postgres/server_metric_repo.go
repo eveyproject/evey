@@ -91,4 +91,28 @@ func (r *ServerMetricRepository) Purge(ctx context.Context, before time.Time) er
 	return nil
 }
 
+// TotalBandwidthBytes integrates the sampled streaming rate over the metric
+// history: Σ rate × gap-to-previous-sample. Gaps are capped at 5 minutes so
+// server downtime between two samples doesn't get billed as served traffic.
+func (r *ServerMetricRepository) TotalBandwidthBytes(ctx context.Context) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.server_metric.TotalBandwidthBytes")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var total int64
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COALESCE(SUM(bandwidth_bps / 8.0 * LEAST(gap, 300)), 0)::bigint FROM (
+			SELECT bandwidth_bps,
+			       EXTRACT(EPOCH FROM recorded_at - LAG(recorded_at) OVER (ORDER BY recorded_at)) AS gap
+			FROM server_metrics
+		) t WHERE gap IS NOT NULL AND gap > 0`,
+	).Scan(&total)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return total, nil
+}
+
 var _ activity.ServerMetricRepository = (*ServerMetricRepository)(nil)

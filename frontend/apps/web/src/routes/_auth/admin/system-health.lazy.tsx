@@ -31,6 +31,13 @@ function formatBytes(bytes: string | undefined): string {
   return `${n} B`;
 }
 
+function formatBps(bps: number): string {
+  if (bps >= 1e9) return `${(bps / 1e9).toFixed(2)} Gbps`;
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)} Mbps`;
+  if (bps >= 1e3) return `${(bps / 1e3).toFixed(0)} kbps`;
+  return `${Math.max(0, bps)} bps`;
+}
+
 function getUsageColor(pct: number): string {
   if (pct > 85) return "var(--color-danger)";
   if (pct > 70) return "var(--color-warning)";
@@ -95,6 +102,39 @@ function MetricCard({ label, value, history }: MetricCardProps) {
       </div>
       <div className="flex justify-end">
         <Sparkline values={history} color={color} />
+      </div>
+    </div>
+  );
+}
+
+interface BandwidthCardProps {
+  bps: number; // measured streaming rate; -1 = not sampled yet
+  theoreticalBps: number; // summed source bitrate of active sessions
+  totalBytes: string | undefined; // served since server start
+  history: number[];
+}
+
+function BandwidthCard({ bps, theoreticalBps, totalBytes, history }: BandwidthCardProps) {
+  const { t } = useTranslation();
+  return (
+    <div
+      className="p-4 rounded-[var(--radius-lg)] flex flex-col gap-3 bg-[var(--surface)] border border-[var(--border)]"
+      data-testid="bandwidth-card"
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          {t("admin.systemHealth.bandwidth")}
+        </span>
+        <span className="text-xl font-bold text-[var(--text)]">
+          {bps >= 0 ? formatBps(bps) : "—"}
+        </span>
+      </div>
+      <div className="flex justify-between gap-2 text-xs text-[var(--text-muted)]">
+        <span>{t("admin.systemHealth.bandwidthTheoretical", { rate: formatBps(theoreticalBps) })}</span>
+        <span>{t("admin.systemHealth.bandwidthServed", { size: formatBytes(totalBytes) })}</span>
+      </div>
+      <div className="flex justify-end">
+        <Sparkline values={history} color="var(--accent)" />
       </div>
     </div>
   );
@@ -216,12 +256,15 @@ function SystemHealthPage() {
 
   const cpuHistory = useRef<number[]>([]);
   const memHistory = useRef<number[]>([]);
+  const bwHistory = useRef<number[]>([]);
   const [, forceRender] = useState(0);
 
   useEffect(() => {
     if (dashData) {
       cpuHistory.current = [...cpuHistory.current, dashData.cpuPercent ?? 0].slice(-MAX_HISTORY);
       memHistory.current = [...memHistory.current, dashData.memoryPercent ?? 0].slice(-MAX_HISTORY);
+      const bps = Number(dashData.streamingBps ?? -1);
+      bwHistory.current = [...bwHistory.current, Math.max(0, bps)].slice(-MAX_HISTORY);
       forceRender((n) => n + 1);
     }
   }, [dashData]);
@@ -240,7 +283,7 @@ function SystemHealthPage() {
       ) : (
         <>
           {dashData && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <MetricCard
                 label={t("admin.systemHealth.cpuUsage")}
                 value={dashData.cpuPercent ?? 0}
@@ -250,6 +293,12 @@ function SystemHealthPage() {
                 label={t("admin.systemHealth.memoryUsage")}
                 value={dashData.memoryPercent ?? 0}
                 history={memHistory.current}
+              />
+              <BandwidthCard
+                bps={Number(dashData.streamingBps ?? -1)}
+                theoreticalBps={Number(dashData.activeSessionsBps ?? 0)}
+                totalBytes={dashData.streamingBytesTotal}
+                history={bwHistory.current}
               />
             </div>
           )}

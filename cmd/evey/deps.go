@@ -38,6 +38,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/eventbus"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/evey-project/evey/internal/pkg/netmeter"
 )
 
 // libraryDeps groups library scanning, querying and scheduling services.
@@ -105,6 +106,8 @@ type contentDeps struct {
 type engagementDeps struct {
 	activityCmdSvc             *appactivity.CommandService
 	activityQuerySvc           *appactivity.QueryService
+	metricsSampler             *appactivity.MetricsSampler
+	streamMeter                *netmeter.Meter
 	notifCmdSvc                *appnotification.CommandService
 	notifQuerySvc              *appnotification.QueryService
 	feedCmdSvc                 *appfeed.CommandService

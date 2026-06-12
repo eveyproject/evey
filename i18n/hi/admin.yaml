@@ -442,9 +442,12 @@ activity:
     totalUsers: "कुल उपयोगकर्ता"
     totalMedia: "कुल मीडिया"
     bandwidth: "बैंडविड्थ"
+    totalPlayTime: "कुल देखने का समय"
+    storage: "लाइब्रेरी का आकार"
   popularMedia: "लोकप्रिय मीडिया"
   mostActiveUsers: "सबसे सक्रिय उपयोगकर्ता"
   plays: "{{count}} प्ले"
+  viewers: "{{count}} दर्शक"
 
 feeds:
   noSections: "कोई फ़ीड अनुभाग कॉन्फ़िगर नहीं है"
@@ -562,6 +565,9 @@ systemHealth:
   autoRefresh: "अपडेट {{time}} · हर 5 सेकंड ऑटो-रिफ्रेश"
   cpuUsage: "CPU उपयोग"
   memoryUsage: "मेमोरी उपयोग"
+  bandwidth: "स्ट्रीमिंग बैंडविड्थ"
+  bandwidthTheoretical: "सैद्धांतिक (सक्रिय सत्र): {{rate}}"
+  bandwidthServed: "प्रारंभ से परोसा गया: {{size}}"
   storage: "भंडारण"
   activitySection: "गतिविधि"
   server: "सर्वर"

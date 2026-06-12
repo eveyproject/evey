@@ -78,7 +78,26 @@ func (s *QueryService) GetUserStats(ctx context.Context, profileID string) (*act
 func (s *QueryService) GetServerStats(ctx context.Context) (*activity.ServerStatsResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.activity.GetServerStats")
 	defer span.End()
-	return s.statsReader.GetServerStats(ctx)
+	stats, err := s.statsReader.GetServerStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Consumed bandwidth comes from the metric history (real sampled rate),
+	// not from play sessions — best effort: stats stay useful without it.
+	if s.metrics != nil {
+		if bw, err := s.metrics.TotalBandwidthBytes(ctx); err == nil {
+			stats.TotalBandwidthBytes = bw
+		}
+	}
+	return stats, nil
+}
+
+// GetActiveSessionsBitrate is the summed source bitrate of the active play
+// sessions — the dashboard's theoretical outgoing rate.
+func (s *QueryService) GetActiveSessionsBitrate(ctx context.Context) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.activity.GetActiveSessionsBitrate")
+	defer span.End()
+	return s.statsReader.GetActiveSessionsBitrate(ctx)
 }
 
 func (s *QueryService) GetPlayHistory(ctx context.Context, filter activity.PlayHistoryFilter) ([]*activity.PlayHistoryEntry, error) {

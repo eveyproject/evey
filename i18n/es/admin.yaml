@@ -442,9 +442,12 @@ activity:
     totalUsers: "Total de usuarios"
     totalMedia: "Total de medios"
     bandwidth: "Ancho de banda"
+    totalPlayTime: "Tiempo total de reproducción"
+    storage: "Tamaño del catálogo"
   popularMedia: "Medios populares"
   mostActiveUsers: "Usuarios más activos"
   plays: "{{count}} reproducciones"
+  viewers: "{{count}} espectador(es)"
 
 feeds:
   noSections: "Sin secciones de feed configuradas"
@@ -562,6 +565,9 @@ systemHealth:
   autoRefresh: "Actualizado {{time}} · se actualiza cada 5s"
   cpuUsage: "Uso de CPU"
   memoryUsage: "Uso de memoria"
+  bandwidth: "Ancho de banda de streaming"
+  bandwidthTheoretical: "Teórico (sesiones activas): {{rate}}"
+  bandwidthServed: "Servido desde el inicio: {{size}}"
   storage: "Almacenamiento"
   activitySection: "Actividad"
   server: "Servidor"

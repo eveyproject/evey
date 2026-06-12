@@ -183,12 +183,14 @@ function StatsTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
           [t("admin.activity.stats.totalPlays"), stats?.totalPlays ?? 0],
+          [t("admin.activity.stats.totalPlayTime"), formatMs(stats?.totalPlayTimeMs)],
           [t("admin.activity.stats.totalUsers"), stats?.totalUsers ?? 0],
           [t("admin.activity.stats.totalMedia"), stats?.totalMediaItems ?? 0],
           [t("admin.activity.stats.bandwidth"), formatBytes(stats?.totalBandwidthBytes)],
+          [t("admin.activity.stats.storage"), formatBytes(stats?.totalStorageBytes)],
         ].map(([label, value]) => (
           <Card key={String(label)} className="flex flex-col gap-1">
             <span className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
@@ -213,9 +215,10 @@ function StatsTab() {
                 className="flex items-center justify-between text-sm py-1 border-b border-[var(--border)]"
               >
                 <span className="text-[var(--text)]">{m.title ?? "\u2014"}</span>
-                <span className="text-xs text-[var(--text-muted)]">
-                  {t("admin.activity.plays", { count: m.playCount })}
-                </span>
+                <div className="flex gap-4 text-xs text-[var(--text-muted)]">
+                  <span>{t("admin.activity.plays", { count: m.playCount })}</span>
+                  <span>{t("admin.activity.viewers", { count: m.uniqueViewers })}</span>
+                </div>
               </div>
             ))}
           </div>

@@ -103,6 +103,34 @@ type ServerStatsResult struct {
 	TotalUsers       int
 	TotalItems       int
 	TotalPlayTimeMs  int64
+	// TotalPlays counts every play session ever started.
+	TotalPlays int
+	// TotalStorageBytes sums the on-disk size of every media file.
+	TotalStorageBytes int64
+	// TotalBandwidthBytes is filled by the query service from the metric
+	// history (integral of the sampled streaming rate) — the stats reader
+	// itself leaves it 0.
+	TotalBandwidthBytes int64
+	PopularMedia        []ServerPopularMedia
+	ActiveUsers         []ServerActiveUser
+}
+
+// ServerPopularMedia is one row of the admin "most played" rollup (90 days).
+type ServerPopularMedia struct {
+	MediaItemID   string
+	Title         string
+	Type          string
+	PlayCount     int
+	UniqueViewers int
+}
+
+// ServerActiveUser is one row of the admin "most active users" rollup (30 days).
+type ServerActiveUser struct {
+	UserID           string
+	Username         string
+	PlayCount        int
+	TotalWatchTimeMs int64
+	LastActiveAt     time.Time
 }
 
 type TopMediaItem struct {

@@ -67,6 +67,8 @@ import (
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/evey-project/evey/internal/pkg/netmeter"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
 // Event subscription map (bus.Subscribe calls):
@@ -454,6 +456,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory,
 		appactivity.WithAnalyticsReader(postgres.NewAnalyticsReader(db)),
 	)
+	// Counts the bytes the streaming routes actually serve; the sampler turns
+	// that into the server_metrics history (dashboard rate + consumed total).
+	streamMeter := &netmeter.Meter{}
+	metricsSampler := appactivity.NewMetricsSampler(activityCmdSvc, r.PlaySessionStats, streamMeter,
+		func() appactivity.SysSample {
+			s := sysinfo.Collect()
+			return appactivity.SysSample{CPUPercent: s.CPUPercent, MemUsedBytes: s.MemUsedBytes, MemTotalBytes: s.MemTotalBytes}
+		}, rootLog)
 
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
 	pluginFS := filesystem.NewPluginFileSystem()
@@ -961,6 +971,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		engagement: engagementDeps{
 			activityCmdSvc:             activityCmdSvc,
 			activityQuerySvc:           activityQuerySvc,
+			metricsSampler:             metricsSampler,
+			streamMeter:                streamMeter,
 			notifCmdSvc:                notifCmdSvc,
 			notifQuerySvc:              notifQuerySvc,
 			feedCmdSvc:                 feedCmdSvc,
