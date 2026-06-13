@@ -21,5 +21,8 @@ Structural decisions for Evey. New ADRs are numbered sequentially and never rewr
 | [0015](0015-hardware-acceleration.md) | HW transcoding: one full-HW image, runtime-injected drivers, admin-selectable mode | 2026-06-01 | Accepted |
 | [0016](0016-mkv-fastpath-prober.md) | In-process mkvgo fast-path for the MKV scan prober (ffprobe stays the authority) | 2026-06-03 | Accepted |
 | [0017](0017-software-hdr-tonemap-delivery-resolution.md) | Software HDR→SDR tone-map at delivery resolution, not source | 2026-06-04 | Accepted |
+| [0018](0018-cmcd-qoe-pipeline.md) | CMCD-based QoE telemetry with a non-blocking drop-on-full sink | 2026-06-14 | Accepted |
+| [0019](0019-token-epoch-revocation.md) | Token-epoch revocation for stateless JWTs | 2026-06-14 | Accepted |
+| [0020](0020-hls-native-audio-rendition.md) | HLS-native audio rendition (EXT-X-MEDIA) for multi-language switching | 2026-06-14 | Accepted |
 
 See also [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for the high-level picture.
