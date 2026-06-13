@@ -146,8 +146,8 @@ func TestPlaylistDeletePlaylist_WrongOwner(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for wrong owner")
 	}
-	if status.Code(err) != codes.PermissionDenied {
-		t.Errorf("expected PermissionDenied, got %v", status.Code(err))
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("expected NotFound (wrong-owner hides existence), got %v", status.Code(err))
 	}
 }
 
@@ -198,8 +198,8 @@ func TestPlaylistAddItem_WrongOwner(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for wrong owner")
 	}
-	if status.Code(err) != codes.PermissionDenied {
-		t.Errorf("expected PermissionDenied, got %v", status.Code(err))
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("expected NotFound (wrong-owner hides existence), got %v", status.Code(err))
 	}
 }
 
@@ -262,8 +262,8 @@ func TestPlaylistUpdatePlaylist_WrongOwner(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for wrong owner")
 	}
-	if status.Code(err) != codes.PermissionDenied {
-		t.Errorf("expected PermissionDenied, got %v", status.Code(err))
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("expected NotFound (wrong-owner hides existence), got %v", status.Code(err))
 	}
 }
 
@@ -317,8 +317,8 @@ func TestPlaylistGetPlaylistItems_WrongOwner(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for wrong owner")
 	}
-	if status.Code(err) != codes.PermissionDenied {
-		t.Errorf("expected PermissionDenied, got %v", status.Code(err))
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("expected NotFound (wrong-owner hides existence), got %v", status.Code(err))
 	}
 }
 
@@ -369,8 +369,8 @@ func TestPlaylistRemovePlaylistItem_WrongOwner(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for wrong owner")
 	}
-	if status.Code(err) != codes.PermissionDenied {
-		t.Errorf("expected PermissionDenied, got %v", status.Code(err))
+	if status.Code(err) != codes.NotFound {
+		t.Errorf("expected NotFound (wrong-owner hides existence), got %v", status.Code(err))
 	}
 }
 

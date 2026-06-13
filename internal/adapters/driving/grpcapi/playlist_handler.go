@@ -10,6 +10,7 @@ import (
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playlist"
+	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
@@ -93,8 +94,10 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 		SortOrder:   req.SortOrder,
 	}
 	if updateErr := h.svc.Update(ctx, pl, profileID); updateErr != nil {
-		if errors.Is(updateErr, appplaylist.ErrNotOwner) {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
+		if errors.Is(updateErr, appplaylist.ErrNotOwner) || errors.Is(updateErr, shared.ErrNotFound) {
+			// NotFound, not PermissionDenied: a playlist owned by another profile
+			// must be indistinguishable from a non-existent one (matches GetPlaylist).
+			return nil, status.Error(codes.NotFound, "playlist not found")
 		}
 		return nil, internalError("update playlist", updateErr)
 	}
@@ -113,8 +116,10 @@ func (h *playlistHandler) DeletePlaylist(ctx context.Context, req *eveyv1.Delete
 		return nil, fmt.Errorf("playlistHandler.DeletePlaylist: %w", err)
 	}
 	if err := h.svc.Delete(ctx, req.Id, claims.ProfileID); err != nil {
-		if errors.Is(err, appplaylist.ErrNotOwner) {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
+		if errors.Is(err, appplaylist.ErrNotOwner) || errors.Is(err, shared.ErrNotFound) {
+			// NotFound, not PermissionDenied: a playlist owned by another profile
+			// must be indistinguishable from a non-existent one (matches GetPlaylist).
+			return nil, status.Error(codes.NotFound, "playlist not found")
 		}
 		return nil, internalError("delete playlist", err)
 	}
@@ -130,8 +135,10 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	}
 	mediaItems, plItems, err := h.svc.GetItems(ctx, req.Id, claims.ProfileID)
 	if err != nil {
-		if errors.Is(err, appplaylist.ErrNotOwner) {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
+		if errors.Is(err, appplaylist.ErrNotOwner) || errors.Is(err, shared.ErrNotFound) {
+			// NotFound, not PermissionDenied: a playlist owned by another profile
+			// must be indistinguishable from a non-existent one (matches GetPlaylist).
+			return nil, status.Error(codes.NotFound, "playlist not found")
 		}
 		return nil, internalError("get playlist items", err)
 	}
@@ -201,8 +208,10 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 	}
 	if err := h.svc.AddItemWithType(ctx, req.Id, req.MediaItemId, claims.ProfileID, req.MediaType); err != nil {
 		switch {
-		case errors.Is(err, appplaylist.ErrNotOwner):
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
+		case errors.Is(err, appplaylist.ErrNotOwner), errors.Is(err, shared.ErrNotFound):
+			// NotFound, not PermissionDenied: a playlist owned by another profile
+			// must be indistinguishable from a non-existent one (matches GetPlaylist).
+			return nil, status.Error(codes.NotFound, "playlist not found")
 		case errors.Is(err, appplaylist.ErrSmartItems):
 			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.playlist.cannot_add_smart")
 		case errors.Is(err, appplaylist.ErrMaxItems):
@@ -222,8 +231,10 @@ func (h *playlistHandler) RemovePlaylistItem(ctx context.Context, req *eveyv1.Re
 		return nil, fmt.Errorf("playlistHandler.RemovePlaylistItem: %w", err)
 	}
 	if err := h.svc.RemoveItem(ctx, req.Id, req.MediaItemId, claims.ProfileID); err != nil {
-		if errors.Is(err, appplaylist.ErrNotOwner) {
-			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playlist.not_owner")
+		if errors.Is(err, appplaylist.ErrNotOwner) || errors.Is(err, shared.ErrNotFound) {
+			// NotFound, not PermissionDenied: a playlist owned by another profile
+			// must be indistinguishable from a non-existent one (matches GetPlaylist).
+			return nil, status.Error(codes.NotFound, "playlist not found")
 		} else if errors.Is(err, appplaylist.ErrSmartItems) {
 			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.playlist.cannot_remove_smart")
 		}

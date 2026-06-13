@@ -285,11 +285,12 @@ func TestShareHandler_RevokeShareLink_OwnershipCheck(t *testing.T) {
 		CreatedBy: "user-1", ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
 
-	// non-admin user-2 cannot revoke user-1's link
+	// non-admin user-2 cannot revoke user-1's link; the denial is indistinguishable
+	// from a non-existent link (NotFound, not PermissionDenied).
 	ctxUser2 := ctxWithClaims("user-2", "profile-2", false)
 	_, err := env.handler.RevokeShareLink(ctxUser2, &eveyv1.RevokeShareLinkRequest{Id: "link-1"})
 	require.Error(t, err)
-	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	assert.Equal(t, codes.NotFound, status.Code(err))
 
 	// admin can revoke any link
 	ctxAdmin := ctxWithClaims("admin-1", "profile-admin", true)

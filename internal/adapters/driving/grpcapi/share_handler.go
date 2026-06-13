@@ -125,7 +125,9 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 		return nil, status.Error(codes.NotFound, "share link not found")
 	}
 	if !claims.IsAdmin && string(link.CreatedBy) != claims.UserID {
-		return nil, status.Error(codes.PermissionDenied, "cannot revoke another user's share link")
+		// NotFound, not PermissionDenied: don't confirm a share link exists to a
+		// non-owner who guessed its ID (matches the not-found response above).
+		return nil, status.Error(codes.NotFound, "share link not found")
 	}
 
 	if err := h.svc.Revoke(ctx, req.Id); err != nil {
