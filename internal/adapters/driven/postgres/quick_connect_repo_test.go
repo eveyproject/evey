@@ -7,6 +7,7 @@ import (
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,6 +65,12 @@ func TestQuickConnectRepo_UpdateStatus(t *testing.T) {
 	assert.Equal(t, user.Authorized, got.Status)
 	assert.NotNil(t, got.UserID)
 	assert.Equal(t, userID, string(*got.UserID))
+
+	// A second authorization (the request is no longer pending) must report
+	// not-found rather than a false success — this is the race-loser / leaked-code
+	// replay guard. Without it the loser of a concurrent authorize believes the
+	// device was bound to them.
+	require.ErrorIs(t, repo.UpdateStatus(ctx, "qc2", string(user.Authorized), &userID), shared.ErrNotFound)
 }
 
 func TestQuickConnectRepo_DeleteExpired(t *testing.T) {

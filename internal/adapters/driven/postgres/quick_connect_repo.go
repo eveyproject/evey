@@ -93,13 +93,20 @@ func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status st
 	// Only transition from 'pending' — authorizing a non-pending request
 	// (already used, expired, rejected) must be a no-op so a leaked-code
 	// replay can't overwrite user_id on a settled authorization.
-	_, err := r.db.ExecContext(ctx,
+	res, err := r.db.ExecContext(ctx,
 		`UPDATE quick_connect_requests SET status = $1, user_id = $2 WHERE id = $3 AND status = 'pending'`,
 		status, userID, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
+	}
+	// 0 rows = the request wasn't pending (already authorized by a concurrent
+	// caller, expired, or a leaked-code replay). Returning nil here let the loser
+	// of a race — and a replayer — believe they had authorized the device. Signal
+	// not-found so the caller surfaces the failure instead of a false success.
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
 	}
 	return nil
 }
