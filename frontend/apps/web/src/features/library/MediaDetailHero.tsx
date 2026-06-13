@@ -9,6 +9,19 @@ import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Stars } from "./MediaDetailStars";
 import { certInfoForLocale } from "@/utils/certifications";
 
+// Per-source critic scores (from the enricher's provider_ratings). tmdb is
+// excluded — the prominent Stars rating already represents the community score.
+const RATING_SOURCE_LABELS: Record<string, string> = {
+  imdb: "IMDb",
+  rt: "RT",
+  metacritic: "Metacritic",
+};
+
+function formatRating(value: number, maxValue: number): string {
+  // 100-scale sources (RT, Metacritic) read as a score; 10-scale (IMDb) keeps a decimal.
+  return maxValue === 100 ? `${Math.round(value)}` : value.toFixed(1);
+}
+
 interface MediaDetailHeroProps {
   item: V1MediaItem;
   backdropUrl?: string;
@@ -74,6 +87,15 @@ export function MediaDetailHero({
               <span className="text-sm text-[var(--overlay-text-muted)]">{item.communityRating.toFixed(1)}</span>
             </span>
           )}
+          {(item.ratings ?? [])
+            .filter((r) => r.source && RATING_SOURCE_LABELS[r.source] && (r.value ?? 0) > 0)
+            .map((r) => (
+              <span key={r.source} className="text-sm text-[var(--overlay-text-muted)]">
+                <span className="font-semibold">{RATING_SOURCE_LABELS[r.source!]}</span>{" "}
+                {formatRating(r.value ?? 0, r.maxValue ?? 10)}
+                {r.source === "rt" ? "%" : ""}
+              </span>
+            ))}
           {item.providerIds?.imdb && (
             <a
               href={`https://www.imdb.com/title/${item.providerIds.imdb}/`}
