@@ -1428,5 +1428,12 @@
   },
   "player": {
     "jumpToChapter": "Jump to chapter: {{chapter}}"
-  }
+  },
+  "admin.systemHealth.bandwidth": "Streaming Bandwidth",
+  "admin.systemHealth.bandwidthTheoretical": "Theoretical (active sessions): {{rate}}",
+  "admin.systemHealth.bandwidthServed": "Served since start: {{size}}",
+  "admin.activity.stats.totalPlayTime": "Total Watch Time",
+  "admin.activity.stats.storage": "Library Size",
+  "admin.activity.viewers": "{{count}} viewer(s)",
+  "admin.activity.viewers_other": "{{count}} viewers"
 }

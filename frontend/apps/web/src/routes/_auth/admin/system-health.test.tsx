@@ -33,6 +33,9 @@ const dashData = {
   activeTranscodes: 1,
   totalMediaItems: 500,
   totalUsers: 5,
+  streamingBps: "12500000", // 12.5 Mbps measured
+  streamingBytesTotal: "5368709120", // 5 GB served since start
+  activeSessionsBps: "25000000", // 25 Mbps theoretical
   storage: [
     { path: "/data/media", usedBytes: "107374182400", totalBytes: "214748364800", freeBytes: "107374182400" },
   ],
@@ -69,6 +72,27 @@ describe("SystemHealthPage", () => {
     render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
     expect(screen.getByText(/CPU Usage/i)).toBeInTheDocument();
     expect(screen.getByText(/Memory Usage/i)).toBeInTheDocument();
+  });
+
+  it("renders the bandwidth card with measured rate, theoretical rate and total served", async () => {
+    mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    const card = screen.getByTestId("bandwidth-card");
+    expect(card).toBeInTheDocument();
+    expect(card).toHaveTextContent("12.5 Mbps"); // measured
+    expect(card).toHaveTextContent("25.0 Mbps"); // theoretical (active sessions)
+    expect(card).toHaveTextContent(/5\.\d GB/); // total served
+  });
+
+  it("shows a dash for streaming rate on the first poll (streamingBps = -1)", async () => {
+    const firstPoll = { ...dashData, streamingBps: "-1" };
+    mockGetDashboard.mockReturnValue({ data: firstPoll, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    expect(screen.getByTestId("bandwidth-card")).toHaveTextContent("—");
   });
 
   it("renders dashboard activity badges", async () => {
