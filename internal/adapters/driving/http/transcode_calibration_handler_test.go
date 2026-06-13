@@ -57,6 +57,7 @@ func TestTranscodeCalibrationGet_ReturnsSnapshot(t *testing.T) {
 			SoftwareMaxHeight:   1080,
 			HWMaxHeight:         2160,
 			HWBackend:           "nvenc",
+			HWDevice:            "/dev/dri/renderD128",
 			CPUSignature:        "abc",
 			BenchmarkedAt:       time.Date(2026, 5, 30, 9, 0, 0, 0, time.UTC),
 			BenchmarkDurationMs: 5200,
@@ -72,7 +73,15 @@ func TestTranscodeCalibrationGet_ReturnsSnapshot(t *testing.T) {
 	assert.Equal(t, 1080, got.SoftwareMaxHeight)
 	assert.Equal(t, 2160, got.HWMaxHeight)
 	assert.Equal(t, "nvenc", got.HWBackend)
-	assert.Equal(t, "abc", got.CPUSignature)
+
+	// Host-internal fields must be redacted at the API boundary, the rest kept.
+	body := w.Body.String()
+	assert.NotContains(t, body, "hw_device", "DRM device path must not leak")
+	assert.NotContains(t, body, "/dev/dri", "DRM device path must not leak")
+	assert.NotContains(t, body, "cpu_signature", "CPU identity hash must not leak")
+	assert.Contains(t, body, "software_max_height", "kept fields must still serialize")
+	assert.Empty(t, got.HWDevice)
+	assert.Empty(t, got.CPUSignature)
 }
 
 func TestTranscodeRecalibrate_Success_ReturnsFreshSnapshot(t *testing.T) {

@@ -44,6 +44,21 @@ type capOverrideResetter interface {
 	ResetOverride(ctx context.Context, sourceClass string) (bool, error)
 }
 
+// publicEncodeCapability is the admin-API view of EncodeCapability. It shadows
+// two host-internal fields so they don't leak over HTTP: HWDevice (the DRM
+// render-node path, e.g. /dev/dri/renderD128) and CPUSignature (the host CPU
+// identity hash). The admin calibration UI uses neither; every other field is
+// promoted flat. The domain struct keeps its json tags (it's persisted as JSON
+// to the capability store) — the redaction lives only at this boundary.
+type publicEncodeCapability struct {
+	domaintranscoding.EncodeCapability
+	// Same json names as the embedded fields so these (zero-value) shallower
+	// fields win the name conflict; omitempty then drops them from the output.
+	// (json:"-" would NOT work — ignored fields don't shadow the embedded ones.)
+	HWDevice     string `json:"hw_device,omitempty"`
+	CPUSignature string `json:"cpu_signature,omitempty"`
+}
+
 // transcodeCalibrationGetHandler returns the current encode capability
 // (read-only). Used by the Server Config admin page to surface "last
 // calibrated 3 days ago" + the actual caps the host is enforcing.
@@ -61,13 +76,13 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 		// Embed the capability so its fields stay top-level (the frontend reads
 		// them flat) and add the recent HW-fallback events alongside.
 		resp := struct {
-			domaintranscoding.EncodeCapability
+			publicEncodeCapability
 			HWMode      string                           `json:"hw_mode"`
 			IsWSL       bool                             `json:"is_wsl"`
 			HWFallbacks []apptranscoding.HWFallbackEvent `json:"hw_fallbacks"`
 		}{
-			EncodeCapability: svc.Current(),
-			HWMode:           string(svc.HWMode()),
+			publicEncodeCapability: publicEncodeCapability{EncodeCapability: svc.Current()},
+			HWMode:                 string(svc.HWMode()),
 			// WSL's d3d12 VA driver can't sustain Evey's multi-variant VAAPI/QSV
 			// encode, so the admin UI greys those backends when this is true.
 			IsWSL:       sysinfo.IsWSL(),
@@ -187,7 +202,7 @@ func transcodeRecalibrateHandler(svc calibrationSvc) http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(svc.Current()); err != nil {
+		if err := json.NewEncoder(w).Encode(publicEncodeCapability{EncodeCapability: svc.Current()}); err != nil {
 			slog.Warn("calibration: recalibrate response encode failed", slog.Any("err", err))
 		}
 	}
