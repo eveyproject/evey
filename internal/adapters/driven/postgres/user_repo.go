@@ -5,10 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
@@ -198,6 +200,90 @@ func (r *UserRepository) Delete(ctx context.Context, id shared.UserID) error {
 		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
 	}
+	return nil
+}
+
+// lastAdminGuardKey serialises every guarded admin removal/disable behind one
+// tx-scoped advisory lock: two concurrent removals of distinct admins would
+// otherwise each see a stale count > 1 and together leave zero enabled admins
+// (a total lockout, repairable only via psql).
+const lastAdminGuardKey = "evey:last-admin-guard"
+
+// DeleteIfNotLastAdmin atomically refuses to delete the last enabled admin,
+// then deletes. See the UserRepository port for the contract.
+func (r *UserRepository) DeleteIfNotLastAdmin(ctx context.Context, id shared.UserID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.DeleteIfNotLastAdmin")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(id)))
+	return r.withLastAdminGuard(ctx, span, id, `DELETE FROM users WHERE id = $1`)
+}
+
+// DisableIfNotLastAdmin atomically refuses to disable the last enabled admin,
+// then disables. See the UserRepository port for the contract.
+func (r *UserRepository) DisableIfNotLastAdmin(ctx context.Context, id shared.UserID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.DisableIfNotLastAdmin")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(id)))
+	return r.withLastAdminGuard(ctx, span, id,
+		`UPDATE users SET enabled = FALSE, updated_at = NOW() WHERE id = $1`)
+}
+
+func (r *UserRepository) withLastAdminGuard(ctx context.Context, span trace.Span, id shared.UserID, mutation string) error {
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("last-admin guard: begin tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+				slog.Warn("last-admin guard rollback failed", slog.Any("err", rbErr))
+			}
+		}
+	}()
+
+	// Held until commit/rollback — serialises every guarded admin mutation.
+	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, lastAdminGuardKey); err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("last-admin guard: lock: %w", err)
+	}
+
+	var isAdmin, enabled bool
+	err = tx.QueryRowContext(ctx, `SELECT is_admin, enabled FROM users WHERE id = $1`, string(id)).
+		Scan(&isAdmin, &enabled)
+	if err == sql.ErrNoRows {
+		return shared.ErrNotFound
+	}
+	if err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("last-admin guard: lookup: %w", err)
+	}
+	// Only removing an ENABLED admin can lower the enabled-admin count; a
+	// disabled admin is freely removable whatever the count.
+	if isAdmin && enabled {
+		var n int
+		if err := tx.QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM users WHERE is_admin = TRUE AND enabled = TRUE`).Scan(&n); err != nil {
+			span.RecordError(err)
+			return fmt.Errorf("last-admin guard: count: %w", err)
+		}
+		if n <= 1 {
+			return user.ErrLastEnabledAdmin
+		}
+	}
+	if _, err := tx.ExecContext(ctx, mutation, string(id)); err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("last-admin guard: mutate: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("last-admin guard: commit: %w", err)
+	}
+	committed = true
 	return nil
 }
 

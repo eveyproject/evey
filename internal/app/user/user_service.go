@@ -239,15 +239,16 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 		return fmt.Errorf("UserService.DeleteUser: %w", err)
 	}
 	if u.IsAdmin {
-		count, err := s.users.CountEnabledAdmins(ctx)
-		if err != nil {
-			return fmt.Errorf("count admins: %w", err)
+		// The guard and the delete are one serialized check-then-act: two
+		// concurrent removals of distinct admins must not both pass a stale
+		// count and leave zero enabled admins.
+		if err := s.users.DeleteIfNotLastAdmin(ctx, shared.UserID(userID)); err != nil {
+			if errors.Is(err, user.ErrLastEnabledAdmin) {
+				return ErrLastAdmin
+			}
+			return fmt.Errorf("UserService.DeleteUser: %w", err)
 		}
-		if count <= 1 {
-			return ErrLastAdmin
-		}
-	}
-	if err := s.users.Delete(ctx, shared.UserID(userID)); err != nil {
+	} else if err := s.users.Delete(ctx, shared.UserID(userID)); err != nil {
 		return fmt.Errorf("UserService.DeleteUser: %w", err)
 	}
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
@@ -270,18 +271,19 @@ func (s *UserService) DisableUser(ctx context.Context, userID string) error {
 		return fmt.Errorf("UserService.DisableUser: %w", err)
 	}
 	if u.IsAdmin {
-		count, err := s.users.CountEnabledAdmins(ctx)
-		if err != nil {
-			return fmt.Errorf("count admins: %w", err)
+		// Atomic guard+disable — see DeleteUser.
+		if err := s.users.DisableIfNotLastAdmin(ctx, shared.UserID(userID)); err != nil {
+			if errors.Is(err, user.ErrLastEnabledAdmin) {
+				return ErrLastAdmin
+			}
+			return fmt.Errorf("UserService.DisableUser: %w", err)
 		}
-		if count <= 1 {
-			return ErrLastAdmin
+	} else {
+		u.Enabled = false
+		u.UpdatedAt = time.Now()
+		if err := s.users.Update(ctx, u); err != nil {
+			return fmt.Errorf("UserService.DisableUser: %w", err)
 		}
-	}
-	u.Enabled = false
-	u.UpdatedAt = time.Now()
-	if err := s.users.Update(ctx, u); err != nil {
-		return fmt.Errorf("UserService.DisableUser: %w", err)
 	}
 	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
 		slog.Warn("delete refresh tokens for disabled user failed", slog.String("userID", userID), slog.Any("err", err))

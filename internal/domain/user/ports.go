@@ -13,6 +13,10 @@ import (
 // caller-facing error.
 var ErrProfileCapReached = errors.New("profile cap reached")
 
+// ErrLastEnabledAdmin is returned by the guarded delete/disable when the
+// target is the last enabled admin — removing it would lock everyone out.
+var ErrLastEnabledAdmin = errors.New("last enabled admin")
+
 type UserRepository interface {
 	Create(ctx context.Context, u *User) error
 	GetByID(ctx context.Context, id shared.UserID) (*User, error)
@@ -22,6 +26,14 @@ type UserRepository interface {
 	List(ctx context.Context) ([]*User, error)
 	Update(ctx context.Context, u *User) error
 	Delete(ctx context.Context, id shared.UserID) error
+	// DeleteIfNotLastAdmin and DisableIfNotLastAdmin perform the last-admin
+	// check and the mutation atomically (a serialized check-then-act): two
+	// concurrent removals of distinct admins must not both pass a stale count
+	// and leave zero enabled admins. They return ErrLastEnabledAdmin when the
+	// target is an enabled admin and no other enabled admin remains. Deleting
+	// or disabling an already-disabled admin is allowed regardless of count.
+	DeleteIfNotLastAdmin(ctx context.Context, id shared.UserID) error
+	DisableIfNotLastAdmin(ctx context.Context, id shared.UserID) error
 	CountAdmins(ctx context.Context) (int, error)
 	CountEnabledAdmins(ctx context.Context) (int, error)
 }

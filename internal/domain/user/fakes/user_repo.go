@@ -11,9 +11,10 @@ import (
 var ErrNotFound = shared.ErrNotFound
 
 type FakeUserRepository struct {
-	mu    sync.RWMutex
-	items map[string]*user.User
-	Err   error
+	mu       sync.RWMutex
+	items    map[string]*user.User
+	Err      error
+	guardErr error
 }
 
 func NewFakeUserRepository() *FakeUserRepository {
@@ -31,6 +32,68 @@ func (r *FakeUserRepository) Create(_ context.Context, u *user.User) error {
 	}
 	r.items[string(u.ID)] = u
 	return nil
+}
+
+// GuardErr, when set, is returned by the guarded delete/disable — for tests
+// exercising the service's error path without touching the generic Err.
+func (r *FakeUserRepository) SetGuardErr(err error) {
+	r.mu.Lock()
+	r.guardErr = err
+	r.mu.Unlock()
+}
+
+// DeleteIfNotLastAdmin mirrors the SQL guard: refuse when the target is an
+// enabled admin and no other enabled admin remains, else delete. The fake's
+// mutex makes the check-then-act atomic like the advisory lock does.
+func (r *FakeUserRepository) DeleteIfNotLastAdmin(_ context.Context, id shared.UserID) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.guardErr != nil {
+		return r.guardErr
+	}
+	u, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	if u.IsAdmin && u.Enabled && r.countEnabledAdminsLocked() <= 1 {
+		return user.ErrLastEnabledAdmin
+	}
+	delete(r.items, string(id))
+	return nil
+}
+
+// DisableIfNotLastAdmin mirrors the SQL guard for the disable mutation.
+func (r *FakeUserRepository) DisableIfNotLastAdmin(_ context.Context, id shared.UserID) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.guardErr != nil {
+		return r.guardErr
+	}
+	u, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	if u.IsAdmin && u.Enabled && r.countEnabledAdminsLocked() <= 1 {
+		return user.ErrLastEnabledAdmin
+	}
+	u.Enabled = false
+	return nil
+}
+
+func (r *FakeUserRepository) countEnabledAdminsLocked() int {
+	n := 0
+	for _, u := range r.items {
+		if u.IsAdmin && u.Enabled {
+			n++
+		}
+	}
+	return n
 }
 
 func (r *FakeUserRepository) GetByID(_ context.Context, id shared.UserID) (*user.User, error) {
