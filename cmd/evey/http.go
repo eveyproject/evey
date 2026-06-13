@@ -37,6 +37,9 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	adminWriteRL := ratelimit.New(30)
 	passwordResetRL := ratelimit.New(5)
 	oidcLoginRL := ratelimit.New(10)
+	// Snapshot/frame extraction spawns one ffmpeg per request: burst covers an
+	// admin thumbnail grid, the 1/s refill caps sustained spawn abuse.
+	snapshotRL := ratelimit.NewWithBurst(30, 60.0)
 	go func() {
 		<-ctx.Done()
 		loginRL.Stop()
@@ -46,6 +49,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		adminWriteRL.Stop()
 		passwordResetRL.Stop()
 		oidcLoginRL.Stop()
+		snapshotRL.Stop()
 	}()
 
 	audioNormalizeGetter := func(ctx context.Context) bool {
@@ -143,6 +147,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		GlobalRL:        globalRL,
 		StreamingRL:     streamingRL,
 		AdminHeavyRL:    adminHeavyRL,
+		SnapshotRL:      snapshotRL,
 		AdminWriteRL:    adminWriteRL,
 		PasswordResetRL: passwordResetRL,
 		OIDCLoginRL:     oidcLoginRL,

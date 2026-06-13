@@ -221,6 +221,9 @@ type HTTPServer struct {
 	AdminWriteRL    *ratelimit.Limiter
 	PasswordResetRL *ratelimit.Limiter
 	OIDCLoginRL     *ratelimit.Limiter
+	// SnapshotRL caps the frame-extraction route — each request spawns an
+	// ffmpeg, so it must not ride the generous global limiter.
+	SnapshotRL *ratelimit.Limiter
 
 	// i18n
 	Translator *i18n.Translator
@@ -323,7 +326,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// Trickplay (manifest + sprite images) is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", trickplayManifestHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk))
 	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", trickplayImageHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk))
-	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", streamAuth(snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL(), parentalChk)))
+	snapshotH := snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL(), parentalChk)
+	if s.SnapshotRL != nil {
+		snapshotH = ratelimit.MiddlewareFunc(s.SnapshotRL, snapshotH)
+	}
+	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", streamAuth(snapshotH))
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
 	mux.HandleFunc("POST /api/v1/admin/search/reindex", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, searchReindexHandler(s.LibQuerySvc, s.ServerCtx))))
