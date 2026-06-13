@@ -41,16 +41,29 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 	}
 
 	// Single round-trip: totals + genres + most-played + monthly breakdown
+	// "Temps de visionnage" = content actually viewed, measured as the playhead
+	// position (COALESCE(position_ms, duration_ms, 0): the content offset, with
+	// the session wall-clock as fallback when no position was reported — e.g.
+	// sessions closed as stale, which never set duration_ms and previously
+	// counted as 0). For per-(profile,media) totals we take MAX(position) so
+	// resuming a title doesn't double-count the rewatched span. Cross-cutting
+	// rollups (genres, monthly) sum the per-session figure: the same column
+	// choice fixes the stale-session undercount and the cross-stat
+	// inconsistency; a small resume double-count there is an accepted
+	// approximation (true de-dup needs watched-interval tracking we don't keep).
 	const q = `
 	WITH totals AS (
-		SELECT COALESCE(SUM(duration_ms), 0) AS total_ms,
+		SELECT (SELECT COALESCE(SUM(viewed), 0) FROM (
+		            SELECT MAX(COALESCE(position_ms, duration_ms, 0)) AS viewed
+		            FROM play_sessions WHERE profile_id = $1 GROUP BY media_item_id
+		        ) v) AS total_ms,
 		       COUNT(*) AS total_count,
 		       COUNT(DISTINCT media_item_id) AS unique_items
 		FROM play_sessions WHERE profile_id = $1
 	),
 	genres AS (
 		SELECT g.genre,
-		       COALESCE(SUM(ps.duration_ms), 0) AS total_ms,
+		       COALESCE(SUM(COALESCE(ps.position_ms, ps.duration_ms, 0)), 0) AS total_ms,
 		       COUNT(*) AS play_count
 		FROM play_sessions ps
 		INNER JOIN media_catalog mc ON mc.media_item_id = ps.media_item_id,
@@ -62,7 +75,7 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 	most_played AS (
 		SELECT ps.media_item_id, mi.title,
 		       COUNT(*) AS play_count,
-		       COALESCE(SUM(ps.duration_ms), 0) AS total_ms
+		       MAX(COALESCE(ps.position_ms, ps.duration_ms, 0)) AS total_ms
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		WHERE ps.profile_id = $1
@@ -73,7 +86,7 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 	monthly AS (
 		SELECT TO_CHAR(started_at, 'YYYY-MM') AS month,
 		       COUNT(*) AS cnt,
-		       COALESCE(SUM(duration_ms), 0) AS total_ms
+		       COALESCE(SUM(COALESCE(position_ms, duration_ms, 0)), 0) AS total_ms
 		FROM play_sessions WHERE profile_id = $1
 		GROUP BY month
 		ORDER BY month
@@ -164,7 +177,9 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 			(SELECT COUNT(*) FROM transcode_sessions WHERE status IN ('queued', 'running')),
 			(SELECT COUNT(*) FROM users),
 			(SELECT COUNT(*) FROM media_items),
-			(SELECT COALESCE(SUM(duration_ms), 0) FROM play_sessions),
+			(SELECT COALESCE(SUM(viewed), 0) FROM (
+				SELECT MAX(COALESCE(position_ms, duration_ms, 0)) AS viewed
+				FROM play_sessions GROUP BY profile_id, media_item_id) v),
 			(SELECT COUNT(*) FROM play_sessions),
 			(SELECT COALESCE(SUM(file_size), 0) FROM media_files)`,
 	).Scan(&stats.ActiveStreams, &stats.ActiveTranscodes, &stats.TotalUsers, &stats.TotalItems,
@@ -220,12 +235,15 @@ func (r *PlaySessionStatsReader) popularMediaRollup(ctx context.Context) ([]acti
 }
 
 // activeUsersRollup returns the most active users of the last 30 days
-// (admin stats tab). Watch time prefers the session duration and falls back
-// to the last playhead position for sessions that never reported a duration.
+// (admin stats tab). Watch time = "Temps de visionnage" (content viewed):
+// the playhead position, falling back to the session wall-clock when no
+// position was reported. Position-first matches the other watch-time stats
+// (it previously preferred duration, disagreeing with the dashboard/analytics
+// and zero-counting stale sessions that never set duration_ms).
 func (r *PlaySessionStatsReader) activeUsersRollup(ctx context.Context) ([]activity.ServerActiveUser, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT u.id, u.username, COUNT(*) AS plays,
-		        COALESCE(SUM(COALESCE(ps.duration_ms, ps.position_ms, 0)), 0) AS watch_ms,
+		        COALESCE(SUM(COALESCE(ps.position_ms, ps.duration_ms, 0)), 0) AS watch_ms,
 		        MAX(ps.started_at) AS last_active
 		 FROM play_sessions ps
 		 INNER JOIN profiles p ON p.id = ps.profile_id

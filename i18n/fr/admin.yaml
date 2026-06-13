@@ -442,7 +442,7 @@ activity:
     totalUsers: "Total d'utilisateurs"
     totalMedia: "Total de médias"
     bandwidth: "Bande passante"
-    totalPlayTime: "Temps de lecture total"
+    totalPlayTime: "Temps de visionnage total"
     storage: "Taille du catalogue"
   popularMedia: "Médias populaires"
   mostActiveUsers: "Utilisateurs les plus actifs"
