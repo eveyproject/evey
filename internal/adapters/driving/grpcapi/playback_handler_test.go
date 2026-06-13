@@ -87,6 +87,18 @@ func pbAdminCtx() context.Context {
 	})
 }
 
+// pbUserCtx is a non-admin caller bound to profileID — used to prove the
+// per-session ownership guards (a regular user cannot touch another profile's
+// session). Non-admin is required: the guards are bypassed for admins.
+func pbUserCtx(userID, profileID string) context.Context {
+	return interceptors.ContextWithClaims(context.Background(), &user.Claims{
+		UserID:    userID,
+		Username:  "viewer",
+		IsAdmin:   false,
+		ProfileID: profileID,
+	})
+}
+
 func TestPlaybackHandler_StartStream(t *testing.T) {
 	h, _, _, _, _, _ := newTestPlaybackHandler()
 	ctx := pbAdminCtx()
@@ -181,6 +193,50 @@ func TestPlaybackHandler_ReportProgress(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.Equal(t, int64(60000), wp.PositionMs)
+}
+
+// TestPlaybackHandler_StopStream_IDOR_OtherProfileDenied locks in the ownership
+// guard: a non-admin profile must not be able to stop another profile's session.
+func TestPlaybackHandler_StopStream_IDOR_OtherProfileDenied(t *testing.T) {
+	h, _, _, _, _, _ := newTestPlaybackHandler()
+
+	// profile-1 owns the session.
+	startResp, err := h.StartStream(pbAdminCtx(), &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-1",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+		DeviceName:  "Firefox",
+	})
+	require.NoError(t, err)
+
+	// profile-2 (a different, non-admin user) tries to stop it → PermissionDenied.
+	_, err = h.StopStream(pbUserCtx("user-2", "profile-2"), &eveyv1.StopStreamRequest{SessionId: startResp.Id})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+
+	// The session must still be stoppable by its owner afterwards.
+	_, err = h.StopStream(pbAdminCtx(), &eveyv1.StopStreamRequest{SessionId: startResp.Id})
+	require.NoError(t, err)
+}
+
+// TestPlaybackHandler_ReportProgress_IDOR_OtherProfileDenied locks in the
+// ownership guard on progress reporting (a non-admin cannot write progress onto
+// another profile's session).
+func TestPlaybackHandler_ReportProgress_IDOR_OtherProfileDenied(t *testing.T) {
+	h, _, _, _, _, _ := newTestPlaybackHandler()
+
+	startResp, err := h.StartStream(pbAdminCtx(), &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-1",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+		DeviceName:  "Firefox",
+	})
+	require.NoError(t, err)
+
+	_, err = h.ReportProgress(pbUserCtx("user-2", "profile-2"), &eveyv1.ReportProgressRequest{
+		SessionId:  startResp.Id,
+		PositionMs: 60000,
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
 func TestPlaybackHandler_GetWatchProgress_Exists(t *testing.T) {

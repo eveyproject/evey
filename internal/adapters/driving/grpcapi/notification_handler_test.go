@@ -83,6 +83,29 @@ func TestNotificationHandler_MarkRead_Success(t *testing.T) {
 	assert.Equal(t, 0, count)
 }
 
+// TestNotificationHandler_MarkRead_IDORAnotherProfile proves the per-profile
+// scoping on MarkRead: a different profile marking this profile's notification
+// is a silent no-op (the command scopes the write by claims.ProfileID), so the
+// owner's notification stays unread. Mirrors the existing List/GetUnreadCount
+// IDOR tests, which MarkRead lacked.
+func TestNotificationHandler_MarkRead_IDORAnotherProfile(t *testing.T) {
+	h, repo, _ := newNotificationHandler()
+
+	_ = repo.Create(context.Background(), &notification.Notification{
+		ID: "n1", ProfileID: "profile-1", Type: notification.TypeNewMovie,
+		Title: "Owned by profile-1", Message: "msg", CreatedAt: time.Now(),
+	})
+
+	// profile-2 attempts to mark profile-1's notification read.
+	ctx := ctxWithClaims("user-2", "profile-2", false)
+	_, err := h.MarkRead(ctx, &eveyv1.MarkReadRequest{Id: "n1"})
+	require.NoError(t, err) // silent no-op (0 rows match), not an error
+
+	// profile-1's notification must remain unread.
+	count, _ := repo.UnreadCount(context.Background(), "profile-1")
+	assert.Equal(t, 1, count, "another profile must not mark this profile's notification read")
+}
+
 func TestNotificationHandler_MarkAllRead_Success(t *testing.T) {
 	h, repo, _ := newNotificationHandler()
 
