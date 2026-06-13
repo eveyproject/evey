@@ -165,8 +165,8 @@ func TestAudioSegment_FlagOff_404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-// Test 4: Audio init route returns 403 when parental blocks access (kids profile on adult media).
-func TestAudioInit_ParentalBlocked_403(t *testing.T) {
+// Test 4: Audio init route returns 404 when parental blocks access (kids profile on adult media; existence hidden).
+func TestAudioInit_ParentalBlocked_NotFound(t *testing.T) {
 	item := testMediaItemAdult()
 	streams := []*domainlibrary.MediaStream{
 		{StreamType: "audio", Codec: "aac", Language: "en"},
@@ -182,7 +182,7 @@ func TestAudioInit_ParentalBlocked_403(t *testing.T) {
 	w := httptest.NewRecorder()
 	audioInitHandler(ah)(w, req)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code) // parental block hides existence (404, not 403)
 }
 
 // Test 5: Audio playlist returns 403 when library access is denied.

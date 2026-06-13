@@ -198,7 +198,7 @@ func TestChaptersHandler_StreamToken_WrongMediaID_403(t *testing.T) {
 	}
 }
 
-func TestChaptersHandler_ParentalBlocked_403(t *testing.T) {
+func TestChaptersHandler_ParentalBlocked_NotFound(t *testing.T) {
 	item := &domainlibrary.MediaItem{
 		ID: "m1", LibraryID: "lib1",
 		File:           &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
@@ -217,8 +217,8 @@ func TestChaptersHandler_ParentalBlocked_403(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403 from parental gate, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 from parental gate (existence hidden), got %d", w.Code)
 	}
 }
 

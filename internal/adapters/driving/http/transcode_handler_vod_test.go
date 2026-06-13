@@ -303,14 +303,14 @@ func TestHLSVOD_LibraryAccessDenied_403(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestHLSVOD_ParentalBlocked_403(t *testing.T) {
+func TestHLSVOD_ParentalBlocked_NotFound(t *testing.T) {
 	h, _ := buildVODHandler(t,
 		&testFakeStreamsGetter{item: testMediaItemWith1Minute()},
 		allowAll(),
 		testFakeParentalChecker{block: true},
 	)
 	w := doVODRequest(h, "m1", "master.m3u8")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code) // parental block hides existence (404, not 403)
 }
 
 // ----------------------------------------------------------------
@@ -642,8 +642,8 @@ func TestPrewarmNext_NextItemParentalBlocked_Forbidden(t *testing.T) {
 	h, _ := buildVODHandler(t, libSvc, access, parental)
 
 	w := doPrewarmRequest(h, "ep-a")
-	assert.Equal(t, http.StatusForbidden, w.Code,
-		"prewarm-next must reject when nextItem is parental-restricted for this profile")
+	assert.Equal(t, http.StatusNotFound, w.Code,
+		"prewarm-next must reject (404, existence hidden) when nextItem is parental-restricted for this profile")
 }
 
 // Sanity: current item access denial still blocks. Mirrors the existing

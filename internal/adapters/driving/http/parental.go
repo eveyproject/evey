@@ -76,7 +76,7 @@ func (c *profileParentalChecker) BlockedByParental(ctx context.Context, profileI
 	return false
 }
 
-// checkParental writes a 403 and returns false when the active profile may not
+// checkParental writes a 404 and returns false when the active profile may not
 // view item. It is a no-op (returns true) when parental is not wired, the
 // caller is an admin, or there are no claims/item — mirroring checkLibraryAccess
 // and the gRPC resolver which both exempt admins from a parental filter.
@@ -85,7 +85,11 @@ func checkParental(ctx context.Context, w http.ResponseWriter, claims *domainuse
 		return true
 	}
 	if pc.BlockedByParental(ctx, claims.ProfileID, item) {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		// 404, not 403: a parental-blocked adult item must be indistinguishable
+		// from a non-existent one, otherwise a kids profile can enumerate which
+		// media IDs are adult content by probing the byte/HLS/token endpoints.
+		// Mirror checkLibraryAccess's not-found response.
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return false
 	}
 	return true

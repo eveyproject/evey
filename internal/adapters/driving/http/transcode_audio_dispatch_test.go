@@ -160,14 +160,14 @@ func TestDispatchAudioSegment_Seg_OrchestratorError_503(t *testing.T) {
 
 // Parental check fires inside commonAuth before dispatch — dispatch path
 // never runs when the item is restricted.
-func TestDispatchAudioSegment_ParentalBlocked_403(t *testing.T) {
+func TestDispatchAudioSegment_ParentalBlocked_NotFound(t *testing.T) {
 	item, streams := testMediaItemWithAudioStreams()
 	libSvc := &testFakeStreamsGetter{item: item, streams: streams}
 	h := buildVODHandlerWithAudio(t, libSvc, allowAll(),
 		testFakeParentalChecker{block: true}, &fakeAudioEnsurer{})
 
 	w := doAudioDispatchRequest(h, "m1", "audio_0_000.m4s")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code) // parental block hides existence (404, not 403)
 }
 
 // Deep segment index (> 999) is parsed correctly — audioSegmentNameRE uses

@@ -86,13 +86,13 @@ func TestCheckParental(t *testing.T) {
 			t.Error("admin should bypass parental")
 		}
 	})
-	t.Run("blocked kid gets 403", func(t *testing.T) {
+	t.Run("blocked kid gets 404 (existence hidden)", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		if checkParental(context.Background(), w, &domainuser.Claims{ProfileID: "p1"}, item, blocker) {
 			t.Error("blocked content should not pass")
 		}
-		if w.Code != http.StatusForbidden {
-			t.Errorf("expected 403, got %d", w.Code)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d", w.Code)
 		}
 	})
 	t.Run("allowed content passes", func(t *testing.T) {
@@ -119,7 +119,7 @@ func (allowAllParental) BlockedByParental(context.Context, string, *domainlibrar
 	return false
 }
 
-func TestDownloadHandler_ParentalBlocked_403(t *testing.T) {
+func TestDownloadHandler_ParentalBlocked_NotFound(t *testing.T) {
 	h := downloadHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: shared.LibraryID("lib1"), File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"}}},
@@ -132,7 +132,7 @@ func TestDownloadHandler_ParentalBlocked_403(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403 from parental gate, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 from parental gate (existence hidden), got %d", w.Code)
 	}
 }

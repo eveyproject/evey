@@ -221,7 +221,7 @@ func TestSegmentsHandler_PreviewGating(t *testing.T) {
 	}
 }
 
-func TestSegmentsHandler_ParentalBlocked_403(t *testing.T) {
+func TestSegmentsHandler_ParentalBlocked_NotFound(t *testing.T) {
 	segs := []*domainlibrary.MediaSegment{
 		{ID: "s1", MediaItemID: "m1", Type: "intro", StartMs: 0, EndMs: 60000, Source: "phash"},
 	}
@@ -243,8 +243,8 @@ func TestSegmentsHandler_ParentalBlocked_403(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403 from parental gate, got %d", w.Code)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 from parental gate (existence hidden), got %d", w.Code)
 	}
 }
 
