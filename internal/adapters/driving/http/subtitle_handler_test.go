@@ -438,6 +438,30 @@ func TestSubtitleHandler_TrackOutOfRange_404(t *testing.T) {
 	}
 }
 
+// When GetMediaStreams fails we can't validate the requested track or codec, so
+// the handler must fail closed with 500 instead of silently spawning ffmpeg on
+// the unvalidated index (which would emit a broken/empty stream with no signal).
+func TestSubtitleHandler_StreamsError_500(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
+	}
+	h := subtitleHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeMediaStreamsGetter{item: item, sErr: errTest},
+		"http://localhost", allowAll(), allowAllParental{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("track", "0")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("stream-fetch error must fail closed with 500, got %d", w.Code)
+	}
+}
+
 // A bitmap subtitle (PGS/DVDSub/...) can't be muxed to text WebVTT — reject
 // with 422 instead of spawning an ffmpeg that emits an empty/failed stream.
 func TestSubtitleHandler_ImageSubtitle_422(t *testing.T) {

@@ -77,41 +77,50 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 		}
 		filePath := item.File.Path
 
-		if streams, serr := libSvc.GetMediaStreams(r.Context(), mediaID); serr == nil {
-			subIdx := 0
-			matched := false
-			imageSub := false
-			for _, s := range streams {
-				if s.StreamType != "subtitle" {
-					continue
+		streams, serr := libSvc.GetMediaStreams(r.Context(), mediaID)
+		if serr != nil {
+			// Fail closed (and visibly): without the stream list we can't tell a
+			// valid text track from a forged ?track= index or a bitmap subtitle.
+			// Silently falling through used to spawn ffmpeg on the unvalidated
+			// index, emitting a broken/empty stream with no error signal.
+			slog.Warn("subtitle: get media streams", slog.String("media_id", mediaID), slog.Any("err", serr))
+			span.SetStatus(otelcodes.Error, "media streams unavailable")
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		subIdx := 0
+		matched := false
+		imageSub := false
+		for _, s := range streams {
+			if s.StreamType != "subtitle" {
+				continue
+			}
+			if subIdx == trackIndex {
+				if s.IsExternal && s.ExternalPath != nil {
+					serveExternalSubtitle(w, r, *s.ExternalPath, filepath.Dir(filePath), baseURL)
+					return
 				}
-				if subIdx == trackIndex {
-					if s.IsExternal && s.ExternalPath != nil {
-						serveExternalSubtitle(w, r, *s.ExternalPath, filepath.Dir(filePath), baseURL)
-						return
-					}
-					matched = true
-					imageSub = apptranscoding.IsImageSubtitle(s.Codec)
-					break
-				}
-				subIdx++
+				matched = true
+				imageSub = apptranscoding.IsImageSubtitle(s.Codec)
+				break
 			}
-			// We successfully enumerated streams, so the requested track must be a
-			// real embedded subtitle. An out-of-range ?track= would otherwise become
-			// `-map 0:s:99` and fail the ffmpeg spawn per request (forged deep index).
-			if !matched {
-				span.SetStatus(otelcodes.Error, "subtitle track out of range")
-				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-				return
-			}
-			// A bitmap subtitle (PGS/DVDSub/DVB/XSUB) can't be muxed to text WebVTT:
-			// `-f webvtt` produces an empty/failed stream. Bitmap subs are delivered
-			// by burn-in, not this text endpoint, so reject rather than spawn ffmpeg.
-			if imageSub {
-				span.SetStatus(otelcodes.Error, "image subtitle not text-convertible")
-				http.Error(w, `{"message":"subtitle not available as text"}`, http.StatusUnprocessableEntity)
-				return
-			}
+			subIdx++
+		}
+		// We successfully enumerated streams, so the requested track must be a
+		// real embedded subtitle. An out-of-range ?track= would otherwise become
+		// `-map 0:s:99` and fail the ffmpeg spawn per request (forged deep index).
+		if !matched {
+			span.SetStatus(otelcodes.Error, "subtitle track out of range")
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		// A bitmap subtitle (PGS/DVDSub/DVB/XSUB) can't be muxed to text WebVTT:
+		// `-f webvtt` produces an empty/failed stream. Bitmap subs are delivered
+		// by burn-in, not this text endpoint, so reject rather than spawn ffmpeg.
+		if imageSub {
+			span.SetStatus(otelcodes.Error, "image subtitle not text-convertible")
+			http.Error(w, `{"message":"subtitle not available as text"}`, http.StatusUnprocessableEntity)
+			return
 		}
 
 		ctx, cancel := context.WithCancel(r.Context())
