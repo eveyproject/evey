@@ -68,6 +68,31 @@ func (j *DownloadJob) ListErrors() []string {
 	return out
 }
 
+// downloadJobRegistry is the in-memory registry of background artwork jobs
+// (bulk download, retry-missing, blurhash backfill), polled by the admin UI via
+// GetDownloadJob. Extracted from CommandService so the bookkeeping is one
+// concern behind one field instead of a raw mutex+map inlined in the service.
+type downloadJobRegistry struct {
+	mu   sync.RWMutex
+	jobs map[string]*DownloadJob
+}
+
+func newDownloadJobRegistry() *downloadJobRegistry {
+	return &downloadJobRegistry{jobs: make(map[string]*DownloadJob)}
+}
+
+func (r *downloadJobRegistry) register(job *DownloadJob) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.jobs[job.ID] = job
+}
+
+func (r *downloadJobRegistry) get(jobID string) *DownloadJob {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.jobs[jobID]
+}
+
 type CommandService struct {
 	overrides    metadata.MetadataOverrideRepository
 	artwork      metadata.ArtworkRepository
@@ -83,9 +108,8 @@ type CommandService struct {
 	autoDownloadEnabled bool
 	dataDir             string
 
-	// in-memory job registry for bulk downloads
-	jobsMu sync.RWMutex
-	jobs   map[string]*DownloadJob
+	// in-memory job registry for background artwork jobs (poll via GetDownloadJob)
+	jobs *downloadJobRegistry
 }
 
 func WithAutoDownload(dataDir string, enabled bool) CommandServiceOption {
@@ -109,7 +133,7 @@ func NewCommandService(
 		downloader: downloader,
 		events:     events,
 		providers:  providers,
-		jobs:       make(map[string]*DownloadJob),
+		jobs:       newDownloadJobRegistry(),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -180,9 +204,7 @@ func (s *CommandService) StartBulkDownload(ctx context.Context, serverCtx contex
 		ID:    jobID,
 		Total: len(records),
 	}
-	s.jobsMu.Lock()
-	s.jobs[jobID] = job
-	s.jobsMu.Unlock()
+	s.jobs.register(job)
 
 	go s.runBulkDownload(serverCtx, job, records)
 	return jobID, len(records), nil
@@ -251,9 +273,7 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 
 // GetDownloadJob retrieves a job by ID; returns nil if not found.
 func (s *CommandService) GetDownloadJob(jobID string) *DownloadJob {
-	s.jobsMu.RLock()
-	defer s.jobsMu.RUnlock()
-	return s.jobs[jobID]
+	return s.jobs.get(jobID)
 }
 
 // RetryMissingArtworks downloads every artwork record that has a SourceURL
@@ -293,9 +313,7 @@ func (s *CommandService) StartRetryMissing(ctx, serverCtx context.Context) (stri
 	}
 	jobID := fmt.Sprintf("artretry-%d", time.Now().UnixNano())
 	job := &DownloadJob{ID: jobID, Total: len(records)}
-	s.jobsMu.Lock()
-	s.jobs[jobID] = job
-	s.jobsMu.Unlock()
+	s.jobs.register(job)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -426,9 +444,7 @@ func (s *CommandService) StartBackfillBlurhashes(ctx, serverCtx context.Context)
 	}
 	jobID := fmt.Sprintf("artblur-%d", time.Now().UnixNano())
 	job := &DownloadJob{ID: jobID, Total: len(records)}
-	s.jobsMu.Lock()
-	s.jobs[jobID] = job
-	s.jobsMu.Unlock()
+	s.jobs.register(job)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
