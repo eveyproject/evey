@@ -46,6 +46,7 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 		eveyv1.RegisterPluginUserDataServiceHandler,
 		eveyv1.RegisterAdminTaskServiceHandler,
 		eveyv1.RegisterAdminMediaServiceHandler,
+		eveyv1.RegisterAdminIntroServiceHandler,
 		eveyv1.RegisterAdminSessionServiceHandler,
 		eveyv1.RegisterActivityServiceHandler,
 		eveyv1.RegisterNotificationServiceHandler,
