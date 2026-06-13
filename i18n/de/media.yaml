@@ -120,13 +120,15 @@ library:
   filters: Filter
   clearAll: Alle löschen
   resultCount: "{{count}} Ergebnis"
-  resultCount_plural: "{{count}} Ergebnisse"
+  resultCount_one: "{{count}} Ergebnis"
+  resultCount_other: "{{count}} Ergebnisse"
   yearLabel: Jahr
   yearFrom: Von
   yearTo: Bis
   minRating: Min. Bewertung
   minStars: "Min {{count}} Stern"
-  minStars_plural: "Min {{count}} Sterne"
+  minStars_one: "Min {{count}} Stern"
+  minStars_other: "Min {{count}} Sterne"
   clearRating: Löschen
   typeAll: Alle
   typeMovie: Film
@@ -156,7 +158,8 @@ person:
   filmography: Filmografie
   unknown: Unbekannt
   titleCount: "{{count}} Titel"
-  titleCount_plural: "{{count}} Titel"
+  titleCount_one: "{{count}} Titel"
+  titleCount_other: "{{count}} Titel"
   noFilmography: Keine Filmografie für diese Person gefunden.
   other: Sonstiges
   asRole: "als {{role}}"
@@ -186,10 +189,12 @@ detail:
   crew: Team
   seasons: Staffeln
   seasonCount: "{{count}} Staffel"
-  seasonCount_plural: "{{count}} Staffeln"
+  seasonCount_one: "{{count}} Staffel"
+  seasonCount_other: "{{count}} Staffeln"
   episodes: Folgen
   episodeCount: "{{count}} Folge"
-  episodeCount_plural: "{{count}} Folgen"
+  episodeCount_one: "{{count}} Folge"
+  episodeCount_other: "{{count}} Folgen"
   ep: "{{count}} Fo."
   similarTitles: Ähnliche Titel
   fileInfo: Dateiinfo
@@ -314,9 +319,11 @@ music:
   deleteTrackConfirm: Diesen Titel löschen? Dies kann nicht rückgängig gemacht werden.
   deleteTrack: Titel löschen
   trackCount: "{{count}} Titel"
-  trackCount_plural: "{{count}} Titel"
+  trackCount_one: "{{count}} Titel"
+  trackCount_other: "{{count}} Titel"
   albumCount: "{{count}} Album"
-  albumCount_plural: "{{count}} Alben"
+  albumCount_one: "{{count}} Album"
+  albumCount_other: "{{count}} Alben"
   genre: Genre
   year: Year
   shuffle: Zufall
@@ -447,7 +454,8 @@ search:
   noResultsFor: "Keine Ergebnisse für \"{{query}}\""
   noResultsDesc: Versuchen Sie einen anderen Suchbegriff, überprüfen Sie die Schreibweise oder ändern Sie den Filter.
   resultCount: "{{count}} Ergebnis"
-  resultCount_plural: "{{count}} Ergebnisse"
+  resultCount_one: "{{count}} Ergebnis"
+  resultCount_other: "{{count}} Ergebnisse"
   resultFor: "für \"{{query}}\""
   searchLibrary: Ihre Medienbibliothek durchsuchen
   searchLibraryDesc: Geben Sie mindestens 2 Zeichen ein, um alle Ihre Filme, Serien und mehr zu durchsuchen.

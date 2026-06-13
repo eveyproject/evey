@@ -926,21 +926,33 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
       {albums.map((a) => (
         <div
           key={a.ID}
-          onClick={() => onAlbumClick(a)}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAlbumClick(a); } }}
-          className="relative rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] cursor-pointer hover:border-[var(--accent)] transition-colors-fast group"
+          className="relative rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] border border-[var(--border)] hover:border-[var(--accent)] transition-colors-fast group"
         >
           <div
-            className="w-full flex items-center justify-center bg-[var(--surface)] bg-cover bg-center aspect-square"
-            style={{
-              backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined,
-            }}
+            role="button"
+            tabIndex={0}
+            onClick={() => onAlbumClick(a)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAlbumClick(a); } }}
+            className="cursor-pointer"
           >
-            {!a.CoverArtURL && (
-              <Music size={32} className="opacity-30 text-[var(--text-muted)]" />
-            )}
+            <div
+              className="w-full flex items-center justify-center bg-[var(--surface)] bg-cover bg-center aspect-square"
+              style={{
+                backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined,
+              }}
+            >
+              {!a.CoverArtURL && (
+                <Music size={32} className="opacity-30 text-[var(--text-muted)]" />
+              )}
+            </div>
+            <div className="p-2">
+              <p className="font-medium text-sm truncate text-[var(--text)]">{a.Title || "—"}</p>
+              <p className="text-xs truncate text-[var(--text-muted)]">{a.Artist || "—"}</p>
+              <p className="text-xs text-[var(--text-muted)]">
+                {t("media.music.trackCount", { count: a.TrackCount })}
+                {a.Year > 0 ? ` · ${a.Year}` : ""}
+              </p>
+            </div>
           </div>
           <button
             type="button"
@@ -951,14 +963,6 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
           >
             <Download size={14} />
           </button>
-          <div className="p-2">
-            <p className="font-medium text-sm truncate text-[var(--text)]">{a.Title || "—"}</p>
-            <p className="text-xs truncate text-[var(--text-muted)]">{a.Artist || "—"}</p>
-            <p className="text-xs text-[var(--text-muted)]">
-              {t("media.music.trackCount", { count: a.TrackCount })}
-              {a.Year > 0 ? ` · ${a.Year}` : ""}
-            </p>
-          </div>
         </div>
       ))}
     </div>

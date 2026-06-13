@@ -51,6 +51,7 @@ export function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpiso
               <button
                 key={ep.id}
                 onClick={() => { onEpisodeChange(ep.id); onToggle(); }}
+                aria-current={ep.id === currentEpisodeId || undefined}
                 className={`flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-left ${ep.id === currentEpisodeId ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
               >
                 <span className="w-8 flex-shrink-0 font-mono text-xs text-[var(--text-muted)]">
@@ -58,7 +59,7 @@ export function EpisodesPanel({ seasons, currentSeasonId, episodes, currentEpiso
                 </span>
                 <span className="flex-1 truncate">{ep.title}</span>
                 {ep.id === currentEpisodeId && (
-                  <Check size={12} className="flex-shrink-0" />
+                  <Check size={12} className="flex-shrink-0" aria-hidden="true" />
                 )}
               </button>
             ))}

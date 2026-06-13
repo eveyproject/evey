@@ -120,13 +120,15 @@ library:
   filters: Filtros
   clearAll: Borrar todo
   resultCount: "{{count}} resultado"
-  resultCount_plural: "{{count}} resultados"
+  resultCount_one: "{{count}} resultado"
+  resultCount_other: "{{count}} resultados"
   yearLabel: Año
   yearFrom: Desde
   yearTo: Hasta
   minRating: Puntuación mínima
   minStars: "Mín {{count}} estrella"
-  minStars_plural: "Mín {{count}} estrellas"
+  minStars_one: "Mín {{count}} estrella"
+  minStars_other: "Mín {{count}} estrellas"
   clearRating: Borrar
   typeAll: Todo
   typeMovie: Película
@@ -156,7 +158,8 @@ person:
   filmography: Filmografía
   unknown: Desconocido
   titleCount: "{{count}} título"
-  titleCount_plural: "{{count}} títulos"
+  titleCount_one: "{{count}} título"
+  titleCount_other: "{{count}} títulos"
   noFilmography: No se encontró filmografía para esta persona.
   other: Otro
   asRole: "como {{role}}"
@@ -186,10 +189,12 @@ detail:
   crew: Equipo
   seasons: Temporadas
   seasonCount: "{{count}} temporada"
-  seasonCount_plural: "{{count}} temporadas"
+  seasonCount_one: "{{count}} temporada"
+  seasonCount_other: "{{count}} temporadas"
   episodes: Episodios
   episodeCount: "{{count}} episodio"
-  episodeCount_plural: "{{count}} episodios"
+  episodeCount_one: "{{count}} episodio"
+  episodeCount_other: "{{count}} episodios"
   ep: "{{count}} ep."
   similarTitles: Títulos similares
   fileInfo: Info del archivo
@@ -314,9 +319,11 @@ music:
   deleteTrackConfirm: ¿Eliminar esta pista? Esta acción no se puede deshacer.
   deleteTrack: Eliminar pista
   trackCount: "{{count}} pista"
-  trackCount_plural: "{{count}} pistas"
+  trackCount_one: "{{count}} pista"
+  trackCount_other: "{{count}} pistas"
   albumCount: "{{count}} álbum"
-  albumCount_plural: "{{count}} álbumes"
+  albumCount_one: "{{count}} álbum"
+  albumCount_other: "{{count}} álbumes"
   genre: Genre
   year: Year
   shuffle: Aleatorio
@@ -446,9 +453,10 @@ search:
   series: Series
   noResultsFor: "Sin resultados para “{{query}}”"
   noResultsDesc: Prueba con otro término, verifica la ortografía o cambia el filtro.
-  resultCount: "{{count}} resultado"
-  resultCount_plural: "{{count}} resultados"
-  resultFor: "para “{{query}}”"
+  resultCount: “{{count}} resultado”
+  resultCount_one: “{{count}} resultado”
+  resultCount_other: “{{count}} resultados”
+  resultFor: “para “{{query}}””
   searchLibrary: Busca en tu biblioteca multimedia
   searchLibraryDesc: Escribe al menos 2 caracteres para buscar en tus películas, series y más.
   clearSearch: Borrar búsqueda

@@ -120,13 +120,15 @@ library:
   filters: फ़िल्टर
   clearAll: सब हटाएं
   resultCount: "{{count}} परिणाम"
-  resultCount_plural: "{{count}} परिणाम"
+  resultCount_one: "{{count}} परिणाम"
+  resultCount_other: "{{count}} परिणाम"
   yearLabel: वर्ष
   yearFrom: से
   yearTo: तक
   minRating: न्यूनतम रेटिंग
   minStars: "न्यूनतम {{count}} स्टार"
-  minStars_plural: "न्यूनतम {{count}} स्टार"
+  minStars_one: "न्यूनतम {{count}} स्टार"
+  minStars_other: "न्यूनतम {{count}} स्टार"
   clearRating: हटाएं
   typeAll: सभी
   typeMovie: फ़िल्म
@@ -156,7 +158,8 @@ person:
   filmography: "फ़िल्मोग्राफ़ी"
   unknown: अज्ञात
   titleCount: "{{count}} शीर्षक"
-  titleCount_plural: "{{count}} शीर्षक"
+  titleCount_one: "{{count}} शीर्षक"
+  titleCount_other: "{{count}} शीर्षक"
   noFilmography: इस व्यक्ति की कोई फ़िल्मोग्राफ़ी नहीं मिली।
   other: अन्य
   asRole: "{{role}} के रूप में"
@@ -186,10 +189,12 @@ detail:
   crew: दल
   seasons: सीज़न
   seasonCount: "{{count}} सीज़न"
-  seasonCount_plural: "{{count}} सीज़न"
+  seasonCount_one: "{{count}} सीज़न"
+  seasonCount_other: "{{count}} सीज़न"
   episodes: एपिसोड
   episodeCount: "{{count}} एपिसोड"
-  episodeCount_plural: "{{count}} एपिसोड"
+  episodeCount_one: "{{count}} एपिसोड"
+  episodeCount_other: "{{count}} एपिसोड"
   ep: "{{count}} एप."
   similarTitles: समान शीर्षक
   fileInfo: फ़ाइल जानकारी
@@ -315,9 +320,11 @@ music:
   deleteTrackConfirm: यह ट्रैक मिटाएं? यह क्रिया पूर्ववत नहीं की जा सकती।
   deleteTrack: ट्रैक मिटाएं
   trackCount: "{{count}} ट्रैक"
-  trackCount_plural: "{{count}} ट्रैक"
+  trackCount_one: "{{count}} ट्रैक"
+  trackCount_other: "{{count}} ट्रैक"
   albumCount: "{{count}} एल्बम"
-  albumCount_plural: "{{count}} एल्बम"
+  albumCount_one: "{{count}} एल्बम"
+  albumCount_other: "{{count}} एल्बम"
   genre: Genre
   year: Year
   shuffle: शफ़ल
@@ -446,9 +453,10 @@ search:
   series: सीरीज़
   noResultsFor: "“{{query}}” के लिए कोई परिणाम नहीं"
   noResultsDesc: कोई अलग शब्द आज़माएं, वर्तनी जाँचें या फ़िल्टर बदलें।
-  resultCount: "{{count}} परिणाम"
-  resultCount_plural: "{{count}} परिणाम"
-  resultFor: "“{{query}}” के लिए"
+  resultCount: “{{count}} परिणाम”
+  resultCount_one: “{{count}} परिणाम”
+  resultCount_other: “{{count}} परिणाम”
+  resultFor: “”{{query}}” के लिए”
   searchLibrary: अपनी मीडिया लाइब्रेरी खोजें
   searchLibraryDesc: अपनी फ़िल्मों, सीरीज़ और अन्य में खोजने के लिए कम से कम 2 अक्षर टाइप करें।
   clearSearch: खोज साफ़ करें

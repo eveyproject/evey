@@ -41,6 +41,7 @@ export function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle
                 <button
                   key={i}
                   onClick={() => { onSeek(startSec); onToggle(); }}
+                  aria-current={isActive || undefined}
                   className={`flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-[var(--surface-raised)] transition-colors-fast text-left ${isActive ? "text-[var(--accent)]" : "text-[var(--text)]"}`}
                 >
                   <span className="w-12 flex-shrink-0 font-mono text-xs text-[var(--text-muted)]">
@@ -48,7 +49,7 @@ export function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle
                   </span>
                   <span className="flex-1 truncate">{ch.title || t("media.chapter", { number: i + 1 })}</span>
                   {isActive && (
-                    <Check size={12} className="flex-shrink-0" />
+                    <Check size={12} className="flex-shrink-0" aria-hidden="true" />
                   )}
                 </button>
               );

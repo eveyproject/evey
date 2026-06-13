@@ -282,6 +282,7 @@ export function SettingsPanel({
                       value={Math.round(brightness * 100)}
                       onChange={(e) => onBrightnessChange(Number(e.target.value) / 100)}
                       className="w-full h-1 rounded-full appearance-none cursor-pointer accent-[var(--accent)] bg-white/20"
+                      aria-label={t("player.settings.brightness")}
                     />
                   </div>
                 </>

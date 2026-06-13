@@ -120,13 +120,15 @@ library:
   filters: Filters
   clearAll: Clear all
   resultCount: "{{count}} result"
-  resultCount_plural: "{{count}} results"
+  resultCount_one: "{{count}} result"
+  resultCount_other: "{{count}} results"
   yearLabel: Year
   yearFrom: From
   yearTo: To
   minRating: Min Rating
   minStars: "Min {{count}} star"
-  minStars_plural: "Min {{count}} stars"
+  minStars_one: "Min {{count}} star"
+  minStars_other: "Min {{count}} stars"
   clearRating: Clear
   typeAll: All
   typeMovie: Movie
@@ -156,7 +158,8 @@ person:
   filmography: Filmography
   unknown: Unknown
   titleCount: "{{count}} title"
-  titleCount_plural: "{{count}} titles"
+  titleCount_one: "{{count}} title"
+  titleCount_other: "{{count}} titles"
   noFilmography: No filmography found for this person.
   other: Other
   asRole: "as {{role}}"
@@ -186,10 +189,12 @@ detail:
   crew: Crew
   seasons: Seasons
   seasonCount: "{{count}} season"
-  seasonCount_plural: "{{count}} seasons"
+  seasonCount_one: "{{count}} season"
+  seasonCount_other: "{{count}} seasons"
   episodes: Episodes
   episodeCount: "{{count}} episode"
-  episodeCount_plural: "{{count}} episodes"
+  episodeCount_one: "{{count}} episode"
+  episodeCount_other: "{{count}} episodes"
   ep: "{{count}} ep"
   similarTitles: Similar Titles
   fileInfo: File Info
@@ -314,9 +319,11 @@ music:
   deleteTrackConfirm: Delete this track? This cannot be undone.
   deleteTrack: Delete track
   trackCount: "{{count}} track"
-  trackCount_plural: "{{count}} tracks"
+  trackCount_one: "{{count}} track"
+  trackCount_other: "{{count}} tracks"
   albumCount: "{{count}} album"
-  albumCount_plural: "{{count}} albums"
+  albumCount_one: "{{count}} album"
+  albumCount_other: "{{count}} albums"
   genre: Genre
   year: Year
   shuffle: Shuffle
@@ -446,9 +453,10 @@ search:
   series: Series
   noResultsFor: "No results for “{{query}}”"
   noResultsDesc: Try a different search term, check the spelling, or change the filter.
-  resultCount: "{{count}} result"
-  resultCount_plural: "{{count}} results"
-  resultFor: "for “{{query}}”"
+  resultCount: “{{count}} result”
+  resultCount_one: “{{count}} result”
+  resultCount_other: “{{count}} results”
+  resultFor: “for “{{query}}””
   searchLibrary: Search your media library
   searchLibraryDesc: Type at least 2 characters to search across all your movies, series, and more.
   clearSearch: Clear search

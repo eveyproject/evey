@@ -120,13 +120,15 @@ library:
   filters: 筛选
   clearAll: 全部清除
   resultCount: "{{count}} 个结果"
-  resultCount_plural: "{{count}} 个结果"
+  resultCount_one: "{{count}} 个结果"
+  resultCount_other: "{{count}} 个结果"
   yearLabel: 年份
   yearFrom: 从
   yearTo: 至
   minRating: 最低评分
   minStars: "最低 {{count}} 星"
-  minStars_plural: "最低 {{count}} 星"
+  minStars_one: "最低 {{count}} 星"
+  minStars_other: "最低 {{count}} 星"
   clearRating: 清除
   typeAll: 全部
   typeMovie: 电影
@@ -156,7 +158,8 @@ person:
   filmography: "作品列表"
   unknown: 未知
   titleCount: "{{count}} 部作品"
-  titleCount_plural: "{{count}} 部作品"
+  titleCount_one: "{{count}} 部作品"
+  titleCount_other: "{{count}} 部作品"
   noFilmography: 未找到此人的作品。
   other: 其他
   asRole: "饰演 {{role}}"
@@ -186,10 +189,12 @@ detail:
   crew: 剧组
   seasons: 季
   seasonCount: "{{count}} 季"
-  seasonCount_plural: "{{count}} 季"
+  seasonCount_one: "{{count}} 季"
+  seasonCount_other: "{{count}} 季"
   episodes: 集
   episodeCount: "{{count}} 集"
-  episodeCount_plural: "{{count}} 集"
+  episodeCount_one: "{{count}} 集"
+  episodeCount_other: "{{count}} 集"
   ep: "{{count}} 集"
   similarTitles: 相似作品
   fileInfo: 文件信息
@@ -315,9 +320,11 @@ music:
   deleteTrackConfirm: 确定删除此曲目？此操作无法撤销。
   deleteTrack: 删除曲目
   trackCount: "{{count}} 首曲目"
-  trackCount_plural: "{{count}} 首曲目"
+  trackCount_one: "{{count}} 首曲目"
+  trackCount_other: "{{count}} 首曲目"
   albumCount: "{{count}} 张专辑"
-  albumCount_plural: "{{count}} 张专辑"
+  albumCount_one: "{{count}} 张专辑"
+  albumCount_other: "{{count}} 张专辑"
   genre: Genre
   year: Year
   shuffle: 随机播放
@@ -447,7 +454,8 @@ search:
   noResultsFor: "「{{query}}」无结果"
   noResultsDesc: 尝试其他搜索词、检查拼写或更换过滤条件。
   resultCount: "{{count}} 个结果"
-  resultCount_plural: "{{count}} 个结果"
+  resultCount_one: "{{count}} 个结果"
+  resultCount_other: "{{count}} 个结果"
   resultFor: "「{{query}}」"
   searchLibrary: 搜索您的媒体库
   searchLibraryDesc: 输入至少 2 个字符以搜索所有电影、剧集等。

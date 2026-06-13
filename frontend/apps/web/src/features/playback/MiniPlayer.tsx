@@ -130,6 +130,7 @@ export function MiniPlayer() {
         onClick={() => { if (!wasDrag.current) expand(); }}
         role="button"
         tabIndex={0}
+        aria-label={t("common.aria.expand")}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expand(); } }}
       />
 

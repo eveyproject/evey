@@ -45,6 +45,9 @@
   --color-success: #22c55e;
   --color-warning: #f97316;
   --color-danger:  #ef4444;
+  --success: var(--color-success);
+  --warning: var(--color-warning);
+  --danger: var(--color-danger);
 
   --danger-bg: #dc2626;
   --danger-hover: #b91c1c;
