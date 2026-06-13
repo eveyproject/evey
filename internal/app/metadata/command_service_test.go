@@ -924,3 +924,45 @@ func TestBackfillBlurhashes_CountsDecodeFailures(t *testing.T) {
 	assert.Equal(t, 0, succ)
 	assert.Equal(t, 1, fail)
 }
+
+// --- runBulkDownload cancellation (regression) ---
+
+// TestStartBulkDownload_CanceledServerCtx_NoDeadlock proves the ctx-cancel
+// branch of runBulkDownload drains and finishes instead of deadlocking. The
+// old `break` inside `select` only exited the select, then fell through to
+// spawn a goroutine that never acquired a sem slot; its deferred `<-sem` stole
+// a running worker's token and wg.Wait() hung forever (job stuck "in progress",
+// goroutine leaked on every shutdown that interrupted a bulk download).
+func TestStartBulkDownload_CanceledServerCtx_NoDeadlock(t *testing.T) {
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		artworkRepo,
+		metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+	appmetadata.WithAutoDownload(t.TempDir(), true)(cmdSvc)
+
+	ctx := context.Background()
+	for _, id := range []string{"art-0", "art-1", "art-2", "art-3", "art-4"} {
+		rec, err := metadata.NewArtworkRecord(id, shared.MediaItemID("mi-"+id), metadata.ArtworkTypePoster, "tmdb",
+			metadata.WithArtworkSource("https://example.test/a.jpg"))
+		require.NoError(t, err)
+		require.NoError(t, artworkRepo.Create(ctx, rec))
+	}
+
+	// Server ctx already cancelled: runBulkDownload must hit ctx.Done on the
+	// first iteration and return cleanly, never blocking on wg.Wait().
+	serverCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	jobID, total, err := cmdSvc.StartBulkDownload(ctx, serverCtx)
+	require.NoError(t, err)
+	require.Equal(t, 5, total)
+
+	require.Eventually(t, func() bool {
+		job := cmdSvc.GetDownloadJob(jobID)
+		return job != nil && job.Done.Load()
+	}, 2*time.Second, 10*time.Millisecond, "bulk download must finish on cancelled ctx, not deadlock")
+}

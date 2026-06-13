@@ -185,7 +185,14 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 		rec := rec
 		select {
 		case <-ctx.Done():
-			break
+			// A bare `break` would only exit the select, then fall through to
+			// wg.Add+go WITHOUT having acquired a sem slot — that goroutine's
+			// deferred `<-sem` would steal a running worker's token, blocking
+			// it forever and deadlocking wg.Wait(). Drain the workers that did
+			// acquire a slot, mark done, and stop. (Mirrors RetryMissingArtworks.)
+			wg.Wait()
+			job.Done.Store(true)
+			return
 		case sem <- struct{}{}:
 		}
 		wg.Add(1)
