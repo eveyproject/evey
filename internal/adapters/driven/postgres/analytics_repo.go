@@ -193,7 +193,11 @@ func (r *AnalyticsReader) fetchDailyPlays(ctx context.Context) ([]activity.Daily
 		       COUNT(ps.id) AS play_count,
 		       COALESCE(SUM(COALESCE(ps.position_ms, ps.duration_ms, 0))::bigint / 1000, 0) AS watch_time_seconds
 		FROM generate_series(CURRENT_DATE - INTERVAL '13 days', CURRENT_DATE, '1 day') AS d
-		LEFT JOIN play_sessions ps ON ps.started_at::date = d::date
+		-- Range predicate (not ps.started_at::date = d::date): the cast wraps the
+		-- indexed column and forces a full scan of all history. >= d AND < d+1day
+		-- is the same calendar day but lets the planner use idx_play_sessions_started_at
+		-- and only touch the 14-day window.
+		LEFT JOIN play_sessions ps ON ps.started_at >= d AND ps.started_at < d + INTERVAL '1 day'
 		GROUP BY d
 		ORDER BY d`)
 	if err != nil {
