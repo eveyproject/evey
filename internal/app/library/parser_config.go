@@ -5,9 +5,14 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
+
+// ParserTokenApplier pushes admin-configured extra parser tokens into the
+// scanner's runtime extension slots. Injected from the composition root so the
+// app layer doesn't import the filesystem adapter (the real impl is
+// filesystem.SetExtraParserTokens).
+type ParserTokenApplier func(qualities, editionSuffixes []string)
 
 // ParserConfigKey is the server_config row under which the JSON blob of
 // admin-configured extra parser tokens persists. Admins can edit it
@@ -55,9 +60,11 @@ func loadParserConfig(ctx context.Context, repo shared.ServerConfigRepository) p
 // Errors are swallowed at INFO level: a misconfigured parser.config row
 // must never block a scan — the baseline tokens still match every
 // canonical release.
-func ApplyParserConfig(ctx context.Context, repo shared.ServerConfigRepository) {
+func ApplyParserConfig(ctx context.Context, repo shared.ServerConfigRepository, apply ParserTokenApplier) {
 	cfg := loadParserConfig(ctx, repo)
-	filesystem.SetExtraParserTokens(cfg.ExtraQualities, cfg.ExtraEditionSuffixes)
+	if apply != nil {
+		apply(cfg.ExtraQualities, cfg.ExtraEditionSuffixes)
+	}
 	slog.Info("parser config applied",
 		slog.Int("extra_qualities", len(cfg.ExtraQualities)),
 		slog.Int("extra_edition_suffixes", len(cfg.ExtraEditionSuffixes)),

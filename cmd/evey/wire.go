@@ -271,13 +271,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// package before any scan can fire. ApplyParserConfig is a no-op when
 	// the server_config row is absent (fresh install) or invalid JSON, so
 	// it's safe to call unconditionally on every boot.
-	applibrary.ApplyParserConfig(ctx, r.ServerCfg)
+	applibrary.ApplyParserConfig(ctx, r.ServerCfg, filesystem.SetExtraParserTokens)
 	// Live-reload: re-apply whenever the admin edits parser.config via the
 	// server-config UI. The subscriber stays for the process lifetime; no
 	// unsubscribe needed (single global instance).
 	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(evtCtx context.Context, evt shared.Event) {
 		if c, ok := evt.(shared.ServerConfigChanged); ok && c.Key == applibrary.ParserConfigKey {
-			applibrary.ApplyParserConfig(evtCtx, r.ServerCfg)
+			applibrary.ApplyParserConfig(evtCtx, r.ServerCfg, filesystem.SetExtraParserTokens)
 		}
 	})
 
