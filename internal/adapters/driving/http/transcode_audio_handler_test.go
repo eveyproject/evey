@@ -193,7 +193,7 @@ func TestAudioPlaylist_LibraryAccessDenied_403(t *testing.T) {
 
 	w := doAudioRequest(audioPlaylistHandler(ah), "m1", "0")
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 // Test 6: Audio segment returns 503 when orchestrator fails (EnsureAudioSegment error).

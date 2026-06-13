@@ -125,7 +125,15 @@ func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *doma
 	}
 	ok, err := checker.HasAccess(ctx, shared.UserID(claims.UserID), libraryID)
 	if err != nil || !ok {
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		// 404, not 403: returning "forbidden" for a resource the caller can't
+		// access but "not found" for one that doesn't exist is an existence
+		// oracle — a profile could enumerate which media IDs live in libraries
+		// it has no grant to. Mirror the not-found response so the two are
+		// indistinguishable. (err is logged but still denied, fail-closed.)
+		if err != nil {
+			slog.Warn("library access check failed", slog.String("user_id", claims.UserID), slog.String("library_id", string(libraryID)), slog.Any("err", err))
+		}
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return false
 	}
 	return true

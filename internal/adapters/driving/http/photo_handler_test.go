@@ -35,8 +35,8 @@ func TestCheckLibraryAccess_UserDenied(t *testing.T) {
 	if ok {
 		t.Error("expected access denied")
 	}
-	if w.Code != 403 {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != 404 {
+		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
 

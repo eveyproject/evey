@@ -191,8 +191,8 @@ func TestSyncPlayWS_LibraryAccessDenied_403(t *testing.T) {
 	wsW := httptest.NewRecorder()
 	denyMux.ServeHTTP(wsW, wsReq)
 
-	if wsW.Code != http.StatusForbidden {
-		t.Errorf("expected 403 when library access denied on WS, got %d", wsW.Code)
+	if wsW.Code != http.StatusNotFound {
+		t.Errorf("expected 404 when library access denied on WS, got %d", wsW.Code)
 	}
 }
 

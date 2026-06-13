@@ -300,7 +300,7 @@ func TestHLSVOD_LibraryAccessDenied_403(t *testing.T) {
 		testFakeParentalChecker{},
 	)
 	w := doVODRequest(h, "m1", "master.m3u8")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 func TestHLSVOD_ParentalBlocked_403(t *testing.T) {
@@ -622,7 +622,7 @@ func TestPrewarmNext_CrossLibrary_IDOR_Forbidden(t *testing.T) {
 	h, _ := buildVODHandler(t, libSvc, access, testFakeParentalChecker{})
 
 	w := doPrewarmRequest(h, "ep-a")
-	assert.Equal(t, http.StatusForbidden, w.Code,
+	assert.Equal(t, http.StatusNotFound, w.Code,
 		"prewarm-next must reject when nextItem belongs to a library the caller can't access")
 }
 
@@ -657,7 +657,7 @@ func TestPrewarmNext_CurrentItemAccessDenied_Forbidden(t *testing.T) {
 	h, _ := buildVODHandler(t, libSvc, access, testFakeParentalChecker{})
 
 	w := doPrewarmRequest(h, "ep-a")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 // 204 when no next episode exists (series finale). Documents the success

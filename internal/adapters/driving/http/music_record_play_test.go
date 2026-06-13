@@ -140,7 +140,7 @@ func TestRecordPlay_LibraryAccessDenied_403(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Equal(t, 0, plays.callCount)
 }
 

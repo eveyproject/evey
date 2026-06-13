@@ -26,8 +26,8 @@ func TestRatingIDOR_DeniedWhenNoLibraryAccess(t *testing.T) {
 	if ok {
 		t.Error("expected IDOR check to block access")
 	}
-	if w.Code != 403 {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != 404 {
+		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
 
@@ -69,8 +69,8 @@ func TestRatingAggregateIDOR_Denied(t *testing.T) {
 	if ok {
 		t.Error("aggregate IDOR: expected 403 for restricted library")
 	}
-	if w.Code != 403 {
-		t.Errorf("expected 403, got %d", w.Code)
+	if w.Code != 404 {
+		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
 

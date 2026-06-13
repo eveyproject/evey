@@ -103,7 +103,7 @@ func TestDispatchAudioPlaylist_LibraryAccessDenied_403(t *testing.T) {
 	h := buildVODHandlerWithAudio(t, libSvc, denyAll(), testFakeParentalChecker{}, &fakeAudioEnsurer{})
 
 	w := doAudioDispatchRequest(h, "m1", "audio_0.m3u8")
-	assert.Equal(t, http.StatusForbidden, w.Code)
+	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
 // ----------------------------------------------------------------
