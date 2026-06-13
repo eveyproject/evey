@@ -246,16 +246,19 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	// hook). Re-downloading artwork we already have was the root cause of the
 	// runaway artwork storage; the right behaviour is to only act on a real
 	// change.
-	if len(artwork) > 0 {
-		if existing, err := e.artwork.GetByMediaItem(ctx, mediaItemID); err == nil && artworkSetUnchanged(existing, artwork) {
-			return nil, nil
-		}
+	if len(artwork) == 0 {
+		// Provider returned no artwork — almost always a transient miss or a
+		// match without images. Don't wipe artwork we already have (posters
+		// would vanish until the next enrich re-adds them = churn + bad UX).
+		// Explicit clearing goes through resetSingleItem / ResearchMetadata,
+		// which delete directly, not here.
+		return nil, nil
+	}
+	if existing, err := e.artwork.GetByMediaItem(ctx, mediaItemID); err == nil && artworkSetUnchanged(existing, artwork) {
+		return nil, nil
 	}
 	if err := e.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		return nil, fmt.Errorf("delete old artwork: %w", err)
-	}
-	if len(artwork) == 0 {
-		return nil, nil
 	}
 	records := make([]*domainmetadata.ArtworkRecord, 0, len(artwork))
 	for i, art := range artwork {

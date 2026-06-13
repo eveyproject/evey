@@ -429,6 +429,30 @@ func TestEnrichItem_EmptyArtwork(t *testing.T) {
 	assert.Empty(t, arts)
 }
 
+// TestEnrichItem_EmptyArtwork_KeepsExisting: a re-enrich that returns NO artwork
+// (transient provider miss / match without images) must NOT wipe artwork the
+// item already has — otherwise posters vanish until the next pass re-adds them.
+func TestEnrichItem_EmptyArtwork_KeepsExisting(t *testing.T) {
+	primary := &fakeProvider{name: "tmdb"}
+	e, artRepo, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
+	ctx := context.Background()
+	item := &domainlib.MediaItem{ID: "item-1", Title: "X", Type: "movie"}
+	require.NoError(t, miRepo.Create(ctx, item))
+
+	require.NoError(t, e.EnrichItem(ctx, item, &domain.MetadataResult{
+		Title:   "X",
+		Artwork: []domain.ArtworkResult{{Type: "poster", URL: "https://img/p.jpg", Provider: "tmdb"}},
+	}))
+	before, _ := artRepo.GetByMediaItem(ctx, "item-1")
+	require.Len(t, before, 1)
+
+	// Re-enrich with empty artwork → existing must survive.
+	require.NoError(t, e.EnrichItem(ctx, item, &domain.MetadataResult{Title: "X"}))
+	after, _ := artRepo.GetByMediaItem(ctx, "item-1")
+	require.Len(t, after, 1, "empty provider artwork must not wipe existing")
+	assert.Equal(t, before[0].ID, after[0].ID)
+}
+
 // --- upsertPeople: dedup + character ---
 
 func TestUpsertPeople_Dedup(t *testing.T) {
