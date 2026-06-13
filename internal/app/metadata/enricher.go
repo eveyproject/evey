@@ -239,6 +239,18 @@ func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.Metadata
 // caller's post-commit duty (firing inside the transaction would trigger an
 // auto-download for rows a later failure rolls back).
 func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwork []domainmetadata.ArtworkResult) ([]*domainmetadata.ArtworkRecord, error) {
+	// Idempotency: enrichment re-runs constantly (daily re-enrich, every
+	// "refresh metadata", scan-triggered re-adds). If the provider returned the
+	// SAME artwork set we already store, do nothing — don't delete+recreate the
+	// rows (DB churn) and don't return records (which would re-fire the download
+	// hook). Re-downloading artwork we already have was the root cause of the
+	// runaway artwork storage; the right behaviour is to only act on a real
+	// change.
+	if len(artwork) > 0 {
+		if existing, err := e.artwork.GetByMediaItem(ctx, mediaItemID); err == nil && artworkSetUnchanged(existing, artwork) {
+			return nil, nil
+		}
+	}
 	if err := e.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		return nil, fmt.Errorf("delete old artwork: %w", err)
 	}
@@ -258,6 +270,31 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 		return nil, fmt.Errorf("create artwork batch: %w", err)
 	}
 	return records, nil
+}
+
+// artworkSetUnchanged reports whether the persisted records cover exactly the
+// same (type, source URL) multiset as the incoming provider results — i.e. the
+// provider returned nothing new and there is nothing to do.
+func artworkSetUnchanged(existing []*domainmetadata.ArtworkRecord, incoming []domainmetadata.ArtworkResult) bool {
+	if len(existing) != len(incoming) {
+		return false
+	}
+	have := make(map[string]int, len(existing))
+	for _, r := range existing {
+		url := ""
+		if r.SourceURL != nil {
+			url = *r.SourceURL
+		}
+		have[r.Type+"\x00"+url]++
+	}
+	for _, a := range incoming {
+		k := a.Type + "\x00" + a.URL
+		if have[k] == 0 {
+			return false
+		}
+		have[k]--
+	}
+	return true
 }
 
 func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.ArtworkResult) *domainmetadata.ArtworkRecord {

@@ -803,6 +803,57 @@ func TestAutoEnrichItem_MatchedItemWithOverride_StillSkips(t *testing.T) {
 	assert.Empty(t, item.Overview, "matched item with override must NOT be re-enriched")
 }
 
+// TestEnrichItem_ArtworkIdempotent is the regression guard for the runaway
+// artwork duplication: re-enriching an item whose provider artwork is unchanged
+// must NOT delete+recreate the rows (which minted fresh records → fresh files →
+// duplicate downloads). The stored record keeps its identity across passes.
+func TestEnrichItem_ArtworkIdempotent(t *testing.T) {
+	primary := &fakeProvider{name: "tmdb"}
+	e, artRepo, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
+	ctx := context.Background()
+
+	item := &domainlib.MediaItem{ID: "m1", Title: "X", Type: "movie"}
+	require.NoError(t, miRepo.Create(ctx, item))
+
+	result := &domain.MetadataResult{
+		Title:    "X",
+		Overview: "o",
+		Artwork: []domain.ArtworkResult{
+			{Type: "poster", URL: "https://img/p.jpg", Provider: "tmdb"},
+			{Type: "backdrop", URL: "https://img/b.jpg", Provider: "tmdb"},
+		},
+	}
+
+	require.NoError(t, e.EnrichItem(ctx, item, result))
+	first, err := artRepo.GetByMediaItem(ctx, "m1")
+	require.NoError(t, err)
+	require.Len(t, first, 2)
+	firstIDs := map[string]bool{first[0].ID: true, first[1].ID: true}
+
+	// Re-enrich with the SAME artwork set → must be a no-op (records unchanged).
+	require.NoError(t, e.EnrichItem(ctx, item, result))
+	second, err := artRepo.GetByMediaItem(ctx, "m1")
+	require.NoError(t, err)
+	require.Len(t, second, 2, "unchanged artwork must not be duplicated")
+	for _, r := range second {
+		assert.True(t, firstIDs[r.ID], "record %s was recreated — replaceArtwork is not idempotent", r.ID)
+	}
+
+	// A genuine change (new poster URL) IS applied.
+	result.Artwork[0].URL = "https://img/p2.jpg"
+	require.NoError(t, e.EnrichItem(ctx, item, result))
+	third, err := artRepo.GetByMediaItem(ctx, "m1")
+	require.NoError(t, err)
+	require.Len(t, third, 2)
+	urls := map[string]bool{}
+	for _, r := range third {
+		if r.SourceURL != nil {
+			urls[*r.SourceURL] = true
+		}
+	}
+	assert.True(t, urls["https://img/p2.jpg"], "changed artwork URL must be applied")
+}
+
 func TestAutoEnrichItem_Movie(t *testing.T) {
 	primary := &fakeProvider{
 		name: "tmdb",
