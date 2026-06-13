@@ -1407,5 +1407,26 @@
   "player.subtitleStyle.textShadow": "Text shadow",
   "player.subtitleStyle.top": "Top",
   "player.unableToPlayAnyQuality": "Unable to play at any quality level",
-  "player.watchTogether": "Watch Together"
+  "player.watchTogether": "Watch Together",
+  "common": {
+    "removeItem": "Remove {{item}}",
+    "rotateLeft": "Rotate left",
+    "rotateRight": "Rotate right",
+    "sortAscending": "Sort ascending",
+    "sortDescending": "Sort descending",
+    "switchToListView": "Switch to list view",
+    "switchToGridView": "Switch to grid view",
+    "slideNumber": "Slide {{number}}",
+    "clearSelection": "Clear selection",
+    "options": "Options"
+  },
+  "media": {
+    "photos": {
+      "photoCount_one": "{{count}} photo",
+      "photoCount_other": "{{count}} photos"
+    }
+  },
+  "player": {
+    "jumpToChapter": "Jump to chapter: {{chapter}}"
+  }
 }
