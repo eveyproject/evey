@@ -215,3 +215,14 @@ unknownError: Erreur inconnue
 shufflePlay: Lecture aléatoire
 shuffleEmpty: Rien à lire ici
 shuffleFailed: Impossible de choisir un élément
+removeItem: "Supprimer {{item}}"
+rotateLeft: Pivoter à gauche
+rotateRight: Pivoter à droite
+sortAscending: Tri croissant
+sortDescending: Tri décroissant
+switchToListView: Passer en vue liste
+switchToGridView: Passer en vue grille
+slideNumber: "Diapositive {{number}}"
+clearSelection: Effacer la sélection
+options: Options
+addNamedRule: "Ajouter une règle {{name}}"

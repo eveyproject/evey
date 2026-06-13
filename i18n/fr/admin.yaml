@@ -766,6 +766,7 @@ segments:
   redetect: "Re-déclencher détection auto"
   propagate: "Appliquer à la saison"
   lockedHint: "Ce segment est verrouillé manuellement et ne sera pas écrasé par la détection auto."
+  locked: Verrouillé
   propagateSuccess: "Propagé sur {{count}} épisode(s)"
 
 seekIndex:

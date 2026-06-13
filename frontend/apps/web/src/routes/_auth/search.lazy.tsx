@@ -205,7 +205,7 @@ function SearchPage() {
                 >
                   <option value="">{t("media.search.allGenres")}</option>
                   {COMMON_GENRES.map((g) => (
-                    <option key={g} value={g}>{g}</option>
+                    <option key={g} value={g}>{t(`media.genres.${g.toLowerCase().replace(/[^a-z]/g, "")}`, { defaultValue: g })}</option>
                   ))}
                 </select>
               </div>
@@ -309,7 +309,7 @@ function SearchPage() {
                 <button
                   onClick={() => removeRecent(r)}
                   className="ml-1 cursor-pointer transition-colors-fast hover:opacity-80 text-[var(--text-muted)]"
-                  aria-label={`Remove ${r}`}
+                  aria-label={t("common.removeItem", { item: r })}
                 >
                   <X size={12}  aria-hidden="true" />
                 </button>

@@ -124,6 +124,7 @@ streamInfo:
   language: 语言
   sampleRate: 采样率
   transcodeReasons: 转码原因
+jumpToChapter: "跳转到章节：{{chapter}}"
 cast:
   noDevices: 在服务器网络中未找到投屏设备。
 playOn:

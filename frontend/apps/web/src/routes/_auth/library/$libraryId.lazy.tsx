@@ -421,7 +421,7 @@ function LibraryPage() {
 
   return (
     <div data-testid="library-page">
-      <nav className="flex items-center gap-1.5 text-sm mb-3" aria-label="Breadcrumb">
+      <nav className="flex items-center gap-1.5 text-sm mb-3" aria-label={t("common.aria.breadcrumb")}>
         <Link to="/library" className="hover:underline text-[var(--text-muted)]">
           {t("media.library.libraries")}
         </Link>

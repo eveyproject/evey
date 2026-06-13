@@ -767,6 +767,7 @@ segments:
   redetect: "重新运行自动检测"
   propagate: "应用到整季"
   lockedHint: "此片段已手动锁定，不会被自动检测覆盖。"
+  locked: 已锁定
   propagateSuccess: "已传播到 {{count}} 集"
 
 seekIndex:

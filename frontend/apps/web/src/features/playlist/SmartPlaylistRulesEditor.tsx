@@ -63,6 +63,7 @@ interface RuleRowProps {
 }
 
 function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2 py-1">
       <span
@@ -75,7 +76,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         <select
           value={rule.operator}
           onChange={(e) => onChange({ ...rule, operator: e.target.value as YearOperator })}
-          aria-label="Operator"
+          aria-label={t("media.playlist.op")}
           className="text-sm px-2 py-1.5 rounded-[var(--radius-md)] w-16 flex-shrink-0 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         >
           {YEAR_OPERATORS.map((op) => (
@@ -94,7 +95,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         <select
           value={rule.value}
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
-          aria-label="Value"
+          aria-label={t("media.playlist.value")}
           className="flex-1 text-sm px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         >
           {MEDIA_TYPES.map((t) => (
@@ -109,7 +110,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
           max={rule.field === "year" ? new Date().getFullYear() + 2 : undefined}
           placeholder={rule.field === "genre" ? "e.g. Action" : rule.field === "year" ? "e.g. 2020" : "e.g. library-id"}
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
-          aria-label="Value"
+          aria-label={t("media.playlist.value")}
           className="flex-1 text-sm px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         />
       )}
@@ -117,7 +118,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
       <button
         type="button"
         onClick={onRemove}
-        aria-label="Remove rule"
+        aria-label={t("media.playlist.removeRule", { defaultValue: "Remove rule" })}
         className="flex-shrink-0 p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
       >
         <X size={16}  aria-hidden="true" />
@@ -241,7 +242,7 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
               key={f}
               type="button"
               onClick={() => addRule(f)}
-              aria-label={`Add ${FIELD_LABELS[f]} rule`}
+              aria-label={t("media.playlist.addFieldRule", { field: FIELD_LABELS[f], defaultValue: `Add ${FIELD_LABELS[f]} rule` })}
               className="flex items-center gap-1 text-xs px-2 py-1 rounded-[var(--radius-md)] transition-colors-fast bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--accent)]"
             >
               <Plus size={12} strokeWidth={2.5}  aria-hidden="true" />

@@ -342,6 +342,8 @@ photos:
   noAlbumsDesc: No albums found in this library.
   noPhotoLibraries: No photo libraries
   noPhotoLibrariesDesc: Add a photo library in the Admin panel to get started.
+  photoCount_one: "{{count}} photo"
+  photoCount_other: "{{count}} photos"
 added: Added
 created: Created
 updated: Updated
@@ -428,6 +430,7 @@ playlist:
   smartRules: Smart rules
   typeManual: Manual
   typeSmart: Smart
+  addFieldRule: "Add {{field}} rule"
 history:
   removeFailed: "Failed to remove from history"
 search:
@@ -476,3 +479,19 @@ rating:
 playlists:
   notFound: Playlist not found
 resume: Resume
+genres:
+  action: Action
+  adventure: Adventure
+  animation: Animation
+  comedy: Comedy
+  crime: Crime
+  documentary: Documentary
+  drama: Drama
+  fantasy: Fantasy
+  horror: Horror
+  mystery: Mystery
+  romance: Romance
+  scifi: Sci-Fi
+  thriller: Thriller
+  war: War
+  western: Western

@@ -215,3 +215,14 @@ unknownError: अज्ञात त्रुटि
 shufflePlay: शफ़ल चलाएँ
 shuffleEmpty: यहाँ चलाने के लिए कुछ नहीं
 shuffleFailed: चलाने के लिए कुछ चुना नहीं जा सका
+removeItem: "{{item}} हटाएं"
+rotateLeft: बाईं ओर घुमाएं
+rotateRight: दाईं ओर घुमाएं
+sortAscending: आरोही क्रम
+sortDescending: अवरोही क्रम
+switchToListView: सूची दृश्य पर जाएं
+switchToGridView: ग्रिड दृश्य पर जाएं
+slideNumber: "स्लाइड {{number}}"
+clearSelection: चयन साफ़ करें
+options: विकल्प
+addNamedRule: "{{name}} नियम जोड़ें"

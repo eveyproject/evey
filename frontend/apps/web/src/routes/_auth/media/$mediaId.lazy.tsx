@@ -4,6 +4,7 @@ import { libraryServiceGetMediaItem } from "@evey/api";
 import { useTranslation } from "react-i18next";
 import { MediaDetailSkeleton } from "@/components/ui/Skeleton";
 import { MediaDetail } from "@/features/library/MediaDetail";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export const Route = createLazyFileRoute("/_auth/media/$mediaId")({
   component: MediaPage,
@@ -25,11 +26,7 @@ function MediaPage() {
   }
 
   if (isError || !item) {
-    return (
-      <div className="text-center py-16" style={{ color: "var(--text-muted)" }}>
-        {t("media.detail.notFound")}
-      </div>
-    );
+    return <EmptyState title={t("media.detail.notFound")} />;
   }
 
   return <MediaDetail item={item} initialEdit={edit} />;

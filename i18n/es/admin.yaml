@@ -767,6 +767,7 @@ segments:
   redetect: "Volver a ejecutar detección automática"
   propagate: "Aplicar a la temporada"
   lockedHint: "Este segmento está bloqueado manualmente y no será sobreescrito por la detección automática."
+  locked: Bloqueado
   propagateSuccess: "Propagado a {{count}} episodio(s)"
 
 seekIndex:

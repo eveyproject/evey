@@ -370,7 +370,7 @@ export const MediaCard = memo(function MediaCard({
         {item.id && (
           <button
             ref={menuBtnRef}
-            aria-label="Options"
+            aria-label={t("common.options")}
             aria-haspopup="true"
             aria-expanded={ctxMenu !== null}
             className="absolute top-2 right-2 z-badge opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-[var(--overlay-text)]"
@@ -401,7 +401,7 @@ export const MediaCard = memo(function MediaCard({
         >
           <div
             role="img"
-            aria-label="Play"
+            aria-label={t("common.play")}
             className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110 bg-[var(--glass-bg)] border border-[var(--glass-border)]"
           >
             <Play size={20} className="text-[var(--overlay-text)] ml-0.5" fill="currentColor" aria-hidden="true" />

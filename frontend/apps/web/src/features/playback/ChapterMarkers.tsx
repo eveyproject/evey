@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { Chapter } from "@/hooks/useChapters";
 
 interface ChapterMarkersProps {
@@ -8,6 +9,7 @@ interface ChapterMarkersProps {
 }
 
 export function ChapterMarkers({ chapters, durationSec, currentTimeSec, onSeek }: ChapterMarkersProps) {
+  const { t } = useTranslation();
   if (durationSec <= 0 || chapters.length === 0) return null;
 
   const currentMs = currentTimeSec * 1000;
@@ -26,7 +28,7 @@ export function ChapterMarkers({ chapters, durationSec, currentTimeSec, onSeek }
           <button
             key={i}
             type="button"
-            aria-label={`Jump to chapter: ${ch.title}`}
+            aria-label={t("player.jumpToChapter", { chapter: ch.title, defaultValue: `Jump to chapter: ${ch.title}` })}
             title={ch.title}
             onClick={(e) => {
               e.stopPropagation();

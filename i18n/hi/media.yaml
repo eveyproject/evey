@@ -342,6 +342,8 @@ photos:
   noAlbumsDesc: इस लाइब्रेरी में कोई एल्बम नहीं मिला।
   noPhotoLibraries: कोई फ़ोटो लाइब्रेरी नहीं
   noPhotoLibrariesDesc: शुरू करने के लिए एडमिन पैनल में फ़ोटो लाइब्रेरी जोड़ें।
+  photoCount_one: "{{count}} फ़ोटो"
+  photoCount_other: "{{count}} फ़ोटो"
 added: जोड़ा गया
 created: बनाया गया
 updated: अपडेट किया गया
@@ -428,6 +430,7 @@ playlist:
   smartRules: स्मार्ट नियम
   typeManual: मैन्युअल
   typeSmart: स्मार्ट
+  addFieldRule: "{{field}} नियम जोड़ें"
 history:
   removeFailed: "इतिहास से हटाने में विफल"
 search:
@@ -476,3 +479,19 @@ rating:
 playlists:
   notFound: प्लेलिस्ट नहीं मिली
 resume: जारी रखें
+genres:
+  action: एक्शन
+  adventure: एडवेंचर
+  animation: एनिमेशन
+  comedy: कॉमेडी
+  crime: क्राइम
+  documentary: डॉक्यूमेंट्री
+  drama: ड्रामा
+  fantasy: फैंटेसी
+  horror: हॉरर
+  mystery: मिस्ट्री
+  romance: रोमांस
+  scifi: साइ-फाई
+  thriller: थ्रिलर
+  war: युद्ध
+  western: वेस्टर्न

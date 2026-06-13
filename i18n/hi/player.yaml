@@ -124,6 +124,7 @@ streamInfo:
   language: भाषा
   sampleRate: नमूना दर
   transcodeReasons: ट्रांसकोड कारण
+jumpToChapter: "अध्याय पर जाएं: {{chapter}}"
 cast:
   noDevices: सर्वर के नेटवर्क पर कोई कास्ट डिवाइस नहीं मिला।
 playOn:

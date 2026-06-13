@@ -148,7 +148,7 @@ function ProfileCard() {
           <button
             onClick={editing ? () => setEditing(false) : startEdit}
             className="p-2 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-raised)] transition-colors-fast"
-            aria-label={editing ? "Cancel" : "Edit profile"}
+            aria-label={editing ? t("common.cancel") : t("auth.profile.editProfile")}
           >
             {editing ? <X size={18}  aria-hidden="true" /> : <Pencil size={18}  aria-hidden="true" />}
           </button>

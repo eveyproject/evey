@@ -124,6 +124,7 @@ streamInfo:
   language: Langue
   sampleRate: Fréquence d'échantillonnage
   transcodeReasons: Raisons du transcodage
+jumpToChapter: "Aller au chapitre : {{chapter}}"
 cast:
   noDevices: Aucun appareil de diffusion trouvé sur le réseau du serveur.
 playOn:

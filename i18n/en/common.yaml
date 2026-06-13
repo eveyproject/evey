@@ -215,3 +215,14 @@ unknownError: Unknown error
 shufflePlay: Shuffle play
 shuffleEmpty: Nothing to shuffle here
 shuffleFailed: Couldn't pick something to play
+removeItem: "Remove {{item}}"
+rotateLeft: Rotate left
+rotateRight: Rotate right
+sortAscending: Sort ascending
+sortDescending: Sort descending
+switchToListView: Switch to list view
+switchToGridView: Switch to grid view
+slideNumber: "Slide {{number}}"
+clearSelection: Clear selection
+options: Options
+addNamedRule: "Add {{name}} rule"

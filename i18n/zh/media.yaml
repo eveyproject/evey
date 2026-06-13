@@ -342,6 +342,8 @@ photos:
   noAlbumsDesc: 此媒体库中没有相册。
   noPhotoLibraries: 没有照片媒体库
   noPhotoLibrariesDesc: 请在管理面板中添加照片媒体库以开始使用。
+  photoCount_one: "{{count}} 张照片"
+  photoCount_other: "{{count}} 张照片"
 added: 已添加
 created: 已创建
 updated: 已更新
@@ -428,6 +430,7 @@ playlist:
   smartRules: 智能规则
   typeManual: 手动
   typeSmart: 智能
+  addFieldRule: "添加 {{field}} 规则"
 history:
   removeFailed: "从历史记录中移除失败"
 search:
@@ -476,3 +479,19 @@ rating:
 playlists:
   notFound: 未找到播放列表
 resume: 继续
+genres:
+  action: 动作
+  adventure: 冒险
+  animation: 动画
+  comedy: 喜剧
+  crime: 犯罪
+  documentary: 纪录片
+  drama: 剧情
+  fantasy: 奇幻
+  horror: 恐怖
+  mystery: 悬疑
+  romance: 爱情
+  scifi: 科幻
+  thriller: 惊悚
+  war: 战争
+  western: 西部

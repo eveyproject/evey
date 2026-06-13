@@ -69,6 +69,7 @@ interface RuleRowProps {
 }
 
 function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center gap-2">
       <span
@@ -126,7 +127,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
       <button
         type="button"
         onClick={onRemove}
-        aria-label="Remove rule"
+        aria-label={t("media.playlist.removeRule")}
         className="flex-shrink-0 p-1 rounded hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]"
       >
         <X size={16} />

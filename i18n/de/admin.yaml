@@ -767,6 +767,7 @@ segments:
   redetect: Automatische Erkennung neu starten
   propagate: Auf Staffel anwenden
   lockedHint: Dieses Segment ist manuell gesperrt und wird durch die automatische Erkennung nicht überschrieben.
+  locked: Gesperrt
   propagateSuccess: "Auf {{count}} Folge(n) übertragen"
 
 seekIndex:

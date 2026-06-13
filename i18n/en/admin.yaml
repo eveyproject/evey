@@ -767,6 +767,7 @@ segments:
   redetect: Re-run auto detection
   propagate: Apply to season
   lockedHint: This segment is locked manually and will not be overwritten by auto detection.
+  locked: Locked
   propagateSuccess: "Propagated to {{count}} episode(s)"
 
 seekIndex:

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { HelpCircle, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface InfoTooltipProps {
   /** Accessible label of the trigger button (e.g. "More info: intro providers"). */
@@ -14,6 +15,7 @@ interface InfoTooltipProps {
 // section subtitles short while still surfacing the long-form explanation
 // on demand.
 export function InfoTooltip({ label, children }: InfoTooltipProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   return (
@@ -58,7 +60,7 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
                   e.stopPropagation();
                   setOpen(false);
                 }}
-                aria-label="Close"
+                aria-label={t("common.aria.close")}
                 className="p-0.5 -m-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
               >
                 <X size={14} aria-hidden="true" />

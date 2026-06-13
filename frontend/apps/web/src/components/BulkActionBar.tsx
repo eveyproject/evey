@@ -53,7 +53,7 @@ export function BulkActionBar({
         type="button"
         onClick={onClear}
         className="ml-auto flex items-center justify-center w-7 h-7 rounded-full transition-colors-fast hover:bg-[var(--surface-raised)] text-[var(--text-muted)]"
-        aria-label="Clear selection"
+        aria-label={t("common.clearSelection")}
       >
         <X size={16} />
       </button>

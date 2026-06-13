@@ -767,6 +767,7 @@ segments:
   redetect: "स्वचालित पहचान फिर से चलाएं"
   propagate: "सीज़न पर लागू करें"
   lockedHint: "यह सेगमेंट मैन्युअल रूप से लॉक है और स्वचालित पहचान द्वारा अधिलेखित नहीं होगा।"
+  locked: लॉक्ड
   propagateSuccess: "{{count}} एपिसोड में प्रचारित"
 
 seekIndex:

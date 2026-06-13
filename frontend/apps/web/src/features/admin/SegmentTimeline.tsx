@@ -1,4 +1,5 @@
 import { Lock } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { MediaSegment } from "@/hooks/useAdminSegments";
 
 export type { MediaSegment };
@@ -45,6 +46,7 @@ function SegmentBlock({
   isSelected,
   onSelect,
 }: SegmentBlockProps) {
+  const { t } = useTranslation();
   const leftPct = durationMs > 0 ? (segment.startMs / durationMs) * 100 : 0;
   const widthPct = durationMs > 0 ? ((segment.endMs - segment.startMs) / durationMs) * 100 : 0;
   const color = SEGMENT_COLORS[segment.type] ?? "bg-gray-500";
@@ -67,7 +69,7 @@ function SegmentBlock({
         <Lock
           size={10}
           className="absolute top-0.5 right-0.5 text-white"
-          aria-label="locked"
+          aria-label={t("admin.segments.locked")}
           data-testid="lock-icon"
         />
       )}

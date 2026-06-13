@@ -403,7 +403,7 @@ export function SettingsPanel({
                   value={subtitleFontSize}
                   onChange={(e) => onSubtitleStyleChange({ fontSize: Number(e.target.value) })}
                   className="w-full accent-[var(--accent)]"
-                  aria-label="Subtitle font size"
+                  aria-label={t("player.subtitleStyle.size")}
                 />
               </div>
               <div className="px-4 py-2">
@@ -458,7 +458,7 @@ export function SettingsPanel({
                   value={subtitleBgOpacity}
                   onChange={(e) => onSubtitleStyleChange({ bgOpacity: Number(e.target.value) })}
                   className="w-full accent-[var(--accent)]"
-                  aria-label="Background opacity"
+                  aria-label={t("player.subtitleStyle.background")}
                 />
               </div>
               <div className="px-4 py-2">

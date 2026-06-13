@@ -213,7 +213,7 @@ const HeroBanner = memo(function HeroBanner() {
                 backgroundColor: idx === activeIndex ? "var(--accent)" : "var(--overlay-dot-inactive)",
                 transform: idx === activeIndex ? "scale(1.3)" : "scale(1)",
               }}
-              aria-label={`Slide ${idx + 1}`}
+              aria-label={t("common.slideNumber", { number: idx + 1 })}
             />
           ))}
         </div>
@@ -250,6 +250,7 @@ const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name, m
 });
 
 const PhotoLibrarySlider = memo(function PhotoLibrarySlider({ libraryId, name, maxItems }: LibrarySliderProps) {
+  const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   const { data, isLoading } = usePhotoServiceListPhotoAlbums({ libraryId });
@@ -264,7 +265,7 @@ const PhotoLibrarySlider = memo(function PhotoLibrarySlider({ libraryId, name, m
             style={{ backgroundImage: a.coverPhotoId ? `url(/api/v1/photos/${a.coverPhotoId}/serve${tokenParam}&w=400&fmt=webp)` : undefined }}
           />
           <p className="text-sm font-medium text-[var(--text)] truncate mt-2" title={a.name}>{(a.name ?? "").split("/").pop()}</p>
-          <p className="text-xs text-[var(--text-muted)] truncate">{a.photoCount} photo{(a.photoCount ?? 0) !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-[var(--text-muted)] truncate">{t("media.photos.photoCount", { count: a.photoCount ?? 0 })}</p>
         </Link>
       ))}
     </MediaSlider>

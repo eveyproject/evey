@@ -215,3 +215,14 @@ unknownError: 未知错误
 shufflePlay: 随机播放
 shuffleEmpty: 没有可随机播放的内容
 shuffleFailed: 无法选择要播放的内容
+removeItem: "移除 {{item}}"
+rotateLeft: 向左旋转
+rotateRight: 向右旋转
+sortAscending: 升序排列
+sortDescending: 降序排列
+switchToListView: 切换到列表视图
+switchToGridView: 切换到网格视图
+slideNumber: "幻灯片 {{number}}"
+clearSelection: 清除选择
+options: 选项
+addNamedRule: "添加 {{name}} 规则"

@@ -157,7 +157,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
         <button
           onClick={(e) => { e.stopPropagation(); setRotation((r) => (r + 270) % 360); }}
           className="transition-colors-fast text-[var(--overlay-text)]"
-          aria-label="Rotate left"
+          aria-label={t("common.rotateLeft")}
           title="Rotate left (Shift+R)"
         >
           <RotateCcw size={22} />
@@ -165,7 +165,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
         <button
           onClick={(e) => { e.stopPropagation(); setRotation((r) => (r + 90) % 360); }}
           className="transition-colors-fast text-[var(--overlay-text)]"
-          aria-label="Rotate right"
+          aria-label={t("common.rotateRight")}
           title="Rotate right (R)"
         >
           <RotateCw size={22} />
@@ -173,7 +173,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
           className="transition-colors-fast text-[var(--overlay-text)]"
-          aria-label="Close"
+          aria-label={t("common.aria.close")}
         >
           <X size={28}  aria-hidden="true" />
         </button>
@@ -183,7 +183,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
         <button
           onClick={(e) => { e.stopPropagation(); onPrev(); }}
           className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-3 sm:p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
-          aria-label="Previous"
+          aria-label={t("common.previous")}
         >
           <ChevronLeft size={28}  aria-hidden="true" />
         </button>
@@ -193,7 +193,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
         <button
           onClick={(e) => { e.stopPropagation(); onNext(); }}
           className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-3 sm:p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
-          aria-label="Next"
+          aria-label={t("common.next")}
         >
           <ChevronRight size={28}  aria-hidden="true" />
         </button>
@@ -403,7 +403,7 @@ function AlbumGrid({ albums, onAlbumClick }: AlbumGridProps) {
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors-fast duration-200" />
           </div>
           <p className="text-sm font-medium text-[var(--text)] truncate" title={album.Name}>{album.Name.split("/").pop()}</p>
-          <p className="text-xs text-[var(--text-muted)]">{album.PhotoCount} photo{album.PhotoCount !== 1 ? "s" : ""}</p>
+          <p className="text-xs text-[var(--text-muted)]">{t("media.photos.photoCount", { count: album.PhotoCount })}</p>
         </button>
       ))}
     </div>
@@ -544,7 +544,7 @@ function PhotosPage() {
           )}
           {(photosData?.total ?? 0) > 0 && (
             <p className="text-xs text-[var(--text-muted)] text-right">
-              {photosData?.total} photo{(photosData?.total ?? 0) !== 1 ? "s" : ""}
+              {t("media.photos.photoCount", { count: photosData?.total ?? 0 })}
             </p>
           )}
         </>
