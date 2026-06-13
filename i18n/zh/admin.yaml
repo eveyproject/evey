@@ -614,6 +614,8 @@ dashboardStats:
   memory: "内存"
   transcodes: "转码"
   totalMedia: "总媒体数"
+  throughput: 实时吞吐
+  theoretical: 理论速率
   storage: "存储"
   quickActions: "快捷操作"
   scanAllLibraries: "扫描所有媒体库"

@@ -57,6 +57,8 @@ const baseInfo = {
   memoryPercent: 61.2,
   activeTranscodes: 1,
   totalMediaItems: 120,
+  streamingBps: "8000000", // 8 Mbps measured (real served rate)
+  activeSessionsBps: "42600000", // 42.6 Mbps theoretical (sum of source bitrates)
   storage: [],
 };
 
@@ -71,6 +73,16 @@ describe("DashboardStats", () => {
     expect(screen.getByText("61.2%")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("120")).toBeInTheDocument();
+    // Measured throughput (real served rate) and theoretical rate (sum of
+    // active source bitrates) — for a transcode the two diverge, which is the
+    // point: measured is the truth, theoretical is the source-rate upper bound.
+    expect(screen.getByText("8.0 Mbps")).toBeInTheDocument();
+    expect(screen.getByText("42.6 Mbps")).toBeInTheDocument();
+  });
+
+  it("shows an em dash for measured throughput before the first sample", () => {
+    render(<DashboardStats info={{ ...baseInfo, streamingBps: "-1" } as never} />, { wrapper: createWrapper() });
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 
   it("renders storage section when storage data present", () => {

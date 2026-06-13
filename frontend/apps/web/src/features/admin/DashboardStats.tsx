@@ -13,6 +13,9 @@ import {
   CpuIcon,
   MemoryIcon,
   StorageIcon,
+  ThroughputIcon,
+  TheoreticalIcon,
+  formatBps,
 } from "./DashboardStatCard";
 import { NowPlaying } from "./DashboardNowPlaying";
 import { QuickActions } from "./DashboardQuickActions";
@@ -61,6 +64,16 @@ export function DashboardStats({ info }: DashboardStatsProps) {
           icon={<StorageIcon />}
           label={t("admin.dashboardStats.totalMedia")}
           value={info.totalMediaItems ?? 0}
+        />
+        <StatCard
+          icon={<ThroughputIcon />}
+          label={t("admin.dashboardStats.throughput")}
+          value={formatBps(info.streamingBps)}
+        />
+        <StatCard
+          icon={<TheoreticalIcon />}
+          label={t("admin.dashboardStats.theoretical")}
+          value={formatBps(info.activeSessionsBps)}
         />
       </div>
 

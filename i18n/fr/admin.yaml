@@ -613,6 +613,8 @@ dashboardStats:
   memory: "Mémoire"
   transcodes: "Transcodages"
   totalMedia: "Total de médias"
+  throughput: "Débit servi"
+  theoretical: "Débit théorique"
   storage: "Stockage"
   quickActions: "Actions rapides"
   scanAllLibraries: "Scanner toutes les bibliothèques"

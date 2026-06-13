@@ -614,6 +614,8 @@ dashboardStats:
   memory: Speicher
   transcodes: Transkodierungen
   totalMedia: Medien gesamt
+  throughput: Durchsatz
+  theoretical: Theoretische Rate
   storage: Speicherplatz
   quickActions: Schnellaktionen
   scanAllLibraries: Alle Bibliotheken scannen

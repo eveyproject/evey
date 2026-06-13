@@ -614,6 +614,8 @@ dashboardStats:
   memory: "मेमोरी"
   transcodes: "ट्रांसकोड"
   totalMedia: "कुल मीडिया"
+  throughput: "सर्व्ड दर"
+  theoretical: "सैद्धांतिक दर"
   storage: "भंडारण"
   quickActions: "त्वरित क्रियाएं"
   scanAllLibraries: "सभी लाइब्रेरी स्कैन करें"

@@ -1435,5 +1435,7 @@
   "admin.activity.stats.totalPlayTime": "Total Watch Time",
   "admin.activity.stats.storage": "Library Size",
   "admin.activity.viewers": "{{count}} viewer(s)",
-  "admin.activity.viewers_other": "{{count}} viewers"
+  "admin.activity.viewers_other": "{{count}} viewers",
+  "admin.dashboardStats.throughput": "Throughput",
+  "admin.dashboardStats.theoretical": "Theoretical Rate"
 }
