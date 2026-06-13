@@ -94,7 +94,15 @@ function MetricCard({ label, value, history }: MetricCardProps) {
         </span>
         <span className={`text-xl font-bold ${textClass}`}>{pct.toFixed(1)}%</span>
       </div>
-      <div className="h-2 rounded-full bg-[var(--border)]">
+      <div
+        className="h-2 rounded-full bg-[var(--border)]"
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(pct)}
+        aria-valuetext={`${pct.toFixed(1)}%`}
+      >
         <div
           className="h-2 rounded-full transition-all duration-500"
           style={{ width: `${pct}%`, backgroundColor: color }}
@@ -162,7 +170,15 @@ function StorageCard({ path, usedBytes, totalBytes, freeBytes }: StorageCardProp
         <span className="text-sm font-mono truncate text-[var(--text)]">{path}</span>
         <span className={`text-sm font-bold whitespace-nowrap ${textClass}`}>{pct}%</span>
       </div>
-      <div className="h-2 rounded-full mb-2 bg-[var(--border)]">
+      <div
+        className="h-2 rounded-full mb-2 bg-[var(--border)]"
+        role="progressbar"
+        aria-label={path}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        aria-valuetext={`${pct}%`}
+      >
         <div
           className="h-2 rounded-full transition-all"
           style={{ width: `${pct}%`, backgroundColor: color }}

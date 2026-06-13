@@ -85,7 +85,15 @@ function JobProgressCard({ job }: { job: V1GetSeekIndexJobResponse }) {
           )}
         </span>
       </div>
-      <div className="h-2 rounded-full bg-[var(--surface-hover)] overflow-hidden">
+      <div
+        className="h-2 rounded-full bg-[var(--surface-hover)] overflow-hidden"
+        role="progressbar"
+        aria-label={t("admin.seekIndex.jobRunning", { kind, phase })}
+        aria-valuemin={0}
+        aria-valuemax={total > 0 ? total : undefined}
+        aria-valuenow={total > 0 ? done : undefined}
+        aria-valuetext={total > 0 ? `${done}/${total}` : t("admin.seekIndex.phaseScanning")}
+      >
         <div
           className={`h-full bg-[var(--accent)] transition-all ${total === 0 ? "w-full opacity-40 animate-pulse" : ""}`}
           style={total > 0 ? { width: `${pct}%` } : undefined}
