@@ -241,7 +241,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	// and its title lands in the audit entry below.
 	var itemTitle string
 	var sourceBps int64
-	if item, err := h.librarySvc.GetMediaItem(ctx, req.MediaItemId); err == nil {
+	if item, itemErr := h.librarySvc.GetMediaItem(ctx, req.MediaItemId); itemErr == nil {
 		itemTitle = item.Title
 		if item.File != nil {
 			sourceBps = item.File.Bitrate

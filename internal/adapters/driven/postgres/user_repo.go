@@ -240,22 +240,22 @@ func (r *UserRepository) withLastAdminGuard(ctx context.Context, span trace.Span
 	committed := false
 	defer func() {
 		if !committed {
-			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
 				slog.Warn("last-admin guard rollback failed", slog.Any("err", rbErr))
 			}
 		}
 	}()
 
 	// Held until commit/rollback — serialises every guarded admin mutation.
-	if _, err := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, lastAdminGuardKey); err != nil {
-		span.RecordError(err)
-		return fmt.Errorf("last-admin guard: lock: %w", err)
+	if _, lockErr := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, lastAdminGuardKey); lockErr != nil {
+		span.RecordError(lockErr)
+		return fmt.Errorf("last-admin guard: lock: %w", lockErr)
 	}
 
 	var isAdmin, enabled bool
 	err = tx.QueryRowContext(ctx, `SELECT is_admin, enabled FROM users WHERE id = $1`, string(id)).
 		Scan(&isAdmin, &enabled)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return shared.ErrNotFound
 	}
 	if err != nil {

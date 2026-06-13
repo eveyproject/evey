@@ -202,8 +202,8 @@ func TestScanSeekIndex_ServesCachedResult(t *testing.T) {
 		t.Fatalf("want empty cache before first scan, got %+v", res)
 	}
 
-	if _, err := d.StartSeekIndexScan(context.Background(), &eveyv1.StartSeekIndexScanRequest{}); err != nil {
-		t.Fatalf("start scan: %v", err)
+	if _, startErr := d.StartSeekIndexScan(context.Background(), &eveyv1.StartSeekIndexScanRequest{}); startErr != nil {
+		t.Fatalf("start scan: %v", startErr)
 	}
 	waitJobDone(t, d)
 

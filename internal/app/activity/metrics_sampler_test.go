@@ -38,7 +38,7 @@ func TestMetricsSampler_SampleOnce_RecordsHostStreamsAndBandwidth(t *testing.T) 
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	m := rows[0]
-	assert.Equal(t, 42.5, m.CPUPercent)
+	assert.InEpsilon(t, 42.5, m.CPUPercent, 1e-9)
 	assert.Equal(t, int64(100), m.MemoryUsedBytes)
 	assert.Equal(t, int64(200), m.MemoryTotalBytes)
 	assert.Equal(t, 3, m.ActiveStreams)

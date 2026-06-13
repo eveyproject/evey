@@ -69,7 +69,7 @@ func probeCuesPresence(path string) (bool, bool) {
 
 	pos = segStart
 	hops := probeSeekHeadHops
-	for i := 0; i < probeMaxHeadElements; i++ {
+	for range probeMaxHeadElements {
 		r = headReader(f, pos)
 		eh, n, err := ebml.ReadElementHeader(r)
 		if err != nil {
