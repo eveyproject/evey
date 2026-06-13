@@ -8,6 +8,7 @@ import (
 	"image/png"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -923,6 +924,60 @@ func TestBackfillBlurhashes_CountsDecodeFailures(t *testing.T) {
 	succ, fail := cmdSvc.BackfillBlurhashes(context.Background())
 	assert.Equal(t, 0, succ)
 	assert.Equal(t, 1, fail)
+}
+
+// --- artwork content-addressing (dedup) regression ---
+
+// writingDownloader writes a real file so the content-addressed dedup + the
+// skip-if-exists path can be exercised (the standard fake records only a map).
+type writingDownloader struct{ calls atomic.Int32 }
+
+func (d *writingDownloader) Download(_ context.Context, url, destPath string) error {
+	d.calls.Add(1)
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(destPath, []byte("img:"+url), 0o644)
+}
+
+// TestArtwork_ContentAddressed_NoDuplicateFiles is the regression guard for the
+// 250 GB duplication bug: two artwork records for the SAME source URL (as
+// re-enrichment mints fresh record UUIDs every pass) must resolve to ONE
+// on-disk file, not one-per-record. Before content-addressing, the filename was
+// the record UUID, so each pass re-downloaded the same image to a new path and
+// the old files leaked.
+func TestArtwork_ContentAddressed_NoDuplicateFiles(t *testing.T) {
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	dl := &writingDownloader{}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		artworkRepo,
+		dl,
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+	dataDir := t.TempDir()
+	appmetadata.WithAutoDownload(dataDir, true)(cmdSvc)
+
+	ctx := context.Background()
+	src := "https://img.test/poster.jpg"
+	// Two distinct records (distinct UUIDs) for the SAME source image + media.
+	for _, id := range []string{"art-1", "art-2"} {
+		rec, err := metadata.NewArtworkRecord(id, shared.MediaItemID("mi-x"), metadata.ArtworkTypePoster, "tmdb",
+			metadata.WithArtworkSource(src))
+		require.NoError(t, err)
+		require.NoError(t, artworkRepo.Create(ctx, rec))
+	}
+
+	succeeded, failed := cmdSvc.RetryMissingArtworks(ctx)
+	assert.Equal(t, 2, succeeded)
+	assert.Equal(t, 0, failed)
+
+	// Both records share ONE content-addressed file.
+	dir := filepath.Join(dataDir, "artworks", "mi-x")
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Len(t, entries, 1, "two records for the same source URL must dedup to one file")
 }
 
 // --- runBulkDownload cancellation (regression) ---

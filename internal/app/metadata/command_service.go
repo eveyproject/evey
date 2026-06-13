@@ -2,6 +2,8 @@ package metadata
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -125,6 +127,15 @@ func (s *CommandService) SetAutoDownload(dataDir string, enabled bool) {
 // Pattern: <dataDir>/artworks/<mediaItemID>/<artworkID>.<ext>
 func (s *CommandService) artworkDestPath(rec *metadata.ArtworkRecord) string {
 	ext := ".jpg"
+	// Content-address by source URL, NOT by the record's UUID. Re-enrichment
+	// mints a fresh ArtworkRecord (new UUID) every pass; keying the filename on
+	// the UUID meant the SAME image was re-downloaded to a NEW path each time
+	// and the old file leaked (DeleteByMediaItemID drops DB rows, not files) —
+	// a 250 GB pile of 70+ identical copies per item. Hashing the source URL
+	// maps one image to one stable path: re-download overwrites in place (or is
+	// skipped), and a deleted record's file is re-referenced by the next record
+	// for the same URL instead of orphaned.
+	name := rec.ID
 	if rec.SourceURL != nil {
 		u := *rec.SourceURL
 		if idx := strings.LastIndex(u, "."); idx >= 0 && idx > strings.LastIndex(u, "/") {
@@ -137,8 +148,10 @@ func (s *CommandService) artworkDestPath(rec *metadata.ArtworkRecord) string {
 				ext = candidate
 			}
 		}
+		sum := sha256.Sum256([]byte(u))
+		name = hex.EncodeToString(sum[:16])
 	}
-	return filepath.Join(s.dataDir, "artworks", string(rec.MediaItemID), rec.ID+ext)
+	return filepath.Join(s.dataDir, "artworks", string(rec.MediaItemID), name+ext)
 }
 
 // ArtworkStats returns aggregate coverage statistics.
@@ -1073,6 +1086,22 @@ func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.A
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return err
+	}
+	// Skip the network fetch when the content-addressed file is already on disk
+	// (re-enrichment of an unchanged image): the path is keyed on the source
+	// URL, so an existing non-empty file is the same bytes. Reconcile the DB
+	// instead of re-downloading.
+	if fi, statErr := os.Stat(destPath); statErr == nil && fi.Size() > 0 {
+		record.LocalPath = &destPath
+		if record.Blurhash == nil {
+			if hash, hashErr := computeBlurhash(destPath); hashErr == nil {
+				record.Blurhash = &hash
+				if err := s.artwork.UpdateBlurhash(ctx, record.ID, hash); err != nil {
+					slog.Warn("persist blurhash", slog.String("artwork.id", record.ID), slog.Any("err", err))
+				}
+			}
+		}
+		return nil
 	}
 	if err := s.downloader.Download(ctx, *record.SourceURL, destPath); err != nil {
 		span.RecordError(err)
