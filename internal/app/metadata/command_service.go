@@ -566,8 +566,9 @@ func (s *CommandService) maybeAutoDownload(ctx context.Context, rec *metadata.Ar
 		return
 	}
 	destPath := s.artworkDestPath(rec)
-	if _, err := os.Stat(destPath); err == nil {
-		// already downloaded
+	if fi, err := os.Stat(destPath); err == nil && fi.Size() > 0 {
+		// already downloaded (a 0-byte file = an interrupted download, re-fetch
+		// it — matches runBulkDownload/retryMissingRecords/DownloadArtwork)
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
