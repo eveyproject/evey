@@ -629,6 +629,14 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 	}
 	result, err := s.prober.ProbeStreams(ctx, filePath)
 	if err != nil {
+		// Don't swallow: a silent probe failure indexes the item with no
+		// streams and zero duration, leaving operators no trace of why.
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "probe failed")
+		slog.Warn("ProbeAndStoreStreams: probe failed",
+			slog.String("mediaItemID", mediaItemID),
+			slog.String("filePath", filePath),
+			slog.Any("err", err))
 		return shared.Duration{}
 	}
 	for _, st := range result.Streams {
