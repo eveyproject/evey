@@ -48,15 +48,9 @@ func (h *Hub) CreateRoomTyped(ctx context.Context, hostID, mediaID, name, mediaT
 	if mediaType == "" {
 		mediaType = "video"
 	}
-	room := &syncplay.Room{
-		ID:        id.New("room-"),
-		Code:      code,
-		Name:      name,
-		HostID:    shared.UserID(hostID),
-		MediaID:   shared.MediaItemID(mediaID),
-		MediaType: mediaType,
-		CreatedAt: time.Now().UTC(),
-		State:     syncplay.PlaybackState{UpdatedAt: time.Now().UTC()},
+	room, err := syncplay.NewRoom(id.New("room-"), code, name, shared.UserID(hostID), shared.MediaItemID(mediaID), mediaType)
+	if err != nil {
+		return nil, fmt.Errorf("build room: %w", err)
 	}
 	if err := h.repo.Create(ctx, room); err != nil {
 		return nil, fmt.Errorf("create room: %w", err)
@@ -81,20 +75,13 @@ func (h *Hub) CreateRoomFromPlaylist(ctx context.Context, hostID, playlistID, na
 	for _, t := range trackIDs {
 		queue = append(queue, shared.MediaItemID(t))
 	}
-	plID := playlistID
-	room := &syncplay.Room{
-		ID:         id.New("room-"),
-		Code:       code,
-		Name:       name,
-		HostID:     shared.UserID(hostID),
-		MediaID:    shared.MediaItemID(trackIDs[0]),
-		MediaType:  "music",
-		PlaylistID: &plID,
-		Queue:      queue,
-		TrackIndex: 0,
-		CreatedAt:  time.Now().UTC(),
-		State:      syncplay.PlaybackState{UpdatedAt: time.Now().UTC()},
+	room, err := syncplay.NewRoom(id.New("room-"), code, name, shared.UserID(hostID), shared.MediaItemID(trackIDs[0]), "music")
+	if err != nil {
+		return nil, fmt.Errorf("build room: %w", err)
 	}
+	plID := playlistID
+	room.PlaylistID = &plID
+	room.Queue = queue
 	if err := h.repo.Create(ctx, room); err != nil {
 		return nil, fmt.Errorf("create room: %w", err)
 	}

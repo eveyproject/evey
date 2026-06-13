@@ -2,7 +2,9 @@ package syncplay_test
 
 import (
 	"testing"
+	"time"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/syncplay"
 )
 
@@ -73,6 +75,74 @@ func TestRoom_IsHost(t *testing.T) {
 	}
 	if r.IsHost("u2") {
 		t.Error("non-host should not be recognized")
+	}
+}
+
+func TestNewRoom_ValidInput(t *testing.T) {
+	t.Parallel()
+	before := time.Now().UTC()
+	r, err := syncplay.NewRoom("room-1", "12345", "movie night", shared.UserID("u1"), shared.MediaItemID("mi-1"), "video")
+	after := time.Now().UTC()
+	if err != nil {
+		t.Fatalf("NewRoom() unexpected error: %v", err)
+	}
+	if r.ID != "room-1" {
+		t.Errorf("ID = %q, want %q", r.ID, "room-1")
+	}
+	if r.MediaType != "video" {
+		t.Errorf("MediaType = %q, want \"video\"", r.MediaType)
+	}
+	if r.CreatedAt.IsZero() {
+		t.Error("CreatedAt should be set")
+	}
+	if r.CreatedAt.Before(before) || r.CreatedAt.After(after) {
+		t.Errorf("CreatedAt %v not within [%v, %v]", r.CreatedAt, before, after)
+	}
+	if r.State.UpdatedAt.IsZero() {
+		t.Error("State.UpdatedAt should be set")
+	}
+}
+
+func TestNewRoom_DefaultsMediaType(t *testing.T) {
+	t.Parallel()
+	r, err := syncplay.NewRoom("room-2", "12345", "music room", shared.UserID("u1"), shared.MediaItemID("mi-2"), "")
+	if err != nil {
+		t.Fatalf("NewRoom() unexpected error: %v", err)
+	}
+	if r.MediaType != "video" {
+		t.Errorf("MediaType = %q, want \"video\" (default)", r.MediaType)
+	}
+}
+
+func TestNewRoom_RejectsEmptyCode(t *testing.T) {
+	t.Parallel()
+	_, err := syncplay.NewRoom("room-3", "", "name", shared.UserID("u1"), shared.MediaItemID("mi-1"), "video")
+	if err == nil {
+		t.Fatal("NewRoom() should reject empty Code")
+	}
+}
+
+func TestNewRoom_RejectsEmptyName(t *testing.T) {
+	t.Parallel()
+	_, err := syncplay.NewRoom("room-4", "12345", "", shared.UserID("u1"), shared.MediaItemID("mi-1"), "video")
+	if err == nil {
+		t.Fatal("NewRoom() should reject empty Name")
+	}
+}
+
+func TestNewRoom_RejectsEmptyHostID(t *testing.T) {
+	t.Parallel()
+	_, err := syncplay.NewRoom("room-5", "12345", "name", shared.UserID(""), shared.MediaItemID("mi-1"), "video")
+	if err == nil {
+		t.Fatal("NewRoom() should reject empty HostID")
+	}
+}
+
+func TestNewRoom_RejectsEmptyMediaID(t *testing.T) {
+	t.Parallel()
+	_, err := syncplay.NewRoom("room-6", "12345", "name", shared.UserID("u1"), shared.MediaItemID(""), "video")
+	if err == nil {
+		t.Fatal("NewRoom() should reject empty MediaID")
 	}
 }
 

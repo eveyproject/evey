@@ -2,6 +2,7 @@ package syncplay
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -62,6 +63,52 @@ func MaskUsername(name string) string {
 		return "***"
 	}
 	return string([]rune(name)[:1]) + "***"
+}
+
+// Validate checks the required invariants for a Room. An empty Code breaks
+// room-lookup-by-code; an empty MediaID causes nil-media at first sync.
+func (r *Room) Validate() error {
+	if r.ID == "" {
+		return errors.New("room requires an ID")
+	}
+	if r.Code == "" {
+		return errors.New("room requires a code")
+	}
+	if r.Name == "" {
+		return errors.New("room requires a name")
+	}
+	if r.HostID == "" {
+		return errors.New("room requires a host ID")
+	}
+	if r.MediaID == "" {
+		return errors.New("room requires a media ID")
+	}
+	return nil
+}
+
+// NewRoom is the canonical constructor. Stamps CreatedAt and State.UpdatedAt
+// (UTC), defaults MediaType to "video", and validates required fields before
+// returning. Contextual fields (Queue, PlaylistID, TrackIndex, Members) are
+// set by the caller on the returned pointer.
+func NewRoom(id, code, name string, hostID shared.UserID, mediaID shared.MediaItemID, mediaType string) (*Room, error) {
+	if mediaType == "" {
+		mediaType = "video"
+	}
+	now := time.Now().UTC()
+	r := &Room{
+		ID:        id,
+		Code:      code,
+		Name:      name,
+		HostID:    hostID,
+		MediaID:   mediaID,
+		MediaType: mediaType,
+		CreatedAt: now,
+		State:     PlaybackState{UpdatedAt: now},
+	}
+	if err := r.Validate(); err != nil {
+		return nil, err
+	}
+	return r, nil
 }
 
 func (r *Room) IsHost(userID string) bool {
