@@ -261,7 +261,48 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 		slog.Warn("retry missing artworks: list", slog.Any("err", err))
 		return 0, 0
 	}
+	return s.retryMissingRecords(ctx, nil, records)
+}
+
+// StartRetryMissing runs the missing-artwork retry as a pollable background job
+// (GetDownloadJob), returning the job id immediately so the admin request
+// doesn't block (and can't 504) on a large catalogue. serverCtx (not the
+// request ctx) drives the work so a client disconnect doesn't cancel it.
+func (s *CommandService) StartRetryMissing(ctx, serverCtx context.Context) (string, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.StartRetryMissing")
+	defer span.End()
+	if s.dataDir == "" {
+		return "", 0, errors.New("dataDir not configured")
+	}
+	records, err := s.artwork.ListMissingLocalPath(ctx)
+	if err != nil {
+		return "", 0, fmt.Errorf("list missing artwork: %w", err)
+	}
+	jobID := fmt.Sprintf("artretry-%d", time.Now().UnixNano())
+	job := &DownloadJob{ID: jobID, Total: len(records)}
+	s.jobsMu.Lock()
+	s.jobs[jobID] = job
+	s.jobsMu.Unlock()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in retry-missing job", slog.Any("recover", r), slog.String("job", jobID))
+				job.Done.Store(true)
+			}
+		}()
+		s.retryMissingRecords(serverCtx, job, records)
+	}()
+	return jobID, len(records), nil
+}
+
+// retryMissingRecords downloads the given missing-artwork records with capped
+// concurrency. When job is non-nil it reports per-record progress and marks the
+// job done; the (succeeded, failed) return feeds the hourly loop's telemetry.
+func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJob, records []*metadata.ArtworkRecord) (succeeded, failed int) {
 	if len(records) == 0 {
+		if job != nil {
+			job.Done.Store(true)
+		}
 		return 0, 0
 	}
 	const maxConcurrent = 4
@@ -273,6 +314,9 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 		select {
 		case <-ctx.Done():
 			wg.Wait()
+			if job != nil {
+				job.Done.Store(true)
+			}
 			return int(sucAtomic.Load()), int(failAtomic.Load())
 		case sem <- struct{}{}:
 		}
@@ -286,6 +330,9 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 			}()
 			defer wg.Done()
 			defer func() { <-sem }()
+			if job != nil {
+				defer job.Processed.Add(1)
+			}
 			destPath := s.artworkDestPath(rec)
 			// Already on disk (caller previously downloaded outside the
 			// pipeline, server crashed after fs write before DB update, etc.).
@@ -322,6 +369,9 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 		}()
 	}
 	wg.Wait()
+	if job != nil {
+		job.Done.Store(true)
+	}
 	succeeded = int(sucAtomic.Load())
 	failed = int(failAtomic.Load())
 	if succeeded > 0 || failed > 0 {
@@ -348,7 +398,43 @@ func (s *CommandService) BackfillBlurhashes(ctx context.Context) (succeeded, fai
 		slog.Warn("backfill blurhash: list", slog.Any("err", err))
 		return 0, 0
 	}
+	return s.backfillBlurhashRecords(ctx, nil, records)
+}
+
+// StartBackfillBlurhashes runs the blurhash backfill as a pollable background
+// job (GetDownloadJob), returning the job id immediately so the admin request
+// doesn't block (~5 min on a 10k catalogue → would 504 behind a proxy).
+func (s *CommandService) StartBackfillBlurhashes(ctx, serverCtx context.Context) (string, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.StartBackfillBlurhashes")
+	defer span.End()
+	records, err := s.artwork.ListMissingBlurhash(ctx)
+	if err != nil {
+		return "", 0, fmt.Errorf("list missing blurhash: %w", err)
+	}
+	jobID := fmt.Sprintf("artblur-%d", time.Now().UnixNano())
+	job := &DownloadJob{ID: jobID, Total: len(records)}
+	s.jobsMu.Lock()
+	s.jobs[jobID] = job
+	s.jobsMu.Unlock()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("panic in backfill-blurhash job", slog.Any("recover", r), slog.String("job", jobID))
+				job.Done.Store(true)
+			}
+		}()
+		s.backfillBlurhashRecords(serverCtx, job, records)
+	}()
+	return jobID, len(records), nil
+}
+
+// backfillBlurhashRecords re-hashes the given records with capped concurrency.
+// When job is non-nil it reports per-record progress and marks the job done.
+func (s *CommandService) backfillBlurhashRecords(ctx context.Context, job *DownloadJob, records []*metadata.ArtworkRecord) (succeeded, failed int) {
 	if len(records) == 0 {
+		if job != nil {
+			job.Done.Store(true)
+		}
 		return 0, 0
 	}
 	// Lower concurrency than RetryMissingArtworks (which is network-bound):
@@ -364,6 +450,9 @@ func (s *CommandService) BackfillBlurhashes(ctx context.Context) (succeeded, fai
 		select {
 		case <-ctx.Done():
 			wg.Wait()
+			if job != nil {
+				job.Done.Store(true)
+			}
 			return int(sucAtomic.Load()), int(failAtomic.Load())
 		case sem <- struct{}{}:
 		}
@@ -377,6 +466,9 @@ func (s *CommandService) BackfillBlurhashes(ctx context.Context) (succeeded, fai
 			}()
 			defer wg.Done()
 			defer func() { <-sem }()
+			if job != nil {
+				defer job.Processed.Add(1)
+			}
 			if rec.LocalPath == nil {
 				return
 			}
@@ -397,6 +489,9 @@ func (s *CommandService) BackfillBlurhashes(ctx context.Context) (succeeded, fai
 		}()
 	}
 	wg.Wait()
+	if job != nil {
+		job.Done.Store(true)
+	}
 	succeeded = int(sucAtomic.Load())
 	failed = int(failAtomic.Load())
 	if succeeded > 0 || failed > 0 {
