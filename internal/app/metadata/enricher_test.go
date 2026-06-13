@@ -843,6 +843,78 @@ func TestAutoEnrichItem_FallbackToSupplementary(t *testing.T) {
 	assert.Equal(t, "Fallback overview", item.Overview)
 }
 
+func TestAutoEnrichItem_RecoversTMDBMatchViaIMDB(t *testing.T) {
+	// TMDB title-search misses, so OMDb wins the match with only an IMDB id and
+	// an English plot. The IMDB id maps back to a TMDB record via /find, so the
+	// enricher must re-fetch the localized TMDB detail and use it as the
+	// canonical result — otherwise the item is stuck in English with no TMDB id
+	// (hence no translations) forever.
+	primary := &fakeProvider{
+		name:          "tmdb",
+		searchResults: nil, // title search misses
+		lookupResult:  &domain.MetadataResult{ProviderIDs: map[string]string{"tmdb": "100"}},
+		detailResult: &domain.MetadataResult{
+			Title:       "Le Film",
+			Overview:    "Synopsis français",
+			ProviderIDs: map[string]string{"tmdb": "100", "imdb": "tt200"},
+		},
+	}
+	supp := &fakeProvider{
+		name: "omdb",
+		searchResults: []domain.MetadataResult{
+			{Title: "The Film", ProviderIDs: map[string]string{"imdb": "tt200"}},
+		},
+		detailResult: &domain.MetadataResult{
+			Title:       "The Film",
+			Overview:    "English plot",
+			ProviderIDs: map[string]string{"imdb": "tt200"},
+		},
+	}
+	e, _, _, _, miRepo, _ := newTestEnricher(primary, []*fakeProvider{supp}, nil)
+
+	item := &domainlib.MediaItem{ID: "item-1", Title: "Le Film", Type: "movie"}
+	miRepo.Create(context.Background(), item)
+
+	e.AutoEnrichItem(context.Background(), item, slog.Default())
+
+	assert.Equal(t, "Synopsis français", item.Overview, "localized TMDB overview must replace OMDb's English plot")
+	require.NotNil(t, item.Catalog)
+	assert.Equal(t, "100", item.Catalog.ProviderIDs["tmdb"], "recovered TMDB id must be persisted so translations can populate")
+	assert.Equal(t, "tt200", item.Catalog.ProviderIDs["imdb"], "IMDB anchor preserved for supplementary lookups")
+}
+
+func TestAutoEnrichItem_NoTMDBMappingKeepsSupplementaryMatch(t *testing.T) {
+	// When TMDB's /find has no record for the IMDB id, the OMDb match stands —
+	// the upgrade must not blank out a real (if English) result.
+	primary := &fakeProvider{
+		name:          "tmdb",
+		searchResults: nil,
+		lookupResult:  nil, // /find yields nothing
+	}
+	supp := &fakeProvider{
+		name: "omdb",
+		searchResults: []domain.MetadataResult{
+			{Title: "Obscure Film", ProviderIDs: map[string]string{"imdb": "tt999"}},
+		},
+		detailResult: &domain.MetadataResult{
+			Title:       "Obscure Film",
+			Overview:    "English plot",
+			ProviderIDs: map[string]string{"imdb": "tt999"},
+		},
+	}
+	e, _, _, _, miRepo, _ := newTestEnricher(primary, []*fakeProvider{supp}, nil)
+
+	item := &domainlib.MediaItem{ID: "item-1", Title: "Obscure Film", Type: "movie"}
+	miRepo.Create(context.Background(), item)
+
+	e.AutoEnrichItem(context.Background(), item, slog.Default())
+
+	assert.Equal(t, "English plot", item.Overview)
+	require.NotNil(t, item.Catalog)
+	assert.Empty(t, item.Catalog.ProviderIDs["tmdb"], "no TMDB mapping -> no spurious TMDB id")
+	assert.Equal(t, "tt999", item.Catalog.ProviderIDs["imdb"])
+}
+
 func TestAutoEnrichItem_TVSeries(t *testing.T) {
 	primary := &fakeProvider{
 		name: "tmdb",

@@ -140,6 +140,16 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		return
 	}
 
+	// When a supplementary provider (e.g. OMDb via an IMDB id from the
+	// filename/NFO) won the match instead of TMDB, the item ends up with only
+	// an IMDB id and whatever English text OMDb returned — and with no TMDB id
+	// there are no translations to overlay, so a non-English instance is stuck
+	// showing English metadata forever. Map the IMDB id back to a TMDB record
+	// and swap in the full localized TMDB detail before persisting.
+	if upgraded := e.upgradeToTMDBByIMDB(ctx, primary, mediaType, log); upgraded != nil {
+		primary = upgraded
+	}
+
 	// 3. Enrich with primary result first (saves to DB immediately)
 	if err := e.EnrichItem(ctx, item, primary); err != nil && log != nil {
 		log.Warn("auto-enrich failed", slog.String("title", item.Title), slog.Any("err", err))
@@ -210,6 +220,64 @@ func lookupSupplement(ctx context.Context, sp domainmetadata.MetadataProvider, i
 		}
 	}
 	return nil
+}
+
+// upgradeToTMDBByIMDB recovers the canonical TMDB record for a match that a
+// non-TMDB provider produced. TMDB's title search can miss (spelling, region,
+// alternate titles) on a title that an IMDB-anchored provider resolves exactly;
+// TMDB's /find endpoint maps that IMDB id back to a TMDB record, so we re-fetch
+// the full TMDB detail (localized base fields, proper artwork/cast) and return
+// it as the new canonical result. The IMDB id is the canonical anchor, so this
+// only ever corrects a match — it never trades a good one for a worse guess.
+//
+// Returns nil (caller keeps the original result) when the match already has a
+// TMDB id, carries no IMDB id to map, the primary provider can't do an
+// external-id lookup, or the lookup / detail fetch yields nothing.
+func (e *Enricher) upgradeToTMDBByIMDB(ctx context.Context, result *domainmetadata.MetadataResult, mediaType string, log *slog.Logger) *domainmetadata.MetadataResult {
+	if result.ProviderIDs["tmdb"] != "" {
+		return nil
+	}
+	imdbID := result.ProviderIDs["imdb"]
+	if imdbID == "" {
+		return nil
+	}
+	prov := e.chain.Primary()
+	if prov == nil {
+		return nil
+	}
+	lookup, ok := capabilityFrom[domainmetadata.ExternalIDLookup](prov)
+	if !ok {
+		return nil
+	}
+	found, err := lookup.LookupByExternalID(ctx, "imdb", imdbID)
+	if err != nil || found == nil {
+		return nil
+	}
+	tmdbID := found.ProviderIDs["tmdb"]
+	if tmdbID == "" {
+		return nil
+	}
+	detail, err := prov.GetByProviderID(ctx, tmdbID, mediaType)
+	if err != nil || detail == nil {
+		if log != nil {
+			log.Debug("tmdb-by-imdb detail fetch failed",
+				slog.String("imdb", imdbID), slog.String("tmdb", tmdbID), slog.Any("err", err))
+		}
+		return nil
+	}
+	// Keep the IMDB id even if the TMDB detail didn't echo it, so the
+	// supplementary pass can still resolve ratings/extra IDs by it.
+	if detail.ProviderIDs == nil {
+		detail.ProviderIDs = map[string]string{}
+	}
+	if detail.ProviderIDs["imdb"] == "" {
+		detail.ProviderIDs["imdb"] = imdbID
+	}
+	if log != nil {
+		log.Info("recovered TMDB match via IMDB id",
+			slog.String("imdb", imdbID), slog.String("tmdb", tmdbID))
+	}
+	return detail
 }
 
 func mergeProviderIDs(item *domainlib.MediaItem, src map[string]string) bool {
