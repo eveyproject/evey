@@ -69,8 +69,11 @@ func adminArtworkGC(args []string) error {
 	var orphanBytes int64
 	var toDelete []string
 	walkErr := filepath.WalkDir(*root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
-			return nil // skip unreadable entries / directories
+		if err != nil {
+			return nil //nolint:nilerr // unreadable entry: skip it, keep walking the rest
+		}
+		if d.IsDir() {
+			return nil
 		}
 		scanned++
 		if _, ok := referenced[filepath.Clean(path)]; ok {
@@ -114,13 +117,13 @@ func adminArtworkGC(args []string) error {
 	var deleted int
 	var freed int64
 	for _, p := range toDelete {
-		info, _ := os.Stat(p)
+		info, statErr := os.Stat(p)
 		if rmErr := os.Remove(p); rmErr != nil {
 			fmt.Fprintf(os.Stderr, "  remove %s: %v\n", p, rmErr)
 			continue
 		}
 		deleted++
-		if info != nil {
+		if statErr == nil {
 			freed += info.Size()
 		}
 	}

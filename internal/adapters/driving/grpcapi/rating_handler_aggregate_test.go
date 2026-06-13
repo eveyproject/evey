@@ -22,7 +22,7 @@ func TestRatingHandler_GetRatingAggregate_ReturnsEmpty(t *testing.T) {
 	callerCtx := authedCtx("user-1", "profile-1", false)
 	resp, err := f.handler.GetRatingAggregate(callerCtx, &eveyv1.GetRatingAggregateRequest{MediaItemId: "m1"})
 	require.NoError(t, err)
-	assert.Equal(t, 0.0, resp.Average)
+	assert.Zero(t, resp.Average)
 	assert.Equal(t, int32(0), resp.Count)
 }
 
