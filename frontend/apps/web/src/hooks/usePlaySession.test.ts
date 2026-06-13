@@ -3,7 +3,6 @@ import { renderHook, cleanup, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const startStreamFn = vi.fn(() => Promise.resolve({ id: "session-123" }));
-const stopMutateFn = vi.fn();
 const fetchStreamTokenFn = vi.fn(() => Promise.resolve("stream-tok-abc"));
 
 vi.mock("@evey/api", () => ({
@@ -12,7 +11,6 @@ vi.mock("@evey/api", () => ({
     data: { directPlayUrl: "/original-url", videoCodec: "h264" },
   }),
   playbackServiceStartStream: startStreamFn,
-  usePlaybackServiceStopStream: () => ({ mutate: stopMutateFn }),
 }));
 
 vi.mock("./useStreamToken", () => ({
@@ -27,15 +25,22 @@ describe("usePlaySession", () => {
   beforeEach(() => {
     startStreamFn.mockClear();
     startStreamFn.mockReturnValue(Promise.resolve({ id: "session-123" }));
-    stopMutateFn.mockClear();
     fetchStreamTokenFn.mockClear();
     fetchStreamTokenFn.mockReturnValue(Promise.resolve("stream-tok-abc"));
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true } as Response)));
     vi.resetModules();
   });
 
   afterEach(() => {
     cleanup();
+    vi.unstubAllGlobals();
   });
+
+  function stopCalls() {
+    return (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c: unknown[]) => c[0] === "/api/v1/playback/stop",
+    );
+  }
 
   async function loadHook(canPlay: string) {
     vi.spyOn(HTMLVideoElement.prototype, "canPlayType").mockReturnValue(canPlay as CanPlayTypeResult);
@@ -66,7 +71,7 @@ describe("usePlaySession", () => {
     expect(startStreamFn).toHaveBeenCalledTimes(1);
   });
 
-  it("stops session on unmount", async () => {
+  it("stops session on unmount via a keepalive POST /playback/stop", async () => {
     const usePlaySession = await loadHook("");
     let unmountFn: () => void;
     await act(async () => {
@@ -76,11 +81,52 @@ describe("usePlaySession", () => {
     act(() => {
       unmountFn();
     });
-    expect(stopMutateFn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { sessionId: "session-123" },
-      }),
-    );
+    const calls = stopCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toMatchObject({
+      method: "POST",
+      keepalive: true,
+      body: JSON.stringify({ sessionId: "session-123" }),
+    });
+  });
+
+  it("does NOT stop on unmount when handing off to the mini-player, but the preserved stop fn still tears the session down", async () => {
+    // Regression: clicking the browser back button parks the player as a
+    // mini-player (mode = "mini"); the session must survive the route unmount
+    // so the mini-player's close button can stop it — otherwise the transcode
+    // leaked in the admin panel.
+    const usePlaySession = await loadHook("");
+    const { usePlayerStore } = await import("@evey/store");
+    let result: { current: ReturnType<typeof usePlaySession> };
+    let unmountFn: () => void;
+    await act(async () => {
+      const hook = renderHook(() => usePlaySession("media-mini"));
+      result = hook.result;
+      unmountFn = hook.unmount;
+    });
+    // Simulate the player handing off to the mini-player before unmount.
+    act(() => {
+      usePlayerStore.getState().setMode("mini");
+    });
+    const stopSession = result!.current.stopSession;
+    act(() => {
+      unmountFn();
+    });
+    // Unmount must NOT stop the session while mini-player is active.
+    expect(stopCalls()).toHaveLength(0);
+    // The preserved stop fn (called later by MiniPlayer's close button) works
+    // even though the player route has unmounted.
+    act(() => {
+      stopSession();
+    });
+    const calls = stopCalls();
+    expect(calls).toHaveLength(1);
+    expect(calls[0][1]).toMatchObject({
+      body: JSON.stringify({ sessionId: "session-123" }),
+    });
+    act(() => {
+      usePlayerStore.getState().setMode("hidden");
+    });
   });
 
   it("includes stream token in directPlayUrl", async () => {

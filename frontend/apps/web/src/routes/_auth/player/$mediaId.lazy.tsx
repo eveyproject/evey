@@ -118,7 +118,11 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
 
   useEffect(() => {
     usePlayerStore.getState().setStopSessionFn(stopSession);
-    return () => usePlayerStore.getState().setStopSessionFn(null);
+    // Intentionally NOT cleared on unmount: when the player hands the video off
+    // to the mini-player (back button while playing), the stop fn must survive
+    // so the mini-player's close button can still tear down the server session
+    // — otherwise the transcode keeps running in the admin panel. stop() clears
+    // it after firing, and a fresh player mount overwrites it.
   }, [stopSession]);
 
   const handleStreamTokenRefresh = useCallback(() => fetchStreamToken(mediaId), [fetchStreamToken, mediaId]);

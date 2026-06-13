@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   usePlaybackServiceGetWatchProgress,
-  usePlaybackServiceStopStream,
   usePlaybackServiceGetStreamInfo,
   playbackServiceStartStream,
 } from "@evey/api";
@@ -10,6 +9,31 @@ import { usePlayerStore, useAuthStore } from "@evey/store";
 import { getBrowserCapabilities } from "@/utils/codec";
 import { appendCodecParams } from "@/features/playback/hooks/hlsPlayerUtils";
 import { useStreamToken } from "./useStreamToken";
+
+// postStopStream tears down the server-side play session with a raw keepalive
+// fetch (not eveyFetch / react-query). It must fire reliably during teardown:
+// page unload (pagehide), route unmount, AND from the mini-player after the
+// player route has already unmounted — a react-query mutation bound to an
+// unmounted component is not a dependable transport here, which is exactly why
+// closing the player via the browser back button (player -> mini -> close) used
+// to leave the transcode session running in the admin panel. The active
+// session token is fresh; a 401 is silently dropped (the session is gone).
+function postStopStream(sessionId: string) {
+  const token = useAuthStore.getState().accessToken;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const csrfMatch = typeof document !== "undefined"
+    ? document.cookie.match(/(?:^|;\s*)_csrf=([^;]*)/)
+    : null;
+  if (csrfMatch) headers["X-CSRF-Token"] = csrfMatch[1];
+  void fetch("/api/v1/playback/stop", {
+    method: "POST",
+    credentials: "include",
+    headers,
+    body: JSON.stringify({ sessionId }),
+    keepalive: true,
+  }).catch((err) => console.warn("playback stop failed", err));
+}
 
 export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
@@ -85,10 +109,6 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       })()
     : undefined;
 
-  const { mutate: stopStreamMutate } = usePlaybackServiceStopStream();
-  const stopStreamRef = useRef(stopStreamMutate);
-  stopStreamRef.current = stopStreamMutate;
-
   useEffect(() => {
     stopped.current = false;
     if (!mediaId || startedRef.current || !rawStreamInfo) return;
@@ -130,9 +150,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     if (stopped.current) return;
     stopped.current = true;
     const sid = sessionIdRef.current;
-    if (sid) {
-      stopStreamRef.current({ data: { sessionId: sid } });
-    }
+    if (sid) postStopStream(sid);
   }, []);
 
   useEffect(() => {
@@ -140,24 +158,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       const sid = sessionIdRef.current;
       if (sid && !stopped.current) {
         stopped.current = true;
-        // NOTE: raw fetch (not eveyFetch) because keepalive:true is required for
-        // pagehide/beforeunload — eveyFetch doesn't propagate keepalive, and its
-        // auto-refresh path is useless here (page is unloading). Token is already
-        // fresh from the active session; if it 401s, we silently drop (expected).
-        const token = useAuthStore.getState().accessToken;
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        const csrfMatch = typeof document !== "undefined"
-          ? document.cookie.match(/(?:^|;\s*)_csrf=([^;]*)/)
-          : null;
-        if (csrfMatch) headers["X-CSRF-Token"] = csrfMatch[1];
-        fetch("/api/v1/playback/stop", {
-          method: "POST",
-          credentials: "include",
-          headers,
-          body: JSON.stringify({ sessionId: sid }),
-          keepalive: true,
-        }).catch((err) => console.warn("playback stop failed", err));
+        postStopStream(sid);
       }
     };
     window.addEventListener("pagehide", handleUnload);
