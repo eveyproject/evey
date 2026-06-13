@@ -65,7 +65,12 @@ func adminArtworkGC(args []string) error {
 		return fmt.Errorf("rows: %w", err)
 	}
 
-	var scanned, orphans, refFound int
+	// TOCTOU guard: a file written + DB-updated AFTER the referenced-set snapshot
+	// (a concurrent enrichment downloading new artwork) is not yet in the set, so
+	// it would look orphaned. Skip anything modified within this window so an
+	// in-flight download is never deleted out from under a fresh DB row.
+	recentCutoff := time.Now().Add(-5 * time.Minute)
+	var scanned, orphans, refFound, inflight int
 	var orphanBytes int64
 	var toDelete []string
 	walkErr := filepath.WalkDir(*root, func(path string, d fs.DirEntry, err error) error {
@@ -80,7 +85,12 @@ func adminArtworkGC(args []string) error {
 			refFound++
 			return nil
 		}
-		if info, statErr := d.Info(); statErr == nil {
+		info, statErr := d.Info()
+		if statErr == nil && info.ModTime().After(recentCutoff) {
+			inflight++ // recently written: a concurrent download not yet in the snapshot
+			return nil
+		}
+		if statErr == nil {
 			orphanBytes += info.Size()
 		}
 		orphans++
@@ -91,8 +101,8 @@ func adminArtworkGC(args []string) error {
 		return fmt.Errorf("walk %s: %w", *root, walkErr)
 	}
 
-	fmt.Printf("artwork-gc: scanned=%d files, db-references=%d, matched-under-root=%d, orphans=%d (%.2f GB)\n",
-		scanned, len(referenced), refFound, orphans, float64(orphanBytes)/(1<<30))
+	fmt.Printf("artwork-gc: scanned=%d files, db-references=%d, matched-under-root=%d, in-flight-skipped=%d, orphans=%d (%.2f GB)\n",
+		scanned, len(referenced), refFound, inflight, orphans, float64(orphanBytes)/(1<<30))
 
 	// Safety: if the DB references artwork but NONE of those files were found
 	// under root, the paths don't line up (wrong --root, or DB paths use a
@@ -127,7 +137,25 @@ func adminArtworkGC(args []string) error {
 			freed += info.Size()
 		}
 	}
-	fmt.Printf("artwork-gc: deleted %d files, reclaimed %.2f GB\n", deleted, float64(freed)/(1<<30))
+	// Remove the per-media subdirectories left empty after deleting their files
+	// (the walk only removed files). Best-effort: a dir that isn't empty (still
+	// has a referenced file) or races a concurrent write just stays.
+	var removedDirs int
+	if entries, readErr := os.ReadDir(*root); readErr == nil {
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			dir := filepath.Join(*root, e.Name())
+			if sub, _ := os.ReadDir(dir); len(sub) == 0 {
+				if os.Remove(dir) == nil {
+					removedDirs++
+				}
+			}
+		}
+	}
+
+	fmt.Printf("artwork-gc: deleted %d files, reclaimed %.2f GB, removed %d empty dirs\n", deleted, float64(freed)/(1<<30), removedDirs)
 	fmt.Fprintf(os.Stderr, "[admin] artwork-gc deleted %d orphan files (%.2f GB) under %s\n", deleted, float64(freed)/(1<<30), *root)
 	return nil
 }
