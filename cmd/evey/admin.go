@@ -46,6 +46,8 @@ func runAdmin(args []string) error {
 		return adminReclassify(args[1:])
 	case "reindex-no-cue":
 		return adminReindexNoCue(args[1:])
+	case "artwork-gc":
+		return adminArtworkGC(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
@@ -79,6 +81,11 @@ Media maintenance subcommands:
                                     Each rewrite is validated + cross-checked and keeps a .mkvgobak
                                     backup. --limit N for a cautious first run; --keep-backup=false
                                     to drop backups.
+  artwork-gc [--root <dir>] [--apply]
+                                    Delete artwork files on disk that no DB row
+                                    references (orphans from the old UUID-named
+                                    scheme). Dry-run by default; --apply deletes.
+                                    --root defaults to /data/artworks.
 
 Configuration is read from EVEY_* env vars (same as the server).
 See docs/runbooks/recovery.md and docs/runbooks/cli.md for full procedures.
