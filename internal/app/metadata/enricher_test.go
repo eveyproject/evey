@@ -648,8 +648,11 @@ func TestSearchAndFetch_DetailError(t *testing.T) {
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 
 	result := e.searchAndFetch(context.Background(), primary, "Movie", nil, "movie", nil)
-	require.NotNil(t, result)
-	assert.Equal(t, "Movie", result.Title) // falls back to search result
+	// On a detail-fetch error we now SKIP the provider (return nil) instead of
+	// persisting the search-level skeleton: a non-empty overview with no
+	// artwork/cast would trip the non-force re-enrich guard and strand the item
+	// in a degraded state forever. nil lets the chain fall through / retry next scan.
+	assert.Nil(t, result)
 }
 
 // --- AutoEnrichItem ---

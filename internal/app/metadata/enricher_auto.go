@@ -576,7 +576,18 @@ pickDone:
 	}
 	full, err := provider.GetByProviderID(ctx, providerID, mediaType)
 	if err != nil {
-		return &best
+		// Don't persist the search-level skeleton on a transient detail-fetch
+		// failure (rate-limit / network): it carries a non-empty overview but no
+		// artwork, cast, trailers or collection, and the non-force re-enrich
+		// guard (Overview != "") would then skip the item on every future scan,
+		// stranding it in a degraded state until a manual refresh. Returning nil
+		// lets the chain fall through to the next provider; if every provider
+		// fails the item keeps its prior data and is retried next scan.
+		slog.Warn("fetchBestCandidate: detail fetch failed, skipping provider",
+			slog.String("provider", provider.Name()),
+			slog.String("title", title),
+			slog.Any("err", err))
+		return nil
 	}
 	return full
 }
