@@ -2,6 +2,8 @@ package metadata_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"image"
 	"image/color"
@@ -978,6 +980,47 @@ func TestArtwork_ContentAddressed_NoDuplicateFiles(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	assert.Len(t, entries, 1, "two records for the same source URL must dedup to one file")
+}
+
+// TestArtwork_ZeroByteFile_Refetched guards the data-loss path the review
+// found: a 0-byte file left at the content-addressed path by a killed
+// mid-download must be RE-fetched, not reconciled as valid (which would strand
+// the record forever — non-null local_path excludes it from every retry scan).
+func TestArtwork_ZeroByteFile_Refetched(t *testing.T) {
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	dl := &writingDownloader{}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(),
+		artworkRepo,
+		dl,
+		sharedfakes.NewFakeEventBus(),
+		nil,
+	)
+	dataDir := t.TempDir()
+	appmetadata.WithAutoDownload(dataDir, true)(cmdSvc)
+
+	ctx := context.Background()
+	src := "https://img.test/poster.jpg"
+	rec, err := metadata.NewArtworkRecord("art-z", shared.MediaItemID("mi-z"), metadata.ArtworkTypePoster, "tmdb",
+		metadata.WithArtworkSource(src))
+	require.NoError(t, err)
+	require.NoError(t, artworkRepo.Create(ctx, rec))
+
+	// Pre-plant a 0-byte file at the content-addressed path (sha256(src)[:16].jpg),
+	// the exact state a SIGKILL between os.Create and io.Copy leaves behind.
+	sum := sha256.Sum256([]byte(src))
+	zeroPath := filepath.Join(dataDir, "artworks", "mi-z", hex.EncodeToString(sum[:16])+".jpg")
+	require.NoError(t, os.MkdirAll(filepath.Dir(zeroPath), 0o755))
+	require.NoError(t, os.WriteFile(zeroPath, []byte{}, 0o644))
+
+	cmdSvc.RetryMissingArtworks(ctx)
+
+	// The 0-byte file must have been re-downloaded (writingDownloader writes real
+	// bytes), not skipped as "present".
+	assert.Positive(t, dl.calls.Load(), "0-byte file must trigger a re-download, not be reconciled")
+	fi, statErr := os.Stat(zeroPath)
+	require.NoError(t, statErr)
+	assert.Positive(t, fi.Size(), "file must be non-empty after re-fetch")
 }
 
 // --- runBulkDownload cancellation (regression) ---

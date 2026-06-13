@@ -241,8 +241,12 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 			defer wg.Done()
 			defer func() { <-sem }()
 			destPath := s.artworkDestPath(rec)
-			// Skip if already downloaded (re-entrant)
-			if _, err := os.Stat(destPath); err == nil {
+			// Skip if already downloaded (re-entrant). Require size>0: the
+			// downloader os.Create's the file before io.Copy, so a SIGKILL/OOM
+			// mid-download leaves a 0-byte file at the content-addressed path —
+			// reconciling that as "present" would mark the record done forever
+			// (excluded from ListMissingLocalPath) with broken artwork.
+			if fi, err := os.Stat(destPath); err == nil && fi.Size() > 0 {
 				if err2 := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err2 != nil {
 					slog.Warn("artwork bulk: update already-present local path",
 						slog.String("id", rec.ID), slog.Any("err", err2))
@@ -367,8 +371,10 @@ func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJ
 			destPath := s.artworkDestPath(rec)
 			// Already on disk (caller previously downloaded outside the
 			// pipeline, server crashed after fs write before DB update, etc.).
-			// Just reconcile the DB row and count as a success.
-			if _, err := os.Stat(destPath); err == nil {
+			// Just reconcile the DB row and count as a success. Require size>0
+			// so a 0-byte file from a killed mid-download is re-fetched, not
+			// reconciled as valid (which would strand the record permanently).
+			if fi, err := os.Stat(destPath); err == nil && fi.Size() > 0 {
 				if err2 := s.artwork.UpdateLocalPath(ctx, rec.ID, destPath); err2 != nil {
 					slog.Warn("retry missing artworks: reconcile present file",
 						slog.String("id", rec.ID), slog.Any("err", err2))

@@ -551,7 +551,18 @@ func (e *Enricher) fetchBestCandidate(ctx context.Context, provider domainmetada
 							continue // year mismatch, keep scanning
 						}
 						// Fetch full details for this candidate.
-						if full, fetchErr := provider.GetByProviderID(ctx, pid, mediaType); fetchErr == nil && full != nil {
+						full, fetchErr := provider.GetByProviderID(ctx, pid, mediaType)
+						if fetchErr != nil {
+							// Same reason as the pickDone path below: don't persist
+							// the search skeleton on a transient detail-fetch error
+							// (non-empty overview + no artwork/cast trips the
+							// non-force re-enrich guard and strands the item). Skip
+							// the provider so the chain falls through / retries.
+							slog.Warn("fetchBestCandidate: alt-title detail fetch failed, skipping provider",
+								slog.String("provider", provider.Name()), slog.Any("err", fetchErr))
+							return nil
+						}
+						if full != nil {
 							return full
 						}
 						return &capped[i]
