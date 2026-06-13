@@ -453,10 +453,10 @@ search:
   series: Series
   noResultsFor: "Sin resultados para “{{query}}”"
   noResultsDesc: Prueba con otro término, verifica la ortografía o cambia el filtro.
-  resultCount: “{{count}} resultado”
-  resultCount_one: “{{count}} resultado”
-  resultCount_other: “{{count}} resultados”
-  resultFor: “para “{{query}}””
+  resultCount: "{{count}} resultado"
+  resultCount_one: "{{count}} resultado"
+  resultCount_other: "{{count}} resultados"
+  resultFor: "para “{{query}}”"
   searchLibrary: Busca en tu biblioteca multimedia
   searchLibraryDesc: Escribe al menos 2 caracteres para buscar en tus películas, series y más.
   clearSearch: Borrar búsqueda

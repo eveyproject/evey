@@ -453,10 +453,10 @@ search:
   series: Series
   noResultsFor: "No results for “{{query}}”"
   noResultsDesc: Try a different search term, check the spelling, or change the filter.
-  resultCount: “{{count}} result”
-  resultCount_one: “{{count}} result”
-  resultCount_other: “{{count}} results”
-  resultFor: “for “{{query}}””
+  resultCount: "{{count}} result"
+  resultCount_one: "{{count}} result"
+  resultCount_other: "{{count}} results"
+  resultFor: "for “{{query}}”"
   searchLibrary: Search your media library
   searchLibraryDesc: Type at least 2 characters to search across all your movies, series, and more.
   clearSearch: Clear search

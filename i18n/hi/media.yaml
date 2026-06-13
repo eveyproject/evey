@@ -453,10 +453,10 @@ search:
   series: सीरीज़
   noResultsFor: "“{{query}}” के लिए कोई परिणाम नहीं"
   noResultsDesc: कोई अलग शब्द आज़माएं, वर्तनी जाँचें या फ़िल्टर बदलें।
-  resultCount: “{{count}} परिणाम”
-  resultCount_one: “{{count}} परिणाम”
-  resultCount_other: “{{count}} परिणाम”
-  resultFor: “”{{query}}” के लिए”
+  resultCount: "{{count}} परिणाम"
+  resultCount_one: "{{count}} परिणाम"
+  resultCount_other: "{{count}} परिणाम"
+  resultFor: "“{{query}}” के लिए"
   searchLibrary: अपनी मीडिया लाइब्रेरी खोजें
   searchLibraryDesc: अपनी फ़िल्मों, सीरीज़ और अन्य में खोजने के लिए कम से कम 2 अक्षर टाइप करें।
   clearSearch: खोज साफ़ करें

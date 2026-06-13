@@ -130,7 +130,10 @@ export function MiniPlayer() {
         onClick={() => { if (!wasDrag.current) expand(); }}
         role="button"
         tabIndex={0}
-        aria-label={t("common.aria.expand")}
+        // Name the clickable preview by its title (the dedicated Maximize
+        // button below is the labelled "Expand" control) — avoids two
+        // identically-named "Expand" controls in the same widget.
+        aria-label={mediaTitle ?? t("common.aria.expand")}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); expand(); } }}
       />
 
