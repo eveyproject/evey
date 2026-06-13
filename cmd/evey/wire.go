@@ -546,7 +546,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	favoriteSvc := appfavorite.NewService(r.Favorite)
 	photoScanner := filesystem.NewPhotoScanner()
 	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
-	starRatingSvc := apprating.NewService(r.Rating, bus, apprating.WithThumbRating(r.UserRating))
+	starRatingSvc := apprating.NewService(r.UserRating)
 	musicScanner := filesystem.NewMusicScanner()
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
 	musicSvc.WithPlayRepository(r.MusicPlay)

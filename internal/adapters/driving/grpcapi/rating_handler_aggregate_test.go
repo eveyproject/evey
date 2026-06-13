@@ -5,38 +5,25 @@ import (
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/rating"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func mustRatingValue(v int) rating.RatingValue {
-	rv, err := rating.NewRatingValue(v)
-	if err != nil {
-		panic(err)
-	}
-	return rv
-}
-
-// (Star rating RPC was removed when we ripped the star UI — only thumbs
-// up/down remain. Aggregate read still serves /admin and series detail.)
-
-// GetRatingAggregate returns the average/count for a media item.
-func TestRatingHandler_GetRatingAggregate_Success(t *testing.T) {
+// The 1-10 star-rating aggregate (the media_ratings table) was removed; thumbs
+// (like/dislike) are the single rating model. GetRatingAggregate is kept as an
+// empty stub for proto/client compatibility (no frontend caller today) until a
+// deliberate proto cleanup drops the RPC.
+func TestRatingHandler_GetRatingAggregate_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	f := newRatingFixture()
-	f.mediaItems.Seed(&library.MediaItem{ID: "m1", LibraryID: "lib-1"})
-	// Seed 2 ratings for aggregation.
-	ctx := context.Background()
-	_ = f.starRepo.Upsert(ctx, rating.Rating{MediaItemID: "m1", ProfileID: "p1", Value: mustRatingValue(5)})
-	_ = f.starRepo.Upsert(ctx, rating.Rating{MediaItemID: "m1", ProfileID: "p2", Value: mustRatingValue(3)})
+	f.seedMedia("m1", "lib-1")
+	_ = f.libraryAccess.Grant(context.Background(), "user-1", "lib-1")
 
-	callerCtx := ctxWithClaims("user-1", "profile-1", false)
+	callerCtx := authedCtx("user-1", "profile-1", false)
 	resp, err := f.handler.GetRatingAggregate(callerCtx, &eveyv1.GetRatingAggregateRequest{MediaItemId: "m1"})
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, resp.Average, 3.0)
-	assert.LessOrEqual(t, resp.Average, 5.0)
+	assert.Equal(t, 0.0, resp.Average)
+	assert.Equal(t, int32(0), resp.Count)
 }
 
 func TestRatingHandler_GetRatingAggregate_Unauthenticated(t *testing.T) {

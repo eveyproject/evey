@@ -54,7 +54,6 @@ type Repos struct {
 	Favorite             *FavoriteRepository
 	Photo                *PhotoRepository
 	UserRating           *UserRatingRepository
-	Rating               *RatingRepository
 	MusicTrack           *MusicTrackRepository
 	MusicPlay            *MusicPlayRepository
 	Playlist             *PlaylistRepository
@@ -119,7 +118,6 @@ func NewRepos(db *sql.DB) *Repos {
 		Favorite:             NewFavoriteRepository(db),
 		Photo:                NewPhotoRepository(db),
 		UserRating:           NewUserRatingRepository(db),
-		Rating:               NewRatingRepository(db),
 		MusicTrack:           NewMusicTrackRepository(db),
 		MusicPlay:            NewMusicPlayRepository(db),
 		Playlist:             NewPlaylistRepository(db),

@@ -11,7 +11,6 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	domainrating "github.com/evey-project/evey/internal/domain/rating"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
@@ -22,63 +21,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// fakeStarRatingRepo implements domainrating.Repository in-memory
-type fakeStarRatingRepo struct {
-	ratings map[string]*domainrating.Rating // key: mediaItemID+":"+profileID
-}
-
-func newFakeStarRatingRepo() *fakeStarRatingRepo {
-	return &fakeStarRatingRepo{ratings: make(map[string]*domainrating.Rating)}
-}
-
-func (r *fakeStarRatingRepo) Upsert(_ context.Context, rt domainrating.Rating) error {
-	r.ratings[string(rt.MediaItemID)+":"+string(rt.ProfileID)] = &rt
-	return nil
-}
-
-func (r *fakeStarRatingRepo) Get(_ context.Context, mediaItemID, profileID string) (*domainrating.Rating, error) {
-	rt, ok := r.ratings[mediaItemID+":"+profileID]
-	if !ok {
-		return nil, shared.ErrNotFound
-	}
-	return rt, nil
-}
-
-func (r *fakeStarRatingRepo) Delete(_ context.Context, mediaItemID, profileID string) error {
-	delete(r.ratings, mediaItemID+":"+profileID)
-	return nil
-}
-
-func (r *fakeStarRatingRepo) GetAggregates(_ context.Context, mediaItemIDs []string) (map[string]domainrating.Aggregate, error) {
-	result := make(map[string]domainrating.Aggregate)
-	for _, id := range mediaItemIDs {
-		var sum, count int
-		for key, rt := range r.ratings {
-			if len(key) > len(id) && key[:len(id)+1] == id+":" {
-				sum += rt.Value.Int()
-				count++
-			}
-		}
-		if count > 0 {
-			result[id] = domainrating.Aggregate{Average: float64(sum) / float64(count), Count: count}
-		} else {
-			result[id] = domainrating.Aggregate{}
-		}
-	}
-	return result, nil
-}
-
 type ratingFixture struct {
 	handler       *ratingHandler
 	thumbRepo     *libfakes.FakeUserRatingRepository
-	starRepo      *fakeStarRatingRepo
 	mediaItems    *libfakes.FakeMediaItemQueryRepo
 	libraryAccess *userfakes.FakeLibraryAccessRepository
 }
 
 func newRatingFixture() *ratingFixture {
 	thumbRepo := libfakes.NewFakeUserRatingRepository()
-	starRepo := newFakeStarRatingRepo()
 	bus := sharedfakes.NewFakeEventBus()
 	mediaItems := libfakes.NewFakeMediaItemQueryRepo()
 	searchIdx := libfakes.NewFakeSearchIndex()
@@ -86,7 +37,7 @@ func newRatingFixture() *ratingFixture {
 	libraryAccess := userfakes.NewFakeLibraryAccessRepository()
 
 	libQuery := applibrary.NewQueryService(libQueryRepo, mediaItems, nil, searchIdx)
-	starSvc := apprating.NewService(starRepo, bus, apprating.WithThumbRating(thumbRepo))
+	starSvc := apprating.NewService(thumbRepo)
 	userAccess := appuser.NewAccessService(
 		userfakes.NewFakeUserRepository(),
 		userfakes.NewFakeAPIKeyRepository(),
@@ -105,7 +56,6 @@ func newRatingFixture() *ratingFixture {
 	return &ratingFixture{
 		handler:       h,
 		thumbRepo:     thumbRepo,
-		starRepo:      starRepo,
 		mediaItems:    mediaItems,
 		libraryAccess: libraryAccess,
 	}

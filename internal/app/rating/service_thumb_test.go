@@ -7,19 +7,14 @@ import (
 	apprating "github.com/evey-project/evey/internal/app/rating"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	ratingfakes "github.com/evey-project/evey/internal/domain/rating/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// UpsertThumb + GetThumb cycle with WithThumbRating wired.
+// UpsertThumb + GetThumb cycle.
 func TestService_UpsertAndGetThumb(t *testing.T) {
 	t.Parallel()
-	thumbRepo := libfakes.NewFakeUserRatingRepository()
-	repo := ratingfakes.NewFakeRepository()
-	bus := sharedfakes.NewFakeEventBus()
-	svc := apprating.NewService(repo, bus, apprating.WithThumbRating(thumbRepo))
+	svc := apprating.NewService(libfakes.NewFakeUserRatingRepository())
 
 	ctx := context.Background()
 	require.NoError(t, svc.UpsertThumb(ctx, &library.UserRating{
@@ -35,10 +30,7 @@ func TestService_UpsertAndGetThumb(t *testing.T) {
 // Upserting the same profile+item overwrites the previous value.
 func TestService_UpsertThumb_Overwrite(t *testing.T) {
 	t.Parallel()
-	thumbRepo := libfakes.NewFakeUserRatingRepository()
-	repo := ratingfakes.NewFakeRepository()
-	bus := sharedfakes.NewFakeEventBus()
-	svc := apprating.NewService(repo, bus, apprating.WithThumbRating(thumbRepo))
+	svc := apprating.NewService(libfakes.NewFakeUserRatingRepository())
 
 	ctx := context.Background()
 	require.NoError(t, svc.UpsertThumb(ctx, &library.UserRating{ProfileID: "p", MediaItemID: "m", Value: 1}))

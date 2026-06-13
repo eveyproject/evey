@@ -120,16 +120,9 @@ func (h *ratingHandler) GetRatingAggregate(ctx context.Context, req *eveyv1.GetR
 		span.SetStatus(otelcodes.Error, accessErr.Error())
 		return nil, fmt.Errorf("ratingHandler.GetRatingAggregate: %w", accessErr)
 	}
-	aggs, aggErr := h.starSvc.GetAggregates(ctx, []string{req.MediaItemId})
-	if aggErr != nil {
-		span.RecordError(aggErr)
-		span.SetStatus(otelcodes.Error, aggErr.Error())
-		slog.Error("get rating aggregate", slog.Any("err", aggErr))
-		return nil, status.Error(codes.Internal, "internal error")
-	}
-	agg := aggs[req.MediaItemId]
-	return &eveyv1.GetRatingAggregateResponse{
-		Average: agg.Average,
-		Count:   int32(agg.Count),
-	}, nil
+	// The legacy 1-10 star-rating aggregate (the `ratings` table) was removed;
+	// thumbs (like/dislike) are the single rating model and aren't aggregated
+	// here. Returns empty for proto/client compatibility — no frontend caller
+	// today; a deliberate proto cleanup can drop this RPC later.
+	return &eveyv1.GetRatingAggregateResponse{Average: 0, Count: 0}, nil
 }
