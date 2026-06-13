@@ -561,6 +561,19 @@
         "score": {
           "type": "integer",
           "format": "int32"
+        },
+        "seasonNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Populated for episodes (zero otherwise) so clients can render\n\"S{season}E{episode} - {title}\" without another roundtrip."
+        },
+        "episodeNumber": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "primaryBlurhash": {
+          "type": "string",
+          "description": "Primary artwork blurhash placeholder. Empty when the item has no\nprimary artwork or pre-dates the blurhash field. Lets home/library\ngrids render a coloured preview before the poster image loads."
         }
       }
     },

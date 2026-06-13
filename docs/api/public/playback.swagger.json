@@ -60,6 +60,13 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "pagination.cursor",
+            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -367,6 +374,20 @@
               "type": "string"
             },
             "collectionFormat": "multi"
+          },
+          {
+            "name": "networkType",
+            "description": "network_type hints the active client connection (\"wifi\" or \"cellular\").\nEmpty defaults to wifi. When \"cellular\", the profile's\nmax_bitrate_cellular_kbps preference (if set) caps the stream.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "supportsHdr",
+            "description": "supports_hdr signals the client display can render HDR (HDR10/HLG) natively.\nThe web player sets it from the (dynamic-range: high) media query. When\nfalse (the default), an HDR source is transcoded/tonemapped to SDR; when\ntrue, an HDR10/HLG source can direct-play / remux. Dolby Vision always\ntranscodes regardless (a single bool can't distinguish a DoVi-capable\npanel from an HDR10-only one).",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -504,6 +525,10 @@
         },
         "isSelected": {
           "type": "boolean"
+        },
+        "blurhash": {
+          "type": "string",
+          "description": "Compact (~30-char) blurhash placeholder. Empty when the source predates\nthe feature or encoding failed. Clients decode it to show a coloured\npreview while the full image is still loading (Wolt blurhash spec)."
         }
       }
     },
@@ -705,6 +730,13 @@
             "type": "object",
             "$ref": "#/definitions/v1Trailer"
           }
+        },
+        "certificationsByCountry": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Per-country content ratings (e.g. {\"US\":\"PG-13\",\"FR\":\"-12\"}).\nofficial_rating mirrors the \"US\" entry when available."
         }
       }
     },
@@ -851,6 +883,10 @@
         "pageSize": {
           "type": "integer",
           "format": "int32"
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes."
         }
       }
     },
@@ -872,6 +908,10 @@
         "totalPages": {
           "type": "integer",
           "format": "int32"
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "Opaque cursor for the next page. Empty when no more pages or when\nthe server fell back to offset pagination."
         }
       }
     },
@@ -1140,6 +1180,28 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "title": {
+          "type": "string",
+          "description": "Display metadata, populated by GetWatchHistory so clients show a real label\ninstead of the bare media_item_id. Empty when the item can't be resolved.\n\nmovie title, or episode title for episodes"
+        },
+        "mediaType": {
+          "type": "string",
+          "description": "\"movie\" | \"episode\" | \"track\" | ..."
+        },
+        "indexNumber": {
+          "type": "integer",
+          "format": "int32",
+          "title": "episode number (episodes only)"
+        },
+        "parentIndexNumber": {
+          "type": "integer",
+          "format": "int32",
+          "title": "season number (episodes only)"
+        },
+        "seriesTitle": {
+          "type": "string",
+          "title": "parent series title (episodes only)"
         }
       }
     }

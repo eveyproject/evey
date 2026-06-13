@@ -16,6 +16,39 @@
     "application/json"
   ],
   "paths": {
+    "/api/v1/admin/media/match-orphans": {
+      "post": {
+        "summary": "MatchOrphansInLibrary targets only items missing provider IDs (TMDB\nnever matched them at scan time) and queues an async re-enrichment.\nReturns immediately with the count of queued items; the enricher\npool drains them in the background under its existing concurrency\nand rate-limit caps. Idempotent — re-run to pick up the still-\norphaned remainder once any rate limits clear.",
+        "operationId": "AdminMediaService_MatchOrphansInLibrary",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1MatchOrphansInLibraryResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1MatchOrphansInLibraryRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
     "/api/v1/admin/media/refresh-metadata": {
       "post": {
         "operationId": "AdminMediaService_RefreshAllMetadata",
@@ -33,6 +66,169 @@
             }
           }
         },
+        "parameters": [
+          {
+            "name": "libraryId",
+            "description": "Optional: when set, only items of this library are refreshed.\nEmpty (default) refreshes every library.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/seek-index": {
+      "get": {
+        "summary": "ScanSeekIndex returns the cached result of the last completed scan for the\nscope — instant, no disk I/O. scanned_at_ms is 0 when no scan has completed\nyet; kick one with StartSeekIndexScan and poll GetSeekIndexJob. Files\nwithout an index seek/resume slowly because the player has to scan\nlinearly; has_backup reports whether a prior reindex left a restorable\n.mkvgobak.",
+        "operationId": "AdminMediaService_ScanSeekIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ScanSeekIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "libraryId",
+            "description": "Optional: when set, only this library is scanned. Empty = every library.",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/seek-index/job": {
+      "get": {
+        "summary": "GetSeekIndexJob reports the live progress of the running seek-index job\n(scan, reindex or rollback) plus a summary of the last finished one.\nPoll it after any Start*/Reindex*/Rollback* call.",
+        "operationId": "AdminMediaService_GetSeekIndexJob",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetSeekIndexJobResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/seek-index/reindex-library": {
+      "post": {
+        "summary": "ReindexLibrarySeekIndex kicks a background job that re-scans the library\nthen rebuilds the seek index of every un-indexed file. Returns immediately;\nprogress (scanning → processing, done/total) via GetSeekIndexJob.",
+        "operationId": "AdminMediaService_ReindexLibrarySeekIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ReindexLibrarySeekIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1ReindexLibrarySeekIndexRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/seek-index/rollback-library": {
+      "post": {
+        "summary": "RollbackLibrarySeekIndex kicks a background job that re-scans the library\nthen restores every file that has a .mkvgobak backup. Returns immediately;\nprogress via GetSeekIndexJob.",
+        "operationId": "AdminMediaService_RollbackLibrarySeekIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RollbackLibrarySeekIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1RollbackLibrarySeekIndexRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/seek-index/scan": {
+      "post": {
+        "summary": "StartSeekIndexScan kicks a background scan of the library (all libraries\nwhen library_id is empty) and returns immediately. Scanning walks every\nMKV/WebM on disk so it can take minutes on a large/network-mounted library\n— a synchronous call would time out behind a reverse proxy. Read-only.\nFails with RESOURCE_EXHAUSTED if a seek-index job is already running.",
+        "operationId": "AdminMediaService_StartSeekIndexScan",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1StartSeekIndexScanResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1StartSeekIndexScanRequest"
+            }
+          }
+        ],
         "tags": [
           "AdminMediaService"
         ]
@@ -58,6 +254,68 @@
         "parameters": [
           {
             "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/{mediaId}/seek-index/reindex": {
+      "post": {
+        "summary": "ReindexMediaSeekIndex rebuilds one media file's seek index in the\nbackground (a rewrite of a multi-GB file takes minutes) and returns\nimmediately with accepted=true. Outcome is observable via GetSeekIndexJob.\nThe rebuild is validated + cross-checked before an atomic swap and the\noriginal is kept as a .mkvgobak; on any failure the original is left\nuntouched. Fails with RESOURCE_EXHAUSTED if a job is already running.",
+        "operationId": "AdminMediaService_ReindexMediaSeekIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ReindexMediaSeekIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminMediaService"
+        ]
+      }
+    },
+    "/api/v1/admin/media/{mediaId}/seek-index/rollback": {
+      "post": {
+        "summary": "RollbackMediaSeekIndex restores one media file from its .mkvgobak backup\nin the background, undoing a prior reindex. Returns accepted=true\nimmediately; outcome via GetSeekIndexJob. Fails fast if the media has no\nfile, or with RESOURCE_EXHAUSTED if a job is already running.",
+        "operationId": "AdminMediaService_RollbackMediaSeekIndex",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RollbackMediaSeekIndexResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaId",
             "in": "path",
             "required": true,
             "type": "string"
@@ -132,6 +390,72 @@
         }
       }
     },
+    "v1GetSeekIndexJobResponse": {
+      "type": "object",
+      "properties": {
+        "running": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string",
+          "title": "\"scan\" | \"reindex\" | \"rollback\""
+        },
+        "scope": {
+          "type": "string",
+          "title": "\"\" = all libraries, else the library id"
+        },
+        "phase": {
+          "type": "string",
+          "title": "\"scanning\" | \"processing\""
+        },
+        "done": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failed": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skipped": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "currentPath": {
+          "type": "string"
+        },
+        "startedAtMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "last": {
+          "$ref": "#/definitions/v1SeekIndexJobSummary",
+          "title": "unset until a first job finishes"
+        }
+      }
+    },
+    "v1MatchOrphansInLibraryRequest": {
+      "type": "object",
+      "properties": {
+        "libraryId": {
+          "type": "string",
+          "description": "Optional: when set, only orphans of this library are queued.\nEmpty (default) targets orphans in every library."
+        }
+      }
+    },
+    "v1MatchOrphansInLibraryResponse": {
+      "type": "object",
+      "properties": {
+        "queued": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of orphaned items queued for enrichment. The job runs async;\nthe actual matched count is observable by re-listing items with\nempty providerIds."
+        }
+      }
+    },
     "v1RefreshAllMetadataResponse": {
       "type": "object",
       "properties": {
@@ -140,6 +464,229 @@
           "format": "int32"
         }
       }
+    },
+    "v1ReindexLibrarySeekIndexRequest": {
+      "type": "object",
+      "properties": {
+        "libraryId": {
+          "type": "string"
+        }
+      }
+    },
+    "v1ReindexLibrarySeekIndexResponse": {
+      "type": "object",
+      "properties": {
+        "queued": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Deprecated: the candidate count is only known once the background scan\nphase completes — always -1 now. Poll GetSeekIndexJob for done/total."
+        }
+      }
+    },
+    "v1ReindexMediaSeekIndexResponse": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean",
+          "description": "The repair now runs in the background; per-file details (backup path,\nwarnings, sizes) land in the server log and the job summary."
+        },
+        "skipped": {
+          "type": "boolean",
+          "description": "Deprecated pre-async fields, always zero now that the repair is a job."
+        },
+        "reindexed": {
+          "type": "boolean"
+        },
+        "backupPath": {
+          "type": "string"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "srcBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "dstBytes": {
+          "type": "string",
+          "format": "int64"
+        }
+      }
+    },
+    "v1RollbackLibrarySeekIndexRequest": {
+      "type": "object",
+      "properties": {
+        "libraryId": {
+          "type": "string"
+        }
+      }
+    },
+    "v1RollbackLibrarySeekIndexResponse": {
+      "type": "object",
+      "properties": {
+        "queued": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Deprecated: always -1 — poll GetSeekIndexJob for done/total."
+        }
+      }
+    },
+    "v1RollbackMediaSeekIndexResponse": {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        },
+        "restored": {
+          "type": "boolean",
+          "description": "Deprecated: the restore now runs in the background — poll GetSeekIndexJob."
+        }
+      }
+    },
+    "v1ScanSeekIndexResponse": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SeekIndexItem"
+          }
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32",
+          "title": "EBML files inspected"
+        },
+        "missingIndex": {
+          "type": "integer",
+          "format": "int32",
+          "title": "count with has_index == false"
+        },
+        "withBackup": {
+          "type": "integer",
+          "format": "int32",
+          "title": "count with has_backup == true"
+        },
+        "scannedAtMs": {
+          "type": "string",
+          "format": "int64",
+          "description": "When the last completed scan for this scope finished (unix ms). 0 = no\nscan has completed yet — items/counters are empty, not \"all clean\"."
+        }
+      }
+    },
+    "v1SeekIndexItem": {
+      "type": "object",
+      "properties": {
+        "mediaId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "hasIndex": {
+          "type": "boolean",
+          "title": "false = muxed without Cues → slow seek/resume"
+        },
+        "hasBackup": {
+          "type": "boolean",
+          "title": "a .mkvgobak exists → a prior reindex is rollback-able"
+        },
+        "sizeBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "container": {
+          "type": "string",
+          "title": "e.g. \"mkv\", \"webm\""
+        }
+      },
+      "description": "SeekIndexItem is the per-file diagnosis surfaced by ScanSeekIndex."
+    },
+    "v1SeekIndexJobFailure": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "description": "The failure came from a read-only mount (:ro media volume) — the user\nmust remount read-write before repairing."
+        }
+      },
+      "description": "SeekIndexJobFailure records one file a job could not process."
+    },
+    "v1SeekIndexJobSummary": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "title": "\"scan\" | \"reindex\" | \"rollback\""
+        },
+        "scope": {
+          "type": "string",
+          "title": "\"\" = all libraries, else the library id"
+        },
+        "done": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "failed": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "skipped": {
+          "type": "integer",
+          "format": "int32",
+          "title": "files that already had an index (nothing to do)"
+        },
+        "total": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "finishedAtMs": {
+          "type": "string",
+          "format": "int64"
+        },
+        "error": {
+          "type": "string",
+          "title": "job-level error (e.g. the scan itself failed)"
+        },
+        "readOnly": {
+          "type": "boolean",
+          "title": "at least one failure came from a read-only mount"
+        },
+        "failures": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SeekIndexJobFailure"
+          },
+          "title": "capped at 50"
+        }
+      },
+      "description": "SeekIndexJobSummary describes the last finished job (since server boot)."
+    },
+    "v1StartSeekIndexScanRequest": {
+      "type": "object",
+      "properties": {
+        "libraryId": {
+          "type": "string",
+          "description": "Optional: when set, only this library is scanned. Empty = every library."
+        }
+      }
+    },
+    "v1StartSeekIndexScanResponse": {
+      "type": "object"
     }
   }
 }

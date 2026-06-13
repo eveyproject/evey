@@ -36,6 +36,7 @@
         "parameters": [
           {
             "name": "profileId",
+            "description": "Deprecated: playlists are user-scoped; the handler uses claims.UserID and\nignores this field. Retained for wire compatibility; remove in a future\nproto release per ADR-0004.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -306,6 +307,9 @@
         },
         "profileId": {
           "type": "string"
+        },
+        "mediaType": {
+          "type": "string"
         }
       }
     },
@@ -450,6 +454,9 @@
         "year": {
           "type": "integer",
           "format": "int32"
+        },
+        "mediaType": {
+          "type": "string"
         }
       }
     },

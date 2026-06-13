@@ -36,6 +36,36 @@
         "tags": [
           "CollectionService"
         ]
+      },
+      "post": {
+        "operationId": "CollectionService_CreateCollection",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1CreateCollectionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1CreateCollectionRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CollectionService"
+        ]
       }
     },
     "/api/v1/collections/{id}": {
@@ -94,6 +124,42 @@
         "tags": [
           "CollectionService"
         ]
+      },
+      "put": {
+        "operationId": "CollectionService_UpdateCollection",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1UpdateCollectionResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CollectionServiceUpdateCollectionBody"
+            }
+          }
+        ],
+        "tags": [
+          "CollectionService"
+        ]
       }
     },
     "/api/v1/collections/{id}/items": {
@@ -138,10 +204,79 @@
         "tags": [
           "CollectionService"
         ]
+      },
+      "post": {
+        "operationId": "CollectionService_AddCollectionItem",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1AddCollectionItemResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CollectionServiceAddCollectionItemBody"
+            }
+          }
+        ],
+        "tags": [
+          "CollectionService"
+        ]
       }
     }
   },
   "definitions": {
+    "CollectionServiceAddCollectionItemBody": {
+      "type": "object",
+      "properties": {
+        "mediaItemId": {
+          "type": "string"
+        },
+        "sortOrder": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "CollectionServiceUpdateCollectionBody": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CollectionRule"
+          }
+        },
+        "sortBy": {
+          "type": "string"
+        },
+        "smart": {
+          "type": "boolean"
+        }
+      }
+    },
     "protobufAny": {
       "type": "object",
       "properties": {
@@ -169,6 +304,9 @@
           }
         }
       }
+    },
+    "v1AddCollectionItemResponse": {
+      "type": "object"
     },
     "v1CollectionItemProto": {
       "type": "object",
@@ -230,6 +368,62 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CollectionRule"
+          }
+        },
+        "sortBy": {
+          "type": "string"
+        },
+        "sortOrder": {
+          "type": "string"
+        }
+      }
+    },
+    "v1CollectionRule": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
+      }
+    },
+    "v1CreateCollectionRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1CollectionRule"
+          }
+        },
+        "sortBy": {
+          "type": "string"
+        },
+        "smart": {
+          "type": "boolean"
+        }
+      }
+    },
+    "v1CreateCollectionResponse": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "$ref": "#/definitions/v1CollectionProto"
         }
       }
     },
@@ -275,6 +469,14 @@
             "type": "object",
             "$ref": "#/definitions/v1CollectionProto"
           }
+        }
+      }
+    },
+    "v1UpdateCollectionResponse": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "$ref": "#/definitions/v1CollectionProto"
         }
       }
     }

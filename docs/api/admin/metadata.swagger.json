@@ -367,9 +367,50 @@
           "MetadataService"
         ]
       }
+    },
+    "/api/v1/metadata/{mediaItemId}/research": {
+      "post": {
+        "operationId": "MetadataService_ResearchMetadata",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ResearchMetadataResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "mediaItemId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MetadataServiceResearchMetadataBody"
+            }
+          }
+        ],
+        "tags": [
+          "MetadataService"
+        ]
+      }
     }
   },
   "definitions": {
+    "MetadataServiceResearchMetadataBody": {
+      "type": "object"
+    },
     "MetadataServiceUpdateMetadataBody": {
       "type": "object",
       "properties": {
@@ -447,6 +488,10 @@
         },
         "isSelected": {
           "type": "boolean"
+        },
+        "blurhash": {
+          "type": "string",
+          "description": "Compact (~30-char) blurhash placeholder. Empty when the source predates\nthe feature or encoding failed. Clients decode it to show a coloured\npreview while the full image is still loading (Wolt blurhash spec)."
         }
       }
     },
@@ -639,6 +684,20 @@
     },
     "v1RemoveMetadataOverrideResponse": {
       "type": "object"
+    },
+    "v1ResearchMetadataResponse": {
+      "type": "object",
+      "properties": {
+        "mediaItemId": {
+          "type": "string"
+        },
+        "matched": {
+          "type": "boolean"
+        },
+        "newTitle": {
+          "type": "string"
+        }
+      }
     },
     "v1SearchMetadataResponse": {
       "type": "object",

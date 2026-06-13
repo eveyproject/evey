@@ -53,6 +53,12 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "album",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -329,6 +335,10 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "blurhash": {
+          "type": "string",
+          "description": "Compact (~30-char) blurhash placeholder computed at scan time. Empty\nwhen the file pre-dates migration 000096 or the encoder couldn't\ndecode the image (HEIC, RAW, etc.). Clients show a coloured preview\nwhile the full photo streams in."
         }
       }
     },

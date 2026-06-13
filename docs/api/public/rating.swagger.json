@@ -84,101 +84,6 @@
         ]
       }
     },
-    "/api/v1/media/{mediaItemId}/rating": {
-      "get": {
-        "operationId": "RatingService_GetStarRating",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1GetStarRatingResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "mediaItemId",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "RatingService"
-        ]
-      },
-      "delete": {
-        "operationId": "RatingService_DeleteStarRating",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "type": "object",
-              "properties": {}
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "mediaItemId",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          }
-        ],
-        "tags": [
-          "RatingService"
-        ]
-      },
-      "post": {
-        "operationId": "RatingService_PostStarRating",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/v1PostStarRatingResponse"
-            }
-          },
-          "default": {
-            "description": "An unexpected error response.",
-            "schema": {
-              "$ref": "#/definitions/rpcStatus"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "mediaItemId",
-            "in": "path",
-            "required": true,
-            "type": "string"
-          },
-          {
-            "name": "body",
-            "in": "body",
-            "required": true,
-            "schema": {
-              "$ref": "#/definitions/RatingServicePostStarRatingBody"
-            }
-          }
-        ],
-        "tags": [
-          "RatingService"
-        ]
-      }
-    },
     "/api/v1/media/{mediaItemId}/rating/aggregate": {
       "get": {
         "operationId": "RatingService_GetRatingAggregate",
@@ -211,15 +116,6 @@
     }
   },
   "definitions": {
-    "RatingServicePostStarRatingBody": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "integer",
-          "format": "int32"
-        }
-      }
-    },
     "RatingServicePutThumbRatingBody": {
       "type": "object",
       "properties": {
@@ -274,24 +170,6 @@
           "format": "double"
         },
         "count": {
-          "type": "integer",
-          "format": "int32"
-        }
-      }
-    },
-    "v1GetStarRatingResponse": {
-      "type": "object",
-      "properties": {
-        "value": {
-          "type": "integer",
-          "format": "int32"
-        }
-      }
-    },
-    "v1PostStarRatingResponse": {
-      "type": "object",
-      "properties": {
-        "value": {
           "type": "integer",
           "format": "int32"
         }

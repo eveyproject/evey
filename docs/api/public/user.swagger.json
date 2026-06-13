@@ -426,6 +426,37 @@
         ]
       }
     },
+    "/api/v1/invites/{code}/validate": {
+      "get": {
+        "summary": "ValidateInvite reports whether an invite code can still be used to\nregister, so the registration form can show a clear \"link no longer\nvalid\" state instead of a full form that only fails on submit. Public\n(the code is the capability); reveals nothing beyond usability + whether\nthe resulting account is an admin one.",
+        "operationId": "UserService_ValidateInvite",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ValidateInviteResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
     "/api/v1/invites/{id}": {
       "delete": {
         "operationId": "UserService_RevokeInviteLink",
@@ -514,6 +545,44 @@
             "required": true,
             "schema": {
               "$ref": "#/definitions/UserServiceUpdateProfileBody"
+            }
+          }
+        ],
+        "tags": [
+          "UserService"
+        ]
+      }
+    },
+    "/api/v1/profiles/{id}/default": {
+      "post": {
+        "operationId": "UserService_SetDefaultProfile",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Profile"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UserServiceSetDefaultProfileBody"
             }
           }
         ],
@@ -783,8 +852,29 @@
         },
         "maxRating": {
           "type": "string"
+        },
+        "isKids": {
+          "type": "boolean"
+        },
+        "pin": {
+          "type": "string",
+          "title": "4-digit PIN required when kids profile exists"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "maxAge": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Parental age cap. Only honored when is_kids=true; ignored otherwise.\nUnset = fall back to the implicit kids default (12)."
         }
       }
+    },
+    "UserServiceSetDefaultProfileBody": {
+      "type": "object"
     },
     "UserServiceUpdateProfileBody": {
       "type": "object",
@@ -810,6 +900,21 @@
         },
         "locale": {
           "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "isKids": {
+          "type": "boolean"
+        },
+        "pin": {
+          "type": "string",
+          "title": "empty string clears the PIN; 4 digits sets it"
+        },
+        "maxAge": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Parental age cap. Only honored when the profile is_kids=true; ignored\notherwise. Sentinel: -1 clears any stored value, 0+ sets it."
         }
       }
     },
@@ -829,6 +934,14 @@
           "type": "boolean"
         },
         "maxStreams": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxProfiles": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxDevicesPerProfile": {
           "type": "integer",
           "format": "int32"
         }
@@ -884,6 +997,12 @@
         "createdAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -928,6 +1047,12 @@
       "properties": {
         "name": {
           "type": "string"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -941,6 +1066,15 @@
         "expiresAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "libraryIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isAdmin": {
+          "type": "boolean"
         }
       }
     },
@@ -958,6 +1092,14 @@
         },
         "isAdmin": {
           "type": "boolean"
+        },
+        "maxProfiles": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "maxDevicesPerProfile": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -994,6 +1136,15 @@
         "createdAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "libraryIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "isAdmin": {
+          "type": "boolean"
         }
       }
     },
@@ -1108,6 +1259,19 @@
         },
         "locale": {
           "type": "string"
+        },
+        "region": {
+          "type": "string",
+          "title": "ISO 3166-1 alpha-2, empty/absent = resolve via server/locale fallback"
+        },
+        "isKids": {
+          "type": "boolean",
+          "description": "Kids profile: restricted content by default + forces non-kids profiles\non the same user to have a PIN set."
+        },
+        "maxAge": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Parental MaxAge cap stored on the profile. Only meaningful when\nis_kids=true; absent means \"use the implicit kids default (12)\"."
         }
       }
     },
@@ -1131,6 +1295,14 @@
       "properties": {
         "refreshToken": {
           "type": "string"
+        },
+        "profileId": {
+          "type": "string",
+          "description": "Optional profile id to activate on the new access token.\nMust belong to the same user or the refresh is rejected; absent falls\nback to the profile the token was issued for (else the default)."
+        },
+        "pinToken": {
+          "type": "string",
+          "description": "Short-lived proof, minted by /parental/verify-pin, that the caller entered\nthe target profile's PIN. Required only when switching FROM a kids profile\nTO a non-kids one; ignored otherwise."
         }
       }
     },
@@ -1211,6 +1383,28 @@
         "updatedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "maxProfiles": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Per-user caps. 0 / absent = unlimited."
+        },
+        "maxDevicesPerProfile": {
+          "type": "integer",
+          "format": "int32"
+        }
+      }
+    },
+    "v1ValidateInviteResponse": {
+      "type": "object",
+      "properties": {
+        "valid": {
+          "type": "boolean",
+          "title": "false = revoked, expired, or exhausted"
+        },
+        "isAdmin": {
+          "type": "boolean",
+          "title": "the account this invite would create is an admin one"
         }
       }
     }

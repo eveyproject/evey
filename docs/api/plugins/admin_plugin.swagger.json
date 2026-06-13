@@ -16,6 +16,61 @@
     "application/json"
   ],
   "paths": {
+    "/api/v1/admin/plugin-resource-limits": {
+      "get": {
+        "summary": "GetPluginResourceLimits returns the effective per-plugin resource caps the\nrunner is enforcing (env defaults overlaid with admin overrides).",
+        "operationId": "AdminPluginService_GetPluginResourceLimits",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PluginResourceLimits"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminPluginService"
+        ]
+      },
+      "put": {
+        "summary": "UpdatePluginResourceLimits validates, persists and applies the per-plugin\nresource caps live: memory/PID/disk on the next monitor sweep, cpu_nice and\nsandbox_mode to plugins started afterwards. Returns the new effective caps.",
+        "operationId": "AdminPluginService_UpdatePluginResourceLimits",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PluginResourceLimits"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "description": "PluginResourceLimits is the effective per-plugin cap set enforced by the\nrunner's resource monitor. Used as both the read response and the update\nrequest (server validates ranges and ignores out-of-range values).",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1PluginResourceLimits"
+            }
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
+    },
     "/api/v1/admin/plugin-runtimes": {
       "get": {
         "operationId": "AdminPluginService_ListPluginRuntimes",
@@ -242,6 +297,45 @@
         ]
       }
     },
+    "/api/v1/admin/plugins/{pluginId}/apply-update": {
+      "post": {
+        "summary": "ApplyPluginUpdate applies a previously previewed update. The\nacknowledged_hash must match the SHA-256 of the candidate ZIP computed\nduring the preview call (anti-TOCTOU guard). When the preview indicated\nrequires_ack=true, the admin must explicitly confirm before calling this.",
+        "operationId": "AdminPluginService_ApplyPluginUpdate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1Plugin"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pluginId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminPluginServiceApplyPluginUpdateBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
+    },
     "/api/v1/admin/plugins/{pluginId}/config": {
       "get": {
         "operationId": "AdminPluginService_GetPluginConfig",
@@ -357,9 +451,110 @@
           "AdminPluginService"
         ]
       }
+    },
+    "/api/v1/admin/plugins/{pluginId}/preview-update": {
+      "post": {
+        "summary": "PreviewPluginUpdate returns a diff of what would change if the candidate\nZIP were applied to the currently installed plugin. No state is mutated.",
+        "operationId": "AdminPluginService_PreviewPluginUpdate",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1PreviewPluginUpdateResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pluginId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminPluginServicePreviewPluginUpdateBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
+    },
+    "/api/v1/plugins/{pluginId}/token": {
+      "post": {
+        "summary": "IssuePluginToken returns a short-lived (5min) scoped JWT for the plugin iframe.\nScopes are the intersection of the plugin manifest permissions and the\nadmin-approved permissions, filtered through the auth-layer whitelist.\nForbidden scopes (admin:*, auth:*, system:*, user:write, library:write) are\nstripped unconditionally.",
+        "operationId": "AdminPluginService_IssuePluginToken",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1IssuePluginTokenResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "pluginId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AdminPluginServiceIssuePluginTokenBody"
+            }
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
     }
   },
   "definitions": {
+    "AdminPluginServiceApplyPluginUpdateBody": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "acknowledgedHash": {
+          "type": "string",
+          "description": "acknowledged_hash must match the source_hash returned by PreviewPluginUpdate.\nEnsures the admin acknowledged exactly the candidate that was previewed."
+        }
+      }
+    },
+    "AdminPluginServiceIssuePluginTokenBody": {
+      "type": "object"
+    },
+    "AdminPluginServicePreviewPluginUpdateBody": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string"
+        }
+      }
+    },
     "AdminPluginServiceUpdatePluginConfigBody": {
       "type": "object",
       "properties": {
@@ -416,6 +611,17 @@
         }
       }
     },
+    "v1FrontModule": {
+      "type": "object",
+      "properties": {
+        "slot": {
+          "type": "string"
+        },
+        "src": {
+          "type": "string"
+        }
+      }
+    },
     "v1GetPluginLogsResponse": {
       "type": "object",
       "properties": {
@@ -440,6 +646,28 @@
         },
         "name": {
           "type": "string"
+        },
+        "acceptPermissionChanges": {
+          "type": "boolean",
+          "description": "Set to true after the admin has explicitly acknowledged the new\npermissions / capabilities / slots / external_fetch hosts requested by\nan update. When false, an update that escalates permissions returns\nFAILED_PRECONDITION with the diff in the error message and the install\nis rolled back. The frontend should surface a modal listing the diff\nand retry with this flag set after the admin confirms."
+        }
+      }
+    },
+    "v1IssuePluginTokenResponse": {
+      "type": "object",
+      "properties": {
+        "token": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
@@ -515,8 +743,59 @@
         },
         "sourceHash": {
           "type": "string"
+        },
+        "analysisReport": {
+          "$ref": "#/definitions/v1PluginAnalysisReport"
+        },
+        "errorMessage": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "frontend": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1FrontModule"
+          }
+        },
+        "externalFetch": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "webRoot": {
+          "type": "string"
         }
       }
+    },
+    "v1PluginAnalysisReport": {
+      "type": "object",
+      "properties": {
+        "safe": {
+          "type": "boolean"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "urls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1PluginExtractedURL"
+          }
+        },
+        "fileCount": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "PluginAnalysisReport exposes the static-analysis warnings recorded at\ninstall time so the admin can audit them post-install."
     },
     "v1PluginConfig": {
       "type": "object",
@@ -532,6 +811,21 @@
         },
         "configSchemaJson": {
           "type": "string"
+        }
+      }
+    },
+    "v1PluginExtractedURL": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "format": "int32"
         }
       }
     },
@@ -555,6 +849,36 @@
           "format": "date-time"
         }
       }
+    },
+    "v1PluginResourceLimits": {
+      "type": "object",
+      "properties": {
+        "memoryMb": {
+          "type": "integer",
+          "format": "int32",
+          "title": "max RSS per plugin (MiB); 0 = package default"
+        },
+        "pidsMax": {
+          "type": "integer",
+          "format": "int32",
+          "title": "max threads/processes per plugin; 0 = package default"
+        },
+        "diskMaxMb": {
+          "type": "integer",
+          "format": "int32",
+          "title": "max install-dir size per plugin (MiB); 0 = disabled"
+        },
+        "cpuNice": {
+          "type": "integer",
+          "format": "int32",
+          "title": "scheduling nice applied at spawn (0-19)"
+        },
+        "sandboxMode": {
+          "type": "string",
+          "title": "auto | landlock | bubblewrap | strict | basic"
+        }
+      },
+      "description": "PluginResourceLimits is the effective per-plugin cap set enforced by the\nrunner's resource monitor. Used as both the read response and the update\nrequest (server validates ranges and ignores out-of-range values)."
     },
     "v1PluginRuntime": {
       "type": "object",
@@ -591,8 +915,104 @@
       ],
       "default": "PLUGIN_STATE_UNSPECIFIED"
     },
+    "v1PreviewPluginUpdateResponse": {
+      "type": "object",
+      "properties": {
+        "currentVersion": {
+          "type": "string"
+        },
+        "candidateVersion": {
+          "type": "string"
+        },
+        "permissionsAdded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permissionsRemoved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "capabilitiesAdded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "capabilitiesRemoved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "slotsAdded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "slotsRemoved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "externalFetchAdded": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "externalFetchRemoved": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "newFindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1SecurityFinding"
+          }
+        },
+        "signatureStatus": {
+          "type": "string"
+        },
+        "requiresAck": {
+          "type": "boolean"
+        },
+        "sourceHash": {
+          "type": "string"
+        }
+      }
+    },
     "v1RemovePluginRuntimeResponse": {
       "type": "object"
+    },
+    "v1SecurityFinding": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "file": {
+          "type": "string"
+        },
+        "line": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "description": {
+          "type": "string"
+        }
+      }
     },
     "v1UninstallPluginResponse": {
       "type": "object"

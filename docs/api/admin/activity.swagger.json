@@ -92,6 +92,13 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "pagination.cursor",
+            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -156,6 +163,13 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "pagination.cursor",
+            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes.",
+            "in": "query",
+            "required": false,
+            "type": "string"
           }
         ],
         "tags": [
@@ -720,6 +734,10 @@
         "pageSize": {
           "type": "integer",
           "format": "int32"
+        },
+        "cursor": {
+          "type": "string",
+          "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes."
         }
       }
     },
@@ -741,6 +759,10 @@
         "totalPages": {
           "type": "integer",
           "format": "int32"
+        },
+        "nextCursor": {
+          "type": "string",
+          "description": "Opaque cursor for the next page. Empty when no more pages or when\nthe server fell back to offset pagination."
         }
       }
     },
@@ -874,25 +896,29 @@
       "properties": {
         "totalPlays": {
           "type": "integer",
-          "format": "int32"
+          "format": "int32",
+          "description": "All-time number of play sessions."
         },
         "totalBandwidthBytes": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "description": "Streaming bytes actually served, integrated from the periodic\nserver-metric samples (real measurement, accumulates from the moment the\nsampler first ran — bounded by EVEY_METRICS_RETENTION_DAYS)."
         },
         "popularMedia": {
           "type": "array",
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1PopularMedia"
-          }
+          },
+          "description": "Top played items over the last 90 days."
         },
         "activeUsers": {
           "type": "array",
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1ActiveUser"
-          }
+          },
+          "description": "Most active users over the last 30 days."
         },
         "totalUsers": {
           "type": "integer",
@@ -904,7 +930,13 @@
         },
         "totalStorageBytes": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "description": "Total on-disk size of every media file in the catalog."
+        },
+        "totalPlayTimeMs": {
+          "type": "string",
+          "format": "int64",
+          "description": "All-time cumulative watch time across every session."
         }
       }
     },

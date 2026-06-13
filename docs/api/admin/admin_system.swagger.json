@@ -229,6 +229,21 @@
         "totalUsers": {
           "type": "integer",
           "format": "int32"
+        },
+        "streamingBps": {
+          "type": "string",
+          "format": "int64",
+          "description": "Measured streaming throughput: bytes actually written to stream/HLS/\ndownload responses since the previous GetDashboard call, as bits/s.\n-1 on the very first call (no previous sample to diff against)."
+        },
+        "streamingBytesTotal": {
+          "type": "string",
+          "format": "int64",
+          "description": "Cumulative streaming bytes served since the server started."
+        },
+        "activeSessionsBps": {
+          "type": "string",
+          "format": "int64",
+          "description": "Theoretical outgoing rate: the summed source bitrate of every active\nplay session — what the server would push if every client pulled at\nfull speed."
         }
       }
     },
@@ -290,6 +305,13 @@
       "properties": {
         "setupComplete": {
           "type": "boolean"
+        },
+        "serverLanguage": {
+          "type": "string",
+          "description": "server_language/server_region expose the server-wide defaults so the\nSPA can render pre-auth routes (login, setup) in the admin-picked\nlanguage instead of falling back to navigator.language."
+        },
+        "serverRegion": {
+          "type": "string"
         }
       }
     },
@@ -309,6 +331,13 @@
           "type": "string"
         },
         "baseUrl": {
+          "type": "string"
+        },
+        "serverLanguage": {
+          "type": "string",
+          "description": "Optional: locale+region chosen during the wizard. Persisted as\nserver.language / server.region so new profiles inherit them."
+        },
+        "serverRegion": {
           "type": "string"
         }
       }

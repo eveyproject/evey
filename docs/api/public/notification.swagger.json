@@ -16,6 +16,50 @@
     "application/json"
   ],
   "paths": {
+    "/api/v1/admin/notifications": {
+      "get": {
+        "operationId": "NotificationService_ListAdminNotifications",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListAdminNotificationsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "unreadOnly",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
+          }
+        ],
+        "tags": [
+          "NotificationService"
+        ]
+      }
+    },
     "/api/v1/admin/notifications/settings": {
       "get": {
         "operationId": "NotificationService_GetGlobalNotificationSettings",
@@ -337,6 +381,18 @@
         "count": {
           "type": "integer",
           "format": "int32"
+        }
+      }
+    },
+    "v1ListAdminNotificationsResponse": {
+      "type": "object",
+      "properties": {
+        "notifications": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1Notification"
+          }
         }
       }
     },
