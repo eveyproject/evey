@@ -11,6 +11,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -76,6 +77,7 @@ func TestSeekIndexError_Mapping(t *testing.T) {
 		{"erofs wrapped", &os.PathError{Op: "rename", Path: "/media/m.mkv", Err: syscall.EROFS}, codes.FailedPrecondition},
 		{"erofs by message", errors.New("mkvgo reindex: rebuild: read-only file system"), codes.FailedPrecondition},
 		{"job running", fmt.Errorf("seek-index reindex: %w", appmaintenance.ErrJobRunning), codes.ResourceExhausted},
+		{"unknown media", fmt.Errorf("seek-index reindex: lookup media x: %w", shared.ErrNotFound), codes.NotFound},
 		{"anything else sanitized", errors.New("boom"), codes.Internal},
 	}
 	for _, tc := range cases {

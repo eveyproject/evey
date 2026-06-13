@@ -8,11 +8,13 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type adminMediaHandler struct {
@@ -123,14 +125,16 @@ func (d *adminMediaHandler) seekIndexConfigured(ctx context.Context, span trace.
 }
 
 // seekIndexError maps the user-actionable seek-index failures (read-only media
-// volume, job already running) to translated, non-500 statuses; everything
-// else stays a sanitized internal error.
+// volume, job already running, unknown media) to translated, non-500 statuses;
+// everything else stays a sanitized internal error.
 func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err error) error {
 	switch {
 	case appmaintenance.IsReadOnlyFS(err):
 		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.seek_index_read_only")
 	case errors.Is(err, appmaintenance.ErrJobRunning):
 		return d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.seek_index_job_running")
+	case errors.Is(err, shared.ErrNotFound):
+		return status.Error(codes.NotFound, "media item not found")
 	default:
 		return internalError(op, err)
 	}
