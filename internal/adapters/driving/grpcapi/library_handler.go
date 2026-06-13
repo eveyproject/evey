@@ -234,7 +234,11 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 			slog.Warn("parental check", slog.Any("err", parentalErr))
 		}
 		span.SetStatus(otelcodes.Error, "parental restricted")
-		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.library.parental_restricted")
+		// Return NotFound (not PermissionDenied) so a kids profile can't tell a
+		// parental-blocked adult item from a non-existent one — matches the
+		// library-access path above and the HTTP 404 decision. The span still
+		// records the real reason for server-side debugging.
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	// Overlay translated metadata first (always, including fallback locale — the
 	// base title may be in another language).
@@ -316,7 +320,11 @@ func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.Get
 			slog.Warn("parental check", slog.Any("err", parentalErr))
 		}
 		span.SetStatus(otelcodes.Error, "parental restricted")
-		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.library.parental_restricted")
+		// Return NotFound (not PermissionDenied) so a kids profile can't tell a
+		// parental-blocked adult item from a non-existent one — matches the
+		// library-access path above and the HTTP 404 decision. The span still
+		// records the real reason for server-side debugging.
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	agg, err := h.query.GetSeriesAggregate(ctx, req.Id)
 	if err != nil {

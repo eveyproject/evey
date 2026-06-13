@@ -229,10 +229,12 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	}
 	if h.userQuery != nil {
 		if blocked, _ := h.isBlockedByParental(ctx, profileID, req.MediaItemId); blocked {
-			err := h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.playback.parental_blocked")
-			span.RecordError(err)
-			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, err
+			// NotFound, not PermissionDenied: starting a stream by media ID must
+			// not confirm to a kids profile that a parental-blocked adult item
+			// exists. Matches the library/aggregate paths and the HTTP 404
+			// decision ("hide existence"). The span keeps the real reason.
+			span.SetStatus(otelcodes.Error, "parental blocked")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 		}
 	}
 

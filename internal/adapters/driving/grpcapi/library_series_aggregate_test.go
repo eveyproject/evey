@@ -19,8 +19,8 @@ import (
 //
 // The handler enforces two gates before delegating to the query service:
 //   1. checkLibraryAccess  → NotFound on denial (IDOR-safe)
-//   2. isBlockedByParental → PermissionDenied when the series item itself is
-//      blocked by the caller's parental profile.
+//   2. isBlockedByParental → NotFound when the series item itself is blocked by
+//      the caller's parental profile (existence hidden, same as access denial).
 //
 // The response is counts-only: SeriesId, TotalDurationMs, EpisodeCount,
 // SeasonCount. Tests mirror the newPublicHandler / restrictedUserCtx pattern
@@ -112,9 +112,9 @@ func TestGetSeriesAggregate_MediaItemNotFound_NotFound(t *testing.T) {
 }
 
 // Parental-blocked: a kids profile whose MaxAge blocks the unrated series item
-// → PermissionDenied (the gate fires on the series MediaItem itself, before
-// any aggregate query).
-func TestGetSeriesAggregate_ParentalBlocked_PermissionDenied(t *testing.T) {
+// → NotFound (the gate fires on the series MediaItem itself, before any
+// aggregate query; existence is hidden rather than confirmed via PermissionDenied).
+func TestGetSeriesAggregate_ParentalBlocked_NotFound(t *testing.T) {
 	maxAge := 6
 	h, mediaQuery, accessRepo, profiles := newPublicHandler()
 
@@ -141,7 +141,7 @@ func TestGetSeriesAggregate_ParentalBlocked_PermissionDenied(t *testing.T) {
 	_, err := h.GetSeriesAggregate(ctx, &eveyv1.GetSeriesAggregateRequest{Id: "si-adult"})
 
 	require.Error(t, err)
-	assert.Equal(t, codes.PermissionDenied, status.Code(err), "parental gate on series must return PermissionDenied")
+	assert.Equal(t, codes.NotFound, status.Code(err), "parental gate on series must return NotFound (hide existence)")
 }
 
 // Underlying aggregate query error → Internal.

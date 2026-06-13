@@ -435,7 +435,9 @@ func TestLibraryHandler_GetMediaItem_ParentalFailsClosedOnProfileLookupError(t *
 
 	_, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-1"})
 	require.Error(t, err)
-	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	// Fail-closed still blocks; the client sees NotFound (existence hidden), not
+	// PermissionDenied — same opacity as the library-access path.
+	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
 func TestLibraryHandler_GetMediaItem_AdminBypassesAccess(t *testing.T) {

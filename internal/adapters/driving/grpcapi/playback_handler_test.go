@@ -360,8 +360,9 @@ func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	assert.Equal(t, codes.PermissionDenied, status.Code(err))
-	assert.Contains(t, status.Convert(err).Message(), "parental_blocked")
+	// Parental block returns NotFound (hide existence), not PermissionDenied.
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Contains(t, status.Convert(err).Message(), "not_found")
 }
 
 func TestPlaybackHandler_StartStream_ParentalBlocked_ForeignCertOnly(t *testing.T) {
@@ -397,8 +398,9 @@ func TestPlaybackHandler_StartStream_ParentalBlocked_ForeignCertOnly(t *testing.
 	})
 
 	require.Error(t, err)
-	assert.Equal(t, codes.PermissionDenied, status.Code(err))
-	assert.Contains(t, status.Convert(err).Message(), "parental_blocked")
+	// Parental block returns NotFound (hide existence), not PermissionDenied.
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Contains(t, status.Convert(err).Message(), "not_found")
 }
 
 func TestPlaybackHandler_StartStream_ParentalAllowed(t *testing.T) {
@@ -487,8 +489,9 @@ func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	assert.Equal(t, codes.PermissionDenied, status.Code(err))
-	assert.Contains(t, status.Convert(err).Message(), "parental_blocked")
+	// Parental block returns NotFound (hide existence), not PermissionDenied.
+	assert.Equal(t, codes.NotFound, status.Code(err))
+	assert.Contains(t, status.Convert(err).Message(), "not_found")
 }
 
 func intPtr(v int) *int       { return &v }
