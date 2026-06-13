@@ -39,7 +39,14 @@ func (f *fakeCalibrationSvc) Recalibrate(_ context.Context) error {
 	if f.recalErr != nil {
 		return f.recalErr
 	}
-	f.current = domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1440, BenchmarkedAt: time.Now().UTC()}
+	// Include host-internal fields so the recalibrate-response redaction test
+	// exercises the handler's redaction, not the fake.
+	f.current = domaintranscoding.EncodeCapability{
+		SoftwareMaxHeight: 1440,
+		HWDevice:          "/dev/dri/renderD128",
+		CPUSignature:      "xyz",
+		BenchmarkedAt:     time.Now().UTC(),
+	}
 	return nil
 }
 
@@ -97,6 +104,11 @@ func TestTranscodeRecalibrate_Success_ReturnsFreshSnapshot(t *testing.T) {
 	var got domaintranscoding.EncodeCapability
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &got))
 	assert.Equal(t, 1440, got.SoftwareMaxHeight, "response must be the post-recalibration snapshot")
+	// The recalibrate response must redact host internals just like the GET.
+	body := w.Body.String()
+	assert.NotContains(t, body, "hw_device", "recalibrate response must not leak the DRM device path")
+	assert.NotContains(t, body, "/dev/dri", "recalibrate response must not leak the DRM device path")
+	assert.NotContains(t, body, "cpu_signature", "recalibrate response must not leak the CPU hash")
 }
 
 func TestTranscodeRecalibrate_Busy_Returns409(t *testing.T) {

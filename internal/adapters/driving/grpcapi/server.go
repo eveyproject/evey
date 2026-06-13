@@ -200,7 +200,7 @@ func (s *GRPCServer) RegisterServices() {
 	}
 	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: d.Cfg, store: d.CfgStore})
 	pbh := &playbackSettingsHandler{cfg: d.Cfg, configSvc: d.ServerCfgSvc, translator: d.Translator}
-	pbh.initFromDB(d.ServerCtx)
+	pbh.initFromDB(srvCtx) // srvCtx is nil-guarded (Background fallback); d.ServerCtx may be nil
 	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, pbh)
 	eveyv1.RegisterLibraryAccessServiceServer(s.server, &libraryAccessHandler{userAccess: d.UserAccess, libQuery: d.LibQuery})
 	if d.ServerCfgSvc != nil {
