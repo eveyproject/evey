@@ -45,6 +45,7 @@ artworks:
   backfillBlurhashesRun: "Recalculer les blurhashes"
   backfillBlurhashesRunning: "Calcul en cours..."
   backfillBlurhashesDone: "{{succeeded}} placeholder(s) recalculé(s), {{failed}} en échec."
+  backfillBlurhashesStarted: "Backfill des blurhashes lancé — s'exécute en tâche de fond."
   backfillBlurhashesFailed: "Échec du recalcul des blurhashes"
 plugin:
   enabled: Activé
@@ -504,6 +505,7 @@ serverConfig:
   artworkRetryNow: "Réessayer les artworks manquants"
   artworkRetryDesc: "Rattrape les artworks dont le fichier local est manquant. Lancé toutes les heures en arrière-plan."
   artworkRetryDone: "Rattrapage terminé : {{succeeded}} réussis, {{failed}} échoués."
+  artworkRetryStarted: "Nouvelle tentative des visuels lancée — s'exécute en tâche de fond."
   parserTokensTitle: "Jetons d'analyse"
   parserTokensDesc: "Tags de release reconnus par l'analyseur de nom de fichier en plus de la liste de base."
   parserTokensInfo: "Ajoute les tags que l'analyseur ne retire pas par défaut (HDRIP, éditions personnalisées, etc.) afin que les orphelins correspondent à TMDB. Les changements prennent effet immédiatement au prochain scan."

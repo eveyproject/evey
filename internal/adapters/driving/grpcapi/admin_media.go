@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	applibrary "github.com/evey-project/evey/internal/app/library"
@@ -24,6 +25,7 @@ type adminMediaHandler struct {
 	seekIndex        *appmaintenance.SeekIndexService
 	heavyOpSemaphore chan struct{}
 	translator       *eveyi18n.Translator
+	serverCtx        context.Context
 }
 
 func (d *adminMediaHandler) acquireHeavyOp() bool {
@@ -55,12 +57,32 @@ func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, req *eveyv1.
 		span.SetStatus(otelcodes.Error, "heavy op running")
 		return nil, d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.heavy_op_running")
 	}
-	defer d.releaseHeavyOp()
-	if err := d.metadataCmd.AutoRefreshAllItems(ctx, req.GetLibraryId()); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("refresh all metadata", err)
+	// Detach: AutoRefreshAllItems pages the WHOLE library, re-enriching each
+	// item via external provider calls (TMDB/OMDb rate-limited) — minutes to
+	// hours for a large catalogue. Running it on the request goroutine blocks
+	// until done, so any reverse-proxy read-timeout 504s and cancels the work
+	// mid-pass. Hand it to the background (mirrors the HTTP refresh-all
+	// sibling), holding the heavy-op slot until the work finishes (releasing on
+	// RPC return would let a second refresh start concurrently). The request
+	// returns immediately.
+	srvCtx := d.serverCtx
+	if srvCtx == nil {
+		srvCtx = context.Background()
 	}
+	libraryID := req.GetLibraryId()
+	go func() {
+		defer d.releaseHeavyOp()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered panic in refresh all metadata", slog.Any("error", r))
+			}
+		}()
+		if err := d.metadataCmd.AutoRefreshAllItems(srvCtx, libraryID); err != nil {
+			slog.Error("refresh all metadata", slog.Any("err", err))
+		} else {
+			slog.Info("refresh all metadata complete", slog.String("library_id", libraryID))
+		}
+	}()
 	return &eveyv1.RefreshAllMetadataResponse{}, nil
 }
 

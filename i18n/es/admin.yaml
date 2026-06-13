@@ -45,6 +45,7 @@ artworks:
   backfillBlurhashesRun: Recalcular blurhashes
   backfillBlurhashesRunning: Calculando...
   backfillBlurhashesDone: "{{succeeded}} placeholder(s) generado(s), {{failed}} con error."
+  backfillBlurhashesStarted: "Relleno de blurhash iniciado — se ejecuta en segundo plano."
   backfillBlurhashesFailed: No se pudo recalcular los blurhashes
 
 plugin:
@@ -506,6 +507,7 @@ serverConfig:
   artworkRetryNow: "Reintentar carátulas faltantes ahora"
   artworkRetryDesc: "Rellena las filas de carátulas que aún carecen de archivo local. También se ejecuta cada hora en segundo plano."
   artworkRetryDone: "Reintento completado: {{succeeded}} exitosas, {{failed}} fallidas."
+  artworkRetryStarted: "Reintento de carátulas iniciado — se ejecuta en segundo plano."
   parserTokensTitle: "Tokens del analizador"
   parserTokensDesc: "Etiquetas de release reconocidas por el analizador de nombres de archivo mas alla de la lista base."
   parserTokensInfo: "Anade las etiquetas que el analizador no quita por defecto (HDRIP, ediciones personalizadas, etc.) para que los huerfanos coincidan con TMDB. Los cambios surten efecto inmediatamente en el siguiente escaneo."

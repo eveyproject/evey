@@ -45,6 +45,7 @@ artworks:
   backfillBlurhashesRun: Backfill blurhashes
   backfillBlurhashesRunning: Backfilling...
   backfillBlurhashesDone: "Backfilled {{succeeded}} placeholder(s), {{failed}} failed."
+  backfillBlurhashesStarted: "Blurhash backfill started — runs in the background."
   backfillBlurhashesFailed: Failed to backfill blurhashes
 
 plugin:
@@ -505,6 +506,7 @@ serverConfig:
   artworkRetryNow: "Retry missing artwork now"
   artworkRetryDesc: "Backfill any artwork rows still missing a local file. Runs hourly in the background too."
   artworkRetryDone: "Retry finished: {{succeeded}} succeeded, {{failed}} failed."
+  artworkRetryStarted: "Artwork retry started — runs in the background."
   parserTokensTitle: "Parser tokens"
   parserTokensDesc: "Extra release tags the filename parser recognises beyond its baseline list."
   parserTokensInfo: "Add release tags the parser doesn't strip out of the box (HDRIP, custom editions, etc.) so orphan files match TMDB. Changes take effect immediately on the next scan."

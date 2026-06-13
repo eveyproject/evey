@@ -45,6 +45,7 @@ artworks:
   backfillBlurhashesRun: "ब्लरहैश पुनः जेनरेट करें"
   backfillBlurhashesRunning: "गणना चल रही है..."
   backfillBlurhashesDone: "{{succeeded}} प्लेसहोल्डर जेनरेट किए गए, {{failed}} विफल।"
+  backfillBlurhashesStarted: "ब्लरहैश बैकफ़िल शुरू हुआ — पृष्ठभूमि में चलता है।"
   backfillBlurhashesFailed: "ब्लरहैश पुनः जेनरेट करने में विफल"
 
 plugin:
@@ -506,6 +507,7 @@ serverConfig:
   artworkRetryNow: "अभी गायब आर्टवर्क पुनः प्राप्त करें"
   artworkRetryDesc: "उन आर्टवर्क पंक्तियों को बैकफिल करें जिनमें अभी भी स्थानीय फ़ाइल नहीं है। पृष्ठभूमि में हर घंटे भी चलता है।"
   artworkRetryDone: "पुनः प्रयास पूर्ण: {{succeeded}} सफल, {{failed}} विफल।"
+  artworkRetryStarted: "आर्टवर्क पुनः प्रयास शुरू हुआ — पृष्ठभूमि में चलता है।"
   parserTokensTitle: "पार्सर टोकन"
   parserTokensDesc: "मूल सूची के अलावा फ़ाइलनाम पार्सर द्वारा पहचाने जाने वाले अतिरिक्त रिलीज़ टैग।"
   parserTokensInfo: "ऐसे टैग जोड़ें जो पार्सर डिफ़ॉल्ट रूप से नहीं हटाता (HDRIP, कस्टम एडिशन आदि), ताकि अनाथ फ़ाइलें TMDB से मेल खाएँ। परिवर्तन अगले स्कैन पर तुरंत प्रभावी होते हैं।"

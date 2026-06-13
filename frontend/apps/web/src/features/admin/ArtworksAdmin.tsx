@@ -48,15 +48,14 @@ function useStartDownload() {
 }
 
 // useBackfillBlurhashes drives POST /api/v1/admin/artworks/backfill-blurhashes.
-// The server runs synchronously: decode is ~50 ms per image with 2 workers,
-// so a 10k-row catalogue finishes in roughly 5 minutes. The HTTP client
-// timeout is generous enough to swallow that; if it isn't (very large
-// libraries) we'd have to flip the endpoint to async + job polling like
-// the download-all flow above. Empty response payload = {succeeded, failed}.
+// The server detaches the work to the background (blurhash decode can run for
+// minutes on a large catalogue — past the proxy read-timeout) and returns 202
+// immediately, so the response is just a started ack; results land in the
+// server logs.
 function useBackfillBlurhashes() {
-  return useMutation<{ succeeded: number; failed: number }, Error>({
+  return useMutation<{ started: boolean }, Error>({
     mutationFn: () =>
-      eveyFetch<{ succeeded: number; failed: number }>({
+      eveyFetch<{ started: boolean }>({
         url: "/api/v1/admin/artworks/backfill-blurhashes",
         method: "POST",
       }),
@@ -98,10 +97,8 @@ export function ArtworksAdmin() {
 
   function handleBackfillBlurhashes() {
     backfillBlurhashes.mutate(undefined, {
-      onSuccess: ({ succeeded, failed }) => {
-        toast.success(
-          t("admin.artworks.backfillBlurhashesDone", { succeeded, failed }),
-        );
+      onSuccess: () => {
+        toast.success(t("admin.artworks.backfillBlurhashesStarted"));
       },
       onError: () => {
         toast.error(t("admin.artworks.backfillBlurhashesFailed"));

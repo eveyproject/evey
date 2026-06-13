@@ -45,6 +45,7 @@ artworks:
   backfillBlurhashesRun: Blurhashes nachberechnen
   backfillBlurhashesRunning: Berechnung läuft...
   backfillBlurhashesDone: "{{succeeded}} Platzhalter berechnet, {{failed}} fehlgeschlagen."
+  backfillBlurhashesStarted: "Blurhash-Backfill gestartet — läuft im Hintergrund."
   backfillBlurhashesFailed: Nachberechnung der Blurhashes fehlgeschlagen
 
 plugin:
@@ -547,6 +548,7 @@ serverConfig:
   artworkRetryDesc: Artworks mit TMDB-Quell-URL aber ohne lokale Kopie erneut herunterladen.
   artworkRetryNow: Jetzt erneut herunterladen
   artworkRetryDone: Erneuter Download abgeschlossen
+  artworkRetryStarted: "Artwork-Wiederholung gestartet — läuft im Hintergrund."
 
 remoteAccess:
   title: Fernzugriff

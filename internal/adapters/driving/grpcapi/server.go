@@ -176,6 +176,7 @@ func (s *GRPCServer) RegisterServices() {
 		seekIndex:        d.SeekIndex,
 		heavyOpSemaphore: make(chan struct{}, 1),
 		translator:       d.Translator,
+		serverCtx:        srvCtx,
 	})
 	eveyv1.RegisterAdminSessionServiceServer(s.server, &adminSessionHandler{
 		activitySvc: d.ActivityQuery,
@@ -216,7 +217,7 @@ func (s *GRPCServer) RegisterServices() {
 		eveyv1.RegisterSyncPlayServiceServer(s.server, &syncplayHandler{hub: d.SyncplayHub, libQuery: d.LibQuery, userAccess: d.UserAccess, musicSvc: d.Music, playlistSvc: d.Playlist})
 	}
 	if d.Music != nil {
-		eveyv1.RegisterMusicServiceServer(s.server, &musicHandler{svc: d.Music, userAccess: d.UserAccess, libQuery: d.LibQuery})
+		eveyv1.RegisterMusicServiceServer(s.server, &musicHandler{svc: d.Music, userAccess: d.UserAccess, libQuery: d.LibQuery, serverCtx: srvCtx})
 	}
 	if d.Photo != nil {
 		eveyv1.RegisterPhotoServiceServer(s.server, &photoHandler{svc: d.Photo, userAccess: d.UserAccess, libQuery: d.LibQuery})

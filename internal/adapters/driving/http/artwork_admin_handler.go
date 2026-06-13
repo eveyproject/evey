@@ -125,16 +125,26 @@ func registerArtworkAdminRoutes(
 	// broken provider key and wants the cache populated now rather than
 	// waiting for the next tick.
 	mux.HandleFunc("POST /api/v1/admin/artworks/retry-missing", admin(func(w http.ResponseWriter, r *http.Request) {
-		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkRetryMissing")
+		_, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkRetryMissing")
 		defer span.End()
 
-		succeeded, failed := metaCmd.RetryMissingArtworks(ctx)
-		resp := map[string]any{
-			"succeeded": succeeded,
-			"failed":    failed,
-		}
+		// Detach: RetryMissingArtworks lists every artwork without a local path
+		// and re-downloads them across 4 workers — minutes for a large catalogue.
+		// Blocking the request ctx 504s behind a proxy and cancels the work
+		// mid-pass. Run it in the background (serverCtx) and return 202; the
+		// pass result lands in the logs (same shape as download-all).
+		go func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					slog.Error("recovered panic in artwork retry-missing", slog.Any("error", rec))
+				}
+			}()
+			succeeded, failed := metaCmd.RetryMissingArtworks(serverCtx)
+			slog.Info("artwork retry-missing complete", slog.Int("succeeded", succeeded), slog.Int("failed", failed))
+		}()
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
+		w.WriteHeader(http.StatusAccepted)
+		if err := json.NewEncoder(w).Encode(map[string]any{"started": true}); err != nil {
 			slog.Warn("artwork retry-missing: json encode", slog.Any("err", err))
 		}
 	}))
@@ -146,16 +156,25 @@ func registerArtworkAdminRoutes(
 	// CPU-bound at ~50 ms per image with 2 workers, so a 10k-row catalogue
 	// finishes in ~5 minutes; same shape as retry-missing for symmetry.
 	mux.HandleFunc("POST /api/v1/admin/artworks/backfill-blurhashes", admin(func(w http.ResponseWriter, r *http.Request) {
-		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkBackfillBlurhashes")
+		_, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkBackfillBlurhashes")
 		defer span.End()
 
-		succeeded, failed := metaCmd.BackfillBlurhashes(ctx)
-		resp := map[string]any{
-			"succeeded": succeeded,
-			"failed":    failed,
-		}
+		// Detach: BackfillBlurhashes decodes every artwork lacking a hash across
+		// 2 workers — self-documented ~5 min per 10k catalogue, well past the
+		// 60s default proxy read-timeout. Blocking 504s and cancels the work.
+		// Run it in the background (serverCtx) and return 202.
+		go func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					slog.Error("recovered panic in artwork backfill-blurhashes", slog.Any("error", rec))
+				}
+			}()
+			succeeded, failed := metaCmd.BackfillBlurhashes(serverCtx)
+			slog.Info("artwork backfill-blurhashes complete", slog.Int("succeeded", succeeded), slog.Int("failed", failed))
+		}()
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
+		w.WriteHeader(http.StatusAccepted)
+		if err := json.NewEncoder(w).Encode(map[string]any{"started": true}); err != nil {
 			slog.Warn("artwork backfill-blurhashes: json encode", slog.Any("err", err))
 		}
 	}))

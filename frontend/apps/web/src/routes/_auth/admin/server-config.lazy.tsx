@@ -513,17 +513,13 @@ function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }
 
   const retry = useMutation({
     mutationFn: () =>
-      eveyFetch<{ succeeded: number; failed: number }>({
+      // Detached to the background server-side (a full retry can run for
+      // minutes); the endpoint returns a 202 started ack, results hit the logs.
+      eveyFetch<{ started: boolean }>({
         url: "/api/v1/admin/artworks/retry-missing",
         method: "POST",
       }),
-    onSuccess: (res) =>
-      toast.success(
-        t("admin.serverConfig.artworkRetryDone", {
-          succeeded: res.succeeded,
-          failed: res.failed,
-        }),
-      ),
+    onSuccess: () => toast.success(t("admin.serverConfig.artworkRetryStarted")),
     onError: (err: Error) => toast.error(err.message),
   });
 

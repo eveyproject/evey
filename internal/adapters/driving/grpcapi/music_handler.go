@@ -25,6 +25,7 @@ type musicHandler struct {
 	svc        *appmusic.Service
 	userAccess *appuser.AccessService
 	libQuery   *applibrary.QueryService
+	serverCtx  context.Context
 }
 
 func (h *musicHandler) checkLibraryAccess(ctx context.Context, libraryID string) error {
@@ -217,14 +218,31 @@ func (h *musicHandler) ScanMusicDirectory(ctx context.Context, req *eveyv1.ScanM
 		span.SetStatus(otelcodes.Error, "directory not within library paths")
 		return nil, status.Error(codes.InvalidArgument, "directory not within library paths")
 	}
-	count, scanErr := h.svc.ScanDirectory(ctx, req.LibraryId, dir)
-	if scanErr != nil {
-		slog.Error("music scan", slog.Any("err", scanErr))
-		span.RecordError(scanErr)
-		span.SetStatus(otelcodes.Error, scanErr.Error())
-		return nil, internalError("scan error", scanErr)
+	// Detach from the request context: a music scan walks the filesystem and
+	// fans tag-parsing across NumCPU workers — for a large library that runs
+	// for minutes and must outlive the client's fire-and-forget RPC (the
+	// request ctx dies on return, and a proxy read-timeout would otherwise 504
+	// and cancel the work mid-scan). Mirrors ScanPhotoDirectory. Count = -1
+	// signals "scan started" (the real count lands in the logs).
+	srvCtx := h.serverCtx
+	if srvCtx == nil {
+		srvCtx = context.Background()
 	}
-	return &eveyv1.ScanMusicDirectoryResponse{Count: int32(count)}, nil
+	libraryID, scanDir := req.LibraryId, dir
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("recovered panic in music scan", slog.Any("error", r))
+			}
+		}()
+		count, scanErr := h.svc.ScanDirectory(srvCtx, libraryID, scanDir)
+		if scanErr != nil {
+			slog.Error("music scan", slog.Any("err", scanErr))
+		} else {
+			slog.Info("music scan complete", slog.Int("count", count), slog.String("dir", scanDir))
+		}
+	}()
+	return &eveyv1.ScanMusicDirectoryResponse{Count: -1}, nil
 }
 
 func (h *musicHandler) DeleteTrack(ctx context.Context, req *eveyv1.DeleteTrackRequest) (*emptypb.Empty, error) {

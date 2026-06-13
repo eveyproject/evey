@@ -173,10 +173,14 @@ func TestArtworkAdmin_RetryMissing_NonAdmin_403(t *testing.T) {
 	}
 }
 
-// Happy path: a record with source_url but no local_path gets downloaded
-// and reconciled. Mirrors the unit test in metadata/retry_missing_artworks_test
-// but through the HTTP surface, so we know the route is wired right.
-func TestArtworkAdmin_RetryMissing_Admin_200_DownloadsMissing(t *testing.T) {
+// The endpoint detaches the (potentially minutes-long) retry pass to the
+// background and returns 202 immediately. This test asserts the route is wired
+// and the async contract holds; the download/reconcile behaviour itself is
+// covered by the metadata unit test (retry_missing_artworks_test). We
+// deliberately do NOT poll the repo concurrently with the background pass — the
+// in-memory fake returns shared record pointers (postgres returns row copies),
+// so a concurrent read would race the worker on a test-only artifact.
+func TestArtworkAdmin_RetryMissing_Admin_Async_Started(t *testing.T) {
 	f := newArtworkAdminMux(t)
 	src := "https://example.com/poster.jpg"
 	if err := f.artworkRep.Create(context.Background(), &metadata.ArtworkRecord{
@@ -190,18 +194,17 @@ func TestArtworkAdmin_RetryMissing_Admin_200_DownloadsMissing(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+f.adminTok)
 	w := httptest.NewRecorder()
 	f.mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", w.Code)
 	}
-	var resp struct{ Succeeded, Failed int }
+	var resp struct {
+		Started bool `json:"started"`
+	}
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.Succeeded != 1 {
-		t.Errorf("expected 1 succeeded, got %d", resp.Succeeded)
-	}
-	if resp.Failed != 0 {
-		t.Errorf("expected 0 failed, got %d", resp.Failed)
+	if !resp.Started {
+		t.Error("expected started:true")
 	}
 }
 
@@ -279,17 +282,17 @@ func TestArtworkAdmin_BackfillBlurhashes_EmptyRepo_OK(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+f.adminTok)
 	w := httptest.NewRecorder()
 	f.mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", w.Code)
+	// Detached to the background → 202 started ack (was a blocking 200).
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d", w.Code)
 	}
 	var resp struct {
-		Succeeded int `json:"succeeded"`
-		Failed    int `json:"failed"`
+		Started bool `json:"started"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if resp.Succeeded != 0 || resp.Failed != 0 {
-		t.Errorf("empty repo: expected 0/0, got %d/%d", resp.Succeeded, resp.Failed)
+	if !resp.Started {
+		t.Error("expected started:true")
 	}
 }
