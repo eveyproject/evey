@@ -200,6 +200,7 @@ func (s *SeekIndexService) StartScan(_ context.Context, libraryID string) error 
 		return ErrJobRunning
 	}
 	go func() {
+		defer s.recoverJob()
 		// Fresh context: the job outlives the triggering request — the same
 		// pattern as the enrichment / album-art kickers.
 		bg := context.Background()
@@ -207,6 +208,18 @@ func (s *SeekIndexService) StartScan(_ context.Context, libraryID string) error 
 		s.finish(err)
 	}()
 	return nil
+}
+
+// recoverJob is deferred by every job goroutine: a panic anywhere in the
+// reindexer/catalog would otherwise leave the single job slot taken forever
+// (every later start refused with ErrJobRunning until restart). When the job
+// already finished cleanly, finish() was called and the recover is a no-op
+// guard against double-finish (finish is only reached here on panic).
+func (s *SeekIndexService) recoverJob() {
+	if r := recover(); r != nil {
+		s.logger.Error("seek-index job panicked", slog.Any("panic", r))
+		s.finish(fmt.Errorf("job panicked: %v", r))
+	}
 }
 
 // StartReindexLibrary kicks a background job that re-scans the library then
@@ -281,6 +294,7 @@ func (s *SeekIndexService) startSingle(ctx context.Context, kind, mediaID string
 	}
 	s.setPhase(PhaseProcessing, 1)
 	go func() {
+		defer s.recoverJob()
 		bg := context.Background()
 		s.processFiles(bg, kind, []string{f.Path}, fn)
 		s.finish(nil)
@@ -293,6 +307,7 @@ func (s *SeekIndexService) startBatch(kind, libraryID string, keep func(SeekStat
 		return ErrJobRunning
 	}
 	go func() {
+		defer s.recoverJob()
 		bg := context.Background()
 		scan, err := s.scanAndCache(bg, libraryID)
 		if err != nil {

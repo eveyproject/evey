@@ -24,6 +24,7 @@ type fakeReindexer struct {
 	hasIndex  map[string]bool
 	hasBackup map[string]bool
 	failWith  map[string]error
+	panicOn   string // when set, ReindexInPlace panics on this path
 	reindexed []string
 	restored  []string
 	gate      chan struct{} // when non-nil, ReindexInPlace blocks until it's closed
@@ -38,6 +39,9 @@ func (f *fakeReindexer) HasBackup(_ context.Context, p string) (bool, error) {
 func (f *fakeReindexer) ReindexInPlace(_ context.Context, p string, _ mkv.ReindexOptions) (mkv.ReindexResult, error) {
 	if f.gate != nil {
 		<-f.gate
+	}
+	if f.panicOn == p {
+		panic("reindexer exploded on " + p)
 	}
 	if err := f.failWith[p]; err != nil {
 		return mkv.ReindexResult{}, err
@@ -228,6 +232,27 @@ func TestSeekIndexService_ReindexLibrary_GuardsConcurrencyAndReportsFailures(t *
 	require.True(t, ok)
 	assert.Equal(t, 3, res.Total)
 	assert.Equal(t, 1, res.MissingIndex, "a repaired, only c still missing")
+}
+
+// A panic inside the reindexer must release the job slot (otherwise every
+// later start is refused with ErrJobRunning until restart) and surface as the
+// job-level error of the summary.
+func TestSeekIndexService_PanicReleasesJobSlot(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "f.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: false}, hasBackup: map[string]bool{}, panicOn: p}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil)
+
+	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1"))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Contains(t, st.Last.Err, "panicked", "the panic surfaces as the job error")
+
+	// The slot is free again: a new job starts cleanly.
+	reidx.panicOn = ""
+	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1"))
+	waitIdle(t, svc)
 }
 
 // A rollback job restores only backed-up files and flips the cache entries.
