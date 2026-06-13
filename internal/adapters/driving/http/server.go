@@ -443,7 +443,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			authCookieMiddleware(gwMux, s.HTTPSOnly).ServeHTTP(w, r)
 		}))
 		if s.QuickConnectHub != nil {
-			mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}/events", quickConnectSSEHandler(s.QuickConnectHub, &qcCheckerAdapter{query: s.UserQuerySvc, auth: s.UserAuthSvc, cfg: s.Cfg}))
+			// Same limiter as the polling QC route: the SSE stream is an auth
+			// path (it mints tokens) and each open connection holds a goroutine
+			// + hub subscription for up to ~2min — unlimited opens were a cheap
+			// resource-pinning + passive brute-force vector.
+			mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}/events", ratelimit.MiddlewareFunc(s.LoginRL, quickConnectSSEHandler(s.QuickConnectHub, &qcCheckerAdapter{query: s.UserQuerySvc, auth: s.UserAuthSvc, cfg: s.Cfg})))
 		}
 		mux.HandleFunc("POST /api/v1/auth/refresh", ratelimit.MiddlewareFunc(s.LoginRL, func(w http.ResponseWriter, r *http.Request) {
 			r = injectRefreshTokenFromCookie(r)
