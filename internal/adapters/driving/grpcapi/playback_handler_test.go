@@ -333,6 +333,37 @@ func TestPlaybackHandler_GetStreamInfo(t *testing.T) {
 	assert.Contains(t, resp.DirectPlayUrl, "mi-1")
 }
 
+// GetStreamInfo must hide a parental-blocked item exactly like StartStream:
+// returning stream metadata/URLs (or anything other than NotFound) would let a
+// kids profile harvest an adult item's existence and codecs by media ID.
+func TestPlaybackHandler_GetStreamInfo_ParentalBlocked_NotFound(t *testing.T) {
+	h, _, _, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
+
+	profileRepo.Update(context.Background(), &user.Profile{
+		ID:     "profile-1",
+		UserID: "user-1",
+		Name:   "Kid",
+		IsKids: true,
+		Parental: &user.ParentalSettings{
+			MaxAge:  intPtr(10),
+			Enabled: true,
+		},
+	})
+	mediaQuery.Seed(&library.MediaItem{
+		ID:             "mi-r",
+		Title:          "R-Rated Movie",
+		Type:           "movie",
+		File:           &library.MediaFile{ContainerFormat: "mp4"},
+		Classification: &library.MediaClassification{OfficialRating: "R"},
+	})
+
+	ctx := pbAdminCtx()
+	_, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-r"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
 func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
 	h, _, _, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
 

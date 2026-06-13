@@ -81,6 +81,18 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
 	}
+	// Mirror StartStream: a parental-blocked item must look non-existent. Without
+	// this gate a kids profile could call GetStreamInfo by media ID and harvest a
+	// blocked adult item's existence, codecs, and playback URLs even though the
+	// stream bytes themselves are now 404'd downstream.
+	if h.userQuery != nil {
+		if claims := interceptors.ClaimsFromContext(ctx); claims != nil {
+			if blocked, _ := h.isBlockedByParental(ctx, claims.ProfileID, req.MediaItemId); blocked {
+				span.SetStatus(otelcodes.Error, "parental blocked")
+				return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
+			}
+		}
+	}
 	containerFormat := ""
 	if item.File != nil {
 		containerFormat = item.File.ContainerFormat
