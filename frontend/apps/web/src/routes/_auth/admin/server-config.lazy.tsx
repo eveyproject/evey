@@ -513,9 +513,10 @@ function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }
 
   const retry = useMutation({
     mutationFn: () =>
-      // Detached to the background server-side (a full retry can run for
-      // minutes); the endpoint returns a 202 started ack, results hit the logs.
-      eveyFetch<{ started: boolean }>({
+      // Runs as a pollable background job server-side (a full retry can take
+      // minutes); progress is tracked on the Artworks admin page. Here it's a
+      // secondary trigger, so we just confirm it started.
+      eveyFetch<{ jobId: string; total: number }>({
         url: "/api/v1/admin/artworks/retry-missing",
         method: "POST",
       }),

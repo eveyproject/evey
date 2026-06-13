@@ -125,26 +125,24 @@ func registerArtworkAdminRoutes(
 	// broken provider key and wants the cache populated now rather than
 	// waiting for the next tick.
 	mux.HandleFunc("POST /api/v1/admin/artworks/retry-missing", admin(func(w http.ResponseWriter, r *http.Request) {
-		_, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkRetryMissing")
+		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkRetryMissing")
 		defer span.End()
 
-		// Detach: RetryMissingArtworks lists every artwork without a local path
-		// and re-downloads them across 4 workers — minutes for a large catalogue.
-		// Blocking the request ctx 504s behind a proxy and cancels the work
-		// mid-pass. Run it in the background (serverCtx) and return 202; the
-		// pass result lands in the logs (same shape as download-all).
-		go func() {
-			defer func() {
-				if rec := recover(); rec != nil {
-					slog.Error("recovered panic in artwork retry-missing", slog.Any("error", rec))
-				}
-			}()
-			succeeded, failed := metaCmd.RetryMissingArtworks(serverCtx)
-			slog.Info("artwork retry-missing complete", slog.Int("succeeded", succeeded), slog.Int("failed", failed))
-		}()
+		// Pollable background job: the retry pass re-downloads every artwork
+		// without a local path (minutes on a large catalogue) and would 504 if
+		// run inline. Return a jobId the UI polls via download-all/{jobId}
+		// (shared job registry); the listing uses the request ctx, the work runs
+		// on serverCtx.
+		jobID, total, err := metaCmd.StartRetryMissing(ctx, serverCtx)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			slog.Warn("artwork retry-missing: start", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
-		if err := json.NewEncoder(w).Encode(map[string]any{"started": true}); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]any{"jobId": jobID, "total": total}); err != nil {
 			slog.Warn("artwork retry-missing: json encode", slog.Any("err", err))
 		}
 	}))
@@ -156,25 +154,22 @@ func registerArtworkAdminRoutes(
 	// CPU-bound at ~50 ms per image with 2 workers, so a 10k-row catalogue
 	// finishes in ~5 minutes; same shape as retry-missing for symmetry.
 	mux.HandleFunc("POST /api/v1/admin/artworks/backfill-blurhashes", admin(func(w http.ResponseWriter, r *http.Request) {
-		_, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkBackfillBlurhashes")
+		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkBackfillBlurhashes")
 		defer span.End()
 
-		// Detach: BackfillBlurhashes decodes every artwork lacking a hash across
-		// 2 workers — self-documented ~5 min per 10k catalogue, well past the
-		// 60s default proxy read-timeout. Blocking 504s and cancels the work.
-		// Run it in the background (serverCtx) and return 202.
-		go func() {
-			defer func() {
-				if rec := recover(); rec != nil {
-					slog.Error("recovered panic in artwork backfill-blurhashes", slog.Any("error", rec))
-				}
-			}()
-			succeeded, failed := metaCmd.BackfillBlurhashes(serverCtx)
-			slog.Info("artwork backfill-blurhashes complete", slog.Int("succeeded", succeeded), slog.Int("failed", failed))
-		}()
+		// Pollable background job (decode is ~5 min per 10k catalogue, well past
+		// the proxy read-timeout). Return a jobId polled via download-all/{jobId};
+		// work runs on serverCtx.
+		jobID, total, err := metaCmd.StartBackfillBlurhashes(ctx, serverCtx)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			slog.Warn("artwork backfill-blurhashes: start", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusAccepted)
-		if err := json.NewEncoder(w).Encode(map[string]any{"started": true}); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]any{"jobId": jobID, "total": total}); err != nil {
 			slog.Warn("artwork backfill-blurhashes: json encode", slog.Any("err", err))
 		}
 	}))

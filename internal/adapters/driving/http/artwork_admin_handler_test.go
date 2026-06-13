@@ -173,14 +173,11 @@ func TestArtworkAdmin_RetryMissing_NonAdmin_403(t *testing.T) {
 	}
 }
 
-// The endpoint detaches the (potentially minutes-long) retry pass to the
-// background and returns 202 immediately. This test asserts the route is wired
-// and the async contract holds; the download/reconcile behaviour itself is
-// covered by the metadata unit test (retry_missing_artworks_test). We
-// deliberately do NOT poll the repo concurrently with the background pass — the
-// in-memory fake returns shared record pointers (postgres returns row copies),
-// so a concurrent read would race the worker on a test-only artifact.
-func TestArtworkAdmin_RetryMissing_Admin_Async_Started(t *testing.T) {
+// The endpoint launches a pollable background job and returns {jobId,total}
+// immediately (the retry pass can run for minutes). This asserts the route is
+// wired and the job is created + reaches done via the shared status route; the
+// download/reconcile behaviour itself is covered by the metadata unit tests.
+func TestArtworkAdmin_RetryMissing_Admin_Job(t *testing.T) {
 	f := newArtworkAdminMux(t)
 	src := "https://example.com/poster.jpg"
 	if err := f.artworkRep.Create(context.Background(), &metadata.ArtworkRecord{
@@ -194,18 +191,43 @@ func TestArtworkAdmin_RetryMissing_Admin_Async_Started(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+f.adminTok)
 	w := httptest.NewRecorder()
 	f.mux.ServeHTTP(w, req)
-	if w.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d", w.Code)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
 	}
 	var resp struct {
-		Started bool `json:"started"`
+		JobID string `json:"jobId"`
+		Total int    `json:"total"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if !resp.Started {
-		t.Error("expected started:true")
+	if resp.JobID == "" {
+		t.Fatal("expected a jobId")
 	}
+	if resp.Total != 1 {
+		t.Errorf("expected total=1, got %d", resp.Total)
+	}
+
+	// Poll the shared status route until the job reports done.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		req2 := httptest.NewRequest(http.MethodGet, "/api/v1/admin/artworks/download-all/"+resp.JobID, nil)
+		req2.Header.Set("Authorization", "Bearer "+f.adminTok)
+		w2 := httptest.NewRecorder()
+		f.mux.ServeHTTP(w2, req2)
+		if w2.Code != http.StatusOK {
+			t.Fatalf("poll status: expected 200, got %d", w2.Code)
+		}
+		var st map[string]any
+		if err := json.NewDecoder(w2.Body).Decode(&st); err != nil {
+			t.Fatalf("decode status: %v", err)
+		}
+		if st["status"] == "done" {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Error("retry-missing job did not reach done within deadline")
 }
 
 func TestArtworkAdmin_DownloadAll_Lifecycle(t *testing.T) {
@@ -282,17 +304,21 @@ func TestArtworkAdmin_BackfillBlurhashes_EmptyRepo_OK(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+f.adminTok)
 	w := httptest.NewRecorder()
 	f.mux.ServeHTTP(w, req)
-	// Detached to the background → 202 started ack (was a blocking 200).
-	if w.Code != http.StatusAccepted {
-		t.Fatalf("expected 202, got %d", w.Code)
+	// Pollable job: empty repo → jobId returned, total 0, completes immediately.
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
 	}
 	var resp struct {
-		Started bool `json:"started"`
+		JobID string `json:"jobId"`
+		Total int    `json:"total"`
 	}
 	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if !resp.Started {
-		t.Error("expected started:true")
+	if resp.JobID == "" {
+		t.Error("expected a jobId")
+	}
+	if resp.Total != 0 {
+		t.Errorf("expected total=0 on empty repo, got %d", resp.Total)
 	}
 }

@@ -48,14 +48,13 @@ function useStartDownload() {
 }
 
 // useBackfillBlurhashes drives POST /api/v1/admin/artworks/backfill-blurhashes.
-// The server detaches the work to the background (blurhash decode can run for
-// minutes on a large catalogue — past the proxy read-timeout) and returns 202
-// immediately, so the response is just a started ack; results land in the
-// server logs.
+// The server runs it as a pollable background job (decode can take minutes on a
+// large catalogue) and returns {jobId,total}; the UI polls progress through the
+// same status route as download-all.
 function useBackfillBlurhashes() {
-  return useMutation<{ started: boolean }, Error>({
+  return useMutation<{ jobId: string; total: number }, Error>({
     mutationFn: () =>
-      eveyFetch<{ started: boolean }>({
+      eveyFetch<{ jobId: string; total: number }>({
         url: "/api/v1/admin/artworks/backfill-blurhashes",
         method: "POST",
       }),
@@ -96,9 +95,10 @@ export function ArtworksAdmin() {
   const { data: job } = useJobStatus(jobId);
 
   function handleBackfillBlurhashes() {
+    prevDoneRef.current = false;
     backfillBlurhashes.mutate(undefined, {
-      onSuccess: () => {
-        toast.success(t("admin.artworks.backfillBlurhashesStarted"));
+      onSuccess: (data) => {
+        setJobId(data.jobId);
       },
       onError: () => {
         toast.error(t("admin.artworks.backfillBlurhashesFailed"));
