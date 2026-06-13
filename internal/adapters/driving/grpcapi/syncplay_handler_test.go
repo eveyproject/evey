@@ -327,7 +327,7 @@ func TestGetRoom_AsMember(t *testing.T) {
 	assert.Empty(t, resp.Code) // non-host doesn't see code
 }
 
-func TestGetRoom_Forbidden(t *testing.T) {
+func TestGetRoom_NonMemberGetsNotFound(t *testing.T) {
 	t.Parallel()
 	env := newSyncplayTestEnv()
 	env.seedMedia("media-1", "lib-1")
@@ -338,12 +338,14 @@ func TestGetRoom_Forbidden(t *testing.T) {
 	created, err := env.handler.CreateRoom(ctx1, &eveyv1.CreateSyncPlayRoomRequest{MediaId: "media-1"})
 	require.NoError(t, err)
 
+	// u-3 has access to the room's media but is not a member: the room must look
+	// non-existent (NotFound), not "forbidden" (which would confirm it exists).
 	ctx3 := ctxWithClaims("u-3", "p-3", false)
 	resp, err := env.handler.GetRoom(ctx3, &eveyv1.GetSyncPlayRoomRequest{RoomId: created.Id})
 
 	assert.Nil(t, resp)
 	require.Error(t, err)
-	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
 // --- LeaveRoom ---

@@ -254,8 +254,11 @@ func (h *syncplayHandler) GetRoom(ctx context.Context, req *eveyv1.GetSyncPlayRo
 		}
 	}
 	if !isMember && !claims.IsAdmin {
-		span.SetStatus(otelcodes.Error, "forbidden")
-		return nil, status.Error(codes.PermissionDenied, "forbidden")
+		// NotFound, not PermissionDenied: a non-member must not be able to tell an
+		// existing room they're not in from a non-existent one (matches the
+		// missing-room response above). Span keeps the real reason.
+		span.SetStatus(otelcodes.Error, "not a room member")
+		return nil, status.Error(codes.NotFound, "room not found")
 	}
 	members := make([]*eveyv1.SyncPlayMember, 0, len(room.Members))
 	for _, m := range room.Members {
