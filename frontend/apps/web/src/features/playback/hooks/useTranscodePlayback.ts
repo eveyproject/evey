@@ -238,7 +238,10 @@ export function useTranscodePlayback({
                 hls.startLoad();
               }
             } catch {
-              setFatalError(true);
+              // Only fail the LIVE instance — if the effect re-ran during the
+              // async refresh (audio/subtitle/quality switch), this hls is dead
+              // and the new one in hlsRef is already loading.
+              if (hls === hlsRef.current) setFatalError(true);
             }
           })();
           return;

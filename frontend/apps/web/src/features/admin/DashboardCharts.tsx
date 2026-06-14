@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useActivityServiceGetAnalytics,
@@ -21,24 +21,24 @@ export function PlayActivityChart() {
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const daily = data?.dailyPlays ?? [];
-
-  useEffect(() => { scrollToEnd(); }, [daily.length, scrollToEnd]);
-
-  if (daily.length === 0) return null;
-
+  // Hooks must run on every render — keep them above the early return below.
   const accent = useCssVar("--accent", "#6366f1");
   const textMuted = useCssVar("--text-muted");
 
-  const barData = daily.map((d) => {
-    const [, mm, dd] = (d.date ?? "").split("-");
-    const label = `${dd}/${mm}`;
+  useEffect(() => { scrollToEnd(); }, [daily.length, scrollToEnd]);
+
+  const barData = useMemo(() => daily.map((d) => {
+    const parts = (d.date ?? "").split("-");
+    const label = parts.length >= 3 ? `${parts[2]}/${parts[1]}` : (d.date ?? "");
     const value = mode === "plays"
       ? (d.playCount ?? 0)
       : Math.round(parseInt(d.watchTimeSeconds ?? "0") / 3600 * 10) / 10;
     return { value, label, frontColor: accent };
-  });
+  }), [daily, mode, accent]);
 
   const maxVal = Math.max(...barData.map((d) => d.value), 1);
+
+  if (daily.length === 0) return null;
 
   return (
     <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)] min-w-0">
@@ -152,18 +152,18 @@ export function PeakHours() {
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const hourly = data?.hourlyPlays ?? [];
-
-  if (hourly.length === 0) return null;
-
+  // Hooks must run on every render — keep them above the early return below.
   const accent = useCssVar("--accent", "#6366f1");
   const textMuted = useCssVar("--text-muted");
 
-  const allHours = Array.from({ length: 24 }, (_, i) => {
+  const allHours = useMemo(() => Array.from({ length: 24 }, (_, i) => {
     const entry = hourly.find((h) => h.hour === i);
     return { value: entry?.count ?? 0, label: `${i}h`, frontColor: accent };
-  });
+  }), [hourly, accent]);
 
   const maxVal = Math.max(...allHours.map((d) => d.value), 1);
+
+  if (hourly.length === 0) return null;
 
   return (
     <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
