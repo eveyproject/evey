@@ -147,6 +147,56 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		}, nil
 	}
 
+	// Explicit client-built queue: a mix of albums, individual tracks and
+	// playlists assembled on the client into one ordered list of track IDs.
+	if len(req.Queue) > 0 {
+		const maxQueue = 500
+		seen := make(map[string]bool, len(req.Queue))
+		trackIDs := make([]string, 0, len(req.Queue))
+		for _, t := range req.Queue {
+			if t == "" || seen[t] {
+				continue
+			}
+			seen[t] = true
+			trackIDs = append(trackIDs, t)
+			if len(trackIDs) >= maxQueue {
+				break
+			}
+		}
+		if len(trackIDs) == 0 {
+			span.SetStatus(otelcodes.Error, "queue is empty")
+			return nil, status.Error(codes.InvalidArgument, "queue is empty")
+		}
+		// Gate on the first track's library access (the rest are enforced per
+		// track at playback time, same as the playlist path).
+		if accessErr := h.requireMediaAccess(ctx, trackIDs[0], "music"); accessErr != nil {
+			span.RecordError(accessErr)
+			span.SetStatus(otelcodes.Error, accessErr.Error())
+			return nil, accessErr
+		}
+		name := req.Name
+		if len(name) > 100 {
+			return nil, status.Error(codes.InvalidArgument, "room name must be 100 characters or fewer")
+		}
+		if name == "" {
+			name = "Listen Together"
+		}
+		room, createErr := h.hub.CreateRoomFromQueue(ctx, hostID, name, trackIDs)
+		if createErr != nil {
+			span.RecordError(createErr)
+			span.SetStatus(otelcodes.Error, createErr.Error())
+			return nil, internalError("create room", createErr)
+		}
+		return &eveyv1.CreateSyncPlayRoomResponse{
+			Id:        room.ID,
+			Code:      room.Code,
+			Name:      room.Name,
+			MediaId:   string(room.MediaID),
+			HostId:    string(room.HostID),
+			MediaType: room.MediaType,
+		}, nil
+	}
+
 	if req.MediaId == "" {
 		span.SetStatus(otelcodes.Error, "media_id required")
 		return nil, status.Error(codes.InvalidArgument, "media_id required")

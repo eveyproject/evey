@@ -88,6 +88,36 @@ func (h *Hub) CreateRoomFromPlaylist(ctx context.Context, hostID, playlistID, na
 	return room, nil
 }
 
+// CreateRoomFromQueue creates a music room from an explicit ordered list of
+// track IDs (a mix of albums, individual tracks and playlists assembled by the
+// client). The first track becomes the current MediaID; track_index starts at
+// 0. trackIDs must be non-empty. Unlike CreateRoomFromPlaylist the room is not
+// bound to a source playlist.
+func (h *Hub) CreateRoomFromQueue(ctx context.Context, hostID, name string, trackIDs []string) (*syncplay.Room, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.syncplay.CreateRoomFromQueue")
+	defer span.End()
+	if len(trackIDs) == 0 {
+		return nil, fmt.Errorf("queue has no tracks")
+	}
+	code, err := syncplay.GenerateCode()
+	if err != nil {
+		return nil, fmt.Errorf("generate room code: %w", err)
+	}
+	queue := make([]shared.MediaItemID, 0, len(trackIDs))
+	for _, t := range trackIDs {
+		queue = append(queue, shared.MediaItemID(t))
+	}
+	room, err := syncplay.NewRoom(id.New("room-"), code, name, shared.UserID(hostID), shared.MediaItemID(trackIDs[0]), "music")
+	if err != nil {
+		return nil, fmt.Errorf("build room: %w", err)
+	}
+	room.Queue = queue
+	if err := h.repo.Create(ctx, room); err != nil {
+		return nil, fmt.Errorf("create room: %w", err)
+	}
+	return room, nil
+}
+
 func (h *Hub) GetRoom(ctx context.Context, roomID string) (*syncplay.Room, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.GetRoom")
 	defer span.End()

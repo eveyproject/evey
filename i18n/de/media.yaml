@@ -367,6 +367,18 @@ syncplay:
   title: Gemeinsam hören
   create: Raum erstellen
   createRoom: Erstellen
+  tabAlbums: Alben
+  tabTracks: Titel
+  tabPlaylists: Playlists
+  addAlbum: "Album hinzufügen"
+  addToQueue: "Zur Warteschlange hinzufügen"
+  removeFromQueue: "Aus Warteschlange entfernen"
+  moveUp: "Nach oben"
+  moveDown: "Nach unten"
+  clearQueue: "Warteschlange leeren"
+  queueEmpty: "Füge Alben, Titel oder Playlists hinzu, um die Warteschlange des Raums zu erstellen."
+  noAlbums: "Keine Alben gefunden"
+  noPlaylists: "Keine Playlists"
   join: Raum beitreten
   joinRoom: Beitreten
   codeLabel: Code

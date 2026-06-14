@@ -438,6 +438,53 @@ func TestCreateRoom_FromPlaylist_Empty(t *testing.T) {
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
 }
 
+func TestCreateRoom_FromQueue_Success(t *testing.T) {
+	t.Parallel()
+	env := newSyncplayTestEnv()
+	env.seedMedia("t1", "lib-1")
+	env.seedMedia("t2", "lib-1")
+	env.seedMedia("t3", "lib-1")
+	ctx := ctxWithClaims("u-1", "p-1", true) // admin bypass for music access (nil musicSvc)
+
+	resp, err := env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{
+		Queue: []string{"t1", "t2", "t3"},
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, resp.Id)
+	assert.Equal(t, "music", resp.MediaType)
+	assert.Equal(t, "t1", resp.MediaId)
+
+	getResp, err := env.handler.GetRoom(ctx, &eveyv1.GetSyncPlayRoomRequest{RoomId: resp.Id})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"t1", "t2", "t3"}, getResp.Queue)
+	assert.Equal(t, int32(0), getResp.TrackIndex)
+	assert.Empty(t, getResp.PlaylistId, "a custom queue is not bound to a playlist")
+}
+
+func TestCreateRoom_FromQueue_DedupsAndRejectsEmpty(t *testing.T) {
+	t.Parallel()
+	env := newSyncplayTestEnv()
+	env.seedMedia("t1", "lib-1")
+	env.seedMedia("t2", "lib-1")
+	ctx := ctxWithClaims("u-1", "p-1", true)
+
+	// Duplicates and blanks collapse; first-seen order is preserved.
+	resp, err := env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{
+		Queue: []string{"t1", "", "t2", "t1"},
+	})
+	require.NoError(t, err)
+	getResp, err := env.handler.GetRoom(ctx, &eveyv1.GetSyncPlayRoomRequest{RoomId: resp.Id})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"t1", "t2"}, getResp.Queue)
+
+	// A queue with no usable IDs is rejected.
+	_, err = env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{
+		Queue: []string{"", ""},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
 func TestCreateRoom_FromPlaylist_NotOwner(t *testing.T) {
 	t.Parallel()
 	env := newSyncplayTestEnv()

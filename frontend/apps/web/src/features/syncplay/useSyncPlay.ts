@@ -26,6 +26,7 @@ interface SyncPlayState {
 interface SyncPlayControls {
   createRoom: (mediaId: string, mediaType?: string) => Promise<string>;
   createRoomFromPlaylist: (playlistId: string, name?: string) => Promise<string>;
+  createRoomFromQueue: (trackIds: string[], name?: string) => Promise<string>;
   joinRoom: (roomId: string) => Promise<void>;
   joinByCode: (code: string) => Promise<{ roomId: string; mediaId: string; mediaType: string }>;
   leaveRoom: () => Promise<void>;
@@ -203,6 +204,24 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     return id;
   }, [connect]);
 
+  const createRoomFromQueue = useCallback(async (trackIds: string[], name?: string): Promise<string> => {
+    const data = await syncPlayServiceCreateRoom({ queue: trackIds, name, mediaType: "music" });
+    const id = data.id ?? "";
+    // Fetch the room to populate queue/trackIndex (same as the playlist path).
+    const info = await syncPlayServiceGetRoom(id);
+    setState({
+      roomId: id,
+      roomCode: data.code ?? null,
+      members: [],
+      connected: false,
+      isHost: true,
+      queue: info.queue ?? [],
+      trackIndex: info.trackIndex ?? 0,
+    });
+    connect(id);
+    return id;
+  }, [connect]);
+
   const joinRoom = useCallback(async (roomId: string): Promise<void> => {
     await syncPlayServiceJoinRoom(roomId, {});
     const info = await syncPlayServiceGetRoom(roomId);
@@ -300,5 +319,5 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     }
   }, [accessToken]);
 
-  return [state, { createRoom, createRoomFromPlaylist, joinRoom, joinByCode, leaveRoom, sendPlay, sendPause, sendSeek, sendNext, sendPrev, sendSetIndex }];
+  return [state, { createRoom, createRoomFromPlaylist, createRoomFromQueue, joinRoom, joinByCode, leaveRoom, sendPlay, sendPause, sendSeek, sendNext, sendPrev, sendSetIndex }];
 }

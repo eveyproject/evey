@@ -7,12 +7,12 @@ import {
   syncPlayServiceGetRoom,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { usePlaylistList } from "@/features/playlist/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Play, Pause, Music2, Users, LogOut, SkipForward, SkipBack, ListMusic } from "lucide-react";
+import { Pause, Music2, Users, LogOut, SkipForward, SkipBack, ListMusic } from "lucide-react";
 import { useSyncPlay } from "@/features/syncplay/useSyncPlay";
+import { RoomBuilder } from "@/features/syncplay/RoomBuilder";
 
 export const Route = createLazyFileRoute("/_auth/syncplay")({
   component: SyncPlayPage,
@@ -56,11 +56,9 @@ function useTracksList(libraryId: string | undefined, search: string) {
 function SyncPlayPage() {
   const { t } = useTranslation();
   const libraryId = useMusicLibraryId();
-  const [search, setSearch] = useState("");
-  const { data: tracks } = useTracksList(libraryId, search);
-  const { data: playlists } = usePlaylistList();
-  const [selectedTrackId, setSelectedTrackId] = useState<string>("");
-  const [selectedPlaylistId, setSelectedPlaylistId] = useState<string>("");
+  // Kept (empty search) only to enrich the in-room "now playing" track metadata
+  // from its media id; the room builder fetches its own album/track/playlist data.
+  const { data: tracks } = useTracksList(libraryId, "");
   const [code, setCode] = useState("");
   const [currentTrack, setCurrentTrack] = useState<TrackLite | null>(null);
   const [joining, setJoining] = useState(false);
@@ -126,22 +124,13 @@ function SyncPlayPage() {
     return `/api/v1/music/tracks/${currentTrack.id}/art${tp}`;
   }, [currentTrack?.id]);
 
-  async function handleCreate() {
-    if (!selectedTrackId && !selectedPlaylistId) return;
+  async function handleCreateQueue(trackIds: string[]) {
+    if (trackIds.length === 0) return;
     setCreating(true);
     setError(null);
     try {
-      if (selectedPlaylistId) {
-        const pl = (playlists ?? []).find((p) => p.id === selectedPlaylistId);
-        const id = await controls.createRoomFromPlaylist(selectedPlaylistId, pl?.name);
-        // After creation, useSyncPlay state will hold queue/trackIndex; set a stub track
-        // (metadata enrichment happens when tracks list contains the id, or remains stub)
-        void id;
-      } else {
-        const track = (tracks ?? []).find((x) => x.id === selectedTrackId) ?? null;
-        setCurrentTrack(track);
-        await controls.createRoom(selectedTrackId, "music");
-      }
+      // currentTrack is enriched once the queue's first id resolves (effect + onTrackChange).
+      await controls.createRoomFromQueue(trackIds);
     } catch (e) {
       setError((e as Error).message || "error");
       setCurrentTrack(null);
@@ -319,84 +308,33 @@ function SyncPlayPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4 flex flex-col gap-6">
+    <div className="max-w-5xl mx-auto py-8 px-4 flex flex-col gap-6">
       <h1 className="text-2xl font-bold text-[var(--text)]">{t("media.syncplay.title")}</h1>
       {error && (
         <div className="text-sm text-[var(--color-danger)]">{error}</div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-6 flex flex-col gap-4">
-          <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.syncplay.create")}</h2>
-          <Input
-            label={t("common.search")}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("common.search")}
-          />
-          <div className="max-h-48 overflow-y-auto flex flex-col gap-1 border border-[var(--border)] rounded-[var(--radius-sm)] p-1">
-            {(tracks ?? []).map((tr) => (
-              <button
-                key={tr.id}
-                type="button"
-                onClick={() => { setSelectedTrackId(tr.id); setSelectedPlaylistId(""); }}
-                className={`flex items-center gap-2 text-left px-2 py-1 rounded-[var(--radius-sm)] ${selectedTrackId === tr.id && !selectedPlaylistId ? "bg-[var(--surface-raised)] text-[var(--accent)]" : "hover:bg-[var(--surface-raised)] text-[var(--text)]"}`}
-              >
-                <Music2 size={14} />
-                <span className="flex-1 truncate text-sm">{tr.title}</span>
-                <span className="text-xs text-[var(--text-muted)] truncate max-w-[40%]">{tr.artist}</span>
-              </button>
-            ))}
-            {(!tracks || tracks.length === 0) && (
-              <div className="text-xs text-[var(--text-muted)] p-2">{t("media.syncplay.noTracks")}</div>
-            )}
-          </div>
+      <Card className="p-6 flex flex-col gap-4">
+        <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.syncplay.create")}</h2>
+        <RoomBuilder libraryId={libraryId} creating={creating} onCreate={(ids) => void handleCreateQueue(ids)} />
+      </Card>
 
-          {(playlists ?? []).length > 0 && (
-            <>
-              <div className="text-xs uppercase tracking-wide text-[var(--text-muted)] mt-2 flex items-center gap-2">
-                <ListMusic size={14} />
-                {t("media.syncplay.orPlaylist")}
-              </div>
-              <div className="max-h-40 overflow-y-auto flex flex-col gap-1 border border-[var(--border)] rounded-[var(--radius-sm)] p-1">
-                {(playlists ?? []).map((pl) => (
-                  <button
-                    key={pl.id}
-                    type="button"
-                    onClick={() => { setSelectedPlaylistId(pl.id); setSelectedTrackId(""); }}
-                    className={`flex items-center gap-2 text-left px-2 py-1 rounded-[var(--radius-sm)] ${selectedPlaylistId === pl.id ? "bg-[var(--surface-raised)] text-[var(--accent)]" : "hover:bg-[var(--surface-raised)] text-[var(--text)]"}`}
-                  >
-                    <ListMusic size={14} />
-                    <span className="flex-1 truncate text-sm">{pl.name}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-
-          <Button variant="primary" loading={creating} disabled={!selectedTrackId && !selectedPlaylistId} onClick={() => void handleCreate()}>
-            <Play size={16} className="mr-2" />
-            {t("media.syncplay.createRoom")}
-          </Button>
-        </Card>
-
-        <Card className="p-6 flex flex-col gap-4">
-          <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.syncplay.join")}</h2>
-          <Input
-            label={t("media.syncplay.codeLabel")}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-            placeholder="12345"
-            inputMode="numeric"
-            autoComplete="off"
-            className="font-mono tracking-widest text-center text-lg"
-          />
-          <Button variant="primary" loading={joining} disabled={code.trim().length < 4} onClick={() => void handleJoin()}>
-            <Pause size={16} className="mr-2" />
-            {t("media.syncplay.joinRoom")}
-          </Button>
-        </Card>
-      </div>
+      <Card className="p-6 flex flex-col gap-4 w-full max-w-md">
+        <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.syncplay.join")}</h2>
+        <Input
+          label={t("media.syncplay.codeLabel")}
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+          placeholder="12345"
+          inputMode="numeric"
+          autoComplete="off"
+          className="font-mono tracking-widest text-center text-lg"
+        />
+        <Button variant="primary" loading={joining} disabled={code.trim().length < 4} onClick={() => void handleJoin()}>
+          <Pause size={16} className="mr-2" />
+          {t("media.syncplay.joinRoom")}
+        </Button>
+      </Card>
     </div>
   );
 }

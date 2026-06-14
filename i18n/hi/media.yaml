@@ -367,6 +367,18 @@ syncplay:
   title: साथ में सुनें
   create: कमरा बनाएं
   createRoom: बनाएं
+  tabAlbums: एल्बम
+  tabTracks: गाने
+  tabPlaylists: प्लेलिस्ट
+  addAlbum: "एल्बम जोड़ें"
+  addToQueue: "कतार में जोड़ें"
+  removeFromQueue: "कतार से हटाएं"
+  moveUp: "ऊपर"
+  moveDown: "नीचे"
+  clearQueue: "कतार साफ़ करें"
+  queueEmpty: "कमरे की कतार बनाने के लिए एल्बम, गाने या प्लेलिस्ट जोड़ें।"
+  noAlbums: "कोई एल्बम नहीं मिला"
+  noPlaylists: "कोई प्लेलिस्ट नहीं"
   join: कमरे में शामिल हों
   joinRoom: शामिल हों
   codeLabel: कोड

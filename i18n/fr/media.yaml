@@ -367,6 +367,18 @@ syncplay:
   title: Écoute partagée
   create: Créer une salle
   createRoom: Créer
+  tabAlbums: Albums
+  tabTracks: Titres
+  tabPlaylists: Playlists
+  addAlbum: "Ajouter l'album"
+  addToQueue: "Ajouter à la file"
+  removeFromQueue: "Retirer de la file"
+  moveUp: Monter
+  moveDown: Descendre
+  clearQueue: "Vider la file"
+  queueEmpty: "Ajoutez des albums, titres ou playlists pour constituer la file de la salle."
+  noAlbums: "Aucun album trouvé"
+  noPlaylists: "Aucune playlist"
   join: Rejoindre une salle
   joinRoom: Rejoindre
   codeLabel: Code

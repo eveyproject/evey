@@ -367,6 +367,18 @@ syncplay:
   title: Listen Together
   create: Create a room
   createRoom: Create room
+  tabAlbums: Albums
+  tabTracks: Tracks
+  tabPlaylists: Playlists
+  addAlbum: Add album
+  addToQueue: Add to queue
+  removeFromQueue: Remove from queue
+  moveUp: Move up
+  moveDown: Move down
+  clearQueue: Clear queue
+  queueEmpty: "Add albums, tracks or playlists to build the room's queue."
+  noAlbums: No albums found
+  noPlaylists: No playlists
   join: Join a room
   joinRoom: Join room
   codeLabel: Code

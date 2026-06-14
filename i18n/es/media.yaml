@@ -367,6 +367,18 @@ syncplay:
   title: Escuchar juntos
   create: Crear una sala
   createRoom: Crear
+  tabAlbums: Álbumes
+  tabTracks: Canciones
+  tabPlaylists: Listas
+  addAlbum: "Añadir álbum"
+  addToQueue: "Añadir a la cola"
+  removeFromQueue: "Quitar de la cola"
+  moveUp: Subir
+  moveDown: Bajar
+  clearQueue: "Vaciar la cola"
+  queueEmpty: "Añade álbumes, canciones o listas para crear la cola de la sala."
+  noAlbums: "No se encontraron álbumes"
+  noPlaylists: "Sin listas"
   join: Unirse a una sala
   joinRoom: Unirse
   codeLabel: Código
