@@ -143,6 +143,13 @@ func (s *Scheduler) tick(ctx context.Context) {
 
 func (s *Scheduler) runScan(ctx context.Context, sched *library.ScanSchedule) {
 	defer s.scanWG.Done()
+	// A panic in a bare goroutine takes down the whole process; the scheduler
+	// must survive a buggy scan of one library.
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("scheduler: scan panicked", slog.String("library_id", string(sched.LibraryID)), slog.Any("panic", r))
+		}
+	}()
 	added, updated, err := s.scanner.ScanLibrary(ctx, string(sched.LibraryID))
 	if err != nil {
 		s.logger.Error("scheduler: scan failed", slog.String("library_id", string(sched.LibraryID)), slog.Any("err", err))

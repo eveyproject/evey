@@ -137,6 +137,13 @@ func (s *Scheduler) tick(ctx context.Context) {
 
 func (s *Scheduler) runBackup(ctx context.Context, sched *backup.BackupSchedule) {
 	defer s.runWG.Done()
+	// A panic in a bare goroutine takes down the whole process; the scheduler
+	// must survive a buggy backup run.
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.Error("backup scheduler: backup panicked", slog.Any("panic", r))
+		}
+	}()
 	_, err := s.execBackup(ctx, sched)
 	if err != nil {
 		s.logger.Error("backup scheduler: backup failed", slog.Any("err", err))
