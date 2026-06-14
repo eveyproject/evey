@@ -714,7 +714,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// network blip doesn't lock the cap forever.
 	capsOverrideRepo := postgres.NewTranscodeCapsOverrideRepo(db)
 	capsOverrideSvc := apptranscoding.NewCapOverrideService(
-		capsOverrideRepo, db, apptranscoding.CapOverrideServiceOpts{}, slog.Default(),
+		capsOverrideRepo, apptranscoding.CapOverrideServiceOpts{}, slog.Default(),
 	)
 	capsOverrideSvc.Start(ctx)
 

@@ -19,15 +19,16 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 )
 
-// TestAggregateAndUpsert_NilDB_ReturnsNilEarly confirms the nil-DB early-return
-// path works without panicking — this is the only seam reachable without a
-// real database and is the minimal unit-level coverage target.
-func TestAggregateAndUpsert_NilDB_ReturnsNilEarly(t *testing.T) {
+// TestAggregateAndUpsert_EmptyAggregation_NoOverrides confirms that when the
+// repo's aggregation returns no buckets (the fake returns nil), the worker
+// writes no overrides and doesn't error — the unit-level seam reachable without
+// a real database (the SQL itself is integration-tested below).
+func TestAggregateAndUpsert_EmptyAggregation_NoOverrides(t *testing.T) {
 	repo := &fakeCapOverrideRepo{}
-	svc := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	svc := NewCapOverrideService(repo, CapOverrideServiceOpts{}, nil)
 	err := svc.aggregateAndUpsert(context.Background())
-	require.NoError(t, err, "nil DB must return nil without panicking")
-	assert.Empty(t, repo.rows, "nil DB must not produce any override rows")
+	require.NoError(t, err, "empty aggregation must not error")
+	assert.Empty(t, repo.rows, "empty aggregation must not produce any override rows")
 }
 
 // TestAggregateAndUpsert_StarvedBatch_WritesOverride seeds a 4K HEVC source
@@ -77,7 +78,7 @@ func TestAggregateAndUpsert_StarvedBatch_WritesOverride(t *testing.T) {
 
 	// Wire up the real postgres repo so we can read back what was upserted.
 	repo := pgadapter.NewTranscodeCapsOverrideRepo(db)
-	svc := NewCapOverrideService(repo, db, CapOverrideServiceOpts{
+	svc := NewCapOverrideService(repo, CapOverrideServiceOpts{
 		AggregationWindow: 24 * time.Hour,
 		MinSamples:        50, // 60 total ≥ 50
 		StarvedThreshold:  0.30,
@@ -140,7 +141,7 @@ func TestAggregateAndUpsert_NonStarvedBatch_NoOverride(t *testing.T) {
 	}
 
 	repo := pgadapter.NewTranscodeCapsOverrideRepo(db)
-	svc := NewCapOverrideService(repo, db, CapOverrideServiceOpts{
+	svc := NewCapOverrideService(repo, CapOverrideServiceOpts{
 		AggregationWindow: 24 * time.Hour,
 		MinSamples:        50,
 		StarvedThreshold:  0.30,
@@ -214,7 +215,7 @@ func TestAggregateAndUpsert_CodecBuckets_IsolatedPerCodec(t *testing.T) {
 	}
 
 	repo := pgadapter.NewTranscodeCapsOverrideRepo(db)
-	svc := NewCapOverrideService(repo, db, CapOverrideServiceOpts{
+	svc := NewCapOverrideService(repo, CapOverrideServiceOpts{
 		AggregationWindow: 24 * time.Hour,
 		MinSamples:        50,
 		StarvedThreshold:  0.30,
@@ -271,7 +272,7 @@ func TestAggregateAndUpsert_BelowMinSamples_NoOverride(t *testing.T) {
 	}
 
 	repo := pgadapter.NewTranscodeCapsOverrideRepo(db)
-	svc := NewCapOverrideService(repo, db, CapOverrideServiceOpts{
+	svc := NewCapOverrideService(repo, CapOverrideServiceOpts{
 		AggregationWindow: 24 * time.Hour,
 		MinSamples:        50, // 10 events < 50 → filtered out by SQL WHERE total >= $2
 		StarvedThreshold:  0.30,

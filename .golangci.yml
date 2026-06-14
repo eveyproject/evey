@@ -105,10 +105,6 @@ linters:
           - bodyclose
           - gocritic
           - forbidigo
-      # Not a postgres repo / TxUnit participant — owns its own *sql.DB.
-      - path: internal/app/transcoding/caps_override_service\.go
-        linters:
-          - forbidigo
       - path: gen/
         linters:
           - errcheck

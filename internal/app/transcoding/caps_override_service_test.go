@@ -12,9 +12,16 @@ import (
 )
 
 type fakeCapOverrideRepo struct {
-	mu    sync.Mutex
-	rows  map[string]domaintranscoding.CapOverride
-	calls int
+	mu      sync.Mutex
+	rows    map[string]domaintranscoding.CapOverride
+	calls   int
+	aggRows []domaintranscoding.CapAggregateRow // returned by AggregateStarvation
+}
+
+func (r *fakeCapOverrideRepo) AggregateStarvation(_ context.Context, _ time.Duration, _ int) ([]domaintranscoding.CapAggregateRow, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.aggRows, nil
 }
 
 func (r *fakeCapOverrideRepo) Upsert(_ context.Context, o domaintranscoding.CapOverride) error {
@@ -62,7 +69,7 @@ func (r *fakeCapOverrideRepo) DeleteExpired(_ context.Context) (int, error) {
 
 func TestCapOverrideService_OverrideForHeight_EmptyCacheReturnsFalse(t *testing.T) {
 	repo := &fakeCapOverrideRepo{}
-	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	s := NewCapOverrideService(repo, CapOverrideServiceOpts{}, nil)
 	_, ok := s.OverrideForHeight("hevc", 2160)
 	assert.False(t, ok)
 }
@@ -74,7 +81,7 @@ func TestCapOverrideService_OverrideForHeight_ExactCodecMatchWins(t *testing.T) 
 		SourceClass: "hevc/2160p", MaxHeight: 1080,
 		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
 	})
-	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	s := NewCapOverrideService(repo, CapOverrideServiceOpts{}, nil)
 	assertNoError(t, s.Refresh(context.Background()))
 
 	// HEVC 4K source → hit.
@@ -98,7 +105,7 @@ func TestCapOverrideService_OverrideForHeight_WildcardCodecFallback(t *testing.T
 		SourceClass: "any/2160p", MaxHeight: 1440,
 		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
 	})
-	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	s := NewCapOverrideService(repo, CapOverrideServiceOpts{}, nil)
 	assertNoError(t, s.Refresh(context.Background()))
 
 	// A typed codec request still matches the wildcard.
@@ -115,7 +122,7 @@ func TestCapOverrideService_OverrideForHeight_LegacyMVPRowMatches(t *testing.T) 
 		SourceClass: "2160p", MaxHeight: 1080,
 		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
 	})
-	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	s := NewCapOverrideService(repo, CapOverrideServiceOpts{}, nil)
 	assertNoError(t, s.Refresh(context.Background()))
 
 	o, ok := s.OverrideForHeight("hevc", 2160)
@@ -133,7 +140,7 @@ func TestCapOverrideService_OverrideForHeight_ExactBeatsWildcardBeatsLegacy(t *t
 	} {
 		_ = repo.Upsert(context.Background(), o)
 	}
-	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	s := NewCapOverrideService(repo, CapOverrideServiceOpts{}, nil)
 	assertNoError(t, s.Refresh(context.Background()))
 
 	o, ok := s.OverrideForHeight("hevc", 2160)
@@ -143,7 +150,7 @@ func TestCapOverrideService_OverrideForHeight_ExactBeatsWildcardBeatsLegacy(t *t
 
 func TestCapOverrideService_Refresh_UpdatesCache(t *testing.T) {
 	repo := &fakeCapOverrideRepo{}
-	s := NewCapOverrideService(repo, nil, CapOverrideServiceOpts{}, nil)
+	s := NewCapOverrideService(repo, CapOverrideServiceOpts{}, nil)
 	_, ok := s.OverrideForHeight("hevc", 2160)
 	assert.False(t, ok, "cache empty before first refresh")
 

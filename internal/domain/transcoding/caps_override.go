@@ -105,4 +105,19 @@ type CapOverrideRepo interface {
 	// override (already empty). Returns (true, nil) when a row was
 	// actually removed so the handler can distinguish 200 vs 404.
 	Delete(ctx context.Context, sourceClass string) (bool, error)
+	// AggregateStarvation runs the CMCD/QoE feedback aggregation: for each
+	// (codec, resolution) source-class bucket over `window`, the count of
+	// buffer-starved events vs total, keeping only buckets with at least
+	// `minSamples` events. The worker turns these rows into cap overrides.
+	// Lives on the repo so the app layer holds no raw *sql.DB.
+	AggregateStarvation(ctx context.Context, window time.Duration, minSamples int) ([]CapAggregateRow, error)
+}
+
+// CapAggregateRow is one (source-class, starvation) bucket returned by
+// AggregateStarvation. SourceClass is the normalised "codec/resolution"
+// key (e.g. "hevc/2160p"); Starved/Total are event counts over the window.
+type CapAggregateRow struct {
+	SourceClass string
+	Starved     int64
+	Total       int64
 }

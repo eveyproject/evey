@@ -2,7 +2,6 @@ package transcoding
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -38,7 +37,6 @@ import (
 // shows the bucket granularity is too coarse.
 type CapOverrideService struct {
 	repo   domaintranscoding.CapOverrideRepo
-	db     *sql.DB // raw connection for the aggregation join
 	logger *slog.Logger
 
 	opts CapOverrideServiceOpts
@@ -95,14 +93,13 @@ func (o *CapOverrideServiceOpts) applyDefaults() {
 	}
 }
 
-func NewCapOverrideService(repo domaintranscoding.CapOverrideRepo, db *sql.DB, opts CapOverrideServiceOpts, logger *slog.Logger) *CapOverrideService {
+func NewCapOverrideService(repo domaintranscoding.CapOverrideRepo, opts CapOverrideServiceOpts, logger *slog.Logger) *CapOverrideService {
 	opts.applyDefaults()
 	if logger == nil {
 		logger = slog.Default()
 	}
 	s := &CapOverrideService{
 		repo:       repo,
-		db:         db,
 		logger:     logger,
 		opts:       opts,
 		tickerStop: make(chan struct{}),
@@ -289,116 +286,48 @@ func (s *CapOverrideService) OverrideForHeight(sourceCodec string, sourceHeight 
 // re-evaluates. That avoids flapping caps when a class flirts with
 // the threshold.
 func (s *CapOverrideService) aggregateAndUpsert(ctx context.Context) error {
-	if s.db == nil {
-		return nil // tests without a real DB
-	}
-
-	// The aggregation joins playback_qoe_events (potentially 100k+
-	// rows over the AggregationWindow) with media_items + media_streams.
-	// Wrap in a deadline so a slow query can't hang the worker tick
-	// indefinitely — the loop catches the error and retries on the
-	// next interval. 30 s is generous vs the typical sub-second
-	// query, tight enough that a stalled DB doesn't lose more than
-	// half a tick.
-	queryCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	// Per-codec granularity: a 4K HEVC source has a heavier decode
-	// profile than a 4K H.264 source (B-frame chains, multi-ref motion
-	// comp), so a starvation pattern on one shouldn't auto-cap the
-	// other. We bucket by (codec, height_bucket) and normalise the
-	// codec name with the same rules as SourceClassFor — that way the
-	// override the worker writes here matches what the handler looks
-	// up at request time.
-	//
-	// Codec normalisation lives in SQL because we want a single
-	// aggregation query instead of pulling raw rows into Go (millions
-	// of QoE events at scale). The CASE mirrors normaliseSourceCodec.
-	const q = `
-		WITH source_meta AS (
-			SELECT
-				mi.id AS media_item_id,
-				MAX(ms.height) AS height,
-				LOWER(MAX(ms.codec) FILTER (WHERE ms.stream_type = 'video')) AS codec
-			FROM media_items mi
-			JOIN media_streams ms ON ms.media_item_id = mi.id AND ms.stream_type = 'video'
-			GROUP BY mi.id
-		), normalised AS (
-			SELECT
-				sm.media_item_id,
-				sm.height,
-				CASE
-					WHEN sm.codec IN ('h264', 'avc', 'avc1')          THEN 'h264'
-					WHEN sm.codec IN ('hevc', 'h265', 'hev1', 'hvc1') THEN 'hevc'
-					WHEN sm.codec IN ('av1', 'av01')                  THEN 'av1'
-					WHEN sm.codec = 'vp9'                              THEN 'vp9'
-					ELSE 'any'
-				END AS codec_bucket
-			FROM source_meta sm
-		), buckets AS (
-			SELECT
-				CASE
-					WHEN nm.height >= 2160 THEN nm.codec_bucket || '/2160p'
-					WHEN nm.height >= 1440 THEN nm.codec_bucket || '/1440p'
-					WHEN nm.height >= 1080 THEN nm.codec_bucket || '/1080p'
-					ELSE NULL
-				END AS source_class,
-				COUNT(*) FILTER (WHERE pe.buffer_starved = TRUE) AS starved,
-				COUNT(*)                                          AS total
-			FROM playback_qoe_events pe
-			JOIN normalised nm ON nm.media_item_id = pe.media_item_id
-			WHERE pe.ts >= NOW() - $1::interval
-			GROUP BY source_class
-		)
-		SELECT source_class, starved, total
-		FROM buckets
-		WHERE source_class IS NOT NULL
-		  AND total >= $2`
-	rows, err := s.db.QueryContext(queryCtx, q, intervalArg(s.opts.AggregationWindow), s.opts.MinSamples)
+	// The aggregation query lives in the repo (CapOverrideRepo.AggregateStarvation)
+	// so the app layer holds no raw *sql.DB. The business rules stay here:
+	// starvation threshold → next-lower cap → TTL'd upsert.
+	rows, err := s.repo.AggregateStarvation(ctx, s.opts.AggregationWindow, s.opts.MinSamples)
 	if err != nil {
-		return fmt.Errorf("aggregation query: %w", err)
+		return fmt.Errorf("aggregate starvation: %w", err)
 	}
-	defer rows.Close()
 
 	now := time.Now().UTC()
-	for rows.Next() {
-		var cls string
-		var starved, total int64
-		if err := rows.Scan(&cls, &starved, &total); err != nil {
-			return fmt.Errorf("scan: %w", err)
-		}
-		if total == 0 {
+	for _, row := range rows {
+		if row.Total == 0 {
 			continue
 		}
-		ratio := float64(starved) / float64(total)
+		ratio := float64(row.Starved) / float64(row.Total)
 		if ratio < s.opts.StarvedThreshold {
 			continue
 		}
-		newCap := lowerCapFor(cls)
+		newCap := lowerCapFor(row.SourceClass)
 		if newCap == 0 {
 			continue // bucket already at floor
 		}
 		override := domaintranscoding.CapOverride{
-			SourceClass:  cls,
+			SourceClass:  row.SourceClass,
 			MaxHeight:    newCap,
-			Reason:       fmt.Sprintf("starved %d/%d=%.0f%% over %s", starved, total, ratio*100, s.opts.AggregationWindow),
+			Reason:       fmt.Sprintf("starved %d/%d=%.0f%% over %s", row.Starved, row.Total, ratio*100, s.opts.AggregationWindow),
 			StarvedRatio: ratio,
-			SamplesCount: int(total),
+			SamplesCount: int(row.Total),
 			AppliedAt:    now,
 			ExpiresAt:    now.Add(s.opts.OverrideTTL),
 		}
 		if err := s.repo.Upsert(ctx, override); err != nil {
 			s.logger.Warn("caps override: upsert failed",
-				slog.String("class", cls), slog.Any("err", err))
+				slog.String("class", row.SourceClass), slog.Any("err", err))
 			continue
 		}
 		s.logger.Info("caps override: applied",
-			slog.String("source_class", cls),
+			slog.String("source_class", row.SourceClass),
 			slog.Int("new_max_height", newCap),
 			slog.Float64("starved_ratio", ratio),
-			slog.Int("samples", int(total)))
+			slog.Int("samples", int(row.Total)))
 	}
-	return rows.Err()
+	return nil
 }
 
 // lowerCapFor maps a source-class bucket to the next-lower height
@@ -423,14 +352,4 @@ func lowerCapFor(cls string) int {
 		return 720
 	}
 	return 0
-}
-
-// intervalArg formats a duration as a postgres interval literal. The
-// query uses `$1::interval` so we pass a "Ns" / "Nh" string and let
-// pg parse it.
-func intervalArg(d time.Duration) string {
-	if d < time.Second {
-		d = time.Second
-	}
-	return fmt.Sprintf("%d seconds", int(d.Seconds()))
 }
