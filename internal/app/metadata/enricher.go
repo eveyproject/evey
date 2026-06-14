@@ -331,9 +331,6 @@ func buildArtworkRecord(mediaItemID string, sortOrder int, art domainmetadata.Ar
 // round-trip, so the caller runs them after the transaction commits instead
 // of holding row locks across external HTTP calls.
 func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people []domainmetadata.PersonResult) ([]*domainlib.Person, error) {
-	if err := e.mediaPersons.DeleteByMediaItemID(ctx, shared.MediaItemID(mediaItemID)); err != nil {
-		return nil, fmt.Errorf("delete old media_people: %w", err)
-	}
 	// Preload every candidate person in one query so the findOrCreate
 	// loop doesn't turn a 50-person cast into 50 GetByName round-trips.
 	uniqueNames := make([]string, 0, len(people))
@@ -382,6 +379,18 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 			SortOrder:     sortIdx,
 		})
 		sortIdx++
+	}
+	// Build the batch BEFORE deleting the old links. If the provider returned no
+	// people (or none survived dedup), skip the delete entirely — otherwise we'd
+	// wipe the existing cast/crew and insert nothing, leaving the item with no
+	// cast until the next successful enrich. Same data-loss class as the
+	// replaceArtwork no-wipe guard (errors mid-loop already returned above, so a
+	// non-uow caller no longer commits the delete before failing).
+	if len(batch) == 0 {
+		return bioPending, nil
+	}
+	if err := e.mediaPersons.DeleteByMediaItemID(ctx, shared.MediaItemID(mediaItemID)); err != nil {
+		return nil, fmt.Errorf("delete old media_people: %w", err)
 	}
 	if err := e.mediaPersons.CreateBatch(ctx, batch); err != nil {
 		// Abort like the artwork/item-update siblings instead of warn-and-continue:

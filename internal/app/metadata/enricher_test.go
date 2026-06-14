@@ -453,6 +453,31 @@ func TestEnrichItem_EmptyArtwork_KeepsExisting(t *testing.T) {
 	assert.Equal(t, before[0].ID, after[0].ID)
 }
 
+// TestEnrichItem_EmptyPeople_KeepsExisting: a re-enrich that returns NO people
+// (transient provider miss / a supplementary provider with no cast) must NOT
+// wipe the cast/crew the item already has — same data-loss class as the empty-
+// artwork no-wipe guard. upsertPeople used to DELETE before building the batch,
+// so an empty result committed the wipe.
+func TestEnrichItem_EmptyPeople_KeepsExisting(t *testing.T) {
+	primary := &fakeProvider{name: "tmdb"}
+	e, _, _, mpRepo, miRepo, _ := newTestEnricher(primary, nil, nil)
+	ctx := context.Background()
+	item := &domainlib.MediaItem{ID: "item-1", Title: "X", Type: "movie"}
+	require.NoError(t, miRepo.Create(ctx, item))
+
+	require.NoError(t, e.EnrichItem(ctx, item, &domain.MetadataResult{
+		Title:  "X",
+		People: []domain.PersonResult{{Name: "Actor A", Role: "Actor", Character: "Hero"}},
+	}))
+	before, _ := mpRepo.GetByMediaItemID(ctx, "item-1")
+	require.Len(t, before, 1)
+
+	// Re-enrich with empty people → existing cast must survive.
+	require.NoError(t, e.EnrichItem(ctx, item, &domain.MetadataResult{Title: "X"}))
+	after, _ := mpRepo.GetByMediaItemID(ctx, "item-1")
+	require.Len(t, after, 1, "empty provider people must not wipe existing cast")
+}
+
 // --- upsertPeople: dedup + character ---
 
 func TestUpsertPeople_Dedup(t *testing.T) {
