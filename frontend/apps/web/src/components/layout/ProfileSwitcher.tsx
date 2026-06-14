@@ -10,12 +10,15 @@ import { Users, Check, Settings, Clock, BarChart3, QrCode, LayoutList, LogOut, A
 import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
 import { Modal } from "@/components/ui/Modal";
 
-function profileAvatarUrl(p: V1Profile): string | null {
-  return p.avatarPath && p.id ? `/api/v1/profiles/${p.id}/avatar` : null;
+// Accept undefined: `active` can be undefined when the profiles list is empty
+// (loading window, or a transient 0-profile state), and the avatar button calls
+// these directly — without the guard that would crash every authenticated page.
+function profileAvatarUrl(p: V1Profile | undefined): string | null {
+  return p?.avatarPath && p.id ? `/api/v1/profiles/${p.id}/avatar` : null;
 }
 
-function profileInitial(p: V1Profile): string {
-  return (p.name ?? "?").charAt(0).toUpperCase();
+function profileInitial(p: V1Profile | undefined): string {
+  return (p?.name ?? "?").charAt(0).toUpperCase();
 }
 
 function ProfileAvatar({ profile, size = 32 }: { profile: V1Profile; size?: number }) {
