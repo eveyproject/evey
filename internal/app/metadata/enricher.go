@@ -257,9 +257,10 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	if existing, err := e.artwork.GetByMediaItem(ctx, mediaItemID); err == nil && artworkSetUnchanged(existing, artwork) {
 		return nil, nil
 	}
-	if err := e.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
-		return nil, fmt.Errorf("delete old artwork: %w", err)
-	}
+	// Build the new records BEFORE deleting the old ones. If the provider gave
+	// artwork but none of it produced a valid record (bad type/URL), bail out
+	// without deleting — otherwise we'd wipe the existing artwork and insert
+	// nothing, leaving the item with no poster until the next successful enrich.
 	records := make([]*domainmetadata.ArtworkRecord, 0, len(artwork))
 	for i, art := range artwork {
 		if rec := buildArtworkRecord(mediaItemID, i, art); rec != nil {
@@ -268,6 +269,9 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	}
 	if len(records) == 0 {
 		return nil, nil
+	}
+	if err := e.artwork.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+		return nil, fmt.Errorf("delete old artwork: %w", err)
 	}
 	if err := e.artwork.CreateBatch(ctx, records); err != nil {
 		return nil, fmt.Errorf("create artwork batch: %w", err)
