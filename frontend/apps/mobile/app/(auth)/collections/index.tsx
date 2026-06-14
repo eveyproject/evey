@@ -44,7 +44,7 @@ function CollectionCard({
   onPress: () => void;
   onLongPress: () => void;
 }) {
-  const initial = col.name[0]?.toUpperCase() ?? "?";
+  const initial = col.name?.[0]?.toUpperCase() ?? "?";
 
   return (
     <TouchableOpacity

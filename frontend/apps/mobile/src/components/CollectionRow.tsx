@@ -42,7 +42,7 @@ export const CollectionRow = React.memo(function CollectionRow({ title, collecti
 
   const renderItem = useCallback(
     ({ item }: { item: Collection }) => {
-      const initial = item.name[0]?.toUpperCase() ?? "?";
+      const initial = item.name?.[0]?.toUpperCase() ?? "?";
       const onPress = () => {
         if (item.rules && item.rules.length > 0) {
           router.push(`/collections/smart/${item.id}`);
