@@ -317,6 +317,7 @@ sessions:
   elapsed: "बीता हुआ"
   video: "वीडियो: {{codec}}"
   audio: "ऑडियो: {{codec}}"
+  sourceBitrate: "स्रोत: {{rate}}"
   directPlay: "डायरेक्ट प्ले"
   directStream: "डायरेक्ट स्ट्रीम"
   transcode: "ट्रांसकोड"

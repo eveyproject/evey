@@ -1456,5 +1456,6 @@
   "admin.activity.viewers": "{{count}} viewer(s)",
   "admin.activity.viewers_other": "{{count}} viewers",
   "admin.dashboardStats.throughput": "Throughput",
-  "admin.dashboardStats.theoretical": "Theoretical Rate"
+  "admin.dashboardStats.theoretical": "Theoretical Rate",
+  "admin.sessions.sourceBitrate": "Source: {{rate}}"
 }

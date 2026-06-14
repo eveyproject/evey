@@ -199,7 +199,11 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
             <span>{t("admin.sessions.audio", { codec: session.audioCodec })}</span>
           )}
           {bandwidthBps > 0 && (
-            <span>{formatBandwidth(bandwidthBps)}</span>
+            <span>
+              {t("admin.sessions.sourceBitrate", {
+                rate: formatBandwidth(bandwidthBps),
+              })}
+            </span>
           )}
         </div>
       </div>
