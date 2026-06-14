@@ -273,9 +273,12 @@ export function FeedConfigCard() {
                   min={1}
                   max={100}
                   value={row.maxItems}
-                  onChange={(e) =>
-                    setMaxItems(i, Math.max(1, Number(e.target.value)))
-                  }
+                  onChange={(e) => {
+                    // Guard NaN (empty / non-numeric paste): keep the old value
+                    // rather than persisting NaN to the backend on Save.
+                    const v = Number(e.target.value);
+                    setMaxItems(i, Number.isFinite(v) ? Math.max(1, v) : row.maxItems);
+                  }}
                   className="w-14 text-center text-sm py-0.5 rounded-[var(--radius-sm)] border bg-[var(--bg)] border-[var(--border)] text-[var(--text)]"
                 />
               )}
