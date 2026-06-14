@@ -705,6 +705,7 @@ export function HLSPlayer({
         availableQualities={hlsLevels}
       >
         <PlayerControls
+          streamInfo={streamInfo}
           onClose={onClose}
           onAudioChange={handleAudioChange}
           onQualityChange={handleQualityChange}

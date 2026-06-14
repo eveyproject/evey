@@ -10,8 +10,10 @@ import { ChaptersPanel } from "./PlayerChaptersPanel";
 import { EpisodesPanel } from "./PlayerEpisodesPanel";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
 import { SettingsPanel } from "./PlayerSettingsPanel";
+import { StreamInfoPanel } from "./StreamInfoPanel";
 import { usePlayerContext } from "./PlayerContext";
 import { useDocumentPiP } from "./hooks/useDocumentPiP";
+import type { V1StreamInfo } from "@evey/api";
 
 export type { EpisodeNavItem, SeasonNavItem };
 
@@ -45,6 +47,7 @@ interface PlayerControlsProps {
   onCastSeek?: (timeSec: number) => boolean;
   onCastSetVolume?: (level: number) => void;
   onCastSetMuted?: (muted: boolean) => void;
+  streamInfo?: V1StreamInfo;
 }
 
 export function PlayerControls({
@@ -74,6 +77,7 @@ export function PlayerControls({
   onCastSeek,
   onCastSetVolume,
   onCastSetMuted,
+  streamInfo,
 }: PlayerControlsProps) {
   const { t } = useTranslation();
   const ctx = usePlayerContext();
@@ -100,7 +104,7 @@ export function PlayerControls({
   const muted = isCasting ? (castPlayback.isMuted ?? false) : localMuted;
 
   const [visible, setVisible] = useState(true);
-  const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | null>(null);
+  const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | "streaminfo" | null>(null);
   const settingsOpen = openPanel === "settings";
   const episodesOpen = openPanel === "episodes";
   const chaptersOpen = openPanel === "chapters";
@@ -536,6 +540,16 @@ export function PlayerControls({
             onBrightnessChange={onBrightnessChange}
             availableQualities={availableQualities}
           />
+
+          {/* Stream Info — surfaces the backend's playback decision (method,
+              codecs, transcode reasons), parity with the mobile app. */}
+          {streamInfo && (
+            <StreamInfoPanel
+              streamInfo={streamInfo}
+              open={openPanel === "streaminfo"}
+              onToggle={() => setOpenPanel(openPanel === "streaminfo" ? null : "streaminfo")}
+            />
+          )}
 
           {/* Play On — server-brokered remote control of first-party
               clients (TV app, mobile). Works for any browser, any
