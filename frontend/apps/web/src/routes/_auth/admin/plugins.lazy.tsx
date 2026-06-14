@@ -569,8 +569,14 @@ function PluginsPage() {
     invalidate();
     setShowModal(false);
     toast.success(t("admin.plugins.pluginInstalled"));
-    installTimers.current.push(window.setTimeout(() => invalidate(), 3000));
-    installTimers.current.push(window.setTimeout(() => invalidate(), 8000));
+    // Cancel any delayed re-invalidations still pending from a previous install
+    // before queuing new ones, so repeated installs in one session don't pile up
+    // overlapping timers each firing a redundant refetch.
+    installTimers.current.forEach((id) => clearTimeout(id));
+    installTimers.current = [
+      window.setTimeout(() => invalidate(), 3000),
+      window.setTimeout(() => invalidate(), 8000),
+    ];
   }
 
   return (
