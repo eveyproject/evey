@@ -103,7 +103,6 @@ const SW_ONLY_DATA = {
   is_wsl: false,
   benchmarked_at: "2024-03-10T14:30:00Z",
   benchmark_duration_ms: 4500,
-  cpu_signature: "GenuineIntel0x0123456789ab",
   hw_fallbacks: [],
 };
 
@@ -121,7 +120,6 @@ const HW_NVENC_DATA = {
   is_wsl: false,
   benchmarked_at: "2024-03-10T14:30:00Z",
   benchmark_duration_ms: 8200,
-  cpu_signature: "GenuineIntel0x0123456789ab",
   hw_fallbacks: [],
 };
 
@@ -211,12 +209,6 @@ describe("EncodeCalibrationCard", () => {
   it("renders benchmark duration (4.5s) for software-only host", () => {
     renderCard();
     expect(screen.getByText(/4\.5s/)).toBeInTheDocument();
-  });
-
-  it("renders CPU signature (first 12 chars + ellipsis)", () => {
-    renderCard();
-    // cpu_signature = "GenuineIntel0x0123456789ab" → slice(0,12) = "GenuineIntel"
-    expect(screen.getByText(/GenuineIntel…/)).toBeInTheDocument();
   });
 
   // ── HW toggle (software-only host, hw_mode=off) ───────────────────────────────

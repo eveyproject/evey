@@ -34,7 +34,6 @@ type EncodeCapability = {
   is_wsl?: boolean; // WSL2: VAAPI/QSV (Mesa d3d12) unsupported, greyed out
   benchmarked_at: string; // RFC3339
   benchmark_duration_ms: number;
-  cpu_signature: string;
   hw_fallbacks?: HWFallback[];
   bench_samples?: BenchRungSample[]; // per-rung fps evidence behind the caps
 };
@@ -240,9 +239,6 @@ export function EncodeCalibrationCard() {
         <Row label={t("admin.calibration.lastRun", "Last calibrated")}>
           <span className="text-[var(--text)]">{fmtDate(data.benchmarked_at)}</span>
           <span className="text-[var(--text-muted)]"> ({(data.benchmark_duration_ms / 1000).toFixed(1)}s)</span>
-        </Row>
-        <Row label={t("admin.calibration.cpuSig", "CPU signature")}>
-          <code className="text-xs text-[var(--text-muted)] truncate">{data.cpu_signature.slice(0, 12)}…</code>
         </Row>
       </div>
 
