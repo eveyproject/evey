@@ -345,7 +345,7 @@ func TestPlaybackHandler_GetStreamInfo_ParentalBlocked_NotFound(t *testing.T) {
 		Name:   "Kid",
 		IsKids: true,
 		Parental: &user.ParentalSettings{
-			MaxAge:  intPtr(10),
+			MaxAge:  new(10),
 			Enabled: true,
 		},
 	})
