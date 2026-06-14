@@ -451,5 +451,39 @@ describe("useSyncPlay", () => {
       act(() => unmount());
       expect(ws.close).toHaveBeenCalled();
     });
+
+    it("does not reconnect to the old room after switching rooms", async () => {
+      vi.useFakeTimers();
+      try {
+        eveyFetchFn
+          .mockResolvedValueOnce({ id: "room-1", code: "C1" })
+          .mockResolvedValueOnce({ id: "room-2", code: "C2" });
+        const { result } = await loadHook();
+
+        await act(async () => {
+          await result.current[1].createRoom("media-1");
+        });
+        act(() => latestWs().simulateOpen());
+        // room-1 drops involuntarily -> schedules a reconnect timer to room-1
+        act(() => latestWs().simulateClose());
+
+        // switch to room-2 before that reconnect fires
+        await act(async () => {
+          await result.current[1].createRoom("media-2");
+        });
+        act(() => latestWs().simulateOpen());
+
+        const countAfterSwitch = MockWebSocket.instances.length; // room-1 + room-2
+        // fire any pending timers: a stale room-1 reconnect would open a 3rd ws
+        act(() => {
+          vi.advanceTimersByTime(60_000);
+        });
+
+        expect(MockWebSocket.instances).toHaveLength(countAfterSwitch);
+        expect(latestWs().url).toContain("room-2");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

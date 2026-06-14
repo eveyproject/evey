@@ -69,10 +69,22 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   const messageQueueRef = useRef<SyncMessage[]>([]);
 
   const connect = useCallback((roomId: string) => {
+    // Cancel any reconnect already scheduled by a previous connection's onclose.
+    // Without this, switching rooms (joinRoom/createRoom after an earlier room
+    // dropped) lets a stale setTimeout(() => connect(oldRoomId)) fire and
+    // silently reconnect to the wrong room.
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     leftVoluntarilyRef.current = false;
     reconnectAttemptRef.current = 0;
     messageQueueRef.current = [];
     if (wsRef.current) {
+      // Detach onclose before the deliberate close: otherwise closing the old
+      // socket here re-enters the reconnect logic (the guards were just reset
+      // above) and schedules a fresh reconnect to the OLD room.
+      wsRef.current.onclose = null;
       wsRef.current.close();
       wsRef.current = null;
     }
