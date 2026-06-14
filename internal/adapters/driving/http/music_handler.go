@@ -2,7 +2,7 @@ package httpapi
 
 import (
 	"archive/zip"
-	"encoding/json"
+	"context"
 	"fmt"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
@@ -70,21 +70,25 @@ func (h *musicHandler) serveAlbumArt(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
-	ctx, span := tracing.StartSpan(r.Context(), "http.music.FetchMissingArt")
-	defer span.End()
-	r = r.WithContext(ctx)
-	n, err := h.svc.FetchMissingAlbumArtAllLibraries(r.Context())
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, "fetch missing art failed")
-		slog.Error("music: fetch missing art", slog.Any("err", err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if encErr := json.NewEncoder(w).Encode(map[string]int{"fetched": n}); encErr != nil {
-		slog.Warn("json encode failed", slog.Any("err", encErr))
-	}
+	// Scanning every album across all libraries plus external art fetches can far
+	// outlast the proxy timeout on a large library; running it on the request ctx
+	// means a 504 cancels the work mid-flight. Detach it (keeping trace/auth
+	// values via WithoutCancel) and return 202 immediately — same intent as the
+	// photo/metadata admin maintenance endpoints that run on a server context.
+	bgCtx := context.WithoutCancel(r.Context())
+	go func() {
+		ctx, span := tracing.StartSpan(bgCtx, "http.music.FetchMissingArt")
+		defer span.End()
+		n, err := h.svc.FetchMissingAlbumArtAllLibraries(ctx)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "fetch missing art failed")
+			slog.Error("music: fetch missing art", slog.Any("err", err))
+			return
+		}
+		slog.Info("music: fetched missing album art", slog.Int("count", n))
+	}()
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {

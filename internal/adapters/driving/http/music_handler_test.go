@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -373,21 +372,10 @@ func TestFetchMissingArt_Success_NoLibRepo(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
-	}
-	if got := w.Header().Get("Content-Type"); got != "application/json" {
-		t.Errorf("Content-Type = %q, want application/json", got)
-	}
-	var resp map[string]int
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("json decode: %v", err)
-	}
-	if _, ok := resp["fetched"]; !ok {
-		t.Errorf("response missing fetched key: %v", resp)
-	}
-	if resp["fetched"] != 0 {
-		t.Errorf("fetched = %d, want 0", resp["fetched"])
+	// The scan now runs detached (it can far outlast the proxy timeout on a large
+	// library), so the endpoint accepts the work and returns 202 immediately.
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d (body=%s)", w.Code, w.Body.String())
 	}
 }
 
@@ -404,15 +392,10 @@ func TestFetchMissingArt_Success_WithLibRepo(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
-	}
-	var resp map[string]int
-	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("json decode: %v", err)
-	}
-	if resp["fetched"] != 0 {
-		t.Errorf("fetched = %d, want 0", resp["fetched"])
+	// Detached scan → 202 accepted immediately; the per-library iteration is
+	// covered by the service-level test (FetchMissingAlbumArtAllLibraries).
+	if w.Code != http.StatusAccepted {
+		t.Fatalf("expected 202, got %d (body=%s)", w.Code, w.Body.String())
 	}
 }
 
