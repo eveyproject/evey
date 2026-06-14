@@ -36,6 +36,29 @@ func TestQuickConnectRepo_Create_GetByCode(t *testing.T) {
 	assert.Equal(t, user.Pending, got.Status)
 }
 
+// An expired code must be treated as non-existent — otherwise the 2-minute TTL
+// (a security control) isn't enforced on the check/authorize paths until the
+// hourly cleanup job runs, so an expired-but-authorized code could still mint tokens.
+func TestQuickConnectRepo_GetByCode_ExpiredIsNotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	repo := postgres.NewQuickConnectRepository(db)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Create(ctx, &user.QuickConnectRequest{
+		ID:        "qc-exp",
+		Code:      "EXPIRED1",
+		Secret:    "s",
+		Status:    user.Pending,
+		ExpiresAt: time.Now().Add(-1 * time.Minute).UTC().Truncate(time.Millisecond),
+		CreatedAt: time.Now().Add(-3 * time.Minute).UTC().Truncate(time.Millisecond),
+	}))
+
+	_, err := repo.GetByCode(ctx, "EXPIRED1")
+	require.ErrorIs(t, err, shared.ErrNotFound)
+}
+
 func TestQuickConnectRepo_UpdateStatus(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
