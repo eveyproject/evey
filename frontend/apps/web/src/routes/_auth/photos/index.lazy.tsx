@@ -435,6 +435,14 @@ function PhotosPage() {
   const prevPhoto = useCallback(() => setLightboxIndex((i) => (i !== null && i > 0 ? i - 1 : i)), []);
   const nextPhoto = useCallback(() => setLightboxIndex((i) => (i !== null && i < displayedPhotos.length - 1 ? i + 1 : i)), [displayedPhotos.length]);
 
+  // Close the lightbox whenever the displayed photo set changes (switching album
+  // or library). Otherwise the lightbox renders unconditionally on lightboxIndex,
+  // so a stale index would index into the NEW set — showing the wrong photo, or
+  // auto-opening the lightbox on a photo the user never clicked.
+  useEffect(() => {
+    setLightboxIndex(null);
+  }, [selectedAlbum, activeLibraryID]);
+
   if (libLoading) {
     return (
       <div className="flex-1 p-6">
