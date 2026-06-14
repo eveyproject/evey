@@ -35,7 +35,7 @@ func (r *MetadataOverrideRepository) Set(ctx context.Context, o *metadata.Metada
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO metadata_overrides (id, media_item_id, field_name, custom_value, edited_by, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6)
 		 ON CONFLICT (media_item_id, field_name) DO UPDATE SET
@@ -59,7 +59,7 @@ func (r *MetadataOverrideRepository) Get(ctx context.Context, id string) (*metad
 	defer cancel()
 	o := &metadata.MetadataOverride{}
 	var valueJSON []byte
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, media_item_id, field_name, custom_value, edited_by, created_at
 		 FROM metadata_overrides WHERE id = $1`, id,
 	).Scan(&o.ID, &o.MediaItemID, &o.FieldName, &valueJSON, &o.EditedBy, &o.CreatedAt)
@@ -80,7 +80,7 @@ func (r *MetadataOverrideRepository) GetByMediaItem(ctx context.Context, mediaIt
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, field_name, custom_value, edited_by, created_at
 		 FROM metadata_overrides WHERE media_item_id = $1 ORDER BY field_name`, mediaItemID)
 	if err != nil {
@@ -131,7 +131,7 @@ func (r *MetadataOverrideRepository) ListOverriddenMediaItemIDs(ctx context.Cont
 		`SELECT DISTINCT media_item_id FROM metadata_overrides WHERE media_item_id IN (%s)`,
 		strings.Join(placeholders, ","),
 	)
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -162,7 +162,7 @@ func (r *MetadataOverrideRepository) Delete(ctx context.Context, id string) erro
 	span.SetAttributes(attribute.String("metadata_override.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM metadata_overrides WHERE id = $1`, id)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM metadata_overrides WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -177,7 +177,7 @@ func (r *MetadataOverrideRepository) DeleteByMediaItemID(ctx context.Context, me
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM metadata_overrides WHERE media_item_id = $1`, mediaItemID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM metadata_overrides WHERE media_item_id = $1`, mediaItemID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

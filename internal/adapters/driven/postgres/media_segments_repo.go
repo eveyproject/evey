@@ -29,7 +29,7 @@ func (r *MediaSegmentRepository) GetByMediaItemID(ctx context.Context, mediaItem
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, type, start_ms, end_ms, confidence, source, created_at
 		 FROM media_segments WHERE media_item_id = $1 ORDER BY start_ms`, string(mediaItemID))
 	if err != nil {
@@ -71,7 +71,7 @@ func (r *MediaSegmentRepository) Upsert(ctx context.Context, seg *library.MediaS
 		seg.CreatedAt = time.Now()
 	}
 
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO media_segments (id, media_item_id, type, start_ms, end_ms, confidence, source, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		 ON CONFLICT (media_item_id, type) DO UPDATE SET
@@ -96,7 +96,7 @@ func (r *MediaSegmentRepository) DeleteByMediaItemID(ctx context.Context, mediaI
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	_, err := r.db.ExecContext(ctx, `DELETE FROM media_segments WHERE media_item_id = $1`, string(mediaItemID))
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM media_segments WHERE media_item_id = $1`, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -115,7 +115,7 @@ func (r *MediaSegmentRepository) DeleteByMediaItemIDAndType(ctx context.Context,
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM media_segments WHERE media_item_id = $1 AND type = $2`,
 		string(mediaItemID), segType,
 	)
@@ -137,7 +137,7 @@ func (r *MediaSegmentRepository) ListSeasonsMissingSegments(ctx context.Context)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT DISTINCT mi.parent_id
 		FROM media_items mi
 		JOIN trickplay_manifests tm ON tm.media_item_id = mi.id

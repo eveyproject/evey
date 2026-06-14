@@ -27,7 +27,7 @@ func (r *FeedAdminConfigRepository) GetAll(ctx context.Context) ([]*feed.AdminCo
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT feed_type, enabled, display_order, max_items, params FROM feed_admin_config ORDER BY display_order`)
 	if err != nil {
 		span.RecordError(err)
@@ -72,7 +72,7 @@ func (r *FeedAdminConfigRepository) Upsert(ctx context.Context, cfg *feed.AdminC
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO feed_admin_config (feed_type, enabled, display_order, max_items, params)
 		VALUES ($1,$2,$3,$4,$5)
 		ON CONFLICT (feed_type) DO UPDATE SET
@@ -146,7 +146,7 @@ func (r *FeedAdminConfigRepository) DeleteByType(ctx context.Context, feedType f
 	span.SetAttributes(attribute.String("feed.type", string(feedType)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM feed_admin_config WHERE feed_type = $1`, string(feedType))
 	if err != nil {
 		span.RecordError(err)
@@ -170,7 +170,7 @@ func (r *FeedProfileConfigRepository) GetByProfile(ctx context.Context, profileI
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT feed_type, enabled, display_order, max_items, params FROM feed_profile_config WHERE profile_id = $1 ORDER BY display_order LIMIT 100`, profileID)
 	if err != nil {
 		span.RecordError(err)
@@ -215,7 +215,7 @@ func (r *FeedProfileConfigRepository) Upsert(ctx context.Context, cfg *feed.Prof
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	_, err = r.db.ExecContext(ctx, `
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO feed_profile_config (profile_id, feed_type, enabled, display_order, max_items, params)
 		VALUES ($1,$2,$3,$4,$5,$6)
 		ON CONFLICT (profile_id, feed_type) DO UPDATE SET
@@ -239,7 +239,7 @@ func (r *FeedProfileConfigRepository) Delete(ctx context.Context, profileID stri
 	span.SetAttributes(attribute.String("profile.id", profileID), attribute.String("feed.type", string(feedType)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM feed_profile_config WHERE profile_id = $1 AND feed_type = $2`,
 		profileID, string(feedType))
 	if err != nil {
@@ -256,7 +256,7 @@ func (r *FeedProfileConfigRepository) DeleteByType(ctx context.Context, feedType
 	span.SetAttributes(attribute.String("feed.type", string(feedType)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM feed_profile_config WHERE feed_type = $1`, string(feedType))
 	if err != nil {
 		span.RecordError(err)

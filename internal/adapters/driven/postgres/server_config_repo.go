@@ -27,7 +27,7 @@ func (r *ServerConfigRepository) Get(ctx context.Context, key string) (*shared.S
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	e := &shared.ServerConfigEntry{}
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT key, value, updated_at FROM server_config WHERE key = $1`, key,
 	).Scan(&e.Key, &e.Value, &e.UpdatedAt)
 	if err != nil {
@@ -47,7 +47,7 @@ func (r *ServerConfigRepository) Set(ctx context.Context, key, value string) err
 	span.SetAttributes(attribute.String("server_config.key", key))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO server_config (key, value, updated_at) VALUES ($1, $2, NOW())
 		 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
 		key, value,
@@ -66,7 +66,7 @@ func (r *ServerConfigRepository) Delete(ctx context.Context, key string) error {
 	span.SetAttributes(attribute.String("server_config.key", key))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM server_config WHERE key = $1`, key)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM server_config WHERE key = $1`, key)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -80,7 +80,7 @@ func (r *ServerConfigRepository) List(ctx context.Context) ([]*shared.ServerConf
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `SELECT key, value, updated_at FROM server_config ORDER BY key`)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `SELECT key, value, updated_at FROM server_config ORDER BY key`)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

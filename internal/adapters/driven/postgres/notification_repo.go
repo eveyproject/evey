@@ -30,7 +30,7 @@ func (r *NotificationRepository) Create(ctx context.Context, n *notification.Not
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	relatedMediaID := sql.NullString{String: string(n.RelatedMediaID), Valid: n.RelatedMediaID != ""}
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO notifications (id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
 		n.ID, n.ProfileID, string(n.Type), n.Title, n.Message, n.MediaItemID,
@@ -61,7 +61,7 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID st
 		limit = 200
 	}
 	q += ` LIMIT $2 OFFSET $3`
-	rows, err := r.db.QueryContext(ctx, q, profileID, limit, offset)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, profileID, limit, offset)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -98,7 +98,7 @@ func (r *NotificationRepository) FindRecentByProfileTypeAndSeries(ctx context.Co
 	        AND created_at >= $3
 	        AND type IN (` + strings.Join(placeholders, ",") + `)`
 
-	rows, err := r.db.QueryContext(ctx, q, args...)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -120,7 +120,7 @@ func (r *NotificationRepository) Update(ctx context.Context, n *notification.Not
 	span.SetAttributes(attribute.String("notification.id", n.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE notifications SET title = $1, episode_count = $2 WHERE id = $3 AND profile_id = $4`,
 		n.Title, n.EpisodeCount, n.ID, n.ProfileID,
 	)
@@ -160,7 +160,7 @@ func (r *NotificationRepository) MarkRead(ctx context.Context, id, profileID str
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	now := time.Now()
-	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE id = $2 AND profile_id = $3 AND read_at IS NULL`, now, id, profileID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE id = $2 AND profile_id = $3 AND read_at IS NULL`, now, id, profileID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -176,7 +176,7 @@ func (r *NotificationRepository) MarkAllRead(ctx context.Context, profileID stri
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	now := time.Now()
-	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE profile_id = $2 AND read_at IS NULL`, now, profileID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE notifications SET read_at = $1 WHERE profile_id = $2 AND read_at IS NULL`, now, profileID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -192,7 +192,7 @@ func (r *NotificationRepository) UnreadCount(ctx context.Context, profileID stri
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`, profileID,
 	).Scan(&count)
 	if err != nil {
@@ -209,7 +209,7 @@ func (r *NotificationRepository) DeleteAll(ctx context.Context, profileID string
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM notifications WHERE profile_id = $1`, profileID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM notifications WHERE profile_id = $1`, profileID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -223,7 +223,7 @@ func (r *NotificationRepository) CleanupExpired(ctx context.Context) error {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM notifications WHERE expires_at IS NOT NULL AND expires_at < NOW()`)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM notifications WHERE expires_at IS NOT NULL AND expires_at < NOW()`)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

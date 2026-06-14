@@ -27,7 +27,7 @@ func (r *QuickConnectRepository) Create(ctx context.Context, req *user.QuickConn
 	span.SetAttributes(attribute.String("quick_connect.id", req.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO quick_connect_requests (id, code, secret, user_id, device_name, status, expires_at, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		req.ID, req.Code, req.Secret, req.UserID, req.DeviceName, req.Status, req.ExpiresAt, req.CreatedAt,
@@ -46,7 +46,7 @@ func (r *QuickConnectRepository) GetByCode(ctx context.Context, code string) (*u
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	req := &user.QuickConnectRequest{}
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, code, secret, user_id, device_name, status, expires_at, created_at
 		 FROM quick_connect_requests WHERE code = $1 AND expires_at > now()`, code,
 	).Scan(&req.ID, &req.Code, &req.Secret, &req.UserID, &req.DeviceName, &req.Status, &req.ExpiresAt, &req.CreatedAt)
@@ -67,7 +67,7 @@ func (r *QuickConnectRepository) GetByShortCode(ctx context.Context, shortCode s
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	req := &user.QuickConnectRequest{}
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, code, secret, user_id, device_name, status, expires_at, created_at
 		 FROM quick_connect_requests
 		 WHERE UPPER(RIGHT(code, 6)) = UPPER($1) AND status = 'pending' AND expires_at > now()
@@ -93,7 +93,7 @@ func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status st
 	// Only transition from 'pending' — authorizing a non-pending request
 	// (already used, expired, rejected) must be a no-op so a leaked-code
 	// replay can't overwrite user_id on a settled authorization.
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE quick_connect_requests SET status = $1, user_id = $2 WHERE id = $3 AND status = 'pending'`,
 		status, userID, id)
 	if err != nil {
@@ -116,7 +116,7 @@ func (r *QuickConnectRepository) DeleteExpired(ctx context.Context) error {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM quick_connect_requests WHERE expires_at < NOW()`)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM quick_connect_requests WHERE expires_at < NOW()`)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

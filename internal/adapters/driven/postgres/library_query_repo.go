@@ -67,7 +67,7 @@ func (r *MediaItemQueryRepoAdapter) GetByIDs(ctx context.Context, ids []shared.M
 	for i, id := range ids {
 		strIDs[i] = string(id)
 	}
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		fmt.Sprintf(`SELECT %s %s WHERE mi.id = ANY($1) ORDER BY mi.sort_title`,
 			mediaItemColumns, mediaItemFromJoins),
 		pq.Array(strIDs))
@@ -129,7 +129,7 @@ func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, medi
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT mp.person_id, p.name, p.thumb_path, mp.role_type, mp.character_name, mp.sort_order
 		 FROM media_people mp
 		 JOIN people p ON p.id = mp.person_id
@@ -173,7 +173,7 @@ func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaIt
 	for i, id := range mediaItemIDs {
 		strIDs[i] = string(id)
 	}
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT mp.media_item_id, mp.person_id, p.name, p.thumb_path, mp.role_type, mp.character_name, mp.sort_order
 		 FROM media_people mp
 		 JOIN people p ON p.id = mp.person_id
@@ -214,7 +214,7 @@ func (r *MediaItemQueryRepoAdapter) ListGenres(ctx context.Context, libraryID sh
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT DISTINCT g
 		   FROM media_items mi
 		   JOIN media_catalog mc ON mc.media_item_id = mi.id
@@ -305,7 +305,7 @@ func (r *MediaItemQueryRepoAdapter) NextEpisodeOf(ctx context.Context, episodeID
 		SELECT id FROM (SELECT id, rank FROM same_season UNION ALL SELECT id, rank FROM next_season) c
 		ORDER BY rank ASC LIMIT 1`
 	var nextID string
-	if err := r.db.QueryRowContext(ctx, q, string(episodeID)).Scan(&nextID); err != nil {
+	if err := txFromCtx(ctx, r.db).QueryRowContext(ctx, q, string(episodeID)).Scan(&nextID); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}

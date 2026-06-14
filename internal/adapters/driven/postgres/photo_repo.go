@@ -36,7 +36,7 @@ func (r *PhotoRepository) Upsert(ctx context.Context, p photo.Photo) error {
 	if p.Blurhash != "" {
 		blurhash = sql.NullString{String: p.Blurhash, Valid: true}
 	}
-	_, err := r.db.ExecContext(ctx, `
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO photos (id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		                    taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
@@ -75,7 +75,7 @@ func (r *PhotoRepository) GetByID(ctx context.Context, id string) (*photo.Photo,
 	defer cancel()
 	p := &photo.Photo{}
 	var blurhash sql.NullString
-	err := r.db.QueryRowContext(ctx, `
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
 		FROM photos WHERE id = $1`, id,
@@ -102,7 +102,7 @@ func (r *PhotoRepository) Delete(ctx context.Context, id string) error {
 	span.SetAttributes(attribute.String("photo.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM photos WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM photos WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -122,7 +122,7 @@ func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.Li
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at,
 		       COUNT(*) OVER() AS total
@@ -150,7 +150,7 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.Libr
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at,
 		       COUNT(*) OVER() AS total
@@ -178,7 +178,7 @@ func (r *PhotoRepository) GetAlbums(ctx context.Context, libraryID shared.Librar
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT album, library_id, COUNT(*) as photo_count, MIN(id) as cover_photo_id
 		FROM photos WHERE library_id = $1 AND album != ''
 		GROUP BY album, library_id ORDER BY album
@@ -215,7 +215,7 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID shared.LibraryID
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	pattern := "%" + likeEscape(query) + "%"
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
 		FROM photos WHERE library_id = $1 AND (title ILIKE $2 ESCAPE '\' OR album ILIKE $2 ESCAPE '\')
@@ -249,7 +249,7 @@ func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID shared
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
 		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
 		FROM photos WHERE library_id = $1`, libraryID,
@@ -274,7 +274,7 @@ func (r *PhotoRepository) UpdateFilePath(ctx context.Context, id, newPath string
 	span.SetAttributes(attribute.String("photo.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE photos SET file_path = $1, mod_time = $2, updated_at = NOW() WHERE id = $3`,
 		newPath, modTime, id)
 	if err != nil {

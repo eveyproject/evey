@@ -28,7 +28,7 @@ func (r *ShareLinkRepo) Create(ctx context.Context, link *shared.ShareLink) erro
 	span.SetAttributes(attribute.String("share_link.id", link.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO share_links (id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 		link.ID, link.Token, link.MediaItemID, link.CreatedBy, link.ExpiresAt, link.MaxViews, link.ViewCount, link.CreatedAt,
@@ -47,7 +47,7 @@ func (r *ShareLinkRepo) GetByID(ctx context.Context, id string) (*shared.ShareLi
 	span.SetAttributes(attribute.String("share_link.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	row := r.db.QueryRowContext(ctx,
+	row := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at
 		 FROM share_links WHERE id = $1`, id)
 	link, err := scanShareLink(row)
@@ -64,7 +64,7 @@ func (r *ShareLinkRepo) GetByToken(ctx context.Context, token string) (*shared.S
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	row := r.db.QueryRowContext(ctx,
+	row := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at
 		 FROM share_links WHERE token = $1`, token)
 	link, err := scanShareLink(row)
@@ -82,7 +82,7 @@ func (r *ShareLinkRepo) ListByUser(ctx context.Context, userID string) ([]*share
 	span.SetAttributes(attribute.String("user.id", userID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at
 		 FROM share_links WHERE created_by = $1 ORDER BY created_at DESC LIMIT 500`, userID)
 	if err != nil {
@@ -105,7 +105,7 @@ func (r *ShareLinkRepo) ListAll(ctx context.Context) ([]*shared.ShareLink, error
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at
 		 FROM share_links ORDER BY created_at DESC LIMIT 1000`)
 	if err != nil {
@@ -128,7 +128,7 @@ func (r *ShareLinkRepo) IncrementViewCount(ctx context.Context, token string) er
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE share_links SET view_count = view_count + 1 WHERE token = $1`, token)
 	if err != nil {
 		span.RecordError(err)
@@ -144,7 +144,7 @@ func (r *ShareLinkRepo) Delete(ctx context.Context, id string) error {
 	span.SetAttributes(attribute.String("share_link.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM share_links WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM share_links WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -163,7 +163,7 @@ func (r *ShareLinkRepo) DeleteExpired(ctx context.Context) (int, error) {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	result, err := r.db.ExecContext(ctx, `DELETE FROM share_links WHERE expires_at < NOW()`)
+	result, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM share_links WHERE expires_at < NOW()`)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

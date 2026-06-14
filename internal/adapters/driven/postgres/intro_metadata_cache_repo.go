@@ -45,7 +45,7 @@ func (r *IntroMetadataCacheRepository) Get(ctx context.Context, tmdbID, season, 
 
 	var payload []byte
 	var fetchedAt time.Time
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT payload, fetched_at FROM intro_metadata_cache
 		 WHERE tmdb_id = $1 AND season = $2 AND episode = $3
 		 ORDER BY fetched_at DESC LIMIT 1`,
@@ -75,7 +75,7 @@ func (r *IntroMetadataCacheRepository) Put(ctx context.Context, tmdbID, season, 
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO intro_metadata_cache (tmdb_id, season, episode, source, payload, fetched_at)
 		 VALUES ($1, $2, $3, $4, $5, NOW())
 		 ON CONFLICT (tmdb_id, season, episode, source) DO UPDATE
@@ -100,7 +100,7 @@ func (r *IntroMetadataCacheRepository) Invalidate(ctx context.Context, tmdbID, s
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM intro_metadata_cache WHERE tmdb_id = $1 AND season = $2 AND episode = $3`,
 		tmdbID, season, episode)
 	if err != nil {

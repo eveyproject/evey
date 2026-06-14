@@ -89,7 +89,7 @@ func (r *PlaybackQoERepo) Insert(ctx context.Context, evt QoEEventRow) error {
 			$19, $20,
 			$21, $22, NULLIF($23, '')::inet
 		)`
-	_, err = r.db.ExecContext(ctx, q,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx, q,
 		evt.UserID, evt.MediaItemID,
 		nullIfEmpty(evt.SessionID), nullIfEmpty(evt.ContentID),
 		evt.VariantIdx, evt.SegmentIdx,

@@ -36,7 +36,7 @@ func (r *TranscodeCapsOverrideRepo) Upsert(ctx context.Context, o transcoding.Ca
 			samples_count = EXCLUDED.samples_count,
 			applied_at    = EXCLUDED.applied_at,
 			expires_at    = EXCLUDED.expires_at`
-	_, err := r.db.ExecContext(ctx, q,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, q,
 		o.SourceClass, o.MaxHeight, o.Reason,
 		o.StarvedRatio, o.SamplesCount,
 		o.AppliedAt, o.ExpiresAt,
@@ -57,7 +57,7 @@ func (r *TranscodeCapsOverrideRepo) List(ctx context.Context) ([]transcoding.Cap
 		SELECT source_class, max_height, reason, starved_ratio, samples_count, applied_at, expires_at
 		FROM transcode_caps_overrides
 		WHERE expires_at > NOW()`
-	rows, err := r.db.QueryContext(ctx, q)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("transcode caps list: %w", err)
 	}
@@ -82,7 +82,7 @@ func (r *TranscodeCapsOverrideRepo) Delete(ctx context.Context, sourceClass stri
 	defer cancel()
 
 	const q = `DELETE FROM transcode_caps_overrides WHERE source_class = $1`
-	res, err := r.db.ExecContext(ctx, q, sourceClass)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, q, sourceClass)
 	if err != nil {
 		return false, fmt.Errorf("transcode caps delete: %w", err)
 	}
@@ -97,7 +97,7 @@ func (r *TranscodeCapsOverrideRepo) DeleteExpired(ctx context.Context) (int, err
 	defer cancel()
 
 	const q = `DELETE FROM transcode_caps_overrides WHERE expires_at <= NOW()`
-	res, err := r.db.ExecContext(ctx, q)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, q)
 	if err != nil {
 		return 0, fmt.Errorf("transcode caps delete expired: %w", err)
 	}

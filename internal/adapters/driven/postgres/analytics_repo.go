@@ -122,7 +122,7 @@ func (r *AnalyticsReader) safeRun(wg *sync.WaitGroup, label string, fn func() er
 }
 
 func (r *AnalyticsReader) fetchTopMedia(ctx context.Context) ([]activity.TopMediaItem, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT ps.media_item_id,
 		       CASE
 		         WHEN mi.type = 'episode' THEN
@@ -158,7 +158,7 @@ func (r *AnalyticsReader) fetchTopMedia(ctx context.Context) ([]activity.TopMedi
 }
 
 func (r *AnalyticsReader) fetchRecentActivity(ctx context.Context) ([]activity.RecentActivityEntry, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT u.id, u.username, mi.title, ps.started_at
 		FROM play_sessions ps
 		INNER JOIN profiles p ON p.id = ps.profile_id
@@ -183,12 +183,12 @@ func (r *AnalyticsReader) fetchRecentActivity(ctx context.Context) ([]activity.R
 
 func (r *AnalyticsReader) fetchScalarCount(ctx context.Context, query string) (int, error) {
 	var count int
-	err := r.db.QueryRowContext(ctx, query).Scan(&count)
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, query).Scan(&count)
 	return count, err
 }
 
 func (r *AnalyticsReader) fetchDailyPlays(ctx context.Context) ([]activity.DailyPlayCount, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT d::date::text AS day,
 		       COUNT(ps.id) AS play_count,
 		       COALESCE(SUM(COALESCE(ps.position_ms, ps.duration_ms, 0))::bigint / 1000, 0) AS watch_time_seconds
@@ -216,7 +216,7 @@ func (r *AnalyticsReader) fetchDailyPlays(ctx context.Context) ([]activity.Daily
 }
 
 func (r *AnalyticsReader) fetchPlayMethods(ctx context.Context) ([]activity.PlayMethodCount, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT play_method, COUNT(*) AS cnt
 		FROM play_sessions
 		WHERE started_at >= NOW() - INTERVAL '30 days'
@@ -238,7 +238,7 @@ func (r *AnalyticsReader) fetchPlayMethods(ctx context.Context) ([]activity.Play
 }
 
 func (r *AnalyticsReader) fetchHourlyPlays(ctx context.Context) ([]activity.HourlyPlayCount, error) {
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT EXTRACT(HOUR FROM started_at)::int AS hour, COUNT(*) AS cnt
 		FROM play_sessions
 		WHERE started_at >= NOW() - INTERVAL '30 days'

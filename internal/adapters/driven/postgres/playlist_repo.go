@@ -37,7 +37,7 @@ func (r *PlaylistRepository) Create(ctx context.Context, pl *playlist.Playlist) 
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistRepo.Create marshal rules: %w", err)
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO playlists (id, name, description, profile_id, type, rules, sort_by, sort_order, created_at, updated_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		pl.ID, pl.Name, pl.Description, pl.ProfileID, pl.Type, rulesJSON, pl.SortBy, pl.SortOrder, pl.CreatedAt, pl.UpdatedAt,
@@ -58,7 +58,7 @@ func (r *PlaylistRepository) GetByID(ctx context.Context, id string) (*playlist.
 	defer cancel()
 	pl := &playlist.Playlist{}
 	var rulesJSON []byte
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, description, profile_id, type, rules, sort_by, sort_order, created_at, updated_at
 		 FROM playlists WHERE id = $1`, id,
 	).Scan(&pl.ID, &pl.Name, &pl.Description, &pl.ProfileID, &pl.Type, &rulesJSON, &pl.SortBy, &pl.SortOrder, &pl.CreatedAt, &pl.UpdatedAt)
@@ -82,7 +82,7 @@ func (r *PlaylistRepository) List(ctx context.Context, profileID string) ([]*pla
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, name, description, profile_id, type, rules, sort_by, sort_order, created_at, updated_at
 		 FROM playlists WHERE profile_id = $1 ORDER BY created_at DESC LIMIT 1000`, profileID,
 	)
@@ -127,7 +127,7 @@ func (r *PlaylistRepository) Update(ctx context.Context, pl *playlist.Playlist) 
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("PlaylistRepo.Update marshal rules: %w", err)
 	}
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE playlists SET name=$1, description=$2, rules=$3, sort_by=$4, sort_order=$5, updated_at=$6 WHERE id=$7`,
 		pl.Name, pl.Description, rulesJSON, pl.SortBy, pl.SortOrder, pl.UpdatedAt, pl.ID,
 	)
@@ -150,7 +150,7 @@ func (r *PlaylistRepository) Delete(ctx context.Context, id string) error {
 	span.SetAttributes(attribute.String("playlist.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM playlists WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM playlists WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -184,7 +184,7 @@ func (r *PlaylistItemRepository) Add(ctx context.Context, item *playlist.Playlis
 	if mediaType == "" {
 		mediaType = playlist.MediaTypeVideo
 	}
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO playlist_items (playlist_id, media_item_id, sort_order, added_at, media_type)
 		 VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING`,
 		item.PlaylistID, item.MediaItemID, item.SortOrder, item.AddedAt, mediaType,
@@ -203,7 +203,7 @@ func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaIt
 	span.SetAttributes(attribute.String("playlist.id", playlistID), attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM playlist_items WHERE playlist_id = $1 AND media_item_id = $2`,
 		playlistID, mediaItemID,
 	)
@@ -230,7 +230,7 @@ func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID
 	span.SetAttributes(attribute.String("playlist.id", playlistID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT playlist_id, media_item_id, sort_order, added_at, media_type
 		 FROM playlist_items WHERE playlist_id = $1 ORDER BY sort_order`, playlistID,
 	)
@@ -351,7 +351,7 @@ func (q *SmartPlaylistQuerier) Query(ctx context.Context, spec playlist.Spec, so
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
 
-	rows, err := q.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

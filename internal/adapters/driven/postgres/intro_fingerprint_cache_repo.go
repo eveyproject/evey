@@ -35,11 +35,11 @@ func (r *IntroFingerprintCacheRepository) Get(ctx context.Context, mediaItemID s
 	defer cancel()
 
 	var (
-		entry      = &library.IntroFingerprintCacheEntry{MediaItemID: mediaItemID}
-		tilesRaw   []byte
-		tsRaw      []byte
+		entry    = &library.IntroFingerprintCacheEntry{MediaItemID: mediaItemID}
+		tilesRaw []byte
+		tsRaw    []byte
 	)
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT file_fingerprint, phash_tiles, phash_timestamps, algo_version, extracted_at
 		 FROM intro_fingerprint_cache WHERE media_item_id = $1`, mediaItemID,
 	).Scan(&entry.FileFingerprint, &tilesRaw, &tsRaw, &entry.AlgoVersion, &entry.ExtractedAt)
@@ -80,7 +80,7 @@ func (r *IntroFingerprintCacheRepository) Upsert(ctx context.Context, entry *lib
 	tilesRaw := encodeUint64Slice(entry.PhashTiles)
 	tsRaw := encodeInt64Slice(entry.PhashTimestamps)
 
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO intro_fingerprint_cache
 		   (media_item_id, file_fingerprint, phash_tiles, phash_timestamps, algo_version, extracted_at)
 		 VALUES ($1, $2, $3, $4, $5, NOW())
@@ -107,7 +107,7 @@ func (r *IntroFingerprintCacheRepository) Delete(ctx context.Context, mediaItemI
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	_, err := r.db.ExecContext(ctx, `DELETE FROM intro_fingerprint_cache WHERE media_item_id = $1`, mediaItemID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM intro_fingerprint_cache WHERE media_item_id = $1`, mediaItemID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -123,7 +123,7 @@ func (r *IntroFingerprintCacheRepository) DeleteByAlgoVersionBelow(ctx context.C
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	res, err := r.db.ExecContext(ctx, `DELETE FROM intro_fingerprint_cache WHERE algo_version < $1`, version)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM intro_fingerprint_cache WHERE algo_version < $1`, version)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

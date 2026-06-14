@@ -32,7 +32,7 @@ func (r *InviteLinkRepository) Create(ctx context.Context, link *user.InviteLink
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO invite_links (id, created_by, token, label, max_uses, used_count, is_admin, library_ids, expires_at, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		link.ID, link.CreatedBy, link.Token, link.Label, link.MaxUses, link.UsedCount, link.IsAdmin, libJSON, link.ExpiresAt, link.CreatedAt,
@@ -63,7 +63,7 @@ func (r *InviteLinkRepository) GetByToken(ctx context.Context, token string) (*u
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	row := r.db.QueryRowContext(ctx,
+	row := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, created_by, token, label, max_uses, used_count, is_admin, library_ids, expires_at, created_at
 		 FROM invite_links WHERE token = $1`, token)
 	return scanInviteLink(row)
@@ -74,7 +74,7 @@ func (r *InviteLinkRepository) ListByCreator(ctx context.Context, creatorID stri
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, created_by, token, label, max_uses, used_count, is_admin, library_ids, expires_at, created_at
 		 FROM invite_links WHERE created_by = $1 ORDER BY created_at LIMIT 500`, creatorID)
 	if err != nil {
@@ -140,7 +140,7 @@ func (r *InviteLinkRepository) Delete(ctx context.Context, id string) error {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM invite_links WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM invite_links WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}

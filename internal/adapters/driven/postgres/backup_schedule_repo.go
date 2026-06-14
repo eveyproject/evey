@@ -26,7 +26,7 @@ func (r *BackupScheduleRepository) Get(ctx context.Context) (*backup.BackupSched
 	defer cancel()
 	s := &backup.BackupSchedule{}
 	var lastStatus, lastError sql.NullString
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT cron_expression, enabled, retention_days, last_run_at, next_run_at,
 		        last_status, last_error, updated_at
 		 FROM backup_schedule WHERE id = TRUE`,
@@ -50,7 +50,7 @@ func (r *BackupScheduleRepository) Update(ctx context.Context, s *backup.BackupS
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE backup_schedule SET
 		   cron_expression = $1,
 		   enabled         = $2,
@@ -73,7 +73,7 @@ func (r *BackupScheduleRepository) UpdateAfterRun(ctx context.Context, lastRun, 
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE backup_schedule SET
 		   last_run_at = $1,
 		   next_run_at = $2,

@@ -26,7 +26,7 @@ func (r *TranscodeProfileRepository) GetByID(ctx context.Context, id string) (*t
 	span.SetAttributes(attribute.String("transcode_profile.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	p, err := r.scanProfile(r.db.QueryRowContext(ctx,
+	p, err := r.scanProfile(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, video_codec, audio_codec, container, max_width, max_height, video_bitrate, audio_bitrate, preset
 		 FROM transcode_profiles WHERE id = $1`, id))
 	if err != nil {
@@ -42,7 +42,7 @@ func (r *TranscodeProfileRepository) List(ctx context.Context) ([]*transcoding.T
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, name, video_codec, audio_codec, container, max_width, max_height, video_bitrate, audio_bitrate, preset
 		 FROM transcode_profiles ORDER BY name LIMIT 100`)
 	if err != nil {
@@ -77,7 +77,7 @@ func (r *TranscodeProfileRepository) Create(ctx context.Context, profile *transc
 	span.SetAttributes(attribute.String("transcode_profile.id", profile.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO transcode_profiles (id, name, video_codec, audio_codec, container, max_width, max_height, video_bitrate, audio_bitrate, preset)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		profile.ID, profile.Name, profile.VideoCodec, profile.AudioCodec, profile.Container,
@@ -97,7 +97,7 @@ func (r *TranscodeProfileRepository) Update(ctx context.Context, profile *transc
 	span.SetAttributes(attribute.String("transcode_profile.id", profile.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE transcode_profiles SET name=$2, video_codec=$3, audio_codec=$4, container=$5, max_width=$6, max_height=$7, video_bitrate=$8, audio_bitrate=$9, preset=$10 WHERE id=$1`,
 		profile.ID, profile.Name, profile.VideoCodec, profile.AudioCodec, profile.Container,
 		profile.MaxWidth, profile.MaxHeight, profile.VideoBitrate, profile.AudioBitrate, profile.Preset,
@@ -121,7 +121,7 @@ func (r *TranscodeProfileRepository) Delete(ctx context.Context, id string) erro
 	span.SetAttributes(attribute.String("transcode_profile.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM transcode_profiles WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM transcode_profiles WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

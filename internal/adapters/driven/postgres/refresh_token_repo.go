@@ -33,7 +33,7 @@ func (r *RefreshTokenRepository) Create(ctx context.Context, t *user.RefreshToke
 	if t.ProfileID != nil {
 		profileID = string(*t.ProfileID)
 	}
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO refresh_tokens (id, user_id, token_hash, device_name, client_ip, expires_at, created_at, profile_id)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		t.ID, t.UserID, t.TokenHash, t.DeviceName, t.ClientIP, t.ExpiresAt, t.CreatedAt, profileID,
@@ -60,7 +60,7 @@ func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, hash string
 	defer cancel()
 	t := &user.RefreshToken{}
 	var profileID sql.NullString
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, user_id, token_hash, device_name, client_ip, used, expires_at, created_at, profile_id
 		 FROM refresh_tokens WHERE token_hash = $1`, hash,
 	).Scan(&t.ID, &t.UserID, &t.TokenHash, &t.DeviceName, &t.ClientIP, &t.Used, &t.ExpiresAt, &t.CreatedAt, &profileID)
@@ -82,7 +82,7 @@ func (r *RefreshTokenRepository) MarkUsedIfNotUsed(ctx context.Context, id strin
 	span.SetAttributes(attribute.String("refresh_token.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE WHERE id = $1 AND used = FALSE`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE WHERE id = $1 AND used = FALSE`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -103,7 +103,7 @@ func (r *RefreshTokenRepository) DeleteByID(ctx context.Context, id string) erro
 	span.SetAttributes(attribute.String("refresh_token.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE id = $1`, id)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM refresh_tokens WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -118,7 +118,7 @@ func (r *RefreshTokenRepository) DeleteByUserID(ctx context.Context, userID shar
 	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, string(userID))
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM refresh_tokens WHERE user_id = $1`, string(userID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -132,7 +132,7 @@ func (r *RefreshTokenRepository) DeleteExpired(ctx context.Context) error {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM refresh_tokens WHERE expires_at < NOW()`)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM refresh_tokens WHERE expires_at < NOW()`)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

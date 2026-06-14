@@ -12,7 +12,7 @@ const slowQueryThreshold = 100 * time.Millisecond
 // Usage: defer LogSlowQuery(ctx, time.Now(), "SELECT ...")()
 //
 //	start := time.Now()
-//	rows, err := r.db.QueryContext(ctx, query, args...)
+//	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
 //	LogSlowQuery(ctx, start, query)(err)
 func LogSlowQuery(ctx context.Context, start time.Time, query string) func(err ...error) {
 	return func(errs ...error) {

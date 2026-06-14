@@ -37,7 +37,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	limit = clampFeedLimit(limit)
-	rows, err := q.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, `
 		WITH in_progress_movies AS (
 			SELECT mi.id, ''::text AS parent_id, mi.title, mi.type,
 			       wp.position_ms, ''::text AS added_at, wp.last_played_at,
@@ -121,7 +121,7 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	limit = clampFeedLimit(limit)
-	rows, err := q.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, `
 		WITH in_progress AS (
 			SELECT mi.id, COALESCE(mi.parent_id,'') AS parent_id, mi.title, mi.type,
 			       wp.position_ms, wp.last_played_at,
@@ -188,7 +188,7 @@ func (q *FeedQuerier) NextEpisode(ctx context.Context, profileID string, limit i
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	limit = clampFeedLimit(limit)
-	rows, err := q.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, `
 		WITH watched_series AS (
 			SELECT DISTINCT s.parent_id AS series_id
 			FROM watch_progress wp
@@ -240,7 +240,7 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysW
 	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := q.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, `
 		SELECT sub.id, COALESCE(sub.parent_id,''), sub.title, sub.type, 0, sub.effective_added::text, NULL::int, NULL::int
 		FROM (
 			SELECT m.id, m.parent_id, m.title, m.type,
@@ -364,7 +364,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 		LIMIT $%d
 	`, scoreExpr, scoreExpr, limitIdx)
 
-	rows, err := q.db.QueryContext(ctx, q2, args...)
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, q2, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +384,7 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 	limit = clampFeedLimit(limit)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := q.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, `
 		WITH target AS (
 			SELECT CASE WHEN jsonb_typeof(genres) = 'array' THEN genres ELSE '[]'::jsonb END AS genres
 			FROM media_catalog WHERE media_item_id = $1
@@ -436,7 +436,7 @@ func (q *FeedQuerier) fillPrimaryBlurhashes(ctx context.Context, items []*feed.F
 	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := q.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx,
 		`SELECT media_item_id, blurhash FROM artwork
 		 WHERE media_item_id = ANY($1) AND type = 'poster' AND blurhash IS NOT NULL`,
 		pq.Array(ids))
@@ -457,6 +457,10 @@ func (q *FeedQuerier) fillPrimaryBlurhashes(ctx context.Context, items []*feed.F
 		if _, exists := hashes[mediaID]; !exists {
 			hashes[mediaID] = hash
 		}
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		slog.Debug("feed: iterate blurhash rows failed", slog.Any("err", rowsErr))
+		return
 	}
 	for _, it := range items {
 		if h, ok := hashes[string(it.MediaItemID)]; ok {

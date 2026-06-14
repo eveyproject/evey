@@ -81,7 +81,7 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 		args = append(args, filter.Offset)
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

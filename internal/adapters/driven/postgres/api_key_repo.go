@@ -29,7 +29,7 @@ func (r *APIKeyRepository) Create(ctx context.Context, key *user.APIKeyModel) er
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO api_keys (id, user_id, key_hash, name, permissions, last_used_at, expires_at, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		key.ID, key.UserID, key.KeyHash, key.Name, permJSON, key.LastUsedAt, key.ExpiresAt, key.CreatedAt,
@@ -44,7 +44,7 @@ func (r *APIKeyRepository) GetByKeyHash(ctx context.Context, hash string) (*user
 	defer cancel()
 	key := &user.APIKeyModel{}
 	var permJSON []byte
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, user_id, key_hash, name, permissions, last_used_at, expires_at, created_at
 		 FROM api_keys WHERE key_hash = $1`, hash,
 	).Scan(&key.ID, &key.UserID, &key.KeyHash, &key.Name, &permJSON, &key.LastUsedAt, &key.ExpiresAt, &key.CreatedAt)
@@ -62,7 +62,7 @@ func (r *APIKeyRepository) ListByUserID(ctx context.Context, userID shared.UserI
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, user_id, key_hash, name, permissions, last_used_at, expires_at, created_at
 		 FROM api_keys WHERE user_id = $1 ORDER BY created_at LIMIT 100`, string(userID))
 	if err != nil {
@@ -90,7 +90,7 @@ func (r *APIKeyRepository) Delete(ctx context.Context, id string) error {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM api_keys WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM api_keys WHERE id = $1`, id)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (r *APIKeyRepository) UpdateLastUsed(ctx context.Context, id string, t time
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE api_keys SET last_used_at = $1 WHERE id = $2`, t, id)
 	if err != nil {
 		return err

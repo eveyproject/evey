@@ -95,7 +95,7 @@ func (r *PluginRepository) Create(ctx context.Context, p *plugin.Plugin) error {
 	if kind == "" {
 		kind = plugin.KindPlugin
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO plugins (`+pluginColumns+`)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
 		p.ID, p.Name, p.Version, p.Description, p.Author, p.Language, p.Entrypoint, p.InstallDir,
@@ -116,7 +116,7 @@ func (r *PluginRepository) GetByID(ctx context.Context, id string) (*plugin.Plug
 	span.SetAttributes(attribute.String("plugin.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	p, err := r.scanPlugin(r.db.QueryRowContext(ctx,
+	p, err := r.scanPlugin(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT `+pluginColumns+` FROM plugins WHERE id = $1`, id))
 	if err != nil {
 		span.RecordError(err)
@@ -130,7 +130,7 @@ func (r *PluginRepository) GetByName(ctx context.Context, name string) (*plugin.
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	p, err := r.scanPlugin(r.db.QueryRowContext(ctx,
+	p, err := r.scanPlugin(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT `+pluginColumns+` FROM plugins WHERE name = $1`, name))
 	if err != nil {
 		span.RecordError(err)
@@ -144,7 +144,7 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT `+pluginColumns+` FROM plugins ORDER BY name LIMIT 1000`)
 	if err != nil {
 		span.RecordError(err)
@@ -255,7 +255,7 @@ func (r *PluginRepository) Update(ctx context.Context, p *plugin.Plugin) error {
 	if kind == "" {
 		kind = plugin.KindPlugin
 	}
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE plugins SET name=$1, version=$2, description=$3, author=$4, language=$5,
 		 entrypoint=$6, install_dir=$7, capabilities=$8, permissions=$9, config_schema=$10, config=$11,
 		 enabled=$12, status=$13, error_message=$14, updated_at=$15, source_hash=$16, analysis_report=$17,
@@ -284,7 +284,7 @@ func (r *PluginRepository) Delete(ctx context.Context, id string) error {
 	span.SetAttributes(attribute.String("plugin.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM plugins WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM plugins WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

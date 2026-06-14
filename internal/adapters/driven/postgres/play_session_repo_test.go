@@ -30,7 +30,6 @@ func newTestPlaySession(id, profileID, mediaItemID string) *playback.PlaySession
 	}
 }
 
-
 func TestPlaySessionRepo_Create_GetByID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

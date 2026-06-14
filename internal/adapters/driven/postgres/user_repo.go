@@ -67,7 +67,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id shared.UserID) (*user.U
 	span.SetAttributes(attribute.String("user.id", string(id)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	u, err := r.scanUser(r.db.QueryRowContext(ctx,
+	u, err := r.scanUser(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE id = $1`, string(id)))
 	if err != nil {
 		span.RecordError(err)
@@ -82,7 +82,7 @@ func (r *UserRepository) GetByUsername(ctx context.Context, username string) (*u
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	u, err := r.scanUser(r.db.QueryRowContext(ctx,
+	u, err := r.scanUser(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE username = $1`, username))
 	if err != nil {
 		span.RecordError(err)
@@ -97,7 +97,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*user.Us
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	u, err := r.scanUser(r.db.QueryRowContext(ctx,
+	u, err := r.scanUser(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE email = $1`, email))
 	if err != nil {
 		span.RecordError(err)
@@ -112,7 +112,7 @@ func (r *UserRepository) GetByOIDCSubject(ctx context.Context, issuer, subject s
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	u, err := r.scanUser(r.db.QueryRowContext(ctx,
+	u, err := r.scanUser(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT `+userColumns+` FROM users WHERE oidc_issuer = $1 AND oidc_subject = $2`, issuer, subject))
 	if err != nil {
 		span.RecordError(err)
@@ -127,7 +127,7 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT `+userColumns+` FROM users ORDER BY username LIMIT 1000`)
 	if err != nil {
 		span.RecordError(err)
@@ -162,7 +162,7 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	span.SetAttributes(attribute.String("user.id", string(u.ID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE users SET username=$1, email=$2, password_hash=$3, is_admin=$4, enabled=$5,
 		 oidc_subject=$6, oidc_issuer=$7, max_streams=$8, max_profiles=$9, max_devices_per_profile=$10,
 		 max_bitrate_kbps=$11, push_consent=$12, updated_at=$13 WHERE id=$14`,
@@ -189,7 +189,7 @@ func (r *UserRepository) Delete(ctx context.Context, id shared.UserID) error {
 	span.SetAttributes(attribute.String("user.id", string(id)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, string(id))
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM users WHERE id = $1`, string(id))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -293,7 +293,7 @@ func (r *UserRepository) CountAdmins(ctx context.Context) (int, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
-	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_admin = TRUE`).Scan(&count)
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_admin = TRUE`).Scan(&count)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -308,7 +308,7 @@ func (r *UserRepository) CountEnabledAdmins(ctx context.Context) (int, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
-	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_admin = TRUE AND enabled = TRUE`).Scan(&count)
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE is_admin = TRUE AND enabled = TRUE`).Scan(&count)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -326,7 +326,7 @@ func (r *UserRepository) GetTokenEpoch(ctx context.Context, id shared.UserID) (i
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var epoch int64
-	err := r.db.QueryRowContext(ctx, `SELECT token_epoch FROM users WHERE id = $1`, string(id)).Scan(&epoch)
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `SELECT token_epoch FROM users WHERE id = $1`, string(id)).Scan(&epoch)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, shared.ErrNotFound
 	}

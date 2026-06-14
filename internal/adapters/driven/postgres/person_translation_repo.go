@@ -27,7 +27,7 @@ func (r *PersonTranslationRepository) Upsert(ctx context.Context, t *library.Per
 	span.SetAttributes(attribute.String("person.id", t.PersonID), attribute.String("locale", t.Locale))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO person_translations (person_id, locale, biography)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (person_id, locale)
@@ -47,7 +47,7 @@ func (r *PersonTranslationRepository) GetByPersonAndLocale(ctx context.Context, 
 	span.SetAttributes(attribute.String("person.id", personID), attribute.String("locale", locale))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	row := r.db.QueryRowContext(ctx, `
+	row := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
 		SELECT person_id, locale, biography
 		FROM person_translations
 		WHERE person_id = $1 AND locale = $2
@@ -70,7 +70,7 @@ func (r *PersonTranslationRepository) GetByPerson(ctx context.Context, personID 
 	span.SetAttributes(attribute.String("person.id", personID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT person_id, locale, biography
 		FROM person_translations
 		WHERE person_id = $1
@@ -106,7 +106,7 @@ func (r *PersonTranslationRepository) DeleteByPerson(ctx context.Context, person
 	span.SetAttributes(attribute.String("person.id", personID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM person_translations WHERE person_id = $1`, personID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM person_translations WHERE person_id = $1`, personID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

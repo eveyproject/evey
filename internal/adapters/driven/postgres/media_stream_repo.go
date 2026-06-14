@@ -67,7 +67,7 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 		)
 	}
 
-	_, err := r.db.ExecContext(ctx, b.String(), args...)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, b.String(), args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -159,7 +159,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, stream_index, stream_type, codec, codec_long_name, profile, language, title,
 		 is_default, is_forced, width, height, framerate, bit_depth, color_space, color_transfer, hdr_type,
 		 dovi_profile, dovi_bl_compat, field_order, idet_interlaced, sample_aspect_ratio, channels,
@@ -203,7 +203,7 @@ func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaIt
 	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM media_streams WHERE media_item_id = $1`, string(mediaItemID))
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM media_streams WHERE media_item_id = $1`, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -240,7 +240,7 @@ func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit
 	if exclude == nil {
 		exclude = []string{}
 	}
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT DISTINCT media_item_id FROM media_streams
 		 WHERE stream_type = 'video'
 		   AND ((lower(codec) = 'h264' AND level IS NULL)
@@ -296,7 +296,7 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 			s.FieldOrder == nil && s.SampleAspectRatio == nil {
 			continue // probe resolved nothing this backfill can fill
 		}
-		res, err := r.db.ExecContext(ctx,
+		res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 			`UPDATE media_streams SET
 			   level = COALESCE(level, $1),
 			   color_transfer = COALESCE(color_transfer, $2),
@@ -336,7 +336,7 @@ func (r *MediaStreamRepository) SetIdetInterlaced(ctx context.Context, mediaItem
 	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE media_streams SET idet_interlaced = $1
 		 WHERE media_item_id = $2 AND stream_type = 'video' AND idet_interlaced IS NULL`,
 		interlaced, string(mediaItemID))
@@ -371,7 +371,7 @@ func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, l
 	if exclude == nil {
 		exclude = []string{}
 	}
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT DISTINCT media_item_id FROM media_streams
 		 WHERE stream_type = 'video'
 		   AND level IS NOT NULL AND keyframes_ms IS NULL
@@ -424,7 +424,7 @@ func (r *MediaStreamRepository) SetKeyframes(ctx context.Context, mediaItemID sh
 	if len(keyframesMS) == 0 {
 		return 0, nil
 	}
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE media_streams SET keyframes_ms = $1
 		 WHERE media_item_id = $2 AND stream_type = 'video' AND keyframes_ms IS NULL`,
 		pq.Array(keyframesMS), string(mediaItemID))

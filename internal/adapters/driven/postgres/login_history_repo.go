@@ -28,7 +28,7 @@ func (r *LoginHistoryRepository) Create(ctx context.Context, e *activity.LoginEn
 	span.SetAttributes(attribute.String("login_history.id", e.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO login_history (id, user_id, client_ip, user_agent, auth_method, success, failure_reason, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		e.ID, e.UserID, e.ClientIP, e.UserAgent, e.AuthMethod, e.Success, e.FailureReason, e.CreatedAt,
@@ -47,7 +47,7 @@ func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID shared.
 	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, user_id, client_ip, user_agent, auth_method, success, failure_reason, created_at
 		 FROM login_history WHERE user_id = $1
 		 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, userID, limit, offset)
@@ -110,7 +110,7 @@ func (r *LoginHistoryRepository) ListByUserIDCursor(ctx context.Context, userID 
 	query += fmt.Sprintf(" ORDER BY created_at DESC, id DESC LIMIT $%d", i)
 	args = append(args, limit)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

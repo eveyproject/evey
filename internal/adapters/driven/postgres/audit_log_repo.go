@@ -36,7 +36,7 @@ func (r *AuditLogRepository) Create(ctx context.Context, e *activity.AuditLogEnt
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO audit_log (id, user_id, action, resource_type, resource_id, details, client_ip, user_agent, device_name, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
 		e.ID, e.UserID, e.Action, e.ResourceType, e.ResourceID, detailsJSON, e.ClientIP, e.UserAgent, e.DeviceName, e.CreatedAt,
@@ -113,7 +113,7 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 		query += fmt.Sprintf(" OFFSET %d", f.Offset)
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -148,7 +148,7 @@ func (r *AuditLogRepository) Purge(ctx context.Context, before time.Time) (int64
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM audit_log WHERE created_at < $1`, before)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM audit_log WHERE created_at < $1`, before)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

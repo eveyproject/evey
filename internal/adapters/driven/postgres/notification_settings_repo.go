@@ -29,7 +29,7 @@ func (r *NotificationSettingsRepository) GetByProfile(ctx context.Context, profi
 	defer cancel()
 	s := &notification.Settings{ProfileID: shared.ProfileID(profileID)}
 	var ml, sl, msl string
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT movie_level, series_level, music_level FROM notification_settings WHERE profile_id = $1`, profileID,
 	).Scan(&ml, &sl, &msl)
 	if err == sql.ErrNoRows {
@@ -58,7 +58,7 @@ func (r *NotificationSettingsRepository) GetByProfiles(ctx context.Context, prof
 	if len(profileIDs) == 0 {
 		return result, nil
 	}
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT profile_id, movie_level, series_level, music_level FROM notification_settings WHERE profile_id = ANY($1)`,
 		pq.Array(profileIDs),
 	)
@@ -108,7 +108,7 @@ func (r *NotificationSettingsRepository) Upsert(ctx context.Context, s *notifica
 	span.SetAttributes(attribute.String("profile.id", string(s.ProfileID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO notification_settings (profile_id, movie_level, series_level, music_level)
 		 VALUES ($1,$2,$3,$4)
 		 ON CONFLICT (profile_id) DO UPDATE SET
@@ -132,7 +132,7 @@ func (r *NotificationSettingsRepository) GetGlobalDefaults(ctx context.Context) 
 	defer cancel()
 	s := &notification.Settings{}
 	var ml, sl, msl string
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT movie_level, series_level, music_level FROM notification_settings_global WHERE id = 1`,
 	).Scan(&ml, &sl, &msl)
 	if err != nil {
@@ -149,7 +149,7 @@ func (r *NotificationSettingsRepository) UpsertGlobalDefaults(ctx context.Contex
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE notification_settings_global SET movie_level=$1, series_level=$2, music_level=$3 WHERE id=1`,
 		string(s.MovieLevel), string(s.SeriesLevel), string(s.MusicLevel),
 	)

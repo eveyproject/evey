@@ -39,7 +39,7 @@ func (r *WebhookRepository) Create(ctx context.Context, cfg *webhook.Config) err
 	if events == nil {
 		events = []string{}
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO webhook_configs (id, name, url, events, secret, headers, enabled, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		cfg.ID, cfg.Name, cfg.URL, pq.Array(events), cfg.Secret, headersJSON, cfg.Enabled, cfg.CreatedAt,
@@ -60,7 +60,7 @@ func (r *WebhookRepository) GetByID(ctx context.Context, id string) (*webhook.Co
 	defer cancel()
 	cfg := &webhook.Config{}
 	var headersJSON []byte
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, url, events, secret, headers, enabled, created_at FROM webhook_configs WHERE id = $1`, id,
 	).Scan(&cfg.ID, &cfg.Name, &cfg.URL, pq.Array(&cfg.Events), &cfg.Secret, &headersJSON, &cfg.Enabled, &cfg.CreatedAt)
 	if err != nil {
@@ -79,7 +79,7 @@ func (r *WebhookRepository) List(ctx context.Context) ([]*webhook.Config, error)
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, name, url, events, secret, headers, enabled, created_at FROM webhook_configs ORDER BY created_at DESC LIMIT 1000`)
 	if err != nil {
 		span.RecordError(err)
@@ -126,7 +126,7 @@ func (r *WebhookRepository) Update(ctx context.Context, cfg *webhook.Config) err
 	if events == nil {
 		events = []string{}
 	}
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE webhook_configs SET name=$1, url=$2, events=$3, secret=$4, headers=$5, enabled=$6 WHERE id=$7`,
 		cfg.Name, cfg.URL, pq.Array(events), cfg.Secret, headersJSON, cfg.Enabled, cfg.ID,
 	)
@@ -149,7 +149,7 @@ func (r *WebhookRepository) Delete(ctx context.Context, id string) error {
 	span.SetAttributes(attribute.String("webhook.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM webhook_configs WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM webhook_configs WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -177,7 +177,7 @@ func (r *WebhookDeliveryRepository) Create(ctx context.Context, d *webhook.Deliv
 	span.SetAttributes(attribute.String("webhook.id", d.WebhookID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO webhook_deliveries (id, webhook_id, event, status_code, error, sent_at)
 		 VALUES ($1,$2,$3,$4,$5,$6)`,
 		d.ID, d.WebhookID, d.Event, d.StatusCode, d.Error, d.SentAt,
@@ -201,7 +201,7 @@ func (r *WebhookDeliveryRepository) ListByWebhook(ctx context.Context, webhookID
 		limit = 1000
 	}
 	q += ` LIMIT $2`
-	rows, err := r.db.QueryContext(ctx, q, webhookID, limit)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, webhookID, limit)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

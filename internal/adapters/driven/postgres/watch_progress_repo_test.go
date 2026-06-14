@@ -22,7 +22,6 @@ func mustWPDuration(t *testing.T, ms int64) shared.Duration {
 	return d
 }
 
-
 func TestWatchProgressRepo_Upsert_GetByProfileAndMedia(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

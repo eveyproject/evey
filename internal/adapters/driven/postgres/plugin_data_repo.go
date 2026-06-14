@@ -33,11 +33,11 @@ func (r *PluginDataRepository) Get(ctx context.Context, pluginID, userID, key st
 	e := &plugin.PluginDataEntry{PluginID: pluginID, UserID: userID, Key: key}
 	var err error
 	if userID == "" {
-		err = r.db.QueryRowContext(ctx,
+		err = txFromCtx(ctx, r.db).QueryRowContext(ctx,
 			`SELECT value, updated_at FROM plugin_data WHERE plugin_id=$1 AND user_id IS NULL AND key=$2`,
 			pluginID, key).Scan(&e.Value, &e.UpdatedAt)
 	} else {
-		err = r.db.QueryRowContext(ctx,
+		err = txFromCtx(ctx, r.db).QueryRowContext(ctx,
 			`SELECT value, updated_at FROM plugin_data WHERE plugin_id=$1 AND user_id=$2 AND key=$3`,
 			pluginID, userID, key).Scan(&e.Value, &e.UpdatedAt)
 	}
@@ -60,13 +60,13 @@ func (r *PluginDataRepository) Set(ctx context.Context, pluginID, userID, key, v
 
 	var err error
 	if userID == "" {
-		_, err = r.db.ExecContext(ctx,
+		_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 			`INSERT INTO plugin_data (plugin_id, user_id, key, value, updated_at) VALUES ($1, NULL, $2, $3, NOW())
 			 ON CONFLICT (plugin_id, key) WHERE user_id IS NULL
 			 DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
 			pluginID, key, value)
 	} else {
-		_, err = r.db.ExecContext(ctx,
+		_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 			`INSERT INTO plugin_data (plugin_id, user_id, key, value, updated_at) VALUES ($1, $2, $3, $4, NOW())
 			 ON CONFLICT (plugin_id, user_id, key) WHERE user_id IS NOT NULL
 			 DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
@@ -88,10 +88,10 @@ func (r *PluginDataRepository) Delete(ctx context.Context, pluginID, userID, key
 
 	var err error
 	if userID == "" {
-		_, err = r.db.ExecContext(ctx,
+		_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 			`DELETE FROM plugin_data WHERE plugin_id=$1 AND user_id IS NULL AND key=$2`, pluginID, key)
 	} else {
-		_, err = r.db.ExecContext(ctx,
+		_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 			`DELETE FROM plugin_data WHERE plugin_id=$1 AND user_id=$2 AND key=$3`, pluginID, userID, key)
 	}
 	if err != nil {
@@ -111,11 +111,11 @@ func (r *PluginDataRepository) List(ctx context.Context, pluginID, userID string
 	var rows *sql.Rows
 	var err error
 	if userID == "" {
-		rows, err = r.db.QueryContext(ctx,
+		rows, err = txFromCtx(ctx, r.db).QueryContext(ctx,
 			`SELECT key, value, updated_at FROM plugin_data WHERE plugin_id=$1 AND user_id IS NULL ORDER BY key`,
 			pluginID)
 	} else {
-		rows, err = r.db.QueryContext(ctx,
+		rows, err = txFromCtx(ctx, r.db).QueryContext(ctx,
 			`SELECT key, value, updated_at FROM plugin_data WHERE plugin_id=$1 AND user_id=$2 ORDER BY key`,
 			pluginID, userID)
 	}

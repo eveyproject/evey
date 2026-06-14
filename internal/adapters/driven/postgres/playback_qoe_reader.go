@@ -25,7 +25,7 @@ func NewPlaybackQoEReader(db *sql.DB) *PlaybackQoEReader {
 
 // QoESummary captures the headline numbers for the dashboard top bar.
 type QoESummary struct {
-	WindowLabel    string  // "24h" / "7d"
+	WindowLabel    string // "24h" / "7d"
 	TotalEvents    int64
 	StarvedEvents  int64
 	StarvedRatio   float64 // 0..1
@@ -48,11 +48,11 @@ type QoEStarvedTitle struct {
 
 // QoEByDevice splits the starvation rate by detected client class.
 type QoEByDevice struct {
-	DeviceClass   string
-	TotalEvents   int64
-	StarvedEvents int64
-	StarvedRatio  float64
-	AvgBufferMs   float64
+	DeviceClass    string
+	TotalEvents    int64
+	StarvedEvents  int64
+	StarvedRatio   float64
+	AvgBufferMs    float64
 	AvgEncodedKbps float64
 }
 
@@ -72,7 +72,7 @@ func (r *PlaybackQoEReader) GetSummary(ctx context.Context, window time.Duration
 		FROM playback_qoe_events
 		WHERE ts >= NOW() - $1::interval`
 	out := &QoESummary{WindowLabel: humanWindow(window)}
-	if err := r.db.QueryRowContext(ctx, q, intervalArg(window)).Scan(
+	if err := txFromCtx(ctx, r.db).QueryRowContext(ctx, q, intervalArg(window)).Scan(
 		&out.TotalEvents, &out.StarvedEvents, &out.UniqueSessions, &out.UniqueMedia,
 	); err != nil {
 		return nil, fmt.Errorf("qoe summary: %w", err)
@@ -126,7 +126,7 @@ func (r *PlaybackQoEReader) GetTopStarvedTitles(ctx context.Context, window time
 		LEFT JOIN media_files mf ON mf.media_item_id = a.media_item_id
 		ORDER BY (a.starved)::float / NULLIF(a.total, 0) DESC, a.starved DESC
 		LIMIT $2`
-	rows, err := r.db.QueryContext(ctx, q, intervalArg(window), limit)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, intervalArg(window), limit)
 	if err != nil {
 		return nil, fmt.Errorf("qoe top starved: %w", err)
 	}
@@ -169,7 +169,7 @@ func (r *PlaybackQoEReader) GetByDeviceClass(ctx context.Context, window time.Du
 		WHERE ts >= NOW() - $1::interval
 		GROUP BY device
 		ORDER BY total DESC`
-	rows, err := r.db.QueryContext(ctx, q, intervalArg(window))
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, intervalArg(window))
 	if err != nil {
 		return nil, fmt.Errorf("qoe by device: %w", err)
 	}

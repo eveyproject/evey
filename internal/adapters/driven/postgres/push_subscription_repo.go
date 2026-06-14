@@ -25,7 +25,7 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, userID, profile
 	span.SetAttributes(attribute.String("user.id", userID), attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO push_subscriptions (user_id, profile_id, endpoint, p256dh, auth, updated_at)
 		VALUES ($1, $2, $3, $4, $5, NOW())
 		ON CONFLICT (endpoint) DO UPDATE
@@ -49,7 +49,7 @@ func (r *PushSubscriptionRepository) DeleteByEndpoint(ctx context.Context, userI
 	span.SetAttributes(attribute.String("user.id", userID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2`, endpoint, userID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM push_subscriptions WHERE endpoint = $1 AND user_id = $2`, endpoint, userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -64,7 +64,7 @@ func (r *PushSubscriptionRepository) DeleteByUser(ctx context.Context, userID st
 	span.SetAttributes(attribute.String("user.id", userID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM push_subscriptions WHERE user_id = $1`, userID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM push_subscriptions WHERE user_id = $1`, userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -79,7 +79,7 @@ func (r *PushSubscriptionRepository) GetByProfile(ctx context.Context, profileID
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, user_id, profile_id, endpoint, p256dh, auth, created_at, updated_at
 		FROM push_subscriptions WHERE profile_id = $1
 		ORDER BY created_at DESC
@@ -105,7 +105,7 @@ func (r *PushSubscriptionRepository) ListByUser(ctx context.Context, userID stri
 	span.SetAttributes(attribute.String("user.id", userID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, user_id, profile_id, endpoint, p256dh, auth, created_at, updated_at
 		FROM push_subscriptions WHERE user_id = $1
 		ORDER BY created_at DESC

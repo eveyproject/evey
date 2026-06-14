@@ -28,7 +28,7 @@ func (r *UserRoleRepository) AssignRole(ctx context.Context, userID shared.UserI
 	span.SetAttributes(attribute.String("user.id", string(userID)), attribute.String("role.id", roleID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2)
 		 ON CONFLICT (user_id, role_id) DO NOTHING`,
 		string(userID), roleID,
@@ -47,7 +47,7 @@ func (r *UserRoleRepository) RemoveRole(ctx context.Context, userID shared.UserI
 	span.SetAttributes(attribute.String("user.id", string(userID)), attribute.String("role.id", roleID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2`, string(userID), roleID)
 	if err != nil {
 		span.RecordError(err)
@@ -63,7 +63,7 @@ func (r *UserRoleRepository) GetRolesByUserID(ctx context.Context, userID shared
 	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT r.id, r.name, r.description, r.permissions, r.is_system
 		 FROM roles r
 		 INNER JOIN user_roles ur ON ur.role_id = r.id

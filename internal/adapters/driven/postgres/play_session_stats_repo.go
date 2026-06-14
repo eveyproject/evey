@@ -99,7 +99,7 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 	UNION ALL
 	SELECT 'M', month, cnt::TEXT, total_ms::TEXT FROM monthly`
 
-	rows, err := r.db.QueryContext(ctx, q, profileID)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, profileID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -171,7 +171,7 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 	}
 
 	stats := &activity.ServerStatsResult{}
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT
 			(SELECT COUNT(*) FROM play_sessions WHERE ended_at IS NULL),
 			(SELECT COUNT(*) FROM transcode_sessions WHERE status IN ('queued', 'running')),
@@ -210,7 +210,7 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 // popularMediaRollup returns the most-played items of the last 90 days with
 // their distinct-viewer counts (admin stats tab).
 func (r *PlaySessionStatsReader) popularMediaRollup(ctx context.Context) ([]activity.ServerPopularMedia, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT ps.media_item_id, mi.title, mi.type,
 		        COUNT(*) AS plays, COUNT(DISTINCT ps.profile_id) AS viewers
 		 FROM play_sessions ps
@@ -241,7 +241,7 @@ func (r *PlaySessionStatsReader) popularMediaRollup(ctx context.Context) ([]acti
 // (it previously preferred duration, disagreeing with the dashboard/analytics
 // and zero-counting stale sessions that never set duration_ms).
 func (r *PlaySessionStatsReader) activeUsersRollup(ctx context.Context) ([]activity.ServerActiveUser, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT u.id, u.username, COUNT(*) AS plays,
 		        COALESCE(SUM(COALESCE(ps.position_ms, ps.duration_ms, 0)), 0) AS watch_ms,
 		        MAX(ps.started_at) AS last_active
@@ -276,7 +276,7 @@ func (r *PlaySessionStatsReader) GetActiveSessionsBitrate(ctx context.Context) (
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var bps int64
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT COALESCE(SUM(bandwidth_bps), 0) FROM play_sessions WHERE ended_at IS NULL`,
 	).Scan(&bps)
 	if err != nil {
@@ -297,7 +297,7 @@ func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, profileID s
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT ps.media_item_id, mi.title, COUNT(*) AS play_count
 		 FROM play_sessions ps
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id

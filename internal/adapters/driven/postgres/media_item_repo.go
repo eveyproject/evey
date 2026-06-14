@@ -304,7 +304,7 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM media_items WHERE id = ANY($1)`, pq.Array(ids))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -326,7 +326,7 @@ func (r *MediaItemRepository) bumpSeriesLatestChildAddedAt(ctx context.Context, 
 		return
 	}
 	when := item.AddedAt
-	_, err := r.db.ExecContext(ctx, `
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		UPDATE media_items
 		SET latest_child_added_at = $1
 		WHERE type = 'series'
@@ -373,7 +373,7 @@ func (r *MediaItemRepository) BackfillEmptySortTitles(ctx context.Context) (int,
 	var totalUpdated int
 
 	for {
-		rows, err := r.db.QueryContext(ctx,
+		rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 			`SELECT id, title FROM media_items WHERE sort_title = '' AND title <> '' LIMIT $1`,
 			batchSize,
 		)
@@ -393,6 +393,10 @@ func (r *MediaItemRepository) BackfillEmptySortTitles(ctx context.Context) (int,
 			}
 			batch = append(batch, pair{id: id, sortTitle: library.NormalizeSortTitle(title)})
 		}
+		if rowsErr := rows.Err(); rowsErr != nil {
+			rows.Close()
+			return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles rows: %w", rowsErr)
+		}
 		if err := rows.Close(); err != nil {
 			return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles close: %w", err)
 		}
@@ -409,7 +413,7 @@ func (r *MediaItemRepository) BackfillEmptySortTitles(ctx context.Context) (int,
 			ids[i] = p.id
 			sorts[i] = p.sortTitle
 		}
-		res, err := r.db.ExecContext(ctx,
+		res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 			`UPDATE media_items SET sort_title = data.sort_title
 			 FROM (SELECT UNNEST($1::text[]) AS id, UNNEST($2::text[]) AS sort_title) AS data
 			 WHERE media_items.id = data.id AND media_items.sort_title = ''`,

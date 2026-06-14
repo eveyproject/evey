@@ -30,7 +30,7 @@ func (r *UserRatingRepository) Upsert(ctx context.Context, rating *library.UserR
 	span.SetAttributes(attribute.String("profile.id", string(rating.ProfileID)), attribute.String("media_item.id", string(rating.MediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO user_ratings (profile_id, media_item_id, value, updated_at)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (profile_id, media_item_id)
@@ -50,7 +50,7 @@ func (r *UserRatingRepository) Get(ctx context.Context, profileID, mediaItemID s
 	span.SetAttributes(attribute.String("profile.id", profileID), attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	row := r.db.QueryRowContext(ctx, `
+	row := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
 		SELECT profile_id, media_item_id, value
 		FROM user_ratings
 		WHERE profile_id = $1 AND media_item_id = $2
@@ -83,7 +83,7 @@ func (r *UserRatingRepository) GetForItems(ctx context.Context, profileID string
 		placeholders[i] = fmt.Sprintf("$%d", i+2)
 		args[i+1] = id
 	}
-	rows, err := r.db.QueryContext(ctx, fmt.Sprintf(`
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, fmt.Sprintf(`
 		SELECT profile_id, media_item_id, value
 		FROM user_ratings
 		WHERE profile_id = $1 AND media_item_id IN (%s)

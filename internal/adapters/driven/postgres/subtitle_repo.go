@@ -32,7 +32,7 @@ func (r *SubtitleRepository) Save(ctx context.Context, sub *subtitle.SubtitleDow
 	span.SetAttributes(attribute.String("subtitle.id", sub.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`INSERT INTO downloaded_subtitles (id, media_item_id, language, format, file_path, source, downloaded_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)
 		 ON CONFLICT (media_item_id, file_path) DO UPDATE SET
@@ -57,7 +57,7 @@ func (r *SubtitleRepository) GetByMediaItem(ctx context.Context, mediaItemID str
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, language, format, file_path, source, downloaded_at
 		 FROM downloaded_subtitles WHERE media_item_id = $1
 		 ORDER BY downloaded_at DESC`,
@@ -93,7 +93,7 @@ func (r *SubtitleRepository) Delete(ctx context.Context, id string) error {
 	span.SetAttributes(attribute.String("subtitle.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM downloaded_subtitles WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM downloaded_subtitles WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

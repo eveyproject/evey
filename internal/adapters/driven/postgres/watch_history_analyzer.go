@@ -25,7 +25,7 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenres(ctx context.Context, profileID 
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := a.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, a.db).QueryContext(ctx, `
 		WITH recent_sessions AS (
 			SELECT media_item_id
 			FROM play_sessions
@@ -91,7 +91,7 @@ func (a *WatchHistoryAnalyzer) GetFavoriteGenresBatch(ctx context.Context, profi
 		ORDER BY ps.profile_id, cnt DESC
 	`, strings.Join(placeholders, ","), len(profileIDs)+1)
 
-	rows, err := a.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, a.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (a *WatchHistoryAnalyzer) HasWatchedSeries(ctx context.Context, profileID, 
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
-	err := a.db.QueryRowContext(ctx, `
+	err := txFromCtx(ctx, a.db).QueryRowContext(ctx, `
 		SELECT COUNT(*)
 		FROM watch_progress wp
 		INNER JOIN media_items mi ON mi.id = wp.media_item_id
@@ -136,7 +136,7 @@ func (a *WatchHistoryAnalyzer) IsCurrentlyWatchingSeries(ctx context.Context, pr
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
-	err := a.db.QueryRowContext(ctx, `
+	err := txFromCtx(ctx, a.db).QueryRowContext(ctx, `
 		SELECT COUNT(*)
 		FROM watch_progress wp
 		INNER JOIN media_items mi ON mi.id = wp.media_item_id

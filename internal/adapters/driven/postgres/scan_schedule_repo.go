@@ -28,7 +28,7 @@ func (r *ScanScheduleRepository) Upsert(ctx context.Context, s *library.ScanSche
 	span.SetAttributes(attribute.String("library.id", string(s.LibraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO scan_schedules (library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
 		 ON CONFLICT (library_id) DO UPDATE SET
@@ -53,7 +53,7 @@ func (r *ScanScheduleRepository) GetByLibraryID(ctx context.Context, libraryID s
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	s := &library.ScanSchedule{}
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at
 		 FROM scan_schedules WHERE library_id = $1`, libraryID,
 	).Scan(&s.LibraryID, &s.CronExpression, &s.Enabled, &s.LastRunAt, &s.NextRunAt, &s.CreatedAt, &s.UpdatedAt)
@@ -74,7 +74,7 @@ func (r *ScanScheduleRepository) Delete(ctx context.Context, libraryID string) e
 	span.SetAttributes(attribute.String("library.id", libraryID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM scan_schedules WHERE library_id = $1`, libraryID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM scan_schedules WHERE library_id = $1`, libraryID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -88,7 +88,7 @@ func (r *ScanScheduleRepository) List(ctx context.Context) ([]*library.ScanSched
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at
 		 FROM scan_schedules ORDER BY library_id`)
 	if err != nil {
@@ -120,7 +120,7 @@ func (r *ScanScheduleRepository) ListEnabled(ctx context.Context) ([]*library.Sc
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT library_id, cron_expression, enabled, last_run_at, next_run_at, created_at, updated_at
 		 FROM scan_schedules WHERE enabled = TRUE ORDER BY library_id LIMIT 1000`)
 	if err != nil {
@@ -153,7 +153,7 @@ func (r *ScanScheduleRepository) UpdateAfterRun(ctx context.Context, libraryID s
 	span.SetAttributes(attribute.String("library.id", libraryID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE scan_schedules SET last_run_at = $1, next_run_at = $2, updated_at = NOW() WHERE library_id = $3`,
 		lastRun, nextRun, libraryID,
 	)

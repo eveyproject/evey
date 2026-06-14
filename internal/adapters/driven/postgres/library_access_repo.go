@@ -24,7 +24,7 @@ func (r *LibraryAccessRepository) Grant(ctx context.Context, userID shared.UserI
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO library_access (user_id, library_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
 		string(userID), string(libraryID))
 	return err
@@ -62,7 +62,7 @@ func (r *LibraryAccessRepository) Revoke(ctx context.Context, userID shared.User
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM library_access WHERE user_id = $1 AND library_id = $2`,
 		string(userID), string(libraryID))
 	return err
@@ -73,7 +73,7 @@ func (r *LibraryAccessRepository) GetByUserID(ctx context.Context, userID shared
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT library_id FROM library_access WHERE user_id = $1 ORDER BY granted_at`, string(userID))
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID shared.U
 	// requested library is in the user's set. Convention: zero restrictions =
 	// full access.
 	var total, matched int
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT COUNT(*), COUNT(*) FILTER (WHERE library_id = $2)
 		 FROM library_access WHERE user_id = $1`,
 		string(userID), string(libraryID)).Scan(&total, &matched)
@@ -117,7 +117,7 @@ func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context)
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT user_id, library_id FROM library_access ORDER BY user_id, granted_at LIMIT 1000`)
 	if err != nil {
 		return nil, err

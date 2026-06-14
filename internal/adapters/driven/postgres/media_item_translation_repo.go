@@ -30,7 +30,7 @@ func (r *MediaItemTranslationRepository) Upsert(ctx context.Context, t *library.
 	span.SetAttributes(attribute.String("media_item.id", string(t.MediaItemID)), attribute.String("locale", t.Locale))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO media_item_translations (media_item_id, locale, title, overview, tagline)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (media_item_id, locale)
@@ -67,7 +67,7 @@ func (r *MediaItemTranslationRepository) UpsertBatch(ctx context.Context, transl
 	q := `INSERT INTO media_item_translations (media_item_id, locale, title, overview, tagline) VALUES ` +
 		strings.Join(valueClauses, ",") +
 		` ON CONFLICT (media_item_id, locale) DO UPDATE SET title = EXCLUDED.title, overview = EXCLUDED.overview, tagline = EXCLUDED.tagline`
-	_, err := r.db.ExecContext(ctx, q, args...)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, q, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -82,7 +82,7 @@ func (r *MediaItemTranslationRepository) GetByMediaItemAndLocale(ctx context.Con
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID), attribute.String("locale", locale))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	row := r.db.QueryRowContext(ctx, `
+	row := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
 		SELECT media_item_id, locale, title, overview, tagline
 		FROM media_item_translations
 		WHERE media_item_id = $1 AND locale = $2
@@ -112,7 +112,7 @@ func (r *MediaItemTranslationRepository) GetByMediaItemsAndLocale(ctx context.Co
 	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT media_item_id, locale, title, overview, tagline
 		FROM media_item_translations
 		WHERE media_item_id = ANY($1) AND locale = $2
@@ -146,7 +146,7 @@ func (r *MediaItemTranslationRepository) GetByMediaItem(ctx context.Context, med
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT media_item_id, locale, title, overview, tagline
 		FROM media_item_translations
 		WHERE media_item_id = $1
@@ -182,7 +182,7 @@ func (r *MediaItemTranslationRepository) DeleteByMediaItem(ctx context.Context, 
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM media_item_translations WHERE media_item_id = $1`, mediaItemID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM media_item_translations WHERE media_item_id = $1`, mediaItemID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -27,7 +27,7 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 	span.SetAttributes(attribute.String("media_item.id", string(m.MediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO trickplay_manifests (id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, created_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 		 ON CONFLICT (media_item_id) DO UPDATE SET
@@ -56,7 +56,7 @@ func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID 
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	m := &library.TrickplayManifest{}
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, created_at
 		 FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID,
 	).Scan(&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth, &m.TileHeight, &m.ImageCount, &m.ImagePath, &m.CreatedAt)
@@ -77,7 +77,7 @@ func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID shared.Med
 	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -91,7 +91,7 @@ func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context) ([]st
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT mi.id FROM media_items mi
 		 INNER JOIN media_files mf ON mf.media_item_id = mi.id
 		 WHERE mf.file_path != ''

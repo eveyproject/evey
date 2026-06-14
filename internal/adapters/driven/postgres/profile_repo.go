@@ -132,7 +132,7 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*
 	var pPINHash string
 	var pBlockedTags []string
 	var pEnabled bool
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at
 		 FROM profiles WHERE id = $1`, string(id),
 	).Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault, &p.IsKids,
@@ -157,7 +157,7 @@ func (r *ProfileRepository) GetByUserID(ctx context.Context, userID shared.UserI
 	span.SetAttributes(attribute.String("user.id", string(userID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at
 		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, string(userID))
 	if err != nil {
@@ -210,7 +210,7 @@ func (r *ProfileRepository) Update(ctx context.Context, p *user.Profile) error {
 	if locale == "" {
 		locale = "en"
 	}
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE profiles SET name=$1, avatar_path=$2, preferences=$3, max_rating=$4, is_default=$5, is_kids=$6, audio_languages=$7, subtitle_languages=$8, max_bitrate_kbps=$9, parental_max_age=$10, parental_blocked_tags=$11, parental_pin_hash=$12, parental_enabled=$13, locale=$14, region=$15 WHERE id=$16`,
 		p.Name, p.AvatarPath, prefsJSON, p.MaxRating, p.IsDefault, p.IsKids,
 		pq.Array(audioLangs), pq.Array(subLangs), p.MaxBitrateKbps,
@@ -289,7 +289,7 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at
 		 FROM profiles ORDER BY user_id, is_default DESC, name LIMIT 1000`)
 	if err != nil {
@@ -323,7 +323,7 @@ func (r *ProfileRepository) Delete(ctx context.Context, id shared.ProfileID) err
 	span.SetAttributes(attribute.String("profile.id", string(id)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, string(id))
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM profiles WHERE id = $1`, string(id))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -387,7 +387,7 @@ func (r *ProfileRepository) ListAdminProfiles(ctx context.Context) ([]*user.Prof
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT p.id, p.user_id, p.name, p.avatar_path, p.preferences, p.max_rating, p.is_default, p.is_kids,
 		 p.audio_languages, p.subtitle_languages, p.max_bitrate_kbps, p.parental_max_age, p.parental_blocked_tags,
 		 p.parental_pin_hash, p.parental_enabled, p.locale, p.region, p.created_at

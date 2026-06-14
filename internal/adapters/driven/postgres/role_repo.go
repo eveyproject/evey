@@ -33,7 +33,7 @@ func (r *RoleRepository) Create(ctx context.Context, role *user.Role) error {
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO roles (id, name, description, permissions, is_system)
 		 VALUES ($1,$2,$3,$4,$5)`,
 		role.ID, role.Name, role.Description, permJSON, role.IsSystem,
@@ -52,7 +52,7 @@ func (r *RoleRepository) GetByID(ctx context.Context, id string) (*user.Role, er
 	span.SetAttributes(attribute.String("role.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	role, err := r.scanRole(r.db.QueryRowContext(ctx,
+	role, err := r.scanRole(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, description, permissions, is_system
 		 FROM roles WHERE id = $1`, id))
 	if err != nil {
@@ -68,7 +68,7 @@ func (r *RoleRepository) GetByName(ctx context.Context, name string) (*user.Role
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	role, err := r.scanRole(r.db.QueryRowContext(ctx,
+	role, err := r.scanRole(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, description, permissions, is_system
 		 FROM roles WHERE name = $1`, name))
 	if err != nil {
@@ -84,7 +84,7 @@ func (r *RoleRepository) List(ctx context.Context) ([]*user.Role, error) {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, name, description, permissions, is_system
 		 FROM roles ORDER BY name LIMIT 1000`)
 	if err != nil {

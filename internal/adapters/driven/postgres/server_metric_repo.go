@@ -26,7 +26,7 @@ func (r *ServerMetricRepository) Create(ctx context.Context, m *activity.ServerM
 	span.SetAttributes(attribute.String("server_metric.id", m.ID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO server_metrics (id, cpu_percent, memory_used_bytes, memory_total_bytes, active_streams,
 		 active_transcodes, bandwidth_bps, storage_used_bytes, storage_total_bytes, recorded_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
@@ -46,7 +46,7 @@ func (r *ServerMetricRepository) GetByTimeRange(ctx context.Context, from, to ti
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, cpu_percent, memory_used_bytes, memory_total_bytes, active_streams, active_transcodes,
 		 bandwidth_bps, storage_used_bytes, storage_total_bytes, recorded_at
 		 FROM server_metrics WHERE recorded_at >= $1 AND recorded_at <= $2
@@ -82,7 +82,7 @@ func (r *ServerMetricRepository) Purge(ctx context.Context, before time.Time) er
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM server_metrics WHERE recorded_at < $1`, before)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM server_metrics WHERE recorded_at < $1`, before)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -100,7 +100,7 @@ func (r *ServerMetricRepository) TotalBandwidthBytes(ctx context.Context) (int64
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var total int64
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT COALESCE(SUM(bandwidth_bps / 8.0 * LEAST(gap, 300)), 0)::bigint FROM (
 			SELECT bandwidth_bps,
 			       EXTRACT(EPOCH FROM recorded_at - LAG(recorded_at) OVER (ORDER BY recorded_at)) AS gap

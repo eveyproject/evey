@@ -58,7 +58,7 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 	// PlayCount=0 (the common ReportProgress* path) never regress the
 	// counter. Callers wanting to set an absolute value still can — the
 	// incoming PlayCount wins when it's higher.
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO watch_progress (id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7)
 		 ON CONFLICT (profile_id, media_item_id) DO UPDATE SET
@@ -88,7 +88,7 @@ func (r *WatchProgressRepository) Delete(ctx context.Context, profileID, mediaIt
 	)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	if _, err := r.db.ExecContext(ctx,
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM watch_progress WHERE profile_id = $1 AND media_item_id = $2`,
 		profileID, mediaItemID,
 	); err != nil {
@@ -110,7 +110,7 @@ func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, prof
 	defer cancel()
 	wp := &playback.WatchProgress{}
 	var positionMs int64
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
 		 FROM watch_progress WHERE profile_id = $1 AND media_item_id = $2`, profileID, mediaItemID,
 	).Scan(&wp.ID, &wp.ProfileID, &wp.MediaItemID, &positionMs, &wp.Completed, &wp.PlayCount, &wp.LastPlayedAt)
@@ -134,7 +134,7 @@ func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID st
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
 		 FROM watch_progress WHERE profile_id = $1
 		 ORDER BY last_played_at DESC LIMIT $2 OFFSET $3`, profileID, limit, offset)
@@ -174,7 +174,7 @@ func (r *WatchProgressRepository) GetByProfileCursor(ctx context.Context, profil
 	query += fmt.Sprintf(" ORDER BY last_played_at DESC, media_item_id DESC LIMIT $%d", i)
 	args = append(args, limit)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -196,7 +196,7 @@ func (r *WatchProgressRepository) GetResumeItems(ctx context.Context, profileID 
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
 		 FROM watch_progress WHERE profile_id = $1 AND completed = FALSE AND position_ms > 0
 		 ORDER BY last_played_at DESC LIMIT $2`, profileID, limit)
@@ -224,7 +224,7 @@ func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID strin
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT DISTINCT ON (mi.parent_id)
 		   COALESCE(wp.id, ''), $1, mi.id, COALESCE(wp.position_ms, 0),
 		   COALESCE(wp.completed, FALSE), COALESCE(wp.play_count, 0), COALESCE(wp.last_played_at, NOW())

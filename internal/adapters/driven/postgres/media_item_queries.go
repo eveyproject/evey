@@ -21,7 +21,7 @@ func (r *MediaItemRepository) GetByID(ctx context.Context, id shared.MediaItemID
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanMediaItem(r.db.QueryRowContext(ctx,
+	return r.scanMediaItem(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		fmt.Sprintf("SELECT %s %s WHERE mi.id = $1", mediaItemColumns, mediaItemFromJoins), string(id)))
 }
 
@@ -30,7 +30,7 @@ func (r *MediaItemRepository) GetByFilePath(ctx context.Context, path string) (*
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanMediaItem(r.db.QueryRowContext(ctx,
+	return r.scanMediaItem(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		fmt.Sprintf("SELECT %s %s WHERE mf.file_path = $1", mediaItemColumns, mediaItemFromJoins), path))
 }
 
@@ -39,7 +39,7 @@ func (r *MediaItemRepository) GetByFileFingerprint(ctx context.Context, fingerpr
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanMediaItem(r.db.QueryRowContext(ctx,
+	return r.scanMediaItem(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		fmt.Sprintf("SELECT %s %s WHERE mf.file_fingerprint = $1", mediaItemColumns, mediaItemFromJoins), fingerprint))
 }
 
@@ -48,7 +48,7 @@ func (r *MediaItemRepository) GetByLibraryTypeTitle(ctx context.Context, library
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	return r.scanMediaItem(r.db.QueryRowContext(ctx,
+	return r.scanMediaItem(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		fmt.Sprintf("SELECT %s %s WHERE mi.library_id = $1 AND mi.type = $2 AND mi.title = $3 AND ($4 = '' OR mi.parent_id = $4) LIMIT 1", mediaItemColumns, mediaItemFromJoins),
 		string(libraryID), itemType, title, parentID))
 }
@@ -172,7 +172,7 @@ func (r *MediaItemRepository) Count(ctx context.Context, f library.ListMediaItem
 	defer cancel()
 	where, args := r.buildWhereClause(f)
 	var count int
-	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) `+mediaItemFromJoins+where, args...).Scan(&count)
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `SELECT COUNT(*) `+mediaItemFromJoins+where, args...).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("MediaItemRepo.Count: %w", err)
 	}
@@ -231,7 +231,7 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 		query += fmt.Sprintf(" OFFSET %d", f.Offset)
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("MediaItemRepo.List: %w", err)
 	}
@@ -256,7 +256,7 @@ func (r *MediaItemRepository) ListFilePaths(ctx context.Context, libraryID share
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT mi.id, mf.file_path
 		 FROM media_items mi
 		 INNER JOIN media_files mf ON mf.media_item_id = mi.id
@@ -286,7 +286,7 @@ func (r *MediaItemRepository) ListByLibraryID(ctx context.Context, libraryID sha
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		fmt.Sprintf("SELECT %s %s WHERE mi.library_id = $1 ORDER BY mi.added_at DESC LIMIT $2", mediaItemColumns, mediaItemFromJoins),
 		libraryID, listByLibraryIDMaxRows)
 	if err != nil {
@@ -328,7 +328,7 @@ func (r *MediaItemRepository) ListScanSummaries(ctx context.Context, libraryID s
 }
 
 func (r *MediaItemRepository) listScanSummariesBatch(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]library.MediaItemScanRow, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT mi.id,
 		        COALESCE(mf.file_path, ''),
 		        COALESCE(mf.file_fingerprint, ''),
@@ -366,7 +366,7 @@ func (r *MediaItemRepository) SeriesAggregate(ctx context.Context, seriesID shar
 	defer cancel()
 	var agg library.SeriesAggregate
 	var totalMs int64
-	err := r.db.QueryRowContext(ctx, `
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
 		WITH RECURSIVE descendants AS (
 		  SELECT id, parent_id, type FROM media_items WHERE id = $1
 		  UNION ALL
@@ -412,7 +412,7 @@ func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID s
 }
 
 func (r *MediaItemRepository) listContainerInfoBatch(ctx context.Context, libraryID shared.LibraryID, limit, offset int) ([]library.MediaItemContainerRow, error) {
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, parent_id, type FROM media_items WHERE library_id = $1 ORDER BY id LIMIT $2 OFFSET $3`,
 		libraryID, limit, offset)
 	if err != nil {

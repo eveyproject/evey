@@ -28,7 +28,7 @@ func (r *MusicPlayRepository) IncrementPlay(ctx context.Context, profileID, trac
 	span.SetAttributes(attribute.String("profile.id", profileID), attribute.String("track.id", trackID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO music_track_plays (profile_id, track_id, play_count, last_played_at)
 		 VALUES ($1, $2, 1, NOW())
 		 ON CONFLICT (profile_id, track_id) DO UPDATE SET
@@ -51,7 +51,7 @@ func (r *MusicPlayRepository) PlayCountsForProfile(ctx context.Context, profileI
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT track_id, play_count FROM music_track_plays WHERE profile_id = $1`, profileID,
 	)
 	if err != nil {

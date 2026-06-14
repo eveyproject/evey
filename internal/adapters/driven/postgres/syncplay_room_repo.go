@@ -45,7 +45,7 @@ func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) erro
 	if room.PlaylistID != nil {
 		playlistID = sql.NullString{String: *room.PlaylistID, Valid: true}
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO syncplay_rooms (id, code, name, host_id, media_id, members, state, created_at, media_type, playlist_id, queue, track_index)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
 		room.ID, room.Code, room.Name, room.HostID, room.MediaID, membersJSON, stateJSON, room.CreatedAt, mediaType, playlistID, queueJSON, room.TrackIndex,
@@ -75,7 +75,7 @@ func (r *SyncPlayRoomRepo) scanRoom(ctx context.Context, query string, arg strin
 	var room syncplay.Room
 	var membersJSON, stateJSON, queueJSON []byte
 	var playlistID sql.NullString
-	err := r.db.QueryRowContext(ctx, query, arg).Scan(
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, query, arg).Scan(
 		&room.ID, &room.Code, &room.Name, &room.HostID, &room.MediaID,
 		&membersJSON, &stateJSON, &room.CreatedAt, &room.MediaType,
 		&playlistID, &queueJSON, &room.TrackIndex,
@@ -207,7 +207,7 @@ func (r *SyncPlayRoomRepo) UpdateState(ctx context.Context, roomID string, state
 	if err != nil {
 		return err
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE syncplay_rooms SET state = $1 WHERE id = $2`,
 		stateJSON, roomID,
 	)
@@ -219,7 +219,7 @@ func (r *SyncPlayRoomRepo) UpdateTrackIndex(ctx context.Context, roomID string, 
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE syncplay_rooms SET track_index = $1, media_id = $2 WHERE id = $3`,
 		idx, mediaID, roomID,
 	)
@@ -231,7 +231,7 @@ func (r *SyncPlayRoomRepo) Delete(ctx context.Context, id string) error {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM syncplay_rooms WHERE id = $1`, id,
 	)
 	return err

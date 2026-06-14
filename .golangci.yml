@@ -26,8 +26,20 @@ linters:
     - testifylint
     # nolint hygiene
     - nolintlint
+    # TxUnit enforcement: repos must honor an ambient transaction
+    - forbidigo
 
   settings:
+    forbidigo:
+      forbid:
+        # A postgres repo calling its *sql.DB handle directly (r.db.ExecContext,
+        # …) bypasses any ambient transaction set by TxUnit.Do — so a caller
+        # wrapping several writes in uow.Do silently loses atomicity. Route every
+        # statement through txFromCtx(ctx, r.db), which uses the ambient tx when
+        # present and falls back to the raw handle otherwise. (Own-tx repos keep
+        # using r.db.BeginTx + tx.ExecContext, which this does not match.)
+        - pattern: '\.db\.(ExecContext|QueryContext|QueryRowContext)\('
+          msg: "use txFromCtx(ctx, <recv>.db).XContext so the repo honors an ambient TxUnit transaction"
     errcheck:
       check-blank: true
       # Non-actionable error returns
@@ -92,6 +104,11 @@ linters:
           - errcheck
           - bodyclose
           - gocritic
+          - forbidigo
+      # Not a postgres repo / TxUnit participant — owns its own *sql.DB.
+      - path: internal/app/transcoding/caps_override_service\.go
+        linters:
+          - forbidigo
       - path: gen/
         linters:
           - errcheck

@@ -41,7 +41,7 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 		t.AlbumFolder = filepath.Dir(t.FilePath)
 	}
 	hasCover := t.CoverArtURL != ""
-	_, err := r.db.ExecContext(ctx, `
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO music_tracks (
 			id, library_id, title, artist, album, album_artist,
 			year, track_number, disk_number, duration, file_path,
@@ -84,7 +84,7 @@ func (r *MusicTrackRepository) GetByID(ctx context.Context, id string) (*music.T
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	t := &music.Track{}
-	err := r.db.QueryRowContext(ctx, `
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
@@ -112,7 +112,7 @@ func (r *MusicTrackRepository) Delete(ctx context.Context, id string) error {
 	span.SetAttributes(attribute.String("music_track.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `DELETE FROM music_tracks WHERE id=$1`, id)
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM music_tracks WHERE id=$1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -131,7 +131,7 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shar
 	}
 	// Escape LIKE meta-characters in the search term; treat empty as "no filter".
 	escaped := likeEscape(search)
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
@@ -165,7 +165,7 @@ func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist st
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
@@ -193,7 +193,7 @@ func (r *MusicTrackRepository) ListByLibraryAndAlbum(ctx context.Context, librar
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
@@ -225,7 +225,7 @@ func (r *MusicTrackRepository) ListByAlbumFolder(ctx context.Context, libraryID 
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
@@ -255,7 +255,7 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
@@ -295,7 +295,7 @@ func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.Libr
 	}
 	// Escape % and _ so user input cannot construct pathological ILIKE patterns.
 	like := "%" + likeEscape(query) + "%"
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
@@ -329,7 +329,7 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT album_folder,
 		       COALESCE(mode() WITHIN GROUP (ORDER BY NULLIF(album,'')), '') AS display_album,
 		       COALESCE(
@@ -382,7 +382,7 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT COALESCE(NULLIF(album_artist,''), artist), COUNT(*), COUNT(DISTINCT album), MIN(NULLIF(cover_art_url,''))
 		FROM music_tracks WHERE library_id=$1
 		GROUP BY 1 ORDER BY 1
@@ -425,7 +425,7 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
@@ -455,7 +455,7 @@ func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, library
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT album_folder,
 		       COALESCE(mode() WITHIN GROUP (ORDER BY NULLIF(album,'')), '') AS display_album,
 		       COALESCE(
@@ -508,7 +508,7 @@ func (r *MusicTrackRepository) SetAlbumCoverArtURL(ctx context.Context, libraryI
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx, `
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
 		UPDATE music_tracks
 		SET cover_art_url=$3, updated_at=NOW()
 		WHERE library_id=$1 AND album_folder=$2`,
@@ -528,7 +528,7 @@ func (r *MusicTrackRepository) UpdateFilePath(ctx context.Context, id, newPath s
 	defer cancel()
 	// A moved file changes its parent folder; re-derive album_folder so
 	// the album grouping stays coherent without a full re-scan.
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE music_tracks SET file_path = $1, mod_time = $2, album_folder = $4, updated_at = NOW() WHERE id = $3`,
 		newPath, modTime, id, filepath.Dir(newPath))
 	if err != nil {

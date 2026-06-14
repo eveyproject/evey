@@ -41,7 +41,7 @@ func (r *MediaComplexityRepo) Get(ctx context.Context, mediaItemID string) (doma
 		SELECT complexity_class, complexity_metrics::text, complexity_computed_at
 		FROM media_items
 		WHERE id = $1`
-	err := r.db.QueryRowContext(ctx, q, mediaItemID).Scan(&class, &metricsRaw, &computedAt)
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, q, mediaItemID).Scan(&class, &metricsRaw, &computedAt)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return entry, false, nil
@@ -79,7 +79,7 @@ func (r *MediaComplexityRepo) Set(ctx context.Context, mediaItemID string, class
 		UPDATE media_items
 		SET complexity_class = $1, complexity_metrics = $2::jsonb, complexity_computed_at = $3
 		WHERE id = $4`
-	res, err := r.db.ExecContext(ctx, q, string(class), string(metricsJSON), computedAt, mediaItemID)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, q, string(class), string(metricsJSON), computedAt, mediaItemID)
 	if err != nil {
 		return fmt.Errorf("complexity Set: %w", err)
 	}
@@ -108,7 +108,7 @@ func (r *MediaComplexityRepo) ListUnclassified(ctx context.Context, limit int) (
 		  AND mf.file_path <> ''
 		ORDER BY mi.added_at ASC
 		LIMIT $1`
-	rows, err := r.db.QueryContext(ctx, q, limit)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, q, limit)
 	if err != nil {
 		return nil, fmt.Errorf("complexity ListUnclassified: %w", err)
 	}

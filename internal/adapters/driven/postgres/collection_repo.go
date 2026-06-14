@@ -40,7 +40,7 @@ func (r *CollectionRepository) Create(ctx context.Context, col *library.Collecti
 	if sortBy == "" {
 		sortBy = "added_at"
 	}
-	_, err = r.db.ExecContext(ctx,
+	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO collections (id, name, overview, tmdb_id, poster_url, backdrop_url, rules, sort_by, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 		col.ID, col.Name, col.Overview, col.TmdbID, col.PosterURL, col.BackdropURL,
@@ -74,7 +74,7 @@ func (r *CollectionRepository) Upsert(ctx context.Context, col *library.Collecti
 	// back, downstream LinkMediaItem(col.ID, …) targets a non-existent collection
 	// id and the FK silently drops every link after the first enrichment of a
 	// given TMDB collection (only the first movie ever links).
-	if err = r.db.QueryRowContext(ctx,
+	if err = txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`INSERT INTO collections (id, name, overview, tmdb_id, poster_url, backdrop_url, rules, sort_by, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		 ON CONFLICT (tmdb_id) WHERE tmdb_id IS NOT NULL DO UPDATE SET
@@ -110,7 +110,7 @@ func (r *CollectionRepository) Update(ctx context.Context, col *library.Collecti
 	if sortBy == "" {
 		sortBy = "added_at"
 	}
-	res, err := r.db.ExecContext(ctx,
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE collections SET name = $1, overview = $2, rules = $3, sort_by = $4, updated_at = $5
 		 WHERE id = $6`,
 		col.Name, col.Overview, rulesJSON, sortBy, col.UpdatedAt, col.ID,
@@ -140,7 +140,7 @@ func (r *CollectionRepository) GetByID(ctx context.Context, id string) (*library
 	defer cancel()
 	col := &library.Collection{}
 	var rulesJSON []byte
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, overview, tmdb_id, poster_url, backdrop_url, rules, sort_by, created_at, updated_at
 		 FROM collections WHERE id = $1`, id,
 	).Scan(&col.ID, &col.Name, &col.Overview, &col.TmdbID, &col.PosterURL, &col.BackdropURL,
@@ -167,7 +167,7 @@ func (r *CollectionRepository) GetByTmdbID(ctx context.Context, tmdbID int) (*li
 	defer cancel()
 	col := &library.Collection{}
 	var rulesJSON []byte
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, name, overview, tmdb_id, poster_url, backdrop_url, rules, sort_by, created_at, updated_at
 		 FROM collections WHERE tmdb_id = $1`, tmdbID,
 	).Scan(&col.ID, &col.Name, &col.Overview, &col.TmdbID, &col.PosterURL, &col.BackdropURL,
@@ -191,7 +191,7 @@ func (r *CollectionRepository) List(ctx context.Context) ([]*library.Collection,
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, name, overview, tmdb_id, poster_url, backdrop_url, rules, sort_by, created_at, updated_at
 		 FROM collections ORDER BY name LIMIT 1000`)
 	if err != nil {
@@ -230,7 +230,7 @@ func (r *CollectionRepository) Delete(ctx context.Context, id string) error {
 	span.SetAttributes(attribute.String("collection.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := r.db.ExecContext(ctx, `DELETE FROM collections WHERE id = $1`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM collections WHERE id = $1`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -254,7 +254,7 @@ func (r *CollectionRepository) LinkItem(ctx context.Context, collectionID, media
 	span.SetAttributes(attribute.String("collection.id", collectionID), attribute.String("media_item.id", mediaItemID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := r.db.ExecContext(ctx,
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO collection_items (collection_id, media_item_id, sort_order)
 		 VALUES ($1, $2, $3)
 		 ON CONFLICT DO NOTHING`,
@@ -315,7 +315,7 @@ func (r *CollectionRepository) GetItemsByCollectionIDs(ctx context.Context, coll
 		"SELECT ci.collection_id, %s %s INNER JOIN collection_items ci ON ci.media_item_id = mi.id WHERE ci.collection_id = ANY($1) ORDER BY ci.collection_id, mc.premiere_date ASC NULLS LAST",
 		mediaItemColumns, mediaItemFromJoins)
 
-	rows, err := r.db.QueryContext(ctx, query, pq.Array(collectionIDs))
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, pq.Array(collectionIDs))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -390,7 +390,7 @@ func (r *CollectionRepository) CountItems(ctx context.Context, collectionID stri
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	var count int
-	err := r.db.QueryRowContext(ctx,
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM collection_items WHERE collection_id = $1`, collectionID,
 	).Scan(&count)
 	if err != nil {
@@ -402,7 +402,7 @@ func (r *CollectionRepository) CountItems(ctx context.Context, collectionID stri
 }
 
 func (r *CollectionRepository) queryMediaItems(ctx context.Context, query string, args ...any) ([]*library.MediaItem, error) {
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -475,7 +475,7 @@ func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []libra
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
 
-	rows, err := q.db.QueryContext(ctx, query, args...)
+	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

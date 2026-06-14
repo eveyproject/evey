@@ -63,7 +63,7 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 
 	var total int64
 	countSQL := "SELECT COUNT(*) " + fromJoins + " WHERE " + where
-	if err := s.db.QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
+	if err := txFromCtx(ctx, s.db).QueryRowContext(ctx, countSQL, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("search count: %w", err)
 	}
 
@@ -76,7 +76,7 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 		"SELECT mi.id, mi.library_id, mi.title, mc.year, mi.type, mc.genres, mcl.official_rating %s WHERE %s ORDER BY %s LIMIT %d",
 		fromJoins, where, orderClause, limit,
 	)
-	rows, err := s.db.QueryContext(ctx, dataSQL, args...)
+	rows, err := txFromCtx(ctx, s.db).QueryContext(ctx, dataSQL, args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("search query: %w", err)
 	}
@@ -107,7 +107,6 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 
 	return hits, total, nil
 }
-
 
 func buildSortClause(sort []string) string {
 	parts := make([]string, 0, len(sort))

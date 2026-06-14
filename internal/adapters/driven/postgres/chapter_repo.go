@@ -82,7 +82,7 @@ func (r *ChapterRepository) GetByMediaItemID(ctx context.Context, mediaItemID sh
 	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	rows, err := r.db.QueryContext(ctx,
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, media_item_id, title, start_time_ms, end_time_ms, sort_order
 		 FROM chapters WHERE media_item_id = $1 ORDER BY sort_order`, string(mediaItemID))
 	if err != nil {
