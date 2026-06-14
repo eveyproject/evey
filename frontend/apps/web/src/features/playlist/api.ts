@@ -131,6 +131,9 @@ export function useUpdatePlaylist() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: getPlaylistServiceListPlaylistsQueryKey() });
       qc.invalidateQueries({ queryKey: getPlaylistServiceGetPlaylistQueryKey(vars.id) });
+      // A smart playlist's rules decide which items match, so editing them
+      // changes the items list — refresh it too, not just the metadata.
+      qc.invalidateQueries({ queryKey: getPlaylistServiceGetPlaylistItemsQueryKey(vars.id) });
     },
   });
 }

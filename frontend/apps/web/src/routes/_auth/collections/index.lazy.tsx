@@ -144,7 +144,7 @@ function SmartFilterCard({ col, onEdit, onDelete }: { col: Collection; onEdit: (
 
 function CollectionsPage() {
   const { t } = useTranslation();
-  const { data, isLoading } = useCollections();
+  const { data, isLoading, isError } = useCollections();
   const deleteMut = useDeleteCollection();
   const allCollections = data?.collections ?? [];
 
@@ -200,6 +200,14 @@ function CollectionsPage() {
             {Array.from({ length: 10 }).map((_, i) => (
               <CollectionCardSkeleton key={i} />
             ))}
+          </div>
+        ) : isError ? (
+          <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
+            <EmptyState
+              icon={<Folder size={48} strokeWidth={1.5} />}
+              title={t("common.error")}
+              description={t("common.errorBoundary.description")}
+            />
           </div>
         ) : tmdbCollections.length === 0 ? (
           <div
