@@ -120,6 +120,21 @@ func (s *Scheduler) tick(ctx context.Context) {
 		if sched.NextRunAt == nil || now.Before(*sched.NextRunAt) {
 			continue
 		}
+		// Advance NextRunAt at trigger time, not after the scan completes. A scan
+		// can run longer than the tick interval (common on a weak NAS); if
+		// NextRunAt only advanced on completion, the next tick would re-fire it —
+		// the scan lock rejects the duplicate but logs a spurious "scan failed"
+		// every long scan. Standard cron semantics: the schedule advances when it
+		// fires, independent of the run's outcome.
+		nextRun, cronErr := NextCronTime(sched.CronExpression, now)
+		if cronErr != nil {
+			s.logger.Warn("scheduler: invalid cron expression", slog.String("library_id", string(sched.LibraryID)), slog.Any("err", cronErr))
+			continue
+		}
+		if updErr := s.schedules.UpdateAfterRun(ctx, string(sched.LibraryID), now, nextRun); updErr != nil {
+			s.logger.Error("scheduler: update after run", slog.Any("err", updErr))
+			continue
+		}
 		s.logger.Info("scheduler: triggering scan", slog.String("library_id", string(sched.LibraryID)))
 		s.scanWG.Add(1)
 		go s.runScan(ctx, sched)
@@ -128,19 +143,11 @@ func (s *Scheduler) tick(ctx context.Context) {
 
 func (s *Scheduler) runScan(ctx context.Context, sched *library.ScanSchedule) {
 	defer s.scanWG.Done()
-	now := s.nowFunc()
 	added, updated, err := s.scanner.ScanLibrary(ctx, string(sched.LibraryID))
 	if err != nil {
 		s.logger.Error("scheduler: scan failed", slog.String("library_id", string(sched.LibraryID)), slog.Any("err", err))
 	} else {
 		s.logger.Info("scheduler: scan done", slog.String("library_id", string(sched.LibraryID)), slog.Int("added", added), slog.Int("updated", updated))
-	}
-	nextRun, err := NextCronTime(sched.CronExpression, now)
-	if err != nil {
-		s.logger.Warn("scheduler: invalid cron expression", slog.String("library_id", string(sched.LibraryID)), slog.Any("err", err))
-	}
-	if updateErr := s.schedules.UpdateAfterRun(ctx, string(sched.LibraryID), now, nextRun); updateErr != nil {
-		s.logger.Error("scheduler: update after run", slog.Any("err", updateErr))
 	}
 }
 
