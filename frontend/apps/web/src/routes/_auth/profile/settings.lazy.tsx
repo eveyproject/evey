@@ -1,7 +1,7 @@
 import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X, Users, Plus } from "lucide-react";
 import type React from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles } from "@evey/api";
 import { useParentalServiceGetParentalSettings, parentalServiceUpdateParentalSettings, getParentalServiceGetParentalSettingsQueryKey } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
@@ -51,6 +51,13 @@ function ProfileCard() {
   const [password, setPassword] = useState("");
   const [confirmPwd, setConfirmPwd] = useState("");
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  // Revoke the previous object URL when the preview changes or the page unmounts,
+  // so repeated avatar uploads in one session don't leak blob URLs.
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) URL.revokeObjectURL(avatarPreview);
+    };
+  }, [avatarPreview]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateUser = useUserServiceUpdateUser({
