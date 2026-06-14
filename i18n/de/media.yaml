@@ -124,6 +124,7 @@ library:
   resultCount_other: "{{count}} Ergebnisse"
   yearLabel: Jahr
   yearFrom: Von
+  selectLibrary: "Bibliothek auswählen"
   yearTo: Bis
   minRating: Min. Bewertung
   minStars: "Min {{count}} Stern"

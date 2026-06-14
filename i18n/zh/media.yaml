@@ -124,6 +124,7 @@ library:
   resultCount_other: "{{count}} 个结果"
   yearLabel: 年份
   yearFrom: 从
+  selectLibrary: "选择库"
   yearTo: 至
   minRating: 最低评分
   minStars: "最低 {{count}} 星"

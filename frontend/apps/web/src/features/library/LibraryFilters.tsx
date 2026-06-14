@@ -192,6 +192,7 @@ function YearRangeFilter({
         <input
           type="number"
           placeholder={t("media.library.yearFrom")}
+          aria-label={t("media.library.yearFrom")}
           value={yearFrom ?? ""}
           min={1900}
           max={new Date().getFullYear() + 1}
@@ -205,6 +206,7 @@ function YearRangeFilter({
         <input
           type="number"
           placeholder={t("media.library.yearTo")}
+          aria-label={t("media.library.yearTo")}
           value={yearTo ?? ""}
           min={1900}
           max={new Date().getFullYear() + 1}
@@ -289,6 +291,7 @@ function TypeFilter({
       </p>
       <select
         value={value ?? ""}
+        aria-label={t("media.library.typeLabel")}
         onChange={(e) => onChange((e.target.value as LibraryServiceListMediaItemsType) || undefined)}
         className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
       >
@@ -316,6 +319,7 @@ function GenreTextFilter({
       <input
         type="text"
         placeholder={t("media.library.genrePlaceholder")}
+        aria-label={t("media.library.genreText")}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value || undefined)}
         className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"

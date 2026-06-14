@@ -401,6 +401,7 @@ function MusicPage() {
         {libraries.length > 1 && (
           <select
             value={activeLibraryID ?? ""}
+            aria-label={t("media.library.selectLibrary")}
             onChange={(e) => setSelectedLibraryID(e.target.value)}
             className="text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] cursor-pointer"
           >

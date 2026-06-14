@@ -468,6 +468,7 @@ export function SettingsPanel({
                 </span>
                 <select
                   value={subtitleFontFamily}
+                  aria-label={t("player.subtitleStyle.font")}
                   onChange={(e) => onSubtitleStyleChange({ fontFamily: e.target.value })}
                   className="w-full text-sm px-2 py-1 rounded bg-[var(--surface-raised)] text-[var(--text)] border border-[var(--border)]"
                 >

@@ -124,6 +124,7 @@ library:
   resultCount_other: "{{count}} résultats"
   yearLabel: Année
   yearFrom: De
+  selectLibrary: "Choisir la bibliothèque"
   yearTo: "À"
   minRating: Note minimum
   minStars: "Min {{count}} étoile"

@@ -124,6 +124,7 @@ library:
   resultCount_other: "{{count}} परिणाम"
   yearLabel: वर्ष
   yearFrom: से
+  selectLibrary: "लाइब्रेरी चुनें"
   yearTo: तक
   minRating: न्यूनतम रेटिंग
   minStars: "न्यूनतम {{count}} स्टार"
