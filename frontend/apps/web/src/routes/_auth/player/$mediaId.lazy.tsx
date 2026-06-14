@@ -95,19 +95,13 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     return () => clearTimeout(timer);
   }, [isLoading]);
 
-  // Sync store with session state — only persist mini player if video is actively playing
+  // Leaving the player (back button, navigation, close) stops playback and ends
+  // the session immediately — no mini-player keeps it running in the background.
   useEffect(() => {
     usePlayerStore.getState().play(mediaId);
     return () => {
       const state = usePlayerStore.getState();
-      if (state.mode === "full" && state.isActive) {
-        const video = state.videoElement as HTMLVideoElement | null;
-        if (video && !video.paused && !video.ended && video.readyState > 2) {
-          state.setMode("mini");
-        } else {
-          state.stop();
-        }
-      }
+      if (state.isActive) state.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaId]);
@@ -117,12 +111,10 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   }, [sessionId]);
 
   useEffect(() => {
+    // Expose the session-stop fn so store.stop() (called on unmount/close) can
+    // tear down the server session. stop() clears it after firing; a fresh
+    // player mount overwrites it.
     usePlayerStore.getState().setStopSessionFn(stopSession);
-    // Intentionally NOT cleared on unmount: when the player hands the video off
-    // to the mini-player (back button while playing), the stop fn must survive
-    // so the mini-player's close button can still tear down the server session
-    // — otherwise the transcode keeps running in the admin panel. stop() clears
-    // it after firing, and a fresh player mount overwrites it.
   }, [stopSession]);
 
   const handleStreamTokenRefresh = useCallback(() => fetchStreamToken(mediaId), [fetchStreamToken, mediaId]);

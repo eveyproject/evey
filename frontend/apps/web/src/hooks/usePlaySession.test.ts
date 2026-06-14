@@ -90,34 +90,22 @@ describe("usePlaySession", () => {
     });
   });
 
-  it("does NOT stop on unmount when handing off to the mini-player, but the preserved stop fn still tears the session down", async () => {
-    // Regression: clicking the browser back button parks the player as a
-    // mini-player (mode = "mini"); the session must survive the route unmount
-    // so the mini-player's close button can stop it — otherwise the transcode
-    // leaked in the admin panel.
+  it("stops the session on unmount even after the player mode changed (no mini-player handoff)", async () => {
+    // Leaving the player always ends the session now — there is no mini-player
+    // that keeps the stream (and its admin "Now Playing" entry) alive in the
+    // background. The browser back button unmounts the route → session stops.
     const usePlaySession = await loadHook("");
     const { usePlayerStore } = await import("@evey/store");
-    let result: { current: ReturnType<typeof usePlaySession> };
     let unmountFn: () => void;
     await act(async () => {
       const hook = renderHook(() => usePlaySession("media-mini"));
-      result = hook.result;
       unmountFn = hook.unmount;
     });
-    // Simulate the player handing off to the mini-player before unmount.
     act(() => {
-      usePlayerStore.getState().setMode("mini");
+      usePlayerStore.getState().setMode("full");
     });
-    const stopSession = result!.current.stopSession;
     act(() => {
       unmountFn();
-    });
-    // Unmount must NOT stop the session while mini-player is active.
-    expect(stopCalls()).toHaveLength(0);
-    // The preserved stop fn (called later by MiniPlayer's close button) works
-    // even though the player route has unmounted.
-    act(() => {
-      stopSession();
     });
     const calls = stopCalls();
     expect(calls).toHaveLength(1);

@@ -7,7 +7,6 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import { RouteErrorComponent } from "@/components/ui/RouteErrorComponent";
 import { ToastContainer } from "@/components/ui/ToastContainer";
-import { PersistentPlayer } from "@/features/playback/PersistentPlayer";
 
 interface RouterContext {
   queryClient: QueryClient;
@@ -52,7 +51,6 @@ function RootComponent() {
     <ErrorBoundary>
       <ThemeProvider>
         <Outlet />
-        <PersistentPlayer />
         <ToastContainer />
       </ThemeProvider>
     </ErrorBoundary>

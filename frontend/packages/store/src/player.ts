@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type PlayerMode = "hidden" | "mini" | "full";
+export type PlayerMode = "hidden" | "full";
 
 let _cleanupFn: (() => void) | null = null;
 export function setPlayerCleanup(fn: (() => void) | null) { _cleanupFn = fn; }

@@ -5,7 +5,7 @@ import {
   playbackServiceStartStream,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
-import { usePlayerStore, useAuthStore } from "@evey/store";
+import { useAuthStore } from "@evey/store";
 import { getBrowserCapabilities } from "@/utils/codec";
 import { appendCodecParams } from "@/features/playback/hooks/hlsPlayerUtils";
 import { useStreamToken } from "./useStreamToken";
@@ -164,8 +164,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     window.addEventListener("pagehide", handleUnload);
     return () => {
       window.removeEventListener("pagehide", handleUnload);
-      const mode = usePlayerStore.getState().mode;
-      if (mode !== "mini") stopSession();
+      // Leaving the player (back button, route change, tab close) always ends
+      // the session — there is no mini-player handoff that keeps it alive.
+      stopSession();
     };
   }, [stopSession]);
 
