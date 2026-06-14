@@ -77,6 +77,13 @@ func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
 	// photo/metadata admin maintenance endpoints that run on a server context.
 	bgCtx := context.WithoutCancel(r.Context())
 	go func() {
+		// A panic in a bare goroutine takes down the whole process; this
+		// best-effort maintenance scan must never crash the server.
+		defer func() {
+			if rec := recover(); rec != nil {
+				slog.Error("music: fetch missing art panicked", slog.Any("panic", rec))
+			}
+		}()
 		ctx, span := tracing.StartSpan(bgCtx, "http.music.FetchMissingArt")
 		defer span.End()
 		n, err := h.svc.FetchMissingAlbumArtAllLibraries(ctx)
