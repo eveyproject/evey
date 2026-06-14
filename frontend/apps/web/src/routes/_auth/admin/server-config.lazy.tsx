@@ -588,7 +588,7 @@ function IntroDetectionSettingsCard({ entries }: { entries: ConfigEntry[] | unde
                   {t("admin.serverConfig.introProvidersTidbAuthed")}
                 </span>
               ) : (
-                <span className="text-[var(--warning)]">
+                <span className="text-[var(--color-warning)]">
                   {t("admin.serverConfig.introProvidersTidbAnonymous")}
                 </span>
               )}

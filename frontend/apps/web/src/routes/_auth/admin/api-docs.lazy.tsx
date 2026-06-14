@@ -42,7 +42,7 @@ function ApiDocsPage() {
         <p className="text-sm text-[var(--text-muted)] mt-1">{t("auth.apiDocs.subtitle")}</p>
       </div>
       {error && (
-        <p className="text-sm text-[var(--danger)]">
+        <p className="text-sm text-[var(--color-danger)]">
           {t("auth.apiDocs.loadError")} <span className="font-mono text-xs opacity-80">({errMsg})</span>
         </p>
       )}

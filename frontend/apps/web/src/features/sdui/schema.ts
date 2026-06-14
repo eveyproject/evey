@@ -143,7 +143,7 @@ export function sanitizeSduiDocument(input: unknown): SduiDocument {
 export const toneClass: Record<SduiTone, string> = {
   default: "text-[var(--text)]",
   accent: "text-[var(--accent)]",
-  ok: "text-[var(--success)]",
-  warn: "text-[var(--warning)]",
+  ok: "text-[var(--color-success)]",
+  warn: "text-[var(--color-warning)]",
   muted: "text-[var(--text-muted)]",
 };

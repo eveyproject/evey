@@ -626,7 +626,7 @@ function PlaylistsTab({
                   type="button"
                   onClick={() => handleRemove(tr.ID)}
                   aria-label={t("common.delete")}
-                  className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--danger)] p-1 rounded"
+                  className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--color-danger)] p-1 rounded"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -679,7 +679,7 @@ function PlaylistsTab({
             type="button"
             onClick={() => p.id && handleDeletePlaylist(p.id)}
             aria-label={t("common.delete")}
-            className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--danger)] p-1 rounded"
+            className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--color-danger)] p-1 rounded"
           >
             <Trash2 size={16} />
           </button>
