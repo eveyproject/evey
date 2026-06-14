@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"testing"
 
@@ -11,6 +12,38 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
+
+// detectSeason must page through the WHOLE season, not just the first page. A long
+// single-season (anime, daily soaps) with >100 episodes would otherwise leave the
+// later episodes without intro markers — detectSeason is the only detection path
+// (MediaItemAdded schedules the season, not individual episodes).
+func TestDetectSeason_PaginatesAllEpisodes(t *testing.T) {
+	t.Parallel()
+	const total = 250 // > the 200 page size and the old 100 cap
+	segmentRepo := &fakeSegmentRepo{}
+	siblings := make([]*domainlibrary.MediaItem, total)
+	for i := range total {
+		id := fmt.Sprintf("ep-%d", i)
+		idx := i + 1
+		siblings[i] = &domainlibrary.MediaItem{
+			ID:          shared.MediaItemID(id),
+			Type:        domainlibrary.Episode,
+			IndexNumber: &idx,
+			File:        &domainlibrary.MediaFile{Path: "/tmp/x.mkv"},
+		}
+		// Pre-cover each episode so detectSeason skips DetectIntro (no pipeline)
+		// yet still queries it — queriedIDs then proves pagination reached all.
+		segmentRepo.seeded = append(segmentRepo.seeded, &domainlibrary.MediaSegment{
+			MediaItemID: shared.MediaItemID(id), Type: "intro", StartMs: 0, EndMs: 60_000, Source: "tidb",
+		})
+	}
+	svc := newSeasonService(t, segmentRepo, &countingDetector{}, siblings)
+
+	svc.detectSeason(context.Background(), "season-id")
+
+	require.Len(t, segmentRepo.queriedIDs, total,
+		"detectSeason must page through every episode, not stop at the first page")
+}
 
 // detectSeason runs DetectIntro on each episode that doesn't already have a
 // "good" intro. With the fix, segments authored by mkv_chapter / tidb /

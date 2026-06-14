@@ -361,59 +361,78 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 	defer span.End()
 
 	episodeType := string(domainlibrary.Episode)
-	siblings, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
-		ParentID: &parentID,
-		Type:     &episodeType,
-		Limit:    100,
-	})
-	if err != nil {
-		slog.Warn("intro detection: list season episodes", slog.String("parent_id", parentID), slog.Any("err", err))
-		return
-	}
-	for _, ep := range siblings {
-		if ctx.Err() != nil {
+	// Page through the whole season. A single Limit:100 (or even the repo's 500
+	// cap) would silently skip episodes 101+ of a long single-season (anime,
+	// daily soaps), leaving them without intro markers forever — this is the only
+	// detection path (MediaItemAdded schedules the whole SEASON, not per episode).
+	const pageSize = 200
+	for offset := 0; ; offset += pageSize {
+		siblings, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+			ParentID: &parentID,
+			Type:     &episodeType,
+			Limit:    pageSize,
+			Offset:   offset,
+		})
+		if err != nil {
+			slog.Warn("intro detection: list season episodes", slog.String("parent_id", parentID), slog.Any("err", err))
 			return
 		}
-		existing, _ := s.segmentRepo.GetByMediaItemID(ctx, ep.ID)
-		hasGoodIntro := false
-		manualLocked := false
-		for _, sg := range existing {
-			if sg.Type != "intro" {
+		if len(siblings) == 0 {
+			break
+		}
+		for _, ep := range siblings {
+			if ctx.Err() != nil {
+				return
+			}
+			existing, getErr := s.segmentRepo.GetByMediaItemID(ctx, ep.ID)
+			if getErr != nil {
+				// Couldn't read existing segments; treat as uncovered and let
+				// detection re-run rather than skip the episode silently.
+				slog.Warn("intro detection: get existing segments", slog.String("media_id", string(ep.ID)), slog.Any("err", getErr))
+			}
+			hasGoodIntro := false
+			manualLocked := false
+			for _, sg := range existing {
+				if sg.Type != "intro" {
+					continue
+				}
+				if sg.Source == "manual" || sg.Source == "manual_propagated" {
+					manualLocked = true
+					break
+				}
+				// Treat any segment from an authoritative source as "good": once
+				// covered, a re-detection would burn CPU re-running pHash +
+				// Chromaprint just to land on the same answer (or worse, a
+				// noisier heuristic answer). Sources are ordered by authority
+				// in runPipeline; skipping any of them is safe.
+				//
+				// Excluded on purpose: the audio fallback ("audio") and the
+				// blackdetect end-credits source ("blackdetect") are last-
+				// resort heuristics — keep them eligible for re-detection so
+				// a future TIDB/IntroDB hit can replace them.
+				switch sg.Source {
+				case "mkv_chapter", "tidb", "introdb":
+					if sg.EndMs-sg.StartMs >= 5_000 {
+						hasGoodIntro = true
+					}
+				case "phash":
+					if sg.EndMs-sg.StartMs >= 5_000 {
+						hasGoodIntro = true
+					}
+				}
+			}
+			if manualLocked || hasGoodIntro {
 				continue
 			}
-			if sg.Source == "manual" || sg.Source == "manual_propagated" {
-				manualLocked = true
-				break
+			epCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+			if err := s.DetectIntro(epCtx, string(ep.ID)); err != nil {
+				slog.Warn("intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", err))
 			}
-			// Treat any segment from an authoritative source as "good": once
-			// covered, a re-detection would burn CPU re-running pHash +
-			// Chromaprint just to land on the same answer (or worse, a
-			// noisier heuristic answer). Sources are ordered by authority
-			// in runPipeline; skipping any of them is safe.
-			//
-			// Excluded on purpose: the audio fallback ("audio") and the
-			// blackdetect end-credits source ("blackdetect") are last-
-			// resort heuristics — keep them eligible for re-detection so
-			// a future TIDB/IntroDB hit can replace them.
-			switch sg.Source {
-			case "mkv_chapter", "tidb", "introdb":
-				if sg.EndMs-sg.StartMs >= 5_000 {
-					hasGoodIntro = true
-				}
-			case "phash":
-				if sg.EndMs-sg.StartMs >= 5_000 {
-					hasGoodIntro = true
-				}
-			}
+			cancel()
 		}
-		if manualLocked || hasGoodIntro {
-			continue
+		if len(siblings) < pageSize {
+			break
 		}
-		epCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-		if err := s.DetectIntro(epCtx, string(ep.ID)); err != nil {
-			slog.Warn("intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", err))
-		}
-		cancel()
 	}
 }
 

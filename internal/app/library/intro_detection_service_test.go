@@ -249,6 +249,9 @@ type fakeSegmentRepo struct {
 	seeded []*domainlibrary.MediaSegment
 	// deleted records (mediaItemID, type) pairs passed to DeleteByMediaItemIDAndType.
 	deleted []string
+	// queriedIDs records every id passed to GetByMediaItemID (one per episode
+	// detectSeason reaches) so a test can prove it paged through them all.
+	queriedIDs []string
 }
 
 func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegment) error {
@@ -256,6 +259,7 @@ func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegm
 	return nil
 }
 func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaItemID) ([]*domainlibrary.MediaSegment, error) {
+	r.queriedIDs = append(r.queriedIDs, string(id))
 	var out []*domainlibrary.MediaSegment
 	for _, s := range r.seeded {
 		if s.MediaItemID == id {
@@ -292,8 +296,21 @@ func (r *fakeMediaItemRepo) GetByID(_ context.Context, _ shared.MediaItemID) (*d
 	return r.item, nil
 }
 func (r *fakeMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
-func (r *fakeMediaItemRepo) List(_ context.Context, _ domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
-	return r.siblings, nil
+func (r *fakeMediaItemRepo) List(_ context.Context, f domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
+	// Honour Offset/Limit so paginating callers (detectSeason) terminate and
+	// page correctly — a fake that ignored them would loop forever once the
+	// caller pages past a full page.
+	items := r.siblings
+	if f.Offset >= len(items) {
+		return nil, nil
+	}
+	if f.Offset > 0 {
+		items = items[f.Offset:]
+	}
+	if f.Limit > 0 && f.Limit < len(items) {
+		items = items[:f.Limit]
+	}
+	return items, nil
 }
 func (r *fakeMediaItemRepo) Update(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
 func (r *fakeMediaItemRepo) Delete(_ context.Context, _ shared.MediaItemID) error       { return nil }
