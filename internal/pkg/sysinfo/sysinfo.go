@@ -31,6 +31,7 @@ type Stats struct {
 
 type StorageStats struct {
 	Path       string
+	Paths      []string
 	TotalBytes int64
 	UsedBytes  int64
 	FreeBytes  int64
@@ -69,22 +70,43 @@ func Collect() Stats {
 	return s
 }
 
+// GetStorageStats reports disk usage for the given paths, grouped by physical
+// disk. Several libraries often live on the same drive (e.g. /mnt/disk1/movies
+// and /mnt/disk1/tv); reporting each path separately would count the same
+// disk's capacity once per library. We group by the filesystem device id
+// (st_dev): paths that share a device are the same disk, so they collapse into
+// a single entry whose Paths lists every library on that drive.
 func GetStorageStats(paths []string) []StorageStats {
-	seen := make(map[string]bool)
+	byDevice := make(map[uint64]int) // device id -> index into result
+	seenPath := make(map[string]bool)
 	var result []StorageStats
 	for _, p := range paths {
-		if seen[p] {
+		if seenPath[p] {
 			continue
 		}
-		seen[p] = true
-		var stat syscall.Statfs_t
-		if err := syscall.Statfs(p, &stat); err != nil {
+		seenPath[p] = true
+
+		var st syscall.Stat_t
+		if err := syscall.Stat(p, &st); err != nil {
 			continue
 		}
-		total := int64(stat.Blocks) * stat.Bsize
-		free := int64(stat.Bavail) * stat.Bsize
+		if idx, ok := byDevice[st.Dev]; ok {
+			// Same physical disk as an earlier library — record the path but
+			// don't double-count the capacity.
+			result[idx].Paths = append(result[idx].Paths, p)
+			continue
+		}
+
+		var fs syscall.Statfs_t
+		if err := syscall.Statfs(p, &fs); err != nil {
+			continue
+		}
+		total := int64(fs.Blocks) * fs.Bsize
+		free := int64(fs.Bavail) * fs.Bsize
+		byDevice[st.Dev] = len(result)
 		result = append(result, StorageStats{
 			Path:       p,
+			Paths:      []string{p},
 			TotalBytes: total,
 			UsedBytes:  total - free,
 			FreeBytes:  free,

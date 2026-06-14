@@ -150,30 +150,40 @@ function BandwidthCard({ bps, theoreticalBps, totalBytes, history }: BandwidthCa
 
 interface StorageCardProps {
   path: string;
+  paths?: string[];
   usedBytes: string | undefined;
   totalBytes: string | undefined;
   freeBytes: string | undefined;
 }
 
-function StorageCard({ path, usedBytes, totalBytes, freeBytes }: StorageCardProps) {
+function StorageCard({ path, paths, usedBytes, totalBytes, freeBytes }: StorageCardProps) {
   const { t } = useTranslation();
   const used = parseInt(usedBytes ?? "0");
   const total = parseInt(totalBytes ?? "1");
   const pct = total > 0 ? Math.round((used / total) * 100) : 0;
   const color = getUsageColor(pct);
   const textClass = getUsageTextColor(pct);
+  // One card per physical disk. When several libraries live on the same drive
+  // the backend groups them, so list every path that shares this disk.
+  const displayPaths = paths && paths.length > 0 ? paths : [path];
   return (
     <div
       className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
     >
       <div className="flex justify-between items-start mb-2 gap-2">
-        <span className="text-sm font-mono truncate text-[var(--text)]">{path}</span>
+        <div className="flex flex-col gap-0.5 min-w-0">
+          {displayPaths.map((p) => (
+            <span key={p} className="text-sm font-mono truncate text-[var(--text)]">
+              {p}
+            </span>
+          ))}
+        </div>
         <span className={`text-sm font-bold whitespace-nowrap ${textClass}`}>{pct}%</span>
       </div>
       <div
         className="h-2 rounded-full mb-2 bg-[var(--border)]"
         role="progressbar"
-        aria-label={path}
+        aria-label={displayPaths.join(", ")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}
@@ -329,6 +339,7 @@ function SystemHealthPage() {
                   <StorageCard
                     key={i}
                     path={s.path ?? ""}
+                    paths={s.paths}
                     usedBytes={s.usedBytes}
                     totalBytes={s.totalBytes}
                     freeBytes={s.freeBytes}

@@ -104,10 +104,16 @@ message DashboardInfo {
 }
 
 message StorageInfo {
+  // Representative path for this physical disk (the first library path that
+  // resolved to it). Kept for backwards compatibility with older clients.
   string path = 1;
   int64 total_bytes = 2;
   int64 used_bytes = 3;
   int64 free_bytes = 4;
+  // Every distinct library path that lives on this same physical disk (same
+  // filesystem device id). Lets the UI group libraries per drive instead of
+  // showing the same disk's capacity once per library.
+  repeated string paths = 5;
 }
 
 message GetSystemInfoRequest {}

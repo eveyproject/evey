@@ -237,6 +237,7 @@ func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDash
 			for _, st := range sysinfo.GetStorageStats(paths) {
 				resp.Storage = append(resp.Storage, &eveyv1.StorageInfo{
 					Path:       st.Path,
+					Paths:      st.Paths,
 					TotalBytes: st.TotalBytes,
 					UsedBytes:  st.UsedBytes,
 					FreeBytes:  st.FreeBytes,

@@ -121,6 +121,28 @@ describe("SystemHealthPage", () => {
     expect(screen.getByText("/data/media")).toBeInTheDocument();
   });
 
+  it("lists every library path sharing one physical disk", async () => {
+    const grouped = {
+      ...dashData,
+      storage: [
+        {
+          path: "/mnt/disk1/movies",
+          paths: ["/mnt/disk1/movies", "/mnt/disk1/tv"],
+          usedBytes: "107374182400",
+          totalBytes: "214748364800",
+          freeBytes: "107374182400",
+        },
+      ],
+    };
+    mockGetDashboard.mockReturnValue({ data: grouped, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    // Both libraries appear under the single disk card — no duplicated capacity.
+    expect(screen.getByText("/mnt/disk1/movies")).toBeInTheDocument();
+    expect(screen.getByText("/mnt/disk1/tv")).toBeInTheDocument();
+  });
+
   it("shows warning color style when usage >70%", async () => {
     const highUsage = { ...dashData, cpuPercent: 75, memoryPercent: 75 };
     mockGetDashboard.mockReturnValue({ data: highUsage, isLoading: false, dataUpdatedAt: Date.now() });

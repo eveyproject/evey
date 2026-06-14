@@ -2,6 +2,7 @@ package sysinfo
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -68,6 +69,32 @@ func TestGetStorageStats_DeduplicatesPaths(t *testing.T) {
 	stats := GetStorageStats([]string{"/", "/", "/"})
 	if len(stats) != 1 {
 		t.Errorf("expected 1 result after dedup, got %d", len(stats))
+	}
+}
+
+func TestGetStorageStats_GroupsPathsOnSameDisk(t *testing.T) {
+	// Two distinct paths on the same filesystem (subdirs of one temp dir share
+	// the device id) must collapse into a single disk entry — the same drive's
+	// capacity is not counted twice — while still listing both library paths.
+	root := t.TempDir()
+	a := filepath.Join(root, "movies")
+	b := filepath.Join(root, "tv")
+	if err := os.Mkdir(a, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(b, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	stats := GetStorageStats([]string{a, b})
+	if len(stats) != 1 {
+		t.Fatalf("expected 1 disk entry for 2 paths on the same device, got %d", len(stats))
+	}
+	if len(stats[0].Paths) != 2 {
+		t.Errorf("expected both paths grouped under the disk, got %v", stats[0].Paths)
+	}
+	if stats[0].TotalBytes <= 0 {
+		t.Errorf("expected positive TotalBytes, got %d", stats[0].TotalBytes)
 	}
 }
 
