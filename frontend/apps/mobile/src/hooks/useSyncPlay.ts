@@ -61,9 +61,17 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
   const messageQueueRef = useRef<string[]>([]);
 
   const connect = useCallback((roomId: string) => {
+    // Cancel any reconnect already scheduled by a previous connection's onclose,
+    // and detach the old socket's onclose before the deliberate close — otherwise
+    // switching rooms fires a stale reconnect to the OLD room (the guards reset
+    // just below would let the old socket's onclose re-arm it). Mirrors the web fix.
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
     leftVoluntarilyRef.current = false;
     reconnectAttemptRef.current = 0;
-    if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+    if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); wsRef.current = null; }
     const token = useAuthStore.getState().accessToken;
     const wsBase = serverUrl.replace(/^http/, "ws");
     const url = `${wsBase}/api/v1/syncplay/rooms/${roomId}/ws`;

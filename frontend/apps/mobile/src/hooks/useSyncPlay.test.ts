@@ -333,3 +333,28 @@ describe("useSyncPlay — send helpers", () => {
     expect(ws().send).toHaveBeenCalledWith(JSON.stringify({ type: "setIndex", trackIndex: 3 }));
   });
 });
+
+describe("useSyncPlay — reconnect", () => {
+  it("does not reconnect to the old room after switching rooms", async () => {
+    vi.useFakeTimers();
+    mockFetch
+      .mockResolvedValueOnce({ id: "room-1", code: "C1" })
+      .mockResolvedValueOnce({ id: "room-2", code: "C2" });
+    const { result } = renderHook(() => useSyncPlay());
+
+    await act(async () => { await result.current.createRoom("mi-1"); });
+    act(() => { ws().simulateOpen(); });
+    expect(ws().url).toContain("room-1");
+    // room-1 drops involuntarily -> schedules a reconnect timer to room-1
+    act(() => { ws().simulateClose(); });
+
+    // switch to room-2 before that reconnect fires
+    await act(async () => { await result.current.createRoom("mi-2"); });
+    act(() => { ws().simulateOpen(); });
+    expect(ws().url).toContain("room-2");
+
+    // fire any pending timers: a stale room-1 reconnect would replace lastWS
+    act(() => { vi.advanceTimersByTime(60_000); });
+    expect(ws().url).toContain("room-2");
+  });
+});
