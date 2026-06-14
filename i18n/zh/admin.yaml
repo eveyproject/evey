@@ -722,6 +722,7 @@ qoe:
     empty: "此时间段内暂无遥测数据。"
   col:
     mediaId: "媒体 ID"
+    title: "标题"
     starvedRatio: "卡顿占比"
     starvedEvents: "卡顿次数"
     totalEvents: "总计"

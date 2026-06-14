@@ -722,6 +722,7 @@ qoe:
     empty: "Noch keine Telemetriedaten in diesem Zeitraum."
   col:
     mediaId: "Medien-ID"
+    title: "Titel"
     starvedRatio: "Anteil Unterbrechungen"
     starvedEvents: "Unterbrochen"
     totalEvents: "Gesamt"

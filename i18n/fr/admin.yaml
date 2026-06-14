@@ -721,6 +721,7 @@ qoe:
     empty: "Pas encore de télémétrie sur cette période."
   col:
     mediaId: "ID média"
+    title: "Titre"
     starvedRatio: "Taux famine"
     starvedEvents: "Famines"
     totalEvents: "Total"

@@ -722,6 +722,7 @@ qoe:
     empty: No telemetry in this window yet.
   col:
     mediaId: Media ID
+    title: Title
     starvedRatio: Starved ratio
     starvedEvents: Starved
     totalEvents: Total

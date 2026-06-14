@@ -722,6 +722,7 @@ qoe:
     empty: "Aún no hay telemetría en este periodo."
   col:
     mediaId: "ID de medio"
+    title: "Título"
     starvedRatio: "Proporción de cortes"
     starvedEvents: "Cortes"
     totalEvents: "Total"

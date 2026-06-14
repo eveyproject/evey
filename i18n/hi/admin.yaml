@@ -722,6 +722,7 @@ qoe:
     empty: "इस अवधि में अभी तक कोई टेलीमेट्री नहीं।"
   col:
     mediaId: "मीडिया ID"
+    title: "शीर्षक"
     starvedRatio: "बफ़र-कमी अनुपात"
     starvedEvents: "बफ़र-कमी"
     totalEvents: "कुल"
