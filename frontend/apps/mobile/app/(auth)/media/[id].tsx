@@ -967,7 +967,7 @@ export default function MediaDetailScreen() {
         {directors.length > 0 ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: theme.spacing.sm }}>
             <Text style={{ color: theme.colors.text, fontWeight: "600" }}>{t("media.detail.director")}</Text>
-            {directors.map((d) => d.name).join(", ")}
+            {directors.map((d) => d.name).filter(Boolean).join(", ")}
           </Text>
         ) : null}
 
@@ -975,7 +975,7 @@ export default function MediaDetailScreen() {
         {writers.length > 0 ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: 4 }}>
             <Text style={{ color: theme.colors.text, fontWeight: "600" }}>{t("media.detail.writer")}</Text>
-            {writers.map((w) => w.name).join(", ")}
+            {writers.map((w) => w.name).filter(Boolean).join(", ")}
           </Text>
         ) : null}
 
