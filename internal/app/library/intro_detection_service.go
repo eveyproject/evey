@@ -641,13 +641,28 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 	}
 
 	episodeType := string(domainlibrary.Episode)
-	siblings, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
-		ParentID: &refItem.ParentID,
-		Type:     &episodeType,
-		Limit:    100,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("list siblings: %w", err)
+	// Page through the whole season — a fixed Limit:100 would silently skip
+	// episodes 101+ of a long single-season (anime, daily soaps), leaving them
+	// without the propagated segment. Mirrors detectSeason's pagination.
+	var siblings []*domainlibrary.MediaItem
+	const pageSize = 200
+	for offset := 0; ; offset += pageSize {
+		page, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+			ParentID: &refItem.ParentID,
+			Type:     &episodeType,
+			Limit:    pageSize,
+			Offset:   offset,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list siblings: %w", err)
+		}
+		if len(page) == 0 {
+			break
+		}
+		siblings = append(siblings, page...)
+		if len(page) < pageSize {
+			break
+		}
 	}
 
 	cfg := loadIntroConfig(ctx, s.configRepo)

@@ -784,6 +784,73 @@ func TestPropagateSegment_FailsWithoutReferenceSegment(t *testing.T) {
 	assert.Contains(t, err.Error(), "no intro segment on reference episode")
 }
 
+// TestPropagateSegment_PaginatesAllSiblings: propagation must reach EVERY episode
+// in the season, not just the first 100. A long single-season (anime, daily
+// soaps) with >100 episodes would otherwise leave the later episodes without the
+// propagated segment. We seed 250 siblings and assert every one was visited (each
+// sibling is queried for a manual lock before propagation).
+func TestPropagateSegment_PaginatesAllSiblings(t *testing.T) {
+	t.Parallel()
+	const total = 250 // > the 200 page size and the old 100 cap
+	dur, _ := shared.NewDurationMs(3_600_000)
+	ref := &domainlibrary.MediaItem{
+		ID:       shared.MediaItemID("ep-ref"),
+		Type:     domainlibrary.Episode,
+		ParentID: "season-1",
+		File:     &domainlibrary.MediaFile{Path: "/ep-ref.mkv", Duration: dur},
+	}
+	siblings := make([]*domainlibrary.MediaItem, total)
+	for i := range total {
+		siblings[i] = &domainlibrary.MediaItem{
+			ID:       shared.MediaItemID(fmt.Sprintf("ep-%d", i)),
+			Type:     domainlibrary.Episode,
+			ParentID: "season-1",
+			File:     &domainlibrary.MediaFile{Path: "/ep.mkv"},
+		}
+	}
+	// Reference intro segment to propagate; frames at 0/15000/30000 ms (Interval=15,
+	// 3 tile hashes) fall inside [0, 60000) so the reference hash set is non-empty.
+	segRepo := &fakeSegmentRepo{seeded: []*domainlibrary.MediaSegment{
+		{ID: "ref-seg", MediaItemID: ref.ID, Type: "intro", StartMs: 0, EndMs: 60_000, Source: "manual"},
+	}}
+	manifest := &domainlibrary.TrickplayManifest{
+		MediaItemID: ref.ID, Interval: 15, TileWidth: 5, TileHeight: 3, Width: 160, Height: 90, ImageCount: 1,
+	}
+	det := &fakeDetector{tileHashes: []uint64{0x1111, 0x2222, 0x3333}}
+	cacheDir := t.TempDir()
+	// Only the reference needs a sidecar so its hash set is non-empty; siblings
+	// fail extraction and are skipped — but each is still queried (manual-lock
+	// check) before that, which is what proves the pagination coverage.
+	writeTrickplaySidecarFixture(t, cacheDir, "ep-ref", 15, 15, 15)
+	itemRepo := &fakeMediaItemRepo{item: ref, siblings: siblings}
+	svc := NewIntroDetectionService(
+		segRepo,
+		&fakeTrickplayRepoWithManifest{manifest: manifest},
+		itemRepo,
+		&fakeConfigRepo{},
+		det,
+		cacheDir,
+	)
+
+	_, err := svc.PropagateSegment(context.Background(), "ep-ref", "intro")
+	require.NoError(t, err)
+
+	// Each sibling is queried for a manual lock before propagation, so queriedIDs
+	// proves the pagination reached every episode (past the old 100 cap).
+	queried := make(map[string]bool, len(segRepo.queriedIDs))
+	for _, id := range segRepo.queriedIDs {
+		queried[id] = true
+	}
+	require.True(t, queried["ep-249"], "propagation must page past 100 to reach the last episode")
+	count := 0
+	for i := range total {
+		if queried[fmt.Sprintf("ep-%d", i)] {
+			count++
+		}
+	}
+	require.Equal(t, total, count, "every sibling must be visited by propagation")
+}
+
 // --- pickWindowMatchingDuration tests ---
 
 func TestPickWindowMatchingDuration_PicksClosestToDuration(t *testing.T) {
