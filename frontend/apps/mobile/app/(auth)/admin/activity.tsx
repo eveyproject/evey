@@ -106,7 +106,7 @@ function PlayHistoryTab() {
   return (
     <FlatList
       data={entries}
-      keyExtractor={(item) => item.id ?? Math.random().toString()}
+      keyExtractor={(item, index) => item.id ?? String(index)}
       renderItem={renderItem}
       contentContainerStyle={{ padding: 16, gap: 8 }}
       refreshing={isLoading}
@@ -166,7 +166,7 @@ function AuditLogTab() {
   return (
     <FlatList
       data={entries}
-      keyExtractor={(item) => item.id ?? Math.random().toString()}
+      keyExtractor={(item, index) => item.id ?? String(index)}
       renderItem={renderItem}
       contentContainerStyle={{ padding: 16, gap: 8 }}
       refreshing={isLoading}
