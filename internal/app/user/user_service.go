@@ -41,8 +41,8 @@ func WithTokenRevoker(rev TokenRevoker) UserServiceOption {
 
 // RevokeUserTokens invalidates every credential of the user: refresh tokens
 // are deleted immediately and outstanding access tokens are revoked via the
-// token_epoch bump. Used by admin KillSession so killing a session actually
-// logs the device out instead of only stopping the playback.
+// token_epoch bump. Used by the security mutations (DisableUser, ChangePassword,
+// ResetPassword, role change) — NOT by KillSession, which only stops playback.
 func (s *UserService) RevokeUserTokens(ctx context.Context, userID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.RevokeUserTokens")
 	defer span.End()
