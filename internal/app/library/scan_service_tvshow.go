@@ -155,6 +155,19 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 				return 0, 0, fmt.Errorf("create season %d for %q: %w", seasonNum, showTitle, createErr)
 			}
 			if created {
+				// Publish like series/episodes do: the enricher routes a Season
+				// MediaItemAdded to autoEnrichSeason (enricher_auto.go). Without
+				// this a newly scanned season never auto-enriches — it stays with
+				// no season poster/overview/air-date until the daily re-enrich or
+				// a manual "Refresh metadata".
+				s.publish(ctx, library.MediaItemAdded{
+					MediaItemID: seasonItem.ID,
+					LibraryID:   shared.LibraryID(libraryID),
+					Title:       seasonItem.Title,
+					Type:        string(seasonItem.Type),
+					Genres:      catalogGenres(seasonItem),
+					OccurredAt:  time.Now(),
+				})
 				added++
 			}
 			seasonID = string(seasonItem.ID)
