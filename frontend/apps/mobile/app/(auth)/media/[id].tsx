@@ -491,6 +491,12 @@ export default function MediaDetailScreen() {
 
   const children = childrenData?.items ?? [];
 
+  // Navigating between two series reuses this screen (Expo Router re-renders
+  // rather than remounting), so reset the selected season when the media id
+  // changes — otherwise the guard below keeps the PREVIOUS series' season and
+  // the episode query loads the wrong (or empty) episode list.
+  useEffect(() => { setSelectedSeason(null); }, [id]);
+
   useEffect(() => {
     if (isSeries && children.length > 0 && !selectedSeason) {
       const sorted = [...children].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));

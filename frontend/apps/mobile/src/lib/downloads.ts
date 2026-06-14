@@ -120,7 +120,11 @@ export async function startDownload(
   const streamUrl = `${serverUrl}/api/v1/media/${mediaItemId}/download?token=${token}`;
   const destPath = destPathFor(mediaItemId);
 
-  if (onProgress) subscribeToProgress(mediaItemId, onProgress);
+  // Keep the unsubscribe so the progress listener is removed when the download
+  // settles — otherwise every download permanently leaks its callback into the
+  // global progressListeners map (and keeps firing setState on a screen the user
+  // has since left).
+  const unsubscribeProgress = onProgress ? subscribeToProgress(mediaItemId, onProgress) : undefined;
   inFlight.set(mediaItemId, { totalBytes: 0, downloadedBytes: 0 });
 
   return new Promise<string>((resolve, reject) => {
@@ -155,11 +159,13 @@ export async function startDownload(
         }
         inFlight.delete(mediaItemId);
         completeHandler(mediaItemId);
+        unsubscribeProgress?.();
         resolve(destPath);
       })
       .error(({ error }) => {
         inFlight.delete(mediaItemId);
         completeHandler(mediaItemId);
+        unsubscribeProgress?.();
         reject(new Error(error || "Download failed"));
       });
 
