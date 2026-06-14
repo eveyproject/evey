@@ -75,7 +75,7 @@ function formatPct(ratio: number): string {
 }
 
 function formatInt(n: number | undefined): string {
-  if (n === undefined || n === null) return "—";
+  if (n === undefined || n === null || !Number.isFinite(n)) return "—";
   return n.toLocaleString();
 }
 
@@ -359,10 +359,10 @@ function QoEPage() {
                         {formatPct(row.starved_ratio)}
                       </td>
                       <td className="p-3 text-right">
-                        {Math.round(row.avg_buffer_ms).toLocaleString()}
+                        {formatInt(Math.round(row.avg_buffer_ms))}
                       </td>
                       <td className="p-3 text-right">
-                        {Math.round(row.avg_encoded_kbps).toLocaleString()}
+                        {formatInt(Math.round(row.avg_encoded_kbps))}
                       </td>
                     </tr>
                   ))}
@@ -476,7 +476,7 @@ function EncodeOverridesCard() {
               <tr key={o.source_class} className="border-t border-border">
                 <td className="p-3 font-medium">{o.source_class}</td>
                 <td className="p-3 text-right">{o.max_height}p</td>
-                <td className="p-3 text-right">{(o.starved_ratio * 100).toFixed(1)}%</td>
+                <td className="p-3 text-right">{formatPct(o.starved_ratio)}</td>
                 <td className="p-3 text-right">{o.samples_count}</td>
                 <td className="p-3 text-xs text-muted-foreground">{fmtDate(o.applied_at)}</td>
                 <td className="p-3 text-xs text-muted-foreground">{fmtDate(o.expires_at)}</td>
