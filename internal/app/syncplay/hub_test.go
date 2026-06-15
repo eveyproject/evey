@@ -1201,6 +1201,46 @@ func TestHub_HandleNext_AdvancesQueue(t *testing.T) {
 	}
 }
 
+func TestHub_HandleNext_EchoesToHostSender(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+	room, err := h.CreateRoomFromPlaylist(ctx, "host-1", "pl-1", "X", []string{"t1", "t2", "t3"})
+	if err != nil {
+		t.Fatalf("CreateRoomFromPlaylist: %v", err)
+	}
+	hostSender := fakes.NewFakeMessageSender()
+	otherSender := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", hostSender)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", otherSender)
+	hostSender.Messages = nil
+	otherSender.Messages = nil
+
+	if _, err := h.HandleCommand(ctx, room.ID, "host-1", "Host", syncplay.SyncCommand{Type: "next"}); err != nil {
+		t.Fatalf("HandleCommand next: %v", err)
+	}
+
+	// The host that sent "next" MUST receive the echo — the frontend advances the
+	// queue only on this broadcast, not locally, so skipping the sender (as
+	// play/pause/seek do) left the host stuck on the same track ("can't skip").
+	assertGotNext := func(name string, s *fakes.FakeMessageSender) {
+		t.Helper()
+		msgs := s.Received()
+		if len(msgs) != 1 {
+			t.Fatalf("%s got %d messages, want 1 (the next echo)", name, len(msgs))
+		}
+		var cmd syncplay.SyncCommand
+		if err := json.Unmarshal(msgs[0], &cmd); err != nil {
+			t.Fatalf("%s unmarshal: %v", name, err)
+		}
+		if cmd.Type != "next" || cmd.TrackIndex != 1 || cmd.MediaID != "t2" {
+			t.Errorf("%s got %+v, want next idx=1 media=t2", name, cmd)
+		}
+	}
+	assertGotNext("host/sender", hostSender)
+	assertGotNext("other member", otherSender)
+}
+
 func TestHub_HandleNext_AtEndIsNoop(t *testing.T) {
 	t.Parallel()
 	h := newTestHub()

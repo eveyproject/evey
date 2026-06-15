@@ -324,7 +324,13 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 		}
 		cmd.TrackIndex = idx
 		cmd.MediaID = mediaID
-		h.broadcast(roomID, userID, cmd)
+		// Queue/track changes are authoritative server state EVERY client must
+		// converge on — the host that sent it included. Unlike play/pause/seek
+		// (where the sender already acted on its own audio element, so it is
+		// skipped to avoid a feedback loop), the frontend does NOT advance the
+		// queue locally on send: it waits for this echo. Broadcasting with an
+		// empty sender skips no one, so the host actually moves to the next track.
+		h.broadcast(roomID, "", cmd)
 	}
 	return cmd, nil
 }
