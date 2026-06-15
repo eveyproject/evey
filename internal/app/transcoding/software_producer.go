@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"slices"
 	"sync"
 	"time"
@@ -722,6 +723,11 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// Reap when ffmpeg exits so the live entry doesn't linger and the cache
 	// pending refcount is released (a natural EOF skips killSession's teardown).
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("software_producer: detached reap goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
+			}
+		}()
 		select {
 		case <-handle.Done():
 		case <-sessionCtx.Done():

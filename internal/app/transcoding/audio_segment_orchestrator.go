@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -143,6 +144,11 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 	// Reap goroutine: remove the session when ffmpeg exits (naturally or via cancel).
 	// cancel() is idempotent — the goroutine owns it from here.
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("audio_segment_orchestrator: detached reap goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
+			}
+		}()
 		select {
 		case <-handle.Done():
 		case <-sessionCtx.Done():

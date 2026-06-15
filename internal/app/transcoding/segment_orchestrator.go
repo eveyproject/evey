@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -814,6 +815,11 @@ func (o *SegmentOrchestrator) spawnSession(
 	// releaseSlot() can't double-free if more early returns are added later.
 	slotReleased = true
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("segment_orchestrator: detached reap goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
+			}
+		}()
 		// Distinguish a natural ffmpeg exit (inspect why) from our own teardown
 		// (seek-cancel / GC / shutdown via sessionCtx) — only the former can be
 		// a hardware-capability failure worth demoting on.
