@@ -3,6 +3,7 @@ package qoe
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -86,16 +87,30 @@ func (s *QueryService) GetDashboard(ctx context.Context, window time.Duration) (
 	)
 	wg.Add(3)
 
+	// recoverQoEQuery keeps a panic in one fan-out SELECT from aborting the whole
+	// process: these run detached (joined by wg.Wait), so an unrecovered panic
+	// isn't caught by the HTTP middleware. On a panic the sub-result stays zero
+	// and its err slot records it, degrading the admin dashboard rather than
+	// crashing. Registered AFTER wg.Done (LIFO) so Done always runs — no hang.
+	recoverQoEQuery := func(slot int) {
+		if r := recover(); r != nil {
+			errs[slot] = fmt.Errorf("qoe dashboard query panicked: %v", r)
+			slog.Error("qoe: dashboard query goroutine panic recovered", slog.Int("slot", slot), slog.Any("panic", r))
+		}
+	}
 	go func() {
 		defer wg.Done()
+		defer recoverQoEQuery(0)
 		summary, errs[0] = s.reader.GetSummary(ctx, window)
 	}()
 	go func() {
 		defer wg.Done()
+		defer recoverQoEQuery(1)
 		top, errs[1] = s.reader.GetTopStarvedTitles(ctx, window, 10)
 	}()
 	go func() {
 		defer wg.Done()
+		defer recoverQoEQuery(2)
 		dev, errs[2] = s.reader.GetByDeviceClass(ctx, window)
 	}()
 

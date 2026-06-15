@@ -891,6 +891,11 @@ func (o *SegmentOrchestrator) spawnSession(
 	// is wired (otherwise a kill would just re-spawn the same broken HW).
 	if procOpts.HWAccel != "" && o.opts.HWFirstSegmentTimeout > 0 && o.hwDemote != nil {
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("segment_orchestrator: detached HW watchdog goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
+				}
+			}()
 			t := time.NewTimer(o.opts.HWFirstSegmentTimeout)
 			defer t.Stop()
 			select {
