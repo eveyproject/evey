@@ -550,6 +550,31 @@ func TestBuildFFmpegArgs_VideoCodecOverride_AV1_Mapping(t *testing.T) {
 	assert.NotContains(t, joined, "veryfast", "libsvtav1 rejects the named x264 preset")
 }
 
+// AV1 transcode gets a cold-start input burst (full-speed opening seconds before
+// the -readrate pace) to mask SVT-AV1's high first-segment latency; h264/h265
+// keep the plain pace.
+func TestBuildFFmpegArgs_AV1_ColdStartBurst(t *testing.T) {
+	base := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:1],
+		VideoDecision: "transcode",
+		AudioDecision: "copy",
+		ReadRate:      1.5,
+	}
+	av1 := base
+	av1.VideoCodec = "av1"
+	j := strings.Join(ffmpeg.BuildFFmpegArgs(av1), " ")
+	assert.Contains(t, j, "-readrate 1.5")
+	assert.Contains(t, j, "-readrate_initial_burst 15", "AV1 transcode needs the cold-start burst")
+
+	h264 := base
+	h264.VideoCodec = "h264"
+	jh := strings.Join(ffmpeg.BuildFFmpegArgs(h264), " ")
+	assert.Contains(t, jh, "-readrate 1.5")
+	assert.NotContains(t, jh, "readrate_initial_burst", "h264 keeps the plain pace (no startup CPU burst)")
+}
+
 // Same guard on the multi-variant software path (the per-rung builder also
 // hardcoded the named preset).
 func TestBuildFFmpegArgs_AV1_MultiVariant_NumericPreset(t *testing.T) {
