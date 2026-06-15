@@ -12,6 +12,9 @@ import { runMonkey } from "./shared/monkey";
 
 const RUNS = parseInt(process.env.MONKEY_RUNS ?? "50", 10);
 const STEPS_PER_RUN = parseInt(process.env.MONKEY_STEPS ?? "12", 10);
+// Deterministic per-run seed so a red run is replayable. Defaults to a clock
+// seed (fresh coverage each invocation); pin MONKEY_SEED to reproduce a run.
+const BASE_SEED = parseInt(process.env.MONKEY_SEED ?? String(Date.now() % 2147483647), 10);
 
 const ENTRY_POINTS = [
   "/home", "/home", "/home",          // weighted: home is most common
@@ -27,11 +30,13 @@ const ENTRY_POINTS = [
 for (let i = 0; i < RUNS; i++) {
   const entry = ENTRY_POINTS[i % ENTRY_POINTS.length];
 
-  test(`monkey #${i + 1} — start:${entry}`, async ({ page }) => {
-    const result = await runMonkey(page, entry, STEPS_PER_RUN);
+  const seed = (BASE_SEED + i) >>> 0;
 
-    // Log steps for debugging on failure
-    const stepLog = result.steps.join("\n");
+  test(`monkey #${i + 1} — start:${entry} seed:${seed}`, async ({ page }) => {
+    const result = await runMonkey(page, entry, STEPS_PER_RUN, seed);
+
+    // Log steps for debugging on failure, prefixed with the replay command.
+    const stepLog = `seed=${seed}  (replay: MONKEY_SEED=${seed} MONKEY_RUNS=1)\n${result.steps.join("\n")}`;
 
     expect(result.jsErrors, `JS errors:\n${result.jsErrors.join("\n")}\n\nSteps:\n${stepLog}`).toHaveLength(0);
     expect(result.serverErrors, `5xx errors:\n${result.serverErrors.join("\n")}\n\nSteps:\n${stepLog}`).toHaveLength(0);

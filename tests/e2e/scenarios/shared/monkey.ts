@@ -15,6 +15,25 @@
 
 import type { Page } from "@playwright/test";
 
+// ─── SEEDED PRNG (reproducible monkey runs) ──────────────────────────
+// Raw rng() made a failed run impossible to replay across 800 runs.
+// seedRng() swaps in a deterministic mulberry32 stream; runMonkey reseeds it per
+// run from MONKEY_SEED, and the seed is surfaced on the result so a red run can
+// be reproduced in isolation: MONKEY_SEED=<seed> MONKEY_RUNS=1.
+let _rng: () => number = Math.random;
+export function seedRng(seed: number): void {
+  let a = seed >>> 0;
+  _rng = () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function rng(): number {
+  return _rng();
+}
+
 export type Context =
   | "home" | "media-detail" | "person" | "player"
   | "library" | "favorites" | "collections" | "playlists" | "music" | "photos"
@@ -88,7 +107,7 @@ export const ACTIONS: MonkeyAction[] = [
       const cards = page.locator('[data-testid="media-card"]');
       const count = await cards.count();
       if (count === 0) return null;
-      const idx = Math.floor(Math.random() * Math.min(count, 10));
+      const idx = Math.floor(rng() * Math.min(count, 10));
       try { await cards.nth(idx).click({ timeout: 3_000 }); } catch { return null; }
       await page.waitForTimeout(1_000);
       return detectContext(page.url());
@@ -102,7 +121,7 @@ export const ACTIONS: MonkeyAction[] = [
       const links = page.locator("a[href]:visible");
       const count = await links.count();
       if (count === 0) return null;
-      const idx = Math.floor(Math.random() * Math.min(count, 15));
+      const idx = Math.floor(rng() * Math.min(count, 15));
       try { await links.nth(idx).click({ timeout: 2_000 }); } catch { return null; }
       await page.waitForTimeout(800);
       return detectContext(page.url());
@@ -155,7 +174,7 @@ export const ACTIONS: MonkeyAction[] = [
       const input = page.locator('[data-testid="topbar-search-input"]');
       if (!(await input.isVisible({ timeout: 1_000 }).catch(() => false))) return null;
       const queries = ["the", "star", "love", "night", "dark", "world", "man", "king"];
-      await input.fill(queries[Math.floor(Math.random() * queries.length)]);
+      await input.fill(queries[Math.floor(rng() * queries.length)]);
       await page.waitForTimeout(800);
       const item = page.locator("[data-search-item]").first();
       if (await item.isVisible({ timeout: 2_000 }).catch(() => false)) {
@@ -177,7 +196,7 @@ export const ACTIONS: MonkeyAction[] = [
       const btns = page.locator("button:visible");
       const count = await btns.count();
       if (count === 0) return null;
-      const idx = Math.floor(Math.random() * Math.min(count, 10));
+      const idx = Math.floor(rng() * Math.min(count, 10));
       try { await btns.nth(idx).click({ timeout: 2_000 }); } catch {}
       await page.waitForTimeout(500);
       return detectContext(page.url());
@@ -329,7 +348,7 @@ export const ACTIONS: MonkeyAction[] = [
       const links = page.locator("nav a[href*='/admin']");
       const count = await links.count();
       if (count === 0) return null;
-      const idx = Math.floor(Math.random() * count);
+      const idx = Math.floor(rng() * count);
       try { await links.nth(idx).click({ timeout: 2_000 }); } catch { return null; }
       await page.waitForTimeout(800);
       return detectContext(page.url());
@@ -364,7 +383,7 @@ export const ACTIONS: MonkeyAction[] = [
 function pickAction(context: Context): MonkeyAction {
   const valid = ACTIONS.filter((a) => a.contexts.includes(context) || a.contexts === everywhere);
   const totalWeight = valid.reduce((sum, a) => sum + a.weight, 0);
-  let roll = Math.random() * totalWeight;
+  let roll = rng() * totalWeight;
   for (const action of valid) {
     roll -= action.weight;
     if (roll <= 0) return action;
@@ -378,15 +397,19 @@ export interface MonkeyResult {
   serverErrors: string[];
   blankPage: boolean;
   untranslatedKeys: string[];
+  seed?: number;
 }
 
-export async function runMonkey(page: Page, startUrl: string, numSteps: number): Promise<MonkeyResult> {
+export async function runMonkey(page: Page, startUrl: string, numSteps: number, seed?: number): Promise<MonkeyResult> {
+  // Reseed the action/choice RNG so this run is deterministic and replayable.
+  if (seed !== undefined) seedRng(seed);
   const result: MonkeyResult = {
     steps: [],
     jsErrors: [],
     serverErrors: [],
     blankPage: false,
     untranslatedKeys: [],
+    seed,
   };
 
   page.on("pageerror", (e) => result.jsErrors.push(e.message));
