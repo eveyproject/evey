@@ -2,9 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { GlobalAudioPlayer } from "./GlobalAudioPlayer";
 import { useAuthStore, useMusicPlayerStore } from "@evey/store";
+import { eveyFetchRaw } from "@evey/api";
 
 const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
+vi.mock("@evey/api", () => ({ eveyFetchRaw: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))) }));
 
 // We're testing that the <audio src> attribute does not rebuild when
 // the Zustand accessToken rotates — the bug that aborted music playback
@@ -181,6 +183,30 @@ describe("GlobalAudioPlayer", () => {
     });
     render(<GlobalAudioPlayer />);
     expect(screen.queryByRole("button", { name: "Song" })).toBeNull();
+  });
+
+  it("records a finished track only once even if `ended` fires twice", () => {
+    (eveyFetchRaw as ReturnType<typeof vi.fn>).mockClear();
+    useAuthStore.setState({ accessToken: makeJwt(9999999999) });
+    useMusicPlayerStore.setState({
+      playing: {
+        ID: "track-1", Title: "T", Artist: "A", Album: "", AlbumArtist: "",
+        Year: 0, TrackNumber: 0, DiskNumber: 0, Duration: 0, FilePath: "",
+        MimeType: "", Genre: "", CoverArtURL: "",
+      },
+      queue: [], shuffle: false, externallyPaused: false, source: null,
+    });
+
+    render(<GlobalAudioPlayer />);
+    const audio = document.querySelector("audio")!;
+    fireEvent.loadedMetadata(audio); // new playthrough → arms the guard
+    fireEvent.ended(audio);
+    fireEvent.ended(audio); // duplicate ended for the same playthrough
+
+    const playedCalls = (eveyFetchRaw as ReturnType<typeof vi.fn>).mock.calls.filter(
+      (c) => String((c[0] as { url?: string })?.url).includes("/played"),
+    );
+    expect(playedCalls).toHaveLength(1);
   });
 });
 

@@ -97,6 +97,11 @@ export function GlobalAudioPlayer() {
   // without listing externallyPaused as a dep (which would re-fire play()).
   const externallyPausedRef = useRef(externallyPaused);
   externallyPausedRef.current = externallyPaused;
+  // Guards against double-counting a listen: `ended` can fire more than once for
+  // a single playthrough (browser quirks / re-renders), which inflates the
+  // play-count taste signal. Reset on each new track's loadedmetadata, set on
+  // the first ended — a genuine replay reloads the track and counts again.
+  const playRecordedRef = useRef(false);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -184,11 +189,18 @@ export function GlobalAudioPlayer() {
         key={playing.ID}
         src={src}
         onTimeUpdate={() => setCurrentTime(audioRef.current?.currentTime ?? 0)}
-        onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 0)}
+        onLoadedMetadata={() => {
+          setDuration(audioRef.current?.duration ?? 0);
+          playRecordedRef.current = false;
+        }}
         onEnded={() => {
           // A finished track counts as a listen — feeds the playlist generator's
-          // taste signal. Fire-and-forget; never block playback advance.
-          void eveyFetchRaw({ url: `/api/v1/music/tracks/${playing.ID}/played`, method: "POST" }).catch(() => {});
+          // taste signal. Fire-and-forget; never block playback advance. Guarded
+          // so a duplicate `ended` for the same playthrough counts only once.
+          if (!playRecordedRef.current) {
+            playRecordedRef.current = true;
+            void eveyFetchRaw({ url: `/api/v1/music/tracks/${playing.ID}/played`, method: "POST" }).catch(() => {});
+          }
           next();
         }}
         onPlay={() => setIsPlaying(true)}
