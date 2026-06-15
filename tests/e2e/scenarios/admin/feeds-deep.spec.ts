@@ -3,8 +3,20 @@ import { goto, collectErrors } from "../shared/helpers";
 
 test.describe("Admin > Feeds deep", () => {
   const waitForFeedsPage = async (page: import("@playwright/test").Page) => {
-    await goto(page, "/admin/feeds");
-    // wait for the save button to be visible (page loaded)
+    // The standalone /admin/feeds page was folded into /admin/server-config as a
+    // collapsed-by-default "Home feeds" CollapsibleCard (feeds.tsx now redirects
+    // there). The card unmounts its children while collapsed, so expand collapsed
+    // cards until the feeds save button mounts. Locale-independent on purpose.
+    await goto(page, "/admin/server-config");
+    for (let i = 0; i < 12; i++) {
+      if (await page.locator('[data-testid="feeds-save-btn"]').count()) break;
+      const collapsed = page.locator('[role="button"][aria-expanded="false"]').first();
+      if (!(await collapsed.count())) break;
+      await collapsed.click().catch(() => {});
+      await page.waitForTimeout(150);
+    }
+    // wait for the save button to be visible (card expanded + page loaded)
+    await page.locator('[data-testid="feeds-save-btn"]').scrollIntoViewIfNeeded().catch(() => {});
     await page.locator('[data-testid="feeds-save-btn"]').waitFor({ state: "visible", timeout: 10_000 });
     // give the API data time to render rows
     await page.waitForTimeout(2_000);
