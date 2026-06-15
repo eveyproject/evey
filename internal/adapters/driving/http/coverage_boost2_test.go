@@ -218,6 +218,28 @@ func TestSubtitleSearch_MediaNotFound_404(t *testing.T) {
 // Stream token handler tests
 // ============================================================
 
+func TestStreamToken_ParentalBlocked_NotFound(t *testing.T) {
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, time.Minute)
+	userToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "u1", IsAdmin: false})
+
+	mg := newFakeMediaGetter()
+	mg.items["m1"] = &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}
+	store := appmedia.NewStreamTokenStore(5 * time.Minute)
+
+	// Parental must gate token issuance too: a kid that learns an adult media-id
+	// out of band must not be handed a stream token for it.
+	h := httpAuthMiddleware(gen)(streamTokenHandler(gen, store, allowAll(), mg, alwaysBlockChecker{}))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/stream-token", nil)
+	req.SetPathValue("id", "m1")
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("parental-blocked stream-token must return 404 (existence hidden), got %d", w.Code)
+	}
+}
+
 func TestStreamToken_OK(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, time.Minute)

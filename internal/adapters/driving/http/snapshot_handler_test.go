@@ -37,6 +37,24 @@ func newSnapshotReq(t *testing.T, mediaID, query string) *http.Request {
 	return req
 }
 
+func TestSnapshot_ParentalBlocked_NotFound(t *testing.T) {
+	h := snapshotHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeFrameExt{data: []byte("jpeg-data")},
+		allowAll(), // library access granted…
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x/video.mkv"}}},
+		"http://localhost",
+		alwaysBlockChecker{}, // …but parental blocks before any frame is extracted
+	)
+	req := newSnapshotReq(t, "m1", "position_ms=12500")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("parental-blocked snapshot must return 404 (existence hidden), got %d", w.Code)
+	}
+}
+
 func TestSnapshot_Success(t *testing.T) {
 	fe := &fakeFrameExt{data: []byte("jpeg-data")}
 	h := snapshotHandler(

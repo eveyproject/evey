@@ -266,6 +266,7 @@ func TestMediaArtwork_StreamToken_WrongMediaID_403(t *testing.T) {
 }
 
 // --- chaptersHandler ---
+// (parental-gate coverage lives in transcode_serve_test.go:TestChaptersHandler_ParentalBlocked_NotFound)
 
 func TestChaptersHandler_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
