@@ -18,6 +18,14 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
     return () => { resumeMusic(); };
   }, [open, pauseMusic, resumeMusic]);
 
+  // Close the trailer dialog on Escape (keyboard/a11y parity with shared Modal).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
   if (!trailer.key || !trailer.site) return null;
 
   const needsSubtitles = (trailer.language || "en") !== userLang;
@@ -60,12 +68,16 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
           onClick={() => setOpen(false)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("media.detail.trailer")}
             className="relative w-full max-w-4xl aspect-video"
             onClick={(e) => e.stopPropagation()}
           >
             {iframeSrc ? (
               <iframe
                 src={iframeSrc}
+                title={t("media.detail.trailer")}
                 className="w-full h-full rounded"
                 allow="autoplay; fullscreen"
                 allowFullScreen
