@@ -9,6 +9,7 @@ test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true
 
 const RUNS = parseInt(process.env.MONKEY_MOBILE_RUNS ?? "100", 10);
 const STEPS = parseInt(process.env.MONKEY_STEPS ?? "8", 10);
+const BASE_SEED = parseInt(process.env.MONKEY_SEED ?? String(Date.now() % 2147483647), 10);
 
 const ENTRIES = [
   "/home", "/home", "/library", "/favorites",
@@ -18,9 +19,10 @@ const ENTRIES = [
 
 for (let i = 0; i < RUNS; i++) {
   const entry = ENTRIES[i % ENTRIES.length];
-  test(`mobile-monkey #${i + 1} — ${entry}`, async ({ page }) => {
-    const result = await runMonkey(page, entry, STEPS);
-    const log = result.steps.join("\n");
+  const seed = (BASE_SEED + i) >>> 0;
+  test(`mobile-monkey #${i + 1} — ${entry} seed:${seed}`, async ({ page }) => {
+    const result = await runMonkey(page, entry, STEPS, seed);
+    const log = `seed=${seed}  (replay: MONKEY_SEED=${seed} MONKEY_MOBILE_RUNS=1)\n${result.steps.join("\n")}`;
     expect(result.jsErrors, `JS:\n${result.jsErrors.join("\n")}\n\n${log}`).toHaveLength(0);
     expect(result.serverErrors, `5xx:\n${result.serverErrors.join("\n")}\n\n${log}`).toHaveLength(0);
     // Skip blankPage assertion: a random walk can legitimately land on the
