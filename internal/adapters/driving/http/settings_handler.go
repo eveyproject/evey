@@ -30,7 +30,13 @@ const (
 	cfgKeyWatcherEnabled   = "library.watcher_enabled"
 	cfgKeyScanInterval     = "library.periodic_scan_interval"
 	cfgKeySkipPreview      = "intro_providers.skip_preview_enabled"
+	cfgKeyTranscodeSWAV1   = "transcoding.software_av1_max_height"
 )
+
+// validSoftwareAV1Heights are the AV1 software ceiling values the panel offers.
+// 0 = "Auto" (calibrated / hardware-only). Any other value force-enables AV1
+// software at that height. Bounded to the software bench ladder.
+var validSoftwareAV1Heights = map[int]bool{0: true, 480: true, 720: true, 1080: true, 1440: true}
 
 // hwModeController is the slice of CalibrationService the settings handler needs
 // to surface + apply the admin HW-acceleration mode. A nil controller (tests,
@@ -39,6 +45,10 @@ const (
 type hwModeController interface {
 	HWMode() domaintranscoding.HWMode
 	SetHWMode(ctx context.Context, mode domaintranscoding.HWMode) error
+	// SoftwareAV1MaxOverride / SetSoftwareAV1MaxOverride surface + apply the
+	// admin-settable AV1 software ceiling (0 = Auto/hardware-only).
+	SoftwareAV1MaxOverride() int
+	SetSoftwareAV1MaxOverride(h int)
 }
 
 // hwModeControllerOf adapts a concrete *CalibrationService to the interface,
@@ -130,6 +140,16 @@ func registerServerSettingsRoutes(
 		// takes effect immediately (no restart).
 		{jsonKey: "skipPreviewEnabled", cfgKey: cfgKeySkipPreview, defaultVal: false,
 			getter: func() any { return cfg.Metadata.SkipPreviewEnabled }},
+		// AV1 software ceiling: 0 = Auto (calibrated; AV1 stays hardware-only when
+		// the bench found software AV1 non-viable). A non-zero value force-enables
+		// AV1 software at that height. Read live from the calibration service.
+		{jsonKey: "softwareAV1MaxHeight", cfgKey: cfgKeyTranscodeSWAV1, defaultVal: 0,
+			getter: func() any {
+				if hwMode != nil {
+					return hwMode.SoftwareAV1MaxOverride()
+				}
+				return cfg.Transcoding.SoftwareAV1MaxHeightOverride
+			}},
 	}
 
 	buildResponse := func() map[string]settingValue {
@@ -168,6 +188,7 @@ func registerServerSettingsRoutes(
 			LibraryWatcherEnabled   *bool   `json:"libraryWatcherEnabled"`
 			PeriodicScanInterval    *string `json:"periodicScanInterval"`
 			SkipPreviewEnabled      *bool   `json:"skipPreviewEnabled"`
+			SoftwareAV1MaxHeight    *int    `json:"softwareAV1MaxHeight"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -330,6 +351,28 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Metadata.SkipPreviewEnabled = *body.SkipPreviewEnabled
 					return strconv.FormatBool(*body.SkipPreviewEnabled)
+				}},
+			{cfgKey: cfgKeyTranscodeSWAV1,
+				apply: func() string {
+					if body.SoftwareAV1MaxHeight == nil {
+						return ""
+					}
+					h := *body.SoftwareAV1MaxHeight
+					if !validSoftwareAV1Heights[h] {
+						return "" // out of the allowed ladder → ignore (keep current)
+					}
+					cfg.Transcoding.SoftwareAV1MaxHeightOverride = h
+					return strconv.Itoa(h)
+				},
+				sideEffect: func() {
+					// Apply live so the next request sees it (no re-bench: the override
+					// just overlays the calibrated ceiling in CalibrationService.Current).
+					if hwMode == nil || body.SoftwareAV1MaxHeight == nil {
+						return
+					}
+					if h := *body.SoftwareAV1MaxHeight; validSoftwareAV1Heights[h] {
+						hwMode.SetSoftwareAV1MaxOverride(h)
+					}
 				}},
 		}
 

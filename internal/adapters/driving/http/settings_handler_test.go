@@ -18,9 +18,11 @@ import (
 // fakeHWModeController records SetHWMode calls so the settings test can assert
 // the live re-bench was triggered with the parsed mode.
 type fakeHWModeController struct {
-	mu   sync.Mutex
-	mode domaintranscoding.HWMode
-	sets []domaintranscoding.HWMode
+	mu      sync.Mutex
+	mode    domaintranscoding.HWMode
+	sets    []domaintranscoding.HWMode
+	av1Max  int
+	av1Sets []int
 }
 
 func (f *fakeHWModeController) HWMode() domaintranscoding.HWMode {
@@ -44,6 +46,19 @@ func (f *fakeHWModeController) calls() []domaintranscoding.HWMode {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]domaintranscoding.HWMode(nil), f.sets...)
+}
+
+func (f *fakeHWModeController) SoftwareAV1MaxOverride() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.av1Max
+}
+
+func (f *fakeHWModeController) SetSoftwareAV1MaxOverride(h int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.av1Max = h
+	f.av1Sets = append(f.av1Sets, h)
 }
 
 type fakeSettingsStore struct {
@@ -242,6 +257,48 @@ func TestServerSettings_Put_HWMode_PersistsAndRebenches(t *testing.T) {
 	}
 	if !sawVAAPI {
 		t.Errorf("SetHWMode(vaapi) was not invoked on the controller")
+	}
+}
+
+func TestServerSettings_Put_SoftwareAV1MaxHeight_PersistsAndApplies(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"softwareAV1MaxHeight":720}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if env.cfg.Transcoding.SoftwareAV1MaxHeightOverride != 720 {
+		t.Errorf("cfg override = %d want 720", env.cfg.Transcoding.SoftwareAV1MaxHeightOverride)
+	}
+	if got := env.store.sets[cfgKeyTranscodeSWAV1]; got != "720" {
+		t.Errorf("store[%s] = %q want 720", cfgKeyTranscodeSWAV1, got)
+	}
+	// Applied live on the controller (no re-bench) so the next request sees it.
+	if env.hwMode.SoftwareAV1MaxOverride() != 720 {
+		t.Errorf("controller live override = %d want 720", env.hwMode.SoftwareAV1MaxOverride())
+	}
+}
+
+func TestServerSettings_Put_SoftwareAV1MaxHeight_Invalid_Ignored(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"softwareAV1MaxHeight":999}`)) // not on the ladder
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if _, ok := env.store.sets[cfgKeyTranscodeSWAV1]; ok {
+		t.Errorf("an off-ladder AV1 height must not be persisted")
+	}
+	if env.hwMode.SoftwareAV1MaxOverride() != 0 {
+		t.Errorf("an off-ladder AV1 height must not be applied, got %d", env.hwMode.SoftwareAV1MaxOverride())
 	}
 }
 

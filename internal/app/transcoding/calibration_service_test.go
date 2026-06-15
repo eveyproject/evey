@@ -159,6 +159,38 @@ func TestCalibration_SoftwareCapOverrides_ForceCurrentCeilings(t *testing.T) {
 	assert.Equal(t, 720, hdrOnly.Current().SoftwareHDRMaxHeight, "HDR override applies independently")
 }
 
+func TestCalibration_SoftwareAV1MaxOverride_AdminSettableLive(t *testing.T) {
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight:    1080,
+			SoftwareAV1MaxHeight: 0, // bench found AV1 software non-viable here
+			CPUSignature:         hostSig,
+		},
+	}
+	runner := &fakeBenchmarkRunner{}
+
+	// No override → the calibrated 0 stands (AV1 stays hardware-only via the gate).
+	svc := NewCalibrationService(repo, runner, nil)
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+	assert.Equal(t, 0, svc.Current().SoftwareAV1MaxHeight)
+	assert.Equal(t, 0, svc.SoftwareAV1MaxOverride())
+
+	// Admin sets it live → applied on the next Current() read, no re-bench.
+	svc.SetSoftwareAV1MaxOverride(720)
+	assert.Equal(t, 720, svc.SoftwareAV1MaxOverride())
+	assert.Equal(t, 720, svc.Current().SoftwareAV1MaxHeight, "live override must overlay the calibrated ceiling")
+
+	// Clearing it (0) restores the calibrated value.
+	svc.SetSoftwareAV1MaxOverride(0)
+	assert.Equal(t, 0, svc.Current().SoftwareAV1MaxHeight)
+
+	// Boot-time override option seeds the same field.
+	booted := NewCalibrationService(repo, runner, nil, WithSoftwareAV1MaxOverride(1080))
+	require.NoError(t, booted.EnsureCalibrated(context.Background()))
+	assert.Equal(t, 1080, booted.Current().SoftwareAV1MaxHeight)
+}
+
 func TestCalibration_EnsureCalibrated_PersistedHWUnusable_StripsToSoftware(t *testing.T) {
 	// Matching CPU sig but the persisted HW backend is no longer usable here
 	// (e.g. shared DB across a HW and a non-HW container). EnsureCalibrated must

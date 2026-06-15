@@ -57,6 +57,12 @@ type CalibrationService struct {
 	swMaxOverride    int
 	swHDRMaxOverride int
 
+	// swAV1MaxOverride forces the AV1 software ceiling (0 = use the calibrated
+	// value). Unlike the two ceilings above this is admin-settable at RUNTIME from
+	// the server-config panel, so it is atomic: the settings handler writes it via
+	// SetSoftwareAV1MaxOverride while Current() reads it lock-free on every request.
+	swAV1MaxOverride atomic.Int64
+
 	current       atomic.Pointer[domaintranscoding.EncodeCapability]
 	benchInFlight sync.Mutex
 
@@ -107,6 +113,34 @@ func WithSoftwareCapOverrides(swMax, swHDRMax int) CalibrationOption {
 		s.swMaxOverride = swMax
 		s.swHDRMaxOverride = swHDRMax
 	}
+}
+
+// WithSoftwareAV1MaxOverride sets the boot value of the admin-settable AV1
+// software ceiling override (0 = none; AV1 stays hardware-only / calibrated).
+// Loaded from the persisted server-config key at startup; changed live via
+// SetSoftwareAV1MaxOverride from the admin panel.
+func WithSoftwareAV1MaxOverride(h int) CalibrationOption {
+	return func(s *CalibrationService) {
+		if h > 0 {
+			s.swAV1MaxOverride.Store(int64(h))
+		}
+	}
+}
+
+// SetSoftwareAV1MaxOverride updates the AV1 software ceiling override live (0
+// clears it, restoring the calibrated value). Applied by Current() on the next
+// request — no re-bench needed, the override just overlays the persisted cap.
+func (s *CalibrationService) SetSoftwareAV1MaxOverride(h int) {
+	if h < 0 {
+		h = 0
+	}
+	s.swAV1MaxOverride.Store(int64(h))
+}
+
+// SoftwareAV1MaxOverride returns the current AV1 software ceiling override (0 =
+// none). Read by the settings handler to render the panel value.
+func (s *CalibrationService) SoftwareAV1MaxOverride() int {
+	return int(s.swAV1MaxOverride.Load())
 }
 
 func NewCalibrationService(repo domaintranscoding.CapabilityRepo, runner domaintranscoding.BenchmarkRunner, logger *slog.Logger, opts ...CalibrationOption) *CalibrationService {
@@ -178,6 +212,12 @@ func (s *CalibrationService) Current() domaintranscoding.EncodeCapability {
 	}
 	if s.swHDRMaxOverride > 0 {
 		c.SoftwareHDRMaxHeight = s.swHDRMaxOverride
+	}
+	// Admin-settable AV1 software ceiling (server-config panel). Lock-free read on
+	// the hot path; >0 un-gates AV1 software at that height even when the bench
+	// calibrated it as non-viable (0).
+	if av1 := s.swAV1MaxOverride.Load(); av1 > 0 {
+		c.SoftwareAV1MaxHeight = int(av1)
 	}
 	return c
 }

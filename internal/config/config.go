@@ -327,6 +327,12 @@ type TranscodingConfig struct {
 	// runtime throttle + input pacing still protect a host that overshoots.
 	SoftwareMaxHeightOverride    int
 	SoftwareHDRMaxHeightOverride int
+	// SoftwareAV1MaxHeightOverride forces the AV1 software ceiling (0 = use the
+	// calibrated value; AV1 stays hardware-only when the bench found it non-viable).
+	// Unlike the two above this is NOT an env knob — it is admin-settable from the
+	// server-config panel (persisted under transcoding.software_av1_max_height,
+	// loaded at boot via loadOverride and applied live by CalibrationService).
+	SoftwareAV1MaxHeightOverride int
 	TrickplayCacheDir            string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch

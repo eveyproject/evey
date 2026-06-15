@@ -700,7 +700,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		apptranscoding.WithHWMode(hwMode),
 		apptranscoding.WithSoftwareCapOverrides(
 			cfg.Transcoding.SoftwareMaxHeightOverride,
-			cfg.Transcoding.SoftwareHDRMaxHeightOverride))
+			cfg.Transcoding.SoftwareHDRMaxHeightOverride),
+		apptranscoding.WithSoftwareAV1MaxOverride(cfg.Transcoding.SoftwareAV1MaxHeightOverride))
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}
