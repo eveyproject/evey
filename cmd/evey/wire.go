@@ -174,7 +174,11 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	tvmazeProvider := metadataadapter.NewTVMazeProvider(metadataHTTP)
 	omdbKey := resolveAPIKey(ctx, r.ServerCfg, "api.omdb_key", "EVEY_OMDB_API_KEY")
 	omdbProvider := metadataadapter.NewOMDbProvider(omdbKey, metadataHTTP)
-	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(metadataHTTP)
+	// nil → the downloader builds its own ssrf.SafeHTTPClient. Artwork URLs come
+	// from provider/plugin responses (e.g. OMDb's Poster passthrough), which are
+	// untrusted in Evey's threat model — they must not reach a plain client that
+	// can hit loopback/link-local. The host-pinned API providers keep metadataHTTP.
+	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(nil)
 	personFetcher := metadataadapter.NewTMDBPersonFetcher(tmdbProvider)
 
 	pluginLogDir := filepath.Join(cfg.Log.Dir, "plugins")
