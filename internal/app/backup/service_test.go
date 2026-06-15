@@ -341,6 +341,36 @@ func TestRestoreBackup_MissingManifest(t *testing.T) {
 	}
 }
 
+func TestRestoreBackup_OversizedDumpRejected(t *testing.T) {
+	svc, _, _ := setup()
+
+	// Lower the gzip-bomb guard so we can trip it without a multi-GiB fixture.
+	orig := maxRestoreDumpBytes
+	maxRestoreDumpBytes = 16
+	defer func() { maxRestoreDumpBytes = orig }()
+
+	manifest := &backupmodel.BackupManifest{ID: "bk-x", Version: "1.0.0"}
+	manifestBytes, _ := json.Marshal(manifest)
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	writeTar(t, tw, "manifest.json", manifestBytes)
+	writeTar(t, tw, "dump.sql", bytes.Repeat([]byte("A"), 64)) // > 16 byte limit
+	tw.Close()
+	gw.Close()
+
+	err := svc.RestoreBackup(context.Background(), &buf)
+	if err == nil {
+		t.Fatal("expected error for oversized dump.sql")
+	}
+	if !strings.Contains(err.Error(), "too large") {
+		t.Fatalf("expected oversized dump error, got: %v", err)
+	}
+	if !errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("oversized dump.sql must satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
+	}
+}
+
 func TestRestoreBackup_MissingDump(t *testing.T) {
 	svc, _, _ := setup()
 	manifest := &backupmodel.BackupManifest{ID: "bk-x", Version: "1.0.0"}

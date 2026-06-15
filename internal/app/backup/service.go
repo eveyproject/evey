@@ -25,6 +25,11 @@ import (
 // internal/IO failures with errors.Is.
 var ErrInvalidBackup = errors.New("backup rejected: invalid or tampered archive")
 
+// maxRestoreDumpBytes bounds the decompressed dump.sql during restore — a
+// gzip-bomb guard (G110). Package-level var so tests can lower it without
+// materialising a multi-GiB fixture.
+var maxRestoreDumpBytes int64 = 8 << 30 // 8 GiB
+
 var BackupTables = []string{
 	"users",
 	"profiles",
@@ -287,10 +292,20 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 				return nil, fmt.Errorf("create temp file for dump: %w", tmpErr)
 			}
 			h := sha256.New()
-			if _, cpErr := io.Copy(io.MultiWriter(tmp, h), tr); cpErr != nil {
+			// Bound the decompressed dump to guard against a gzip bomb (G110): the
+			// backup excludes the re-scannable media tables, so even a very large
+			// music/photos metadata dump stays far below this. A tiny upload that
+			// expands past it is corrupt or hostile — refuse rather than fill disk.
+			written, cpErr := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(tr, maxRestoreDumpBytes+1))
+			if cpErr != nil {
 				tmp.Close()
 				os.Remove(tmp.Name()) //nolint:errcheck
 				return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, ErrInvalidBackup)
+			}
+			if written > maxRestoreDumpBytes {
+				tmp.Close()
+				os.Remove(tmp.Name()) //nolint:errcheck
+				return nil, fmt.Errorf("dump.sql too large (> 8 GiB), refusing: %w", ErrInvalidBackup)
 			}
 			tmp.Close()
 			a.dumpPath = tmp.Name()
