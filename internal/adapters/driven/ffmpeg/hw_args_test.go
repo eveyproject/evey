@@ -540,7 +540,7 @@ func TestVideoEncoderFor(t *testing.T) {
 		{"h264", transcoding.None, "libx264"},
 		{"h264", "", "libx264"},
 		{"hevc", transcoding.None, "libx265"},
-		{"av1", transcoding.None, "libaom-av1"},
+		{"av1", transcoding.None, "libsvtav1"},
 		{"", transcoding.None, "libx264"},
 		{"h264", transcoding.HWAccelType("bogus"), "libx264"}, // invalid → software
 

@@ -197,6 +197,8 @@ func mapVideoEncoder(codec, hwAccel string) string {
 			return "h264_vaapi"
 		case "hevc", "h265", "libx265":
 			return "hevc_vaapi"
+		case "av1", "libaom-av1", "libsvtav1":
+			return "av1_vaapi"
 		}
 	case transcoding.NVENC:
 		switch base {
@@ -204,6 +206,8 @@ func mapVideoEncoder(codec, hwAccel string) string {
 			return "h264_nvenc"
 		case "hevc", "h265", "libx265":
 			return "hevc_nvenc"
+		case "av1", "libaom-av1", "libsvtav1":
+			return "av1_nvenc"
 		}
 	case transcoding.QSV:
 		switch base {
@@ -211,6 +215,8 @@ func mapVideoEncoder(codec, hwAccel string) string {
 			return "h264_qsv"
 		case "hevc", "h265", "libx265":
 			return "hevc_qsv"
+		case "av1", "libaom-av1", "libsvtav1":
+			return "av1_qsv"
 		}
 	}
 
@@ -222,7 +228,10 @@ func mapVideoEncoder(codec, hwAccel string) string {
 	case "vp9":
 		return "libvpx-vp9"
 	case "av1":
-		return "libaom-av1"
+		// SVT-AV1: libaom-av1 is absent from the shipped jellyfin-ffmpeg build
+		// and far too slow. (The caller-supplied job.Preset must be numeric for
+		// SVT — named x264 presets fail to open the encoder.)
+		return "libsvtav1"
 	}
 	return codec
 }

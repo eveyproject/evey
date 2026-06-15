@@ -389,13 +389,16 @@ func TestMapVideoEncoder(t *testing.T) {
 		{"hevc", "none", "libx265"},
 		{"h265", "none", "libx265"},
 		{"vp9", "none", "libvpx-vp9"},
-		{"av1", "none", "libaom-av1"},
+		{"av1", "none", "libsvtav1"},
 		{"h264", "vaapi", "h264_vaapi"},
 		{"hevc", "vaapi", "hevc_vaapi"},
+		{"av1", "vaapi", "av1_vaapi"},
 		{"h264", "nvenc", "h264_nvenc"},
 		{"hevc", "nvenc", "hevc_nvenc"},
+		{"av1", "nvenc", "av1_nvenc"},
 		{"h264", "qsv", "h264_qsv"},
 		{"hevc", "qsv", "hevc_qsv"},
+		{"av1", "qsv", "av1_qsv"},
 	}
 
 	for _, tt := range tests {

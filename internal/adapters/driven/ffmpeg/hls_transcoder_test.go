@@ -529,9 +529,10 @@ func TestBuildFFmpegArgs_VideoCodecOverride_MultiVariant(t *testing.T) {
 	assert.NotContains(t, joined, "libx264")
 }
 
-// av1 mapping accepted at the arg-building layer. The libaom-av1 encoder is
-// extremely slow and may be absent from minimal ffmpeg images; we assert the
-// mapping here without spawning a real encode.
+// av1 software output maps to libsvtav1 (libaom-av1 is absent from the shipped
+// jellyfin-ffmpeg build) and MUST carry a numeric -preset: libsvtav1 rejects the
+// named x264/x265 presets ("veryfast") and fails to open the encoder otherwise.
+// Asserted at the arg-building layer without spawning a real encode.
 func TestBuildFFmpegArgs_VideoCodecOverride_AV1_Mapping(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:     "/tmp/test",
@@ -543,7 +544,28 @@ func TestBuildFFmpegArgs_VideoCodecOverride_AV1_Mapping(t *testing.T) {
 	}
 	args := ffmpeg.BuildFFmpegArgs(opts)
 	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "libaom-av1")
+	assert.Contains(t, joined, "libsvtav1")
+	assert.NotContains(t, joined, "libaom-av1")
+	assert.Contains(t, joined, "-preset 10", "libsvtav1 needs a numeric preset")
+	assert.NotContains(t, joined, "veryfast", "libsvtav1 rejects the named x264 preset")
+}
+
+// Same guard on the multi-variant software path (the per-rung builder also
+// hardcoded the named preset).
+func TestBuildFFmpegArgs_AV1_MultiVariant_NumericPreset(t *testing.T) {
+	opts := transcoding.HLSProcessOpts{
+		OutputDir:     "/tmp/test",
+		FilePath:      "/f.mkv",
+		Profiles:      transcoding.DefaultHLSProfiles[:3],
+		VideoDecision: "transcode",
+		AudioDecision: "copy",
+		VideoCodec:    "av1",
+	}
+	joined := strings.Join(ffmpeg.BuildFFmpegArgs(opts), " ")
+	assert.Contains(t, joined, "-c:v:0 libsvtav1")
+	assert.NotContains(t, joined, "libaom-av1")
+	assert.Contains(t, joined, "-preset 10", "libsvtav1 needs a numeric preset")
+	assert.NotContains(t, joined, "veryfast", "libsvtav1 rejects the named x264 preset")
 }
 
 func TestBuildFFmpegArgs_AudioCodecOverride_EAC3_CopyVideo(t *testing.T) {

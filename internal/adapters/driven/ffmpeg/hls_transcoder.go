@@ -483,13 +483,26 @@ func resolveVideoEncoder(codec string) string {
 		return "libx264"
 	case "hevc", "h265", "libx265":
 		return "libx265"
-	case "av1", "libaom-av1":
-		// libaom-av1 is extremely slow for real-time HLS and may be absent
-		// from minimal ffmpeg builds — accept the mapping but callers should
-		// avoid requesting av1 unless the build supports it.
-		return "libaom-av1"
+	case "av1", "libaom-av1", "libsvtav1":
+		// SVT-AV1, not libaom-av1: libaom is absent from the shipped
+		// jellyfin-ffmpeg build (only --enable-libsvtav1) AND is far too slow
+		// for streaming. SVT takes a numeric -preset (see svtAV1PresetArgs); it
+		// rejects the named x264/x265 presets outright.
+		return "libsvtav1"
 	}
 	return "libx264"
+}
+
+// svtAV1PresetArgs returns the speed/quality preset for a software video
+// encoder. libx264/libx265 use the named ladder ("veryfast"); libsvtav1 takes a
+// numeric 0-13 preset (higher = faster) and rejects the named values, failing
+// to open. AV1 software encoding is heavy, so on the weak-NAS target we lean
+// fast — 10 is a balanced default and the speed/quality knob if it needs tuning.
+func svtAV1PresetArgs(encoder string) []string {
+	if encoder == "libsvtav1" {
+		return []string{"-preset", svtAV1Preset}
+	}
+	return []string{"-preset", "veryfast"}
 }
 
 // softwareProfileLevelArgs returns the -profile:v / -level:v args for a software
@@ -523,7 +536,7 @@ func normalizeVideoCodec(codec string) string {
 		return "h264"
 	case "hevc", "h265", "libx265":
 		return "hevc"
-	case "av1", "libaom-av1":
+	case "av1", "libaom-av1", "libsvtav1":
 		return "av1"
 	}
 	return ""
@@ -743,6 +756,10 @@ func parseAspect(s string) (num, den int, ok bool) {
 // budgeted). 23 is the x264 sane default. HW encoders ignore CRF (rate-control
 // differs), so this is the software path only.
 const softwareCRF = "23"
+
+// svtAV1Preset is the libsvtav1 numeric speed/quality preset (0-13, higher =
+// faster). 10 leans fast for the weak-NAS software-AV1 path; tune here.
+const svtAV1Preset = "10"
 
 // hlsForceKeyframesArgs forces a keyframe exactly every segment. Without it,
 // x264's sparse default GOP (~10s) made the HLS muxer wait many seconds for a
@@ -1113,9 +1130,9 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		"-crf", softwareCRF,
 		"-maxrate", fmt.Sprintf("%dk", p.VideoBitrate),
 		"-bufsize", fmt.Sprintf("%dk", p.VideoBitrate*2),
-		"-preset", "veryfast",
-		"-pix_fmt", "yuv420p",
 	)
+	args = append(args, svtAV1PresetArgs(enc)...)
+	args = append(args, "-pix_fmt", "yuv420p")
 	args = append(args, hlsForceKeyframesArgs...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 
@@ -1215,9 +1232,9 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 			fmt.Sprintf("-crf:v:%d", i), softwareCRF,
 			fmt.Sprintf("-maxrate:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate),
 			fmt.Sprintf("-bufsize:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate*2),
-			"-preset", "veryfast",
-			"-pix_fmt", "yuv420p",
 		)
+		args = append(args, svtAV1PresetArgs(vcodec)...)
+		args = append(args, "-pix_fmt", "yuv420p")
 		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
 	}
 	// Force aligned keyframes at the segment cadence across every variant — both

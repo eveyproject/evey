@@ -166,7 +166,7 @@ func TestSoftwareProfileLevelArgs_H264Only(t *testing.T) {
 	if got := softwareProfileLevelArgs("libx265", -1); got != nil {
 		t.Fatalf("libx265 must get NO profile/level (x265 rejects \"high\"), got %v", got)
 	}
-	if got := softwareProfileLevelArgs("libaom-av1", 1); got != nil {
+	if got := softwareProfileLevelArgs("libsvtav1", 1); got != nil {
 		t.Fatalf("av1 must get NO profile/level, got %v", got)
 	}
 
@@ -179,6 +179,20 @@ func TestSoftwareProfileLevelArgs_H264Only(t *testing.T) {
 	}
 	if strings.Contains(hevc, "-profile:v high") || strings.Contains(hevc, "-profile:v:0 high") {
 		t.Fatalf("hevc/libx265 must NOT carry the h264 'high' profile (x265 aborts): %s", hevc)
+	}
+}
+
+func TestSvtAV1PresetArgs(t *testing.T) {
+	// libsvtav1 needs the numeric preset; the named ladder fails to open it.
+	if got := svtAV1PresetArgs("libsvtav1"); len(got) != 2 || got[0] != "-preset" || got[1] != svtAV1Preset {
+		t.Fatalf("libsvtav1 must get -preset %s, got %v", svtAV1Preset, got)
+	}
+	// x264/x265 keep the named preset.
+	for _, enc := range []string{"libx264", "libx265"} {
+		got := svtAV1PresetArgs(enc)
+		if len(got) != 2 || got[0] != "-preset" || got[1] != "veryfast" {
+			t.Fatalf("%s must keep -preset veryfast, got %v", enc, got)
+		}
 	}
 }
 
