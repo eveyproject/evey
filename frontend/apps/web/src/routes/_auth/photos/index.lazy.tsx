@@ -479,6 +479,7 @@ function PhotosPage() {
             <select
               value={activeLibraryID ?? ""}
               onChange={(e) => { setSelectedLibraryID(e.target.value); setSelectedAlbum(undefined); }}
+              aria-label={t("media.library.selectLibrary")}
               className="text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] cursor-pointer"
             >
               {libraries.map((lib) => (

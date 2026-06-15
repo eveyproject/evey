@@ -49,8 +49,8 @@ function SegmentBlock({
   const { t } = useTranslation();
   const leftPct = durationMs > 0 ? (segment.startMs / durationMs) * 100 : 0;
   const widthPct = durationMs > 0 ? ((segment.endMs - segment.startMs) / durationMs) * 100 : 0;
-  const color = SEGMENT_COLORS[segment.type] ?? "bg-gray-500";
-  const borderColor = SEGMENT_BORDER_COLORS[segment.type] ?? "border-gray-500";
+  const color = SEGMENT_COLORS[segment.type] ?? "bg-[var(--surface-raised)]";
+  const borderColor = SEGMENT_BORDER_COLORS[segment.type] ?? "border-[var(--border)]";
   const manual = isManualSource(segment.source);
 
   return (
@@ -200,7 +200,7 @@ export function SegmentTimeline({
       {/* Legend */}
       <div className="flex flex-wrap gap-3">
         {segments.map((seg) => {
-          const color = SEGMENT_COLORS[seg.type] ?? "bg-gray-500";
+          const color = SEGMENT_COLORS[seg.type] ?? "bg-[var(--surface-raised)]";
           const manual = isManualSource(seg.source);
           return (
             <button

@@ -125,6 +125,7 @@ function SearchPage() {
           <input
             ref={inputRef}
             type="search"
+            aria-label={t("media.search.placeholder")}
             placeholder={t("media.search.placeholder")}
             data-testid="search-page-input"
             value={inputValue}
