@@ -82,9 +82,10 @@ function PersonPage() {
           </div>
           {!isLoading && (
             <p className="text-sm text-[var(--text-muted)]">
-              {items.length === 1
-                ? t("media.person.titleCount", { count: items.length })
-                : t("media.person.titleCount_plural", { count: items.length })}
+              {/* i18next v4 picks titleCount_one / titleCount_other from {count};
+                  the manual _plural suffix (v3 style) has no matching key and
+                  rendered the raw key for any count != 1. */}
+              {t("media.person.titleCount", { count: items.length })}
             </p>
           )}
           {(person?.birthday || person?.placeOfBirth) && (
