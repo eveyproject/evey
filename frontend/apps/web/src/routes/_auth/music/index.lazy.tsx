@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { Virtuoso } from "react-virtuoso";
+import { MediaGrid } from "@/features/library/MediaGrid";
 import { useDebounce } from "@/hooks/useDebounce";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import {
@@ -773,6 +775,7 @@ function TracksTab({
         <input
           type="search"
           placeholder={t("media.music.searchPlaceholder")}
+          aria-label={t("media.music.searchPlaceholder")}
           value={search}
           onChange={(e) => { onSearchChange(e.target.value); setPage(0); }}
           className="w-full max-w-[400px] px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] text-sm"
@@ -913,8 +916,7 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
-  if (loading) return <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>;
-  if (!albums.length) return <p className="text-[var(--text-muted)]">{t("media.music.noAlbums")}</p>;
+  if (!loading && !albums.length) return <p className="text-[var(--text-muted)]">{t("media.music.noAlbums")}</p>;
 
   function downloadAlbum(a: Album) {
     if (!libraryID) return;
@@ -923,7 +925,7 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
   }
 
   return (
-    <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">
+    <MediaGrid isLoading={loading}>
       {albums.map((a) => (
         <div
           key={a.ID}
@@ -966,7 +968,7 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
           </button>
         </div>
       ))}
-    </div>
+    </MediaGrid>
   );
 }
 
@@ -974,34 +976,44 @@ function ArtistsTab({ artists, loading, onArtistClick }: { artists: Artist[]; lo
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  // Mirror the scroll-parent pattern from MediaGrid so Virtuoso's endReached
+  // fires correctly inside AuthLayout's overflow-y-auto #main-content region.
+  const [scrollParent, setScrollParent] = useState<HTMLElement | null>(null);
+  useEffect(() => { setScrollParent(document.getElementById("main-content")); }, []);
+
   if (loading) return <p className="text-[var(--text-muted)]">{t("media.music.loading")}</p>;
   if (!artists.length) return <p className="text-[var(--text-muted)]">{t("media.music.noArtists")}</p>;
 
   return (
-    <div className="flex flex-col gap-1">
-      {artists.map((a) => (
-        <div
-          key={a.ID}
-          onClick={() => onArtistClick(a)}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onArtistClick(a); } }}
-          className="flex items-center justify-between px-4 py-3 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] cursor-pointer hover:border-[var(--accent)] transition-colors-fast"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div
-              className="w-12 h-12 rounded-full bg-cover bg-center bg-[var(--surface)] flex items-center justify-center flex-shrink-0"
-              style={{ backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined }}
-            >
-              {!a.CoverArtURL && <Music size={20} className="opacity-30 text-[var(--text-muted)]" />}
+    <Virtuoso
+      customScrollParent={scrollParent ?? undefined}
+      totalCount={artists.length}
+      overscan={400}
+      itemContent={(index) => {
+        const a = artists[index];
+        return (
+          <div
+            onClick={() => onArtistClick(a)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onArtistClick(a); } }}
+            className="flex items-center justify-between px-4 py-3 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] cursor-pointer hover:border-[var(--accent)] transition-colors-fast mb-1"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className="w-12 h-12 rounded-full bg-cover bg-center bg-[var(--surface)] flex items-center justify-center flex-shrink-0"
+                style={{ backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined }}
+              >
+                {!a.CoverArtURL && <Music size={20} className="opacity-30 text-[var(--text-muted)]" />}
+              </div>
+              <span className="font-medium text-[var(--text)] truncate">{a.Name}</span>
             </div>
-            <span className="font-medium text-[var(--text)] truncate">{a.Name}</span>
+            <span className="text-sm text-[var(--text-muted)]">
+              {t("media.music.albumCount", { count: a.AlbumCount })} · {t("media.music.trackCount", { count: a.TrackCount })}
+            </span>
           </div>
-          <span className="text-sm text-[var(--text-muted)]">
-            {t("media.music.albumCount", { count: a.AlbumCount })} · {t("media.music.trackCount", { count: a.TrackCount })}
-          </span>
-        </div>
-      ))}
-    </div>
+        );
+      }}
+    />
   );
 }
