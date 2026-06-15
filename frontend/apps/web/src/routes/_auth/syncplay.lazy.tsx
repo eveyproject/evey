@@ -237,6 +237,13 @@ function SyncPlayPage() {
               controls={state.isHost}
               autoPlay={false}
               className="w-full"
+              onEnded={() => {
+                // Auto-advance the shared queue when a track finishes. Only the
+                // host drives it; the server echoes the "next" to every member
+                // (host included), so all clients load the next track in sync.
+                // No-op at the end of the queue (the hub bounds-checks the index).
+                if (state.isHost) controls.sendNext();
+              }}
             />
           )}
           {!state.isHost && (
