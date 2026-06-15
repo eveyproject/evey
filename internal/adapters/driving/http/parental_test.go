@@ -5,6 +5,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -117,6 +119,54 @@ type allowAllParental struct{}
 
 func (allowAllParental) BlockedByParental(context.Context, string, *domainlibrary.MediaItem) bool {
 	return false
+}
+
+// TestMediaStream_ParentalBlocked_NotFound guards the parental gate on the main
+// streaming endpoint (handleStream / withParental). Production wires
+// withParental(parentalChk) in server.go, but no test exercised a blocking
+// checker through it — a regression dropping the gate from the primary flux
+// would have passed unnoticed. The temp file makes the negative control real:
+// with the gate open the bytes stream (200), so the 404 below is the gate.
+func TestMediaStream_ParentalBlocked_NotFound(t *testing.T) {
+	tmp := t.TempDir()
+	mediaPath := filepath.Join(tmp, "movie.mkv")
+	if err := os.WriteFile(mediaPath, []byte("fake-media-bytes"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: shared.LibraryID("lib1"),
+		File:      &domainlibrary.MediaFile{Path: mediaPath},
+	}
+	newReq := func() *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1", nil)
+		req.SetPathValue("id", "m1")
+		return withHTTPClaims(req, testClaims(false))
+	}
+	build := func(pc ParentalChecker) http.HandlerFunc {
+		return mediaHandler(
+			&fakeTokenVerifier{claims: testClaims(false)},
+			&fakeMediaItemGetter{item: item},
+			nil, // artworkRepo: unused on the stream path
+			"http://localhost",
+			&fakeLibraryAccessChecker{allowed: true}, // library access granted…
+			withParental(pc),
+		)
+	}
+
+	// Control: gate open → the existing file streams.
+	wOK := httptest.NewRecorder()
+	build(allowAllParental{}).ServeHTTP(wOK, newReq())
+	if wOK.Code != http.StatusOK {
+		t.Fatalf("control: open parental gate should stream the file, got %d: %s", wOK.Code, wOK.Body.String())
+	}
+
+	// …but parental blocks → 404, hiding the item's existence.
+	wBlocked := httptest.NewRecorder()
+	build(alwaysBlockChecker{}).ServeHTTP(wBlocked, newReq())
+	if wBlocked.Code != http.StatusNotFound {
+		t.Errorf("parental-blocked stream must return 404 (existence hidden), got %d", wBlocked.Code)
+	}
 }
 
 func TestDownloadHandler_ParentalBlocked_NotFound(t *testing.T) {
