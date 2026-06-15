@@ -1,0 +1,10 @@
+DROP INDEX IF EXISTS idx_watch_progress_media_item_id;
+DROP INDEX IF EXISTS idx_favorites_media_item_id;
+DROP INDEX IF EXISTS idx_transcode_sessions_media_item_id;
+DROP INDEX IF EXISTS idx_share_links_media_item_id;
+DROP INDEX IF EXISTS idx_library_access_library_id;
+DROP INDEX IF EXISTS idx_music_track_plays_track_id;
+DROP INDEX IF EXISTS idx_refresh_tokens_profile_id;
+DROP INDEX IF EXISTS idx_user_roles_role_id;
+DROP INDEX IF EXISTS idx_syncplay_rooms_host_id;
+DROP INDEX IF EXISTS idx_plugin_data_user_id;
