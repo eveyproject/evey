@@ -603,8 +603,17 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 // if every probe fails — guarantees the host can at least serve a 720p
 // stream.
 func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
-	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software", "libx264", 720)
+	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software", "libx264", r.margin, 720)
 }
+
+// av1RealtimeMarginMultiplier raises the realtime margin the AV1 software ladder
+// must clear, on top of the base margin used for x264. Belt-and-suspenders for
+// the cold-start: the -readrate_initial_burst masks SVT-AV1's first-segment
+// latency only in proportion to throughput headroom, so a rung is offered only
+// when the host encodes it with real spare capacity (≈2.4x realtime at the
+// default 1.2 base). A box that merely scrapes realtime AV1 is kept hardware-only
+// rather than handed an AV1 rung that stutters on every fresh play/seek.
+const av1RealtimeMarginMultiplier = 2.0
 
 // benchSoftwareAV1 probes the libsvtav1 (AV1 software) ceiling under the same
 // pipeline shape as benchSoftware, at the production svtAV1Preset. AV1 software
@@ -613,7 +622,7 @@ func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fall
 // 720p AV1 software has no viable AV1 software path, and 0 is exactly what the
 // handler's effectiveVideoCodec gate reads to keep AV1 hardware-only there.
 func (r *BenchmarkRunner) benchSoftwareAV1(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
-	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software-av1", "libsvtav1", 0)
+	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software-av1", "libsvtav1", r.margin*av1RealtimeMarginMultiplier, 0)
 }
 
 // benchSoftwareHDR probes the software ceiling for HDR->SDR content: the SAME
@@ -638,7 +647,7 @@ func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, f
 		o.DstWidth = topH * 16 / 9
 		o.UseTonemapx = useTonemapx
 		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o)
-	}, "software-hdr", "libx264", 480)
+	}, "software-hdr", "libx264", r.margin, 480)
 }
 
 // probeRungs returns the rungs a software probe encodes when the ladder top is
@@ -659,9 +668,9 @@ func probeRungs(ladder []int, i int, singleVariant bool) []int {
 // in isolation (1 decode + 1 encode at h); in multi-variant mode rung h is
 // probed alongside every lighter rung (1 decode + N parallel encodes). Highest
 // rung sustaining >= sourceRate×margin wins; floor when none pass.
-func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label, encoder string, floor int) (int, []transcoding.BenchRungSample) {
+func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label, encoder string, margin float64, floor int) (int, []transcoding.BenchRungSample) {
 	best := 0
-	required := float64(r.sourceRate()) * r.margin
+	required := float64(r.sourceRate()) * margin
 	var samples []transcoding.BenchRungSample
 	for i, h := range swBenchLadder {
 		laddered := probeRungs(swBenchLadder, i, r.singleVariant)

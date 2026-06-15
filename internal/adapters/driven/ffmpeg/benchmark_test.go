@@ -103,12 +103,21 @@ func TestBenchmarkRunner_AV1Ceiling(t *testing.T) {
 			"AV1 ceiling must be 0 or a software ladder rung")
 	}
 
-	var sawAV1 bool
+	// Belt-and-suspenders: the AV1 ladder must require a HIGHER realtime margin
+	// than the x264 ladder, so a host only gets an AV1 rung with throughput to
+	// spare (the cold-start burst needs that headroom). Compare the per-rung
+	// RequiredFPS the bench recorded.
+	var av1Req, swReq float64
 	for _, s := range cap.BenchSamples {
-		if s.Ladder == "software-av1" {
-			sawAV1 = true
-			break
+		switch s.Ladder {
+		case "software-av1":
+			av1Req = s.RequiredFPS
+		case "software":
+			swReq = s.RequiredFPS
 		}
 	}
-	assert.True(t, sawAV1, "bench must record software-av1 rung samples")
+	assert.NotZero(t, av1Req, "bench must record software-av1 rung samples")
+	assert.NotZero(t, swReq, "bench must record software rung samples")
+	assert.InDelta(t, swReq*2.0, av1Req, 0.01,
+		"AV1 must require ~2x the realtime margin of x264 (belt-and-suspenders cold-start guard)")
 }
