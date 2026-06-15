@@ -697,6 +697,9 @@ serverSettings:
   saved: "Paramètres enregistrés"
   usingDefault: "Valeur par défaut :"
   reset: "Réinitialiser"
+  softwareAV1MaxHeight: "Plafond AV1 logiciel"
+  softwareAV1Auto: "Auto (matériel uniquement)"
+  softwareAV1Info: "Hauteur maximale pour l'encodage AV1 logiciel (libsvtav1). Auto réserve AV1 au matériel quand le CPU ne peut pas soutenir l'encodage logiciel ; l'AV1 logiciel est très exigeant sur les CPU faibles."
 
 qoe:
   title: "Qualité streaming"

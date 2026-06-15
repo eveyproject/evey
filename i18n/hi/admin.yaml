@@ -659,6 +659,9 @@ serverSettings:
   saved: "सेटिंग्स सहेजी गईं"
   usingDefault: "डिफ़ॉल्ट मान:"
   reset: "डिफ़ॉल्ट पर रीसेट करें"
+  softwareAV1MaxHeight: "AV1 सॉफ़्टवेयर सीमा"
+  softwareAV1Auto: "Auto (केवल हार्डवेयर)"
+  softwareAV1Info: "AV1 सॉफ़्टवेयर (libsvtav1) एन्कोडिंग के लिए अधिकतम ऊँचाई। Auto तब AV1 को केवल हार्डवेयर पर रखता है जब होस्ट सॉफ़्टवेयर एन्कोडिंग को बनाए नहीं रख सकता; कमज़ोर CPU पर AV1 सॉफ़्टवेयर बहुत भारी होता है।"
 
 calibration:
   cardTitle: "एनकोड कैलिब्रेशन"

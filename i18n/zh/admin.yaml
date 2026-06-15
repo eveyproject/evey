@@ -659,6 +659,9 @@ serverSettings:
   saved: "设置已保存"
   usingDefault: "默认值："
   reset: "重置为默认值"
+  softwareAV1MaxHeight: "AV1 软件上限"
+  softwareAV1Auto: "自动（仅硬件）"
+  softwareAV1Info: "AV1 软件（libsvtav1）编码的最大高度。自动模式下，当主机无法维持软件编码时，AV1 仅使用硬件；AV1 软件编码在低性能 CPU 上开销很大。"
 
 calibration:
   cardTitle: "编码校准"

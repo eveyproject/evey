@@ -698,6 +698,9 @@ serverSettings:
   saved: Settings saved
   usingDefault: "Using default:"
   reset: Reset to default
+  softwareAV1MaxHeight: AV1 software ceiling
+  softwareAV1Auto: "Auto (hardware-only)"
+  softwareAV1Info: "Maximum height for AV1 software (libsvtav1) encoding. Auto keeps AV1 hardware-only when the host can't sustain it; AV1 software is heavy on weak CPUs."
 
 qoe:
   title: Streaming Quality

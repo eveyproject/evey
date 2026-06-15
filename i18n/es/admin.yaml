@@ -659,6 +659,9 @@ serverSettings:
   saved: "Configuracion guardada"
   usingDefault: "Valor predeterminado:"
   reset: "Restablecer valor predeterminado"
+  softwareAV1MaxHeight: "Límite de software AV1"
+  softwareAV1Auto: "Auto (solo hardware)"
+  softwareAV1Info: "Altura máxima para la codificación AV1 por software (libsvtav1). Auto mantiene AV1 solo en hardware cuando el CPU no puede sostener la codificación por software; AV1 por software exige mucho a los CPU débiles."
 
 calibration:
   cardTitle: "Calibración de codificación"

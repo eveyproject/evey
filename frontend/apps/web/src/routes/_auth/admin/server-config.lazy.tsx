@@ -771,6 +771,7 @@ interface ServerSettings {
   libraryWatcherEnabled: SettingValue<boolean>;
   periodicScanInterval: SettingValue<string>;
   skipPreviewEnabled: SettingValue<boolean>;
+  softwareAV1MaxHeight: SettingValue<number>;
 }
 const SETTINGS_KEY = ["/api/v1/admin/server-settings"];
 const LOG_LEVELS = ["debug", "info", "warn", "error"];
@@ -790,6 +791,7 @@ function ServerSettingsCard() {
   const [libraryWatcher, setLibraryWatcher] = useState(true);
   const [scanInterval, setScanInterval] = useState("");
   const [skipPreview, setSkipPreview] = useState(false);
+  const [av1Max, setAv1Max] = useState("");
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -802,6 +804,7 @@ function ServerSettingsCard() {
       setLibraryWatcher(data.libraryWatcherEnabled.value);
       setScanInterval(data.periodicScanInterval.source === "override" ? String(data.periodicScanInterval.value) : "");
       setSkipPreview(data.skipPreviewEnabled.value);
+      setAv1Max(String(data.softwareAV1MaxHeight.value));
     }
   }, [data]);
 
@@ -829,6 +832,7 @@ function ServerSettingsCard() {
     body.libraryWatcherEnabled = libraryWatcher;
     if (scanInterval) body.periodicScanInterval = scanInterval;
     body.skipPreviewEnabled = skipPreview;
+    if (av1Max !== "") body.softwareAV1MaxHeight = parseInt(av1Max, 10);
     saveMutation.mutate(body);
   }
 
@@ -849,6 +853,23 @@ function ServerSettingsCard() {
           <div className="flex flex-col gap-1">
             <Input label={t("admin.serverSettings.maxConcurrentTranscodes")} type="number" min={0} placeholder={String(data.maxConcurrentTranscodes.default ?? 2)} value={maxTranscodes} onChange={(e) => { setMaxTranscodes(e.target.value); setDirty(true); }} />
             <ResetBtn setting={data.maxConcurrentTranscodes} field="maxConcurrentTranscodes" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <Select
+              label={t("admin.serverSettings.softwareAV1MaxHeight")}
+              data-testid="software-av1-select"
+              value={av1Max}
+              onChange={(v) => { setAv1Max(v); setDirty(true); }}
+              options={[
+                { label: t("admin.serverSettings.softwareAV1Auto"), value: "0" },
+                { label: "480p", value: "480" },
+                { label: "720p", value: "720" },
+                { label: "1080p", value: "1080" },
+                { label: "1440p", value: "1440" },
+              ]}
+            />
+            <p className="text-xs text-[var(--text-muted)]">{t("admin.serverSettings.softwareAV1Info")}</p>
+            <ResetBtn setting={data.softwareAV1MaxHeight} field="softwareAV1MaxHeight" />
           </div>
           <p className="text-xs text-[var(--text-muted)]">{t("admin.serverSettings.hwMovedHint", "Hardware acceleration is configured in the Encode calibration card below.")}</p>
           <div className="flex flex-col gap-1">

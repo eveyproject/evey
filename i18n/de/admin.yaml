@@ -659,6 +659,9 @@ serverSettings:
   saved: Einstellungen gespeichert
   usingDefault: "Standardwert:"
   reset: Auf Standard zurücksetzen
+  softwareAV1MaxHeight: "AV1-Software-Obergrenze"
+  softwareAV1Auto: "Auto (nur Hardware)"
+  softwareAV1Info: "Maximale Höhe für die AV1-Softwarekodierung (libsvtav1). Auto behält AV1 als Hardware-only, wenn der Host es nicht softwareseitig durchhalten kann; AV1-Software ist auf schwachen CPUs sehr rechenintensiv."
 
 calibration:
   cardTitle: "Encode-Kalibrierung"
