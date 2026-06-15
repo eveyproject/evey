@@ -78,3 +78,37 @@ func TestBenchmarkRunner_RespectMargin(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 720, cap.SoftwareMaxHeight, "impossible margin must still floor at 720p (not 0)")
 }
+
+// TestBenchmarkRunner_AV1Ceiling proves the AV1 software bench runs and yields
+// its OWN ceiling (libsvtav1, not the libx264 number): either 0 (not viable —
+// AV1 has no 720p floor) or a real ladder rung. The samples must carry the
+// software-av1 label so the admin calibration view can show why AV1 is gated.
+func TestBenchmarkRunner_AV1Ceiling(t *testing.T) {
+	requireFFmpeg(t)
+
+	r := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{
+		SamplePath:  "/nonexistent/forces/fallback.mkv",
+		DurationSec: 1,
+		Margin:      0.1, // permissive — a box that can libsvtav1-encode at all passes
+	}, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	cap, err := r.Run(ctx, transcoding.HWPreference{})
+	require.NoError(t, err)
+
+	// Its own number, never the 720 H.264 floor: 0 or a valid ladder rung.
+	if cap.SoftwareAV1MaxHeight != 0 {
+		assert.Contains(t, []int{720, 1080, 1440}, cap.SoftwareAV1MaxHeight,
+			"AV1 ceiling must be 0 or a software ladder rung")
+	}
+
+	var sawAV1 bool
+	for _, s := range cap.BenchSamples {
+		if s.Ladder == "software-av1" {
+			sawAV1 = true
+			break
+		}
+	}
+	assert.True(t, sawAV1, "bench must record software-av1 rung samples")
+}

@@ -182,6 +182,11 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	hdrSample, hdrFallback := r.resolveHDRSample()
 	swHDRMax, hdrSamples := r.benchSoftwareHDR(ctx, hdrSample, hdrFallback)
 
+	// AV1 software (libsvtav1) ceiling — its own number because AV1 is several
+	// times heavier than libx264; 0 on hosts that can't sustain it (the common
+	// weak-NAS case), which keeps AV1 output hardware-only via the handler gate.
+	swAV1Max, av1Samples := r.benchSoftwareAV1(ctx, sample, fallback)
+
 	// detected lists every accelerator the host advertises. Skipped entirely
 	// when HW is disabled (mode=off): probing the GPU — including the real-encode
 	// verification probe — wastes CPU and spams "hwdetect: probe failed" on a
@@ -231,6 +236,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	cap := transcoding.EncodeCapability{
 		SoftwareMaxHeight:    swMax,
 		SoftwareHDRMaxHeight: swHDRMax,
+		SoftwareAV1MaxHeight: swAV1Max,
 		HWMaxHeight:          hwMax,
 		HWBackend:            hwBackend,
 		HWCodecs:             hwCodecs,
@@ -247,11 +253,12 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// Per-rung evidence (fps vs realtime threshold) behind the ceilings above,
 		// surfaced in the admin calibration API so the operator can see WHY the
 		// HDR cap floored to 480p instead of guessing.
-		BenchSamples: append(swSamples, hdrSamples...),
+		BenchSamples: append(append(swSamples, hdrSamples...), av1Samples...),
 	}
 	r.logger.Info("benchmark: complete",
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
 		slog.Int("software_hdr_max_height", cap.SoftwareHDRMaxHeight),
+		slog.Int("software_av1_max_height", cap.SoftwareAV1MaxHeight),
 		slog.Int("hw_max_height", cap.HWMaxHeight),
 		slog.String("hw_backend", cap.HWBackend),
 		slog.Bool("hw_10bit_transcode", cap.HW10BitTranscode),
@@ -596,7 +603,17 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 // if every probe fails — guarantees the host can at least serve a 720p
 // stream.
 func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
-	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software", 720)
+	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software", "libx264", 720)
+}
+
+// benchSoftwareAV1 probes the libsvtav1 (AV1 software) ceiling under the same
+// pipeline shape as benchSoftware, at the production svtAV1Preset. AV1 software
+// is several times heavier than libx264, so this almost always pins LOWER (often
+// to nothing on a weak NAS). Floor 0 — NOT 720: a host that can't sustain even
+// 720p AV1 software has no viable AV1 software path, and 0 is exactly what the
+// handler's effectiveVideoCodec gate reads to keep AV1 hardware-only there.
+func (r *BenchmarkRunner) benchSoftwareAV1(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
+	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software-av1", "libsvtav1", 0)
 }
 
 // benchSoftwareHDR probes the software ceiling for HDR->SDR content: the SAME
@@ -621,7 +638,7 @@ func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, f
 		o.DstWidth = topH * 16 / 9
 		o.UseTonemapx = useTonemapx
 		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o)
-	}, "software-hdr", 480)
+	}, "software-hdr", "libx264", 480)
 }
 
 // probeRungs returns the rungs a software probe encodes when the ladder top is
@@ -642,13 +659,13 @@ func probeRungs(ladder []int, i int, singleVariant bool) []int {
 // in isolation (1 decode + 1 encode at h); in multi-variant mode rung h is
 // probed alongside every lighter rung (1 decode + N parallel encodes). Highest
 // rung sustaining >= sourceRate×margin wins; floor when none pass.
-func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label string, floor int) (int, []transcoding.BenchRungSample) {
+func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string, fallback bool, preFilter func(topHeight int) string, label, encoder string, floor int) (int, []transcoding.BenchRungSample) {
 	best := 0
 	required := float64(r.sourceRate()) * r.margin
 	var samples []transcoding.BenchRungSample
 	for i, h := range swBenchLadder {
 		laddered := probeRungs(swBenchLadder, i, r.singleVariant)
-		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, "libx264", nil, preFilter(h))
+		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, nil, preFilter(h))
 		passing := ok && fps >= required
 		samples = append(samples, transcoding.BenchRungSample{
 			Ladder:          label,
@@ -915,6 +932,11 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 			if hwPreset != "" {
 				args = append(args, "-preset", hwPreset)
 			}
+		} else if encoder == "libsvtav1" {
+			// libsvtav1 takes the numeric preset (it rejects "veryfast") — bench at
+			// the SAME svtAV1Preset the production builder emits, or the cap is
+			// measured against a speed the runtime never uses.
+			args = append(args, "-preset", svtAV1Preset, "-pix_fmt", "yuv420p")
 		} else {
 			// veryfast (NOT ultrafast) to match the production encoders
 			// (hls_transcoder buildSingle/MultiVariantArgs). Benching a faster
