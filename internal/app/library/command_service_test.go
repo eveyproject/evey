@@ -1509,6 +1509,32 @@ func TestScanLibrary_NewFile_IndexesInSearch(t *testing.T) {
 	assert.Equal(t, "Batman", hits[0].Title)
 }
 
+func TestScanLibrary_OrphanEpisodeNotPersisted(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, _, scanner, _, search, _ := newCmdSvcWithSearch()
+
+	lib := &library.Library{
+		ID:    "lib-orph",
+		Name:  "Movies",
+		Type:  "movie",
+		Paths: []string{"/movies"},
+	}
+	svc.CreateLibrary(context.Background(), lib)
+	libQueryRepo.Seed(lib)
+	// An episode-typed file scanned flat (no resolvable parent) must NOT be
+	// persisted as an orphan row — the hierarchy invariant rejects it.
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/loose.mkv", Size: 1000, Title: "Loose", Type: library.Episode},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-orph")
+	require.NoError(t, err)
+
+	_, total, err := search.Search(context.Background(), "loose", nil, nil, 10)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), total, "orphan episode must not be created or indexed")
+}
+
 func TestScanLibrary_OrphanRemovedFromSearchIndex(t *testing.T) {
 	t.Parallel()
 	svc, _, libQueryRepo, mediaRepo, scanner, _, search, _ := newCmdSvcWithSearch()

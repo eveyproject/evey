@@ -500,6 +500,12 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, f library.Scann
 // (probe streams, chapters, meili index) and publishes MediaItemAdded.
 // Called only when findExistingMediaFile returned nil.
 func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, showTitle string) error {
+	// Enforce the hierarchy invariant up front: an episode or season without a
+	// parent ID would persist as an orphan that only surfaces later as a broken
+	// row (mirrors library.ErrMissingParent in the NewMediaItem constructor).
+	if (f.Type == library.Episode || f.Type == library.Season) && parentID == "" {
+		return fmt.Errorf("build media item %s: %w", f.Path, library.ErrMissingParent)
+	}
 	item := &library.MediaItem{
 		ID:          shared.MediaItemID(uuid.New().String()),
 		LibraryID:   shared.LibraryID(libraryID),
