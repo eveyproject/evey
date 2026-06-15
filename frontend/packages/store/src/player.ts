@@ -1,6 +1,8 @@
 import { create } from "zustand";
 
-export type PlayerMode = "hidden" | "full";
+// "mini" is still used by the mobile app's MiniPlayer; the web app dropped its
+// floating mini-player (back = stop) but the type stays shared across apps.
+export type PlayerMode = "hidden" | "mini" | "full";
 
 let _cleanupFn: (() => void) | null = null;
 export function setPlayerCleanup(fn: (() => void) | null) { _cleanupFn = fn; }
