@@ -118,18 +118,18 @@ function qualityStatus(ratio: number, totalEvents: number): HealthLevel {
 function HealthBanner({ level, ratio }: { level: HealthLevel; ratio: number }) {
   const { t } = useTranslation();
   const card: Record<HealthLevel, string> = {
-    excellent: "border-emerald-500/30 bg-emerald-500/5",
-    good: "border-emerald-500/30 bg-emerald-500/5",
+    excellent: "border-[color-mix(in_srgb,var(--color-success)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-success)_5%,transparent)]",
+    good: "border-[color-mix(in_srgb,var(--color-success)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-success)_5%,transparent)]",
     fair: "border-border bg-muted/20",
-    marginal: "border-amber-500/40 bg-amber-500/5",
+    marginal: "border-[color-mix(in_srgb,var(--color-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_5%,transparent)]",
     poor: "border-destructive/40 bg-destructive/5",
     insufficient: "border-border bg-muted/10",
   };
   const badge: Record<HealthLevel, string> = {
-    excellent: "bg-emerald-500/15 text-emerald-600",
-    good: "bg-emerald-500/15 text-emerald-600",
+    excellent: "bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-[var(--color-success)]",
+    good: "bg-[color-mix(in_srgb,var(--color-success)_15%,transparent)] text-[var(--color-success)]",
     fair: "bg-muted text-foreground",
-    marginal: "bg-amber-500/15 text-amber-600",
+    marginal: "bg-[color-mix(in_srgb,var(--color-warning)_15%,transparent)] text-[var(--color-warning)]",
     poor: "bg-destructive/15 text-destructive",
     insufficient: "bg-muted text-muted-foreground",
   };
@@ -513,7 +513,7 @@ interface KpiCardProps {
 function KpiCard({ label, value, icon, variant = "default" }: KpiCardProps) {
   const accent =
     variant === "warning"
-      ? "border-amber-500/30 bg-amber-500/5"
+      ? "border-[color-mix(in_srgb,var(--color-warning)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_5%,transparent)]"
       : "border-border";
   return (
     <Card className={`p-4 ${accent}`}>

@@ -194,7 +194,7 @@ export function EncodeCalibrationCard() {
                 : t("admin.calibration.detectedNone", "No GPU accelerator detected")}
             </p>
             {isWsl && (
-              <p className="text-xs text-amber-600">
+              <p className="text-xs text-[var(--color-warning)]">
                 {t(
                   "admin.calibration.wslVaapiNote",
                   "VAAPI/QSV go through Mesa's d3d12 driver on WSL and can't sustain transcoding here — use NVENC, or validate VAAPI on a native Linux host.",
@@ -284,8 +284,8 @@ export function EncodeCalibrationCard() {
       ) : null}
 
       {fallbacks.length > 0 && (
-        <div className="rounded-[var(--radius-md)] border border-amber-500/40 bg-amber-500/5 p-3">
-          <p className="text-sm font-medium text-amber-600">
+        <div className="rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--color-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_5%,transparent)] p-3">
+          <p className="text-sm font-medium text-[var(--color-warning)]">
             {t("admin.calibration.hwFallbacks", "Hardware fallbacks")}
           </p>
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
@@ -362,7 +362,7 @@ function CodecSupportBlock({
         </p>
       )}
       {softwareDecodeOnly.length > 0 && (
-        <p className="text-amber-600">
+        <p className="text-[var(--color-warning)]">
           {t("admin.calibration.codecSoftwareDecodeNote", "{{codecs}} — decoded in software (GPU encode only)", {
             codecs: softwareDecodeOnly.map((c) => c.toUpperCase()).join(", "),
           })}
