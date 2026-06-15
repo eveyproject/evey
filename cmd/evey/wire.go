@@ -683,6 +683,17 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		hwModeStr = v
 	}
 	hwMode := domaintranscoding.ResolveHWMode(hwModeStr, hwAccelEnabled, cfg.Transcoding.HWBackend)
+	// AV1 software ceiling is admin-settable (server_settings), so — like hw_mode
+	// above — read the persisted override DIRECTLY from the store here: main's
+	// loadOverride pass that hydrates cfg.Transcoding.SoftwareAV1MaxHeightOverride
+	// runs AFTER this, so trusting the cfg field would always seed 0 and the
+	// admin's saved ceiling would be lost on every restart.
+	swAV1Override := cfg.Transcoding.SoftwareAV1MaxHeightOverride
+	if v := cfgOverride("transcoding.software_av1_max_height"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			swAV1Override = n
+		}
+	}
 	// The bench must model the runtime pipeline shape: single-variant probes
 	// one rung (decode + 1 encode), the cap a single on-demand session can
 	// actually sustain. Benching the parallel ladder while the runtime serves
@@ -701,7 +712,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		apptranscoding.WithSoftwareCapOverrides(
 			cfg.Transcoding.SoftwareMaxHeightOverride,
 			cfg.Transcoding.SoftwareHDRMaxHeightOverride),
-		apptranscoding.WithSoftwareAV1MaxOverride(cfg.Transcoding.SoftwareAV1MaxHeightOverride))
+		apptranscoding.WithSoftwareAV1MaxOverride(swAV1Override))
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}
