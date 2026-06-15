@@ -75,6 +75,15 @@ func (s *CommandService) PurgeOldAuditLogs(ctx context.Context, before time.Time
 // retention window (days <= 0 = keep forever). Failures are logged, never
 // fatal — a single bad pass must not kill the daily loop.
 func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDays int) {
+	// "Never fatal" covers panics too, not just errors: the caller runs this in a
+	// detached daily goroutine, so an unrecovered panic (e.g. a nil repo or a
+	// malformed row) would take down the whole process AND stop every future
+	// purge. Recover, log, and let the next tick fire.
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("retention purge panic recovered", slog.Any("panic", r))
+		}
+	}()
 	now := time.Now()
 	if auditDays > 0 {
 		if n, err := s.PurgeOldAuditLogs(ctx, now.AddDate(0, 0, -auditDays)); err != nil {

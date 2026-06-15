@@ -457,3 +457,47 @@ func TestGetLoginHistory_Pagination(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, page2, 2)
 }
+
+// panicMetricRepo panics on Purge so a retention sweep panics mid-pass.
+type panicMetricRepo struct{ called chan struct{} }
+
+func (p *panicMetricRepo) Create(context.Context, *activity.ServerMetric) error { return nil }
+func (p *panicMetricRepo) GetByTimeRange(context.Context, time.Time, time.Time) ([]*activity.ServerMetric, error) {
+	return nil, nil
+}
+func (p *panicMetricRepo) TotalBandwidthBytes(context.Context) (int64, error) { return 0, nil }
+func (p *panicMetricRepo) Purge(context.Context, time.Time) error {
+	select {
+	case p.called <- struct{}{}:
+	default:
+	}
+	panic("simulated retention purge panic")
+}
+
+// TestStartRetentionPurge_RecoversPanicInPass proves the daily retention
+// goroutine survives a panic in a pass (not just an error). Without the recover
+// in runRetention, an unrecovered goroutine panic aborts the whole process;
+// reaching the end of this test proves the panic was caught.
+func TestStartRetentionPurge_RecoversPanicInPass(t *testing.T) {
+	pm := &panicMetricRepo{called: make(chan struct{}, 1)}
+	svc := appactivity.NewCommandService(
+		actfakes.NewFakeLoginHistoryRepository(),
+		pm,
+		actfakes.NewFakeAuditLogRepository(),
+		sharedfakes.NewFakeEventBus(),
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// metricsDays > 0 → the startup pass calls metrics.Purge, which panics.
+	svc.StartRetentionPurge(ctx, 0, 7)
+
+	select {
+	case <-pm.called:
+	case <-time.After(2 * time.Second):
+		t.Fatal("retention purge pass never ran")
+	}
+	// Grace for the deferred recover to unwind — an unrecovered panic would have
+	// aborted the process before this returns.
+	time.Sleep(100 * time.Millisecond)
+}
