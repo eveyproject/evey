@@ -352,6 +352,12 @@ func TestLogin_UserDisabled(t *testing.T) {
 	if !errors.Is(err, ErrUserDisabled) {
 		t.Fatalf("expected ErrUserDisabled, got %v", err)
 	}
+	// The password hash MUST be verified even for a disabled account, otherwise
+	// the early ErrUserDisabled return is faster than a wrong-password attempt
+	// and timing reveals that the username exists but is disabled.
+	if d.hasher.VerifyCalls != 1 {
+		t.Fatalf("disabled login must still run one bcrypt verify (timing-oracle guard), got %d", d.hasher.VerifyCalls)
+	}
 }
 
 func TestLogin_HasherVerifyError(t *testing.T) {

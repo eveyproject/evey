@@ -267,11 +267,15 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		}
 		return "", "", ErrInvalidCredentials
 	}
+	// Verify BEFORE the CanLogin gate so a disabled account costs the same bcrypt
+	// as an enabled account with a wrong password. Returning ErrUserDisabled
+	// without running the hash lets timing separate "exists & disabled" from the
+	// other states (the error is flattened to a generic message above the HTTP
+	// boundary, so timing is the only remaining oracle).
+	ok, err := s.hasher.Verify(password, u.PasswordHash)
 	if !u.CanLogin() {
 		return "", "", ErrUserDisabled
 	}
-
-	ok, err := s.hasher.Verify(password, u.PasswordHash)
 	if err != nil || !ok {
 		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
 			slog.Warn("login attempt Record", slog.String("username", username), slog.Any("err", recErr))
