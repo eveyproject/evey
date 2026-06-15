@@ -181,3 +181,55 @@ func TestStreamIsTenBit(t *testing.T) {
 		t.Error("8-bit Main video stream must not be flagged 10-bit")
 	}
 }
+
+func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
+	dec := func(codec string) domaintranscoding.PlaybackDecision {
+		return domaintranscoding.PlaybackDecision{VideoCodec: codec}
+	}
+
+	t.Run("av1 + no HW + no AV1 sw ceiling falls back to h264", func(t *testing.T) {
+		h := &hlsVODServe{
+			capability:     func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() },
+			hwAccelEnabled: func() bool { return true },
+		}
+		got, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
+		if got != "h264" {
+			t.Errorf("av1 must fall back to h264 when not encodable here, got %q", got)
+		}
+	})
+
+	t.Run("av1 + HW av1 stays av1", func(t *testing.T) {
+		box := domaintranscoding.EncodeCapability{HWBackend: "nvenc", HWCodecs: []string{"av1"}, HWMaxHeight: 2160}
+		h := &hlsVODServe{
+			capability:     func() domaintranscoding.EncodeCapability { return box },
+			hwAccelEnabled: func() bool { return true },
+		}
+		got, _, _, _, usable := h.effectiveVideoCodec(dec("av1"), nil)
+		if got != "av1" || !usable {
+			t.Errorf("av1 with HW av1 must stay av1 (usable), got %q usable=%v", got, usable)
+		}
+	})
+
+	t.Run("av1 + no HW but calibrated AV1 sw ceiling stays av1", func(t *testing.T) {
+		box := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareAV1MaxHeight: 720}
+		h := &hlsVODServe{
+			capability:     func() domaintranscoding.EncodeCapability { return box },
+			hwAccelEnabled: func() bool { return true },
+		}
+		got, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
+		if got != "av1" {
+			t.Errorf("av1 must stay av1 when software AV1 is calibrated, got %q", got)
+		}
+	})
+
+	t.Run("h264 is unaffected", func(t *testing.T) {
+		h := &hlsVODServe{
+			capability:     func() domaintranscoding.EncodeCapability { return domaintranscoding.SafeFallback() },
+			hwAccelEnabled: func() bool { return true },
+		}
+		got, _, _, _, _ := h.effectiveVideoCodec(dec("h264"), nil)
+		if got != "h264" {
+			t.Errorf("h264 must be unchanged, got %q", got)
+		}
+	})
+}

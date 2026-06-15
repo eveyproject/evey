@@ -654,6 +654,11 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		audioRenditions = buildAudioRenditions(streams)
 	}
 
+	// Advertise the codec the segments will ACTUALLY carry, after the capability
+	// gate (AV1 → H.264 when AV1 isn't encodable here). Same helper as
+	// buildFingerprint, so the master CODECS can't disagree with the bytes.
+	chosenVideoCodec, _, _, _, _ := h.effectiveVideoCodec(decision, streams)
+
 	return apptranscoding.ManifestInput{
 		MediaID:             mediaID,
 		DurationSec:         float64(item.File.Duration.Milliseconds()) / 1000.0,
@@ -665,7 +670,7 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		AudioCodecs:         splitCSVQuery(r, "audioCodecs"),
 		Containers:          splitCSVQuery(r, "containers"),
 		UseFMP4:             h.useFMP4,
-		ChosenVideoCodec:    decision.VideoCodec,
+		ChosenVideoCodec:    chosenVideoCodec,
 		// The codec the segments will ACTUALLY carry: the source codec on
 		// audio passthrough (ac-3/ec-3 CODECS for Safari-class clients), the
 		// decision's encoder otherwise. Must mirror buildFingerprint or the
@@ -809,7 +814,10 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	}
 
 	hwTonemap := h.hwTonemapWanted(decision)
-	hwAccel, hwDevice, hwFeatures, hwUsable := h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams), sourceVideoTenBit(streams), hwTonemap)
+	// Capability gate: AV1 falls back to H.264 when the host can't encode it (no
+	// HW AV1, no calibrated AV1 software ceiling). videoCodec is what the segments
+	// actually carry — the cache key MUST use it, not the raw decision codec.
+	videoCodec, hwAccel, hwDevice, hwFeatures, hwUsable := h.effectiveVideoCodec(decision, streams)
 	srcAudio := sourceAudioCodec(streams, audioTrack)
 	audioCopy := audioCopyEligible(decision,
 		h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
@@ -817,7 +825,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	return apptranscoding.DecisionFingerprint{
 		MediaID:    mediaID,
 		SourcePath: item.File.Path,
-		VideoCodec: decision.VideoCodec,
+		VideoCodec: videoCodec,
 		// The SOURCE codec (excluded from Hash — derivable from MediaID): the
 		// copy builder tags the fMP4 sample entry from it (-tag:v hvc1).
 		SourceVideoCodec: sourceVideoCodec(streams),
@@ -949,6 +957,32 @@ func sourceIsHDR(streams []*domainlibrary.MediaStream) bool {
 // HDR tonemap / bitmap burn-in are not gated here: the orchestrated VOD path
 // does neither today, and the ffmpeg builder independently falls back to
 // software for those, so the two stay consistent.
+// effectiveVideoCodec applies the capability gate to the decision's chosen
+// output codec and returns the codec the segments will ACTUALLY carry together
+// with the HW resolution for that codec. AV1 software (libsvtav1) is several
+// times heavier than H.264 and the weak-NAS target can't sustain it, so when AV1
+// is requested but the host has no HW AV1 encoder AND no calibrated AV1 software
+// ceiling (SoftwareAV1MaxHeight == 0), fall back to H.264 rather than starve.
+// Shared by buildFingerprint (the cache key) and the manifest builder (the
+// advertised CODECS) so the master playlist can never advertise a codec the
+// segments don't carry. Re-resolves HW for the fallback codec (H.264 may be
+// HW-encodable where AV1 was not).
+func (h *hlsVODServe) effectiveVideoCodec(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) (codec, accel, device string, features []string, usable bool) {
+	hwTonemap := h.hwTonemapWanted(decision)
+	srcCodec := sourceVideoCodec(streams)
+	src10 := sourceVideoTenBit(streams)
+	codec = decision.VideoCodec
+	accel, device, features, usable = h.resolveHW(codec, srcCodec, src10, hwTonemap)
+	if strings.EqualFold(codec, "av1") && !usable {
+		viable := h.capability != nil && h.capability().AV1SoftwareViable()
+		if !viable {
+			codec = "h264"
+			accel, device, features, usable = h.resolveHW(codec, srcCodec, src10, hwTonemap)
+		}
+	}
+	return codec, accel, device, features, usable
+}
+
 func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit, hwTonemap bool) (accel, device string, features []string, usable bool) {
 	if h.hwAccelEnabled == nil || !h.hwAccelEnabled() || h.capability == nil {
 		return "", "", nil, false

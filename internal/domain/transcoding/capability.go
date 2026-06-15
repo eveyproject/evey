@@ -30,6 +30,15 @@ type EncodeCapability struct {
 	// reflects decode-bound hosts). 0 until benched; the HDR ladder caps to it.
 	SoftwareHDRMaxHeight int `json:"software_hdr_max_height"`
 
+	// SoftwareAV1MaxHeight is the tallest libsvtav1 (AV1 software) encode the host
+	// sustains at >= realtime. AV1 software is several times heavier than libx264,
+	// so it gets its OWN ceiling instead of borrowing SoftwareMaxHeight (which is
+	// the H.264 number and would massively over-state the box for AV1). 0 until an
+	// AV1 bench passes — and 0 is meaningful: it means "AV1 software not viable
+	// here", so the handler routes AV1 output to hardware only and otherwise falls
+	// back to H.264 rather than starving on libsvtav1 (see effectiveVideoCodec).
+	SoftwareAV1MaxHeight int `json:"software_av1_max_height"`
+
 	// HWMaxHeight is the same upper bound for the hardware encode path
 	// when an accelerator (NVENC / QSV / VAAPI) is available. Zero when
 	// no HW was probed or none passed the realtime threshold.
@@ -171,6 +180,28 @@ func SafeFallback() EncodeCapability {
 func (c EncodeCapability) MaxHeightFor(hwAccelUsable bool) int {
 	if hwAccelUsable && c.HWMaxHeight > 0 {
 		return c.HWMaxHeight
+	}
+	if c.SoftwareMaxHeight > 0 {
+		return c.SoftwareMaxHeight
+	}
+	return 720
+}
+
+// AV1SoftwareViable reports whether the host has a calibrated AV1 software
+// ceiling. False (the default until an AV1 bench passes) means libsvtav1 is too
+// slow here, so AV1 output must stay hardware-only — see effectiveVideoCodec.
+func (c EncodeCapability) AV1SoftwareViable() bool {
+	return c.SoftwareAV1MaxHeight > 0
+}
+
+// SoftwareCeilingFor returns the software height ceiling for an OUTPUT codec.
+// AV1 is far heavier than H.264, so it uses its own SoftwareAV1MaxHeight rather
+// than the H.264 SoftwareMaxHeight; every other codec uses SoftwareMaxHeight.
+// Falls back to the H.264 ceiling if AV1 has no calibrated value (defensive —
+// the handler should not route AV1 to software in that case).
+func (c EncodeCapability) SoftwareCeilingFor(codec string) int {
+	if strings.EqualFold(strings.TrimSpace(codec), "av1") && c.SoftwareAV1MaxHeight > 0 {
+		return c.SoftwareAV1MaxHeight
 	}
 	if c.SoftwareMaxHeight > 0 {
 		return c.SoftwareMaxHeight

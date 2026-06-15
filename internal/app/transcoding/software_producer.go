@@ -390,7 +390,9 @@ func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDim
 
 	sourceCapped := transcoding.CapLadderToSource(base, src.Width, src.Height)
 
-	maxH := capacity.MaxHeightFor(false) // software ceiling (SoftwareMaxHeight or 720 floor)
+	// Codec-aware software ceiling: AV1 (libsvtav1) is far heavier than H.264 and
+	// carries its own SoftwareAV1MaxHeight; every other codec uses SoftwareMaxHeight.
+	maxH := capacity.SoftwareCeilingFor(decision.VideoCodec)
 	if needsHDRTonemap(decision) && capacity.SoftwareHDRMaxHeight > 0 && capacity.SoftwareHDRMaxHeight < maxH {
 		maxH = capacity.SoftwareHDRMaxHeight
 	}

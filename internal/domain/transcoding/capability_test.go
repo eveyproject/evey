@@ -52,6 +52,31 @@ func TestMaxHeightFor_Uncalibrated_FallsBackTo720(t *testing.T) {
 	assert.Equal(t, 720, c.MaxHeightFor(true))
 }
 
+func TestAV1SoftwareViable(t *testing.T) {
+	assert.False(t, EncodeCapability{}.AV1SoftwareViable(), "0 ⇒ not viable")
+	assert.True(t, EncodeCapability{SoftwareAV1MaxHeight: 720}.AV1SoftwareViable())
+}
+
+func TestSoftwareCeilingFor_AV1UsesOwnCeiling(t *testing.T) {
+	c := EncodeCapability{SoftwareMaxHeight: 1080, SoftwareAV1MaxHeight: 480}
+	// AV1 is heavier → its own (lower) ceiling, not the H.264 1080.
+	assert.Equal(t, 480, c.SoftwareCeilingFor("av1"))
+	assert.Equal(t, 480, c.SoftwareCeilingFor("AV1"))
+	// Other codecs keep the H.264 software ceiling.
+	assert.Equal(t, 1080, c.SoftwareCeilingFor("h264"))
+	assert.Equal(t, 1080, c.SoftwareCeilingFor("hevc"))
+	assert.Equal(t, 1080, c.SoftwareCeilingFor(""))
+}
+
+func TestSoftwareCeilingFor_AV1Uncalibrated_FallsBackToH264(t *testing.T) {
+	// Defensive: AV1 with no calibrated ceiling falls back to the H.264 number
+	// (the handler should not route AV1 to software in this state anyway).
+	c := EncodeCapability{SoftwareMaxHeight: 1080}
+	assert.Equal(t, 1080, c.SoftwareCeilingFor("av1"))
+	// Fully uncalibrated → 720 floor.
+	assert.Equal(t, 720, EncodeCapability{}.SoftwareCeilingFor("av1"))
+}
+
 // TestHWCanDecode_OldIGPUEncodesH264ButNotHEVC locks the exact production case:
 // a pre-Skylake Intel iGPU HW-encodes H.264 but has NO HEVC hardware
 // decoder. resolveHW relies on HWCanDecode("hevc")==false here to fall back to
