@@ -446,9 +446,12 @@ func videoCodecAttr(c string) string {
 		// data wired through yet, and Safari accepts the permissive form.
 		return "hvc1.1.6.L93.B0"
 	case "av1", "av01":
-		// av01.0.04M.10 = main profile, level 4.0, 10-bit. Permissive enough
-		// for most software/HW AV1 decoders.
-		return "av01.0.04M.10"
+		// av01.0.04M.08 = Main profile, level 3.0, Main tier, 8-bit. The transcode
+		// output is always yuv420p (8-bit) — declaring 10-bit (.10) made MSE create
+		// a 10-bit SourceBuffer the 8-bit segments never matched, so hls.js
+		// downloaded everything and rendered nothing (perpetual buffering). 8-bit
+		// also matches the client capability probe (av01.0.00M.08 in codec.ts).
+		return "av01.0.04M.08"
 	case "vp9":
 		return "vp09.00.10.08"
 	case "", "h264", "avc", "libx264":
