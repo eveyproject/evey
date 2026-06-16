@@ -211,7 +211,7 @@ func (r *NotificationRepository) UnreadCountExcludingTypes(ctx context.Context, 
 	defer cancel()
 
 	query := `SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`
-	args := make([]interface{}, 0, len(excludeTypes)+1)
+	args := make([]any, 0, len(excludeTypes)+1)
 	args = append(args, profileID)
 	if len(excludeTypes) > 0 {
 		placeholders := make([]string, len(excludeTypes))

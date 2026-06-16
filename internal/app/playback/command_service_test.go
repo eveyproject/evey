@@ -711,9 +711,9 @@ func TestClearWatchHistory_DeletesAllForProfileOnly(t *testing.T) {
 	assert.Equal(t, 2, deleted)
 
 	_, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
-	assert.ErrorIs(t, err, shared.ErrNotFound)
+	require.ErrorIs(t, err, shared.ErrNotFound)
 	_, err = pr.GetByProfileAndMedia(ctx, "p1", "m2")
-	assert.ErrorIs(t, err, shared.ErrNotFound)
+	require.ErrorIs(t, err, shared.ErrNotFound)
 	// Another profile's history is untouched.
 	_, err = pr.GetByProfileAndMedia(ctx, "p2", "m3")
 	require.NoError(t, err)
