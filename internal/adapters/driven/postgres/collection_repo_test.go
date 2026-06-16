@@ -241,3 +241,29 @@ func TestCollectionRepo_GetItems(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, count)
 }
+
+func TestCollectionSmartQuerier_QueryByRulesPaginatesAndCounts(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	smartQ := postgres.NewCollectionSmartQuerier(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("smartlib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	for _, id := range []string{"sm1", "sm2", "sm3", "sm4", "sm5"} {
+		require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(id, lib.ID)))
+	}
+
+	rules := []library.CollectionRule{{Field: "type", Operator: "eq", Value: "movie"}}
+
+	total, err := smartQ.CountByRules(ctx, rules)
+	require.NoError(t, err)
+	assert.Equal(t, 5, total, "CountByRules returns the full match count, uncapped")
+
+	page, err := smartQ.QueryByRules(ctx, rules, "added_at", "asc", 2, 2)
+	require.NoError(t, err)
+	assert.Len(t, page, 2, "LIMIT 2 OFFSET 2 returns a 2-item page out of 5")
+}

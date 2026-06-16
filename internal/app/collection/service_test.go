@@ -323,6 +323,35 @@ func TestGetItems_SmartCollection_CustomSortBy(t *testing.T) {
 	assert.Equal(t, "release_date", smartQ.LastSortBy)
 }
 
+func TestGetItems_SmartCollection_PaginatesAndCountsAll(t *testing.T) {
+	t.Parallel()
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	colRepo := libfakes.NewFakeCollectionRepository(mediaRepo)
+	smartQ := libfakes.NewFakeCollectionSmartQuerier()
+	ctx := context.Background()
+
+	for _, id := range []string{"m1", "m2", "m3", "m4", "m5"} {
+		smartQ.Items = append(smartQ.Items, &library.MediaItem{
+			ID: shared.MediaItemID(id), Title: id,
+			Catalog: &library.MediaCatalog{Genres: []string{"Action"}},
+		})
+	}
+	svc := appcol.NewService(colRepo.CommandRepo(), colRepo.QueryRepo(), smartQ, mediaRepo)
+
+	col, err := svc.Upsert(ctx, 92, "Smart", "", "", "")
+	require.NoError(t, err)
+	col.Rules = []library.CollectionRule{{Field: "genre", Operator: "eq", Value: "Action"}}
+	colRepo.CommandRepo().Upsert(ctx, col)
+
+	// Page (limit 2, offset 2) of 5 matches: the page holds 2 items but the total
+	// must be the full match count, not the page size — the old version returned
+	// len(page) (and capped at 500).
+	items, total, err := svc.GetItems(ctx, col.ID, 2, 2)
+	require.NoError(t, err)
+	assert.Equal(t, 5, total, "total must be the full match count")
+	assert.Len(t, items, 2, "page is bounded by limit")
+}
+
 func TestGetItems_SmartCollection_OffsetEqualsTotal_ReturnsEmpty(t *testing.T) {
 	t.Parallel()
 	mediaRepo := libfakes.NewFakeMediaItemRepository()

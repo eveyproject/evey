@@ -48,19 +48,15 @@ func (s *QueryService) GetItems(ctx context.Context, collectionID string, limit,
 		if sortBy == "" {
 			sortBy = "added_at"
 		}
-		all, queryErr := s.smartQuerier.QueryByRules(ctx, col.Rules, sortBy, "asc", 0)
+		items, queryErr := s.smartQuerier.QueryByRules(ctx, col.Rules, sortBy, "asc", limit, offset)
 		if queryErr != nil {
 			return nil, 0, queryErr
 		}
-		total := len(all)
-		if offset >= total {
-			return nil, total, nil
+		total, countErr := s.smartQuerier.CountByRules(ctx, col.Rules)
+		if countErr != nil {
+			return nil, 0, countErr
 		}
-		all = all[offset:]
-		if limit > 0 && limit < len(all) {
-			all = all[:limit]
-		}
-		return all, total, nil
+		return items, total, nil
 	}
 
 	items, err := s.query.GetItems(ctx, collectionID, limit, offset)

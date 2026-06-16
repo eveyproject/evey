@@ -17,7 +17,7 @@ func NewFakeCollectionSmartQuerier() *FakeCollectionSmartQuerier {
 	return &FakeCollectionSmartQuerier{}
 }
 
-func (q *FakeCollectionSmartQuerier) QueryByRules(_ context.Context, rules []library.CollectionRule, sortBy, _sortOrder string, limit int) ([]*library.MediaItem, error) {
+func (q *FakeCollectionSmartQuerier) QueryByRules(_ context.Context, rules []library.CollectionRule, sortBy, _sortOrder string, limit, offset int) ([]*library.MediaItem, error) {
 	q.LastSortBy = sortBy
 	if q.Err != nil {
 		return nil, q.Err
@@ -28,10 +28,29 @@ func (q *FakeCollectionSmartQuerier) QueryByRules(_ context.Context, rules []lib
 			result = append(result, item)
 		}
 	}
+	if offset > 0 {
+		if offset >= len(result) {
+			return nil, nil
+		}
+		result = result[offset:]
+	}
 	if limit > 0 && len(result) > limit {
 		result = result[:limit]
 	}
 	return result, nil
+}
+
+func (q *FakeCollectionSmartQuerier) CountByRules(_ context.Context, rules []library.CollectionRule) (int, error) {
+	if q.Err != nil {
+		return 0, q.Err
+	}
+	count := 0
+	for _, item := range q.Items {
+		if matchesCollectionRules(item, rules) {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func matchesCollectionRules(item *library.MediaItem, rules []library.CollectionRule) bool {

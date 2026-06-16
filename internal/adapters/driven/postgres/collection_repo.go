@@ -428,7 +428,7 @@ func NewCollectionSmartQuerier(db *sql.DB) *CollectionSmartQuerier {
 	return &CollectionSmartQuerier{db: db}
 }
 
-func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []library.CollectionRule, sortBy, sortOrder string, limit int) ([]*library.MediaItem, error) {
+func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []library.CollectionRule, sortBy, sortOrder string, limit, offset int) ([]*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.collection.QueryByRules")
 	defer span.End()
 	span.SetAttributes(attribute.Int("collection.rule.count", len(rules)))
@@ -474,6 +474,9 @@ func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []libra
 		limit = DefaultListLimit
 	}
 	query += fmt.Sprintf(" LIMIT %d", limit)
+	if offset > 0 {
+		query += fmt.Sprintf(" OFFSET %d", offset)
+	}
 
 	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, query, args...)
 	if err != nil {
@@ -489,6 +492,39 @@ func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []libra
 		return nil, err
 	}
 	return items, nil
+}
+
+func (q *CollectionSmartQuerier) CountByRules(ctx context.Context, rules []library.CollectionRule) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.collection.CountByRules")
+	defer span.End()
+	span.SetAttributes(attribute.Int("collection.rule.count", len(rules)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	// Same FROM+joins+WHERE as QueryByRules but only counts — DISTINCT mi.id so a
+	// 1:many join can't inflate the total.
+	query := "SELECT COUNT(DISTINCT mi.id) " + mediaItemFromJoins
+
+	var conditions []string
+	var args []any
+	argIdx := 1
+	for _, rule := range rules {
+		cond, ruleArgs := buildCollectionRuleCondition(rule, &argIdx)
+		if cond != "" {
+			conditions = append(conditions, cond)
+			args = append(args, ruleArgs...)
+		}
+	}
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	var count int
+	if err := txFromCtx(ctx, q.db).QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return count, nil
 }
 
 func buildCollectionRuleCondition(rule library.CollectionRule, argIdx *int) (string, []any) {
