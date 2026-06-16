@@ -184,7 +184,12 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		}
 		a, u, episodeErr := s.upsertMediaFile(ctx, libraryID, seasonID, episodeFile, showTitle)
 		if episodeErr != nil {
-			return 0, 0, episodeErr
+			// Skip this episode and keep scanning the rest — a single transient
+			// failure must not abort the whole library scan (the movie path
+			// already logs-and-continues; this kept aborting it).
+			slog.Warn("scan: skipping episode after upsert error",
+				slog.String("path", episodeFile.Path), slog.Any("err", episodeErr))
+			continue
 		}
 		added += a
 		updated += u

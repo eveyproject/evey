@@ -175,11 +175,16 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 
 	e.indexSearch(ctx, item, result.People)
 	e.linkCollection(ctx, string(item.ID), result.Collection)
-	// Fetch translations for all supported locales
-	if item.Catalog != nil {
+	// Fetch translations for all supported locales. Only for movies and series:
+	// a season/episode's ProviderIDs["tmdb"] is its own object id, which lives in
+	// a different id space than series ids — calling /tv/{id} with it 404s or,
+	// worse, collides with an unrelated series and stores its title/overview onto
+	// the season/episode. Per-season/episode translation needs the parent series
+	// id + season/episode numbers (TODO); skip rather than corrupt until then.
+	if item.Catalog != nil && item.Type != "season" && item.Type != "episode" {
 		if tmdbID := item.Catalog.ProviderIDs["tmdb"]; tmdbID != "" {
 			mediaType := "movie"
-			if item.Type == "series" || item.Type == "season" || item.Type == "episode" {
+			if item.Type == "series" {
 				mediaType = "tv"
 			}
 			e.enrichTranslations(ctx, item, tmdbID, mediaType)
