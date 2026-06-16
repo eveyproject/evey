@@ -487,8 +487,8 @@ func TestStartRetentionPurge_RecoversPanicInPass(t *testing.T) {
 		sharedfakes.NewFakeEventBus(),
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// t.Context() is cancelled when the test ends, stopping the purge goroutine.
+	ctx := t.Context()
 	// metricsDays > 0 → the startup pass calls metrics.Purge, which panics.
 	svc.StartRetentionPurge(ctx, 0, 7)
 
