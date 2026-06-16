@@ -91,6 +91,30 @@ func (r *FakeRoomRepository) RemoveMember(_ context.Context, roomID string, user
 	return nil
 }
 
+func (r *FakeRoomRepository) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID string, userID string) (bool, error) {
+	if r.Err != nil {
+		return false, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	room, ok := r.items[roomID]
+	if !ok {
+		return false, ErrNotFound
+	}
+	members := make([]syncplay.Member, 0, len(room.Members))
+	for _, m := range room.Members {
+		if string(m.UserID) != userID {
+			members = append(members, m)
+		}
+	}
+	if len(members) == 0 {
+		delete(r.items, roomID)
+		return true, nil
+	}
+	room.Members = members
+	return false, nil
+}
+
 func (r *FakeRoomRepository) UpdateState(_ context.Context, roomID string, state syncplay.PlaybackState) error {
 	if r.Err != nil {
 		return r.Err

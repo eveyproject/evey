@@ -99,6 +99,27 @@ func (r *fakeRoomRepo) RemoveMember(_ context.Context, roomID, userID string) er
 	return nil
 }
 
+func (r *fakeRoomRepo) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID, userID string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	room, ok := r.rooms[roomID]
+	if !ok {
+		return false, errors.New("room not found")
+	}
+	filtered := room.Members[:0]
+	for _, m := range room.Members {
+		if string(m.UserID) != userID {
+			filtered = append(filtered, m)
+		}
+	}
+	room.Members = filtered
+	if len(filtered) == 0 {
+		delete(r.rooms, roomID)
+		return true, nil
+	}
+	return false, nil
+}
+
 func (r *fakeRoomRepo) UpdateState(_ context.Context, roomID string, state syncplay.PlaybackState) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -793,17 +814,41 @@ func TestHub_DisconnectMember_Success(t *testing.T) {
 	ctx := context.Background()
 
 	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	// Two connected members so removing one leaves the room alive.
 	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", fakes.NewFakeMessageSender())
+	_, _ = h.ConnectMember(ctx, room.ID, "user-3", "Bob", fakes.NewFakeMessageSender())
 
 	if err := h.DisconnectMember(ctx, room.ID, "user-2"); err != nil {
 		t.Fatalf("DisconnectMember: %v", err)
 	}
 
-	fetched, _ := h.GetRoom(ctx, room.ID)
+	fetched, err := h.GetRoom(ctx, room.ID)
+	if err != nil || fetched == nil {
+		t.Fatalf("room should still exist while user-3 remains: %v", err)
+	}
 	for _, m := range fetched.Members {
 		if m.UserID == "user-2" {
 			t.Error("user-2 should be removed after DisconnectMember")
 		}
+	}
+}
+
+func TestHub_DisconnectMember_DeletesRoomWhenLastLeaves(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", fakes.NewFakeMessageSender())
+
+	// user-2 is the only connected member; disconnecting must delete the room
+	// rather than leak its row (the WS-close path, not the LeaveRoom button).
+	if err := h.DisconnectMember(ctx, room.ID, "user-2"); err != nil {
+		t.Fatalf("DisconnectMember: %v", err)
+	}
+
+	if fetched, err := h.GetRoom(ctx, room.ID); err == nil && fetched != nil {
+		t.Errorf("room should be deleted after its last member disconnected, got %d members", len(fetched.Members))
 	}
 }
 

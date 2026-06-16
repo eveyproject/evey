@@ -118,6 +118,47 @@ func TestSyncPlayRoomRepo_AddMember_RemoveMember(t *testing.T) {
 	assert.Empty(t, got.Members)
 }
 
+func TestSyncPlayRoomRepo_RemoveMemberAndDeleteIfEmpty(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedSyncplayDeps(t, db, "host-u9", "sp-user9", "sp-lib9", "media-9")
+
+	repo := postgres.NewSyncPlayRoomRepo(db)
+	ctx := context.Background()
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	room := &syncplay.Room{
+		ID:      "sp9",
+		Code:    "DIE999",
+		Name:    "Room",
+		HostID:  "host-u9",
+		MediaID: "media-9",
+		Members: []syncplay.Member{
+			{UserID: "guest-a", Username: "a", JoinedAt: now},
+			{UserID: "guest-b", Username: "b", JoinedAt: now},
+		},
+		State:     syncplay.PlaybackState{},
+		CreatedAt: now,
+	}
+	require.NoError(t, repo.Create(ctx, room))
+
+	// Removing one of two members keeps the room alive.
+	deleted, err := repo.RemoveMemberAndDeleteIfEmpty(ctx, "sp9", "guest-a")
+	require.NoError(t, err)
+	assert.False(t, deleted, "room with a remaining member must not be deleted")
+	got, err := repo.Get(ctx, "sp9")
+	require.NoError(t, err)
+	assert.Len(t, got.Members, 1)
+
+	// Removing the last member deletes the room in the same operation.
+	deleted, err = repo.RemoveMemberAndDeleteIfEmpty(ctx, "sp9", "guest-b")
+	require.NoError(t, err)
+	assert.True(t, deleted, "emptied room must be deleted, not left behind")
+	_, err = repo.Get(ctx, "sp9")
+	require.Error(t, err, "room should be gone after its last member was removed")
+}
+
 func TestSyncPlayRoomRepo_UpdateState(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

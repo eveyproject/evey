@@ -198,6 +198,72 @@ func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, user
 	return tx.Commit()
 }
 
+// RemoveMemberAndDeleteIfEmpty removes userID from the room and, when no members
+// remain, deletes the room — all under one FOR UPDATE lock. This closes two
+// gaps the separate RemoveMember+Get+Delete sequence has: an emptied room left
+// behind on the WS-close (DisconnectMember) path, and the last-leaver-vs-joiner
+// TOCTOU where a delete races a concurrent join. Returns whether it deleted.
+func (r *SyncPlayRoomRepo) RemoveMemberAndDeleteIfEmpty(ctx context.Context, roomID string, userID string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.RemoveMemberAndDeleteIfEmpty")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	var membersJSON []byte
+	err = tx.QueryRowContext(ctx,
+		`SELECT members FROM syncplay_rooms WHERE id = $1 FOR UPDATE`,
+		roomID,
+	).Scan(&membersJSON)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, shared.ErrNotFound
+	}
+	if err != nil {
+		return false, err
+	}
+
+	var members []syncplay.Member
+	if err = json.Unmarshal(membersJSON, &members); err != nil {
+		return false, err
+	}
+	filtered := make([]syncplay.Member, 0, len(members))
+	for _, m := range members {
+		if string(m.UserID) != userID {
+			filtered = append(filtered, m)
+		}
+	}
+
+	if len(filtered) == 0 {
+		if _, err = tx.ExecContext(ctx, `DELETE FROM syncplay_rooms WHERE id = $1`, roomID); err != nil {
+			return false, err
+		}
+		if err = tx.Commit(); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	updated, err := json.Marshal(filtered)
+	if err != nil {
+		return false, err
+	}
+	if _, err = tx.ExecContext(ctx,
+		`UPDATE syncplay_rooms SET members = $1 WHERE id = $2`,
+		updated, roomID,
+	); err != nil {
+		return false, err
+	}
+	if err = tx.Commit(); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
 func (r *SyncPlayRoomRepo) UpdateState(ctx context.Context, roomID string, state syncplay.PlaybackState) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.UpdateState")
 	defer span.End()

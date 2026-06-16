@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -60,9 +61,19 @@ func extractWSToken(r *http.Request) string {
 // wsSender adapts a websocket.Conn to the MessageSender port.
 type wsSender struct {
 	ws *websocket.Conn
+	// mu serializes the SetWriteDeadline→Send→clear sequence. The hub can
+	// broadcast to the same member from two goroutines at once (e.g. a host
+	// command racing a member_joined fan-out). websocket.Message.Send already
+	// serializes the frame write, but SetWriteDeadline touches the raw net.Conn
+	// outside that lock — without this mutex one goroutine's "clear deadline"
+	// could land while another's Send is in flight, leaving it to block forever
+	// on a half-open socket and wedge every later write to that member.
+	mu sync.Mutex
 }
 
 func (s *wsSender) SendMessage(data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	_ = s.ws.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	err := websocket.Message.Send(s.ws, string(data))
 	_ = s.ws.SetWriteDeadline(time.Time{})

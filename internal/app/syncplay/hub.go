@@ -147,15 +147,8 @@ func (h *Hub) JoinRoom(ctx context.Context, roomID, userID, username string) err
 func (h *Hub) LeaveRoom(ctx context.Context, roomID, userID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.LeaveRoom")
 	defer span.End()
-	if err := h.repo.RemoveMember(ctx, roomID, userID); err != nil {
-		return fmt.Errorf("leave room remove member: %w", err)
-	}
-	room, err := h.repo.Get(ctx, roomID)
-	if err != nil {
-		return fmt.Errorf("leave room get room: %w", err)
-	}
-	if len(room.Members) == 0 {
-		return h.repo.Delete(ctx, roomID)
+	if _, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID); err != nil {
+		return fmt.Errorf("leave room: %w", err)
 	}
 	return nil
 }
@@ -244,7 +237,13 @@ func (h *Hub) DisconnectMember(ctx context.Context, roomID, userID string) error
 	}
 	h.broadcast(roomID, userID, leaveMsg)
 
-	return h.repo.RemoveMember(ctx, roomID, userID)
+	// Delete the room when this was the last member — otherwise a watch party
+	// that ends by everyone closing their tab (the WS-close path, not the
+	// LeaveRoom button) leaks its syncplay_rooms row forever.
+	if _, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID); err != nil {
+		return fmt.Errorf("disconnect member: %w", err)
+	}
+	return nil
 }
 
 // HandleCommand processes a playback command and broadcasts to other room members.
