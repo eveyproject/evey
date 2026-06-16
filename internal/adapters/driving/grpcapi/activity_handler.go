@@ -247,6 +247,8 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 20
+	} else if limit > maxPageSize {
+		limit = maxPageSize
 	}
 	popular, err := h.svc.GetMostPopular(ctx, claims.ProfileID, limit)
 	if err != nil {

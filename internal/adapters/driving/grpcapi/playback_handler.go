@@ -618,6 +618,8 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 20
+	} else if limit > maxPageSize {
+		limit = maxPageSize
 	}
 	items, err := h.query.GetResumeItems(ctx, profileID, limit)
 	if err != nil {
@@ -685,6 +687,8 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 20
+	} else if limit > maxPageSize {
+		limit = maxPageSize
 	}
 	progresses, err := h.query.GetNextUp(ctx, profileID, limit)
 	if err != nil {

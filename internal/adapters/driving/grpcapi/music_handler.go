@@ -156,6 +156,8 @@ func (h *musicHandler) SearchMusic(ctx context.Context, req *eveyv1.SearchMusicR
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 20
+	} else if limit > maxPageSize {
+		limit = maxPageSize
 	}
 	tracks, err := h.svc.Search(ctx, shared.LibraryID(req.LibraryId), req.Query, limit)
 	if err != nil {
