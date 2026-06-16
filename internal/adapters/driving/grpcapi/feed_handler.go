@@ -51,24 +51,38 @@ func (h *feedHandler) requireMediaAccess(ctx context.Context, mediaItemID string
 	return nil
 }
 
-func (h *feedHandler) filterByLibraryAccess(ctx context.Context, items []*feed.FeedItem) ([]*feed.FeedItem, error) {
-	if h.userAccess == nil || h.libQuery == nil {
+// filterAccessibleAndAllowed applies BOTH the library-access and the parental
+// filter, resolving the underlying media items at most once. The previous code
+// ran filterByLibraryAccess then filterByParental back-to-back, each issuing its
+// own GetMediaItemsByIDs over the same ids — a doubled heavy resolve per feed
+// section on every non-admin home load.
+func (h *feedHandler) filterAccessibleAndAllowed(ctx context.Context, items []*feed.FeedItem) ([]*feed.FeedItem, error) {
+	if len(items) == 0 || h.libQuery == nil {
 		return items, nil
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
-	if claims == nil || claims.IsAdmin {
-		// Admins still get the parental filter applied at the per-feed
-		// callers via filterFeedByParental — but library access is
-		// unrestricted.
+
+	// Library access applies to non-admins with a defined access set.
+	var allowedIDs []string
+	libFilter := false
+	if h.userAccess != nil && claims != nil && !claims.IsAdmin {
+		ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+		if err != nil {
+			return nil, err
+		}
+		if ids != nil {
+			allowedIDs = ids
+			libFilter = true
+		}
+	}
+
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	parentalFilter := pf.maxAge >= 0 || len(pf.blockedTags) > 0
+
+	if !libFilter && !parentalFilter {
 		return items, nil
 	}
-	allowedIDs, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
-	if err != nil {
-		return nil, err
-	}
-	if allowedIDs == nil {
-		return items, nil
-	}
+
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
 		ids = append(ids, string(item.MediaItemID))
@@ -77,15 +91,21 @@ func (h *feedHandler) filterByLibraryAccess(ctx context.Context, items []*feed.F
 	if err != nil {
 		return nil, err
 	}
-	libByID := make(map[string]string, len(mediaItems))
+	itemByID := make(map[string]*library.MediaItem, len(mediaItems))
 	for _, mi := range mediaItems {
-		libByID[string(mi.ID)] = string(mi.LibraryID)
+		itemByID[string(mi.ID)] = mi
 	}
+
 	filtered := items[:0]
 	for _, item := range items {
-		if libID, ok := libByID[string(item.MediaItemID)]; ok && slices.Contains(allowedIDs, libID) {
-			filtered = append(filtered, item)
+		mi := itemByID[string(item.MediaItemID)]
+		if libFilter && (mi == nil || !slices.Contains(allowedIDs, string(mi.LibraryID))) {
+			continue
 		}
+		if parentalFilter && mediaItemBlockedByParental(pf, mi) {
+			continue
+		}
+		filtered = append(filtered, item)
 	}
 	return filtered, nil
 }
@@ -183,13 +203,9 @@ func (h *feedHandler) RecentlyAdded(ctx context.Context, req *eveyv1.RecentlyAdd
 	if err != nil {
 		return nil, internalError("recently added", err)
 	}
-	items, err = h.filterByLibraryAccess(ctx, items)
+	items, err = h.filterAccessibleAndAllowed(ctx, items)
 	if err != nil {
-		return nil, internalError("recently added: library filter", err)
-	}
-	items, err = h.filterByParental(ctx, items)
-	if err != nil {
-		return nil, internalError("recently added: parental filter", err)
+		return nil, internalError("recently added: access filter", err)
 	}
 	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
@@ -209,13 +225,9 @@ func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRe
 	if err != nil {
 		return nil, internalError("recommended", err)
 	}
-	items, err = h.filterByLibraryAccess(ctx, items)
+	items, err = h.filterAccessibleAndAllowed(ctx, items)
 	if err != nil {
-		return nil, internalError("recommended: library filter", err)
-	}
-	items, err = h.filterByParental(ctx, items)
-	if err != nil {
-		return nil, internalError("recommended: parental filter", err)
+		return nil, internalError("recommended: access filter", err)
 	}
 	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
@@ -238,13 +250,9 @@ func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItems
 	if err != nil {
 		return nil, internalError("similar items", err)
 	}
-	items, err = h.filterByLibraryAccess(ctx, items)
+	items, err = h.filterAccessibleAndAllowed(ctx, items)
 	if err != nil {
-		return nil, internalError("similar items: library filter", err)
-	}
-	items, err = h.filterByParental(ctx, items)
-	if err != nil {
-		return nil, internalError("similar items: parental filter", err)
+		return nil, internalError("similar items: access filter", err)
 	}
 	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
@@ -346,13 +354,9 @@ func (h *feedHandler) ResumePlayback(ctx context.Context, req *eveyv1.ResumePlay
 	if err != nil {
 		return nil, internalError("resume playback", err)
 	}
-	items, err = h.filterByLibraryAccess(ctx, items)
+	items, err = h.filterAccessibleAndAllowed(ctx, items)
 	if err != nil {
-		return nil, internalError("resume playback: library filter", err)
-	}
-	items, err = h.filterByParental(ctx, items)
-	if err != nil {
-		return nil, internalError("resume playback: parental filter", err)
+		return nil, internalError("resume playback: access filter", err)
 	}
 	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
@@ -376,13 +380,9 @@ func (h *feedHandler) NextEpisode(ctx context.Context, req *eveyv1.NextEpisodeRe
 	if err != nil {
 		return nil, internalError("next episode", err)
 	}
-	items, err = h.filterByLibraryAccess(ctx, items)
+	items, err = h.filterAccessibleAndAllowed(ctx, items)
 	if err != nil {
-		return nil, internalError("next episode: library filter", err)
-	}
-	items, err = h.filterByParental(ctx, items)
-	if err != nil {
-		return nil, internalError("next episode: parental filter", err)
+		return nil, internalError("next episode: access filter", err)
 	}
 	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
