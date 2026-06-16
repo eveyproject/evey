@@ -7,17 +7,26 @@ test.describe("Admin > Feeds deep", () => {
     // collapsed-by-default "Home feeds" CollapsibleCard (feeds.tsx now redirects
     // there). The card unmounts its children while collapsed, so expand collapsed
     // cards until the feeds save button mounts. Locale-independent on purpose.
+    //
+    // Robustness: the CollapsibleCards mount a beat after the page loads, so the
+    // first pass can see zero collapsed headers — retry across a few attempts and
+    // bound each click (an unbounded click on a not-yet-stable header would hang
+    // until the test timeout under load).
     await goto(page, "/admin/server-config");
-    for (let i = 0; i < 12; i++) {
-      if (await page.locator('[data-testid="feeds-save-btn"]').count()) break;
-      const collapsed = page.locator('[role="button"][aria-expanded="false"]').first();
-      if (!(await collapsed.count())) break;
-      await collapsed.click().catch(() => {});
-      await page.waitForTimeout(150);
+    const saveBtn = page.locator('[data-testid="feeds-save-btn"]');
+    for (let attempt = 0; attempt < 4 && (await saveBtn.count()) === 0; attempt++) {
+      const headers = page.locator('[role="button"][aria-expanded="false"]');
+      const n = await headers.count();
+      for (let i = 0; i < n; i++) {
+        if ((await saveBtn.count()) > 0 || (await headers.count()) === 0) break;
+        await headers.first().click({ timeout: 2_500 }).catch(() => {});
+        await page.waitForTimeout(100);
+      }
+      if ((await saveBtn.count()) === 0) await page.waitForTimeout(500);
     }
     // wait for the save button to be visible (card expanded + page loaded)
-    await page.locator('[data-testid="feeds-save-btn"]').scrollIntoViewIfNeeded().catch(() => {});
-    await page.locator('[data-testid="feeds-save-btn"]').waitFor({ state: "visible", timeout: 10_000 });
+    await saveBtn.scrollIntoViewIfNeeded().catch(() => {});
+    await saveBtn.waitFor({ state: "visible", timeout: 10_000 });
     // give the API data time to render rows
     await page.waitForTimeout(2_000);
   };
@@ -41,15 +50,17 @@ test.describe("Admin > Feeds deep", () => {
     const disableBtn = page.locator('button[role="switch"][aria-checked="true"]').first();
     test.skip(!(await disableBtn.isVisible({ timeout: 1_000 }).catch(() => false)), "No enabled feeds");
 
-    // remember what's being disabled
+    // remember what's being disabled (bounded — never let a stale locator hang
+    // the whole test to its timeout; feedName is only used for best-effort cleanup)
     const row = disableBtn.locator("xpath=ancestor::div[@draggable='true']");
-    const feedName = (await row.locator("span.text-sm").first().textContent())?.trim() ?? "";
+    const feedName =
+      (await row.locator("span.text-sm").first().textContent({ timeout: 3_000 }).catch(() => ""))?.trim() ?? "";
 
-    await disableBtn.click();
+    await disableBtn.click({ timeout: 5_000 });
     await page.waitForTimeout(300);
 
     const { serverErrors } = await collectErrors(page, async () => {
-      await page.locator('[data-testid="feeds-save-btn"]').click();
+      await page.locator('[data-testid="feeds-save-btn"]').click({ timeout: 5_000 });
       await page.waitForTimeout(2_000);
     });
     expect(serverErrors).toHaveLength(0);
@@ -67,9 +78,9 @@ test.describe("Admin > Feeds deep", () => {
       const enableBtn = targetRow.locator('button[role="switch"][aria-checked="false"]');
       if (await enableBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
         // cleanup: re-enable
-        await enableBtn.click();
+        await enableBtn.click({ timeout: 5_000 }).catch(() => {});
         await page.waitForTimeout(300);
-        await page.locator('[data-testid="feeds-save-btn"]').click();
+        await page.locator('[data-testid="feeds-save-btn"]').click({ timeout: 5_000 }).catch(() => {});
         await page.waitForTimeout(1_500);
       }
     }
