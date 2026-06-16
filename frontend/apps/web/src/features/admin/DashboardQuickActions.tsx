@@ -28,13 +28,18 @@ export function QuickActions() {
 
   async function scanAll() {
     setScanningAll(true);
+    let failed = 0;
     for (const lib of libraries) {
       if (lib.id) {
-        try { await scanLib.mutateAsync({ id: lib.id }); } catch (err) { console.warn("library scan failed", err); }
+        try { await scanLib.mutateAsync({ id: lib.id }); } catch (err) { console.warn("library scan failed", err); failed++; }
       }
     }
     setScanningAll(false);
-    toast.success(t("admin.dashboardStats.allScansTriggered"));
+    if (failed > 0) {
+      toast.error(t("admin.dashboardStats.scanFailed"));
+    } else {
+      toast.success(t("admin.dashboardStats.allScansTriggered"));
+    }
   }
 
   return (

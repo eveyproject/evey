@@ -283,6 +283,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
           return;
         }
       }
+      if (!res.ok) throw new Error((await res.text()) || t("admin.plugins.installFailed"));
       const body = (await res.json()) as { blocked?: boolean; issues?: string[] };
       if (body.blocked && body.issues) {
         setBlockedIssues(body.issues);

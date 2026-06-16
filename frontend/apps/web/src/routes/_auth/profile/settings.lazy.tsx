@@ -103,7 +103,8 @@ function ProfileCard() {
     const formData = new FormData();
     formData.append("avatar", file);
     try {
-      await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData });
+      const res = await eveyFetchRaw({ url: `/api/v1/profiles/${defaultProfile.id}/avatar`, method: "POST", body: formData });
+      if (!res.ok) throw new Error((await res.text()) || t("auth.profile.avatarFailed"));
       setAvatarPreview(URL.createObjectURL(file));
       if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
       toast.success(t("auth.profile.avatarUpdated"));

@@ -248,10 +248,12 @@ function BackupRow({ backup }: { backup: Backup }) {
     setRestoring(true);
     try {
       const fileRes = await eveyFetchRaw({ url: `/api/v1/admin/backups/${backup.id}`, method: "GET" });
+      if (!fileRes.ok) throw new Error((await fileRes.text()) || t("admin.backup.restoreFailed"));
       const blob = await fileRes.blob();
       const formData = new FormData();
       formData.append("backup", blob, `${backup.id}.tar.gz`);
-      await eveyFetchRaw({ url: "/api/v1/admin/backups/restore", method: "POST", body: formData });
+      const restoreRes = await eveyFetchRaw({ url: "/api/v1/admin/backups/restore", method: "POST", body: formData });
+      if (!restoreRes.ok) throw new Error((await restoreRes.text()) || t("admin.backup.restoreFailed"));
       toast.success(t("admin.backup.restoreCompleted"));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("admin.backup.restoreFailed"));
@@ -372,7 +374,8 @@ function RestoreUploadModal({
     try {
       const formData = new FormData();
       formData.append("backup", file);
-      await eveyFetchRaw({ url: "/api/v1/admin/backups/restore", method: "POST", body: formData });
+      const restoreRes = await eveyFetchRaw({ url: "/api/v1/admin/backups/restore", method: "POST", body: formData });
+      if (!restoreRes.ok) throw new Error((await restoreRes.text()) || t("admin.backup.restoreFailed"));
       toast.success(t("admin.backup.restoreCompleted"));
       onClose();
     } catch (err) {

@@ -11,6 +11,7 @@ import {
 } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
@@ -109,6 +110,7 @@ function NotificationsPage() {
         invalidate();
         setShowDeleteModal(false);
       },
+      onError: (err: Error) => toast.error(err.message || t("common.error")),
     },
   });
 
