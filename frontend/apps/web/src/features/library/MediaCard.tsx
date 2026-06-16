@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useMemo } from "react";
+import { memo, useRef, useState, useMemo, useEffect } from "react";
 import { Star, Check, Play } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -155,6 +155,18 @@ export const MediaCard = memo(function MediaCard({
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
+
+  // Clear pending hover/prefetch/long-press timers on unmount. In the virtualized
+  // grid a card can unmount mid-hover (scrolled away) before mouseleave fires, so
+  // the timers would otherwise call setShowPreview/prefetch after teardown.
+  useEffect(
+    () => () => {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+      if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    },
+    [],
+  );
 
   const hasProgressBar = showProgress && pct !== undefined;
 
