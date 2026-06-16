@@ -13,6 +13,8 @@ import {
   useAdminPluginServiceGetPluginConfig,
   useAdminPluginServiceUpdatePluginConfig,
   useAdminPluginServiceGetPluginLogs,
+  getAdminPluginServiceGetPluginConfigQueryKey,
+  getAdminPluginServiceListPluginsQueryKey,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api";
@@ -201,7 +203,7 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
   const updateConfig = useAdminPluginServiceUpdatePluginConfig({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ["/api/v1/admin/plugins", pluginId, "config"] });
+        queryClient.invalidateQueries({ queryKey: getAdminPluginServiceGetPluginConfigQueryKey(pluginId) });
         setEdits({});
         setErrors({});
         toast.success(t("admin.plugin.configSaved"));
@@ -308,6 +310,7 @@ interface PluginCardProps {
 
 export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginCardProps) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [showConfig, setShowConfig] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -450,6 +453,8 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
           onApplied={() => {
             setUpdateSource(null);
             setUpdateSourceInput("");
+            // Refresh the card's version / source hash / permission badges.
+            void queryClient.invalidateQueries({ queryKey: getAdminPluginServiceListPluginsQueryKey() });
           }}
         />
       )}

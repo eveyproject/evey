@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Select } from "@/components/ui/Select";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
+import { useAuthStore } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { ISO_REGIONS } from "./regionList";
 
@@ -24,20 +25,26 @@ export function RegionSettings() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { data: user } = useUserServiceGetCurrentUser();
+  const activeProfileId = useAuthStore((s) => s.profileId);
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
-  const defaultProfile = profilesResp?.profiles?.find((p) => p.isDefault) ?? profilesResp?.profiles?.[0];
+  // region is per-profile: operate on the active profile (from JWT), not the
+  // default one — otherwise a non-default profile reads/writes the wrong region.
+  const activeProfile =
+    profilesResp?.profiles?.find((p) => p.id === activeProfileId) ??
+    profilesResp?.profiles?.find((p) => p.isDefault) ??
+    profilesResp?.profiles?.[0];
   const updateProfile = useUserServiceUpdateProfile();
 
   const options = useMemo(() => {
     return [{ value: "", label: t("common.region.auto") }, ...regionOptions(i18n.language)];
   }, [i18n.language, t]);
 
-  const current = defaultProfile?.region ?? "";
+  const current = activeProfile?.region ?? "";
 
   const handleChange = async (code: string) => {
-    if (!defaultProfile?.id) return;
+    if (!activeProfile?.id) return;
     try {
-      await updateProfile.mutateAsync({ id: defaultProfile.id, data: { region: code } });
+      await updateProfile.mutateAsync({ id: activeProfile.id, data: { region: code } });
       if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
     } catch (err) { console.warn("region update failed", err); }
   };

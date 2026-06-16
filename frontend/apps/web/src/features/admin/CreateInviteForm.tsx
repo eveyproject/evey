@@ -6,6 +6,7 @@ import {
 } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { toast } from "@evey/store";
 
 export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
   const { t } = useTranslation();
@@ -16,7 +17,13 @@ export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
 
   const { data: librariesData } = useLibraryServiceListLibraries();
   const libraries = librariesData?.libraries ?? [];
-  const createInvite = useUserServiceCreateInviteLink({ mutation: { onSuccess } });
+  const createInvite = useUserServiceCreateInviteLink({
+    mutation: {
+      onSuccess,
+      // Surface rejections (invite quota, bad expiry) instead of failing silently.
+      onError: (err: Error) => toast.error(err?.message || t("admin.users.failedCreate")),
+    },
+  });
 
   function toggleLibrary(id: string) {
     setLibraryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));

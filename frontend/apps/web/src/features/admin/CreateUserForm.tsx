@@ -50,6 +50,9 @@ export function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
         }
         onSuccess();
       },
+      // Without onError a rejected create (dup username, weak password, cap
+      // reached) just stops the spinner and shows nothing.
+      onError: (err: Error) => toast.error(err?.message || t("admin.users.failedCreate")),
     },
   });
 
