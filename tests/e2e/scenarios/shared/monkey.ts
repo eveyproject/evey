@@ -10,7 +10,10 @@
  * - Does 1 micro-interaction (click, fill, navigate, etc.)
  * - Returns the new context (or null if unknown)
  *
- * The runner collects JS errors, 5xx, blank pages, and untranslated i18n keys.
+ * The runner collects JS errors, 5xx, unexpected API 4xx (malformed requests
+ * from UI actions — 400/405/422), blank pages, and untranslated i18n keys. Each
+ * action is bounded by ACTION_TIMEOUT_MS so one wedged interaction can't blow
+ * the run's budget.
  */
 
 import type { Page } from "@playwright/test";
@@ -397,8 +400,44 @@ export interface MonkeyResult {
   serverErrors: string[];
   blankPage: boolean;
   untranslatedKeys: string[];
+  // Unexpected 4xx on API calls: a UI action that fires a 400/405/422 against
+  // /api/ is almost always a real client bug (malformed payload, wrong method,
+  // unparseable param) — exactly the class of drift that made several specs pass
+  // while silently no-opping. Distinct from the noisy 4xx a random walk
+  // legitimately produces (401 auth, 403 RBAC, 404 missing resource, 409
+  // conflict, 429 rate-limit), which we deliberately do NOT flag.
+  apiErrors: string[];
   seed?: number;
 }
+
+// 4xx statuses that, on an /api/ request, indicate the *client* sent something
+// wrong rather than a legitimate "no/denied/conflict" outcome.
+const API_4XX_FLAG = new Set([400, 405, 422]);
+
+// Known-legitimate flagged 4xx that a random walk can trip without it being a
+// bug. Keep this tight and annotate every entry — an over-broad allowlist
+// re-blinds the monkey. (Empty until a real false positive is observed.)
+const API_4XX_ALLOWLIST: Array<{ method?: string; urlIncludes: string; status?: number }> = [];
+
+function isAllowlisted4xx(method: string, url: string, status: number): boolean {
+  return API_4XX_ALLOWLIST.some(
+    (a) =>
+      url.includes(a.urlIncludes) &&
+      (a.method === undefined || a.method === method) &&
+      (a.status === undefined || a.status === status),
+  );
+}
+
+function stripQuery(url: string): string {
+  const q = url.indexOf("?");
+  return q === -1 ? url : url.slice(0, q);
+}
+
+// Hard ceiling per action. A single chaotic action occasionally wedges on a
+// Playwright default timeout (~30s) and two of those blow the 60s test budget,
+// flaking the whole run. Bound each action so one hang costs seconds, not the
+// run. The wedged operation isn't cancelled — it just stops blocking the walk.
+const ACTION_TIMEOUT_MS = 6_000;
 
 export async function runMonkey(page: Page, startUrl: string, numSteps: number, seed?: number): Promise<MonkeyResult> {
   // Reseed the action/choice RNG so this run is deterministic and replayable.
@@ -409,12 +448,29 @@ export async function runMonkey(page: Page, startUrl: string, numSteps: number, 
     serverErrors: [],
     blankPage: false,
     untranslatedKeys: [],
+    apiErrors: [],
     seed,
   };
 
+  // The step in flight when a response arrives — lets us point at the action
+  // that triggered a bad request for replay (responses land async, usually
+  // during or just after the step that fired them).
+  let currentStep = "START";
+
   page.on("pageerror", (e) => result.jsErrors.push(e.message));
   page.on("response", (r) => {
-    if (r.status() >= 500) result.serverErrors.push(`${r.status()} ${r.url()}`);
+    const status = r.status();
+    const url = r.url();
+    if (status >= 500) {
+      result.serverErrors.push(`${status} ${url}  @ ${currentStep}`);
+      return;
+    }
+    if (API_4XX_FLAG.has(status) && url.includes("/api/")) {
+      const method = r.request().method();
+      if (!isAllowlisted4xx(method, url, status)) {
+        result.apiErrors.push(`${status} ${method} ${stripQuery(url)}  @ ${currentStep}`);
+      }
+    }
   });
 
   await page.goto(startUrl, { waitUntil: "domcontentloaded", timeout: 10_000 });
@@ -423,15 +479,24 @@ export async function runMonkey(page: Page, startUrl: string, numSteps: number, 
 
   for (let i = 0; i < numSteps; i++) {
     const action = pickAction(context);
-    result.steps.push(`${i + 1}. [${context}] ${action.name}`);
+    currentStep = `${i + 1}. [${context}] ${action.name}`;
+    result.steps.push(currentStep);
     try {
-      const newCtx = await action.fn(page);
+      const newCtx = await Promise.race([
+        action.fn(page),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`action timed out after ${ACTION_TIMEOUT_MS}ms`)), ACTION_TIMEOUT_MS),
+        ),
+      ]);
       if (newCtx) context = newCtx;
       else context = detectContext(page.url());
     } catch (e) {
       result.steps.push(`   ERROR: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+  // Let any in-flight request triggered by the last action settle so its
+  // response is captured before we return.
+  await page.waitForTimeout(300);
 
   // Final checks
   const bodyLen = await page.evaluate(() => document.body?.innerText?.length ?? 0);
@@ -441,6 +506,10 @@ export async function runMonkey(page: Page, startUrl: string, numSteps: number, 
   const i18nPattern = /\b(?:media|common|player|admin|auth|errors)\.[a-z]+\.[a-zA-Z]+/g;
   const matches = bodyText.match(i18nPattern) ?? [];
   result.untranslatedKeys = matches.filter((k) => !k.includes("http") && !k.includes("api"));
+
+  // Dedup the bad-request signal: a stuck control clicked repeatedly yields the
+  // same 400 N times; one line is enough to act on.
+  result.apiErrors = [...new Set(result.apiErrors)];
 
   return result;
 }
