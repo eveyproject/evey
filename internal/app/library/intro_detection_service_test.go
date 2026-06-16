@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -252,6 +253,10 @@ type fakeSegmentRepo struct {
 	// queriedIDs records every id passed to GetByMediaItemID (one per episode
 	// detectSeason reaches) so a test can prove it paged through them all.
 	queriedIDs []string
+	// getErr makes every GetByMediaItemID call fail with this error.
+	getErr error
+	// getErrForID makes GetByMediaItemID fail for specific IDs only.
+	getErrForID map[string]error
 }
 
 func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegment) error {
@@ -260,6 +265,12 @@ func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegm
 }
 func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaItemID) ([]*domainlibrary.MediaSegment, error) {
 	r.queriedIDs = append(r.queriedIDs, string(id))
+	if r.getErr != nil {
+		return nil, r.getErr
+	}
+	if err, ok := r.getErrForID[string(id)]; ok {
+		return nil, err
+	}
 	var out []*domainlibrary.MediaSegment
 	for _, s := range r.seeded {
 		if s.MediaItemID == id {
@@ -885,4 +896,97 @@ func TestPickWindowMatchingDuration_TooLongReturnsNil(t *testing.T) {
 	result := pickWindowMatchingDuration(windows, 15_000)
 	// 90000 > 15000*2=30000 → rejected
 	assert.Nil(t, result)
+}
+
+// --- H5 fail-closed regression tests ---
+
+// TestUpsertSegmentRespectingManual_GetError_FailsClosed proves that when
+// GetByMediaItemID errors inside the manual-lock guard, DetectIntro returns
+// the error without calling Upsert.  Overwriting an undetermined lock state
+// is forbidden — the fix must propagate the error rather than proceeding.
+func TestUpsertSegmentRespectingManual_GetError_FailsClosed(t *testing.T) {
+	t.Parallel()
+	dur, _ := shared.NewDurationMs(3_600_000)
+	item := &domainlibrary.MediaItem{
+		ID:   shared.MediaItemID("item-guardread"),
+		Type: domainlibrary.MovieItem,
+		File: &domainlibrary.MediaFile{Path: "/movie.mkv", Duration: dur},
+	}
+	segRepo := &fakeSegmentRepo{
+		getErr: errors.New("db transient error"),
+	}
+	det := &fakeDetector{
+		creditsStartMs: 3_480_000,
+		creditsEndMs:   3_600_000,
+		creditsFound:   true,
+	}
+	svc := newTestService(det, segRepo, item)
+
+	err := svc.DetectIntro(context.Background(), "item-guardread")
+	require.Error(t, err, "DetectIntro must propagate the error when the manual-lock guard read fails")
+	require.Empty(t, segRepo.upserted, "Upsert must not be called when manual-lock guard read errors")
+}
+
+// TestPropagateSegment_SiblingGetSegError_SkipsUpsert proves that when
+// GetByMediaItemID errors for a sibling during the propagation lock-check,
+// that sibling is skipped entirely (fail-closed).  The test seeds matching
+// hash data so the sibling WOULD be upserted without the error injection,
+// distinguishing the fix from other skip reasons (no hashes, no manifest).
+func TestPropagateSegment_SiblingGetSegError_SkipsUpsert(t *testing.T) {
+	t.Parallel()
+	ref := &domainlibrary.MediaItem{
+		ID:       shared.MediaItemID("ep-ref"),
+		Type:     domainlibrary.Episode,
+		ParentID: "season-1",
+		File:     &domainlibrary.MediaFile{Path: "/ep-ref.mkv"},
+	}
+	sib := &domainlibrary.MediaItem{
+		ID:       shared.MediaItemID("ep-sib"),
+		Type:     domainlibrary.Episode,
+		ParentID: "season-1",
+		File:     &domainlibrary.MediaFile{Path: "/ep-sib.mkv"},
+	}
+	refSeg := &domainlibrary.MediaSegment{
+		ID:          "seg-ref",
+		MediaItemID: ref.ID,
+		Type:        "intro",
+		StartMs:     0,
+		EndMs:       40_000,
+		Source:      "manual",
+		Confidence:  1.0,
+	}
+	segRepo := &fakeSegmentRepo{
+		seeded: []*domainlibrary.MediaSegment{refSeg},
+		// Error only for the sibling; ref's GetByMediaItemID must succeed.
+		getErrForID: map[string]error{"ep-sib": errors.New("db transient")},
+	}
+	// manifest.MediaItemID = "ep-ref" so both ref and sib resolve to the same
+	// sidecar path, giving both 5 matching hashes — i.e. without the error
+	// injection the sibling WOULD be upserted.
+	manifest := &domainlibrary.TrickplayManifest{
+		MediaItemID: ref.ID,
+		Interval:    10, TileWidth: 5, TileHeight: 1,
+		Width: 160, Height: 90, ImageCount: 1,
+	}
+	det := &fakeDetector{tileHashes: []uint64{0x1111, 0x2222, 0x3333, 0x4444, 0x5555}}
+	cacheDir := t.TempDir()
+	// 5 frames at [0, 10 000, 20 000, 30 000, 40 000] ms.
+	writeTrickplaySidecarFixture(t, cacheDir, "ep-ref", 10, 5, 5)
+	svc := NewIntroDetectionService(
+		segRepo,
+		&fakeTrickplayRepoWithManifest{manifest: manifest},
+		&fakeMediaItemRepo{item: ref, siblings: []*domainlibrary.MediaItem{sib}},
+		&fakeConfigRepo{},
+		det,
+		cacheDir,
+	)
+
+	propagated, err := svc.PropagateSegment(context.Background(), "ep-ref", "intro")
+	require.NoError(t, err)
+	require.Empty(t, propagated, "sibling with a GetByMediaItemID error must not appear in propagatedTo")
+	for _, u := range segRepo.upserted {
+		if u.MediaItemID == sib.ID {
+			t.Fatalf("Upsert must not be called for sibling whose lock-check read errored; got %+v", u)
+		}
+	}
 }

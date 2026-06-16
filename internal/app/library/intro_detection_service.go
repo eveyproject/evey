@@ -529,15 +529,17 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 // choices must never be silently overwritten by re-runs of auto-detection.
 func (s *IntroDetectionService) upsertSegmentRespectingManual(ctx context.Context, seg *domainlibrary.MediaSegment) error {
 	existing, err := s.segmentRepo.GetByMediaItemID(ctx, seg.MediaItemID)
-	if err == nil {
-		for _, e := range existing {
-			if e.Type == seg.Type && (e.Source == "manual" || e.Source == "manual_propagated") {
-				slog.Info("intro_detection: skipping auto upsert, manual lock present",
-					slog.String("media_id", string(seg.MediaItemID)),
-					slog.String("type", seg.Type),
-					slog.String("existing_source", e.Source))
-				return nil
-			}
+	if err != nil {
+		// Cannot determine lock state — fail closed to protect operator marks.
+		return fmt.Errorf("read existing segments for manual-lock guard: %w", err)
+	}
+	for _, e := range existing {
+		if e.Type == seg.Type && (e.Source == "manual" || e.Source == "manual_propagated") {
+			slog.Info("intro_detection: skipping auto upsert, manual lock present",
+				slog.String("media_id", string(seg.MediaItemID)),
+				slog.String("type", seg.Type),
+				slog.String("existing_source", e.Source))
+			return nil
 		}
 	}
 	return s.segmentRepo.Upsert(ctx, seg)
@@ -671,7 +673,15 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 		if sib.ID == refItem.ID {
 			continue
 		}
-		sibSegs, _ := s.segmentRepo.GetByMediaItemID(ctx, sib.ID)
+		sibSegs, sibSegErr := s.segmentRepo.GetByMediaItemID(ctx, sib.ID)
+		if sibSegErr != nil {
+			// Cannot determine lock state — skip the sibling to protect any
+			// operator "manual" mark we cannot read right now.
+			slog.Warn("intro_detection: propagate skipping sibling, cannot read segments for manual-lock guard",
+				slog.String("sibling_id", string(sib.ID)),
+				slog.Any("err", sibSegErr))
+			continue
+		}
 		manualLock := false
 		for _, sg := range sibSegs {
 			if sg.Type == segType && sg.Source == "manual" {

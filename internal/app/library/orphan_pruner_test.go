@@ -173,7 +173,7 @@ func TestOrphanPruner_SeriesWithRemainingSeason_NotPruned(t *testing.T) {
 	}
 }
 
-func TestOrphanPruner_DeleteByIDsError_StillReportsCountAndCleansIndex(t *testing.T) {
+func TestOrphanPruner_DeleteByIDsError_FailClosed(t *testing.T) {
 	t.Parallel()
 	pruner, items, search, bus := newPrunerHarness()
 
@@ -188,23 +188,20 @@ func TestOrphanPruner_DeleteByIDsError_StillReportsCountAndCleansIndex(t *testin
 	if err != nil {
 		t.Fatalf("Prune must not bubble batch-delete errors: %v", err)
 	}
-	if removed != 1 {
-		t.Fatalf("want 1 reported orphan, got %d", removed)
+	// Nothing was actually deleted — count must reflect reality.
+	if removed != 0 {
+		t.Fatalf("want 0 removed when delete fails, got %d", removed)
 	}
-	// Index/event cleanup runs even when the DB delete fails — pruner is best-effort.
+	// Row still in DB — must NOT be de-indexed (search still returns it).
 	hits, _, _ := search.Search(context.Background(), "orphan", nil, nil, 10)
-	if len(hits) != 0 {
-		t.Fatalf("orphan still in search index after batch-delete error: %+v", hits)
+	if len(hits) == 0 {
+		t.Fatal("orphan must remain in search index when DB delete failed")
 	}
-	var saw bool
+	// Must NOT emit MediaItemRemoved for an item still in the DB.
 	for _, e := range bus.PublishedEvents() {
 		if _, ok := e.(library.MediaItemRemoved); ok {
-			saw = true
-			break
+			t.Fatal("MediaItemRemoved must not be published when DB delete failed")
 		}
-	}
-	if !saw {
-		t.Fatalf("MediaItemRemoved should still publish despite batch-delete error")
 	}
 }
 

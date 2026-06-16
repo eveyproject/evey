@@ -51,23 +51,28 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 			orphanIDs = append(orphanIDs, id)
 		}
 	}
+	deleted := 0
 	if len(orphanIDs) > 0 {
 		if delErr := p.mediaItems.DeleteByIDs(ctx, orphanIDs); delErr != nil {
 			slog.Warn("batch delete orphaned media items failed", slog.Any("err", delErr))
-		}
-		for _, id := range orphanIDs {
-			if p.search != nil {
-				if idxErr := p.search.RemoveMediaItem(ctx, id); idxErr != nil {
-					slog.Warn("remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
+			// Fail closed: rows are still in the DB — do not de-index or emit
+			// removal events for items that were NOT deleted.
+		} else {
+			deleted = len(orphanIDs)
+			for _, id := range orphanIDs {
+				if p.search != nil {
+					if idxErr := p.search.RemoveMediaItem(ctx, id); idxErr != nil {
+						slog.Warn("remove orphan from search index failed", slog.String("id", id), slog.Any("err", idxErr))
+					}
 				}
-			}
-			evt := library.MediaItemRemoved{
-				MediaItemID: shared.MediaItemID(id),
-				LibraryID:   shared.LibraryID(libraryID),
-				OccurredAt:  time.Now(),
-			}
-			if pubErr := p.events.Publish(ctx, evt); pubErr != nil {
-				slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
+				evt := library.MediaItemRemoved{
+					MediaItemID: shared.MediaItemID(id),
+					LibraryID:   shared.LibraryID(libraryID),
+					OccurredAt:  time.Now(),
+				}
+				if pubErr := p.events.Publish(ctx, evt); pubErr != nil {
+					slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
+				}
 			}
 		}
 	}
@@ -77,7 +82,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 		slog.Warn("prune empty containers failed", slog.Any("err", pruneErr))
 	}
 
-	return len(orphanIDs) + pruned, nil
+	return deleted + pruned, nil
 }
 
 // pruneEmptyContainers deletes Season rows with zero children then
