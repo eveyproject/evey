@@ -150,9 +150,13 @@ export async function apiGet(page: Page, path: string) {
 export async function apiPost(page: Page, path: string, data: unknown) {
   const token = await getToken(page);
   return page.evaluate(async ({ url, tk, body }) => {
+    // Mutating requests must echo the _csrf cookie in X-CSRF-Token (double-submit
+    // pattern). Playwright's fetch sends the cookie automatically; without the
+    // header the server returns 403 "csrf token missing".
+    const csrf = document.cookie.match(/(?:^|;\s*)_csrf=([^;]+)/)?.[1] ?? "";
     const res = await fetch(url, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json", "X-CSRF-Token": decodeURIComponent(csrf) },
       body: JSON.stringify(body),
     });
     return { status: res.status, body: await res.json().catch(() => null) };
@@ -163,7 +167,8 @@ export async function apiPost(page: Page, path: string, data: unknown) {
 export async function apiDelete(page: Page, path: string) {
   const token = await getToken(page);
   return page.evaluate(async ({ url, tk }) => {
-    const res = await fetch(url, { method: "DELETE", headers: { Authorization: `Bearer ${tk}` } });
+    const csrf = document.cookie.match(/(?:^|;\s*)_csrf=([^;]+)/)?.[1] ?? "";
+    const res = await fetch(url, { method: "DELETE", headers: { Authorization: `Bearer ${tk}`, "X-CSRF-Token": decodeURIComponent(csrf) } });
     return { status: res.status };
   }, { url: `${BASE}${path}`, tk: token });
 }

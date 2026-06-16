@@ -7,7 +7,7 @@ test.describe("Media > Playlist full CRUD", () => {
 
   test("create playlist via API", async ({ page }) => {
     await goto(page, "/home"); // need page context for API calls
-    const res = await apiPost(page, "/api/v1/playlists", { name: `E2E-Playlist-${Date.now()}`, type: "manual" });
+    const res = await apiPost(page, "/api/v1/playlists", { name: `E2E-Playlist-${Date.now()}`, type: "PLAYLIST_TYPE_MANUAL" });
     expect(res.status).toBe(200);
     playlistId = res.body?.id ?? null;
     expect(playlistId).toBeTruthy();

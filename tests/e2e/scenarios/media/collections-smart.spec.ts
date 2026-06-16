@@ -9,14 +9,15 @@ test.describe("Collections > Smart rules", () => {
     await goto(page, "/home");
     const res = await apiPost(page, "/api/v1/collections", {
       name: collName,
-      type: "smart",
+      smart: true,
       rules: [
         { field: "type", operator: "eq", value: "MEDIA_ITEM_TYPE_MOVIE" },
         { field: "year", operator: "gte", value: "2000" },
       ],
     });
     expect(res.status).toBeLessThan(500);
-    collectionId = res.body?.id ?? null;
+    // CreateCollectionResponse wraps the row in `collection`.
+    collectionId = res.body?.collection?.id ?? res.body?.id ?? null;
     expect(collectionId).toBeTruthy();
   });
 

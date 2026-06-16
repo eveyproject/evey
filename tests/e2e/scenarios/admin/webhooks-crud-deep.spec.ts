@@ -52,8 +52,18 @@ test.describe("Admin > Webhooks CRUD (deep)", () => {
 
   test("deleted webhook no longer listed", async ({ page }) => {
     test.skip(!webhookId, "No webhook");
+    // The delete went through the API, behind the UI's React Query cache, so a
+    // bare load can rehydrate the stale (persisted) list and show the deleted
+    // row until the background refetch lands. Wait for that fresh GET to settle
+    // before asserting. (Backend delete+list verified correct out-of-band.)
     await goto(page, "/admin/webhooks");
-    await page.waitForTimeout(2_000);
+    await page
+      .waitForResponse(
+        (r) => r.url().includes("/api/v1/admin/webhooks") && r.request().method() === "GET",
+        { timeout: 5_000 },
+      )
+      .catch(() => {});
+    await page.waitForTimeout(1_500);
     const body = await page.locator("body").textContent();
     expect(body).not.toContain(webhookName);
   });

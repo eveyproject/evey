@@ -20,11 +20,36 @@ test.describe("Home > Feeds display", () => {
   test("no broken images on visible cards", async ({ page }) => {
     await goto(page, "/home");
     await page.waitForTimeout(2_000);
-    const broken = await page.evaluate(() =>
-      Array.from(document.querySelectorAll("img"))
-        .filter((img) => img.naturalWidth === 0 && img.offsetParent !== null && img.style.display !== "none")
-        .map((img) => img.src),
-    );
+    // Only judge images actually in the viewport. Cards in horizontal sliders
+    // (and below the fold) use loading="lazy", so off-screen posters never start
+    // loading and report naturalWidth===0 — that's lazy, not broken. Restrict to
+    // in-viewport images and wait for those to settle (img.complete is true on
+    // both success and error) before counting genuine failures.
+    await page
+      .waitForFunction(
+        () => {
+          const inVP = (i: HTMLImageElement) => {
+            if (i.offsetParent === null || i.style.display === "none") return false;
+            const r = i.getBoundingClientRect();
+            return r.top < innerHeight && r.bottom > 0 && r.left < innerWidth && r.right > 0;
+          };
+          const imgs = Array.from(document.querySelectorAll("img")).filter(inVP);
+          return imgs.length === 0 || imgs.every((i) => i.complete);
+        },
+        undefined,
+        { timeout: 8_000 },
+      )
+      .catch(() => {});
+    const broken = await page.evaluate(() => {
+      const inVP = (i: HTMLImageElement) => {
+        if (i.offsetParent === null || i.style.display === "none") return false;
+        const r = i.getBoundingClientRect();
+        return r.top < innerHeight && r.bottom > 0 && r.left < innerWidth && r.right > 0;
+      };
+      return Array.from(document.querySelectorAll("img"))
+        .filter((img) => img.naturalWidth === 0 && inVP(img))
+        .map((img) => img.src);
+    });
     expect(broken.length, `Broken images: ${broken.slice(0, 5).join(", ")}`).toBeLessThan(5);
   });
 
