@@ -111,7 +111,13 @@ func NewCommandService(
 
 func (s *CommandService) validateProfile(ctx context.Context, profileID shared.ProfileID) error {
 	if _, err := s.profiles.GetByID(ctx, profileID); err != nil {
-		return ErrProfileNotFound
+		if errors.Is(err, shared.ErrNotFound) {
+			return ErrProfileNotFound
+		}
+		// A transient lookup error must not masquerade as a permanent 404 — the
+		// caller would map it to NotFound, the client would stop retrying, and the
+		// progress/stop/mark write would be silently dropped.
+		return fmt.Errorf("validate profile: %w", err)
 	}
 	return nil
 }

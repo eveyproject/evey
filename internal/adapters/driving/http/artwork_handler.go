@@ -269,13 +269,20 @@ func selectArtworkHandler(tokens TokenVerifier, artworkRepo ArtworkRepo, libSvc 
 		for _, rec := range records {
 			if rec.Type == selected.Type && rec.ID != selected.ID && rec.SortOrder < selected.SortOrder {
 				if err := artworkRepo.UpdateSortOrder(r.Context(), rec.ID, selected.SortOrder); err != nil {
-					slog.Warn("artwork sort update", slog.Any("err", err))
+					slog.Error("artwork sort update (demote)", slog.Any("err", err))
+					http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+					return
 				}
 				break
 			}
 		}
+		// This is the defining write — promoting `selected` to primary. Reporting
+		// {"ok":true} when it fails made the UI show a new poster that reverted on
+		// the next refresh.
 		if err := artworkRepo.UpdateSortOrder(r.Context(), selected.ID, -1); err != nil {
-			slog.Warn("artwork sort update", slog.Any("err", err))
+			slog.Error("artwork sort update (promote)", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"ok":true}`))

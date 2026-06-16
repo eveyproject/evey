@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -142,6 +143,12 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		// Map no-rows to the domain sentinel (the house convention used by the
+		// other repo methods) so callers can distinguish a genuinely-missing
+		// profile from a transient DB failure instead of collapsing both to 404.
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, shared.ErrNotFound
+		}
 		return nil, fmt.Errorf("ProfileRepo.GetByID: %w", err)
 	}
 	if err := json.Unmarshal(prefsJSON, &p.Preferences); err != nil {

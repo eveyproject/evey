@@ -413,12 +413,22 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 
 	if p.InstallDir != "" && p.IsTheme() && s.cssSanitizer != nil {
 		themePath := filepath.Join(p.InstallDir, "theme.css")
-		if raw, readErr := os.ReadFile(themePath); readErr == nil {
+		raw, readErr := os.ReadFile(themePath)
+		// A present-but-unreadable theme.css must NOT skip sanitization (that
+		// would serve it raw); only a genuinely-absent file is fine to skip.
+		if readErr != nil && !os.IsNotExist(readErr) {
+			return nil, fmt.Errorf("read theme.css for sanitization: %w", readErr)
+		}
+		if readErr == nil {
 			sanitized, warns := s.cssSanitizer.SanitizeCSS(raw)
 			if len(warns) > 0 {
 				slog.Warn("css sanitizer cleaned theme at install", slog.String("pluginID", p.ID), slog.Any("warnings", warns))
+				// The write-back is the only sanitization barrier — theme_asset
+				// serves theme.css raw (and pre-auth on the login page). If it
+				// fails, fail the install so the deferred cleanup removes the dir
+				// rather than leaving the dangerous original on disk.
 				if writeErr := os.WriteFile(themePath, sanitized, 0o644); writeErr != nil {
-					slog.Warn("write sanitized theme.css", slog.String("pluginID", p.ID), slog.Any("err", writeErr))
+					return nil, fmt.Errorf("persist sanitized theme.css: %w", writeErr)
 				}
 			}
 		}

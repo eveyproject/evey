@@ -383,11 +383,19 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		<-r.Context().Done()
 		cancel()
 	}()
-	if _, err := io.Copy(w, stdout); err != nil && ctx.Err() == nil {
-		slog.Warn("transcode copy", slog.Any("err", err))
+	copied, copyErr := io.Copy(w, stdout)
+	if copyErr != nil && ctx.Err() == nil {
+		slog.Warn("transcode copy", slog.Any("err", copyErr))
 	}
 	if err := cmd.Wait(); err != nil && ctx.Err() == nil {
 		slog.Warn("ffmpeg transcode", slog.String("media_id", mediaID), slog.Any("err", err))
+		// ffmpeg failed before emitting any bytes: the 200 status line hasn't
+		// been committed yet (io.Copy wrote nothing), so we can still send a 500.
+		// Otherwise the player gets a bare 200 with an empty body and never
+		// retries.
+		if copied == 0 {
+			http.Error(w, "transcode failed", http.StatusInternalServerError)
+		}
 	}
 }
 
