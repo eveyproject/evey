@@ -35,8 +35,15 @@ test.describe("Home > Slider interaction", () => {
     await goto(page, "/home");
     await page.waitForTimeout(3_000);
     const brokenImages = await page.evaluate(() => {
+      // Off-screen slider/below-fold posters use loading="lazy" and never load
+      // (naturalWidth===0) — that's lazy, not broken. Only judge in-viewport imgs.
+      const inVP = (i: HTMLImageElement) => {
+        if (i.offsetParent === null || i.style.display === "none") return false;
+        const r = i.getBoundingClientRect();
+        return r.top < innerHeight && r.bottom > 0 && r.left < innerWidth && r.right > 0;
+      };
       return Array.from(document.querySelectorAll("img"))
-        .filter((img) => img.naturalWidth === 0 && img.offsetParent !== null && img.style.display !== "none")
+        .filter((img) => img.naturalWidth === 0 && inVP(img))
         .map((img) => img.src);
     });
     // some artwork may fail to load, but there shouldn't be many

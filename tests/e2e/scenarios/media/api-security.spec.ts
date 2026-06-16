@@ -12,7 +12,7 @@ const ENDPOINTS = [
   { method: "GET", path: "/api/v1/playback/history" },
   { method: "GET", path: "/api/v1/collections" },
   { method: "GET", path: "/api/v1/playlists" },
-  { method: "GET", path: "/api/v1/admin/users" },
+  { method: "GET", path: "/api/v1/users" },
   { method: "GET", path: "/api/v1/admin/feeds/config" },
   { method: "GET", path: "/api/v1/media/search?query=test" },
 ];

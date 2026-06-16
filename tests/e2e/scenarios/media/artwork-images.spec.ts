@@ -25,10 +25,14 @@ test.describe("Media > Artwork & Images", () => {
     await page.waitForSelector('[data-testid="media-card"]', { timeout: 10_000 });
     await page.waitForTimeout(2_000);
     const broken = await page.evaluate(() => {
+      // Cards off-screen in horizontal sliders use loading="lazy" and never load
+      // (naturalWidth===0) — that's lazy, not broken. Only judge in-viewport imgs.
       return Array.from(document.querySelectorAll('[data-testid="media-card"] img'))
         .filter((img: Element) => {
           const i = img as HTMLImageElement;
-          return i.offsetParent !== null && i.style.display !== "none" && i.naturalWidth === 0;
+          if (i.offsetParent === null || i.style.display === "none" || i.naturalWidth !== 0) return false;
+          const r = i.getBoundingClientRect();
+          return r.top < innerHeight && r.bottom > 0 && r.left < innerWidth && r.right > 0;
         }).length;
     });
     expect(broken).toBeLessThan(3);
