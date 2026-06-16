@@ -40,13 +40,16 @@ func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *ev
 func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *eveyv1.SetUserLibraryAccessRequest) (*eveyv1.SetUserLibraryAccessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.library_access.SetUserLibraryAccess")
 	defer span.End()
+	// Fail closed on read/revoke errors: swallowing them left `existing` nil, so
+	// the revoke loop no-opped and the new grants were added on top of the old
+	// ones — narrowing a user's access silently widened it, reported as success.
 	existing, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
 	if err != nil {
-		slog.Warn("get existing library access", slog.String("user_id", req.UserId), slog.Any("err", err))
+		return nil, internalError("set library access: read existing", err)
 	}
 	for _, id := range existing {
 		if err := h.userAccess.RevokeLibraryAccess(ctx, req.UserId, id); err != nil {
-			slog.Warn("revoke library access", slog.Any("err", err))
+			return nil, internalError("set library access: revoke", err)
 		}
 	}
 	for _, id := range req.LibraryIds {
@@ -60,13 +63,15 @@ func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *ev
 func (h *libraryAccessHandler) RevokeAllUserLibraryAccess(ctx context.Context, req *eveyv1.RevokeAllUserLibraryAccessRequest) (*eveyv1.RevokeAllUserLibraryAccessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.library_access.RevokeAllUserLibraryAccess")
 	defer span.End()
+	// Fail closed: a swallowed read/revoke error meant "revoke all" could revoke
+	// nothing yet report success, leaving the user with full access.
 	existing, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
 	if err != nil {
-		slog.Warn("get existing library access for revoke", slog.String("user_id", req.UserId), slog.Any("err", err))
+		return nil, internalError("revoke all library access: read existing", err)
 	}
 	for _, id := range existing {
 		if err := h.userAccess.RevokeLibraryAccess(ctx, req.UserId, id); err != nil {
-			slog.Warn("revoke library access", slog.Any("err", err))
+			return nil, internalError("revoke all library access: revoke", err)
 		}
 	}
 	return &eveyv1.RevokeAllUserLibraryAccessResponse{}, nil

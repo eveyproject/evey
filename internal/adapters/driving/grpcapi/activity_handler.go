@@ -271,7 +271,13 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	var allowedLibs map[string]bool
 	if !claims.IsAdmin && h.userAccess != nil {
 		libIDs, aErr := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
-		if aErr == nil && libIDs != nil {
+		// Fail closed: swallowing this error left allowedLibs nil, which the
+		// filter below reads as "unrestricted" → a non-admin would see popular
+		// titles from libraries they can't access.
+		if aErr != nil {
+			return nil, internalError("popular media: library access", aErr)
+		}
+		if libIDs != nil {
 			allowedLibs = make(map[string]bool, len(libIDs))
 			for _, id := range libIDs {
 				allowedLibs[id] = true

@@ -45,7 +45,10 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	// the referenced media items' library IDs in one query instead of one
 	// GetMediaItem per notification (N+1) — the per-item loop also risked
 	// returning silent partial results if the context timed out mid-loop.
-	allowed := h.allowedLibraryIDs(ctx)
+	allowed, err := h.allowedLibraryIDs(ctx)
+	if err != nil {
+		return nil, internalError("list notifications: library access", err)
+	}
 	libByMedia := map[string]string{}
 	if allowed != nil {
 		seen := map[string]bool{}
@@ -240,16 +243,23 @@ func (h *notificationHandler) UpdateGlobalNotificationSettings(ctx context.Conte
 	return settingsToProto(s), nil
 }
 
-func (h *notificationHandler) allowedLibraryIDs(ctx context.Context) []string {
+// allowedLibraryIDs returns the caller's accessible library IDs, or nil for an
+// unrestricted (admin / no-access-service) context. A non-nil error means the
+// access lookup failed and the caller MUST fail closed — returning nil on error
+// would be read as "unrestricted" and leak other libraries' notifications.
+func (h *notificationHandler) allowedLibraryIDs(ctx context.Context) ([]string, error) {
 	if h.userAccess == nil {
-		return nil
+		return nil, nil
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.IsAdmin {
-		return nil
+		return nil, nil
 	}
-	ids, _ := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
-	return ids
+	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func containsStr(ss []string, s string) bool {

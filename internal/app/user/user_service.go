@@ -172,7 +172,12 @@ func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 	// is_admin). Compare against the stored row to detect it.
 	roleChanged := false
 	if s.tokenRevoker != nil {
-		if before, err := s.users.GetByID(ctx, u.ID); err == nil {
+		before, err := s.users.GetByID(ctx, u.ID)
+		if err != nil {
+			// Can't determine whether is_admin changed — revoke to be safe rather
+			// than risk leaving a just-demoted admin's is_admin token valid.
+			roleChanged = true
+		} else {
 			roleChanged = before.IsAdmin != u.IsAdmin
 		}
 	}
