@@ -203,6 +203,34 @@ func (r *NotificationRepository) UnreadCount(ctx context.Context, profileID stri
 	return count, nil
 }
 
+func (r *NotificationRepository) UnreadCountExcludingTypes(ctx context.Context, profileID string, excludeTypes []notification.Type) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.UnreadCountExcludingTypes")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	query := `SELECT COUNT(*) FROM notifications WHERE profile_id = $1 AND read_at IS NULL`
+	args := make([]interface{}, 0, len(excludeTypes)+1)
+	args = append(args, profileID)
+	if len(excludeTypes) > 0 {
+		placeholders := make([]string, len(excludeTypes))
+		for i, t := range excludeTypes {
+			placeholders[i] = fmt.Sprintf("$%d", i+2)
+			args = append(args, string(t))
+		}
+		query += ` AND type NOT IN (` + strings.Join(placeholders, ",") + `)`
+	}
+
+	var count int
+	if err := txFromCtx(ctx, r.db).QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return count, nil
+}
+
 func (r *NotificationRepository) DeleteAll(ctx context.Context, profileID string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.notification.DeleteAll")
 	defer span.End()

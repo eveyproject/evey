@@ -99,25 +99,14 @@ func (s *QueryService) ListAdminOnly(ctx context.Context, profileID string, unre
 	return out, nil
 }
 
-// UnreadCount returns the count of unread *personal* notifications. We
-// over-fetch and count in memory rather than adding a Repository method
-// because the rate (~once per page load) and the typical unread count
-// (single-digit to low-hundreds) make the cost negligible.
+// UnreadCount returns the count of unread *personal* notifications (admin-only
+// operational types excluded) via a single COUNT(*). The previous version
+// over-fetched up to 1000 rows and counted in memory, which silently capped the
+// badge at 1000 and shipped wide rows on every page load.
 func (s *QueryService) UnreadCount(ctx context.Context, profileID string) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.UnreadCount")
 	defer span.End()
-	raw, err := s.repo.ListByProfile(ctx, profileID, true, 1000, 0)
-	if err != nil {
-		return 0, err
-	}
-	count := 0
-	for _, n := range raw {
-		if n != nil && n.Type.IsAdminOnly() {
-			continue
-		}
-		count++
-	}
-	return count, nil
+	return s.repo.UnreadCountExcludingTypes(ctx, profileID, notification.AdminOnlyTypes())
 }
 
 func (s *QueryService) GetSettings(ctx context.Context, profileID string) (*notification.Settings, error) {

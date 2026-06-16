@@ -28,6 +28,9 @@ type Repository interface {
 	MarkRead(ctx context.Context, id, profileID string) error
 	MarkAllRead(ctx context.Context, profileID string) error
 	UnreadCount(ctx context.Context, profileID string) (int, error)
+	// UnreadCountExcludingTypes is UnreadCount minus the given types — used for
+	// the personal bell badge, which hides admin-only operational notifications.
+	UnreadCountExcludingTypes(ctx context.Context, profileID string, excludeTypes []Type) (int, error)
 	DeleteAll(ctx context.Context, profileID string) error
 	CleanupExpired(ctx context.Context) error
 }
