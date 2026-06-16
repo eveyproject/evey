@@ -16,6 +16,9 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 });
 
 const unwatch = vi.fn();
+const clearAll = vi.fn();
+
+vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetWatchHistory: () => ({
@@ -37,6 +40,7 @@ vi.mock("@evey/api", () => ({
     isLoading: false,
   }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: unwatch, isPending: false }),
+  usePlaybackServiceClearWatchHistory: () => ({ mutate: clearAll, isPending: false }),
   getPlaybackServiceGetWatchHistoryQueryKey: () => ["watch-history"],
 }));
 

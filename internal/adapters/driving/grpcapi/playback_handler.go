@@ -800,6 +800,38 @@ func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkA
 	return &eveyv1.MarkAsUnwatchedResponse{}, nil
 }
 
+func (h *playbackHandler) ClearWatchHistory(ctx context.Context, req *eveyv1.ClearWatchHistoryRequest) (*eveyv1.ClearWatchHistoryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.ClearWatchHistory")
+	defer span.End()
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("playbackHandler.ClearWatchHistory: %w", err)
+	}
+	// resolveProfileID denies a non-admin targeting another profile, so a user
+	// can only clear their own history.
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("playbackHandler.ClearWatchHistory: %w", err)
+	}
+	deleted, err := h.cmd.ClearWatchHistory(ctx, profileID)
+	if err != nil {
+		span.RecordError(err)
+		if errors.Is(err, appplayback.ErrProfileNotFound) {
+			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
+			span.SetStatus(otelcodes.Error, tErr.Error())
+			return nil, tErr
+		}
+		span.SetStatus(otelcodes.Error, err.Error())
+		slog.Error("clear watch history", slog.Any("err", err))
+		return nil, status.Errorf(codes.Internal, "internal error")
+	}
+	return &eveyv1.ClearWatchHistoryResponse{Deleted: int32(deleted)}, nil
+}
+
 func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {

@@ -732,6 +732,8 @@
   "auth.setup.welcome": "Welcome to Evey",
   "auth.signingIn": "Signing in…",
   "auth.watchHistory.clearAll": "Clear all",
+  "auth.watchHistory.cleared": "Watch history cleared",
+  "auth.watchHistory.clearFailed": "Could not clear watch history",
   "auth.watchHistory.clearConfirm": "This will permanently delete all your watch history. This action cannot be undone.",
   "auth.watchHistory.clearHistory": "Clear History",
   "auth.watchHistory.clearTitle": "Clear Watch History",

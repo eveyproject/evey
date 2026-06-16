@@ -66,6 +66,22 @@ func (r *FakeWatchProgressRepository) Delete(_ context.Context, profileID, media
 	return nil
 }
 
+func (r *FakeWatchProgressRepository) DeleteByProfile(_ context.Context, profileID string) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for k, wp := range r.items {
+		if wp != nil && string(wp.ProfileID) == profileID {
+			delete(r.items, k)
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (r *FakeWatchProgressRepository) GetByProfileAndMedia(_ context.Context, profileID, mediaItemID string) (*playback.WatchProgress, error) {
 	if r.Err != nil {
 		return nil, r.Err

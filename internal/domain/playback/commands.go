@@ -16,6 +16,9 @@ type ProgressCommandRepo interface {
 	// item appears never-watched again. Used by MarkAsUnwatched. No-op
 	// when no row exists.
 	Delete(ctx context.Context, profileID, mediaItemID string) error
+	// DeleteByProfile removes every watch-progress row for the profile (clear
+	// watch history). Returns the number of rows deleted.
+	DeleteByProfile(ctx context.Context, profileID string) (int, error)
 }
 
 type SessionCommandRepo interface {

@@ -99,6 +99,26 @@ func (r *WatchProgressRepository) Delete(ctx context.Context, profileID, mediaIt
 	return nil
 }
 
+// DeleteByProfile removes every watch-progress row for the profile (the
+// "clear watch history" action). Returns how many rows were deleted.
+func (r *WatchProgressRepository) DeleteByProfile(ctx context.Context, profileID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.DeleteByProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM watch_progress WHERE profile_id = $1`, profileID,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, fmt.Errorf("WatchProgressRepo.DeleteByProfile: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 func (r *WatchProgressRepository) GetByProfileAndMedia(ctx context.Context, profileID, mediaItemID string) (*playback.WatchProgress, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.GetByProfileAndMedia")
 	defer span.End()

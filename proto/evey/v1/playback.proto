@@ -71,6 +71,13 @@ service PlaybackService {
       post: "/api/v1/playback/{media_item_id}/unwatched"
     };
   }
+
+  // ClearWatchHistory deletes all of the caller's own watch progress.
+  rpc ClearWatchHistory(ClearWatchHistoryRequest) returns (ClearWatchHistoryResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/playback/history"
+    };
+  }
 }
 
 enum PlayMethod {
@@ -195,6 +202,15 @@ message GetWatchHistoryRequest {
 message GetWatchHistoryResponse {
   repeated WatchProgress items = 1;
   PaginationResponse pagination = 2;
+}
+
+message ClearWatchHistoryRequest {
+  // Defaults to the caller's active profile; a non-admin cannot target another.
+  string profile_id = 1;
+}
+
+message ClearWatchHistoryResponse {
+  int32 deleted = 1;
 }
 
 message GetResumeItemsRequest {

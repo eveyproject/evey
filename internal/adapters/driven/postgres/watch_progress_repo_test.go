@@ -60,6 +60,46 @@ func TestWatchProgressRepo_Upsert_GetByProfileAndMedia(t *testing.T) {
 	assert.False(t, got.Completed)
 }
 
+func TestWatchProgressRepo_DeleteByProfile(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	wpRepo := postgres.NewWatchProgressRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("wpdelu")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("wpdelp", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("wpdellib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	for _, id := range []string{"wpd1", "wpd2"} {
+		item := newTestMediaItem(id, lib.ID)
+		require.NoError(t, itemRepo.Create(ctx, item))
+		require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+			ID: "wp-" + id, ProfileID: p.ID, MediaItemID: item.ID,
+			Position: mustWPDuration(t, 1000), LastPlayedAt: time.Now().UTC().Truncate(time.Millisecond),
+		}))
+	}
+
+	deleted, err := wpRepo.DeleteByProfile(ctx, string(p.ID))
+	require.NoError(t, err)
+	assert.Equal(t, 2, deleted)
+
+	_, err = wpRepo.GetByProfileAndMedia(ctx, string(p.ID), "wpd1")
+	require.Error(t, err)
+
+	// Idempotent: a second clear removes nothing.
+	deleted, err = wpRepo.DeleteByProfile(ctx, string(p.ID))
+	require.NoError(t, err)
+	assert.Equal(t, 0, deleted)
+}
+
 func TestWatchProgressRepo_Upsert_UpdatesOnConflict(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

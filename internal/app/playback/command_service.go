@@ -503,3 +503,18 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 	}
 	return nil
 }
+
+// ClearWatchHistory deletes every watch-progress row for the profile and
+// returns how many were removed.
+func (s *CommandService) ClearWatchHistory(ctx context.Context, profileID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.ClearWatchHistory")
+	defer span.End()
+	if err := s.validateProfile(ctx, shared.ProfileID(profileID)); err != nil {
+		return 0, err
+	}
+	n, err := s.progress.DeleteByProfile(ctx, profileID)
+	if err != nil {
+		return 0, fmt.Errorf("CommandService.ClearWatchHistory: %w", err)
+	}
+	return n, nil
+}

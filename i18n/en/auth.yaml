@@ -297,5 +297,7 @@ watchHistory:
   clearTitle: Clear Watch History
   clearConfirm: This will permanently delete all your watch history. This action cannot be undone.
   clearAll: Clear all
+  cleared: Watch history cleared
+  clearFailed: Could not clear watch history
   title: Watch history
   openMedia: Open media details

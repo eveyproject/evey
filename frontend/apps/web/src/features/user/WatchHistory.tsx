@@ -4,8 +4,10 @@ import { useTranslation } from "react-i18next";
 import {
   usePlaybackServiceGetWatchHistory,
   usePlaybackServiceMarkAsUnwatched,
+  usePlaybackServiceClearWatchHistory,
   getPlaybackServiceGetWatchHistoryQueryKey,
 } from "@evey/api";
+import { toast } from "@evey/store";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -170,6 +172,15 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
 
   const [showClearModal, setShowClearModal] = useState(false);
   const qc = useQueryClient();
+  const clearAll = usePlaybackServiceClearWatchHistory({
+    mutation: {
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
+        toast.success(t("auth.watchHistory.cleared"));
+      },
+      onError: (err: Error) => toast.error(err?.message || t("auth.watchHistory.clearFailed")),
+    },
+  });
   const { data, isLoading } = usePlaybackServiceGetWatchHistory(limit ? { limit } : undefined);
   const items = data?.items ?? [];
 
@@ -214,7 +225,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
 
   const handleClearAll = () => {
     setShowClearModal(false);
-    void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
+    clearAll.mutate({});
   };
 
   if (isLoading) {

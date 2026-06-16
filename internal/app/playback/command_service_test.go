@@ -695,6 +695,37 @@ func TestMarkAsUnwatched_ProfileNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
 }
 
+func TestClearWatchHistory_DeletesAllForProfileOnly(t *testing.T) {
+	t.Parallel()
+	cmd, pr, _, _, pfr, _ := setupCmd()
+	ctx := context.Background()
+	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
+	pfr.Create(ctx, &user.Profile{ID: "p2", UserID: "u1"})
+
+	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
+	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m2"))
+	require.NoError(t, cmd.MarkAsWatched(ctx, "p2", "m3"))
+
+	deleted, err := cmd.ClearWatchHistory(ctx, "p1")
+	require.NoError(t, err)
+	assert.Equal(t, 2, deleted)
+
+	_, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+	_, err = pr.GetByProfileAndMedia(ctx, "p1", "m2")
+	assert.ErrorIs(t, err, shared.ErrNotFound)
+	// Another profile's history is untouched.
+	_, err = pr.GetByProfileAndMedia(ctx, "p2", "m3")
+	require.NoError(t, err)
+}
+
+func TestClearWatchHistory_ProfileNotFound(t *testing.T) {
+	t.Parallel()
+	cmd, _, _, _, _, _ := setupCmd()
+	_, err := cmd.ClearWatchHistory(context.Background(), "nonexistent")
+	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
+}
+
 func TestReportProgress_ProfileNotFound(t *testing.T) {
 	t.Parallel()
 	cmd, _, _, _, _, _ := setupCmd()

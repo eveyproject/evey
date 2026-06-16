@@ -362,6 +362,7 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.PlaybackService/GetNextUp":        "own; parental-filtered",
 	"/evey.v1.PlaybackService/MarkAsWatched":    "own",
 	"/evey.v1.PlaybackService/MarkAsUnwatched":  "own",
+	"/evey.v1.PlaybackService/ClearWatchHistory": "own",
 	// PlaybackSettingsService
 	"/evey.v1.PlaybackSettingsService/GetPlaybackSettings": "read",
 	// PlaylistService — all own-scoped in handler
