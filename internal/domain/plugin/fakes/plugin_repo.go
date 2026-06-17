@@ -14,6 +14,10 @@ type FakePluginRepository struct {
 	mu    sync.RWMutex
 	items map[string]*plugin.Plugin
 	Err   error
+	// CreateErr fails only Create, leaving lookups (GetByName/GetByID) working —
+	// used to exercise the "DB write fails after extraction" cleanup path without
+	// short-circuiting the earlier existing-plugin lookup.
+	CreateErr error
 }
 
 func NewFakePluginRepository() *FakePluginRepository {
@@ -23,6 +27,9 @@ func NewFakePluginRepository() *FakePluginRepository {
 func (r *FakePluginRepository) Create(_ context.Context, p *plugin.Plugin) error {
 	if r.Err != nil {
 		return r.Err
+	}
+	if r.CreateErr != nil {
+		return r.CreateErr
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

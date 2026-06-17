@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -133,10 +134,14 @@ func (r *PluginRepository) GetByName(ctx context.Context, name string) (*plugin.
 	p, err := r.scanPlugin(txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT `+pluginColumns+` FROM plugins WHERE name = $1`, name))
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, shared.ErrNotFound
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		return nil, err
 	}
-	return p, err
+	return p, nil
 }
 
 func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {

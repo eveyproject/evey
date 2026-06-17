@@ -176,7 +176,7 @@ func TestInstallPlugin_DBFails_CleansInstallDir(t *testing.T) {
 		appplugin.InstallerWithFileSystem(pluginFS),
 	)
 	parser.Result = goManifest("db-fail")
-	pluginRepo.Err = errors.New("db down")
+	pluginRepo.CreateErr = errors.New("db down")
 
 	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "x"))
 	require.Error(t, err)

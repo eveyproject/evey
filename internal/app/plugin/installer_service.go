@@ -345,7 +345,13 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	}
 
 	existing, getErr := s.plugins.GetByName(ctx, manifest.Name)
-	if getErr == nil && existing != nil {
+	if getErr != nil && !errors.Is(getErr, shared.ErrNotFound) {
+		// A real lookup failure must not be treated as "no existing plugin":
+		// that would skip the downgrade and permission-escalation guards and
+		// let a fresh install silently clobber an already-installed one.
+		return nil, fmt.Errorf("look up existing plugin %q: %w", manifest.Name, getErr)
+	}
+	if existing != nil {
 		cmp := CompareSemver(manifest.Version, existing.Version)
 		if cmp <= 0 {
 			return nil, fmt.Errorf("plugin already installed at version %s, new version must be higher", existing.Version)
@@ -436,7 +442,13 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 
 	if p.InstallDir != "" && p.IsTheme() {
 		jsPath := filepath.Join(p.InstallDir, "theme.js")
-		if raw, readErr := os.ReadFile(jsPath); readErr == nil {
+		raw, readErr := os.ReadFile(jsPath)
+		// A present-but-unreadable theme.js must NOT skip the scan (that would
+		// serve forbidden JS to clients); only a genuinely-absent file is fine.
+		if readErr != nil && !os.IsNotExist(readErr) {
+			return nil, fmt.Errorf("read theme.js for scanning: %w", readErr)
+		}
+		if readErr == nil {
 			scanErr, scanWarns := themejs.Scan(raw)
 			if len(scanWarns) > 0 {
 				slog.Warn("theme JS scanner warnings", slog.String("pluginID", p.ID), slog.Any("warnings", scanWarns))

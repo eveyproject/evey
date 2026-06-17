@@ -151,7 +151,7 @@ func TestInstallPlugin_ParseError(t *testing.T) {
 func TestInstallPlugin_DBCreateFails_CleansUpFiles(t *testing.T) {
 	svc, pluginRepo, _, parser, _, _ := newTestInstallerService()
 	parser.Result = goManifest("fail-create")
-	pluginRepo.Err = errors.New("db down")
+	pluginRepo.CreateErr = errors.New("db down")
 
 	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.Error(t, err)
@@ -1112,7 +1112,7 @@ func TestInstallPlugin_FailUnsafe_CleansUpDir(t *testing.T) {
 func TestInstallPlugin_DBFail_CleansUpDir(t *testing.T) {
 	svc, pluginRepo, _, parser, _, _, pluginFS := newTestInstallerServiceWithFS()
 	parser.Result = goManifest("db-fail-orphan")
-	pluginRepo.Err = errors.New("db unavailable")
+	pluginRepo.CreateErr = errors.New("db unavailable")
 
 	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.Error(t, err)
