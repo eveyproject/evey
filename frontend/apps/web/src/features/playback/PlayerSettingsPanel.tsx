@@ -5,6 +5,7 @@ import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import { SPEED_OPTIONS } from "./constants";
+import { nominalQualityTier } from "./playerUtils";
 
 function useQualityOptions() {
   const { t } = useTranslation();
@@ -128,9 +129,22 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const { t } = useTranslation();
   const allQualityOptions = useQualityOptions();
-  const QUALITY_OPTIONS = availableQualities
-    ? allQualityOptions.filter((q) => q.value === 0 || availableQualities.includes(q.value))
-    : allQualityOptions;
+  // Build the manual quality list from the ACTUAL hls rung heights, each
+  // labelled by its nearest standard tier — the static list only matched 16:9
+  // heights, so a widescreen ladder (e.g. 532/798) collapsed to just "Original".
+  // The option value stays the real height (rung selection keys off it); dedupe
+  // by tier keeping the tallest rung. Fall back to the static list before the
+  // manifest is parsed.
+  const QUALITY_OPTIONS = (() => {
+    if (!availableQualities || availableQualities.length === 0) return allQualityOptions;
+    const seen = new Set<number>();
+    const rungs = [...availableQualities]
+      .sort((a, b) => b - a)
+      .map((h) => ({ tier: nominalQualityTier(h), h }))
+      .filter(({ tier }) => (seen.has(tier) ? false : (seen.add(tier), true)))
+      .map(({ tier, h }) => ({ label: `${tier}p`, value: h }));
+    return [{ label: t("player.quality.original"), value: 0 }, ...rungs];
+  })();
   const subtitleFontSize = subtitleStyle?.fontSize ?? 100;
   const subtitleColor = subtitleStyle?.color ?? "#ffffff";
   const subtitleFontFamily = subtitleStyle?.fontFamily ?? "";
