@@ -20,13 +20,22 @@ import (
 type fakeLibraryScanner struct {
 	mu      sync.Mutex
 	scanned []string
+	// errs is an optional per-call error sequence (consumed front to back);
+	// once exhausted (or empty) calls succeed. Lets a test make the first
+	// scan report ErrScanInProgress and the retry succeed.
+	errs []error
 }
 
 func (f *fakeLibraryScanner) ScanLibrary(_ context.Context, libraryID string) (int, int, error) {
 	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.scanned = append(f.scanned, libraryID)
-	f.mu.Unlock()
-	return 1, 0, nil
+	var err error
+	if len(f.errs) > 0 {
+		err = f.errs[0]
+		f.errs = f.errs[1:]
+	}
+	return 1, 0, err
 }
 
 func (f *fakeLibraryScanner) Scanned() []string {
@@ -296,6 +305,35 @@ func TestWatcherService_TwoLibraries_EventRoutesToCorrectOne(t *testing.T) {
 	}, 5*time.Second, 100*time.Millisecond)
 
 	assert.Equal(t, "lib-tv", scanner.Scanned()[0])
+}
+
+// If the debounced scan is rejected because one is already running, the watcher
+// must retry (not drop the change), otherwise a file copied during an in-flight
+// scan is lost until the next FS event. The first ScanLibrary reports
+// ErrScanInProgress; the retry must call it again.
+func TestWatcherService_RetriesWhenScanInProgress(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	scanner := &fakeLibraryScanner{errs: []error{applib.ErrScanInProgress}}
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	ctx := context.Background()
+	_ = libRepo.Create(ctx, &library.Library{
+		ID: "lib-1", Name: "Movies", Type: "movie",
+		Paths: []string{"/media/movies"}, Enabled: true, RealtimeMonitoring: true,
+	})
+
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	require.NoError(t, ws.Start(ctx))
+	defer ws.Stop()
+
+	watcher.SendEvent(library.FileEvent{Path: "/media/movies/new.mkv", Op: library.FileCreated})
+
+	// First debounced scan returns ErrScanInProgress → re-armed → second scan
+	// succeeds. Two calls prove the change was retried, not dropped.
+	require.Eventually(t, func() bool {
+		return len(scanner.Scanned()) >= 2
+	}, 8*time.Second, 100*time.Millisecond)
 }
 
 func TestWatcherService_StopIsSafe(t *testing.T) {

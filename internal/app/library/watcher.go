@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -181,10 +182,21 @@ func (ws *WatcherService) processEvents(ctx context.Context) {
 				t.Reset(debounceDelay)
 			} else {
 				pending[libID] = time.AfterFunc(debounceDelay, func() {
-					ws.triggerScan(ctx, libID)
+					err := ws.triggerScan(ctx, libID)
 					mu.Lock()
+					defer mu.Unlock()
+					// If a scan was already running this fire was rejected, so the
+					// file(s) that triggered it were NOT picked up. Re-arm instead
+					// of dropping the pending entry, so we retry once the in-flight
+					// scan frees up (otherwise the change is lost until the next FS
+					// event or a scheduled scan).
+					if errors.Is(err, ErrScanInProgress) {
+						if t := pending[libID]; t != nil {
+							t.Reset(debounceDelay)
+							return
+						}
+					}
 					delete(pending, libID)
-					mu.Unlock()
 				})
 			}
 			mu.Unlock()
@@ -217,12 +229,13 @@ func (ws *WatcherService) resolveLibrary(filePath string) string {
 	return ""
 }
 
-func (ws *WatcherService) triggerScan(ctx context.Context, libraryID string) {
+func (ws *WatcherService) triggerScan(ctx context.Context, libraryID string) error {
 	ws.log.Info("watcher: triggering scan", slog.String("library_id", libraryID))
 	added, updated, err := ws.scanner.ScanLibrary(ctx, libraryID)
 	if err != nil {
 		ws.log.Error("watcher: scan failed", slog.String("library_id", libraryID), slog.Any("err", err))
-		return
+		return err
 	}
 	ws.log.Info("watcher: scan complete", slog.String("library_id", libraryID), slog.Int("added", added), slog.Int("updated", updated))
+	return nil
 }
