@@ -198,6 +198,14 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		resp.TranscodeUrl = "/api/v1/media/" + req.MediaItemId + "/hls/master.m3u8"
 	}
 
+	// Carry the bitrate the client will actually pull, not the source bitrate.
+	// resp.Bitrate was never populated, so the player's "total bitrate" row was
+	// dead (0 is falsy). For a transcode the decision capped the video target
+	// (and a default audio target); for direct play/stream nothing is re-encoded
+	// so the source bitrate is what's served. A transcode that only copies video
+	// (VideoBitrate == 0) also falls back to source — video dominates the total.
+	resp.Bitrate = servedBitrateBps(decision.PlayMethod, decision.VideoBitrate, decision.AudioBitrate, sourceBitrateBps(item))
+
 	return resp, nil
 }
 
@@ -217,6 +225,32 @@ func typeRelativeIndex(streams []*library.MediaStream, streamType library.Stream
 		rel++
 	}
 	return 0, false
+}
+
+// sourceBitrateBps returns the media's source bitrate in bits/s, deriving it
+// from size/duration when the probed bitrate is absent.
+func sourceBitrateBps(item *library.MediaItem) int64 {
+	if item == nil || item.File == nil {
+		return 0
+	}
+	if item.File.Bitrate > 0 {
+		return item.File.Bitrate
+	}
+	if item.File.Size > 0 && item.File.Duration.Seconds() > 0 {
+		return int64(float64(item.File.Size) * 8 / item.File.Duration.Seconds())
+	}
+	return 0
+}
+
+// servedBitrateBps is the bitrate actually delivered to the client: the
+// decision's capped video+audio targets for a transcode, the source bitrate for
+// direct play/stream (nothing re-encoded) or a video-copy transcode (videoKbps
+// == 0), where the source rate is what goes out.
+func servedBitrateBps(playMethod string, videoKbps, audioKbps, sourceBps int64) int64 {
+	if playMethod == "direct_play" || playMethod == "direct_stream" || videoKbps == 0 {
+		return sourceBps
+	}
+	return (videoKbps + audioKbps) * 1000
 }
 
 func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStreamRequest) (*eveyv1.PlaySession, error) {
@@ -251,18 +285,12 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	}
 
 	// Resolve the item once: its source bitrate stamps the session (feeds the
-	// dashboard's theoretical outgoing rate — the column was never populated)
-	// and its title lands in the audit entry below.
+	// dashboard's outgoing rate) and its title lands in the audit entry below.
 	var itemTitle string
 	var sourceBps int64
 	if item, itemErr := h.librarySvc.GetMediaItem(ctx, req.MediaItemId); itemErr == nil {
 		itemTitle = item.Title
-		if item.File != nil {
-			sourceBps = item.File.Bitrate
-			if sourceBps == 0 && item.File.Size > 0 && item.File.Duration.Seconds() > 0 {
-				sourceBps = int64(float64(item.File.Size) * 8 / item.File.Duration.Seconds())
-			}
-		}
+		sourceBps = sourceBitrateBps(item)
 	}
 
 	session, err := playback.NewPlaySession(

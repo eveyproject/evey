@@ -929,6 +929,41 @@ func TestGetStreamInfo_DecisionFieldsPopulated(t *testing.T) {
 	assert.Contains(t, resp.TranscodeReasons, "container_incompatible")
 }
 
+// TestGetStreamInfo_ServedBitrate pins resp.Bitrate to the bitrate actually
+// delivered: the source rate for direct play, the capped target for a
+// transcode (far below a fat source) — the value the player and dashboard show.
+func TestGetStreamInfo_ServedBitrate(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID: "mi-srv-dp", Title: "DP", Type: "movie",
+		File: &library.MediaFile{ContainerFormat: "mp4", Bitrate: 5_000_000},
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-srv-dp", StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-srv-dp", StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	})
+	dp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-srv-dp", SupportedAudioCodecs: []string{"aac"}})
+	require.NoError(t, err)
+	require.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, dp.PlayMethod)
+	assert.Equal(t, int64(5_000_000), dp.Bitrate, "direct play serves the source bitrate")
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID: "mi-srv-tc", Title: "TC", Type: "movie",
+		File: &library.MediaFile{ContainerFormat: "matroska", Bitrate: 20_000_000},
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-srv-tc", StreamType: "video", Codec: "hevc", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(20000000), IsDefault: true},
+		{MediaItemID: "mi-srv-tc", StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
+	})
+	tc, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-srv-tc"})
+	require.NoError(t, err)
+	require.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE, tc.PlayMethod)
+	assert.Equal(t, int64(4000+192)*1000, tc.Bitrate, "transcode serves the capped target, not the source")
+	assert.Less(t, tc.Bitrate, int64(20_000_000), "served target is far below the fat source")
+}
+
 // TestPlaybackHandler_GetStreamInfo_CrossLibrary_NotFound verifies that a
 // non-admin user requesting stream info for a media item whose library is NOT
 // in their access list receives codes.NotFound (IDOR guard). Without this
