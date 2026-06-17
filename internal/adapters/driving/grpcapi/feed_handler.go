@@ -379,7 +379,7 @@ func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
 		ParentId:      item.ParentID,
 		Title:         item.Title,
 		Type:          item.Type,
-		PositionMs:    item.PositionMs,
+		PositionMs:    item.Position.Milliseconds(),
 		AddedAt:       item.AddedAt,
 		Score:         int32(item.Score),
 		SeasonNumber:  int32(item.SeasonNumber),

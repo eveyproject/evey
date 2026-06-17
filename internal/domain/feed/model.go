@@ -205,7 +205,7 @@ type FeedItem struct {
 	ParentID      string // for episodes: series ID
 	Title         string
 	Type          string
-	PositionMs    int64
+	Position      shared.Duration
 	Duration      shared.Duration
 	AddedAt       string
 	Score         int

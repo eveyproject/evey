@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -490,8 +491,12 @@ func scanFeedItems(rows *sql.Rows) ([]*feed.FeedItem, error) {
 	for rows.Next() {
 		item := &feed.FeedItem{}
 		var season, episode sql.NullInt64
-		if err := rows.Scan(&item.MediaItemID, &item.ParentID, &item.Title, &item.Type, &item.PositionMs, &item.AddedAt, &season, &episode); err != nil {
+		var rawPos int64
+		if err := rows.Scan(&item.MediaItemID, &item.ParentID, &item.Title, &item.Type, &rawPos, &item.AddedAt, &season, &episode); err != nil {
 			return nil, err
+		}
+		if d, err := shared.NewDurationMs(rawPos); err == nil {
+			item.Position = d
 		}
 		if season.Valid {
 			item.SeasonNumber = int(season.Int64)
@@ -508,8 +513,12 @@ func scanFeedItemsWithScore(rows *sql.Rows) ([]*feed.FeedItem, error) {
 	var result []*feed.FeedItem
 	for rows.Next() {
 		item := &feed.FeedItem{}
-		if err := rows.Scan(&item.MediaItemID, &item.ParentID, &item.Title, &item.Type, &item.PositionMs, &item.AddedAt, &item.Score); err != nil {
+		var rawPos int64
+		if err := rows.Scan(&item.MediaItemID, &item.ParentID, &item.Title, &item.Type, &rawPos, &item.AddedAt, &item.Score); err != nil {
 			return nil, err
+		}
+		if d, err := shared.NewDurationMs(rawPos); err == nil {
+			item.Position = d
 		}
 		result = append(result, item)
 	}

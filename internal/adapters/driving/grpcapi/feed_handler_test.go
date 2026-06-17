@@ -13,6 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
@@ -20,6 +21,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func feedDurMs(ms int64) shared.Duration {
+	d, _ := shared.NewDurationMs(ms)
+	return d
+}
 
 func newFeedHandler() (*feedHandler, *feedfakes.FakeConfigCommandRepo, *feedfakes.FakeConfigQueryRepo, *feedfakes.FakeFeedQuerier) {
 	cmdRepo := feedfakes.NewFakeConfigCommandRepo()
@@ -86,8 +92,8 @@ func TestFeedHandler_ContinueWatching_Success(t *testing.T) {
 	h, _, _, querier := newFeedHandler()
 
 	querier.ContinueWatchingItems = []*feed.FeedItem{
-		{MediaItemID: "m1", Title: "Movie 1", Type: "movie", PositionMs: 5000},
-		{MediaItemID: "m2", Title: "Movie 2", Type: "movie", PositionMs: 12000},
+		{MediaItemID: "m1", Title: "Movie 1", Type: "movie", Position: feedDurMs(5000)},
+		{MediaItemID: "m2", Title: "Movie 2", Type: "movie", Position: feedDurMs(12000)},
 	}
 
 	ctx := ctxWithClaims("user-1", "profile-1", false)
@@ -337,8 +343,8 @@ func TestFeedHandler_ContinueWatching_LibraryAccessFilter(t *testing.T) {
 		ID: "mi-hidden", LibraryID: "lib-hidden", Title: "Hidden", Type: "movie",
 	})
 	res.querier.ContinueWatchingItems = []*feed.FeedItem{
-		{MediaItemID: "mi-visible", Title: "Visible", Type: "movie", PositionMs: 5000},
-		{MediaItemID: "mi-hidden", Title: "Hidden", Type: "movie", PositionMs: 5000},
+		{MediaItemID: "mi-visible", Title: "Visible", Type: "movie", Position: feedDurMs(5000)},
+		{MediaItemID: "mi-hidden", Title: "Hidden", Type: "movie", Position: feedDurMs(5000)},
 	}
 
 	ctx := ctxWithClaims("user-3", "profile-3", false)

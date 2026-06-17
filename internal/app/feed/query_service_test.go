@@ -14,6 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func feedDurMs(ms int64) shared.Duration {
+	d, _ := shared.NewDurationMs(ms)
+	return d
+}
+
 func TestQueryService_GetMergedConfig_NoOverrides(t *testing.T) {
 	queryRepo := fakes.NewFakeConfigQueryRepo()
 	querier := fakes.NewFakeFeedQuerier()
@@ -115,7 +120,7 @@ func TestQueryService_ContinueWatching(t *testing.T) {
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
 
 	querier.ContinueWatchingItems = []*feed.FeedItem{
-		{MediaItemID: "m1", Title: "Movie 1", Type: "movie", PositionMs: 5000},
+		{MediaItemID: "m1", Title: "Movie 1", Type: "movie", Position: feedDurMs(5000)},
 	}
 
 	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
@@ -280,7 +285,7 @@ func TestQueryService_ResumePlayback(t *testing.T) {
 	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
 
 	querier.ResumePlaybackItems = []*feed.FeedItem{
-		{MediaItemID: "m10", Title: "Paused Movie", Type: "movie", PositionMs: 30000},
+		{MediaItemID: "m10", Title: "Paused Movie", Type: "movie", Position: feedDurMs(30000)},
 	}
 
 	svc := appfeed.NewQueryService(queryRepo, querier, analyzer)
