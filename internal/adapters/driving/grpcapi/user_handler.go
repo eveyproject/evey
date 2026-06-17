@@ -198,7 +198,16 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	if err := h.userSvc.CreateUser(ctx, claims.IsAdmin, u, req.Password); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.PermissionDenied, "%v", err)
+		switch {
+		case errors.Is(err, appuser.ErrNotAdmin):
+			return nil, status.Error(codes.PermissionDenied, "admin required")
+		case errors.Is(err, appuser.ErrPasswordTooShort):
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
+		default:
+			// Validation already happened above via NewUser; anything left is a
+			// hashing/DB failure — don't mislabel it as PermissionDenied.
+			return nil, internalError("create user", err)
+		}
 	}
 	uidStr := string(u.ID)
 	h.audit(ctx, claims.UserID, "create_user", "user", &uidStr, map[string]any{"username": u.Username, "is_admin": u.IsAdmin})
@@ -297,10 +306,16 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.DeleteUser")
 	defer span.End()
 	if err := h.userSvc.DeleteUser(ctx, req.Id); err != nil {
-		slog.Error("delete user", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "internal error")
+		switch {
+		case errors.Is(err, appuser.ErrLastAdmin):
+			return nil, status.Error(codes.FailedPrecondition, "cannot remove the last admin")
+		case errors.Is(err, shared.ErrNotFound):
+			return nil, status.Error(codes.NotFound, "user not found")
+		default:
+			return nil, internalError("delete user", err)
+		}
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	callerID := req.Id
@@ -319,18 +334,26 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 	op := "disable_user"
 	if req.Disabled {
 		if err := h.userSvc.DisableUser(ctx, req.Id); err != nil {
-			slog.Error("disable user", slog.Any("err", err))
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.Internal, "internal error")
+			switch {
+			case errors.Is(err, appuser.ErrLastAdmin):
+				return nil, status.Error(codes.FailedPrecondition, "cannot disable the last admin")
+			case errors.Is(err, shared.ErrNotFound):
+				return nil, status.Error(codes.NotFound, "user not found")
+			default:
+				return nil, internalError("disable user", err)
+			}
 		}
 	} else {
 		op = "enable_user"
 		if err := h.userSvc.EnableUser(ctx, req.Id); err != nil {
-			slog.Error("enable user", slog.Any("err", err))
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.Internal, "internal error")
+			if errors.Is(err, shared.ErrNotFound) {
+				return nil, status.Error(codes.NotFound, "user not found")
+			}
+			return nil, internalError("enable user", err)
 		}
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
