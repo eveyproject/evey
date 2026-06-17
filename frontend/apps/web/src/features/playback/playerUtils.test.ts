@@ -1,5 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { formatTime } from "./playerUtils";
+import { formatTime, nominalQualityTier } from "./playerUtils";
+
+describe("nominalQualityTier", () => {
+  it("rounds a widescreen height to the nearest standard tier", () => {
+    expect(nominalQualityTier(798)).toBe(720); // 2.40:1 "1080p" rung → 720p (closer)
+    expect(nominalQualityTier(532)).toBe(480);
+    expect(nominalQualityTier(1040)).toBe(1080);
+  });
+
+  it("keeps exact standard heights", () => {
+    expect(nominalQualityTier(720)).toBe(720);
+    expect(nominalQualityTier(1080)).toBe(1080);
+    expect(nominalQualityTier(2160)).toBe(2160);
+  });
+
+  it("returns 0 for non-positive heights", () => {
+    expect(nominalQualityTier(0)).toBe(0);
+    expect(nominalQualityTier(-5)).toBe(0);
+  });
+});
 
 describe("formatTime", () => {
   it("formats seconds under a minute", () => {

@@ -10,6 +10,7 @@ import type { SubtitleStream } from "./SubtitleSelector";
 import { PlayerControls } from "./PlayerControls";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerControls";
 import { PlayerProvider } from "./PlayerContext";
+import { nominalQualityTier } from "./playerUtils";
 import { ProgressReporter } from "./ProgressReporter";
 import { AutoMarkWatched } from "./AutoMarkWatched";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
@@ -526,7 +527,9 @@ export function HLSPlayer({
   // In Auto, surface the rung ABR actually picked (e.g. "1080p") so the menu
   // shows "Auto (1080p)" rather than a redundant "Auto". Empty until the first
   // level switch (panel then shows a bare "Auto").
-  const autoQualityLabel = autoQuality && autoLevelHeight ? `${autoLevelHeight}p` : undefined;
+  // Label the rung by its nearest standard tier, not the raw encoded height: a
+  // 2.40:1 master's "1080p" rung is 1920×798, and "798p" reads as a bug.
+  const autoQualityLabel = autoQuality && autoLevelHeight ? `${nominalQualityTier(autoLevelHeight)}p` : undefined;
 
   const nextEpisode = (() => {
     if (!episodes || !currentEpisodeId) return null;
