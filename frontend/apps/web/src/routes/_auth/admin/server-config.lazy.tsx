@@ -762,7 +762,6 @@ function TrickplaySettingsCard({ entries }: { entries: ConfigEntry[] | undefined
 interface SettingValue<T> { value: T; default: T; source: "override" | "default"; }
 interface ServerSettings {
   serverName: SettingValue<string>;
-  maxConcurrentTranscodes: SettingValue<number>;
   hwAccelEnabled: SettingValue<boolean>;
   loginRateLimit: SettingValue<number>;
   globalRateLimit: SettingValue<number>;
@@ -782,7 +781,6 @@ function ServerSettingsCard() {
   });
   const queryClient = useQueryClient();
   const [serverName, setServerName] = useState("");
-  const [maxTranscodes, setMaxTranscodes] = useState("");
   const [loginRate, setLoginRate] = useState("");
   const [globalRate, setGlobalRate] = useState("");
   const [logLevel, setLogLevel] = useState("");
@@ -794,7 +792,6 @@ function ServerSettingsCard() {
   useEffect(() => {
     if (data) {
       setServerName(data.serverName.source === "override" ? String(data.serverName.value) : "");
-      setMaxTranscodes(data.maxConcurrentTranscodes.source === "override" ? String(data.maxConcurrentTranscodes.value) : "");
       setLoginRate(data.loginRateLimit.source === "override" ? String(data.loginRateLimit.value) : "");
       setGlobalRate(data.globalRateLimit.source === "override" ? String(data.globalRateLimit.value) : "");
       setLogLevel(data.logLevel.source === "override" ? String(data.logLevel.value) : "");
@@ -821,7 +818,6 @@ function ServerSettingsCard() {
   function handleSave() {
     const body: Record<string, unknown> = {};
     if (serverName) body.serverName = serverName;
-    if (maxTranscodes) body.maxConcurrentTranscodes = parseInt(maxTranscodes, 10);
     if (loginRate) body.loginRateLimit = parseInt(loginRate, 10);
     if (globalRate) body.globalRateLimit = parseInt(globalRate, 10);
     if (logLevel) body.logLevel = logLevel;
@@ -845,11 +841,7 @@ function ServerSettingsCard() {
             <Input id="server-name" data-testid="server-name-input" label={t("admin.serverSettings.serverName")} placeholder={data.serverName.default ?? "Evey"} value={serverName} onChange={(e) => { setServerName(e.target.value); setDirty(true); }} />
             <ResetBtn setting={data.serverName} field="serverName" />
           </div>
-          <div className="flex flex-col gap-1">
-            <Input label={t("admin.serverSettings.maxConcurrentTranscodes")} type="number" min={0} placeholder={String(data.maxConcurrentTranscodes.default ?? 2)} value={maxTranscodes} onChange={(e) => { setMaxTranscodes(e.target.value); setDirty(true); }} />
-            <ResetBtn setting={data.maxConcurrentTranscodes} field="maxConcurrentTranscodes" />
-          </div>
-          <p className="text-xs text-[var(--text-muted)]">{t("admin.serverSettings.transcodeMovedHint", "Hardware acceleration, encode calibration and codec policy are configured in Transcoding configuration.")}</p>
+          <p className="text-xs text-[var(--text-muted)]">{t("admin.serverSettings.transcodeMovedHint", "Transcoding (hardware acceleration, encode calibration, AV1 and concurrency) is configured in Transcoding configuration.")}</p>
           <div className="flex flex-col gap-1">
             <Input label={t("admin.serverSettings.loginRateLimit")} type="number" min={0} placeholder={String(data.loginRateLimit.default ?? 10)} value={loginRate} onChange={(e) => { setLoginRate(e.target.value); setDirty(true); }} />
             <ResetBtn setting={data.loginRateLimit} field="loginRateLimit" />
