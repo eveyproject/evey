@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -103,6 +104,52 @@ func (r *MetadataOverrideRepository) GetByMediaItem(ctx context.Context, mediaIt
 			slog.Warn("json unmarshal", slog.String("field", "custom_value"), slog.Any("err", err))
 		}
 		result = append(result, o)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetByMediaItems fetches the overrides for every given media item in a SINGLE
+// query, grouped by media_item_id. Mirrors ArtworkRepository.GetByMediaItems so
+// the grid hot path can resolve overrides without an N+1 (one round-trip per
+// overridden item).
+func (r *MetadataOverrideRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*metadata.MetadataOverride, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.metadata_override.GetByMediaItems")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if len(mediaItemIDs) == 0 {
+		return map[string][]*metadata.MetadataOverride{}, nil
+	}
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT id, media_item_id, field_name, custom_value, edited_by, created_at
+		 FROM metadata_overrides WHERE media_item_id = ANY($1) ORDER BY media_item_id, field_name`,
+		pq.Array(mediaItemIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]*metadata.MetadataOverride, len(mediaItemIDs))
+	for rows.Next() {
+		o := &metadata.MetadataOverride{}
+		var valueJSON []byte
+		if err := rows.Scan(&o.ID, &o.MediaItemID, &o.FieldName, &valueJSON, &o.EditedBy, &o.CreatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		if err := json.Unmarshal(valueJSON, &o.CustomValue); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "custom_value"), slog.Any("err", err))
+		}
+		result[string(o.MediaItemID)] = append(result[string(o.MediaItemID)], o)
 	}
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)

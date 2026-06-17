@@ -58,25 +58,16 @@ func (s *QueryService) ListOverrides(ctx context.Context, mediaItemID string) ([
 func (s *QueryService) BatchListOverrides(ctx context.Context, mediaItemIDs []string) (map[string][]*metadata.MetadataOverride, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.BatchListOverrides")
 	defer span.End()
-	out := map[string][]*metadata.MetadataOverride{}
 	if len(mediaItemIDs) == 0 {
-		return out, nil
+		return map[string][]*metadata.MetadataOverride{}, nil
 	}
-	overridden, err := s.overrides.ListOverriddenMediaItemIDs(ctx, mediaItemIDs)
+	// Single batched query (WHERE media_item_id = ANY) grouped by item, instead
+	// of one round-trip per overridden item on the grid hot path.
+	out, err := s.overrides.GetByMediaItems(ctx, mediaItemIDs)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return out, err
-	}
-	for id := range overridden {
-		ovs, err := s.overrides.GetByMediaItem(ctx, id)
-		if err != nil {
-			span.RecordError(err)
-			continue
-		}
-		if len(ovs) > 0 {
-			out[id] = ovs
-		}
+		return map[string][]*metadata.MetadataOverride{}, err
 	}
 	return out, nil
 }

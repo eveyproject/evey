@@ -64,6 +64,25 @@ func (r *FakeMetadataOverrideRepository) GetByMediaItem(_ context.Context, media
 	return result, nil
 }
 
+func (r *FakeMetadataOverrideRepository) GetByMediaItems(_ context.Context, mediaItemIDs []string) (map[string][]*metadata.MetadataOverride, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	wanted := make(map[string]bool, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		wanted[id] = true
+	}
+	result := make(map[string][]*metadata.MetadataOverride)
+	for _, o := range r.items {
+		if wanted[string(o.MediaItemID)] {
+			result[string(o.MediaItemID)] = append(result[string(o.MediaItemID)], o)
+		}
+	}
+	return result, nil
+}
+
 func (r *FakeMetadataOverrideRepository) ListOverriddenMediaItemIDs(_ context.Context, mediaItemIDs []string) (map[string]bool, error) {
 	if r.Err != nil {
 		return nil, r.Err

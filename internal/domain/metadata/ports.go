@@ -19,6 +19,9 @@ type MetadataOverrideRepository interface {
 	Set(ctx context.Context, o *MetadataOverride) error
 	Get(ctx context.Context, id string) (*MetadataOverride, error)
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*MetadataOverride, error)
+	// GetByMediaItems returns the overrides for every given media item in one
+	// query, grouped by media_item_id (batch form of GetByMediaItem).
+	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*MetadataOverride, error)
 	ListOverriddenMediaItemIDs(ctx context.Context, mediaItemIDs []string) (map[string]bool, error)
 	Delete(ctx context.Context, id string) error
 	DeleteByMediaItemID(ctx context.Context, mediaItemID string) error

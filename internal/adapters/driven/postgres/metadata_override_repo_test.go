@@ -114,6 +114,38 @@ func TestMetadataOverrideRepo_GetByMediaItem(t *testing.T) {
 	assert.Equal(t, "title", list[1].FieldName)
 }
 
+func TestMetadataOverrideRepo_GetByMediaItems_Batch(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	overrideRepo := postgres.NewMetadataOverrideRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("ovlib-batch")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	a := newTestMediaItem("ovmi-a", lib.ID)
+	b := newTestMediaItem("ovmi-b", lib.ID)
+	c := newTestMediaItem("ovmi-c", lib.ID) // no overrides
+	require.NoError(t, itemRepo.Create(ctx, a))
+	require.NoError(t, itemRepo.Create(ctx, b))
+	require.NoError(t, itemRepo.Create(ctx, c))
+	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ovb-a1", string(a.ID), "title", "Ta")))
+	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ovb-a2", string(a.ID), "overview", "Oa")))
+	require.NoError(t, overrideRepo.Set(ctx, newTestOverride("ovb-b1", string(b.ID), "title", "Tb")))
+
+	got, err := overrideRepo.GetByMediaItems(ctx, []string{string(a.ID), string(b.ID), string(c.ID)})
+	require.NoError(t, err)
+	require.Len(t, got[string(a.ID)], 2, "item a has two overrides")
+	require.Len(t, got[string(b.ID)], 1, "item b has one override")
+	_, hasC := got[string(c.ID)]
+	assert.False(t, hasC, "item without overrides must be absent from the map")
+	// Grouped + ORDER BY field_name within a's bucket.
+	assert.Equal(t, "overview", got[string(a.ID)][0].FieldName)
+	assert.Equal(t, "title", got[string(a.ID)][1].FieldName)
+}
+
 func TestMetadataOverrideRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
