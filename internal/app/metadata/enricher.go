@@ -195,14 +195,25 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 
 func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.MetadataResult) {
 	item.Title = result.Title
-	item.OriginalTitle = result.OriginalTitle
 	item.Overview = result.Overview
-	item.Tagline = result.Tagline
+	// OriginalTitle and Tagline are preserved when the provider returns nothing:
+	// TMDB season/episode responses carry neither, so blanking them on a re-enrich
+	// would wipe values an earlier movie/series-level pass had set.
+	if result.OriginalTitle != "" {
+		item.OriginalTitle = result.OriginalTitle
+	}
+	if result.Tagline != "" {
+		item.Tagline = result.Tagline
+	}
 
 	if item.Catalog == nil {
 		item.Catalog = &domainlib.MediaCatalog{}
 	}
-	item.Catalog.Genres = result.Genres
+	// Same rationale as OriginalTitle/Tagline: don't clear existing genres when
+	// the provider (e.g. a TMDB episode lookup) returns none.
+	if len(result.Genres) > 0 {
+		item.Catalog.Genres = result.Genres
+	}
 	item.Catalog.Studios = result.Studios
 	item.Catalog.PremiereDate = result.PremiereDate
 	item.Catalog.Year = result.Year

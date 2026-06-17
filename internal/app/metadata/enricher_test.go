@@ -326,6 +326,30 @@ func TestApplyBasicFields(t *testing.T) {
 	assert.Equal(t, "abc", item.Trailers[0].Key)
 }
 
+// A provider that returns no OriginalTitle/Tagline/Genres (TMDB season/episode
+// lookups) must not blank values an earlier pass already set on the item.
+func TestApplyBasicFields_PreservesExistingWhenResultEmpty(t *testing.T) {
+	item := &domainlib.MediaItem{
+		ID:            "ep-1",
+		OriginalTitle: "Kept Original",
+		Tagline:       "Kept Tagline",
+		Catalog:       &domainlib.MediaCatalog{Genres: []string{"Sci-Fi", "Drama"}},
+	}
+	// Episode-shaped result: title + overview only, nothing else.
+	result := &domain.MetadataResult{
+		Title:    "Episode 1",
+		Overview: "Pilot",
+	}
+
+	applyBasicFields(item, result)
+
+	assert.Equal(t, "Episode 1", item.Title, "title still updates")
+	assert.Equal(t, "Pilot", item.Overview, "overview still updates")
+	assert.Equal(t, "Kept Original", item.OriginalTitle, "empty result must not blank OriginalTitle")
+	assert.Equal(t, "Kept Tagline", item.Tagline, "empty result must not blank Tagline")
+	assert.Equal(t, []string{"Sci-Fi", "Drama"}, item.Catalog.Genres, "empty result must not clear genres")
+}
+
 func TestApplyBasicFields_MergesProviderIDs(t *testing.T) {
 	item := &domainlib.MediaItem{
 		Catalog:        &domainlib.MediaCatalog{ProviderIDs: map[string]string{"imdb": "tt1"}},
