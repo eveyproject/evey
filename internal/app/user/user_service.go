@@ -222,11 +222,25 @@ func (s *UserService) ChangePassword(ctx context.Context, userID, newPassword st
 	}
 	u.PasswordHash = hash
 	u.UpdatedAt = time.Now()
-	if err := s.users.Update(ctx, u); err != nil {
-		return fmt.Errorf("UserService.ChangePassword: %w", err)
+	// Password update and refresh-token eviction must commit together: a
+	// surviving refresh token can be exchanged for a fresh access token, so a
+	// swallowed delete would leave the password change bypassable (the epoch
+	// bump below only revokes outstanding access tokens, not refresh tokens).
+	apply := func(ctx context.Context) error {
+		if err := s.users.Update(ctx, u); err != nil {
+			return fmt.Errorf("update user: %w", err)
+		}
+		if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
+			return fmt.Errorf("delete refresh tokens: %w", err)
+		}
+		return nil
 	}
-	if err := s.refreshTkns.DeleteByUserID(ctx, shared.UserID(userID)); err != nil {
-		slog.Warn("delete refresh tokens after password change", slog.String("userID", userID), slog.Any("err", err))
+	if s.uow != nil {
+		if err := s.uow.Do(ctx, apply); err != nil {
+			return fmt.Errorf("UserService.ChangePassword: %w", err)
+		}
+	} else if err := apply(ctx); err != nil {
+		return fmt.Errorf("UserService.ChangePassword: %w", err)
 	}
 	s.revokeTokens(ctx, userID)
 	evt := user.PasswordChanged{UserID: shared.UserID(userID), OccurredAt: time.Now()}

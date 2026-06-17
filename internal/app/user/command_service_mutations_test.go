@@ -489,10 +489,11 @@ func (s *snapshotUserUOW) Do(ctx context.Context, fn func(context.Context) error
 	return nil
 }
 
-func TestResetPassword_DeleteRefreshTokensErrorNonFatal(t *testing.T) {
-	buf, restore := captureSlogBuffer(t)
-	defer restore()
-
+// A refresh-token eviction failure during a password reset must be FATAL and
+// roll back the password change: a surviving refresh token can be exchanged for
+// a fresh access token (the epoch bump only revokes access tokens), so reporting
+// success while the old session lives on would silently bypass the reset.
+func TestResetPassword_DeleteRefreshTokensError_FatalRollback(t *testing.T) {
 	users := ufakes.NewFakeUserRepository()
 	profiles := ufakes.NewFakeProfileRepository()
 	innerRT := ufakes.NewFakeRefreshTokenRepository()
@@ -506,11 +507,15 @@ func TestResetPassword_DeleteRefreshTokensErrorNonFatal(t *testing.T) {
 	cfg := fakes.NewFakeServerConfigRepository()
 	_ = cfg.Set(context.Background(), "auth.password_recovery_enabled", "true")
 
-	svc := NewCommandService(users, profiles, rtRepo, roles, userRoles, hasher, tokens, events,
-		time.Hour, ufakes.NewFakeQuickConnectRepository(), WithPasswordReset(reset, cfg, true))
-
 	ctx := context.Background()
 	_ = users.Create(ctx, &user.User{ID: "u1", Username: "alice", PasswordHash: "hashed:pw", Enabled: true})
+	// Snapshot uow constructed after seeding so a rollback restores the
+	// pre-reset password.
+	uow := newSnapshotUserUOW(ctx, users)
+
+	svc := NewCommandService(users, profiles, rtRepo, roles, userRoles, hasher, tokens, events,
+		time.Hour, ufakes.NewFakeQuickConnectRepository(), WithPasswordReset(reset, cfg, true), WithUnitOfWork(uow))
+
 	raw := "rp-del-rt"
 	h := sha256Hash(raw)
 	_ = reset.Create(ctx, &user.PasswordResetToken{
@@ -518,11 +523,16 @@ func TestResetPassword_DeleteRefreshTokensErrorNonFatal(t *testing.T) {
 		ExpiresAt: time.Now().Add(time.Hour),
 	})
 
-	if err := svc.ResetPassword(ctx, raw, "newpassword123"); err != nil {
-		t.Fatalf("delete refresh tokens error should be non-fatal, got %v", err)
+	err := svc.ResetPassword(ctx, raw, "newpassword123")
+	if err == nil {
+		t.Fatal("expected error when refresh-token eviction fails (atomic)")
 	}
-	if !strings.Contains(buf.String(), "delete refresh tokens after password reset") {
-		t.Fatalf("expected warn log, got %q", buf.String())
+	if !strings.Contains(err.Error(), "delete refresh tokens") {
+		t.Fatalf("expected wrapped delete error, got %v", err)
+	}
+	u, _ := users.GetByID(ctx, "u1")
+	if u.PasswordHash != "hashed:pw" {
+		t.Fatalf("password hash should be rolled back, got %q", u.PasswordHash)
 	}
 }
 

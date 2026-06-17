@@ -931,7 +931,6 @@ func TestChangePassword_PublishError_EmitsWarning(t *testing.T) {
 	ctx := context.Background()
 	seedUserSvcUser(t, d, "u1", "alice", "pw", false, true)
 	d.events.PublishErr = errors.New("bus down")
-	d.refreshTkns.Err = errors.New("cleanup fail")
 	if err := d.svc.ChangePassword(ctx, "u1", "longpassword"); err != nil {
 		t.Fatal(err)
 	}
@@ -939,8 +938,22 @@ func TestChangePassword_PublishError_EmitsWarning(t *testing.T) {
 	if !strings.Contains(out, "publish event") {
 		t.Fatalf("expected publish warning, got: %q", out)
 	}
-	if !strings.Contains(out, "delete refresh tokens after password change") {
-		t.Fatalf("expected refresh-token cleanup warning, got: %q", out)
+}
+
+// A refresh-token eviction failure must be fatal: a surviving refresh token can
+// be exchanged for a fresh access token, so the password change must not report
+// success (the epoch bump only revokes access tokens, not refresh tokens).
+func TestChangePassword_DeleteRefreshTokensError_Fatal(t *testing.T) {
+	d := newUserTestDeps()
+	ctx := context.Background()
+	seedUserSvcUser(t, d, "u1", "alice", "pw", false, true)
+	d.refreshTkns.Err = errors.New("cleanup fail")
+	err := d.svc.ChangePassword(ctx, "u1", "longpassword")
+	if err == nil {
+		t.Fatal("expected error when refresh-token eviction fails")
+	}
+	if !strings.Contains(err.Error(), "delete refresh tokens") {
+		t.Fatalf("expected wrapped delete error, got %v", err)
 	}
 }
 

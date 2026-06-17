@@ -787,14 +787,21 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 	u.PasswordHash = newHash
 	u.UpdatedAt = time.Now()
 
-	// Atomic: password update and token mark-used must commit together,
-	// otherwise a MarkUsed failure leaves the token reusable (TOCTOU).
+	// Atomic: password update, token mark-used and refresh-token eviction must
+	// commit together. A MarkUsed failure would otherwise leave the token
+	// reusable (TOCTOU); a non-atomic refresh-token delete would leave a
+	// surviving refresh token able to mint fresh access tokens (the epoch bump
+	// below only invalidates outstanding access tokens, not refresh tokens),
+	// silently bypassing the reset on a DB hiccup.
 	apply := func(ctx context.Context) error {
 		if err := s.users.Update(ctx, u); err != nil {
 			return fmt.Errorf("update user: %w", err)
 		}
 		if err := s.resetTokens.MarkUsed(ctx, t.ID); err != nil {
 			return fmt.Errorf("mark reset token used: %w", err)
+		}
+		if err := s.refreshTkns.DeleteByUserID(ctx, u.ID); err != nil {
+			return fmt.Errorf("delete refresh tokens: %w", err)
 		}
 		return nil
 	}
@@ -806,9 +813,6 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 	}
 	if txErr != nil {
 		return fmt.Errorf("CommandService.ResetPassword: %w", txErr)
-	}
-	if err := s.refreshTkns.DeleteByUserID(ctx, u.ID); err != nil {
-		slog.Warn("delete refresh tokens after password reset", slog.Any("err", err))
 	}
 	if s.tokenRevoker != nil {
 		if err := s.tokenRevoker.Revoke(ctx, string(u.ID)); err != nil {
