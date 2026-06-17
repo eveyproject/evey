@@ -3,7 +3,9 @@ package chromecast
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	domaincast "github.com/evey-project/evey/internal/domain/chromecast"
 	castfakes "github.com/evey-project/evey/internal/domain/chromecast/fakes"
@@ -200,4 +202,88 @@ func TestClose_ClosesAllSessions(t *testing.T) {
 	if len(svc.conns) != 0 {
 		t.Fatal("expected conns cleared")
 	}
+}
+
+// latchFactory blocks each Connect on a release channel and records how many
+// connects are simultaneously in flight, so a test can prove getOrConnect
+// serializes per device (singleflight) yet runs connects for DISTINCT devices
+// in parallel (the old code held one global lock across the blocking Connect).
+type latchFactory struct {
+	entered chan string   // one send per Connect that reaches the factory
+	release chan struct{} // closed to let every blocked Connect return
+	mu      sync.Mutex
+	calls   int
+}
+
+func newLatchFactory() *latchFactory {
+	return &latchFactory{entered: make(chan string, 16), release: make(chan struct{})}
+}
+
+func (f *latchFactory) Connect(device domaincast.Device) (domaincast.CastSession, error) {
+	f.mu.Lock()
+	f.calls++
+	f.mu.Unlock()
+	f.entered <- device.UUID
+	<-f.release
+	return castfakes.NewFakeSession(), nil
+}
+
+func (f *latchFactory) callCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+func TestGetOrConnect_SingleflightPerDevice(t *testing.T) {
+	fac := newLatchFactory()
+	svc := NewWithPorts(&castfakes.FakeDiscoverer{}, fac)
+	dev := &domaincast.Device{UUID: "u1"}
+
+	const N = 5
+	done := make(chan struct{}, N)
+	for range N {
+		go func() {
+			_, _ = svc.getOrConnect(dev)
+			done <- struct{}{}
+		}()
+	}
+
+	// Exactly one goroutine should reach the factory; the rest block on the
+	// per-device lock and never call Connect.
+	<-fac.entered
+	select {
+	case uuid := <-fac.entered:
+		t.Fatalf("a second concurrent same-device Connect ran (%s): per-device singleflight broken", uuid)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(fac.release)
+	for range N {
+		<-done
+	}
+	if fac.callCount() != 1 {
+		t.Fatalf("expected exactly 1 Connect for one device, got %d", fac.callCount())
+	}
+}
+
+func TestGetOrConnect_DistinctDevicesRunInParallel(t *testing.T) {
+	fac := newLatchFactory()
+	svc := NewWithPorts(&castfakes.FakeDiscoverer{}, fac)
+
+	go func() { _, _ = svc.getOrConnect(&domaincast.Device{UUID: "u1"}) }()
+	go func() { _, _ = svc.getOrConnect(&domaincast.Device{UUID: "u2"}) }()
+
+	// Both connects must be in flight at once: if getOrConnect held a global
+	// lock across Connect, the second UUID would never arrive until the first
+	// returned (it can't, it's blocked on release) and this would time out.
+	seen := map[string]bool{}
+	for len(seen) < 2 {
+		select {
+		case uuid := <-fac.entered:
+			seen[uuid] = true
+		case <-time.After(time.Second):
+			t.Fatalf("only %d/2 distinct-device connects ran in parallel: %v", len(seen), seen)
+		}
+	}
+	close(fac.release)
 }

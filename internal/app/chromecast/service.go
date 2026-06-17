@@ -30,8 +30,12 @@ type Service struct {
 	discoverer domaincast.Discoverer
 	factory    domaincast.SessionFactory
 
-	connMu sync.Mutex
-	conns  map[string]domaincast.CastSession
+	// connMu guards conns and connLocks ONLY — it is never held across a
+	// blocking session call (Connect/StopMedia/Close). Per-device serialization
+	// of those calls goes through connLocks instead.
+	connMu    sync.Mutex
+	conns     map[string]domaincast.CastSession
+	connLocks map[string]*sync.Mutex
 }
 
 // New builds a Service backed by real go-chromecast discovery/connections.
@@ -46,7 +50,21 @@ func NewWithPorts(discoverer domaincast.Discoverer, factory domaincast.SessionFa
 		discoverer: discoverer,
 		factory:    factory,
 		conns:      make(map[string]domaincast.CastSession),
+		connLocks:  make(map[string]*sync.Mutex),
 	}
+}
+
+// connLock returns the per-device connect mutex, creating it on first use.
+// Briefly takes connMu only to read/insert into the connLocks map.
+func (s *Service) connLock(uuid string) *sync.Mutex {
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
+	l, ok := s.connLocks[uuid]
+	if !ok {
+		l = &sync.Mutex{}
+		s.connLocks[uuid] = l
+	}
+	return l
 }
 
 func (s *Service) Discover(ctx context.Context) ([]Device, error) {
@@ -88,24 +106,51 @@ func (s *Service) findDevice(uuid string) (*Device, error) {
 }
 
 func (s *Service) getOrConnect(device *Device) (domaincast.CastSession, error) {
+	// Fast path: a live cached session is returned without taking the
+	// per-device connect lock.
 	s.connMu.Lock()
-	defer s.connMu.Unlock()
+	cached, ok := s.conns[device.UUID]
+	s.connMu.Unlock()
+	if ok && cached.Alive() {
+		return cached, nil
+	}
 
-	if sess, ok := s.conns[device.UUID]; ok {
-		if sess.Alive() {
-			return sess, nil
+	// Serialize connects PER DEVICE: a slow Connect to one device must not
+	// stall operations on every other device (the previous code held one
+	// global lock across the blocking Connect), while two callers for the
+	// SAME device still can't open duplicate sessions.
+	devLock := s.connLock(device.UUID)
+	devLock.Lock()
+	defer devLock.Unlock()
+
+	// Re-check under the per-device lock; another goroutine may have connected
+	// while we waited. A dead session is dropped and closed OUTSIDE connMu.
+	s.connMu.Lock()
+	cached, ok = s.conns[device.UUID]
+	if ok {
+		delete(s.conns, device.UUID)
+	}
+	s.connMu.Unlock()
+	if ok {
+		if cached.Alive() {
+			// Re-store the still-live session and reuse it.
+			s.connMu.Lock()
+			s.conns[device.UUID] = cached
+			s.connMu.Unlock()
+			return cached, nil
 		}
-		if err := sess.Close(); err != nil {
+		if err := cached.Close(); err != nil {
 			slog.Warn("chromecast session close failed", slog.Any("err", err))
 		}
-		delete(s.conns, device.UUID)
 	}
 
 	sess, err := s.factory.Connect(*device)
 	if err != nil {
 		return nil, fmt.Errorf("connect to %s: %w", device.Name, err)
 	}
+	s.connMu.Lock()
 	s.conns[device.UUID] = sess
+	s.connMu.Unlock()
 	return sess, nil
 }
 
@@ -174,18 +219,30 @@ func (s *Service) Stop(ctx context.Context, uuid string) error {
 		return err
 	}
 
-	s.connMu.Lock()
-	defer s.connMu.Unlock()
+	// Take the per-device lock so a Stop racing a getOrConnect for the same
+	// device is serialized, and do the blocking StopMedia/Close OUTSIDE connMu
+	// (snapshot + delete under the lock, I/O after) so it can't stall other
+	// devices.
+	devLock := s.connLock(device.UUID)
+	devLock.Lock()
+	defer devLock.Unlock()
 
-	if sess, ok := s.conns[device.UUID]; ok {
-		stopErr := sess.StopMedia()
-		if err := sess.Close(); err != nil {
-			slog.Warn("chromecast session close failed", slog.Any("err", err))
-		}
+	s.connMu.Lock()
+	sess, ok := s.conns[device.UUID]
+	if ok {
 		delete(s.conns, device.UUID)
-		if stopErr != nil {
-			return fmt.Errorf("stop: %w", stopErr)
-		}
+	}
+	s.connMu.Unlock()
+	if !ok {
+		return nil
+	}
+
+	stopErr := sess.StopMedia()
+	if err := sess.Close(); err != nil {
+		slog.Warn("chromecast session close failed", slog.Any("err", err))
+	}
+	if stopErr != nil {
+		return fmt.Errorf("stop: %w", stopErr)
 	}
 	return nil
 }
