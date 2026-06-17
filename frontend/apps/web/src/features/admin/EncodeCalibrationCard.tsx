@@ -54,16 +54,17 @@ export function EncodeCalibrationCard() {
     queryFn: () => eveyFetch<EncodeCapability>({ url: "/api/v1/admin/transcode/calibration", method: "GET" }),
   });
 
-  // Server settings carry the AV1 output opt-in (transcoding.av1_enabled).
-  const { data: settings } = useQuery<{ av1Enabled: { value: boolean } }>({
+  // Server settings carry the AV1 output opt-in + height cap.
+  const { data: settings } = useQuery<{ av1Enabled: { value: boolean }; av1MaxHeight: { value: number } }>({
     queryKey: SETTINGS_QK,
     queryFn: () => eveyFetch({ url: "/api/v1/admin/server-settings", method: "GET" }),
   });
   const av1Enabled = settings?.av1Enabled?.value ?? false;
+  const av1MaxHeight = settings?.av1MaxHeight?.value ?? 0;
 
   const setAV1 = useMutation({
-    mutationFn: (enabled: boolean) =>
-      eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: { av1Enabled: enabled } }),
+    mutationFn: (patch: { av1Enabled?: boolean; av1MaxHeight?: number }) =>
+      eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: patch }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: SETTINGS_QK });
       toast.success(t("admin.calibration.av1Applied", "AV1 setting applied"));
@@ -232,7 +233,7 @@ export function EncodeCalibrationCard() {
                 aria-label={t("admin.calibration.av1Label", "AV1 output")}
                 data-testid="av1-enable-toggle"
                 disabled={setAV1.isPending}
-                onClick={() => setAV1.mutate(!av1Enabled)}
+                onClick={() => setAV1.mutate({ av1Enabled: !av1Enabled })}
                 className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-60"
                 style={{ backgroundColor: av1Enabled ? "var(--accent)" : "var(--border)" }}
               >
@@ -247,6 +248,28 @@ export function EncodeCalibrationCard() {
                 ? t("admin.calibration.av1Hint", "Encode to AV1 when a client supports it — better compression. Hardware-only; software AV1 is never used for streaming.")
                 : t("admin.calibration.av1NoHw", "No AV1 hardware encoder detected — turning this on has no effect (streams stay H.264).")}
             </p>
+
+            {av1Enabled && (
+              <div className="flex flex-col gap-1">
+                <label htmlFor="av1-max-height" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
+                  {t("admin.calibration.av1MaxLabel", "AV1 max quality")}
+                </label>
+                <select
+                  id="av1-max-height"
+                  data-testid="av1-max-height-select"
+                  value={String(av1MaxHeight)}
+                  disabled={setAV1.isPending}
+                  onChange={(e) => setAV1.mutate({ av1MaxHeight: parseInt(e.target.value, 10) })}
+                  className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
+                >
+                  <option value="0">{t("admin.calibration.av1MaxAuto", "Auto (up to source)")}</option>
+                  <option value="720">720p</option>
+                  <option value="1080">1080p</option>
+                  <option value="1440">1440p</option>
+                  <option value="2160">2160p</option>
+                </select>
+              </div>
+            )}
           </div>
         )}
       </div>

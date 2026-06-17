@@ -1,11 +1,50 @@
 package httpapi
 
 import (
+	"context"
 	"testing"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
+
+func TestProfilesForDecision_AV1MaxHeightCap(t *testing.T) {
+	box := domaintranscoding.EncodeCapability{
+		HWBackend: "nvenc", HWCodecs: []string{"av1"}, HWDecodeCodecs: []string{"h264"},
+		HWMaxHeight: 2160, SoftwareMaxHeight: 2160,
+	}
+	w, hgt := 3840, 2160
+	streams := []*domainlibrary.MediaStream{{StreamType: "video", Codec: "h264", Width: &w, Height: &hgt}}
+	dec := domaintranscoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"}
+	item := &domainlibrary.MediaItem{ID: "mi-av1"}
+
+	mk := func(maxH int) *hlsVODServe {
+		return &hlsVODServe{
+			capability:     func() domaintranscoding.EncodeCapability { return box },
+			hwAccelEnabled: func() bool { return true },
+			av1Enabled:     func() bool { return true },
+			av1MaxHeight:   func() int { return maxH },
+		}
+	}
+	top := func(ps []domaintranscoding.HLSProfile) int {
+		m := 0
+		for _, p := range ps {
+			if p.Height > m {
+				m = p.Height
+			}
+		}
+		return m
+	}
+
+	uncapped := top(mk(0).profilesForDecision(context.Background(), item, streams, dec))
+	if uncapped <= 720 {
+		t.Fatalf("control: uncapped AV1 ladder should exceed 720p (got %dp) for the cap to be meaningful", uncapped)
+	}
+	capped := top(mk(720).profilesForDecision(context.Background(), item, streams, dec))
+	if capped > 720 {
+		t.Errorf("av1_max_height=720 must cap the AV1 ladder to 720p, got top rung %dp", capped)
+	}
+}
 
 func TestResolveHW(t *testing.T) {
 	nvenc := domaintranscoding.EncodeCapability{

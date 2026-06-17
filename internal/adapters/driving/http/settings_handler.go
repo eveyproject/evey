@@ -32,7 +32,13 @@ const (
 	cfgKeySkipPreview      = "intro_providers.skip_preview_enabled"
 	cfgKeyTranscodeSWAV1   = "transcoding.software_av1_max_height"
 	cfgKeyTranscodeAV1En   = "transcoding.av1_enabled"
+	cfgKeyTranscodeAV1Max  = "transcoding.av1_max_height"
 )
+
+// validAV1MaxHeights are the AV1 output height caps the panel offers. 0 = no cap
+// (up to the source/GPU ceiling). AV1 is hardware-only so the ladder can reach
+// 2160 (unlike the software ceiling).
+var validAV1MaxHeights = map[int]bool{0: true, 720: true, 1080: true, 1440: true, 2160: true}
 
 // validSoftwareAV1Heights are the AV1 software ceiling values the panel offers.
 // 0 = "Auto" (calibrated / hardware-only). Any other value force-enables AV1
@@ -155,6 +161,8 @@ func registerServerSettingsRoutes(
 		// CPU), so this is an explicit opt-in surfaced only when HW accel is on.
 		{jsonKey: "av1Enabled", cfgKey: cfgKeyTranscodeAV1En, defaultVal: false,
 			getter: func() any { return cfg.EffectiveAV1Enabled() }},
+		{jsonKey: "av1MaxHeight", cfgKey: cfgKeyTranscodeAV1Max, defaultVal: 0,
+			getter: func() any { return cfg.EffectiveAV1MaxHeight() }},
 	}
 
 	buildResponse := func() map[string]settingValue {
@@ -195,6 +203,7 @@ func registerServerSettingsRoutes(
 			SkipPreviewEnabled      *bool   `json:"skipPreviewEnabled"`
 			SoftwareAV1MaxHeight    *int    `json:"softwareAV1MaxHeight"`
 			AV1Enabled              *bool   `json:"av1Enabled"`
+			AV1MaxHeight            *int    `json:"av1MaxHeight"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -387,6 +396,14 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Transcoding.AV1Enabled = *body.AV1Enabled
 					return strconv.FormatBool(*body.AV1Enabled)
+				}},
+			{cfgKey: cfgKeyTranscodeAV1Max,
+				apply: func() string {
+					if body.AV1MaxHeight == nil || !validAV1MaxHeights[*body.AV1MaxHeight] {
+						return "" // absent or off-ladder → ignore (keep current)
+					}
+					cfg.Transcoding.AV1MaxHeight = *body.AV1MaxHeight
+					return strconv.Itoa(*body.AV1MaxHeight)
 				}},
 		}
 

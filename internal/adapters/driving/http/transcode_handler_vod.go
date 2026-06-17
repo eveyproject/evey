@@ -103,6 +103,9 @@ type hlsVODServe struct {
 	// hardware-only for streaming, so even with HW the admin must opt in; nil or
 	// false ⇒ a profile that prefers AV1 still transcodes to H.264.
 	av1Enabled func() bool
+	// av1MaxHeight caps the AV1 output ladder (transcoding.av1_max_height, 0 = no
+	// cap). Applied to the shaped ladder when AV1 is the effective codec.
+	av1MaxHeight func() int
 
 	// hwTonemapEnabled gates GPU HDR->SDR tone-mapping (still requires the host to
 	// have probed EncodeCapability.HWTonemap). Default on; EVEY_TRANSCODING_HW_TONEMAP=0
@@ -1152,6 +1155,20 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 			laddered = domaintranscoding.CapLadderToHeight(laddered, ov.MaxHeight)
 		}
 	}
+
+	// AV1 max-quality cap: when AV1 is the EFFECTIVE output codec, an admin can
+	// hold its ladder below the source/GPU ceiling (transcoding.av1_max_height,
+	// 0 = no cap). `decision` here still carries the raw preferred codec, so
+	// recompute the post-gate codec. Applied here (like the CMCD override) so the
+	// manifest- and segment-time ladders trim identically — the cache-hash
+	// invariant holds because both reach this shared head with the same inputs.
+	if h.av1MaxHeight != nil {
+		if m := h.av1MaxHeight(); m > 0 {
+			if ec, _, _, _, _ := h.effectiveVideoCodec(decision, streams); strings.EqualFold(ec, "av1") {
+				laddered = domaintranscoding.CapLadderToHeight(laddered, m)
+			}
+		}
+	}
 	return laddered
 }
 
@@ -1401,6 +1418,12 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		},
 		av1Enabled: func() bool {
 			return s.Cfg != nil && s.Cfg.EffectiveAV1Enabled()
+		},
+		av1MaxHeight: func() int {
+			if s.Cfg == nil {
+				return 0
+			}
+			return s.Cfg.EffectiveAV1MaxHeight()
 		},
 		// On by default; an operator who sees HW tone-mapping shift colours on
 		// their GPU (a known VAAPI/driver hazard) sets EVEY_TRANSCODING_HW_TONEMAP=0
