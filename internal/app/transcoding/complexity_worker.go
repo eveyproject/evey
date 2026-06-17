@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -37,6 +38,9 @@ type ComplexityWorker struct {
 
 	stop chan struct{}
 	done chan struct{}
+
+	startOnce sync.Once // Start spawns the run goroutine at most once.
+	stopOnce  sync.Once // Stop closes the stop channel at most once.
 }
 
 // ComplexityWorkerOpts tunes the worker pacing.
@@ -85,15 +89,16 @@ func NewComplexityWorker(
 	}
 }
 
-// Start kicks off the loop in a goroutine. Stop with Stop().
+// Start kicks off the loop in a goroutine. Stop with Stop(). Idempotent: a
+// second Start is a no-op, so a double lifecycle owner can't spawn two loops.
 func (w *ComplexityWorker) Start(ctx context.Context) {
-	go w.run(ctx)
+	w.startOnce.Do(func() { go w.run(ctx) })
 }
 
 // Stop signals the worker to finish its current item and exit. Blocks
-// until the goroutine returns.
+// until the goroutine returns. Idempotent: a second Stop won't re-close.
 func (w *ComplexityWorker) Stop() {
-	close(w.stop)
+	w.stopOnce.Do(func() { close(w.stop) })
 	<-w.done
 }
 

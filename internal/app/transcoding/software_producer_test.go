@@ -29,6 +29,19 @@ func swTestOpts() SoftwareProducerOptions {
 // One process per hash; ReadRate pacing
 // ============================================================================
 
+func TestSoftwareProducer_CloseIdempotent(t *testing.T) {
+	// A second Close must not panic on a re-close of stopGC.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	p := NewSoftwareProducer(cache, proc, src, swTestOpts(), discardLogger())
+
+	require.NotPanics(t, func() {
+		p.Close()
+		p.Close()
+	})
+}
+
 func TestSoftwareProducer_OneSequentialProcessPerHash(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()

@@ -13,6 +13,21 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
+// Close must be safe to call more than once: a second Close (e.g. defer +
+// explicit shutdown, or two lifecycle owners) must not panic on a re-close
+// of stopGC. The sync.Once guard makes the second call a no-op.
+func TestOrchestrator_CloseIdempotent(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
+
+	require.NotPanics(t, func() {
+		o.Close()
+		o.Close()
+	})
+}
+
 // A session whose ffmpeg exits with a HW-capability failure must drive the
 // level-2 demote sink with the classified failure + the output codec.
 func TestOrchestrator_HWCapabilityFailure_CallsDemoteSink(t *testing.T) {

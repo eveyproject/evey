@@ -213,6 +213,10 @@ type SegmentOrchestrator struct {
 	stopThrottle chan struct{}
 	throttleDone chan struct{}
 
+	// closeOnce guards Close so a double shutdown (e.g. defer + explicit
+	// Close, or two lifecycle owners) doesn't panic on a re-close of stopGC.
+	closeOnce sync.Once
+
 	// prewarmWG tracks PreWarm goroutines so Close() can drain them before
 	// nuking the cache. Without this, a goroutine spawned by serveVariant
 	// could write fresh files into the cache dir AFTER Close() ran its
@@ -381,6 +385,10 @@ func (o *SegmentOrchestrator) SetHWDemoteSink(sink func(ctx context.Context, cla
 // shutdown path where we DO want the cache freed (the orchestrator is going
 // away — nothing will hit those segments again). Safe to call once.
 func (o *SegmentOrchestrator) Close() {
+	o.closeOnce.Do(o.doClose)
+}
+
+func (o *SegmentOrchestrator) doClose() {
 	close(o.stopGC)
 	<-o.gcDone
 	if o.opts.ThrottleEnabled {

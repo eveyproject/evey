@@ -177,6 +177,23 @@ func TestComplexityWorker_ClassifierErrorWithZeroSamplesSkipsPersist(t *testing.
 	assert.Empty(t, repo.setsSnapshot(), "classify failed with no samples ⇒ no row written")
 }
 
+func TestComplexityWorker_StartStopIdempotent(t *testing.T) {
+	// A double Start must not spawn a second loop (double-close on done),
+	// and a double Stop must not re-close the stop channel. Either would
+	// panic; this asserts the sync.Once guards hold.
+	repo := &fakeComplexityRepo{}
+	w := NewComplexityWorker(repo, &fakeClassifier{}, &fakeMediaReader{},
+		ComplexityWorkerOpts{IdleInterval: time.Hour},
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	require.NotPanics(t, func() {
+		w.Start(context.Background())
+		w.Start(context.Background()) // no-op
+		w.Stop()
+		w.Stop() // no-op
+	})
+}
+
 func TestComplexityWorker_StopBetweenItems(t *testing.T) {
 	// Long queue, slow pause; stop after the first item, second should
 	// never run.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -57,6 +58,9 @@ type KeyframeBackfillWorker struct {
 
 	stop chan struct{}
 	done chan struct{}
+
+	startOnce sync.Once // Start spawns the run goroutine at most once.
+	stopOnce  sync.Once // Stop closes the stop channel at most once.
 }
 
 // KeyframeBackfillOpts tunes the worker pacing. Zero values fall back to
@@ -100,10 +104,12 @@ func NewKeyframeBackfillWorker(
 	}
 }
 
-func (w *KeyframeBackfillWorker) Start(ctx context.Context) { go w.run(ctx) }
+func (w *KeyframeBackfillWorker) Start(ctx context.Context) {
+	w.startOnce.Do(func() { go w.run(ctx) })
+}
 
 func (w *KeyframeBackfillWorker) Stop() {
-	close(w.stop)
+	w.stopOnce.Do(func() { close(w.stop) })
 	<-w.done
 }
 

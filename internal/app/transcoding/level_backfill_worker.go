@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -82,6 +83,9 @@ type LevelBackfillWorker struct {
 
 	stop chan struct{}
 	done chan struct{}
+
+	startOnce sync.Once // Start spawns the run goroutine at most once.
+	stopOnce  sync.Once // Stop closes the stop channel at most once.
 }
 
 // LevelBackfillOpts tunes the worker pacing. All zero values fall back to
@@ -125,15 +129,16 @@ func NewLevelBackfillWorker(
 	}
 }
 
-// Start kicks off the loop in a goroutine. Stop with Stop().
+// Start kicks off the loop in a goroutine. Stop with Stop(). Idempotent: a
+// second Start is a no-op, so a double lifecycle owner can't spawn two loops.
 func (w *LevelBackfillWorker) Start(ctx context.Context) {
-	go w.run(ctx)
+	w.startOnce.Do(func() { go w.run(ctx) })
 }
 
 // Stop signals the worker to finish its current item and exit. Blocks until the
-// goroutine returns.
+// goroutine returns. Idempotent: a second Stop won't re-close the channel.
 func (w *LevelBackfillWorker) Stop() {
-	close(w.stop)
+	w.stopOnce.Do(func() { close(w.stop) })
 	<-w.done
 }
 

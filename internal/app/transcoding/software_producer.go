@@ -95,6 +95,10 @@ type SoftwareProducer struct {
 
 	stopGC chan struct{}
 	gcDone chan struct{}
+
+	// closeOnce guards Close so a double shutdown doesn't panic on a
+	// re-close of stopGC.
+	closeOnce sync.Once
 }
 
 // SoftwareProducerOptions configures the software producer's pacing and
@@ -1272,6 +1276,10 @@ func (p *SoftwareProducer) sweepPause() {
 // Close stops the GC, kills every live session, and purges every spawned hash's
 // disk segments. Safe to call once.
 func (p *SoftwareProducer) Close() {
+	p.closeOnce.Do(p.doClose)
+}
+
+func (p *SoftwareProducer) doClose() {
 	close(p.stopGC)
 	<-p.gcDone
 
