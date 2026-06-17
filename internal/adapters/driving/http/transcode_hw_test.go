@@ -210,15 +210,18 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 		}
 	})
 
-	t.Run("av1 + no HW but calibrated AV1 sw ceiling stays av1", func(t *testing.T) {
+	t.Run("av1 + no HW falls back to h264 even with a calibrated AV1 sw ceiling", func(t *testing.T) {
+		// AV1 is hardware-only for streaming: libsvtav1 can't sustain realtime
+		// on the weak-NAS target (it starves → perpetual rebuffer), so a calibrated
+		// software-AV1 ceiling must NOT keep a live session on software AV1.
 		box := domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, SoftwareAV1MaxHeight: 720}
 		h := &hlsVODServe{
 			capability:     func() domaintranscoding.EncodeCapability { return box },
 			hwAccelEnabled: func() bool { return true },
 		}
 		got, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
-		if got != "av1" {
-			t.Errorf("av1 must stay av1 when software AV1 is calibrated, got %q", got)
+		if got != "h264" {
+			t.Errorf("av1 must fall back to h264 when the GPU can't encode it (HW-only policy), got %q", got)
 		}
 	})
 

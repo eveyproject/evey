@@ -974,11 +974,14 @@ func (h *hlsVODServe) effectiveVideoCodec(decision domaintranscoding.PlaybackDec
 	codec = decision.VideoCodec
 	accel, device, features, usable = h.resolveHW(codec, srcCodec, src10, hwTonemap)
 	if strings.EqualFold(codec, "av1") && !usable {
-		viable := h.capability != nil && h.capability().AV1SoftwareViable()
-		if !viable {
-			codec = "h264"
-			accel, device, features, usable = h.resolveHW(codec, srcCodec, src10, hwTonemap)
-		}
+		// AV1 is HARDWARE-ONLY for streaming. libsvtav1 (software AV1) is several
+		// times heavier than H.264 and the weak-NAS target can't sustain it in
+		// realtime — it starves and the player rebuffers forever. So when the GPU
+		// can't encode AV1, fall back to H.264 rather than software-encoding AV1.
+		// (The software-AV1 calibration stays for non-streaming/experimental use,
+		// but never feeds a live HLS session.)
+		codec = "h264"
+		accel, device, features, usable = h.resolveHW(codec, srcCodec, src10, hwTonemap)
 	}
 	return codec, accel, device, features, usable
 }
