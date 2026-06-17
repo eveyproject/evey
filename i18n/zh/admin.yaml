@@ -39,6 +39,7 @@ artworks:
   downloading: "下载中..."
   downloadAgain: "重新下载"
   downloadComplete: "图片下载完成"
+  downloadJobFailed: "图片下载失败"
   downloadFailed: "启动下载失败"
   done: "完成"
   errorsPartial: "错误（部分下载）"

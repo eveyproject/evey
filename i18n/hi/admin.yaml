@@ -39,6 +39,7 @@ artworks:
   downloading: "डाउनलोड हो रहा है..."
   downloadAgain: "दोबारा डाउनलोड करें"
   downloadComplete: "आर्टवर्क डाउनलोड पूर्ण"
+  downloadJobFailed: "आर्टवर्क डाउनलोड विफल"
   downloadFailed: "डाउनलोड शुरू करने में विफल"
   done: "हो गया"
   errorsPartial: "त्रुटियाँ (आंशिक डाउनलोड)"

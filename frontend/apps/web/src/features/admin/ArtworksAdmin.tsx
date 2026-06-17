@@ -71,7 +71,10 @@ function useJobStatus(jobId: string | null) {
       }),
     enabled: !!jobId,
     refetchInterval: (query) => {
-      if (query.state.data?.status === "done") return false;
+      const s = query.state.data?.status;
+      // Stop polling once the job reaches a terminal state. "failed" was missing,
+      // so a failed job was re-fetched every 2s forever with no admin feedback.
+      if (s === "done" || s === "failed") return false;
       return 2000;
     },
     staleTime: 0,
@@ -106,13 +109,16 @@ export function ArtworksAdmin() {
     });
   }
 
-  // When job completes, refresh stats and notify
+  // When the job reaches a terminal state, refresh stats and notify once.
   useEffect(() => {
-    if (!job) return;
-    if (job.status === "done" && !prevDoneRef.current) {
+    if (!job || prevDoneRef.current) return;
+    if (job.status === "done") {
       prevDoneRef.current = true;
       qc.invalidateQueries({ queryKey: STATS_QUERY_KEY });
       toast.success(t("admin.artworks.downloadComplete"));
+    } else if (job.status === "failed") {
+      prevDoneRef.current = true;
+      toast.error(t("admin.artworks.downloadJobFailed"));
     }
   }, [job, qc, t]);
 

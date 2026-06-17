@@ -39,6 +39,7 @@ artworks:
   downloading: "Téléchargement..."
   downloadAgain: "Retélécharger"
   downloadComplete: "Téléchargement des artworks terminé"
+  downloadJobFailed: "Échec du téléchargement des artworks"
   downloadFailed: "Echec du lancement du téléchargement"
   done: "Terminé"
   errorsPartial: "erreurs (téléchargement partiel)"

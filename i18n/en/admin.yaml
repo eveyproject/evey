@@ -39,6 +39,7 @@ artworks:
   downloading: Downloading...
   downloadAgain: Download again
   downloadComplete: Artwork download complete
+  downloadJobFailed: Artwork download failed
   downloadFailed: Failed to start download
   done: Done
   errorsPartial: errors (partial download)

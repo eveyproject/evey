@@ -39,6 +39,7 @@ artworks:
   downloading: "Descargando..."
   downloadAgain: Volver a descargar
   downloadComplete: Descarga de artworks completada
+  downloadJobFailed: Error en la descarga de artworks
   downloadFailed: Error al iniciar la descarga
   done: Listo
   errorsPartial: errores (descarga parcial)
