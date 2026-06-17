@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useToastStore } from "@evey/store";
@@ -328,5 +328,34 @@ describe("HLSPlayer: 401 token refresh after long pause", () => {
     // setFatalError state update — findByText retries with a microtask cycle.
     expect(await screen.findByText("Unable to play at any quality level")).toBeInTheDocument();
     expect(refresh).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Playability fallback: when transcode playback fails irrecoverably (two
+// consecutive 404s exhaust the recovery path → fatalError), the error overlay
+// must offer a download of the original file so the user isn't dead-ended.
+describe("HLSPlayer: download fallback on fatal playback error", () => {
+  function fireFatal404() {
+    const handlers = hlsEventListeners[MockHls.Events.ERROR] ?? [];
+    for (const h of handlers) {
+      h(MockHls.Events.ERROR, {
+        fatal: true,
+        type: MockHls.ErrorTypes.NETWORK_ERROR,
+        details: "fragLoadError",
+        response: { code: 404 },
+      });
+    }
+  }
+
+  it("shows a download link pointing at the original file once playback fatals", async () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "test-token" });
+    expect(lastHlsInstance).toBeTruthy();
+
+    // Two consecutive 404s trip the fatalError branch.
+    act(() => { fireFatal404(); });
+    act(() => { fireFatal404(); });
+
+    const link = await screen.findByTestId("download-btn");
+    expect(link).toHaveAttribute("href", "/api/v1/media/media-1/download?token=test-token");
   });
 });

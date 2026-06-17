@@ -16,6 +16,7 @@ import { AutoMarkWatched } from "./AutoMarkWatched";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
+import { DownloadButton } from "./DownloadButton";
 import type { Chapter } from "@/hooks/useChapters";
 import { usePlaybackSettings } from "@/hooks/usePlaybackSettings";
 import {
@@ -648,12 +649,20 @@ export function HLSPlayer({
             <TriangleAlert size={48} className="text-[var(--color-danger)]" strokeWidth={1.5} />
             <p className="text-lg font-medium">{t("player.playbackFailed")}</p>
             <p className="text-sm text-[var(--overlay-text-muted)]">{t("player.unableToPlayAnyQuality")}</p>
-            <button
-              onClick={() => { setFatalError(false); window.location.reload(); }}
-              className="px-4 py-2 rounded text-sm font-medium bg-[var(--overlay-btn-hover-bg)]"
-            >
-              {t("player.retry")}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setFatalError(false); window.location.reload(); }}
+                className="px-4 py-2 rounded text-sm font-medium bg-[var(--overlay-btn-hover-bg)]"
+              >
+                {t("player.retry")}
+              </button>
+              {/* Playability fallback: if the server can't deliver a playable
+                  stream, let the user download the original file instead of
+                  being stuck on the error. */}
+              {streamToken && (
+                <DownloadButton mediaId={mediaId} token={streamToken} title={title} />
+              )}
+            </div>
           </div>
         </div>
       )}
