@@ -298,10 +298,19 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError("check access", filterErr)
 	}
+	// Apply the active profile's parental filter per item — without this a kid
+	// profile could enumerate adult titles through GetCollectionItems even
+	// though GetCollection/ListCollections hide the collection.
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	parentalActive := pf.maxAge >= 0 || len(pf.blockedTags) > 0
 	ids := make([]string, 0, len(items))
 	enriched := make([]*eveyv1.CollectionItemProto, 0, len(items))
 	for _, it := range items {
 		if allowed != nil && !slices.Contains(allowed, string(it.LibraryID)) {
+			total--
+			continue
+		}
+		if parentalActive && mediaItemBlockedByParental(pf, it) {
 			total--
 			continue
 		}

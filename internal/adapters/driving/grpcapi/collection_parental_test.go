@@ -1,0 +1,62 @@
+package grpcapi
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	appcollection "github.com/evey-project/evey/internal/app/collection"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/library"
+	libraryfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+)
+
+// GetCollectionItems must apply the active profile's parental filter per item.
+// Without it a kid profile could enumerate adult titles through this endpoint
+// even though GetCollection/ListCollections hide the collection (mutation/
+// pentest 2026-05-25). Unrated items fail closed for kids, so a kid sees none
+// while an admin (parental bypass) sees all.
+func TestCollectionGetCollectionItems_ParentalFilter(t *testing.T) {
+	ctx := context.Background()
+	cmdRepo := libraryfakes.NewFakeCollectionCommandRepo()
+	mediaRepo := libraryfakes.NewFakeMediaItemRepository()
+	queryRepo := libraryfakes.NewFakeCollectionQueryRepo(cmdRepo, mediaRepo)
+	smartQ := libraryfakes.NewFakeCollectionSmartQuerier()
+	svc := appcollection.NewService(cmdRepo, queryRepo, smartQ, mediaRepo)
+
+	maxAge := 6
+	kid := &user.Profile{
+		ID: "prf-kid", UserID: "usr-1", IsKids: true,
+		Parental: &user.ParentalSettings{Enabled: true, MaxAge: &maxAge},
+	}
+	profiles := userfakes.NewFakeProfileRepository()
+	require.NoError(t, profiles.Create(ctx, kid))
+	uq := appuser.NewQueryService(
+		userfakes.NewFakeUserRepository(), profiles,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository())
+
+	h := &collectionHandler{svc: svc, userQuery: uq}
+
+	seedCollection(cmdRepo, "col-p", "Mixed")
+	mediaRepo.Create(ctx, &library.MediaItem{ID: "m1", LibraryID: "lib-1", Title: "Adult A", Type: "movie"})
+	mediaRepo.Create(ctx, &library.MediaItem{ID: "m2", LibraryID: "lib-1", Title: "Adult B", Type: "movie"})
+	cmdRepo.LinkItem(ctx, "col-p", "m1", 0)
+	cmdRepo.LinkItem(ctx, "col-p", "m2", 1)
+
+	kidCtx := interceptors.ContextWithClaims(ctx, &user.Claims{UserID: "usr-1", IsAdmin: false, ProfileID: "prf-kid"})
+	kidResp, err := h.GetCollectionItems(kidCtx, &eveyv1.GetCollectionItemsRequest{Id: "col-p", Limit: 100})
+	require.NoError(t, err)
+	assert.Empty(t, kidResp.Items, "a kid profile must not see unrated (fail-closed) collection items")
+
+	adminCtx := interceptors.ContextWithClaims(ctx, &user.Claims{UserID: "usr-1", IsAdmin: true, ProfileID: "prf-kid"})
+	adminResp, err := h.GetCollectionItems(adminCtx, &eveyv1.GetCollectionItemsRequest{Id: "col-p", Limit: 100})
+	require.NoError(t, err)
+	assert.Len(t, adminResp.Items, 2, "admin bypasses the parental filter")
+}
