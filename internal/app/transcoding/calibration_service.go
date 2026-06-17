@@ -333,15 +333,22 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 		cap.CPUSignature = sysinfo.CPUSignature()
 	}
 
+	// Hold currentMu across BOTH the DB persist and the in-memory store so this
+	// bench can't interleave with a concurrent DemoteCapability (which holds
+	// currentMu over its own load→Set→store): otherwise the two repo.Set calls
+	// race and the DB row can diverge from `current` — e.g. a boot-time HW
+	// demotion gets clobbered by a bench landing its repo.Set afterwards.
+	// DemoteCapability takes demoteMu before currentMu; this path takes only
+	// currentMu, so there is no inverse lock ordering.
+	s.currentMu.Lock()
+	defer s.currentMu.Unlock()
 	if err := s.repo.Set(ctx, cap); err != nil {
 		s.logger.Warn("calibration: persist failed (in-memory still updated)",
 			slog.Any("err", err))
 		// We still publish to in-memory — request handling benefits
 		// even if the DB write failed. Next boot will re-bench.
 	}
-	s.currentMu.Lock()
 	s.current.Store(&cap)
-	s.currentMu.Unlock()
 	return nil
 }
 
