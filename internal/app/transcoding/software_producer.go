@@ -728,8 +728,10 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 				slog.Error("software_producer: detached reap goroutine panic recovered", slog.Any("panic", r), slog.String("stack", string(debug.Stack())))
 			}
 		}()
+		naturalExit := false
 		select {
 		case <-handle.Done():
+			naturalExit = true
 		case <-sessionCtx.Done():
 		}
 		close(session.done)
@@ -743,7 +745,15 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		p.removeFromMap(hash, session)
 		// Natural EOF path: killSession never runs, so the gauge must be
 		// decremented here. Once-guarded so a concurrent kill doesn't double-Dec.
-		session.metricDecOnce.Do(func() { metrics.HLSVODSessions.Dec() })
+		// Count natural completions (mutually exclusive with killSession's
+		// HLSVODSessionsKilled) so spawns − (completed + killed) reconciles the
+		// gauge and surfaces any teardown leak.
+		session.metricDecOnce.Do(func() {
+			metrics.HLSVODSessions.Dec()
+			if naturalExit {
+				metrics.HLSVODSessionsCompleted.Inc()
+			}
+		})
 	}()
 
 	p.logger.Info("software: session started",

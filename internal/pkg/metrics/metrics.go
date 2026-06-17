@@ -129,6 +129,17 @@ var (
 		Help: "Total VOD-pipeline ffmpeg session kills, by reason.",
 	}, []string{"reason"})
 
+	// HLSVODSessionsCompleted counts sessions that ended on their OWN ffmpeg EOF
+	// (the dominant ~95% path) rather than a forced kill (HLSVODSessionsKilled).
+	// The two are mutually exclusive, so spawns − (completed + killed) should
+	// equal the live HLSVODSessions gauge; a persistent divergence flags a
+	// teardown/gauge leak (the failure mode the per-session sync.Once was added
+	// to fix — previously natural exits were unmetered and invisible).
+	HLSVODSessionsCompleted = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_sessions_completed_total",
+		Help: "Total VOD-pipeline ffmpeg sessions that ended on natural EOF (not a forced kill).",
+	})
+
 	// HLSVODSessionsRejected counts spawn refusals when the orchestrator is at
 	// its MaxActiveSessions global cap. A sustained nonzero rate means the host
 	// is shedding transcode load (503 + Retry-After to the player) — either
@@ -218,7 +229,7 @@ func init() {
 		MediaItemsTotal,
 		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,
 		TranscodeDuration,
-		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsRejected,
+		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsCompleted, HLSVODSessionsRejected,
 		HLSVODCopyTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,

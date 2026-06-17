@@ -840,7 +840,17 @@ func (o *SegmentOrchestrator) spawnSession(
 		o.removeSessionFromList(hash, session)
 		// Natural exit: decrement the live-sessions gauge (exactly once — see
 		// killSession). The reap is the dominant exit path (ffmpeg hits EOF).
-		session.metricDecOnce.Do(func() { metrics.HLSVODSessions.Dec() })
+		// Count natural completions so the gauge can be reconciled against
+		// spawns − (completed + killed): a divergence flags a teardown leak like
+		// the one this Once was added to fix. naturalExit + killSession's
+		// HLSVODSessionsKilled are mutually exclusive (a forced kill wakes the
+		// reap via sessionCtx, leaving naturalExit false).
+		session.metricDecOnce.Do(func() {
+			metrics.HLSVODSessions.Dec()
+			if naturalExit {
+				metrics.HLSVODSessionsCompleted.Inc()
+			}
+		})
 
 		// Level-2 safety net: a HW-capability failure demotes the host
 		// capability so the client's automatic retry re-resolves a lower tier
