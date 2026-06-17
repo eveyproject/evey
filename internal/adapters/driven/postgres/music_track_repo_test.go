@@ -333,6 +333,36 @@ func TestMusicTrackRepo_GetArtists(t *testing.T) {
 	assert.Equal(t, "UniqueArtist", artists[0].Name)
 }
 
+func TestMusicTrackRepo_SampleByLibrary(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("smp-lib")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+	for _, id := range []string{"smp1", "smp2", "smp3", "smp4", "smp5"} {
+		require.NoError(t, repo.Upsert(ctx, newTestTrack(id, lib.ID, "T"+id, "A", "B")))
+	}
+
+	// Capped below the row count → exactly limit rows.
+	got, err := repo.SampleByLibrary(ctx, lib.ID, 3)
+	require.NoError(t, err)
+	assert.Len(t, got, 3, "sample must be capped at limit")
+
+	// Limit above the count → all rows.
+	all, err := repo.SampleByLibrary(ctx, lib.ID, 100)
+	require.NoError(t, err)
+	assert.Len(t, all, 5)
+
+	// Zero limit → empty, no query.
+	none, err := repo.SampleByLibrary(ctx, lib.ID, 0)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
+
 func TestMusicTrackRepo_ListAllByLibrary(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

@@ -74,3 +74,42 @@ func (r *MusicPlayRepository) PlayCountsForProfile(ctx context.Context, profileI
 	}
 	return counts, nil
 }
+
+// GenreAffinityForProfile returns, per lowercased genre, the profile's total
+// play count across that genre — the taste signal the playlist generator scores
+// candidates against. Computed in SQL from the full play history so it stays
+// accurate even though the generator's candidate pool is only a bounded random
+// sample (joining plays to tracks is cheap: the history is small).
+func (r *MusicPlayRepository) GenreAffinityForProfile(ctx context.Context, profileID string) (map[string]float64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musicplay.GenreAffinityForProfile")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		SELECT LOWER(mt.genre) AS genre, SUM(mtp.play_count)::float8 AS weight
+		FROM music_track_plays mtp
+		JOIN music_tracks mt ON mt.id = mtp.track_id
+		WHERE mtp.profile_id = $1 AND mt.genre <> ''
+		GROUP BY LOWER(mt.genre)`, profileID,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("MusicPlayRepo.GenreAffinityForProfile: %w", err)
+	}
+	defer rows.Close()
+	weights := make(map[string]float64)
+	for rows.Next() {
+		var genre string
+		var weight float64
+		if err := rows.Scan(&genre, &weight); err != nil {
+			return nil, fmt.Errorf("MusicPlayRepo.GenreAffinityForProfile scan: %w", err)
+		}
+		weights[genre] = weight
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("MusicPlayRepo.GenreAffinityForProfile rows: %w", err)
+	}
+	return weights, nil
+}

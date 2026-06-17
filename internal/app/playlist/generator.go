@@ -24,21 +24,33 @@ const (
 	defaultGenSize = 50
 	maxGenSize     = 200 // stays well under the playlist item cap (500)
 
+	// maxCandidatePool bounds the random track sample the generator ranks, so a
+	// large library isn't loaded whole into memory. Far above maxGenSize so the
+	// scorer still has a deep reservoir to pick the top tracks from.
+	maxCandidatePool = 5000
+
 	wGenreAffinity = 0.2  // per play accrued in the candidate's genre (taste affinity)
 	wPlayCount     = 1.0  // per play of the candidate track itself (favourite-ish)
 	dupPenalty     = 0.15 // multiplier for tracks already in one of the profile's playlists (soft, not excluded)
 	jitterFloor    = 0.5  // score *= jitterFloor + rand[0,1) → variety + the no-taste fallback (pure random)
 )
 
-// GenTrackLister lists every track of a music library (the candidate pool).
+// GenTrackLister supplies the candidate pool. SampleByLibrary returns up to
+// limit RANDOM tracks so a huge library isn't loaded whole into memory just to
+// pick a few dozen — genre affinity is computed separately (from the profile's
+// full history), so the sample only needs to be a deep-enough reservoir to rank.
 type GenTrackLister interface {
-	ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]music.Track, error)
+	SampleByLibrary(ctx context.Context, libraryID shared.LibraryID, limit int) ([]music.Track, error)
 }
 
-// GenPlayCountGetter reads a profile's per-track play counts — the music taste
-// signal (music tracks aren't media_items, so favorites/ratings can't apply).
+// GenPlayCountGetter reads the profile's music taste signals (music tracks
+// aren't media_items, so favorites/ratings can't apply): per-track play counts
+// and per-genre affinity, both from the full play history.
 type GenPlayCountGetter interface {
 	PlayCountsForProfile(ctx context.Context, profileID string) (map[string]int, error)
+	// GenreAffinityForProfile returns per-genre total plays from the full play
+	// history — accurate independent of the (sampled) candidate pool.
+	GenreAffinityForProfile(ctx context.Context, profileID string) (map[string]float64, error)
 }
 
 // GenPlaylistStore is the narrow slice of the playlist repo the generator needs:
@@ -86,9 +98,9 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 		size = maxGenSize
 	}
 
-	pool, err := g.tracks.ListAllByLibrary(ctx, libraryID)
+	pool, err := g.tracks.SampleByLibrary(ctx, libraryID, maxCandidatePool)
 	if err != nil {
-		return nil, fmt.Errorf("list tracks: %w", err)
+		return nil, fmt.Errorf("sample tracks: %w", err)
 	}
 	if len(pool) == 0 {
 		return nil, ErrNoTracks
@@ -96,7 +108,7 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 
 	playCounts := g.playCounts(ctx, profileID)
 	inPlaylist := g.alreadyInPlaylists(ctx, profileID)
-	genrePlays := genreAffinity(pool, playCounts)
+	genrePlays := g.genreAffinity(ctx, profileID)
 
 	type scored struct {
 		track music.Track
@@ -183,14 +195,15 @@ func (g *GeneratorService) alreadyInPlaylists(ctx context.Context, profileID str
 	return set
 }
 
-// genreAffinity weights each genre by the profile's total plays of tracks in
-// that genre, so the scoring favours the genres the profile actually listens to.
-func genreAffinity(pool []music.Track, playCounts map[string]int) map[string]float64 {
-	weight := make(map[string]float64)
-	for _, t := range pool {
-		if c := playCounts[t.ID]; c > 0 && t.Genre != "" {
-			weight[strings.ToLower(t.Genre)] += float64(c)
-		}
+// genreAffinity returns per-genre play weights for the profile, favouring the
+// genres it actually listens to. Computed from the full play history in the repo
+// (independent of the sampled candidate pool). Best-effort: a lookup failure
+// degrades the mix to play-count + jitter rather than failing the generation.
+func (g *GeneratorService) genreAffinity(ctx context.Context, profileID string) map[string]float64 {
+	aff, err := g.plays.GenreAffinityForProfile(ctx, profileID)
+	if err != nil {
+		slog.Warn("generate playlist: genre affinity", slog.Any("err", err))
+		return nil
 	}
-	return weight
+	return aff
 }

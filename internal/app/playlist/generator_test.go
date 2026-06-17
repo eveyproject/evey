@@ -15,14 +15,27 @@ type genFakeTracks struct {
 	err    error
 }
 
-func (f *genFakeTracks) ListAllByLibrary(_ context.Context, _ shared.LibraryID) ([]music.Track, error) {
-	return f.tracks, f.err
+func (f *genFakeTracks) SampleByLibrary(_ context.Context, _ shared.LibraryID, limit int) ([]music.Track, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if limit > 0 && len(f.tracks) > limit {
+		return f.tracks[:limit], nil
+	}
+	return f.tracks, nil
 }
 
-type genFakePlays struct{ counts map[string]int }
+type genFakePlays struct {
+	counts   map[string]int
+	affinity map[string]float64
+}
 
 func (f *genFakePlays) PlayCountsForProfile(_ context.Context, _ string) (map[string]int, error) {
 	return f.counts, nil
+}
+
+func (f *genFakePlays) GenreAffinityForProfile(_ context.Context, _ string) (map[string]float64, error) {
+	return f.affinity, nil
 }
 
 type genFakePlaylists struct {
@@ -181,19 +194,5 @@ func TestGenerate_TracksError(t *testing.T) {
 	}
 }
 
-func TestGenreAffinity(t *testing.T) {
-	pool := []music.Track{track("a", "Rock"), track("b", "rock"), track("c", "Jazz"), track("d", "pop")}
-	// Played: rock track "a" thrice, jazz track "c" five times; "b"/"d" never.
-	playCounts := map[string]int{"a": 3, "c": 5}
-	w := genreAffinity(pool, playCounts)
-
-	if w["rock"] != 3 {
-		t.Errorf("rock affinity = %v, want 3 (track a played 3×; case-insensitive)", w["rock"])
-	}
-	if w["jazz"] != 5 {
-		t.Errorf("jazz affinity = %v, want 5 (track c played 5×)", w["jazz"])
-	}
-	if w["pop"] != 0 {
-		t.Errorf("pop affinity = %v, want 0 (never played)", w["pop"])
-	}
-}
+// Genre affinity is now computed in SQL (MusicPlayRepository.GenreAffinityForProfile);
+// see the postgres test TestMusicPlayRepo_GenreAffinityForProfile.

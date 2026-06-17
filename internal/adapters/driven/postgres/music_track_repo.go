@@ -445,6 +445,41 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 	return tracks, err
 }
 
+// SampleByLibrary returns up to limit RANDOM tracks of the library — a bounded
+// candidate pool for the playlist generator so a huge library isn't loaded whole
+// into memory just to pick a few dozen tracks. Genre affinity is computed
+// separately from the profile's full history, so the sample only needs to be a
+// large-enough reservoir to rank.
+func (r *MusicTrackRepository) SampleByLibrary(ctx context.Context, libraryID shared.LibraryID, limit int) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.SampleByLibrary")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)), attribute.Int("limit", limit))
+	if limit <= 0 {
+		return nil, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		SELECT id, library_id, title, artist, album, album_artist,
+		       year, track_number, disk_number, duration, file_path,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
+		       genre, album_folder, cover_art_url, created_at, updated_at
+		FROM music_tracks WHERE library_id=$1
+		ORDER BY RANDOM() LIMIT $2`, libraryID, limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	tracks, err := scanTracks(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return tracks, err
+}
+
 // ListAlbumsMissingArt returns one AlbumKey per folder that has no
 // cover art on any of its tracks. The Album / Artist display strings
 // come from the folder's majority tags, so downstream fetchers (which
