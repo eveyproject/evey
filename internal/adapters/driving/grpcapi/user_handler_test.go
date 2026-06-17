@@ -593,6 +593,55 @@ func TestUpdateProfile_Success(t *testing.T) {
 	}
 }
 
+func TestUpdateProfile_ParentalChangeFromKidsProfileDenied(t *testing.T) {
+	env := setupUserHandler()
+	env.profileRepo.Create(context.Background(), &user.Profile{
+		ID: "prf-kid", UserID: "usr-1", Name: "Kid", IsKids: true,
+	})
+	disable := false
+	// The caller is ON the kids profile and tries to clear its kids flag in
+	// place → must switch to a non-kids profile (which needs the PIN) first.
+	_, err := env.handler.UpdateProfile(userCtx("usr-1", "prf-kid"), &eveyv1.UpdateProfileRequest{
+		Id: "prf-kid", IsKids: &disable,
+	})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+func TestUpdateProfile_ParentalChangeFromAdultProfileAllowed(t *testing.T) {
+	env := setupUserHandler()
+	// Adult profile must carry a PIN once a kids profile exists (domain rule).
+	env.profileRepo.Create(context.Background(), &user.Profile{
+		ID: "prf-adult", UserID: "usr-1", Name: "Adult", IsDefault: true,
+		Parental: &user.ParentalSettings{PINHash: "hashed-pin"},
+	})
+	maxAge := 6
+	env.profileRepo.Create(context.Background(), &user.Profile{
+		ID: "prf-kid", UserID: "usr-1", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge},
+	})
+	newAge := int32(12)
+	// Parent operating from the (non-kids) adult profile edits the kid's age cap.
+	if _, err := env.handler.UpdateProfile(userCtx("usr-1", "prf-adult"), &eveyv1.UpdateProfileRequest{
+		Id: "prf-kid", MaxAge: &newAge,
+	}); err != nil {
+		t.Fatalf("a caller on a non-kids profile must be allowed to edit parental: %v", err)
+	}
+}
+
+func TestUpdateProfile_NonParentalChangeFromKidsProfileAllowed(t *testing.T) {
+	env := setupUserHandler()
+	env.profileRepo.Create(context.Background(), &user.Profile{
+		ID: "prf-kid", UserID: "usr-1", Name: "Kid", IsKids: true,
+	})
+	newName := "Renamed"
+	// Renaming touches no parental field → allowed even from the kids profile.
+	if _, err := env.handler.UpdateProfile(userCtx("usr-1", "prf-kid"), &eveyv1.UpdateProfileRequest{
+		Id: "prf-kid", Name: &newName,
+	}); err != nil {
+		t.Fatalf("a non-parental change must be allowed: %v", err)
+	}
+}
+
 func TestUpdateProfile_PreservesUnreferencedFields(t *testing.T) {
 	env := setupUserHandler()
 	ctx := context.Background()

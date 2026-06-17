@@ -493,6 +493,30 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		span.SetStatus(otelcodes.Error, "cannot update profile other")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 	}
+	// Parental gate: a caller operating FROM a kids profile may not change any
+	// parental field (kids flag, age cap, PIN) — that would let a kid lift its
+	// own restrictions in place. They must first switch to a non-kids profile,
+	// which already requires the parental PIN (RefreshToken's switch gate). Not
+	// gated on admin: in a single-user server the kid uses the admin account's
+	// kid profile, so admin-status is the wrong signal — the active PROFILE is.
+	if req.IsKids != nil || req.MaxAge != nil || req.Pin != nil {
+		callerIsKids := false
+		switch {
+		case claims.ProfileID == req.Id:
+			callerIsKids = p.IsKids // editing the profile we're on
+		case claims.ProfileID != "":
+			cp, cerr := h.query.GetProfileByID(ctx, claims.ProfileID)
+			if cerr != nil || cp == nil {
+				// Fail closed: can't confirm the caller isn't on a kids profile.
+				return nil, internalError("parental gate: load caller profile", cerr)
+			}
+			callerIsKids = cp.IsKids
+		}
+		if callerIsKids {
+			span.SetStatus(otelcodes.Error, "parental change from kids profile")
+			return nil, status.Error(codes.PermissionDenied, "switch to a non-kids profile to change parental settings")
+		}
+	}
 	if req.Preferences != nil {
 		p.Preferences = req.Preferences
 	}
