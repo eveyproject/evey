@@ -186,14 +186,35 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 
 	session.StartedAt = time.Now()
 
+	// deduped reports that the claim below resolved to an already-active session
+	// (a double-click / retry) instead of creating a new row, so the caller can
+	// skip re-publishing PlaybackStarted for a stream that already started.
+	var deduped bool
 	claim := func(ctx context.Context) error {
-		// Serialize the count-then-create for BOTH the stream and device caps:
-		// the advisory lock must cover the device branch too, otherwise a user
-		// with a device limit but NO stream limit races concurrent StartSession
-		// calls (each counts < limit, both create → N+1 devices per profile).
-		if u.HasStreamsLimit() || u.HasDeviceLimit() {
-			if err := s.sessions.AcquireUserStreamLock(ctx, userID); err != nil {
-				return fmt.Errorf("acquire stream lock: %w", err)
+		// Take the per-user advisory lock unconditionally: it serializes the
+		// idempotency dedup (so two concurrent double-click StartStream calls
+		// can't both miss the existing session and both create a row) as well as
+		// the count-then-create for the stream and device caps below. The lock
+		// is tx-scoped and keyed per user, so the cost is negligible.
+		if err := s.sessions.AcquireUserStreamLock(ctx, userID); err != nil {
+			return fmt.Errorf("acquire stream lock: %w", err)
+		}
+		// One GetActiveByProfile feeds both the idempotency check and the device
+		// cap (no second round-trip).
+		active, err := s.sessionQueries.GetActiveByProfile(ctx, string(session.ProfileID))
+		if err != nil {
+			return fmt.Errorf("list active by profile: %w", err)
+		}
+		// Idempotency: at most one active session per (profile, media, device).
+		// The player mints a fresh server-side ID on every StartStream, so a
+		// retry or a double-click would otherwise spawn a phantom session that
+		// inflates analytics and the device count. Reuse the live session and
+		// return it verbatim to the caller instead of creating a duplicate.
+		for _, a := range active {
+			if a.MediaItemID == session.MediaItemID && a.DeviceName == session.DeviceName {
+				*session = *a
+				deduped = true
+				return nil
 			}
 		}
 		if u.HasStreamsLimit() {
@@ -205,14 +226,8 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 				return ErrMaxStreams
 			}
 		}
-		if u.HasDeviceLimit() {
-			active, err := s.sessionQueries.GetActiveByProfile(ctx, string(session.ProfileID))
-			if err != nil {
-				return fmt.Errorf("list active by profile: %w", err)
-			}
-			if u.DeviceQuotaExceeded(len(active)) {
-				return ErrMaxDevicesPerProfile
-			}
+		if u.HasDeviceLimit() && u.DeviceQuotaExceeded(len(active)) {
+			return ErrMaxDevicesPerProfile
 		}
 		if err := s.sessions.Create(ctx, session); err != nil {
 			return fmt.Errorf("create session: %w", err)
@@ -228,6 +243,12 @@ func (s *CommandService) StartStream(ctx context.Context, session *playback.Play
 		if err := claim(ctx); err != nil {
 			return err
 		}
+	}
+
+	// A deduped start replays an already-running session; PlaybackStarted was
+	// already published when it was first created, so don't emit it twice.
+	if deduped {
+		return nil
 	}
 
 	evtStarted := playback.PlaybackStarted{

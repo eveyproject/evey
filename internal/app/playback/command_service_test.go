@@ -63,6 +63,46 @@ func TestStartStream_PublishError_StillSucceeds(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestStartStream_Idempotent_DedupsDoubleClick(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, bus := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	first := &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1", DeviceName: "tab"}
+	require.NoError(t, cmd.StartStream(ctx, first, "u1"))
+
+	// A double-click / retry mints a fresh server-side ID for the same
+	// (profile, media, device); it must resolve to the live session.
+	second := &playback.PlaySession{ID: "s2", ProfileID: "p1", MediaItemID: "m1", DeviceName: "tab"}
+	require.NoError(t, cmd.StartStream(ctx, second, "u1"))
+
+	assert.Equal(t, "s1", second.ID, "double-click must reuse the existing session")
+	active, _ := sr.GetActiveByProfile(ctx, "p1")
+	assert.Len(t, active, 1, "no phantom session created")
+
+	var started int
+	for _, e := range bus.PublishedEvents() {
+		if e.EventName() == (playback.PlaybackStarted{}).EventName() {
+			started++
+		}
+	}
+	assert.Equal(t, 1, started, "PlaybackStarted must not be re-emitted on the dedup")
+}
+
+func TestStartStream_DifferentDevice_NotDeduped(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1", DeviceName: "tab"}, "u1"))
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s2", ProfileID: "p1", MediaItemID: "m1", DeviceName: "tv"}, "u1"))
+
+	active, _ := sr.GetActiveByProfile(ctx, "p1")
+	assert.Len(t, active, 2, "same media on a different device is a distinct session")
+}
+
 func TestStopStream_PublishError_StillSucceeds(t *testing.T) {
 	t.Parallel()
 	cmd, _, _, ur, pfr, bus := setupCmd()
@@ -733,16 +773,19 @@ func TestReportProgress_ProfileNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
 }
 
-func TestStartStream_CreateSessionError(t *testing.T) {
+func TestStartStream_RepoError_Aborts(t *testing.T) {
 	t.Parallel()
 	cmd, _, sr, ur, pfr, _ := setupCmd()
 	ctx := context.Background()
 	seedUserProfile(ctx, ur, pfr, nil)
 
+	// Even with no caps, the claim now takes the advisory lock and lists active
+	// sessions (for the idempotency dedup) before creating. A repo failure on
+	// any of those steps must abort the start rather than create a session.
 	sr.Err = errors.New("db error")
 	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "create session")
+	assert.Contains(t, err.Error(), "db error")
 }
 
 func TestStopStream_UpdateError(t *testing.T) {
