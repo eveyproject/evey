@@ -262,10 +262,17 @@ func mapDetailArtwork(images *tmdbImages) []domain.ArtworkResult {
 }
 
 func appendImages(dst []domain.ArtworkResult, imgs []tmdbImage, artType string, limit int) []domain.ArtworkResult {
-	for i, img := range imgs {
-		if i >= limit {
+	added := 0
+	for _, img := range imgs {
+		if added >= limit {
 			break
 		}
+		// Skip an image with no file path: imageBaseURL + "" is just the CDN base,
+		// a broken artwork URL. (Other mappers guard FilePath != "" the same way.)
+		if img.FilePath == "" {
+			continue
+		}
+		added++
 		dst = append(dst, domain.ArtworkResult{
 			Type:     artType,
 			URL:      imageBaseURL + img.FilePath,

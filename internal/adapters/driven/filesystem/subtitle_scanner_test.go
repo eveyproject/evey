@@ -67,6 +67,15 @@ func TestSubtitleScanner_ScanForSubtitles(t *testing.T) {
 			wantForc: []bool{false},
 			wantFmt:  []string{"srt"},
 		},
+		{
+			// A numeric segment must NOT be stored as a language code.
+			name:     "numeric segment is not a language",
+			files:    []string{"Movie.2024.1080p.99.srt"},
+			wantLen:  1,
+			wantLang: []string{""},
+			wantForc: []bool{false},
+			wantFmt:  []string{"srt"},
+		},
 	}
 
 	scanner := NewSubtitleScanner()

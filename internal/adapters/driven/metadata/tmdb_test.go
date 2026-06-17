@@ -717,6 +717,16 @@ func TestAppendImages_Limit(t *testing.T) {
 	assert.Len(t, result, 3)
 }
 
+func TestAppendImages_SkipsEmptyFilePath(t *testing.T) {
+	imgs := []tmdbImage{
+		{FilePath: "", Width: 500, Height: 750},          // skipped: no path
+		{FilePath: "/poster.jpg", Width: 500, Height: 750}, // kept
+	}
+	result := appendImages(nil, imgs, "poster", 5)
+	assert.Len(t, result, 1, "an image with no file path must be skipped, not turned into a base-only URL")
+	assert.Equal(t, imageBaseURL+"/poster.jpg", result[0].URL)
+}
+
 func TestGenreMapForType(t *testing.T) {
 	assert.Equal(t, tvGenres, genreMapForType("tv"))
 	assert.Equal(t, movieGenres, genreMapForType("movie"))

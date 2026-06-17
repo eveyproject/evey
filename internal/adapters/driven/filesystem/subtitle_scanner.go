@@ -78,7 +78,10 @@ func (s *SubtitleScanner) ScanForSubtitles(videoPath string) ([]library.External
 						sub.Language = iso
 					} else if iso, ok := weakLanguageTags[p]; ok {
 						sub.Language = iso
-					} else if len(p) == 2 || len(p) == 3 {
+					} else if (len(p) == 2 || len(p) == 3) && isAlpha(p) {
+						// An unrecognised 2-3 LETTER code is taken as a language
+						// (covers ISO codes we don't enumerate). Guard on alpha so a
+						// numeric segment like "movie.99.srt" isn't stored as "99".
 						sub.Language = p
 					}
 				}
@@ -88,4 +91,19 @@ func (s *SubtitleScanner) ScanForSubtitles(videoPath string) ([]library.External
 		subs = append(subs, sub)
 	}
 	return subs, nil
+}
+
+// isAlpha reports whether s is non-empty and all ASCII letters (used to keep a
+// numeric filename segment from being mistaken for a language code).
+func isAlpha(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := range len(s) {
+		c := s[i]
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+			return false
+		}
+	}
+	return true
 }
