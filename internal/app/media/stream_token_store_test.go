@@ -1,6 +1,7 @@
 package media_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -9,6 +10,31 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// TestStreamTokenStore_ConcurrentValidate_NoRace hammers Validate for the same
+// token from many goroutines (the per-segment hot path) so `go test -race`
+// catches any in-place mutation of the shared *StreamToken's ExpiresAt.
+func TestStreamTokenStore_ConcurrentValidate_NoRace(t *testing.T) {
+	store := media.NewStreamTokenStore(5 * time.Minute)
+	defer store.Stop()
+
+	token := store.Create("user-1", "profile-1", "media-1")
+
+	var wg sync.WaitGroup
+	for range 32 {
+		wg.Go(func() {
+			for range 50 {
+				if st, ok := store.Validate(token, "media-1"); ok {
+					_ = st.ExpiresAt // read the field the renewal updates
+				}
+			}
+		})
+	}
+	wg.Wait()
+
+	_, ok := store.Validate(token, "media-1")
+	assert.True(t, ok, "token still valid after concurrent renewals")
+}
 
 func TestStreamTokenStore_CreateAndValidate(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)

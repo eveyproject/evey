@@ -90,8 +90,17 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 	if ttl <= 0 {
 		ttl = s.ttl
 	}
-	st.ExpiresAt = time.Now().Add(ttl)
-	return st, true
+	// Copy-on-write the sliding TTL: never mutate the shared *StreamToken in
+	// place. The per-segment hot path fires Validate concurrently for the same
+	// token while cleanupLoop ranges over it, and st.ExpiresAt is a multi-word
+	// time.Time — an in-place write races those reads (a torn read -race only
+	// surfaces under concurrent same-token traffic). Store a fresh pointer so
+	// every reader sees an immutable snapshot; the loaded st is never written,
+	// so copying it here is safe too.
+	renewed := *st
+	renewed.ExpiresAt = time.Now().Add(ttl)
+	s.tokens.Store(token, &renewed)
+	return &renewed, true
 }
 
 // ValidateAny checks the token without media scope (middleware use).
