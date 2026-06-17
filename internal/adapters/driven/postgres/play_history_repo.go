@@ -92,11 +92,11 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	var result []*activity.PlayHistoryEntry
 	for rows.Next() {
 		e := &activity.PlayHistoryEntry{}
-		var rawDurationMs int64
+		var rawDurationMs, rawPositionMs int64
 		if err := rows.Scan(
 			&e.ID, &e.ProfileID, &e.MediaItemID,
 			&e.MediaTitle, &e.MediaType,
-			&rawDurationMs, &e.PositionMs,
+			&rawDurationMs, &rawPositionMs,
 			&e.Completed,
 			&e.DeviceName, &e.ClientName, &e.PlayMethod,
 			&e.StartedAt, &e.EndedAt,
@@ -104,6 +104,9 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
+		}
+		if d, err := shared.NewDurationMs(rawPositionMs); err == nil {
+			e.Position = d
 		}
 		if d, err := shared.NewDurationMs(rawDurationMs); err == nil {
 			e.Duration = d

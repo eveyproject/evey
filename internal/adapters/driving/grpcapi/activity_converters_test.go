@@ -69,6 +69,7 @@ func TestPlayHistoryEntryToProto_FullFields(t *testing.T) {
 	t.Parallel()
 	end := time.Date(2024, 2, 2, 0, 0, 0, 0, time.UTC)
 	dur, _ := shared.NewDurationMs(1000)
+	pos, _ := shared.NewDurationMs(500)
 	e := &activity.PlayHistoryEntry{
 		ID:          "ph-1",
 		ProfileID:   shared.ProfileID("p1"),
@@ -76,7 +77,7 @@ func TestPlayHistoryEntryToProto_FullFields(t *testing.T) {
 		MediaTitle:  "t",
 		MediaType:   "movie",
 		Duration:    dur,
-		PositionMs:  500,
+		Position:    pos,
 		Completed:   true,
 		DeviceName:  "dev",
 		ClientName:  "cli",

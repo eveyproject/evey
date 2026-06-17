@@ -37,16 +37,18 @@ func TestActivityHandler_GetPlayHistory_Success(t *testing.T) {
 	// order the cursor pagination uses.
 	dur1, _ := shared.NewDurationMs(120000)
 	dur2, _ := shared.NewDurationMs(90000)
+	pos1, _ := shared.NewDurationMs(60000)
+	pos2, _ := shared.NewDurationMs(90000)
 	playHistory.Add(
 		&activity.PlayHistoryEntry{
 			ID: "ph1", ProfileID: "profile-1", MediaItemID: "m1",
 			MediaTitle: "Movie 1", MediaType: "movie", Duration: dur1,
-			PositionMs: 60000, StartedAt: now,
+			Position: pos1, StartedAt: now,
 		},
 		&activity.PlayHistoryEntry{
 			ID: "ph2", ProfileID: "profile-1", MediaItemID: "m2",
 			MediaTitle: "Movie 2", MediaType: "movie", Duration: dur2,
-			PositionMs: 90000, Completed: true, StartedAt: now.Add(-time.Minute),
+			Position: pos2, Completed: true, StartedAt: now.Add(-time.Minute),
 		},
 	)
 

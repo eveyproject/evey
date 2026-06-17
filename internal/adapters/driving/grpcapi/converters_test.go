@@ -596,6 +596,7 @@ func TestPlayHistoryEntryToProto(t *testing.T) {
 	t.Parallel()
 	ended := time.Now()
 	dur, _ := shared.NewDurationMs(120000)
+	pos, _ := shared.NewDurationMs(60000)
 	e := &activity.PlayHistoryEntry{
 		ID:          "ph-1",
 		ProfileID:   "p-1",
@@ -603,7 +604,7 @@ func TestPlayHistoryEntryToProto(t *testing.T) {
 		MediaTitle:  "Movie",
 		MediaType:   "movie",
 		Duration:    dur,
-		PositionMs:  60000,
+		Position:    pos,
 		Completed:   false,
 		EndedAt:     &ended,
 	}

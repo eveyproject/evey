@@ -38,6 +38,7 @@ func TestPlayHistoryEntry_CompletionFlag(t *testing.T) {
 	t.Run("completed play", func(t *testing.T) {
 		t.Parallel()
 		dur, _ := shared.NewDurationMs(5400000) // 90 min
+		pos, _ := shared.NewDurationMs(5400000)
 		entry := &activity.PlayHistoryEntry{
 			ID:          "h1",
 			ProfileID:   "p1",
@@ -45,21 +46,22 @@ func TestPlayHistoryEntry_CompletionFlag(t *testing.T) {
 			MediaTitle:  "Inception",
 			MediaType:   "movie",
 			Duration:    dur,
-			PositionMs:  5400000,
+			Position:    pos,
 			Completed:   true,
 			StartedAt:   now.Add(-90 * time.Minute),
 		}
 		if !entry.Completed {
 			t.Error("entry should be marked completed")
 		}
-		if entry.PositionMs != entry.Duration.Milliseconds() {
-			t.Errorf("position should equal duration for completed item: pos=%d dur=%d", entry.PositionMs, entry.Duration.Milliseconds())
+		if entry.Position.Milliseconds() != entry.Duration.Milliseconds() {
+			t.Errorf("position should equal duration for completed item: pos=%d dur=%d", entry.Position.Milliseconds(), entry.Duration.Milliseconds())
 		}
 	})
 
 	t.Run("partial play", func(t *testing.T) {
 		t.Parallel()
 		dur, _ := shared.NewDurationMs(2700000) // 45 min
+		pos, _ := shared.NewDurationMs(1350000) // 22.5 min — halfway
 		entry := &activity.PlayHistoryEntry{
 			ID:          "h2",
 			ProfileID:   "p1",
@@ -67,14 +69,14 @@ func TestPlayHistoryEntry_CompletionFlag(t *testing.T) {
 			MediaTitle:  "Series Ep 1",
 			MediaType:   "episode",
 			Duration:    dur,
-			PositionMs:  1350000, // 22.5 min — halfway
+			Position:    pos,
 			Completed:   false,
 			StartedAt:   now.Add(-30 * time.Minute),
 		}
 		if entry.Completed {
 			t.Error("partial play should not be marked completed")
 		}
-		if entry.PositionMs >= entry.Duration.Milliseconds() {
+		if entry.Position.Milliseconds() >= entry.Duration.Milliseconds() {
 			t.Error("position should be less than duration for incomplete item")
 		}
 	})

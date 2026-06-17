@@ -45,7 +45,7 @@ func playHistoryEntryToProto(e *activity.PlayHistoryEntry) *eveyv1.PlayHistoryEn
 		MediaTitle:  e.MediaTitle,
 		MediaType:   mediaItemTypeToProto[e.MediaType],
 		DurationMs:  e.Duration.Milliseconds(),
-		PositionMs:  e.PositionMs,
+		PositionMs:  e.Position.Milliseconds(),
 		Completed:   e.Completed,
 		DeviceName:  e.DeviceName,
 		ClientName:  e.ClientName,
