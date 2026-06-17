@@ -148,13 +148,12 @@ func (s *AccessService) RegisterWithInvite(ctx context.Context, token, username,
 		if s.defaultLocale != nil {
 			locale = s.defaultLocale()
 		}
-		p = &user.Profile{
-			ID:        shared.ProfileID(id.New("prf-")),
-			UserID:    u.ID,
-			Name:      u.Username,
-			IsDefault: true,
-			Locale:    locale,
-			CreatedAt: time.Now(),
+		p, err = user.NewProfile(shared.ProfileID(id.New("prf-")), u.ID, u.Username,
+			user.WithProfileDefault(true),
+			user.WithProfileLocale(locale),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("AccessService.RegisterWithInvite: build default profile: %w", err)
 		}
 	}
 

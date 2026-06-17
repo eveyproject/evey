@@ -133,13 +133,12 @@ func (s *UserService) CreateUser(ctx context.Context, callerIsAdmin bool, u *use
 	u.CreatedAt = time.Now()
 	u.UpdatedAt = time.Now()
 
-	p := &user.Profile{
-		ID:        shared.ProfileID(id.New("prf-")),
-		UserID:    u.ID,
-		Name:      u.Username,
-		IsDefault: true,
-		Locale:    s.resolveDefaultLocale(),
-		CreatedAt: time.Now(),
+	p, err := user.NewProfile(shared.ProfileID(id.New("prf-")), u.ID, u.Username,
+		user.WithProfileDefault(true),
+		user.WithProfileLocale(s.resolveDefaultLocale()),
+	)
+	if err != nil {
+		return fmt.Errorf("build default profile: %w", err)
 	}
 
 	if err := s.uow.Do(ctx, func(ctx context.Context) error {

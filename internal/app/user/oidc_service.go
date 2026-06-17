@@ -334,12 +334,11 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 	}
 	newUser.OIDCSubject = &sub
 	newUser.OIDCIssuer = &issuer
-	p := &domainuser.Profile{
-		ID:        shared.ProfileID(id.New("prf-")),
-		UserID:    newUser.ID,
-		Name:      newUser.Username,
-		IsDefault: true,
-		CreatedAt: now,
+	p, err := domainuser.NewProfile(shared.ProfileID(id.New("prf-")), newUser.ID, newUser.Username,
+		domainuser.WithProfileDefault(true),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("build default oidc profile: %w", err)
 	}
 	// The user row and its default profile must commit together: a profile
 	// failure after the user commits would leave the OIDC user with NO default

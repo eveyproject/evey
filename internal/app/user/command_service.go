@@ -184,16 +184,16 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	}
 	u.IsAdmin = true
 
-	p := &user.Profile{
-		ID:        shared.ProfileID(id.New("prf-")),
-		UserID:    u.ID,
-		Name:      u.Username,
-		IsDefault: true,
-		Locale:    cfg.locale,
+	profileOpts := []user.ProfileOption{
+		user.WithProfileDefault(true),
+		user.WithProfileLocale(cfg.locale),
 	}
 	if cfg.region != "" {
-		r := cfg.region
-		p.Region = &r
+		profileOpts = append(profileOpts, user.WithProfileRegion(cfg.region))
+	}
+	p, err := user.NewProfile(shared.ProfileID(id.New("prf-")), u.ID, u.Username, profileOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("CommandService.Setup: build default profile: %w", err)
 	}
 
 	// The admin user and its default profile must be created atomically: a

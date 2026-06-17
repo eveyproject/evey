@@ -248,6 +248,10 @@ func WithProfileRegion(region string) ProfileOption {
 	return func(p *Profile) { p.Region = &region }
 }
 
+func WithProfileDefault(isDefault bool) ProfileOption {
+	return func(p *Profile) { p.IsDefault = isDefault }
+}
+
 func WithProfileMaxBitrate(kbps int) ProfileOption {
 	return func(p *Profile) { p.MaxBitrateKbps = &kbps }
 }
