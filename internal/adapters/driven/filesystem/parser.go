@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
+	"unicode/utf8"
 )
 
 // extraTokensMu protects the admin-configurable extension of the static
@@ -15,9 +17,9 @@ import (
 // sensible baseline; admins extend at runtime via SetExtraParserTokens
 // (called from the app layer on boot and on server_config update).
 var (
-	extraTokensMu     sync.RWMutex
-	extraQualities    = map[string]bool{}
-	extraEditionRe    *regexp.Regexp // nil = no extra suffix patterns wired
+	extraTokensMu  sync.RWMutex
+	extraQualities = map[string]bool{}
+	extraEditionRe *regexp.Regexp // nil = no extra suffix patterns wired
 )
 
 // SetExtraParserTokens replaces the runtime token extensions. Pass nil or
@@ -134,7 +136,7 @@ var knownQualities = map[string]bool{
 	"480p": true, "480": true,
 	"360p": true, "360": true,
 	"bluray": true, "bdrip": true, "brrip": true,
-	"remux": true,
+	"remux":  true,
 	"webrip": true, "webdl": true, "web": true, "web-dl": true,
 	"hdtv": true, "hdrip": true, "hdr": true,
 	"dvdrip": true, "dvdscr": true, "dvd": true,
@@ -378,12 +380,19 @@ func extractReleaseGroup(info *ParsedInfo, name string) {
 	}
 }
 
-// ucFirst capitalises the first letter only (mirrors normalize_video's UcFirst).
+// ucFirst capitalises the first letter only, rune-aware. s[:1] would slice the
+// first BYTE, mangling any multi-byte first rune (e.g. "Æon", "Über", "千と千尋")
+// into the replacement char + an orphan continuation byte, which then poisons
+// the metadata-provider search for foreign titles.
 func ucFirst(s string) string {
 	if s == "" {
 		return s
 	}
-	return strings.ToUpper(s[:1]) + s[1:]
+	r, size := utf8.DecodeRuneInString(s)
+	if r == utf8.RuneError {
+		return s // not valid UTF-8 at the head; leave it untouched
+	}
+	return string(unicode.ToUpper(r)) + s[size:]
 }
 
 func normalizeCodec(raw string) string {

@@ -2,6 +2,7 @@ package filesystem
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -396,6 +397,28 @@ func TestParse_CleanTitle(t *testing.T) {
 	info := ParseFilename("The.Dark.Knight.2008.1080p.BluRay.x264.DTS-FGT.mkv")
 	assert.Equal(t, "The Dark Knight", info.Title)
 	assert.Equal(t, "the dark knight", info.CleanTitle)
+}
+
+func TestUcFirst_RuneAware(t *testing.T) {
+	// ASCII unchanged.
+	assert.Equal(t, "The dark knight", ucFirst("the dark knight"))
+	assert.Empty(t, ucFirst(""))
+	// Multi-byte first rune must be capitalised, not byte-sliced into a mojibake
+	// replacement char + orphan continuation byte.
+	assert.Equal(t, "Æon", ucFirst("æon"))
+	assert.Equal(t, "Über", ucFirst("über"))
+	// CJK has no upper-case form: ToUpper is identity, but it must stay intact
+	// (the old s[:1] would have corrupted the leading rune).
+	assert.Equal(t, "千と千尋", ucFirst("千と千尋"))
+	for _, in := range []string{"æon", "über", "千と千尋", "Война"} {
+		assert.True(t, utf8.ValidString(ucFirst(in)), "result must stay valid UTF-8: %q", in)
+	}
+}
+
+func TestParse_NonAsciiTitleNotCorrupted(t *testing.T) {
+	info := ParseFilename("über.2010.1080p.mkv")
+	assert.True(t, utf8.ValidString(info.Title), "title must stay valid UTF-8")
+	assert.Equal(t, "Über", info.Title)
 }
 
 func TestParse_NoMatches(t *testing.T) {
