@@ -39,7 +39,10 @@ interface AlbumLite {
 interface RoomBuilderProps {
   libraryId: string | undefined;
   creating: boolean;
-  onCreate: (trackIds: string[]) => void;
+  // Receives the full queue items (id + title + artist), not just ids, so the
+  // caller can seed a metadata map and label the in-room "now playing" / queue
+  // for tracks beyond the top-100 the page's own track list fetches.
+  onCreate: (items: QueueItem[]) => void;
 }
 
 type Tab = "albums" | "tracks" | "playlists";
@@ -396,7 +399,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
           variant="primary"
           loading={creating}
           disabled={queue.length === 0 || busy}
-          onClick={() => onCreate(queue.map((q) => q.id))}
+          onClick={() => onCreate(queue)}
         >
           <Play size={16} className="mr-2" />
           {t("media.syncplay.createRoom")}

@@ -1,6 +1,15 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { RoomBuilder } from "./RoomBuilder";
+import { RoomBuilder, type QueueItem } from "./RoomBuilder";
+
+// onCreate now receives the full queue items (id + title + artist); these
+// helpers read the last call's items / their ids.
+function lastItems(onCreate: ReturnType<typeof vi.fn>): QueueItem[] {
+  return onCreate.mock.calls.at(-1)?.[0] as QueueItem[];
+}
+function createdIds(onCreate: ReturnType<typeof vi.fn>): string[] {
+  return lastItems(onCreate).map((i) => i.id);
+}
 
 // Hook/imperative mocks — the component applies a `select` transform, so the
 // mocked hooks return data already in the shape the component consumes.
@@ -56,7 +65,7 @@ describe("RoomBuilder", () => {
     // Queue now holds 1 item.
     expect(screen.getByText("Queue (1)")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /create room/i }));
-    expect(onCreate).toHaveBeenCalledWith(["t1"]);
+    expect(createdIds(onCreate)).toEqual(["t1"]);
   });
 
   it("adds a whole album (resolved via the track search) and creates the room", async () => {
@@ -68,7 +77,7 @@ describe("RoomBuilder", () => {
     await waitFor(() => expect(screen.getByText("Queue (2)")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /create room/i }));
-    expect(onCreate).toHaveBeenCalledWith(["t1", "t2"]);
+    expect(createdIds(onCreate)).toEqual(["t1", "t2"]);
   });
 
   it("reorders the queue with the move controls", async () => {
@@ -83,7 +92,19 @@ describe("RoomBuilder", () => {
     // Move the 2nd item up → t2 before t1.
     fireEvent.click(screen.getAllByLabelText("Move up")[1]);
     fireEvent.click(screen.getByRole("button", { name: /create room/i }));
-    expect(onCreate).toHaveBeenCalledWith(["t2", "t1"]);
+    expect(createdIds(onCreate)).toEqual(["t2", "t1"]);
+  });
+
+  it("passes full track metadata (not just ids) to onCreate", async () => {
+    const onCreate = vi.fn();
+    render(<RoomBuilder libraryId="lib-1" creating={false} onCreate={onCreate} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /tracks/i }));
+    const adds = await screen.findAllByLabelText("Add to queue");
+    fireEvent.click(adds[0]); // Track One
+    fireEvent.click(screen.getByRole("button", { name: /create room/i }));
+
+    expect(lastItems(onCreate)).toEqual([{ id: "t1", title: "Track One", artist: "A" }]);
   });
 
   it("does not create a room while the queue is empty", () => {

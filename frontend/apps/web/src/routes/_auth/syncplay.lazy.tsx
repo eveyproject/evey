@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Pause, Music2, Users, LogOut, SkipForward, SkipBack, ListMusic } from "lucide-react";
 import { useSyncPlay } from "@/features/syncplay/useSyncPlay";
-import { RoomBuilder } from "@/features/syncplay/RoomBuilder";
+import { RoomBuilder, type QueueItem } from "@/features/syncplay/RoomBuilder";
 
 export const Route = createLazyFileRoute("/_auth/syncplay")({
   component: SyncPlayPage,
@@ -61,6 +61,22 @@ function SyncPlayPage() {
   const { data: tracks } = useTracksList(libraryId, "");
   const [code, setCode] = useState("");
   const [currentTrack, setCurrentTrack] = useState<TrackLite | null>(null);
+
+  // Metadata seeded from the RoomBuilder queue at room-creation time. The
+  // page's own track list is capped at the top 100 (useTracksList), so a queued
+  // track outside that window would otherwise render as a bare id; this map
+  // covers every track the host actually picked.
+  const trackMeta = useRef<Map<string, TrackLite>>(new Map());
+
+  // resolveTrack enriches a media id into a TrackLite: the host's picked-queue
+  // map first, then the top-100 list, then a bare-id stub (cover art is fetched
+  // by id regardless, so an empty coverArtUrl still renders).
+  const resolveTrack = (id: string): TrackLite => {
+    const seeded = trackMeta.current.get(id);
+    if (seeded) return seeded;
+    const found = (tracks ?? []).find((tr) => tr.id === id);
+    return found ?? { id, title: "", artist: "", duration: 0, coverArtUrl: "" };
+  };
   const [joining, setJoining] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,9 +109,9 @@ function SyncPlayPage() {
       setTimeout(() => (programmaticRef.current = false), 100);
     },
     onTrackChange: (_idx, mediaId) => {
-      // Rotate to new track: try to find metadata in already-fetched tracks list
-      const found = (tracks ?? []).find((tr) => tr.id === mediaId);
-      setCurrentTrack(found ?? { id: mediaId, title: "", artist: "", duration: 0, coverArtUrl: "" });
+      // Rotate to new track: resolve metadata from the seeded queue map, then
+      // the top-100 list, then a stub.
+      setCurrentTrack(resolveTrack(mediaId));
     },
   });
 
@@ -104,8 +120,10 @@ function SyncPlayPage() {
     const queueId = state.queue[state.trackIndex];
     if (!queueId) return;
     if (currentTrack?.id === queueId) return;
-    const found = (tracks ?? []).find((tr) => tr.id === queueId);
-    setCurrentTrack(found ?? { id: queueId, title: "", artist: "", duration: 0, coverArtUrl: "" });
+    setCurrentTrack(resolveTrack(queueId));
+    // resolveTrack reads trackMeta (ref) + tracks; tracks in deps covers the
+    // top-100 arriving after a join.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.queue, state.trackIndex, tracks, currentTrack?.id]);
 
   const inRoom = !!state.roomId;
@@ -124,13 +142,26 @@ function SyncPlayPage() {
     return `/api/v1/music/tracks/${currentTrack.id}/art${tp}`;
   }, [currentTrack?.id]);
 
-  async function handleCreateQueue(trackIds: string[]) {
-    if (trackIds.length === 0) return;
+  async function handleCreateQueue(items: QueueItem[]) {
+    if (items.length === 0) return;
     setCreating(true);
     setError(null);
+    // Seed the metadata map BEFORE the room resolves so the first
+    // onTrackChange / queue effect can label tracks the top-100 list misses.
+    for (const it of items) {
+      if (it.id) {
+        trackMeta.current.set(it.id, {
+          id: it.id,
+          title: it.title,
+          artist: it.artist,
+          duration: 0,
+          coverArtUrl: "",
+        });
+      }
+    }
     try {
       // currentTrack is enriched once the queue's first id resolves (effect + onTrackChange).
-      await controls.createRoomFromQueue(trackIds);
+      await controls.createRoomFromQueue(items.map((it) => it.id));
     } catch (e) {
       setError((e as Error).message || "error");
       setCurrentTrack(null);
@@ -278,23 +309,33 @@ function SyncPlayPage() {
                 <ListMusic size={14} />
                 <span>{t("media.syncplay.queue")}</span>
               </div>
-              {state.queue.map((trackId, idx) => (
-                <button
-                  key={`${trackId}-${idx}`}
-                  type="button"
-                  disabled={!state.isHost}
-                  onClick={() => state.isHost && controls.sendSetIndex(idx)}
-                  className={`flex items-center gap-2 text-left px-2 py-1 rounded-[var(--radius-sm)] text-sm ${
-                    idx === state.trackIndex
-                      ? "bg-[var(--surface-raised)] text-[var(--accent)] font-semibold"
-                      : "text-[var(--text)] " + (state.isHost ? "hover:bg-[var(--surface-raised)]" : "opacity-70")
-                  }`}
-                >
-                  <span className="text-xs text-[var(--text-muted)] w-6 text-right">{idx + 1}</span>
-                  <Music2 size={12} />
-                  <span className="flex-1 truncate font-mono text-xs">{trackId}</span>
-                </button>
-              ))}
+              {state.queue.map((trackId, idx) => {
+                const meta = resolveTrack(trackId);
+                return (
+                  <button
+                    key={`${trackId}-${idx}`}
+                    type="button"
+                    disabled={!state.isHost}
+                    onClick={() => state.isHost && controls.sendSetIndex(idx)}
+                    className={`flex items-center gap-2 text-left px-2 py-1 rounded-[var(--radius-sm)] text-sm ${
+                      idx === state.trackIndex
+                        ? "bg-[var(--surface-raised)] text-[var(--accent)] font-semibold"
+                        : "text-[var(--text)] " + (state.isHost ? "hover:bg-[var(--surface-raised)]" : "opacity-70")
+                    }`}
+                  >
+                    <span className="text-xs text-[var(--text-muted)] w-6 text-right">{idx + 1}</span>
+                    <Music2 size={12} />
+                    {meta.title ? (
+                      <span className="flex-1 min-w-0 truncate">
+                        {meta.title}
+                        {meta.artist && <span className="text-[var(--text-muted)]"> — {meta.artist}</span>}
+                      </span>
+                    ) : (
+                      <span className="flex-1 truncate font-mono text-xs">{trackId}</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -323,7 +364,7 @@ function SyncPlayPage() {
 
       <Card className="p-6 flex flex-col gap-4">
         <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.syncplay.create")}</h2>
-        <RoomBuilder libraryId={libraryId} creating={creating} onCreate={(ids) => void handleCreateQueue(ids)} />
+        <RoomBuilder libraryId={libraryId} creating={creating} onCreate={(items) => void handleCreateQueue(items)} />
       </Card>
 
       <Card className="p-6 flex flex-col gap-4 w-full max-w-md">
