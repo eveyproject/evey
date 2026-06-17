@@ -664,6 +664,18 @@ serverSettings:
   softwareAV1Info: "Maximale Höhe für die AV1-Softwarekodierung (libsvtav1). Auto behält AV1 als Hardware-only, wenn der Host es nicht softwareseitig durchhalten kann; AV1-Software ist auf schwachen CPUs sehr rechenintensiv."
 
 calibration:
+  softwareHdrMax: "Software-HDR-Limit"
+  hdrTonemap: "HDR→SDR-Tonemapping"
+  gpuIntegrated: "iGPU"
+  gpuDiscrete: "dedizierte GPU"
+  samplesTitle: "Benchmark-Messungen (fps pro Stufe)"
+  samplesLadder: "Pfad"
+  samplesHeight: "Stufe"
+  samplesFps: "fps"
+  samplesNeeded: "erforderlich"
+  samplesResult: "Ergebnis"
+  samplesPass: "bestanden"
+  samplesFail: "fehlgeschlagen"
   cardTitle: "Encode-Kalibrierung"
   cardSubtitle: "Beim Start gemessen — legt die Obergrenze der HLS-Qualitätsstufen fest, damit der Host nicht mehr ansetzt, als er in Echtzeit kodieren kann."
   softwareMax: "Obergrenze Software-Kodierung"

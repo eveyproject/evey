@@ -643,6 +643,18 @@ dashboardStats:
   loginFailed: Login failed
 
 calibration:
+  softwareHdrMax: "Software HDR cap"
+  hdrTonemap: "HDR→SDR tonemap"
+  gpuIntegrated: "iGPU"
+  gpuDiscrete: "dedicated GPU"
+  samplesTitle: "Benchmark measurements (fps per rung)"
+  samplesLadder: "Path"
+  samplesHeight: "Rung"
+  samplesFps: "fps"
+  samplesNeeded: "needed"
+  samplesResult: "result"
+  samplesPass: "pass"
+  samplesFail: "fail"
   cardTitle: Encode calibration
   cardSubtitle: "Measured at boot — sets the cap on the HLS ladder so the host doesn't overshoot what it can encode in realtime."
   softwareMax: Software encode cap

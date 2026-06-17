@@ -642,6 +642,18 @@ dashboardStats:
   loginFailed: "Echec de connexion"
 
 calibration:
+  softwareHdrMax: "Plafond d'encodage HDR logiciel"
+  hdrTonemap: "Tonemap HDR→SDR"
+  gpuIntegrated: "iGPU"
+  gpuDiscrete: "GPU dédié"
+  samplesTitle: "Mesures du benchmark (fps par palier)"
+  samplesLadder: "Chemin"
+  samplesHeight: "Palier"
+  samplesFps: "fps"
+  samplesNeeded: "requis"
+  samplesResult: "résultat"
+  samplesPass: "réussi"
+  samplesFail: "échec"
   cardTitle: "Calibrage de l'encodage"
   cardSubtitle: "Mesuré au démarrage — fixe le plafond du ladder HLS pour que la machine ne tente jamais d'encoder plus haut que ce qu'elle peut tenir en temps réel."
   softwareMax: "Plafond software"

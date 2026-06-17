@@ -664,6 +664,18 @@ serverSettings:
   softwareAV1Info: "Altura máxima para la codificación AV1 por software (libsvtav1). Auto mantiene AV1 solo en hardware cuando el CPU no puede sostener la codificación por software; AV1 por software exige mucho a los CPU débiles."
 
 calibration:
+  softwareHdrMax: "Límite de codificación HDR por software"
+  hdrTonemap: "Mapeo de tonos HDR→SDR"
+  gpuIntegrated: "iGPU"
+  gpuDiscrete: "GPU dedicada"
+  samplesTitle: "Mediciones del benchmark (fps por nivel)"
+  samplesLadder: "Ruta"
+  samplesHeight: "Nivel"
+  samplesFps: "fps"
+  samplesNeeded: "necesario"
+  samplesResult: "resultado"
+  samplesPass: "correcto"
+  samplesFail: "fallo"
   cardTitle: "Calibración de codificación"
   cardSubtitle: "Medida al arrancar — establece el límite de la escalera HLS para que el host no exceda lo que puede codificar en tiempo real."
   softwareMax: "Límite de codificación por software"

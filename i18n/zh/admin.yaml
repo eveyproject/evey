@@ -664,6 +664,18 @@ serverSettings:
   softwareAV1Info: "AV1 软件（libsvtav1）编码的最大高度。自动模式下，当主机无法维持软件编码时，AV1 仅使用硬件；AV1 软件编码在低性能 CPU 上开销很大。"
 
 calibration:
+  softwareHdrMax: "软件 HDR 上限"
+  hdrTonemap: "HDR→SDR 色调映射"
+  gpuIntegrated: "核显"
+  gpuDiscrete: "独立显卡"
+  samplesTitle: "基准测试测量（每档 fps）"
+  samplesLadder: "路径"
+  samplesHeight: "档位"
+  samplesFps: "fps"
+  samplesNeeded: "所需"
+  samplesResult: "结果"
+  samplesPass: "通过"
+  samplesFail: "失败"
   cardTitle: "编码校准"
   cardSubtitle: "在启动时测量 — 为 HLS 阶梯设定上限，避免主机超出其实时编码能力。"
   softwareMax: "软件编码上限"
