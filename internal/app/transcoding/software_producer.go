@@ -781,6 +781,12 @@ func (p *SoftwareProducer) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 		return
 	}
 	p.prewarmWG.Go(func() {
+		// Re-check inside the goroutine: Close cancels shutdownCtx BEFORE
+		// prewarmWG.Wait(), so a Go that registered after Wait returned must bail
+		// before EnsureSegmentRange re-creates a hash dir Close just wiped.
+		if p.shutdownCtx.Err() != nil {
+			return
+		}
 		ctx, cancel := context.WithTimeout(p.shutdownCtx, 30*time.Second)
 		defer cancel()
 		if err := p.EnsureSegmentRange(ctx, fp, 0, startSegIdx); err != nil {

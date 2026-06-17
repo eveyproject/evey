@@ -516,6 +516,14 @@ func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 		return
 	}
 	o.prewarmWG.Go(func() {
+		// Re-check inside the goroutine: Close runs shutdownCancel() BEFORE
+		// prewarmWG.Wait(), so if this Go registered after Wait already returned
+		// (the outer check raced the cancel), shutdownCtx is already cancelled
+		// here and we must bail before EnsureSegmentRange re-creates a hash dir
+		// that Close just wiped.
+		if o.shutdownCtx.Err() != nil {
+			return
+		}
 		ctx, cancel := context.WithTimeout(o.shutdownCtx, 30*time.Second)
 		defer cancel()
 		// Pre-warm always targets variant 0 (the base rung). In single-variant
