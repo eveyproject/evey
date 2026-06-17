@@ -197,6 +197,34 @@ func (r *PlaylistItemRepository) Add(ctx context.Context, item *playlist.Playlis
 	return nil
 }
 
+func (r *PlaylistItemRepository) AddNextOrder(ctx context.Context, item *playlist.PlaylistItem) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.AddNextOrder")
+	defer span.End()
+	span.SetAttributes(attribute.String("playlist.id", item.PlaylistID), attribute.String("media_item.id", string(item.MediaItemID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	mediaType := item.MediaType
+	if mediaType == "" {
+		mediaType = playlist.MediaTypeVideo
+	}
+	// Compute sort_order inside the INSERT (MAX+1) so two concurrent adds can't
+	// both read the same max in Go and write a colliding order. Aggregate over an
+	// empty playlist yields one row with MAX=NULL → order 0 for the first item.
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`INSERT INTO playlist_items (playlist_id, media_item_id, sort_order, added_at, media_type)
+		 SELECT $1, $2, COALESCE(MAX(sort_order), -1) + 1, $3, $4
+		 FROM playlist_items WHERE playlist_id = $1
+		 ON CONFLICT DO NOTHING`,
+		item.PlaylistID, item.MediaItemID, item.AddedAt, mediaType,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("PlaylistItemRepo.AddNextOrder: %w", err)
+	}
+	return nil
+}
+
 func (r *PlaylistItemRepository) Remove(ctx context.Context, playlistID, mediaItemID string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.Remove")
 	defer span.End()

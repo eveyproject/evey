@@ -131,6 +131,53 @@ func TestPlaylistRepo_AddItem(t *testing.T) {
 	assert.Equal(t, 1, items[1].SortOrder)
 }
 
+func TestPlaylistItemRepo_AddNextOrder(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	plRepo := postgres.NewPlaylistRepository(db)
+	plItemRepo := postgres.NewPlaylistItemRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("ano-u")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("ano-p", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("ano-lib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	mids := []string{"ano-m1", "ano-m2", "ano-m3"}
+	for _, id := range mids {
+		require.NoError(t, itemRepo.Create(ctx, newTestMediaItem(id, lib.ID)))
+	}
+	pl := newTestPlaylist("ano-pl", string(p.ID))
+	require.NoError(t, plRepo.Create(ctx, pl))
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	for _, id := range mids {
+		require.NoError(t, plItemRepo.AddNextOrder(ctx, &domainplaylist.PlaylistItem{
+			PlaylistID: pl.ID, MediaItemID: shared.MediaItemID(id), AddedAt: now, MediaType: domainplaylist.MediaTypeVideo,
+		}))
+	}
+	// First insert over an empty playlist must land at order 0, then 1, 2.
+	items, err := plItemRepo.GetByPlaylistID(ctx, pl.ID)
+	require.NoError(t, err)
+	require.Len(t, items, 3)
+	for i, it := range items { // GetByPlaylistID returns sorted by sort_order
+		assert.Equal(t, i, it.SortOrder, "sequential adds get incrementing sort_order")
+	}
+
+	// A duplicate media item is a no-op (ON CONFLICT DO NOTHING).
+	require.NoError(t, plItemRepo.AddNextOrder(ctx, &domainplaylist.PlaylistItem{
+		PlaylistID: pl.ID, MediaItemID: shared.MediaItemID("ano-m1"), AddedAt: now, MediaType: domainplaylist.MediaTypeVideo,
+	}))
+	items, err = plItemRepo.GetByPlaylistID(ctx, pl.ID)
+	require.NoError(t, err)
+	assert.Len(t, items, 3, "duplicate add must be a no-op")
+}
+
 func TestPlaylistRepo_ReorderItems(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

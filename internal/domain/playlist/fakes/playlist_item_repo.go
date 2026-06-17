@@ -34,6 +34,26 @@ func (r *FakePlaylistItemRepository) Add(_ context.Context, item *playlist.Playl
 	return nil
 }
 
+func (r *FakePlaylistItemRepository) AddNextOrder(_ context.Context, item *playlist.PlaylistItem) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	next := 0
+	for _, existing := range r.items[item.PlaylistID] {
+		if existing.MediaItemID == item.MediaItemID {
+			return nil // ON CONFLICT DO NOTHING
+		}
+		if existing.SortOrder >= next {
+			next = existing.SortOrder + 1
+		}
+	}
+	item.SortOrder = next
+	r.items[item.PlaylistID] = append(r.items[item.PlaylistID], item)
+	return nil
+}
+
 func (r *FakePlaylistItemRepository) Remove(_ context.Context, playlistID, mediaItemID string) error {
 	if r.Err != nil {
 		return r.Err

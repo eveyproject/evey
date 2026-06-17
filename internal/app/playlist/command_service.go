@@ -139,16 +139,11 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, p
 	if len(existing) >= maxItems {
 		return ErrMaxItems
 	}
-	nextOrder := 0
-	for _, it := range existing {
-		if it.SortOrder >= nextOrder {
-			nextOrder = it.SortOrder + 1
-		}
-	}
-	return s.items.Add(ctx, &playlist.PlaylistItem{
+	// sort_order is computed atomically inside the INSERT (MAX+1), so two
+	// concurrent adds can't read the same order here and write a collision.
+	return s.items.AddNextOrder(ctx, &playlist.PlaylistItem{
 		PlaylistID:  playlistID,
 		MediaItemID: shared.MediaItemID(mediaItemID),
-		SortOrder:   nextOrder,
 		AddedAt:     time.Now(),
 		MediaType:   mediaType,
 	})
