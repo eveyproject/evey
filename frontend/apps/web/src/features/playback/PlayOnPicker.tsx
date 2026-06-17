@@ -6,9 +6,10 @@ import { usePlayOnDevices, usePlayOnCommand, type PlayOnDevice } from "@/hooks/u
 
 interface PlayOnPickerProps {
   mediaId: string;
-  // Current playback position so the target device resumes here instead
-  // of starting over.
-  positionMs: number;
+  // Read the current playback position at send time (so the target device
+  // resumes here). A getter, not a value, because the parent no longer
+  // re-renders on every position tick — a captured number would be stale.
+  getPositionMs: () => number;
 }
 
 function iconFor(type: string) {
@@ -24,7 +25,7 @@ function iconFor(type: string) {
 // Google SDK), unlike DLNA it works for remote users (no LAN dependency)
 // — the only requirement is that the target device runs an evey client
 // holding a persistent WebSocket to the server.
-export function PlayOnPicker({ mediaId, positionMs }: PlayOnPickerProps) {
+export function PlayOnPicker({ mediaId, getPositionMs }: PlayOnPickerProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
@@ -54,7 +55,7 @@ export function PlayOnPicker({ mediaId, positionMs }: PlayOnPickerProps) {
 
   function handleSelect(device: PlayOnDevice) {
     sendCommand.mutate(
-      { deviceId: device.id, command: { type: "loadAndPlay", mediaId, positionMs } },
+      { deviceId: device.id, command: { type: "loadAndPlay", mediaId, positionMs: getPositionMs() } },
       {
         onSuccess: () => {
           toast.success(t("player.playOn.sent", { name: device.name }));

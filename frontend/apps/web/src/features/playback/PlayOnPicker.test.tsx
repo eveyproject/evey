@@ -42,7 +42,7 @@ function createWrapper() {
 
 function renderPicker(props: { mediaId?: string; positionMs?: number } = {}) {
   return render(
-    <PlayOnPicker mediaId={props.mediaId ?? "mi-abc"} positionMs={props.positionMs ?? 0} />,
+    <PlayOnPicker mediaId={props.mediaId ?? "mi-abc"} getPositionMs={() => props.positionMs ?? 0} />,
     { wrapper: createWrapper() },
   );
 }
@@ -185,7 +185,7 @@ describe("PlayOnPicker", () => {
     );
 
     const { rerender } = render(
-      <PlayOnPicker mediaId="mi-abc" positionMs={0} />,
+      <PlayOnPicker mediaId="mi-abc" getPositionMs={() => 0} />,
       { wrapper: Wrapper },
     );
 
@@ -193,7 +193,7 @@ describe("PlayOnPicker", () => {
 
     // Now simulate devices arriving as empty — same component instance stays open
     mockIsLoading = false;
-    rerender(<PlayOnPicker mediaId="mi-abc" positionMs={0} />);
+    rerender(<PlayOnPicker mediaId="mi-abc" getPositionMs={() => 0} />);
 
     expect(screen.getByText(/player\.playOn\.empty/i)).toBeInTheDocument();
   });

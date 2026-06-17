@@ -3,15 +3,13 @@ import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, Pict
 import { PlayOnPicker } from "./PlayOnPicker";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
-import { formatTime } from "./playerUtils";
-import { PlayerProgressBar } from "./PlayerProgressBar";
 import { PlayerVolumeControl } from "./PlayerVolumeControl";
-import { ChaptersPanel } from "./PlayerChaptersPanel";
 import { EpisodesPanel } from "./PlayerEpisodesPanel";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
 import { SettingsPanel } from "./PlayerSettingsPanel";
 import { StreamInfoPanel } from "./StreamInfoPanel";
-import { usePlayerContext } from "./PlayerContext";
+import { usePlayerContext, usePlayerTimeRef } from "./PlayerContext";
+import { LiveProgressBar, LiveTimeLabel, LiveChaptersPanel, useActiveChapterIndex } from "./PlayerLiveControls";
 import { useDocumentPiP } from "./hooks/useDocumentPiP";
 import type { V1StreamInfo } from "@evey/api";
 
@@ -81,10 +79,11 @@ export function PlayerControls({
 }: PlayerControlsProps) {
   const { t } = useTranslation();
   const ctx = usePlayerContext();
+  const timeRef = usePlayerTimeRef();
   const docPiP = useDocumentPiP();
   const {
     videoRef, playing: localPlaying, volume: localVolume, muted: localMuted, fullscreen, isPip,
-    effectiveDuration: localDuration, absoluteTime: localTime, bufferedEnd, transcodeOffset,
+    effectiveDuration: localDuration, transcodeOffset,
     audioStreams, subtitleStreams, currentAudioIndex, currentQuality,
     currentSubtitleTrackIndex, playbackSpeed, autoQuality, autoQualityLabel,
     availableQualities, chapters, mediaId, mediaType,
@@ -98,10 +97,19 @@ export function PlayerControls({
   // get the absolute position the seek bar / time display expect.
   const isCasting = castConnected && castPlayback?.isMediaLoaded;
   const playing = isCasting ? !castPlayback.isPaused : localPlaying;
-  const absoluteTime = isCasting ? castTranscodeOffset + castPlayback.currentTime : localTime;
   const effectiveDuration = localDuration;
   const volume = isCasting ? (castPlayback.volume ?? 1) : localVolume;
   const muted = isCasting ? (castPlayback.isMuted ?? false) : localMuted;
+
+  // The live position no longer lives in this component's render (it's split
+  // into PlayerTimeContext, consumed by the Live* leaves below) so the control
+  // bar stops re-rendering 4×/sec. When casting it comes from the device prop;
+  // pass that down to the leaves as castTimeSec. Handlers read the *current*
+  // position at call time via the ref, never from render state.
+  const castTimeSec = isCasting ? castTranscodeOffset + castPlayback.currentTime : undefined;
+  const currentAbsoluteTime = () =>
+    isCasting ? castTranscodeOffset + castPlayback.currentTime : timeRef.current.absoluteTime;
+  const currentChapterIndex = useActiveChapterIndex(chapters, videoRef, transcodeOffset, castTimeSec);
 
   const [visible, setVisible] = useState(true);
   const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | "streaminfo" | null>(null);
@@ -196,11 +204,11 @@ export function PlayerControls({
   }
 
   function skipForward() {
-    seekTo(Math.min(effectiveDuration, absoluteTime + skipForwardSeconds));
+    seekTo(Math.min(effectiveDuration, currentAbsoluteTime() + skipForwardSeconds));
   }
 
   function skipBackward() {
-    seekTo(Math.max(0, absoluteTime - skipBackwardSeconds));
+    seekTo(Math.max(0, currentAbsoluteTime() - skipBackwardSeconds));
   }
 
   const prevEpisode = (() => {
@@ -305,9 +313,6 @@ export function PlayerControls({
     else if (videoRef.current) videoRef.current.currentTime = timeSec;
   };
 
-  const currentChapterIndex = chapters.findIndex(
-    (ch) => absoluteTime * 1000 >= ch.startTimeMs && absoluteTime * 1000 < ch.endTimeMs,
-  );
   const currentChapter = currentChapterIndex >= 0 ? chapters[currentChapterIndex] : null;
 
   function skipToNextChapter() {
@@ -318,7 +323,7 @@ export function PlayerControls({
   function skipToPrevChapter() {
     const threshold = 3;
     if (currentChapterIndex > 0 && currentChapter) {
-      const elapsed = absoluteTime - currentChapter.startTimeMs / 1000;
+      const elapsed = currentAbsoluteTime() - currentChapter.startTimeMs / 1000;
       if (elapsed > threshold) {
         handleChapterSeek(currentChapter.startTimeMs / 1000);
       } else {
@@ -364,11 +369,10 @@ export function PlayerControls({
         style={{ background: "linear-gradient(to top, var(--overlay-bg-strong), transparent)", paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))", paddingLeft: "max(1rem, env(safe-area-inset-left, 1rem))", paddingRight: "max(1rem, env(safe-area-inset-right, 1rem))" }}
         data-controls
       >
-        {/* seek bar */}
-        <PlayerProgressBar
-          absoluteTime={absoluteTime}
+        {/* seek bar — subscribes to PlayerTimeContext on its own */}
+        <LiveProgressBar
+          castTimeSec={castTimeSec}
           effectiveDuration={effectiveDuration}
-          bufferedEnd={bufferedEnd}
           transcodeOffset={transcodeOffset}
           chapters={chapters}
           mediaId={mediaId}
@@ -476,10 +480,8 @@ export function PlayerControls({
             );
           })()}
 
-          {/* time */}
-          <span className="text-[var(--overlay-text)] text-xs tabular-nums">
-            {formatTime(absoluteTime)} / {formatTime(effectiveDuration)}
-          </span>
+          {/* time — subscribes to PlayerTimeContext on its own */}
+          <LiveTimeLabel castTimeSec={castTimeSec} effectiveDuration={effectiveDuration} />
 
           {/* volume */}
           <PlayerVolumeControl
@@ -493,9 +495,9 @@ export function PlayerControls({
 
           {/* Chapters panel */}
           {chapters.length > 0 && (
-            <ChaptersPanel
+            <LiveChaptersPanel
               chapters={chapters}
-              currentTimeSec={absoluteTime}
+              castTimeSec={castTimeSec}
               onSeek={handleChapterSeek}
               open={chaptersOpen}
               onToggle={() => setOpenPanel(chaptersOpen ? null : "chapters")}
@@ -555,7 +557,7 @@ export function PlayerControls({
               clients (TV app, mobile). Works for any browser, any
               network — no Chromecast SDK required. */}
           {mediaId && (
-            <PlayOnPicker mediaId={mediaId} positionMs={Math.floor(absoluteTime * 1000)} />
+            <PlayOnPicker mediaId={mediaId} getPositionMs={() => Math.floor(currentAbsoluteTime() * 1000)} />
           )}
 
           {/* Cast */}

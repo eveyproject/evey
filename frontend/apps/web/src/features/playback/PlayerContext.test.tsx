@@ -44,7 +44,6 @@ describe("PlayerContext — PlayerState type", () => {
       volume: 1,
       brightness: 1,
       effectiveDuration: 0,
-      absoluteTime: 0,
       skipForwardSeconds: 10,
       skipBackwardSeconds: 10,
     };

@@ -6,12 +6,17 @@ import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
 import { useMediaSession } from "./hooks/useMediaSession";
 
+// Stable empty defaults: inline `= []` default params allocate a fresh array on
+// every render, which would churn the `value` memo (and every consumer) on each
+// position tick now that the time state lives in its own context.
+const EMPTY_CHAPTERS: Chapter[] = [];
+const EMPTY_SEASONS: SeasonNavItem[] = [];
+const EMPTY_EPISODES: EpisodeNavItem[] = [];
+
 export interface PlayerState {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   playing: boolean;
-  currentTime: number;
   duration: number;
-  bufferedEnd: number;
   volume: number;
   muted: boolean;
   fullscreen: boolean;
@@ -20,7 +25,6 @@ export interface PlayerState {
   knownDurationSec?: number;
   transcodeOffset: number;
   effectiveDuration: number;
-  absoluteTime: number;
 
   audioStreams: AudioStream[];
   subtitleStreams: SubtitleStream[];
@@ -55,6 +59,34 @@ const PlayerContext = createContext<PlayerState | null>(null);
 export function usePlayerContext(): PlayerState {
   const ctx = useContext(PlayerContext);
   if (!ctx) throw new Error("usePlayerContext must be used within PlayerProvider");
+  return ctx;
+}
+
+// High-frequency playback position, split into its OWN context so the ~4×/sec
+// timeupdate tick re-renders only the components that actually display the
+// position (the seek bar, the time label) — not the whole control bar with its
+// buttons and panels. PlayerState (above) deliberately no longer carries these.
+export interface PlayerTime {
+  currentTime: number;
+  absoluteTime: number;
+  bufferedEnd: number;
+}
+
+const PlayerTimeContext = createContext<PlayerTime | null>(null);
+// A ref mirror of the same values, for event handlers that need the *current*
+// position at call time (skip ±, chapter skip, "play on") without subscribing
+// to the tick and re-rendering every 250ms.
+const PlayerTimeRefContext = createContext<React.RefObject<PlayerTime> | null>(null);
+
+export function usePlayerTime(): PlayerTime {
+  const ctx = useContext(PlayerTimeContext);
+  if (!ctx) throw new Error("usePlayerTime must be used within PlayerProvider");
+  return ctx;
+}
+
+export function usePlayerTimeRef(): React.RefObject<PlayerTime> {
+  const ctx = useContext(PlayerTimeRefContext);
+  if (!ctx) throw new Error("usePlayerTimeRef must be used within PlayerProvider");
   return ctx;
 }
 
@@ -102,7 +134,7 @@ export function PlayerProvider({
   autoQuality = false,
   autoQualityLabel,
   availableQualities,
-  chapters = [],
+  chapters = EMPTY_CHAPTERS,
   mediaId,
   mediaType,
   streamToken,
@@ -110,9 +142,9 @@ export function PlayerProvider({
   brightness = 1,
   skipForwardSeconds = 30,
   skipBackwardSeconds = 30,
-  seasons = [],
+  seasons = EMPTY_SEASONS,
   currentSeasonId = "",
-  episodes = [],
+  episodes = EMPTY_EPISODES,
   currentEpisodeId = "",
   subtitleStyle,
   onPlayEpisode,
@@ -188,6 +220,16 @@ export function PlayerProvider({
 
   const absoluteTime = transcodeOffset + currentTime;
 
+  // Mirror the live position into a ref so handlers can read it at call time
+  // without subscribing to the tick. Written during render (read-latest pattern).
+  const timeRef = useRef<PlayerTime>({ currentTime, absoluteTime, bufferedEnd });
+  timeRef.current = { currentTime, absoluteTime, bufferedEnd };
+
+  const timeValue = useMemo<PlayerTime>(
+    () => ({ currentTime, absoluteTime, bufferedEnd }),
+    [currentTime, absoluteTime, bufferedEnd],
+  );
+
   // Publish to the OS Media Session (lock screen / Now Playing). Feature-
   // detected and additive — a no-op where unsupported.
   useMediaSession({
@@ -209,9 +251,7 @@ export function PlayerProvider({
   const value = useMemo<PlayerState>(() => ({
     videoRef,
     playing,
-    currentTime,
     duration,
-    bufferedEnd,
     volume,
     muted,
     fullscreen,
@@ -219,7 +259,6 @@ export function PlayerProvider({
     knownDurationSec,
     transcodeOffset,
     effectiveDuration,
-    absoluteTime,
     audioStreams,
     subtitleStreams,
     currentAudioIndex,
@@ -245,9 +284,7 @@ export function PlayerProvider({
   }), [
     videoRef,
     playing,
-    currentTime,
     duration,
-    bufferedEnd,
     volume,
     muted,
     fullscreen,
@@ -255,7 +292,6 @@ export function PlayerProvider({
     knownDurationSec,
     transcodeOffset,
     effectiveDuration,
-    absoluteTime,
     audioStreams,
     subtitleStreams,
     currentAudioIndex,
@@ -282,7 +318,11 @@ export function PlayerProvider({
 
   return (
     <PlayerContext.Provider value={value}>
-      {children}
+      <PlayerTimeRefContext.Provider value={timeRef}>
+        <PlayerTimeContext.Provider value={timeValue}>
+          {children}
+        </PlayerTimeContext.Provider>
+      </PlayerTimeRefContext.Provider>
     </PlayerContext.Provider>
   );
 }
