@@ -1145,6 +1145,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 
 	enc := resolveVideoEncoder(opts.VideoCodec)
 	args = append(args, "-c:v", enc)
+	args = append(args, softwareThreadsArgs("")...) // optional weak-NAS per-encoder cap (no-op when unset)
 	args = append(args, softwareProfileLevelArgs(enc, -1)...) // h264-only; x265/av1 pick their own
 	args = append(args,
 		// Capped CRF (see softwareCRF): quality-targeted with the rung bitrate as a
@@ -1247,6 +1248,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 			"-map", fmt.Sprintf("[o%d]", i),
 			fmt.Sprintf("-c:v:%d", i), vcodec,
 		)
+		args = append(args, softwareThreadsArgs(fmt.Sprintf(":v:%d", i))...) // optional weak-NAS per-rung cap (no-op when unset)
 		args = append(args, softwareProfileLevelArgs(vcodec, i)...) // h264-only; x265/av1 pick their own
 		args = append(args,
 			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate
