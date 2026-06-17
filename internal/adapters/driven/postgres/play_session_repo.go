@@ -170,11 +170,11 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 	var result []*playback.ActiveSessionInfo
 	for rows.Next() {
 		s := &playback.ActiveSessionInfo{}
-		var rawDurationMs int64
+		var rawDurationMs, rawPositionMs int64
 		if err := rows.Scan(
 			&s.SessionID, &s.ProfileID, &s.ProfileName,
 			&s.MediaItemID, &s.MediaTitle, &s.MediaType,
-			&rawDurationMs, &s.PositionMs,
+			&rawDurationMs, &rawPositionMs,
 			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,
 			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
 			&s.SeriesTitle, &s.SeasonNumber, &s.EpisodeNumber, &s.IsPaused,
@@ -185,6 +185,9 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		}
 		if d, err := shared.NewDurationMs(rawDurationMs); err == nil {
 			s.Duration = d
+		}
+		if d, err := shared.NewDurationMs(rawPositionMs); err == nil {
+			s.Position = d
 		}
 		if s.PlayMethod == string(playback.Transcode) {
 			info := fmt.Sprintf("%s -> %s", s.VideoCodec, "h264")

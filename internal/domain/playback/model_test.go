@@ -184,8 +184,9 @@ func TestActiveSessionInfo_ProgressPercent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			a := &playback.ActiveSessionInfo{
-				PositionMs: tt.positionMs,
+			a := &playback.ActiveSessionInfo{}
+			if tt.positionMs > 0 {
+				a.Position = mustDuration(t, tt.positionMs)
 			}
 			// shared.Duration rejects negatives; for the "negative duration"
 			// case we leave the zero value, which matches the expected result.

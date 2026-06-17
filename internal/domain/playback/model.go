@@ -123,7 +123,7 @@ type ActiveSessionInfo struct {
 	MediaTitle    string
 	MediaType     string
 	Duration      shared.Duration
-	PositionMs    int64
+	Position      shared.Duration
 	StartedAt     time.Time
 	DeviceName    string
 	DeviceType    string
@@ -145,7 +145,7 @@ func (a *ActiveSessionInfo) ProgressPercent() float64 {
 	if dms <= 0 {
 		return 0
 	}
-	p := float64(a.PositionMs) / float64(dms) * 100
+	p := float64(a.Position.Milliseconds()) / float64(dms) * 100
 	if p > 100 {
 		return 100
 	}
