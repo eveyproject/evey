@@ -352,7 +352,7 @@ func (s *CommandService) parseTrackWithTimeout(ctx context.Context, path, librar
 				slog.Error("panic recovered in music parseTrack", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
-		t, err := s.parseTrack(path, libraryID, mimeType, fileSize)
+		t, err := s.parseTrack(tCtx, path, libraryID, mimeType, fileSize)
 		select {
 		case ch <- result{t, err}:
 		case <-tCtx.Done():
@@ -367,7 +367,7 @@ func (s *CommandService) parseTrackWithTimeout(ctx context.Context, path, librar
 	}
 }
 
-func (s *CommandService) parseTrack(path, libraryID, mimeType string, fileSize int64) (*music.Track, error) {
+func (s *CommandService) parseTrack(ctx context.Context, path, libraryID, mimeType string, fileSize int64) (*music.Track, error) {
 	f, err := s.scanner.OpenFile(path)
 	if err != nil {
 		return nil, err
@@ -411,9 +411,12 @@ func (s *CommandService) parseTrack(path, libraryID, mimeType string, fileSize i
 	// Album identity is the on-disk parent directory — see Track.AlbumFolder.
 	t.AlbumFolder = filepath.Dir(path)
 	if s.prober != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// Derive from the caller's ctx (carrying the parse-timeout budget and
+		// scan cancellation + tracing) rather than context.Background, so an
+		// aborted scan stops probing instead of running to the full timeout.
+		probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		if pr, perr := s.prober.ProbeStreams(ctx, path); perr == nil && pr != nil {
+		if pr, perr := s.prober.ProbeStreams(probeCtx, path); perr == nil && pr != nil {
 			t.Duration = pr.Duration.Seconds()
 			for _, st := range pr.Streams {
 				if st == nil || st.StreamType != "audio" {
