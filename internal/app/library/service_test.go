@@ -111,8 +111,8 @@ func TestScanLibrary_NewFiles(t *testing.T) {
 	libQueryRepo.Seed(lib)
 
 	scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film1.mkv", Size: 1000},
-		{Path: "/movies/film2.mkv", Size: 2000},
+		{Path: "/movies/film1.mkv", Size: 1000, Title: "Film 1", Type: library.MovieItem},
+		{Path: "/movies/film2.mkv", Size: 2000, Title: "Film 2", Type: library.MovieItem},
 	}
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
@@ -297,7 +297,7 @@ func TestScanLibrary_ExtractsChapters(t *testing.T) {
 		ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"},
 	})
 	scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 5000},
+		{Path: "/movies/film.mkv", Size: 5000, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")

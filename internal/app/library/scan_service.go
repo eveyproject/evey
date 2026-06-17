@@ -471,8 +471,12 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 		return 0, 0, err
 	}
 	if existing == nil {
-		if err := s.createMediaFile(ctx, libraryID, parentID, f, showTitle); err != nil {
+		created, err := s.createMediaFile(ctx, libraryID, parentID, f, showTitle)
+		if err != nil {
 			return 0, 0, err
+		}
+		if !created {
+			return 0, 0, nil // skipped (failed invariants) — not an error, not counted
 		}
 		return 1, 0, nil
 	}
@@ -530,35 +534,46 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID strin
 // createMediaFile materializes a new MediaItem + child enrichment
 // (probe streams, chapters, meili index) and publishes MediaItemAdded.
 // Called only when findExistingMediaFile returned nil.
-func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, showTitle string) error {
+// createMediaFile builds and persists a new MediaItem. Returns created=false
+// (with a nil error) when the file failed the domain invariants and was skipped,
+// so the caller doesn't count a skipped file as added.
+func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, showTitle string) (created bool, err error) {
 	// Enforce the hierarchy invariant up front: an episode or season without a
 	// parent ID would persist as an orphan that only surfaces later as a broken
 	// row (mirrors library.ErrMissingParent in the NewMediaItem constructor).
 	if (f.Type == library.Episode || f.Type == library.Season) && parentID == "" {
-		return fmt.Errorf("build media item %s: %w", f.Path, library.ErrMissingParent)
+		return false, fmt.Errorf("build media item %s: %w", f.Path, library.ErrMissingParent)
 	}
-	item := &library.MediaItem{
-		ID:          shared.MediaItemID(uuid.New().String()),
-		LibraryID:   shared.LibraryID(libraryID),
-		ParentID:    parentID,
-		Title:       f.Title,
-		ScanTitle:   f.Title,
-		Type:        f.Type,
-		IndexNumber: f.Episode,
-		AddedAt:     time.Now(),
-		UpdatedAt:   time.Now(),
-		File: &library.MediaFile{
+	// Build through the canonical constructor so the domain invariants (valid
+	// type, non-empty title, parent for episode/season) are enforced at the
+	// boundary instead of trusting the scanner to have set them. A real scan
+	// always satisfies them; a degenerate file (parser yielded no title, or a
+	// future scan path that forgot the type) is logged and skipped rather than
+	// persisted as a broken row.
+	opts := []library.MediaItemOption{
+		library.WithMediaItemID(shared.MediaItemID(uuid.New().String())),
+		library.WithMediaItemParent(parentID),
+		library.WithMediaItemFile(&library.MediaFile{
 			Path:        f.Path,
 			Size:        f.Size,
 			Fingerprint: f.Fingerprint,
 			ModTime:     f.ModTime,
-		},
+		}),
+	}
+	if f.Episode != nil {
+		opts = append(opts, library.WithMediaItemIndexNumber(*f.Episode))
 	}
 	if f.Year != nil {
-		item.Catalog = &library.MediaCatalog{Year: f.Year}
+		opts = append(opts, library.WithMediaItemYear(*f.Year))
+	}
+	item, err := library.NewMediaItem(shared.LibraryID(libraryID), f.Type, f.Title, opts...)
+	if err != nil {
+		slog.WarnContext(ctx, "scan: skipping media item that fails domain invariants",
+			slog.String("path", f.Path), slog.Any("err", err))
+		return false, nil
 	}
 	if err := s.mediaItems.Create(ctx, item); err != nil {
-		return fmt.Errorf("create media item: %w", err)
+		return false, fmt.Errorf("create media item: %w", err)
 	}
 	if dur := s.ProbeAndStoreStreams(ctx, string(item.ID), f.Path); !dur.IsZero() {
 		item.File.Duration = dur
@@ -583,7 +598,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		Genres:      catalogGenres(item),
 		OccurredAt:  time.Now(),
 	})
-	return nil
+	return true, nil
 }
 
 // updateMediaFile reconciles an existing MediaItem against the freshly

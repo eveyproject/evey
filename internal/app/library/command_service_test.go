@@ -281,7 +281,7 @@ func TestScanLibrary_ReturnsExactAddedUpdatedCounts(t *testing.T) {
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/new.mkv", Size: 500, Title: "New Film"},
+		{Path: "/movies/new.mkv", Size: 500, Title: "New Film", Type: library.MovieItem},
 		{Path: "/movies/old.mkv", Size: 100},
 	}
 
@@ -299,10 +299,10 @@ func TestScanLibrary_MultiplePaths(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/a.mkv", Size: 100, Title: "A"},
+		{Path: "/movies/a.mkv", Size: 100, Title: "A", Type: library.MovieItem},
 	}
 	h.scanner.Results["/extra"] = []library.ScannedFile{
-		{Path: "/extra/b.mkv", Size: 200, Title: "B"},
+		{Path: "/extra/b.mkv", Size: 200, Title: "B", Type: library.MovieItem},
 	}
 
 	added, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -323,7 +323,7 @@ func TestScanLibrary_ScanCompletedEvent_HasCorrectCounts(t *testing.T) {
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/new.mkv", Size: 100, Title: "New"},
+		{Path: "/movies/new.mkv", Size: 100, Title: "New", Type: library.MovieItem},
 	}
 
 	added, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -352,7 +352,7 @@ func TestUpsertMediaFile_NewItem_ByFingerprint_FallbackToPath(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "fp-123", Title: "Film"},
+		{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "fp-123", Title: "Film", Type: library.MovieItem},
 	}
 
 	added, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -550,6 +550,24 @@ func TestUpsertMediaFile_NewItem_PublishesMediaItemAdded(t *testing.T) {
 	assert.Empty(t, evt.SeriesTitle, "non-tvshow should have empty SeriesTitle")
 }
 
+func TestScanLibrary_SkipsItemFailingDomainInvariants(t *testing.T) {
+	t.Parallel()
+	h := newHarness()
+	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
+	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
+	// A degenerate file whose parser yielded no title fails NewMediaItem's
+	// non-empty-title invariant and must be skipped, not persisted as a broken
+	// row — while the valid sibling is still created.
+	h.scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/good.mkv", Size: 100, Title: "Good", Type: library.MovieItem},
+		{Path: "/movies/blank.mkv", Size: 100, Title: "", Type: library.MovieItem},
+	}
+	added, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, 1, added, "the empty-title file must be skipped, the valid one kept")
+}
+
 func TestUpsertMediaFile_CreateError_LoggedNotReturned(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
@@ -559,7 +577,7 @@ func TestUpsertMediaFile_CreateError_LoggedNotReturned(t *testing.T) {
 	h.mediaItems.ErrCreate = errors.New("disk full")
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	added, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -619,7 +637,7 @@ func TestUpsertMediaFile_NewItem_WithDuration(t *testing.T) {
 	}
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100, Title: "Film"},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -640,7 +658,7 @@ func TestUpsertMediaFile_NewItem_WithYear(t *testing.T) {
 
 	yr := 2024
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Year: &yr},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Year: &yr, Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -737,7 +755,7 @@ func TestExtractChapters_MKV_NoChaptersInFile(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -762,7 +780,7 @@ func TestExtractChapters_MKV_ChaptersStored(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -787,7 +805,7 @@ func TestExtractChapters_ReadError_NonFatal(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -815,7 +833,7 @@ func TestDiscoverExternalSubtitles_VttCodecRenamed(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -855,7 +873,7 @@ func TestDiscoverExternalSubtitles_NonVttCodecKept(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -895,7 +913,7 @@ func TestDiscoverExternalSubtitles_MaxIdxContinuesFromExisting(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -931,7 +949,7 @@ func TestDiscoverExternalSubtitles_ForcedFlag(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -955,7 +973,7 @@ func TestDiscoverExternalSubtitles_NilScanner_NoSubs(t *testing.T) {
 	h.libQuery.Seed(lib)
 	h.libCmd.Seed(lib)
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -1393,7 +1411,7 @@ func TestScanLibrary_Movie_UpsertError_LoggedNotReturned(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/film.mkv", Size: 100},
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
 	}
 	h.mediaItems.ErrCreate = errors.New("disk full")
 
@@ -1410,7 +1428,7 @@ func TestScanLibrary_NewFile_IndexedInSearch(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/batman.mkv", Size: 1000, Title: "Batman"},
+		{Path: "/movies/batman.mkv", Size: 1000, Title: "Batman", Type: library.MovieItem},
 	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
@@ -1498,7 +1516,7 @@ func TestScanLibrary_NewFile_IndexesInSearch(t *testing.T) {
 	svc.CreateLibrary(context.Background(), lib)
 	libQueryRepo.Seed(lib)
 	scanner.Results["/movies"] = []library.ScannedFile{
-		{Path: "/movies/batman.mkv", Size: 1000, Title: "Batman"},
+		{Path: "/movies/batman.mkv", Size: 1000, Title: "Batman", Type: library.MovieItem},
 	}
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-idx")
