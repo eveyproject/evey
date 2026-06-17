@@ -2,12 +2,15 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	"github.com/evey-project/evey/internal/domain/webhook"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type webhookHandler struct {
@@ -29,6 +32,9 @@ func (h *webhookHandler) CreateWebhook(ctx context.Context, req *eveyv1.CreateWe
 	if err := h.svc.Create(ctx, cfg); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, appwebhook.ErrInvalidConfig) {
+			return nil, status.Error(codes.InvalidArgument, "invalid webhook configuration")
+		}
 		return nil, internalError("create webhook", err)
 	}
 	return webhookConfigToProto(cfg), nil
@@ -65,6 +71,9 @@ func (h *webhookHandler) UpdateWebhook(ctx context.Context, req *eveyv1.UpdateWe
 	if err := h.svc.Update(ctx, cfg); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, appwebhook.ErrInvalidConfig) {
+			return nil, status.Error(codes.InvalidArgument, "invalid webhook configuration")
+		}
 		return nil, internalError("update webhook", err)
 	}
 	return webhookConfigToProto(cfg), nil

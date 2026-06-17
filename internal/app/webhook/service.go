@@ -25,6 +25,11 @@ const (
 
 var defaultRetryDelays = []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second}
 
+// ErrInvalidConfig wraps a rejected webhook configuration (failed Validate or a
+// blocked/invalid URL) so the transport can map it to InvalidArgument rather
+// than a generic Internal error. Distinguishable with errors.Is.
+var ErrInvalidConfig = errors.New("invalid webhook configuration")
+
 type Service struct {
 	repo        webhook.Repository
 	deliveries  webhook.DeliveryRepository
@@ -188,10 +193,10 @@ func (s *Service) Create(ctx context.Context, cfg *webhook.Config) error {
 	cfg.ID = uuid.New().String()
 	cfg.CreatedAt = time.Now()
 	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("invalid webhook: %w", err)
+		return fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 	}
 	if err := s.validateURL(cfg.URL); err != nil {
-		return fmt.Errorf("invalid webhook URL: %w", err)
+		return fmt.Errorf("%w: invalid URL: %w", ErrInvalidConfig, err)
 	}
 	return s.repo.Create(ctx, cfg)
 }
@@ -206,10 +211,10 @@ func (s *Service) Update(ctx context.Context, cfg *webhook.Config) error {
 	ctx, span := tracing.StartSpan(ctx, "app.webhook.Update")
 	defer span.End()
 	if err := cfg.Validate(); err != nil {
-		return fmt.Errorf("invalid webhook: %w", err)
+		return fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 	}
 	if err := s.validateURL(cfg.URL); err != nil {
-		return fmt.Errorf("invalid webhook URL: %w", err)
+		return fmt.Errorf("%w: invalid URL: %w", ErrInvalidConfig, err)
 	}
 	return s.repo.Update(ctx, cfg)
 }

@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appbackup "github.com/evey-project/evey/internal/app/backup"
@@ -45,7 +46,12 @@ func (h *backupHandler) DeleteBackup(ctx context.Context, req *eveyv1.DeleteBack
 	ctx, span := tracing.StartSpan(ctx, "grpc.backup.DeleteBackup")
 	defer span.End()
 	if err := h.svc.DeleteBackup(ctx, req.Id); err != nil {
-		return nil, status.Errorf(codes.NotFound, "backup not found: %v", err)
+		// Only a genuine missing backup is NotFound; a store/IO failure is
+		// internal and must not be mislabelled NotFound nor leak the raw error.
+		if errors.Is(err, domainbackup.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "backup not found")
+		}
+		return nil, internalError("delete backup", err)
 	}
 	return &eveyv1.DeleteBackupResponse{}, nil
 }

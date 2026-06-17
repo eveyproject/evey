@@ -9,6 +9,8 @@ import (
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/webhook"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type noopSender struct{}
@@ -108,6 +110,24 @@ func TestCreateWebhook_Success(t *testing.T) {
 	}
 	if resp.Id == "" {
 		t.Fatal("expected non-empty ID")
+	}
+}
+
+func TestCreateWebhook_InvalidConfig_InvalidArgument(t *testing.T) {
+	h, _ := setupWebhookHandler()
+	// No events subscribed → Config.Validate fails → must surface as
+	// InvalidArgument, not a generic Internal error.
+	_, err := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
+		Name:    "test-hook",
+		Url:     "https://example.com/hook",
+		Events:  nil,
+		Enabled: true,
+	})
+	if err == nil {
+		t.Fatal("expected error for invalid config")
+	}
+	if status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("got code %v, want InvalidArgument", status.Code(err))
 	}
 }
 
