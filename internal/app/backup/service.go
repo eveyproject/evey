@@ -307,7 +307,15 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 				os.Remove(tmp.Name()) //nolint:errcheck
 				return nil, fmt.Errorf("dump.sql too large (> 8 GiB), refusing: %w", ErrInvalidBackup)
 			}
-			tmp.Close()
+			// The integrity SHA is computed from the stream, but the restore reads
+			// it back from this file. A dropped Close error could leave the file
+			// truncated (e.g. a deferred flush hitting ENOSPC) while the stream SHA
+			// still matches the manifest — the corruption would pass the integrity
+			// check. Fail closed so a non-persisted dump never reaches the database.
+			if closeErr := tmp.Close(); closeErr != nil {
+				os.Remove(tmp.Name()) //nolint:errcheck
+				return nil, fmt.Errorf("flush temp dump file for restore: %w", closeErr)
+			}
 			a.dumpPath = tmp.Name()
 			a.dumpSHA256 = hex.EncodeToString(h.Sum(nil))
 		}
