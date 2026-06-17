@@ -34,6 +34,23 @@ var BackupTables = []string{
 	"users",
 	"profiles",
 	"libraries",
+	// Media catalogue (films/series + metadata). Technically re-scannable from
+	// disk, but included so a restore is complete AND watch_progress (keyed by
+	// media_item_id) keeps valid references instead of dangling until a rescan
+	// regenerates the rows — matching how music_tracks/photos are already backed
+	// up. Restore order is irrelevant: pg_dump runs with --disable-triggers.
+	"people",
+	"media_items",
+	"media_files",
+	"media_catalog",
+	"media_classifications",
+	"media_streams",
+	"chapters",
+	"media_segments",
+	"media_trailers",
+	"media_people",
+	"media_item_translations",
+	"person_translations",
 	"roles",
 	"user_roles",
 	"watch_progress",
@@ -293,8 +310,8 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 			}
 			h := sha256.New()
 			// Bound the decompressed dump to guard against a gzip bomb (G110): the
-			// backup excludes the re-scannable media tables, so even a very large
-			// music/photos metadata dump stays far below this. A tiny upload that
+			// dump is row data only (metadata, never the media files themselves),
+			// so even a large catalogue stays far below this. A tiny upload that
 			// expands past it is corrupt or hostile — refuse rather than fill disk.
 			written, cpErr := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(tr, maxRestoreDumpBytes+1))
 			if cpErr != nil {
