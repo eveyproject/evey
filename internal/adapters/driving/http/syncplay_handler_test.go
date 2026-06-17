@@ -163,6 +163,22 @@ func (r *fakeSyncPlayRepo) UpdateTrackIndex(_ context.Context, roomID string, id
 	return nil
 }
 
+func (r *fakeSyncPlayRepo) AdvanceTrackIndex(_ context.Context, roomID string, delta int) (int, string, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	room, ok := r.rooms[roomID]
+	if !ok {
+		return 0, "", false, http.ErrNoCookie
+	}
+	newIdx := room.TrackIndex + delta
+	if newIdx < 0 || newIdx >= len(room.Queue) {
+		return 0, "", false, nil
+	}
+	room.TrackIndex = newIdx
+	room.MediaID = room.Queue[newIdx]
+	return newIdx, string(room.MediaID), true, nil
+}
+
 func (r *fakeSyncPlayRepo) Delete(_ context.Context, id string) error {
 	delete(r.rooms, id)
 	return nil

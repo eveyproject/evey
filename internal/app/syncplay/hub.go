@@ -295,21 +295,34 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 		if string(room.HostID) != userID {
 			return cmd, nil
 		}
-		idx := room.TrackIndex
-		switch cmd.Type {
-		case "next":
-			idx++
-		case "prev":
-			idx--
-		case "setIndex":
+		var idx int
+		var mediaID string
+		if cmd.Type == "setIndex" {
+			// Absolute set: last-write-wins is fine, no read-modify-write race.
 			idx = cmd.TrackIndex
-		}
-		if idx < 0 || idx >= len(room.Queue) {
-			return cmd, nil
-		}
-		mediaID := string(room.Queue[idx])
-		if err := h.repo.UpdateTrackIndex(ctx, roomID, idx, mediaID); err != nil {
-			return cmd, fmt.Errorf("update track index: %w", err)
+			if idx < 0 || idx >= len(room.Queue) {
+				return cmd, nil
+			}
+			mediaID = string(room.Queue[idx])
+			if err := h.repo.UpdateTrackIndex(ctx, roomID, idx, mediaID); err != nil {
+				return cmd, fmt.Errorf("update track index: %w", err)
+			}
+		} else {
+			// next/prev: apply the delta atomically so two concurrent advances
+			// (e.g. a host with two tabs) can't both read the same index and lose
+			// an increment (+1 then +1 must land on +2, not +1).
+			delta := 1
+			if cmd.Type == "prev" {
+				delta = -1
+			}
+			newIdx, mID, changed, advErr := h.repo.AdvanceTrackIndex(ctx, roomID, delta)
+			if advErr != nil {
+				return cmd, fmt.Errorf("advance track index: %w", advErr)
+			}
+			if !changed {
+				return cmd, nil // out of bounds — no-op
+			}
+			idx, mediaID = newIdx, mID
 		}
 		// reset playback state for new track
 		state := syncplay.PlaybackState{

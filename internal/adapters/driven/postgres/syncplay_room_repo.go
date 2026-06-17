@@ -292,6 +292,38 @@ func (r *SyncPlayRoomRepo) UpdateTrackIndex(ctx context.Context, roomID string, 
 	return err
 }
 
+func (r *SyncPlayRoomRepo) AdvanceTrackIndex(ctx context.Context, roomID string, delta int) (int, string, bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.AdvanceTrackIndex")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	// One atomic statement: the new index and media_id are derived from the row
+	// the UPDATE locks, so two concurrent advances serialise on the row lock and
+	// each sees the other's committed increment (+1 then +1 = +2, never +1). The
+	// bounds in WHERE make an out-of-range advance a no-op (0 rows → no row
+	// returned → changed=false).
+	var newIdx int
+	var mediaID string
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`UPDATE syncplay_rooms
+		    SET track_index = track_index + $2,
+		        media_id    = queue->>(track_index + $2)
+		  WHERE id = $1
+		    AND track_index + $2 >= 0
+		    AND track_index + $2 < jsonb_array_length(queue)
+		  RETURNING track_index, media_id`,
+		roomID, delta,
+	).Scan(&newIdx, &mediaID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, "", false, nil
+	}
+	if err != nil {
+		span.RecordError(err)
+		return 0, "", false, err
+	}
+	return newIdx, mediaID, true, nil
+}
+
 func (r *SyncPlayRoomRepo) Delete(ctx context.Context, id string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.Delete")
 	defer span.End()

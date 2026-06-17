@@ -144,6 +144,25 @@ func (r *FakeRoomRepository) UpdateTrackIndex(_ context.Context, roomID string, 
 	return nil
 }
 
+func (r *FakeRoomRepository) AdvanceTrackIndex(_ context.Context, roomID string, delta int) (int, string, bool, error) {
+	if r.Err != nil {
+		return 0, "", false, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	room, ok := r.items[roomID]
+	if !ok {
+		return 0, "", false, ErrNotFound
+	}
+	newIdx := room.TrackIndex + delta
+	if newIdx < 0 || newIdx >= len(room.Queue) {
+		return 0, "", false, nil
+	}
+	room.TrackIndex = newIdx
+	room.MediaID = room.Queue[newIdx]
+	return newIdx, string(room.MediaID), true, nil
+}
+
 func (r *FakeRoomRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err

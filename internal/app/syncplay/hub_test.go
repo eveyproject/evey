@@ -143,6 +143,22 @@ func (r *fakeRoomRepo) UpdateTrackIndex(_ context.Context, roomID string, idx in
 	return nil
 }
 
+func (r *fakeRoomRepo) AdvanceTrackIndex(_ context.Context, roomID string, delta int) (int, string, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	room, ok := r.rooms[roomID]
+	if !ok {
+		return 0, "", false, errors.New("room not found")
+	}
+	newIdx := room.TrackIndex + delta
+	if newIdx < 0 || newIdx >= len(room.Queue) {
+		return 0, "", false, nil
+	}
+	room.TrackIndex = newIdx
+	room.MediaID = room.Queue[newIdx]
+	return newIdx, string(room.MediaID), true, nil
+}
+
 func (r *fakeRoomRepo) Delete(_ context.Context, id string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

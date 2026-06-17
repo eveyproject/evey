@@ -15,6 +15,12 @@ type RoomRepository interface {
 	RemoveMemberAndDeleteIfEmpty(ctx context.Context, roomID string, userID string) (bool, error)
 	UpdateState(ctx context.Context, roomID string, state PlaybackState) error
 	UpdateTrackIndex(ctx context.Context, roomID string, idx int, mediaID string) error
+	// AdvanceTrackIndex atomically applies delta (+1 next / -1 prev) to the
+	// room's track index and sets media_id to the new queue entry in one
+	// statement, so two concurrent advances (a host with two tabs) can't both
+	// read the same index and lose an increment. changed is false (no update)
+	// when the result would fall outside the queue bounds.
+	AdvanceTrackIndex(ctx context.Context, roomID string, delta int) (newIndex int, mediaID string, changed bool, err error)
 	Delete(ctx context.Context, id string) error
 }
 

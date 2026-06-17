@@ -234,6 +234,49 @@ func TestSyncPlayRoomRepo_QueueAndTrackIndex(t *testing.T) {
 	assert.Equal(t, shared.MediaItemID("media-q2"), got.MediaID)
 }
 
+func TestSyncPlayRoomRepo_AdvanceTrackIndex_ConcurrentNoLostIncrement(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedSyncplayDeps(t, db, "host-ad", "sp-userad", "sp-libad", "media-a1")
+	itemRepo := postgres.NewMediaItemRepository(db)
+	require.NoError(t, itemRepo.Create(context.Background(), newTestMediaItem("media-a2", shared.LibraryID("sp-libad"))))
+	require.NoError(t, itemRepo.Create(context.Background(), newTestMediaItem("media-a3", shared.LibraryID("sp-libad"))))
+
+	repo := postgres.NewSyncPlayRoomRepo(db)
+	ctx := context.Background()
+	require.NoError(t, repo.Create(ctx, &syncplay.Room{
+		ID: "spa", Code: "ADV1", Name: "Advance", HostID: "host-ad", MediaID: "media-a1", MediaType: "music",
+		Queue: []shared.MediaItemID{"media-a1", "media-a2", "media-a3"}, TrackIndex: 0,
+		Members: []syncplay.Member{}, State: syncplay.PlaybackState{}, CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+	}))
+
+	// Two concurrent "next" advances must land on index 2, never 1: the old
+	// read-modify-write in the handler let both read index 0 and write 1, losing
+	// an increment. The atomic UPDATE serialises them on the row lock.
+	var wg sync.WaitGroup
+	for range 2 {
+		wg.Go(func() {
+			_, _, _, err := repo.AdvanceTrackIndex(ctx, "spa", 1)
+			assert.NoError(t, err)
+		})
+	}
+	wg.Wait()
+
+	got, err := repo.Get(ctx, "spa")
+	require.NoError(t, err)
+	assert.Equal(t, 2, got.TrackIndex, "two concurrent advances must not lose an increment")
+	assert.Equal(t, shared.MediaItemID("media-a3"), got.MediaID)
+
+	// Advancing past the last track is a no-op (changed=false, index unchanged).
+	_, _, changed, err := repo.AdvanceTrackIndex(ctx, "spa", 1)
+	require.NoError(t, err)
+	assert.False(t, changed, "advancing past the last track must be a no-op")
+	got, err = repo.Get(ctx, "spa")
+	require.NoError(t, err)
+	assert.Equal(t, 2, got.TrackIndex)
+}
+
 func TestSyncPlayRoomRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
