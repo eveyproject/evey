@@ -197,40 +197,37 @@ describe("PluginCard", () => {
     expect(screen.getByTestId("plugin-update-preview-btn")).toBeDisabled();
   });
 
-  it("disable button is disabled immediately after click to prevent double-submit", async () => {
-    const onDisable = vi.fn();
-    render(
-      <PluginCard
-        plugin={basePlugin as never}
-        onEnable={vi.fn()}
-        onDisable={onDisable}
-        onUninstall={vi.fn()}
-      />,
+  it("disables the toggle button while a toggle is in flight (anti double-submit)", () => {
+    // toggling is driven by the parent mutation's isPending, so it clears on
+    // settle (success AND error) — unlike a local on-click flag that would
+    // stay stuck on a failed toggle.
+    const { rerender } = render(
+      <PluginCard plugin={basePlugin as never} onEnable={vi.fn()} onDisable={vi.fn()} onUninstall={vi.fn()} toggling={false} />,
       { wrapper: Wrapper },
     );
-    const btn = screen.getByRole("button", { name: "Disable" });
-    await userEvent.click(btn);
-    // The button must be disabled now (isToggling=true) to block a second click
-    expect(btn).toBeDisabled();
-    // And onDisable was only called once
-    expect(onDisable).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Disable" })).toBeEnabled();
+
+    rerender(
+      <PluginCard plugin={basePlugin as never} onEnable={vi.fn()} onDisable={vi.fn()} onUninstall={vi.fn()} toggling={true} />,
+    );
+    expect(screen.getByRole("button", { name: "Disable" })).toBeDisabled();
   });
 
-  it("enable button is disabled immediately after click to prevent double-submit", async () => {
-    const onEnable = vi.fn();
-    render(
-      <PluginCard
-        plugin={{ ...basePlugin, enabled: false } as never}
-        onEnable={onEnable}
-        onDisable={vi.fn()}
-        onUninstall={vi.fn()}
-      />,
+  it("re-enables the toggle button after a failed toggle settles", () => {
+    // Regression guard: a failed enable/disable leaves plugin.enabled unchanged;
+    // the button must still recover once toggling (isPending) returns to false.
+    const plugin = { ...basePlugin, enabled: false };
+    const { rerender } = render(
+      <PluginCard plugin={plugin as never} onEnable={vi.fn()} onDisable={vi.fn()} onUninstall={vi.fn()} toggling={true} />,
       { wrapper: Wrapper },
     );
-    const btn = screen.getByRole("button", { name: "Enable" });
-    await userEvent.click(btn);
-    expect(btn).toBeDisabled();
-    expect(onEnable).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Enable" })).toBeDisabled();
+
+    // Mutation failed: isPending -> false, plugin.enabled stays false.
+    rerender(
+      <PluginCard plugin={plugin as never} onEnable={vi.fn()} onDisable={vi.fn()} onUninstall={vi.fn()} toggling={false} />,
+    );
+    expect(screen.getByRole("button", { name: "Enable" })).toBeEnabled();
   });
 
   it("opens PluginUpdateDialog after entering source and clicking Preview", async () => {

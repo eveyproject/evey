@@ -318,6 +318,9 @@ func (s *Service) Close() {
 		}
 		delete(s.conns, uuid)
 	}
+	// Drop the per-device lock map too so it doesn't retain entries for every
+	// UUID ever seen across the service lifetime.
+	s.connLocks = make(map[string]*sync.Mutex)
 }
 
 // --- real adapters (go-chromecast) ---

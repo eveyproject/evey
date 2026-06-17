@@ -77,6 +77,12 @@ function buildThemeIframeSrcdoc(pluginId: string): string {
 // This is the most restrictive sandbox that still permits the bridge to work.
 export function ThemeLoader() {
   const { pluginId } = useThemeStore();
+  // Subscribe to PRESENCE of a token (boolean), not its value: this re-runs the
+  // effect on a null->value transition (login / re-auth without reload, where
+  // pluginId may already be hydrated from persisted state) so theme.js gets
+  // probed, while a value->value rotation (silent refresh) leaves the boolean
+  // unchanged and does NOT re-init the assets (no CSS flash).
+  const isAuthed = useAuthStore((s) => !!s.accessToken);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
@@ -135,11 +141,10 @@ export function ThemeLoader() {
     return () => {
       cancelled = true;
     };
-  // accessToken is intentionally NOT in the dep array — token rotation must not
-  // re-init theme assets (removes CSS link causing a flash on every silent refresh).
-  // The token is read via getState() inside the effect body instead.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pluginId]);
+  // Deps: pluginId + isAuthed (token PRESENCE). The token VALUE is read via
+  // getState() inside the effect so a rotation doesn't re-init assets, but a
+  // null->value login still re-runs the effect via the isAuthed boolean.
+  }, [pluginId, isAuthed]);
 
   // postMessage listener — validated against the iframe's contentWindow before acting.
   useEffect(() => {

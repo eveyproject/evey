@@ -622,6 +622,10 @@ function PluginsPage() {
             <PluginCard
               key={plugin.id}
               plugin={plugin}
+              toggling={
+                (enablePlugin.isPending && enablePlugin.variables?.id === plugin.id) ||
+                (disablePlugin.isPending && disablePlugin.variables?.id === plugin.id)
+              }
               onEnable={() => enablePlugin.mutate({ id: plugin.id! })}
               onDisable={() => disablePlugin.mutate({ id: plugin.id! })}
               onUninstall={() => setUninstallTarget({ id: plugin.id!, name: plugin.name ?? "this plugin" })}

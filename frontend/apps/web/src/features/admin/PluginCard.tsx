@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
@@ -306,18 +306,17 @@ interface PluginCardProps {
   onEnable: () => void;
   onDisable: () => void;
   onUninstall: () => void;
+  // True while the parent's enable/disable mutation for THIS plugin is in
+  // flight. Drives the toggle button's disabled state to prevent double-submit.
+  // Sourced from the mutation's isPending so it clears on settle (success AND
+  // error) — a local "set true on click" flag would stay stuck on a failed
+  // toggle, since the plugin prop never changes to release it.
+  toggling?: boolean;
 }
 
-export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginCardProps) {
+export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling = false }: PluginCardProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  // Prevent double-submit on enable/disable: lock the toggle button while the
-  // parent mutation is in-flight. Released when the parent re-fetches and the
-  // plugin.enabled / plugin.state prop actually changes.
-  const [isToggling, setIsToggling] = useState(false);
-  useEffect(() => {
-    setIsToggling(false);
-  }, [plugin.enabled, plugin.state]);
   const [showConfig, setShowConfig] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -399,9 +398,9 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
 
       <div className="flex gap-2 pt-1 flex-wrap">
         {plugin.enabled ? (
-          <Button variant="secondary" disabled={isToggling} onClick={() => { setIsToggling(true); onDisable(); }}>{t("common.disable")}</Button>
+          <Button variant="secondary" disabled={toggling} onClick={onDisable}>{t("common.disable")}</Button>
         ) : (
-          <Button variant="primary" disabled={isToggling} onClick={() => { setIsToggling(true); onEnable(); }}>{t("common.enable")}</Button>
+          <Button variant="primary" disabled={toggling} onClick={onEnable}>{t("common.enable")}</Button>
         )}
         <Button variant="ghost" onClick={() => setShowConfig((v) => !v)}>
           {showConfig ? t("admin.plugin.hideConfig") : t("admin.plugin.config")}
