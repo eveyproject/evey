@@ -52,6 +52,12 @@ func (s *Scanner) ParseTitle(path string) string {
 	return (&FilenameParser{}).Parse(path).Title
 }
 
+// FileExists reports whether path is still present on disk.
+func (s *Scanner) FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func NewScanner() *Scanner {
 	return &Scanner{}
 }

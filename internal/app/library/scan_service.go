@@ -375,6 +375,14 @@ func (s *ScanService) detectChanges(ctx context.Context, files []library.Scanned
 
 		if movedID, isMove := idx.Moved(f.Path, f.Fingerprint); isMove {
 			fullItem, getErr := s.mediaItems.GetByID(ctx, shared.MediaItemID(movedID))
+			if getErr == nil && fullItem.File != nil && s.scanner.FileExists(fullItem.File.Path) {
+				// The matched item's file is still on disk: f shares its size+mtime
+				// fingerprint but is a DISTINCT file (a collision, e.g. cp -p), not a
+				// move. Process it as a new item instead of repointing the existing
+				// one onto f's path (which would erase the original from the library).
+				toProcess = append(toProcess, scanWork{file: f})
+				continue
+			}
 			if getErr != nil {
 				slog.Warn("get moved item", slog.String("id", movedID), slog.Any("err", getErr))
 			} else {
@@ -507,6 +515,13 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID strin
 	if existing != nil && string(existing.LibraryID) != libraryID {
 		// Cross-library fingerprint collision: treat as a new file rather than
 		// repoint another library's item to this path.
+		return nil, nil
+	}
+	// Same-library fingerprint match is only a MOVE if the old file is gone. If
+	// it's still on disk, two distinct files share a size+mtime fingerprint (a
+	// collision, e.g. `cp -p`) — don't repoint the existing item onto this path,
+	// create a fresh one instead.
+	if existing != nil && existing.File != nil && s.scanner.FileExists(existing.File.Path) {
 		return nil, nil
 	}
 	return existing, nil

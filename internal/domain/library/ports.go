@@ -213,6 +213,10 @@ type ScannedFile struct {
 
 type FileScanner interface {
 	Scan(ctx context.Context, path string) ([]ScannedFile, error)
+	// FileExists reports whether a file is still present on disk. Used to tell a
+	// real move (old path gone) from a size+mtime fingerprint collision (both
+	// files still present) before repointing an existing item to a new path.
+	FileExists(path string) bool
 	// ParseTitle re-runs the filename parser on a known file path and
 	// returns the title token (without quality/edition/year noise). Used
 	// by the orphan title-heal pass to rebuild media_items.title with the

@@ -252,6 +252,7 @@ func (s *blockingFileScanner) Scan(_ context.Context, _ string) ([]library.Scann
 	return nil, nil
 }
 func (s *blockingFileScanner) ParseTitle(_ string) string { return "" }
+func (s *blockingFileScanner) FileExists(_ string) bool    { return false }
 
 func TestScanLibrary_ScannerError_Propagates(t *testing.T) {
 	t.Parallel()

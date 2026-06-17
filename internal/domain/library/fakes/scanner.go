@@ -13,7 +13,11 @@ type FakeFileScanner struct {
 	// Keys are file paths, values are the parsed title. Missing keys fall
 	// back to "" (which the heal pass treats as "no signal, skip item").
 	ParsedTitles map[string]string
-	Err          error
+	// ExistingPaths marks which paths FileExists reports as present. Default
+	// (nil) → false, so a fingerprint match is treated as a genuine move (old
+	// file gone); a test sets a path true to simulate a size+mtime collision.
+	ExistingPaths map[string]bool
+	Err           error
 }
 
 func NewFakeFileScanner() *FakeFileScanner {
@@ -32,4 +36,8 @@ func (s *FakeFileScanner) Scan(_ context.Context, path string) ([]library.Scanne
 
 func (s *FakeFileScanner) ParseTitle(path string) string {
 	return s.ParsedTitles[path]
+}
+
+func (s *FakeFileScanner) FileExists(path string) bool {
+	return s.ExistingPaths[path]
 }

@@ -169,6 +169,41 @@ func TestScanService_CrossLibraryFingerprintCollision_NoRepoint(t *testing.T) {
 	assert.Equal(t, "/a/film.mkv", a.File.Path, "library A's item must not be repointed by a library B scan")
 }
 
+// A same-library size+mtime fingerprint collision where the original file is
+// STILL on disk must NOT repoint the existing item — the files are distinct, so
+// a new item is created (the prior code repointed and the original vanished).
+func TestScanService_SameLibCollision_OldFilePresent_NoRepoint(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.media.Create(context.Background(), &library.MediaItem{
+		ID: "old-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/m/old.mkv", Size: 100, Fingerprint: "collide"},
+	})
+	// Both files are on disk (a real collision scans both), and the old one is
+	// still present → the new file's fingerprint match must NOT repoint old-1.
+	h.scanner.ExistingPaths = map[string]bool{"/m/old.mkv": true}
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/old.mkv", Size: 100, Fingerprint: "collide", Title: "Old", Type: library.MovieItem},
+		{Path: "/m/new.mkv", Size: 100, Fingerprint: "collide", Title: "New", Type: library.MovieItem},
+	}
+
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+
+	// The original item keeps its own path (not repointed onto new.mkv).
+	old, err := h.media.GetByID(context.Background(), "old-1")
+	require.NoError(t, err)
+	require.NotNil(t, old.File)
+	assert.Equal(t, "/m/old.mkv", old.File.Path, "the original item must keep its path")
+
+	// A DISTINCT new item now owns new.mkv.
+	created, err := h.media.GetByFilePath(context.Background(), "/m/new.mkv")
+	require.NoError(t, err)
+	require.NotNil(t, created)
+	assert.NotEqual(t, "old-1", string(created.ID), "the colliding file must get its own item, not repoint old-1")
+}
+
 func TestScanService_MovedFile_EmptyFingerprintNotMoved(t *testing.T) {
 	// Target 210:49 `f.Fingerprint != ""` — empty fingerprint must NOT trigger moved path.
 	h := newScanHarness()
