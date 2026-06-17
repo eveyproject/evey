@@ -58,6 +58,25 @@ func TestSweepOnce_ProtectRecent(t *testing.T) {
 	assert.DirExists(t, filepath.Join(c.baseDir, "newer"), "newest hash must be protected")
 }
 
+func TestSweepOnce_SkipsInFlightHash(t *testing.T) {
+	// Two old hashes, both over the cap. The one with a live session
+	// (pendingRefs > 0) must NOT be evicted even though its atime makes it the
+	// oldest candidate — evicting it would stall the player. The idle one goes.
+	c, _ := newTestCache(t)
+	writeSegments(t, c, "inflight", 5, 100)
+	backdateHash(t, c, "inflight", -2*time.Hour)
+	writeSegments(t, c, "idle", 5, 100)
+	backdateHash(t, c, "idle", -1*time.Hour)
+
+	release := c.RegisterSession("inflight")
+	defer release()
+
+	c.sweepOnce(EvictionPolicy{MaxBytes: 200, MarginBytes: 0, ProtectRecent: 0}, quietLogger())
+
+	assert.DirExists(t, filepath.Join(c.baseDir, "inflight"), "an in-flight hash must not be evicted")
+	assert.NoDirExists(t, filepath.Join(c.baseDir, "idle"), "the idle hash must be evicted to reclaim space")
+}
+
 func TestSweepOnce_StopsAtTarget(t *testing.T) {
 	// Three hashes; cap leaves room for ~2. The oldest gets evicted, sweep
 	// stops because we're back under MaxBytes - MarginBytes.

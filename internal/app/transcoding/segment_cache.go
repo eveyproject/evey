@@ -532,6 +532,38 @@ func (c *SegmentCache) CleanupHash(decisionHash string) error {
 	return nil
 }
 
+// cleanupHashIfIdle is the eviction-safe variant used by the LRU sweeper: it
+// deletes the hash directory only when no live session is serving it
+// (pendingRefs == 0). The refs check and the in-memory teardown happen under the
+// same lock, so a session streaming an older-cached title (low atime, outside
+// ProtectRecent) is not evicted out from under it — the sweeper used to protect
+// by recency only, so a slow client on an old hash could be cut to a
+// stall/503/re-encode. Returns whether the hash was evicted. A session that
+// registers in the tiny window after the lock is released just re-encodes the
+// missing segments (rare, and no worse than the prior unconditional eviction).
+func (c *SegmentCache) cleanupHashIfIdle(decisionHash string) (bool, error) {
+	if decisionHash == "" {
+		return false, errors.New("SegmentCache.cleanupHashIfIdle: empty decisionHash")
+	}
+	c.mu.Lock()
+	if c.pendingRefs[decisionHash] > 0 {
+		c.mu.Unlock()
+		return false, nil // a live session is serving this hash — keep it
+	}
+	if ch, ok := c.pending[decisionHash]; ok {
+		close(ch)
+		delete(c.pending, decisionHash)
+	}
+	delete(c.accessTimes, decisionHash)
+	c.mu.Unlock()
+
+	dir := filepath.Join(c.baseDir, decisionHash)
+	if err := os.RemoveAll(dir); err != nil {
+		return false, fmt.Errorf("SegmentCache.cleanupHashIfIdle %q: %w", dir, err)
+	}
+	return true, nil
+}
+
 // Touch records that hash was just accessed (a segment was served to a player).
 // The LRU sweeper treats a recently-touched hash as recently-used even though
 // reads never update file mtime. Essential for the copy rung whose ReadRate=0

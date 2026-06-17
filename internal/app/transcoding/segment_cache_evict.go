@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/pkg/metrics"
@@ -138,10 +137,17 @@ func (c *SegmentCache) sweepOnce(p EvictionPolicy, logger *slog.Logger) {
 		if total <= target {
 			break
 		}
-		if err := c.CleanupHash(h.Hash); err != nil {
+		ok, err := c.cleanupHashIfIdle(h.Hash)
+		if err != nil {
 			logger.Warn("sweepOnce: cleanup failed",
 				slog.String("hash", h.Hash),
 				slog.Any("err", err))
+			continue
+		}
+		if !ok {
+			// A live session is streaming this hash — skip it. The cache may
+			// briefly exceed MaxBytes until the session ends; on a small NAS
+			// cache that's the right tradeoff vs. stalling a player to 503.
 			continue
 		}
 		total -= h.Bytes
@@ -246,7 +252,7 @@ func (c *SegmentCache) TotalBytes() (int64, error) {
 	return total, nil
 }
 
-// hashSweepGuard is reserved for Phase 3, when we'll let the orchestrator
-// register "in-flight" hashes so the sweeper cannot evict a session whose
-// ffmpeg is mid-rafale even if it falls outside ProtectRecent.
-var _ sync.Mutex
+// In-flight protection (formerly the reserved "Phase 3" guard) is now live:
+// sweepOnce evicts via cleanupHashIfIdle, which skips any hash with a non-zero
+// pendingRefs so a mid-rafale session is never evicted even when it falls
+// outside ProtectRecent.
