@@ -158,6 +158,11 @@ func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) erro
 		"-U", d.user,
 		"-d", d.dbName,
 		"--single-transaction",
+		// ON_ERROR_STOP makes psql exit non-zero on the first SQL error. Without
+		// it, --single-transaction still rolls the restore back on error, but
+		// psql exits 0 — so the caller would report a successful restore for a
+		// restore that actually applied nothing (false success).
+		"-v", "ON_ERROR_STOP=1",
 	)
 	cmd.Env = d.pgEnv()
 	cmd.Stdin = bytes.NewReader(validated)
