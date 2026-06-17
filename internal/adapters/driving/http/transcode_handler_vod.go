@@ -99,6 +99,10 @@ type hlsVODServe struct {
 	// (transcoding.hw_accel_enabled) is on. Read dynamically so an admin
 	// toggle takes effect without a restart. Nil-safe (tests → software).
 	hwAccelEnabled func() bool
+	// av1Enabled gates AV1 as an OUTPUT codec (transcoding.av1_enabled). AV1 is
+	// hardware-only for streaming, so even with HW the admin must opt in; nil or
+	// false ⇒ a profile that prefers AV1 still transcodes to H.264.
+	av1Enabled func() bool
 
 	// hwTonemapEnabled gates GPU HDR->SDR tone-mapping (still requires the host to
 	// have probed EncodeCapability.HWTonemap). Default on; EVEY_TRANSCODING_HW_TONEMAP=0
@@ -973,13 +977,14 @@ func (h *hlsVODServe) effectiveVideoCodec(decision domaintranscoding.PlaybackDec
 	src10 := sourceVideoTenBit(streams)
 	codec = decision.VideoCodec
 	accel, device, features, usable = h.resolveHW(codec, srcCodec, src10, hwTonemap)
-	if strings.EqualFold(codec, "av1") && !usable {
-		// AV1 is HARDWARE-ONLY for streaming. libsvtav1 (software AV1) is several
-		// times heavier than H.264 and the weak-NAS target can't sustain it in
-		// realtime — it starves and the player rebuffers forever. So when the GPU
-		// can't encode AV1, fall back to H.264 rather than software-encoding AV1.
-		// (The software-AV1 calibration stays for non-streaming/experimental use,
-		// but never feeds a live HLS session.)
+	// AV1 output must clear TWO gates, else fall back to H.264:
+	//   1. the admin opt-in (transcoding.av1_enabled) — off by default; and
+	//   2. a usable HW AV1 encoder. AV1 is hardware-only for streaming because
+	//      libsvtav1 (software AV1) is several times heavier than H.264 and the
+	//      weak-NAS target can't sustain it in realtime — it starves and the
+	//      player rebuffers forever. The software-AV1 calibration stays for
+	//      non-streaming/experimental use but never feeds a live HLS session.
+	if strings.EqualFold(codec, "av1") && ((h.av1Enabled != nil && !h.av1Enabled()) || !usable) {
 		codec = "h264"
 		accel, device, features, usable = h.resolveHW(codec, srcCodec, src10, hwTonemap)
 	}
@@ -1393,6 +1398,9 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		},
 		hwAccelEnabled: func() bool {
 			return s.Cfg != nil && s.Cfg.EffectiveHWAccelEnabled()
+		},
+		av1Enabled: func() bool {
+			return s.Cfg != nil && s.Cfg.EffectiveAV1Enabled()
 		},
 		// On by default; an operator who sees HW tone-mapping shift colours on
 		// their GPU (a known VAAPI/driver hazard) sets EVEY_TRANSCODING_HW_TONEMAP=0

@@ -198,15 +198,31 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 		}
 	})
 
-	t.Run("av1 + HW av1 stays av1", func(t *testing.T) {
+	t.Run("av1 + HW av1 + enabled stays av1", func(t *testing.T) {
 		box := domaintranscoding.EncodeCapability{HWBackend: "nvenc", HWCodecs: []string{"av1"}, HWMaxHeight: 2160}
 		h := &hlsVODServe{
 			capability:     func() domaintranscoding.EncodeCapability { return box },
 			hwAccelEnabled: func() bool { return true },
+			av1Enabled:     func() bool { return true },
 		}
 		got, _, _, _, usable := h.effectiveVideoCodec(dec("av1"), nil)
 		if got != "av1" || !usable {
-			t.Errorf("av1 with HW av1 must stay av1 (usable), got %q usable=%v", got, usable)
+			t.Errorf("av1 with HW av1 + admin opt-in must stay av1 (usable), got %q usable=%v", got, usable)
+		}
+	})
+
+	t.Run("av1 + HW av1 but admin disabled falls back to h264", func(t *testing.T) {
+		// The opt-in gate: even when the GPU CAN encode AV1, an admin who hasn't
+		// turned AV1 on (default) must keep streams on H.264.
+		box := domaintranscoding.EncodeCapability{HWBackend: "nvenc", HWCodecs: []string{"av1"}, HWMaxHeight: 2160}
+		h := &hlsVODServe{
+			capability:     func() domaintranscoding.EncodeCapability { return box },
+			hwAccelEnabled: func() bool { return true },
+			av1Enabled:     func() bool { return false },
+		}
+		got, _, _, _, _ := h.effectiveVideoCodec(dec("av1"), nil)
+		if got != "h264" {
+			t.Errorf("av1 must fall back to h264 when the admin has not enabled it, got %q", got)
 		}
 	})
 

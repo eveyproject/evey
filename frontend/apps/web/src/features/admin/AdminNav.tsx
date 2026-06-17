@@ -45,7 +45,6 @@ const sectionsDef: NavSection[] = [
       { href: "/admin/remote-access", labelKey: "admin.nav.remoteAccess", icon: Globe },
       { href: "/admin/server-config", labelKey: "admin.nav.serverConfig", icon: SlidersHorizontal },
       { href: "/admin/transcoding", labelKey: "admin.nav.transcodingConfig", icon: Film },
-      { href: "/admin/transcode-cache", labelKey: "admin.nav.transcodeCache", icon: HardDrive },
       { href: "/admin/system-health", labelKey: "admin.nav.systemHealth", icon: Cpu },
     ],
   },
@@ -53,6 +52,7 @@ const sectionsDef: NavSection[] = [
     titleKey: "admin.nav.media",
     links: [
       { href: "/admin/libraries", labelKey: "admin.nav.libraries", icon: Library },
+      { href: "/admin/transcode-cache", labelKey: "admin.nav.transcodeCache", icon: HardDrive },
       { href: "/admin/artworks", labelKey: "admin.nav.artworks", icon: Image },
       { href: "/admin/seek-index", labelKey: "admin.nav.seekIndex", icon: ScanSearch },
     ],

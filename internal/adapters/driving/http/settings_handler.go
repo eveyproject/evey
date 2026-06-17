@@ -31,6 +31,7 @@ const (
 	cfgKeyScanInterval     = "library.periodic_scan_interval"
 	cfgKeySkipPreview      = "intro_providers.skip_preview_enabled"
 	cfgKeyTranscodeSWAV1   = "transcoding.software_av1_max_height"
+	cfgKeyTranscodeAV1En   = "transcoding.av1_enabled"
 )
 
 // validSoftwareAV1Heights are the AV1 software ceiling values the panel offers.
@@ -150,6 +151,10 @@ func registerServerSettingsRoutes(
 				}
 				return cfg.Transcoding.SoftwareAV1MaxHeightOverride
 			}},
+		// AV1 as a transcode OUTPUT codec. Hardware-only (libsvtav1 starves a weak
+		// CPU), so this is an explicit opt-in surfaced only when HW accel is on.
+		{jsonKey: "av1Enabled", cfgKey: cfgKeyTranscodeAV1En, defaultVal: false,
+			getter: func() any { return cfg.EffectiveAV1Enabled() }},
 	}
 
 	buildResponse := func() map[string]settingValue {
@@ -189,6 +194,7 @@ func registerServerSettingsRoutes(
 			PeriodicScanInterval    *string `json:"periodicScanInterval"`
 			SkipPreviewEnabled      *bool   `json:"skipPreviewEnabled"`
 			SoftwareAV1MaxHeight    *int    `json:"softwareAV1MaxHeight"`
+			AV1Enabled              *bool   `json:"av1Enabled"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -373,6 +379,14 @@ func registerServerSettingsRoutes(
 					if h := *body.SoftwareAV1MaxHeight; validSoftwareAV1Heights[h] {
 						hwMode.SetSoftwareAV1MaxOverride(h)
 					}
+				}},
+			{cfgKey: cfgKeyTranscodeAV1En,
+				apply: func() string {
+					if body.AV1Enabled == nil {
+						return ""
+					}
+					cfg.Transcoding.AV1Enabled = *body.AV1Enabled
+					return strconv.FormatBool(*body.AV1Enabled)
 				}},
 		}
 

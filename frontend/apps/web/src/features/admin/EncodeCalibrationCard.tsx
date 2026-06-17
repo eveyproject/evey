@@ -54,6 +54,23 @@ export function EncodeCalibrationCard() {
     queryFn: () => eveyFetch<EncodeCapability>({ url: "/api/v1/admin/transcode/calibration", method: "GET" }),
   });
 
+  // Server settings carry the AV1 output opt-in (transcoding.av1_enabled).
+  const { data: settings } = useQuery<{ av1Enabled: { value: boolean } }>({
+    queryKey: SETTINGS_QK,
+    queryFn: () => eveyFetch({ url: "/api/v1/admin/server-settings", method: "GET" }),
+  });
+  const av1Enabled = settings?.av1Enabled?.value ?? false;
+
+  const setAV1 = useMutation({
+    mutationFn: (enabled: boolean) =>
+      eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: { av1Enabled: enabled } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SETTINGS_QK });
+      toast.success(t("admin.calibration.av1Applied", "AV1 setting applied"));
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   // Local mirror of the active mode so the <select> stays responsive while the
   // detached re-bench runs server-side (the query refetches a few seconds later).
   const [hwMode, setHwMode] = useState<string>("auto");
@@ -201,6 +218,35 @@ export function EncodeCalibrationCard() {
                 )}
               </p>
             )}
+
+            {/* AV1 output — hardware-only, opt-in. Shown only with HW on (this
+                block) because software AV1 is never used for streaming. */}
+            <div className="mt-2 flex items-center gap-3">
+              <label className="text-sm font-medium text-[var(--text)]">
+                {t("admin.calibration.av1Label", "AV1 output")}
+              </label>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={av1Enabled}
+                aria-label={t("admin.calibration.av1Label", "AV1 output")}
+                data-testid="av1-enable-toggle"
+                disabled={setAV1.isPending}
+                onClick={() => setAV1.mutate(!av1Enabled)}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-60"
+                style={{ backgroundColor: av1Enabled ? "var(--accent)" : "var(--border)" }}
+              >
+                <span
+                  className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
+                  style={{ transform: av1Enabled ? "translateX(1.375rem)" : "translateX(0.25rem)" }}
+                />
+              </button>
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              {(data.hw_codecs ?? []).includes("av1")
+                ? t("admin.calibration.av1Hint", "Encode to AV1 when a client supports it — better compression. Hardware-only; software AV1 is never used for streaming.")
+                : t("admin.calibration.av1NoHw", "No AV1 hardware encoder detected — turning this on has no effect (streams stay H.264).")}
+            </p>
           </div>
         )}
       </div>

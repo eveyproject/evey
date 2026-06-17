@@ -333,7 +333,13 @@ type TranscodingConfig struct {
 	// server-config panel (persisted under transcoding.software_av1_max_height,
 	// loaded at boot via loadOverride and applied live by CalibrationService).
 	SoftwareAV1MaxHeightOverride int
-	TrickplayCacheDir            string
+	// AV1Enabled gates AV1 as a transcode OUTPUT codec. AV1 is hardware-only for
+	// streaming (libsvtav1 starves a weak CPU), so this is an explicit opt-in,
+	// meaningful only when HW acceleration is on and the GPU can encode AV1.
+	// Default false: a profile that prefers AV1 still transcodes to H.264 until
+	// an admin turns this on. Persisted under transcoding.av1_enabled.
+	AV1Enabled        bool
+	TrickplayCacheDir string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
 	// language without re-fetching the video stream. Off by default
@@ -400,6 +406,7 @@ func (c *Config) EffectiveBaseURL() string {
 func (c *Config) EffectiveServerName() string   { return c.Server.Name }
 func (c *Config) EffectiveMaxConcurrent() int   { return c.Transcoding.MaxConcurrent }
 func (c *Config) EffectiveHWAccelEnabled() bool { return c.Transcoding.HWAccelEnabled }
+func (c *Config) EffectiveAV1Enabled() bool     { return c.Transcoding.AV1Enabled }
 
 // WarnValidate validates config, returning an error for critical security issues
 // and logging warnings for non-critical ones.
