@@ -171,12 +171,8 @@ func (s *QueryService) ListGenres(ctx context.Context, libraryID shared.LibraryI
 	return s.mediaItems.ListGenres(ctx, libraryID)
 }
 
-// ReindexSearch rebuilds the search index from the database for the given
-// library (empty = all libraries), without contacting metadata providers.
-// Backs POST /api/v1/admin/search/reindex.
-func (s *QueryService) ReindexSearch(ctx context.Context, libraryID string, onProgress func(done, total int)) (int, error) {
-	return ReindexSearchIndex(ctx, s.mediaItems, s.search, libraryID, onProgress)
-}
+// ReindexSearch moved to CommandService (it WRITES the index). The query
+// service keeps `search` only for the read-side Search below.
 
 func (s *QueryService) GetCast(ctx context.Context, mediaItemID string) ([]library.CastMember, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetCast")

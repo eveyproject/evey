@@ -333,7 +333,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", streamAuth(snapshotH))
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
 	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
-	mux.HandleFunc("POST /api/v1/admin/search/reindex", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, searchReindexHandler(s.LibQuerySvc, s.ServerCtx))))
+	mux.HandleFunc("POST /api/v1/admin/search/reindex", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, searchReindexHandler(s.LibCmdSvc, s.ServerCtx))))
 
 	// Encode calibration: read the current capability + force a rebench
 	// (typically when the admin changes HW accel settings or migrates

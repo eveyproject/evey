@@ -32,6 +32,18 @@ type CommandService struct {
 	scan      *ScanService
 	trickplay *TrickplayService
 	metadata  *MetadataExtractionService
+
+	// search reindex is a WRITE (rebuilds the search index), so it lives on the
+	// command side. mediaQuery reads the rows to index; both are nil unless
+	// WithSearchReindex wired them (ReindexSearch then returns an error).
+	search     library.SearchIndex
+	mediaQuery library.MediaItemQueryRepo
+}
+
+// WithSearchReindex enables CommandService.ReindexSearch by wiring the read repo
+// the reindex sweeps. The SearchIndex itself is already a constructor argument.
+func WithSearchReindex(mediaQuery library.MediaItemQueryRepo) CommandServiceOption {
+	return func(s *CommandService) { s.mediaQuery = mediaQuery }
 }
 
 func NewCommandService(
@@ -65,12 +77,24 @@ func NewCommandService(
 		events:     events,
 		scan:       scanSvc,
 		metadata:   metadata,
+		search:     search,
 		trickplay:  NewTrickplayService(trickplayRepo, trickplayGen, trickplayCacheDir, mediaItems, events, trickplayConfigRepo),
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
 	return s
+}
+
+// ReindexSearch rebuilds the search index from the database for the given
+// library (or all libraries when libraryID is ""). It WRITES the index, so it
+// belongs on the command side; the shared logic lives in ReindexSearchIndex
+// (also used by the CLI). Requires WithSearchReindex to have been wired.
+func (s *CommandService) ReindexSearch(ctx context.Context, libraryID string, onProgress func(done, total int)) (int, error) {
+	if s.mediaQuery == nil || s.search == nil {
+		return 0, errors.New("library.CommandService.ReindexSearch: search reindex not configured (WithSearchReindex)")
+	}
+	return ReindexSearchIndex(ctx, s.mediaQuery, s.search, libraryID, onProgress)
 }
 
 func (s *CommandService) WithSubtitleScanner(sc library.ExternalSubtitleScanner) {
