@@ -317,7 +317,7 @@ sessions:
   elapsed: "已播放"
   video: "视频：{{codec}}"
   audio: "音频：{{codec}}"
-  sourceBitrate: "源：{{rate}}"
+  servedBitrate: "传输：{{rate}}"
   directPlay: "直接播放"
   directStream: "直接串流"
   transcode: "转码"

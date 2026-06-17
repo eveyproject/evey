@@ -117,6 +117,40 @@ func TestPlaybackHandler_StartStream(t *testing.T) {
 	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, resp.PlayMethod)
 }
 
+func TestPlaybackHandler_StartStream_StampsServedBitrate(t *testing.T) {
+	h, sessionRepo, _, mediaQuery, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-srv", Title: "X", Type: "movie", File: &library.MediaFile{Bitrate: 20_000_000}})
+
+	resp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
+		MediaItemId:      "mi-srv",
+		PlayMethod:       eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE,
+		DeviceName:       "Firefox",
+		ServedBitrateBps: 4_192_000,
+	})
+	require.NoError(t, err)
+	stored, err := sessionRepo.GetByID(context.Background(), resp.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(4_192_000), stored.BandwidthBps, "the client-reported served bitrate is stamped, not the 20 Mbps source")
+}
+
+func TestPlaybackHandler_StartStream_FallsBackToSourceBitrate(t *testing.T) {
+	h, sessionRepo, _, mediaQuery, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-src", Title: "X", Type: "movie", File: &library.MediaFile{Bitrate: 8_000_000}})
+
+	resp, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
+		MediaItemId: "mi-src",
+		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
+		DeviceName:  "Firefox",
+		// no ServedBitrateBps → older client → fall back to source bitrate
+	})
+	require.NoError(t, err)
+	stored, err := sessionRepo.GetByID(context.Background(), resp.Id)
+	require.NoError(t, err)
+	assert.Equal(t, int64(8_000_000), stored.BandwidthBps, "absent served bitrate falls back to source")
+}
+
 func TestPlaybackHandler_StartStream_Unauthenticated(t *testing.T) {
 	h, _, _, _, _, _ := newTestPlaybackHandler()
 
@@ -941,8 +975,8 @@ func TestGetStreamInfo_ServedBitrate(t *testing.T) {
 		File: &library.MediaFile{ContainerFormat: "mp4", Bitrate: 5_000_000},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{MediaItemID: "mi-srv-dp", StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{MediaItemID: "mi-srv-dp", StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{MediaItemID: "mi-srv-dp", StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-srv-dp", StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	})
 	dp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-srv-dp", SupportedAudioCodecs: []string{"aac"}})
 	require.NoError(t, err)
@@ -954,8 +988,8 @@ func TestGetStreamInfo_ServedBitrate(t *testing.T) {
 		File: &library.MediaFile{ContainerFormat: "matroska", Bitrate: 20_000_000},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{MediaItemID: "mi-srv-tc", StreamType: "video", Codec: "hevc", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(20000000), IsDefault: true},
-		{MediaItemID: "mi-srv-tc", StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
+		{MediaItemID: "mi-srv-tc", StreamType: "video", Codec: "hevc", Width: new(3840), Height: new(2160), Bitrate: int64Ptr(20000000), IsDefault: true},
+		{MediaItemID: "mi-srv-tc", StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true},
 	})
 	tc, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-srv-tc"})
 	require.NoError(t, err)

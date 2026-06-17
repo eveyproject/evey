@@ -317,7 +317,7 @@ sessions:
   elapsed: "transcurrido"
   video: "Video: {{codec}}"
   audio: "Audio: {{codec}}"
-  sourceBitrate: "Origen: {{rate}}"
+  servedBitrate: "Servido: {{rate}}"
   directPlay: "Reproducción directa"
   directStream: "Stream directo"
   transcode: "Transcodificación"

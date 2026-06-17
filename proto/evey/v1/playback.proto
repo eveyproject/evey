@@ -167,6 +167,11 @@ message StartStreamRequest {
   int64 start_position_ms = 7;
   int32 audio_stream_index = 8;
   int32 subtitle_stream_index = 9;
+  // Bitrate (bits/s) the client will actually pull, copied from the StreamInfo
+  // the player just fetched. Stamped onto the session so the admin dashboard
+  // shows the served rate, not the source. Absent/0 falls back to the source
+  // bitrate server-side (older clients keep the previous behaviour).
+  int64 served_bitrate_bps = 10;
 }
 
 message StopStreamRequest {

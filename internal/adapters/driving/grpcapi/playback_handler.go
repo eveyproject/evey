@@ -284,13 +284,20 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		}
 	}
 
-	// Resolve the item once: its source bitrate stamps the session (feeds the
-	// dashboard's outgoing rate) and its title lands in the audit entry below.
+	// Resolve the item once: its source bitrate is the fallback bandwidth stamp
+	// and its title lands in the audit entry below.
 	var itemTitle string
 	var sourceBps int64
 	if item, itemErr := h.librarySvc.GetMediaItem(ctx, req.MediaItemId); itemErr == nil {
 		itemTitle = item.Title
 		sourceBps = sourceBitrateBps(item)
+	}
+	// Prefer the served bitrate the client reports (from the StreamInfo it just
+	// fetched) so the dashboard shows what's actually streamed; fall back to the
+	// source bitrate for clients that don't send it yet.
+	bandwidthBps := sourceBps
+	if req.ServedBitrateBps > 0 {
+		bandwidthBps = req.ServedBitrateBps
 	}
 
 	session, err := playback.NewPlaySession(
@@ -299,7 +306,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		shared.MediaItemID(req.MediaItemId),
 		playback.WithPlaySessionMethod(playback.PlayMethod(playMethodFromProto[req.PlayMethod])),
 		playback.WithPlaySessionDevice(req.DeviceName, req.ClientName),
-		playback.WithPlaySessionBandwidth(sourceBps),
+		playback.WithPlaySessionBandwidth(bandwidthBps),
 	)
 	if err != nil {
 		span.RecordError(err)

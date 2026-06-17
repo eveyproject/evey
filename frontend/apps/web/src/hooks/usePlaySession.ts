@@ -132,6 +132,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           deviceName: "Web Browser",
           clientName: "Evey Web",
           startPositionMs: "0",
+          // Report the bitrate we'll actually pull (from the StreamInfo we just
+          // resolved) so the admin dashboard shows the served rate, not source.
+          servedBitrateBps: rawStreamInfo.bitrate ?? "0",
         });
         if (session.id) {
           sessionIdRef.current = session.id;

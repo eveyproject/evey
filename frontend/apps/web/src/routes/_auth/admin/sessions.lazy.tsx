@@ -200,7 +200,7 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
           )}
           {bandwidthBps > 0 && (
             <span>
-              {t("admin.sessions.sourceBitrate", {
+              {t("admin.sessions.servedBitrate", {
                 rate: formatBandwidth(bandwidthBps),
               })}
             </span>
