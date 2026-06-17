@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -20,6 +21,17 @@ func snapshotHandler(tokenGen TokenVerifier, frameExt FrameExtractor, libraryAcc
 		mediaID := r.PathValue("id")
 		span.SetAttributes(attribute.String("media_item_id", mediaID))
 		claims := HTTPClaimsFromContext(r.Context())
+
+		// A stream token is scoped to its one media item — reject replay against
+		// another id (the other stream-authed handlers all enforce this). Without
+		// it a leaked MOVIE1 token could pull frames of any same-library MOVIE2.
+		if st, ok := StreamTokenFromContext(r.Context()); ok {
+			if st.MediaItemID != shared.MediaItemID(mediaID) {
+				span.SetStatus(otelcodes.Error, "stream token media mismatch")
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
+		}
 
 		item, err := mediaGetter.GetMediaItem(r.Context(), mediaID)
 		if err != nil {

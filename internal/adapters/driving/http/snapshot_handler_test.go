@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
@@ -52,6 +53,30 @@ func TestSnapshot_ParentalBlocked_NotFound(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("parental-blocked snapshot must return 404 (existence hidden), got %d", w.Code)
+	}
+}
+
+// A stream token is a capability scoped to one media item; replaying MOVIE1's
+// token against MOVIE2's snapshot must be forbidden — this handler previously
+// relied on library access only and leaked frames of any same-library media to
+// a leaked token (pentest 2026-05-26).
+func TestSnapshot_StreamTokenMediaMismatch_Forbidden(t *testing.T) {
+	h := snapshotHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeFrameExt{data: []byte("x")},
+		allowAll(),
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m2", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
+		"http://localhost", nil)
+
+	req := newSnapshotReq(t, "m2", "position_ms=1000")
+	req = withHTTPClaims(req, testClaims(false))
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey,
+		&shared.StreamToken{UserID: "u1", MediaItemID: "m1"}))
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("a stream token for m1 must be forbidden on m2's snapshot, got %d", w.Code)
 	}
 }
 
