@@ -198,7 +198,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 		return 0, 0, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
 
-	seenPaths, toProcess, tvAdded, tvUpdated, err := s.scanDirectories(ctx, lib, idx)
+	seenPaths, emptyRoots, toProcess, tvAdded, tvUpdated, err := s.scanDirectories(ctx, lib, idx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
@@ -211,7 +211,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	added += a
 	updated += u
 
-	removed, pruneErr := s.pruner.Prune(ctx, libraryID, seenPaths)
+	removed, pruneErr := s.pruner.Prune(ctx, libraryID, seenPaths, emptyRoots)
 	if pruneErr != nil {
 		slog.Warn("orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", pruneErr))
 	}
@@ -327,7 +327,7 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 	return scanindex.New(entries), nil
 }
 
-func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, toProcess []scanWork, added, updated int, err error) {
+func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, emptyRoots []string, toProcess []scanWork, added, updated int, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.scan.scanDirectories")
 	defer span.End()
 	seenPaths = make(map[string]struct{})
@@ -335,7 +335,14 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 	for _, path := range lib.Paths {
 		files, scanErr := s.scanner.Scan(ctx, path)
 		if scanErr != nil {
-			return nil, nil, 0, 0, fmt.Errorf("scan path %s: %w", path, scanErr)
+			return nil, nil, nil, 0, 0, fmt.Errorf("scan path %s: %w", path, scanErr)
+		}
+		// A root that returned no files (and no error) is suspect: it may be a
+		// dropped/empty NFS-SMB mount rather than a genuinely empty folder. Record
+		// it so the pruner won't delete the items that live under it (see the
+		// degraded-mount guard in OrphanPruner.Prune).
+		if len(files) == 0 {
+			emptyRoots = append(emptyRoots, path)
 		}
 
 		if lib.Type == "tvshow" {
@@ -344,7 +351,7 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 			}
 			a, u, e := s.scanTVShowFiles(ctx, string(lib.ID), files)
 			if e != nil {
-				return nil, nil, 0, 0, e
+				return nil, nil, nil, 0, 0, e
 			}
 			added += a
 			updated += u
@@ -358,7 +365,7 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		toProcess = append(toProcess, work...)
 		updated += u
 	}
-	return seenPaths, toProcess, added, updated, nil
+	return seenPaths, emptyRoots, toProcess, added, updated, nil
 }
 
 func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanindex.Index) (toProcess []scanWork, moved int) {

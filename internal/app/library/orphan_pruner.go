@@ -4,12 +4,31 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// pathUnderAnyRoot reports whether path lies within one of the given roots
+// (equal to a root or nested beneath it), separator-aware so "/a/bc" is not
+// considered under "/a/b". Empty roots → false.
+func pathUnderAnyRoot(path string, roots []string) bool {
+	if len(roots) == 0 {
+		return false
+	}
+	clean := filepath.Clean(path)
+	for _, root := range roots {
+		r := filepath.Clean(root)
+		if clean == r || strings.HasPrefix(clean, r+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
 
 // OrphanPruner finalizes a scan by removing DB rows whose files no
 // longer exist on disk (orphans) and cleaning up empty TV containers
@@ -37,7 +56,7 @@ func NewOrphanPruner(
 // removes empty seasons/series left behind. Returns total count of
 // deleted rows (orphans + pruned containers). Errors are logged, not
 // returned, except a fatal failure to list DB paths up-front.
-func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths map[string]struct{}) (int, error) {
+func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths map[string]struct{}, emptyRoots []string) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.OrphanPruner.Prune")
 	defer span.End()
 
@@ -46,15 +65,15 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 		return 0, fmt.Errorf("list file paths: %w", err)
 	}
 
-	// Safety guard against a degraded mount wiping the catalog. A scan that saw
+	// Safety net against a degraded mount wiping the catalog. A scan that saw
 	// ZERO files while the library still has items is almost never a real "all
 	// media deleted" — it is a dropped NFS/SMB export, a lazy/empty mountpoint,
 	// or the media folder renamed under a healthy root (the scanner only errors
 	// when the root itself is inaccessible, so an empty-but-present dir returns
 	// no files and no error). Pruning here would DeleteByIDs every row and
 	// CASCADE-delete non-regenerable user data (watch_progress, favorites,
-	// play_sessions, playlist_items). Refuse and wait for the files to reappear.
-	// A genuinely emptied library has len(dbPaths)==0 and is unaffected.
+	// play_sessions, playlist_items). Refuse. Also covers a library with no
+	// configured paths. A genuinely emptied library has len(dbPaths)==0.
 	if len(seenPaths) == 0 && len(dbPaths) > 0 {
 		slog.Warn("orphan prune skipped: scan saw no files but library is non-empty (likely a degraded mount); refusing to delete the catalog",
 			slog.String("library_id", libraryID), slog.Int("db_items", len(dbPaths)))
@@ -62,10 +81,25 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 	}
 
 	var orphanIDs []string
+	skippedDegraded := 0
 	for id, path := range dbPaths {
-		if _, seen := seenPaths[path]; !seen {
-			orphanIDs = append(orphanIDs, id)
+		if _, seen := seenPaths[path]; seen {
+			continue
 		}
+		// Per-root extension of the guard above: on a multi-path library, one
+		// healthy root keeps seenPaths non-empty, but an item under a DIFFERENT
+		// root that scanned empty (that mount dropped) must NOT be pruned — same
+		// data-loss, narrower trigger. An item whose file genuinely vanished from
+		// a HEALTHY root (one that returned other files) is still a real orphan.
+		if pathUnderAnyRoot(path, emptyRoots) {
+			skippedDegraded++
+			continue
+		}
+		orphanIDs = append(orphanIDs, id)
+	}
+	if skippedDegraded > 0 {
+		slog.Warn("orphan prune skipped some items under roots that scanned empty (likely a degraded mount)",
+			slog.String("library_id", libraryID), slog.Int("skipped", skippedDegraded))
 	}
 	deleted := 0
 	if len(orphanIDs) > 0 {
