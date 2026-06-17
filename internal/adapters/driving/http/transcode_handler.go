@@ -238,8 +238,46 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(decision); err != nil {
+	if err := json.NewEncoder(w).Encode(toPlaybackInfoDTO(decision)); err != nil {
 		slog.Warn("json encode failed", slog.Any("err", err))
+	}
+}
+
+// playbackInfoDTO is the explicit HTTP contract for GET /media/{id}/playback-info.
+// It mirrors the wire shape the endpoint has always sent but decouples it from
+// the domain PlaybackDecision, so a refactor of the domain struct can't silently
+// reshape the public response (the boundary is now owned by the adapter).
+type playbackInfoDTO struct {
+	PlayMethod       string   `json:"play_method"`
+	VideoDecision    string   `json:"video_decision"`
+	AudioDecision    string   `json:"audio_decision"`
+	SubtitleDecision string   `json:"subtitle_decision"`
+	TranscodeReasons []string `json:"transcode_reasons"`
+	VideoCodec       string   `json:"video_codec,omitempty"`
+	AudioCodec       string   `json:"audio_codec,omitempty"`
+	Container        string   `json:"container,omitempty"`
+	VideoBitrate     int64    `json:"video_bitrate,omitempty"`
+	AudioBitrate     int64    `json:"audio_bitrate,omitempty"`
+	MaxWidth         int      `json:"max_width,omitempty"`
+	MaxHeight        int      `json:"max_height,omitempty"`
+	MaxAudioChannels int      `json:"max_audio_channels,omitempty"`
+}
+
+func toPlaybackInfoDTO(d *domaintranscoding.PlaybackDecision) playbackInfoDTO {
+	return playbackInfoDTO{
+		PlayMethod:       d.PlayMethod,
+		VideoDecision:    d.VideoDecision,
+		AudioDecision:    d.AudioDecision,
+		SubtitleDecision: d.SubtitleDecision,
+		TranscodeReasons: d.TranscodeReasons,
+		VideoCodec:       d.VideoCodec,
+		AudioCodec:       d.AudioCodec,
+		Container:        d.Container,
+		VideoBitrate:     d.VideoBitrate,
+		AudioBitrate:     d.AudioBitrate,
+		MaxWidth:         d.MaxWidth,
+		MaxHeight:        d.MaxHeight,
+		MaxAudioChannels: d.MaxAudioChannels,
 	}
 }
 
