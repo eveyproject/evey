@@ -143,6 +143,32 @@ func TestScanService_MovedFile_DetectedByFingerprint(t *testing.T) {
 	assert.Len(t, h.media.All(), 1)
 }
 
+// A distinct file in another library that happens to share the size+mtime
+// fingerprint must NOT repoint the other library's item — it's created fresh.
+func TestScanService_CrossLibraryFingerprintCollision_NoRepoint(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-a", Type: "movie", Paths: []string{"/a"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-a", Type: "movie", Paths: []string{"/a"}})
+	h.libQuery.Seed(&library.Library{ID: "lib-b", Type: "movie", Paths: []string{"/b"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-b", Type: "movie", Paths: []string{"/b"}})
+	h.media.Create(context.Background(), &library.MediaItem{
+		ID: "a-1", LibraryID: "lib-a",
+		File: &library.MediaFile{Path: "/a/film.mkv", Size: 100, Fingerprint: "collide"},
+	})
+	h.scanner.Results["/b"] = []library.ScannedFile{
+		{Path: "/b/other.mkv", Size: 100, Fingerprint: "collide", Title: "Other", Type: library.MovieItem},
+	}
+
+	added, updated, err := h.svc.ScanLibrary(context.Background(), "lib-b")
+	require.NoError(t, err)
+	assert.Equal(t, 1, added, "a colliding file in another library must be created, not repointed")
+	assert.Equal(t, 0, updated)
+	a, err := h.media.GetByID(context.Background(), "a-1")
+	require.NoError(t, err)
+	require.NotNil(t, a.File)
+	assert.Equal(t, "/a/film.mkv", a.File.Path, "library A's item must not be repointed by a library B scan")
+}
+
 func TestScanService_MovedFile_EmptyFingerprintNotMoved(t *testing.T) {
 	// Target 210:49 `f.Fingerprint != ""` — empty fingerprint must NOT trigger moved path.
 	h := newScanHarness()

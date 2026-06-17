@@ -458,7 +458,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 	if len(seriesTitle) > 0 {
 		showTitle = seriesTitle[0]
 	}
-	existing, err := s.findExistingMediaFile(ctx, f)
+	existing, err := s.findExistingMediaFile(ctx, libraryID, f)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -472,26 +472,42 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 	return 0, 1, nil
 }
 
-// findExistingMediaFile locates the media item that already owns the
-// scanned file. Prefers fingerprint match (stable across path moves),
-// falls back to file path. Returns (nil, nil) when no match exists —
-// caller creates a fresh item in that case.
-func (s *ScanService) findExistingMediaFile(ctx context.Context, f library.ScannedFile) (*library.MediaItem, error) {
-	var existing *library.MediaItem
-	var getErr error
-	if f.Fingerprint != "" {
-		existing, getErr = s.mediaItems.GetByFileFingerprint(ctx, f.Fingerprint)
-		if errors.Is(getErr, shared.ErrNotFound) {
-			existing, getErr = s.mediaItems.GetByFilePath(ctx, f.Path)
-		}
-	} else {
-		existing, getErr = s.mediaItems.GetByFilePath(ctx, f.Path)
+// findExistingMediaFile locates the media item that already owns the scanned
+// file. Path is the authoritative identity, checked first: a re-scan of an
+// existing file must resolve to the item at that path, never to a different file
+// that merely shares its size+mtime fingerprint. Only when the path is new do we
+// fall back to the fingerprint to detect a move/rename — and because the
+// fingerprint is size+mtime (not content-derived), distinct files can collide,
+// so a fingerprint match in a DIFFERENT library is rejected to prevent
+// cross-library repointing. Returns (nil, nil) when no match exists (caller
+// creates a fresh item).
+//
+// NOTE: a same-library size+mtime collision (e.g. `cp -p` of a distinct file)
+// can still mis-resolve via the fingerprint fallback; a content-derived
+// fingerprint is the full fix (deferred — changing the format forces a rescan).
+func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID string, f library.ScannedFile) (*library.MediaItem, error) {
+	existing, getErr := s.mediaItems.GetByFilePath(ctx, f.Path)
+	if getErr == nil {
+		return existing, nil
 	}
+	if !errors.Is(getErr, shared.ErrNotFound) {
+		return nil, fmt.Errorf("check media item %s: %w", f.Path, getErr)
+	}
+	// New path: try the fingerprint to catch a move/rename.
+	if f.Fingerprint == "" {
+		return nil, nil
+	}
+	existing, getErr = s.mediaItems.GetByFileFingerprint(ctx, f.Fingerprint)
 	if errors.Is(getErr, shared.ErrNotFound) {
 		return nil, nil
 	}
 	if getErr != nil {
 		return nil, fmt.Errorf("check media item %s: %w", f.Path, getErr)
+	}
+	if existing != nil && string(existing.LibraryID) != libraryID {
+		// Cross-library fingerprint collision: treat as a new file rather than
+		// repoint another library's item to this path.
+		return nil, nil
 	}
 	return existing, nil
 }
