@@ -84,7 +84,12 @@ type fakeDeliveryRepo struct {
 	data []*webhookdomain.Delivery
 }
 
-func (r *fakeDeliveryRepo) Create(_ context.Context, d *webhookdomain.Delivery) error {
+func (r *fakeDeliveryRepo) Create(ctx context.Context, d *webhookdomain.Delivery) error {
+	// Faithful to a real DB driver: a write on an expired/cancelled context is
+	// rejected. This is what makes the exhausted-retry audit-loss reproducible.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.data = append(r.data, d)
@@ -488,6 +493,41 @@ func TestHandleAny_DeliveryRecordsError(t *testing.T) {
 	}
 	if d.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("expected status 500, got %d", d.StatusCode)
+	}
+}
+
+// A delivery whose retries exhaust the per-delivery deadline must still record
+// its audit row. The delivery context is already expired by the time we persist,
+// so the write must run on a detached context — otherwise the most important
+// record (the failed/exhausted delivery) is silently lost.
+func TestHandleAny_DeliveryRecordedEvenWhenContextExpired(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	sender := &programmableSender{responder: func(_ int) (int, error) { return 0, errors.New("boom") }}
+	svc := newTestServiceWithSender(repo, deliveries, bus, sender)
+	svc.SetRetryDelays([]time.Duration{time.Millisecond})
+
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{
+		ID: "exp", URL: "http://hook.example", Events: []string{"*"}, Enabled: true,
+	})
+	repo.mu.Unlock()
+
+	// Pre-cancel the context: every ctx.Done() check inside the delivery fires
+	// immediately, so the audit write hits an already-dead context — the exact
+	// condition produced in prod when retries outlast deliveryTimeout.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_ = bus.Publish(ctx, fakeEvent{"test.event"})
+
+	waitForDeliveries(t, deliveries, 1, 2*time.Second)
+	deliveries.mu.Lock()
+	d := deliveries.data[0]
+	deliveries.mu.Unlock()
+	if d.Error == "" {
+		t.Fatal("expected the exhausted/failed delivery to record its error")
 	}
 }
 

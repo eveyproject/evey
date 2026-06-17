@@ -121,7 +121,14 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 	deliveryID := uuid.New().String()
 	lastErr, statusCode := s.attemptDeliver(ctx, cfg, deliveryID, body)
 
-	if err := s.deliveries.Create(ctx, &webhook.Delivery{
+	// Persist the audit on a context detached from the delivery deadline. The
+	// retry budget (1+5+30s) can exceed deliveryTimeout (30s), so when retries
+	// are exhausted ctx is already expired by the time we get here — and the
+	// exhausted-retry record is exactly the one worth keeping. Writing under the
+	// dead ctx would silently drop it; give the write its own short budget.
+	auditCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := s.deliveries.Create(auditCtx, &webhook.Delivery{
 		ID:         deliveryID,
 		WebhookID:  cfg.ID,
 		Event:      eventName,
