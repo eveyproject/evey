@@ -238,6 +238,7 @@ function AddEntryRow() {
       <td className="px-4 py-3">
         <input
           placeholder="key"
+          aria-label={t("admin.serverConfig.tableHeaders.key")}
           className="w-full px-2 py-1 rounded text-sm font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
           value={key}
           onChange={(e) => setKey(e.target.value)}
@@ -246,6 +247,7 @@ function AddEntryRow() {
       <td className="px-4 py-3">
         <input
           placeholder="value"
+          aria-label={t("admin.serverConfig.tableHeaders.value")}
           className="w-full px-2 py-1 rounded text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
           value={value}
           onChange={(e) => setValue(e.target.value)}

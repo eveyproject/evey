@@ -134,6 +134,14 @@ describe("ServerConfigPage", () => {
     expect(screen.getByRole("button", { name: /^Add$/i })).toBeInTheDocument();
   });
 
+  it("AddEntryRow key and value inputs have accessible labels", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    expect(screen.getByRole("textbox", { name: /^Key$/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /^Value$/i })).toBeInTheDocument();
+  });
+
   it("Show/Hide button toggles password visibility", async () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     const ServerConfigPage = await getServerConfigPage();

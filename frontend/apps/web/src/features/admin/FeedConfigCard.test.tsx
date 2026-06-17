@@ -145,6 +145,20 @@ describe("FeedConfigCard", () => {
     expect(values).toContain(15);
   });
 
+  it("maxItems inputs have accessible labels that include the row name", () => {
+    renderCard();
+    // aria-label is "Max Items: <feed label>" so screen readers announce both context and field
+    expect(
+      screen.getByRole("spinbutton", { name: "Max Items: Resume Playback" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("spinbutton", { name: "Max Items: Recommended" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("spinbutton", { name: "Max Items: Most Popular" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders library feed with library name", () => {
     mockFeedData = {
       configs: [

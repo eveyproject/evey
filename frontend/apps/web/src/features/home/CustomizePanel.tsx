@@ -198,6 +198,9 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
     <div className="fixed inset-0 z-overlay flex justify-end bg-[var(--overlay-chip-bg)]">
       <div
         ref={panelRef}
+        role="dialog"
+        aria-modal={true}
+        aria-label={t("common.feeds.customizeTitle")}
         className="w-80 h-full overflow-y-auto animate-fade-in bg-[var(--surface)] border-l border-[var(--border)]"
         data-testid="customize-panel"
       >

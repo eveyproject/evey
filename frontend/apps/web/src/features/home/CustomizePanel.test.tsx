@@ -177,4 +177,11 @@ describe("CustomizePanel", () => {
     expect(screen.getByText("Customize Homepage")).toBeInTheDocument();
     expect(container.querySelectorAll("[draggable]")).toHaveLength(0);
   });
+
+  it("inner panel has role=dialog with aria-label", () => {
+    renderPanel();
+    expect(
+      screen.getByRole("dialog", { name: /Customize Homepage/i }),
+    ).toBeInTheDocument();
+  });
 });

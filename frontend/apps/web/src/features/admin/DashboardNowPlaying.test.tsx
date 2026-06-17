@@ -426,4 +426,16 @@ describe("NowPlaying", () => {
     sendCommandOnError?.(new Error("stream gone"));
     expect(toast.error).toHaveBeenCalledWith("stream gone");
   });
+
+  it("send-message input has an accessible label", () => {
+    mockSessions = [SESSION_MOVIE];
+    renderNowPlaying();
+    fireEvent.click(
+      screen.getByRole("button", { name: /admin\.sessions\.sendMessage/i }),
+    );
+    // aria-label mirrors the placeholder key so screen readers announce the field purpose
+    expect(
+      screen.getByRole("textbox", { name: /admin\.sessions\.messagePlaceholder/i }),
+    ).toBeInTheDocument();
+  });
 });

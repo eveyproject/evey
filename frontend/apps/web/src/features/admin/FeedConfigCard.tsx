@@ -272,6 +272,7 @@ export function FeedConfigCard() {
                   type="number"
                   min={1}
                   max={100}
+                  aria-label={`${t("common.feeds.maxItems")}: ${label}`}
                   value={row.maxItems}
                   onChange={(e) => {
                     // Guard NaN (empty / non-numeric paste): keep the old value

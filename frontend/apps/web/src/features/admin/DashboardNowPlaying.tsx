@@ -164,6 +164,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
           >
             <input
               autoFocus
+              aria-label={t("admin.sessions.messagePlaceholder")}
               className="flex-1 text-xs px-2 py-1 rounded bg-[var(--input-bg,var(--surface))] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)]"
               placeholder={t("admin.sessions.messagePlaceholder")}
               value={msgText}
