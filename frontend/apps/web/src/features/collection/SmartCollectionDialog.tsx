@@ -82,6 +82,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         <select
           value={rule.operator}
           onChange={(e) => onChange({ ...rule, operator: e.target.value as YearOperator })}
+          aria-label={`${FIELD_LABELS[rule.field]} ${t("media.playlist.op")}`}
           className="text-sm px-2 py-1.5 rounded-[var(--radius-md)] w-16 flex-shrink-0 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         >
           {YEAR_OPERATORS.map((op) => (
@@ -100,6 +101,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         <select
           value={rule.value}
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
+          aria-label={`${FIELD_LABELS[rule.field]} ${t("media.playlist.value")}`}
           className="flex-1 text-sm px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         >
           {MEDIA_TYPES.map((t) => (
@@ -120,6 +122,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
             rule.field === "library_id" ? "Library ID" : ""
           }
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
+          aria-label={`${FIELD_LABELS[rule.field]} ${t("media.playlist.value")}`}
           className="flex-1 text-sm px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         />
       )}

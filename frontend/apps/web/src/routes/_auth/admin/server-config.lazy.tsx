@@ -96,6 +96,7 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
       <td className="px-4 py-3 text-sm text-[var(--text)]">
         {editing ? (
           <input
+            aria-label={`${entry.key} ${t("admin.serverConfig.tableHeaders.value")}`}
             className="w-full px-2 py-1 rounded text-sm bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -343,7 +344,7 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
           return (
             <div key={field.dbKey} className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-[var(--text)]">
+                <label htmlFor={field.dbKey} className="text-sm font-medium text-[var(--text)]">
                   {t(field.labelKey)}
                 </label>
                 {field.hasDefault && !current && (
@@ -361,6 +362,7 @@ function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined }) {
               {isEditing ? (
                 <div className="flex gap-2">
                   <input
+                    id={field.dbKey}
                     className="px-3 py-1.5 rounded text-sm flex-1 font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
                     type="text"
                     value={drafts[field.dbKey] ?? current}

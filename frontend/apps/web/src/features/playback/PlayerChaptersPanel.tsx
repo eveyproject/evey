@@ -22,7 +22,7 @@ export function ChaptersPanel({ chapters, currentTimeSec, onSeek, open, onToggle
 
   return (
     <div className="relative">
-      <button onClick={toggle} aria-label={t("player.controls.chapters")} title={t("player.controls.chapters")} className="text-white hover:text-[var(--accent)] transition-colors-fast p-1">
+      <button onClick={toggle} aria-label={t("player.controls.chapters")} aria-expanded={open} aria-haspopup="true" title={t("player.controls.chapters")} className="text-white hover:text-[var(--accent)] transition-colors-fast p-1">
         <BookOpen size={20}  aria-hidden="true" />
       </button>
       {open && (

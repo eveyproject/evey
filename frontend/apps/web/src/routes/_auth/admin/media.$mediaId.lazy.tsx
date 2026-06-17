@@ -440,8 +440,9 @@ function MmSsInputs({
   return (
     <div className="mt-3 flex items-center gap-3 flex-wrap">
       <div className="flex items-center gap-1.5">
-        <label className="text-xs text-[var(--text-muted)]">Début mm:ss</label>
+        <label htmlFor={`seg-start-${segment.type}`} className="text-xs text-[var(--text-muted)]">Début mm:ss</label>
         <input
+          id={`seg-start-${segment.type}`}
           className="w-20 px-2 py-1 rounded text-xs font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
           value={startVal}
           onChange={(e) => setStartVal(e.target.value)}
@@ -451,8 +452,9 @@ function MmSsInputs({
         />
       </div>
       <div className="flex items-center gap-1.5">
-        <label className="text-xs text-[var(--text-muted)]">Fin mm:ss</label>
+        <label htmlFor={`seg-end-${segment.type}`} className="text-xs text-[var(--text-muted)]">Fin mm:ss</label>
         <input
+          id={`seg-end-${segment.type}`}
           className="w-20 px-2 py-1 rounded text-xs font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
           value={endVal}
           onChange={(e) => setEndVal(e.target.value)}

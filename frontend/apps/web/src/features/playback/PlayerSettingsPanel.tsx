@@ -184,6 +184,8 @@ export function SettingsPanel({
       <button
         onClick={toggle}
         aria-label={t("player.controls.settings")}
+        aria-expanded={open}
+        aria-haspopup="true"
         title={t("player.controls.settings")}
         className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
       >

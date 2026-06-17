@@ -79,6 +79,8 @@ export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelP
       <button
         onClick={toggle}
         aria-label={t("player.streamInfo.title")}
+        aria-expanded={open}
+        aria-haspopup="true"
         title={t("player.streamInfo.title")}
         className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
       >
