@@ -57,6 +57,13 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
     setRules([]);
   }
 
+  // Always reset form state on close (cancel button, backdrop, Escape) so that
+  // reopening the modal shows a blank form instead of the previous draft.
+  function handleClose() {
+    reset();
+    onClose();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
@@ -76,7 +83,7 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={t("media.playlist.createTitle")}>
+    <Modal open={open} onClose={handleClose} title={t("media.playlist.createTitle")}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Input label={t("media.playlist.name")} value={name} onChange={(e) => setName(e.target.value)} required />
         <Textarea label={t("media.playlist.description")} value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
@@ -133,7 +140,7 @@ export function CreatePlaylistModal({ open, onClose }: Props) {
 
         <div className="flex gap-2 pt-2">
           <Button type="submit" loading={create.isPending}>{t("common.create")}</Button>
-          <Button type="button" variant="secondary" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button type="button" variant="secondary" onClick={handleClose}>{t("common.cancel")}</Button>
         </div>
       </form>
     </Modal>

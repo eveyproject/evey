@@ -14,8 +14,14 @@ vi.mock("@evey/store", () => ({
     if (sel) return sel(state);
     return state;
   },
-  useAuthStore: (sel: (s: Record<string, unknown>) => unknown) =>
-    sel({ accessToken: mockAccessToken.value }),
+  // useAuthStore is used both as a hook (sel) AND via .getState() inside the
+  // effect body (to avoid token rotation triggering a re-init). Both paths must
+  // use the same mutable mockAccessToken reference.
+  useAuthStore: Object.assign(
+    (sel: (s: Record<string, unknown>) => unknown) =>
+      sel({ accessToken: mockAccessToken.value }),
+    { getState: () => ({ accessToken: mockAccessToken.value }) },
+  ),
 }));
 
 // Capture eveyFetchRaw calls
@@ -194,6 +200,32 @@ describe("ThemeLoader", () => {
     expect(document.getElementById("evey-theme-iframe-dark")).toBeNull();
     // fetch should not have been called
     expect(eveyFetchRawMock).not.toHaveBeenCalled();
+  });
+
+  it("token rotation does NOT re-initialise theme assets", async () => {
+    mockPluginId.value = "dark";
+    mockAccessToken.value = "token-v1";
+    eveyFetchRawMock.mockImplementation(make404Rejection);
+
+    const { rerender } = render(<ThemeLoader />);
+
+    await waitFor(() => {
+      expect(eveyFetchRawMock).toHaveBeenCalledTimes(1);
+      expect(document.getElementById("evey-theme-css-dark")).not.toBeNull();
+    });
+
+    // Simulate a silent token rotation: same pluginId, new token value.
+    mockAccessToken.value = "token-v2";
+    rerender(<ThemeLoader />);
+
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // The effect must NOT have re-run: eveyFetchRaw still called exactly once
+    // and the CSS link must still be present (not torn down and re-injected).
+    expect(eveyFetchRawMock).toHaveBeenCalledTimes(1);
+    expect(document.getElementById("evey-theme-css-dark")).not.toBeNull();
   });
 
   it("cleans up assets when pluginId changes to null", async () => {

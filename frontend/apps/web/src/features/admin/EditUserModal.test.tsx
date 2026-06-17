@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,7 +10,19 @@ const revokeAccessMutateAsync = vi.fn();
 const getAccessMock = vi.fn();
 
 vi.mock("@evey/api", () => ({
-  useUserServiceUpdateUser: (_opts: unknown) => ({ mutateAsync: updateMutateAsync, isPending: false }),
+  // The mock propagates onError so tests can assert that only ONE toast fires
+  // when the mutation rejects (the real bug was: onError on the hook + catch = 2 toasts).
+  useUserServiceUpdateUser: (opts?: { mutation?: { onError?: (err: Error) => void } }) => ({
+    mutateAsync: async (...args: Parameters<typeof updateMutateAsync>) => {
+      try {
+        return await updateMutateAsync(...args);
+      } catch (err) {
+        opts?.mutation?.onError?.(err as Error);
+        throw err;
+      }
+    },
+    isPending: false,
+  }),
   useUserServiceListProfiles: (_id: string, _opts: unknown) => ({ data: { profiles: [] }, isLoading: false }),
   useUserServiceCreateProfile: () => ({ mutate: vi.fn(), isPending: false }),
   useUserServiceDeleteProfile: () => ({ mutate: vi.fn(), isPending: false }),
@@ -107,5 +119,21 @@ describe("EditUserModal", () => {
     await u.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalled();
     expect(updateMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("shows exactly one error toast when mutation fails", async () => {
+    // This test guards against the double-toast regression where onError on the
+    // hook AND the catch block both called toast.error on the same failure.
+    const { toast } = await import("@evey/store");
+    updateMutateAsync.mockRejectedValueOnce(new Error("Server error"));
+    const u = userEvent.setup();
+    render(<EditUserModal user={baseUser} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    // Make a change so the mutation fires
+    const email = screen.getByLabelText("Email");
+    await u.clear(email);
+    await u.type(email, "changed@example.com");
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(toast.error).toHaveBeenCalledTimes(1);
   });
 });

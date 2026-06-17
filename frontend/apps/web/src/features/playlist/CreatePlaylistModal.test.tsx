@@ -95,4 +95,19 @@ describe("CreatePlaylistModal", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalled();
   });
+
+  it("resets form state when cancelled so reopening shows a blank form", async () => {
+    const user = userEvent.setup();
+    // onClose is a spy — does not actually toggle `open`, so the modal stays
+    // mounted. This lets us check that the form fields are cleared after cancel.
+    const onClose = vi.fn();
+    render(<CreatePlaylistModal open={true} onClose={onClose} />, { wrapper: createWrapper() });
+    const nameInput = screen.getByLabelText("Name");
+    await user.type(nameInput, "My Draft Playlist");
+    expect(nameInput).toHaveValue("My Draft Playlist");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    // Form state must be cleared even though the modal is still mounted.
+    expect(nameInput).toHaveValue("");
+    expect(onClose).toHaveBeenCalled();
+  });
 });

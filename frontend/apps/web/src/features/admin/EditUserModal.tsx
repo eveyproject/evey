@@ -75,11 +75,9 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
     });
   }, []);
 
-  const updateUser = useUserServiceUpdateUser({
-    mutation: {
-      onError: (err: Error) => toast.error(err.message || t("admin.users.failedUpdateUser")),
-    },
-  });
+  // No onError here — the catch block in handleSubmit is the single source of
+  // truth for error toasts. A dual onError+catch pattern would show two toasts.
+  const updateUser = useUserServiceUpdateUser();
   const revokeAccess = useLibraryAccessServiceRevokeAllUserLibraryAccess();
   const setAccess = useLibraryAccessServiceSetUserLibraryAccess();
 

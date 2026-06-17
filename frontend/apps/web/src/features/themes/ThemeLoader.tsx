@@ -77,7 +77,6 @@ function buildThemeIframeSrcdoc(pluginId: string): string {
 // This is the most restrictive sandbox that still permits the bridge to work.
 export function ThemeLoader() {
   const { pluginId } = useThemeStore();
-  const accessToken = useAuthStore((s) => s.accessToken);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
@@ -91,6 +90,9 @@ export function ThemeLoader() {
     injectThemeCSS(pluginId);
 
     // Only attempt theme.js if the user is authenticated — the route requires auth.
+    // Read the token directly from store state (not subscribed) so that token
+    // rotation does not re-trigger this effect and re-initialise the theme assets.
+    const accessToken = useAuthStore.getState().accessToken;
     if (!accessToken) return;
 
     let cancelled = false;
@@ -133,7 +135,11 @@ export function ThemeLoader() {
     return () => {
       cancelled = true;
     };
-  }, [pluginId, accessToken]);
+  // accessToken is intentionally NOT in the dep array — token rotation must not
+  // re-init theme assets (removes CSS link causing a flash on every silent refresh).
+  // The token is read via getState() inside the effect body instead.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pluginId]);
 
   // postMessage listener — validated against the iframe's contentWindow before acting.
   useEffect(() => {

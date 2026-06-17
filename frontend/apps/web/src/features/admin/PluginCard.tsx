@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card } from "@/components/ui/Card";
@@ -311,6 +311,13 @@ interface PluginCardProps {
 export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginCardProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  // Prevent double-submit on enable/disable: lock the toggle button while the
+  // parent mutation is in-flight. Released when the parent re-fetches and the
+  // plugin.enabled / plugin.state prop actually changes.
+  const [isToggling, setIsToggling] = useState(false);
+  useEffect(() => {
+    setIsToggling(false);
+  }, [plugin.enabled, plugin.state]);
   const [showConfig, setShowConfig] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
@@ -392,9 +399,9 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall }: PluginC
 
       <div className="flex gap-2 pt-1 flex-wrap">
         {plugin.enabled ? (
-          <Button variant="secondary" onClick={onDisable}>{t("common.disable")}</Button>
+          <Button variant="secondary" disabled={isToggling} onClick={() => { setIsToggling(true); onDisable(); }}>{t("common.disable")}</Button>
         ) : (
-          <Button variant="primary" onClick={onEnable}>{t("common.enable")}</Button>
+          <Button variant="primary" disabled={isToggling} onClick={() => { setIsToggling(true); onEnable(); }}>{t("common.enable")}</Button>
         )}
         <Button variant="ghost" onClick={() => setShowConfig((v) => !v)}>
           {showConfig ? t("admin.plugin.hideConfig") : t("admin.plugin.config")}

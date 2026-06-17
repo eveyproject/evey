@@ -197,6 +197,42 @@ describe("PluginCard", () => {
     expect(screen.getByTestId("plugin-update-preview-btn")).toBeDisabled();
   });
 
+  it("disable button is disabled immediately after click to prevent double-submit", async () => {
+    const onDisable = vi.fn();
+    render(
+      <PluginCard
+        plugin={basePlugin as never}
+        onEnable={vi.fn()}
+        onDisable={onDisable}
+        onUninstall={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    const btn = screen.getByRole("button", { name: "Disable" });
+    await userEvent.click(btn);
+    // The button must be disabled now (isToggling=true) to block a second click
+    expect(btn).toBeDisabled();
+    // And onDisable was only called once
+    expect(onDisable).toHaveBeenCalledTimes(1);
+  });
+
+  it("enable button is disabled immediately after click to prevent double-submit", async () => {
+    const onEnable = vi.fn();
+    render(
+      <PluginCard
+        plugin={{ ...basePlugin, enabled: false } as never}
+        onEnable={onEnable}
+        onDisable={vi.fn()}
+        onUninstall={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+    const btn = screen.getByRole("button", { name: "Enable" });
+    await userEvent.click(btn);
+    expect(btn).toBeDisabled();
+    expect(onEnable).toHaveBeenCalledTimes(1);
+  });
+
   it("opens PluginUpdateDialog after entering source and clicking Preview", async () => {
     render(
       <PluginCard

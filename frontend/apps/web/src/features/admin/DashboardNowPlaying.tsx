@@ -77,7 +77,11 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
       onError: (err: Error) => toast.error(err.message || t("admin.sessions.failedStop")),
     },
   });
-  const sendCommand = useAdminSessionServiceSendSessionCommand();
+  const sendCommand = useAdminSessionServiceSendSessionCommand({
+    mutation: {
+      onError: (err: Error) => toast.error(err.message || t("admin.sessions.failedStop")),
+    },
+  });
   const playMethodLabel = usePlayMethodLabel();
   const [showMsg, setShowMsg] = useState(false);
   const [msgText, setMsgText] = useState("");

@@ -7,6 +7,7 @@ import { NowPlaying } from "./DashboardNowPlaying";
 
 const mockKillMutate = vi.fn();
 const mockSendCommandMutate = vi.fn();
+let sendCommandOnError: ((err: Error) => void) | undefined;
 const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
 
 let mockSessions: unknown[] = [];
@@ -51,10 +52,12 @@ vi.mock("@evey/api", () => ({
     },
     isPending: false,
   }),
-  useAdminSessionServiceSendSessionCommand: () => ({
-    mutate: mockSendCommandMutate,
-    isPending: false,
-  }),
+  useAdminSessionServiceSendSessionCommand: (opts?: {
+    mutation?: { onError?: (err: Error) => void };
+  }) => {
+    sendCommandOnError = opts?.mutation?.onError;
+    return { mutate: mockSendCommandMutate, isPending: false };
+  },
   getAdminSessionServiceListActiveSessionsQueryKey: () => ["/api/v1/admin/sessions"],
 }));
 
@@ -131,6 +134,7 @@ describe("NowPlaying", () => {
     vi.clearAllMocks();
     mockSessions = [];
     mockIsLoading = false;
+    sendCommandOnError = undefined;
   });
 
   // ── Empty state ──────────────────────────────────────────────────────────────
@@ -403,5 +407,23 @@ describe("NowPlaying", () => {
     renderNowPlaying();
     const link = screen.getByRole("link", { name: /view all/i });
     expect(link).toHaveAttribute("href", "/admin/sessions");
+  });
+
+  // ── sendCommand error handling ────────────────────────────────────────────────
+
+  it("sendCommand registers an onError handler so command failures are not silent", () => {
+    mockSessions = [SESSION_MOVIE];
+    renderNowPlaying();
+    // The hook must have been called with mutation.onError so failures surface as toasts.
+    expect(sendCommandOnError).toBeTypeOf("function");
+  });
+
+  it("sendCommand onError calls toast.error with the error message", async () => {
+    const { toast } = await import("@evey/store");
+    mockSessions = [SESSION_MOVIE];
+    renderNowPlaying();
+    // Simulate the mutation failing after the component registered onError
+    sendCommandOnError?.(new Error("stream gone"));
+    expect(toast.error).toHaveBeenCalledWith("stream gone");
   });
 });
