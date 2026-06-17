@@ -943,8 +943,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// music_album_art/ as three LRU units, so on overflow it would have removed a
 	// whole sibling cache (every photo thumbnail / all album art) or the entire
 	// segments blob at once instead of evicting per-hash. Removed: StartEviction is
-	// the single, correctly-scoped evictor. (NewCacheEvictor remains as an unused
-	// utility; delete in a follow-up if no caller appears.)
+	// the single, correctly-scoped evictor. (The old whole-subdir CacheEvictor,
+	// which evicted by mtime with no pendingRefs guard, was deleted — it would
+	// have evicted a hash mid-write if ever re-wired.)
 
 	return &appDeps{
 		bus: bus,
