@@ -111,11 +111,16 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   }, [sessionId]);
 
   useEffect(() => {
-    // Expose the session-stop fn so store.stop() (called on unmount/close) can
-    // tear down the server session. stop() clears it after firing; a fresh
-    // player mount overwrites it.
+    // Expose the session-stop fn so store.stop() (called on unmount/close AND on
+    // every episode change via the [mediaId] effect cleanup) can tear down the
+    // server session. store.stop() NULLS _stopSessionFn after firing, and this
+    // component does NOT remount on episode change (only HLSPlayer is keyed by
+    // mediaId) — so we must re-arm whenever a new session starts, or every
+    // intermediate episode in a binge leaks an orphaned transcode session on the
+    // server (A stops via the still-armed fn, the last via usePlaySession's
+    // unmount cleanup, but B..N-1 never do). sessionId in the deps re-arms it.
     usePlayerStore.getState().setStopSessionFn(stopSession);
-  }, [stopSession]);
+  }, [stopSession, sessionId]);
 
   const handleStreamTokenRefresh = useCallback(() => fetchStreamToken(mediaId), [fetchStreamToken, mediaId]);
   const handleCastTokenRequest = useCallback(() => fetchStreamToken(mediaId, { cast: true }), [fetchStreamToken, mediaId]);

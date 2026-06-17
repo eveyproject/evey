@@ -59,6 +59,31 @@ describe("usePlayerStore", () => {
     expect(fn).toHaveBeenCalledOnce();
   });
 
+  it("stop clears _stopSessionFn; it must be re-armed before the next stop", () => {
+    // Contract the player route relies on: stop() nulls _stopSessionFn after
+    // firing, so an in-place episode change (no remount) MUST re-arm it (the
+    // route re-runs setStopSessionFn on sessionId change) or the next stop()
+    // can't tear down the new session, leaking it on the server.
+    const fnA = vi.fn();
+    const fnB = vi.fn();
+
+    usePlayerStore.getState().play("mi-A");
+    usePlayerStore.getState().setStopSessionFn(fnA);
+    usePlayerStore.getState().stop(); // ends A
+    expect(fnA).toHaveBeenCalledOnce();
+
+    // Without a re-arm, a second stop fires nothing (fn was cleared).
+    usePlayerStore.getState().play("mi-B");
+    usePlayerStore.getState().stop();
+    expect(fnB).not.toHaveBeenCalled();
+
+    // Re-armed (the fix): the new session's stop fn now fires.
+    usePlayerStore.getState().play("mi-B2");
+    usePlayerStore.getState().setStopSessionFn(fnB);
+    usePlayerStore.getState().stop();
+    expect(fnB).toHaveBeenCalledOnce();
+  });
+
   it("setMode updates mode", () => {
     usePlayerStore.getState().play("mi-1");
     usePlayerStore.getState().setMode("mini");
