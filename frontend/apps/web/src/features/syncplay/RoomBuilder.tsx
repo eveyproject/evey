@@ -7,6 +7,7 @@ import {
   playlistServiceGetPlaylistItems,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
+import { useDebounce } from "@/hooks/useDebounce";
 import { usePlaylistList } from "@/features/playlist/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -61,6 +62,10 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
 
   const [tab, setTab] = useState<Tab>("albums");
   const [search, setSearch] = useState("");
+  // Debounce before hitting the query: each keystroke would otherwise fire an
+  // ILIKE search over title/artist/album on the (weak) server, like every other
+  // search box in the app.
+  const debouncedSearch = useDebounce(search, 300);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [expanded, setExpanded] = useState<{ title: string; tracks: QueueItem[] } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -84,7 +89,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
   );
 
   const { data: tracks } = useMusicServiceListTracks(
-    { libraryId, limit: 100, search: search || undefined },
+    { libraryId, limit: 100, search: debouncedSearch || undefined },
     {
       query: {
         enabled: !!libraryId && tab === "tracks",
