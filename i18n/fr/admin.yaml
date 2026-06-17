@@ -4,6 +4,8 @@ nav:
   nowPlaying: En cours de lecture
   remoteAccess: Accès distant
   serverConfig: Configuration du serveur
+  transcodingConfig: Configuration transcodage
+  transcodeCache: Cache de transcodage
   systemHealth: Santé du système
   media: Médias
   libraries: Bibliothèques

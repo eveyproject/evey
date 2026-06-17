@@ -4,6 +4,8 @@ nav:
   nowPlaying: Now Playing
   remoteAccess: Remote Access
   serverConfig: Server Config
+  transcodingConfig: Transcoding
+  transcodeCache: Transcode Cache
   systemHealth: System Health
   media: Media
   libraries: Libraries

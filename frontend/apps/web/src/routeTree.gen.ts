@@ -45,6 +45,7 @@ import { Route as AuthLibraryLibraryIdRouteImport } from './routes/_auth/library
 import { Route as AuthCollectionsCollectionIdRouteImport } from './routes/_auth/collections/$collectionId'
 import { Route as AuthAdminWebhooksRouteImport } from './routes/_auth/admin/webhooks'
 import { Route as AuthAdminUsersRouteImport } from './routes/_auth/admin/users'
+import { Route as AuthAdminTranscodingRouteImport } from './routes/_auth/admin/transcoding'
 import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admin/transcode-cache'
 import { Route as AuthAdminSystemHealthRouteImport } from './routes/_auth/admin/system-health'
 import { Route as AuthAdminSessionsRouteImport } from './routes/_auth/admin/sessions'
@@ -298,6 +299,13 @@ const AuthAdminUsersRoute = AuthAdminUsersRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/users.lazy').then((d) => d.Route),
 )
+const AuthAdminTranscodingRoute = AuthAdminTranscodingRouteImport.update({
+  id: '/transcoding',
+  path: '/transcoding',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/transcoding.lazy').then((d) => d.Route),
+)
 const AuthAdminTranscodeCacheRoute = AuthAdminTranscodeCacheRouteImport.update({
   id: '/transcode-cache',
   path: '/transcode-cache',
@@ -470,6 +478,7 @@ export interface FileRoutesByFullPath {
   '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
+  '/admin/transcoding': typeof AuthAdminTranscodingRoute
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
   '/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
@@ -525,6 +534,7 @@ export interface FileRoutesByTo {
   '/admin/sessions': typeof AuthAdminSessionsRoute
   '/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
+  '/admin/transcoding': typeof AuthAdminTranscodingRoute
   '/admin/users': typeof AuthAdminUsersRoute
   '/admin/webhooks': typeof AuthAdminWebhooksRoute
   '/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
@@ -583,6 +593,7 @@ export interface FileRoutesById {
   '/_auth/admin/sessions': typeof AuthAdminSessionsRoute
   '/_auth/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/_auth/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
+  '/_auth/admin/transcoding': typeof AuthAdminTranscodingRoute
   '/_auth/admin/users': typeof AuthAdminUsersRoute
   '/_auth/admin/webhooks': typeof AuthAdminWebhooksRoute
   '/_auth/collections/$collectionId': typeof AuthCollectionsCollectionIdRoute
@@ -641,6 +652,7 @@ export interface FileRouteTypes {
     | '/admin/sessions'
     | '/admin/system-health'
     | '/admin/transcode-cache'
+    | '/admin/transcoding'
     | '/admin/users'
     | '/admin/webhooks'
     | '/collections/$collectionId'
@@ -696,6 +708,7 @@ export interface FileRouteTypes {
     | '/admin/sessions'
     | '/admin/system-health'
     | '/admin/transcode-cache'
+    | '/admin/transcoding'
     | '/admin/users'
     | '/admin/webhooks'
     | '/collections/$collectionId'
@@ -753,6 +766,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/sessions'
     | '/_auth/admin/system-health'
     | '/_auth/admin/transcode-cache'
+    | '/_auth/admin/transcoding'
     | '/_auth/admin/users'
     | '/_auth/admin/webhooks'
     | '/_auth/collections/$collectionId'
@@ -1044,6 +1058,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminUsersRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/transcoding': {
+      id: '/_auth/admin/transcoding'
+      path: '/transcoding'
+      fullPath: '/admin/transcoding'
+      preLoaderRoute: typeof AuthAdminTranscodingRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/transcode-cache': {
       id: '/_auth/admin/transcode-cache'
       path: '/transcode-cache'
@@ -1197,6 +1218,7 @@ interface AuthAdminRouteChildren {
   AuthAdminSessionsRoute: typeof AuthAdminSessionsRoute
   AuthAdminSystemHealthRoute: typeof AuthAdminSystemHealthRoute
   AuthAdminTranscodeCacheRoute: typeof AuthAdminTranscodeCacheRoute
+  AuthAdminTranscodingRoute: typeof AuthAdminTranscodingRoute
   AuthAdminUsersRoute: typeof AuthAdminUsersRoute
   AuthAdminWebhooksRoute: typeof AuthAdminWebhooksRoute
   AuthAdminIndexRoute: typeof AuthAdminIndexRoute
@@ -1221,6 +1243,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminSessionsRoute: AuthAdminSessionsRoute,
   AuthAdminSystemHealthRoute: AuthAdminSystemHealthRoute,
   AuthAdminTranscodeCacheRoute: AuthAdminTranscodeCacheRoute,
+  AuthAdminTranscodingRoute: AuthAdminTranscodingRoute,
   AuthAdminUsersRoute: AuthAdminUsersRoute,
   AuthAdminWebhooksRoute: AuthAdminWebhooksRoute,
   AuthAdminIndexRoute: AuthAdminIndexRoute,

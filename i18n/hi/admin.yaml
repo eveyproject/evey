@@ -5,6 +5,8 @@ nav:
   nowPlaying: "अभी चल रहा है"
   remoteAccess: "रिमोट एक्सेस"
   serverConfig: "सर्वर कॉन्फ़िग"
+  transcodingConfig: "ट्रांसकोडिंग"
+  transcodeCache: "ट्रांसकोड कैश"
   systemHealth: "सिस्टम स्वास्थ्य"
   media: "मीडिया"
   libraries: "लाइब्रेरी"

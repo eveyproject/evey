@@ -30,6 +30,7 @@ vi.mock("lucide-react", () => {
     Database: Icon,
     Cpu: Icon,
     SlidersHorizontal: Icon,
+    Film: Icon,
     ScrollText: Icon,
     ChevronDown: Icon,
     Sliders: Icon,

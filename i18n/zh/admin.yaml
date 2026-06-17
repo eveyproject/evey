@@ -5,6 +5,8 @@ nav:
   nowPlaying: "正在播放"
   remoteAccess: "远程访问"
   serverConfig: "服务器配置"
+  transcodingConfig: "转码"
+  transcodeCache: "转码缓存"
   systemHealth: "系统健康"
   media: "媒体"
   libraries: "媒体库"
