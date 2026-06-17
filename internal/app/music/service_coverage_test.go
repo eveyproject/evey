@@ -100,7 +100,7 @@ func TestStreamTrackURL(t *testing.T) {
 func TestStreamTrack_Success(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/song.flac", MimeType: "audio/flac"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/song.flac", MimeType: "audio/flac"})
 
 	qs := appmusic.NewQueryService(repo, fakes.NewFakeMusicScanner())
 	path, mime, err := qs.StreamTrack(ctx, "t1")
@@ -119,7 +119,7 @@ func TestStreamTrack_Success(t *testing.T) {
 func TestGetTrackArt_Success(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/song.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/song.mp3"})
 
 	scanner := fakes.NewFakeMusicScanner()
 	scanner.FileData["/music/song.mp3"] = buildID3v2(
@@ -143,7 +143,7 @@ func TestGetTrackArt_Success(t *testing.T) {
 func TestGetTrackArt_NoPicture(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/song.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/song.mp3"})
 
 	scanner := fakes.NewFakeMusicScanner()
 	scanner.FileData["/music/song.mp3"] = buildID3v2(withText("TIT2", "Song"))
@@ -158,7 +158,7 @@ func TestGetTrackArt_NoPicture(t *testing.T) {
 func TestGetTrackArt_OpenFileError(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/missing.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/missing.mp3"})
 
 	scanner := fakes.NewFakeMusicScanner()
 	// no FileData entry -> OpenFile returns not found
@@ -173,7 +173,7 @@ func TestGetTrackArt_OpenFileError(t *testing.T) {
 func TestGetTrackArt_BadTagData(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/bad.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/bad.mp3"})
 
 	scanner := fakes.NewFakeMusicScanner()
 	scanner.FileData["/music/bad.mp3"] = []byte("not valid tag data")
@@ -188,7 +188,7 @@ func TestGetTrackArt_BadTagData(t *testing.T) {
 func TestGetTrackArt_EmptyMIME(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/song.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t1", FilePath: "/music/song.mp3"})
 
 	scanner := fakes.NewFakeMusicScanner()
 	scanner.FileData["/music/song.mp3"] = buildID3v2(
@@ -384,7 +384,7 @@ func TestScanDirectory_MovedFile(t *testing.T) {
 	ctx := context.Background()
 
 	// seed existing track at old path with hash
-	_ = repo.Upsert(ctx, music.Track{
+	_, _ = repo.Upsert(ctx, music.Track{
 		ID: "existing-1", LibraryID: "lib-1",
 		FilePath: "/lib/old/song.mp3", FileSize: 100, FileHash: "hash-abc",
 		ModTime: time.Now().Add(-time.Hour),
@@ -427,7 +427,7 @@ func TestGetTrackArt_RepoError(t *testing.T) {
 func TestDeleteTrack_PublishFails(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", FilePath: "/a.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", FilePath: "/a.mp3"})
 
 	bus := sharedfakes.NewFakeEventBus()
 	bus.PublishErr = errors.New("bus fail")

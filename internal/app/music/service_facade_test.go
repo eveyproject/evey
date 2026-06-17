@@ -21,9 +21,9 @@ func TestService_ListTracksByAlbum_FiltersByAlbum(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
 	now := time.Now()
-	require.NoError(t, repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Album: "A", Title: "T1", FilePath: "/m/t1.mp3", CreatedAt: now}))
-	require.NoError(t, repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Album: "A", Title: "T2", FilePath: "/m/t2.mp3", CreatedAt: now}))
-	require.NoError(t, repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-1", Album: "B", Title: "T3", FilePath: "/m/t3.mp3", CreatedAt: now}))
+	{ _, uerr := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Album: "A", Title: "T1", FilePath: "/m/t1.mp3", CreatedAt: now}); require.NoError(t, uerr) }
+	{ _, uerr := repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Album: "A", Title: "T2", FilePath: "/m/t2.mp3", CreatedAt: now}); require.NoError(t, uerr) }
+	{ _, uerr := repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-1", Album: "B", Title: "T3", FilePath: "/m/t3.mp3", CreatedAt: now}); require.NoError(t, uerr) }
 
 	scanner := musicfakes.NewFakeMusicScanner()
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)

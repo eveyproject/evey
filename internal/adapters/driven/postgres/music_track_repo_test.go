@@ -52,7 +52,7 @@ func TestMusicTrackRepo_Upsert_GetByID(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	track := newTestTrack("mt1", lib.ID, "Song One", "Artist A", "Album X")
-	require.NoError(t, repo.Upsert(ctx, track))
+	{ _, uerr := repo.Upsert(ctx, track); require.NoError(t, uerr) }
 
 	got, err := repo.GetByID(ctx, "mt1")
 	require.NoError(t, err)
@@ -74,12 +74,45 @@ func TestMusicTrackRepo_Delete(t *testing.T) {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	track := newTestTrack("mt2", lib.ID, "Song Del", "Art", "Alb")
-	require.NoError(t, repo.Upsert(ctx, track))
+	{ _, uerr := repo.Upsert(ctx, track); require.NoError(t, uerr) }
 	require.NoError(t, repo.Delete(ctx, "mt2"))
 
 	got, err := repo.GetByID(ctx, "mt2")
 	assert.ErrorIs(t, err, shared.ErrNotFound)
 	assert.Nil(t, got)
+}
+
+// Upsert must return the PERSISTED id: a re-scan of the same file (ON CONFLICT
+// by file_path) keeps the existing row's id, so a caller that minted a fresh
+// id must get the existing one back, not its throwaway. The music scanner
+// relies on this to publish events that reference a row that actually exists.
+func TestMusicTrackRepo_UpsertReturnsExistingIDOnConflict(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mt-conflict-lib")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	first := newTestTrack("mt-keep", lib.ID, "Song", "Art", "Alb")
+	gotID, err := repo.Upsert(ctx, first)
+	require.NoError(t, err)
+	require.Equal(t, "mt-keep", gotID, "fresh insert returns the inserted id")
+
+	// Same file_path, different (throwaway) id — the conflict must keep mt-keep.
+	rescan := newTestTrack("mt-throwaway", lib.ID, "Song (retag)", "Art", "Alb")
+	rescan.FilePath = first.FilePath
+	gotID, err = repo.Upsert(ctx, rescan)
+	require.NoError(t, err)
+	require.Equal(t, "mt-keep", gotID, "conflict on file_path returns the existing id, not the throwaway")
+
+	// And the throwaway id must not have created a second row.
+	_, err = repo.GetByID(ctx, "mt-throwaway")
+	require.ErrorIs(t, err, shared.ErrNotFound)
 }
 
 func TestMusicTrackRepo_ListByLibrary(t *testing.T) {
@@ -94,10 +127,10 @@ func TestMusicTrackRepo_ListByLibrary(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	require.NoError(t, repo.Upsert(ctx, newTestTrack("mt3a", lib.ID, "Song A", "Art", "Alb")))
+	{ _, uerr := repo.Upsert(ctx, newTestTrack("mt3a", lib.ID, "Song A", "Art", "Alb")); require.NoError(t, uerr) }
 	t2 := newTestTrack("mt3b", lib.ID, "Song B", "Art", "Alb")
 	t2.FilePath = "/music/mt3b.flac"
-	require.NoError(t, repo.Upsert(ctx, t2))
+	{ _, uerr := repo.Upsert(ctx, t2); require.NoError(t, uerr) }
 
 	tracks, total, err := repo.ListByLibrary(ctx, lib.ID, 10, 0, "")
 	require.NoError(t, err)
@@ -117,11 +150,11 @@ func TestMusicTrackRepo_ListByAlbum(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	require.NoError(t, repo.Upsert(ctx, newTestTrack("mt4a", lib.ID, "Track 1", "Band", "MyAlbum")))
+	{ _, uerr := repo.Upsert(ctx, newTestTrack("mt4a", lib.ID, "Track 1", "Band", "MyAlbum")); require.NoError(t, uerr) }
 	t2 := newTestTrack("mt4b", lib.ID, "Track 2", "Band", "MyAlbum")
 	t2.FilePath = "/music/mt4b.flac"
 	t2.TrackNumber = 2
-	require.NoError(t, repo.Upsert(ctx, t2))
+	{ _, uerr := repo.Upsert(ctx, t2); require.NoError(t, uerr) }
 
 	tracks, err := repo.ListByAlbum(ctx, "MyAlbum", "Band")
 	require.NoError(t, err)
@@ -140,10 +173,10 @@ func TestMusicTrackRepo_ListByArtist(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	require.NoError(t, repo.Upsert(ctx, newTestTrack("mt5a", lib.ID, "S1", "SoloArtist", "A1")))
+	{ _, uerr := repo.Upsert(ctx, newTestTrack("mt5a", lib.ID, "S1", "SoloArtist", "A1")); require.NoError(t, uerr) }
 	t2 := newTestTrack("mt5b", lib.ID, "S2", "SoloArtist", "A2")
 	t2.FilePath = "/music/mt5b.flac"
-	require.NoError(t, repo.Upsert(ctx, t2))
+	{ _, uerr := repo.Upsert(ctx, t2); require.NoError(t, uerr) }
 
 	tracks, total, err := repo.ListByArtist(ctx, "SoloArtist", 10, 0)
 	require.NoError(t, err)
@@ -163,7 +196,7 @@ func TestMusicTrackRepo_Search(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	require.NoError(t, repo.Upsert(ctx, newTestTrack("mt6", lib.ID, "Searchable Song", "Art", "Alb")))
+	{ _, uerr := repo.Upsert(ctx, newTestTrack("mt6", lib.ID, "Searchable Song", "Art", "Alb")); require.NoError(t, uerr) }
 
 	tracks, err := repo.Search(ctx, lib.ID, "Searchable", 10)
 	require.NoError(t, err)
@@ -185,10 +218,10 @@ func TestMusicTrackRepo_GetAlbums(t *testing.T) {
 	// Both tracks live in the same folder — one album, regardless of tags.
 	t1 := newTestTrack("mt7a", lib.ID, "T1", "TheArtist", "TheAlbum")
 	t1.FilePath = "/music/the-album/mt7a.flac"
-	require.NoError(t, repo.Upsert(ctx, t1))
+	{ _, uerr := repo.Upsert(ctx, t1); require.NoError(t, uerr) }
 	t2 := newTestTrack("mt7b", lib.ID, "T2", "TheArtist", "TheAlbum")
 	t2.FilePath = "/music/the-album/mt7b.flac"
-	require.NoError(t, repo.Upsert(ctx, t2))
+	{ _, uerr := repo.Upsert(ctx, t2); require.NoError(t, uerr) }
 
 	albums, err := repo.GetAlbums(ctx, lib.ID)
 	require.NoError(t, err)
@@ -220,14 +253,14 @@ func TestMusicTrackRepo_GetAlbums_MajorityArtistWinsOnFeaturing(t *testing.T) {
 		tr := newTestTrack(fmt.Sprintf("lp-%02d", i), lib.ID, fmt.Sprintf("Song %02d", i), "Linkin Park", "Apple Essentials")
 		tr.AlbumArtist = "Linkin Park"
 		tr.FilePath = fmt.Sprintf("%s/%02d.flac", folder, i)
-		require.NoError(t, repo.Upsert(ctx, tr))
+		{ _, uerr := repo.Upsert(ctx, tr); require.NoError(t, uerr) }
 	}
 	// 1 featuring track, album_artist = "Jay-Z" (would lose to MIN() on
 	// album_artist alphabetical ordering without the folder fix).
 	feat := newTestTrack("lp-17-feat", lib.ID, "Numb/Encore (feat. Jay-Z)", "Jay-Z", "Apple Essentials")
 	feat.AlbumArtist = "Jay-Z"
 	feat.FilePath = folder + "/17-feat.flac"
-	require.NoError(t, repo.Upsert(ctx, feat))
+	{ _, uerr := repo.Upsert(ctx, feat); require.NoError(t, uerr) }
 
 	albums, err := repo.GetAlbums(ctx, lib.ID)
 	require.NoError(t, err)
@@ -258,10 +291,10 @@ func TestMusicTrackRepo_GetAlbums_SameTagDifferentFoldersStaySplit(t *testing.T)
 	for i := 0; i < 5; i++ {
 		t1 := newTestTrack(fmt.Sprintf("a-%d", i), lib.ID, fmt.Sprintf("Track %d", i), "Artist A", "Apple Essentials")
 		t1.FilePath = fmt.Sprintf("%s/%d.flac", folder1, i)
-		require.NoError(t, repo.Upsert(ctx, t1))
+		{ _, uerr := repo.Upsert(ctx, t1); require.NoError(t, uerr) }
 		t2 := newTestTrack(fmt.Sprintf("b-%d", i), lib.ID, fmt.Sprintf("Track %d", i), "Artist B", "Apple Essentials")
 		t2.FilePath = fmt.Sprintf("%s/%d.flac", folder2, i)
-		require.NoError(t, repo.Upsert(ctx, t2))
+		{ _, uerr := repo.Upsert(ctx, t2); require.NoError(t, uerr) }
 	}
 
 	albums, err := repo.GetAlbums(ctx, lib.ID)
@@ -293,15 +326,15 @@ func TestMusicTrackRepo_ListByAlbumFolder(t *testing.T) {
 	t1 := newTestTrack("fa-1", lib.ID, "T1", "X", "AlbumTag")
 	t1.FilePath = folder + "/01.flac"
 	t1.TrackNumber = 1
-	require.NoError(t, repo.Upsert(ctx, t1))
+	{ _, uerr := repo.Upsert(ctx, t1); require.NoError(t, uerr) }
 	t2 := newTestTrack("fa-2", lib.ID, "T2", "Y", "AlbumTag")
 	t2.FilePath = folder + "/02.flac"
 	t2.TrackNumber = 2
-	require.NoError(t, repo.Upsert(ctx, t2))
+	{ _, uerr := repo.Upsert(ctx, t2); require.NoError(t, uerr) }
 	// Out-of-folder track with same album tag must not leak in.
 	other := newTestTrack("fa-3", lib.ID, "T3", "X", "AlbumTag")
 	other.FilePath = "/music/other-folder/03.flac"
-	require.NoError(t, repo.Upsert(ctx, other))
+	{ _, uerr := repo.Upsert(ctx, other); require.NoError(t, uerr) }
 
 	tracks, err := repo.ListByAlbumFolder(ctx, lib.ID, folder)
 	require.NoError(t, err)
@@ -325,7 +358,7 @@ func TestMusicTrackRepo_GetArtists(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	require.NoError(t, repo.Upsert(ctx, newTestTrack("mt8", lib.ID, "T1", "UniqueArtist", "A")))
+	{ _, uerr := repo.Upsert(ctx, newTestTrack("mt8", lib.ID, "T1", "UniqueArtist", "A")); require.NoError(t, uerr) }
 
 	artists, err := repo.GetArtists(ctx, lib.ID)
 	require.NoError(t, err)
@@ -344,7 +377,7 @@ func TestMusicTrackRepo_SampleByLibrary(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 	for _, id := range []string{"smp1", "smp2", "smp3", "smp4", "smp5"} {
-		require.NoError(t, repo.Upsert(ctx, newTestTrack(id, lib.ID, "T"+id, "A", "B")))
+		{ _, uerr := repo.Upsert(ctx, newTestTrack(id, lib.ID, "T"+id, "A", "B")); require.NoError(t, uerr) }
 	}
 
 	// Capped below the row count → exactly limit rows.
@@ -375,10 +408,10 @@ func TestMusicTrackRepo_ListAllByLibrary(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	require.NoError(t, repo.Upsert(ctx, newTestTrack("mt9a", lib.ID, "All1", "A", "B")))
+	{ _, uerr := repo.Upsert(ctx, newTestTrack("mt9a", lib.ID, "All1", "A", "B")); require.NoError(t, uerr) }
 	t2 := newTestTrack("mt9b", lib.ID, "All2", "A", "B")
 	t2.FilePath = "/music/mt9b.flac"
-	require.NoError(t, repo.Upsert(ctx, t2))
+	{ _, uerr := repo.Upsert(ctx, t2); require.NoError(t, uerr) }
 
 	tracks, err := repo.ListAllByLibrary(ctx, lib.ID)
 	require.NoError(t, err)
@@ -397,7 +430,7 @@ func TestMusicTrackRepo_UpdateFilePath(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	require.NoError(t, repo.Upsert(ctx, newTestTrack("mt10", lib.ID, "MovedSong", "A", "B")))
+	{ _, uerr := repo.Upsert(ctx, newTestTrack("mt10", lib.ID, "MovedSong", "A", "B")); require.NoError(t, uerr) }
 
 	newMod := time.Now().UTC().Truncate(time.Millisecond)
 	require.NoError(t, repo.UpdateFilePath(ctx, "mt10", "/music/new_path.flac", newMod))

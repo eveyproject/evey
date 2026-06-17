@@ -23,12 +23,12 @@ func NewFakeMusicTrackRepository() *FakeMusicTrackRepository {
 	return &FakeMusicTrackRepository{tracks: make(map[string]music.Track)}
 }
 
-func (r *FakeMusicTrackRepository) Upsert(_ context.Context, t music.Track) error {
+func (r *FakeMusicTrackRepository) Upsert(_ context.Context, t music.Track) (string, error) {
 	if r.UpsertErr != nil {
-		return r.UpsertErr
+		return "", r.UpsertErr
 	}
 	if r.Err != nil {
-		return r.Err
+		return "", r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -41,16 +41,18 @@ func (r *FakeMusicTrackRepository) Upsert(_ context.Context, t music.Track) erro
 	if t.AlbumFolder == "" && t.FilePath != "" {
 		t.AlbumFolder = filepath.Dir(t.FilePath)
 	}
-	// upsert by file_path
+	// upsert by file_path: on conflict the existing row keeps its id, so we
+	// return THAT id (mirrors the postgres RETURNING id), not the caller's
+	// freshly-minted one.
 	for id, existing := range r.tracks {
 		if existing.FilePath == t.FilePath {
 			t.ID = id
 			r.tracks[id] = t
-			return nil
+			return id, nil
 		}
 	}
 	r.tracks[t.ID] = t
-	return nil
+	return t.ID, nil
 }
 
 func (r *FakeMusicTrackRepository) GetByID(_ context.Context, id string) (*music.Track, error) {

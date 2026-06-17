@@ -31,7 +31,7 @@ func TestMusicPlayRepo_GenreAffinityForProfile(t *testing.T) {
 	mk := func(id, genre string) {
 		tr := newTestTrack(id, lib.ID, "T"+id, "A", "B")
 		tr.Genre = genre
-		require.NoError(t, trackRepo.Upsert(ctx, tr))
+		{ _, uerr := trackRepo.Upsert(ctx, tr); require.NoError(t, uerr) }
 	}
 	mk("ga-rockA", "Rock")
 	mk("ga-rockB", "Rock") // never played → contributes nothing
@@ -76,7 +76,7 @@ func TestMusicPlayRepo_IncrementAndCounts(t *testing.T) {
 	lib := newTestLibrary("mplib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
 	tr := newTestTrack("mptr1", lib.ID, "Song", "Artist", "Album")
-	require.NoError(t, trackRepo.Upsert(ctx, tr))
+	{ _, uerr := trackRepo.Upsert(ctx, tr); require.NoError(t, uerr) }
 
 	// No plays yet.
 	counts, err := playRepo.PlayCountsForProfile(ctx, string(p.ID))

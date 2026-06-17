@@ -239,10 +239,15 @@ func (s *CommandService) processOneTrack(ctx context.Context, libraryID string, 
 		t.AlbumFolder = filepath.Dir(j.path)
 	}
 
-	if upsertErr := s.tracks.Upsert(ctx, *t); upsertErr != nil {
+	persistedID, upsertErr := s.tracks.Upsert(ctx, *t)
+	if upsertErr != nil {
 		slog.Warn("music scan: upsert failed", slog.String("path", j.path), slog.Any("err", upsertErr))
 		return false
 	}
+	// On a re-scan the ON CONFLICT path keeps the existing row's id, so the
+	// locally-minted t.ID was never persisted. Publish the persisted id so
+	// subscribers reference a row that actually exists.
+	t.ID = persistedID
 	if pubErr := s.bus.Publish(ctx, music.TrackScanned{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("music scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 	}

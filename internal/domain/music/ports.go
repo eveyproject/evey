@@ -9,7 +9,12 @@ import (
 )
 
 type TrackRepository interface {
-	Upsert(ctx context.Context, t Track) error
+	// Upsert inserts or updates the track (ON CONFLICT by file path) and
+	// returns the PERSISTED id. On conflict the existing row keeps its id, so
+	// the returned id may differ from t.ID — callers that publish events must
+	// use the returned id, not the locally-minted one, or they reference a
+	// row that does not exist.
+	Upsert(ctx context.Context, t Track) (string, error)
 	GetByID(ctx context.Context, id string) (*Track, error)
 	Delete(ctx context.Context, id string) error
 	ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]Track, int, error)

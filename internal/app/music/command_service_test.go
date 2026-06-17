@@ -77,7 +77,7 @@ func TestCommandService_FetchMissingAlbumArt_HappyPath(t *testing.T) {
 
 	libID := "lib1"
 	// Seed a track with album/artist but no cover art.
-	_ = repo.Upsert(context.Background(), music.Track{
+	_, _ = repo.Upsert(context.Background(), music.Track{
 		ID:          "t1",
 		LibraryID:   shared.LibraryID(libID),
 		Title:       "T",
@@ -124,7 +124,7 @@ func TestCommandService_FetchMissingAlbumArt_NotExistErrorSkipped(t *testing.T) 
 	cmd.WithAlbumArtFetcher(fetcher, dir)
 
 	libID := "lib1"
-	_ = repo.Upsert(context.Background(), music.Track{
+	_, _ = repo.Upsert(context.Background(), music.Track{
 		ID: "t1", LibraryID: shared.LibraryID(libID),
 		Artist: "A", AlbumArtist: "A", Album: "B", FilePath: "/m/t.mp3",
 	})
@@ -155,11 +155,11 @@ func TestCommandService_FetchMissingAlbumArt_OtherErrorContinues(t *testing.T) {
 	libID := "lib1"
 	// Two DIFFERENT folders so they count as two distinct albums under the
 	// folder-identity grouping. Same folder would merge into one album.
-	_ = repo.Upsert(context.Background(), music.Track{
+	_, _ = repo.Upsert(context.Background(), music.Track{
 		ID: "t1", LibraryID: shared.LibraryID(libID),
 		Artist: "A1", AlbumArtist: "A1", Album: "Alb1", FilePath: "/m/Alb1/1.mp3",
 	})
-	_ = repo.Upsert(context.Background(), music.Track{
+	_, _ = repo.Upsert(context.Background(), music.Track{
 		ID: "t2", LibraryID: shared.LibraryID(libID),
 		Artist: "A2", AlbumArtist: "A2", Album: "Alb2", FilePath: "/m/Alb2/2.mp3",
 	})
@@ -184,11 +184,11 @@ func TestCommandService_FetchMissingAlbumArt_SkipsEmptyArtistOrAlbum(t *testing.
 	cmd.WithAlbumArtFetcher(fetcher, dir)
 
 	libID := "lib1"
-	_ = repo.Upsert(context.Background(), music.Track{
+	_, _ = repo.Upsert(context.Background(), music.Track{
 		ID: "t1", LibraryID: shared.LibraryID(libID),
 		Artist: "", AlbumArtist: "", Album: "", FilePath: "/m/1.mp3",
 	})
-	_ = repo.Upsert(context.Background(), music.Track{
+	_, _ = repo.Upsert(context.Background(), music.Track{
 		ID: "t2", LibraryID: shared.LibraryID(libID),
 		Artist: "A", AlbumArtist: "A", Album: "", FilePath: "/m/2.mp3",
 	})
@@ -210,7 +210,7 @@ func TestCommandService_FetchMissingAlbumArt_CtxCancelledMidLoop(t *testing.T) {
 
 	libID := "lib1"
 	for i := 0; i < 3; i++ {
-		_ = repo.Upsert(context.Background(), music.Track{
+		_, _ = repo.Upsert(context.Background(), music.Track{
 			ID:        music.Track{}.ID + string(rune('a'+i)),
 			LibraryID: shared.LibraryID(libID),
 			Artist:    "A" + string(rune('a'+i)), AlbumArtist: "A" + string(rune('a'+i)),

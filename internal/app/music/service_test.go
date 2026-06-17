@@ -234,7 +234,7 @@ func TestGetAlbums_GroupsByAlbum(t *testing.T) {
 		} else {
 			tracks[i].Album = "Album-B"
 		}
-		if upsertErr := repo.Upsert(ctx, tracks[i]); upsertErr != nil {
+		if _, upsertErr := repo.Upsert(ctx, tracks[i]); upsertErr != nil {
 			t.Fatal(upsertErr)
 		}
 	}
@@ -445,10 +445,10 @@ func TestSearch_ReturnsMatches(t *testing.T) {
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
-	if err := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Title: "Symphony No.9", Artist: "Beethoven", FilePath: "/a/t1.mp3"}); err != nil {
+	if _, err := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Title: "Symphony No.9", Artist: "Beethoven", FilePath: "/a/t1.mp3"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Title: "Piano Sonata", Artist: "Mozart", FilePath: "/a/t2.mp3"}); err != nil {
+	if _, err := repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Title: "Piano Sonata", Artist: "Mozart", FilePath: "/a/t2.mp3"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -474,7 +474,7 @@ func TestSearch_LimitApplied(t *testing.T) {
 			Artist:    "artist",
 			FilePath:  "/a/t" + string(rune('0'+i)) + ".mp3",
 		}
-		if err := repo.Upsert(ctx, tr); err != nil {
+		if _, err := repo.Upsert(ctx, tr); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -501,7 +501,7 @@ func TestListTracks_LimitLarge(t *testing.T) {
 			Title:     "track",
 			FilePath:  "/a/t" + string(rune('0'+i)) + ".mp3",
 		}
-		if err := repo.Upsert(ctx, tr); err != nil {
+		if _, err := repo.Upsert(ctx, tr); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -525,12 +525,12 @@ func TestGetAlbums_MultipleLibraries(t *testing.T) {
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-A", Title: "Track1", Album: "AlbumX", FilePath: "/a/AlbumX/t1.mp3"})
-	_ = repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-A", Title: "Track2", Album: "AlbumX", FilePath: "/a/AlbumX/t2.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-A", Title: "Track1", Album: "AlbumX", FilePath: "/a/AlbumX/t1.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-A", Title: "Track2", Album: "AlbumX", FilePath: "/a/AlbumX/t2.mp3"})
 	// Distinct folders give distinct albums under folder-identity; two tracks
 	// with different album tags sharing a folder would merge (by design).
-	_ = repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-B", Title: "Track3", Album: "AlbumY", FilePath: "/b/AlbumY/t3.mp3"})
-	_ = repo.Upsert(ctx, music.Track{ID: "t4", LibraryID: "lib-B", Title: "Track4", Album: "AlbumZ", FilePath: "/b/AlbumZ/t4.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-B", Title: "Track3", Album: "AlbumY", FilePath: "/b/AlbumY/t3.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t4", LibraryID: "lib-B", Title: "Track4", Album: "AlbumZ", FilePath: "/b/AlbumZ/t4.mp3"})
 
 	albumsA, err := svc.GetAlbums(ctx, "lib-A")
 	if err != nil {
@@ -683,7 +683,7 @@ func TestGetTrack_ReturnsData(t *testing.T) {
 		Artist: "Test Artist", Album: "Test Album", MimeType: "audio/mpeg",
 		FilePath: "/a/trk-1.mp3", FileSize: 1024,
 	}
-	if err := repo.Upsert(ctx, want); err != nil {
+	if _, err := repo.Upsert(ctx, want); err != nil {
 		t.Fatal(err)
 	}
 
@@ -737,7 +737,7 @@ func TestDeleteTrack_EventContainsCorrectFields(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
 
-	_ = repo.Upsert(ctx, music.Track{
+	_, _ = repo.Upsert(ctx, music.Track{
 		ID: "trk-99", LibraryID: "lib-7", Title: "Song",
 		FilePath: "/a/song.mp3",
 	})
@@ -781,7 +781,7 @@ func TestStreamTrack_ReturnsPathAndMime(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
 
-	_ = repo.Upsert(ctx, music.Track{
+	_, _ = repo.Upsert(ctx, music.Track{
 		ID: "trk-s1", LibraryID: "lib-1", Title: "Stream Me",
 		FilePath: "/music/stream.flac", MimeType: "audio/flac",
 	})
@@ -872,9 +872,9 @@ func TestGetArtists_ReturnsData(t *testing.T) {
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, fakes.NewFakeMusicScanner())
 	ctx := context.Background()
 
-	_ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Title: "S1", Artist: "ArtistA", AlbumArtist: "ArtistA", Album: "AlbumX", FilePath: "/a/t1.mp3"})
-	_ = repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Title: "S2", Artist: "ArtistA", AlbumArtist: "ArtistA", Album: "AlbumY", FilePath: "/a/t2.mp3"})
-	_ = repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-1", Title: "S3", Artist: "ArtistB", AlbumArtist: "ArtistB", Album: "AlbumZ", FilePath: "/a/t3.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Title: "S1", Artist: "ArtistA", AlbumArtist: "ArtistA", Album: "AlbumX", FilePath: "/a/t1.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Title: "S2", Artist: "ArtistA", AlbumArtist: "ArtistA", Album: "AlbumY", FilePath: "/a/t2.mp3"})
+	_, _ = repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-1", Title: "S3", Artist: "ArtistB", AlbumArtist: "ArtistB", Album: "AlbumZ", FilePath: "/a/t3.mp3"})
 
 	artists, err := svc.GetArtists(ctx, "lib-1")
 	if err != nil {

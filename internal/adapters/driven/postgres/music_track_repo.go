@@ -25,7 +25,7 @@ func NewMusicTrackRepository(db *sql.DB) *MusicTrackRepository {
 	return &MusicTrackRepository{db: db}
 }
 
-func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error {
+func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) (string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.Upsert")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -41,7 +41,8 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 		t.AlbumFolder = filepath.Dir(t.FilePath)
 	}
 	hasCover := t.CoverArtURL != ""
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
+	var persistedID string
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
 		INSERT INTO music_tracks (
 			id, library_id, title, artist, album, album_artist,
 			year, track_number, disk_number, duration, file_path,
@@ -64,17 +65,20 @@ func (r *MusicTrackRepository) Upsert(ctx context.Context, t music.Track) error 
 				WHEN $21::bool THEN '/api/v1/music/tracks/' || music_tracks.id || '/art'
 				WHEN music_tracks.cover_art_url LIKE '/api/v1/music/album-art/%' THEN music_tracks.cover_art_url
 				ELSE '' END,
-			updated_at=NOW()`,
+			updated_at=NOW()
+		RETURNING id`,
 		t.ID, t.LibraryID, t.Title, t.Artist, t.Album, t.AlbumArtist,
 		t.Year, t.TrackNumber, t.DiskNumber, t.Duration, t.FilePath,
 		t.FileSize, t.FileHash, t.ModTime, t.MimeType, t.Bitrate, t.SampleRate, t.Channels,
 		t.Genre, t.AlbumFolder, hasCover,
-	)
+	).Scan(&persistedID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		return "", err
 	}
-	return err
+	span.SetAttributes(attribute.String("music_track.persisted_id", persistedID))
+	return persistedID, nil
 }
 
 func (r *MusicTrackRepository) GetByID(ctx context.Context, id string) (*music.Track, error) {
