@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Select } from "@/components/ui/Select";
 import { supportedLanguages } from "@/i18n";
@@ -39,6 +39,14 @@ export function LanguageSettings() {
     profilesResp?.profiles?.find((p) => p.isDefault) ??
     profilesResp?.profiles?.[0];
   const updateProfile = useUserServiceUpdateProfile();
+
+  // Mirror the server-truth preferences in a ref so two quick edits (e.g. audio
+  // then subtitle) merge onto each other instead of both spreading the same
+  // stale render snapshot — otherwise the second write would drop the first.
+  const prefsRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    prefsRef.current = { ...(activeProfile?.preferences ?? {}) };
+  }, [activeProfile?.preferences]);
 
   const uiLangOptions = supportedLanguages.map((l) => ({
     value: l.code,
@@ -87,8 +95,10 @@ export function LanguageSettings() {
 
   const handleAudioLangChange = async (code: string) => {
     if (!activeProfile?.id) return;
-    // Merge into the existing preferences map without overwriting other keys.
-    const next = { ...(activeProfile.preferences ?? {}), audio_languages: code };
+    // Merge onto the latest known prefs (ref), not the render snapshot, so a
+    // rapid following subtitle change can't overwrite this one.
+    const next = { ...prefsRef.current, audio_languages: code };
+    prefsRef.current = next;
     try {
       await updateProfile.mutateAsync({ id: activeProfile.id, data: { preferences: next } });
       if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
@@ -97,8 +107,10 @@ export function LanguageSettings() {
 
   const handleSubtitleLangChange = async (code: string) => {
     if (!activeProfile?.id) return;
-    // Merge into the existing preferences map without overwriting other keys.
-    const next = { ...(activeProfile.preferences ?? {}), subtitle_languages: code };
+    // Merge onto the latest known prefs (ref), not the render snapshot, so a
+    // rapid following audio change can't overwrite this one.
+    const next = { ...prefsRef.current, subtitle_languages: code };
+    prefsRef.current = next;
     try {
       await updateProfile.mutateAsync({ id: activeProfile.id, data: { preferences: next } });
       if (user?.id) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(user.id) });
