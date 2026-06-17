@@ -173,7 +173,7 @@ func TestStreamTrack_TrackNotFound_404(t *testing.T) {
 
 func TestStreamTrack_AccessDenied_403(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	if err := repo.Upsert(context.Background(), domainmusic.Track{
+	if _, err := repo.Upsert(context.Background(), domainmusic.Track{
 		ID:        "t1",
 		LibraryID: shared.LibraryID("lib-A"),
 		Title:     "Foo",
@@ -197,7 +197,7 @@ func TestStreamTrack_Success(t *testing.T) {
 	path := writeTempFile(t, dir, "song.mp3", body)
 
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	if err := repo.Upsert(context.Background(), domainmusic.Track{
+	if _, err := repo.Upsert(context.Background(), domainmusic.Track{
 		ID:        "t1",
 		LibraryID: shared.LibraryID("lib-A"),
 		Title:     "Foo",
@@ -224,7 +224,7 @@ func TestStreamTrack_Success(t *testing.T) {
 
 func TestStreamTrack_FileMissingOnDisk_404(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	if err := repo.Upsert(context.Background(), domainmusic.Track{
+	if _, err := repo.Upsert(context.Background(), domainmusic.Track{
 		ID:        "t1",
 		LibraryID: shared.LibraryID("lib-A"),
 		FilePath:  filepath.Join(t.TempDir(), "does-not-exist.mp3"),
@@ -428,7 +428,7 @@ func TestDownloadTrack_PathOutsideRoots_404(t *testing.T) {
 	trackPath := writeTempFile(t, dir, "song.mp3", []byte("audiodata"))
 
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	if err := repo.Upsert(context.Background(), domainmusic.Track{
+	if _, err := repo.Upsert(context.Background(), domainmusic.Track{
 		ID:        "t1",
 		LibraryID: shared.LibraryID("lib-A"),
 		Title:     "Song",
@@ -458,7 +458,7 @@ func TestDownloadTrack_PathInsideRoots_Serves(t *testing.T) {
 	trackPath := writeTempFile(t, dir, "song.mp3", []byte("audiodata"))
 
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	if err := repo.Upsert(context.Background(), domainmusic.Track{
+	if _, err := repo.Upsert(context.Background(), domainmusic.Track{
 		ID:        "t1",
 		LibraryID: shared.LibraryID("lib-A"),
 		Title:     "Song",
@@ -487,7 +487,7 @@ func TestDownloadTrack_NilLister_FailOpen(t *testing.T) {
 	trackPath := writeTempFile(t, dir, "song.mp3", []byte("audiodata"))
 
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	if err := repo.Upsert(context.Background(), domainmusic.Track{
+	if _, err := repo.Upsert(context.Background(), domainmusic.Track{
 		ID:        "t1",
 		LibraryID: shared.LibraryID("lib-A"),
 		Title:     "Song",
@@ -508,7 +508,7 @@ func TestDownloadTrack_NilLister_FailOpen(t *testing.T) {
 
 func TestGetTrackArt_AccessDenied_403(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	if err := repo.Upsert(context.Background(), domainmusic.Track{
+	if _, err := repo.Upsert(context.Background(), domainmusic.Track{
 		ID:        "t1",
 		LibraryID: shared.LibraryID("lib-A"),
 		FilePath:  "/tmp/whatever.mp3",

@@ -41,7 +41,7 @@ func TestDownloadTrack_TrackNotFound_404(t *testing.T) {
 // downloadTrack: access denied → 403.
 func TestDownloadTrack_AccessDenied_403(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	_ = repo.Upsert(context.Background(), domainmusic.Track{
+	_, _ = repo.Upsert(context.Background(), domainmusic.Track{
 		ID: "t1", LibraryID: "lib-A", Title: "T", FilePath: "/tmp/x.mp3",
 	})
 	mux, token, _ := newMusicMux(t, false, denyAll(), repo, nil)
@@ -57,7 +57,7 @@ func TestDownloadTrack_AccessDenied_403(t *testing.T) {
 // downloadTrack: file missing from disk → 404.
 func TestDownloadTrack_FileMissing_404(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	_ = repo.Upsert(context.Background(), domainmusic.Track{
+	_, _ = repo.Upsert(context.Background(), domainmusic.Track{
 		ID: "t1", LibraryID: "lib-A", Title: "T", FilePath: "/tmp/nonexistent-track.mp3",
 	})
 	mux, token, _ := newMusicMux(t, false, allowAll(), repo, nil)
@@ -75,7 +75,7 @@ func TestDownloadTrack_Success_SetsAttachmentHeader(t *testing.T) {
 	dir := t.TempDir()
 	p := writeTempFile(t, dir, "track.mp3", []byte("fake audio bytes"))
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	_ = repo.Upsert(context.Background(), domainmusic.Track{
+	_, _ = repo.Upsert(context.Background(), domainmusic.Track{
 		ID: "t1", LibraryID: shared.LibraryID("lib-A"), Title: "My Song", FilePath: p,
 	})
 	mux, token, _ := newMusicMux(t, false, allowAll(), repo, nil)
@@ -137,10 +137,10 @@ func TestDownloadAlbum_Success_ZipResponse(t *testing.T) {
 	p1 := writeTempFile(t, dir, "1.mp3", []byte("aaa"))
 	p2 := writeTempFile(t, dir, "2.mp3", []byte("bbb"))
 	repo := musicfakes.NewFakeMusicTrackRepository()
-	_ = repo.Upsert(context.Background(), domainmusic.Track{
+	_, _ = repo.Upsert(context.Background(), domainmusic.Track{
 		ID: "t1", LibraryID: "lib-A", Album: "MyAlbum", Title: "One", TrackNumber: 1, FilePath: p1,
 	})
-	_ = repo.Upsert(context.Background(), domainmusic.Track{
+	_, _ = repo.Upsert(context.Background(), domainmusic.Track{
 		ID: "t2", LibraryID: "lib-A", Album: "MyAlbum", Title: "Two", TrackNumber: 2, FilePath: p2,
 	})
 	mux, token, _ := newMusicMux(t, false, allowAll(), repo, nil)

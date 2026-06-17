@@ -67,7 +67,7 @@ func newRecordPlayMux(t *testing.T, checker LibraryAccessChecker, repo *musicfak
 // seedTrack inserts a track into the fake repo and returns its ID.
 func seedTrack(t *testing.T, repo *musicfakes.FakeMusicTrackRepository, id, libID string) {
 	t.Helper()
-	err := repo.Upsert(context.Background(), domainmusic.Track{
+	_, err := repo.Upsert(context.Background(), domainmusic.Track{
 		ID:        id,
 		LibraryID: shared.LibraryID(libID),
 		Title:     "Test Track",
