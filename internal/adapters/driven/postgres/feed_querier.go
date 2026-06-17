@@ -324,6 +324,8 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 	scoreExpr := strings.Join(scoreParts, " + ")
 	args = append(args, limit)
 	limitIdx := len(args)
+	args = append(args, pq.Array(genres))
+	genresArrIdx := len(args)
 
 	// Filter out items the profile has fully watched. For series, "completed"
 	// means every episode has wp.completed=TRUE; for movies it's the item's
@@ -358,11 +360,16 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 				ELSE FALSE END AS completed
 		) w ON TRUE
 		WHERE mi.type IN ('movie', 'series')
+		  -- GIN pre-filter (idx_media_catalog_genres_gin): prune to genre-
+		  -- overlapping candidates by index before the per-row scoring, instead
+		  -- of seq-scanning every movie/series. Equivalent to (scoreExpr) >= 1
+		  -- below — both mean "shares at least one of the profile's genres".
+		  AND mc.genres ?| $%d::text[]
 		  AND (%s) >= 1
 		  AND w.completed = FALSE
 		ORDER BY score DESC, mcl.community_rating DESC NULLS LAST
 		LIMIT $%d
-	`, scoreExpr, scoreExpr, limitIdx)
+	`, scoreExpr, genresArrIdx, scoreExpr, limitIdx)
 
 	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, q2, args...)
 	if err != nil {
@@ -384,32 +391,40 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 	limit = clampFeedLimit(limit)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// Fetch the target's genres first (PK lookup) so the candidate query can
+	// prune via the GIN index (mc.genres ?| $genres) instead of running a per-row
+	// LATERAL genre expansion over every movie/series.
+	var targetGenres []string
+	if err := txFromCtx(ctx, q.db).QueryRowContext(ctx, `
+		SELECT COALESCE(array_agg(g.value), '{}')
+		FROM media_catalog mc, jsonb_array_elements_text(
+			CASE WHEN jsonb_typeof(mc.genres) = 'array' THEN mc.genres ELSE '[]'::jsonb END) AS g(value)
+		WHERE mc.media_item_id = $1
+	`, mediaItemID).Scan(pq.Array(&targetGenres)); err != nil {
+		return nil, err
+	}
+	if len(targetGenres) == 0 {
+		return nil, nil // nothing to be similar on
+	}
+
 	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx, `
-		WITH target AS (
-			SELECT CASE WHEN jsonb_typeof(genres) = 'array' THEN genres ELSE '[]'::jsonb END AS genres
-			FROM media_catalog WHERE media_item_id = $1
-		),
-		target_genres AS (
-			SELECT g.value AS genre FROM target, jsonb_array_elements_text(target.genres) AS g(value)
-		)
 		SELECT mi.id, COALESCE(mi.parent_id,''), mi.title, mi.type, 0, '',
-		       gs.score
+		       (SELECT COUNT(*) FROM jsonb_array_elements_text(
+		           CASE WHEN jsonb_typeof(mc.genres) = 'array' THEN mc.genres ELSE '[]'::jsonb END) AS g(value)
+		        WHERE g.value = ANY($3::text[]))::int AS score
 		FROM media_items mi
 		LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
 		LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id
-		INNER JOIN LATERAL (
-			SELECT COUNT(*)::int AS score
-			FROM jsonb_array_elements_text(
-				CASE WHEN jsonb_typeof(mc.genres) = 'array' THEN mc.genres ELSE '[]'::jsonb END
-			) AS g(value)
-			WHERE g.value IN (SELECT genre FROM target_genres)
-		) gs ON gs.score >= 1
 		WHERE mi.id != $1
 		  AND mi.type IN ('movie', 'series')
+		  -- GIN pre-filter (idx_media_catalog_genres_gin): only candidates that
+		  -- share ≥1 target genre, by index. Replaces the INNER JOIN LATERAL
+		  -- score>=1 that forced a per-row genre scan over the whole catalogue.
+		  AND mc.genres ?| $3::text[]
 		  AND NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $2 AND wp2.completed = TRUE)
-		ORDER BY gs.score DESC, mcl.community_rating DESC NULLS LAST
-		LIMIT $3
-	`, mediaItemID, profileID, limit)
+		ORDER BY score DESC, mcl.community_rating DESC NULLS LAST
+		LIMIT $4
+	`, mediaItemID, profileID, pq.Array(targetGenres), limit)
 	if err != nil {
 		return nil, err
 	}
