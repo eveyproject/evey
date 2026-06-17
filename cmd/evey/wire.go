@@ -139,6 +139,14 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	prober := ffmpeg.NewProber("ffprobe")
 	transcoder := ffmpeg.NewTranscoder("ffmpeg", cfg.Transcoding.CacheDir)
 	hwDetector := ffmpeg.NewHWDetector("ffmpeg")
+	// Boot safety net: warn (once, detached, non-blocking) if this ffmpeg build
+	// ships no AV1 decoder, so AV1 source files don't fail playback with a
+	// cryptic error on a host whose ffmpeg lacks dav1d.
+	go func() {
+		probeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		ffmpeg.WarnIfNoAV1Decoder(probeCtx, "ffmpeg", slog.Default())
+	}()
 	trickplayGen := ffmpeg.NewTrickplayGenerator("ffmpeg", "ffprobe")
 	introDetector := ffmpeg.NewIntroDetector("ffmpeg", "ffprobe")
 	imageConverter := ffmpeg.NewImageConverter("ffmpeg")
