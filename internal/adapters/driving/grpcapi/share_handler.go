@@ -131,7 +131,14 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 	}
 
 	if err := h.svc.Revoke(ctx, req.Id); err != nil {
-		return nil, status.Error(codes.NotFound, "share link not found")
+		// The link exists and the caller is authorised. A genuine not-found here
+		// (already revoked) is fine, but any other failure means the revoke did
+		// NOT take effect — the link is still live. Reporting NotFound would
+		// falsely tell the admin a leaked link is gone; surface the real failure.
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, status.Error(codes.NotFound, "share link not found")
+		}
+		return nil, internalError("revoke share link", err)
 	}
 	return &eveyv1.RevokeShareLinkResponse{}, nil
 }

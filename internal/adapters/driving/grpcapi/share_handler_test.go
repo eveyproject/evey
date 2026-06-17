@@ -276,6 +276,25 @@ func TestShareHandler_RevokeShareLink_NotFound(t *testing.T) {
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
+// A revoke that fails AFTER the existence + ownership checks must surface as
+// Internal, not NotFound: the link still exists and is live, so telling the
+// admin "not found" would falsely imply a leaked link is gone.
+func TestShareHandler_RevokeShareLink_DeleteFailsIsInternal(t *testing.T) {
+	t.Parallel()
+	env := newShareTestEnv()
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+
+	env.shareRepo.Seed(&shared.ShareLink{
+		ID: "link-1", Token: "tok-1", MediaItemID: "media-1",
+		CreatedBy: "user-1", ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+	env.shareRepo.DeleteErr = assert.AnError
+
+	_, err := env.handler.RevokeShareLink(ctx, &eveyv1.RevokeShareLinkRequest{Id: "link-1"})
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
 func TestShareHandler_RevokeShareLink_OwnershipCheck(t *testing.T) {
 	t.Parallel()
 	env := newShareTestEnv()

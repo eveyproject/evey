@@ -11,6 +11,9 @@ type FakeShareLinkRepo struct {
 	mu    sync.RWMutex
 	links []*shared.ShareLink
 	Err   error
+	// DeleteErr fails only Delete, leaving lookups working — used to exercise a
+	// revoke that fails after the existence/ownership checks have passed.
+	DeleteErr error
 }
 
 func NewFakeShareLinkRepo() *FakeShareLinkRepo {
@@ -97,6 +100,9 @@ func (r *FakeShareLinkRepo) IncrementViewCount(_ context.Context, token string) 
 func (r *FakeShareLinkRepo) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err
+	}
+	if r.DeleteErr != nil {
+		return r.DeleteErr
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
