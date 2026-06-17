@@ -292,13 +292,18 @@ func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string
 	return items, nil
 }
 
-// GetItemsByCollectionIDs fetches items for every supplied collection in a
-// single query and groups the results by collection ID, eliminating the
-// per-collection N+1 that ListCollections previously triggered.
+// GetItemsByCollectionIDs returns, per supplied collection, a VISIBILITY
+// PROJECTION of its items — only what ListCollections needs to decide whether a
+// collection is visible to the caller: id, library_id and the parental-rating
+// fields (tags, official_rating, certifications_by_country). It deliberately
+// does NOT hydrate file metadata, trailers, genres, overview, etc.: the full
+// hydration ran a per-row trailers subquery plus several JSONB parses just to
+// test visibility. Grouped by collection ID in one query — no per-collection
+// N+1. This is the only caller; do NOT use it where a fully populated MediaItem
+// is expected.
 //
-// No per-collection LIMIT is applied: TMDB franchise collections hold
-// O(10–50) items in practice. A ROW_NUMBER() OVER (PARTITION BY …) cap would
-// add query complexity with no measurable benefit on realistic data.
+// No per-collection LIMIT is applied: TMDB franchise collections hold O(10–50)
+// items in practice.
 func (r *CollectionRepository) GetItemsByCollectionIDs(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.collection.GetItemsByCollectionIDs")
 	defer span.End()
@@ -311,11 +316,16 @@ func (r *CollectionRepository) GetItemsByCollectionIDs(ctx context.Context, coll
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	query := fmt.Sprintf(
-		"SELECT ci.collection_id, %s %s INNER JOIN collection_items ci ON ci.media_item_id = mi.id WHERE ci.collection_id = ANY($1) ORDER BY ci.collection_id, mc.premiere_date ASC NULLS LAST",
-		mediaItemColumns, mediaItemFromJoins)
-
-	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, pq.Array(collectionIDs))
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT ci.collection_id, mi.id, mi.library_id, mc.tags,
+		        mcl.official_rating, mcl.certifications_by_country
+		   FROM media_items mi
+		   INNER JOIN collection_items ci ON ci.media_item_id = mi.id
+		   LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
+		   LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id
+		  WHERE ci.collection_id = ANY($1)
+		  ORDER BY ci.collection_id, mc.premiere_date ASC NULLS LAST`,
+		pq.Array(collectionIDs))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -326,53 +336,26 @@ func (r *CollectionRepository) GetItemsByCollectionIDs(ctx context.Context, coll
 	result := make(map[string][]*library.MediaItem, len(collectionIDs))
 	for rows.Next() {
 		var (
-			collectionID                                    string
-			parentID, scanTitle                             *string
-			filePath, fingerprint, containerFormat          *string
-			fileSize, durationMs, bitrate                   *int64
-			modTimeRaw                                      sql.NullTime
-			premiereDate                                    sql.NullTime
-			year                                            sql.NullInt64
-			providerJSON, genresJSON, studiosJSON, tagsJSON []byte
-			communityRating                                 sql.NullFloat64
-			officialRating                                  sql.NullString
-			certJSON, providerRatingsJSON, trailersJSON     []byte
+			collectionID       string
+			tagsJSON, certJSON []byte
+			officialRating     sql.NullString
 		)
 		item := &library.MediaItem{}
-		if err := rows.Scan(
-			&collectionID,
-			&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle,
-			&item.SortTitle, &item.OriginalTitle, &item.Overview, &item.Tagline, &item.IndexNumber,
-			&item.AddedAt, &item.UpdatedAt,
-			&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat,
-			&premiereDate, &year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
-			&communityRating, &officialRating, &certJSON, &providerRatingsJSON,
-			&trailersJSON,
-		); err != nil {
+		if err := rows.Scan(&collectionID, &item.ID, &item.LibraryID, &tagsJSON,
+			&officialRating, &certJSON); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
-		if parentID != nil {
-			item.ParentID = *parentID
-		}
-		if scanTitle != nil {
-			item.ScanTitle = *scanTitle
-		}
-		item.File = buildMediaFile(filePath, fileSize, fingerprint, modTimeRaw, durationMs, bitrate, containerFormat)
-		cat, catErr := buildMediaCatalog(premiereDate, year, providerJSON, genresJSON, studiosJSON, tagsJSON)
+		// Partial item: only the fields the visibility filters read.
+		cat, catErr := buildMediaCatalog(sql.NullTime{}, sql.NullInt64{}, nil, nil, nil, tagsJSON)
 		if catErr != nil {
 			span.RecordError(catErr)
 			span.SetStatus(codes.Error, catErr.Error())
 			return nil, catErr
 		}
 		item.Catalog = cat
-		item.Classification = buildMediaClassification(communityRating, officialRating, certJSON, providerRatingsJSON)
-		if len(trailersJSON) > 0 {
-			if err := json.Unmarshal(trailersJSON, &item.Trailers); err != nil {
-				slog.Warn("json unmarshal", slog.String("field", "trailers"), slog.Any("err", err))
-			}
-		}
+		item.Classification = buildMediaClassification(sql.NullFloat64{}, officialRating, certJSON, nil)
 		result[collectionID] = append(result[collectionID], item)
 	}
 	if err := rows.Err(); err != nil {
