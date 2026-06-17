@@ -262,6 +262,28 @@ func TestScanSchedule_Fields(t *testing.T) {
 	}
 }
 
+func TestNewCollection(t *testing.T) {
+	t.Parallel()
+
+	c, err := library.NewCollection("col-1", "Marvel", nil, "added_at")
+	if err != nil {
+		t.Fatalf("valid collection: %v", err)
+	}
+	if c.ID != "col-1" || c.Name != "Marvel" || c.SortBy != "added_at" {
+		t.Errorf("fields not set: %+v", c)
+	}
+	if c.CreatedAt.IsZero() || c.UpdatedAt.IsZero() {
+		t.Error("timestamps must be stamped")
+	}
+
+	if _, err := library.NewCollection("", "Marvel", nil, ""); err == nil {
+		t.Error("empty ID must be rejected")
+	}
+	if _, err := library.NewCollection("col-1", "", nil, ""); err == nil {
+		t.Error("empty name must be rejected")
+	}
+}
+
 func TestNewScanSchedule(t *testing.T) {
 	t.Parallel()
 

@@ -25,14 +25,9 @@ func NewCommandService(cmd library.CollectionCommandRepo, query library.Collecti
 func (s *CommandService) Create(ctx context.Context, name string, rules []library.CollectionRule, sortBy string) (*library.Collection, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.collection.Create")
 	defer span.End()
-	now := time.Now()
-	col := &library.Collection{
-		ID:        uuid.New().String(),
-		Name:      name,
-		Rules:     rules,
-		SortBy:    sortBy,
-		CreatedAt: now,
-		UpdatedAt: now,
+	col, err := library.NewCollection(uuid.New().String(), name, rules, sortBy)
+	if err != nil {
+		return nil, err
 	}
 	if err := s.cmd.Create(ctx, col); err != nil {
 		return nil, err
@@ -86,14 +81,9 @@ func (s *CommandService) CreateSmart(ctx context.Context, name string, rules []l
 	if sortBy == "" {
 		sortBy = "added_at"
 	}
-	now := time.Now()
-	col := &library.Collection{
-		ID:        uuid.New().String(),
-		Name:      name,
-		Rules:     rules,
-		SortBy:    sortBy,
-		CreatedAt: now,
-		UpdatedAt: now,
+	col, err := library.NewCollection(uuid.New().String(), name, rules, sortBy)
+	if err != nil {
+		return nil, err
 	}
 	if err := s.cmd.Create(ctx, col); err != nil {
 		return nil, err

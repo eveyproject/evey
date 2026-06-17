@@ -448,6 +448,37 @@ type Collection struct {
 	UpdatedAt   time.Time
 }
 
+// Validate enforces the Collection invariants: an id and a name are required.
+func (c *Collection) Validate() error {
+	if c.ID == "" {
+		return errors.New("collection ID is required")
+	}
+	if c.Name == "" {
+		return errors.New("collection name is required")
+	}
+	return nil
+}
+
+// NewCollection is the canonical constructor for a user-created collection
+// (manual or smart). It stamps timestamps and enforces Validate so a nameless
+// collection can't be built from a bare literal. The TMDB-sourced upsert path
+// keeps its own shape (TmdbID/artwork) and is not routed through this.
+func NewCollection(id, name string, rules []CollectionRule, sortBy string) (*Collection, error) {
+	now := time.Now()
+	c := &Collection{
+		ID:        id,
+		Name:      name,
+		Rules:     rules,
+		SortBy:    sortBy,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
 type MediaItemTranslation struct {
 	MediaItemID shared.MediaItemID
 	Locale      string
