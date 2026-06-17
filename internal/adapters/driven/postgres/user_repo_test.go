@@ -254,3 +254,50 @@ func TestUserRepo_TokenEpoch_GetAndBump(t *testing.T) {
 	require.ErrorIs(t, err, shared.ErrNotFound)
 	require.ErrorIs(t, repo.BumpTokenEpoch(ctx, "missing-user"), shared.ErrNotFound)
 }
+
+// Migration 000113 must dedup pre-existing duplicate OIDC identities before
+// creating the partial unique index, otherwise an instance that already hit the
+// race the index guards against fails the migration (23505) and the deploy
+// sticks. This reproduces the pre-migration duplicate state and exercises the
+// migration's DELETE step + the resulting index creation.
+func TestMigration113_DedupesDuplicateOIDCIdentities(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	userRepo := postgres.NewUserRepository(db)
+
+	// Drop the index so we can recreate the duplicate state the migration heals.
+	_, err := db.ExecContext(ctx, `DROP INDEX IF EXISTS idx_users_oidc_identity`)
+	require.NoError(t, err)
+
+	older := newTestUser("oidc-old")
+	newer := newTestUser("oidc-new")
+	require.NoError(t, userRepo.Create(ctx, older))
+	require.NoError(t, userRepo.Create(ctx, newer))
+	// Same federated identity, older created earlier.
+	_, err = db.ExecContext(ctx,
+		`UPDATE users SET oidc_issuer='iss', oidc_subject='sub', created_at='2020-01-01' WHERE id=$1`, string(older.ID))
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx,
+		`UPDATE users SET oidc_issuer='iss', oidc_subject='sub', created_at='2020-06-01' WHERE id=$1`, string(newer.ID))
+	require.NoError(t, err)
+
+	// The migration's dedup step (keep the oldest).
+	_, err = db.ExecContext(ctx, `
+		DELETE FROM users a USING users b
+		 WHERE a.oidc_subject IS NOT NULL
+		   AND a.oidc_issuer = b.oidc_issuer
+		   AND a.oidc_subject = b.oidc_subject
+		   AND (a.created_at > b.created_at OR (a.created_at = b.created_at AND a.id > b.id))`)
+	require.NoError(t, err)
+
+	_, err = userRepo.GetByID(ctx, older.ID)
+	require.NoError(t, err, "oldest user must be kept")
+	_, err = userRepo.GetByID(ctx, newer.ID)
+	require.Error(t, err, "newer duplicate must be removed")
+
+	// The unique index is now creatable (no remaining duplicates).
+	_, err = db.ExecContext(ctx,
+		`CREATE UNIQUE INDEX idx_users_oidc_identity ON users (oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`)
+	require.NoError(t, err, "index must be creatable after dedup")
+}
