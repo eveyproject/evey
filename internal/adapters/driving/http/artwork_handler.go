@@ -175,7 +175,12 @@ func (h *mediaServe) findArtworkRecords(ctx context.Context, mediaID, artType, p
 	}
 	lookupID := mediaID
 	nextParentID := parentID
-	for {
+	// Bound the parent walk: the real media hierarchy is at most
+	// episode -> season -> series, so a small cap is generous. The guard stops
+	// a self-referential or cyclic parent_id (poisoned/buggy row) from spinning
+	// this loop forever.
+	const maxParentDepth = 8
+	for range maxParentDepth {
 		records, err := h.artworkRepo.GetByMediaItem(ctx, lookupID)
 		if err != nil {
 			return nil
@@ -193,6 +198,7 @@ func (h *mediaServe) findArtworkRecords(ctx context.Context, mediaID, artType, p
 		}
 		nextParentID = parent.ParentID
 	}
+	return nil
 }
 
 func (h *mediaServe) resolveWebP(ctx context.Context, rec *domainmeta.ArtworkRecord) string {

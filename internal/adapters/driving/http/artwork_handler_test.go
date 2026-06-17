@@ -206,6 +206,32 @@ func TestArtwork_IDOR_403(t *testing.T) {
 	}
 }
 
+// A self-referential parent_id (poisoned/buggy row) must not spin the parent
+// walk forever: the depth guard bounds it and the handler returns 404 instead
+// of hanging. The test completing at all is the assertion.
+func TestArtwork_ParentCycle_Terminates(t *testing.T) {
+	h := mediaHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		// ParentID points back at the item itself; GetMediaItem always returns
+		// it, so an unbounded walk would loop forever.
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1", ParentID: "m1"}},
+		&fakeArtworkRepo{}, // no records → walk never short-circuits on a hit
+		"http://localhost",
+		allowAll(),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("artType", "poster")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404 after bounded parent walk, got %d", w.Code)
+	}
+}
+
 // --- resize variant tests ---
 
 func TestArtwork_Width_400_ServeResized(t *testing.T) {
