@@ -28,6 +28,7 @@ func (f *genFakePlays) PlayCountsForProfile(_ context.Context, _ string) (map[st
 type genFakePlaylists struct {
 	created []*playlist.Playlist
 	byUser  []*playlist.Playlist
+	deleted []string
 }
 
 func (f *genFakePlaylists) Create(_ context.Context, pl *playlist.Playlist) error {
@@ -39,12 +40,21 @@ func (f *genFakePlaylists) List(_ context.Context, _ string) ([]*playlist.Playli
 	return f.byUser, nil
 }
 
+func (f *genFakePlaylists) Delete(_ context.Context, id string) error {
+	f.deleted = append(f.deleted, id)
+	return nil
+}
+
 type genFakeItems struct {
 	added   []*playlist.PlaylistItem
 	byPlist map[string][]*playlist.PlaylistItem
+	addErr  error
 }
 
 func (f *genFakeItems) Add(_ context.Context, it *playlist.PlaylistItem) error {
+	if f.addErr != nil {
+		return f.addErr
+	}
 	f.added = append(f.added, it)
 	return nil
 }
@@ -67,6 +77,29 @@ func addedIDs(items *genFakeItems) map[string]bool {
 		set[string(it.MediaItemID)] = true
 	}
 	return set
+}
+
+// A failure adding an item must roll back the just-created playlist and return
+// the error, rather than leaving an empty/short playlist and reporting success.
+func TestGenerate_AddItemFailure_RollsBack(t *testing.T) {
+	tracks := &genFakeTracks{tracks: []music.Track{track("a", "rock"), track("b", "jazz")}}
+	pls := &genFakePlaylists{}
+	items := &genFakeItems{addErr: errors.New("db down")}
+	g := newGen(tracks, &genFakePlays{}, pls, items)
+
+	pl, err := g.Generate(context.Background(), "p1", "lib1", 2, "Mix")
+	if err == nil {
+		t.Fatal("expected error when item Add fails")
+	}
+	if pl != nil {
+		t.Fatalf("expected nil playlist on failure, got %v", pl)
+	}
+	if len(pls.created) != 1 {
+		t.Fatalf("expected the playlist to have been created once, got %d", len(pls.created))
+	}
+	if len(pls.deleted) != 1 || pls.deleted[0] != pls.created[0].ID {
+		t.Fatalf("expected the created playlist to be rolled back (deleted), got deleted=%v", pls.deleted)
+	}
 }
 
 // With no listening history and size >= pool, every track is a candidate

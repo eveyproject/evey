@@ -42,10 +42,12 @@ type GenPlayCountGetter interface {
 }
 
 // GenPlaylistStore is the narrow slice of the playlist repo the generator needs:
-// create the new playlist, and list the profile's playlists for de-duplication.
+// create the new playlist, list the profile's playlists for de-duplication, and
+// delete it again to roll back a generation that fails partway through.
 type GenPlaylistStore interface {
 	Create(ctx context.Context, pl *playlist.Playlist) error
 	List(ctx context.Context, profileID string) ([]*playlist.Playlist, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // GenItemStore is the narrow slice of the playlist-item repo the generator needs.
@@ -138,7 +140,14 @@ func (g *GeneratorService) Generate(ctx context.Context, profileID string, libra
 			MediaType:   playlist.MediaTypeMusic,
 		}
 		if err := g.items.Add(ctx, item); err != nil {
-			slog.Warn("generate playlist: add item", slog.String("playlist_id", pl.ID), slog.String("track_id", c.track.ID), slog.Any("err", err))
+			// Don't leave a half-populated playlist behind and report success.
+			// There's no unit-of-work here, so compensate by deleting the
+			// just-created playlist (its items cascade) and surfacing the error.
+			if delErr := g.playlists.Delete(ctx, pl.ID); delErr != nil {
+				slog.Error("generate playlist: rollback after add failure",
+					slog.String("playlist_id", pl.ID), slog.Any("err", delErr))
+			}
+			return nil, fmt.Errorf("add playlist item: %w", err)
 		}
 	}
 	return pl, nil
