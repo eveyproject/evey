@@ -322,6 +322,33 @@ func TestFeedHandler_RecentlyAdded_LibraryAccessFilter(t *testing.T) {
 	assert.Equal(t, "mi-visible", resp.Items[0].MediaItemId)
 }
 
+// TestFeedHandler_ContinueWatching_LibraryAccessFilter verifies that a
+// profile's own continue-watching history is filtered by current library
+// access: an item from a library the user is no longer granted must not
+// resurface (ContinueWatching shares the access+parental filter now).
+func TestFeedHandler_ContinueWatching_LibraryAccessFilter(t *testing.T) {
+	res := newFeedHandlerWithAccess()
+
+	res.libraryAccess.Grant(context.Background(), "user-3", "lib-allowed")
+	res.mediaQueryRepo.Seed(&library.MediaItem{
+		ID: "mi-visible", LibraryID: "lib-allowed", Title: "Visible", Type: "movie",
+	})
+	res.mediaQueryRepo.Seed(&library.MediaItem{
+		ID: "mi-hidden", LibraryID: "lib-hidden", Title: "Hidden", Type: "movie",
+	})
+	res.querier.ContinueWatchingItems = []*feed.FeedItem{
+		{MediaItemID: "mi-visible", Title: "Visible", Type: "movie", PositionMs: 5000},
+		{MediaItemID: "mi-hidden", Title: "Hidden", Type: "movie", PositionMs: 5000},
+	}
+
+	ctx := ctxWithClaims("user-3", "profile-3", false)
+	resp, err := res.handler.ContinueWatching(ctx, &eveyv1.ContinueWatchingRequest{Limit: 10})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Items, 1, "only items from a granted library may resurface")
+	assert.Equal(t, "mi-visible", resp.Items[0].MediaItemId)
+}
+
 // TestFeedHandler_RecentlyAdded_LibraryAccessFilter_AdminBypass verifies
 // the positive/admin path: admins receive all items regardless of library
 // grants (filterByLibraryAccess short-circuits for IsAdmin). This ensures the

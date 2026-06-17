@@ -110,41 +110,6 @@ func (h *feedHandler) filterAccessibleAndAllowed(ctx context.Context, items []*f
 	return filtered, nil
 }
 
-// filterByParental drops feed items whose underlying media item is blocked
-// by the active profile's parental filter. Returns items unchanged when no
-// filter applies (admin, missing profile, non-kids profile, no userQuery
-// dependency wired in).
-func (h *feedHandler) filterByParental(ctx context.Context, items []*feed.FeedItem) ([]*feed.FeedItem, error) {
-	if len(items) == 0 || h.libQuery == nil {
-		return items, nil
-	}
-	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
-	if pf.maxAge < 0 && len(pf.blockedTags) == 0 {
-		return items, nil
-	}
-	ids := make([]string, 0, len(items))
-	for _, item := range items {
-		ids = append(ids, string(item.MediaItemID))
-	}
-	mediaItems, err := h.libQuery.GetMediaItemsByIDs(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	itemByID := make(map[string]*library.MediaItem, len(mediaItems))
-	for _, mi := range mediaItems {
-		itemByID[string(mi.ID)] = mi
-	}
-	filtered := items[:0]
-	for _, item := range items {
-		mi := itemByID[string(item.MediaItemID)]
-		if mediaItemBlockedByParental(pf, mi) {
-			continue
-		}
-		filtered = append(filtered, item)
-	}
-	return filtered, nil
-}
-
 func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConfigRequest) (*eveyv1.GetFeedConfigResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.feed.GetFeedConfig")
 	defer span.End()
@@ -182,9 +147,12 @@ func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.Continue
 	if err != nil {
 		return nil, internalError("continue watching", err)
 	}
-	items, err = h.filterByParental(ctx, items)
+	// Apply BOTH library-access and parental filtering, like every other feed
+	// endpoint: a profile's own history can still hold items from a library
+	// whose access was later revoked, and those must not resurface here.
+	items, err = h.filterAccessibleAndAllowed(ctx, items)
 	if err != nil {
-		return nil, internalError("continue watching: parental filter", err)
+		return nil, internalError("continue watching: access filter", err)
 	}
 	return feedItemsToResponse(h.localizeTitles(ctx, items)), nil
 }
