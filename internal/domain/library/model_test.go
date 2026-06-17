@@ -262,6 +262,25 @@ func TestScanSchedule_Fields(t *testing.T) {
 	}
 }
 
+func TestNewScanSchedule(t *testing.T) {
+	t.Parallel()
+
+	s, err := library.NewScanSchedule("lib1", "0 * * * *", true, nil)
+	if err != nil {
+		t.Fatalf("valid schedule: %v", err)
+	}
+	if s.LibraryID != "lib1" || s.CronExpression != "0 * * * *" || !s.Enabled {
+		t.Errorf("fields not set: %+v", s)
+	}
+
+	if _, err := library.NewScanSchedule("", "0 * * * *", true, nil); err == nil {
+		t.Error("empty library ID must be rejected")
+	}
+	if _, err := library.NewScanSchedule("lib1", "", true, nil); err == nil {
+		t.Error("empty cron expression must be rejected")
+	}
+}
+
 func TestTrickplayManifest_Fields(t *testing.T) {
 	t.Parallel()
 

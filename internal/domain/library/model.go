@@ -400,6 +400,35 @@ type ScanSchedule struct {
 	UpdatedAt      time.Time
 }
 
+// Validate enforces the ScanSchedule invariants: a schedule must target a
+// library and carry a cron expression (its syntactic validity is checked by
+// the scheduler before persistence).
+func (s *ScanSchedule) Validate() error {
+	if s.LibraryID == "" {
+		return errors.New("scan schedule library ID is required")
+	}
+	if s.CronExpression == "" {
+		return errors.New("scan schedule cron expression is required")
+	}
+	return nil
+}
+
+// NewScanSchedule is the canonical constructor. nextRun may be nil (computed by
+// the caller from the cron). Enforces Validate so a malformed schedule can't be
+// built from a bare literal.
+func NewScanSchedule(libraryID shared.LibraryID, cronExpr string, enabled bool, nextRun *time.Time) (*ScanSchedule, error) {
+	s := &ScanSchedule{
+		LibraryID:      libraryID,
+		CronExpression: cronExpr,
+		Enabled:        enabled,
+		NextRunAt:      nextRun,
+	}
+	if err := s.Validate(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
 type CollectionRule struct {
 	Field    string `json:"field"`
 	Operator string `json:"operator"`

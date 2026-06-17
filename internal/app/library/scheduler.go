@@ -59,11 +59,9 @@ func (s *Scheduler) SetSchedule(ctx context.Context, libraryID, cronExpr string,
 	if err != nil {
 		return nil, fmt.Errorf("invalid cron: %w", err)
 	}
-	sched := &library.ScanSchedule{
-		LibraryID:      shared.LibraryID(libraryID),
-		CronExpression: cronExpr,
-		Enabled:        enabled,
-		NextRunAt:      &nextRun,
+	sched, err := library.NewScanSchedule(shared.LibraryID(libraryID), cronExpr, enabled, &nextRun)
+	if err != nil {
+		return nil, fmt.Errorf("build scan schedule: %w", err)
 	}
 	if err := s.schedules.Upsert(ctx, sched); err != nil {
 		return nil, fmt.Errorf("upsert schedule: %w", err)
