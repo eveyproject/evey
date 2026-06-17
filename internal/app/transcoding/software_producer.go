@@ -869,16 +869,20 @@ func (p *SoftwareProducer) coveringWithinReachLocked(hash string, variantIdx, se
 // Idempotent on a running process; only fires on the paused→active edge.
 func (p *SoftwareProducer) resumeIfPaused(s *swSession) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	if !s.paused || s.handle == nil {
-		s.mu.Unlock()
+		return
+	}
+	// Resume the process while still holding s.mu so a concurrent sweepPause /
+	// pauseEach cannot interleave its SIGSTOP between this SIGCONT and the flag
+	// flip and leave the encoder stopped while s.paused reads false — a
+	// stuck-paused session no later resume would ever wake. Flip the flag only
+	// on success so a failed Resume keeps s.paused=true for the next retry.
+	if err := s.handle.Resume(); err != nil {
+		p.logger.Warn("software: resume ffmpeg failed", slog.String("hash", s.hash), slog.Any("err", err))
 		return
 	}
 	s.paused = false
-	h := s.handle
-	s.mu.Unlock()
-	if err := h.Resume(); err != nil {
-		p.logger.Warn("software: resume ffmpeg failed", slog.String("hash", s.hash), slog.Any("err", err))
-	}
 }
 
 // pauseEach SIGSTOPs each of the given sessions (skipping already-paused or
@@ -892,16 +896,16 @@ func (p *SoftwareProducer) pauseEach(sessions []*swSession) {
 			s.mu.Unlock()
 			continue
 		}
-		s.paused = true
-		h := s.handle
-		hash := s.hash
-		s.mu.Unlock()
-		if err := h.Pause(); err != nil {
-			s.mu.Lock()
-			s.paused = false
+		// SIGSTOP under s.mu so the pause and the s.paused flag are atomic w.r.t.
+		// a concurrent resumeIfPaused (see resumeIfPaused). Flag set only on a
+		// successful Pause.
+		if err := s.handle.Pause(); err != nil {
 			s.mu.Unlock()
-			p.logger.Debug("software: pause failed", slog.String("hash", hash), slog.Any("err", err))
+			p.logger.Debug("software: pause failed", slog.String("hash", s.hash), slog.Any("err", err))
+			continue
 		}
+		s.paused = true
+		s.mu.Unlock()
 	}
 }
 
@@ -1241,17 +1245,16 @@ func (p *SoftwareProducer) sweepPause() {
 			s.mu.Unlock()
 			continue
 		}
-		s.paused = true
-		h := s.handle
 		hash := s.hash
-		s.mu.Unlock()
-		if err := h.Pause(); err != nil {
-			s.mu.Lock()
-			s.paused = false
+		// SIGSTOP under s.mu so the pause and the s.paused flag are atomic w.r.t.
+		// a concurrent resumeIfPaused (see resumeIfPaused).
+		if err := s.handle.Pause(); err != nil {
 			s.mu.Unlock()
 			p.logger.Debug("software: pause ffmpeg failed", slog.String("hash", hash), slog.Any("err", err))
 			continue
 		}
+		s.paused = true
+		s.mu.Unlock()
 		p.logger.Debug("software: ffmpeg suspended — client idle", slog.String("hash", hash))
 	}
 }
