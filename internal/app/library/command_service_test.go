@@ -1323,8 +1323,16 @@ func TestRemoveOrphans_PublishesMediaItemRemoved(t *testing.T) {
 		ID: "orphan-1", LibraryID: "lib-1",
 		File: &library.MediaFile{Path: "/movies/gone.mkv"},
 	})
+	// Kept item keeps the scan non-empty (else the degraded-mount guard refuses
+	// to prune); only orphan-1 is the actual orphan.
+	h.mediaItems.Create(context.Background(), &library.MediaItem{
+		ID: "keep-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep"},
+	})
 
-	h.scanner.Results["/movies"] = []library.ScannedFile{}
+	h.scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep", Type: library.MovieItem},
+	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
@@ -1352,9 +1360,16 @@ func TestRemoveOrphans_AlsoRemovesFromSearchIndex(t *testing.T) {
 		File:  &library.MediaFile{Path: "/movies/gone.mkv"},
 		Title: "Gone Film",
 	})
+	h.mediaItems.Create(context.Background(), &library.MediaItem{
+		ID: "keep-1", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep"},
+	})
 	h.search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orphan-1", Title: "Gone Film"}, nil)
 
-	h.scanner.Results["/movies"] = []library.ScannedFile{}
+	// Kept file keeps the scan non-empty (avoids the degraded-mount guard).
+	h.scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep", Type: library.MovieItem},
+	}
 
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
@@ -1573,9 +1588,17 @@ func TestScanLibrary_OrphanRemovedFromSearchIndex(t *testing.T) {
 		File:      &library.MediaFile{Path: "/movies/deleted.mkv"},
 		Title:     "Deleted Film",
 	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID:        "keep-1",
+		LibraryID: "lib-orphan",
+		File:      &library.MediaFile{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep"},
+	})
 	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orphan-1", Title: "Deleted Film"}, nil)
 
-	scanner.Results["/movies"] = []library.ScannedFile{}
+	// Kept file keeps the scan non-empty (avoids the degraded-mount guard).
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep", Type: library.MovieItem},
+	}
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-orphan")
 	require.NoError(t, err)

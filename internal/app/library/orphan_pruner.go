@@ -45,6 +45,22 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 	if err != nil {
 		return 0, fmt.Errorf("list file paths: %w", err)
 	}
+
+	// Safety guard against a degraded mount wiping the catalog. A scan that saw
+	// ZERO files while the library still has items is almost never a real "all
+	// media deleted" — it is a dropped NFS/SMB export, a lazy/empty mountpoint,
+	// or the media folder renamed under a healthy root (the scanner only errors
+	// when the root itself is inaccessible, so an empty-but-present dir returns
+	// no files and no error). Pruning here would DeleteByIDs every row and
+	// CASCADE-delete non-regenerable user data (watch_progress, favorites,
+	// play_sessions, playlist_items). Refuse and wait for the files to reappear.
+	// A genuinely emptied library has len(dbPaths)==0 and is unaffected.
+	if len(seenPaths) == 0 && len(dbPaths) > 0 {
+		slog.Warn("orphan prune skipped: scan saw no files but library is non-empty (likely a degraded mount); refusing to delete the catalog",
+			slog.String("library_id", libraryID), slog.Int("db_items", len(dbPaths)))
+		return 0, nil
+	}
+
 	var orphanIDs []string
 	for id, path := range dbPaths {
 		if _, seen := seenPaths[path]; !seen {

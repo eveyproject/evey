@@ -81,6 +81,59 @@ func TestOrphanPruner_PartialOrphans(t *testing.T) {
 	}
 }
 
+// Safety guard: a scan that saw ZERO files while the library still has items
+// is a degraded mount, not a real wipe. Prune must refuse to delete the whole
+// catalog (which would CASCADE-delete non-regenerable user data).
+func TestOrphanPruner_EmptyScanNonEmptyLibrary_RefusesToPrune(t *testing.T) {
+	t.Parallel()
+	pruner, items, _, bus := newPrunerHarness()
+
+	items.Create(context.Background(), &library.MediaItem{
+		ID: "a", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/a.mkv"},
+	})
+	items.Create(context.Background(), &library.MediaItem{
+		ID: "b", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/b.mkv"},
+	})
+
+	// Empty seenPaths == the scanner saw nothing (dropped NFS mount, etc.).
+	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 0 {
+		t.Fatalf("guard must delete nothing, got %d removed", removed)
+	}
+	for _, e := range bus.PublishedEvents() {
+		if _, ok := e.(library.MediaItemRemoved); ok {
+			t.Fatal("no MediaItemRemoved must be published when the prune is refused")
+		}
+	}
+	// Both items must still be in the DB.
+	paths, err := items.ListFilePaths(context.Background(), "lib-1")
+	if err != nil {
+		t.Fatalf("list paths: %v", err)
+	}
+	if len(paths) != 2 {
+		t.Fatalf("guard must keep all items, got %d", len(paths))
+	}
+}
+
+// A genuinely empty library (no DB items) with an empty scan is unaffected by
+// the guard: nothing to delete, no error.
+func TestOrphanPruner_EmptyScanEmptyLibrary_NoOp(t *testing.T) {
+	t.Parallel()
+	pruner, _, _, _ := newPrunerHarness()
+	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 0 {
+		t.Fatalf("want 0 removed, got %d", removed)
+	}
+}
+
 func TestOrphanPruner_SearchIndexCleared_ForOrphans(t *testing.T) {
 	t.Parallel()
 	pruner, items, search, _ := newPrunerHarness()
@@ -90,9 +143,15 @@ func TestOrphanPruner_SearchIndexCleared_ForOrphans(t *testing.T) {
 		File:  &library.MediaFile{Path: "/movies/orph.mkv"},
 		Title: "Orphan Film",
 	})
+	// A kept item so seenPaths is non-empty (the empty-scan safety guard would
+	// otherwise refuse to prune); only "orph" is the actual orphan here.
+	items.Create(context.Background(), &library.MediaItem{
+		ID: "kept", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/kept.mkv"},
+	})
 	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orph", Title: "Orphan Film"}, nil)
 
-	seen := map[string]struct{}{} // all orphaned
+	seen := map[string]struct{}{"/movies/kept.mkv": {}} // orph is the orphan
 
 	_, err := pruner.Prune(context.Background(), "lib-1", seen)
 	if err != nil {
@@ -181,10 +240,14 @@ func TestOrphanPruner_DeleteByIDsError_FailClosed(t *testing.T) {
 		ID: "orph", LibraryID: "lib-1",
 		File: &library.MediaFile{Path: "/movies/orph.mkv"},
 	})
+	items.Create(context.Background(), &library.MediaItem{
+		ID: "kept", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/kept.mkv"},
+	})
 	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orph", Title: "Orphan"}, nil)
 	items.ErrDelete = errors.New("db kaboom")
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{})
+	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/kept.mkv": {}})
 	if err != nil {
 		t.Fatalf("Prune must not bubble batch-delete errors: %v", err)
 	}
@@ -213,9 +276,14 @@ func TestOrphanPruner_SearchRemoveError_LoggedNotReturned(t *testing.T) {
 		ID: "orph", LibraryID: "lib-1",
 		File: &library.MediaFile{Path: "/movies/orph.mkv"},
 	})
+	// Kept item so seenPaths is non-empty (avoids the empty-scan safety guard).
+	items.Create(context.Background(), &library.MediaItem{
+		ID: "kept", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/kept.mkv"},
+	})
 	search.Err = errors.New("meili down")
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{})
+	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/kept.mkv": {}})
 	if err != nil {
 		t.Fatalf("search index errors must not fail Prune: %v", err)
 	}
@@ -232,9 +300,13 @@ func TestOrphanPruner_PublishError_LoggedNotReturned(t *testing.T) {
 		ID: "orph", LibraryID: "lib-1",
 		File: &library.MediaFile{Path: "/movies/orph.mkv"},
 	})
+	items.Create(context.Background(), &library.MediaItem{
+		ID: "kept", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/kept.mkv"},
+	})
 	bus.PublishErr = errors.New("bus offline")
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{})
+	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/kept.mkv": {}})
 	if err != nil {
 		t.Fatalf("event bus errors must not fail Prune: %v", err)
 	}
@@ -254,8 +326,12 @@ func TestOrphanPruner_NilSearchIndex_StillPrunesAndPublishes(t *testing.T) {
 		ID: "solo", LibraryID: "lib-1",
 		File: &library.MediaFile{Path: "/movies/solo.mkv"},
 	})
+	items.Create(context.Background(), &library.MediaItem{
+		ID: "kept", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/kept.mkv"},
+	})
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{})
+	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/kept.mkv": {}})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

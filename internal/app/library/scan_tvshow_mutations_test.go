@@ -94,27 +94,33 @@ func TestScanTVShow_PruneCascade_SeriesDeletedWhenAllSeasonsEmpty(t *testing.T) 
 		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
 	})
 
-	// First scan creates series + season + episode.
+	// First scan creates TWO shows (series + season + episode each). A second
+	// kept show keeps the next scan non-empty: an empty scan of a non-empty
+	// library now trips the degraded-mount safety guard and refuses to prune (it
+	// would otherwise wipe the catalog + cascade user data).
 	scanner.Results["/tv"] = []library.ScannedFile{
 		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/Kept/S01/e01.mkv", Size: 100, Title: "Kept", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
 	}
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
-	require.Len(t, itemsByType(mediaRepo, "series"), 1)
-	require.Len(t, itemsByType(mediaRepo, "season"), 1)
-	require.Len(t, itemsByType(mediaRepo, "episode"), 1)
+	require.Len(t, itemsByType(mediaRepo, "series"), 2)
+	require.Len(t, itemsByType(mediaRepo, "season"), 2)
+	require.Len(t, itemsByType(mediaRepo, "episode"), 2)
 
-	// Second scan: file is gone. Orphan episode is removed, then prune runs:
-	// season becomes empty → deleted; series childCount must decrement to 0
-	// → series also deleted.
-	scanner.Results["/tv"] = []library.ScannedFile{}
+	// Second scan: only "Kept" survives, "Show"'s file is gone. Show's episode is
+	// orphaned, then prune runs: its season becomes empty → deleted; series
+	// childCount decrements to 0 → series also deleted. "Kept" is untouched.
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Kept/S01/e01.mkv", Size: 100, Title: "Kept", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
 	_, _, err = svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
 
-	assert.Empty(t, itemsByType(mediaRepo, "episode"), "orphan episode pruned")
-	assert.Empty(t, itemsByType(mediaRepo, "season"), "empty season pruned")
-	assert.Empty(t, itemsByType(mediaRepo, "series"),
-		"series must be pruned via decrement cascade when last season is deleted")
+	require.Len(t, itemsByType(mediaRepo, "episode"), 1, "Show episode pruned, Kept remains")
+	require.Len(t, itemsByType(mediaRepo, "season"), 1, "Show empty season pruned, Kept remains")
+	require.Len(t, itemsByType(mediaRepo, "series"), 1,
+		"Show series pruned via decrement cascade when last season deleted, Kept remains")
 
 	// Kills INCREMENT_DECREMENT mutation at scan_service_tvshow.go:160:9 (pruned++).
 	// The scan-completed event carries ItemsRemoved = orphanEpisodes + prunedContainers.

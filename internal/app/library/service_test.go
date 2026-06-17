@@ -762,7 +762,10 @@ func TestScanLibrary_PrunesEmptySeasonAndSeries(t *testing.T) {
 	svc.CreateLibrary(context.Background(), lib)
 	libQueryRepo.Seed(lib)
 
-	// Pre-seed: series -> season -> episode (episode will be orphaned)
+	// Pre-seed: series-1 -> season-1 -> ep-1 (will be orphaned) AND a kept
+	// series-2 -> season-2 -> ep-2 whose file the scan still sees. The kept
+	// episode keeps the scan non-empty so the degraded-mount safety guard does
+	// not trip (an empty scan of a non-empty library refuses to prune).
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID: "series-1", LibraryID: "lib-tv", Type: "series", Title: "Show",
 	})
@@ -773,9 +776,21 @@ func TestScanLibrary_PrunesEmptySeasonAndSeries(t *testing.T) {
 		ID: "ep-1", LibraryID: "lib-tv", Type: "episode", ParentID: "season-1",
 		File: &library.MediaFile{Path: "/tv/show/s01e01.mkv", Size: 100},
 	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "series-2", LibraryID: "lib-tv", Type: "series", Title: "Other Show",
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "season-2", LibraryID: "lib-tv", Type: "season", ParentID: "series-2", Title: "Season 1",
+	})
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "ep-2", LibraryID: "lib-tv", Type: "episode", ParentID: "season-2",
+		File: &library.MediaFile{Path: "/tv/other/s01e01.mkv", Size: 100},
+	})
 
-	// scanner returns nothing -> ep-1 is orphaned -> season and series should be pruned
-	scanner.Results["/tv"] = []library.ScannedFile{}
+	// scanner sees only ep-2 -> ep-1 is orphaned -> its empty season/series pruned.
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/other/s01e01.mkv", Size: 100},
+	}
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
@@ -788,6 +803,7 @@ func TestScanLibrary_PrunesEmptySeasonAndSeries(t *testing.T) {
 	assert.NotContains(t, ids, "ep-1", "orphaned episode removed")
 	assert.NotContains(t, ids, "season-1", "empty season pruned")
 	assert.NotContains(t, ids, "series-1", "empty series pruned")
+	assert.Contains(t, ids, "ep-2", "still-present episode kept")
 }
 
 func TestScanLibrary_PrunesEmptySeason_KeepsSeriesWithOtherChildren(t *testing.T) {
@@ -857,8 +873,15 @@ func TestScanLibrary_ItemsRemovedCountInEvent(t *testing.T) {
 	mediaRepo.Create(context.Background(), &library.MediaItem{
 		ID: "gone-2", LibraryID: "lib-1", File: &library.MediaFile{Path: "/movies/gone2.mkv"},
 	})
+	// Kept item keeps the scan non-empty (avoids the degraded-mount guard);
+	// gone-1 and gone-2 are the real orphans.
+	mediaRepo.Create(context.Background(), &library.MediaItem{
+		ID: "keep-1", LibraryID: "lib-1", File: &library.MediaFile{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep"},
+	})
 
-	scanner.Results["/movies"] = []library.ScannedFile{}
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/keep.mkv", Size: 100, Fingerprint: "fp-keep", Type: library.MovieItem},
+	}
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
