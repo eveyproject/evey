@@ -62,7 +62,11 @@ var mediaItemTypeFromProto = map[eveyv1.MediaItemType]string{
 	eveyv1.MediaItemType_MEDIA_ITEM_TYPE_BOOK:    "book",
 }
 
-func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
+// mediaItemToProto converts a MediaItem to proto. When includeFilePath is false
+// the absolute server path is omitted — admin-only (matches photoToProto): it
+// leaks the host filesystem layout, and non-admin clients stream via the media
+// endpoints, not the raw path (pentest 2026-05-26).
+func mediaItemToProto(item *library.MediaItem, includeFilePath bool) *eveyv1.MediaItem {
 	pb := &eveyv1.MediaItem{
 		Id:            string(item.ID),
 		LibraryId:     string(item.LibraryID),
@@ -87,7 +91,9 @@ func mediaItemToProto(item *library.MediaItem) *eveyv1.MediaItem {
 		}
 	}
 	if item.File != nil {
-		pb.FilePath = item.File.Path
+		if includeFilePath {
+			pb.FilePath = item.File.Path
+		}
 		pb.FileSize = item.File.Size
 		pb.ContainerFormat = item.File.ContainerFormat
 		pb.DurationMs = item.File.Duration.Milliseconds()

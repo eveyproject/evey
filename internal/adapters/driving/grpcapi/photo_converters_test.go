@@ -27,7 +27,9 @@ func TestPhotoToProto_FullFields(t *testing.T) {
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	pb := photoToProto(p)
+	pb := photoToProto(p, true)
+	assert.Equal(t, "/photos/beach.jpg", pb.FilePath, "admin should receive the file path")
+	assert.Empty(t, photoToProto(p, false).FilePath, "non-admin must not receive the absolute file path")
 	assert.Equal(t, "ph-1", pb.Id)
 	assert.Equal(t, "lib-p", pb.LibraryId)
 	assert.Equal(t, "Beach", pb.Title)
@@ -42,7 +44,7 @@ func TestPhotoToProto_FullFields(t *testing.T) {
 func TestPhotoToProto_NilTakenAt(t *testing.T) {
 	t.Parallel()
 	p := photo.Photo{ID: "ph-2", Width: 100, Height: 50}
-	pb := photoToProto(p)
+	pb := photoToProto(p, true)
 	assert.Nil(t, pb.TakenAt)
 	assert.Equal(t, int32(100), pb.Width)
 	assert.Equal(t, int32(50), pb.Height)

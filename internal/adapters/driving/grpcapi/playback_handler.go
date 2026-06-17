@@ -726,7 +726,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	resp := &eveyv1.GetNextUpResponse{}
 	for _, wp := range progresses {
 		if item, ok := byID[string(wp.MediaItemID)]; ok {
-			resp.Items = append(resp.Items, mediaItemToProto(item))
+			resp.Items = append(resp.Items, mediaItemToProto(item, ctxIsAdmin(ctx)))
 		}
 	}
 	return resp, nil

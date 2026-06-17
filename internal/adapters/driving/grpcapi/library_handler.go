@@ -265,7 +265,7 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 			applyOverridesToItem(item, overrides)
 		}
 	}
-	pb := mediaItemToProto(item)
+	pb := mediaItemToProto(item, ctxIsAdmin(ctx))
 	// Artwork/cast/streams are best-effort enrichments: a failure on one must
 	// not fail the whole detail response. But the errors were being swallowed
 	// silently, which hides real problems (e.g. streams empty in the DB or a
@@ -495,7 +495,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(itemTags(item), pf.blockedTags) {
 			continue
 		}
-		pb := mediaItemToProto(item)
+		pb := mediaItemToProto(item, ctxIsAdmin(ctx))
 		for _, a := range artworkMap[string(item.ID)] {
 			pb.Artwork = append(pb.Artwork, artworkRecordToProto(a))
 		}
@@ -1051,7 +1051,7 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 	}
 	resp := &eveyv1.FilterMediaItemsResponse{Total: int32(total)}
 	for _, item := range items {
-		resp.Items = append(resp.Items, mediaItemToProto(item))
+		resp.Items = append(resp.Items, mediaItemToProto(item, ctxIsAdmin(ctx)))
 	}
 	return resp, nil
 }

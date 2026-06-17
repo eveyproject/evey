@@ -44,7 +44,12 @@ func sanitizeLogValue(s string) string {
 
 func secureToken(prefix string, n int) string {
 	b := make([]byte, n)
-	crypto_rand.Read(b)
+	// Fail closed: a token built from a failed entropy read would be all-zeros
+	// (fully predictable). crypto/rand.Read does not return an error on Linux,
+	// but never silently emit a guessable security token if it ever did.
+	if _, err := crypto_rand.Read(b); err != nil {
+		panic("secureToken: crypto/rand read failed: " + err.Error())
+	}
 	return prefix + hex.EncodeToString(b)
 }
 
@@ -55,6 +60,14 @@ func requireClaims(ctx context.Context) (*user.Claims, error) {
 		return nil, status.Error(codes.Unauthenticated, "not authenticated")
 	}
 	return claims, nil
+}
+
+// ctxIsAdmin reports whether the request is from an authenticated admin. Used to
+// gate admin-only fields (e.g. absolute file paths) in proto converters; nil
+// claims → false (fail closed).
+func ctxIsAdmin(ctx context.Context) bool {
+	c := interceptors.ClaimsFromContext(ctx)
+	return c != nil && c.IsAdmin
 }
 
 const maxPageSize = 500

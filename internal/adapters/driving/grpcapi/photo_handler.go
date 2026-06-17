@@ -80,7 +80,7 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 	}
 	resp := &eveyv1.ListPhotosResponse{Total: int32(total)}
 	for _, p := range photos {
-		resp.Photos = append(resp.Photos, photoToProto(p))
+		resp.Photos = append(resp.Photos, photoToProto(p, ctxIsAdmin(ctx)))
 	}
 	return resp, nil
 }
@@ -108,7 +108,7 @@ func (h *photoHandler) GetPhoto(ctx context.Context, req *eveyv1.GetPhotoRequest
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
-	return photoToProto(*p), nil
+	return photoToProto(*p, ctxIsAdmin(ctx)), nil
 }
 
 func (h *photoHandler) ListPhotoAlbums(ctx context.Context, req *eveyv1.ListPhotoAlbumsRequest) (*eveyv1.ListPhotoAlbumsResponse, error) {
@@ -175,7 +175,7 @@ func (h *photoHandler) SearchPhotos(ctx context.Context, req *eveyv1.SearchPhoto
 	}
 	resp := &eveyv1.SearchPhotosResponse{}
 	for _, p := range photos {
-		resp.Photos = append(resp.Photos, photoToProto(p))
+		resp.Photos = append(resp.Photos, photoToProto(p, ctxIsAdmin(ctx)))
 	}
 	return resp, nil
 }

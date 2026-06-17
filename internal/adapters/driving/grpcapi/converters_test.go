@@ -115,6 +115,17 @@ func TestRatingToProto(t *testing.T) {
 	}
 }
 
+func TestMediaItemToProto_FilePathAdminOnly(t *testing.T) {
+	t.Parallel()
+	item := &library.MediaItem{ID: "m-1", File: &library.MediaFile{Path: "/mnt/secret/x.mkv"}}
+	if pb := mediaItemToProto(item, false); pb.FilePath != "" {
+		t.Fatalf("non-admin must not receive the absolute file path, got %q", pb.FilePath)
+	}
+	if pb := mediaItemToProto(item, true); pb.FilePath != "/mnt/secret/x.mkv" {
+		t.Fatalf("admin should receive the file path, got %q", pb.FilePath)
+	}
+}
+
 func TestMediaItemToProto(t *testing.T) {
 	t.Parallel()
 	idx := 3
@@ -134,7 +145,7 @@ func TestMediaItemToProto(t *testing.T) {
 		UpdatedAt:      time.Now(),
 	}
 
-	pb := mediaItemToProto(item)
+	pb := mediaItemToProto(item, true)
 	if pb.Id != "m-1" || pb.Title != "Test Movie" {
 		t.Error("basic fields mismatch")
 	}
@@ -161,7 +172,7 @@ func TestMediaItemToProto(t *testing.T) {
 func TestMediaItemToProto_NilOptionals(t *testing.T) {
 	t.Parallel()
 	item := &library.MediaItem{ID: "m-2", Type: "episode"}
-	pb := mediaItemToProto(item)
+	pb := mediaItemToProto(item, true)
 	if pb.IndexNumber != 0 || pb.CommunityRating != 0 || pb.Year != 0 {
 		t.Error("nil optionals should result in zero values")
 	}
