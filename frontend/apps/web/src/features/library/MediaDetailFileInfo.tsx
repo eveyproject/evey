@@ -21,7 +21,16 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
     return size > 0 && durSec > 0 ? Math.round((size * 8) / durSec / 1000) : 0;
   })();
 
-  if (!item.filePath && !item.fileSize && !item.containerFormat && !(item.streams && item.streams.length > 0)) {
+  // A container (series/season) has no file of its own. The API emits proto
+  // zero values (EmitUnpopulated), so fileSize/durationMs arrive as the STRING
+  // "0" — which is truthy in JS, so a naive `!item.fileSize` check let the
+  // disclosure render with a useless "0 B". Gate on REAL presence instead.
+  const hasFile =
+    !!item.filePath ||
+    Number(item.fileSize ?? 0) > 0 ||
+    !!item.containerFormat ||
+    (item.streams?.length ?? 0) > 0;
+  if (!hasFile) {
     return null;
   }
 

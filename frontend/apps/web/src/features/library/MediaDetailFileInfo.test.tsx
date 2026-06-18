@@ -33,6 +33,17 @@ describe("MediaDetailFileInfo", () => {
     expect(container.innerHTML).toBe("");
   });
 
+  it("returns null for a container (series/season) where the API emits proto zero values", () => {
+    // EmitUnpopulated serializes int64 zeros as the STRING "0"; a naive
+    // truthiness check would render the disclosure with a useless "0 B".
+    const { container } = render(
+      <MediaDetailFileInfo
+        item={{ id: "season-1", filePath: "", fileSize: "0", containerFormat: "", durationMs: "0", bitrate: "0", streams: [] } as unknown as V1MediaItem}
+      />,
+    );
+    expect(container.innerHTML).toBe("");
+  });
+
   it("renders toggle button with file info label", () => {
     render(<MediaDetailFileInfo item={makeItem()} />);
     expect(screen.getByText("File Info")).toBeInTheDocument();
