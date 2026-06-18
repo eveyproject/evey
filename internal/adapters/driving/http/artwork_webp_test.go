@@ -140,6 +140,56 @@ func TestArtwork_WebP_ExistingWebPPath(t *testing.T) {
 	}
 }
 
+func TestArtwork_WebP_ZeroByteVariant_Regenerated(t *testing.T) {
+	tmp := t.TempDir()
+	imgPath := filepath.Join(tmp, "poster.jpg")
+	if err := os.WriteFile(imgPath, []byte("fake-jpeg"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// A leftover 0-byte variant from a prior failed/timed-out resize must be
+	// treated as "not cached" and regenerated — never served as an empty 200
+	// (which `immutable` caching would then freeze in clients).
+	variant := imgPath[:len(imgPath)-len(filepath.Ext(imgPath))] + "_w500.webp"
+	if err := os.WriteFile(variant, []byte{}, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	localPath := imgPath
+	conv := &fakeImageConverter{}
+
+	h := mediaHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
+		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
+			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
+		}},
+		"http://localhost",
+		allowAll(),
+		withImageConverter(conv, &fakeArtworkWriter{}),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster?w=500", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("artType", "poster")
+	req = withHTTPClaims(req, testClaims(false))
+	req.Header.Set("Accept", "image/webp")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if conv.resizeCalled == 0 {
+		t.Error("expected resize to regenerate the 0-byte variant")
+	}
+	if w.Body.Len() == 0 {
+		t.Error("must never serve an empty variant body")
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "image/webp" {
+		t.Errorf("expected Content-Type image/webp, got %s", ct)
+	}
+}
+
 func TestArtwork_NoAcceptWebP_ServesOriginal(t *testing.T) {
 	tmp := t.TempDir()
 	imgPath := filepath.Join(tmp, "poster.jpg")

@@ -62,6 +62,15 @@ func buildVariantPath(srcPath string, width int) string {
 	return fmt.Sprintf("%s_w%d.webp", base, width)
 }
 
+// removeVariant best-effort deletes a stale/partial resized variant so it isn't
+// served next time. A failure (other than already-gone) is logged but never
+// fatal — the next request simply regenerates it.
+func removeVariant(path string) {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		slog.Warn("artwork variant cleanup", slog.String("path", path), slog.Any("err", err))
+	}
+}
+
 func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.artwork.Serve")
 	defer span.End()
@@ -118,14 +127,28 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 					// When a width is requested, generate (or serve from cache) a resized variant.
 					if requestedWidth > 0 && h.imgConverter != nil {
 						variantPath := buildVariantPath(*rec.LocalPath, requestedWidth)
-						if _, statErr := os.Stat(variantPath); statErr != nil {
+						// Regenerate when the variant is missing OR a 0-byte leftover
+						// from a prior failed/timed-out resize. Checking only existence
+						// would serve the empty file forever, and `immutable` caching
+						// then freezes the broken image in clients — the cause of a
+						// poster vanishing at just one srcSet width (e.g. w=500).
+						if fi, statErr := os.Stat(variantPath); statErr != nil || fi.Size() == 0 {
 							// Not cached yet — generate with 10 s timeout so a slow ffmpeg
 							// doesn't block the response indefinitely.
 							ctx10, cancel := context.WithTimeout(r.Context(), artworkResizeTimeout)
 							defer cancel()
 							if resErr := h.imgConverter.ResizeAndConvertToWebP(ctx10, *rec.LocalPath, variantPath, requestedWidth, 80); resErr != nil {
 								slog.Warn("artwork resize", slog.String("src", *rec.LocalPath), slog.Int("width", requestedWidth), slog.Any("err", resErr))
-								variantPath = "" // fall through to full-res WebP
+								removeVariant(variantPath) // drop any partial/empty output so it isn't served next time
+								variantPath = ""           // fall through to full-res WebP
+							}
+						}
+						// Never serve an empty variant, even on the generating request
+						// (the converter may exit 0 yet produce nothing).
+						if variantPath != "" {
+							if fi, statErr := os.Stat(variantPath); statErr != nil || fi.Size() == 0 {
+								removeVariant(variantPath)
+								variantPath = ""
 							}
 						}
 						if variantPath != "" {
