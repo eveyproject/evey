@@ -134,14 +134,16 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
 
   const openAlbum = useCallback(
     async (album: AlbumLite) => {
-      if (!libraryId) return;
+      if (!libraryId || !album.id) return;
       setExpanded({ title: album.title, tracks: [] });
       setBusy(true);
       try {
-        const res = await musicServiceListTracks({ libraryId, search: album.title, limit: MAX_QUEUE });
-        const its = (res.tracks ?? [])
-          .filter((tr) => (tr.album ?? "") === album.title)
-          .map((tr): QueueItem => ({ id: tr.id ?? "", title: tr.title ?? "", artist: tr.artist ?? "" }));
+        // Scope server-side by the album's opaque id (returns exactly that
+        // album's tracks) instead of a fuzzy title search + client filter.
+        const res = await musicServiceListTracks({ libraryId, albumId: album.id });
+        const its = (res.tracks ?? []).map(
+          (tr): QueueItem => ({ id: tr.id ?? "", title: tr.title ?? "", artist: tr.artist ?? "" }),
+        );
         setExpanded({ title: album.title, tracks: its });
       } catch {
         setExpanded({ title: album.title, tracks: [] });
@@ -154,13 +156,13 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
 
   const addAlbum = useCallback(
     async (album: AlbumLite) => {
-      if (!libraryId) return;
+      if (!libraryId || !album.id) return;
       setBusy(true);
       try {
-        const res = await musicServiceListTracks({ libraryId, search: album.title, limit: MAX_QUEUE });
-        const its = (res.tracks ?? [])
-          .filter((tr) => (tr.album ?? "") === album.title)
-          .map((tr): QueueItem => ({ id: tr.id ?? "", title: tr.title ?? "", artist: tr.artist ?? "" }));
+        const res = await musicServiceListTracks({ libraryId, albumId: album.id });
+        const its = (res.tracks ?? []).map(
+          (tr): QueueItem => ({ id: tr.id ?? "", title: tr.title ?? "", artist: tr.artist ?? "" }),
+        );
         addItems(its);
       } catch {
         /* ignore — leave the queue unchanged */

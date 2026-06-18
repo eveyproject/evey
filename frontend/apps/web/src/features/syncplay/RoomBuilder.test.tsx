@@ -68,13 +68,17 @@ describe("RoomBuilder", () => {
     expect(createdIds(onCreate)).toEqual(["t1"]);
   });
 
-  it("adds a whole album (resolved via the track search) and creates the room", async () => {
+  it("adds a whole album (scoped server-side by album id) and creates the room", async () => {
     const onCreate = vi.fn();
     render(<RoomBuilder libraryId="lib-1" creating={false} onCreate={onCreate} />);
 
     // Albums tab is the default; click the album's "Add album" action.
     fireEvent.click(screen.getByLabelText("Add album"));
     await waitFor(() => expect(screen.getByText("Queue (2)")).toBeInTheDocument());
+
+    // The album's tracks are resolved by its opaque id, not a fuzzy title
+    // search + client-side filter.
+    expect(mockListTracksImperative).toHaveBeenCalledWith({ libraryId: "lib-1", albumId: "al1" });
 
     fireEvent.click(screen.getByRole("button", { name: /create room/i }));
     expect(createdIds(onCreate)).toEqual(["t1", "t2"]);
