@@ -60,8 +60,12 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       )}
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Hamburger + TopBar */}
-        <div className="flex items-center">
+        {/* Hamburger + TopBar — chrome level (z-sidebar) so the TopBar's
+            absolutely-positioned dropdowns (notification bell, search results)
+            paint above <main> content but below modals/popovers. Without a
+            stacking position here, <main> (the next DOM sibling, an overflow
+            scroll container) renders over the dropdowns and hides them. */}
+        <div className="relative z-sidebar flex items-center">
           <button
             className="md:hidden p-3 text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
             onClick={() => setSidebarOpen(true)}
