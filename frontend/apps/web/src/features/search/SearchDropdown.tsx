@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { libraryServiceSearchMedia, musicServiceSearchMusic } from "@evey/api";
 import { typeLabel } from "@/utils/typeLabel";
 
+type SearchKind = "media" | "music";
+
 interface SearchDropdownProps {
   query: string;
   visible: boolean;
@@ -15,6 +17,8 @@ interface SearchDropdownProps {
   recents?: string[];
   onRemoveRecent?: (q: string) => void;
   onClearRecents?: () => void;
+  kind?: SearchKind;
+  onKindChange?: (k: SearchKind) => void;
 }
 
 export const SearchDropdown = memo(function SearchDropdown({
@@ -26,6 +30,8 @@ export const SearchDropdown = memo(function SearchDropdown({
   recents = [],
   onRemoveRecent,
   onClearRecents,
+  kind = "media",
+  onKindChange,
 }: SearchDropdownProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -34,27 +40,31 @@ export const SearchDropdown = memo(function SearchDropdown({
 
   const trimmed = query.trim();
 
+  // Only the active scope queries — the user picks video vs music up front.
   const { data, isLoading, isError } = useQuery({
     queryKey: ["/api/v1/media/search/quick", trimmed],
     queryFn: ({ signal }) =>
       libraryServiceSearchMedia({ query: trimmed, limit: 6 }, signal),
-    enabled: visible && trimmed.length > 1,
+    enabled: visible && trimmed.length > 1 && kind === "media",
     staleTime: 30_000,
   });
 
   const items = data?.items ?? [];
   const totalHits = data?.totalHits ?? 0;
 
-  // Music lives in a separate index; search it cross-library (libraryId omitted
-  // → all libraries the user may access) and show it as its own group.
+  // Music lives in a separate index; searched cross-library (libraryId omitted
+  // → all libraries the user may access).
   const { data: musicData, isLoading: musicLoading } = useQuery({
     queryKey: ["/api/v1/music/search/quick", trimmed],
     queryFn: ({ signal }) =>
-      musicServiceSearchMusic({ query: trimmed, limit: 4 }, signal),
-    enabled: visible && trimmed.length > 1,
+      musicServiceSearchMusic({ query: trimmed, limit: 6 }, signal),
+    enabled: visible && trimmed.length > 1 && kind === "music",
     staleTime: 30_000,
   });
   const musicItems = musicData?.tracks ?? [];
+
+  const activeLoading = kind === "media" ? isLoading : musicLoading;
+  const activeCount = kind === "media" ? items.length : musicItems.length;
 
   useEffect(() => {
     if (!visible) return;
@@ -184,7 +194,27 @@ export const SearchDropdown = memo(function SearchDropdown({
             ? t("media.search.noResults")
             : null}
       </div>
-      {isLoading && (
+
+      {/* Scope selector: video catalog (default) or music. */}
+      <div className="flex gap-1 px-2 pt-2 pb-1 border-b border-[var(--border)]" role="tablist" aria-label={t("common.search")}>
+        {(["media", "music"] as const).map((k) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={kind === k}
+            onClick={() => onKindChange?.(k)}
+            className={`px-2.5 py-1 rounded-[var(--radius-sm)] text-xs font-medium cursor-pointer transition-colors-fast ${
+              kind === k
+                ? "bg-[var(--accent)] text-[var(--filter-active-text)]"
+                : "bg-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
+            }`}
+          >
+            {k === "media" ? t("media.search.sectionMedia") : t("media.search.sectionMusic")}
+          </button>
+        ))}
+      </div>
+
+      {activeLoading && (
         <div className="px-4 py-3 flex items-center gap-2">
           <div
             className="w-4 h-4 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin"
@@ -195,7 +225,7 @@ export const SearchDropdown = memo(function SearchDropdown({
         </div>
       )}
 
-      {!isLoading && isError && (
+      {kind === "media" && !isLoading && isError && (
         <div className="px-4 py-3" data-testid="search-dropdown-error">
           <span className="text-sm text-[var(--color-danger)]">
             {t("media.search.searchFailed")}
@@ -203,7 +233,7 @@ export const SearchDropdown = memo(function SearchDropdown({
         </div>
       )}
 
-      {!isLoading && !musicLoading && !isError && items.length === 0 && musicItems.length === 0 && (
+      {!activeLoading && !(kind === "media" && isError) && activeCount === 0 && (
         <div className="px-4 py-3" data-testid="search-dropdown-empty">
           <span className="text-sm text-[var(--text-muted)]">
             {t("media.search.noResults", { query: trimmed })}
@@ -211,13 +241,8 @@ export const SearchDropdown = memo(function SearchDropdown({
         </div>
       )}
 
-      {!isLoading && items.length > 0 && (
+      {kind === "media" && items.length > 0 && (
         <>
-          {musicItems.length > 0 && (
-            <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-              {t("media.search.sectionMedia")}
-            </div>
-          )}
           <ul className="py-1">
             {items.map((item) => (
               <li key={item.id} role="option">
@@ -291,11 +316,8 @@ export const SearchDropdown = memo(function SearchDropdown({
         </>
       )}
 
-      {!musicLoading && musicItems.length > 0 && (
+      {kind === "music" && musicItems.length > 0 && (
         <div data-testid="search-dropdown-music">
-          <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] border-t border-[var(--border)]">
-            {t("media.search.sectionMusic")}
-          </div>
           <ul className="py-1">
             {musicItems.map((track) => (
               <li key={track.id} role="option">

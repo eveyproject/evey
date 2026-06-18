@@ -58,6 +58,8 @@ function renderDropdown(props: Partial<Parameters<typeof SearchDropdown>[0]> = {
     onClose: vi.fn(),
     onNavigateToSearch: vi.fn(),
     inputRef,
+    kind: "media" as const,
+    onKindChange: vi.fn(),
     ...props,
   };
   const qc = createTestQueryClient();
@@ -105,15 +107,26 @@ describe("SearchDropdown", () => {
     );
   });
 
-  it("renders a music section and navigates to the album on click", async () => {
+  it("defaults to the media scope and hides music results", () => {
+    musicMockReturn = {
+      data: { tracks: [{ id: "t1", title: "The Emptiness Machine", artist: "Linkin Park", album: "From Zero", albumId: "x", libraryId: "lib-1" }] },
+      isLoading: false,
+    };
+    renderDropdown(); // default kind = media
+    expect(screen.getByText("Inception")).toBeInTheDocument();
+    expect(screen.queryByTestId("search-dropdown-music")).not.toBeInTheDocument();
+  });
+
+  it("in the music scope, renders tracks and navigates to the album on click", async () => {
     musicMockReturn = {
       data: { tracks: [{ id: "t1", title: "The Emptiness Machine", artist: "Linkin Park", album: "From Zero", albumId: "914750d5b8f8bb25", libraryId: "lib-1" }] },
       isLoading: false,
     };
     const user = userEvent.setup();
-    const { onClose } = renderDropdown();
+    const { onClose } = renderDropdown({ kind: "music" });
 
     expect(screen.getByTestId("search-dropdown-music")).toBeInTheDocument();
+    expect(screen.queryByText("Inception")).not.toBeInTheDocument(); // media hidden
     await user.click(screen.getByText("The Emptiness Machine"));
     expect(onClose).toHaveBeenCalled();
     expect(mockNavigate).toHaveBeenCalledWith(
@@ -124,15 +137,12 @@ describe("SearchDropdown", () => {
     );
   });
 
-  it("shows no-results only when BOTH media and music are empty", () => {
-    searchMockReturn = { data: { items: [], totalHits: 0 }, isLoading: false };
-    musicMockReturn = {
-      data: { tracks: [{ id: "t1", title: "Numb", artist: "Linkin Park", album: "Meteora", albumId: "abc", libraryId: "lib-1" }] },
-      isLoading: false,
-    };
-    renderDropdown();
-    expect(screen.queryByTestId("search-dropdown-empty")).not.toBeInTheDocument();
-    expect(screen.getByText("Numb")).toBeInTheDocument();
+  it("clicking the Music scope tab calls onKindChange", async () => {
+    const user = userEvent.setup();
+    const onKindChange = vi.fn();
+    renderDropdown({ onKindChange });
+    await user.click(screen.getByRole("tab", { name: /Music|Musique/ }));
+    expect(onKindChange).toHaveBeenCalledWith("music");
   });
 
   it("keyboard ArrowDown moves focus to first item", async () => {

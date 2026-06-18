@@ -27,9 +27,12 @@ const COMMON_GENRES = [
 
 function SearchPage() {
   const { t } = useTranslation();
-  const { q } = Route.useSearch();
+  const { q, kind } = Route.useSearch();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Top-level search scope: video catalog (default) or music.
+  const [searchKind, setSearchKind] = useState<"media" | "music">(kind === "music" ? "music" : "media");
 
   const typeFilters: { label: string; value: MediaTypeFilter | undefined }[] = [
     { label: t("media.search.all"), value: undefined },
@@ -61,17 +64,28 @@ function SearchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- inputValue excluded to avoid loop: q → setInputValue → inputValue changes → re-run
   }, [q]);
 
+  // Keep the scope in sync when the URL kind changes (e.g. arriving from the
+  // search bar with music pre-selected).
+  useEffect(() => {
+    setSearchKind(kind === "music" ? "music" : "media");
+  }, [kind]);
+
   useEffect(() => {
     if (debouncedQuery.length > 1) pushRecent(debouncedQuery);
-    if ((q ?? "") !== debouncedQuery) {
+    const urlKind = kind === "music" ? "music" : undefined;
+    const nextKind = searchKind === "music" ? "music" : undefined;
+    if ((q ?? "") !== debouncedQuery || urlKind !== nextKind) {
       void navigate({
         to: "/search",
-        search: debouncedQuery ? { q: debouncedQuery } : {},
+        search: {
+          ...(debouncedQuery ? { q: debouncedQuery } : {}),
+          ...(nextKind ? { kind: nextKind } : {}),
+        },
         replace: true,
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- q excluded: we only push to URL, never react to it here (q→inputValue sync is above)
-  }, [debouncedQuery, navigate, pushRecent]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- q/kind excluded: we only push to URL here (URL→state sync is above)
+  }, [debouncedQuery, searchKind, navigate, pushRecent]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -96,7 +110,7 @@ function SearchPage() {
         },
         signal,
       ),
-    enabled: debouncedQuery.length > 1,
+    enabled: debouncedQuery.length > 1 && searchKind === "media",
   });
 
   useEffect(() => {
@@ -106,12 +120,12 @@ function SearchPage() {
   const items = data?.items ?? [];
   const totalHits = data?.totalHits ?? items.length;
 
-  // Music search (separate index, cross-library). Skipped when a media-type
-  // filter (movies/series) is active, since that's an explicit media-only intent.
+  // Music search (separate index, cross-library) — only when the music scope is
+  // selected.
   const { data: musicData, isLoading: musicLoading } = useQuery({
     queryKey: ["/api/v1/music/search", debouncedQuery],
-    queryFn: ({ signal }) => musicServiceSearchMusic({ query: debouncedQuery, limit: 24 }, signal),
-    enabled: debouncedQuery.length > 1 && !typeFilter,
+    queryFn: ({ signal }) => musicServiceSearchMusic({ query: debouncedQuery, limit: 40 }, signal),
+    enabled: debouncedQuery.length > 1 && searchKind === "music",
   });
   const musicItems = musicData?.tracks ?? [];
 
@@ -157,6 +171,17 @@ function SearchPage() {
       </div>
 
       {hasQuery && (
+        <div className="mb-4 flex items-center gap-1" data-testid="search-kind-toggle" role="radiogroup" aria-label={t("common.search")}>
+          <FilterChip active={searchKind === "media"} onClick={() => setSearchKind("media")} size="md">
+            {t("media.search.sectionMedia")}
+          </FilterChip>
+          <FilterChip active={searchKind === "music"} onClick={() => setSearchKind("music")} size="md">
+            {t("media.search.sectionMusic")}
+          </FilterChip>
+        </div>
+      )}
+
+      {hasQuery && searchKind === "media" && (
         <div className="mb-5 space-y-3">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-1" data-testid="search-type-filters" role="radiogroup" aria-label={t("media.search.filterByType")}>
@@ -272,7 +297,7 @@ function SearchPage() {
         </div>
       )}
 
-      {hasQuery && isLoading && (
+      {hasQuery && (isLoading || musicLoading) && (
         <div>
           <div
             className="h-4 w-32 mb-4 animate-pulse rounded bg-[var(--surface-raised)]"
@@ -341,13 +366,8 @@ function SearchPage() {
         </div>
       )}
 
-      {items.length > 0 && (
+      {searchKind === "media" && items.length > 0 && (
         <>
-          {musicItems.length > 0 && (
-            <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
-              {t("media.search.sectionMedia")}
-            </h2>
-          )}
           <p className="text-sm mb-4 text-[var(--text-muted)]">
             {t("media.search.resultCount", { count: totalHits })} {t("media.search.resultFor", { query: debouncedQuery })}
           </p>
@@ -359,11 +379,11 @@ function SearchPage() {
         </>
       )}
 
-      {musicItems.length > 0 && (
-        <div className={items.length > 0 ? "mt-8" : ""}>
-          <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
-            {t("media.search.sectionMusic")}
-          </h2>
+      {searchKind === "music" && musicItems.length > 0 && (
+        <div>
+          <p className="text-sm mb-4 text-[var(--text-muted)]">
+            {t("media.search.resultCount", { count: musicItems.length })} {t("media.search.resultFor", { query: debouncedQuery })}
+          </p>
           <ul className="flex flex-col gap-1">
             {musicItems.map((track) => (
               <li key={track.id}>

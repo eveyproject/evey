@@ -19,6 +19,9 @@ export function TopBar() {
   const headerRef = useRef<HTMLElement>(null);
   const [searchValue, setSearchValue] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  // Search scope: video catalog (movies/series/…) by default, or music. Lifted
+  // here so Enter / "view all" navigate to /search with the chosen scope.
+  const [searchKind, setSearchKind] = useState<"media" | "music">("media");
   const debouncedSearch = useDebounce(searchValue.trim(), 200);
 
   // Scroll-driven glass effect: drive directly via DOM data attribute to avoid
@@ -59,8 +62,11 @@ export function TopBar() {
     const trimmed = q.trim();
     if (trimmed) pushRecent(trimmed);
     setDropdownOpen(false);
-    void navigate({ to: "/search", search: trimmed ? { q: trimmed } : {} });
-  }, [navigate, pushRecent]);
+    const search: { q?: string; kind?: "music" } = {};
+    if (trimmed) search.q = trimmed;
+    if (searchKind === "music") search.kind = "music";
+    void navigate({ to: "/search", search });
+  }, [navigate, pushRecent, searchKind]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -144,6 +150,8 @@ export function TopBar() {
             recents={recents}
             onRemoveRecent={removeRecent}
             onClearRecents={clearRecents}
+            kind={searchKind}
+            onKindChange={setSearchKind}
           />
         </div>
       </div>
