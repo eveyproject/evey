@@ -76,6 +76,25 @@ func (s *QueryService) ListTracksByAlbum(ctx context.Context, libraryID shared.L
 	return s.tracks.ListByLibraryAndAlbum(ctx, libraryID, album)
 }
 
+// ListTracksByAlbumID returns every track of the album identified by the short
+// opaque albumID (music.AlbumID). The id is one-way, so we resolve it by hashing
+// each known album folder and matching — the folder set is small and bounded.
+// Returns an empty slice (not an error) when no album matches.
+func (s *QueryService) ListTracksByAlbumID(ctx context.Context, libraryID shared.LibraryID, albumID string) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.music.ListTracksByAlbumID")
+	defer span.End()
+	folders, err := s.tracks.ListAlbumFolders(ctx, libraryID)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range folders {
+		if music.AlbumID(f) == albumID {
+			return s.tracks.ListByAlbumFolder(ctx, libraryID, f)
+		}
+	}
+	return nil, nil
+}
+
 func (s *QueryService) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.music.GetAlbums")
 	defer span.End()

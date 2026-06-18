@@ -70,6 +70,26 @@ func TestMusicHandler_ListTracks_Success(t *testing.T) {
 	assert.Len(t, resp.Tracks, 2)
 }
 
+func TestMusicHandler_ListTracks_ByAlbumID(t *testing.T) {
+	h, repo, _, _ := newTestMusicHandler()
+	// Two albums in distinct folders (folder = album identity).
+	repo.Upsert(context.Background(), music.Track{ID: "a1", LibraryID: "lib-1", Title: "A1", Album: "X", FilePath: "/m/AlbumX/01.mp3"})
+	repo.Upsert(context.Background(), music.Track{ID: "a2", LibraryID: "lib-1", Title: "A2", Album: "X", FilePath: "/m/AlbumX/02.mp3"})
+	repo.Upsert(context.Background(), music.Track{ID: "b1", LibraryID: "lib-1", Title: "B1", Album: "Y", FilePath: "/m/AlbumY/01.mp3"})
+
+	resp, err := h.ListTracks(adminCtx(), &eveyv1.ListTracksRequest{
+		LibraryId: "lib-1",
+		AlbumId:   music.AlbumID("/m/AlbumX"),
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), resp.Total)
+	assert.Len(t, resp.Tracks, 2)
+	for _, tr := range resp.Tracks {
+		assert.Equal(t, "X", tr.Album)
+	}
+}
+
 func TestMusicHandler_ListTracks_Unauthenticated(t *testing.T) {
 	h, _, _, _ := newTestMusicHandler()
 

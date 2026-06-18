@@ -155,6 +155,23 @@ func (r *FakeMusicTrackRepository) ListByAlbumFolder(_ context.Context, libraryI
 	return out, nil
 }
 
+func (r *FakeMusicTrackRepository) ListAlbumFolders(_ context.Context, libraryID shared.LibraryID) ([]string, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	seen := map[string]bool{}
+	var out []string
+	for _, t := range r.tracks {
+		if t.LibraryID == libraryID && t.AlbumFolder != "" && !seen[t.AlbumFolder] {
+			seen[t.AlbumFolder] = true
+			out = append(out, t.AlbumFolder)
+		}
+	}
+	return out, nil
+}
+
 func (r *FakeMusicTrackRepository) ListByArtist(_ context.Context, artist string, limit, offset int) ([]music.Track, int, error) {
 	if r.Err != nil {
 		return nil, 0, r.Err
@@ -262,7 +279,9 @@ func (r *FakeMusicTrackRepository) GetAlbums(_ context.Context, libraryID shared
 	out := make([]music.Album, 0, len(m))
 	for _, agg := range m {
 		out = append(out, music.Album{
-			ID:          agg.folder,
+			// Mirror the postgres repo: expose the short opaque album id, not
+			// the raw folder path.
+			ID:          music.AlbumID(agg.folder),
 			Title:       modeString(agg.albumCnt),
 			Artist:      modeString(agg.artCnt),
 			Year:        agg.minYear,
@@ -425,4 +444,3 @@ func (r *FakeMusicTrackRepository) SetAlbumCoverArtURL(_ context.Context, librar
 	}
 	return nil
 }
-

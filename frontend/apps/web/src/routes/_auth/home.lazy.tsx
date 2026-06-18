@@ -234,7 +234,7 @@ const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name, m
         <Link
           key={a.id}
           to="/music"
-          search={{ tab: "tracks", album: a.title ?? "", libraryId }}
+          search={{ tab: "tracks", album: a.id ?? "", libraryId }}
           className="block w-[160px] flex-shrink-0"
         >
           <div

@@ -22,6 +22,9 @@ type TrackRepository interface {
 	ListByAlbum(ctx context.Context, album, artist string) ([]Track, error)
 	ListByLibraryAndAlbum(ctx context.Context, libraryID shared.LibraryID, album string) ([]Track, error)
 	ListByAlbumFolder(ctx context.Context, libraryID shared.LibraryID, albumFolder string) ([]Track, error)
+	// ListAlbumFolders returns the distinct album_folder values in a library,
+	// used to resolve a short opaque album id (AlbumID) back to its folder.
+	ListAlbumFolders(ctx context.Context, libraryID shared.LibraryID) ([]string, error)
 	ListByArtist(ctx context.Context, artist string, limit, offset int) ([]Track, int, error)
 	Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]Track, error)
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)

@@ -93,6 +93,10 @@ message ListTracksRequest {
   int32 limit = 2;
   int32 offset = 3;
   string search = 4;
+  // When set, returns all tracks of the album with this opaque id (see
+  // MusicAlbum.id), ignoring limit/offset/search. The id is derived from the
+  // album folder, so homonym albums don't collide.
+  string album_id = 5;
 }
 
 message ListTracksResponse {

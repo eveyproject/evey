@@ -228,4 +228,27 @@ describe("MusicPage", () => {
       expect(screen.getByText("Summer")).toBeInTheDocument();
     });
   });
+
+  it("filters tracks by album id and shows the album name (not the id) in the chip", async () => {
+    setupMocks(mockTracks, 2);
+    // Album id is opaque ("a1"); the display name is "Summer".
+    mockAlbumsHook.mockReturnValue({ data: { albums: [{ id: "a1", title: "Summer", artist: "Band A", year: 2020, coverArtUrl: "", trackCount: 10, duration: 3600 }] } });
+
+    const mod = await import("./index.lazy");
+    const MusicPage = (mod.Route as unknown as { component: React.ComponentType }).component;
+    render(React.createElement(MusicPage), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Albums" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Albums" }));
+
+    const card = await screen.findByRole("button", { name: /Summer/ });
+    fireEvent.click(card);
+
+    // The album filter chip must show the human label, never the opaque id.
+    await waitFor(() => {
+      const chip = screen.getByTitle("Clear");
+      expect(chip.textContent).toContain("Summer");
+      expect(chip.textContent).not.toContain("a1");
+    });
+  });
 });

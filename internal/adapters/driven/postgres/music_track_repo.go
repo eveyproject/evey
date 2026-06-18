@@ -367,9 +367,10 @@ func (r *MusicTrackRepository) GetAlbums(ctx context.Context, libraryID shared.L
 			return nil, err
 		}
 		a.CoverArtURL = cover.String
-		// Album identity is the folder path itself, not a (title, artist)
-		// tuple. The frontend treats this as an opaque string.
-		a.ID = folder
+		// Album identity is the folder path, not a (title, artist) tuple. Expose
+		// it to clients as a short opaque id (not the raw path) so URLs don't
+		// leak the filesystem layout and homonym albums don't collide.
+		a.ID = music.AlbumID(folder)
 		albums = append(albums, a)
 	}
 	if err := rows.Err(); err != nil {
@@ -488,6 +489,45 @@ func (r *MusicTrackRepository) SampleByLibrary(ctx context.Context, libraryID sh
 // cover art on any of its tracks. The Album / Artist display strings
 // come from the folder's majority tags, so downstream fetchers (which
 // still key on human-readable artist+album) get the best-guess values.
+// ListAlbumFolders returns the distinct album_folder values in a library. Used
+// to resolve a short opaque album id (music.AlbumID) back to its folder without
+// a reverse hash: the caller hashes each folder and matches. The set is small
+// (one per album) and bounded.
+func (r *MusicTrackRepository) ListAlbumFolders(ctx context.Context, libraryID shared.LibraryID) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListAlbumFolders")
+	defer span.End()
+	span.SetAttributes(attribute.String("library.id", string(libraryID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		SELECT DISTINCT album_folder
+		FROM music_tracks
+		WHERE library_id=$1 AND album_folder <> ''
+		LIMIT 10000`, libraryID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var folder string
+		if err := rows.Scan(&folder); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		out = append(out, folder)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return out, nil
+}
+
 func (r *MusicTrackRepository) ListAllAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.AlbumKey, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListAllAlbums")
 	defer span.End()

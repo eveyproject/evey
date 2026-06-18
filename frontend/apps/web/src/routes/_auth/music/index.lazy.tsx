@@ -135,9 +135,11 @@ function useMusicLibraries() {
   });
 }
 
-function useMusicTracks(libraryID: string | undefined, search: string) {
+function useMusicTracks(libraryID: string | undefined, search: string, albumId?: string) {
   return useMusicServiceListTracks(
-    { libraryId: libraryID, limit: 200, search: search || undefined },
+    // When albumId is set the server returns that album's full track set and
+    // ignores search/limit; the in-tab search box then filters it client-side.
+    { libraryId: libraryID, limit: 200, search: albumId ? undefined : (search || undefined), albumId: albumId || undefined },
     {
       query: {
         enabled: !!libraryID,
@@ -354,9 +356,16 @@ function MusicPage() {
   const firstLib = libraries?.[0];
   const activeLibraryID = selectedLibraryID ?? firstLib?.id;
 
-  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID, search);
+  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID, search, albumFilter ?? undefined);
   const { data: albums, isLoading: albumsLoading } = useMusicAlbums(activeLibraryID);
   const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
+
+  // albumFilter holds the opaque album id; resolve a human label for the chip /
+  // play-source from the loaded album list, falling back to a loaded track's
+  // album name (covers a bookmarked URL before the album list arrives).
+  const albumLabel = albumFilter
+    ? (albums?.find((a) => a.ID === albumFilter)?.Title || tracks?.[0]?.Album || "")
+    : "";
 
   function handlePlay(t: Track, allTracks: Track[], source?: MusicSource) {
     playInStore(t, allTracks, source);
@@ -444,7 +453,7 @@ function MusicPage() {
               tr,
               filtered,
               albumFilter
-                ? { type: "album", id: albumFilter, label: albumFilter }
+                ? { type: "album", id: albumFilter, label: albumLabel || albumFilter }
                 : artistFilter
                   ? { type: "artist", id: artistFilter, label: artistFilter }
                   : undefined,
@@ -453,6 +462,7 @@ function MusicPage() {
           search={searchInput}
           onSearchChange={setSearchInput}
           albumFilter={albumFilter}
+          albumLabel={albumLabel}
           artistFilter={artistFilter}
           onClearAlbumFilter={() => setAlbumFilter(null)}
           onClearArtistFilter={() => setArtistFilter(null)}
@@ -469,7 +479,7 @@ function MusicPage() {
           albums={albums ?? []}
           loading={albumsLoading}
           libraryID={activeLibraryID}
-          onAlbumClick={(a) => { setAlbumFilter(a.Title); setArtistFilter(null); setTab("tracks"); }}
+          onAlbumClick={(a) => { setAlbumFilter(a.ID); setArtistFilter(null); setTab("tracks"); }}
         />
       )}
       {tab === "artists" && (
@@ -701,6 +711,7 @@ function TracksTab({
   search,
   onSearchChange,
   albumFilter,
+  albumLabel,
   artistFilter,
   onClearAlbumFilter,
   onClearArtistFilter,
@@ -718,6 +729,7 @@ function TracksTab({
   search: string;
   onSearchChange: (v: string) => void;
   albumFilter: string | null;
+  albumLabel: string;
   artistFilter: string | null;
   onClearAlbumFilter: () => void;
   onClearArtistFilter: () => void;
@@ -745,16 +757,23 @@ function TracksTab({
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [allTracks]);
 
+  // In album mode the server already scopes allTracks to the album and ignores
+  // the search box, so apply the free-text query client-side here instead.
+  const albumQuery = albumFilter ? search.trim().toLowerCase() : "";
   const tracks = useMemo(
     () => allTracks.filter((x) => {
-      if (albumFilter && x.Album !== albumFilter) return false;
+      if (albumQuery && !(
+        x.Title.toLowerCase().includes(albumQuery) ||
+        x.Artist.toLowerCase().includes(albumQuery) ||
+        x.Album.toLowerCase().includes(albumQuery)
+      )) return false;
       if (artistFilter && x.Artist !== artistFilter && x.AlbumArtist !== artistFilter) return false;
       if (genreFilter && x.Genre !== genreFilter) return false;
       if (yearFilter && x.Year !== yearFilter) return false;
       if (artistSelectFilter && x.Artist !== artistSelectFilter && x.AlbumArtist !== artistSelectFilter) return false;
       return true;
     }),
-    [allTracks, albumFilter, artistFilter, genreFilter, yearFilter, artistSelectFilter],
+    [allTracks, albumQuery, artistFilter, genreFilter, yearFilter, artistSelectFilter],
   );
 
   const hasExtraFilter = !!genreFilter || yearFilter > 0 || !!artistSelectFilter;
@@ -786,7 +805,7 @@ function TracksTab({
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs bg-[var(--accent)] text-[var(--filter-active-text)] cursor-pointer border-none"
             title={t("common.clear")}
           >
-            {t("media.music.albums")}: {albumFilter} <X size={12} />
+            {t("media.music.albums")}: {albumLabel || albumFilter} <X size={12} />
           </button>
         )}
         {artistFilter && (
@@ -920,7 +939,7 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
 
   function downloadAlbum(a: Album) {
     if (!libraryID) return;
-    const url = `/api/v1/music/albums/download?album=${encodeURIComponent(a.Title)}&libraryId=${encodeURIComponent(libraryID)}${accessToken ? `&token=${encodeURIComponent(accessToken)}` : ""}`;
+    const url = `/api/v1/music/albums/download?albumId=${encodeURIComponent(a.ID)}&libraryId=${encodeURIComponent(libraryID)}${accessToken ? `&token=${encodeURIComponent(accessToken)}` : ""}`;
     window.location.href = url;
   }
 

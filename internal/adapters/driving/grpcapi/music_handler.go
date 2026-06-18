@@ -59,6 +59,27 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	isAdmin := claims != nil && claims.IsAdmin
+
+	// Album-scoped listing: when album_id is set, return that album's full track
+	// set (the opaque id resolves to a folder server-side), ignoring
+	// limit/offset/search. Keeps homonym albums distinct and lets clients use an
+	// opaque id in URLs instead of the display name.
+	if req.AlbumId != "" {
+		tracks, err := h.svc.ListTracksByAlbumID(ctx, shared.LibraryID(req.LibraryId), req.AlbumId)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, internalError("list tracks by album id", err)
+		}
+		resp := &eveyv1.ListTracksResponse{Total: int32(len(tracks))}
+		for _, t := range tracks {
+			resp.Tracks = append(resp.Tracks, trackToProto(t, isAdmin))
+		}
+		return resp, nil
+	}
+
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 50)
 	tracks, total, err := h.svc.ListTracks(ctx, shared.LibraryID(req.LibraryId), limit, offset, req.Search)
 	if err != nil {
@@ -66,10 +87,9 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list tracks", err)
 	}
-	claims, _ := requireClaims(ctx)
 	resp := &eveyv1.ListTracksResponse{Total: int32(total)}
 	for _, t := range tracks {
-		resp.Tracks = append(resp.Tracks, trackToProto(t, claims != nil && claims.IsAdmin))
+		resp.Tracks = append(resp.Tracks, trackToProto(t, isAdmin))
 	}
 	return resp, nil
 }

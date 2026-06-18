@@ -18,6 +18,7 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 
 	appmusic "github.com/evey-project/evey/internal/app/music"
+	domainmusic "github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -291,21 +292,31 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	libraryID := r.URL.Query().Get("libraryId")
+	albumID := r.URL.Query().Get("albumId")
 	album := r.URL.Query().Get("album")
 	span.SetAttributes(
 		attribute.String("library_id", libraryID),
+		attribute.String("album_id", albumID),
 		attribute.String("album", album),
 	)
-	if libraryID == "" || album == "" {
-		span.SetStatus(otelcodes.Error, "libraryId and album required")
-		http.Error(w, "libraryId and album are required", http.StatusBadRequest)
+	if libraryID == "" || (albumID == "" && album == "") {
+		span.SetStatus(otelcodes.Error, "libraryId and album/albumId required")
+		http.Error(w, "libraryId and album (or albumId) are required", http.StatusBadRequest)
 		return
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, shared.LibraryID(libraryID), h.libChecker) {
 		span.SetStatus(otelcodes.Error, "library access denied")
 		return
 	}
-	tracks, err := h.svc.ListTracksByAlbum(r.Context(), shared.LibraryID(libraryID), album)
+	// Prefer the opaque album id (collision-free, folder-derived); fall back to
+	// the display name for older links.
+	var tracks []domainmusic.Track
+	var err error
+	if albumID != "" {
+		tracks, err = h.svc.ListTracksByAlbumID(r.Context(), shared.LibraryID(libraryID), albumID)
+	} else {
+		tracks, err = h.svc.ListTracksByAlbum(r.Context(), shared.LibraryID(libraryID), album)
+	}
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "list tracks by album failed")
@@ -317,6 +328,10 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 		span.SetStatus(otelcodes.Error, "no tracks for album")
 		http.NotFound(w, r)
 		return
+	}
+	// With an opaque id, the display name for the zip comes from the tracks.
+	if album == "" {
+		album = tracks[0].Album
 	}
 	// Defense-in-depth: compute roots once for path confinement over the album's tracks.
 	var albumRoots []string

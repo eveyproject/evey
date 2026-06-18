@@ -289,6 +289,45 @@ func TestListTracks_Pagination(t *testing.T) {
 	}
 }
 
+func TestListTracksByAlbumID(t *testing.T) {
+	repo := fakes.NewFakeMusicTrackRepository()
+	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, nil)
+	ctx := context.Background()
+
+	// Two distinct albums; folder is the identity (AlbumFolder derived from path).
+	for _, p := range []string{"/m/AlbumX/01.mp3", "/m/AlbumX/02.mp3"} {
+		if _, err := repo.Upsert(ctx, music.Track{LibraryID: "lib-1", Album: "X", Artist: "A", FilePath: p}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := repo.Upsert(ctx, music.Track{LibraryID: "lib-1", Album: "Y", Artist: "A", FilePath: "/m/AlbumY/01.mp3"}); err != nil {
+		t.Fatal(err)
+	}
+
+	albumXID := music.AlbumID("/m/AlbumX")
+	tracks, err := svc.ListTracksByAlbumID(ctx, "lib-1", albumXID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tracks) != 2 {
+		t.Fatalf("expected 2 tracks for AlbumX, got %d", len(tracks))
+	}
+	for _, tr := range tracks {
+		if tr.Album != "X" {
+			t.Fatalf("got a non-AlbumX track: %+v", tr)
+		}
+	}
+
+	// Unknown id resolves to an empty result, not an error.
+	none, err := svc.ListTracksByAlbumID(ctx, "lib-1", "deadbeefdeadbeef")
+	if err != nil {
+		t.Fatalf("unknown album id should not error: %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("expected 0 tracks for unknown id, got %d", len(none))
+	}
+}
+
 func TestListTracks_EmptySearch(t *testing.T) {
 	dir := "/fake/music"
 	scanner := musicScannerFromFiles(dir, []fakeAudioFile{

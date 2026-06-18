@@ -64,6 +64,10 @@ func (s *Service) ListTracksByAlbum(ctx context.Context, libraryID shared.Librar
 	return s.query.ListTracksByAlbum(ctx, libraryID, album)
 }
 
+func (s *Service) ListTracksByAlbumID(ctx context.Context, libraryID shared.LibraryID, albumID string) ([]music.Track, error) {
+	return s.query.ListTracksByAlbumID(ctx, libraryID, albumID)
+}
+
 func (s *Service) GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.Album, error) {
 	return s.query.GetAlbums(ctx, libraryID)
 }
