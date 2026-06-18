@@ -224,6 +224,18 @@ func ParseFilename(filename string) ParsedInfo {
 	}
 
 	parts := filterEmpty(SplitFilename(name))
+	// Strip leading/trailing non-alphanumeric runes from each token so a
+	// SxxExx (or year/quality) glued to punctuation the splitter doesn't treat
+	// as a separator still classifies. Real-world + synthetic culprits: "+S02E06+",
+	// "[S02E06]", "{1080p}". Without this the marker leaks into the title and the
+	// TV scan creates one SERIES per episode (the Furies-duplicated-6x bug).
+	// Done at the TOKEN level only — `name` stays intact for the codec/audio/
+	// release-group regexes below, which rely on "." / "-" inside tokens
+	// (x264, h.264, dd5.1, -GROUP).
+	for i := range parts {
+		parts[i] = trimTokenPunct(parts[i])
+	}
+	parts = filterEmpty(parts)
 
 	info := ParsedInfo{Type: "movie"}
 	if len(parts) == 0 {
@@ -236,6 +248,15 @@ func ParseFilename(filename string) ParsedInfo {
 	extractReleaseGroup(&info, name)
 
 	return info
+}
+
+// trimTokenPunct strips leading/trailing non-alphanumeric runes from a token
+// (keeping internal ones so "h.264"-style tokens are untouched if ever passed).
+// Unicode-aware so accented titles survive.
+func trimTokenPunct(s string) string {
+	return strings.TrimFunc(s, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	})
 }
 
 func filterEmpty(tokens []string) []string {

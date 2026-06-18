@@ -415,6 +415,35 @@ func TestUcFirst_RuneAware(t *testing.T) {
 	}
 }
 
+// Regression: a SxxExx marker glued to non-separator punctuation (the splitter
+// doesn't break on "+", "[", "]") must still be detected, else the marker leaks
+// into the title and the TV scan creates one SERIES per episode (the "Furies"
+// duplicated-6x bug: files named "Furies+ +S02E06+.mkv").
+func TestParse_SEGluedToPunctuation(t *testing.T) {
+	cases := []struct {
+		filename string
+		title    string
+		season   int
+		episode  int
+	}{
+		{"Furies+ +S02E06+.mkv", "Furies", 2, 6},
+		{"Furies+ +S02E01+.mkv", "Furies", 2, 1},
+		{"Show.[S01E03].1080p.mkv", "Show", 1, 3},
+		{"Show {S03E10} WEB.mkv", "Show", 3, 10},
+	}
+	for _, c := range cases {
+		t.Run(c.filename, func(t *testing.T) {
+			info := ParseFilename(c.filename)
+			assert.Equal(t, "series", info.Type, "must be detected as a series")
+			assert.Equal(t, c.title, info.Title, "title must drop the glued SxxExx")
+			require.NotNil(t, info.Season)
+			assert.Equal(t, c.season, *info.Season)
+			require.NotNil(t, info.Episode)
+			assert.Equal(t, c.episode, *info.Episode)
+		})
+	}
+}
+
 func TestParse_NonAsciiTitleNotCorrupted(t *testing.T) {
 	info := ParseFilename("über.2010.1080p.mkv")
 	assert.True(t, utf8.ValidString(info.Title), "title must stay valid UTF-8")
