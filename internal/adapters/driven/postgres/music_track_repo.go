@@ -299,13 +299,16 @@ func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.Libr
 	}
 	// Escape % and _ so user input cannot construct pathological ILIKE patterns.
 	like := "%" + likeEscape(query) + "%"
+	// An empty libraryID searches across every library (the global search bar's
+	// SQL fallback when Meilisearch is down). The caller is responsible for
+	// filtering hits down to the libraries the user may access.
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, artist, album, album_artist,
 		       year, track_number, disk_number, duration, file_path,
 		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
 		       genre, album_folder, cover_art_url, created_at, updated_at
 		FROM music_tracks
-		WHERE library_id = $1 AND (title ILIKE $2 ESCAPE '\' OR artist ILIKE $2 ESCAPE '\' OR album ILIKE $2 ESCAPE '\')
+		WHERE ($1 = '' OR library_id = $1) AND (title ILIKE $2 ESCAPE '\' OR artist ILIKE $2 ESCAPE '\' OR album ILIKE $2 ESCAPE '\')
 		ORDER BY title LIMIT $3`, string(libraryID), like, limit)
 	if err != nil {
 		span.RecordError(err)

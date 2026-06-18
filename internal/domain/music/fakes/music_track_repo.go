@@ -205,7 +205,9 @@ func (r *FakeMusicTrackRepository) Search(_ context.Context, libraryID shared.Li
 	q := strings.ToLower(query)
 	var out []music.Track
 	for _, t := range r.tracks {
-		if t.LibraryID != libraryID {
+		// An empty libraryID searches across every library (mirrors the
+		// postgres repo's cross-library fallback for the global search bar).
+		if libraryID != "" && t.LibraryID != libraryID {
 			continue
 		}
 		if strings.Contains(strings.ToLower(t.Title), q) ||

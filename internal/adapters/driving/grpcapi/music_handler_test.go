@@ -184,6 +184,24 @@ func TestMusicHandler_SearchMusic_SpecificLibrary_DeniesUnauthorized(t *testing.
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
+// With no Meili index wired (simulating Meilisearch down), the global search
+// must still return results via the SQL fallback's cross-library search — not an
+// empty list — while still filtering by the user's accessible libraries.
+func TestMusicHandler_SearchMusic_CrossLibrary_SQLFallbackNotEmpty(t *testing.T) {
+	h, repo, libraryAccess, _ := newTestMusicHandler() // no search index → repo SQL fallback
+	repo.Upsert(context.Background(), music.Track{ID: "t1", LibraryID: "lib-1", Title: "Numb", Artist: "Linkin Park", FilePath: "/m/a/1.mp3"})
+	repo.Upsert(context.Background(), music.Track{ID: "t2", LibraryID: "lib-2", Title: "Numbers", Artist: "Other", FilePath: "/m/b/1.mp3"})
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	ctx := userCtx("user-2", "profile-2")
+	resp, err := h.SearchMusic(ctx, &eveyv1.SearchMusicRequest{Query: "num"}) // global, Meili "down"
+
+	require.NoError(t, err)
+	require.Len(t, resp.Tracks, 1)
+	assert.Equal(t, "Numb", resp.Tracks[0].Title)
+	assert.Equal(t, "lib-1", resp.Tracks[0].LibraryId)
+}
+
 func TestMusicHandler_GetAlbums_Success(t *testing.T) {
 	h, repo, _, _ := newTestMusicHandler()
 	seedTrack(repo, "t-1", "lib-1", "Track 1", "Artist A")

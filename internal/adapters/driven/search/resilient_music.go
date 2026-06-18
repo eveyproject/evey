@@ -93,12 +93,8 @@ func (f *musicRepoFallback) IndexTracksBatch(context.Context, []music.Track) err
 func (f *musicRepoFallback) RemoveTrack(context.Context, string) error             { return nil }
 
 func (f *musicRepoFallback) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]music.Track, error) {
-	// The SQL search is library-scoped; a global (empty-library) query can't be
-	// served by the per-library ILIKE, so degrade to no results rather than
-	// leak across libraries. This only bites when Meilisearch is down AND the
-	// caller is the cross-library global bar — a rare combination.
-	if libraryID == "" {
-		return nil, nil
-	}
+	// repo.Search treats an empty libraryID as a cross-library search, so the
+	// global search bar still returns results when Meilisearch is down. Access
+	// is enforced by the caller (handler post-filters by allowed libraries).
 	return f.repo.Search(ctx, libraryID, query, limit)
 }
