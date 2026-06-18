@@ -62,9 +62,11 @@ func albumArtHash(artist, album string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// FetchMissingAlbumArt queries albums without cover art in libraryID and attempts
-// to fetch artwork via the configured AlbumArtFetcher, persists to disk, and
-// updates track rows. Returns the number of albums successfully updated.
+// FetchMissingAlbumArt fetches artwork for every album in libraryID whose
+// cached image is absent from disk (never fetched, or wiped with the cache),
+// via the configured AlbumArtFetcher, persists it, and updates track rows.
+// Albums whose image already exists on disk are skipped. Returns the number of
+// albums successfully (re)fetched.
 func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID string) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.music.FetchMissingAlbumArt")
 	defer span.End()
@@ -74,9 +76,9 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 	if err := os.MkdirAll(s.albumArtDir, 0o755); err != nil {
 		return 0, fmt.Errorf("music: mkdir album art dir: %w", err)
 	}
-	albums, err := s.tracks.ListAlbumsMissingArt(ctx, shared.LibraryID(libraryID))
+	albums, err := s.tracks.ListAllAlbums(ctx, shared.LibraryID(libraryID))
 	if err != nil {
-		return 0, fmt.Errorf("music: list albums missing art: %w", err)
+		return 0, fmt.Errorf("music: list albums: %w", err)
 	}
 	fetched := 0
 	for _, ak := range albums {
@@ -86,6 +88,15 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 		if ak.Artist == "" || ak.Album == "" || ak.AlbumFolder == "" {
 			continue
 		}
+		// Gate on the on-disk file, not the DB cover_art_url: an album whose
+		// URL is set but whose cached image was wiped (cache cleared) must be
+		// re-fetched, otherwise the poster stays broken forever. When the file
+		// is already present we skip the (external, rate-limited) fetch.
+		hash := albumArtHash(ak.AlbumFolder, "")
+		dst := filepath.Join(s.albumArtDir, hash+".jpg")
+		if _, statErr := os.Stat(dst); statErr == nil {
+			continue
+		}
 		data, _, ferr := s.albumArtFetcher.Fetch(ctx, ak.Artist, ak.Album)
 		if ferr != nil {
 			if !os.IsNotExist(ferr) {
@@ -93,11 +104,8 @@ func (s *CommandService) FetchMissingAlbumArt(ctx context.Context, libraryID str
 			}
 			continue
 		}
-		// Hash on the folder: folder is the album identity, so two
-		// folders that happen to share (artist, album) tags still get
-		// distinct files on disk.
-		hash := albumArtHash(ak.AlbumFolder, "")
-		dst := filepath.Join(s.albumArtDir, hash+".jpg")
+		// hash/dst computed above (folder is the album identity, so two folders
+		// that share (artist, album) tags still get distinct files on disk).
 		if werr := os.WriteFile(dst, data, 0o644); werr != nil {
 			slog.Warn("music: write album art", slog.String("path", dst), slog.Any("err", werr))
 			continue

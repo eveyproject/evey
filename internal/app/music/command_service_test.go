@@ -117,6 +117,85 @@ func TestCommandService_FetchMissingAlbumArt_HappyPath(t *testing.T) {
 	}
 }
 
+// Regression: an album whose cover_art_url is already set in the DB but whose
+// cached image was wiped from disk (cache cleared) must be re-fetched, not left
+// broken. The old "missing art = empty URL" gate skipped it forever.
+func TestCommandService_FetchMissingAlbumArt_RefetchesWhenFileWiped(t *testing.T) {
+	cmd, repo, _ := newCmdWithFakes(t)
+	dir := t.TempDir()
+	fetcher := &fakeFetcher{data: []byte("FRESHBYTES"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, dir)
+
+	libID := "lib1"
+	sum := sha256.Sum256([]byte("/m/AlbumX" + "|"))
+	hash := hex.EncodeToString(sum[:])
+	// Track already carries the cover URL, but the file on disk is GONE.
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID:          "t1",
+		LibraryID:   shared.LibraryID(libID),
+		Title:       "T",
+		Artist:      "ArtistA",
+		AlbumArtist: "ArtistA",
+		Album:       "AlbumX",
+		FilePath:    "/m/AlbumX/t1.mp3",
+		CoverArtURL: "/api/v1/music/album-art/" + hash,
+	})
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("want 1 refetched, got %d", n)
+	}
+	got, rerr := os.ReadFile(filepath.Join(cmd.AlbumArtDir(), hash+".jpg"))
+	if rerr != nil {
+		t.Fatalf("expected file re-created: %v", rerr)
+	}
+	if string(got) != "FRESHBYTES" {
+		t.Fatalf("bad bytes: %q", got)
+	}
+}
+
+// An album whose cached image already exists on disk must NOT trigger a fetch.
+func TestCommandService_FetchMissingAlbumArt_SkipsWhenFilePresent(t *testing.T) {
+	cmd, repo, _ := newCmdWithFakes(t)
+	dir := t.TempDir()
+	fetcher := &fakeFetcher{data: []byte("SHOULD-NOT-RUN"), mime: "image/jpeg"}
+	cmd.WithAlbumArtFetcher(fetcher, dir)
+
+	libID := "lib1"
+	sum := sha256.Sum256([]byte("/m/AlbumX" + "|"))
+	hash := hex.EncodeToString(sum[:])
+	// Pre-create the cached image so the gate skips the fetch.
+	if err := os.MkdirAll(cmd.AlbumArtDir(), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cmd.AlbumArtDir(), hash+".jpg"), []byte("EXISTING"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID:          "t1",
+		LibraryID:   shared.LibraryID(libID),
+		Title:       "T",
+		Artist:      "ArtistA",
+		AlbumArtist: "ArtistA",
+		Album:       "AlbumX",
+		FilePath:    "/m/AlbumX/t1.mp3",
+	})
+
+	n, err := cmd.FetchMissingAlbumArt(context.Background(), libID)
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("want 0 fetched (file present), got %d", n)
+	}
+	if fetcher.calls.Load() != 0 {
+		t.Fatalf("fetcher must not be called when file present, called %d", fetcher.calls.Load())
+	}
+}
+
 func TestCommandService_FetchMissingAlbumArt_NotExistErrorSkipped(t *testing.T) {
 	cmd, repo, _ := newCmdWithFakes(t)
 	dir := t.TempDir()

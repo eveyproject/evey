@@ -27,7 +27,12 @@ type TrackRepository interface {
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)
 	GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]Artist, error)
 	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
-	ListAlbumsMissingArt(ctx context.Context, libraryID shared.LibraryID) ([]AlbumKey, error)
+	// ListAllAlbums returns one AlbumKey per album folder (folders we can
+	// represent as a fetchable artist+album). The caller decides which need
+	// art by checking the on-disk file, so an album whose cover_art_url is set
+	// in the DB but whose cached image was wiped gets re-fetched rather than
+	// staying silently broken.
+	ListAllAlbums(ctx context.Context, libraryID shared.LibraryID) ([]AlbumKey, error)
 	SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error
 }
 

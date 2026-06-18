@@ -488,12 +488,16 @@ func (r *MusicTrackRepository) SampleByLibrary(ctx context.Context, libraryID sh
 // cover art on any of its tracks. The Album / Artist display strings
 // come from the folder's majority tags, so downstream fetchers (which
 // still key on human-readable artist+album) get the best-guess values.
-func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, libraryID shared.LibraryID) ([]music.AlbumKey, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListAlbumsMissingArt")
+func (r *MusicTrackRepository) ListAllAlbums(ctx context.Context, libraryID shared.LibraryID) ([]music.AlbumKey, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListAllAlbums")
 	defer span.End()
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// Every album folder we can represent as a fetchable (artist, album). The
+	// cover_art_url state is deliberately NOT filtered here: the service gates
+	// on whether the cached image exists on disk, so an album whose URL is set
+	// but whose file was wiped is re-fetched instead of staying broken.
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT album_folder,
 		       COALESCE(mode() WITHIN GROUP (ORDER BY NULLIF(album,'')), '') AS display_album,
@@ -505,8 +509,7 @@ func (r *MusicTrackRepository) ListAlbumsMissingArt(ctx context.Context, library
 		FROM music_tracks
 		WHERE library_id=$1
 		GROUP BY album_folder
-		HAVING BOOL_AND(COALESCE(cover_art_url,'') = '')
-		   AND COALESCE(mode() WITHIN GROUP (ORDER BY NULLIF(album,'')), '') <> ''
+		HAVING COALESCE(mode() WITHIN GROUP (ORDER BY NULLIF(album,'')), '') <> ''
 		   AND COALESCE(
 		           mode() WITHIN GROUP (ORDER BY NULLIF(album_artist,'')),
 		           mode() WITHIN GROUP (ORDER BY NULLIF(artist,'')),

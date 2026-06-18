@@ -357,19 +357,19 @@ func (r *FakeMusicTrackRepository) UpdateFilePath(_ context.Context, id, newPath
 	return nil
 }
 
-func (r *FakeMusicTrackRepository) ListAlbumsMissingArt(_ context.Context, libraryID shared.LibraryID) ([]music.AlbumKey, error) {
+func (r *FakeMusicTrackRepository) ListAllAlbums(_ context.Context, libraryID shared.LibraryID) ([]music.AlbumKey, error) {
 	if r.Err != nil {
 		return nil, r.Err
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	// One entry per folder; "missing art" means no track in the folder
-	// has a cover_art_url. Display album/artist are the folder's majority.
+	// One entry per folder. cover_art_url state is NOT considered here; the
+	// caller decides what to fetch by checking the on-disk file. Display
+	// album/artist are the folder's majority.
 	type folderAgg struct {
 		folder   string
 		albumCnt map[string]int
 		artCnt   map[string]int
-		hasArt   bool
 	}
 	m := make(map[string]*folderAgg)
 	for _, t := range r.tracks {
@@ -391,15 +391,9 @@ func (r *FakeMusicTrackRepository) ListAlbumsMissingArt(_ context.Context, libra
 		if a != "" {
 			agg.artCnt[a]++
 		}
-		if t.CoverArtURL != "" {
-			agg.hasArt = true
-		}
 	}
 	var out []music.AlbumKey
 	for _, agg := range m {
-		if agg.hasArt {
-			continue
-		}
 		album := modeString(agg.albumCnt)
 		artist := modeString(agg.artCnt)
 		// Same filter as the postgres repo: skip folders we cannot
