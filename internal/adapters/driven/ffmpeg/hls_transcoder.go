@@ -45,17 +45,25 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 	return h, nil
 }
 
-// needsCopyRebase: EVERY copy fMP4 session publishes through the rebase pump.
-// Seek sessions (StartNumber > 0) need their session-relative tfdt/sidx
-// shifted to the absolute timeline (movenc always writes dts − first_dts; no
-// CLI flag yields absolute time — see fmp4_rebase.go). Cold sessions are
-// absolute by construction (deltaMs 0, parse-only) but still route through
-// the pump so the timeline TRIPWIRE (verifyCopySegmentTimeline) covers them:
-// the historical numbering-drift bug lived precisely on the cold path.
-// Transcode rungs share the latent base mismatch but are paced (no rewrite
-// race) — tracked separately.
-func needsCopyRebase(o transcoding.HLSProcessOpts) bool {
-	return o.VideoDecision == "copy" && o.UseFMP4
+// needsFMP4Rebase: fMP4 sessions whose segments come out session-relative
+// (0-based) and must be shifted to the absolute timeline before publishing,
+// because movenc always writes dts − first_dts and no CLI flag yields absolute
+// time (see fmp4_rebase.go).
+//
+//   - copy + fMP4: ALWAYS 0-based → always rebase. Cold copy (StartNumber 0)
+//     is absolute by construction (deltaMs 0, parse-only) but still routes
+//     through the pump so the timeline TRIPWIRE (verifyCopySegmentTimeline)
+//     covers it — the historical numbering-drift bug lived on the cold path.
+//   - transcode SEEK (StartNumber > 0): pre-input `-ss` resets the output PTS
+//     to 0, so the seek segment's tfdt is 0 instead of StartSec → the browser
+//     can't place it on the VOD timeline and seeking stalls in permanent
+//     buffering. These need the same shift. Cold transcode (StartNumber 0) is
+//     absolute by construction (start 0) and stays on the direct-write path.
+func needsFMP4Rebase(o transcoding.HLSProcessOpts) bool {
+	if !o.UseFMP4 {
+		return false
+	}
+	return o.VideoDecision == "copy" || o.StartNumber > 0
 }
 
 // startOne spawns a single ffmpeg process for opts and returns its handle.
@@ -67,7 +75,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 	// renames into the cache dir — the rename is the publish point
 	// SegmentCache.IsReady observes, so readers never see a pre-rebase file.
 	pubDir := opts.OutputDir
-	rebase := needsCopyRebase(opts)
+	rebase := needsFMP4Rebase(opts)
 	if rebase {
 		priv := filepath.Join(pubDir, fmt.Sprintf(".rebase_%d_%d", opts.StartNumber, time.Now().UnixNano()))
 		if err := os.MkdirAll(priv, 0o755); err != nil {
