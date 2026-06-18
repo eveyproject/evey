@@ -4,12 +4,13 @@ import { Image } from "expo-image";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceSearchMedia } from "@evey/api";
-import type { V1MediaItem } from "@evey/api";
+import { useLibraryServiceSearchMedia, useMusicServiceSearchMusic } from "@evey/api";
+import type { V1MediaItem, V1Track } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useDebounce } from "../hooks/useDebounce";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../hooks/useServerUrl";
+import { useMusicQueueStore } from "../stores/musicQueue";
 
 export function HeaderSearch() {
   const theme = useTheme();
@@ -20,13 +21,20 @@ export function HeaderSearch() {
   const debouncedQuery = useDebounce(query, 250);
   const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
+  const [kind, setKind] = useState<"media" | "music">("media");
+  const setQueue = useMusicQueueStore((s) => s.setQueue);
 
   const { data } = useLibraryServiceSearchMedia(
     { query: debouncedQuery, limit: 6 },
-    { query: { enabled: debouncedQuery.trim().length > 1 } }
+    { query: { enabled: debouncedQuery.trim().length > 1 && kind === "media" } }
+  );
+  const { data: musicData } = useMusicServiceSearchMusic(
+    { query: debouncedQuery, limit: 6 },
+    { query: { enabled: debouncedQuery.trim().length > 1 && kind === "music" } }
   );
 
   const results = data?.items ?? [];
+  const musicResults = musicData?.tracks ?? [];
   const showDropdown = focused && debouncedQuery.trim().length > 1;
 
   const handleSelect = useCallback((item: V1MediaItem) => {
@@ -36,12 +44,27 @@ export function HeaderSearch() {
     router.push(`/media/${item.id}`);
   }, []);
 
+  const handleSelectTrack = useCallback((tr: V1Track) => {
+    setFocused(false);
+    inputRef.current?.blur();
+    setQueue([{
+      id: tr.id ?? "",
+      title: tr.title ?? "",
+      artist: tr.artist ?? "",
+      album: tr.album ?? "",
+      duration: tr.duration ?? 0,
+    }], 0);
+  }, [setQueue]);
+
   const handleSubmit = useCallback(() => {
     if (!query.trim()) return;
     setFocused(false);
     inputRef.current?.blur();
-    router.push({ pathname: "/(auth)/(tabs)/search", params: { q: query.trim() } });
-  }, [query]);
+    router.push({
+      pathname: "/(auth)/(tabs)/search",
+      params: { q: query.trim(), ...(kind === "music" ? { kind: "music" } : {}) },
+    });
+  }, [query, kind]);
 
   return (
     <View style={styles.wrapper}>
@@ -70,7 +93,60 @@ export function HeaderSearch() {
 
       {showDropdown && (
         <View style={[styles.dropdown, { backgroundColor: theme.colors.surfaceRaised, borderColor: theme.colors.border, shadowColor: theme.colors.shadow }]}>
-          {results.length === 0 ? (
+          {/* Scope selector: video catalog (default) vs music */}
+          <View style={[styles.scopeRow, { borderBottomColor: theme.colors.border }]}>
+            {(["media", "music"] as const).map((k) => (
+              <Pressable
+                key={k}
+                onPress={() => setKind(k)}
+                style={[styles.scopeChip, { backgroundColor: kind === k ? theme.colors.accent : "transparent" }]}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: kind === k ? "#fff" : theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>
+                  {k === "media" ? t("media.search.sectionMedia") : t("media.search.sectionMusic")}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {kind === "music" ? (
+            musicResults.length === 0 ? (
+              <View style={styles.emptyRow}>
+                <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("media.search.noResults", "No results")}</Text>
+              </View>
+            ) : (
+              <>
+                {musicResults.map((tr) => {
+                  const cover = tr.coverArtUrl
+                    ? (/^https?:/i.test(tr.coverArtUrl) ? tr.coverArtUrl : `${serverUrl ?? ""}${tr.coverArtUrl}`)
+                    : undefined;
+                  return (
+                    <Pressable key={tr.id} onPress={() => handleSelectTrack(tr)} style={styles.resultRow} accessible accessibilityLabel={tr.title ?? ""} accessibilityRole="button">
+                      {cover ? (
+                        <Image source={{ uri: cover, headers: authHeaders }} style={styles.musicCover} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.musicCover, { alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface }]}>
+                          <Ionicons name="musical-notes" size={16} color={theme.colors.textMuted} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.resultTitle, { color: theme.colors.text }]} numberOfLines={1}>{tr.title}</Text>
+                        <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>
+                          {[tr.artist, tr.album].filter(Boolean).join(" · ")}
+                        </Text>
+                      </View>
+                      <Ionicons name="play" size={14} color={theme.colors.accent} />
+                    </Pressable>
+                  );
+                })}
+                <Pressable onPress={handleSubmit} style={[styles.seeAllRow, { borderTopColor: theme.colors.border }]}>
+                  <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "500" }}>
+                    {t("common.seeAll", "See all results for")} "{query}"
+                  </Text>
+                </Pressable>
+              </>
+            )
+          ) : results.length === 0 ? (
             <View style={styles.emptyRow}>
               <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("media.search.noResults", "No results")}</Text>
             </View>
@@ -143,6 +219,22 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 8,
     zIndex: 999,
+  },
+  scopeRow: {
+    flexDirection: "row",
+    gap: 6,
+    padding: 8,
+    borderBottomWidth: 1,
+  },
+  scopeChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  musicCover: {
+    width: 36,
+    height: 36,
+    borderRadius: 4,
   },
   emptyRow: {
     padding: 16,

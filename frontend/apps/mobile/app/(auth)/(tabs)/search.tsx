@@ -12,15 +12,16 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Skeleton } from "../../../src/components/Skeleton";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceSearchMedia } from "@evey/api";
-import type { V1MediaItem } from "@evey/api";
+import { useLibraryServiceSearchMedia, useMusicServiceSearchMusic } from "@evey/api";
+import type { V1MediaItem, V1Track } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import * as SecureStore from "expo-secure-store";
 
 const HISTORY_KEY = "evey-search-history";
@@ -69,8 +70,13 @@ export default function SearchScreen() {
   const router = useRouter();
   const { t } = useTranslation();
   const serverUrl = useServerUrl();
-  const [query, setQuery] = useState("");
+  const params = useLocalSearchParams<{ q?: string; kind?: string }>();
+  const [query, setQuery] = useState(typeof params.q === "string" ? params.q : "");
   const debouncedQuery = useDebounce(query, 300);
+  // Search scope: video catalog (default) or music.
+  const [searchKind, setSearchKind] = useState<"media" | "music">(params.kind === "music" ? "music" : "media");
+  const setQueue = useMusicQueueStore((s) => s.setQueue);
+  const authHeaders = useAuthHeaders();
   const [searchHistory, setSearchHistory] = useState<string[]>(() => loadSearchHistory());
   const lastSubmitted = useRef("");
 
@@ -148,12 +154,54 @@ export default function SearchScreen() {
     { query: { enabled: debouncedQuery.length > 1 } },
   );
 
+  const { data: musicData, isLoading: musicLoading } = useMusicServiceSearchMusic(
+    { query: debouncedQuery, limit: 40 },
+    { query: { enabled: debouncedQuery.length > 1 && searchKind === "music" } },
+  );
+  const musicItems = musicData?.tracks ?? [];
+
   const items = data?.items ?? [];
   const totalHits = data?.totalHits ?? items.length;
   const hasQuery = debouncedQuery.length > 1;
-  const hasActiveFilters = !!typeFilter || !!genre || !!yearMin || !!yearMax || !!sortField;
 
-  const authHeaders = useAuthHeaders();
+  const playMusicTrack = useCallback((tr: V1Track) => {
+    setQueue([{
+      id: tr.id ?? "",
+      title: tr.title ?? "",
+      artist: tr.artist ?? "",
+      album: tr.album ?? "",
+      duration: tr.duration ?? 0,
+    }], 0);
+  }, [setQueue]);
+
+  const renderMusicItem = useCallback(({ item }: { item: V1Track }) => {
+    const cover = item.coverArtUrl
+      ? (/^https?:/i.test(item.coverArtUrl) ? item.coverArtUrl : `${serverUrl ?? ""}${item.coverArtUrl}`)
+      : undefined;
+    return (
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => playMusicTrack(item)}
+        style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
+      >
+        <View style={[styles.musicThumb, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised, justifyContent: "center", alignItems: "center" }]}>
+          {cover ? (
+            <Image source={{ uri: cover, headers: authHeaders }} style={{ width: 48, height: 48, borderRadius: theme.radii.sm }} contentFit="cover" transition={150} />
+          ) : (
+            <Ionicons name="musical-notes" size={20} color={theme.colors.textMuted} />
+          )}
+        </View>
+        <View style={styles.info}>
+          <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>{item.title}</Text>
+          <Text style={[styles.meta, { color: theme.colors.textMuted }]} numberOfLines={1}>
+            {[item.artist, item.album].filter(Boolean).join(" · ")}
+          </Text>
+        </View>
+        <Ionicons name="play" size={18} color={theme.colors.accent} />
+      </TouchableOpacity>
+    );
+  }, [theme, serverUrl, authHeaders, playMusicTrack]);
+  const hasActiveFilters = !!typeFilter || !!genre || !!yearMin || !!yearMax || !!sortField;
 
   const clearAllFilters = useCallback(() => {
     setTypeFilter(undefined);
@@ -257,8 +305,26 @@ export default function SearchScreen() {
         accessibilityLabel="Search media"
       />
 
-      {/* Type filter chips + filter toggle */}
+      {/* Scope selector: video catalog (default) vs music */}
       {hasQuery && (
+        <View style={{ flexDirection: "row", paddingHorizontal: 16, marginBottom: 8, gap: 6 }}>
+          {(["media", "music"] as const).map((k) => (
+            <TouchableOpacity
+              key={k}
+              activeOpacity={0.7}
+              onPress={() => setSearchKind(k)}
+              style={[styles.chip, { backgroundColor: searchKind === k ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm, marginRight: 0 }]}
+            >
+              <Text style={{ color: searchKind === k ? "#fff" : theme.colors.text, fontSize: 13, fontWeight: "600" }}>
+                {k === "media" ? t("media.search.sectionMedia") : t("media.search.sectionMusic")}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Type filter chips + filter toggle */}
+      {hasQuery && searchKind === "media" && (
         <View style={{ paddingHorizontal: 16, marginBottom: 4 }}>
           <ScrollView
             horizontal
@@ -515,7 +581,7 @@ export default function SearchScreen() {
         </View>
       )}
 
-      {isError && debouncedQuery.length > 0 ? (
+      {searchKind === "media" && isError && debouncedQuery.length > 0 ? (
         <View
           style={{
             flex: 1,
@@ -534,7 +600,7 @@ export default function SearchScreen() {
             </Text>
           </Pressable>
         </View>
-      ) : isLoading && hasQuery ? (
+      ) : (searchKind === "media" ? isLoading : musicLoading) && hasQuery ? (
         <View style={{ padding: theme.spacing.md }}>
           {Array.from({ length: 6 }).map((_, i) => (
             <View
@@ -592,6 +658,33 @@ export default function SearchScreen() {
               {t("media.search.searchLibrary")}
             </Text>
           </View>
+        )
+      ) : searchKind === "music" ? (
+        musicItems.length === 0 ? (
+          <View style={styles.center}>
+            <Text style={{ color: theme.colors.textMuted }}>{t("media.search.noResults")}</Text>
+          </View>
+        ) : (
+          <>
+            <View style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>
+                {t("media.search.resultCount", { count: musicItems.length })}{" "}
+                {t("media.search.resultFor", { query: debouncedQuery })}
+              </Text>
+            </View>
+            <FlatList
+              data={musicItems}
+              keyExtractor={(it) => it.id ?? ""}
+              renderItem={renderMusicItem}
+              contentContainerStyle={{ padding: theme.spacing.md }}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              keyboardShouldPersistTaps="handled"
+              initialNumToRender={10}
+              maxToRenderPerBatch={12}
+              windowSize={5}
+              removeClippedSubviews={true}
+            />
+          </>
         )
       ) : items.length === 0 ? (
         <View style={styles.center}>
@@ -657,6 +750,7 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   thumb: { width: 48, height: 72, marginRight: 12 },
+  musicThumb: { width: 48, height: 48, marginRight: 12 },
   info: { flex: 1 },
   title: { fontSize: 15, fontWeight: "600" },
   meta: { fontSize: 12, marginTop: 2 },

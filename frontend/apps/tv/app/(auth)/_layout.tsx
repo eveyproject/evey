@@ -1,6 +1,8 @@
+import { View } from "react-native";
 import { Redirect, Stack } from "expo-router";
 import { useAuthStore } from "@evey/store";
 import { useDeviceRegistration } from "../../src/hooks/useDeviceRegistration";
+import { TVMusicPlayer } from "../../src/components/TVMusicPlayer";
 
 function isTokenExpired(token: string): boolean {
   try {
@@ -28,5 +30,10 @@ export default function AuthLayout() {
   }
   if (!profileId) return <Redirect href="/profile-select" />;
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }} />
+      <TVMusicPlayer />
+    </View>
+  );
 }

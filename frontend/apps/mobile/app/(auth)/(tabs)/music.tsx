@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import {
   View,
   Text,
+  TextInput,
   FlatList,
   TouchableOpacity,
   Pressable,
@@ -19,6 +20,7 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 
@@ -79,10 +81,18 @@ function useMusicLibraries() {
   });
 }
 
-function useMusicTracks(libraryID: string | undefined) {
+function useMusicTracks(libraryID: string | undefined, search?: string) {
+  const q = (search ?? "").trim();
   return useQuery({
-    queryKey: ["music", "tracks", libraryID],
-    queryFn: () => eveyFetch<{ tracks: Track[] }>({ url: `/api/v1/music/tracks?library_id=${libraryID}&limit=200`, method: "GET" }),
+    queryKey: ["music", "tracks", libraryID, q],
+    // A non-empty search hits the full-text index (Meilisearch, with SQL
+    // fallback) server-side for typo tolerance; otherwise the plain listing.
+    queryFn: () => eveyFetch<{ tracks: Track[] }>({
+      url: q
+        ? `/api/v1/music/tracks?library_id=${libraryID}&search=${encodeURIComponent(q)}`
+        : `/api/v1/music/tracks?library_id=${libraryID}&limit=200`,
+      method: "GET",
+    }),
     enabled: !!libraryID,
     select: (d) => d.tracks ?? [],
     staleTime: 60_000,
@@ -119,6 +129,8 @@ export default function MusicScreen() {
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [showQueue, setShowQueue] = useState(false);
   const [playlistTrackId, setPlaylistTrackId] = useState<string | null>(null);
+  const [trackSearch, setTrackSearch] = useState("");
+  const debouncedTrackSearch = useDebounce(trackSearch.trim(), 300);
 
   const queue = useMusicQueueStore((s) => s.queue);
   const currentIndex = useMusicQueueStore((s) => s.currentIndex);
@@ -128,7 +140,7 @@ export default function MusicScreen() {
 
   const { data: libraries, isLoading: libLoading } = useMusicLibraries();
   const activeLibraryID = selectedLibraryID ?? libraries?.[0]?.id;
-  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID);
+  const { data: tracks, isLoading: tracksLoading } = useMusicTracks(activeLibraryID, debouncedTrackSearch);
   const { data: albums, isLoading: albumsLoading } = useMusicAlbums(activeLibraryID);
   const { data: artists, isLoading: artistsLoading } = useMusicArtists(activeLibraryID);
 
@@ -326,6 +338,30 @@ export default function MusicScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Track search (Meilisearch-backed) */}
+      {tab === "tracks" && (
+        <View style={{ paddingHorizontal: theme.spacing.md, marginTop: theme.spacing.sm }}>
+          <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm, paddingHorizontal: 10 }}>
+            <Ionicons name="search-outline" size={16} color={theme.colors.textMuted} />
+            <TextInput
+              value={trackSearch}
+              onChangeText={setTrackSearch}
+              placeholder={t("media.search.placeholder")}
+              placeholderTextColor={theme.colors.textMuted}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              style={{ flex: 1, color: theme.colors.text, fontSize: 14, paddingVertical: 8, marginLeft: 6 }}
+            />
+            {trackSearch.length > 0 && (
+              <Pressable onPress={() => setTrackSearch("")} hitSlop={8} accessibilityLabel={t("media.search.clearSearch")}>
+                <Ionicons name="close-circle" size={16} color={theme.colors.textMuted} />
+              </Pressable>
+            )}
+          </View>
+        </View>
+      )}
 
       {/* Queue button */}
       {queue.length > 0 && (

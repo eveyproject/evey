@@ -11,6 +11,7 @@ import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
 import { initI18n } from "../src/i18n";
 import { migrateFromSingleServer, useServerListStore } from "@evey/store";
+import { configureAudioSession } from "../src/lib/audio-session";
 
 // Wire Zustand persist to expo-secure-store (must run before stores are accessed)
 setZustandStorage({
@@ -31,6 +32,7 @@ export default function RootLayout() {
         console.error("server migration failed:", err);
       }
       await initFetcher();
+      await configureAudioSession();
       const serverUrl =
         useServerListStore.getState().getActiveServer()?.url ?? await getServerUrl();
       if (serverUrl) await initI18n(serverUrl);

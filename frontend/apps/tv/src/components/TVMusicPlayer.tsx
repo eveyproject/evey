@@ -1,0 +1,162 @@
+// Globally-mounted TV music player. Subscribes to useMusicQueueStore and drives
+// an expo-audio AudioPlayer for the active track. This is the TV equivalent of
+// the mobile MusicMiniPlayer / web GlobalAudioPlayer: the search screen's audio
+// scope enqueues tracks here. Controls are focusable for D-pad navigation.
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { View, Text, Pressable, Image, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { useAuthStore } from "@evey/store";
+import { useMusicQueueStore } from "../stores/musicQueue";
+import { useTheme } from "../providers/ThemeProvider";
+import { useServerUrl } from "../hooks/useServerUrl";
+
+function FocusCtrl({
+  name,
+  size,
+  onPress,
+  label,
+  hasTVPreferredFocus,
+}: {
+  name: keyof typeof Ionicons.glyphMap;
+  size: number;
+  onPress: () => void;
+  label: string;
+  hasTVPreferredFocus?: boolean;
+}) {
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+  return (
+    <Pressable
+      onPress={onPress}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      hasTVPreferredFocus={hasTVPreferredFocus}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={{
+        padding: 10,
+        marginHorizontal: 6,
+        borderRadius: 8,
+        backgroundColor: focused ? theme.colors.accent : "transparent",
+      }}
+    >
+      <Ionicons name={name} size={size} color={focused ? "#fff" : theme.colors.text} />
+    </Pressable>
+  );
+}
+
+function TVMusicPlayerImpl() {
+  const theme = useTheme();
+  const serverUrl = useServerUrl();
+  const accessToken = useAuthStore((s) => s.accessToken);
+
+  const queue = useMusicQueueStore((s) => s.queue);
+  const currentIndex = useMusicQueueStore((s) => s.currentIndex);
+  const isPlayingState = useMusicQueueStore((s) => s.isPlaying);
+  const togglePlay = useMusicQueueStore((s) => s.togglePlay);
+  const next = useMusicQueueStore((s) => s.next);
+  const previous = useMusicQueueStore((s) => s.previous);
+  const clear = useMusicQueueStore((s) => s.clear);
+
+  const track = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+
+  const streamUri = (track && serverUrl && accessToken)
+    ? `${serverUrl}/api/v1/music/tracks/${track.id}/stream?token=${encodeURIComponent(accessToken)}`
+    : null;
+
+  const player = useAudioPlayer(streamUri ?? undefined, { updateInterval: 500 });
+  const status = useAudioPlayerStatus(player);
+  const loadedUriRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!streamUri) return;
+    if (loadedUriRef.current === streamUri) return;
+    loadedUriRef.current = streamUri;
+    try {
+      player.replace(streamUri);
+      if (isPlayingState) player.play();
+    } catch {
+      // Player not ready yet — the next render will retry.
+    }
+  }, [streamUri, player, isPlayingState]);
+
+  useEffect(() => {
+    if (!streamUri) return;
+    try {
+      if (isPlayingState) player.play();
+      else player.pause();
+    } catch { /* released */ }
+  }, [isPlayingState, player, streamUri]);
+
+  const lastDidFinishRef = useRef(false);
+  useEffect(() => {
+    const finished = !!status.didJustFinish;
+    if (finished && !lastDidFinishRef.current) {
+      lastDidFinishRef.current = true;
+      next();
+    } else if (!finished) {
+      lastDidFinishRef.current = false;
+    }
+  }, [status.didJustFinish, next]);
+
+  const onClose = useCallback(() => {
+    try { player.pause(); } catch { /* released */ }
+    loadedUriRef.current = null;
+    clear();
+  }, [clear, player]);
+
+  if (!track) return null;
+
+  const duration = (status.duration ?? track.duration ?? 0);
+  const position = status.currentTime ?? 0;
+  const progress = duration > 0 ? position / duration : 0;
+  const artUri = (serverUrl && accessToken)
+    ? `${serverUrl}/api/v1/music/tracks/${track.id}/art?token=${encodeURIComponent(accessToken)}`
+    : undefined;
+
+  return (
+    <View style={[styles.root, { backgroundColor: theme.colors.surfaceRaised, borderTopColor: theme.colors.border }]}>
+      <View style={[styles.progressTrack, { backgroundColor: theme.colors.border }]}>
+        <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(100, progress * 100))}%`, backgroundColor: theme.colors.accent }]} />
+      </View>
+      <View style={styles.row}>
+        <View style={[styles.cover, { backgroundColor: theme.colors.surface }]}>
+          {artUri ? (
+            <Image source={{ uri: artUri }} style={{ width: 56, height: 56, borderRadius: 6 }} resizeMode="cover" />
+          ) : (
+            <Ionicons name="musical-notes" size={26} color={theme.colors.textMuted} />
+          )}
+        </View>
+        <View style={{ flex: 1, marginLeft: 16, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>{track.title || "—"}</Text>
+          <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: 14 }}>
+            {[track.artist, track.album].filter(Boolean).join(" · ") || "—"}
+          </Text>
+        </View>
+        <FocusCtrl name="play-skip-back" size={26} onPress={previous} label="Previous track" />
+        <FocusCtrl name={isPlayingState ? "pause" : "play"} size={32} onPress={togglePlay} label={isPlayingState ? "Pause" : "Play"} hasTVPreferredFocus />
+        <FocusCtrl name="play-skip-forward" size={26} onPress={next} label="Next track" />
+        <FocusCtrl name="close" size={24} onPress={onClose} label="Close player" />
+      </View>
+    </View>
+  );
+}
+
+export const TVMusicPlayer = memo(TVMusicPlayerImpl);
+
+const styles = StyleSheet.create({
+  root: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+  },
+  progressTrack: { height: 3, borderRadius: 2, overflow: "hidden", marginBottom: 10 },
+  progressFill: { height: 3, borderRadius: 2 },
+  row: { flexDirection: "row", alignItems: "center" },
+  cover: { width: 56, height: 56, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+});

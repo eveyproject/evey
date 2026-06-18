@@ -64,4 +64,5 @@ export type { V1BackupManifest } from "./generated/backup.schemas";
 export type { V1BackupSchedule, V1UpdateBackupScheduleRequest, V1RunBackupNowResponse } from "./generated/backup_schedule.schemas";
 export type { V1PlaylistProto, V1PlaylistRule, V1PlaylistItemProto } from "./generated/playlist.schemas";
 export { V1PlaylistType } from "./generated/playlist.schemas";
+export type { V1Track, V1MusicAlbum, V1MusicArtist } from "./generated/music.schemas";
 export type { V1CollectionProto, V1CollectionItemProto } from "./generated/collection.schemas";
