@@ -98,6 +98,37 @@ func TestArtwork_SourceURL_Redirect(t *testing.T) {
 	}
 }
 
+// A LocalPath whose file has vanished from disk must NOT 404; the handler must
+// fall through to the SourceURL redirect when one is available (homepage poster
+// regression: stale local path swallowed the remote fallback).
+func TestArtwork_StaleLocalPath_FallsBackToSourceURL(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "gone.jpg") // never written
+	srcURL := "https://image.tmdb.org/t/p/original/poster.jpg"
+	h := mediaHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
+		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
+			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &missing, SourceURL: &srcURL}},
+		}},
+		"http://localhost",
+		allowAll(),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("artType", "poster")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusFound {
+		t.Fatalf("expected 302 fallback when local file missing, got %d: %s", w.Code, w.Body.String())
+	}
+	if loc := w.Header().Get("Location"); loc != srcURL {
+		t.Errorf("expected redirect to %s, got %s", srcURL, loc)
+	}
+}
+
 func TestArtwork_MediaNotFound_404(t *testing.T) {
 	h := mediaHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},

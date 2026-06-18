@@ -108,7 +108,12 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 
 	for _, rec := range records {
 		if artType == "" || rec.Type == artType {
-			if rec.LocalPath != nil && *rec.LocalPath != "" {
+			// A non-empty LocalPath may still point at a file that has vanished
+			// from disk (cache cleared, manual cleanup, partial fetch). Serving
+			// it would 404, and the `return` below would swallow the SourceURL
+			// fallback — leaving a broken image when a remote URL is available.
+			// Treat a missing file as "no local copy" and fall through.
+			if rec.LocalPath != nil && *rec.LocalPath != "" && localFileExists(*rec.LocalPath) {
 				if wantsWebP {
 					// When a width is requested, generate (or serve from cache) a resized variant.
 					if requestedWidth > 0 && h.imgConverter != nil {
@@ -162,6 +167,13 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	http.Redirect(w, r, artURL, http.StatusFound)
+}
+
+// localFileExists reports whether path resolves to an existing file on disk.
+// Used to avoid serving a stale artwork LocalPath whose file has been removed.
+func localFileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 func (h *mediaServe) findArtworkRecords(ctx context.Context, mediaID, artType, parentID string) []*domainmeta.ArtworkRecord {
