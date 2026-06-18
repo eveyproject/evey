@@ -13,12 +13,21 @@ import (
 )
 
 type QueryService struct {
-	tracks  music.TrackRepository
-	scanner music.MusicScanner
+	tracks      music.TrackRepository
+	scanner     music.MusicScanner
+	searchIndex music.MusicSearchIndex
 }
 
 func NewQueryService(tracks music.TrackRepository, scanner music.MusicScanner) *QueryService {
 	return &QueryService{tracks: tracks, scanner: scanner}
+}
+
+// WithSearchIndex wires the full-text music search index (typically the
+// resilient Meili+SQL wrapper). When nil, Search falls back to the repo's SQL
+// ILIKE directly.
+func (s *QueryService) WithSearchIndex(idx music.MusicSearchIndex) *QueryService {
+	s.searchIndex = idx
+	return s
 }
 
 func (s *QueryService) GetTrack(ctx context.Context, trackID string) (*music.Track, error) {
@@ -110,6 +119,11 @@ func (s *QueryService) GetArtists(ctx context.Context, libraryID shared.LibraryI
 func (s *QueryService) Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]music.Track, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.music.Search")
 	defer span.End()
+	// Prefer the full-text index (typo tolerance, relevance, cross-library);
+	// it carries its own SQL fallback. Without it, query SQL directly.
+	if s.searchIndex != nil {
+		return s.searchIndex.Search(ctx, libraryID, query, limit)
+	}
 	return s.tracks.Search(ctx, libraryID, query, limit)
 }
 

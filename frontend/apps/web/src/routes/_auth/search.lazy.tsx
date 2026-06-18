@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, X, ListFilter } from "lucide-react";
-import { createLazyFileRoute, useNavigate } from "@tanstack/react-router";
+import { Search, X, ListFilter, Music } from "lucide-react";
+import { createLazyFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { libraryServiceSearchMedia } from "@evey/api";
+import { libraryServiceSearchMedia, musicServiceSearchMusic } from "@evey/api";
 import { toast } from "@evey/store";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
@@ -105,6 +105,15 @@ function SearchPage() {
 
   const items = data?.items ?? [];
   const totalHits = data?.totalHits ?? items.length;
+
+  // Music search (separate index, cross-library). Skipped when a media-type
+  // filter (movies/series) is active, since that's an explicit media-only intent.
+  const { data: musicData, isLoading: musicLoading } = useQuery({
+    queryKey: ["/api/v1/music/search", debouncedQuery],
+    queryFn: ({ signal }) => musicServiceSearchMusic({ query: debouncedQuery, limit: 24 }, signal),
+    enabled: debouncedQuery.length > 1 && !typeFilter,
+  });
+  const musicItems = musicData?.tracks ?? [];
 
   const hasQuery = debouncedQuery.length > 1;
   const hasActiveFilters = !!typeFilter || !!genre || !!yearMin || !!yearMax || sortIdx !== 0;
@@ -272,7 +281,7 @@ function SearchPage() {
         </div>
       )}
 
-      {hasQuery && !isLoading && items.length === 0 && (
+      {hasQuery && !isLoading && !musicLoading && items.length === 0 && musicItems.length === 0 && (
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
@@ -334,6 +343,11 @@ function SearchPage() {
 
       {items.length > 0 && (
         <>
+          {musicItems.length > 0 && (
+            <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
+              {t("media.search.sectionMedia")}
+            </h2>
+          )}
           <p className="text-sm mb-4 text-[var(--text-muted)]">
             {t("media.search.resultCount", { count: totalHits })} {t("media.search.resultFor", { query: debouncedQuery })}
           </p>
@@ -343,6 +357,39 @@ function SearchPage() {
             ))}
           </MediaGrid>
         </>
+      )}
+
+      {musicItems.length > 0 && (
+        <div className={items.length > 0 ? "mt-8" : ""}>
+          <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
+            {t("media.search.sectionMusic")}
+          </h2>
+          <ul className="flex flex-col gap-1">
+            {musicItems.map((track) => (
+              <li key={track.id}>
+                <Link
+                  to="/music"
+                  search={{ tab: "tracks", album: track.albumId || undefined, libraryId: track.libraryId || undefined }}
+                  className="flex items-center gap-3 px-3 py-2 rounded-[var(--radius-md)] hover:bg-[var(--surface-raised)] transition-colors-fast"
+                >
+                  <div className="w-10 h-10 rounded overflow-hidden shrink-0 flex items-center justify-center bg-[var(--surface-raised)]">
+                    {track.coverArtUrl ? (
+                      <img src={track.coverArtUrl} alt="" aria-hidden="true" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
+                    ) : (
+                      <Music size={18} className="text-[var(--text-muted)]" aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate text-[var(--text)]">{track.title}</p>
+                    <p className="text-xs text-[var(--text-muted)] truncate">
+                      {track.artist}{track.album ? ` · ${track.album}` : ""}
+                    </p>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

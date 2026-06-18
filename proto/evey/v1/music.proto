@@ -68,6 +68,9 @@ message Track {
   string cover_art_url = 18;
   google.protobuf.Timestamp created_at = 19;
   google.protobuf.Timestamp updated_at = 20;
+  // Opaque id of the album this track belongs to (see MusicAlbum.id), so a
+  // search result can link straight to the album view.
+  string album_id = 21;
 }
 
 message MusicAlbum {

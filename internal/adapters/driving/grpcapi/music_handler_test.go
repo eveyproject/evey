@@ -58,6 +58,27 @@ func seedTrack(repo *musicfakes.FakeMusicTrackRepository, id, libraryID, title, 
 	})
 }
 
+// fakeMusicSearch returns its seeded tracks for any query, optionally scoped by
+// library, so handler-level access filtering can be exercised without Meili.
+type fakeMusicSearch struct{ tracks []music.Track }
+
+func (f *fakeMusicSearch) IndexTrack(context.Context, music.Track) error         { return nil }
+func (f *fakeMusicSearch) IndexTracksBatch(context.Context, []music.Track) error { return nil }
+func (f *fakeMusicSearch) RemoveTrack(context.Context, string) error             { return nil }
+func (f *fakeMusicSearch) Search(_ context.Context, libraryID shared.LibraryID, _ string, limit int) ([]music.Track, error) {
+	var out []music.Track
+	for _, t := range f.tracks {
+		if libraryID != "" && t.LibraryID != libraryID {
+			continue
+		}
+		out = append(out, t)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
 func TestMusicHandler_ListTracks_Success(t *testing.T) {
 	h, repo, _, _ := newTestMusicHandler()
 	seedTrack(repo, "t-1", "lib-1", "Song A", "Artist A")
@@ -132,6 +153,35 @@ func TestMusicHandler_ListTracks_RepoError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestMusicHandler_SearchMusic_CrossLibrary_FiltersByAccess(t *testing.T) {
+	h, _, libraryAccess, _ := newTestMusicHandler()
+	// Index has tracks in two libraries; the user may only access lib-1.
+	h.svc.QueryService().WithSearchIndex(&fakeMusicSearch{tracks: []music.Track{
+		{ID: "t1", LibraryID: "lib-1", Title: "Allowed", Artist: "A"},
+		{ID: "t2", LibraryID: "lib-2", Title: "Forbidden", Artist: "B"},
+	}})
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	ctx := userCtx("user-2", "profile-2")
+	resp, err := h.SearchMusic(ctx, &eveyv1.SearchMusicRequest{Query: "anything"}) // empty LibraryId = global
+
+	require.NoError(t, err)
+	require.Len(t, resp.Tracks, 1)
+	assert.Equal(t, "Allowed", resp.Tracks[0].Title)
+	assert.Equal(t, "lib-1", resp.Tracks[0].LibraryId)
+}
+
+func TestMusicHandler_SearchMusic_SpecificLibrary_DeniesUnauthorized(t *testing.T) {
+	h, _, libraryAccess, _ := newTestMusicHandler()
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	ctx := userCtx("user-2", "profile-2")
+	_, err := h.SearchMusic(ctx, &eveyv1.SearchMusicRequest{LibraryId: "lib-2", Query: "x"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
 func TestMusicHandler_GetAlbums_Success(t *testing.T) {

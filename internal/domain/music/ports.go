@@ -39,6 +39,18 @@ type TrackRepository interface {
 	SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error
 }
 
+// MusicSearchIndex is the full-text search index for music tracks (Meilisearch
+// in prod, a SQL fallback when it's down). Documents carry the full track so a
+// hit is directly playable without a second DB round-trip. An empty libraryID
+// in Search means "every library" (the global search bar); the caller is
+// responsible for filtering hits down to the libraries the user may access.
+type MusicSearchIndex interface {
+	IndexTrack(ctx context.Context, t Track) error
+	IndexTracksBatch(ctx context.Context, tracks []Track) error
+	RemoveTrack(ctx context.Context, id string) error
+	Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]Track, error)
+}
+
 // PlayRepository records and reads per-profile music listening counts. It's the
 // taste signal for the playlist generator (favorites/ratings can't apply to
 // music tracks, which aren't media_items).

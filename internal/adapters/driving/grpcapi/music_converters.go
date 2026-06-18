@@ -30,6 +30,9 @@ func trackToProto(t music.Track, includeFilePath bool) *eveyv1.Track {
 		CreatedAt:   toTimestamppb(t.CreatedAt),
 		UpdatedAt:   toTimestamppb(t.UpdatedAt),
 	}
+	if t.AlbumFolder != "" {
+		pb.AlbumId = music.AlbumID(t.AlbumFolder)
+	}
 	if includeFilePath {
 		pb.FilePath = t.FilePath
 	}

@@ -89,3 +89,7 @@ func (s *Service) AlbumArtDir() string { return s.cmd.AlbumArtDir() }
 func (s *Service) FetchMissingAlbumArtAllLibraries(ctx context.Context) (int, error) {
 	return s.cmd.FetchMissingAlbumArtAllLibraries(ctx)
 }
+
+func (s *Service) ReindexAllTracks(ctx context.Context) (int, error) {
+	return s.cmd.ReindexAllTracks(ctx)
+}

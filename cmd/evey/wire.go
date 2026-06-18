@@ -58,6 +58,7 @@ import (
 	"github.com/evey-project/evey/internal/config"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/music"
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
@@ -91,6 +92,7 @@ type infraDeps struct {
 	repos             *postgres.Repos
 	searchAdapter     library.SearchIndex
 	searchHealth      httpapi.SearchHealthChecker
+	musicSearch       music.MusicSearchIndex
 	scanner           *filesystem.Scanner
 	prober            *ffmpeg.Prober
 	transcoder        *ffmpeg.Transcoder
@@ -133,6 +135,17 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	} else {
 		searchAdapter = search.NewResilient(sa, sqlFallback)
 		searchHealth = sa
+	}
+
+	// Music has its own Meilisearch index (dedicated doc shape, library-scoped
+	// or global) with the track repo's SQL ILIKE as fallback.
+	musicSQLFallback := search.NewMusicRepoFallback(r.MusicTrack)
+	var musicSearch music.MusicSearchIndex
+	if msa, err := meili.NewMusicSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey); err != nil {
+		slog.Warn("meilisearch music index unavailable, using SQL search fallback", slog.Any("err", err))
+		musicSearch = search.NewResilientMusic(nil, musicSQLFallback)
+	} else {
+		musicSearch = search.NewResilientMusic(msa, musicSQLFallback)
 	}
 
 	scanner := filesystem.NewScanner()
@@ -244,6 +257,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		repos:             r,
 		searchAdapter:     searchAdapter,
 		searchHealth:      searchHealth,
+		musicSearch:       musicSearch,
 		scanner:           scanner,
 		prober:            prober,
 		transcoder:        transcoder,
@@ -565,6 +579,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	musicSvc.WithPlayRepository(r.MusicPlay)
 	musicSvc.CommandService().WithProber(infra.prober)
 	musicSvc.CommandService().WithAlbumArtFetcher(itunesadapter.NewAlbumArtFetcher(infra.metadataHTTP), cfg.Transcoding.CacheDir)
+	if infra.musicSearch != nil {
+		musicSvc.CommandService().WithSearchIndex(infra.musicSearch)
+		musicSvc.QueryService().WithSearchIndex(infra.musicSearch)
+	}
 	libCmdSvc.WithMusicScanner(musicSvc)
 	libCmdSvc.WithPhotoScanner(photoSvc)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist, r.MediaItemQuery)
@@ -1163,6 +1181,33 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 					}
 				}
 				slog.Info("startup index complete", slog.Int("indexed", indexed))
+			}()
+		}
+	}
+
+	// Backfill the music search index on first boot (empty index): subsequent
+	// scans keep it in sync incrementally, so we only do the full sweep when the
+	// index hasn't been populated yet.
+	if rm, ok := infra.musicSearch.(*search.ResilientMusicSearch); ok {
+		if msa, isMeili := rm.Primary().(*meili.MusicSearchAdapter); isMeili {
+			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("panic recovered in music startup index", "error", r, "stack", string(debug.Stack()))
+					}
+				}()
+				indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
+				defer indexCancel()
+				if cnt, err := msa.DocumentCount(indexCtx); err == nil && cnt > 0 {
+					slog.Info("music startup index: already populated", slog.Int64("docs", cnt))
+					return
+				}
+				n, err := deps.media.musicSvc.ReindexAllTracks(indexCtx)
+				if err != nil {
+					slog.Warn("music startup index", slog.Any("err", err))
+					return
+				}
+				slog.Info("music startup index complete", slog.Int("indexed", n))
 			}()
 		}
 	}

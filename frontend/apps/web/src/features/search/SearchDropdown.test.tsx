@@ -23,15 +23,26 @@ let searchMockReturn: { data: typeof mockSearchResults | undefined; isLoading: b
   isLoading: false,
 };
 
+let musicMockReturn: { data: { tracks: Array<Record<string, unknown>> } | undefined; isLoading: boolean } = {
+  data: { tracks: [] },
+  isLoading: false,
+};
+
 vi.mock("@evey/api", () => ({
   libraryServiceSearchMedia: vi.fn(),
+  musicServiceSearchMusic: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
-    useQuery: () => searchMockReturn,
+    // Route by queryKey so the media and music queries can return distinct data.
+    useQuery: (opts: { queryKey?: unknown[] }) => {
+      const key = opts?.queryKey?.[0];
+      if (typeof key === "string" && key.includes("/music/")) return musicMockReturn;
+      return searchMockReturn;
+    },
   };
 });
 
@@ -65,6 +76,7 @@ describe("SearchDropdown", () => {
   beforeEach(() => {
     mockNavigate.mockReset();
     searchMockReturn = { data: mockSearchResults, isLoading: false };
+    musicMockReturn = { data: { tracks: [] }, isLoading: false };
   });
 
   it("renders results with title, year, type badge", () => {
@@ -91,6 +103,36 @@ describe("SearchDropdown", () => {
     expect(mockNavigate).toHaveBeenCalledWith(
       expect.objectContaining({ to: "/media/$mediaId", params: { mediaId: "1" } }),
     );
+  });
+
+  it("renders a music section and navigates to the album on click", async () => {
+    musicMockReturn = {
+      data: { tracks: [{ id: "t1", title: "The Emptiness Machine", artist: "Linkin Park", album: "From Zero", albumId: "914750d5b8f8bb25", libraryId: "lib-1" }] },
+      isLoading: false,
+    };
+    const user = userEvent.setup();
+    const { onClose } = renderDropdown();
+
+    expect(screen.getByTestId("search-dropdown-music")).toBeInTheDocument();
+    await user.click(screen.getByText("The Emptiness Machine"));
+    expect(onClose).toHaveBeenCalled();
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "/music",
+        search: expect.objectContaining({ tab: "tracks", album: "914750d5b8f8bb25", libraryId: "lib-1" }),
+      }),
+    );
+  });
+
+  it("shows no-results only when BOTH media and music are empty", () => {
+    searchMockReturn = { data: { items: [], totalHits: 0 }, isLoading: false };
+    musicMockReturn = {
+      data: { tracks: [{ id: "t1", title: "Numb", artist: "Linkin Park", album: "Meteora", albumId: "abc", libraryId: "lib-1" }] },
+      isLoading: false,
+    };
+    renderDropdown();
+    expect(screen.queryByTestId("search-dropdown-empty")).not.toBeInTheDocument();
+    expect(screen.getByText("Numb")).toBeInTheDocument();
   });
 
   it("keyboard ArrowDown moves focus to first item", async () => {

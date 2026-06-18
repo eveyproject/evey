@@ -1,9 +1,9 @@
 import { memo, useEffect, useRef, useCallback } from "react";
-import { Clock, X } from "lucide-react";
+import { Clock, Music, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { libraryServiceSearchMedia } from "@evey/api";
+import { libraryServiceSearchMedia, musicServiceSearchMusic } from "@evey/api";
 import { typeLabel } from "@/utils/typeLabel";
 
 interface SearchDropdownProps {
@@ -45,6 +45,17 @@ export const SearchDropdown = memo(function SearchDropdown({
   const items = data?.items ?? [];
   const totalHits = data?.totalHits ?? 0;
 
+  // Music lives in a separate index; search it cross-library (libraryId omitted
+  // → all libraries the user may access) and show it as its own group.
+  const { data: musicData, isLoading: musicLoading } = useQuery({
+    queryKey: ["/api/v1/music/search/quick", trimmed],
+    queryFn: ({ signal }) =>
+      musicServiceSearchMusic({ query: trimmed, limit: 4 }, signal),
+    enabled: visible && trimmed.length > 1,
+    staleTime: 30_000,
+  });
+  const musicItems = musicData?.tracks ?? [];
+
   useEffect(() => {
     if (!visible) return;
     const handler = (e: MouseEvent) => {
@@ -65,6 +76,17 @@ export const SearchDropdown = memo(function SearchDropdown({
     (id: string) => {
       onClose();
       void navigate({ to: "/media/$mediaId", params: { mediaId: id } });
+    },
+    [navigate, onClose],
+  );
+
+  const goToTrack = useCallback(
+    (albumId: string, libraryId: string) => {
+      onClose();
+      void navigate({
+        to: "/music",
+        search: { tab: "tracks", album: albumId || undefined, libraryId: libraryId || undefined },
+      });
     },
     [navigate, onClose],
   );
@@ -181,7 +203,7 @@ export const SearchDropdown = memo(function SearchDropdown({
         </div>
       )}
 
-      {!isLoading && !isError && items.length === 0 && (
+      {!isLoading && !musicLoading && !isError && items.length === 0 && musicItems.length === 0 && (
         <div className="px-4 py-3" data-testid="search-dropdown-empty">
           <span className="text-sm text-[var(--text-muted)]">
             {t("media.search.noResults", { query: trimmed })}
@@ -191,6 +213,11 @@ export const SearchDropdown = memo(function SearchDropdown({
 
       {!isLoading && items.length > 0 && (
         <>
+          {musicItems.length > 0 && (
+            <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+              {t("media.search.sectionMedia")}
+            </div>
+          )}
           <ul className="py-1">
             {items.map((item) => (
               <li key={item.id} role="option">
@@ -262,6 +289,46 @@ export const SearchDropdown = memo(function SearchDropdown({
             </button>
           )}
         </>
+      )}
+
+      {!musicLoading && musicItems.length > 0 && (
+        <div data-testid="search-dropdown-music">
+          <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)] border-t border-[var(--border)]">
+            {t("media.search.sectionMusic")}
+          </div>
+          <ul className="py-1">
+            {musicItems.map((track) => (
+              <li key={track.id} role="option">
+                <button
+                  data-search-item
+                  onClick={() => goToTrack(track.albumId ?? "", track.libraryId ?? "")}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded overflow-hidden shrink-0 flex items-center justify-center bg-[var(--surface)]">
+                    {track.coverArtUrl ? (
+                      <img
+                        src={track.coverArtUrl}
+                        alt=""
+                        aria-hidden="true"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = "none"; }}
+                      />
+                    ) : (
+                      <Music size={16} className="text-[var(--text-muted)]" aria-hidden="true" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate text-[var(--text)]">{track.title}</p>
+                    <div className="flex items-center gap-2 text-xs text-[var(--text-muted)] truncate">
+                      {track.artist && <span className="truncate">{track.artist}</span>}
+                      {track.album && <span className="truncate opacity-70">· {track.album}</span>}
+                    </div>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   );

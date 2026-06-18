@@ -457,6 +457,8 @@ search:
   searching: "खोज रहे हैं..."
   noResults: कोई परिणाम नहीं
   viewAllResults: "सभी {{count}} परिणाम देखें"
+  sectionMedia: "फ़िल्में और सीरीज़"
+  sectionMusic: "संगीत"
   recentSearches: हाल की खोजें
   clearAll: सब साफ़ करें
   searchFailed: खोज विफल

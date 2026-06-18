@@ -457,6 +457,8 @@ search:
   searching: "Suche..."
   noResults: Keine Ergebnisse
   viewAllResults: "Alle {{count}} Ergebnisse anzeigen"
+  sectionMedia: "Filme & Serien"
+  sectionMusic: "Musik"
   recentSearches: Letzte Suchen
   clearAll: Alle löschen
   searchFailed: Suche fehlgeschlagen

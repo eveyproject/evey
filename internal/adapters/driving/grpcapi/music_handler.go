@@ -28,6 +28,31 @@ type musicHandler struct {
 	serverCtx  context.Context
 }
 
+// allowedLibraryIDs returns the library ids the caller may access, or nil for
+// "all" (admins and users with no per-library restriction). Mirrors the library
+// handler so cross-library music search can be access-filtered.
+func (h *musicHandler) allowedLibraryIDs(ctx context.Context) (map[string]bool, error) {
+	if h.userAccess == nil {
+		return nil, nil
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil || claims.IsAdmin {
+		return nil, nil
+	}
+	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+	if err != nil {
+		return nil, internalError("get library access", err)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	set := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+	return set, nil
+}
+
 func (h *musicHandler) checkLibraryAccess(ctx context.Context, libraryID string) error {
 	if h.userAccess == nil {
 		return nil
@@ -81,6 +106,23 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 	}
 
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 50)
+
+	// Free-text search goes through the full-text index (Meilisearch, with SQL
+	// fallback) for typo tolerance and relevance, instead of a raw SQL ILIKE.
+	if req.Search != "" {
+		tracks, err := h.svc.Search(ctx, shared.LibraryID(req.LibraryId), req.Search, limit)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, internalError("search tracks", err)
+		}
+		resp := &eveyv1.ListTracksResponse{Total: int32(len(tracks))}
+		for _, t := range tracks {
+			resp.Tracks = append(resp.Tracks, trackToProto(t, isAdmin))
+		}
+		return resp, nil
+	}
+
 	tracks, total, err := h.svc.ListTracks(ctx, shared.LibraryID(req.LibraryId), limit, offset, req.Search)
 	if err != nil {
 		span.RecordError(err)
@@ -168,27 +210,56 @@ func (h *musicHandler) SearchMusic(ctx context.Context, req *eveyv1.SearchMusicR
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("musicHandler.SearchMusic: %w", err)
 	}
-	if err := h.checkLibraryAccess(ctx, req.LibraryId); err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, err
-	}
 	limit := int(req.Limit)
 	if limit <= 0 {
 		limit = 20
 	} else if limit > maxPageSize {
 		limit = maxPageSize
 	}
-	tracks, err := h.svc.Search(ctx, shared.LibraryID(req.LibraryId), req.Query, limit)
+
+	// A specific library must be access-checked up front. An empty library_id is
+	// the global search bar: search everything, then drop hits from libraries
+	// the caller can't access (mirrors SearchMedia's allowedIDs model). Never
+	// trust the index to scope access.
+	if req.LibraryId != "" {
+		if err := h.checkLibraryAccess(ctx, req.LibraryId); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, err
+		}
+	}
+
+	searchLimit := limit
+	allowed, err := h.allowedLibraryIDs(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	// Cross-library + restricted user: over-fetch so post-filtering still fills
+	// the page.
+	if req.LibraryId == "" && allowed != nil {
+		searchLimit = limit * 4
+	}
+
+	tracks, err := h.svc.Search(ctx, shared.LibraryID(req.LibraryId), req.Query, searchLimit)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("search music", err)
 	}
-	claims, _ := requireClaims(ctx)
+
+	claims := interceptors.ClaimsFromContext(ctx)
+	isAdmin := claims != nil && claims.IsAdmin
 	resp := &eveyv1.SearchMusicResponse{}
 	for _, t := range tracks {
-		resp.Tracks = append(resp.Tracks, trackToProto(t, claims != nil && claims.IsAdmin))
+		if allowed != nil && !allowed[string(t.LibraryID)] {
+			continue
+		}
+		resp.Tracks = append(resp.Tracks, trackToProto(t, isAdmin))
+		if len(resp.Tracks) >= limit {
+			break
+		}
 	}
 	return resp, nil
 }

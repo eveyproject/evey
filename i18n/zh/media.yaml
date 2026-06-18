@@ -457,6 +457,8 @@ search:
   searching: "搜索中..."
   noResults: 没有结果
   viewAllResults: "查看全部 {{count}} 个结果"
+  sectionMedia: "电影和剧集"
+  sectionMusic: "音乐"
   recentSearches: 最近搜索
   clearAll: 全部清除
   searchFailed: 搜索失败

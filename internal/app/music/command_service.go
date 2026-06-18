@@ -16,12 +16,12 @@ import (
 	"time"
 
 	"github.com/dhowden/tag"
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/scanindex"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/google/uuid"
 )
 
 // AlbumArtFetcher fetches album artwork from an external source.
@@ -37,6 +37,7 @@ type CommandService struct {
 	prober          library.StreamProber
 	albumArtFetcher AlbumArtFetcher
 	albumArtDir     string
+	searchIndex     music.MusicSearchIndex
 }
 
 func NewCommandService(tracks music.TrackRepository, bus shared.EventBus, libRepo library.LibraryQueryRepo, scanner music.MusicScanner) *CommandService {
@@ -52,6 +53,46 @@ func (s *CommandService) WithAlbumArtFetcher(f AlbumArtFetcher, dataDir string) 
 	s.albumArtFetcher = f
 	s.albumArtDir = filepath.Join(dataDir, "music_album_art")
 	return s
+}
+
+// WithSearchIndex wires the full-text music search index. Optional: when nil,
+// scans/deletes don't touch any index and search falls back to SQL ILIKE.
+func (s *CommandService) WithSearchIndex(idx music.MusicSearchIndex) *CommandService {
+	s.searchIndex = idx
+	return s
+}
+
+// ReindexAllTracks (re)indexes every track of every music library into the
+// search index, in batches per library. Used at startup to backfill the index.
+// Returns the number of tracks indexed.
+func (s *CommandService) ReindexAllTracks(ctx context.Context) (int, error) {
+	if s.searchIndex == nil || s.libRepo == nil {
+		return 0, nil
+	}
+	libs, err := s.libRepo.List(ctx, library.ListLibrariesFilter{Limit: library.MaxListLibrariesLimit})
+	if err != nil {
+		return 0, fmt.Errorf("music: list libraries for reindex: %w", err)
+	}
+	indexed := 0
+	for _, lib := range libs {
+		if lib.Type != library.Music {
+			continue
+		}
+		if ctx.Err() != nil {
+			return indexed, ctx.Err()
+		}
+		tracks, lerr := s.tracks.ListAllByLibrary(ctx, lib.ID)
+		if lerr != nil {
+			slog.Warn("music reindex: list tracks", slog.String("library", string(lib.ID)), slog.Any("err", lerr))
+			continue
+		}
+		if ierr := s.searchIndex.IndexTracksBatch(ctx, tracks); ierr != nil {
+			slog.Warn("music reindex: batch index", slog.String("library", string(lib.ID)), slog.Any("err", ierr))
+			continue
+		}
+		indexed += len(tracks)
+	}
+	return indexed, nil
 }
 
 // AlbumArtDir returns the configured album art directory (empty if not set).
@@ -256,6 +297,14 @@ func (s *CommandService) processOneTrack(ctx context.Context, libraryID string, 
 	// locally-minted t.ID was never persisted. Publish the persisted id so
 	// subscribers reference a row that actually exists.
 	t.ID = persistedID
+	// Best-effort: keep the search index in sync with the row we just wrote.
+	// A failure here must never fail the scan (the SQL fallback still serves
+	// search), so log and continue.
+	if s.searchIndex != nil {
+		if idxErr := s.searchIndex.IndexTrack(ctx, *t); idxErr != nil {
+			slog.Warn("music scan: search index failed", slog.String("path", j.path), slog.Any("err", idxErr))
+		}
+	}
 	if pubErr := s.bus.Publish(ctx, music.TrackScanned{LibraryID: shared.LibraryID(libraryID), TrackID: t.ID, Title: t.Title, Path: j.path, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("music scan: event publish failed", slog.String("path", j.path), slog.Any("err", pubErr))
 	}
@@ -335,6 +384,11 @@ func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error 
 	}
 	if err := s.tracks.Delete(ctx, trackID); err != nil {
 		return fmt.Errorf("CommandService.DeleteTrack: %w", err)
+	}
+	if s.searchIndex != nil {
+		if idxErr := s.searchIndex.RemoveTrack(ctx, trackID); idxErr != nil {
+			slog.Warn("music: search index remove failed", slog.String("trackID", trackID), slog.Any("err", idxErr))
+		}
 	}
 	if pubErr := s.bus.Publish(ctx, music.TrackDeleted{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.Warn("music: TrackDeleted publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
