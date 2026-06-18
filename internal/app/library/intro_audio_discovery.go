@@ -1,6 +1,12 @@
 package library
 
-import "math/bits"
+import (
+	"context"
+	"log/slog"
+	"math/bits"
+
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+)
 
 // Audio-primary intro DISCOVERY (as opposed to confirmation).
 //
@@ -108,4 +114,85 @@ func discoverRecurringIntro(target []uint32, siblings [][]uint32, p discoverPara
 		return 0, 0, matches, false
 	}
 	return framesToMs(bestStart), framesToMs(bestEnd), matches, true
+}
+
+const (
+	// discoverWindowSec bounds the audio window fingerprinted per episode. Intros
+	// on cold-open shows can sit at 5+ min, so the window must be generous; 8 min
+	// covers every observed case while keeping fpcalc cost bounded.
+	discoverWindowSec = 480.0
+	// discoverMaxSiblings caps how many other episodes we fingerprint to confirm
+	// recurrence — enough for MinMatches, bounded so the season pass isn't O(n²)
+	// in fpcalc.
+	discoverMaxSiblings = 4
+)
+
+// discoverIntroByAudio is the audio-primary discovery entry point used as a
+// pipeline fallback when the visual pHash pass yields no confirmable candidate.
+// It fingerprints this episode + a few siblings over a wide window and locates
+// the recurring intro at a free per-episode offset. Returns ok=false when no
+// recurring run is confirmed (caller then falls through to silencedetect).
+func (s *IntroDetectionService) discoverIntroByAudio(ctx context.Context, item *domainlibrary.MediaItem) (domainlibrary.MediaSegment, bool) {
+	none := domainlibrary.MediaSegment{}
+	if s.chromaprinter == nil || item.File == nil || item.File.Path == "" || item.ParentID == "" {
+		return none, false
+	}
+	parentID := item.ParentID
+	episodeType := string(domainlibrary.Episode)
+	var sibs []*domainlibrary.MediaItem
+	for offset := 0; len(sibs) < discoverMaxSiblings; offset += 200 {
+		page, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+			ParentID: &parentID, Type: &episodeType, Limit: 200, Offset: offset,
+		})
+		if err != nil || len(page) == 0 {
+			break
+		}
+		for _, e := range page {
+			if e.ID != item.ID && e.File != nil && e.File.Path != "" {
+				sibs = append(sibs, e)
+				if len(sibs) >= discoverMaxSiblings {
+					break
+				}
+			}
+		}
+		if len(page) < 200 {
+			break
+		}
+	}
+	if len(sibs) == 0 {
+		return none, false
+	}
+	itemFP, err := s.chromaprinter.Compute(ctx, item.File.Path, 0, discoverWindowSec)
+	if err != nil || len(itemFP) == 0 {
+		return none, false
+	}
+	sibFPs := make([][]uint32, 0, len(sibs))
+	for _, sib := range sibs {
+		if ctx.Err() != nil {
+			return none, false
+		}
+		fp, ferr := s.chromaprinter.Compute(ctx, sib.File.Path, 0, discoverWindowSec)
+		if ferr == nil && len(fp) > 0 {
+			sibFPs = append(sibFPs, fp)
+		}
+	}
+	if len(sibFPs) == 0 {
+		return none, false
+	}
+	startMs, endMs, matches, found := discoverRecurringIntro(itemFP, sibFPs, defaultDiscoverParams())
+	if !found {
+		return none, false
+	}
+	slog.Info("intro_detection: chromaprint discovery",
+		slog.String("media_id", string(item.ID)),
+		slog.Int64("start_ms", startMs),
+		slog.Int64("end_ms", endMs),
+		slog.Int("confirming_episodes", matches))
+	return domainlibrary.MediaSegment{
+		Type:       "intro",
+		StartMs:    startMs,
+		EndMs:      endMs,
+		Source:     "chromaprint_discovery",
+		Confidence: 0.85,
+	}, true
 }

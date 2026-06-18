@@ -872,6 +872,19 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 		}
 	}
 
+	// Audio-primary DISCOVERY: the visual pass produced nothing confirmable
+	// (poor SD trickplay, or a cold-open show whose title card isn't visually
+	// stable). Before the weak silencedetect fallback, let chromaprint discover
+	// a recurring intro directly across siblings at a free per-episode offset —
+	// the variable-teaser case the visual+confirm path structurally misses.
+	if seg, ok := s.discoverIntroByAudio(ctx, item); ok {
+		slog.Info("intro_detection.pipeline_decision",
+			slog.String("media_id", mediaItemID),
+			slog.String("decision", "chromaprint_discovery"),
+		)
+		return []domainlibrary.MediaSegment{seg}, nil
+	}
+
 	// Fallback: concurrent audio/subtitle passes.
 	startMs, endMs, source, confidence, err := s.concurrentFallback(ctx, item)
 	if err != nil || (startMs == 0 && endMs == 0) {
