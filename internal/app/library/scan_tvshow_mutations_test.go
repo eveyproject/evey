@@ -99,8 +99,8 @@ func TestScanTVShow_PruneCascade_SeriesDeletedWhenAllSeasonsEmpty(t *testing.T) 
 	// library now trips the degraded-mount safety guard and refuses to prune (it
 	// would otherwise wipe the catalog + cascade user data).
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "Show", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
-		{Path: "/tv/Kept/S01/e01.mkv", Size: 100, Title: "Kept", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "Show", Season: new(1), Episode: new(1), Type: library.Episode},
+		{Path: "/tv/Kept/S01/e01.mkv", Size: 100, Title: "Kept", Season: new(1), Episode: new(1), Type: library.Episode},
 	}
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
@@ -112,7 +112,7 @@ func TestScanTVShow_PruneCascade_SeriesDeletedWhenAllSeasonsEmpty(t *testing.T) 
 	// orphaned, then prune runs: its season becomes empty → deleted; series
 	// childCount decrements to 0 → series also deleted. "Kept" is untouched.
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/tv/Kept/S01/e01.mkv", Size: 100, Title: "Kept", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/Kept/S01/e01.mkv", Size: 100, Title: "Kept", Season: new(1), Episode: new(1), Type: library.Episode},
 	}
 	_, _, err = svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
