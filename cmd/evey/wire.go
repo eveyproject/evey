@@ -658,7 +658,6 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		HWPerVariant:          cfg.Transcoding.HWPerVariant,
 		SingleVariant:         cfg.Transcoding.SingleVariant,
 	}, slog.Default())
-	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 
 	// The software StreamProducer is built HERE (not in the HTTP route
 	// registration) so it is a SINGLE instance shared between two consumers: the
@@ -672,10 +671,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		apptranscoding.SoftwareProducerOptions{}, slog.Default(),
 	)
 	// Fan-out remover for explicit StopStream / admin force-kill: RemoveSession
-	// reaches BOTH producers. For()/routing is unused on this instance (the HTTP
-	// handler owns the routing selector with the real resolveHW predicate), so
-	// the predicate is nil.
+	// reaches BOTH producers, and ActiveSessionCount sums them. For()/routing is
+	// unused on this instance (the HTTP handler owns the routing selector with
+	// the real resolveHW predicate), so the predicate is nil.
 	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch, nil)
+	// Trickplay generation throttles while any stream is live — feed it the
+	// fan-out selector so SOFTWARE streams also hold it off, not just HW ones (a
+	// weak NAS must not burn CPU on trickplay during an SW transcode).
+	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODRemover)
 
 	// Audio rendition orchestrator: shares the segment cache with the
 	// video pipeline but addresses sessions by AudioFingerprint (its own

@@ -27,7 +27,9 @@ type adminSystemHandler struct {
 	userQuery      *appuser.QueryService
 	transcodingSvc *apptranscoding.Service
 	activitySvc    *appactivity.QueryService
-	hlsManager     *apptranscoding.SegmentOrchestrator
+	// hlsManager reports the live HLS session count for the dashboard. Wired to
+	// the fan-out selector so the count spans software + hardware producers.
+	hlsManager hlsSessionManager
 	libLister      adminLibraryLister
 	streamMeter    appactivity.BytesTotaler // optional: nil = no measured bandwidth
 	version        string

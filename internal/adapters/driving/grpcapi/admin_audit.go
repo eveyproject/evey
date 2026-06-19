@@ -21,6 +21,15 @@ type HLSSessionRemover interface {
 	RemoveSession(mediaItemID string)
 }
 
+// hlsSessionManager is what the gRPC wiring needs from the HLS producer layer:
+// kill a media's sessions AND report the live count. Both the hardware
+// orchestrator and the fan-out ProducerSelector satisfy it, so wiring the
+// selector here makes RemoveSession and ActiveSessionCount span software + HW.
+type hlsSessionManager interface {
+	HLSSessionRemover
+	ActiveSessionCount() int
+}
+
 type adminSessionHandler struct {
 	eveyv1.UnimplementedAdminSessionServiceServer
 	activitySvc *appactivity.QueryService
