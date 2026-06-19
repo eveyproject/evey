@@ -419,9 +419,7 @@ func TestServerSettings_ConcurrentReadWrite_NoRace(t *testing.T) {
 	stop := make(chan struct{})
 	// Live readers: exactly the accessors the request path calls per stream.
 	for range 4 {
-		live.Add(1)
-		go func() {
-			defer live.Done()
+		live.Go(func() {
 			for {
 				select {
 				case <-stop:
@@ -435,7 +433,7 @@ func TestServerSettings_ConcurrentReadWrite_NoRace(t *testing.T) {
 				_ = env.cfg.EffectiveAV1MaxHeight()
 				_ = env.cfg.EffectiveSkipPreviewEnabled()
 			}
-		}()
+		})
 	}
 
 	// Concurrent GET (snapshot) + PUT (mutate) requests.

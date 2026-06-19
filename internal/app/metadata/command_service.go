@@ -209,7 +209,8 @@ func (s *CommandService) PurgeCorruptVariants(ctx context.Context) (int, error) 
 			return ctx.Err()
 		}
 		if walkErr != nil {
-			// A transient error on one entry shouldn't abort the whole sweep.
+			// A transient error on one entry shouldn't abort the whole sweep —
+			// returning nil tells WalkDir to keep going past it.
 			slog.Warn("purge variants: walk", slog.String("path", path), slog.Any("err", walkErr))
 			return nil
 		}
@@ -217,8 +218,9 @@ func (s *CommandService) PurgeCorruptVariants(ctx context.Context) (int, error) 
 			return nil
 		}
 		info, err := d.Info()
+		// Can't stat the entry, or it isn't a 0-byte file → leave it and move on.
 		if err != nil || info.Size() != 0 {
-			return nil
+			return nil //nolint:nilerr // intentional: skip un-statable/non-empty entry, continue the sweep
 		}
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			slog.Warn("purge variants: remove", slog.String("path", path), slog.Any("err", err))

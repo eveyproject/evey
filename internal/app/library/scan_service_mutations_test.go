@@ -12,7 +12,6 @@ import (
 	applib "github.com/evey-project/evey/internal/app/library"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -861,7 +860,7 @@ func TestScanService_ProbeAndStoreStreams_UsesSubScannerWhenMetadataNil(t *testi
 
 	items := h.media.All()
 	require.Len(t, items, 1)
-	streams, err := h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(items[0].ID))
+	streams, err := h.streams.GetByMediaItemID(context.Background(), items[0].ID)
 	require.NoError(t, err)
 	var extFound bool
 	for _, st := range streams {
@@ -1099,7 +1098,7 @@ func TestScanService_StreamlessFile_ReprobesAndHeals(t *testing.T) {
 	require.Len(t, items, 1)
 	require.NotNil(t, items[0].File)
 	assert.Equal(t, 1, items[0].File.StreamProbeAttempts, "streamless create must record one failed probe attempt")
-	streams, err := h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(items[0].ID))
+	streams, err := h.streams.GetByMediaItemID(context.Background(), items[0].ID)
 	require.NoError(t, err)
 	assert.Empty(t, streams)
 
@@ -1118,7 +1117,7 @@ func TestScanService_StreamlessFile_ReprobesAndHeals(t *testing.T) {
 	items = h.media.All()
 	require.Len(t, items, 1)
 	assert.Equal(t, 0, items[0].File.StreamProbeAttempts, "successful re-probe must reset the counter")
-	streams, err = h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(items[0].ID))
+	streams, err = h.streams.GetByMediaItemID(context.Background(), items[0].ID)
 	require.NoError(t, err)
 	assert.Len(t, streams, 2, "re-probe must store the now-discoverable streams")
 }
