@@ -48,6 +48,7 @@ func resolveAutoDownloadDefault(ctx context.Context, cfg *appconfig.Service) boo
 //
 //	GET  /api/v1/admin/artworks/stats
 //	POST /api/v1/admin/artworks/download-all
+//	POST /api/v1/admin/artworks/purge-variants
 //	GET  /api/v1/admin/artworks/download-all/{jobId}
 //
 // dataDir is the server data directory (e.g. "/data"); it is used to derive
@@ -171,6 +172,30 @@ func registerArtworkAdminRoutes(
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(map[string]any{"jobId": jobID, "total": total}); err != nil {
 			slog.Warn("artwork backfill-blurhashes: json encode", slog.Any("err", err))
+		}
+	}))
+
+	// POST /api/v1/admin/artworks/purge-variants — delete 0-byte resized
+	// variants (<base>_w<width>.webp) left behind by failed/timed-out resizes.
+	// The serving path auto-regenerates these on demand, so this is an explicit
+	// bulk-clear button for operators rather than a correctness requirement.
+	// Runs inline: a stat-only walk of the artwork tree is fast even on large
+	// catalogues (no decode, no network).
+	mux.HandleFunc("POST /api/v1/admin/artworks/purge-variants", admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkPurgeVariants")
+		defer span.End()
+
+		removed, err := metaCmd.PurgeCorruptVariants(ctx)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			slog.Warn("artwork purge-variants", slog.Any("err", err))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{"removed": removed}); err != nil {
+			slog.Warn("artwork purge-variants: json encode", slog.Any("err", err))
 		}
 	}))
 

@@ -50,6 +50,12 @@ artworks:
   backfillBlurhashesDone: "已生成 {{succeeded}} 个占位符，{{failed}} 个失败。"
   backfillBlurhashesStarted: "Blurhash 回填已开始 — 在后台运行。"
   backfillBlurhashesFailed: "回填 blurhash 失败"
+  purgeVariantsSection: 清理损坏的海报变体
+  purgeVariantsDesc: "删除因缩放失败或超时而残留的 0 字节海报变体。它们会按需自动重新生成，此操作只是批量清理。"
+  purgeVariantsRun: 清理损坏的变体
+  purgeVariantsRunning: 正在清理...
+  purgeVariantsSuccess: "已删除 {{count}} 个损坏的变体。"
+  purgeVariantsFailed: 清理变体失败
 
 plugin:
   enabled: "已启用"

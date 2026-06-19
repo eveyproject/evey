@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -183,6 +184,78 @@ func (s *CommandService) ArtworkStats(ctx context.Context) (metadata.ArtworkStat
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.ArtworkStats")
 	defer span.End()
 	return s.artwork.LocalPathStats(ctx)
+}
+
+// PurgeCorruptVariants deletes resized artwork variants (<base>_w<width>.webp)
+// that are 0 bytes on disk — leftovers from a resize that exited non-zero or
+// timed out. The serving path already regenerates these on demand, so this is a
+// convenience for operators who'd rather clear them in bulk (e.g. after
+// deploying the 0-byte fix) than shell into the data volume. Only zero-length
+// _w<digits>.webp files are touched; full-resolution artwork is never removed.
+// Returns the number of files deleted.
+func (s *CommandService) PurgeCorruptVariants(ctx context.Context) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.PurgeCorruptVariants")
+	defer span.End()
+	if s.dataDir == "" {
+		return 0, errors.New("dataDir not configured")
+	}
+	root := filepath.Join(s.dataDir, "artworks")
+	if _, err := os.Stat(root); errors.Is(err, fs.ErrNotExist) {
+		return 0, nil // nothing downloaded yet
+	}
+	removed := 0
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if walkErr != nil {
+			// A transient error on one entry shouldn't abort the whole sweep.
+			slog.Warn("purge variants: walk", slog.String("path", path), slog.Any("err", walkErr))
+			return nil
+		}
+		if d.IsDir() || !isResizedVariant(d.Name()) {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil || info.Size() != 0 {
+			return nil
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			slog.Warn("purge variants: remove", slog.String("path", path), slog.Any("err", err))
+			return nil
+		}
+		removed++
+		return nil
+	})
+	if err != nil {
+		return removed, err
+	}
+	span.SetAttributes(attribute.Int("removed", removed))
+	return removed, nil
+}
+
+// isResizedVariant reports whether name is a "<base>_w<width>.webp" resized
+// artwork variant — the only files PurgeCorruptVariants is allowed to delete.
+// Full-resolution "<base>.webp" lacks the _w<digits> marker and is excluded.
+func isResizedVariant(name string) bool {
+	const suffix = ".webp"
+	if !strings.HasSuffix(name, suffix) {
+		return false
+	}
+	i := strings.LastIndex(name, "_w")
+	if i < 0 {
+		return false
+	}
+	digits := name[i+2 : len(name)-len(suffix)]
+	if digits == "" {
+		return false
+	}
+	for _, c := range digits {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // StartBulkDownload launches a background goroutine to download all artwork records

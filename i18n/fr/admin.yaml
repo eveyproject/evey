@@ -50,6 +50,12 @@ artworks:
   backfillBlurhashesDone: "{{succeeded}} placeholder(s) recalculé(s), {{failed}} en échec."
   backfillBlurhashesStarted: "Backfill des blurhashes lancé — s'exécute en tâche de fond."
   backfillBlurhashesFailed: "Échec du recalcul des blurhashes"
+  purgeVariantsSection: Purger les variantes d'affiche corrompues
+  purgeVariantsDesc: "Supprime les variantes d'affiche redimensionnées de 0 octet laissées par un redimensionnement échoué ou expiré. Elles sont régénérées automatiquement à la demande ; ceci ne fait que les nettoyer en masse."
+  purgeVariantsRun: Purger les variantes corrompues
+  purgeVariantsRunning: Purge en cours...
+  purgeVariantsSuccess: "{{count}} variante(s) corrompue(s) supprimée(s)."
+  purgeVariantsFailed: Échec de la purge des variantes
 plugin:
   enabled: Activé
   disabled: Désactivé

@@ -50,6 +50,12 @@ artworks:
   backfillBlurhashesDone: "{{succeeded}} प्लेसहोल्डर जेनरेट किए गए, {{failed}} विफल।"
   backfillBlurhashesStarted: "ब्लरहैश बैकफ़िल शुरू हुआ — पृष्ठभूमि में चलता है।"
   backfillBlurhashesFailed: "ब्लरहैश पुनः जेनरेट करने में विफल"
+  purgeVariantsSection: खराब पोस्टर वैरिएंट साफ़ करें
+  purgeVariantsDesc: "विफल या टाइम-आउट रीसाइज़ से बचे 0-बाइट पोस्टर वैरिएंट हटाएँ। ये माँग पर स्वचालित रूप से फिर बन जाते हैं; यह बस उन्हें एक साथ साफ़ करता है।"
+  purgeVariantsRun: खराब वैरिएंट साफ़ करें
+  purgeVariantsRunning: साफ़ किया जा रहा है...
+  purgeVariantsSuccess: "{{count}} खराब वैरिएंट हटाए गए।"
+  purgeVariantsFailed: वैरिएंट साफ़ करने में विफल
 
 plugin:
   enabled: "सक्षम"

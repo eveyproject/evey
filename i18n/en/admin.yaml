@@ -50,6 +50,12 @@ artworks:
   backfillBlurhashesDone: "Backfilled {{succeeded}} placeholder(s), {{failed}} failed."
   backfillBlurhashesStarted: "Blurhash backfill started — runs in the background."
   backfillBlurhashesFailed: Failed to backfill blurhashes
+  purgeVariantsSection: Purge corrupt poster variants
+  purgeVariantsDesc: "Delete 0-byte resized poster variants left behind by a failed or timed-out resize. They are regenerated automatically on demand, so this just clears them in bulk."
+  purgeVariantsRun: Purge corrupt variants
+  purgeVariantsRunning: Purging...
+  purgeVariantsSuccess: "Removed {{count}} corrupt variant(s)."
+  purgeVariantsFailed: Failed to purge variants
 
 plugin:
   enabled: Enabled

@@ -50,6 +50,12 @@ artworks:
   backfillBlurhashesDone: "{{succeeded}} Platzhalter berechnet, {{failed}} fehlgeschlagen."
   backfillBlurhashesStarted: "Blurhash-Backfill gestartet — läuft im Hintergrund."
   backfillBlurhashesFailed: Nachberechnung der Blurhashes fehlgeschlagen
+  purgeVariantsSection: Beschädigte Poster-Varianten bereinigen
+  purgeVariantsDesc: "Löscht 0-Byte-Poster-Varianten, die von einer fehlgeschlagenen oder abgelaufenen Größenänderung übrig geblieben sind. Sie werden bei Bedarf automatisch neu erzeugt; dies bereinigt sie nur in einem Durchgang."
+  purgeVariantsRun: Beschädigte Varianten bereinigen
+  purgeVariantsRunning: Wird bereinigt...
+  purgeVariantsSuccess: "{{count}} beschädigte Variante(n) entfernt."
+  purgeVariantsFailed: Bereinigung der Varianten fehlgeschlagen
 
 plugin:
   enabled: Aktiviert

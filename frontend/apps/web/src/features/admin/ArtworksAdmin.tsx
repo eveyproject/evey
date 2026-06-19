@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Download, CheckCircle, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { Download, CheckCircle, RefreshCw, Image as ImageIcon, Trash2 } from "lucide-react";
 import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
@@ -61,6 +61,20 @@ function useBackfillBlurhashes() {
   });
 }
 
+// usePurgeVariants drives POST /api/v1/admin/artworks/purge-variants, deleting
+// 0-byte resized variants (<base>_w<width>.webp) left behind by failed resizes.
+// The server walks the artwork tree inline (stat-only, fast) and returns the
+// number of files removed.
+function usePurgeVariants() {
+  return useMutation<{ removed: number }, Error>({
+    mutationFn: () =>
+      eveyFetch<{ removed: number }>({
+        url: "/api/v1/admin/artworks/purge-variants",
+        method: "POST",
+      }),
+  });
+}
+
 function useJobStatus(jobId: string | null) {
   return useQuery<JobStatus>({
     queryKey: ["admin", "artworks", "job", jobId],
@@ -95,7 +109,21 @@ export function ArtworksAdmin() {
   const { data: stats, isLoading: statsLoading } = useArtworkStats();
   const startDownload = useStartDownload();
   const backfillBlurhashes = useBackfillBlurhashes();
+  const purgeVariants = usePurgeVariants();
   const { data: job } = useJobStatus(jobId);
+
+  function handlePurgeVariants() {
+    purgeVariants.mutate(undefined, {
+      onSuccess: (data) => {
+        toast.success(
+          t("admin.artworks.purgeVariantsSuccess", { count: data.removed }),
+        );
+      },
+      onError: () => {
+        toast.error(t("admin.artworks.purgeVariantsFailed"));
+      },
+    });
+  }
 
   function handleBackfillBlurhashes() {
     prevDoneRef.current = false;
@@ -296,6 +324,34 @@ export function ArtworksAdmin() {
           {backfillBlurhashes.isPending
             ? t("admin.artworks.backfillBlurhashesRunning")
             : t("admin.artworks.backfillBlurhashesRun")}
+        </Button>
+      </Card>
+
+      {/* Purge corrupt variants — deletes 0-byte resized posters left by a
+          failed/timed-out resize. The serving path regenerates them on demand,
+          so this is a bulk-clear convenience rather than a fix; the toast names
+          how many files were removed. */}
+      <Card className="p-5 mt-6">
+        <h2 className="font-semibold text-[var(--text)] mb-2">
+          {t("admin.artworks.purgeVariantsSection")}
+        </h2>
+        <p className="text-sm text-[var(--text-muted)] mb-4">
+          {t("admin.artworks.purgeVariantsDesc")}
+        </p>
+        <Button
+          variant="secondary"
+          onClick={handlePurgeVariants}
+          disabled={purgeVariants.isPending}
+          className="flex items-center gap-2"
+        >
+          {purgeVariants.isPending ? (
+            <RefreshCw size={16} className="animate-spin" />
+          ) : (
+            <Trash2 size={16} />
+          )}
+          {purgeVariants.isPending
+            ? t("admin.artworks.purgeVariantsRunning")
+            : t("admin.artworks.purgeVariantsRun")}
         </Button>
       </Card>
     </div>

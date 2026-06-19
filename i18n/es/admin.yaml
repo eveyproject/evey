@@ -50,6 +50,12 @@ artworks:
   backfillBlurhashesDone: "{{succeeded}} placeholder(s) generado(s), {{failed}} con error."
   backfillBlurhashesStarted: "Relleno de blurhash iniciado — se ejecuta en segundo plano."
   backfillBlurhashesFailed: No se pudo recalcular los blurhashes
+  purgeVariantsSection: Purgar variantes de carátula corruptas
+  purgeVariantsDesc: "Elimina las variantes de carátula redimensionadas de 0 bytes dejadas por un redimensionado fallido o caducado. Se regeneran automáticamente bajo demanda; esto solo las limpia en masa."
+  purgeVariantsRun: Purgar variantes corruptas
+  purgeVariantsRunning: Purgando...
+  purgeVariantsSuccess: "Se eliminaron {{count}} variante(s) corrupta(s)."
+  purgeVariantsFailed: Error al purgar las variantes
 
 plugin:
   enabled: Activado
