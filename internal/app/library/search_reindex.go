@@ -15,6 +15,43 @@ import (
 // bulk-refresh pager.
 const reindexBatchSize = 500
 
+// reindexTranslationReader batch-fetches every locale's translations for a page
+// of media items, so the reindex can attach translated titles to the search
+// docs (multi-language search). Optional — a nil reader skips the enrichment;
+// the per-item enricher path then backfills them on the next re-enrich.
+type reindexTranslationReader interface {
+	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*library.MediaItemTranslation, error)
+}
+
+// attachTranslations populates each item's Translations from one batched read,
+// so ToDocument can emit their translated_titles. A read error is logged and
+// the page is indexed WITHOUT translations rather than failing the whole
+// reindex — a recovery path must not abort on the translation table.
+func attachTranslations(ctx context.Context, tr reindexTranslationReader, batch []*library.MediaItem) {
+	if tr == nil || len(batch) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(batch))
+	for _, it := range batch {
+		ids = append(ids, string(it.ID))
+	}
+	byID, err := tr.GetByMediaItems(ctx, ids)
+	if err != nil {
+		slog.Warn("reindex: fetch translations (indexing without them)", slog.Any("err", err))
+		return
+	}
+	for _, it := range batch {
+		trs := byID[string(it.ID)]
+		if len(trs) == 0 {
+			continue
+		}
+		it.Translations = make([]library.MediaItemTranslation, 0, len(trs))
+		for _, t := range trs {
+			it.Translations = append(it.Translations, *t)
+		}
+	}
+}
+
 // ReindexSearchIndex rebuilds the search index straight from Postgres, with
 // NO metadata-provider calls (no TMDB). It pages through media items and
 // pushes each page via IndexMediaItemsBatch. libraryID == "" reindexes every
@@ -30,6 +67,7 @@ func ReindexSearchIndex(
 	ctx context.Context,
 	items library.MediaItemQueryRepo,
 	search library.SearchIndex,
+	translations reindexTranslationReader,
 	libraryID string,
 	onProgress func(done, total int),
 ) (int, error) {
@@ -58,6 +96,7 @@ func ReindexSearchIndex(
 		if len(batch) == 0 {
 			break
 		}
+		attachTranslations(ctx, translations, batch)
 		if err := search.IndexMediaItemsBatch(ctx, batch); err != nil {
 			return indexed, fmt.Errorf("index batch at offset %d: %w", offset, err)
 		}

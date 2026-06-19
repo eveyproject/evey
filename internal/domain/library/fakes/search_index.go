@@ -51,6 +51,15 @@ func (s *FakeSearchIndex) Indexed() int {
 	return len(s.items)
 }
 
+// Get returns the indexed item by id — a test accessor for asserting what was
+// pushed to the index (e.g. attached translations).
+func (s *FakeSearchIndex) Get(id string) (*library.MediaItem, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	it, ok := s.items[id]
+	return it, ok
+}
+
 func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {
 	if s.Err != nil {
 		return s.Err

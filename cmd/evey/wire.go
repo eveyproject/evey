@@ -342,7 +342,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		r.Chapter, infra.mkvAdapter,
 		r.Trickplay, infra.trickplayGen, cfg.Transcoding.TrickplayCacheDir, r.ServerCfg,
 		applibrary.WithShutdownCtx(ctx),
-		applibrary.WithSearchReindex(r.MediaItemQuery),
+		applibrary.WithSearchReindex(r.MediaItemQuery, r.MediaItemTranslation),
 	)
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)

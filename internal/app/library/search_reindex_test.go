@@ -29,10 +29,69 @@ func TestReindexSearchIndex_AllLibraries(t *testing.T) {
 	seedItem(repo, "m3", "libB")
 	search := libfakes.NewFakeSearchIndex()
 
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, "", nil)
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 3, n)
 	assert.Equal(t, 3, search.Indexed(), "every item across libraries indexed")
+}
+
+// fakeTranslationReader returns canned per-item translations and can be made to
+// fail, to exercise the reindex's translation-attach path.
+type fakeTranslationReader struct {
+	byID map[string][]*library.MediaItemTranslation
+	err  error
+}
+
+func (f *fakeTranslationReader) GetByMediaItems(_ context.Context, ids []string) (map[string][]*library.MediaItemTranslation, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	out := make(map[string][]*library.MediaItemTranslation, len(ids))
+	for _, id := range ids {
+		if tr, ok := f.byID[id]; ok {
+			out[id] = tr
+		}
+	}
+	return out, nil
+}
+
+func TestReindexSearchIndex_AttachesTranslations(t *testing.T) {
+	t.Parallel()
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	seedItem(repo, "m1", "libA")
+	seedItem(repo, "m2", "libA")
+	search := libfakes.NewFakeSearchIndex()
+	tr := &fakeTranslationReader{byID: map[string][]*library.MediaItemTranslation{
+		"m1": {{MediaItemID: "m1", Locale: "fr-FR", Title: "Le Voyage"}},
+	}}
+
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, tr, "", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 2, n)
+
+	m1, ok := search.Get("m1")
+	require.True(t, ok)
+	require.Len(t, m1.Translations, 1, "m1 must carry its translation into the index")
+	assert.Equal(t, "Le Voyage", m1.Translations[0].Title)
+
+	m2, ok := search.Get("m2")
+	require.True(t, ok)
+	assert.Empty(t, m2.Translations, "m2 has no translation → none attached")
+}
+
+// A translation-table read error must NOT abort the reindex (a recovery path):
+// the page is indexed without translations.
+func TestReindexSearchIndex_TranslationError_StillIndexes(t *testing.T) {
+	t.Parallel()
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	seedItem(repo, "m1", "libA")
+	search := libfakes.NewFakeSearchIndex()
+	tr := &fakeTranslationReader{err: errors.New("translations table down")}
+
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, tr, "", nil)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+	assert.Equal(t, 1, search.Indexed(), "reindex must still index the item despite the translation read error")
 }
 
 func TestReindexSearchIndex_SingleLibrary(t *testing.T) {
@@ -43,7 +102,7 @@ func TestReindexSearchIndex_SingleLibrary(t *testing.T) {
 	seedItem(repo, "m3", "libB")
 	search := libfakes.NewFakeSearchIndex()
 
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, "libA", nil)
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "libA", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 2, n, "only libA items counted")
 	assert.Equal(t, 2, search.Indexed(), "only libA items indexed")
@@ -58,7 +117,7 @@ func TestReindexSearchIndex_ProgressCallback(t *testing.T) {
 
 	var lastDone, lastTotal int
 	calls := 0
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, "", func(done, total int) {
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", func(done, total int) {
 		calls++
 		lastDone, lastTotal = done, total
 	})
@@ -74,7 +133,7 @@ func TestReindexSearchIndex_Empty(t *testing.T) {
 	repo := libfakes.NewFakeMediaItemQueryRepo()
 	search := libfakes.NewFakeSearchIndex()
 
-	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, "", nil)
+	n, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", nil)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n)
 	assert.Equal(t, 0, search.Indexed())
@@ -86,7 +145,7 @@ func TestReindexSearchIndex_ListErrorPropagates(t *testing.T) {
 	repo.Err = errors.New("db down")
 	search := libfakes.NewFakeSearchIndex()
 
-	_, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, "", nil)
+	_, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", nil)
 	require.Error(t, err)
 }
 
@@ -97,6 +156,6 @@ func TestReindexSearchIndex_IndexErrorPropagates(t *testing.T) {
 	search := libfakes.NewFakeSearchIndex()
 	search.Err = errors.New("meili down")
 
-	_, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, "", nil)
+	_, err := applibrary.ReindexSearchIndex(context.Background(), repo, search, nil, "", nil)
 	require.Error(t, err)
 }

@@ -140,6 +140,49 @@ func (r *MediaItemTranslationRepository) GetByMediaItemsAndLocale(ctx context.Co
 	return out, nil
 }
 
+// GetByMediaItems batch-fetches ALL locales' translations for many items in one
+// query, grouped by media item ID. Used by the search reindex to attach every
+// translated title to a page of items without N round-trips.
+func (r *MediaItemTranslationRepository) GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*library.MediaItemTranslation, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_item_translation.GetByMediaItems")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	out := make(map[string][]*library.MediaItemTranslation, len(mediaItemIDs))
+	if len(mediaItemIDs) == 0 {
+		return out, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		SELECT media_item_id, locale, title, overview, tagline
+		FROM media_item_translations
+		WHERE media_item_id = ANY($1)
+		ORDER BY media_item_id, locale
+	`, pq.Array(mediaItemIDs))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var t library.MediaItemTranslation
+		if err := rows.Scan(&t.MediaItemID, &t.Locale, &t.Title, &t.Overview, &t.Tagline); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		id := string(t.MediaItemID)
+		out[id] = append(out[id], &t)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return out, nil
+}
+
 func (r *MediaItemTranslationRepository) GetByMediaItem(ctx context.Context, mediaItemID string) ([]*library.MediaItemTranslation, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_item_translation.GetByMediaItem")
 	defer span.End()
