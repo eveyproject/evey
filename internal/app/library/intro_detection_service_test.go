@@ -257,11 +257,30 @@ type fakeSegmentRepo struct {
 	getErr error
 	// getErrForID makes GetByMediaItemID fail for specific IDs only.
 	getErrForID map[string]error
+	// upsertErr makes every UpsertUnlessManual call fail with this error.
+	upsertErr error
 }
 
 func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegment) error {
 	r.upserted = append(r.upserted, seg)
 	return nil
+}
+
+// UpsertUnlessManual mirrors the postgres conditional upsert: it skips (returns
+// applied=false) when an existing seeded/upserted segment for the same
+// (mediaItemID, type) is a manual mark, else records the upsert.
+func (r *fakeSegmentRepo) UpsertUnlessManual(_ context.Context, seg *domainlibrary.MediaSegment) (bool, error) {
+	if r.upsertErr != nil {
+		return false, r.upsertErr
+	}
+	for _, e := range append(append([]*domainlibrary.MediaSegment{}, r.seeded...), r.upserted...) {
+		if e.MediaItemID == seg.MediaItemID && e.Type == seg.Type &&
+			(e.Source == "manual" || e.Source == "manual_propagated") {
+			return false, nil
+		}
+	}
+	r.upserted = append(r.upserted, seg)
+	return true, nil
 }
 func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaItemID) ([]*domainlibrary.MediaSegment, error) {
 	r.queriedIDs = append(r.queriedIDs, string(id))
@@ -900,11 +919,12 @@ func TestPickWindowMatchingDuration_TooLongReturnsNil(t *testing.T) {
 
 // --- H5 fail-closed regression tests ---
 
-// TestUpsertSegmentRespectingManual_GetError_FailsClosed proves that when
-// GetByMediaItemID errors inside the manual-lock guard, DetectIntro returns
-// the error without calling Upsert.  Overwriting an undetermined lock state
-// is forbidden — the fix must propagate the error rather than proceeding.
-func TestUpsertSegmentRespectingManual_GetError_FailsClosed(t *testing.T) {
+// TestUpsertSegmentRespectingManual_UpsertError_Propagates proves that when the
+// atomic manual-lock upsert (UpsertUnlessManual) errors, DetectIntro propagates
+// the error rather than swallowing it. The read-then-write guard was replaced by
+// a single conditional statement, so the lock check can no longer fail
+// independently of the write — the write error is the only failure mode left.
+func TestUpsertSegmentRespectingManual_UpsertError_Propagates(t *testing.T) {
 	t.Parallel()
 	dur, _ := shared.NewDurationMs(3_600_000)
 	item := &domainlibrary.MediaItem{
@@ -913,7 +933,7 @@ func TestUpsertSegmentRespectingManual_GetError_FailsClosed(t *testing.T) {
 		File: &domainlibrary.MediaFile{Path: "/movie.mkv", Duration: dur},
 	}
 	segRepo := &fakeSegmentRepo{
-		getErr: errors.New("db transient error"),
+		upsertErr: errors.New("db transient error"),
 	}
 	det := &fakeDetector{
 		creditsStartMs: 3_480_000,
@@ -923,8 +943,7 @@ func TestUpsertSegmentRespectingManual_GetError_FailsClosed(t *testing.T) {
 	svc := newTestService(det, segRepo, item)
 
 	err := svc.DetectIntro(context.Background(), "item-guardread")
-	require.Error(t, err, "DetectIntro must propagate the error when the manual-lock guard read fails")
-	require.Empty(t, segRepo.upserted, "Upsert must not be called when manual-lock guard read errors")
+	require.Error(t, err, "DetectIntro must propagate the error when the manual-lock upsert fails")
 }
 
 // TestPropagateSegment_SiblingGetSegError_SkipsUpsert proves that when

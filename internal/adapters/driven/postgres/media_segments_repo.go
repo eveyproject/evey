@@ -89,6 +89,48 @@ func (r *MediaSegmentRepository) Upsert(ctx context.Context, seg *library.MediaS
 	return nil
 }
 
+// UpsertUnlessManual inserts the segment, or updates the existing
+// (media_item_id, type) row only when its source is not an operator mark. The
+// ON CONFLICT ... DO UPDATE ... WHERE clause evaluates the manual-lock test
+// against the locked existing row, so this is atomic: a concurrent
+// auto-detection can't read "no manual lock" and then overwrite a manual mark
+// set in the race window (the read-then-write that GetByMediaItemID + Upsert
+// allowed). Returns applied=false when the existing row's manual lock skipped
+// the update.
+func (r *MediaSegmentRepository) UpsertUnlessManual(ctx context.Context, seg *library.MediaSegment) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.UpsertUnlessManual")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(seg.MediaItemID)), attribute.String("segment.type", seg.Type))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	if seg.ID == "" {
+		seg.ID = uuid.New().String()
+	}
+	if seg.CreatedAt.IsZero() {
+		seg.CreatedAt = time.Now()
+	}
+
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`INSERT INTO media_segments (id, media_item_id, type, start_ms, end_ms, confidence, source, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (media_item_id, type) DO UPDATE SET
+		   start_ms   = EXCLUDED.start_ms,
+		   end_ms     = EXCLUDED.end_ms,
+		   confidence = EXCLUDED.confidence,
+		   source     = EXCLUDED.source
+		 WHERE media_segments.source NOT IN ('manual', 'manual_propagated')`,
+		seg.ID, seg.MediaItemID, seg.Type, seg.StartMs, seg.EndMs, seg.Confidence, seg.Source, seg.CreatedAt,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 func (r *MediaSegmentRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.DeleteByMediaItemID")
 	defer span.End()

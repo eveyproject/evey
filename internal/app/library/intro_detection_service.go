@@ -527,22 +527,23 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 // upsertSegmentRespectingManual upserts unless an existing segment for the same
 // (media_item_id, type) has source "manual" or "manual_propagated" — operator
 // choices must never be silently overwritten by re-runs of auto-detection.
+//
+// The manual-lock check and the write are done in ONE atomic statement
+// (UpsertUnlessManual) rather than read-then-write: a separate
+// GetByMediaItemID + Upsert let a concurrent detection (or an operator
+// SetManualSegment) slip a manual mark into the window between the read and
+// the write, which the auto-upsert would then clobber.
 func (s *IntroDetectionService) upsertSegmentRespectingManual(ctx context.Context, seg *domainlibrary.MediaSegment) error {
-	existing, err := s.segmentRepo.GetByMediaItemID(ctx, seg.MediaItemID)
+	applied, err := s.segmentRepo.UpsertUnlessManual(ctx, seg)
 	if err != nil {
-		// Cannot determine lock state — fail closed to protect operator marks.
-		return fmt.Errorf("read existing segments for manual-lock guard: %w", err)
+		return fmt.Errorf("upsert segment with manual-lock guard: %w", err)
 	}
-	for _, e := range existing {
-		if e.Type == seg.Type && (e.Source == "manual" || e.Source == "manual_propagated") {
-			slog.Info("intro_detection: skipping auto upsert, manual lock present",
-				slog.String("media_id", string(seg.MediaItemID)),
-				slog.String("type", seg.Type),
-				slog.String("existing_source", e.Source))
-			return nil
-		}
+	if !applied {
+		slog.Info("intro_detection: skipping auto upsert, manual lock present",
+			slog.String("media_id", string(seg.MediaItemID)),
+			slog.String("type", seg.Type))
 	}
-	return s.segmentRepo.Upsert(ctx, seg)
+	return nil
 }
 
 // SetManualSegment upserts a single segment with source="manual" and confidence=1.0.
