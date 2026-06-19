@@ -406,3 +406,59 @@ func TestServerSettings_Put_RateLimits_UpdatesLimiters(t *testing.T) {
 		t.Errorf("store hwaccel = %q", got)
 	}
 }
+
+// TestServerSettings_ConcurrentReadWrite_NoRace hammers the handler with
+// concurrent PUTs (which write cfg fields under cfg's write lock) and GETs,
+// alongside the live-reader path (Effective* accessors, as used by the
+// transcode/segments handlers). Run under `go test -race` it proves the admin
+// server-settings write no longer races the live config readers.
+func TestServerSettings_ConcurrentReadWrite_NoRace(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+
+	var live sync.WaitGroup
+	stop := make(chan struct{})
+	// Live readers: exactly the accessors the request path calls per stream.
+	for range 4 {
+		live.Add(1)
+		go func() {
+			defer live.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				_ = env.cfg.EffectiveServerName()
+				_ = env.cfg.EffectiveMaxConcurrent()
+				_ = env.cfg.EffectiveHWAccelEnabled()
+				_ = env.cfg.EffectiveAV1Enabled()
+				_ = env.cfg.EffectiveAV1MaxHeight()
+				_ = env.cfg.EffectiveSkipPreviewEnabled()
+			}
+		}()
+	}
+
+	// Concurrent GET (snapshot) + PUT (mutate) requests.
+	var reqs sync.WaitGroup
+	for w := range 3 {
+		reqs.Add(1)
+		go func(w int) {
+			defer reqs.Done()
+			for j := range 60 {
+				put := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+					strings.NewReader(`{"serverName":"n","maxConcurrentTranscodes":4,"hwAccelEnabled":true,"av1Enabled":true,"av1MaxHeight":1080,"skipPreviewEnabled":true}`))
+				put.Header.Set("Authorization", "Bearer tok")
+				env.mux.ServeHTTP(httptest.NewRecorder(), put)
+
+				get := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-settings", nil)
+				get.Header.Set("Authorization", "Bearer tok")
+				env.mux.ServeHTTP(httptest.NewRecorder(), get)
+				_ = j
+				_ = w
+			}
+		}(w)
+	}
+	reqs.Wait()
+	close(stop)
+	live.Wait()
+}

@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -40,6 +41,16 @@ func validateCosignPublicKey(pathOrRef string) error {
 }
 
 type Config struct {
+	// mu guards the handful of fields the admin "server-settings" PUT mutates at
+	// runtime (Server.Name, Server.{Login,Global}RateLimitMax,
+	// Transcoding.{MaxConcurrent,HWAccelEnabled,HWMode,AV1Enabled,AV1MaxHeight,
+	// SoftwareAV1MaxHeightOverride}, Log.Level, Library.{WatcherEnabled,
+	// PeriodicScanInterval}, Metadata.SkipPreviewEnabled) against the live
+	// readers in the request path. Writers go through ApplyServerSettings; live
+	// readers go through the Effective* accessors. Everything else is set once at
+	// boot and never written again, so it needs no lock.
+	mu sync.RWMutex
+
 	Server       ServerConfig
 	DB           DBConfig
 	Meilisearch  MeilisearchConfig
@@ -407,11 +418,64 @@ func (c *Config) EffectiveBaseURL() string {
 	return c.Server.BaseURL
 }
 
-func (c *Config) EffectiveServerName() string   { return c.Server.Name }
-func (c *Config) EffectiveMaxConcurrent() int   { return c.Transcoding.MaxConcurrent }
-func (c *Config) EffectiveHWAccelEnabled() bool { return c.Transcoding.HWAccelEnabled }
-func (c *Config) EffectiveAV1Enabled() bool     { return c.Transcoding.AV1Enabled }
-func (c *Config) EffectiveAV1MaxHeight() int     { return c.Transcoding.AV1MaxHeight }
+// The Effective* accessors below are the read side of the runtime-mutable
+// settings guarded by c.mu. They take the read lock so a concurrent admin PUT
+// (ApplyServerSettings) can't tear a value out from under a live reader.
+func (c *Config) EffectiveServerName() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Server.Name
+}
+func (c *Config) EffectiveMaxConcurrent() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Transcoding.MaxConcurrent
+}
+func (c *Config) EffectiveHWAccelEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Transcoding.HWAccelEnabled
+}
+func (c *Config) EffectiveAV1Enabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Transcoding.AV1Enabled
+}
+func (c *Config) EffectiveAV1MaxHeight() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Transcoding.AV1MaxHeight
+}
+
+// EffectiveSkipPreviewEnabled reads the intro-provider skip-preview toggle under
+// the read lock. The segments handler calls it live per request, so it must not
+// race the admin PUT that flips Metadata.SkipPreviewEnabled.
+func (c *Config) EffectiveSkipPreviewEnabled() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Metadata.SkipPreviewEnabled
+}
+
+// ApplyServerSettings runs fn while holding the write lock that guards the
+// runtime-mutable settings fields. fn must touch only those fields (see the
+// c.mu doc) and must not call back into the Effective* accessors (the lock is
+// not reentrant). The admin server-settings PUT calls this once per field it
+// changes, keeping the critical section to a plain struct assignment.
+func (c *Config) ApplyServerSettings(fn func()) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	fn()
+}
+
+// WithReadLock runs fn under the read lock guarding the runtime-mutable fields.
+// Used by the settings GET handler to take a consistent snapshot of those raw
+// fields without recursively locking (it reads fields directly, not via the
+// Effective* accessors, which would deadlock under a nested RLock).
+func (c *Config) WithReadLock(fn func()) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	fn()
+}
 
 // WarnValidate validates config, returning an error for critical security issues
 // and logging warnings for non-critical ones.

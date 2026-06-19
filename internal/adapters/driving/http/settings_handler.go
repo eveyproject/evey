@@ -98,6 +98,11 @@ func registerServerSettingsRoutes(
 	globalRL *ratelimit.Limiter,
 	writeRL *ratelimit.Limiter,
 ) {
+	// mu guards the handler-local `overridden` map only. The cfg fields these
+	// settings mutate are guarded separately by cfg's own lock (cfg.mu, via
+	// ApplyServerSettings / withReadLock). Lock ordering is always mu (outer) →
+	// cfg's lock (inner) to avoid deadlock: buildResponse takes mu.RLock then
+	// cfg.withReadLock; the PUT takes mu.Lock then cfg.ApplyServerSettings.
 	var mu sync.RWMutex
 	overridden := make(map[string]bool)
 
@@ -122,12 +127,16 @@ func registerServerSettingsRoutes(
 	}
 
 	settings := []settingDef{
+		// Getters read cfg fields RAW (not via the Effective* accessors): the
+		// whole settings loop runs inside cfg.withReadLock in buildResponse, and
+		// the Effective* accessors take cfg's read lock themselves — calling them
+		// here would recursively RLock, which Go's RWMutex forbids.
 		{jsonKey: "serverName", cfgKey: cfgKeyServerName, defaultVal: "Evey",
-			getter: func() any { return cfg.EffectiveServerName() }},
+			getter: func() any { return cfg.Server.Name }},
 		{jsonKey: "maxConcurrentTranscodes", cfgKey: cfgKeyTranscodeMaxConc, defaultVal: 2,
-			getter: func() any { return cfg.EffectiveMaxConcurrent() }},
+			getter: func() any { return cfg.Transcoding.MaxConcurrent }},
 		{jsonKey: "hwAccelEnabled", cfgKey: cfgKeyTranscodeHWAccel, defaultVal: false,
-			getter: func() any { return cfg.EffectiveHWAccelEnabled() }},
+			getter: func() any { return cfg.Transcoding.HWAccelEnabled }},
 		{jsonKey: "hwMode", cfgKey: cfgKeyTranscodeHWMode, defaultVal: string(domaintranscoding.HWModeAuto),
 			getter: func() any { return string(effectiveHWMode()) }},
 		{jsonKey: "loginRateLimit", cfgKey: cfgKeyRateLimitLogin, defaultVal: 10,
@@ -160,16 +169,22 @@ func registerServerSettingsRoutes(
 		// AV1 as a transcode OUTPUT codec. Hardware-only (libsvtav1 starves a weak
 		// CPU), so this is an explicit opt-in surfaced only when HW accel is on.
 		{jsonKey: "av1Enabled", cfgKey: cfgKeyTranscodeAV1En, defaultVal: false,
-			getter: func() any { return cfg.EffectiveAV1Enabled() }},
+			getter: func() any { return cfg.Transcoding.AV1Enabled }},
 		{jsonKey: "av1MaxHeight", cfgKey: cfgKeyTranscodeAV1Max, defaultVal: 0,
-			getter: func() any { return cfg.EffectiveAV1MaxHeight() }},
+			getter: func() any { return cfg.Transcoding.AV1MaxHeight }},
 	}
 
+	// buildResponse snapshots every setting. The caller must already hold
+	// mu.RLock (guards `overridden`, read via source()); withReadLock adds cfg's
+	// read lock (guards the raw cfg field reads in the getters) — mu outer, cfg
+	// inner.
 	buildResponse := func() map[string]settingValue {
 		resp := make(map[string]settingValue, len(settings))
-		for _, s := range settings {
-			resp[s.jsonKey] = settingValue{Value: s.getter(), Default: s.defaultVal, Source: source(s.cfgKey)}
-		}
+		cfg.WithReadLock(func() {
+			for _, s := range settings {
+				resp[s.jsonKey] = settingValue{Value: s.getter(), Default: s.defaultVal, Source: source(s.cfgKey)}
+			}
+		})
 		return resp
 	}
 
@@ -407,9 +422,15 @@ func registerServerSettingsRoutes(
 				}},
 		}
 
+		// mu (outer) guards `overridden`; cfg's write lock (inner, via
+		// ApplyServerSettings) guards the cfg field writes in u.apply(). The DB
+		// persist + sideEffect run OUTSIDE cfg's lock so a slow store.Set doesn't
+		// block live Effective* readers — only the plain field assignment is
+		// serialized against them.
 		mu.Lock()
 		for _, u := range updates {
-			serialized := u.apply()
+			var serialized string
+			cfg.ApplyServerSettings(func() { serialized = u.apply() })
 			if serialized == "" {
 				continue
 			}
