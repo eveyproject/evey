@@ -119,7 +119,8 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 }
 
 func (s *CommandService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) shared.Duration {
-	return s.scan.ProbeAndStoreStreams(ctx, mediaItemID, filePath)
+	dur, _ := s.scan.ProbeAndStoreStreams(ctx, mediaItemID, filePath)
+	return dur
 }
 
 // StartPeriodicScan runs a lightweight scan at the given interval for specific library IDs

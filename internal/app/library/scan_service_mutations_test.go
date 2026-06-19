@@ -508,7 +508,7 @@ func TestScanService_NewItem_DurationUpdateErrorLogged(t *testing.T) {
 		_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 		require.NoError(t, err)
 	})
-	assert.Contains(t, logs, "update media item duration failed")
+	assert.Contains(t, logs, "update media item after probe failed")
 }
 
 // --- scan_service.go:375 search.IndexMediaItem err (new item) ---
@@ -1078,3 +1078,72 @@ func TestScanService_HealOrphanTitles_NoDriftNoUpdate(t *testing.T) {
 }
 
 
+
+// A file indexed while its probe yielded no streams gets StreamProbeAttempts=1,
+// then a later scan re-probes it and heals once the probe succeeds.
+func TestScanService_StreamlessFile_ReprobesAndHeals(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
+	}
+	// First probe yields a duration but NO streams (worker-budget timeout / I/O
+	// hiccup simulated by an empty stream list).
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{Duration: mustProbeDuration(42000)}
+
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+
+	items := h.media.All()
+	require.Len(t, items, 1)
+	require.NotNil(t, items[0].File)
+	assert.Equal(t, 1, items[0].File.StreamProbeAttempts, "streamless create must record one failed probe attempt")
+	streams, err := h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(items[0].ID))
+	require.NoError(t, err)
+	assert.Empty(t, streams)
+
+	// The probe now succeeds; a re-scan of the (unchanged) file must re-probe.
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{
+		Duration: mustProbeDuration(42000),
+		Streams: []*library.MediaStream{
+			{ID: "ps1", StreamType: "video", Codec: "h264"},
+			{ID: "ps2", StreamType: "audio", Codec: "aac"},
+		},
+	}
+
+	_, _, err = h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+
+	items = h.media.All()
+	require.Len(t, items, 1)
+	assert.Equal(t, 0, items[0].File.StreamProbeAttempts, "successful re-probe must reset the counter")
+	streams, err = h.streams.GetByMediaItemID(context.Background(), shared.MediaItemID(items[0].ID))
+	require.NoError(t, err)
+	assert.Len(t, streams, 2, "re-probe must store the now-discoverable streams")
+}
+
+// A durably-unprobeable file's re-probe is bounded: the counter climbs to
+// maxStreamProbeAttempts and then stops (no re-probe on every subsequent scan).
+func TestScanService_StreamlessFile_GivesUpAfterMax(t *testing.T) {
+	const maxAttempts = 4 // mirrors scan_service.go maxStreamProbeAttempts
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.scanner.Results["/m"] = []library.ScannedFile{
+		{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
+	}
+	// Probe never yields streams.
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{Duration: mustProbeDuration(42000)}
+
+	// Scan many more times than the cap; the counter must plateau at the cap.
+	for range maxAttempts + 3 {
+		_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+		require.NoError(t, err)
+	}
+
+	items := h.media.All()
+	require.Len(t, items, 1)
+	assert.Equal(t, maxAttempts, items[0].File.StreamProbeAttempts,
+		"bounded re-probe must plateau at the cap, not keep climbing")
+}

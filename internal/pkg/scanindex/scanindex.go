@@ -38,6 +38,10 @@ type Summary struct {
 	Size    int64
 	ModTime time.Time
 	Hash    string // "" when the row has no stored hash
+	// NeedsReprobe marks a row the scanner must reprocess even when it is
+	// otherwise unchanged — e.g. a video file indexed without streams that is
+	// owed a bounded re-probe. Callers that don't track this leave it false.
+	NeedsReprobe bool
 }
 
 // Index keeps existing rows indexed by path and (when known) by hash,
@@ -76,6 +80,13 @@ func (idx *Index) Unchanged(path string, size int64, modTime time.Time) (existin
 		return ex.ID, false
 	}
 	return ex.ID, true
+}
+
+// NeedsReprobe reports whether the row at the given path is flagged for
+// reprocessing despite being otherwise unchanged. False when no row exists.
+func (idx *Index) NeedsReprobe(path string) bool {
+	ex, ok := idx.byPath[path]
+	return ok && ex.NeedsReprobe
 }
 
 // ExistingHash returns the hash persisted for the row at the given

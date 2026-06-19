@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,7 +85,12 @@ func TestScanLibrary_NewFile_CreatesMediaItem(t *testing.T) {
 
 func TestScanLibrary_ExistingFile_NoDuplicate(t *testing.T) {
 	t.Parallel()
-	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+	// A healthy file (probe yields streams) must be skipped entirely on re-scan.
+	prober := libfakes.NewFakeStreamProber()
+	prober.Results["/movies/test.mkv"] = &library.ProbeResult{
+		Streams: []*library.MediaStream{{ID: "ps1", StreamType: "video", Codec: "h264"}},
+	}
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvcWith(&cmdSvcDeps{prober: prober})
 
 	libQueryRepo.Seed(&library.Library{
 		ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"},

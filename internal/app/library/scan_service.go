@@ -322,6 +322,9 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 			Size:    row.FileSize,
 			ModTime: row.ModTime,
 			Hash:    row.FileFingerprint,
+			// A streamless file still inside its bounded re-probe budget must be
+			// reprocessed even when unchanged, so updateMediaFile re-probes it.
+			NeedsReprobe: row.StreamProbeAttempts > 0 && row.StreamProbeAttempts < maxStreamProbeAttempts,
 		}
 	}
 	return scanindex.New(entries), nil
@@ -375,7 +378,10 @@ func (s *ScanService) detectChanges(ctx context.Context, files []library.Scanned
 			// rare inode/mtime coincidence where the OS reused both for
 			// different content.
 			exHash, _ := idx.ExistingHash(f.Path)
-			if exHash == "" || f.Fingerprint == "" || exHash == f.Fingerprint {
+			hashMatches := exHash == "" || f.Fingerprint == "" || exHash == f.Fingerprint
+			// A file indexed without streams is owed a bounded re-probe: don't
+			// skip it on the fast path, let updateMediaFile re-probe it.
+			if hashMatches && !idx.NeedsReprobe(f.Path) {
 				continue
 			}
 		}
@@ -538,6 +544,13 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID strin
 	return existing, nil
 }
 
+// maxStreamProbeAttempts bounds how many times the scanner re-probes a file
+// that was indexed without streams before giving up. The create attempt counts
+// as 1, so this allows a few transient-failure retries on later scans, then
+// stops so a durably-unprobeable file isn't re-probed forever. An admin
+// reindex/repair resets the counter (a fresh probe success sets it to 0).
+const maxStreamProbeAttempts = 4
+
 // createMediaFile materializes a new MediaItem + child enrichment
 // (probe streams, chapters, meili index) and publishes MediaItemAdded.
 // Called only when findExistingMediaFile returned nil.
@@ -582,10 +595,19 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 	if err := s.mediaItems.Create(ctx, item); err != nil {
 		return false, fmt.Errorf("create media item: %w", err)
 	}
-	if dur := s.ProbeAndStoreStreams(ctx, string(item.ID), f.Path); !dur.IsZero() {
+	dur, probedOK := s.ProbeAndStoreStreams(ctx, string(item.ID), f.Path)
+	if !probedOK {
+		// The probe stored no streams (timeout / NAS I/O hiccup / streamless
+		// file). Record the first failed attempt so a later scan re-probes
+		// (bounded) instead of leaving the item streamless forever.
+		item.File.StreamProbeAttempts = 1
+	}
+	if !dur.IsZero() {
 		item.File.Duration = dur
+	}
+	if !dur.IsZero() || !probedOK {
 		if err := s.mediaItems.Update(ctx, item); err != nil {
-			slog.Warn("update media item duration failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+			slog.Warn("update media item after probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 		}
 	}
 	if s.metadata != nil {
@@ -633,6 +655,14 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 				slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 			}
 		}
+		// A prior probe left this file without streams (StreamProbeAttempts in
+		// (0, max)). The change-detection fast path would otherwise never
+		// re-probe an unchanged file, so it would stay streamless until a manual
+		// reindex. Re-probe a bounded number of times so a transient failure
+		// self-heals, without re-probing a durably-unprobeable file every scan.
+		if existing.File.StreamProbeAttempts > 0 && existing.File.StreamProbeAttempts < maxStreamProbeAttempts {
+			s.reprobeStreamlessFile(ctx, existing, f.Path)
+		}
 		return
 	}
 	existing.ParentID = parentID
@@ -652,11 +682,19 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	if err := s.mediaItems.Update(ctx, existing); err != nil {
 		slog.Warn("update media item failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 	}
-	if dur := s.ProbeAndStoreStreams(ctx, string(existing.ID), f.Path); !dur.IsZero() {
+	dur, probedOK := s.ProbeAndStoreStreams(ctx, string(existing.ID), f.Path)
+	// New content → a fresh bounded re-probe budget: 0 on success, 1 on failure.
+	if probedOK {
+		existing.File.StreamProbeAttempts = 0
+	} else {
+		existing.File.StreamProbeAttempts = 1
+	}
+	if !dur.IsZero() {
 		existing.File.Duration = dur
-		if err := s.mediaItems.Update(ctx, existing); err != nil {
-			slog.Warn("update media item duration failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
-		}
+	}
+	existing.UpdatedAt = time.Now()
+	if err := s.mediaItems.Update(ctx, existing); err != nil {
+		slog.Warn("update media item after probe failed", slog.String("mediaItemID", string(existing.ID)), slog.Any("err", err))
 	}
 	if s.metadata != nil {
 		s.metadata.extractAndStoreChapters(ctx, string(existing.ID), f.Path)
@@ -679,12 +717,43 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	}
 }
 
-func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) shared.Duration {
+// ProbeAndStoreStreams probes filePath and replaces the item's media_streams.
+// It returns the container duration and probedOK: true only when the probe
+// yielded at least one container stream AND the store succeeded. probedOK=false
+// (probe error, a genuinely streamless file, or a failed ReplaceBatch) is the
+// signal the scanner uses to drive the bounded re-probe counter so a transient
+// failure self-heals on a later scan.
+// reprobeStreamlessFile retries the stream probe for an unchanged file that was
+// indexed without streams (StreamProbeAttempts in (0, max)). On success it
+// resets the counter to 0 and refreshes the duration; on failure it increments
+// so the retries stay bounded. Persists the updated counter either way.
+func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.MediaItem, path string) {
+	dur, probedOK := s.ProbeAndStoreStreams(ctx, string(item.ID), path)
+	if probedOK {
+		item.File.StreamProbeAttempts = 0
+		if !dur.IsZero() {
+			item.File.Duration = dur
+		}
+		slog.InfoContext(ctx, "scan: streamless file re-probe succeeded",
+			slog.String("mediaItemID", string(item.ID)), slog.String("path", path))
+	} else {
+		item.File.StreamProbeAttempts++
+		slog.WarnContext(ctx, "scan: streamless file re-probe still failing",
+			slog.String("mediaItemID", string(item.ID)), slog.String("path", path),
+			slog.Int("attempts", item.File.StreamProbeAttempts))
+	}
+	item.UpdatedAt = time.Now()
+	if err := s.mediaItems.Update(ctx, item); err != nil {
+		slog.Warn("update media item after re-probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+	}
+}
+
+func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) (dur shared.Duration, probedOK bool) {
 	ctx, span := tracing.StartSpan(ctx, "app.scan.ProbeAndStoreStreams")
 	defer span.End()
 	span.SetAttributes(attribute.String("media_item.id", mediaItemID))
 	if s.prober == nil {
-		return shared.Duration{}
+		return shared.Duration{}, false
 	}
 	result, err := s.prober.ProbeStreams(ctx, filePath)
 	if err != nil {
@@ -696,8 +765,12 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 			slog.String("mediaItemID", mediaItemID),
 			slog.String("filePath", filePath),
 			slog.Any("err", err))
-		return shared.Duration{}
+		return shared.Duration{}, false
 	}
+	// Success is judged on the CONTAINER streams, before external sidecar subs
+	// are appended: a file whose container yields nothing but happens to have a
+	// neighbouring .srt must still count as a failed probe (and be re-probed).
+	containerStreams := len(result.Streams)
 	for _, st := range result.Streams {
 		st.MediaItemID = shared.MediaItemID(mediaItemID)
 	}
@@ -714,8 +787,9 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 
 	if err := s.mediaStreams.ReplaceBatch(ctx, shared.MediaItemID(mediaItemID), allStreams); err != nil {
 		slog.Warn("replace media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
+		return result.Duration, false
 	}
-	return result.Duration
+	return result.Duration, containerStreams > 0
 }
 
 // scanWorkerCount returns the scan goroutine pool size.

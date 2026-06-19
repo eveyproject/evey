@@ -162,6 +162,7 @@ func (r *FakeMediaItemCommandRepo) ListScanSummaries(_ context.Context, libraryI
 				row.FileFingerprint = item.File.Fingerprint
 				row.FileSize = item.File.Size
 				row.ModTime = item.File.ModTime
+				row.StreamProbeAttempts = item.File.StreamProbeAttempts
 			}
 			result = append(result, row)
 		}

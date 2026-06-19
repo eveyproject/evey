@@ -26,6 +26,7 @@ type cmdSvcDeps struct {
 	trickplayGen  library.TrickplayGenerator
 	cacheDir      string
 	configRepo    shared.ServerConfigRepository
+	prober        *libfakes.FakeStreamProber // optional: pre-seed probe results
 }
 
 func newCmdSvcWith(d *cmdSvcDeps) (*applib.CommandService, *libfakes.FakeLibraryCommandRepo, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeMediaItemCommandRepo, *libfakes.FakeFileScanner, *sharedfakes.FakeEventBus) {
@@ -41,6 +42,9 @@ func newCmdSvcWith(d *cmdSvcDeps) (*applib.CommandService, *libfakes.FakeLibrary
 	bus := sharedfakes.NewFakeEventBus()
 	if d == nil {
 		d = &cmdSvcDeps{}
+	}
+	if d.prober != nil {
+		prober = d.prober
 	}
 	if d.chapterRepo == nil {
 		d.chapterRepo = libfakes.NewFakeChapterRepository()

@@ -223,6 +223,13 @@ type MediaFile struct {
 	Duration        shared.Duration
 	Bitrate         int64
 	ContainerFormat string
+	// StreamProbeAttempts counts consecutive ffmpeg stream-probe attempts that
+	// stored no streams (probe error, timeout, or a genuinely streamless file).
+	// 0 means the file was probed successfully or never attempted. The scanner
+	// re-probes a streamless file while this is in (0, max) so a transient probe
+	// failure self-heals, then stops so a durably-unprobeable file isn't
+	// re-probed forever. A successful probe resets it to 0.
+	StreamProbeAttempts int
 }
 
 type Trailer struct {
@@ -242,6 +249,9 @@ type MediaItemScanRow struct {
 	FileFingerprint string
 	FileSize        int64
 	ModTime         time.Time
+	// StreamProbeAttempts mirrors media_files.stream_probe_attempts so the scan
+	// fast path can re-process a streamless file that is owed a bounded re-probe.
+	StreamProbeAttempts int
 }
 
 // MediaItemContainerRow is a lightweight projection for pruning empty containers.

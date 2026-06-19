@@ -26,6 +26,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		parentID, scanTitle                             *string
 		filePath, fingerprint, containerFormat          *string
 		fileSize, durationMs, bitrate                   *int64
+		streamProbeAttempts                             sql.NullInt64
 		modTimeRaw                                      sql.NullTime
 		premiereDate                                    sql.NullTime
 		year                                            sql.NullInt64
@@ -39,7 +40,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		&item.ID, &item.LibraryID, &parentID, &item.Type, &item.Title, &scanTitle,
 		&item.SortTitle, &item.OriginalTitle, &item.Overview, &item.Tagline, &item.IndexNumber,
 		&item.AddedAt, &item.UpdatedAt,
-		&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat,
+		&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat, &streamProbeAttempts,
 		&premiereDate, &year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
 		&communityRating, &officialRating, &certJSON, &providerRatingsJSON,
 		&trailersJSON,
@@ -53,7 +54,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		item.ScanTitle = *scanTitle
 	}
 
-	item.File = buildMediaFile(filePath, fileSize, fingerprint, modTimeRaw, durationMs, bitrate, containerFormat)
+	item.File = buildMediaFile(filePath, fileSize, fingerprint, modTimeRaw, durationMs, bitrate, containerFormat, streamProbeAttempts)
 	cat, err := buildMediaCatalog(premiereDate, year, providerJSON, genresJSON, studiosJSON, tagsJSON)
 	if err != nil {
 		return err
@@ -74,11 +75,14 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 // buildMediaFile returns the File sub-aggregate when the LEFT JOIN found
 // a media_files row (filePath non-nil), else nil. Container types
 // (series/season/album) leave item.File == nil.
-func buildMediaFile(filePath *string, fileSize *int64, fingerprint *string, modTime sql.NullTime, durationMs, bitrate *int64, containerFormat *string) *library.MediaFile {
+func buildMediaFile(filePath *string, fileSize *int64, fingerprint *string, modTime sql.NullTime, durationMs, bitrate *int64, containerFormat *string, streamProbeAttempts sql.NullInt64) *library.MediaFile {
 	if filePath == nil {
 		return nil
 	}
 	f := &library.MediaFile{Path: *filePath}
+	if streamProbeAttempts.Valid {
+		f.StreamProbeAttempts = int(streamProbeAttempts.Int64)
+	}
 	if fileSize != nil {
 		f.Size = *fileSize
 	}

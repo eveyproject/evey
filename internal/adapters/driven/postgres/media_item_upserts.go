@@ -27,8 +27,8 @@ func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) e
 		fingerprint = &f.Fingerprint
 	}
 	_, err := tx.ExecContext(ctx,
-		`INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+		`INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   file_path = EXCLUDED.file_path,
 		   file_size = EXCLUDED.file_size,
@@ -36,9 +36,10 @@ func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) e
 		   mod_time = EXCLUDED.mod_time,
 		   duration_ms = EXCLUDED.duration_ms,
 		   bitrate = EXCLUDED.bitrate,
-		   container_format = EXCLUDED.container_format`,
+		   container_format = EXCLUDED.container_format,
+		   stream_probe_attempts = EXCLUDED.stream_probe_attempts`,
 		string(item.ID), f.Path, f.Size, fingerprint,
-		f.ModTime, f.Duration.Milliseconds(), f.Bitrate, f.ContainerFormat,
+		f.ModTime, f.Duration.Milliseconds(), f.Bitrate, f.ContainerFormat, f.StreamProbeAttempts,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert media_files: %w", err)
