@@ -17,10 +17,17 @@ import (
 // SoftwareProducer is the software-transcode StreamProducer: the Jellyfin
 // model. For a given DecisionHash it runs a small, bounded set of long-lived
 // ffmpeg encoders, each input-paced with `-readrate` so it stays near
-// wall-clock and never races the whole film ahead of the viewer. It serves a
-// single rendition (the ladder is collapsed to one rung by Profiles), so there
-// is nothing for the player to probe or switch across — one decode, one encode
-// per live position, no ABR thrash.
+// wall-clock and never races the whole film ahead of the viewer.
+//
+// Profiles serves a ladder CAPPED at the sustainable software ceiling (a single
+// rung in copy mode). The transcode path keeps the lower rungs so Auto can fall
+// back to a smaller rendition when the top is slow — but the famine the decouple
+// fixed (N unpaced parallel encoders) is held off a different way than forced
+// single-rung: at most MaxConcurrentVariantsPerHash encoders run per hash at
+// once, and requesting a variant SIGSTOPs the siblings (pauseOtherVariants), so
+// only the rung the client is actually pulling burns CPU. The client never gets
+// ErrCapacityExceeded — it WAITS for the paced encoder rather than abort-probing
+// across rungs that each spawn their own starving session.
 //
 // This is the antithesis of SegmentOrchestrator (the hardware path) on the axes
 // that caused the weak-NAS famine: no burst-ahead across ABR rungs, no global
@@ -44,7 +51,9 @@ import (
 //  3. never ErrCapacityExceeded, long WaitBudget (the client waits)
 //  4. no NumCPU cap (only the per-hash MaxSessionsPerHash bound)
 //  5. no per-segment deadline kill (idle GC only, 30 min)
-//  6. Profiles() = single rung at the sustainable software ceiling
+//  6. Profiles() = ladder capped at the sustainable software ceiling (single
+//     rung in copy mode); concurrency held by MaxConcurrentVariantsPerHash +
+//     SIGSTOP of the non-requested variants, not by collapsing to one rung
 //  7. an uncovered position (e.g. a second viewer cold-starting below a deep
 //     viewer) spawns a session ALONGSIDE — it never kills a sibling another
 //     viewer is consuming; the LRU is evicted only when the cap is exceeded
