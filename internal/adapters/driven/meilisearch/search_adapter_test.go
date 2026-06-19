@@ -158,6 +158,33 @@ func TestToDocument(t *testing.T) {
 	assert.Equal(t, now.Unix(), doc.AddedAt)
 }
 
+func TestToDocument_TranslatedTitles(t *testing.T) {
+	item := &library.MediaItem{
+		ID:            "item-3",
+		Title:         "The Journey",
+		OriginalTitle: "The Journey",
+		Translations: []library.MediaItemTranslation{
+			{Locale: "fr-FR", Title: "Le Voyage"},
+			{Locale: "de-DE", Title: "Die Reise"},
+			{Locale: "en-US", Title: "The Journey"}, // dup of primary → skipped
+			{Locale: "es-ES", Title: "  "},           // empty → skipped
+			{Locale: "it-IT", Title: "Le Voyage"},     // dup of another translation → skipped
+		},
+		AddedAt: time.Now(),
+	}
+
+	doc := ToDocument(item, nil)
+
+	assert.ElementsMatch(t, []string{"Le Voyage", "Die Reise"}, doc.TranslatedTitles,
+		"translated titles must be deduped and exclude empties + the primary/original title")
+}
+
+func TestToDocument_NoTranslations(t *testing.T) {
+	item := &library.MediaItem{ID: "item-4", Title: "Solo", AddedAt: time.Now()}
+	doc := ToDocument(item, nil)
+	assert.Nil(t, doc.TranslatedTitles)
+}
+
 func TestToDocument_NilYear(t *testing.T) {
 	item := &library.MediaItem{
 		ID:      "item-2",

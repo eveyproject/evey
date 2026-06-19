@@ -173,7 +173,6 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 		e.fetchPersonBio(ctx, person)
 	}
 
-	e.indexSearch(ctx, item, result.People)
 	e.linkCollection(ctx, string(item.ID), result.Collection)
 	// Fetch translations for all supported locales. Only for movies and series:
 	// a season/episode's ProviderIDs["tmdb"] is its own object id, which lives in
@@ -190,6 +189,10 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 			e.enrichTranslations(ctx, item, tmdbID, mediaType)
 		}
 	}
+	// Index LAST so the search doc carries the translated titles that
+	// enrichTranslations just populated on the item (a user can then find a
+	// title only stored in their own language).
+	e.indexSearch(ctx, item, result.People)
 	return nil
 }
 
@@ -629,7 +632,15 @@ func (e *Enricher) enrichTranslations(ctx context.Context, item *domainlib.Media
 	}
 	if err := e.mediaTranslations.UpsertBatch(ctx, batch); err != nil {
 		slog.Warn("upsert media translations batch", slog.String("item", string(item.ID)), slog.Any("err", err))
+		return
 	}
+	// Carry the translations on the item so the post-enrich search index picks
+	// up the translated titles without re-reading them from Postgres.
+	translations := make([]domainlib.MediaItemTranslation, 0, len(batch))
+	for _, b := range batch {
+		translations = append(translations, *b)
+	}
+	item.Translations = translations
 }
 
 func (e *Enricher) EnrichPersonTranslations(ctx context.Context, person *domainlib.Person, tmdbID int) {

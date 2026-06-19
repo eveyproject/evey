@@ -181,9 +181,14 @@ type MediaItem struct {
 	// the scan created but enrichment never touched.
 	Catalog *MediaCatalog
 
-	Trailers  []Trailer
-	AddedAt   time.Time
-	UpdatedAt time.Time
+	Trailers []Trailer
+	// Translations is a carry-along of the item's per-locale titles/overviews,
+	// NOT loaded by the default row scan (it lives in a separate table). The
+	// search-indexing paths populate it before indexing so a user searching in
+	// their own language finds a title only stored in a translation.
+	Translations []MediaItemTranslation
+	AddedAt      time.Time
+	UpdatedAt    time.Time
 }
 
 // MediaCatalog carries discovery metadata sourced from providers: the

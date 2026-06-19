@@ -58,7 +58,7 @@ func newSearchAdapterFromClient(ctx context.Context, client ServiceClient) (*Sea
 	idx := client.Index(indexName)
 
 	if _, err := idx.UpdateSettingsWithContext(ctx, &ms.Settings{
-		SearchableAttributes: []string{"title", "original_title", "cast"},
+		SearchableAttributes: []string{"title", "original_title", "translated_titles", "cast"},
 		FilterableAttributes: []string{"type", "library_id", "year", "genres"},
 		SortableAttributes:   []string{"title", "year", "added_at"},
 		RankingRules: []string{
@@ -79,32 +79,61 @@ func newSearchAdapterFromClient(ctx context.Context, client ServiceClient) (*Sea
 }
 
 type mediaDocument struct {
-	ID            string   `json:"id"`
-	Title         string   `json:"title"`
-	OriginalTitle string   `json:"original_title"`
-	Genres        []string `json:"genres"`
-	Cast          []string `json:"cast"`
-	Year          *int     `json:"year"`
-	Type          string   `json:"type"`
-	LibraryID     string   `json:"library_id"`
-	AddedAt       int64    `json:"added_at"`
+	ID               string   `json:"id"`
+	Title            string   `json:"title"`
+	OriginalTitle    string   `json:"original_title"`
+	TranslatedTitles []string `json:"translated_titles"`
+	Genres           []string `json:"genres"`
+	Cast             []string `json:"cast"`
+	Year             *int     `json:"year"`
+	Type             string   `json:"type"`
+	LibraryID        string   `json:"library_id"`
+	AddedAt          int64    `json:"added_at"`
 }
 
 func ToDocument(item *library.MediaItem, castNames []string) mediaDocument {
 	doc := mediaDocument{
-		ID:            string(item.ID),
-		Title:         item.Title,
-		OriginalTitle: item.OriginalTitle,
-		Cast:          castNames,
-		Type:          string(item.Type),
-		LibraryID:     string(item.LibraryID),
-		AddedAt:       item.AddedAt.Unix(),
+		ID:               string(item.ID),
+		Title:            item.Title,
+		OriginalTitle:    item.OriginalTitle,
+		TranslatedTitles: translatedTitles(item),
+		Cast:             castNames,
+		Type:             string(item.Type),
+		LibraryID:        string(item.LibraryID),
+		AddedAt:          item.AddedAt.Unix(),
 	}
 	if item.Catalog != nil {
 		doc.Genres = item.Catalog.Genres
 		doc.Year = item.Catalog.Year
 	}
 	return doc
+}
+
+// translatedTitles collects the distinct per-locale titles carried on the item,
+// skipping empties and any that duplicate the primary/original title (those are
+// already searchable). Lets a user find a title only stored in a translation.
+func translatedTitles(item *library.MediaItem) []string {
+	if len(item.Translations) == 0 {
+		return nil
+	}
+	seen := map[string]bool{
+		strings.ToLower(strings.TrimSpace(item.Title)):         true,
+		strings.ToLower(strings.TrimSpace(item.OriginalTitle)): true,
+	}
+	var out []string
+	for _, tr := range item.Translations {
+		t := strings.TrimSpace(tr.Title)
+		if t == "" {
+			continue
+		}
+		key := strings.ToLower(t)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, t)
+	}
+	return out
 }
 
 var allowedFilterKeys = map[string]bool{
