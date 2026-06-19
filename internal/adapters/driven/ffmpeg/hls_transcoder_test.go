@@ -572,7 +572,28 @@ func TestBuildFFmpegArgs_AV1_ColdStartBurst(t *testing.T) {
 	h264.VideoCodec = "h264"
 	jh := strings.Join(ffmpeg.BuildFFmpegArgs(h264), " ")
 	assert.Contains(t, jh, "-readrate 1.5")
-	assert.NotContains(t, jh, "readrate_initial_burst", "h264 keeps the plain pace (no startup CPU burst)")
+	assert.NotContains(t, jh, "readrate_initial_burst", "a plain SDR h264 FRESH play keeps the plain pace (no startup CPU burst)")
+
+	// The HDR->SDR software tonemap path (heavy HEVC-10bit decode + zscale/tonemapx
+	// on a weak box) has the same high first-segment latency as AV1, so it gets the
+	// burst even on a fresh play and even though it encodes plain h264 output.
+	tonemap := base
+	tonemap.VideoCodec = "h264"
+	tonemap.ToneMap = true
+	jt := strings.Join(ffmpeg.BuildFFmpegArgs(tonemap), " ")
+	assert.Contains(t, jt, "-readrate 1.5")
+	assert.Contains(t, jt, "-readrate_initial_burst 15", "HDR->SDR tonemap transcode needs the cold-start burst")
+
+	// ANY mid-stream seek (StartSec>0) must get the burst, regardless of codec: a
+	// forward seek spawns a fresh -ss session and its first 3 s segment landing past
+	// hls.js's fragment timeout → 503 → the player resumes from the buffered position
+	// (the "seek lands minutes earlier" bug). Even a cheap h264->h264 seek bursts.
+	seek := base
+	seek.VideoCodec = "h264"
+	seek.StartSec = 687 // 11:27
+	js := strings.Join(ffmpeg.BuildFFmpegArgs(seek), " ")
+	assert.Contains(t, js, "-readrate 1.5")
+	assert.Contains(t, js, "-readrate_initial_burst 15", "a mid-stream seek needs the cold-start burst so the landing segment is ready before the player gives up")
 }
 
 // Same guard on the multi-variant software path (the per-rung builder also
