@@ -97,8 +97,13 @@ type HTTPServer struct {
 	// HLSSessionRemover + ActiveStreamChecker contracts so admin kill-session
 	// and the trickplay scheduler keep working without a separate HLSManager.
 	HLSVODOrch    *apptranscoding.SegmentOrchestrator
-	HLSVODCache   *apptranscoding.SegmentCache
-	HLSTranscoder domaintranscoding.HLSProcess
+	// HLSVODSoftware is the shared software StreamProducer (built in wire.go) so
+	// the gRPC StopStream / admin-kill path can tear down the very sessions this
+	// handler's routing selector creates. nil in hand-built test servers →
+	// newHLSVODServe builds a private one.
+	HLSVODSoftware *apptranscoding.SoftwareProducer
+	HLSVODCache    *apptranscoding.SegmentCache
+	HLSTranscoder  domaintranscoding.HLSProcess
 	// AudioOrch manages audio-only HLS rendition sessions (EXT-X-MEDIA).
 	// Nil-safe: the audio rendition routes return 404 when unset. Wiring
 	// from wire.go lands after the feature flag stabilises.

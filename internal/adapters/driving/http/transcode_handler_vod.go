@@ -1461,13 +1461,20 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// cap, no per-segment deadline kill). It shares the addressable SegmentCache
 	// with the orchestrator (segments are encoder-agnostic), and resolves the
 	// source path through the same MediaSourceResolver the orchestrator uses.
-	software := apptranscoding.NewSoftwareProducer(
-		cache,
-		s.HLSTranscoder,
-		&MediaSourceResolver{LibSvc: libSvc},
-		apptranscoding.SoftwareProducerOptions{}, // defaults: ReadRate 1.5, 30 min GC, 60 s wait budget
-		slog.Default(),
-	)
+	// Prefer the shared instance wired in wire.go: the gRPC StopStream / admin-
+	// kill remover references the SAME producer, so a stopped software stream is
+	// torn down promptly instead of lingering until idle GC. Hand-built test
+	// servers leave HLSVODSoftware nil → fall back to a private instance.
+	software := s.HLSVODSoftware
+	if software == nil {
+		software = apptranscoding.NewSoftwareProducer(
+			cache,
+			s.HLSTranscoder,
+			&MediaSourceResolver{LibSvc: libSvc},
+			apptranscoding.SoftwareProducerOptions{}, // defaults: ReadRate 1.5, 30 min GC, 60 s wait budget
+			slog.Default(),
+		)
+	}
 
 	// Copy/remux rung = a dedicated SoftwareProducer in copy mode: the Jellyfin
 	// remux model — one paced `-c:v copy` + AAC session, seek = restart at the

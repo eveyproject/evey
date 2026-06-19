@@ -83,6 +83,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 
 		TranscodingSvc: deps.media.transcodingSvc,
 		HLSVODOrch:     deps.media.hlsVODOrch,
+		HLSVODSoftware: deps.media.hlsVODSoftware,
 		HLSVODCache:    deps.media.hlsVODCache,
 		HLSTranscoder:  deps.media.hlsTranscoder,
 		AudioOrch:      deps.media.audioOrch,

@@ -69,6 +69,14 @@ type mediaDeps struct {
 	hlsVODOrch    *apptranscoding.SegmentOrchestrator
 	hlsVODCache   *apptranscoding.SegmentCache
 	hlsTranscoder *ffmpeg.HLSTranscoder
+	// hlsVODSoftware is the single shared software StreamProducer (built in
+	// wire.go). The HTTP VOD handler's routing selector and the gRPC StopStream
+	// / admin-kill remover both reference it so a stopped software stream is
+	// torn down promptly instead of lingering until the producer's idle GC.
+	hlsVODSoftware *apptranscoding.SoftwareProducer
+	// hlsVODRemover fans RemoveSession out to BOTH the software producer and the
+	// hardware orchestrator (StopStream / admin force-kill). Routing unused.
+	hlsVODRemover *apptranscoding.ProducerSelector
 	// audioOrch manages audio-only HLS rendition sessions. Always
 	// wired (uses the same hlsVODCache); the HTTP routes that consume
 	// it gate on Cfg.Transcoding.AudioRenditionEnabled so it stays

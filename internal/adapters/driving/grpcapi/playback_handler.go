@@ -39,7 +39,10 @@ type playbackHandler struct {
 	userQuery   *appuser.QueryService
 	userAccess  *appuser.AccessService
 	translator  *eveyi18n.Translator
-	hlsManager  *apptranscoding.SegmentOrchestrator
+	// hlsManager kills a media's HLS sessions on explicit StopStream. Wired to
+	// the fan-out remover (software + hardware) so a stopped software stream is
+	// torn down promptly instead of lingering until its idle GC.
+	hlsManager HLSSessionRemover
 }
 
 func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {

@@ -73,6 +73,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		CfgStore:               deps.cfgStore,
 		Version:                version,
 		HLSVODOrch:             deps.media.hlsVODOrch,
+		HLSVODRemover:          deps.media.hlsVODRemover,
 		Scheduler:              deps.library.scheduler,
 		LogDir:                 logDir,
 		ServerCtx:              serverCtx,

@@ -660,6 +660,23 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	}, slog.Default())
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODOrch)
 
+	// The software StreamProducer is built HERE (not in the HTTP route
+	// registration) so it is a SINGLE instance shared between two consumers: the
+	// HTTP VOD handler's routing selector (which creates its sessions) and the
+	// gRPC StopStream / admin-kill path (which must be able to tear them down).
+	// Without the shared instance, a stopped software stream would linger until
+	// the producer's idle GC. Same sourceResolver as the orchestrator → SW and
+	// HW resolve the source identically.
+	hlsVODSoftware := apptranscoding.NewSoftwareProducer(
+		hlsVODCache, hlsTranscoder, sourceResolver,
+		apptranscoding.SoftwareProducerOptions{}, slog.Default(),
+	)
+	// Fan-out remover for explicit StopStream / admin force-kill: RemoveSession
+	// reaches BOTH producers. For()/routing is unused on this instance (the HTTP
+	// handler owns the routing selector with the real resolveHW predicate), so
+	// the predicate is nil.
+	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch, nil)
+
 	// Audio rendition orchestrator: shares the segment cache with the
 	// video pipeline but addresses sessions by AudioFingerprint (its own
 	// hash space). Always instantiated; the HTTP audio handlers gate on
@@ -986,6 +1003,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			hlsVODOrch:       hlsVODOrch,
 			hlsVODCache:      hlsVODCache,
 			hlsTranscoder:    hlsTranscoder,
+			hlsVODSoftware:   hlsVODSoftware,
+			hlsVODRemover:    hlsVODRemover,
 			audioOrch:        audioOrch,
 			qoeSink:          qoeSink,
 			qoeQuerySvc:      qoeQuerySvc,
