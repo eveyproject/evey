@@ -228,7 +228,8 @@ func TestMusicTrackRepo_GetAlbums(t *testing.T) {
 	assert.Len(t, albums, 1)
 	assert.Equal(t, "TheAlbum", albums[0].Title)
 	assert.Equal(t, 2, albums[0].TrackCount)
-	assert.Equal(t, "/music/the-album", albums[0].ID)
+	// ID is the opaque, folder-derived public id (not the raw folder path).
+	assert.Equal(t, music.AlbumID("/music/the-album"), albums[0].ID)
 }
 
 // Regression for the LINKIN PARK / Jay-Z featuring bug: 24 tracks share
@@ -268,7 +269,7 @@ func TestMusicTrackRepo_GetAlbums_MajorityArtistWinsOnFeaturing(t *testing.T) {
 	assert.Equal(t, 25, albums[0].TrackCount)
 	assert.Equal(t, "Linkin Park", albums[0].Artist, "majority album_artist should win")
 	assert.Equal(t, "Apple Essentials", albums[0].Title)
-	assert.Equal(t, folder, albums[0].ID)
+	assert.Equal(t, music.AlbumID(folder), albums[0].ID)
 }
 
 // Two folders that share the same album tag ("Apple Essentials") must
@@ -304,8 +305,9 @@ func TestMusicTrackRepo_GetAlbums_SameTagDifferentFoldersStaySplit(t *testing.T)
 	for _, a := range albums {
 		ids[a.ID] = a.TrackCount
 	}
-	assert.Equal(t, 5, ids[folder1])
-	assert.Equal(t, 5, ids[folder2])
+	// Keyed by the opaque public id derived from each distinct folder.
+	assert.Equal(t, 5, ids[music.AlbumID(folder1)])
+	assert.Equal(t, 5, ids[music.AlbumID(folder2)])
 }
 
 // Exercises the new folder-keyed track listing used by the UI to show
