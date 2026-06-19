@@ -145,6 +145,62 @@ func TestMusicHandler_ListTracks_WithAccess(t *testing.T) {
 	assert.Equal(t, int32(1), resp.Total)
 }
 
+func TestMusicHandler_GetTrack_Success(t *testing.T) {
+	h, repo, _, _ := newTestMusicHandler()
+	seedTrack(repo, "t-1", "lib-1", "Song A", "Artist A")
+
+	resp, err := h.GetTrack(adminCtx(), &eveyv1.GetTrackRequest{Id: "t-1"})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.Track)
+	assert.Equal(t, "t-1", resp.Track.Id)
+	assert.Equal(t, "Song A", resp.Track.Title)
+}
+
+func TestMusicHandler_GetTrack_NotFound(t *testing.T) {
+	h, _, _, _ := newTestMusicHandler()
+
+	_, err := h.GetTrack(adminCtx(), &eveyv1.GetTrackRequest{Id: "missing"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+func TestMusicHandler_GetTrack_Unauthenticated(t *testing.T) {
+	h, repo, _, _ := newTestMusicHandler()
+	seedTrack(repo, "t-1", "lib-1", "Song A", "Artist A")
+
+	_, err := h.GetTrack(context.Background(), &eveyv1.GetTrackRequest{Id: "t-1"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+// A user restricted to another library must not retrieve a track from lib-1,
+// even with its id (the access check uses the track's own library).
+func TestMusicHandler_GetTrack_NoAccess(t *testing.T) {
+	h, repo, libraryAccess, _ := newTestMusicHandler()
+	seedTrack(repo, "t-1", "lib-1", "Song A", "Artist A")
+	libraryAccess.Grant(context.Background(), "user-2", "lib-other")
+
+	_, err := h.GetTrack(userCtx("user-2", "profile-2"), &eveyv1.GetTrackRequest{Id: "t-1"})
+
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+func TestMusicHandler_GetTrack_WithAccess(t *testing.T) {
+	h, repo, libraryAccess, _ := newTestMusicHandler()
+	seedTrack(repo, "t-1", "lib-1", "Song A", "Artist A")
+	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
+
+	resp, err := h.GetTrack(userCtx("user-2", "profile-2"), &eveyv1.GetTrackRequest{Id: "t-1"})
+
+	require.NoError(t, err)
+	require.NotNil(t, resp.Track)
+	assert.Equal(t, "t-1", resp.Track.Id)
+}
+
 func TestMusicHandler_ListTracks_RepoError(t *testing.T) {
 	h, repo, _, _ := newTestMusicHandler()
 	repo.Err = errors.New("db down")

@@ -15,6 +15,15 @@ service MusicService {
     };
   }
 
+  // GetTrack returns a single track by id. Used by clients that hold a track id
+  // but not the track in a paged list — notably a syncplay JOINER whose queue
+  // references tracks outside its own top-100 ListTracks window.
+  rpc GetTrack(GetTrackRequest) returns (GetTrackResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/music/tracks/{id}"
+    };
+  }
+
   rpc GetAlbums(GetAlbumsRequest) returns (GetAlbumsResponse) {
     option (google.api.http) = {
       get: "/api/v1/music/albums"
@@ -144,4 +153,12 @@ message ScanMusicDirectoryResponse {
 
 message DeleteTrackRequest {
   string id = 1;
+}
+
+message GetTrackRequest {
+  string id = 1;
+}
+
+message GetTrackResponse {
+  Track track = 1;
 }

@@ -334,6 +334,7 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.MKVService/ListChapters": "player skip-intro fallback; per-path access in handler (checkPathAccess)",
 	// MusicService
 	"/evey.v1.MusicService/ListTracks":  "lib-access checked",
+	"/evey.v1.MusicService/GetTrack":    "lib-access checked (per-track library)",
 	"/evey.v1.MusicService/GetAlbums":   "lib-access checked",
 	"/evey.v1.MusicService/GetArtists":  "lib-access checked",
 	"/evey.v1.MusicService/SearchMusic": "lib-access checked",

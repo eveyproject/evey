@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceListLibraries,
   useMusicServiceListTracks,
+  musicServiceGetTrack,
   syncPlayServiceGetRoom,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
@@ -125,6 +126,35 @@ function SyncPlayPage() {
     // top-100 arriving after a join.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.queue, state.trackIndex, tracks, currentTrack?.id]);
+
+  // A JOINER's queue can reference tracks outside its own top-100 list and that
+  // the host didn't seed (e.g. an album/playlist room of >100 tracks), leaving
+  // currentTrack as a bare-id stub (empty title). Fetch those by id and cache
+  // them so the now-playing panel shows real metadata instead of a raw id.
+  useEffect(() => {
+    if (!currentTrack || currentTrack.title || !currentTrack.id) return;
+    const id = currentTrack.id;
+    if (trackMeta.current.has(id)) return;
+    let cancelled = false;
+    musicServiceGetTrack(id)
+      .then((res) => {
+        const tr = res.track;
+        if (cancelled || !tr) return;
+        const lite: TrackLite = {
+          id: tr.id ?? id,
+          title: tr.title ?? "",
+          artist: tr.artist ?? "",
+          duration: tr.duration ?? 0,
+          coverArtUrl: tr.coverArtUrl ?? "",
+        };
+        trackMeta.current.set(id, lite);
+        setCurrentTrack((cur) => (cur?.id === id ? lite : cur));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentTrack]);
 
   const inRoom = !!state.roomId;
   // Pin token at track-change time: subscribing would rebuild streamUrl on

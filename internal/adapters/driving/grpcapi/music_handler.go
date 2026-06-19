@@ -136,6 +136,37 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 	return resp, nil
 }
 
+func (h *musicHandler) GetTrack(ctx context.Context, req *eveyv1.GetTrackRequest) (*eveyv1.GetTrackResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.music.GetTrack")
+	defer span.End()
+	if _, err := requireClaims(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("musicHandler.GetTrack: %w", err)
+	}
+	track, err := h.svc.GetTrack(ctx, req.Id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError("get track", err)
+	}
+	if track == nil {
+		span.SetStatus(otelcodes.Error, "track not found")
+		return nil, status.Error(codes.NotFound, "track not found")
+	}
+	// Access check AFTER resolving the track: the caller supplies only an id, so
+	// the track's own library decides whether they may see it (don't leak tracks
+	// from libraries the user can't access).
+	if err := h.checkLibraryAccess(ctx, string(track.LibraryID)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	isAdmin := claims != nil && claims.IsAdmin
+	return &eveyv1.GetTrackResponse{Track: trackToProto(*track, isAdmin)}, nil
+}
+
 func (h *musicHandler) GetAlbums(ctx context.Context, req *eveyv1.GetAlbumsRequest) (*eveyv1.GetAlbumsResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.music.GetAlbums")
 	defer span.End()
