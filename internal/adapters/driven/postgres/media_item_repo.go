@@ -169,6 +169,7 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 		return fmt.Errorf("MediaItemRepo.Create: %w", err)
 	}
 	r.bumpSeriesLatestChildAddedAt(ctx, item)
+	r.clearSeriesWatchedOnNewEpisode(ctx, item)
 	return nil
 }
 
@@ -335,6 +336,30 @@ func (r *MediaItemRepository) bumpSeriesLatestChildAddedAt(ctx context.Context, 
 	`, when, item.ParentID)
 	if err != nil {
 		slog.Warn("bump series latest_child_added_at", slog.String("episode_id", string(item.ID)), slog.Any("err", err))
+	}
+}
+
+// clearSeriesWatchedOnNewEpisode resets the grandparent series' "fully watched"
+// flag (watch_progress.completed) for EVERY profile when a brand-new episode is
+// created. A series with a new, unwatched episode is no longer fully watched, so
+// it must re-surface in watched-filtered views — notably the home library
+// "Séries" slider, which hides any series whose watch_progress.completed is true.
+// The "Recently Added" feed already recomputes this live; the slider relies on
+// the stored flag, so it goes stale without this reset. Episode → season →
+// series, mirroring bumpSeriesLatestChildAddedAt. Called only on Create (a
+// genuinely new episode), never on re-scan Update. Best-effort.
+func (r *MediaItemRepository) clearSeriesWatchedOnNewEpisode(ctx context.Context, item *library.MediaItem) {
+	if item == nil || item.Type != library.Episode || item.ParentID == "" {
+		return
+	}
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
+		UPDATE watch_progress
+		SET completed = FALSE
+		WHERE completed = TRUE
+		  AND media_item_id = (SELECT parent_id FROM media_items WHERE id = $1 AND type = 'season')
+	`, item.ParentID)
+	if err != nil {
+		slog.Warn("clear series watched on new episode", slog.String("episode_id", string(item.ID)), slog.Any("err", err))
 	}
 }
 

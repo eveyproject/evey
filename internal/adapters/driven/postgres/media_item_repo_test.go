@@ -9,6 +9,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/playback"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -386,4 +387,50 @@ func TestMediaItemRepo_ListContainerInfo(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, rows, 1)
 	assert.Equal(t, "mi12", rows[0].ID)
+}
+
+// A new episode of a fully-watched series must clear the series' completed flag
+// (for every profile) so the series re-surfaces in watched-filtered views like
+// the home "Séries" slider. Regression for "new episodes don't re-position a
+// watched series".
+func TestMediaItemRepo_NewEpisode_ClearsSeriesWatched(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	wpRepo := postgres.NewWatchProgressRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("cswu1")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("cswp1", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("cswlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	now := time.Now().UTC()
+	series := &library.MediaItem{ID: "csw-s", LibraryID: lib.ID, Type: library.Series, Title: "S", AddedAt: now.Add(-72 * time.Hour), UpdatedAt: now}
+	season := &library.MediaItem{ID: "csw-se", LibraryID: lib.ID, ParentID: "csw-s", Type: library.Season, Title: "S01", AddedAt: now.Add(-72 * time.Hour), UpdatedAt: now}
+	epOld := &library.MediaItem{ID: "csw-ep1", LibraryID: lib.ID, ParentID: "csw-se", Type: library.Episode, Title: "E01", AddedAt: now.Add(-48 * time.Hour), UpdatedAt: now}
+	require.NoError(t, itemRepo.Create(ctx, series))
+	require.NoError(t, itemRepo.Create(ctx, season))
+	require.NoError(t, itemRepo.Create(ctx, epOld))
+
+	// The profile finished the series → series-level completed = true.
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+		ID: "csw-wp", ProfileID: p.ID, MediaItemID: series.ID,
+		Position: mustWPDuration(t, 0), Completed: true, PlayCount: 1, LastPlayedAt: now,
+	}))
+
+	// A new episode arrives → Create must reset the series' watched flag.
+	epNew := &library.MediaItem{ID: "csw-ep2", LibraryID: lib.ID, ParentID: "csw-se", Type: library.Episode, Title: "E02", AddedAt: now, UpdatedAt: now}
+	require.NoError(t, itemRepo.Create(ctx, epNew))
+
+	var completed bool
+	require.NoError(t, db.QueryRowContext(ctx,
+		`SELECT completed FROM watch_progress WHERE media_item_id=$1 AND profile_id=$2`, series.ID, p.ID).Scan(&completed))
+	assert.False(t, completed, "a new episode must clear the series' fully-watched flag")
 }
