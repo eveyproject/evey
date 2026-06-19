@@ -40,7 +40,7 @@ test.describe("Context Menu > Actions", () => {
     const mediaId = await openContextMenuOnCard(page);
     test.skip(!mediaId, "No card found");
 
-    const collOpt = page.locator("text=/collection/i").first();
+    const collOpt = page.locator('[data-testid="media-context-menu-add-to-collection"]').first();
     test.skip(!(await collOpt.isVisible({ timeout: 2_000 }).catch(() => false)), "No collection option");
 
     await collOpt.click();
@@ -59,7 +59,7 @@ test.describe("Context Menu > Actions", () => {
     const mediaId = await openContextMenuOnCard(page);
     test.skip(!mediaId, "No card found");
 
-    const playlistOpt = page.locator("text=/playlist/i").first();
+    const playlistOpt = page.locator('[data-testid="media-context-menu-add-to-playlist"]').first();
     test.skip(!(await playlistOpt.isVisible({ timeout: 2_000 }).catch(() => false)), "No playlist option");
 
     await playlistOpt.click();
@@ -71,7 +71,7 @@ test.describe("Context Menu > Actions", () => {
     const mediaId = await openContextMenuOnCard(page);
     test.skip(!mediaId, "No card found");
 
-    const favOpt = page.locator("text=/favorite/i").first();
+    const favOpt = page.locator('[data-testid="media-context-menu-add-to-favorites"], [data-testid="media-context-menu-remove-from-favorites"]').first();
     test.skip(!(await favOpt.isVisible({ timeout: 2_000 }).catch(() => false)), "No favorite option");
 
     const { serverErrors } = await collectErrors(page, async () => {
@@ -85,7 +85,7 @@ test.describe("Context Menu > Actions", () => {
     const { serverErrors, jsErrors } = await collectErrors(page, async () => {
       const mediaId = await openContextMenuOnCard(page);
       if (!mediaId) return;
-      const watchOpt = page.locator("text=/mark.*watched/i").first();
+      const watchOpt = page.locator('[data-testid="media-context-menu-mark-watched"]').first();
       if (await watchOpt.isVisible({ timeout: 2_000 }).catch(() => false)) {
         await watchOpt.click();
         await page.waitForTimeout(1_500);
