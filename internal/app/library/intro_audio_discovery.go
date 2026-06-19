@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"math/bits"
+	"sort"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 )
@@ -26,18 +27,21 @@ const chromaprintFramesPerSec = 7.56
 
 func framesToMs(frames int) int64 { return int64(float64(frames) / chromaprintFramesPerSec * 1000.0) }
 
+func msToFrames(ms int64) int { return int(float64(ms) / 1000.0 * chromaprintFramesPerSec) }
+
 // discoverParams tunes the discovery. Defaults are derived from the seeded
 // experiment (strong matches sat at per-window BER 0.04-0.18; unrelated audio
 // is ~0.5).
 type discoverParams struct {
-	MaxFrameBits int     // a frame "matches" when popcount(a^b) <= this (of 32). ~12 ≈ BER 0.375.
-	MinRunFrames int     // shortest accepted shared run (filters coincidental matches). ~80 ≈ 10 s.
-	SimThreshold float64 // sliding-window similarity required to count a sibling as confirming. ~0.65.
-	MinMatches   int     // minimum confirming siblings (incl. the reference).
+	MaxFrameBits   int     // a frame "matches" when popcount(a^b) <= this (of 32). ~12 ≈ BER 0.375.
+	MinRunFrames   int     // shortest accepted shared run (filters coincidental matches). ~80 ≈ 10 s.
+	MinStartFrames int     // reject candidate runs that START before this offset in the target's timeline. Filters the recurring network/promo bumper that sits at 0:00 (e.g. an 18 s "FOX + this season on" card) from being mistaken for the intro. ~189 ≈ 25 s.
+	SimThreshold   float64 // sliding-window similarity required to count a sibling as confirming. ~0.65.
+	MinMatches     int     // minimum confirming siblings (incl. the reference).
 }
 
 func defaultDiscoverParams() discoverParams {
-	return discoverParams{MaxFrameBits: 12, MinRunFrames: 80, SimThreshold: 0.65, MinMatches: 3}
+	return discoverParams{MaxFrameBits: 12, MinRunFrames: 80, MinStartFrames: msToFrames(25000), SimThreshold: 0.65, MinMatches: 3}
 }
 
 // longestSharedRun finds, over every relative offset, the longest contiguous
@@ -45,8 +49,10 @@ func defaultDiscoverParams() discoverParams {
 // maxFrameBits. Returns the run's half-open range [aStart, aEnd) in a's index
 // space and whether a run of at least minRunFrames was found. This locates a
 // segment shared between two episodes regardless of where it sits in each
-// (variable cold-open / teaser length).
-func longestSharedRun(a, b []uint32, maxFrameBits, minRunFrames int) (aStart, aEnd int, found bool) {
+// (variable cold-open / teaser length). Runs that START before minStartFrames
+// in a's timeline are ignored, so a recurring 0:00 bumper never wins the
+// candidate selection (pass 0 to disable the guard).
+func longestSharedRun(a, b []uint32, maxFrameBits, minRunFrames, minStartFrames int) (aStart, aEnd int, found bool) {
 	if len(a) == 0 || len(b) == 0 {
 		return 0, 0, false
 	}
@@ -65,7 +71,7 @@ func longestSharedRun(a, b []uint32, maxFrameBits, minRunFrames int) (aStart, aE
 					runStart = i
 				}
 				runLen++
-				if runLen > bestLen {
+				if runStart >= minStartFrames && runLen > bestLen {
 					bestLen = runLen
 					aStart = runStart
 					aEnd = i + 1
@@ -91,7 +97,7 @@ func discoverRecurringIntro(target []uint32, siblings [][]uint32, p discoverPara
 	// 1) Candidate run = longest run shared between target and ANY sibling.
 	bestStart, bestEnd, ok := 0, 0, false
 	for _, sib := range siblings {
-		s, e, f := longestSharedRun(target, sib, p.MaxFrameBits, p.MinRunFrames)
+		s, e, f := longestSharedRun(target, sib, p.MaxFrameBits, p.MinRunFrames, p.MinStartFrames)
 		if f && (e-s) > (bestEnd - bestStart) {
 			bestStart, bestEnd, ok = s, e, true
 		}
@@ -125,7 +131,41 @@ const (
 	// recurrence — enough for MinMatches, bounded so the season pass isn't O(n²)
 	// in fpcalc.
 	discoverMaxSiblings = 4
+	// discoverSiblingScanCap bounds how many episode rows we collect before
+	// picking the nearest neighbours, so a season with hundreds of episodes
+	// can't make this pass unbounded.
+	discoverSiblingScanCap = 400
 )
+
+// selectNearestSiblings returns up to max episodes closest to target by episode
+// number (IndexNumber), so confirmation uses the target's neighbours (±2) rather
+// than whichever episodes happen to come first. Episodes without an IndexNumber
+// sort last. Falls back to the input order when the target has no IndexNumber.
+func selectNearestSiblings(target *domainlibrary.MediaItem, candidates []*domainlibrary.MediaItem, max int) []*domainlibrary.MediaItem {
+	if len(candidates) <= max {
+		return candidates
+	}
+	if target.IndexNumber == nil {
+		return candidates[:max]
+	}
+	tn := *target.IndexNumber
+	sorted := append([]*domainlibrary.MediaItem(nil), candidates...)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return siblingDistance(tn, sorted[i]) < siblingDistance(tn, sorted[j])
+	})
+	return sorted[:max]
+}
+
+func siblingDistance(targetIndex int, m *domainlibrary.MediaItem) int {
+	if m.IndexNumber == nil {
+		return 1 << 30
+	}
+	if d := *m.IndexNumber - targetIndex; d >= 0 {
+		return d
+	} else {
+		return -d
+	}
+}
 
 // discoverIntroByAudio is the audio-primary discovery entry point used as a
 // pipeline fallback when the visual pHash pass yields no confirmable candidate.
@@ -139,8 +179,8 @@ func (s *IntroDetectionService) discoverIntroByAudio(ctx context.Context, item *
 	}
 	parentID := item.ParentID
 	episodeType := string(domainlibrary.Episode)
-	var sibs []*domainlibrary.MediaItem
-	for offset := 0; len(sibs) < discoverMaxSiblings; offset += 200 {
+	var candidates []*domainlibrary.MediaItem
+	for offset := 0; len(candidates) < discoverSiblingScanCap; offset += 200 {
 		page, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
 			ParentID: &parentID, Type: &episodeType, Limit: 200, Offset: offset,
 		})
@@ -149,16 +189,17 @@ func (s *IntroDetectionService) discoverIntroByAudio(ctx context.Context, item *
 		}
 		for _, e := range page {
 			if e.ID != item.ID && e.File != nil && e.File.Path != "" {
-				sibs = append(sibs, e)
-				if len(sibs) >= discoverMaxSiblings {
-					break
-				}
+				candidates = append(candidates, e)
 			}
 		}
 		if len(page) < 200 {
 			break
 		}
 	}
+	// Prefer the episodes ADJACENT to the target (±2 by episode number): an
+	// intro can appear mid-season or evolve in blocks, so the first four of the
+	// season are not necessarily representative of the target's intro.
+	sibs := selectNearestSiblings(item, candidates, discoverMaxSiblings)
 	if len(sibs) == 0 {
 		return none, false
 	}

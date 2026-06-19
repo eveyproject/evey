@@ -3,6 +3,8 @@ package library
 import (
 	"math/rand"
 	"testing"
+
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 )
 
 // makeNoise returns n deterministic pseudo-random fingerprint frames.
@@ -42,7 +44,7 @@ func TestLongestSharedRun_FindsBlockAtDifferentOffsets(t *testing.T) {
 	a := episodeWithIntro(r, 800, 100, intro, 4)
 	b := episodeWithIntro(r, 800, 450, intro, 4) // different position
 
-	s, e, found := longestSharedRun(a, b, 12, 80)
+	s, e, found := longestSharedRun(a, b, 12, 80, 0)
 	if !found {
 		t.Fatal("expected to find the shared run")
 	}
@@ -56,7 +58,8 @@ func TestDiscover_VariablePositionRecurrence(t *testing.T) {
 	r := rand.New(rand.NewSource(2))
 	intro := makeNoise(r, 130)
 	// THE failing real-world case: intro floats across episodes (cold-open).
-	target := episodeWithIntro(r, 900, 150, intro, 5)
+	// Target intro sits past the 25 s 0:00-bumper guard (frame 250 -> ~33s).
+	target := episodeWithIntro(r, 900, 250, intro, 5)
 	sibs := [][]uint32{
 		episodeWithIntro(r, 900, 320, intro, 5),
 		episodeWithIntro(r, 900, 470, intro, 5),
@@ -69,10 +72,10 @@ func TestDiscover_VariablePositionRecurrence(t *testing.T) {
 	if matches < 3 {
 		t.Fatalf("expected >=3 confirming episodes, got %d", matches)
 	}
-	// target intro at frame 150 -> ~19.8s
+	// target intro at frame 250 -> ~33.1s
 	gotStart := float64(startMs) / 1000.0
-	if gotStart < 16 || gotStart > 24 {
-		t.Fatalf("intro start %.1fs not near expected ~19.8s", gotStart)
+	if gotStart < 29 || gotStart > 37 {
+		t.Fatalf("intro start %.1fs not near expected ~33.1s", gotStart)
 	}
 	if endMs <= startMs {
 		t.Fatal("end before start")
@@ -116,6 +119,69 @@ func TestDiscover_AlignedPosition_StillWorks(t *testing.T) {
 	_, _, matches, found := discoverRecurringIntro(target, sibs, defaultDiscoverParams())
 	if !found || matches < 4 {
 		t.Fatalf("aligned intro should be found in all (found=%v matches=%d)", found, matches)
+	}
+}
+
+func TestDiscover_RejectsRecurring0SecBumper(t *testing.T) {
+	r := rand.New(rand.NewSource(7))
+	bumper := makeNoise(r, 160) // ~21s recurring network/promo card pinned at 0:00
+	intro := makeNoise(r, 130)  // the real intro, floats later in each episode
+	build := func(introAt int) []uint32 {
+		ep := makeNoise(r, 1000)
+		copy(ep[0:], withNoisyCopy(r, bumper, 5))      // bumper aligned at 0:00 everywhere
+		copy(ep[introAt:], withNoisyCopy(r, intro, 5)) // real intro after a variable teaser
+		return ep
+	}
+	target := build(300) // ~39.7s
+	sibs := [][]uint32{build(350), build(500), build(620)}
+
+	startMs, _, _, found := discoverRecurringIntro(target, sibs, defaultDiscoverParams())
+	if !found {
+		t.Fatal("real intro after the bumper should still be discovered")
+	}
+	if got := float64(startMs) / 1000.0; got < 35 {
+		t.Fatalf("discovery latched the 0:00 bumper (start %.1fs), expected the real intro ~39.7s", got)
+	}
+
+	// Characterise the bug the guard fixes: with the guard disabled the LONGER
+	// 0:00 bumper wins and is mislabelled as the intro.
+	pNoGuard := defaultDiscoverParams()
+	pNoGuard.MinStartFrames = 0
+	if s, _, _, f := discoverRecurringIntro(target, sibs, pNoGuard); !f || float64(s)/1000.0 > 5 {
+		t.Fatalf("without the guard the 0:00 bumper should win (found=%v start=%.1fs)", f, float64(s)/1000.0)
+	}
+}
+
+func TestSelectNearestSiblings_PicksNeighbors(t *testing.T) {
+	ep := func(n int) *domainlibrary.MediaItem {
+		v := n
+		return &domainlibrary.MediaItem{IndexNumber: &v}
+	}
+	target := ep(5)
+	cands := []*domainlibrary.MediaItem{ep(1), ep(2), ep(3), ep(4), ep(6), ep(7), ep(8)}
+
+	got := selectNearestSiblings(target, cands, 4)
+	if len(got) != 4 {
+		t.Fatalf("expected 4 neighbours, got %d", len(got))
+	}
+	want := map[int]bool{3: true, 4: true, 6: true, 7: true} // ±2 of episode 5
+	for _, m := range got {
+		if m.IndexNumber == nil || !want[*m.IndexNumber] {
+			t.Fatalf("selected episode %v is not within ±2 of the target", m.IndexNumber)
+		}
+	}
+}
+
+func TestSelectNearestSiblings_NilIndexFallsBackToOrder(t *testing.T) {
+	ep := func(n int) *domainlibrary.MediaItem {
+		v := n
+		return &domainlibrary.MediaItem{IndexNumber: &v}
+	}
+	target := &domainlibrary.MediaItem{} // no IndexNumber
+	cands := []*domainlibrary.MediaItem{ep(8), ep(2), ep(5), ep(1), ep(9)}
+	got := selectNearestSiblings(target, cands, 3)
+	if len(got) != 3 || got[0] != cands[0] || got[2] != cands[2] {
+		t.Fatal("with no target index, the first N candidates should be returned in order")
 	}
 }
 
