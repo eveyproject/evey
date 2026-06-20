@@ -101,6 +101,32 @@ func TestDetectSeason_SkipsTIDBCoveredEpisode(t *testing.T) {
 		"detector must not be called for an episode already covered by TIDB")
 }
 
+// An episode with NO segments but whose attempt counter is at the cap for the
+// CURRENT algo version must be skipped — re-decoding it (a full 4K HEVC decode)
+// would land on the same empty answer. Skipping before DetectIntro means no new
+// attempt is recorded, so the counter is unchanged.
+func TestDetectSeason_SkipsExhaustedEpisode(t *testing.T) {
+	t.Parallel()
+	const epID = "ep-exhausted"
+	segmentRepo := &fakeSegmentRepo{
+		attempts: map[string]fakeIntroAttempt{
+			epID: {count: maxIntroDetectionAttempts, version: introDetectionAlgoVersion},
+		},
+	}
+	detector := &countingDetector{}
+	idx := 1
+	svc := newSeasonService(t, segmentRepo, detector, []*domainlibrary.MediaItem{
+		{ID: shared.MediaItemID(epID), Type: domainlibrary.Episode, IndexNumber: &idx,
+			File: &domainlibrary.MediaFile{Path: "/tmp/x.mkv"}},
+	})
+
+	svc.detectSeason(context.Background(), "season-id")
+
+	assert.Equal(t, int32(0), detector.calls.Load(), "detector must not run for an exhausted episode")
+	assert.Equal(t, maxIntroDetectionAttempts, segmentRepo.attempts[epID].count,
+		"a skipped episode records no new attempt — the counter is unchanged")
+}
+
 func TestDetectSeason_SkipsMKVChapterCovered(t *testing.T) {
 	t.Parallel()
 	const epID = "ep-mkv-covered"

@@ -166,6 +166,17 @@ type MediaSegmentRepository interface {
 	// at least one episode without any media_segments rows. Used by the intro
 	// detection backfill sweep at startup.
 	ListSeasonsMissingSegments(ctx context.Context) ([]string, error)
+	// RecordIntroDetectionAttempt counts a detection run that produced no usable
+	// intro for an item, stamped with the algorithm version it ran under. When the
+	// stored version differs from algoVersion (the algorithm improved) the count
+	// resets to 1; otherwise it increments. Lets the backfill bound retries without
+	// re-decoding the file on every restart.
+	RecordIntroDetectionAttempt(ctx context.Context, mediaItemID string, algoVersion int) error
+	// IntroDetectionExhausted reports whether an item has already been attempted
+	// maxAttempts times AT the current algoVersion with no usable result — i.e. it
+	// should be skipped until the algorithm version is bumped. A row at an older
+	// version (or no row) returns false, so a detection improvement re-enables it.
+	IntroDetectionExhausted(ctx context.Context, mediaItemID string, algoVersion, maxAttempts int) (bool, error)
 }
 
 // PersonQueryRepo is the read-only subset of PersonRepository for query

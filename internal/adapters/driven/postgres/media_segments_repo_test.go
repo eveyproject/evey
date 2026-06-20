@@ -111,3 +111,49 @@ func TestMediaSegmentRepo_UpsertUnlessOperatorManual(t *testing.T) {
 		}
 	}
 }
+
+// The bounded, version-gated intro-detection attempt counter: increments at the
+// same algo version, resets on a bump, and exhausts only at the matching version.
+func TestMediaSegmentRepo_IntroDetectionAttempts(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	segRepo := postgres.NewMediaSegmentRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("introlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("introep", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	id := string(item.ID)
+
+	// Never attempted → not exhausted.
+	ex, err := segRepo.IntroDetectionExhausted(ctx, id, 1, 2)
+	require.NoError(t, err)
+	assert.False(t, ex, "an item never attempted must be eligible")
+
+	// One attempt at v1 → under the cap.
+	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, id, 1))
+	ex, err = segRepo.IntroDetectionExhausted(ctx, id, 1, 2)
+	require.NoError(t, err)
+	assert.False(t, ex, "1 attempt < cap 2")
+
+	// Second attempt at v1 → hits the cap.
+	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, id, 1))
+	ex, err = segRepo.IntroDetectionExhausted(ctx, id, 1, 2)
+	require.NoError(t, err)
+	assert.True(t, ex, "2 >= cap 2 at the current version → exhausted")
+
+	// A newer algorithm version re-enables detection (a quality improvement).
+	ex, err = segRepo.IntroDetectionExhausted(ctx, id, 2, 2)
+	require.NoError(t, err)
+	assert.False(t, ex, "exhaustion is version-scoped; a bump re-enables the item")
+
+	// Recording at the new version resets the count to 1 (fresh retry budget).
+	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, id, 2))
+	ex, err = segRepo.IntroDetectionExhausted(ctx, id, 2, 2)
+	require.NoError(t, err)
+	assert.False(t, ex, "a version bump resets attempts to 1")
+}

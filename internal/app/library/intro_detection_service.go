@@ -74,6 +74,24 @@ type IntroDetectionService struct {
 //	     over 63 AC coefs (current).
 const currentPHashAlgoVersion int16 = 2
 
+// introDetectionAlgoVersion versions the OVERALL detection pipeline (pHash +
+// Chromaprint + blackdetect + audio-primary), distinct from currentPHashAlgoVersion
+// (the hash function alone). The backfill records a per-episode attempt counter
+// stamped with this version and skips an episode once it has yielded no usable
+// intro maxIntroDetectionAttempts times AT this version — instead of re-decoding
+// the file (a full software 4K HEVC decode) on every restart forever.
+//
+// BUMP THIS whenever any part of detection improves: every episode that
+// previously produced no usable intro becomes eligible again exactly once at the
+// new version. This is the supported way to force a global re-detection after a
+// quality improvement — no DB surgery, no admin action.
+const introDetectionAlgoVersion = 1
+
+// maxIntroDetectionAttempts bounds the backfill's re-decodes of an episode that
+// keeps yielding no usable intro at the same algo version (one retry for the
+// detector's sampling variance, then park until introDetectionAlgoVersion bumps).
+const maxIntroDetectionAttempts = 2
+
 // defaultMaxParallelDetections caps how many pipeline runs may execute
 // concurrently. 2 is a safe default for shared boxes — pHashPass extracts
 // audio fingerprints across every sibling via ffmpeg, so each in-flight
@@ -424,11 +442,28 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			if manualLocked || hasGoodIntro {
 				continue
 			}
-			epCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-			if err := s.DetectIntro(epCtx, string(ep.ID)); err != nil {
-				slog.Warn("intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", err))
+			// Already re-decoded to the cap at the current algo version with no
+			// usable intro? Skip — it lands on the same answer and a 4K HEVC decode
+			// is expensive. Bumping introDetectionAlgoVersion re-enables it (the
+			// row's older version no longer matches).
+			if exhausted, exErr := s.segmentRepo.IntroDetectionExhausted(ctx, string(ep.ID), introDetectionAlgoVersion, maxIntroDetectionAttempts); exErr == nil && exhausted {
+				continue
 			}
+			epCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+			detErr := s.DetectIntro(epCtx, string(ep.ID))
 			cancel()
+			if detErr != nil {
+				// A real failure (ffmpeg crash, I/O) — don't count it toward the cap
+				// so a transient problem doesn't park a detectable episode.
+				slog.Warn("intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", detErr))
+				continue
+			}
+			// Clean run: count it. If it found a good intro the episode is skipped
+			// next time via hasGoodIntro; if it found nothing/weak, this bounds the
+			// retries until introDetectionAlgoVersion bumps.
+			if recErr := s.segmentRepo.RecordIntroDetectionAttempt(ctx, string(ep.ID), introDetectionAlgoVersion); recErr != nil {
+				slog.Warn("intro detection: record attempt", slog.String("media_id", string(ep.ID)), slog.Any("err", recErr))
+			}
 		}
 		if len(siblings) < pageSize {
 			break

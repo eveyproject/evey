@@ -254,4 +254,58 @@ func (r *MediaSegmentRepository) ListSeasonsMissingSegments(ctx context.Context)
 	return ids, nil
 }
 
+// RecordIntroDetectionAttempt upserts the per-item attempt counter. When the
+// stored algo_version differs from algoVersion the algorithm changed, so the
+// count resets to 1 (a fresh bounded retry budget at the new version); otherwise
+// it increments. See migration 000122.
+func (r *MediaSegmentRepository) RecordIntroDetectionAttempt(ctx context.Context, mediaItemID string, algoVersion int) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.RecordIntroDetectionAttempt")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
+		INSERT INTO intro_detection_attempts (media_item_id, attempts, algo_version, last_attempt_at)
+		VALUES ($1, 1, $2, now())
+		ON CONFLICT (media_item_id) DO UPDATE SET
+			attempts = CASE WHEN intro_detection_attempts.algo_version = $2
+			                THEN intro_detection_attempts.attempts + 1
+			                ELSE 1 END,
+			algo_version = $2,
+			last_attempt_at = now()`,
+		mediaItemID, algoVersion,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+// IntroDetectionExhausted is true when the item has been attempted maxAttempts
+// times at the CURRENT algoVersion with no usable result. A row at an older
+// version (or no row) returns false so a version bump re-enables detection.
+func (r *MediaSegmentRepository) IntroDetectionExhausted(ctx context.Context, mediaItemID string, algoVersion, maxAttempts int) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.IntroDetectionExhausted")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	var exhausted bool
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM intro_detection_attempts
+			WHERE media_item_id = $1 AND algo_version = $2 AND attempts >= $3
+		)`,
+		mediaItemID, algoVersion, maxAttempts,
+	).Scan(&exhausted)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return false, err
+	}
+	return exhausted, nil
+}
+
 var _ library.MediaSegmentRepository = (*MediaSegmentRepository)(nil)

@@ -259,6 +259,14 @@ type fakeSegmentRepo struct {
 	getErrForID map[string]error
 	// upsertErr makes every UpsertUnlessManual call fail with this error.
 	upsertErr error
+	// attempts tracks the intro-detection attempt counter per media id, mirroring
+	// the postgres version-gated upsert.
+	attempts map[string]fakeIntroAttempt
+}
+
+type fakeIntroAttempt struct {
+	count   int
+	version int
 }
 
 func (r *fakeSegmentRepo) Upsert(_ context.Context, seg *domainlibrary.MediaSegment) error {
@@ -329,6 +337,26 @@ func (r *fakeSegmentRepo) DeleteByMediaItemIDAndType(_ context.Context, id share
 }
 func (r *fakeSegmentRepo) ListSeasonsMissingSegments(_ context.Context) ([]string, error) {
 	return nil, nil
+}
+
+func (r *fakeSegmentRepo) RecordIntroDetectionAttempt(_ context.Context, mediaItemID string, algoVersion int) error {
+	if r.attempts == nil {
+		r.attempts = map[string]fakeIntroAttempt{}
+	}
+	a := r.attempts[mediaItemID]
+	if a.version == algoVersion {
+		a.count++
+	} else {
+		a.count = 1
+		a.version = algoVersion
+	}
+	r.attempts[mediaItemID] = a
+	return nil
+}
+
+func (r *fakeSegmentRepo) IntroDetectionExhausted(_ context.Context, mediaItemID string, algoVersion, maxAttempts int) (bool, error) {
+	a, ok := r.attempts[mediaItemID]
+	return ok && a.version == algoVersion && a.count >= maxAttempts, nil
 }
 
 // fakeMediaItemRepo returns the configured item for GetByID calls and optionally
