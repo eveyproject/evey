@@ -453,6 +453,26 @@ func TestCalibration_Recalibrate_IdleGate(t *testing.T) {
 	})
 }
 
+// IsBenchmarking must report true for exactly the duration of a bench run, so
+// background work (intro detection) can yield the CPU to the calibration.
+func TestCalibration_IsBenchmarking_TrueDuringBench(t *testing.T) {
+	runner := &fakeBenchmarkRunner{
+		result: domaintranscoding.EncodeCapability{SoftwareMaxHeight: 1080, CPUSignature: "sig"},
+		delay:  200 * time.Millisecond,
+	}
+	svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+
+	assert.False(t, svc.IsBenchmarking(), "not benchmarking at rest")
+
+	done := make(chan error, 1)
+	go func() { done <- svc.Recalibrate(context.Background()) }()
+
+	require.Eventually(t, svc.IsBenchmarking, time.Second, 5*time.Millisecond,
+		"IsBenchmarking must be true while the bench is in flight")
+	require.NoError(t, <-done)
+	assert.False(t, svc.IsBenchmarking(), "cleared once the bench finishes")
+}
+
 // hostCPUSig wraps sysinfo.CPUSignature with a skip when /proc/cpuinfo
 // is unreadable. Without a stable host signature the cache-hit and
 // rebench tests can't run meaningfully.

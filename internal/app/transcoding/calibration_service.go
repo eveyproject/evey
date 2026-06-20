@@ -66,6 +66,12 @@ type CalibrationService struct {
 	current       atomic.Pointer[domaintranscoding.EncodeCapability]
 	benchInFlight sync.Mutex
 
+	// benchmarking is true for the duration of a benchmark run. Background work
+	// (intro detection) reads it via IsBenchmarking to SIGSTOP itself and leave the
+	// CPU/memory bandwidth to the calibration — a bench contended by a 4K decode
+	// would under-measure the host's true ceiling.
+	benchmarking atomic.Bool
+
 	// activeStreams reports the number of live transcode/playback sessions. The
 	// idle-gate on Recalibrate refuses a MANUAL recalibration while streams are
 	// active: a benchmark run alongside real transcodes measures the contended
@@ -334,6 +340,13 @@ func (s *CalibrationService) SetActiveStreamChecker(fn func() int) {
 	s.activeStreams = fn
 }
 
+// IsBenchmarking reports whether a calibration benchmark is running right now.
+// Background CPU work (intro detection) consults it to suspend itself and leave
+// the host to the bench.
+func (s *CalibrationService) IsBenchmarking() bool {
+	return s.benchmarking.Load()
+}
+
 // ErrBenchmarkBusy is returned when a second concurrent recalibration
 // is attempted while the first hasn't finished yet.
 var ErrBenchmarkBusy = errors.New("calibration: benchmark already in progress")
@@ -349,6 +362,8 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 		return ErrBenchmarkBusy
 	}
 	defer s.benchInFlight.Unlock()
+	s.benchmarking.Store(true)
+	defer s.benchmarking.Store(false)
 
 	cap, err := s.runner.Run(ctx, s.preference())
 	if err != nil {

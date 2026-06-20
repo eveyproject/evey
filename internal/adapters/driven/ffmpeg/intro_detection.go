@@ -11,6 +11,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 
 	"golang.org/x/image/webp"
 
@@ -21,10 +23,72 @@ import (
 type IntroDetector struct {
 	binary      string
 	probeBinary string
+	// busy, when set and true, means real work (playback/transcode or a
+	// recalibration) is running and a detection decode must yield. nil = run flat
+	// out (the historic behaviour). See runPausable.
+	busy func() bool
 }
 
 func NewIntroDetector(binary, probeBinary string) *IntroDetector {
 	return &IntroDetector{binary: binary, probeBinary: probeBinary}
+}
+
+// WithBusyChecker wires the predicate the detector uses to suspend its ffmpeg
+// while real work is active. Injected post-construction (the session counter and
+// calibration service are built later). nil-safe.
+func (d *IntroDetector) WithBusyChecker(busy func() bool) *IntroDetector {
+	d.busy = busy
+	return d
+}
+
+// detectionPausePoll is how often a running detection re-checks whether it should
+// suspend/resume itself. A var so tests can shorten it.
+var detectionPausePoll = time.Second
+
+// runPausable runs cmd, SIGSTOPping it while d.busy() reports real work and
+// SIGCONTing it when that clears — the detection yields CPU, memory bandwidth and
+// disk to playback/recalibration, then resumes its decode where it left off (no
+// re-run, unlike a kill). The same SIGSTOP throttle the transcode encoder uses.
+// Because the detection sweep is serial, a suspended decode blocks its caller
+// (cmd.Wait can't return while the process is stopped), so the whole sweep
+// naturally pauses. With no busy checker it runs unchanged.
+func (d *IntroDetector) runPausable(cmd *exec.Cmd) error {
+	if d.busy == nil {
+		return cmd.Run()
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(detectionPausePoll)
+		defer ticker.Stop()
+		paused := false
+		for {
+			select {
+			case <-done:
+				if paused {
+					//nolint:errcheck // best-effort SIGCONT so we never leave it stopped; a dead process just errors
+					_ = cmd.Process.Signal(syscall.SIGCONT)
+				}
+				return
+			case <-ticker.C:
+				switch busy := d.busy(); {
+				case busy && !paused:
+					if cmd.Process.Signal(syscall.SIGSTOP) == nil {
+						paused = true
+					}
+				case !busy && paused:
+					if cmd.Process.Signal(syscall.SIGCONT) == nil {
+						paused = false
+					}
+				}
+			}
+		}
+	}()
+	err := cmd.Wait()
+	close(done)
+	return err
 }
 
 // ExtractTileHashes opens a trickplay sprite file and returns one perceptual
@@ -114,8 +178,8 @@ func (d *IntroDetector) runDetect(ctx context.Context, filePath string, startSec
 	cmd := exec.CommandContext(ctx, d.binary, args...)
 	var stderrBuf bytes.Buffer
 	cmd.Stderr = &stderrBuf
-	// FFmpeg always exits non-zero for -f null; ignore run error but keep stderr.
-	_ = cmd.Run()
+	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse stderr regardless of the run error
+	_ = d.runPausable(cmd)
 
 	silences, blacks = parseDetections(stderrBuf.String())
 	return silences, blacks, nil
@@ -265,9 +329,13 @@ func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, d
 		"-",
 	}
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...)
-	out, _ := cmd.CombinedOutput()
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse the combined output regardless
+	_ = d.runPausable(cmd)
 
-	creditsStartMs, creditsEndMs, ok := parseEndCredits(string(out), startSec, durationSec)
+	creditsStartMs, creditsEndMs, ok := parseEndCredits(out.String(), startSec, durationSec)
 	if !ok {
 		return 0, 0, false, nil
 	}
@@ -338,7 +406,7 @@ func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, st
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = nil
-	if err := cmd.Run(); err != nil {
+	if err := d.runPausable(cmd); err != nil {
 		// FFmpeg may exit non-zero on stream end; tolerate when we got bytes.
 		if stdout.Len() == 0 {
 			return nil, fmt.Errorf("ffmpeg pcm decode: %w", err)
@@ -405,7 +473,7 @@ func (d *IntroDetector) AudioBandedFingerprint(ctx context.Context, filePath str
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = nil
-	if err := cmd.Run(); err != nil {
+	if err := d.runPausable(cmd); err != nil {
 		if stdout.Len() == 0 {
 			return nil, fmt.Errorf("ffmpeg pcm decode: %w", err)
 		}
