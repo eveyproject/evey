@@ -21,6 +21,16 @@ import (
 // language track, and minor mix differences.
 type Chromaprinter struct {
 	binary string
+	// busy, when set and true, suspends the audio-decode ffmpeg while real work
+	// runs (see pauseProcessWhileBusy). nil = run flat out.
+	busy func() bool
+}
+
+// WithBusyChecker wires the predicate used to SIGSTOP the fingerprint's ffmpeg
+// while a playback/transcode session or a recalibration is active. nil-safe.
+func (c *Chromaprinter) WithBusyChecker(busy func() bool) *Chromaprinter {
+	c.busy = busy
+	return c
 }
 
 func NewChromaprinter(binary string) *Chromaprinter {
@@ -90,6 +100,9 @@ func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, 
 	if err := ffmpegCmd.Start(); err != nil {
 		return nil, fmt.Errorf("ffmpeg start: %w", err)
 	}
+	// Suspend the audio decoder while real work runs; fpcalc then blocks on the
+	// drained pipe, so the whole fingerprint pauses and resumes cleanly.
+	stopPause := pauseProcessWhileBusy(ffmpegCmd.Process, c.busy)
 
 	fpCmd := exec.CommandContext(ctx, c.binary, "-raw", "-length", strconv.FormatFloat(lengthSec, 'f', 0, 64), "-")
 	fpCmd.Stdin = pipe
@@ -97,6 +110,7 @@ func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, 
 	// Wait for ffmpeg to finish so we don't leak the process; ignore its exit
 	// status because EOF on stdout is normal once fpcalc closed the pipe.
 	_ = ffmpegCmd.Wait()
+	stopPause()
 	if fpErr != nil {
 		return nil, fmt.Errorf("fpcalc: %w", fpErr)
 	}

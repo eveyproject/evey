@@ -27,6 +27,16 @@ type ComplexityClassifier struct {
 	// the duration. 30 is enough for stable YDEV mean without breaking
 	// the budget; lower at extreme cases (very short files).
 	SampleFrames int
+	// busy, when set and true, suspends the signalstats decode while real work
+	// runs (see pauseProcessWhileBusy). nil = run flat out.
+	busy func() bool
+}
+
+// WithBusyChecker wires the predicate used to SIGSTOP the signalstats ffmpeg
+// while a playback/transcode session or a recalibration is active. nil-safe.
+func (c *ComplexityClassifier) WithBusyChecker(busy func() bool) *ComplexityClassifier {
+	c.busy = busy
+	return c
 }
 
 // NewComplexityClassifier returns a classifier wired to the local ffmpeg
@@ -175,7 +185,7 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 	// input, timeout) all yield "no samples here", which parseSignalStats
 	// handles via the FramesSampled==0 fallback. We deliberately don't
 	// propagate the error to the caller.
-	if err := cmd.Run(); err != nil {
+	if err := runPausableCmd(cmd, c.busy); err != nil {
 		_ = err // keep best-effort semantics
 	}
 	return parseSignalStats(stdout.String() + "\n" + stderr.String())

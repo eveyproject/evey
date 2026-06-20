@@ -11,8 +11,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
-	"time"
 
 	"golang.org/x/image/webp"
 
@@ -41,54 +39,12 @@ func (d *IntroDetector) WithBusyChecker(busy func() bool) *IntroDetector {
 	return d
 }
 
-// detectionPausePoll is how often a running detection re-checks whether it should
-// suspend/resume itself. A var so tests can shorten it.
-var detectionPausePoll = time.Second
-
 // runPausable runs cmd, SIGSTOPping it while d.busy() reports real work and
-// SIGCONTing it when that clears — the detection yields CPU, memory bandwidth and
-// disk to playback/recalibration, then resumes its decode where it left off (no
-// re-run, unlike a kill). The same SIGSTOP throttle the transcode encoder uses.
-// Because the detection sweep is serial, a suspended decode blocks its caller
-// (cmd.Wait can't return while the process is stopped), so the whole sweep
-// naturally pauses. With no busy checker it runs unchanged.
+// resuming when it clears (see runPausableCmd / pauseProcessWhileBusy). Because
+// the detection sweep is serial, a suspended decode blocks its caller so the
+// whole sweep naturally pauses. With no busy checker it runs unchanged.
 func (d *IntroDetector) runPausable(cmd *exec.Cmd) error {
-	if d.busy == nil {
-		return cmd.Run()
-	}
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	done := make(chan struct{})
-	go func() {
-		ticker := time.NewTicker(detectionPausePoll)
-		defer ticker.Stop()
-		paused := false
-		for {
-			select {
-			case <-done:
-				if paused {
-					//nolint:errcheck // best-effort SIGCONT so we never leave it stopped; a dead process just errors
-					_ = cmd.Process.Signal(syscall.SIGCONT)
-				}
-				return
-			case <-ticker.C:
-				switch busy := d.busy(); {
-				case busy && !paused:
-					if cmd.Process.Signal(syscall.SIGSTOP) == nil {
-						paused = true
-					}
-				case !busy && paused:
-					if cmd.Process.Signal(syscall.SIGCONT) == nil {
-						paused = false
-					}
-				}
-			}
-		}
-	}()
-	err := cmd.Wait()
-	close(done)
-	return err
+	return runPausableCmd(cmd, d.busy)
 }
 
 // ExtractTileHashes opens a trickplay sprite file and returns one perceptual

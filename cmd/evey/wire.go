@@ -765,15 +765,18 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// measures contended throughput and would pin the cap a rung too low. First-boot
 	// EnsureCalibrated below is unaffected (it bypasses Recalibrate; no streams at boot).
 	calibrationSvc.SetActiveStreamChecker(hlsVODRemover.ActiveSessionCount)
-	// Yield background intro detection to real work: its ffmpeg SIGSTOPs itself
-	// while a playback/transcode session is live OR a recalibration is running,
-	// and resumes when the box is idle — CPU/memory-bandwidth/I/O go to what
-	// matters, the detection keeps its decode progress.
-	if infra.introDetector != nil {
-		infra.introDetector.WithBusyChecker(func() bool {
-			return hlsVODRemover.ActiveSessionCount() > 0 || calibrationSvc.IsBenchmarking()
-		})
+	// Yield ALL background analysis ffmpeg (intro detection, complexity sampling,
+	// chromaprint) to real work: each SIGSTOPs itself while a playback/transcode
+	// session is live OR a recalibration is running, and resumes when the box is
+	// idle — CPU/memory-bandwidth/I/O go to what matters, the decode keeps its
+	// progress (no re-run).
+	isBusy := func() bool {
+		return hlsVODRemover.ActiveSessionCount() > 0 || calibrationSvc.IsBenchmarking()
 	}
+	if infra.introDetector != nil {
+		infra.introDetector.WithBusyChecker(isBusy)
+	}
+	complexityClassifier.WithBusyChecker(isBusy)
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}
@@ -908,6 +911,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	introDetectionSvc.WithFingerprintCache(r.IntroFingerprintCache)
 	introDetectionSvc.WithChapterRepo(r.Chapter)
 	chroma := ffmpeg.NewChromaprinter("fpcalc")
+	chroma.WithBusyChecker(isBusy)
 	if err := chroma.Available(ctx); err == nil {
 		introDetectionSvc.WithChromaprinter(chroma)
 		slog.Info("intro detection: chromaprint (fpcalc) available, will be used as primary audio confirmation")
