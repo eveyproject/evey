@@ -923,7 +923,7 @@ func (r *BenchmarkRunner) medianMultiVariant(ctx context.Context, sample string,
 		n = 1
 	}
 	fpsList := make([]float64, 0, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		if ctx.Err() != nil {
 			break
 		}

@@ -132,7 +132,8 @@ func (s *CommandService) ReconcileTracks(ctx context.Context, primary music.Musi
 	}
 	docCount, err := docCounter.DocumentCount(ctx)
 	if err != nil {
-		return 0, nil // engine unreachable — skip, retry on the next call
+		//nolint:nilerr // an unreachable engine is a SKIP, not a failure to propagate — retry next tick
+		return 0, nil
 	}
 	dbCount, err := s.countAllTracks(ctx)
 	if err != nil {

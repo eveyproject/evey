@@ -36,12 +36,12 @@ func TestBenchmarkRunner_DefaultBenchSamples(t *testing.T) {
 // pass/fail across samples: a single slow run (a momentarily-busy host) must not
 // move the median, which is the whole point of sampling N times.
 func TestMedianFloat(t *testing.T) {
-	assert.Equal(t, 0.0, medianFloat(nil), "empty → 0")
-	assert.Equal(t, 30.0, medianFloat([]float64{30}), "single value")
+	assert.InDelta(t, 0.0, medianFloat(nil), 0.001, "empty → 0")
+	assert.InDelta(t, 30.0, medianFloat([]float64{30}), 0.001, "single value")
 	assert.InDelta(t, 35.0, medianFloat([]float64{30, 40}), 0.001, "even → mean of middles")
-	assert.Equal(t, 30.0, medianFloat([]float64{30, 31, 29}), "odd → middle, order-independent")
+	assert.InDelta(t, 30.0, medianFloat([]float64{30, 31, 29}), 0.001, "odd → middle, order-independent")
 	// The motivating case: two healthy reads + one outlier from a busy moment.
 	// The median holds at the healthy value instead of being dragged down.
-	assert.Equal(t, 31.0, medianFloat([]float64{31, 32, 12}), "a lone slow outlier doesn't move the median")
-	assert.Equal(t, 31.0, medianFloat([]float64{12, 31, 32}), "outlier position doesn't matter")
+	assert.InDelta(t, 31.0, medianFloat([]float64{31, 32, 12}), 0.001, "a lone slow outlier doesn't move the median")
+	assert.InDelta(t, 31.0, medianFloat([]float64{12, 31, 32}), 0.001, "outlier position doesn't matter")
 }

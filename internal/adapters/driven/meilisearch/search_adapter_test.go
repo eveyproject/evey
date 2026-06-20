@@ -213,7 +213,7 @@ func TestNormalizeLocale(t *testing.T) {
 	assert.Equal(t, "fr", normalizeLocale("fr_FR"))
 	assert.Equal(t, "fr", normalizeLocale("FR"))
 	assert.Equal(t, "fr", normalizeLocale("fr"))
-	assert.Equal(t, "", normalizeLocale("   "))
+	assert.Empty(t, normalizeLocale("   "))
 }
 
 // reRankByProfileLocale is the heart of the language re-rank: a tie-break boost
