@@ -17,6 +17,7 @@ import { CastCarousel } from "./MediaDetailCast";
 import { SeriesSection, SeasonEpisodesSection } from "./MediaDetailSeries";
 import { SimilarSection } from "./MediaDetailSimilar";
 import { MediaDetailFileInfo } from "./MediaDetailFileInfo";
+import { artworkUrl } from "./artworkUrl";
 
 interface MediaDetailProps {
   item: V1MediaItem;
@@ -53,12 +54,13 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const library = librariesData?.libraries?.find((l) => l.id === item.libraryId);
   const librarySlug = library ? slugify(library.name ?? "") : null;
 
-  const artTokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   // Always route through backend endpoint — see MediaCard for the ORB rationale.
   // The raw item.artwork[].url is the external provider URL (Amazon CDN for
-  // OMDb, etc.) which Firefox blocks under Opaque Response Blocking.
-  const backdropUrl = item.id ? `/api/v1/media/${item.id}/artwork/backdrop${artTokenParam}` : undefined;
-  const posterUrl = item.id ? `/api/v1/media/${item.id}/artwork/poster${artTokenParam}` : undefined;
+  // OMDb, etc.) which Firefox blocks under Opaque Response Blocking. The ?v=
+  // content version busts the immutable cache on a poster change; the token
+  // rides along for the auth'd detail view (and incidentally also busts).
+  const backdropUrl = item.id ? artworkUrl(item.id, "backdrop", item, accessToken || undefined) : undefined;
+  const posterUrl = item.id ? artworkUrl(item.id, "poster", item, accessToken || undefined) : undefined;
 
   const posterSrcSet = useMemo(() => {
     if (!posterUrl) return undefined;

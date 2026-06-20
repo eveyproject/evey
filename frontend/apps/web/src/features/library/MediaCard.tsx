@@ -12,6 +12,7 @@ import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { typeLabel } from "@/utils/typeLabel";
 import { HoverPreview } from "./MediaCardHoverPreview";
 import { CardContextMenu } from "./MediaCardContextMenu";
+import { artworkUrl } from "./artworkUrl";
 
 const WATCHED_THRESHOLD_PCT = 95;
 
@@ -27,6 +28,9 @@ interface MediaCardItem {
   genres?: string[];
   durationMs?: string;
   artwork?: V1Artwork[];
+  /** Drives the artwork cache-busting version (?v=) so a changed poster busts
+   * the immutable cache. Absent on lite feed items (they pass posterSrc). */
+  updatedAt?: string;
 }
 
 export interface MediaCardProps {
@@ -111,8 +115,8 @@ export const MediaCard = memo(function MediaCard({
     // Firefox's Opaque Response Blocking refuses to render as <img> due to
     // cross-origin opacity. The backend endpoint is same-origin, no ORB.
     return posterSrc
-      ?? (item.id ? `/api/v1/media/${item.id}/artwork/poster` : null);
-  }, [posterSrc, item.id]);
+      ?? (item.id ? artworkUrl(item.id, "poster", item) : null);
+  }, [posterSrc, item.id, item.updatedAt]);
 
   // Pull the primary artwork's blurhash (if any) for the placeholder. The
   // explicit posterBlurhashProp from a caller (e.g. feed slider) wins; we

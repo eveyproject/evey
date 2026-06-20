@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { typeLabel } from "@/utils/typeLabel";
 import type { V1MediaItem } from "@evey/api";
+import { artworkUrl } from "@/features/library/artworkUrl";
 
 function formatDuration(ms: string): string {
   const totalMin = Math.round(parseInt(ms, 10) / 60000);
@@ -20,7 +21,7 @@ const ListRow = memo(function ListRow({ item }: { item: V1MediaItem }) {
   const type = item.type;
   const id = item.id;
   const durationMs = item.durationMs;
-  const poster = id ? `/api/v1/media/${id}/artwork/poster` : null;
+  const poster = id ? artworkUrl(id, "poster", item) : null;
 
   return (
     <Link

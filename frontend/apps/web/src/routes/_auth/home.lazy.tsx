@@ -24,6 +24,7 @@ import { CollectionCard } from "../../features/collection/CollectionCard";
 import { useMostPopular } from "@/hooks/usePopular";
 import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
+import { artworkUrl } from "@/features/library/artworkUrl";
 import { CustomizePanel } from "@/features/home/CustomizePanel";
 import { NextUpRow } from "@/features/home/NextUpRow";
 
@@ -99,8 +100,10 @@ const HeroBanner = memo(function HeroBanner() {
       {heroIds.map((id, idx) => {
         const detail = details[idx]?.data;
         const candidate = candidates[idx];
-        const backdropUrl = `/api/v1/media/${id}/artwork/backdrop`;
-        const backdropSrcSet = `${backdropUrl}?w=800 800w, ${backdropUrl}?w=1280 1280w, ${backdropUrl}?w=1920 1920w`;
+        const backdropUrl = artworkUrl(id, "backdrop", detail);
+        // backdropUrl may already carry a ?v= version, so pick the right separator.
+        const wSep = backdropUrl.includes("?") ? "&" : "?";
+        const backdropSrcSet = `${backdropUrl}${wSep}w=800 800w, ${backdropUrl}${wSep}w=1280 1280w, ${backdropUrl}${wSep}w=1920 1920w`;
         const displayTitle = candidate?.title ?? detail?.title ?? "";
         const overview = detail?.overview;
         const year = detail?.year;
