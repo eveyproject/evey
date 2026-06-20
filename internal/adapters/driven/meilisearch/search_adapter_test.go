@@ -183,6 +183,76 @@ func TestToDocument_NoTranslations(t *testing.T) {
 	item := &library.MediaItem{ID: "item-4", Title: "Solo", AddedAt: time.Now()}
 	doc := ToDocument(item, nil)
 	assert.Nil(t, doc.TranslatedTitles)
+	assert.Nil(t, doc.Translations)
+}
+
+// The Translations map feeds the profile-language re-rank: keyed by NORMALIZED
+// locale, first non-empty per locale wins, and (unlike translated_titles) it
+// keeps a translation even when it duplicates the primary title — the re-rank
+// looks up the viewer's locale title regardless.
+func TestToDocument_TranslationsByLocale(t *testing.T) {
+	item := &library.MediaItem{
+		ID: "item-5", Title: "The Journey", OriginalTitle: "The Journey",
+		Translations: []library.MediaItemTranslation{
+			{Locale: "fr-FR", Title: "Le Voyage"},
+			{Locale: "en-US", Title: "The Journey"}, // kept in the map (not deduped vs primary)
+			{Locale: "es-ES", Title: "  "},           // empty → skipped
+			{Locale: "fr", Title: "Le Trajet"},        // normalizes to "fr" too → first wins
+		},
+		AddedAt: time.Now(),
+	}
+	doc := ToDocument(item, nil)
+	assert.Equal(t, "Le Voyage", doc.Translations["fr"], "keyed by normalized locale; first non-empty wins")
+	assert.Equal(t, "The Journey", doc.Translations["en"])
+	_, hasES := doc.Translations["es"]
+	assert.False(t, hasES, "an empty translation title is skipped")
+}
+
+func TestNormalizeLocale(t *testing.T) {
+	assert.Equal(t, "fr", normalizeLocale("fr-FR"))
+	assert.Equal(t, "fr", normalizeLocale("fr_FR"))
+	assert.Equal(t, "fr", normalizeLocale("FR"))
+	assert.Equal(t, "fr", normalizeLocale("fr"))
+	assert.Equal(t, "", normalizeLocale("   "))
+}
+
+// reRankByProfileLocale is the heart of the language re-rank: a tie-break boost
+// that floats hits whose viewer-locale title matches the query above the rest,
+// without disturbing Meili's relative order within each group.
+func TestReRankByProfileLocale(t *testing.T) {
+	hit := func(id string) library.SearchHit { return library.SearchHit{ID: id} }
+	ids := func(hs []library.SearchHit) []string {
+		out := make([]string, len(hs))
+		for i, h := range hs {
+			out[i] = h.ID
+		}
+		return out
+	}
+
+	t.Run("floats locale-title matches up, stable within groups", func(t *testing.T) {
+		hits := []library.SearchHit{hit("a"), hit("b"), hit("c"), hit("d")}
+		localeTitles := []string{"", "La Guerre des Mondes", "", "Guerre et Paix"}
+		got := reRankByProfileLocale(hits, localeTitles, "guerre")
+		assert.Equal(t, []string{"b", "d", "a", "c"}, ids(got))
+	})
+
+	t.Run("no locale-title match keeps Meili order", func(t *testing.T) {
+		hits := []library.SearchHit{hit("a"), hit("b")}
+		got := reRankByProfileLocale(hits, []string{"", ""}, "guerre")
+		assert.Equal(t, []string{"a", "b"}, ids(got))
+	})
+
+	t.Run("empty query is a no-op", func(t *testing.T) {
+		hits := []library.SearchHit{hit("a"), hit("b")}
+		got := reRankByProfileLocale(hits, []string{"Le Film", ""}, "   ")
+		assert.Equal(t, []string{"a", "b"}, ids(got))
+	})
+
+	t.Run("matching is case- and whitespace-insensitive", func(t *testing.T) {
+		hits := []library.SearchHit{hit("a"), hit("b")}
+		got := reRankByProfileLocale(hits, []string{"", "Le  GRAND Bleu"}, "grand bleu")
+		assert.Equal(t, "b", got[0].ID)
+	})
 }
 
 func TestToDocument_NilYear(t *testing.T) {

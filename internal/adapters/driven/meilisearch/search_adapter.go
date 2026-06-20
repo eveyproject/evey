@@ -12,6 +12,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -89,6 +90,12 @@ type mediaDocument struct {
 	Type             string   `json:"type"`
 	LibraryID        string   `json:"library_id"`
 	AddedAt          int64    `json:"added_at"`
+	// Translations maps a normalized locale ("fr", "es", …) to the item's title in
+	// that locale. Stored (retrievable) but NOT searchable — recall is already
+	// covered by translated_titles. It feeds the profile-language re-rank: among
+	// comparable Meili hits, a French viewer's French-title match is floated above
+	// one that only matched a foreign title or cast. See reRankByProfileLocale.
+	Translations map[string]string `json:"translations"`
 }
 
 func ToDocument(item *library.MediaItem, castNames []string) mediaDocument {
@@ -97,6 +104,7 @@ func ToDocument(item *library.MediaItem, castNames []string) mediaDocument {
 		Title:            item.Title,
 		OriginalTitle:    item.OriginalTitle,
 		TranslatedTitles: translatedTitles(item),
+		Translations:     translationsByLocale(item),
 		Cast:             castNames,
 		Type:             string(item.Type),
 		LibraryID:        string(item.LibraryID),
@@ -134,6 +142,84 @@ func translatedTitles(item *library.MediaItem) []string {
 		out = append(out, t)
 	}
 	return out
+}
+
+// translationsByLocale maps each normalized locale to the item's title in that
+// locale, for the profile-language re-rank. Keyed by normalizeLocale so a stored
+// "fr-FR"/"fr_FR"/"fr" all resolve under "fr" (the form LocaleFromCtx yields).
+// First non-empty title per normalized locale wins. nil when no translations.
+func translationsByLocale(item *library.MediaItem) map[string]string {
+	if len(item.Translations) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(item.Translations))
+	for _, tr := range item.Translations {
+		title := strings.TrimSpace(tr.Title)
+		if title == "" {
+			continue
+		}
+		key := normalizeLocale(tr.Locale)
+		if key == "" {
+			continue
+		}
+		if _, exists := out[key]; !exists {
+			out[key] = title
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// normalizeLocale reduces a locale tag to its lowercase primary subtag:
+// "fr-FR"/"fr_FR"/"FR" → "fr". Aligns the stored translation keys with the
+// short code LocaleFromCtx returns so the re-rank lookup hits.
+func normalizeLocale(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return ""
+	}
+	s = strings.ReplaceAll(s, "_", "-")
+	if i := strings.IndexByte(s, '-'); i >= 0 {
+		s = s[:i]
+	}
+	return s
+}
+
+// normalizeForMatch lowercases and collapses whitespace for the re-rank's
+// substring test. Best-effort (no diacritic folding): Meili already handled
+// recall accent-insensitively, so a miss here just leaves the hit in Meili order
+// rather than dropping it.
+func normalizeForMatch(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
+}
+
+// reRankByProfileLocale stable-partitions hits so those whose title IN THE
+// VIEWER'S LOCALE contains the query come first, preserving Meili's relative
+// order within each group. A tie-break boost layered on top of Meili relevance,
+// not a re-sort: Meilisearch has no per-query field weighting, so this is how a
+// French viewer's French-title match outranks a hit that only matched via a
+// foreign translation or cast. localeTitles[i] is the locale title for hits[i]
+// ("" when the item has none). Caller skips this for the fallback locale.
+func reRankByProfileLocale(hits []library.SearchHit, localeTitles []string, query string) []library.SearchHit {
+	q := normalizeForMatch(query)
+	if q == "" {
+		return hits
+	}
+	matched := make([]library.SearchHit, 0, len(hits))
+	rest := make([]library.SearchHit, 0, len(hits))
+	for i, h := range hits {
+		if i < len(localeTitles) && localeTitles[i] != "" && strings.Contains(normalizeForMatch(localeTitles[i]), q) {
+			matched = append(matched, h)
+		} else {
+			rest = append(rest, h)
+		}
+	}
+	if len(matched) == 0 {
+		return hits // nothing to float — keep Meili's order untouched
+	}
+	return append(matched, rest...)
 }
 
 var allowedFilterKeys = map[string]bool{
@@ -243,9 +329,20 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 	if limit <= 0 {
 		limit = 20
 	}
+	// The profile locale rides the request context (set at the gRPC boundary).
+	// Only retrieve+re-rank on translations for a NON-fallback locale: an English
+	// (fallback) viewer's canonical titles are already the search language, so the
+	// path stays byte-identical to before for them.
+	profileLocale := normalizeLocale(eveyi18n.LocaleFromCtx(ctx))
+	rerank := profileLocale != "" && profileLocale != eveyi18n.FallbackLocale
+
+	retrieve := []string{"id", "library_id", "title", "year", "type", "genres"}
+	if rerank {
+		retrieve = append(retrieve, "translations")
+	}
 	req := &ms.SearchRequest{
 		Limit:                 limit,
-		AttributesToRetrieve:  []string{"id", "library_id", "title", "year", "type", "genres"},
+		AttributesToRetrieve:  retrieve,
 		AttributesToHighlight: []string{"title"},
 		HighlightPreTag:       "<mark>",
 		HighlightPostTag:      "</mark>",
@@ -264,16 +361,21 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 	}
 
 	hits := make([]library.SearchHit, 0, len(resp.Hits))
+	var localeTitles []string
+	if rerank {
+		localeTitles = make([]string, 0, len(resp.Hits))
+	}
 	for _, hit := range resp.Hits {
 		var doc struct {
-			ID             string   `json:"id"`
-			LibraryID      string   `json:"library_id"`
-			Title          string   `json:"title"`
-			Year           *int     `json:"year"`
-			Type           string   `json:"type"`
-			Genres         []string `json:"genres"`
-			Tags           []string `json:"tags"`
-			OfficialRating string   `json:"official_rating"`
+			ID             string            `json:"id"`
+			LibraryID      string            `json:"library_id"`
+			Title          string            `json:"title"`
+			Year           *int              `json:"year"`
+			Type           string            `json:"type"`
+			Genres         []string          `json:"genres"`
+			Tags           []string          `json:"tags"`
+			OfficialRating string            `json:"official_rating"`
+			Translations   map[string]string `json:"translations"`
 		}
 		if err := hit.DecodeInto(&doc); err != nil {
 			continue
@@ -297,6 +399,13 @@ func (a *SearchAdapter) Search(ctx context.Context, query string, filters map[st
 			}
 		}
 		hits = append(hits, h)
+		if rerank {
+			localeTitles = append(localeTitles, doc.Translations[profileLocale])
+		}
+	}
+
+	if rerank {
+		hits = reRankByProfileLocale(hits, localeTitles, query)
 	}
 
 	totalHits := resp.EstimatedTotalHits
