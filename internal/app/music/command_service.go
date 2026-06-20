@@ -139,10 +139,19 @@ func (s *CommandService) ReconcileTracks(ctx context.Context, primary music.Musi
 	if err != nil {
 		return 0, err
 	}
-	if int64(dbCount) == docCount {
-		return 0, nil // index in sync with the DB
+	// Rebuild ONLY when the index has FEWER docs than the DB (missing tracks a
+	// re-index can add back). When it has MORE (a delete dropped during an outage
+	// left a stale doc), a re-index upserts and can never shrink the count, so
+	// firing every tick would rebuild forever — a CPU loop. Skip it; clear a stale
+	// doc with a manual reindex. Equal counts = in sync.
+	if docCount >= int64(dbCount) {
+		if docCount > int64(dbCount) {
+			slog.Warn("music search reconcile: index has more docs than the DB (stale doc from a dropped delete); a re-index only upserts and can't shrink it — wipe the search index and reindex to clear",
+				slog.Int64("index_docs", docCount), slog.Int("db_tracks", dbCount))
+		}
+		return 0, nil
 	}
-	slog.Info("music search reconcile: drift detected, rebuilding",
+	slog.Info("music search reconcile: index behind the DB, rebuilding",
 		slog.Int64("index_docs", docCount), slog.Int("db_tracks", dbCount))
 	return s.reindexTracksInto(ctx, primary)
 }

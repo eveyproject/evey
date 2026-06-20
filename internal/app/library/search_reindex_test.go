@@ -148,6 +148,24 @@ func TestReconcileSearchIndex_DriftRebuilds(t *testing.T) {
 	assert.Equal(t, 3, search.Indexed(), "every DB item is re-indexed on drift")
 }
 
+// Stale docs (engine has MORE than the DB, e.g. a delete dropped during an
+// outage) must NOT trigger a rebuild: a re-index only upserts and can never
+// shrink the count, so firing every tick would loop forever (the CPU-loop bug).
+func TestReconcileSearchIndex_StaleDocs_NoRebuild(t *testing.T) {
+	t.Parallel()
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	seedItem(repo, "m1", "libA")
+	seedItem(repo, "m2", "libA")
+	search := libfakes.NewFakeSearchIndex()
+
+	// Engine holds 5 docs, DB holds 2 → stale → must skip (no loop).
+	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
+		fakeDocCounter{count: 5}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+	assert.Equal(t, 0, search.Indexed(), "stale-doc divergence must NOT rebuild (would loop)")
+}
+
 func TestReindexSearchIndex_SingleLibrary(t *testing.T) {
 	t.Parallel()
 	repo := libfakes.NewFakeMediaItemQueryRepo()

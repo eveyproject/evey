@@ -158,10 +158,20 @@ func ReconcileSearchIndex(
 	if err != nil {
 		return 0, fmt.Errorf("reconcile: count media items: %w", err)
 	}
-	if docCount == int64(dbCount) {
-		return 0, nil // index in sync with the DB
+	// Rebuild ONLY when the index has FEWER docs than the DB — that is the outage
+	// drift a re-index can actually heal (missing items get added back). When it
+	// has MORE (a delete dropped during an outage left a stale doc), a re-index
+	// upserts and can never shrink the count, so firing every tick would rebuild
+	// forever — a CPU loop. Skip that case (a stale doc just 404s on click; clear
+	// it with a manual admin reindex). Equal counts = in sync.
+	if docCount >= int64(dbCount) {
+		if docCount > int64(dbCount) {
+			slog.Warn("search reconcile: index has more docs than the DB (stale doc from a dropped delete); a re-index only upserts and can't shrink it — wipe the search index and reindex to clear",
+				slog.Int64("index_docs", docCount), slog.Int("db_items", dbCount))
+		}
+		return 0, nil
 	}
-	slog.Info("search reconcile: drift detected, rebuilding index",
+	slog.Info("search reconcile: index behind the DB, rebuilding",
 		slog.Int64("index_docs", docCount), slog.Int("db_items", dbCount))
 
 	indexed := 0

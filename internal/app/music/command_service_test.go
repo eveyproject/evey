@@ -547,3 +547,19 @@ func TestReconcileTracks_DriftRebuilds(t *testing.T) {
 		t.Fatalf("want 3 tracks pushed to the engine, got %d", len(idx.indexed))
 	}
 }
+
+// Stale docs (engine holds MORE than the DB) must NOT trigger a rebuild — a
+// re-index only upserts and can't shrink the count, so it would loop every tick.
+func TestReconcileTracks_StaleDocs_NoRebuild(t *testing.T) {
+	cmd, repo, idx := newReconcileCmd(t)
+	seedTrack(repo, "t1")
+	seedTrack(repo, "t2")
+	// Engine holds 5 docs, DB holds 2 → stale → skip (no loop).
+	n, err := cmd.ReconcileTracks(context.Background(), idx, fakeMusicDocCounter{count: 5})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 0 || len(idx.indexed) != 0 {
+		t.Fatalf("stale-doc divergence must NOT rebuild (would loop), got n=%d indexed=%d", n, len(idx.indexed))
+	}
+}
