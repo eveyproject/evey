@@ -28,8 +28,20 @@ linters:
     - nolintlint
     # TxUnit enforcement: repos must honor an ambient transaction
     - forbidigo
+    # Sub-wiring guard: HTTP handler structs are pure dependency-injection (every
+    # field is a service/checker set by the constructor). A keyed literal that
+    # forgets a field compiles fine but leaves a nil dependency that nil-panics or
+    # fails-open at request time (favorites/scheduler slipped this way). exhaustruct
+    # is scoped (settings.exhaustruct.include) to ONLY these handler types, so a
+    # forgotten field is a build-time lint error instead of a runtime surprise.
+    - exhaustruct
 
   settings:
+    exhaustruct:
+      # Scope to the HTTP handler dependency structs ONLY — enabling exhaustruct
+      # globally would flag every legitimate partial literal in the codebase.
+      include:
+        - 'github.com/evey-project/evey/internal/adapters/driving/http\..*Handler$'
     forbidigo:
       forbid:
         # A postgres repo calling its *sql.DB handle directly (r.db.ExecContext,
@@ -105,6 +117,10 @@ linters:
           - bodyclose
           - gocritic
           - forbidigo
+          # Tests construct handlers with partial/positional fields on purpose
+          # (exercising one code path); the sub-wiring guard is for production
+          # constructors only.
+          - exhaustruct
       - path: gen/
         linters:
           - errcheck
