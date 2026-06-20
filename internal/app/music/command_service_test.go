@@ -447,3 +447,103 @@ func TestCommandService_ParseTrack_ProberErrorIgnored(t *testing.T) {
 		t.Fatalf("filepath mismatch: %s", tr.FilePath)
 	}
 }
+
+// fakeMusicSearchIndex records the tracks pushed to it, so the reconcile's
+// rebuild can be asserted without a live Meilisearch.
+type fakeMusicSearchIndex struct {
+	indexed []music.Track
+	err     error
+}
+
+func (f *fakeMusicSearchIndex) IndexTrack(_ context.Context, t music.Track) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.indexed = append(f.indexed, t)
+	return nil
+}
+
+func (f *fakeMusicSearchIndex) IndexTracksBatch(_ context.Context, ts []music.Track) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.indexed = append(f.indexed, ts...)
+	return nil
+}
+
+func (f *fakeMusicSearchIndex) RemoveTrack(_ context.Context, _ string) error { return nil }
+
+func (f *fakeMusicSearchIndex) Search(_ context.Context, _ shared.LibraryID, _ string, _ int) ([]music.Track, error) {
+	return nil, nil
+}
+
+// fakeMusicDocCounter stands in for the engine's DocumentCount so the reconcile
+// decision (skip / in-sync / drift-rebuild) is unit-tested.
+type fakeMusicDocCounter struct {
+	count int64
+	err   error
+}
+
+func (f fakeMusicDocCounter) DocumentCount(_ context.Context) (int64, error) { return f.count, f.err }
+
+func newReconcileCmd(t *testing.T) (*appmusic.CommandService, *fakes.FakeMusicTrackRepository, *fakeMusicSearchIndex) {
+	t.Helper()
+	repo := fakes.NewFakeMusicTrackRepository()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	if err := libRepo.Create(context.Background(), &library.Library{ID: shared.LibraryID("lib-m"), Type: library.Music, Name: "Music"}); err != nil {
+		t.Fatalf("seed library: %v", err)
+	}
+	idx := &fakeMusicSearchIndex{}
+	cmd := appmusic.NewCommandService(repo, sharedfakes.NewFakeEventBus(), libRepo, fakes.NewFakeMusicScanner()).WithSearchIndex(idx)
+	return cmd, repo, idx
+}
+
+func seedTrack(repo *fakes.FakeMusicTrackRepository, id string) {
+	_, _ = repo.Upsert(context.Background(), music.Track{
+		ID: id, LibraryID: shared.LibraryID("lib-m"), Title: id, FilePath: "/m/" + id + ".mp3",
+	})
+}
+
+func TestReconcileTracks_SkipsWhenEngineUnreachable(t *testing.T) {
+	cmd, repo, idx := newReconcileCmd(t)
+	seedTrack(repo, "t1")
+	n, err := cmd.ReconcileTracks(context.Background(), idx, fakeMusicDocCounter{err: errors.New("connection refused")})
+	if err != nil {
+		t.Fatalf("an unreachable engine is a skip, not an error: %v", err)
+	}
+	if n != 0 || len(idx.indexed) != 0 {
+		t.Fatalf("must not scan/index against a down engine, got n=%d indexed=%d", n, len(idx.indexed))
+	}
+}
+
+func TestReconcileTracks_InSync_NoRebuild(t *testing.T) {
+	cmd, repo, idx := newReconcileCmd(t)
+	seedTrack(repo, "t1")
+	seedTrack(repo, "t2")
+	n, err := cmd.ReconcileTracks(context.Background(), idx, fakeMusicDocCounter{count: 2})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 0 || len(idx.indexed) != 0 {
+		t.Fatalf("doc count matches db → no rebuild, got n=%d indexed=%d", n, len(idx.indexed))
+	}
+}
+
+func TestReconcileTracks_DriftRebuilds(t *testing.T) {
+	cmd, repo, idx := newReconcileCmd(t)
+	seedTrack(repo, "t1")
+	seedTrack(repo, "t2")
+	seedTrack(repo, "t3")
+	// Engine holds 1 doc, DB holds 3 — drift (writes dropped during an outage)
+	// → full rebuild.
+	n, err := cmd.ReconcileTracks(context.Background(), idx, fakeMusicDocCounter{count: 1})
+	if err != nil {
+		t.Fatalf("unexpected err: %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("want 3 reindexed on drift, got %d", n)
+	}
+	if len(idx.indexed) != 3 {
+		t.Fatalf("want 3 tracks pushed to the engine, got %d", len(idx.indexed))
+	}
+}

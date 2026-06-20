@@ -1194,29 +1194,39 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 		}
 	}
 
-	// Backfill the music search index on first boot (empty index): subsequent
-	// scans keep it in sync incrementally, so we only do the full sweep when the
-	// index hasn't been populated yet.
+	// Reconcile the music search index against the DB — same drift as the media
+	// index: the resilient wrapper swallows writes while Meili is down, so a track
+	// added during an outage stays unsearchable. ReconcileTracks rebuilds when the
+	// engine's doc count diverges from the DB track count (this also covers the
+	// first-boot empty-index backfill: 0 docs vs N tracks is a divergence). Targets
+	// the PRIMARY (msa) so a still-down engine surfaces its error. Boot + ticker so
+	// a mid-session outage self-heals without a restart.
 	if rm, ok := infra.musicSearch.(*search.ResilientMusicSearch); ok {
 		if msa, isMeili := rm.Primary().(*meili.MusicSearchAdapter); isMeili {
-			go func() {
+			reconcileMusic := func() {
 				defer func() {
 					if r := recover(); r != nil {
-						slog.Error("panic recovered in music startup index", "error", r, "stack", string(debug.Stack()))
+						slog.Error("panic recovered in music search reconcile", "error", r, "stack", string(debug.Stack()))
 					}
 				}()
-				indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
-				defer indexCancel()
-				if cnt, err := msa.DocumentCount(indexCtx); err == nil && cnt > 0 {
-					slog.Info("music startup index: already populated", slog.Int64("docs", cnt))
-					return
+				rctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+				defer cancel()
+				if _, err := deps.media.musicSvc.CommandService().ReconcileTracks(rctx, msa, msa); err != nil {
+					slog.Warn("music search reconcile failed", slog.Any("err", err))
 				}
-				n, err := deps.media.musicSvc.ReindexAllTracks(indexCtx)
-				if err != nil {
-					slog.Warn("music startup index", slog.Any("err", err))
-					return
+			}
+			go reconcileMusic()
+			go func() {
+				ticker := time.NewTicker(15 * time.Minute)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						reconcileMusic()
+					}
 				}
-				slog.Info("music startup index complete", slog.Int("indexed", n))
 			}()
 		}
 	}

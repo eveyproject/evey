@@ -66,7 +66,19 @@ func (s *CommandService) WithSearchIndex(idx music.MusicSearchIndex) *CommandSer
 // search index, in batches per library. Used at startup to backfill the index.
 // Returns the number of tracks indexed.
 func (s *CommandService) ReindexAllTracks(ctx context.Context) (int, error) {
-	if s.searchIndex == nil || s.libRepo == nil {
+	if s.searchIndex == nil {
+		return 0, nil
+	}
+	return s.reindexTracksInto(ctx, s.searchIndex)
+}
+
+// reindexTracksInto rebuilds the given search index from the DB, one batch per
+// music library. The target is a PARAMETER so the reconcile path can write to the
+// primary adapter directly instead of the resilient wrapper (which swallows
+// errors). A per-library batch failure is logged and skipped — a transient miss
+// is reconciled on the next pass rather than aborting the whole rebuild.
+func (s *CommandService) reindexTracksInto(ctx context.Context, search music.MusicSearchIndex) (int, error) {
+	if search == nil || s.libRepo == nil {
 		return 0, nil
 	}
 	libs, err := s.libRepo.List(ctx, library.ListLibrariesFilter{Limit: library.MaxListLibrariesLimit})
@@ -86,13 +98,71 @@ func (s *CommandService) ReindexAllTracks(ctx context.Context) (int, error) {
 			slog.Warn("music reindex: list tracks", slog.String("library", string(lib.ID)), slog.Any("err", lerr))
 			continue
 		}
-		if ierr := s.searchIndex.IndexTracksBatch(ctx, tracks); ierr != nil {
+		if ierr := search.IndexTracksBatch(ctx, tracks); ierr != nil {
 			slog.Warn("music reindex: batch index", slog.String("library", string(lib.ID)), slog.Any("err", ierr))
 			continue
 		}
 		indexed += len(tracks)
 	}
 	return indexed, nil
+}
+
+// musicDocCounter reports how many documents the music search engine holds.
+// Satisfied by the Meilisearch music adapter.
+type musicDocCounter interface {
+	DocumentCount(ctx context.Context) (int64, error)
+}
+
+// ReconcileTracks heals music-search drift. The resilient wrapper swallows index
+// writes while the engine is down, so a track added during an outage stays
+// unsearchable until something rebuilds the index. This compares the engine's
+// document count to the DB track count and rebuilds on divergence — call it at
+// boot AND periodically so a mid-session outage self-heals without a restart.
+//
+// Returns (0, nil) and skips when the engine is UNREACHABLE (DocumentCount
+// errors) so a periodic caller doesn't scan the DB against a down engine. The
+// rebuild targets `primary` (the raw adapter, not the swallowing wrapper) so a
+// failure surfaces instead of falsely clearing the drift.
+func (s *CommandService) ReconcileTracks(ctx context.Context, primary music.MusicSearchIndex, docCounter musicDocCounter) (int, error) {
+	if primary == nil || docCounter == nil || s.libRepo == nil {
+		return 0, nil
+	}
+	docCount, err := docCounter.DocumentCount(ctx)
+	if err != nil {
+		return 0, nil // engine unreachable — skip, retry on the next call
+	}
+	dbCount, err := s.countAllTracks(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if int64(dbCount) == docCount {
+		return 0, nil // index in sync with the DB
+	}
+	slog.Info("music search reconcile: drift detected, rebuilding",
+		slog.Int64("index_docs", docCount), slog.Int("db_tracks", dbCount))
+	return s.reindexTracksInto(ctx, primary)
+}
+
+// countAllTracks returns the total track count across all music libraries, using
+// the pagination total from a 1-row ListByLibrary so it stays a COUNT, not a full
+// load.
+func (s *CommandService) countAllTracks(ctx context.Context) (int, error) {
+	libs, err := s.libRepo.List(ctx, library.ListLibrariesFilter{Limit: library.MaxListLibrariesLimit})
+	if err != nil {
+		return 0, fmt.Errorf("music: list libraries for count: %w", err)
+	}
+	total := 0
+	for _, lib := range libs {
+		if lib.Type != library.Music {
+			continue
+		}
+		_, n, terr := s.tracks.ListByLibrary(ctx, lib.ID, 1, 0, "")
+		if terr != nil {
+			return 0, fmt.Errorf("music: count tracks in %s: %w", lib.ID, terr)
+		}
+		total += n
+	}
+	return total, nil
 }
 
 // AlbumArtDir returns the configured album art directory (empty if not set).
