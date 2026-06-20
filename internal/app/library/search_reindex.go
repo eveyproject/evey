@@ -128,6 +128,12 @@ const reconcilePageSize = 500
 // document count to the DB item count and rebuilds when they diverge — run it at
 // boot AND periodically so a mid-session outage self-heals without a restart.
 //
+// LIMITATION (count-based, by design): it cannot see drift that nets to zero —
+// e.g. an equal number of items added AND deleted during one outage leaves both
+// counts matched while a stale deleted doc lingers in the index. That low-odds
+// case is caught by the next genuine count change or a manual reindex; detecting
+// it eagerly would need an ID checksum, not worth the cost for the frequency.
+//
 // Returns (0, nil) and skips when the engine is UNREACHABLE (DocumentCount
 // errors): a periodic caller must not scan the DB against a down engine, it just
 // retries next tick. `search` MUST be the primary adapter, not the error-

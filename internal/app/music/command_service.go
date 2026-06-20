@@ -118,6 +118,9 @@ type musicDocCounter interface {
 // unsearchable until something rebuilds the index. This compares the engine's
 // document count to the DB track count and rebuilds on divergence — call it at
 // boot AND periodically so a mid-session outage self-heals without a restart.
+// Same count-based limitation as the media reconcile: drift that nets to zero
+// (equal adds and deletes in one outage) is invisible until the next real count
+// change or a manual reindex — acceptable for the frequency.
 //
 // Returns (0, nil) and skips when the engine is UNREACHABLE (DocumentCount
 // errors) so a periodic caller doesn't scan the DB against a down engine. The
