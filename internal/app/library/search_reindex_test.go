@@ -94,6 +94,60 @@ func TestReindexSearchIndex_TranslationError_StillIndexes(t *testing.T) {
 	assert.Equal(t, 1, search.Indexed(), "reindex must still index the item despite the translation read error")
 }
 
+// fakeDocCounter stands in for the search engine's DocumentCount, so the
+// reconcile decision (skip / in-sync / drift-rebuild) is unit-tested without a
+// live Meilisearch.
+type fakeDocCounter struct {
+	count int64
+	err   error
+}
+
+func (f fakeDocCounter) DocumentCount(_ context.Context) (int64, error) { return f.count, f.err }
+
+func TestReconcileSearchIndex_SkipsWhenEngineUnreachable(t *testing.T) {
+	t.Parallel()
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	seedItem(repo, "m1", "libA")
+	search := libfakes.NewFakeSearchIndex()
+
+	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
+		fakeDocCounter{err: errors.New("connection refused")}, nil)
+	require.NoError(t, err, "an unreachable engine is a skip, not an error")
+	assert.Equal(t, 0, n)
+	assert.Equal(t, 0, search.Indexed(), "must not scan/index against a down engine")
+}
+
+func TestReconcileSearchIndex_InSync_NoRebuild(t *testing.T) {
+	t.Parallel()
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	seedItem(repo, "m1", "libA")
+	seedItem(repo, "m2", "libA")
+	search := libfakes.NewFakeSearchIndex()
+
+	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
+		fakeDocCounter{count: 2}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n)
+	assert.Equal(t, 0, search.Indexed(), "doc count matches db count → no rebuild")
+}
+
+func TestReconcileSearchIndex_DriftRebuilds(t *testing.T) {
+	t.Parallel()
+	repo := libfakes.NewFakeMediaItemQueryRepo()
+	seedItem(repo, "m1", "libA")
+	seedItem(repo, "m2", "libA")
+	seedItem(repo, "m3", "libB")
+	search := libfakes.NewFakeSearchIndex()
+
+	// Engine holds 1 doc, DB holds 3 — drift (writes dropped during an outage)
+	// → full rebuild.
+	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
+		fakeDocCounter{count: 1}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 3, n)
+	assert.Equal(t, 3, search.Indexed(), "every DB item is re-indexed on drift")
+}
+
 func TestReindexSearchIndex_SingleLibrary(t *testing.T) {
 	t.Parallel()
 	repo := libfakes.NewFakeMediaItemQueryRepo()

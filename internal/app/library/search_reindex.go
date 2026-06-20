@@ -112,3 +112,75 @@ func ReindexSearchIndex(
 	slog.Info("search reindex complete", slog.Int("indexed", indexed), slog.String("library_id", libraryID))
 	return indexed, nil
 }
+
+// searchDocCounter reports how many documents the search engine currently holds.
+// Satisfied by the Meilisearch adapter; lets ReconcileSearchIndex compare the
+// live index size to the DB without widening the SearchIndex port.
+type searchDocCounter interface {
+	DocumentCount(ctx context.Context) (int64, error)
+}
+
+const reconcilePageSize = 500
+
+// ReconcileSearchIndex heals search-index drift. The resilient wrapper swallows a
+// write when the engine is down, so an item created/edited during an outage stays
+// out of the index until something rebuilds it. This compares the engine's
+// document count to the DB item count and rebuilds when they diverge — run it at
+// boot AND periodically so a mid-session outage self-heals without a restart.
+//
+// Returns (0, nil) and skips when the engine is UNREACHABLE (DocumentCount
+// errors): a periodic caller must not scan the DB against a down engine, it just
+// retries next tick. `search` MUST be the primary adapter, not the error-
+// swallowing resilient wrapper, so a still-down engine surfaces its error from
+// the rebuild instead of silently "succeeding" and clearing the drift. Uses
+// keyset (AfterID) pagination to avoid O(n²) OFFSET scans on large libraries.
+func ReconcileSearchIndex(
+	ctx context.Context,
+	items library.MediaItemQueryRepo,
+	search library.SearchIndex,
+	docCounter searchDocCounter,
+	translations reindexTranslationReader,
+) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.ReconcileSearchIndex")
+	defer span.End()
+
+	docCount, err := docCounter.DocumentCount(ctx)
+	if err != nil {
+		return 0, nil // engine unreachable — can't compare; retry on the next call
+	}
+	dbCount, err := items.Count(ctx, library.ListMediaItemsFilter{})
+	if err != nil {
+		return 0, fmt.Errorf("reconcile: count media items: %w", err)
+	}
+	if docCount == int64(dbCount) {
+		return 0, nil // index in sync with the DB
+	}
+	slog.Info("search reconcile: drift detected, rebuilding index",
+		slog.Int64("index_docs", docCount), slog.Int("db_items", dbCount))
+
+	indexed := 0
+	afterID := ""
+	for {
+		if ctx.Err() != nil {
+			return indexed, ctx.Err()
+		}
+		batch, err := items.List(ctx, library.ListMediaItemsFilter{Limit: reconcilePageSize, AfterID: afterID})
+		if err != nil {
+			return indexed, fmt.Errorf("reconcile: list media items after %q: %w", afterID, err)
+		}
+		if len(batch) == 0 {
+			break
+		}
+		attachTranslations(ctx, translations, batch)
+		if err := search.IndexMediaItemsBatch(ctx, batch); err != nil {
+			return indexed, fmt.Errorf("reconcile: index batch after %q: %w", afterID, err)
+		}
+		indexed += len(batch)
+		afterID = string(batch[len(batch)-1].ID)
+		if len(batch) < reconcilePageSize {
+			break
+		}
+	}
+	slog.Info("search reconcile complete", slog.Int("indexed", indexed))
+	return indexed, nil
+}

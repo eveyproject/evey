@@ -1159,55 +1159,37 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 
 	if rs, ok := infra.searchAdapter.(*search.ResilientSearch); ok {
 		if sa, isMeili := rs.Primary().(*meili.SearchAdapter); isMeili {
-			go func() {
+			// Reconcile the media search index against the DB. The resilient wrapper
+			// swallows writes while Meili is down, so an item created/edited during an
+			// outage stays out of the index. ReconcileSearchIndex rebuilds when the
+			// engine's doc count diverges from the DB count. Pass `sa` (the PRIMARY,
+			// not the swallowing wrapper) so a still-down engine surfaces its error
+			// and the drift isn't falsely cleared. Run at boot AND on a ticker so a
+			// mid-session outage self-heals without a restart.
+			reconcileSearch := func() {
 				defer func() {
 					if r := recover(); r != nil {
-						slog.Error("panic recovered in meilisearch startup index", "error", r, "stack", string(debug.Stack()))
+						slog.Error("panic recovered in search reconcile", "error", r, "stack", string(debug.Stack()))
 					}
 				}()
-				indexCtx, indexCancel := context.WithTimeout(ctx, 5*time.Minute)
-				defer indexCancel()
-				dbCount, err := infra.repos.MediaItem.Count(indexCtx, library.ListMediaItemsFilter{})
-				if err != nil {
-					slog.Warn("startup index: count db items", slog.Any("err", err))
-					return
+				rctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+				defer cancel()
+				if _, err := applibrary.ReconcileSearchIndex(rctx, infra.repos.MediaItemQuery, sa, sa, infra.repos.MediaItemTranslation); err != nil {
+					slog.Warn("search reconcile failed", slog.Any("err", err))
 				}
-				meiliCount, err := sa.DocumentCount(indexCtx)
-				if err == nil && meiliCount == int64(dbCount) {
-					slog.Info("startup index: already up to date", slog.Int("items", dbCount))
-					return
-				}
-				// Keyset pagination via AfterID — avoids O(n²) OFFSET scans
-				// on large libs (cf backlog #5).
-				const pageSize = 500
-				indexed := 0
-				afterID := ""
+			}
+			go reconcileSearch()
+			go func() {
+				ticker := time.NewTicker(15 * time.Minute)
+				defer ticker.Stop()
 				for {
-					if indexCtx.Err() != nil {
-						slog.Warn("startup index: cancelled", slog.Int("indexed", indexed))
+					select {
+					case <-ctx.Done():
 						return
-					}
-					items, err := infra.repos.MediaItem.List(indexCtx, library.ListMediaItemsFilter{
-						Limit:   pageSize,
-						AfterID: afterID,
-					})
-					if err != nil {
-						slog.Warn("startup index: list items", slog.Any("err", err))
-						return
-					}
-					if len(items) == 0 {
-						break
-					}
-					if err := infra.searchAdapter.IndexMediaItemsBatch(indexCtx, items); err != nil {
-						slog.Warn("startup index batch", slog.Int("indexed", indexed), slog.Any("err", err))
-					}
-					indexed += len(items)
-					afterID = string(items[len(items)-1].ID)
-					if len(items) < pageSize {
-						break
+					case <-ticker.C:
+						reconcileSearch()
 					}
 				}
-				slog.Info("startup index complete", slog.Int("indexed", indexed))
 			}()
 		}
 	}
