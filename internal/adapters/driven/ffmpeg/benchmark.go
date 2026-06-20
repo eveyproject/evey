@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -45,6 +46,15 @@ type BenchmarkRunner struct {
 	logger      *slog.Logger
 	durationSec int     // per-height bench duration; 5 s by default
 	margin      float64 // FPS / realtime ratio required to pass (1.2 default)
+	// benchSamples is how many times each SOFTWARE rung is probed; the MEDIAN fps
+	// decides pass/fail. A single probe is fragile: a recalibration triggered while
+	// the box is momentarily busy (a background scan tick, a GC pause) under-measures
+	// and pins the cap a rung too low (the "recalibrate dropped me to 720p" bug). The
+	// median of an odd N rejects a lone slow outlier. Default 3; tests set 1 to keep
+	// the synthetic-clip ladder fast. HW rungs stay single-probe (GPU throughput is
+	// stable). The idle-gate on Recalibrate is the complementary guard against
+	// SUSTAINED load (median can't rescue a box that is busy for every sample).
+	benchSamples int
 	// singleVariant mirrors the runtime orchestrator mode. When true the
 	// software ladder is probed one rung at a time (decode + tonemap + ONE
 	// encode at height h) — the shape a single-variant session actually runs
@@ -80,6 +90,10 @@ type BenchmarkOpts struct {
 	SamplePath  string  // empty → "/usr/share/evey/bench.mkv" then testsrc fallback
 	DurationSec int     // empty → 5
 	Margin      float64 // empty → 1.2
+	// BenchSamples is how many times each software rung is probed; the median fps
+	// decides pass/fail (robustness against a momentarily-loaded recalibration).
+	// Empty → 3. Set 1 in tests to keep the ladder fast.
+	BenchSamples int
 	// SingleVariant tells the bench to model single-rung on-demand encoding
 	// (the runtime default, EVEY_TRANSCODING_SINGLE_VARIANT). Pass
 	// cfg.Transcoding.SingleVariant so the cap is derived against the same
@@ -114,6 +128,9 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 	if opts.Margin == 0 {
 		opts.Margin = 1.2
 	}
+	if opts.BenchSamples <= 0 {
+		opts.BenchSamples = 3
+	}
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -124,6 +141,7 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 		logger:        logger,
 		durationSec:   opts.DurationSec,
 		margin:        opts.Margin,
+		benchSamples:  opts.BenchSamples,
 		singleVariant: opts.SingleVariant,
 		sdrSrc: benchSampleSource{
 			overridePath: opts.SDRSamplePath,
@@ -674,7 +692,7 @@ func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string
 	var samples []transcoding.BenchRungSample
 	for i, h := range swBenchLadder {
 		laddered := probeRungs(swBenchLadder, i, r.singleVariant)
-		fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, nil, preFilter(h))
+		fps, ok := r.medianMultiVariant(ctx, sample, fallback, laddered, encoder, nil, preFilter(h))
 		passing := ok && fps >= required
 		samples = append(samples, transcoding.BenchRungSample{
 			Ladder:          label,
@@ -876,6 +894,70 @@ var frameRE = regexp.MustCompile(`frame=\s*([0-9]+)`)
 // Returns (0, false) on any failure so the caller treats it as
 // "rung failed". Output goes to /dev/null per branch — we measure
 // throughput, not segments.
+// medianFloat returns the median of vals (sorted copy, mean of the two middles
+// for an even count). Empty → 0. Pure, so the outlier-rejection logic is
+// unit-tested without ffmpeg.
+func medianFloat(vals []float64) float64 {
+	n := len(vals)
+	if n == 0 {
+		return 0
+	}
+	s := make([]float64, n)
+	copy(s, vals)
+	sort.Float64s(s)
+	if n%2 == 1 {
+		return s[n/2]
+	}
+	return (s[n/2-1] + s[n/2]) / 2
+}
+
+// medianMultiVariant probes a rung benchSamples times and returns the MEDIAN fps,
+// so a single under-measuring run (a momentarily-busy host) can't pin the cap a
+// rung too low. ok is true when a MAJORITY of probes succeeded — a rung that
+// mostly fails to encode is a genuine fail, not noise. Logs min/median/max so a
+// noisy calibration is visible in the admin log rather than silently lowering the
+// ceiling.
+func (r *BenchmarkRunner) medianMultiVariant(ctx context.Context, sample string, fallback bool, heights []int, encoder string, extraInputArgs []string, uploadChain string) (float64, bool) {
+	n := r.benchSamples
+	if n <= 0 {
+		n = 1
+	}
+	fpsList := make([]float64, 0, n)
+	for i := 0; i < n; i++ {
+		if ctx.Err() != nil {
+			break
+		}
+		if fps, ok := r.runMultiVariant(ctx, sample, fallback, heights, encoder, extraInputArgs, uploadChain); ok {
+			fpsList = append(fpsList, fps)
+		}
+	}
+	// Majority must have produced a reading; otherwise this rung genuinely can't
+	// encode (ffmpeg crashing / timing out), not a noisy outlier.
+	if len(fpsList) <= n/2 {
+		return 0, false
+	}
+	med := medianFloat(fpsList)
+	if n > 1 {
+		lo, hi := fpsList[0], fpsList[0]
+		for _, v := range fpsList {
+			if v < lo {
+				lo = v
+			}
+			if v > hi {
+				hi = v
+			}
+		}
+		r.logger.Debug("benchmark: rung median probe",
+			slog.String("encoder", encoder),
+			slog.Any("heights", heights),
+			slog.Int("samples", len(fpsList)),
+			slog.Float64("fps_min", lo),
+			slog.Float64("fps_median", med),
+			slog.Float64("fps_max", hi))
+	}
+	return med, true
+}
+
 func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fallback bool, heights []int, encoder string, extraInputArgs []string, uploadChain string) (float64, bool) {
 	if len(heights) == 0 {
 		return 0, false

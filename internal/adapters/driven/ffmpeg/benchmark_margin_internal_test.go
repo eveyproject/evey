@@ -18,3 +18,30 @@ func TestBenchmarkRunner_DefaultMargin(t *testing.T) {
 	r2 := NewBenchmarkRunner(BenchmarkOpts{SamplePath: "/x", Margin: 1.4}, nil)
 	assert.InDelta(t, 1.4, r2.margin, 0.001, "an explicit margin overrides the default")
 }
+
+// TestBenchmarkRunner_DefaultBenchSamples pins the median sample count: 3 by
+// default (odd → a lone slow outlier is rejected), overridable to 1 for fast tests.
+func TestBenchmarkRunner_DefaultBenchSamples(t *testing.T) {
+	r := NewBenchmarkRunner(BenchmarkOpts{SamplePath: "/x"}, nil)
+	assert.Equal(t, 3, r.benchSamples, "default is a 3-sample median")
+
+	r1 := NewBenchmarkRunner(BenchmarkOpts{SamplePath: "/x", BenchSamples: 1}, nil)
+	assert.Equal(t, 1, r1.benchSamples, "an explicit sample count overrides the default")
+
+	rNeg := NewBenchmarkRunner(BenchmarkOpts{SamplePath: "/x", BenchSamples: -2}, nil)
+	assert.Equal(t, 3, rNeg.benchSamples, "a non-positive sample count falls back to 3")
+}
+
+// TestMedianFloat covers the outlier-rejection estimator that decides a rung's
+// pass/fail across samples: a single slow run (a momentarily-busy host) must not
+// move the median, which is the whole point of sampling N times.
+func TestMedianFloat(t *testing.T) {
+	assert.Equal(t, 0.0, medianFloat(nil), "empty → 0")
+	assert.Equal(t, 30.0, medianFloat([]float64{30}), "single value")
+	assert.InDelta(t, 35.0, medianFloat([]float64{30, 40}), 0.001, "even → mean of middles")
+	assert.Equal(t, 30.0, medianFloat([]float64{30, 31, 29}), "odd → middle, order-independent")
+	// The motivating case: two healthy reads + one outlier from a busy moment.
+	// The median holds at the healthy value instead of being dragged down.
+	assert.Equal(t, 31.0, medianFloat([]float64{31, 32, 12}), "a lone slow outlier doesn't move the median")
+	assert.Equal(t, 31.0, medianFloat([]float64{12, 31, 32}), "outlier position doesn't matter")
+}

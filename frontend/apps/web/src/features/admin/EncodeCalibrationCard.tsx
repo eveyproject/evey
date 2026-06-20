@@ -104,11 +104,18 @@ export function EncodeCalibrationCard() {
       toast.success(t("admin.calibration.successToast", "Recalibration complete"));
     },
     onError: (err: Error) => {
-      // 409 → another recalibration already running (server-side lock).
-      // 500 / other → real failure. Both surface to the admin as a
-      // toast; the cache stays untouched so the previous reading still
-      // shows.
-      if (/409|already in progress/i.test(err.message)) {
+      // 409 → either transcodes are active (idle-gate: a contended bench would
+      // pin the cap too low) or another recalibration is already running.
+      // 500 / other → real failure. All surface as a toast; the cache stays
+      // untouched so the previous reading still shows.
+      if (/transcodes[_ ]active/i.test(err.message)) {
+        toast.error(
+          t(
+            "admin.calibration.transcodesActiveToast",
+            "Stop active playback before recalibrating — the benchmark needs an idle host to measure the true ceiling.",
+          ),
+        );
+      } else if (/409|already in progress/i.test(err.message)) {
         toast.error(t("admin.calibration.busyToast", "Recalibration already in progress"));
       } else {
         toast.error(t("admin.calibration.errorToast", "Recalibration failed"));

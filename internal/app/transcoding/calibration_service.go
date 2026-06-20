@@ -66,6 +66,17 @@ type CalibrationService struct {
 	current       atomic.Pointer[domaintranscoding.EncodeCapability]
 	benchInFlight sync.Mutex
 
+	// activeStreams reports the number of live transcode/playback sessions. The
+	// idle-gate on Recalibrate refuses a MANUAL recalibration while streams are
+	// active: a benchmark run alongside real transcodes measures the contended
+	// throughput, not the host ceiling, and would pin the cap a rung too low (the
+	// per-rung MEDIAN in the runner rejects a transient blip; this gate handles
+	// SUSTAINED load the median can't). nil (unwired / tests) disables the gate.
+	// First-boot calibration (EnsureCalibrated) is never gated — there are no
+	// streams at boot and the host needs a cap. Wired once at startup, read later,
+	// so no lock is needed (the wire→serve barrier establishes happens-before).
+	activeStreams func() int
+
 	// currentMu serialises the read-modify-write of `current` between a runtime
 	// demotion (load→PlanDemotion→store) and a (re)bench store. They take
 	// different outer locks (demoteMu vs benchInFlight), so without this a demote
@@ -300,16 +311,38 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 // Recalibrate forces a fresh benchmark + persist, ignoring any cached
 // capability. Used by the admin "recalibrate" button.
 //
-// Returns ErrBenchmarkBusy if another caller is already running the
-// benchmark — the UI surfaces that as "already in progress" rather than
-// queuing a second run.
+// Idle-gated: refuses with ErrBenchmarkBusyTranscoding while transcodes are
+// active, since a benchmark contended by real streams measures degraded
+// throughput and would pin the cap a rung too low. Returns ErrBenchmarkBusy if
+// another benchmark is already running. The UI surfaces both as a retry hint.
 func (s *CalibrationService) Recalibrate(ctx context.Context) error {
+	if s.activeStreams != nil {
+		if n := s.activeStreams(); n > 0 {
+			s.logger.Info("calibration: recalibrate refused, transcodes active",
+				slog.Int("active_streams", n))
+			return fmt.Errorf("%w (%d active)", ErrBenchmarkBusyTranscoding, n)
+		}
+	}
 	return s.benchAndPersist(ctx)
+}
+
+// SetActiveStreamChecker wires the live-session counter the Recalibrate idle-gate
+// consults. Injected post-construction because the producer/selector that counts
+// sessions is built after the calibration service. nil-safe; pass nil to disable.
+// Call once at startup, before HTTP serving begins.
+func (s *CalibrationService) SetActiveStreamChecker(fn func() int) {
+	s.activeStreams = fn
 }
 
 // ErrBenchmarkBusy is returned when a second concurrent recalibration
 // is attempted while the first hasn't finished yet.
 var ErrBenchmarkBusy = errors.New("calibration: benchmark already in progress")
+
+// ErrBenchmarkBusyTranscoding is returned when a manual recalibration is
+// requested while transcodes are active. Calibrating under load measures
+// contended throughput and would pin the cap too low, so we refuse and ask the
+// operator to retry once playback/transcoding has stopped.
+var ErrBenchmarkBusyTranscoding = errors.New("calibration: refusing to recalibrate while transcodes are active")
 
 func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	if !s.benchInFlight.TryLock() {

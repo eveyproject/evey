@@ -760,6 +760,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			cfg.Transcoding.SoftwareMaxHeightOverride,
 			cfg.Transcoding.SoftwareHDRMaxHeightOverride),
 		apptranscoding.WithSoftwareAV1MaxOverride(swAV1Override))
+	// Idle-gate the admin "recalibrate" button on the SAME live-session counter
+	// trickplay uses: a manual recalibration run while transcodes are active
+	// measures contended throughput and would pin the cap a rung too low. First-boot
+	// EnsureCalibrated below is unaffected (it bypasses Recalibrate; no streams at boot).
+	calibrationSvc.SetActiveStreamChecker(hlsVODRemover.ActiveSessionCount)
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}

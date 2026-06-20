@@ -194,6 +194,12 @@ func transcodeRecalibrateHandler(svc calibrationSvc) http.HandlerFunc {
 				http.Error(w, `{"message":"recalibration already in progress"}`, http.StatusConflict)
 				return
 			}
+			if errors.Is(err, apptranscoding.ErrBenchmarkBusyTranscoding) {
+				// Calibrating under load measures contended throughput → caps the
+				// host too low. Tell the operator to stop playback and retry.
+				http.Error(w, `{"message":"transcodes active","code":"transcodes_active"}`, http.StatusConflict)
+				return
+			}
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "recalibrate failed")
 			slog.Warn("calibration: recalibrate failed", slog.Any("err", err))

@@ -410,6 +410,49 @@ func TestCalibration_BenchAndPersist_RunnerErrorPropagates(t *testing.T) {
 	assert.Contains(t, err.Error(), "ffmpeg crash")
 }
 
+// TestCalibration_Recalibrate_IdleGate locks the idle-gate: a manual
+// recalibration is refused while transcodes are active (it would measure
+// contended throughput and pin the cap too low), but first-boot calibration is
+// never gated.
+func TestCalibration_Recalibrate_IdleGate(t *testing.T) {
+	newSvc := func(checker func() int) (*CalibrationService, *fakeBenchmarkRunner) {
+		runner := &fakeBenchmarkRunner{result: domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1080, CPUSignature: "sig",
+		}}
+		svc := NewCalibrationService(&fakeCapabilityRepo{}, runner, nil)
+		if checker != nil {
+			svc.SetActiveStreamChecker(checker)
+		}
+		return svc, runner
+	}
+
+	t.Run("refuses while transcodes active", func(t *testing.T) {
+		svc, runner := newSvc(func() int { return 2 })
+		err := svc.Recalibrate(context.Background())
+		require.ErrorIs(t, err, ErrBenchmarkBusyTranscoding)
+		assert.Equal(t, int64(0), runner.calls.Load(), "bench must NOT run while streams are active")
+	})
+
+	t.Run("proceeds when idle", func(t *testing.T) {
+		svc, runner := newSvc(func() int { return 0 })
+		require.NoError(t, svc.Recalibrate(context.Background()))
+		assert.Equal(t, int64(1), runner.calls.Load(), "bench runs when no streams are active")
+		assert.Equal(t, 1080, svc.Current().SoftwareMaxHeight)
+	})
+
+	t.Run("nil checker disables the gate", func(t *testing.T) {
+		svc, runner := newSvc(nil)
+		require.NoError(t, svc.Recalibrate(context.Background()))
+		assert.Equal(t, int64(1), runner.calls.Load())
+	})
+
+	t.Run("first-boot EnsureCalibrated is never gated", func(t *testing.T) {
+		svc, runner := newSvc(func() int { return 5 })
+		require.NoError(t, svc.EnsureCalibrated(context.Background()))
+		assert.Equal(t, int64(1), runner.calls.Load(), "first-boot bench runs regardless of active streams (no streams at boot)")
+	})
+}
+
 // hostCPUSig wraps sysinfo.CPUSignature with a skip when /proc/cpuinfo
 // is unreadable. Without a stable host signature the cache-hit and
 // rebench tests can't run meaningfully.
