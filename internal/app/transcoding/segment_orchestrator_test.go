@@ -466,10 +466,11 @@ func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 	// Hold steady at buffer=5-0=5: ≥ PauseAhead(4), so we pause exactly once.
 	// Many ticks must NOT produce many pauses (hysteresis: stay paused).
 	require.Eventually(t, func() bool { p, _, _ := handle.counts(); return p >= 1 }, time.Second, 10*time.Millisecond)
-	time.Sleep(200 * time.Millisecond)
-	p, r, _ := handle.counts()
-	assert.Equal(t, 1, p, "no double-pause while already paused")
-	assert.Equal(t, 0, r, "no resume while buffer stays above ResumeBelow")
+	// Hysteresis: once paused, no further pause and no resume may fire while the
+	// buffer stays above ResumeBelow. assert.Never fails fast on a stray
+	// pause/resume instead of a blind sleep-then-check.
+	assert.Never(t, func() bool { p, r, _ := handle.counts(); return p > 1 || r > 0 }, 200*time.Millisecond, 20*time.Millisecond,
+		"no double-pause and no resume while buffer stays above ResumeBelow")
 }
 
 func formatVariantSegment(variantIdx, segIdx int, ext string) string {

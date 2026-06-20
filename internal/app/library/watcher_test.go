@@ -137,9 +137,11 @@ func TestWatcherService_Debounce_MultipleFastEvents(t *testing.T) {
 		return len(scanner.Scanned()) > 0
 	}, 5*time.Second, 100*time.Millisecond)
 
-	// wait a bit more to ensure no extra scans
-	time.Sleep(500 * time.Millisecond)
-	assert.Len(t, scanner.Scanned(), 1, "should debounce into single scan")
+	// a second scan must never appear (debounce) — fail fast if it does, instead
+	// of a blind sleep that always pays its full duration.
+	assert.Never(t, func() bool {
+		return len(scanner.Scanned()) > 1
+	}, 500*time.Millisecond, 50*time.Millisecond, "should debounce into single scan")
 }
 
 func TestWatcherService_AddLibrary(t *testing.T) {
@@ -204,8 +206,12 @@ func TestWatcherService_UnrelatedPath_NoScan(t *testing.T) {
 		Op:   library.FileCreated,
 	})
 
-	time.Sleep(3 * time.Second)
-	assert.Empty(t, scanner.Scanned(), "unrelated path should not trigger scan")
+	// An unrelated path must never trigger a scan. assert.Never fails the instant
+	// a scan appears and otherwise returns after the (much shorter) window, vs the
+	// old blind 3 s sleep that every run paid in full.
+	assert.Never(t, func() bool {
+		return len(scanner.Scanned()) > 0
+	}, time.Second, 50*time.Millisecond, "unrelated path should not trigger scan")
 }
 
 func TestWatcherService_RemoveLibraryByID(t *testing.T) {
