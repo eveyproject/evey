@@ -131,6 +131,47 @@ func (r *MediaSegmentRepository) UpsertUnlessManual(ctx context.Context, seg *li
 	return n > 0, nil
 }
 
+// UpsertUnlessOperatorManual is UpsertUnlessManual that locks ONLY against the
+// operator's hard 'manual' mark — 'manual_propagated' rows ARE overwritable. The
+// intro propagation path needs this: it writes 'manual_propagated' and must be
+// able to refresh its own previous propagation on a re-run, while the atomic
+// WHERE still closes the TOCTOU against an operator 'manual' that lands between
+// the propagation read-guard and this write. Returns applied=false when an
+// existing 'manual' mark skipped the update.
+func (r *MediaSegmentRepository) UpsertUnlessOperatorManual(ctx context.Context, seg *library.MediaSegment) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.UpsertUnlessOperatorManual")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(seg.MediaItemID)), attribute.String("segment.type", seg.Type))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	if seg.ID == "" {
+		seg.ID = uuid.New().String()
+	}
+	if seg.CreatedAt.IsZero() {
+		seg.CreatedAt = time.Now()
+	}
+
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`INSERT INTO media_segments (id, media_item_id, type, start_ms, end_ms, confidence, source, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		 ON CONFLICT (media_item_id, type) DO UPDATE SET
+		   start_ms   = EXCLUDED.start_ms,
+		   end_ms     = EXCLUDED.end_ms,
+		   confidence = EXCLUDED.confidence,
+		   source     = EXCLUDED.source
+		 WHERE media_segments.source <> 'manual'`,
+		seg.ID, seg.MediaItemID, seg.Type, seg.StartMs, seg.EndMs, seg.Confidence, seg.Source, seg.CreatedAt,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 func (r *MediaSegmentRepository) DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.DeleteByMediaItemID")
 	defer span.End()

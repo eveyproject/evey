@@ -282,6 +282,22 @@ func (r *fakeSegmentRepo) UpsertUnlessManual(_ context.Context, seg *domainlibra
 	r.upserted = append(r.upserted, seg)
 	return true, nil
 }
+
+// UpsertUnlessOperatorManual mirrors the postgres operator-only guard: it skips
+// (applied=false) only when an existing segment is a hard 'manual' mark;
+// 'manual_propagated' rows ARE overwritten (a re-run refreshes its own work).
+func (r *fakeSegmentRepo) UpsertUnlessOperatorManual(_ context.Context, seg *domainlibrary.MediaSegment) (bool, error) {
+	if r.upsertErr != nil {
+		return false, r.upsertErr
+	}
+	for _, e := range append(append([]*domainlibrary.MediaSegment{}, r.seeded...), r.upserted...) {
+		if e.MediaItemID == seg.MediaItemID && e.Type == seg.Type && e.Source == "manual" {
+			return false, nil
+		}
+	}
+	r.upserted = append(r.upserted, seg)
+	return true, nil
+}
 func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaItemID) ([]*domainlibrary.MediaSegment, error) {
 	r.queriedIDs = append(r.queriedIDs, string(id))
 	if r.getErr != nil {

@@ -729,10 +729,21 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 			Confidence:  0.85,
 			Source:      "manual_propagated",
 		}
-		if upsertErr := s.segmentRepo.Upsert(ctx, seg); upsertErr != nil {
+		// Atomic manual-lock guard closes the TOCTOU: the manualLock read-check
+		// above can go stale while we hash + match (expensive), so re-check the
+		// operator 'manual' mark in the same statement as the write. Operator-only
+		// (not 'manual_propagated') so a re-run can still refresh our own prior
+		// propagation.
+		applied, upsertErr := s.segmentRepo.UpsertUnlessOperatorManual(ctx, seg)
+		if upsertErr != nil {
 			slog.Warn("propagate: upsert failed",
 				slog.String("sibling", string(sib.ID)),
 				slog.Any("err", upsertErr))
+			continue
+		}
+		if !applied {
+			slog.Info("intro_detection: propagate skipped, operator manual lock won the race",
+				slog.String("sibling", string(sib.ID)))
 			continue
 		}
 		propagatedTo = append(propagatedTo, string(sib.ID))

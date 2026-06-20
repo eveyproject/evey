@@ -66,3 +66,48 @@ func TestMediaSegmentRepo_UpsertUnlessManual(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, applied, "a non-manual existing row must be overwritable by auto-detection")
 }
+
+// UpsertUnlessOperatorManual is the propagation-path guard: it must atomically
+// skip when the existing row is a hard operator 'manual' mark, but — unlike
+// UpsertUnlessManual — it MUST overwrite a 'manual_propagated' row, so a
+// re-run of propagation can refresh its own earlier work.
+func TestMediaSegmentRepo_UpsertUnlessOperatorManual(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	segRepo := postgres.NewMediaSegmentRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("opseglib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("opsegmi", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	// 1) Operator 'manual' mark is protected against propagation.
+	manual := &library.MediaSegment{MediaItemID: item.ID, Type: "intro", StartMs: 1_000, EndMs: 30_000, Confidence: 1.0, Source: "manual"}
+	require.NoError(t, segRepo.Upsert(ctx, manual))
+	applied, err := segRepo.UpsertUnlessOperatorManual(ctx, &library.MediaSegment{MediaItemID: item.ID, Type: "intro", StartMs: 5_000, EndMs: 90_000, Confidence: 0.85, Source: "manual_propagated"})
+	require.NoError(t, err)
+	assert.False(t, applied, "propagation must NOT clobber an operator manual mark")
+	got, err := segRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "manual", got[0].Source, "the operator manual mark must survive")
+
+	// 2) A 'manual_propagated' row IS overwritable (the key difference from
+	//    UpsertUnlessManual): a re-run refreshes its own propagation.
+	prop := &library.MediaSegment{MediaItemID: item.ID, Type: "end_credits", StartMs: 200, EndMs: 400, Confidence: 0.85, Source: "manual_propagated"}
+	require.NoError(t, segRepo.Upsert(ctx, prop))
+	applied, err = segRepo.UpsertUnlessOperatorManual(ctx, &library.MediaSegment{MediaItemID: item.ID, Type: "end_credits", StartMs: 250, EndMs: 500, Confidence: 0.85, Source: "manual_propagated"})
+	require.NoError(t, err)
+	assert.True(t, applied, "a manual_propagated row must be refreshable by a re-run of propagation")
+	got, err = segRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	for _, g := range got {
+		if g.Type == "end_credits" {
+			assert.Equal(t, int64(250), g.StartMs, "the re-propagation must have updated the window")
+		}
+	}
+}

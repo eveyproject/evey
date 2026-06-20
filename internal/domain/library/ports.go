@@ -153,6 +153,13 @@ type MediaSegmentRepository interface {
 	// can't read "no lock" then clobber a manual mark set in the race window.
 	// Returns applied=false when an existing manual mark caused the skip.
 	UpsertUnlessManual(ctx context.Context, seg *MediaSegment) (applied bool, err error)
+	// UpsertUnlessOperatorManual is UpsertUnlessManual that locks ONLY against the
+	// operator's hard 'manual' mark, NOT 'manual_propagated'. The intro propagation
+	// path uses it: it writes 'manual_propagated' rows and must be able to overwrite
+	// its OWN previous propagation on a re-run, while still never clobbering an
+	// operator 'manual' mark that landed in the race window between its read-guard
+	// and this write. Returns applied=false when an existing 'manual' mark skipped.
+	UpsertUnlessOperatorManual(ctx context.Context, seg *MediaSegment) (applied bool, err error)
 	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
 	DeleteByMediaItemIDAndType(ctx context.Context, mediaItemID shared.MediaItemID, segType string) error
 	// ListSeasonsMissingSegments returns the parent_ids of seasons that have
