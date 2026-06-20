@@ -795,32 +795,24 @@ func appendInputModifiers(args []string, readRate float64) []string {
 	return args
 }
 
-// coldStartBurstSec is how many opening seconds a high-cold-start transcode reads
-// at full speed before the -readrate pace kicks in (ffmpeg -readrate_initial_burst).
-// ~5 segments — enough to fill the player's startup buffer and cover a seek.
-const coldStartBurstSec = "15"
+// av1ColdStartBurstSec is how many opening seconds an AV1 transcode reads at full
+// speed before the -readrate pace kicks in (ffmpeg -readrate_initial_burst). ~5
+// segments — enough to fill the player's startup buffer and cover a seek.
+const av1ColdStartBurstSec = "15"
 
 // appendTranscodeInputModifiers emits the input pacing for a TRANSCODE session:
-// -readrate N, plus -readrate_initial_burst for sessions with a HIGH cold-start
-// cost. Three cases get the burst:
-//   - AV1 output (SVT-AV1's encoder ramp);
-//   - the software HDR→SDR tonemap path (heavy HEVC-10bit decode + zscale/tonemapx);
-//   - ANY mid-stream seek (isSeek), regardless of codec.
-//
-// A forward seek spawns a fresh -ss session that must deliver its FIRST 3 s
-// segment before hls.js's fragment timeout; at only readRate× input pacing that
-// segment lands too late on a slow host → 503 → the player gives up and resumes
-// from the already-buffered position (the "seek lands minutes earlier" bug). The
-// burst reads the opening seconds at full speed so the landing segment is ready
+// -readrate N, plus -readrate_initial_burst for AV1 only. SVT-AV1 has a high
+// cold-start latency, and at 1.5x the FIRST 3 s segment reads its input at only
+// 1.5x — so a fresh play or seek waited seconds for segment one and the player
+// stalled (worst at 1080p, where the throughput margin is already thin). The
+// burst reads the opening seconds at full speed so the first segments land
 // immediately; steady state still paces at readRate (the adaptive throttle then
-// pauses a fat buffer). A plain SDR h264→h264 FRESH play keeps the plain pace —
-// low decode cost, and a startup CPU burst is undesirable on the weak-NAS
-// multi-stream case; but a seek there is a deliberate user action where the
-// latency is most visible, so it gets the burst too.
-func appendTranscodeInputModifiers(args []string, readRate float64, codec string, toneMap, isSeek bool) []string {
+// pauses a fat buffer). h264/h265 keep the plain pace — low encoder latency, and
+// a startup CPU burst is undesirable on the weak-NAS multi-stream case.
+func appendTranscodeInputModifiers(args []string, readRate float64, codec string) []string {
 	args = appendInputModifiers(args, readRate)
-	if readRate > 0 && (normalizeVideoCodec(codec) == "av1" || toneMap || isSeek) {
-		args = append(args, "-readrate_initial_burst", coldStartBurstSec)
+	if readRate > 0 && normalizeVideoCodec(codec) == "av1" {
+		args = append(args, "-readrate_initial_burst", av1ColdStartBurstSec)
 	}
 	return args
 }
@@ -1123,7 +1115,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = appendTranscodeInputModifiers(args, opts.ReadRate, opts.VideoCodec, opts.ToneMap, opts.StartSec > 0)
+	args = appendTranscodeInputModifiers(args, opts.ReadRate, opts.VideoCodec)
 	args = append(args, "-i", opts.FilePath)
 
 	deint := deinterlaceFilterFor(opts)
@@ -1203,7 +1195,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = appendTranscodeInputModifiers(args, opts.ReadRate, opts.VideoCodec, opts.ToneMap, opts.StartSec > 0)
+	args = appendTranscodeInputModifiers(args, opts.ReadRate, opts.VideoCodec)
 	args = append(args, "-i", opts.FilePath)
 	// Preserve source PTS in the output so an fMP4 fragment carries a
 	// tfdt that matches the EXTINF position the Go-precomputed VOD
