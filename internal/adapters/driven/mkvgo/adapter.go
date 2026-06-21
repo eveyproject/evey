@@ -38,6 +38,20 @@ func IsEBMLContainer(path string) bool {
 	return ebmlContainerExts[strings.ToLower(filepath.Ext(path))]
 }
 
+// mp4ContainerExts holds the ISO base media file format extensions the mkvgo
+// mp4 reader (OpenMeta / RemuxFromMP4) can parse. Kept to the unambiguous
+// ISO-BMFF members: .mov (QuickTime, an ISO-BMFF sibling) is deliberately left
+// out so a misparse never silently mislabels a track — it falls back to ffprobe.
+var mp4ContainerExts = map[string]bool{
+	".mp4": true, ".m4v": true,
+}
+
+// IsMP4Container reports whether path's extension is an ISO-BMFF container the
+// mkvgo mp4 metadata reader (mp4.OpenMeta) can parse head-only.
+func IsMP4Container(path string) bool {
+	return mp4ContainerExts[strings.ToLower(filepath.Ext(path))]
+}
+
 // --- ContainerReader ---
 
 func (a *Adapter) Open(ctx context.Context, path string) (*mkv.Container, error) {

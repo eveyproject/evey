@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravity-zero/mkvgo/mkv/reader"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -14,27 +13,35 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 )
 
-// TestParity_AgainstFFprobe maps every .mkv in EVEY_PARITY_DIR via the mkvgo
-// fast-path AND via the ffprobe prober, then asserts the DECISION-AFFECTING
-// fields agree. PATH-gated: skips unless EVEY_PARITY_DIR is set (no real-file
-// paths are committed — run it locally, e.g. EVEY_PARITY_DIR=/media go test...).
-// Display-only fields (CodecLongName, ChannelLayout, per-stream Bitrate) are not
-// compared; ffprobe attachment streams (which mkvgo does not surface as tracks)
-// are ignored by comparing per stream-type.
+// TestParity_AgainstFFprobe maps every mkvgo-readable container in
+// EVEY_PARITY_DIR (.mkv/.webm via the Matroska reader, .mp4/.m4v via mp4.OpenMeta
+// — both routed by the production realMetaReader) AND via the ffprobe prober,
+// then asserts the DECISION-AFFECTING fields agree. PATH-gated: skips unless
+// EVEY_PARITY_DIR is set (no real-file paths are committed — run it locally,
+// e.g. EVEY_PARITY_DIR=/media go test...). This is the real-file validation gate
+// to pass before enabling EVEY_MP4_FASTPATH in prod, the same way the mkv path
+// was validated. Display-only fields (CodecLongName, ChannelLayout, per-stream
+// Bitrate) are not compared; ffprobe attachment streams (which mkvgo does not
+// surface as tracks) are ignored by comparing per stream-type.
 func TestParity_AgainstFFprobe(t *testing.T) {
 	dir := os.Getenv("EVEY_PARITY_DIR")
 	if dir == "" {
-		t.Skip("set EVEY_PARITY_DIR to a folder of real .mkv files to run the parity check")
+		t.Skip("set EVEY_PARITY_DIR to a folder of real .mkv/.mp4 files to run the parity check")
 	}
-	files, _ := filepath.Glob(filepath.Join(dir, "*.mkv"))
-	require.NotEmpty(t, files, "no .mkv in EVEY_PARITY_DIR")
+	var files []string
+	for _, pat := range []string{"*.mkv", "*.webm", "*.mp4", "*.m4v"} {
+		matched, _ := filepath.Glob(filepath.Join(dir, pat))
+		files = append(files, matched...)
+	}
+	require.NotEmpty(t, files, "no .mkv/.webm/.mp4/.m4v in EVEY_PARITY_DIR")
 
+	mr := realMetaReader{} // routes EBML vs ISO-BMFF exactly like the dispatcher
 	ff := ffmpeg.NewProber("ffprobe")
 	ctx := context.Background()
 	var fastPath, fellBack int
 
 	for _, f := range files {
-		c, err := reader.OpenMeta(ctx, f)
+		c, err := mr.ReadMeta(ctx, f)
 		if err != nil {
 			t.Logf("SKIP %s: mkvgo ReadMeta error %v", filepath.Base(f), err)
 			continue

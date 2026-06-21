@@ -1,8 +1,9 @@
-// Package prober provides a StreamProber that fast-paths .mkv files through the
-// in-process mkvgo reader (ReadMeta) and falls back to the ffprobe prober for
-// everything else — and for any .mkv whose metadata it cannot render
-// field-equivalent to ffprobe. ffprobe stays the authority; the mkvgo path is a
-// pure optimization (no fork, reads only the file head).
+// Package prober provides a StreamProber that fast-paths containers mkvgo can
+// read head-only — .mkv/.webm via the Matroska reader and .mp4/.m4v via
+// mp4.OpenMeta — through the in-process mkvgo path, and falls back to the
+// ffprobe prober for everything else (and for any file whose metadata it cannot
+// render field-equivalent to ffprobe). ffprobe stays the authority; the mkvgo
+// path is a pure optimization (no fork, reads only the file head).
 package prober
 
 import (
