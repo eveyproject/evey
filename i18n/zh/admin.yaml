@@ -707,7 +707,7 @@ calibration:
   softwareMax: "软件编码上限"
   hwMax: "硬件编码上限"
   hwNone: "未检测到 GPU 加速器"
-  libx264: "libx264 ultrafast"
+  libx264: "libx264 veryfast"
   lastRun: "上次校准时间"
   cpuSig: "CPU 签名"
   recalibrate: "重新校准"

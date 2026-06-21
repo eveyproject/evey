@@ -707,7 +707,7 @@ calibration:
   softwareMax: "सॉफ़्टवेयर एनकोड सीमा"
   hwMax: "हार्डवेयर एनकोड सीमा"
   hwNone: "कोई GPU एक्सेलरेटर नहीं मिला"
-  libx264: "libx264 ultrafast"
+  libx264: "libx264 veryfast"
   lastRun: "अंतिम बार कैलिब्रेट किया गया"
   cpuSig: "CPU सिग्नेचर"
   recalibrate: "फिर से कैलिब्रेट करें"

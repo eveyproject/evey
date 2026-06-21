@@ -685,7 +685,7 @@ calibration:
   softwareMax: Software encode cap
   hwMax: Hardware encode cap
   hwNone: "no GPU accelerator detected"
-  libx264: "libx264 ultrafast"
+  libx264: "libx264 veryfast"
   lastRun: Last calibrated
   cpuSig: CPU signature
   recalibrate: Recalibrate

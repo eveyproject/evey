@@ -284,7 +284,7 @@ export function EncodeCalibrationCard() {
       <div className="grid grid-cols-2 gap-3 text-sm">
         <Row label={t("admin.calibration.softwareMax", "Software encode cap")}>
           <strong className="text-[var(--text)]">{data.software_max_height}p</strong>
-          <span className="text-[var(--text-muted)]"> ({t("admin.calibration.libx264", "libx264 ultrafast")})</span>
+          <span className="text-[var(--text-muted)]"> ({t("admin.calibration.libx264", "libx264 veryfast")})</span>
         </Row>
         {data.software_hdr_max_height ? (
           <Row label={t("admin.calibration.softwareHdrMax", "Software HDR cap")}>

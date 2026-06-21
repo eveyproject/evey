@@ -707,7 +707,7 @@ calibration:
   softwareMax: "Obergrenze Software-Kodierung"
   hwMax: "Obergrenze Hardware-Kodierung"
   hwNone: "kein GPU-Beschleuniger erkannt"
-  libx264: "libx264 ultrafast"
+  libx264: "libx264 veryfast"
   lastRun: "Zuletzt kalibriert"
   cpuSig: "CPU-Signatur"
   recalibrate: "Neu kalibrieren"

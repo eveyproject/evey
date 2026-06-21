@@ -707,7 +707,7 @@ calibration:
   softwareMax: "Límite de codificación por software"
   hwMax: "Límite de codificación por hardware"
   hwNone: "no se detectó ningún acelerador GPU"
-  libx264: "libx264 ultrafast"
+  libx264: "libx264 veryfast"
   lastRun: "Última calibración"
   cpuSig: "Firma de la CPU"
   recalibrate: "Recalibrar"

@@ -684,7 +684,7 @@ calibration:
   softwareMax: "Plafond software"
   hwMax: "Plafond matériel"
   hwNone: "aucun accélérateur GPU détecté"
-  libx264: "libx264 ultrafast"
+  libx264: "libx264 veryfast"
   lastRun: "Dernier calibrage"
   cpuSig: "Signature CPU"
   recalibrate: "Recalibrer"
