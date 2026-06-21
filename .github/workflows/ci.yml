@@ -75,7 +75,11 @@ jobs:
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
 
       - name: govulncheck
-        run: govulncheck ./cmd/... ./internal/...
+        # Invoke by absolute install path, not a bare `govulncheck`: on the
+        # self-hosted runner GOPATH/bin isn't on PATH (GitHub-hosted runners add
+        # it, self-hosted don't), so the bare command is "not found". Matches the
+        # local Makefile's /go/bin/govulncheck invocation.
+        run: "$(go env GOPATH)/bin/govulncheck ./cmd/... ./internal/..."
 
       # Code-quality linters (.golangci.yml). Ratchet mode: only-new-issues
       # means a pre-existing finding never blocks — only issues introduced by

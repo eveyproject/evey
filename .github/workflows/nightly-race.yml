@@ -83,4 +83,6 @@ jobs:
       # than the commit-CI run but the surface for a regression here is the
       # whole transitive dep graph, so it's worth the extra time nightly.
       - name: govulncheck (verbose)
-        run: govulncheck -show=traces,version,verbose ./cmd/... ./internal/...
+        # Absolute install path: GOPATH/bin isn't on PATH on the self-hosted
+        # runner (see ci.yml). Bare `govulncheck` is "not found" otherwise.
+        run: "$(go env GOPATH)/bin/govulncheck -show=traces,version,verbose ./cmd/... ./internal/..."
