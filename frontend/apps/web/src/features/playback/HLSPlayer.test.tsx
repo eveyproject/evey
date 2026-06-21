@@ -201,15 +201,25 @@ describe("HLSPlayer", () => {
     expect(video!.src).toContain("/api/v1/media/media-1/stream");
   });
 
-  it("starts in direct play mode when playMethod is DIRECT_STREAM", () => {
+  // direct_stream is a container-only remux: the server's HLS copy rung
+  // repackages the original streams with `-c:v copy`. It must run through the
+  // HLS pipeline (hls.js loading the master), NOT play the original file
+  // progressively — the original container is exactly what the client can't
+  // demux. Regression guard for the formerly no-op direct_stream branch.
+  it("starts in transcode/HLS mode when playMethod is DIRECT_STREAM", () => {
     renderPlayer({
       ...DEFAULT_STREAM_INFO,
       playMethod: "PLAY_METHOD_DIRECT_STREAM",
-      directPlayUrl: "/api/v1/media/media-1/transcode?token=test&remux=1",
+      transcodeUrl: "/api/v1/media/media-1/hls/master.m3u8",
+      directPlayUrl: null,
     });
     const video = document.querySelector("video");
     expect(video).toBeTruthy();
-    expect(video!.src).toContain("remux=1");
+    expect(lastHlsInstance).toBeTruthy();
+    expect(lastHlsInstance!.loadSource).toHaveBeenCalledWith(
+      expect.stringContaining("/api/v1/media/media-1/hls/master.m3u8"),
+    );
+    expect(lastHlsInstance!.attachMedia).toHaveBeenCalled();
   });
 });
 

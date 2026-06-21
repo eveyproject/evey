@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
 
 interface AudioTrack {
@@ -16,15 +15,16 @@ interface HTMLVideoElementWithAudioTracks extends HTMLVideoElement {
   audioTracks?: AudioTrackList;
 }
 
+// Progressive direct-play only. The HLS pipeline (transcode AND direct_stream
+// container remux) lives entirely in useTranscodePlayback — this hook just
+// points the <video> element at the original file's URL and handles token
+// refresh / fallback-to-transcode on error.
 interface UseDirectPlaybackArgs {
   videoRef: React.RefObject<HTMLVideoElement | null>;
-  hlsRef: React.MutableRefObject<InstanceType<typeof Hls> | null>;
   positionRef: React.MutableRefObject<number>;
   streamInfo: V1StreamInfo;
   startPositionMs: number;
   transcodeMode: boolean;
-  isDirectPlay: boolean;
-  isDirectStream: boolean;
   onEnded?: () => void;
   setTranscodeMode: (v: boolean) => void;
   setIsBuffering: (v: boolean) => void;
@@ -45,13 +45,10 @@ function replaceTokenInUrl(url: string, newToken: string): string | null {
 
 export function useDirectPlayback({
   videoRef,
-  hlsRef,
   positionRef,
   streamInfo,
   startPositionMs,
   transcodeMode,
-  isDirectPlay,
-  isDirectStream,
   onEnded,
   setTranscodeMode,
   setIsBuffering,
@@ -62,31 +59,7 @@ export function useDirectPlayback({
     const video = videoRef.current;
     if (!video || transcodeMode) return;
 
-    let hlsInstance: InstanceType<typeof Hls> | null = null;
-
-    if (!isDirectPlay && !isDirectStream && streamInfo.transcodeUrl && Hls.isSupported()) {
-      hlsInstance = new Hls({
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        // CMCD ingest — same rationale as useTranscodePlayback.
-        cmcd: {},
-      });
-      hlsRef.current = hlsInstance;
-      hlsInstance.loadSource(streamInfo.transcodeUrl);
-      hlsInstance.attachMedia(video);
-      hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.currentTime = startPositionMs / 1000;
-        video.play().catch((err) => console.warn("video.play failed", err));
-      });
-      hlsInstance.on(Hls.Events.AUDIO_TRACKS_UPDATED, (_, data) => {
-        if (data.audioTracks.length === 0) setTranscodeMode(true);
-      });
-      hlsInstance.on(Hls.Events.ERROR, (_, data) => {
-        if (!data.fatal) return;
-        if (import.meta.env.DEV) console.warn("[player] HLS fatal error:", data.type, data.details);
-        setTranscodeMode(true);
-      });
-    } else if (streamInfo.directPlayUrl) {
+    if (streamInfo.directPlayUrl) {
       video.src = streamInfo.directPlayUrl;
       video.currentTime = startPositionMs / 1000;
       video.play().catch((err) => console.warn("video.play failed", err));
@@ -164,10 +137,6 @@ export function useDirectPlayback({
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("playing", handlePlaying);
       video.removeEventListener("canplaythrough", handlePlaying);
-      if (hlsInstance) {
-        hlsInstance.destroy();
-        hlsRef.current = null;
-      }
     };
-  }, [streamInfo, startPositionMs, onEnded, transcodeMode, isDirectPlay, isDirectStream]);
+  }, [streamInfo, startPositionMs, onEnded, transcodeMode]);
 }

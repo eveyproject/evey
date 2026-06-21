@@ -194,8 +194,14 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY
 		resp.DirectPlayUrl = "/api/v1/media/" + req.MediaItemId + "/stream"
 	case "direct_stream":
+		// Container-only mismatch (e.g. h264/aac inside MKV a browser can't
+		// demux): the bytes are copy-eligible but the wrapper isn't. Point the
+		// client at the HLS master, NOT the raw /stream file — the VOD handler's
+		// copy rung repackages to fMP4 segments with `-c:v copy` (no re-encode).
+		// Returning DirectPlayUrl here byte-served the original container, which
+		// the client then couldn't play (the direct_stream branch was a no-op).
 		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_DIRECT_STREAM
-		resp.DirectPlayUrl = "/api/v1/media/" + req.MediaItemId + "/stream"
+		resp.TranscodeUrl = "/api/v1/media/" + req.MediaItemId + "/hls/master.m3u8"
 	default:
 		resp.PlayMethod = eveyv1.PlayMethod_PLAY_METHOD_TRANSCODE
 		resp.TranscodeUrl = "/api/v1/media/" + req.MediaItemId + "/hls/master.m3u8"

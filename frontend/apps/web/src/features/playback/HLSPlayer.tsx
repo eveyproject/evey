@@ -112,9 +112,14 @@ export function HLSPlayer({
   const positionRef = useRef(startPositionMs / 1000);
   const knownDurationSecRef = useRef(knownDurationMs ? knownDurationMs / 1000 : 0);
   knownDurationSecRef.current = knownDurationMs ? knownDurationMs / 1000 : 0;
+  // Only direct_play streams the original file progressively. Everything else —
+  // transcode AND direct_stream (a container-only remux served by the HLS copy
+  // rung) — runs through the HLS pipeline (useTranscodePlayback), which owns
+  // stream-token injection, 401 refresh and CMCD. direct_stream used to be
+  // lumped with direct_play and silently played the original (often undecodable)
+  // container; routing it through HLS is what makes the remux actually play.
   const [transcodeMode, setTranscodeMode] = useState(
-    streamInfo.playMethod !== "PLAY_METHOD_DIRECT_PLAY" &&
-    streamInfo.playMethod !== "PLAY_METHOD_DIRECT_STREAM"
+    streamInfo.playMethod !== "PLAY_METHOD_DIRECT_PLAY"
   );
 
   // Fetch the active profile to read audio/subtitle language preferences.
@@ -356,13 +361,12 @@ export function HLSPlayer({
   const castBaseUrlRef = useRef("");
 
   const isDirectPlay = streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY";
-  const isDirectStream = streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM";
 
   // --- Hooks ---
 
   useDirectPlayback({
-    videoRef, hlsRef, positionRef, streamInfo, startPositionMs,
-    transcodeMode, isDirectPlay, isDirectStream, onEnded,
+    videoRef, positionRef, streamInfo, startPositionMs,
+    transcodeMode, onEnded,
     setTranscodeMode, setIsBuffering: setIsBufferingDebounced,
     streamTokenRef, onStreamTokenRefreshRef,
   });

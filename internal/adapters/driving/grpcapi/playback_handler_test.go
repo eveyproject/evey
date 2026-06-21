@@ -669,6 +669,39 @@ func TestGetStreamInfo_AudioCodecsDirectPlay(t *testing.T) {
 	assert.Equal(t, "copy", resp.VideoDecision)
 }
 
+// A copy-eligible video/audio pair in a browser-incompatible container (MKV)
+// must resolve to direct_stream and be routed to the HLS master so the copy
+// rung can repackage it — NOT to the raw /stream byte-server, which would hand
+// the client an undecodable MKV. Regression guard for the formerly no-op
+// direct_stream branch (it returned DirectPlayUrl=/stream).
+func TestGetStreamInfo_DirectStream_RoutesToHLS(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+
+	mediaQuery.Seed(&library.MediaItem{
+		ID:    "mi-ds",
+		Title: "Remux Movie",
+		Type:  "movie",
+		File:  &library.MediaFile{ContainerFormat: "mkv"},
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-ds", StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-ds", StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	})
+
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-ds"})
+
+	require.NoError(t, err)
+	assert.Equal(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_STREAM, resp.PlayMethod)
+	assert.Equal(t, "copy", resp.VideoDecision)
+	assert.Equal(t, "copy", resp.AudioDecision)
+	// The fix: HLS master, not the raw byte-server. DirectPlayUrl must be empty
+	// so no client falls back to serving the undecodable original container.
+	assert.Contains(t, resp.TranscodeUrl, "mi-ds")
+	assert.Contains(t, resp.TranscodeUrl, "hls/master.m3u8")
+	assert.Empty(t, resp.DirectPlayUrl)
+}
+
 // B6(b): GetStreamInfo must honor the client's pre-selected tracks (absolute
 // probed indices). A selected PGS subtitle forces the burn-in transcode —
 // advertising direct_play would silently drop the subtitle (bitmap subs can't
