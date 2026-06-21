@@ -60,26 +60,19 @@ jobs:
       - name: vet
         run: go vet $(go list ./... | grep -v /gen/)
 
-      # Pin govulncheck version + cache the binary so we don't pay the
-      # `go install` cost (compilation + dep resolution, ~30-60s) on every
-      # CI run. `@latest` would defeat the cache key on every release.
-      - name: cache govulncheck binary
-        id: govulncheck-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/go/bin/govulncheck
-          key: govulncheck-v1.1.4-${{ runner.os }}-${{ runner.arch }}
-
-      - name: install govulncheck (cache miss)
-        if: steps.govulncheck-cache.outputs.cache-hit != 'true'
-        run: go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
-
+      # Self-healing install + absolute-path invoke. The old actions/cache step
+      # was built for ephemeral GitHub-hosted runners and MISBEHAVED on the
+      # self-hosted box: it reported a cache HIT (so the conditional install was
+      # skipped) while the binary was absent → `127: no such file`. On the
+      # persistent self-hosted runner GOPATH/bin survives between runs, so we
+      # just ensure the binary exists (first run installs, later runs reuse) and
+      # call it by full path (GOPATH/bin isn't on PATH there, unlike GitHub
+      # runners). @v1.1.4 pinned so the version is reproducible.
       - name: govulncheck
-        # Invoke by absolute install path, not a bare `govulncheck`: on the
-        # self-hosted runner GOPATH/bin isn't on PATH (GitHub-hosted runners add
-        # it, self-hosted don't), so the bare command is "not found". Matches the
-        # local Makefile's /go/bin/govulncheck invocation.
-        run: "$(go env GOPATH)/bin/govulncheck ./cmd/... ./internal/..."
+        run: |
+          BIN="$(go env GOPATH)/bin/govulncheck"
+          test -x "$BIN" || go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
+          "$BIN" ./cmd/... ./internal/...
 
       # Code-quality linters (.golangci.yml). Ratchet mode: only-new-issues
       # means a pre-existing finding never blocks — only issues introduced by
