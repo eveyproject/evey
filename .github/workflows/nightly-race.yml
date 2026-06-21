@@ -21,7 +21,8 @@ env:
 jobs:
   postgres-race:
     name: Postgres tests with -race
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest  # GitHub-hosted — disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v5
 
@@ -47,7 +48,8 @@ jobs:
 
   vuln-deep:
     name: govulncheck (deep, call traces)
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest  # GitHub-hosted — disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v5
 

@@ -28,7 +28,10 @@ jobs:
   # is ~30-60s per job, far less than what's saved.
   quality:
     name: Backend — quality & security
-    runs-on: ubuntu-latest
+    # Self-hosted for push + same-repo PRs (GitHub-hosted disabled 2026-06-22,
+    # hit Actions minutes limit). A fork PR runs on GitHub-hosted instead, so
+    # untrusted contributor code never executes on the self-hosted runner (RCE).
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'self-hosted' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -100,7 +103,10 @@ jobs:
 
   correctness:
     name: Backend — build & test
-    runs-on: ubuntu-latest
+    # Self-hosted for push + same-repo PRs (GitHub-hosted disabled 2026-06-22,
+    # hit Actions minutes limit). A fork PR runs on GitHub-hosted instead, so
+    # untrusted contributor code never executes on the self-hosted runner (RCE).
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'self-hosted' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -140,7 +146,10 @@ jobs:
 
   frontend:
     name: Frontend — typecheck & build
-    runs-on: ubuntu-latest
+    # Self-hosted for push + same-repo PRs (GitHub-hosted disabled 2026-06-22,
+    # hit Actions minutes limit). A fork PR runs on GitHub-hosted instead, so
+    # untrusted contributor code never executes on the self-hosted runner (RCE).
+    runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'self-hosted' }}
     steps:
       - uses: actions/checkout@v5
 
@@ -186,7 +195,8 @@ jobs:
 
   docker:
     name: Docker — build & push (${{ matrix.runtime.name }})
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest  # GitHub-hosted — disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
+    runs-on: self-hosted
     needs: [quality, correctness, frontend]
     # Only publish on push events (branch push or release tag) — never on PRs.
     # The 3 backend/frontend jobs already gate this, so a failing test/lint
@@ -281,7 +291,8 @@ jobs:
   # skipped for the event type.
   ci-pass:
     name: CI passed
-    runs-on: ubuntu-latest
+    # runs-on: ubuntu-latest  # GitHub-hosted — disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
+    runs-on: self-hosted
     needs: [quality, correctness, frontend, docker]
     if: always()
     steps:
