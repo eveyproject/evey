@@ -130,11 +130,20 @@ jobs:
 
       # Unit tests keep -race: lots of goroutines (HTTP handlers, transcoder
       # sessions, etc.) — race detection is high-value there.
+      #
+      # -timeout is PER PACKAGE binary. The ffmpeg package runs several real
+      # ffmpeg calibration benchmarks (BenchmarkRunner_*): each does a full
+      # SDR+HDR+AV1+HW encode ladder, ~30-60 s of subprocess time. On the fast
+      # GitHub-hosted amd64 boxes the package fit in 120 s; on the slower
+      # self-hosted runner it doesn't (the assertions are hardware-agnostic —
+      # they floor at 720p — so this is purely a wall-clock budget, not a
+      # failure). 600 s gives the ffmpeg package comfortable headroom while
+      # still catching a genuine hang.
       - name: test (unit)
         run: |
           go test \
             $(go list ./... | grep -v "adapters/driven/postgres" | grep -v /gen/) \
-            -count=1 -timeout=120s -race
+            -count=1 -timeout=600s -race
 
       # Postgres tests run serialised through a shared testcontainer
       # (no t.Parallel — truncateAll would race across tests). -race adds
