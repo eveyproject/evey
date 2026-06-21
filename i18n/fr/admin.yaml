@@ -650,7 +650,23 @@ dashboardStats:
   free: "Libre"
   loginFailed: "Echec de connexion"
 
+transcoding:
+  title: "Configuration du transcodage"
+  subtitle: "Accélération matérielle, calibrage de l'encodage et politique de codecs"
+  saved: "Enregistré"
+  concurrencyTitle: "Simultanéité"
+  concurrencySubtitle: "Combien de transcodages peuvent tourner en même temps"
+  concurrencyAuto: "Détecter automatiquement"
+  concurrencyAutoHint: "Défaut du serveur ({{n}})"
+  concurrencyManualHint: "Limiter les transcodages simultanés"
 calibration:
+  av1Label: "Sortie AV1"
+  av1Hint: "Encoder en AV1 quand un client le supporte — meilleure compression. Matériel uniquement ; l'AV1 software n'est jamais utilisé pour le streaming."
+  av1NoHw: "Aucun encodeur AV1 matériel détecté — l'activer n'a aucun effet (les flux restent en H.264)."
+  av1MaxLabel: "Qualité maximale AV1"
+  av1MaxAuto: "Auto (jusqu'à la source)"
+  av1Applied: "Réglage AV1 appliqué"
+  transcodesActiveToast: "Arrêtez la lecture en cours avant de recalibrer — le benchmark a besoin d'une machine au repos pour mesurer le vrai plafond."
   softwareHdrMax: "Plafond d'encodage HDR logiciel"
   hdrTonemap: "Tonemap HDR→SDR"
   gpuIntegrated: "iGPU"

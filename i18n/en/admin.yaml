@@ -651,7 +651,23 @@ dashboardStats:
   free: Free
   loginFailed: Login failed
 
+transcoding:
+  title: "Transcoding configuration"
+  subtitle: "Hardware acceleration, encode calibration and codec policy"
+  saved: "Saved"
+  concurrencyTitle: "Concurrency"
+  concurrencySubtitle: "How many transcodes may run at once"
+  concurrencyAuto: "Detect automatically"
+  concurrencyAutoHint: "Server default ({{n}})"
+  concurrencyManualHint: "Cap concurrent transcodes"
 calibration:
+  av1Label: "AV1 output"
+  av1Hint: "Encode to AV1 when a client supports it — better compression. Hardware-only; software AV1 is never used for streaming."
+  av1NoHw: "No AV1 hardware encoder detected — turning this on has no effect (streams stay H.264)."
+  av1MaxLabel: "AV1 max quality"
+  av1MaxAuto: "Auto (up to source)"
+  av1Applied: "AV1 setting applied"
+  transcodesActiveToast: "Stop active playback before recalibrating — the benchmark needs an idle host to measure the true ceiling."
   softwareHdrMax: "Software HDR cap"
   hdrTonemap: "HDR→SDR tonemap"
   gpuIntegrated: "iGPU"
