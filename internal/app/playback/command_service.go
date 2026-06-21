@@ -459,8 +459,19 @@ func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.D
 
 // StartCleanup runs the stale-session cleanup loop with default parameters.
 // The optional initDone channel(s) are closed after the first cleanup pass.
+//
+// The client stop (POST /playback/stop) is best-effort — a keepalive fetch that
+// browsers can drop on navigation/unload — so the SERVER must be the authority
+// on when an abandoned session ends. The reliable signal is the 3s progress
+// heartbeat, which keeps firing even while paused; a session with no heartbeat
+// for 2 min is genuinely gone (player closed, or the connection died), so reap
+// it then rather than lingering for 5 min as a phantom "now playing". A live or
+// merely-paused session beats every ~3s and is never at risk. Sweep every 30s so
+// the end-to-end teardown lands within ~2-2.5 min of close even when the client
+// beacon never arrives. CloseStale only sets ended_at — the resume position is
+// preserved (last heartbeat / final report already persisted it).
 func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- struct{}) {
-	s.StartCleanupWithInterval(ctx, 2*time.Minute, 5*time.Minute, initDone...)
+	s.StartCleanupWithInterval(ctx, 30*time.Second, 2*time.Minute, initDone...)
 }
 
 // StartProgressFlusher launches the watch-progress flusher when one is wired.
