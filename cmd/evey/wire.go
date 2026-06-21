@@ -621,6 +621,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	_ = hlsVODCache.StartEviction(apptranscoding.EvictionPolicy{
 		MaxBytes: int64(cfg.Transcoding.CacheMaxGB) * 1024 * 1024 * 1024,
 	}, slog.Default())
+	// Bound the sibling fast-start MP4 remux cache (<CacheDir>/remux) on its own
+	// budget. Source-fingerprint keying orphans the old file on every re-scan, so
+	// without this it grows without bound. Same lifetime/stop semantics as above.
+	_ = apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "remux")).
+		StartEviction(apptranscoding.EvictionPolicy{
+			MaxBytes: int64(cfg.Transcoding.RemuxCacheMaxGB) * 1024 * 1024 * 1024,
+		}, slog.Default())
 	// Inline SourceResolver: the orchestrator hands a DecisionFingerprint
 	// back, we look up the media item via the library query service. Streams
 	// are filled in later (Phase 3 follow-up) — Phase 1+2 only need the path.
@@ -1033,6 +1040,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			calibrationSvc:   calibrationSvc,
 			capsOverrideSvc:  capsOverrideSvc,
 			mkvSvc:           mkvSvc,
+			mkvAdapter:       infra.mkvAdapter,
 			musicSvc:         musicSvc,
 			photoSvc:         photoSvc,
 			photoTranscoder:  ffmpeg.NewPhotoTranscoder("ffmpeg"),

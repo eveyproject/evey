@@ -83,6 +83,9 @@ type HTTPServer struct {
 	LibCmdSvc   *applibrary.CommandService
 	LibQuerySvc *applibrary.QueryService
 	Scheduler   *applibrary.Scheduler
+	// Remuxer repackages EBML (mkv/webm) sources into fast-start MP4 for the
+	// progressive /remux.mp4 path. Optional: nil disables the route.
+	Remuxer Remuxer
 
 	// User
 	OIDCSvc         *appuser.OIDCService
@@ -305,6 +308,12 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), s.LibraryAccessRepo, mhOpts...)
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", streamAuth(s.StreamMeter.Middleware(mh)))
+	// Progressive fast-start MP4 remux of a browser-incompatible EBML source
+	// (copy, no re-encode), cached once and served with Range support. Same auth
+	// + parental + stream metering as /stream.
+	if s.Remuxer != nil {
+		mux.HandleFunc("GET /api/v1/media/{id}/remux.mp4", streamAuth(s.StreamMeter.Middleware(remuxHandler(s.LibQuerySvc, s.LibraryAccessRepo, parentalChk, s.LibQuerySvc, s.Remuxer, s.Cfg.Transcoding.CacheDir, s.BaseURL()))))
+	}
 	// Artwork is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", streamAuth(mh))

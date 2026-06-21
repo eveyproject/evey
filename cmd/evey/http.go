@@ -75,6 +75,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		LibCmdSvc:   deps.library.cmdSvc,
 		LibQuerySvc: deps.library.querySvc,
 		Scheduler:   deps.library.scheduler,
+		Remuxer:     deps.media.mkvAdapter,
 
 		OIDCSvc:         deps.user.oidcSvc,
 		UserAuthSvc:     deps.user.authSvc,

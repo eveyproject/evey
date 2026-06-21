@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
+	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	grpcapi "github.com/evey-project/evey/internal/adapters/driving/grpcapi"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
@@ -88,6 +89,7 @@ type mediaDeps struct {
 	calibrationSvc   *apptranscoding.CalibrationService
 	capsOverrideSvc  *apptranscoding.CapOverrideService
 	mkvSvc           *appmkv.Service
+	mkvAdapter       *mkvgoadapter.Adapter // also drives the /remux.mp4 fast-start MP4 repackage
 	musicSvc         *appmusic.Service
 	photoSvc         *appphoto.Service
 	photoTranscoder  *ffmpeg.PhotoTranscoder

@@ -11,6 +11,7 @@ import (
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
+	"github.com/gravity-zero/mkvgo/mp4"
 
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -154,6 +155,45 @@ func (a *Adapter) ExtractAttachment(ctx context.Context, containerPath string, a
 		return err
 	}
 	return ops.ExtractAttachment(ctx, containerPath, attachmentID, destPath)
+}
+
+// --- MP4 remux ---
+
+// CanRemux reports whether path is a source mkvgo can repackage into MP4 — an
+// EBML container (Matroska / WebM). Any other container must go through a
+// transcode instead.
+func (a *Adapter) CanRemux(path string) bool {
+	return IsEBMLContainer(path)
+}
+
+// RemuxToMP4 repackages the EBML (Matroska/WebM) file at sourcePath into a
+// fast-start MP4 at outputPath WITHOUT re-encoding: each track's compressed
+// samples are copied verbatim and the moov box is written before mdat, so a
+// player can start over progressive HTTP without first reading to EOF. Tracks
+// in codecs MP4 cannot carry (TrueHD audio, bitmap subtitles, …) are dropped
+// rather than aborting the whole remux — the output still plays, minus those
+// tracks (each logged via OnDrop).
+func (a *Adapter) RemuxToMP4(ctx context.Context, sourcePath, outputPath string) error {
+	ctx, span := tracing.StartSpan(ctx, "mkvgo.RemuxToMP4")
+	defer span.End()
+
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return err
+	}
+	err := mp4.RemuxToMP4(ctx, sourcePath, outputPath, mp4.Options{
+		FastStart:       true,
+		SkipUnsupported: true,
+		OnDrop: func(d mp4.DroppedTrack) {
+			slog.WarnContext(ctx, "mkvgo remux: dropped track",
+				slog.Uint64("track_id", d.ID),
+				slog.String("codec", d.Codec),
+				slog.String("reason", d.Reason))
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("mkvgo remux to mp4: %w", err)
+	}
+	return nil
 }
 
 // --- converters ---
