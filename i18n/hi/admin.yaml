@@ -652,6 +652,7 @@ dashboardStats:
   loginFailed: "लॉगिन विफल"
 
 serverSettings:
+  transcodeMovedHint: "ट्रांसकोडिंग (हार्डवेयर त्वरण, एन्कोड कैलिब्रेशन, AV1 और समवर्तीता) ट्रांसकोडिंग कॉन्फ़िगरेशन में सेट की जाती है।"
   title: "सर्वर सेटिंग्स"
   serverName: "सर्वर का नाम"
   maxConcurrentTranscodes: "अधिकतम समवर्ती ट्रांसकोड"
@@ -672,7 +673,23 @@ serverSettings:
   softwareAV1Auto: "Auto (केवल हार्डवेयर)"
   softwareAV1Info: "AV1 सॉफ़्टवेयर (libsvtav1) एन्कोडिंग के लिए अधिकतम ऊँचाई। Auto तब AV1 को केवल हार्डवेयर पर रखता है जब होस्ट सॉफ़्टवेयर एन्कोडिंग को बनाए नहीं रख सकता; कमज़ोर CPU पर AV1 सॉफ़्टवेयर बहुत भारी होता है।"
 
+transcoding:
+  title: "ट्रांसकोडिंग कॉन्फ़िगरेशन"
+  subtitle: "हार्डवेयर त्वरण, एन्कोड कैलिब्रेशन और कोडेक नीति"
+  saved: "सहेजा गया"
+  concurrencyTitle: "समवर्तीता"
+  concurrencySubtitle: "एक साथ कितने ट्रांसकोड चल सकते हैं"
+  concurrencyAuto: "स्वचालित रूप से पहचानें"
+  concurrencyAutoHint: "सर्वर डिफ़ॉल्ट ({{n}})"
+  concurrencyManualHint: "समवर्ती ट्रांसकोड सीमित करें"
 calibration:
+  av1Label: "AV1 आउटपुट"
+  av1Hint: "जब कोई क्लाइंट समर्थन करता है तो AV1 में एन्कोड करें — बेहतर संपीड़न। केवल हार्डवेयर; सॉफ़्टवेयर AV1 कभी स्ट्रीमिंग के लिए उपयोग नहीं होता।"
+  av1NoHw: "कोई AV1 हार्डवेयर एन्कोडर नहीं मिला — इसे चालू करने का कोई प्रभाव नहीं है (स्ट्रीम H.264 रहती हैं)।"
+  av1MaxLabel: "AV1 अधिकतम गुणवत्ता"
+  av1MaxAuto: "स्वचालित (स्रोत तक)"
+  av1Applied: "AV1 सेटिंग लागू की गई"
+  transcodesActiveToast: "पुनः कैलिब्रेट करने से पहले सक्रिय प्लेबैक रोकें — बेंचमार्क को सही सीमा मापने के लिए एक निष्क्रिय होस्ट चाहिए।"
   softwareHdrMax: "सॉफ़्टवेयर HDR सीमा"
   hdrTonemap: "HDR→SDR टोन मैपिंग"
   gpuIntegrated: "iGPU"

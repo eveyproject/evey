@@ -652,6 +652,7 @@ dashboardStats:
   loginFailed: "登录失败"
 
 serverSettings:
+  transcodeMovedHint: "转码（硬件加速、编码校准、AV1 和并发）在“转码配置”中设置。"
   title: "服务器设置"
   serverName: "服务器名称"
   maxConcurrentTranscodes: "最大并发转码数"
@@ -672,7 +673,23 @@ serverSettings:
   softwareAV1Auto: "自动（仅硬件）"
   softwareAV1Info: "AV1 软件（libsvtav1）编码的最大高度。自动模式下，当主机无法维持软件编码时，AV1 仅使用硬件；AV1 软件编码在低性能 CPU 上开销很大。"
 
+transcoding:
+  title: "转码配置"
+  subtitle: "硬件加速、编码校准和编解码器策略"
+  saved: "已保存"
+  concurrencyTitle: "并发"
+  concurrencySubtitle: "可同时运行多少个转码"
+  concurrencyAuto: "自动检测"
+  concurrencyAutoHint: "服务器默认值 ({{n}})"
+  concurrencyManualHint: "限制并发转码数"
 calibration:
+  av1Label: "AV1 输出"
+  av1Hint: "在客户端支持时编码为 AV1 — 压缩率更高。仅硬件；软件 AV1 从不用于流式传输。"
+  av1NoHw: "未检测到 AV1 硬件编码器 — 开启此项无效（流仍为 H.264）。"
+  av1MaxLabel: "AV1 最高质量"
+  av1MaxAuto: "自动（最高至源）"
+  av1Applied: "AV1 设置已应用"
+  transcodesActiveToast: "重新校准前请停止正在进行的播放 — 基准测试需要空闲的主机才能测出真实上限。"
   softwareHdrMax: "软件 HDR 上限"
   hdrTonemap: "HDR→SDR 色调映射"
   gpuIntegrated: "核显"
