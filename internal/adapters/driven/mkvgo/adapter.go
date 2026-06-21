@@ -183,10 +183,18 @@ func (a *Adapter) CanRemux(path string) bool {
 // RemuxToMP4 repackages the EBML (Matroska/WebM) file at sourcePath into a
 // fast-start MP4 at outputPath WITHOUT re-encoding: each track's compressed
 // samples are copied verbatim and the moov box is written before mdat, so a
-// player can start over progressive HTTP without first reading to EOF. Tracks
-// in codecs MP4 cannot carry (TrueHD audio, bitmap subtitles, …) are dropped
-// rather than aborting the whole remux — the output still plays, minus those
-// tracks (each logged via OnDrop).
+// player can start over progressive HTTP without first reading to EOF.
+//
+// Subtitles: SRT and WebVTT ride along as tx3g timed text; ASS/SSA are flattened
+// to tx3g too (FlattenStyledSubs) — text only, styling/positioning/karaoke is
+// lost, but that beats dropping subs on the anime/MKV case this path most often
+// serves (cast/download play the standalone file, no sidecar). NativeWebVTT is
+// left off on purpose: native wvtt is lossless but ffmpeg's MP4 demuxer can't
+// read it, and widest playback compat matters more here than cue styling.
+//
+// Genuinely uncarriable tracks — bitmap subtitles (PGS/VobSub), TrueHD audio —
+// are dropped rather than aborting the whole remux (SkipUnsupported); the output
+// still plays, minus those tracks (each logged via OnDrop).
 func (a *Adapter) RemuxToMP4(ctx context.Context, sourcePath, outputPath string) error {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.RemuxToMP4")
 	defer span.End()
@@ -195,8 +203,9 @@ func (a *Adapter) RemuxToMP4(ctx context.Context, sourcePath, outputPath string)
 		return err
 	}
 	err := mp4.RemuxToMP4(ctx, sourcePath, outputPath, mp4.Options{
-		FastStart:       true,
-		SkipUnsupported: true,
+		FastStart:         true,
+		SkipUnsupported:   true,
+		FlattenStyledSubs: true, // carry ASS/SSA as text-only tx3g instead of dropping
 		OnDrop: func(d mp4.DroppedTrack) {
 			slog.WarnContext(ctx, "mkvgo remux: dropped track",
 				slog.Uint64("track_id", d.ID),

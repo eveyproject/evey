@@ -23,7 +23,11 @@ import (
 // version bump — the package is flagged experimental) so stale-format files are
 // passed over and re-produced rather than served. Superseded files orphan and
 // are reclaimed by the remux cache janitor.
-const remuxCacheFormat = "remux-v1"
+//
+// v2 (mkvgo 0.7.2): subtitle tracks now ride along — SRT/WebVTT as tx3g by
+// default, ASS/SSA flattened to tx3g — so a v1 file (no subs) must be
+// re-produced rather than served subtitle-less.
+const remuxCacheFormat = "remux-v2"
 
 // remuxCacheName derives a collision-free, traversal-proof cache filename from
 // the item identity, the cache-format version, and the SOURCE FINGERPRINT
