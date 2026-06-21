@@ -300,6 +300,7 @@ export function HLSPlayer({
   }
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   // Debounced gate in front of setIsBuffering: the raw `waiting` event fires on
   // every micro-stall (segment boundary, fast seek, ABR switch) and flashing
   // the spinner over a video that resumes within a second reads as "the app is
@@ -472,6 +473,28 @@ export function HLSPlayer({
     }
   }, [castConnected]);
 
+  // Sync isPlaying from the video element so the buffering overlay can
+  // distinguish "stall while playing" (show only discrete spinner) from
+  // "stall while paused/not-yet-started" (show full-screen overlay).
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+    const onEnded = () => setIsPlaying(false);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("ended", onEnded);
+    setIsPlaying(!video.paused);
+    return () => {
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("ended", onEnded);
+    };
+  // videoRef is a stable ref object; the effect needs to run once on mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Auto-fullscreen on landscape rotation (touch devices)
   useEffect(() => {
     if (!("ontouchstart" in window) || typeof window.matchMedia !== "function") return;
@@ -635,7 +658,7 @@ export function HLSPlayer({
           </div>
         </div>
       )}
-      {isBuffering && (
+      {isBuffering && !isPlaying && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[5]">
           <div className="flex flex-col items-center gap-2">
             <Loader size={40} className="animate-spin text-white/80" />
@@ -774,6 +797,8 @@ export function HLSPlayer({
           onCastSeek={handleCastSeek}
           onCastSetVolume={castSetVolume}
           onCastSetMuted={castSetMuted}
+          isBuffering={isBuffering}
+          isPlaying={isPlaying}
         />
       </PlayerProvider>
       {showShortcuts && <KeyboardShortcutsOverlay onClose={() => setShowShortcuts(false)} skipForwardSeconds={skipFwd} skipBackwardSeconds={skipBwd} />}

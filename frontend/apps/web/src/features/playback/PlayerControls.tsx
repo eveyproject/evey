@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Cast } from "lucide-react";
+import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Cast, Loader } from "lucide-react";
 import { PlayOnPicker } from "./PlayOnPicker";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
@@ -46,6 +46,10 @@ interface PlayerControlsProps {
   onCastSetVolume?: (level: number) => void;
   onCastSetMuted?: (muted: boolean) => void;
   streamInfo?: V1StreamInfo;
+  /** True while the HLS pipeline is stalled waiting for segments. */
+  isBuffering?: boolean;
+  /** True when the video element is actively playing (not paused / not yet started). */
+  isPlaying?: boolean;
 }
 
 export function PlayerControls({
@@ -76,6 +80,8 @@ export function PlayerControls({
   onCastSetVolume,
   onCastSetMuted,
   streamInfo,
+  isBuffering,
+  isPlaying,
 }: PlayerControlsProps) {
   const { t } = useTranslation();
   const ctx = usePlayerContext();
@@ -490,6 +496,11 @@ export function PlayerControls({
             onToggleMute={toggleMute}
             onVolumeChange={handleVolume}
           />
+
+          {/* Discrete buffering indicator shown only during playback stalls */}
+          {isBuffering && isPlaying && (
+            <Loader size={16} className="animate-spin text-white/70 shrink-0" aria-hidden="true" />
+          )}
 
           <div className="flex-1" />
 
