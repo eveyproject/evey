@@ -144,6 +144,12 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// "Now playing" = a session that is both unfinished AND heartbeated recently.
+	// The client beats every 3s (≥~9s under error backoff), so a 45s window keeps
+	// live sessions shown (including paused, or playing in a background tab) while a
+	// closed player drops off the admin list in ≤45s. The previous 5-min window made
+	// a player whose stop POST never landed — e.g. an access token that expired during
+	// a long film, 401 silently dropped client-side — linger as "playing" for minutes.
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT ps.id, ps.profile_id, p.name, ps.media_item_id, mi.title, mi.type,
 		        COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),
@@ -158,7 +164,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		 LEFT JOIN media_items season ON mi.parent_id = season.id AND mi.type = 'episode'
 		 LEFT JOIN media_items series ON season.parent_id = series.id AND season.type = 'season'
 		 WHERE ps.ended_at IS NULL
-		   AND ps.updated_at > NOW() - INTERVAL '5 minutes'
+		   AND ps.updated_at > NOW() - INTERVAL '45 seconds'
 		 ORDER BY ps.started_at DESC`)
 	if err != nil {
 		span.RecordError(err)
