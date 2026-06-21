@@ -652,6 +652,7 @@ dashboardStats:
   loginFailed: Anmeldung fehlgeschlagen
 
 serverSettings:
+  transcodeMovedHint: "Die Transcodierung (Hardware-Beschleunigung, Encode-Kalibrierung, AV1 und Parallelität) wird in der Transcodierungs-Konfiguration eingestellt."
   title: Servereinstellungen
   serverName: Servername
   maxConcurrentTranscodes: Max. gleichzeitige Transkodierungen
@@ -672,7 +673,23 @@ serverSettings:
   softwareAV1Auto: "Auto (nur Hardware)"
   softwareAV1Info: "Maximale Höhe für die AV1-Softwarekodierung (libsvtav1). Auto behält AV1 als Hardware-only, wenn der Host es nicht softwareseitig durchhalten kann; AV1-Software ist auf schwachen CPUs sehr rechenintensiv."
 
+transcoding:
+  title: "Transcodierungs-Konfiguration"
+  subtitle: "Hardware-Beschleunigung, Encode-Kalibrierung und Codec-Richtlinie"
+  saved: "Gespeichert"
+  concurrencyTitle: "Parallelität"
+  concurrencySubtitle: "Wie viele Transcodierungen gleichzeitig laufen dürfen"
+  concurrencyAuto: "Automatisch erkennen"
+  concurrencyAutoHint: "Server-Standard ({{n}})"
+  concurrencyManualHint: "Gleichzeitige Transcodierungen begrenzen"
 calibration:
+  av1Label: "AV1-Ausgabe"
+  av1Hint: "In AV1 codieren, wenn ein Client es unterstützt — bessere Kompression. Nur Hardware; Software-AV1 wird nie für Streaming verwendet."
+  av1NoHw: "Kein AV1-Hardware-Encoder erkannt — das Aktivieren hat keine Wirkung (Streams bleiben H.264)."
+  av1MaxLabel: "Maximale AV1-Qualität"
+  av1MaxAuto: "Automatisch (bis zur Quelle)"
+  av1Applied: "AV1-Einstellung angewendet"
+  transcodesActiveToast: "Stoppen Sie die laufende Wiedergabe vor dem Neukalibrieren — der Benchmark braucht einen unbeschäftigten Host, um das echte Limit zu messen."
   softwareHdrMax: "Software-HDR-Limit"
   hdrTonemap: "HDR→SDR-Tonemapping"
   gpuIntegrated: "iGPU"

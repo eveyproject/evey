@@ -652,6 +652,7 @@ dashboardStats:
   loginFailed: "Error de inicio de sesión"
 
 serverSettings:
+  transcodeMovedHint: "La transcodificación (aceleración por hardware, calibración de codificación, AV1 y concurrencia) se configura en Configuración de transcodificación."
   title: "Configuracion del servidor"
   serverName: "Nombre del servidor"
   maxConcurrentTranscodes: "Transcodificaciones simultaneas max."
@@ -672,7 +673,23 @@ serverSettings:
   softwareAV1Auto: "Auto (solo hardware)"
   softwareAV1Info: "Altura máxima para la codificación AV1 por software (libsvtav1). Auto mantiene AV1 solo en hardware cuando el CPU no puede sostener la codificación por software; AV1 por software exige mucho a los CPU débiles."
 
+transcoding:
+  title: "Configuración de transcodificación"
+  subtitle: "Aceleración por hardware, calibración de codificación y política de códecs"
+  saved: "Guardado"
+  concurrencyTitle: "Concurrencia"
+  concurrencySubtitle: "Cuántas transcodificaciones pueden ejecutarse a la vez"
+  concurrencyAuto: "Detectar automáticamente"
+  concurrencyAutoHint: "Predeterminado del servidor ({{n}})"
+  concurrencyManualHint: "Limitar transcodificaciones simultáneas"
 calibration:
+  av1Label: "Salida AV1"
+  av1Hint: "Codificar en AV1 cuando un cliente lo admite — mejor compresión. Solo hardware; el AV1 por software nunca se usa para streaming."
+  av1NoHw: "No se detectó ningún codificador AV1 por hardware — activarlo no tiene efecto (los flujos siguen en H.264)."
+  av1MaxLabel: "Calidad máxima de AV1"
+  av1MaxAuto: "Automático (hasta la fuente)"
+  av1Applied: "Ajuste de AV1 aplicado"
+  transcodesActiveToast: "Detén la reproducción activa antes de recalibrar — el benchmark necesita un host inactivo para medir el límite real."
   softwareHdrMax: "Límite de codificación HDR por software"
   hdrTonemap: "Mapeo de tonos HDR→SDR"
   gpuIntegrated: "iGPU"

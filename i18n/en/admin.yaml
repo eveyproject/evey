@@ -719,6 +719,7 @@ calibration:
   codecSoftwareDecodeNote: "{{codecs}} — decoded in software (GPU encode only)"
 
 serverSettings:
+  transcodeMovedHint: "Transcoding (hardware acceleration, encode calibration, AV1 and concurrency) is configured in Transcoding configuration."
   title: Server Settings
   serverName: Server Name
   maxConcurrentTranscodes: Max Concurrent Transcodes

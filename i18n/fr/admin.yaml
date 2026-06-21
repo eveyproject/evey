@@ -718,6 +718,7 @@ calibration:
   codecSoftwareDecodeNote: "{{codecs}} — décodé en logiciel (encodage GPU uniquement)"
 
 serverSettings:
+  transcodeMovedHint: "Le transcodage (accélération matérielle, calibrage de l'encodage, AV1 et simultanéité) se configure dans Configuration du transcodage."
   title: "Paramètres du serveur"
   serverName: "Nom du serveur"
   maxConcurrentTranscodes: "Transcodages simultanés max."
