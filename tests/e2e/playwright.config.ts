@@ -1,6 +1,17 @@
 import { defineConfig } from "@playwright/test";
 import { STORAGE_STATE } from "./global-setup";
 
+// E2E login-rate-limit rule. The prod default is a tight EVEY_RATELIMIT_LOGIN_MAX=10
+// (10 logins/min/IP) which, across a full suite of logins + token refreshes, trips
+// LoginRL and snowballs into a 429→500 avalanche. The dev/test SERVER already raises
+// it (docker-compose.override.yml → EVEY_RATELIMIT_LOGIN_MAX=1000) so the suite never
+// throttles. Mirror that value into the RUNNER's env here (it runs on the host, which
+// otherwise can't see the container's override) so specs reasoning about the limit —
+// e.g. rate-limiting.spec — agree with the server and skip cleanly instead of firing
+// a doomed burst. Keep this in sync with the compose override; CI sets both explicitly
+// (and can drop it to the prod default to actually exercise the limiter).
+process.env.EVEY_RATELIMIT_LOGIN_MAX ??= "1000";
+
 export default defineConfig({
   globalSetup: "./global-setup.ts",
   globalTeardown: "./global-teardown.ts",
