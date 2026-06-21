@@ -761,9 +761,11 @@ func parseAspect(s string) (num, den int, ok bool) {
 // quality so easy scenes spend fewer bits than the rung's bitrate (bandwidth
 // saved, steady quality), while maxrate caps complex scenes at the bitrate the
 // manifest advertises (still ABR-safe — a peak can't blow past what the player
-// budgeted). 23 is the x264 sane default. HW encoders ignore CRF (rate-control
-// differs), so this is the software path only.
-const softwareCRF = "23"
+// budgeted). Lowered from the 23 x264 default to 20: the software path encodes
+// at the realtime veryfast preset, so a tighter CRF buys back sharpness for ~the
+// same encode cost, and the benched ceiling (also veryfast) is CRF-independent.
+// HW encoders ignore CRF (rate-control differs), so this is the software path only.
+const softwareCRF = "20"
 
 // svtAV1Preset is the libsvtav1 numeric speed/quality preset (0-13, higher =
 // faster). 10 leans fast for the weak-NAS software-AV1 path; tune here.
