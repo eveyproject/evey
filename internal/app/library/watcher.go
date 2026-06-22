@@ -13,7 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
-const debounceDelay = 2 * time.Second
+const defaultDebounceDelay = 2 * time.Second
 
 // LibraryScanner is the subset of Service needed by the watcher.
 type LibraryScanner interface {
@@ -26,6 +26,11 @@ type WatcherService struct {
 	scanner   LibraryScanner
 	log       *slog.Logger
 	bus       shared.EventBus
+	// debounceDelay is how long FS events coalesce before a scan fires (and the
+	// re-arm interval when a scan was already in progress). Injectable so tests
+	// can shrink it to milliseconds — the real-time default makes timing-based
+	// tests slow and flaky on slower runners.
+	debounceDelay time.Duration
 
 	mu            sync.Mutex
 	pathToLib     map[string]string // watched path → library ID
@@ -40,6 +45,16 @@ func WatcherWithEventBus(bus shared.EventBus) WatcherOption {
 	return func(ws *WatcherService) { ws.bus = bus }
 }
 
+// WatcherWithDebounce overrides the FS-event debounce/re-arm interval. Tests use
+// a tiny value so they don't wait real seconds (and don't flake on slow boxes).
+func WatcherWithDebounce(d time.Duration) WatcherOption {
+	return func(ws *WatcherService) {
+		if d > 0 {
+			ws.debounceDelay = d
+		}
+	}
+}
+
 func NewWatcherService(
 	watcher library.FileWatcher,
 	libraries library.LibraryQueryRepo,
@@ -52,8 +67,9 @@ func NewWatcherService(
 		libraries:  libraries,
 		scanner:    scanner,
 		log:        log,
-		pathToLib:  make(map[string]string),
-		failedLibs: make(map[string]bool),
+		pathToLib:     make(map[string]string),
+		failedLibs:    make(map[string]bool),
+		debounceDelay: defaultDebounceDelay,
 	}
 	for _, opt := range opts {
 		opt(ws)
@@ -179,9 +195,9 @@ func (ws *WatcherService) processEvents(ctx context.Context) {
 
 			mu.Lock()
 			if t, exists := pending[libID]; exists {
-				t.Reset(debounceDelay)
+				t.Reset(ws.debounceDelay)
 			} else {
-				pending[libID] = time.AfterFunc(debounceDelay, func() {
+				pending[libID] = time.AfterFunc(ws.debounceDelay, func() {
 					err := ws.triggerScan(ctx, libID)
 					mu.Lock()
 					defer mu.Unlock()
@@ -192,7 +208,7 @@ func (ws *WatcherService) processEvents(ctx context.Context) {
 					// event or a scheduled scan).
 					if errors.Is(err, ErrScanInProgress) {
 						if t := pending[libID]; t != nil {
-							t.Reset(debounceDelay)
+							t.Reset(ws.debounceDelay)
 							return
 						}
 					}

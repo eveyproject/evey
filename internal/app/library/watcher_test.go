@@ -17,6 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testDebounceDelay shrinks the watcher's real-time 2s debounce to milliseconds
+// so the timing-based tests run fast and don't flake on slower CI runners (the
+// retry test does 2× the debounce + scan, which tipped past its 8s deadline on
+// the self-hosted box).
+const testDebounceDelay = 10 * time.Millisecond
+
 type fakeLibraryScanner struct {
 	mu      sync.Mutex
 	scanned []string
@@ -66,7 +72,7 @@ func TestWatcherService_Start_WatchesEnabledLibraries(t *testing.T) {
 		Paths: []string{"/media/disabled"}, Enabled: true, RealtimeMonitoring: false,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -89,7 +95,7 @@ func TestWatcherService_FileEvent_TriggersScan(t *testing.T) {
 		Paths: []string{"/media/movies"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -119,7 +125,7 @@ func TestWatcherService_Debounce_MultipleFastEvents(t *testing.T) {
 		Paths: []string{"/media/movies"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -151,7 +157,7 @@ func TestWatcherService_AddLibrary(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	ctx := context.Background()
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -171,7 +177,7 @@ func TestWatcherService_IgnoresDisabledLibrary(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	ctx := context.Background()
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -196,7 +202,7 @@ func TestWatcherService_UnrelatedPath_NoScan(t *testing.T) {
 		Paths: []string{"/media/movies"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -221,7 +227,7 @@ func TestWatcherService_RemoveLibraryByID(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	ctx := context.Background()
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -251,7 +257,7 @@ func TestWatcherService_MultiplePaths_SingleLibrary(t *testing.T) {
 		Paths: []string{"/media/dir1", "/media/dir2"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -268,7 +274,7 @@ func TestWatcherService_AddLibrary_NotEnabledIgnored(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	ctx := context.Background()
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -296,7 +302,7 @@ func TestWatcherService_TwoLibraries_EventRoutesToCorrectOne(t *testing.T) {
 		Paths: []string{"/media/tv"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -329,7 +335,7 @@ func TestWatcherService_RetriesWhenScanInProgress(t *testing.T) {
 		Paths: []string{"/media/movies"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	require.NoError(t, ws.Start(ctx))
 	defer ws.Stop()
 
@@ -348,7 +354,7 @@ func TestWatcherService_StopIsSafe(t *testing.T) {
 	scanner := &fakeLibraryScanner{}
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(context.Background())
 	require.NoError(t, err)
 	ws.Stop()
@@ -361,7 +367,7 @@ func TestWatcherService_RemoveLibraryByID_NoMatchIsNoop(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	ctx := context.Background()
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -388,7 +394,7 @@ func TestWatcherService_WithEventBus_LibraryCreated(t *testing.T) {
 		Paths: []string{"/media/evt"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithEventBus(bus))
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithEventBus(bus), applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -411,7 +417,7 @@ func TestWatcherService_WithEventBus_LibraryDeleted(t *testing.T) {
 		Paths: []string{"/media/del"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithEventBus(bus))
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithEventBus(bus), applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -435,7 +441,7 @@ func TestWatcherService_WatchFails_FallbackToPeriodicScan(t *testing.T) {
 		Paths: []string{"/media/fail"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
@@ -456,7 +462,7 @@ func TestWatcherService_FileRemoved_TriggersScan(t *testing.T) {
 		Paths: []string{"/media/movies"}, Enabled: true, RealtimeMonitoring: true,
 	})
 
-	ws := applib.NewWatcherService(watcher, libRepo, scanner, log)
+	ws := applib.NewWatcherService(watcher, libRepo, scanner, log, applib.WatcherWithDebounce(testDebounceDelay))
 	err := ws.Start(ctx)
 	require.NoError(t, err)
 	defer ws.Stop()
