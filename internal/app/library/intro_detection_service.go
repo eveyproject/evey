@@ -18,6 +18,7 @@ import (
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -204,6 +205,7 @@ func (s *IntroDetectionService) isTrickplayEnabled(ctx context.Context) bool {
 // Also schedules a background backfill sweep at startup so seasons that were
 // scanned before the feature existed (or while the worker was down) get covered.
 func (s *IntroDetectionService) StartWorker(ctx context.Context) {
+	bgtasks.Register("intro_detection")
 	if s.events == nil {
 		return
 	}
@@ -845,6 +847,7 @@ func validateSegmentInput(segType string, startMs, endMs int64) error {
 func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlibrary.MediaItem) ([]domainlibrary.MediaSegment, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.runPipeline")
 	defer span.End()
+	defer bgtasks.Begin("intro_detection", string(item.ID))()
 
 	mediaItemID := string(item.ID)
 	cfg := loadIntroConfig(ctx, s.configRepo)

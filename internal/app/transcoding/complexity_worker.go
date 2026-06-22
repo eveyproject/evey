@@ -10,6 +10,7 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
 )
 
 // MediaItemReader is the minimal slice of the library API we need: fetch
@@ -103,6 +104,7 @@ func (w *ComplexityWorker) Stop() {
 }
 
 func (w *ComplexityWorker) run(ctx context.Context) {
+	bgtasks.Register("complexity_classifier")
 	defer close(w.done)
 	defer func() {
 		if r := recover(); r != nil {
@@ -168,6 +170,7 @@ func (w *ComplexityWorker) processBatch(ctx context.Context) int {
 }
 
 func (w *ComplexityWorker) classifyOne(ctx context.Context, mediaItemID string) {
+	defer bgtasks.Begin("complexity_classifier", mediaItemID)()
 	item, err := w.items.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		w.logger.Warn("complexity: media item lookup failed",

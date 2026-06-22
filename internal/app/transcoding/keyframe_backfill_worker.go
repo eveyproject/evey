@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
 )
 
 // KeyframeBackfillStore is the narrow persistence slice the keyframe worker
@@ -114,6 +115,7 @@ func (w *KeyframeBackfillWorker) Stop() {
 }
 
 func (w *KeyframeBackfillWorker) run(ctx context.Context) {
+	bgtasks.Register("keyframe_backfill")
 	defer close(w.done)
 	defer func() {
 		if r := recover(); r != nil {
@@ -176,6 +178,7 @@ func (w *KeyframeBackfillWorker) processBatch(ctx context.Context) int {
 // when at least one row was written (progress); false on any skip/failure so the
 // caller marks it. NEVER overwrites (SetKeyframes is NULL-guarded).
 func (w *KeyframeBackfillWorker) backfillOne(ctx context.Context, mediaItemID string) bool {
+	defer bgtasks.Begin("keyframe_backfill", mediaItemID)()
 	item, err := w.items.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		w.logger.Warn("keyframe backfill: item lookup failed",

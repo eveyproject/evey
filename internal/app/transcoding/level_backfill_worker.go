@@ -10,6 +10,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
 )
 
 // LevelBackfillStore is the narrow persistence slice the worker needs: find
@@ -143,6 +144,7 @@ func (w *LevelBackfillWorker) Stop() {
 }
 
 func (w *LevelBackfillWorker) run(ctx context.Context) {
+	bgtasks.Register("level_backfill")
 	defer close(w.done)
 	defer func() {
 		if r := recover(); r != nil {
@@ -214,6 +216,7 @@ func (w *LevelBackfillWorker) processBatch(ctx context.Context) int {
 // caller marks it. It NEVER replaces streams — a degraded or empty probe can't
 // wipe existing metadata the way a full replace would.
 func (w *LevelBackfillWorker) backfillOne(ctx context.Context, mediaItemID string) bool {
+	defer bgtasks.Begin("level_backfill", mediaItemID)()
 	item, err := w.items.GetByID(ctx, shared.MediaItemID(mediaItemID))
 	if err != nil {
 		w.logger.Warn("level backfill: item lookup failed",
