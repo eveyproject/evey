@@ -884,12 +884,17 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 				kfOpts.IdleInterval = time.Duration(n) * time.Second
 			}
 		}
+		// Read the container seek index (mkvgo: MP4 stss / Matroska Cues) head-only
+		// before the multi-minute ffprobe packet scan, gated by the same fast-path
+		// funcs as the metadata prober; falls back to ffprobe when gated off or the
+		// container yields no index.
+		kfProber := proberpkg.NewKeyframeDispatcher(infra.prober, func() bool { return mkvFastPath }, cfg.EffectiveMP4FastpathEnabled)
 		keyframeBackfillWorker := apptranscoding.NewKeyframeBackfillWorker(
 			r.MediaStream,
 			mediaItemReaderFunc(func(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 				return libQuerySvc.GetMediaItem(ctx, string(id))
 			}),
-			infra.prober,
+			kfProber,
 			kfOpts,
 			slog.Default(),
 		)
