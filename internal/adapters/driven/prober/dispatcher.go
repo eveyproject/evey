@@ -88,7 +88,7 @@ func (d *Dispatcher) ProbeStreams(ctx context.Context, filePath string) (res *li
 		span.AddEvent("meta-readmeta-error: ffprobe fallback")
 		return d.fallback.ProbeStreams(ctx, filePath)
 	}
-	res, ok := mapContainer(c)
+	res, ok := mapContainer(c, d.meta.IsEBML(filePath))
 	if !ok {
 		span.AddEvent("meta-unmappable: ffprobe fallback")
 		return d.fallback.ProbeStreams(ctx, filePath)
@@ -106,7 +106,11 @@ func (realMetaReader) IsMP4(path string) bool  { return mkvadapter.IsMP4Containe
 
 func (realMetaReader) ReadMeta(ctx context.Context, path string) (*extmkv.Container, error) {
 	if mkvadapter.IsMP4Container(path) {
-		return mp4.OpenMeta(ctx, path)
+		// head-only metadata (no sample table); keyframes are derived on demand by
+		// the keyframe backfill worker via mp4.Options{Keyframes: true}. dropped
+		// tracks (cover art, QuickTime chapter text) are not surfaced as streams.
+		c, _, err := mp4.OpenMeta(ctx, path)
+		return c, err
 	}
 	return reader.OpenMeta(ctx, path)
 }

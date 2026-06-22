@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -47,7 +48,9 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 			t.Logf("SKIP %s: mkvgo ReadMeta error %v", filepath.Base(f), err)
 			continue
 		}
-		mapped, ok := mapContainer(c)
+		lower := strings.ToLower(f)
+		ebml := strings.HasSuffix(lower, ".mkv") || strings.HasSuffix(lower, ".webm")
+		mapped, ok := mapContainer(c, ebml)
 		if !ok {
 			fellBack++
 			t.Logf("FALLBACK %s (mapper bailed -> ffprobe)", filepath.Base(f))
@@ -65,7 +68,7 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 			require.Lenf(t, mk, len(fp), "%s: %s stream count", name, st)
 			for i := range mk {
 				m, p := mk[i], fp[i]
-				assert.Equalf(t, p.Codec, m.Codec, "%s %s[%d] codec", name, st, i)
+				assert.Equalf(t, normCodec(p.Codec), normCodec(m.Codec), "%s %s[%d] codec", name, st, i)
 				assert.Equalf(t, normLang(p.Language), normLang(m.Language), "%s %s[%d] language", name, st, i)
 				assert.Equalf(t, p.IsDefault, m.IsDefault, "%s %s[%d] default", name, st, i)
 				assert.Equalf(t, p.IsForced, m.IsForced, "%s %s[%d] forced", name, st, i)
@@ -81,6 +84,17 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 		}
 	}
 	t.Logf("parity: %d fast-path, %d fell back to ffprobe (of %d files)", fastPath, fellBack, len(files))
+}
+
+// normCodec folds container-specific spellings of the same codec so the MP4
+// (mkvgo) and ffprobe vocabularies compare equal: ffprobe reports the MP4
+// timed-text track as "mov_text" while mkvgo (like the decision's text-class
+// handling) treats it as "subrip" — same text-subtitle class either way.
+func normCodec(c string) string {
+	if c == "mov_text" {
+		return "subrip"
+	}
+	return c
 }
 
 func byType(s []*library.MediaStream, t library.StreamType) []*library.MediaStream {

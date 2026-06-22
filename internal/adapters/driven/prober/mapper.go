@@ -23,7 +23,12 @@ import (
 // channels, samplerate, colour/HDR, duration). It returns ok=false — NOT an
 // error — whenever it cannot guarantee that equivalence, so the dispatcher can
 // cleanly fall back to ffprobe. Conservative by design: when in doubt, bail.
-func mapContainer(c *extmkv.Container) (*library.ProbeResult, bool) {
+// mapContainer's ebml argument is true for Matroska/WebM sources and false for
+// MP4: only Matroska defaults a track's language to "eng" when no Language
+// element is present (the spec default, which ffmpeg applies too), so without it
+// a tag-less audio track would not match an English-preferring selection the way
+// the ffprobe authority does.
+func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 	if c == nil || len(c.Tracks) == 0 {
 		return nil, false
 	}
@@ -59,10 +64,13 @@ func mapContainer(c *extmkv.Container) (*library.ProbeResult, bool) {
 			IsDefault:   t.IsDefault,
 			IsForced:    t.IsForced,
 		}
-		// Language only when the file actually carried one (mirror ffprobe's
-		// "only if tags[language] present"); ResolvedLanguage prefers BCP-47.
+		// Language from the carried element (ResolvedLanguage prefers BCP-47); for
+		// Matroska, fall back to the spec default "eng" when no element is present
+		// so the result matches ffprobe, which applies the same default.
 		if t.LanguagePresent {
 			ms.Language = t.ResolvedLanguage()
+		} else if ebml {
+			ms.Language = "eng"
 		}
 		if t.Name != "" {
 			ms.Title = t.Name

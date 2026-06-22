@@ -73,8 +73,9 @@ type ffprobeSideData struct {
 }
 
 type ffprobeDisposition struct {
-	Default int `json:"default"`
-	Forced  int `json:"forced"`
+	Default     int `json:"default"`
+	Forced      int `json:"forced"`
+	AttachedPic int `json:"attached_pic"`
 }
 
 func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.ProbeResult, error) {
@@ -98,6 +99,13 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 
 	var streams []*library.MediaStream
 	for _, s := range probe.Streams {
+		// Cover art / thumbnails ride as attached_pic "video" streams (mjpeg/png)
+		// in both MP4 and Matroska; they are not playable video and the mkvgo
+		// fast path does not surface them as tracks, so skip them to keep stream
+		// counts and the playback decision aligned between the two probers.
+		if s.Disposition.AttachedPic == 1 {
+			continue
+		}
 		ms := &library.MediaStream{
 			ID:            uuid.New().String(),
 			StreamIndex:   s.Index,
@@ -108,7 +116,13 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 			IsDefault:     s.Disposition.Default == 1,
 			IsForced:      s.Disposition.Forced == 1,
 		}
+		// Matroska carries language in the track header (ffprobe lowercases it to
+		// "language") OR, when it only lives in a Tags SimpleTag, ffprobe preserves
+		// the verbatim "LANGUAGE" key — accept either so a Tags-only language is
+		// not silently dropped.
 		if lang, ok := s.Tags["language"]; ok {
+			ms.Language = lang
+		} else if lang, ok := s.Tags["LANGUAGE"]; ok {
 			ms.Language = lang
 		}
 		if title, ok := s.Tags["title"]; ok {

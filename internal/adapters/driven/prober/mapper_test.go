@@ -40,7 +40,7 @@ func TestMapContainer_FullSDRHEVC(t *testing.T) {
 			},
 		},
 	}
-	res, ok := mapContainer(c)
+	res, ok := mapContainer(c, true)
 	require.True(t, ok)
 	require.Len(t, res.Streams, 3)
 	assert.Equal(t, int64(7_200_000), res.Duration.Milliseconds())
@@ -93,13 +93,13 @@ func TestMapContainer_HDRCandidateBailsToFFprobe(t *testing.T) {
 		return &extmkv.Container{DurationMs: 1000, Tracks: []extmkv.Track{tr}}
 	}
 
-	_, ok := mapContainer(track(func(tr *extmkv.Track) { tr.ColorSpace = new(cicpBT2020nc) }))
+	_, ok := mapContainer(track(func(tr *extmkv.Track) { tr.ColorSpace = new(cicpBT2020nc) }), true)
 	assert.False(t, ok, "bt2020 colour space must fall back to ffprobe (DoVi ground truth)")
 
-	_, ok = mapContainer(track(func(tr *extmkv.Track) { tr.ColorTransfer = &cicpPQ }))
+	_, ok = mapContainer(track(func(tr *extmkv.Track) { tr.ColorTransfer = &cicpPQ }), true)
 	assert.False(t, ok, "PQ transfer must fall back to ffprobe (DoVi ground truth)")
 
-	_, ok = mapContainer(track(func(*extmkv.Track) {}))
+	_, ok = mapContainer(track(func(*extmkv.Track) {}), true)
 	assert.True(t, ok, "SDR hevc (bt709, no HDR transfer) keeps the fast path")
 }
 
@@ -113,7 +113,7 @@ func TestMapContainer_H264_SDR_NoColourOK(t *testing.T) {
 			{Type: extmkv.AudioTrack, Codec: "aac", Channels: new(uint8(2))},
 		},
 	}
-	res, ok := mapContainer(c)
+	res, ok := mapContainer(c, true)
 	require.True(t, ok)
 	assert.Equal(t, "bt709", *res.Streams[0].ColorSpace)
 	assert.Equal(t, "High", res.Streams[0].Profile)
@@ -125,18 +125,27 @@ func TestMapContainer_H264_NoColour_StillOK(t *testing.T) {
 	c := &extmkv.Container{Tracks: []extmkv.Track{
 		{Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080))},
 	}}
-	_, ok := mapContainer(c)
+	_, ok := mapContainer(c, true)
 	assert.True(t, ok)
 }
 
 func TestMapContainer_LanguageAbsent(t *testing.T) {
-	c := &extmkv.Container{Tracks: []extmkv.Track{
-		{Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)), ColorSpace: new(cicpBT709)},
-		{Type: extmkv.AudioTrack, Codec: "aac", Language: "eng", LanguagePresent: false}, // present=false -> ""
-	}}
-	res, ok := mapContainer(c)
+	mk := func() *extmkv.Container {
+		return &extmkv.Container{Tracks: []extmkv.Track{
+			{Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)), ColorSpace: new(cicpBT709)},
+			// stale Language value with present=false: it must be ignored, and the
+			// result must come from the container-family default, not "fra".
+			{Type: extmkv.AudioTrack, Codec: "aac", Language: "fra", LanguagePresent: false},
+		}}
+	}
+	// Matroska: no Language element -> spec default "eng" (ffmpeg/ffprobe apply it).
+	res, ok := mapContainer(mk(), true)
 	require.True(t, ok)
-	assert.Empty(t, res.Streams[1].Language, "no language element -> empty (mirror ffprobe)")
+	assert.Equal(t, "eng", res.Streams[1].Language, "Matroska no-language element -> eng default")
+	// MP4: no eng default (mdhd carries und when unset), absent stays empty.
+	res, ok = mapContainer(mk(), false)
+	require.True(t, ok)
+	assert.Empty(t, res.Streams[1].Language, "MP4 no-language -> empty")
 }
 
 func TestMapContainer_FallbackGates(t *testing.T) {
@@ -159,7 +168,7 @@ func TestMapContainer_FallbackGates(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, ok := mapContainer(tc.c)
+			_, ok := mapContainer(tc.c, true)
 			assert.False(t, ok, "must fall back to ffprobe")
 		})
 	}
