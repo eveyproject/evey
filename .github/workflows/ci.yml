@@ -286,8 +286,17 @@ jobs:
           # Scope the GHA cache per variant so a `full` build never overwrites
           # the `lean` cache and vice versa — buildx layers diverge only in the
           # apt layer but the cache key needs to reflect that to stay correct.
+          #
+          # ignore-error=true: the image build+push is the deliverable; the GHA
+          # cache export is a best-effort speedup. The GitHub Actions Cache
+          # service is flaky/unavailable on this self-hosted + over-quota setup
+          # (400 "services aren't available" on export), which would otherwise
+          # red-fail the job AFTER the image already shipped. Don't let a cache
+          # hiccup mask a successful publish. (If the cache stays down, builds
+          # just run uncached — switch to type=local for persistent on-disk
+          # caching on the runner if speed becomes an issue.)
           cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
-          cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }}
+          cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }},ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
   # Sentinel job for branch protection. Required check should target this
