@@ -329,15 +329,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// MKV indexing fast-path: route .mkv stream-probing through the in-process
 	// mkvgo reader (no ffprobe fork, head-only read), falling back to ffprobe for
 	// non-mkv and for any .mkv it can't render field-equivalent. Gated by
-	// EVEY_MKV_FASTPATH / EVEY_MP4_FASTPATH (both default off = pure ffprobe
-	// pass-through) — conservative rollout for the vital scan path, gated
-	// independently so the validated EBML path can ship on while the newer mp4
-	// path waits on its own real-file parity run (parity_realfile_test). Music
-	// keeps bare infra.prober (needs the per-track bitrate mkvgo lacks), so it is
-	// intentionally not wrapped.
+	// Two fast-path gates, independent so the validated EBML path can ship on
+	// while the newer mp4 path waits on its own real-file parity run
+	// (parity_realfile_test). mkv keeps its legacy env; mp4 is a live admin-panel
+	// setting (read per-file via cfg, no env, no restart — settings belong in the
+	// panel). Music keeps bare infra.prober (needs the per-track bitrate mkvgo
+	// lacks), so it is intentionally not wrapped.
 	mkvFastPath := os.Getenv("EVEY_MKV_FASTPATH") == "1"
-	mp4FastPath := os.Getenv("EVEY_MP4_FASTPATH") == "1"
-	scanProber := proberpkg.New(infra.prober, func() bool { return mkvFastPath }, func() bool { return mp4FastPath })
+	scanProber := proberpkg.New(infra.prober, func() bool { return mkvFastPath }, cfg.EffectiveMP4FastpathEnabled)
 
 	libCmdSvc := applibrary.NewCommandService(
 		r.Library, r.Library, r.MediaItem,

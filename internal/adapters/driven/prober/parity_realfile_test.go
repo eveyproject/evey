@@ -19,8 +19,9 @@ import (
 // then asserts the DECISION-AFFECTING fields agree. PATH-gated: skips unless
 // EVEY_PARITY_DIR is set (no real-file paths are committed — run it locally,
 // e.g. EVEY_PARITY_DIR=/media go test...). This is the real-file validation gate
-// to pass before enabling EVEY_MP4_FASTPATH in prod, the same way the mkv path
-// was validated. Display-only fields (CodecLongName, ChannelLayout, per-stream
+// to pass before flipping the mp4 fast-path toggle on in prod (admin panel →
+// Transcoding), the same way the mkv path was validated. Display-only fields
+// (CodecLongName, ChannelLayout, per-stream
 // Bitrate) are not compared; ffprobe attachment streams (which mkvgo does not
 // surface as tracks) are ignored by comparing per stream-type.
 func TestParity_AgainstFFprobe(t *testing.T) {

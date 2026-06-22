@@ -136,7 +136,7 @@ func TestServerSettings_Get_Admin(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	for _, k := range []string{"serverName", "maxConcurrentTranscodes", "hwAccelEnabled", "loginRateLimit", "globalRateLimit"} {
+	for _, k := range []string{"serverName", "maxConcurrentTranscodes", "hwAccelEnabled", "loginRateLimit", "globalRateLimit", "mp4FastpathEnabled"} {
 		v, ok := resp[k]
 		if !ok {
 			t.Errorf("missing key %s", k)
@@ -193,6 +193,32 @@ func TestServerSettings_Put_Admin_PartialBody(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
 	if resp["serverName"].Source != "override" {
 		t.Errorf("expected serverName source override, got %s", resp["serverName"].Source)
+	}
+}
+
+func TestServerSettings_Put_MP4Fastpath_PersistsAndAppliesLive(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	body := strings.NewReader(`{"mp4FastpathEnabled":true}`)
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings", body)
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	// Applied to cfg live — the prober dispatcher reads EffectiveMP4FastpathEnabled
+	// per file, so the toggle takes effect with no restart.
+	if !env.cfg.EffectiveMP4FastpathEnabled() {
+		t.Error("EffectiveMP4FastpathEnabled() = false, want true after PUT")
+	}
+	if got := env.store.sets[cfgKeyMP4Fastpath]; got != "true" {
+		t.Errorf("store[%s] = %q want %q", cfgKeyMP4Fastpath, got, "true")
+	}
+	var resp map[string]settingValue
+	_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+	if resp["mp4FastpathEnabled"].Source != "override" {
+		t.Errorf("expected mp4FastpathEnabled source override, got %s", resp["mp4FastpathEnabled"].Source)
 	}
 }
 
