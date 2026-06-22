@@ -436,6 +436,15 @@ analytics:
 
 activity:
   title: "गतिविधि"
+  backgroundTasks: "पृष्ठभूमि कार्य"
+  bgRunning: "चल रहा है"
+  bgIdle: "निष्क्रिय"
+  bgProcessed: "{{n}} पूर्ण"
+  bgTask:
+    complexity_classifier: "जटिलता वर्गीकरण"
+    intro_detection: "इंट्रो पहचान"
+    keyframe_backfill: "कीफ़्रेम इंडेक्सिंग"
+    level_backfill: "लेवल बैकफ़िल"
   tabs:
     playHistory: "प्ले इतिहास"
     serverStats: "सर्वर आंकड़े"
@@ -682,6 +691,10 @@ transcoding:
   concurrencyAuto: "स्वचालित रूप से पहचानें"
   concurrencyAutoHint: "सर्वर डिफ़ॉल्ट ({{n}})"
   concurrencyManualHint: "समवर्ती ट्रांसकोड सीमित करें"
+  mp4FastpathTitle: "स्कैन फास्ट-पाथ"
+  mp4FastpathSubtitle: "ffprobe के बजाय इन-प्रोसेस MP4 मेटाडेटा जाँच"
+  mp4FastpathLabel: "MP4 मेटाडेटा फास्ट-पाथ"
+  mp4FastpathHint: "ffprobe चलाने के बजाय .mp4/.m4v मेटाडेटा इन-प्रोसेस पढ़ें (तेज़ री-स्कैन)। सक्षम करने से पहले अपनी असली फ़ाइलों पर जाँचें।"
 calibration:
   av1Label: "AV1 आउटपुट"
   av1Hint: "जब कोई क्लाइंट समर्थन करता है तो AV1 में एन्कोड करें — बेहतर संपीड़न। केवल हार्डवेयर; सॉफ़्टवेयर AV1 कभी स्ट्रीमिंग के लिए उपयोग नहीं होता।"

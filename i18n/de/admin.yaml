@@ -436,6 +436,15 @@ analytics:
 
 activity:
   title: Aktivität
+  backgroundTasks: "Hintergrundaufgaben"
+  bgRunning: "läuft"
+  bgIdle: "inaktiv"
+  bgProcessed: "{{n}} erledigt"
+  bgTask:
+    complexity_classifier: "Komplexitäts-Klassifizierung"
+    intro_detection: "Intro-Erkennung"
+    keyframe_backfill: "Keyframe-Indexierung"
+    level_backfill: "Level-Nachtrag"
   tabs:
     playHistory: Wiedergabeverlauf
     serverStats: Serverstatistiken
@@ -682,6 +691,10 @@ transcoding:
   concurrencyAuto: "Automatisch erkennen"
   concurrencyAutoHint: "Server-Standard ({{n}})"
   concurrencyManualHint: "Gleichzeitige Transcodierungen begrenzen"
+  mp4FastpathTitle: "Scan-Fast-Path"
+  mp4FastpathSubtitle: "MP4-Metadaten intern lesen statt ffprobe"
+  mp4FastpathLabel: "MP4-Metadaten-Fast-Path"
+  mp4FastpathHint: "Liest .mp4/.m4v-Metadaten intern (schnellere Re-Scans) statt ffprobe zu starten. Vor dem Aktivieren an echten Dateien prüfen."
 calibration:
   av1Label: "AV1-Ausgabe"
   av1Hint: "In AV1 codieren, wenn ein Client es unterstützt — bessere Kompression. Nur Hardware; Software-AV1 wird nie für Streaming verwendet."

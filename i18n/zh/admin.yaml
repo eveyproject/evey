@@ -436,6 +436,15 @@ analytics:
 
 activity:
   title: "活动"
+  backgroundTasks: "后台任务"
+  bgRunning: "运行中"
+  bgIdle: "空闲"
+  bgProcessed: "已完成 {{n}}"
+  bgTask:
+    complexity_classifier: "复杂度分类"
+    intro_detection: "片头检测"
+    keyframe_backfill: "关键帧索引"
+    level_backfill: "级别回填"
   tabs:
     playHistory: "播放历史"
     serverStats: "服务器统计"
@@ -682,6 +691,10 @@ transcoding:
   concurrencyAuto: "自动检测"
   concurrencyAutoHint: "服务器默认值 ({{n}})"
   concurrencyManualHint: "限制并发转码数"
+  mp4FastpathTitle: "扫描快速通道"
+  mp4FastpathSubtitle: "在进程内读取 MP4 元数据，而非 ffprobe"
+  mp4FastpathLabel: "MP4 元数据快速通道"
+  mp4FastpathHint: "在进程内读取 .mp4/.m4v 元数据（重新扫描更快），而非调用 ffprobe。启用前请在真实文件上验证。"
 calibration:
   av1Label: "AV1 输出"
   av1Hint: "在客户端支持时编码为 AV1 — 压缩率更高。仅硬件；软件 AV1 从不用于流式传输。"
