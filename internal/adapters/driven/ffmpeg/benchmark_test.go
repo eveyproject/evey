@@ -35,6 +35,21 @@ func TestBenchmarkRunner_TestSrcFallback_ReturnsValidCap(t *testing.T) {
 	assert.GreaterOrEqual(t, cap.SoftwareMaxHeight, 720, "software cap must be at least 720p (universal floor)")
 	assert.Positive(t, cap.BenchmarkDurationMs)
 	assert.NotZero(t, cap.BenchmarkedAt)
+
+	// A HW cap must come with its per-rung evidence: if a GPU backend was usable
+	// (HWMaxHeight > 0) the hardware ladder samples must be recorded so the admin
+	// panel can show the HW fps, not just software. Regression guard — they used
+	// to be computed then dropped. Conditional so boxes without a GPU still pass.
+	if cap.HWMaxHeight > 0 {
+		hasHW := false
+		for _, s := range cap.BenchSamples {
+			if s.Ladder == "hw" {
+				hasHW = true
+				break
+			}
+		}
+		assert.True(t, hasHW, "HWMaxHeight>0 must record hw bench samples for the admin panel")
+	}
 }
 
 // TestBenchmarkRunner_SingleVariant_RunsEndToEnd proves the single-rung probe

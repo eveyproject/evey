@@ -220,11 +220,12 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		hwBackend string
 		hwCodecs  []string
 		hwDevice  string
+		hwSamples []transcoding.BenchRungSample
 	)
 	// pref.DisableHW (mode=off) calibrates software-only: skip the hardware
 	// probe entirely so the host never selects a GPU the operator disabled.
 	if !pref.DisableHW {
-		hwMax, hwBackend, hwCodecs, hwDevice = r.benchHardware(ctx, sample, fallback, pref.Backend)
+		hwMax, hwBackend, hwCodecs, hwDevice, hwSamples = r.benchHardware(ctx, sample, fallback, pref.Backend)
 	}
 
 	// Probe which optional encoder tuning options the HW encoder accepts, so
@@ -270,8 +271,10 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		BenchmarkDurationMs:  time.Since(start).Milliseconds(),
 		// Per-rung evidence (fps vs realtime threshold) behind the ceilings above,
 		// surfaced in the admin calibration API so the operator can see WHY the
-		// HDR cap floored to 480p instead of guessing.
-		BenchSamples: append(append(swSamples, hdrSamples...), av1Samples...),
+		// HDR cap floored to 480p instead of guessing. Includes the hardware ladder
+		// (Ladder=="hw") when a GPU backend was probed, so the panel shows the HW
+		// fps too, not just software.
+		BenchSamples: append(append(append(swSamples, hdrSamples...), av1Samples...), hwSamples...),
 	}
 	r.logger.Info("benchmark: complete",
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
@@ -730,10 +733,10 @@ func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string
 // software path (1 decode + N parallel encodes, matching prod).
 // Returns (0, "") when no HW is usable — software-only operation,
 // fully supported by the handler.
-func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pinBackend string) (int, string, []string, string) {
+func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pinBackend string) (int, string, []string, string, []transcoding.BenchRungSample) {
 	devices, err := r.hwDetector.DetectDevices(ctx)
 	if err != nil || len(devices) == 0 {
-		return 0, "", nil, ""
+		return 0, "", nil, "", nil
 	}
 	pinBackend = strings.ToLower(strings.TrimSpace(pinBackend))
 	for _, dev := range devices {
@@ -757,14 +760,18 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		if encoder == "" {
 			continue
 		}
-		// runLadder probes each rung under the multi-variant pipeline and
-		// returns the tallest passing height (0 if none).
-		runLadder := func(extraInputArgs []string, uploadChain string) int {
+		// runLadder probes each rung under the multi-variant pipeline and returns
+		// the tallest passing height (0 if none) plus the per-rung samples (fps vs
+		// threshold) so the admin calibration table can show the HW evidence the
+		// same way it shows the software ladders.
+		runLadder := func(extraInputArgs []string, uploadChain string) (int, []transcoding.BenchRungSample) {
 			best := 0
+			var samples []transcoding.BenchRungSample
 			for i, h := range hwBenchLadder {
 				laddered := hwBenchLadder[:i+1]
 				fps, ok := r.runMultiVariant(ctx, sample, fallback, laddered, encoder, extraInputArgs, uploadChain)
-				passing := ok && fps >= float64(r.sourceRate())*r.margin
+				required := float64(r.sourceRate()) * r.margin
+				passing := ok && fps >= required
 				r.logger.Info("benchmark: hardware probe",
 					slog.String("backend", dev.Type),
 					slog.String("encoder", encoder),
@@ -773,16 +780,24 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 					slog.Float64("fps", fps),
 					slog.Bool("passing", passing),
 					slog.Bool("decoupled", uploadChain != ""))
+				samples = append(samples, transcoding.BenchRungSample{
+					Ladder:          "hw",
+					Height:          h,
+					FPS:             fps,
+					RequiredFPS:     required,
+					Passing:         passing,
+					ParallelEncodes: len(laddered),
+				})
 				if !passing {
 					break
 				}
 				best = h
 			}
-			return best
+			return best, samples
 		}
 
 		// First measure the production zero-copy path: HW decode → scale → encode.
-		best := runLadder(hwInputArgs(dev.Type), "")
+		best, samples := runLadder(hwInputArgs(dev.Type), "")
 		// If nothing passed, the GPU may simply be unable to HW-DECODE the sample
 		// codec while still being able to ENCODE — pre-Skylake Intel iGPUs decode
 		// H.264 but NOT HEVC, and our sample is HEVC, so `-hwaccel vaapi` fails with
@@ -791,14 +806,14 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		// VAAPI/QSV only — NVENC HW-decodes every codec, so it never needs this.
 		if best == 0 {
 			if up := hwUploadChain(encoder); up != "" {
-				best = runLadder(hwDecoupledInputArgs(dev.Type), up)
+				best, samples = runLadder(hwDecoupledInputArgs(dev.Type), up)
 			}
 		}
 		if best > 0 {
-			return best, dev.Type, hwDomainCodecs(dev.SupportedCodecs), hwDevicePath(dev.Type)
+			return best, dev.Type, hwDomainCodecs(dev.SupportedCodecs), hwDevicePath(dev.Type), samples
 		}
 	}
-	return 0, "", nil, ""
+	return 0, "", nil, "", nil
 }
 
 // hwDomainCodecs maps probed encoder names (h264_nvenc, hevc_vaapi, ...) back
