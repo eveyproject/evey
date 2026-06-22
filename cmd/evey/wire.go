@@ -630,7 +630,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// without this it grows without bound. Same lifetime/stop semantics as above.
 	_ = apptranscoding.NewRemuxCacheJanitor(filepath.Join(cfg.Transcoding.CacheDir, "remux")).
 		StartEviction(apptranscoding.EvictionPolicy{
-			MaxBytes: int64(cfg.Transcoding.RemuxCacheMaxGB) * 1024 * 1024 * 1024,
+			MaxBytes: apptranscoding.DefaultRemuxCacheBytes,
 		}, slog.Default())
 	// Inline SourceResolver: the orchestrator hands a DecisionFingerprint
 	// back, we look up the media item via the library query service. Streams

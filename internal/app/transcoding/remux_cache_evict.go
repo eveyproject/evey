@@ -12,6 +12,12 @@ import (
 	"time"
 )
 
+// DefaultRemuxCacheBytes caps the on-disk fast-start MP4 remux cache
+// (<CacheDir>/remux). Fixed at 10 GiB: a cache budget is rarely worth an
+// operator knob, and a sensible bound beats an env var (settings belong in the
+// admin panel, not .env). Swept independently of the segment cache.
+const DefaultRemuxCacheBytes = 10 * 1024 * 1024 * 1024
+
 // RemuxCacheJanitor bounds a flat-file cache directory — the fast-start MP4s the
 // /remux.mp4 handler writes under <CacheDir>/remux, one whole file per entry. It
 // reuses the segment cache's EvictionPolicy knobs and LRU-by-(size, mtime)

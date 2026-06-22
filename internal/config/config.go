@@ -291,12 +291,7 @@ type TranscodingConfig struct {
 	// Distinct from MaxConcurrent, which gates the legacy (non-VOD) service.
 	MaxSessions    int
 	CacheMaxGB     int
-	// RemuxCacheMaxGB bounds the on-disk fast-start MP4 remux cache
-	// (<CacheDir>/remux), swept independently of the segment cache so the two
-	// don't share — and silently blow past — a single budget. 0 disables the
-	// remux janitor (unbounded growth).
-	RemuxCacheMaxGB int
-	CacheDir        string
+	CacheDir       string
 	HWAccelEnabled bool
 	// HWBackend pins which HW encode backend this instance uses ("nvenc",
 	// "vaapi", "qsv"); empty = auto-detect. A deployment-time knob: it lets one
@@ -635,7 +630,6 @@ func Load() (*Config, error) {
 			MaxConcurrent:                envInt("EVEY_TRANSCODING_MAX_CONCURRENT", 2),
 			MaxSessions:                  envInt("EVEY_TRANSCODING_MAX_SESSIONS", 0),
 			CacheMaxGB:                   envInt("EVEY_TRANSCODING_CACHE_MAX_GB", 50),
-			RemuxCacheMaxGB:              envInt("EVEY_TRANSCODING_REMUX_CACHE_MAX_GB", 10),
 			CacheDir:                     envStr("EVEY_TRANSCODING_CACHE_DIR", "/data/transcode"),
 			HWAccelEnabled:               envBool("EVEY_TRANSCODING_HW_ACCEL_ENABLED", false),
 			HWBackend:                    strings.ToLower(strings.TrimSpace(envStr("EVEY_TRANSCODING_HW_BACKEND", ""))),
