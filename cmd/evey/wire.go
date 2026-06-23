@@ -62,6 +62,7 @@ import (
 	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/pkg/eventbus"
@@ -590,6 +591,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	libCmdSvc.WithPhotoScanner(photoSvc)
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist, r.MediaItemQuery)
 	playlistSvc.WithMusicTrackChecker(musicTrackCheckerAdapter{repo: r.MusicTrack})
+	// AddItem resolves the media item (for its library) and gates it on the
+	// acting profile's library access, so a profile cannot add — and then read
+	// the metadata of — media from a library it has no access to.
+	playlistSvc.WithMediaChecker(mediaItemCheckerAdapter{repo: r.MediaItem})
+	playlistSvc.WithLibraryAccessChecker(playlistLibraryAccessAdapter{profiles: r.Profile, access: r.LibraryAccess})
 	playlistGenSvc := appplaylist.NewGeneratorService(r.MusicTrack, r.MusicPlay, r.Playlist, r.PlaylistItem)
 
 	var subtitleSvc *appsubtitle.Service
@@ -1394,6 +1400,32 @@ func (a musicTrackCheckerAdapter) Exists(ctx context.Context, id string) (bool, 
 		return false, err
 	}
 	return t != nil, nil
+}
+
+// mediaItemCheckerAdapter adapts the library MediaItemRepository (typed id) to
+// playlist.MediaItemExistsChecker (string id). It returns the item so AddItem
+// can read its LibraryID for the library-access gate.
+type mediaItemCheckerAdapter struct {
+	repo library.MediaItemRepository
+}
+
+func (a mediaItemCheckerAdapter) GetByID(ctx context.Context, id string) (*library.MediaItem, error) {
+	return a.repo.GetByID(ctx, shared.MediaItemID(id))
+}
+
+// playlistLibraryAccessAdapter implements playlist.PlaylistLibraryAccessChecker:
+// it resolves the profile to its owning user, then consults library_access.
+type playlistLibraryAccessAdapter struct {
+	profiles domainuser.ProfileRepository
+	access   domainuser.LibraryAccessRepository
+}
+
+func (a playlistLibraryAccessAdapter) HasAccessForProfile(ctx context.Context, profileID, libraryID string) (bool, error) {
+	p, err := a.profiles.GetByID(ctx, shared.ProfileID(profileID))
+	if err != nil {
+		return false, err
+	}
+	return a.access.HasAccess(ctx, p.UserID, shared.LibraryID(libraryID))
 }
 
 // mediaItemDurationGetter adapts the cached MediaItem query repo to the
