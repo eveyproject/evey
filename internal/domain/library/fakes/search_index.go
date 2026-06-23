@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/evey-project/evey/internal/domain/library"
 )
@@ -12,6 +13,9 @@ type FakeSearchIndex struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
 	Err   error
+	// LastSearchLimit records the limit of the most recent Search call so tests
+	// can assert the handler clamped it. Atomic so it never races the RLock.
+	LastSearchLimit atomic.Int64
 }
 
 func NewFakeSearchIndex() *FakeSearchIndex {
@@ -74,6 +78,7 @@ func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {
 }
 
 func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]string, _ []string, limit int64) ([]library.SearchHit, int64, error) {
+	s.LastSearchLimit.Store(limit)
 	if s.Err != nil {
 		return nil, 0, s.Err
 	}

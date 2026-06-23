@@ -93,7 +93,14 @@ func (h *webhookHandler) DeleteWebhook(ctx context.Context, req *eveyv1.DeleteWe
 func (h *webhookHandler) ListWebhookDeliveries(ctx context.Context, req *eveyv1.ListWebhookDeliveriesRequest) (*eveyv1.ListWebhookDeliveriesResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.webhook.ListWebhookDeliveries")
 	defer span.End()
-	deliveries, err := h.svc.ListDeliveries(ctx, req.WebhookId, int(req.Limit))
+	// Cap the page size (admin-only endpoint, but keep parity with every other
+	// list handler so a huge Limit can't drive an unbounded query). A non-positive
+	// limit keeps the repo's own default.
+	limit := int(req.Limit)
+	if limit > maxPageSize {
+		limit = maxPageSize
+	}
+	deliveries, err := h.svc.ListDeliveries(ctx, req.WebhookId, limit)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())

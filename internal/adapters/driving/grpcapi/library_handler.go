@@ -550,6 +550,11 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	limit := int64(req.Limit)
 	if limit <= 0 {
 		limit = 40
+	} else if limit > maxPageSize {
+		// Cap the page size like every other list endpoint (clampLimitOffset),
+		// so a client cannot request an unbounded result set from the search
+		// index / SQL fallback (memory + query-load DoS).
+		limit = maxPageSize
 	}
 	hits, total, err := h.query.SearchMedia(ctx, req.Query, filters, sort, limit)
 	if err != nil {

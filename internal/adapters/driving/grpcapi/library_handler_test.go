@@ -330,6 +330,22 @@ func TestLibraryHandler_SearchMedia(t *testing.T) {
 	}
 }
 
+// TestLibraryHandler_SearchMedia_HugeLimitClamped proves a limit far above
+// maxPageSize is capped before it reaches the search index, so a client cannot
+// request an unbounded result set (memory + query-load DoS).
+func TestLibraryHandler_SearchMedia_HugeLimitClamped(t *testing.T) {
+	h, _, _, searchIdx, _, _, _ := newTestLibraryHandler()
+	ctx := adminCtx()
+
+	_, err := h.SearchMedia(ctx, &eveyv1.SearchMediaRequest{
+		Query: "anything",
+		Limit: 1_000_000,
+	})
+	require.NoError(t, err)
+	assert.LessOrEqual(t, searchIdx.LastSearchLimit.Load(), int64(maxPageSize),
+		"huge limit must be clamped to at most maxPageSize before reaching the index")
+}
+
 func TestApplyOverridesToItem(t *testing.T) {
 	year := 2010
 	rating := 7.5
