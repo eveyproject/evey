@@ -278,7 +278,7 @@ func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string
 		limit = DefaultListLimit
 	}
 	query := fmt.Sprintf(
-		"SELECT %s %s INNER JOIN collection_items ci ON ci.media_item_id = mi.id WHERE ci.collection_id = $1 ORDER BY mc.premiere_date ASC NULLS LAST LIMIT %d",
+		"SELECT %s %s INNER JOIN collection_items ci ON ci.media_item_id = mi.id WHERE ci.collection_id = $1 ORDER BY mc.premiere_date ASC NULLS LAST, mi.id LIMIT %d",
 		mediaItemColumns, mediaItemFromJoins, limit)
 	if offset > 0 {
 		query += fmt.Sprintf(" OFFSET %d", offset)
@@ -451,7 +451,7 @@ func (q *CollectionSmartQuerier) QueryByRules(ctx context.Context, rules []libra
 	if strings.EqualFold(sortOrder, "desc") {
 		dir = "DESC"
 	}
-	query += fmt.Sprintf(" ORDER BY %s %s NULLS LAST", col, dir)
+	query += fmt.Sprintf(" ORDER BY %s %s NULLS LAST, mi.id", col, dir)
 
 	if limit <= 0 || limit > DefaultListLimit {
 		limit = DefaultListLimit

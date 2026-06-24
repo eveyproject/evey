@@ -50,7 +50,7 @@ func (r *LoginHistoryRepository) GetByUserID(ctx context.Context, userID shared.
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, user_id, client_ip, user_agent, auth_method, success, failure_reason, created_at
 		 FROM login_history WHERE user_id = $1
-		 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, userID, limit, offset)
+		 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`, userID, limit, offset)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

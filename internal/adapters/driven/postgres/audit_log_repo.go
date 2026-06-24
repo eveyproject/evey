@@ -102,7 +102,7 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	query += " ORDER BY a.created_at DESC"
+	query += " ORDER BY a.created_at DESC, a.id DESC"
 
 	limit := f.Limit
 	if limit <= 0 || limit > 500 {

@@ -157,7 +157,7 @@ func (r *WatchProgressRepository) GetByProfile(ctx context.Context, profileID st
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at
 		 FROM watch_progress WHERE profile_id = $1
-		 ORDER BY last_played_at DESC LIMIT $2 OFFSET $3`, profileID, limit, offset)
+		 ORDER BY last_played_at DESC, id DESC LIMIT $2 OFFSET $3`, profileID, limit, offset)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

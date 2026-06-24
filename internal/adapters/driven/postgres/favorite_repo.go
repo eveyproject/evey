@@ -67,7 +67,7 @@ func (r *FavoriteRepository) List(ctx context.Context, profileID string, limit, 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, created_at
 		 FROM favorites WHERE profile_id = $1
-		 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+		 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
 		profileID, limit, offset,
 	)
 	if err != nil {
