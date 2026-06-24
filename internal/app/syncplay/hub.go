@@ -195,10 +195,20 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 		return nil, err
 	}
 
+	// The stored position is a snapshot taken at State.UpdatedAt (when the last
+	// play/pause/seek landed). While the room is playing it keeps advancing, so a
+	// mid-session joiner must seek to the LIVE position (snapshot + time elapsed
+	// since), not the stale snapshot, or it starts behind everyone else.
+	posMs := room.State.PositionMs
+	if room.State.Playing && !room.State.UpdatedAt.IsZero() {
+		if elapsed := time.Since(room.State.UpdatedAt).Milliseconds(); elapsed > 0 {
+			posMs += elapsed
+		}
+	}
 	stateMsg := syncplay.SyncCommand{
 		Type:       "state",
 		Playing:    room.State.Playing,
-		PositionMs: room.State.PositionMs,
+		PositionMs: posMs,
 	}
 	if data, mErr := json.Marshal(stateMsg); mErr == nil {
 		if err := sender.SendMessage(data); err != nil {

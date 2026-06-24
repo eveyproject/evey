@@ -740,6 +740,65 @@ func TestHub_ConnectMember_Success(t *testing.T) {
 	}
 }
 
+// A member joining a PLAYING room must seek to the live position (stored snapshot
+// + time elapsed since it was taken), not the stale snapshot, or it starts behind.
+func TestHub_ConnectMember_PlayingGivesLivePosition(t *testing.T) {
+	t.Parallel()
+	repo := newFakeRoomRepo()
+	h := NewHub(repo)
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	// Host has been playing from 5000ms for ~10s.
+	if err := repo.UpdateState(ctx, room.ID, syncplay.PlaybackState{
+		Playing: true, PositionMs: 5000, UpdatedAt: time.Now().UTC().Add(-10 * time.Second),
+	}); err != nil {
+		t.Fatalf("UpdateState: %v", err)
+	}
+
+	sender := fakes.NewFakeMessageSender()
+	if _, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice", sender); err != nil {
+		t.Fatalf("ConnectMember: %v", err)
+	}
+	var st syncplay.SyncCommand
+	if err := json.Unmarshal(sender.Received()[0], &st); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if !st.Playing {
+		t.Error("expected Playing=true")
+	}
+	if st.PositionMs < 14000 {
+		t.Errorf("joiner PositionMs = %d, want ~15000 (5000 + ~10s elapsed), not the stale 5000", st.PositionMs)
+	}
+}
+
+// A member joining a PAUSED room gets the stored position unchanged (no advance).
+func TestHub_ConnectMember_PausedKeepsStoredPosition(t *testing.T) {
+	t.Parallel()
+	repo := newFakeRoomRepo()
+	h := NewHub(repo)
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	if err := repo.UpdateState(ctx, room.ID, syncplay.PlaybackState{
+		Playing: false, PositionMs: 5000, UpdatedAt: time.Now().UTC().Add(-10 * time.Second),
+	}); err != nil {
+		t.Fatalf("UpdateState: %v", err)
+	}
+
+	sender := fakes.NewFakeMessageSender()
+	if _, err := h.ConnectMember(ctx, room.ID, "user-2", "Alice", sender); err != nil {
+		t.Fatalf("ConnectMember: %v", err)
+	}
+	var st syncplay.SyncCommand
+	if err := json.Unmarshal(sender.Received()[0], &st); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if st.PositionMs != 5000 {
+		t.Errorf("paused joiner PositionMs = %d, want 5000 (no advance while paused)", st.PositionMs)
+	}
+}
+
 func TestHub_ConnectMember_Idempotent(t *testing.T) {
 	t.Parallel()
 	h := newTestHub()
