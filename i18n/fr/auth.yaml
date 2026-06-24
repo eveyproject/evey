@@ -1,3 +1,6 @@
+password:
+  show: Afficher le mot de passe
+  hide: Masquer le mot de passe
 setup:
   welcome: Bienvenue sur Evey
   description: "Configurons votre serveur multimédia. Cela ne prend qu'une minute."

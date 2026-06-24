@@ -1,3 +1,6 @@
+password:
+  show: Passwort anzeigen
+  hide: Passwort verbergen
 setup:
   welcome: Willkommen bei Evey
   description: Richten wir Ihren Medienserver ein. Es dauert nur eine Minute.

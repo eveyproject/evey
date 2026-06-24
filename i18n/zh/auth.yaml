@@ -1,3 +1,6 @@
+password:
+  show: "显示密码"
+  hide: "隐藏密码"
 setup:
   welcome: "欢迎使用 Evey"
   description: "让我们来设置您的媒体服务器。只需一分钟。"
