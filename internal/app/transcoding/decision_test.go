@@ -39,6 +39,21 @@ func TestVideoTranscode_HEVC(t *testing.T) {
 	assert.Equal(t, "h264", d.VideoCodec)
 }
 
+// A client advertising HEVC under the "h265" alias must match an "hevc" source
+// (same codec) and copy, not needlessly transcode.
+func TestVideoCopy_H265AliasMatchesHevc(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	}
+	client := transcoding.DefaultWebProfile
+	client.VideoCodecs = []string{"h264", "h265", "vp9"} // "h265" alias, no literal "hevc"
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
+
+	assert.Equal(t, "copy", d.VideoDecision, "h265 alias must match hevc source")
+	assert.NotContains(t, d.TranscodeReasons, "video_codec_unsupported")
+}
+
 func TestAudioTranscode_DTS(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},

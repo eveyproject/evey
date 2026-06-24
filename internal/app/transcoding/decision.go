@@ -313,7 +313,7 @@ func sumBitrates(streams []StreamSpec) int64 {
 }
 
 func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile) {
-	if !contains(client.VideoCodecs, strings.ToLower(s.Codec)) {
+	if !videoCodecSupported(client.VideoCodecs, s.Codec) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "video_codec_unsupported")
 		d.VideoDecision = "transcode"
 		d.VideoCodec = "h264"
@@ -657,6 +657,36 @@ func findDefaultAudioCodec(streams []StreamSpec) string {
 func contains(list []string, val string) bool {
 	for _, v := range list {
 		if strings.EqualFold(v, val) {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeVideoCodec folds the common aliases of a video codec to one canonical
+// name (the ffprobe spelling the prober stores). A client that advertises "h265"
+// or "hvc1" means HEVC; without this fold it would not match a source probed as
+// "hevc" and the stream would be needlessly transcoded.
+func normalizeVideoCodec(c string) string {
+	switch strings.ToLower(c) {
+	case "hevc", "h265", "x265", "libx265", "hvc1", "hev1":
+		return "hevc"
+	case "h264", "avc", "avc1", "x264", "libx264":
+		return "h264"
+	case "av1", "av01", "libaom-av1", "libsvtav1":
+		return "av1"
+	case "vp9", "vp09":
+		return "vp9"
+	}
+	return strings.ToLower(c)
+}
+
+// videoCodecSupported reports whether the client can play srcCodec, comparing on
+// the canonical codec name so codec aliases (h265==hevc) match.
+func videoCodecSupported(clientCodecs []string, srcCodec string) bool {
+	want := normalizeVideoCodec(srcCodec)
+	for _, c := range clientCodecs {
+		if normalizeVideoCodec(c) == want {
 			return true
 		}
 	}
