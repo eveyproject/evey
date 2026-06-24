@@ -115,11 +115,14 @@ func TestMapContainer_HDRDoViGating(t *testing.T) {
 	}), true)
 	assert.False(t, ok, "DoVi P5 must fall back to ffprobe")
 
-	// DoVi with a non-HDR10-compatible base (BLCompat != 1, e.g. P7/c6): fall back.
-	_, ok = mapContainer(track(func(tr *extmkv.Track) {
+	// DoVi P7/c6 (HDR10 base + RPU, single track): mkvgo reads it byte-identical to
+	// ffprobe (validated on the real library) -> fast-path, profile propagated.
+	res, ok = mapContainer(track(func(tr *extmkv.Track) {
 		tr.DolbyVision = &extmkv.DolbyVision{Profile: 7, BLSignalCompatID: 6}
 	}), true)
-	assert.False(t, ok, "DoVi P7 with non-compatible base must fall back")
+	require.True(t, ok, "DoVi P7/c6 must fast-path (metadata equals ffprobe)")
+	require.NotNil(t, res.Streams[0].DoViProfile)
+	assert.Equal(t, 7, *res.Streams[0].DoViProfile)
 
 	// HDR-capable codec with no colour at all: bail (in-band colour mkvgo missed).
 	_, ok = mapContainer(track(func(tr *extmkv.Track) { tr.ColorSpace = nil; tr.ColorTransfer = nil }), true)

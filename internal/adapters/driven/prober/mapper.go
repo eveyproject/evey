@@ -142,15 +142,15 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			if ms.ColorSpace == nil && isHDRCapableCodec(codec) {
 				return nil, false
 			}
-			// HDR whose Dolby Vision base layer is NOT HDR10-compatible -- profile 5
-			// (IPT base) or any BLSignalCompatID != 1 -- would render green/purple if
-			// served as plain HDR10, so ffprobe stays the authority for those. Plain
-			// HDR10 (no DoVi) and DoVi with an HDR10-compatible base (BLCompat == 1,
-			// e.g. profile 8.1) are read correctly head-only -- the DoVi config is
-			// validated 0-mismatch vs ffprobe on the real library -- so they fast-path.
+			// Only Dolby Vision profile 5 (IPT base, no HDR10 layer) stays on ffprobe:
+			// served as plain HDR10 it renders green/purple, and no P5 title exists in
+			// the corpus to validate mkvgo head-only against, so ffprobe keeps authority.
+			// Every other case -- plain HDR10, P8.1, and P7 (HDR10 base + RPU) -- is read
+			// byte-identical to ffprobe (DoVi profile/compat + colour + track count, 0
+			// mismatch on the real library incl. P7/c6 single-track titles), so the
+			// fast-path output equals the ffprobe output and the decision is unchanged.
 			if isHDRCapableCodec(codec) && isHDRSuspect(ms.ColorSpace, ms.ColorTransfer) {
-				if ms.DoViProfile != nil &&
-					(*ms.DoViProfile == 5 || ms.DoViBLCompat == nil || *ms.DoViBLCompat != 1) {
+				if ms.DoViProfile != nil && *ms.DoViProfile == 5 {
 					return nil, false
 				}
 			}
