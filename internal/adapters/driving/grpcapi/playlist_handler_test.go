@@ -5,9 +5,14 @@ import (
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
+	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	playlistfakes "github.com/evey-project/evey/internal/domain/playlist/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -298,6 +303,61 @@ func TestPlaylistGetPlaylistItems_Success(t *testing.T) {
 	}
 	if len(resp.Items) != 2 {
 		t.Errorf("expected 2 items, got %d", len(resp.Items))
+	}
+}
+
+// TestPlaylistGetPlaylistItems_FiltersInaccessibleLibrary proves an item whose
+// library the caller cannot access is hidden from GetPlaylistItems (a profile
+// may have added it before losing access, or before AddItem gated access), so
+// the endpoint cannot be used to read back restricted metadata.
+func TestPlaylistGetPlaylistItems_FiltersInaccessibleLibrary(t *testing.T) {
+	plRepo := playlistfakes.NewFakePlaylistRepository()
+	itemRepo := playlistfakes.NewFakePlaylistItemRepository()
+	smartQ := playlistfakes.NewFakeSmartPlaylistQuerier()
+	mediaReader := libfakes.NewFakeMediaItemQueryRepo()
+	svc := appplaylist.NewService(plRepo, itemRepo, smartQ, mediaReader)
+	// The handler hydrates manual-playlist item metadata through libQuery.
+	libQuery := applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(), mediaReader,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex())
+	libAccess := userfakes.NewFakeLibraryAccessRepository()
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(), userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(), userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(), sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(libAccess),
+	)
+	h := &playlistHandler{svc: svc, libQuery: libQuery, userAccess: userAccess}
+
+	// Restrict user-2 to lib-ok; seed one item there and one in a library the
+	// user cannot see.
+	libAccess.Grant(context.Background(), "user-2", "lib-ok")
+	mediaReader.Seed(&library.MediaItem{ID: "mi-ok", Title: "Visible", LibraryID: "lib-ok"})
+	mediaReader.Seed(&library.MediaItem{ID: "mi-secret", Title: "Hidden", LibraryID: "lib-secret"})
+
+	ctx := ctxWithClaims("user-2", "profile-2", false)
+	created, err := h.CreatePlaylist(ctx, &eveyv1.CreatePlaylistRequest{
+		Name: "Mine", Type: eveyv1.PlaylistType_PLAYLIST_TYPE_MANUAL,
+	})
+	if err != nil {
+		t.Fatalf("CreatePlaylist: %v", err)
+	}
+	if _, err := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-ok"}); err != nil {
+		t.Fatalf("AddPlaylistItem mi-ok: %v", err)
+	}
+	if _, err := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-secret"}); err != nil {
+		t.Fatalf("AddPlaylistItem mi-secret: %v", err)
+	}
+
+	resp, err := h.GetPlaylistItems(ctx, &eveyv1.GetPlaylistItemsRequest{Id: created.Id})
+	if err != nil {
+		t.Fatalf("GetPlaylistItems: %v", err)
+	}
+	if len(resp.Items) != 1 {
+		t.Fatalf("expected 1 accessible item, got %d", len(resp.Items))
+	}
+	if resp.Items[0].MediaItemId != "mi-ok" || resp.Items[0].Title != "Visible" {
+		t.Errorf("expected only mi-ok/Visible, got %s/%s", resp.Items[0].MediaItemId, resp.Items[0].Title)
 	}
 }
 

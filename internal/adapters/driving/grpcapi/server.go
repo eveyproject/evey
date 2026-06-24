@@ -205,7 +205,7 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook})
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: d.Collection, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
-	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, libQuery: d.LibQuery, translator: d.Translator})
+	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: d.Favorite, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery})
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: d.Transcoding})
 	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: d.Backup})

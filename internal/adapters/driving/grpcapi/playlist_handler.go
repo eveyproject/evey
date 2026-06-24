@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playlist"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -21,7 +24,30 @@ type playlistHandler struct {
 	eveyv1.UnimplementedPlaylistServiceServer
 	svc        *appplaylist.Service
 	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
 	translator *eveyi18n.Translator
+}
+
+// allowedLibraryIDs returns the library IDs the caller may see, or nil for full
+// access (admin, no restrictions configured, or userAccess not wired). Mirrors
+// libraryHandler/playbackHandler.getAllowedLibraryIDs so GetPlaylistItems hides
+// metadata for items whose library the caller lost (or never had) access to.
+func (h *playlistHandler) allowedLibraryIDs(ctx context.Context) ([]string, error) {
+	if h.userAccess == nil {
+		return nil, nil
+	}
+	claims := interceptors.ClaimsFromContext(ctx)
+	if claims == nil || claims.IsAdmin {
+		return nil, nil
+	}
+	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("playlistHandler.allowedLibraryIDs: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return ids, nil
 }
 
 func (h *playlistHandler) ListPlaylists(ctx context.Context, req *eveyv1.ListPlaylistsRequest) (*eveyv1.ListPlaylistsResponse, error) {
@@ -161,8 +187,28 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 			}
 		}
 	}
+	// A profile may have added an item before losing access to its library (or
+	// before AddItem started gating access). Hide the item's metadata when the
+	// caller can no longer access its library, so GetPlaylistItems is not a
+	// read-back leak. allowed==nil means full access (admin / no restriction).
+	allowedIDs, err := h.allowedLibraryIDs(ctx)
+	if err != nil {
+		return nil, internalError("resolve library access", err)
+	}
+	accessible := func(m *library.MediaItem) bool {
+		// Unknown media (metadata not resolved) carries no leakable fields, so
+		// keep the bare id rather than dropping a row the owner expects to see.
+		if allowedIDs == nil || m == nil {
+			return true
+		}
+		return slices.Contains(allowedIDs, string(m.LibraryID))
+	}
 	resp := &eveyv1.GetPlaylistItemsResponse{}
 	for _, it := range plItems {
+		m := mediaByID[string(it.MediaItemID)]
+		if m != nil && !accessible(m) {
+			continue
+		}
 		mt := it.MediaType
 		if mt == "" {
 			mt = playlist.MediaTypeVideo
@@ -174,7 +220,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 			AddedAt:     toTimestamppb(it.AddedAt),
 			MediaType:   mt,
 		}
-		if m := mediaByID[string(it.MediaItemID)]; m != nil {
+		if m != nil {
 			pi.Title = m.Title
 			pi.Type = string(m.Type)
 			if m.Catalog != nil && m.Catalog.Year != nil {
@@ -184,6 +230,9 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 		resp.Items = append(resp.Items, pi)
 	}
 	for i, item := range mediaItems {
+		if !accessible(item) {
+			continue
+		}
 		pi := &eveyv1.PlaylistItemProto{
 			PlaylistId:  req.Id,
 			MediaItemId: string(item.ID),
