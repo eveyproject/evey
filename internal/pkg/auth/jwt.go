@@ -35,6 +35,7 @@ func (g *JWTGenerator) GenerateAccessToken(claims user.Claims) (string, error) {
 		"locale":      claims.Locale,
 		"permissions": claims.Permissions,
 		"epoch":       claims.TokenEpoch,
+		"imp_by":      claims.ImpersonatedBy,
 		"iat":         now.Unix(),
 		"exp":         now.Add(g.accessTTL).Unix(),
 	})
@@ -137,6 +138,9 @@ func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error
 	}
 	if pid, ok := mapClaims["profile_id"].(string); ok {
 		claims.ProfileID = pid
+	}
+	if impBy, ok := mapClaims["imp_by"].(string); ok {
+		claims.ImpersonatedBy = impBy
 	}
 	if locale, ok := mapClaims["locale"].(string); ok {
 		claims.Locale = locale

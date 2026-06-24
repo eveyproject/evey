@@ -326,6 +326,47 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 	return &eveyv1.DeleteUserResponse{}, nil
 }
 
+func (h *userHandler) ImpersonateUser(ctx context.Context, req *eveyv1.ImpersonateUserRequest) (*eveyv1.AuthResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.ImpersonateUser")
+	defer span.End()
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, err
+	}
+	// Interactive web/mobile sessions only: an API key (even an admin's) must not
+	// be able to mint an impersonation token. Plugin tokens are already excluded
+	// by the deny-by-default plugin allowlist (ImpersonateUser is not in it). The
+	// admin role itself is enforced by the RBAC interceptor (RoleAdmin).
+	if interceptors.IsAPIKeyAuth(ctx) {
+		return nil, status.Error(codes.PermissionDenied, "impersonation is not allowed for API-key callers")
+	}
+	if req.UserId == "" {
+		return nil, status.Error(codes.InvalidArgument, "user_id required")
+	}
+	access, err := h.auth.Impersonate(ctx, claims.UserID, req.UserId, req.ProfileId)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, appuser.ErrUserNotFound):
+			return nil, status.Error(codes.NotFound, "user not found")
+		case errors.Is(err, appuser.ErrProfileNotFound):
+			return nil, status.Error(codes.NotFound, "profile not found")
+		case errors.Is(err, appuser.ErrUserDisabled):
+			return nil, status.Error(codes.FailedPrecondition, "user is disabled")
+		default:
+			return nil, internalError("impersonate user", err)
+		}
+	}
+	// Trace WHO acted as WHOM in the admin audit log — impersonation is god-mode
+	// with multiple admins, so it must never be silent.
+	h.audit(ctx, claims.UserID, "impersonate_user", "user", &req.UserId, map[string]any{
+		"target_user_id":    req.UserId,
+		"target_profile_id": req.ProfileId,
+	})
+	return &eveyv1.AuthResponse{AccessToken: access}, nil
+}
+
 func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRequest) (*eveyv1.User, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.DisableUser")
 	defer span.End()

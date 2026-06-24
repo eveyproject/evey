@@ -108,15 +108,19 @@ func internalError(op string, err error) error {
 	return status.Error(codes.Internal, "internal error")
 }
 
-// resolveProfileID returns the profileId to use: if reqProfileID is provided and differs
-// from the caller's, non-admin users get PermissionDenied. Empty reqProfileID defaults
-// to the caller's profileID.
+// resolveProfileID returns the profile a profile-scoped RPC must act on. The
+// caller may only target the profile their token was minted for
+// (claims.ProfileID); an empty request defaults to it, anything else is denied.
+//
+// Admins are deliberately NOT special-cased here. Cross-profile admin access
+// goes through the explicit, audited ImpersonateUser RPC, which mints a token
+// whose claims.ProfileID IS the target — so by the time a request reaches here,
+// an impersonating admin legitimately owns the profile. This keeps every
+// profile-scoped write attributable and forbids a silent profile_id override on
+// a normal admin request.
 func resolveProfileID(claims *user.Claims, reqProfileID string) (string, error) {
-	if reqProfileID == "" {
+	if reqProfileID == "" || reqProfileID == claims.ProfileID {
 		return claims.ProfileID, nil
 	}
-	if reqProfileID != claims.ProfileID && !claims.IsAdmin {
-		return "", status.Error(codes.PermissionDenied, "cannot access another user's profile")
-	}
-	return reqProfileID, nil
+	return "", status.Error(codes.PermissionDenied, "cannot access another profile")
 }

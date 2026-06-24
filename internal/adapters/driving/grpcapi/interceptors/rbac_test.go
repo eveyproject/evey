@@ -105,6 +105,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.WebhookService/ListWebhookDeliveries",
 		// UserService (admin-only)
 		"/evey.v1.UserService/CreateUser",
+		"/evey.v1.UserService/ImpersonateUser",
 		"/evey.v1.UserService/DeleteUser",
 		"/evey.v1.UserService/DisableUser",
 		"/evey.v1.UserService/ListUsers",

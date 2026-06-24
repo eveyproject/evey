@@ -5,6 +5,8 @@ import "errors"
 var (
 	ErrInvalidCredentials       = errors.New("invalid credentials")
 	ErrUserDisabled             = errors.New("user is disabled")
+	ErrUserNotFound             = errors.New("user not found")
+	ErrProfileNotFound          = errors.New("profile not found")
 	ErrNotAdmin                 = errors.New("admin required")
 	ErrLastAdmin                = errors.New("cannot remove last admin")
 	ErrSetupDone                = errors.New("setup already completed")

@@ -67,6 +67,18 @@ service UserService {
     };
   }
 
+  // ImpersonateUser mints a short-lived access token that lets an admin act as
+  // the target user/profile ("connect as"). Admin-only; rejected for API-key
+  // callers (interactive web/mobile sessions only). The returned AuthResponse
+  // carries an access_token with no refresh_token: the session is bounded by the
+  // access TTL and the admin re-impersonates to extend it.
+  rpc ImpersonateUser(ImpersonateUserRequest) returns (AuthResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/users/{user_id}/impersonate"
+      body: "*"
+    };
+  }
+
   rpc CreateProfile(CreateProfileRequest) returns (Profile) {
     option (google.api.http) = {
       post: "/api/v1/users/{user_id}/profiles"
@@ -229,6 +241,13 @@ message AuthResponse {
   string access_token = 1;
   string refresh_token = 2;
   User user = 3;
+}
+
+message ImpersonateUserRequest {
+  string user_id = 1;
+  // Optional: which of the target's profiles to activate. Empty = the target's
+  // default profile. Must belong to user_id or the request is rejected.
+  string profile_id = 2;
 }
 
 message InviteLink {

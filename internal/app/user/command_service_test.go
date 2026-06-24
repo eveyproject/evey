@@ -1659,3 +1659,94 @@ func TestRefreshToken_DisabledUserRejected(t *testing.T) {
 		t.Fatalf("expected ErrUserDisabled for disabled user, got %v", err)
 	}
 }
+
+// --- Impersonate ("connect as") ---
+
+func TestImpersonate_MintsTargetClaimsWithAdminStamp(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "usr-admin", "root", "pw", true, true)
+	seedAuthUser(t, d, "usr-bob", "bob", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "prf-bob-1", UserID: "usr-bob", Name: "Bob", IsDefault: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "prf-bob-2", UserID: "usr-bob", Name: "Kids", IsDefault: false})
+
+	access, err := d.svc.Impersonate(ctx, "usr-admin", "usr-bob", "prf-bob-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := d.tokens.ValidateAccessToken(access)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Full power AS the target: the claims are the target's, not the admin's.
+	if claims.UserID != "usr-bob" {
+		t.Fatalf("UserID = %q, want usr-bob", claims.UserID)
+	}
+	if claims.ProfileID != "prf-bob-2" {
+		t.Fatalf("ProfileID = %q, want the requested prf-bob-2", claims.ProfileID)
+	}
+	if claims.ImpersonatedBy != "usr-admin" {
+		t.Fatalf("ImpersonatedBy = %q, want usr-admin (audit stamp)", claims.ImpersonatedBy)
+	}
+	if claims.IsAdmin {
+		t.Fatal("impersonating a non-admin must not carry admin power")
+	}
+}
+
+func TestImpersonate_EmptyProfileUsesTargetDefault(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "usr-admin", "root", "pw", true, true)
+	seedAuthUser(t, d, "usr-bob", "bob", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "prf-bob-1", UserID: "usr-bob", Name: "Bob", IsDefault: true})
+
+	access, err := d.svc.Impersonate(ctx, "usr-admin", "usr-bob", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, _ := d.tokens.ValidateAccessToken(access)
+	if claims.ProfileID != "prf-bob-1" {
+		t.Fatalf("ProfileID = %q, want the target's default prf-bob-1", claims.ProfileID)
+	}
+}
+
+func TestImpersonate_ForeignProfileRejected(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "usr-admin", "root", "pw", true, true)
+	seedAuthUser(t, d, "usr-bob", "bob", "pw", false, true)
+	seedAuthUser(t, d, "usr-eve", "eve", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "prf-bob-1", UserID: "usr-bob", Name: "Bob", IsDefault: true})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "prf-eve-1", UserID: "usr-eve", Name: "Eve", IsDefault: true})
+
+	// Activating Eve's profile while impersonating Bob must be rejected: the
+	// requested profile must belong to the target user.
+	_, err := d.svc.Impersonate(ctx, "usr-admin", "usr-bob", "prf-eve-1")
+	if !errors.Is(err, ErrProfileNotFound) {
+		t.Fatalf("expected ErrProfileNotFound, got %v", err)
+	}
+}
+
+func TestImpersonate_DisabledTargetRejected(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "usr-admin", "root", "pw", true, true)
+	seedAuthUser(t, d, "usr-bob", "bob", "pw", false, false) // disabled
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "prf-bob-1", UserID: "usr-bob", Name: "Bob", IsDefault: true})
+
+	_, err := d.svc.Impersonate(ctx, "usr-admin", "usr-bob", "")
+	if !errors.Is(err, ErrUserDisabled) {
+		t.Fatalf("expected ErrUserDisabled, got %v", err)
+	}
+}
+
+func TestImpersonate_UnknownTargetRejected(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "usr-admin", "root", "pw", true, true)
+
+	_, err := d.svc.Impersonate(ctx, "usr-admin", "usr-ghost", "")
+	if !errors.Is(err, ErrUserNotFound) {
+		t.Fatalf("expected ErrUserNotFound, got %v", err)
+	}
+}

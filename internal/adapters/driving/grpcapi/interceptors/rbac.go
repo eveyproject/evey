@@ -86,6 +86,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.WebhookService/DeleteWebhook":                         RoleAdmin,
 			"/evey.v1.WebhookService/ListWebhookDeliveries":                 RoleAdmin,
 			"/evey.v1.UserService/CreateUser":                               RoleAdmin,
+			"/evey.v1.UserService/ImpersonateUser":                          RoleAdmin,
 			"/evey.v1.UserService/DeleteUser":                               RoleAdmin,
 			"/evey.v1.UserService/DisableUser":                              RoleAdmin,
 			"/evey.v1.UserService/ListUsers":                                RoleAdmin,

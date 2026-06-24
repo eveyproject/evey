@@ -222,13 +222,18 @@ func TestFavoriteHandler_RemoveFavorite_IDORAnotherProfile(t *testing.T) {
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
-func TestFavoriteHandler_AdminCanOperateOnAnotherProfile(t *testing.T) {
+func TestFavoriteHandler_AdminDeniedOnAnotherProfile(t *testing.T) {
 	h, _ := newTestFavoriteHandler()
+	// Admins are no longer special-cased on profile-scoped RPCs: a foreign
+	// profile_id on a normal request is denied even for an admin. Cross-profile
+	// admin access goes through the explicit, audited ImpersonateUser RPC, which
+	// mints a token whose ProfileID IS the target (so resolveProfileID then sees
+	// reqProfileID == claims.ProfileID and allows it).
 	ctx := ctxWithClaims("admin-1", "profile-admin", true)
 
-	resp, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m1", ProfileId: "profile-target"})
-	require.NoError(t, err)
-	assert.True(t, resp.IsFavorite)
+	_, err := h.AddFavorite(ctx, &eveyv1.AddFavoriteRequest{MediaItemId: "m1", ProfileId: "profile-target"})
+	require.Error(t, err)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
 func TestFavoriteHandler_IsFavorite_IDORAnotherProfile(t *testing.T) {

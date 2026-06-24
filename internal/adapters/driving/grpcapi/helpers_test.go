@@ -62,10 +62,13 @@ func TestResolveProfileID_DifferentProfile_NonAdmin(t *testing.T) {
 
 func TestResolveProfileID_DifferentProfile_Admin(t *testing.T) {
 	t.Parallel()
+	// Admins are NOT special-cased: a foreign profile_id on a normal request is
+	// denied even for an admin. Cross-profile admin access goes through the
+	// explicit ImpersonateUser RPC (which mints a token whose ProfileID is the
+	// target, so resolveProfileID then sees reqProfileID == claims.ProfileID).
 	claims := &user.Claims{ProfileID: "p-1", IsAdmin: true}
-	pid, err := resolveProfileID(claims, "p-2")
-	if err != nil || pid != "p-2" {
-		t.Errorf("admin should access p-2, got %q err=%v", pid, err)
+	if _, err := resolveProfileID(claims, "p-2"); err == nil {
+		t.Error("expected admin to be denied a foreign profile_id (must impersonate instead)")
 	}
 }
 

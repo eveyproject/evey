@@ -396,6 +396,52 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 	return accessToken, refreshToken, nil
 }
 
+// Impersonate mints a SHORT-LIVED access token that lets an admin act as the
+// target user/profile ("connect as"). The returned token's claims ARE the
+// target's (full power as them) plus an ImpersonatedBy stamp recording the admin
+// for audit. No refresh token is issued: the session is bounded by the access
+// TTL and the admin re-impersonates to extend it, so impersonation can't
+// silently persist. Caller (handler) is responsible for the admin-only +
+// not-an-API-key gate and the audit-log entry.
+func (s *CommandService) Impersonate(ctx context.Context, adminUserID, targetUserID, targetProfileID string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.user.Impersonate")
+	defer span.End()
+	if adminUserID == "" {
+		return "", ErrInvalidCredentials
+	}
+	u, err := s.users.GetByID(ctx, shared.UserID(targetUserID))
+	if err != nil {
+		return "", ErrUserNotFound
+	}
+	if !u.CanLogin() {
+		return "", ErrUserDisabled
+	}
+	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
+	if pErr != nil {
+		return "", fmt.Errorf("CommandService.Impersonate: load profiles: %w", pErr)
+	}
+	// resolveActiveProfileID rejects a profile that does not belong to the target
+	// (and picks the default when targetProfileID is empty).
+	activeProfileID, ok := resolveActiveProfileID(profs, targetProfileID)
+	if !ok {
+		return "", ErrProfileNotFound
+	}
+	perms := s.collectPermissions(ctx, u.ID)
+	accessToken, err := s.tokens.GenerateAccessToken(user.Claims{
+		UserID:         string(u.ID),
+		Username:       u.Username,
+		IsAdmin:        u.IsAdmin,
+		ProfileID:      activeProfileID,
+		Locale:         s.lookupProfileLocale(ctx, activeProfileID),
+		Permissions:    perms,
+		ImpersonatedBy: adminUserID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("CommandService.Impersonate: generate token: %w", err)
+	}
+	return accessToken, nil
+}
+
 // RefreshToken rotates the refresh token, returning a new access+refresh pair.
 // requestedProfileID (optional) activates a specific profile on the new access
 // token; must belong to the refreshing user or the refresh is rejected.

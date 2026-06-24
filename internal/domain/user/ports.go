@@ -134,6 +134,11 @@ type Claims struct {
 	ProfileID   string
 	Locale      string
 	Permissions []string
+	// ImpersonatedBy is the admin user id when this token was minted via
+	// ImpersonateUser ("connect as"). Empty for normal sessions. The claims are
+	// otherwise the TARGET user's (full power as them); this field only records
+	// who is acting, for audit and a UI banner.
+	ImpersonatedBy string
 	// TokenEpoch is the user's revocation counter at mint time. A validator
 	// comparing it against the current users.token_epoch can invalidate every
 	// outstanding access token by bumping the counter (see TokenEpochRepository).
