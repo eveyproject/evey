@@ -7,6 +7,7 @@ import (
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playback"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
@@ -58,6 +59,76 @@ func TestWatchProgressRepo_Upsert_GetByProfileAndMedia(t *testing.T) {
 	assert.Equal(t, int64(30000), got.Position.Milliseconds())
 	assert.Equal(t, 1, got.PlayCount)
 	assert.False(t, got.Completed)
+}
+
+// TestWatchProgressRepo_GetNextUp_OrdersByRecency proves Next Up surfaces the
+// series the profile watched most recently first — and, under a LIMIT, keeps the
+// most-recent series rather than the alphabetically-first ones. The old query
+// ordered the DISTINCT ON result by parent_id, so it returned series in id order
+// and a LIMIT could drop the series you just watched.
+func TestWatchProgressRepo_GetNextUp_OrdersByRecency(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	wpRepo := postgres.NewWatchProgressRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("nuu1")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("nup1", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("nulib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	mkSeries := func(id string) *library.MediaItem {
+		it := newTestMediaItem(id, lib.ID)
+		it.Type = library.Series
+		return it
+	}
+	mkEpisode := func(id, parent string, idx int) *library.MediaItem {
+		it := newTestMediaItem(id, lib.ID)
+		it.Type = library.Episode
+		it.ParentID = parent
+		n := idx
+		it.IndexNumber = &n
+		return it
+	}
+	// Series "nu-aaa" sorts before "nu-zzz" by id but is watched LESS recently.
+	for _, it := range []*library.MediaItem{
+		mkSeries("nu-aaa"), mkSeries("nu-zzz"),
+		mkEpisode("nu-aaa-e1", "nu-aaa", 1), mkEpisode("nu-aaa-e2", "nu-aaa", 2),
+		mkEpisode("nu-zzz-e1", "nu-zzz", 1), mkEpisode("nu-zzz-e2", "nu-zzz", 2),
+	} {
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+
+	older := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Millisecond)
+	newer := time.Now().UTC().Add(-1 * time.Hour).Truncate(time.Millisecond)
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+		ID: "nu-wp-a1", ProfileID: p.ID, MediaItemID: "nu-aaa-e1",
+		Completed: true, LastPlayedAt: older, Position: mustWPDuration(t, 1000),
+	}))
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+		ID: "nu-wp-z1", ProfileID: p.ID, MediaItemID: "nu-zzz-e1",
+		Completed: true, LastPlayedAt: newer, Position: mustWPDuration(t, 1000),
+	}))
+
+	// LIMIT 1 must return the next episode of the most-recently-watched series.
+	got, err := wpRepo.GetNextUp(ctx, string(p.ID), 1)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, shared.MediaItemID("nu-zzz-e2"), got[0].MediaItemID)
+
+	// Full list is ordered by recency: most-recent series first.
+	all, err := wpRepo.GetNextUp(ctx, string(p.ID), 10)
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+	assert.Equal(t, shared.MediaItemID("nu-zzz-e2"), all[0].MediaItemID)
+	assert.Equal(t, shared.MediaItemID("nu-aaa-e2"), all[1].MediaItemID)
 }
 
 func TestWatchProgressRepo_DeleteByProfile(t *testing.T) {
