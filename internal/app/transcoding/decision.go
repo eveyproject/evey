@@ -259,19 +259,24 @@ func MakePlaybackDecisionWithPrefs(
 	// subIdx is the subtitle-relative index (0,1,2…) so it lines up with the
 	// client's selection (prefs.SubtitleBurnInTrack) and ffmpeg's 0:s:N.
 	subIdx := 0
-	audIdx := 0
 	for i := range specs {
 		s := specs[i]
 		switch s.Type {
 		case "video":
 			evaluateVideo(d, s, client)
-		case "audio":
-			evaluateAudio(d, s, client, prefs, audIdx)
-			audIdx++
 		case "subtitle":
 			evaluateSubtitle(d, s, prefs, subIdx)
 			subIdx++
 		}
+	}
+	// Judge exactly the audio track the client will actually hear — the same
+	// stream selectedAudioSpec serves (explicit selection, else the default-flag
+	// track, else the first audio stream). Judging per-stream in the loop missed
+	// the codec check entirely for a file with no default-flagged audio track:
+	// none matched, the decision stayed "copy", and ffmpeg then served the first
+	// (possibly undecodable, e.g. DTS) track raw.
+	if sel := selectedAudioSpec(specs, prefs); sel != nil {
+		evaluateAudio(d, *sel, client, prefs)
 	}
 
 	checkBitrate(d, totalBitrate, effectiveMaxBitrate)
@@ -345,20 +350,13 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 }
 
-// evaluateAudio decides copy-vs-transcode for the audio track the client will
-// actually hear. With an explicit selection (prefs.AudioTrack >= 0, the
-// audio-relative index) only that track is judged; otherwise the container's
-// default-flag track (the historical behavior). Judging any other track is
-// wrong in both directions: a copyable selected track would be re-encoded, an
-// unsupported one would be served raw.
-func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences, audIdx int) {
-	if prefs.AudioTrack >= 0 {
-		if audIdx != prefs.AudioTrack {
-			return
-		}
-	} else if !s.IsDefault {
-		return
-	}
+// evaluateAudio decides copy-vs-transcode for the audio stream the client will
+// actually hear. The caller passes the already-selected stream (selectedAudioSpec:
+// the explicit prefs.AudioTrack, else the default-flag track, else the first
+// audio stream), so this only judges its codec and channel count — judging any
+// other track would be wrong in both directions (a copyable selected track
+// re-encoded, an unsupported served track copied raw).
+func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
 	if !contains(client.AudioCodecs, strings.ToLower(s.Codec)) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "audio_codec_unsupported")
 		d.AudioDecision = "transcode"
