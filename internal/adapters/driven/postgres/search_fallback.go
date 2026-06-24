@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -51,6 +52,33 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 	if libID, ok := filters["library_id"]; ok && libID != "" {
 		where += fmt.Sprintf(" AND mi.library_id = $%d", argN)
 		args = append(args, libID)
+		argN++
+	}
+	// Genre and year filters: Meilisearch applies these (search_adapter filterable
+	// attributes), so the SQL fallback must too or a genre/year-filtered search
+	// silently returns unfiltered results while Meili is down. media_catalog (mc)
+	// is already joined below.
+	if g, ok := filters["genres"]; ok && g != "" {
+		gj, err := json.Marshal([]string{g})
+		if err == nil {
+			where += fmt.Sprintf(" AND mc.genres @> $%d::jsonb", argN)
+			args = append(args, string(gj))
+			argN++
+		}
+	}
+	if ymin, ok := filters["year_min"]; ok && ymin != "" {
+		if n, err := strconv.Atoi(ymin); err == nil {
+			where += fmt.Sprintf(" AND mc.year >= $%d", argN)
+			args = append(args, n)
+			argN++
+		}
+	}
+	if ymax, ok := filters["year_max"]; ok && ymax != "" {
+		if n, err := strconv.Atoi(ymax); err == nil {
+			where += fmt.Sprintf(" AND mc.year <= $%d", argN)
+			args = append(args, n)
+			argN++
+		}
 	}
 
 	if limit <= 0 {
