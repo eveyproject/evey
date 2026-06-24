@@ -81,26 +81,53 @@ func TestMapContainer_FullSDRHEVC(t *testing.T) {
 // must bail to ffprobe: mkvgo cannot read the Dolby Vision configuration, and
 // a DoVi profile-5 title recorded as plain HDR10 would be raw-served with
 // broken colours by the HDR-aware copy/direct-play paths.
-func TestMapContainer_HDRCandidateBailsToFFprobe(t *testing.T) {
+func TestMapContainer_HDRDoViGating(t *testing.T) {
 	cicpPQ := uint16(16) // smpte2084
+	// Base track is HDR10 (bt2020 + PQ); each case mutates the DoVi config.
 	track := func(mutate func(*extmkv.Track)) *extmkv.Container {
 		tr := extmkv.Track{
 			Type: extmkv.VideoTrack, Codec: "hevc", Profile: "Main 10",
 			Width: new(uint32(3840)), Height: new(uint32(2160)),
-			VideoBitDepth: new(uint16(10)), ColorSpace: new(cicpBT709),
+			VideoBitDepth: new(uint16(10)), ColorSpace: new(cicpBT2020nc), ColorTransfer: &cicpPQ,
 		}
 		mutate(&tr)
 		return &extmkv.Container{DurationMs: 1000, Tracks: []extmkv.Track{tr}}
 	}
 
-	_, ok := mapContainer(track(func(tr *extmkv.Track) { tr.ColorSpace = new(cicpBT2020nc) }), true)
-	assert.False(t, ok, "bt2020 colour space must fall back to ffprobe (DoVi ground truth)")
+	// Plain HDR10 (no DoVi): mkvgo reads the colour, nothing to misread -> fast-path.
+	res, ok := mapContainer(track(func(*extmkv.Track) {}), true)
+	require.True(t, ok, "plain HDR10 (no DoVi) must fast-path")
+	assert.Nil(t, res.Streams[0].DoViProfile)
 
-	_, ok = mapContainer(track(func(tr *extmkv.Track) { tr.ColorTransfer = &cicpPQ }), true)
-	assert.False(t, ok, "PQ transfer must fall back to ffprobe (DoVi ground truth)")
+	// DoVi P8.1 (HDR10-compatible base, BLCompat==1): safe -> fast-path, profile propagated.
+	res, ok = mapContainer(track(func(tr *extmkv.Track) {
+		tr.DolbyVision = &extmkv.DolbyVision{Profile: 8, BLSignalCompatID: 1}
+	}), true)
+	require.True(t, ok, "DoVi P8.1 (HDR10-compatible base) must fast-path")
+	require.NotNil(t, res.Streams[0].DoViProfile)
+	assert.Equal(t, 8, *res.Streams[0].DoViProfile)
+	require.NotNil(t, res.Streams[0].DoViBLCompat)
+	assert.Equal(t, 1, *res.Streams[0].DoViBLCompat)
 
-	_, ok = mapContainer(track(func(*extmkv.Track) {}), true)
-	assert.True(t, ok, "SDR hevc (bt709, no HDR transfer) keeps the fast path")
+	// DoVi P5 (IPT base): must fall back to ffprobe.
+	_, ok = mapContainer(track(func(tr *extmkv.Track) {
+		tr.DolbyVision = &extmkv.DolbyVision{Profile: 5, BLSignalCompatID: 0}
+	}), true)
+	assert.False(t, ok, "DoVi P5 must fall back to ffprobe")
+
+	// DoVi with a non-HDR10-compatible base (BLCompat != 1, e.g. P7/c6): fall back.
+	_, ok = mapContainer(track(func(tr *extmkv.Track) {
+		tr.DolbyVision = &extmkv.DolbyVision{Profile: 7, BLSignalCompatID: 6}
+	}), true)
+	assert.False(t, ok, "DoVi P7 with non-compatible base must fall back")
+
+	// HDR-capable codec with no colour at all: bail (in-band colour mkvgo missed).
+	_, ok = mapContainer(track(func(tr *extmkv.Track) { tr.ColorSpace = nil; tr.ColorTransfer = nil }), true)
+	assert.False(t, ok, "HDR-capable codec with no colour must fall back")
+
+	// SDR hevc (bt709, no HDR transfer): fast-path.
+	_, ok = mapContainer(track(func(tr *extmkv.Track) { tr.ColorSpace = new(cicpBT709); tr.ColorTransfer = nil }), true)
+	assert.True(t, ok, "SDR hevc keeps the fast path")
 }
 
 func TestMapContainer_H264_SDR_NoColourOK(t *testing.T) {

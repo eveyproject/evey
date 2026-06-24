@@ -83,6 +83,8 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 					assert.Equalf(t, deref(p.Level), deref(m.Level), "%s video[%d] level", name, i)
 					assert.Equalf(t, fieldOrderNorm(derefS(p.FieldOrder)), fieldOrderNorm(derefS(m.FieldOrder)),
 						"%s video[%d] field_order: ffprobe=%q mkvgo=%q", name, i, derefS(p.FieldOrder), derefS(m.FieldOrder))
+					assert.Equalf(t, deref(p.DoViProfile), deref(m.DoViProfile), "%s video[%d] dovi_profile", name, i)
+					assert.Equalf(t, deref(p.DoViBLCompat), deref(m.DoViBLCompat), "%s video[%d] dovi_bl_compat", name, i)
 				}
 				if st == library.StreamTypeAudio {
 					assert.Equalf(t, deref(p.Channels), deref(m.Channels), "%s audio[%d] channels", name, i)

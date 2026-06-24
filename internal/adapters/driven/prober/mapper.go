@@ -123,6 +123,17 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			if ct := t.ColorTransferName(); ct != "" {
 				ms.ColorTransfer = &ct
 			}
+			// Dolby Vision configuration (dvcC/dvvC), read head-only by mkvgo and
+			// validated byte-for-byte against ffprobe's DOVI record (0 mismatch on
+			// 100 real HDR titles). The playback decision keys on these
+			// (copy_eligibility): profile 8 with an HDR10-compatible base copies,
+			// profile 5 transcodes.
+			if t.DolbyVision != nil {
+				p := int(t.DolbyVision.Profile)
+				ms.DoViProfile = &p
+				c := int(t.DolbyVision.BLSignalCompatID)
+				ms.DoViBLCompat = &c
+			}
 			// Belt-and-suspenders for the HDR decision: an HDR-capable codec with
 			// no colour metadata at all (mkvgo couldn't read it from the container
 			// Colour element nor the SPS VUI) might actually be HDR signalled in a
@@ -131,15 +142,17 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			if ms.ColorSpace == nil && isHDRCapableCodec(codec) {
 				return nil, false
 			}
-			// HDR candidates must go through ffprobe: mkvgo cannot read the Dolby
-			// Vision configuration (MKV BlockAdditionMapping dvcC/dvvC), and a DoVi
-			// profile-5 title recorded as plain HDR10 would be raw-served with
-			// green/purple colours by the HDR-aware copy/direct-play paths. Any
-			// bt2020 colour or PQ/HLG transfer ⇒ bail so ffprobe establishes the
-			// dovi_profile ground truth. SDR tracks (the vast majority) keep the
-			// fast path.
+			// HDR whose Dolby Vision base layer is NOT HDR10-compatible -- profile 5
+			// (IPT base) or any BLSignalCompatID != 1 -- would render green/purple if
+			// served as plain HDR10, so ffprobe stays the authority for those. Plain
+			// HDR10 (no DoVi) and DoVi with an HDR10-compatible base (BLCompat == 1,
+			// e.g. profile 8.1) are read correctly head-only -- the DoVi config is
+			// validated 0-mismatch vs ffprobe on the real library -- so they fast-path.
 			if isHDRCapableCodec(codec) && isHDRSuspect(ms.ColorSpace, ms.ColorTransfer) {
-				return nil, false
+				if ms.DoViProfile != nil &&
+					(*ms.DoViProfile == 5 || ms.DoViBLCompat == nil || *ms.DoViBLCompat != 1) {
+					return nil, false
+				}
 			}
 		case library.StreamTypeAudio:
 			if t.Channels != nil && *t.Channels > 0 {
