@@ -109,8 +109,15 @@ func (realMetaReader) ReadMeta(ctx context.Context, path string) (*extmkv.Contai
 		// head-only metadata (no sample table); keyframes are derived on demand by
 		// the keyframe backfill worker via mp4.Options{Keyframes: true}. dropped
 		// tracks (cover art, QuickTime chapter text) are not surfaced as streams.
-		c, _, err := mp4.OpenMeta(ctx, path)
+		// InBandColour recovers colour for bare-hvcC HEVC (no SPS in the sample
+		// description): a bounded first-sample read extracts the SPS VUI + the
+		// HLG ATC SEI. Only fires when head-only colour is missing, so files with
+		// header colour stay pure head-only.
+		c, _, err := mp4.OpenMeta(ctx, path, mp4.Options{InBandColour: true})
 		return c, err
 	}
-	return reader.OpenMeta(ctx, path)
+	// WithInBandColourFallback: same bare-hvcC HEVC recovery for Matroska — lets
+	// HDR10/HLG/PQ in-band titles fast-path instead of bailing to ffprobe; the
+	// mapper's no-colour gate is the last resort if even this yields nothing.
+	return reader.OpenMeta(ctx, path, reader.WithInBandColourFallback())
 }
