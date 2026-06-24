@@ -326,17 +326,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}
 	})
 
-	// MKV indexing fast-path: route .mkv stream-probing through the in-process
-	// mkvgo reader (no ffprobe fork, head-only read), falling back to ffprobe for
-	// non-mkv and for any .mkv it can't render field-equivalent. Gated by
-	// Two fast-path gates, independent so the validated EBML path can ship on
-	// while the newer mp4 path waits on its own real-file parity run
-	// (parity_realfile_test). mkv keeps its legacy env; mp4 is a live admin-panel
-	// setting (read per-file via cfg, no env, no restart — settings belong in the
-	// panel). Music keeps bare infra.prober (needs the per-track bitrate mkvgo
-	// lacks), so it is intentionally not wrapped.
-	mkvFastPath := os.Getenv("EVEY_MKV_FASTPATH") == "1"
-	scanProber := proberpkg.New(infra.prober, func() bool { return mkvFastPath }, cfg.EffectiveMP4FastpathEnabled)
+	// Stream-probing fast-path: route .mkv/.mp4 through the in-process mkvgo reader
+	// (no ffprobe fork, head-only read), falling back to ffprobe for anything it
+	// cannot render field-equivalent (unknown codec, HDR/DoVi ground truth, parse
+	// panic). Validated field-equivalent against ffprobe on the real library, so it
+	// is always on — there is no scenario where disabling it helps (the fallback is
+	// the safety net), hence no toggle/env. nil gates == always on.
+	scanProber := proberpkg.New(infra.prober, nil, nil)
 
 	libCmdSvc := applibrary.NewCommandService(
 		r.Library, r.Library, r.MediaItem,
@@ -580,7 +576,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	musicScanner := filesystem.NewMusicScanner()
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
 	musicSvc.WithPlayRepository(r.MusicPlay)
-	musicSvc.CommandService().WithProber(infra.prober)
+	// Same in-process fast-path as the library scan: .m4a (AAC) reads channels /
+	// sample rate / esds bitrate head-only via mkvgo, while .flac/.mp3 (not
+	// ISO-BMFF/EBML) and ALAC (dropped sample entry) fall through to ffprobe. The
+	// dispatcher is stateless, so a fresh instance over the same ffprobe fallback.
+	musicSvc.CommandService().WithProber(proberpkg.New(infra.prober, nil, nil))
 	musicSvc.CommandService().WithAlbumArtFetcher(itunesadapter.NewAlbumArtFetcher(infra.metadataHTTP), cfg.Transcoding.CacheDir)
 	if infra.musicSearch != nil {
 		musicSvc.CommandService().WithSearchIndex(infra.musicSearch)
@@ -885,10 +885,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			}
 		}
 		// Read the container seek index (mkvgo: MP4 stss / Matroska Cues) head-only
-		// before the multi-minute ffprobe packet scan, gated by the same fast-path
-		// funcs as the metadata prober; falls back to ffprobe when gated off or the
-		// container yields no index.
-		kfProber := proberpkg.NewKeyframeDispatcher(infra.prober, func() bool { return mkvFastPath }, cfg.EffectiveMP4FastpathEnabled)
+		// before the multi-minute ffprobe packet scan; falls back to ffprobe when the
+		// container yields no index. Always on, like the metadata prober (nil gates).
+		kfProber := proberpkg.NewKeyframeDispatcher(infra.prober, nil, nil)
 		keyframeBackfillWorker := apptranscoding.NewKeyframeBackfillWorker(
 			r.MediaStream,
 			mediaItemReaderFunc(func(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {

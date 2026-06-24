@@ -292,12 +292,7 @@ type TranscodingConfig struct {
 	MaxSessions    int
 	CacheMaxGB     int
 	CacheDir       string
-	// MP4FastpathEnabled toggles the in-process mkvgo mp4 metadata fast-path at
-	// scan time (vs ffprobe). Runtime-mutable from the admin panel — NOT an env
-	// var (settings belong in the panel). Default off until validated on real
-	// mp4 (parity test). The mkv fast-path stays on its legacy env for now.
-	MP4FastpathEnabled bool
-	HWAccelEnabled     bool
+	HWAccelEnabled bool
 	// HWBackend pins which HW encode backend this instance uses ("nvenc",
 	// "vaapi", "qsv"); empty = auto-detect. A deployment-time knob: it lets one
 	// host run several Evey containers, each bound to a different GPU path,
@@ -459,15 +454,6 @@ func (c *Config) EffectiveSkipPreviewEnabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Metadata.SkipPreviewEnabled
-}
-
-// EffectiveMP4FastpathEnabled reads the mp4 scan fast-path toggle under the read
-// lock. The prober dispatcher calls it live per file, so it must not race the
-// admin PUT that flips Transcoding.MP4FastpathEnabled.
-func (c *Config) EffectiveMP4FastpathEnabled() bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.Transcoding.MP4FastpathEnabled
 }
 
 // ApplyServerSettings runs fn while holding the write lock that guards the

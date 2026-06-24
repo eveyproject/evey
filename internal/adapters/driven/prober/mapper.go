@@ -75,6 +75,15 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 		if t.Name != "" {
 			ms.Title = t.Name
 		}
+		if cln := t.CodecLongName(); cln != "" {
+			ms.CodecLongName = cln
+		}
+		// Per-stream average bitrate (MP4 btrt/esds); nil for Matroska (no element,
+		// matching ffprobe). Consistent fast-path↔ffprobe + unblocks the music scan.
+		if t.Bitrate != nil && *t.Bitrate > 0 {
+			br := int64(*t.Bitrate)
+			ms.Bitrate = &br
+		}
 
 		switch st {
 		case library.StreamTypeVideo:
@@ -85,6 +94,21 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			}
 			w, h := int(*t.Width), int(*t.Height)
 			ms.Width, ms.Height = &w, &h
+			// Codec level: the copy rung's RFC-6381 string needs it and
+			// copy_eligibility bails when nil, so without it a fast-pathed video
+			// loses the copy rung until the level-backfill worker fills it.
+			if t.Level != nil && *t.Level > 0 {
+				lvl := int(*t.Level)
+				ms.Level = &lvl
+			}
+			// SAR only when anamorphic (mkvgo reports "1:1" for square pixels).
+			if sar := t.SampleAspectRatio(); sar != "" && sar != "1:1" {
+				ms.SampleAspectRatio = &sar
+			}
+			if t.FieldOrder != "" {
+				fo := t.FieldOrder
+				ms.FieldOrder = &fo
+			}
 			if t.FrameRate != nil && *t.FrameRate > 0 {
 				fr := *t.FrameRate
 				ms.Framerate = &fr
@@ -122,19 +146,21 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 				ch := int(*t.Channels)
 				ms.Channels = &ch
 			}
-			if t.SampleRate != nil && *t.SampleRate > 0 {
-				sr := int(math.Round(*t.SampleRate))
+			// EffectiveSampleRate = decoder OUTPUT rate (HE-AAC SBR doubles the core).
+			if esr := t.EffectiveSampleRate(); esr > 0 {
+				sr := int(math.Round(esr))
 				ms.SampleRate = &sr
+			}
+			if cl := t.ChannelLayout(); cl != "" {
+				ms.ChannelLayout = &cl
 			}
 			if t.BitDepth != nil && *t.BitDepth > 0 {
 				bd := int(*t.BitDepth)
 				ms.BitDepth = &bd
 			}
 		}
-		// Per-stream Bitrate is left nil: mkvgo has none, and ffprobe itself
-		// reports none for MKV video (Matroska stores no per-track bitrate), so
-		// nil is field-equivalent for the load-bearing video case. ChannelLayout
-		// and CodecLongName are left nil/empty (display-only, no decision impact).
+		// CodecLongName, ChannelLayout and Bitrate are populated above (mkvgo 0.9.0+),
+		// keeping the fast path field-equivalent to ffprobe across the whole stream.
 
 		streams = append(streams, ms)
 	}

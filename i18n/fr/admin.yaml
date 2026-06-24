@@ -668,10 +668,6 @@ transcoding:
   concurrencyAuto: "Détecter automatiquement"
   concurrencyAutoHint: "Défaut du serveur ({{n}})"
   concurrencyManualHint: "Limiter les transcodages simultanés"
-  mp4FastpathTitle: "Fast-path de scan"
-  mp4FastpathSubtitle: "Sondage des métadonnées MP4 en interne au lieu de ffprobe"
-  mp4FastpathLabel: "Fast-path métadonnées MP4"
-  mp4FastpathHint: "Sonde les métadonnées .mp4/.m4v en interne (re-scans plus rapides) au lieu de lancer ffprobe. Valide sur tes vrais fichiers avant d'activer."
 calibration:
   av1Label: "Sortie AV1"
   av1Hint: "Encoder en AV1 quand un client le supporte — meilleure compression. Matériel uniquement ; l'AV1 software n'est jamais utilisé pour le streaming."

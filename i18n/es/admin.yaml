@@ -691,10 +691,6 @@ transcoding:
   concurrencyAuto: "Detectar automáticamente"
   concurrencyAutoHint: "Predeterminado del servidor ({{n}})"
   concurrencyManualHint: "Limitar transcodificaciones simultáneas"
-  mp4FastpathTitle: "Ruta rápida de escaneo"
-  mp4FastpathSubtitle: "Lectura interna de metadatos MP4 en lugar de ffprobe"
-  mp4FastpathLabel: "Ruta rápida de metadatos MP4"
-  mp4FastpathHint: "Lee los metadatos .mp4/.m4v internamente (reescaneos más rápidos) en lugar de lanzar ffprobe. Valida con tus archivos reales antes de activar."
 calibration:
   av1Label: "Salida AV1"
   av1Hint: "Codificar en AV1 cuando un cliente lo admite — mejor compresión. Solo hardware; el AV1 por software nunca se usa para streaming."

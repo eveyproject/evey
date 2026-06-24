@@ -110,56 +110,6 @@ function ConcurrencyCard() {
   );
 }
 
-type Mp4Settings = { mp4FastpathEnabled: SettingValue<boolean> };
-
-// Mp4FastpathCard toggles the in-process mkvgo mp4 metadata fast-path used at
-// scan time (vs spawning ffprobe). A live admin setting — no env, no restart;
-// the prober reads it per file. Off by default until validated on real mp4.
-function Mp4FastpathCard() {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery<Mp4Settings>({
-    queryKey: SETTINGS_KEY,
-    queryFn: () => eveyFetch<Mp4Settings>({ url: "/api/v1/admin/server-settings", method: "GET" }),
-  });
-  const save = useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: body }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: SETTINGS_KEY }); toast.success(t("admin.transcoding.saved", "Saved")); },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  if (isLoading || !data) return <div className="flex justify-center py-6"><Spinner size="md" /></div>;
-
-  const enabled = data.mp4FastpathEnabled.value;
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-[var(--text)]">
-          {t("admin.transcoding.mp4FastpathLabel", "MP4 metadata fast-path")}
-        </label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label={t("admin.transcoding.mp4FastpathLabel", "MP4 metadata fast-path")}
-          data-testid="mp4-fastpath-toggle"
-          disabled={save.isPending}
-          onClick={() => save.mutate({ mp4FastpathEnabled: !enabled })}
-          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-          style={{ backgroundColor: enabled ? "var(--accent)" : "var(--border)" }}
-        >
-          <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
-            style={{ transform: enabled ? "translateX(1.375rem)" : "translateX(0.25rem)" }} />
-        </button>
-      </div>
-      <span className="text-xs text-[var(--text-muted)]">
-        {t("admin.transcoding.mp4FastpathHint", "Probe .mp4/.m4v metadata in-process (faster re-scans) instead of spawning ffprobe. Validate on your real files before enabling.")}
-      </span>
-    </div>
-  );
-}
-
 // TranscodingConfigPage groups every transcoding-related admin control —
 // hardware acceleration, encode calibration, AV1 and concurrency — on the
 // server-config side of the admin (a sibling of "Server configuration"),
@@ -191,14 +141,6 @@ function TranscodingConfigPage() {
         alwaysOpen
       >
         <ConcurrencyCard />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.transcoding.mp4FastpathTitle", "Scan fast-path")}
-        subtitle={t("admin.transcoding.mp4FastpathSubtitle", "In-process MP4 metadata probing instead of ffprobe")}
-        alwaysOpen
-      >
-        <Mp4FastpathCard />
       </CollapsibleCard>
     </div>
   );

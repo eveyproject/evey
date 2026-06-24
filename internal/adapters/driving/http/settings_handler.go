@@ -33,7 +33,6 @@ const (
 	cfgKeyTranscodeSWAV1   = "transcoding.software_av1_max_height"
 	cfgKeyTranscodeAV1En   = "transcoding.av1_enabled"
 	cfgKeyTranscodeAV1Max  = "transcoding.av1_max_height"
-	cfgKeyMP4Fastpath      = "transcoding.mp4_fastpath_enabled"
 )
 
 // validAV1MaxHeights are the AV1 output height caps the panel offers. 0 = no cap
@@ -173,10 +172,6 @@ func registerServerSettingsRoutes(
 			getter: func() any { return cfg.Transcoding.AV1Enabled }},
 		{jsonKey: "av1MaxHeight", cfgKey: cfgKeyTranscodeAV1Max, defaultVal: 0,
 			getter: func() any { return cfg.Transcoding.AV1MaxHeight }},
-		// mp4 scan fast-path (mkvgo OpenMeta vs ffprobe). Read live by the prober
-		// dispatcher, so toggling takes effect on the next file probed (no restart).
-		{jsonKey: "mp4FastpathEnabled", cfgKey: cfgKeyMP4Fastpath, defaultVal: false,
-			getter: func() any { return cfg.Transcoding.MP4FastpathEnabled }},
 	}
 
 	// buildResponse snapshots every setting. The caller must already hold
@@ -224,7 +219,6 @@ func registerServerSettingsRoutes(
 			SoftwareAV1MaxHeight    *int    `json:"softwareAV1MaxHeight"`
 			AV1Enabled              *bool   `json:"av1Enabled"`
 			AV1MaxHeight            *int    `json:"av1MaxHeight"`
-			MP4FastpathEnabled      *bool   `json:"mp4FastpathEnabled"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -387,14 +381,6 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Metadata.SkipPreviewEnabled = *body.SkipPreviewEnabled
 					return strconv.FormatBool(*body.SkipPreviewEnabled)
-				}},
-			{cfgKey: cfgKeyMP4Fastpath,
-				apply: func() string {
-					if body.MP4FastpathEnabled == nil {
-						return ""
-					}
-					cfg.Transcoding.MP4FastpathEnabled = *body.MP4FastpathEnabled
-					return strconv.FormatBool(*body.MP4FastpathEnabled)
 				}},
 			{cfgKey: cfgKeyTranscodeSWAV1,
 				apply: func() string {

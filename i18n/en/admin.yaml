@@ -669,10 +669,6 @@ transcoding:
   concurrencyAuto: "Detect automatically"
   concurrencyAutoHint: "Server default ({{n}})"
   concurrencyManualHint: "Cap concurrent transcodes"
-  mp4FastpathTitle: "Scan fast-path"
-  mp4FastpathSubtitle: "In-process MP4 metadata probing instead of ffprobe"
-  mp4FastpathLabel: "MP4 metadata fast-path"
-  mp4FastpathHint: "Probe .mp4/.m4v metadata in-process (faster re-scans) instead of spawning ffprobe. Validate on your real files before enabling."
 calibration:
   av1Label: "AV1 output"
   av1Hint: "Encode to AV1 when a client supports it — better compression. Hardware-only; software AV1 is never used for streaming."

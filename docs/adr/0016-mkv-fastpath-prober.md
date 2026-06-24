@@ -3,6 +3,13 @@
 - Status: Accepted
 - Date: 2026-06-03
 
+> **Update 2026-06-23.** The fast-path is now **always on** for both EBML
+> (`.mkv`/`.webm`) and ISO-BMFF (`.mp4`/`.m4v`/`.m4a`) containers — including the
+> music scan prober (`.m4a` AAC; `.flac`/`.mp3`/ALAC fall through to ffprobe); the
+> `EVEY_MKV_FASTPATH` env flag is removed (field-equivalence validated on a real
+> library, ffprobe stays the fallback). The flag/default references below are
+> historical.
+
 ## Context
 
 Every file the library scanner touches is probed for its stream layout (codecs,

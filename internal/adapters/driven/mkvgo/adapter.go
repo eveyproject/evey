@@ -43,7 +43,7 @@ func IsEBMLContainer(path string) bool {
 // ISO-BMFF members: .mov (QuickTime, an ISO-BMFF sibling) is deliberately left
 // out so a misparse never silently mislabels a track — it falls back to ffprobe.
 var mp4ContainerExts = map[string]bool{
-	".mp4": true, ".m4v": true,
+	".mp4": true, ".m4v": true, ".m4a": true,
 }
 
 // IsMP4Container reports whether path's extension is an ISO-BMFF container the
