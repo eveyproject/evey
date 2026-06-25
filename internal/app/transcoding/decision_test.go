@@ -54,6 +54,19 @@ func TestVideoCopy_H265AliasMatchesHevc(t *testing.T) {
 	assert.NotContains(t, d.TranscodeReasons, "video_codec_unsupported")
 }
 
+func TestAudioCopy_EAC3AliasMatchesEC3(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "eac3", Channels: intPtr(2), IsDefault: true},
+	}
+	client := transcoding.DefaultWebProfile
+	client.AudioCodecs = []string{"aac", "ec-3"} // "ec-3" (RFC-6381) alias of eac3, no literal "eac3"
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
+
+	assert.Equal(t, "copy", d.AudioDecision, "ec-3 alias must match eac3 source")
+	assert.NotContains(t, d.TranscodeReasons, "audio_codec_unsupported")
+}
+
 func TestAudioTranscode_DTS(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},

@@ -357,7 +357,7 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 // other track would be wrong in both directions (a copyable selected track
 // re-encoded, an unsupported served track copied raw).
 func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
-	if !contains(client.AudioCodecs, strings.ToLower(s.Codec)) {
+	if !audioCodecSupported(client.AudioCodecs, s.Codec) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "audio_codec_unsupported")
 		d.AudioDecision = "transcode"
 		d.AudioCodec = transcoding.DefaultAudioCodec
@@ -687,6 +687,41 @@ func videoCodecSupported(clientCodecs []string, srcCodec string) bool {
 	want := normalizeVideoCodec(srcCodec)
 	for _, c := range clientCodecs {
 		if normalizeVideoCodec(c) == want {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeAudioCodec folds the common spellings of an audio codec to one
+// canonical name (the ffprobe spelling the prober stores). A client that
+// advertises the hyphenated RFC/MIME forms ("ac-3", "e-ac-3", "ec-3") or "mp4a"
+// means the same codec the prober probed as "ac3"/"eac3"/"aac"; without this fold
+// it would not match and the audio would be needlessly transcoded.
+func normalizeAudioCodec(c string) string {
+	switch strings.ToLower(c) {
+	case "ac3", "ac-3":
+		return "ac3"
+	case "eac3", "e-ac-3", "ec-3", "ec3":
+		return "eac3"
+	case "aac", "mp4a", "aac_latm":
+		return "aac"
+	case "mp3", "mp3float":
+		return "mp3"
+	case "dts", "dca":
+		return "dts"
+	case "truehd", "mlp":
+		return "truehd"
+	}
+	return strings.ToLower(c)
+}
+
+// audioCodecSupported reports whether the client can play srcCodec, comparing on
+// the canonical codec name so codec aliases (ac-3==ac3, e-ac-3==eac3) match.
+func audioCodecSupported(clientCodecs []string, srcCodec string) bool {
+	want := normalizeAudioCodec(srcCodec)
+	for _, c := range clientCodecs {
+		if normalizeAudioCodec(c) == want {
 			return true
 		}
 	}
