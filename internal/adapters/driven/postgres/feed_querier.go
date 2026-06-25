@@ -100,7 +100,10 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			UNION ALL
 			SELECT id, parent_id, title, type, position_ms, added_at, last_played_at, season_number, episode_number FROM next_unwatched
 		) combined
-		ORDER BY last_played_at DESC
+		-- id tiebreak: rows can share last_played_at (ContinueWatching's next-up
+		-- rows all carry NOW(); resume rows can coincide), so without it the order,
+		-- and which rows survive the LIMIT, would be undefined and shift per refresh.
+		ORDER BY last_played_at DESC, id
 		LIMIT $2
 	`, profileID, limit)
 	if err != nil {
@@ -167,7 +170,10 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			UNION ALL
 			SELECT id, parent_id, title, type, position_ms, last_played_at, season_number, episode_number FROM next_ep
 		) combined
-		ORDER BY last_played_at DESC
+		-- id tiebreak: rows can share last_played_at (ContinueWatching's next-up
+		-- rows all carry NOW(); resume rows can coincide), so without it the order,
+		-- and which rows survive the LIMIT, would be undefined and shift per refresh.
+		ORDER BY last_played_at DESC, id
 		LIMIT $2
 	`, profileID, limit)
 	if err != nil {
@@ -416,13 +422,37 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 		FROM media_items mi
 		LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
 		LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id
+		LEFT JOIN LATERAL (
+			SELECT CASE
+				WHEN mi.type = 'movie' THEN
+					COALESCE((SELECT completed FROM watch_progress wp WHERE wp.media_item_id = mi.id AND wp.profile_id = $2 LIMIT 1), FALSE)
+				WHEN mi.type = 'series' THEN
+					-- A series counts as watched only when EVERY current episode has a
+					-- completed wp row; a series has no wp row of its own, so the old
+					-- "wp.media_item_id = mi.id" check never matched and fully-watched
+					-- series leaked into Similar (unlike Recommended/RecentlyAdded).
+					NOT EXISTS (
+						SELECT 1
+						FROM media_items se
+						JOIN media_items ep ON ep.parent_id = se.id
+						WHERE se.parent_id = mi.id
+						  AND ep.type = 'episode'
+						  AND NOT EXISTS (
+							SELECT 1 FROM watch_progress wp
+							WHERE wp.media_item_id = ep.id
+							  AND wp.profile_id = $2
+							  AND wp.completed = TRUE
+						  )
+					)
+				ELSE FALSE END AS completed
+		) w ON TRUE
 		WHERE mi.id != $1
 		  AND mi.type IN ('movie', 'series')
 		  -- GIN pre-filter (idx_media_catalog_genres_gin): only candidates that
 		  -- share ≥1 target genre, by index. Replaces the INNER JOIN LATERAL
 		  -- score>=1 that forced a per-row genre scan over the whole catalogue.
 		  AND mc.genres ?| $3::text[]
-		  AND NOT EXISTS (SELECT 1 FROM watch_progress wp2 WHERE wp2.media_item_id = mi.id AND wp2.profile_id = $2 AND wp2.completed = TRUE)
+		  AND w.completed = FALSE
 		ORDER BY score DESC, mcl.community_rating DESC NULLS LAST
 		LIMIT $4
 	`, mediaItemID, profileID, pq.Array(targetGenres), limit)
