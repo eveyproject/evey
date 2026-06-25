@@ -96,6 +96,45 @@ func TestMediaItemRepo_List(t *testing.T) {
 	assert.Len(t, list, 2)
 }
 
+// TestMediaItemRepo_List_OffsetPaginationDeterministic proves offset pages
+// partition the set even when items share the same sort value (default sort is
+// sort_title): without a unique mi.id tiebreak, a page boundary can skip or
+// repeat a row.
+func TestMediaItemRepo_List_OffsetPaginationDeterministic(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mlibpg")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	for _, id := range []string{"pg-1", "pg-2", "pg-3"} {
+		it := newTestMediaItem(id, lib.ID)
+		it.SortTitle = "same title" // force ties in the default (title) sort
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+
+	libID := lib.ID
+	page := func(offset int) []*library.MediaItem {
+		items, err := itemRepo.List(ctx, library.ListMediaItemsFilter{LibraryID: &libID, Limit: 2, Offset: offset})
+		require.NoError(t, err)
+		return items
+	}
+	p1, p2 := page(0), page(2)
+	require.Len(t, p1, 2)
+	require.Len(t, p2, 1)
+
+	seen := map[string]bool{}
+	for _, it := range append(append([]*library.MediaItem{}, p1...), p2...) {
+		assert.Falsef(t, seen[string(it.ID)], "item %s appeared on two pages", it.ID)
+		seen[string(it.ID)] = true
+	}
+	assert.Len(t, seen, 3, "every item must appear exactly once across pages")
+	assert.Equal(t, p1[0].ID, page(0)[0].ID, "page order must be stable across calls")
+}
+
 func TestMediaItemRepo_Update(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

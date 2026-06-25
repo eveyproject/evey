@@ -215,11 +215,15 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	case f.AfterID != "":
 		query += " ORDER BY mi.id ASC"
 	case sortField == "added_at" || sortField == "mi.added_at":
+		// mi.id tiebreak so offset pagination is deterministic across pages when
+		// several items share the same added_at (a scan can stamp many rows the
+		// same millisecond) — otherwise a page boundary can skip or repeat a row.
+		// Matches the cursor branch's (sortField, mi.id) total order above.
 		query += fmt.Sprintf(` ORDER BY CASE WHEN mi.type = 'series'
 			 THEN COALESCE(mi.latest_child_added_at, mi.added_at)
-			 ELSE mi.added_at END %s`, sortOrder)
+			 ELSE mi.added_at END %s, mi.id %s`, sortOrder, sortOrder)
 	default:
-		query += fmt.Sprintf(" ORDER BY %s %s", sortField, sortOrder)
+		query += fmt.Sprintf(" ORDER BY %s %s, mi.id %s", sortField, sortOrder, sortOrder)
 	}
 
 	limit := f.Limit
