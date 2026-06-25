@@ -71,7 +71,13 @@ func (d *KeyframeDispatcher) mkvgoKeyframes(ctx context.Context, filePath string
 		}
 		return c.Keyframes
 	case mkvadapter.IsEBMLContainer(filePath) && gateOpen(d.mkvEnabled):
-		c, err := reader.OpenMeta(ctx, filePath) // Matroska fills Keyframes from Cues
+		// WithKeyframeIndex: use the Cues table when present (head-only, ~ms), else
+		// fall to a single sequential structural scan that collects every real video
+		// keyframe (SimpleBlock 0x80 / BlockGroup without ReferenceBlock) — complete
+		// and equal to ffprobe's list, validated count==ffprobe on real files. No-op
+		// when Cues exist, so indexed files stay instant; Cues-less files get the
+		// in-process complete index instead of forking ffprobe.
+		c, err := reader.OpenMeta(ctx, filePath, reader.WithKeyframeIndex())
 		if err != nil || c == nil {
 			return nil
 		}

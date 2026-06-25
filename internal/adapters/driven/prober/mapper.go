@@ -134,12 +134,16 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 				c := int(t.DolbyVision.BLSignalCompatID)
 				ms.DoViBLCompat = &c
 			}
-			// Belt-and-suspenders for the HDR decision: an HDR-capable codec with
-			// no colour metadata at all (mkvgo couldn't read it from the container
-			// Colour element nor the SPS VUI) might actually be HDR signalled in a
-			// way mkvgo missed. ffprobe would catch it from the bitstream, so fall
-			// back rather than risk reporting real HDR as SDR.
-			if ms.ColorSpace == nil && isHDRCapableCodec(codec) {
+			// HDR-capable codec with no colour metadata: distinguish "confirmed
+			// unspecified" from "could not read". mkvgo sets ColourDetermined when it
+			// actually parsed a colour source (container Colour, MP4 colr, or the SPS
+			// VUI / AV1 color_config / vpcC) — even when the result resolves to
+			// unspecified (true SDR, validated on 230/230 real HEVC/AV1 SDR titles).
+			// Only when the colour was never read (ColourDetermined=false — e.g. a bare
+			// hvcC with no SPS and in-band recovery off) might real HDR be hiding in the
+			// bitstream, so we bail to ffprobe there; a confirmed-unspecified track
+			// fast-paths as the SDR it is.
+			if ms.ColorSpace == nil && isHDRCapableCodec(codec) && !t.ColourDetermined {
 				return nil, false
 			}
 			// Only Dolby Vision profile 5 (IPT base, no HDR10 layer) stays on ffprobe:

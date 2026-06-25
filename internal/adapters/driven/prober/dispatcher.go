@@ -2,6 +2,7 @@ package prober
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
@@ -106,18 +107,29 @@ func (realMetaReader) IsMP4(path string) bool  { return mkvadapter.IsMP4Containe
 
 func (realMetaReader) ReadMeta(ctx context.Context, path string) (*extmkv.Container, error) {
 	if mkvadapter.IsMP4Container(path) {
-		// head-only metadata (no sample table); keyframes are derived on demand by
-		// the keyframe backfill worker via mp4.Options{Keyframes: true}. dropped
-		// tracks (cover art, QuickTime chapter text) are not surfaced as streams.
-		// InBandColour recovers colour for bare-hvcC HEVC (no SPS in the sample
-		// description): a bounded first-sample read extracts the SPS VUI + the
-		// HLG ATC SEI. Only fires when head-only colour is missing, so files with
-		// header colour stay pure head-only.
-		c, _, err := mp4.OpenMeta(ctx, path, mp4.Options{InBandColour: true})
-		return c, err
+		return readMP4Meta(ctx, path)
 	}
 	// WithInBandColourFallback: same bare-hvcC HEVC recovery for Matroska — lets
 	// HDR10/HLG/PQ in-band titles fast-path instead of bailing to ffprobe; the
 	// mapper's no-colour gate is the last resort if even this yields nothing.
-	return reader.OpenMeta(ctx, path, reader.WithInBandColourFallback())
+	c, err := reader.OpenMeta(ctx, path, reader.WithInBandColourFallback())
+	if errors.Is(err, reader.ErrNotMatroska) {
+		// A .mkv/.webm extension on an ISO-BMFF (MP4) payload — a mislabeled file.
+		// mkvgo typed the input rather than returning a cryptic EBML error, so read
+		// it as the mp4 it actually is instead of forking ffprobe for it.
+		return readMP4Meta(ctx, path)
+	}
+	return c, err
+}
+
+// readMP4Meta reads ISO-BMFF metadata head-only (no sample table); keyframes are
+// derived on demand by the keyframe backfill worker via mp4.Options{Keyframes:
+// true}. Dropped tracks (cover art, QuickTime chapter text) are not surfaced as
+// streams. InBandColour recovers colour for bare-hvcC HEVC (no SPS in the sample
+// description): a bounded first-sample read extracts the SPS VUI + the HLG ATC
+// SEI. Only fires when head-only colour is missing, so files with header colour
+// stay pure head-only.
+func readMP4Meta(ctx context.Context, path string) (*extmkv.Container, error) {
+	c, _, err := mp4.OpenMeta(ctx, path, mp4.Options{InBandColour: true})
+	return c, err
 }

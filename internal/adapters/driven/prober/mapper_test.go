@@ -203,3 +203,25 @@ func TestMapContainer_FallbackGates(t *testing.T) {
 		})
 	}
 }
+
+// An HDR-capable codec with no colour tags bails ONLY when the colour was never
+// read. When mkvgo parsed a colour source (container Colour / MP4 colr / SPS VUI)
+// and it resolved to unspecified, ColourDetermined is true and the track is
+// confirmed SDR -> it must fast-path, not fall back (validated 230/230 on real
+// HEVC/AV1 SDR titles). When the colour was never read (ColourDetermined=false),
+// real HDR could be hiding in the bitstream, so it still bails to ffprobe.
+func TestMapContainer_ColourDetermined_SDRFastPath(t *testing.T) {
+	mk := func(codec string, determined bool) *extmkv.Container {
+		return &extmkv.Container{Tracks: []extmkv.Track{
+			{Type: extmkv.VideoTrack, Codec: codec,
+				Width: new(uint32(1920)), Height: new(uint32(1080)),
+				VideoBitDepth: new(uint16(10)), ColourDetermined: determined},
+		}}
+	}
+	for _, codec := range []string{"hevc", "av1"} {
+		_, ok := mapContainer(mk(codec, true), true)
+		assert.True(t, ok, codec+" no-colour but ColourDetermined must fast-path as SDR")
+		_, ok = mapContainer(mk(codec, false), true)
+		assert.False(t, ok, codec+" no-colour and not determined must bail to ffprobe")
+	}
+}
