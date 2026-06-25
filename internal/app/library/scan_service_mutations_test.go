@@ -12,6 +12,7 @@ import (
 	applib "github.com/evey-project/evey/internal/app/library"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -704,7 +705,12 @@ func TestScanService_ProbeAndStoreStreams_ReplaceBatchErrorLogged(t *testing.T) 
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
-	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{Duration: mustProbeDuration(1000)}
+	// A real container stream (count > 0) so the write reaches ReplaceBatch; a
+	// zero-container probe takes the preserve-existing path instead.
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{
+		Duration: mustProbeDuration(1000),
+		Streams:  []*library.MediaStream{{ID: "st-v", StreamType: "video", Codec: "h264"}},
+	}
 	h.scanner.Results["/m"] = []library.ScannedFile{
 		{Path: "/m/a.mkv", Size: 100, Fingerprint: "fp", Type: library.MovieItem, Title: "A"},
 	}
@@ -869,6 +875,46 @@ func TestScanService_ProbeAndStoreStreams_UsesSubScannerWhenMetadataNil(t *testi
 		}
 	}
 	assert.True(t, extFound, "external subtitle must be stored when subScanner discovers one")
+}
+
+// A probe that succeeds with ZERO container streams is a failed probe; it must
+// NOT wipe the video/audio metadata already stored for the item (ReplaceBatch
+// deletes-then-inserts). The freshly-discovered external sub is still recorded.
+func TestScanService_ProbeAndStoreStreams_EmptyProbePreservesExistingStreams(t *testing.T) {
+	h := newScanHarness()
+	const itemID = "mi-x"
+	mid := shared.MediaItemID(itemID)
+	require.NoError(t, h.streams.ReplaceBatch(context.Background(), mid, []*library.MediaStream{
+		{ID: "st-v", MediaItemID: mid, StreamType: "video", Codec: "h264"},
+		{ID: "st-a", MediaItemID: mid, StreamType: "audio", Codec: "aac"},
+	}))
+	// Reprobe yields 0 container streams (truncated / mid-copy) but a sidecar exists.
+	h.prober.Results["/m/a.mkv"] = &library.ProbeResult{Duration: mustProbeDuration(42000)}
+	subScanner := libfakes.NewFakeSubtitleScanner()
+	subScanner.Results["/m/a.mkv"] = []library.ExternalSubtitle{
+		{Path: "/m/a.en.srt", Language: "eng", Format: "srt"},
+	}
+	h.svc.WithSubtitleScanner(subScanner)
+
+	_, probedOK := h.svc.ProbeAndStoreStreams(context.Background(), itemID, "/m/a.mkv")
+	assert.False(t, probedOK, "0 container streams must count as a failed probe")
+
+	streams, err := h.streams.GetByMediaItemID(context.Background(), mid)
+	require.NoError(t, err)
+	var hasVideo, hasAudio, hasExt bool
+	for _, st := range streams {
+		switch {
+		case st.IsExternal:
+			hasExt = true
+		case st.StreamType == "video":
+			hasVideo = true
+		case st.StreamType == "audio":
+			hasAudio = true
+		}
+	}
+	assert.True(t, hasVideo, "existing video stream must survive an empty reprobe")
+	assert.True(t, hasAudio, "existing audio stream must survive an empty reprobe")
+	assert.True(t, hasExt, "newly discovered external sub must still be recorded")
 }
 
 func TestScanService_NewItem_TVShowHasSeriesTitle(t *testing.T) {

@@ -785,6 +785,31 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 	result.Streams = append(result.Streams, extSubs...)
 	allStreams := result.Streams
 
+	// A probe that succeeds but yields ZERO container streams is a FAILED probe
+	// (ffprobe can exit 0 with an empty stream list on a truncated / mid-copy /
+	// odd file; the success comment above says so). ReplaceBatch deletes every
+	// existing row before inserting, so writing the externals-only slice here would
+	// WIPE the known video/audio metadata of an item that probed fine before.
+	// Preserve the persisted container streams and merge the freshly-discovered
+	// external subs instead: a new item still records its sidecar sub (nothing to
+	// preserve), while an existing one keeps its streams until a real reprobe
+	// (containerStreams > 0) replaces them.
+	if containerStreams == 0 {
+		existing, gerr := s.mediaStreams.GetByMediaItemID(ctx, shared.MediaItemID(mediaItemID))
+		if gerr != nil {
+			slog.Warn("preserve streams on empty probe: reload failed",
+				slog.String("mediaItemID", mediaItemID), slog.Any("err", gerr))
+			return result.Duration, false
+		}
+		preserved := make([]*library.MediaStream, 0, len(existing))
+		for _, st := range existing {
+			if !st.IsExternal {
+				preserved = append(preserved, st)
+			}
+		}
+		allStreams = append(preserved, extSubs...)
+	}
+
 	if err := s.mediaStreams.ReplaceBatch(ctx, shared.MediaItemID(mediaItemID), allStreams); err != nil {
 		slog.Warn("replace media streams failed", slog.String("mediaItemID", mediaItemID), slog.Any("err", err))
 		return result.Duration, false
