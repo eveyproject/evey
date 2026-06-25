@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	"github.com/lib/pq"
@@ -511,6 +512,13 @@ func (q *CollectionSmartQuerier) CountByRules(ctx context.Context, rules []libra
 }
 
 func buildCollectionRuleCondition(rule library.CollectionRule, argIdx *int) (string, []any) {
+	// Defensive: the web client already strips empty-value rules before save
+	// (SmartCollectionDialog filters r.value.trim() !== ""), but a malformed
+	// API client could still send one. An empty value would yield a
+	// match-nothing predicate (e.g. mi.type = ''), so skip the rule instead.
+	if rule.Value == "" {
+		return "", nil
+	}
 	switch rule.Field {
 	case "genre":
 		val, err := json.Marshal([]string{rule.Value})
@@ -526,8 +534,10 @@ func buildCollectionRuleCondition(rule library.CollectionRule, argIdx *int) (str
 		*argIdx++
 		return cond, []any{rule.Value}
 	case "year":
-		op := "="
+		var op string
 		switch rule.Operator {
+		case "", "eq":
+			op = "="
 		case "gt":
 			op = ">"
 		case "lt":
@@ -536,6 +546,15 @@ func buildCollectionRuleCondition(rule library.CollectionRule, argIdx *int) (str
 			op = ">="
 		case "lte":
 			op = "<="
+		default:
+			// Unknown operator from a malformed client: skip rather than
+			// silently coercing to "=".
+			return "", nil
+		}
+		// year is an integer column; a non-numeric value would raise a
+		// runtime cast error (500). Skip the rule instead.
+		if _, err := strconv.Atoi(rule.Value); err != nil {
+			return "", nil
 		}
 		cond := fmt.Sprintf("mc.year %s $%d", op, *argIdx)
 		*argIdx++
@@ -545,6 +564,11 @@ func buildCollectionRuleCondition(rule library.CollectionRule, argIdx *int) (str
 		*argIdx++
 		return cond, []any{rule.Value}
 	case "rating_gte":
+		// community_rating is numeric; a non-numeric value would raise a
+		// runtime cast error (500). Skip the rule instead.
+		if _, err := strconv.ParseFloat(rule.Value, 64); err != nil {
+			return "", nil
+		}
 		cond := fmt.Sprintf("mcl.community_rating >= $%d::double precision", *argIdx)
 		*argIdx++
 		return cond, []any{rule.Value}
