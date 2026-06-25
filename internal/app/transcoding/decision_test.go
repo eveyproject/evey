@@ -39,6 +39,21 @@ func TestVideoTranscode_HEVC(t *testing.T) {
 	assert.Equal(t, "h264", d.VideoCodec)
 }
 
+// A client advertising HEVC under the "h265" alias must match an "hevc" source
+// (same codec) and copy, not needlessly transcode.
+func TestVideoCopy_H265AliasMatchesHevc(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	}
+	client := transcoding.DefaultWebProfile
+	client.VideoCodecs = []string{"h264", "h265", "vp9"} // "h265" alias, no literal "hevc"
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
+
+	assert.Equal(t, "copy", d.VideoDecision, "h265 alias must match hevc source")
+	assert.NotContains(t, d.TranscodeReasons, "video_codec_unsupported")
+}
+
 func TestAudioTranscode_DTS(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
@@ -51,6 +66,36 @@ func TestAudioTranscode_DTS(t *testing.T) {
 	assert.Equal(t, "transcode", d.AudioDecision)
 	assert.Contains(t, d.TranscodeReasons, "audio_codec_unsupported")
 	assert.Equal(t, "aac", d.AudioCodec)
+}
+
+// No audio stream is flagged default: ffmpeg serves the FIRST audio track, so the
+// decision must judge that track. The first track is DTS (unsupported) → must
+// transcode, not copy it raw (previously the loop judged no track and left copy).
+func TestAudioTranscode_NoDefaultTrack_JudgesFirst(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: false},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: false},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+
+	assert.Equal(t, "transcode", d.AudioDecision, "first (served) audio track is DTS — judge it, don't copy raw")
+	assert.Contains(t, d.TranscodeReasons, "audio_codec_unsupported")
+	assert.Equal(t, "aac", d.AudioCodec)
+}
+
+// A default track exists (AAC, second stream): it is served, not the first (DTS).
+// The decision must judge the default, so a supported default copies even though
+// an earlier track is unsupported — the fix must not over-transcode.
+func TestAudioCopy_DefaultTrackPreferredOverFirst(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: false},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	}
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
+
+	assert.Equal(t, "copy", d.AudioDecision, "default AAC track is served and supported — copy, ignore the earlier DTS")
 }
 
 func TestBitrateCap(t *testing.T) {

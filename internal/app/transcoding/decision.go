@@ -259,19 +259,24 @@ func MakePlaybackDecisionWithPrefs(
 	// subIdx is the subtitle-relative index (0,1,2…) so it lines up with the
 	// client's selection (prefs.SubtitleBurnInTrack) and ffmpeg's 0:s:N.
 	subIdx := 0
-	audIdx := 0
 	for i := range specs {
 		s := specs[i]
 		switch s.Type {
 		case "video":
 			evaluateVideo(d, s, client)
-		case "audio":
-			evaluateAudio(d, s, client, prefs, audIdx)
-			audIdx++
 		case "subtitle":
 			evaluateSubtitle(d, s, prefs, subIdx)
 			subIdx++
 		}
+	}
+	// Judge exactly the audio track the client will actually hear — the same
+	// stream selectedAudioSpec serves (explicit selection, else the default-flag
+	// track, else the first audio stream). Judging per-stream in the loop missed
+	// the codec check entirely for a file with no default-flagged audio track:
+	// none matched, the decision stayed "copy", and ffmpeg then served the first
+	// (possibly undecodable, e.g. DTS) track raw.
+	if sel := selectedAudioSpec(specs, prefs); sel != nil {
+		evaluateAudio(d, *sel, client, prefs)
 	}
 
 	checkBitrate(d, totalBitrate, effectiveMaxBitrate)
@@ -308,7 +313,7 @@ func sumBitrates(streams []StreamSpec) int64 {
 }
 
 func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile) {
-	if !contains(client.VideoCodecs, strings.ToLower(s.Codec)) {
+	if !videoCodecSupported(client.VideoCodecs, s.Codec) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "video_codec_unsupported")
 		d.VideoDecision = "transcode"
 		d.VideoCodec = "h264"
@@ -345,20 +350,13 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 }
 
-// evaluateAudio decides copy-vs-transcode for the audio track the client will
-// actually hear. With an explicit selection (prefs.AudioTrack >= 0, the
-// audio-relative index) only that track is judged; otherwise the container's
-// default-flag track (the historical behavior). Judging any other track is
-// wrong in both directions: a copyable selected track would be re-encoded, an
-// unsupported one would be served raw.
-func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences, audIdx int) {
-	if prefs.AudioTrack >= 0 {
-		if audIdx != prefs.AudioTrack {
-			return
-		}
-	} else if !s.IsDefault {
-		return
-	}
+// evaluateAudio decides copy-vs-transcode for the audio stream the client will
+// actually hear. The caller passes the already-selected stream (selectedAudioSpec:
+// the explicit prefs.AudioTrack, else the default-flag track, else the first
+// audio stream), so this only judges its codec and channel count — judging any
+// other track would be wrong in both directions (a copyable selected track
+// re-encoded, an unsupported served track copied raw).
+func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
 	if !contains(client.AudioCodecs, strings.ToLower(s.Codec)) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "audio_codec_unsupported")
 		d.AudioDecision = "transcode"
@@ -659,6 +657,36 @@ func findDefaultAudioCodec(streams []StreamSpec) string {
 func contains(list []string, val string) bool {
 	for _, v := range list {
 		if strings.EqualFold(v, val) {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeVideoCodec folds the common aliases of a video codec to one canonical
+// name (the ffprobe spelling the prober stores). A client that advertises "h265"
+// or "hvc1" means HEVC; without this fold it would not match a source probed as
+// "hevc" and the stream would be needlessly transcoded.
+func normalizeVideoCodec(c string) string {
+	switch strings.ToLower(c) {
+	case "hevc", "h265", "x265", "libx265", "hvc1", "hev1":
+		return "hevc"
+	case "h264", "avc", "avc1", "x264", "libx264":
+		return "h264"
+	case "av1", "av01", "libaom-av1", "libsvtav1":
+		return "av1"
+	case "vp9", "vp09":
+		return "vp9"
+	}
+	return strings.ToLower(c)
+}
+
+// videoCodecSupported reports whether the client can play srcCodec, comparing on
+// the canonical codec name so codec aliases (h265==hevc) match.
+func videoCodecSupported(clientCodecs []string, srcCodec string) bool {
+	want := normalizeVideoCodec(srcCodec)
+	for _, c := range clientCodecs {
+		if normalizeVideoCodec(c) == want {
 			return true
 		}
 	}
