@@ -12,10 +12,11 @@ import (
 )
 
 type CommandService struct {
-	playlists    playlist.PlaylistRepository
-	items        playlist.PlaylistItemRepository
-	mediaChecker MediaItemExistsChecker
-	musicChecker MusicTrackChecker
+	playlists     playlist.PlaylistRepository
+	items         playlist.PlaylistItemRepository
+	mediaChecker  MediaItemExistsChecker
+	musicChecker  MusicTrackChecker
+	libraryAccess PlaylistLibraryAccessChecker
 }
 
 func NewCommandService(
@@ -32,6 +33,11 @@ func (s *CommandService) WithMediaChecker(checker MediaItemExistsChecker) *Comma
 
 func (s *CommandService) WithMusicTrackChecker(checker MusicTrackChecker) *CommandService {
 	s.musicChecker = checker
+	return s
+}
+
+func (s *CommandService) WithLibraryAccessChecker(checker PlaylistLibraryAccessChecker) *CommandService {
+	s.libraryAccess = checker
 	return s
 }
 
@@ -123,12 +129,25 @@ func (s *CommandService) AddItem(ctx context.Context, playlistID, mediaItemID, p
 		}
 	default:
 		if s.mediaChecker != nil {
-			_, checkErr := s.mediaChecker.GetByID(ctx, mediaItemID)
+			item, checkErr := s.mediaChecker.GetByID(ctx, mediaItemID)
 			if errors.Is(checkErr, shared.ErrNotFound) {
 				return ErrMediaItemNotFound
 			}
 			if checkErr != nil {
 				return fmt.Errorf("check media item: %w", checkErr)
+			}
+			// Library-access gate: a profile may only add media from a library it
+			// can access. Returning ErrMediaItemNotFound (not a distinct permission
+			// error) keeps an inaccessible item indistinguishable from a
+			// non-existent one, so a guessed media id can't be probed for existence.
+			if s.libraryAccess != nil && item != nil {
+				ok, accErr := s.libraryAccess.HasAccessForProfile(ctx, profileID, string(item.LibraryID))
+				if accErr != nil {
+					return fmt.Errorf("check library access: %w", accErr)
+				}
+				if !ok {
+					return ErrMediaItemNotFound
+				}
 			}
 		}
 	}

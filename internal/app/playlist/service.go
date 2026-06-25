@@ -27,6 +27,15 @@ type MusicTrackChecker interface {
 	Exists(ctx context.Context, id string) (bool, error)
 }
 
+// PlaylistLibraryAccessChecker reports whether the given profile may access the
+// given library. The adapter resolves the profile to its owning user and
+// consults library_access. AddItem uses it so a profile cannot add (and then
+// read the metadata of, via GetItems) a media item from a library it has no
+// access to, even when it guesses a valid media id.
+type PlaylistLibraryAccessChecker interface {
+	HasAccessForProfile(ctx context.Context, profileID, libraryID string) (bool, error)
+}
+
 // Service wraps CommandService + QueryService for backward compatibility.
 type Service struct {
 	cmd   *CommandService
@@ -54,6 +63,11 @@ func (s *Service) WithMediaChecker(checker MediaItemExistsChecker) *Service {
 
 func (s *Service) WithMusicTrackChecker(checker MusicTrackChecker) *Service {
 	s.cmd.WithMusicTrackChecker(checker)
+	return s
+}
+
+func (s *Service) WithLibraryAccessChecker(checker PlaylistLibraryAccessChecker) *Service {
+	s.cmd.WithLibraryAccessChecker(checker)
 	return s
 }
 

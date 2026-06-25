@@ -296,6 +296,59 @@ func TestAddItem_ValidMediaID(t *testing.T) {
 	}
 }
 
+type fakeLibraryAccess struct {
+	allow map[string]bool // keyed by libraryID
+	err   error
+}
+
+func (f *fakeLibraryAccess) HasAccessForProfile(_ context.Context, _, libraryID string) (bool, error) {
+	if f.err != nil {
+		return false, f.err
+	}
+	return f.allow[libraryID], nil
+}
+
+func TestAddItem_LibraryAccessDenied(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	svc.WithMediaChecker(&fakeMediaChecker{items: map[string]*library.MediaItem{
+		"media-1": {ID: "media-1", Title: "Test Movie", LibraryID: "lib-private"},
+	}})
+	svc.WithLibraryAccessChecker(&fakeLibraryAccess{allow: map[string]bool{"lib-public": true}})
+
+	pl := &playlist.Playlist{Name: "Manual", ProfileID: "user-1", Type: playlist.Manual}
+	svc.Create(context.Background(), pl)
+
+	// Media exists but lives in a library the profile cannot access: must look
+	// exactly like a missing item (no existence leak) and must not be added.
+	err := svc.AddItem(context.Background(), pl.ID, "media-1", "user-1")
+	if !errors.Is(err, ErrMediaItemNotFound) {
+		t.Fatalf("expected ErrMediaItemNotFound on inaccessible library, got %v", err)
+	}
+	_, items, _ := svc.GetItems(context.Background(), pl.ID, "user-1")
+	if len(items) != 0 {
+		t.Fatalf("inaccessible item must not be added, got %d items", len(items))
+	}
+}
+
+func TestAddItem_LibraryAccessGranted(t *testing.T) {
+	svc, _, _, _ := newTestService()
+	svc.WithMediaChecker(&fakeMediaChecker{items: map[string]*library.MediaItem{
+		"media-1": {ID: "media-1", Title: "Test Movie", LibraryID: "lib-public"},
+	}})
+	svc.WithLibraryAccessChecker(&fakeLibraryAccess{allow: map[string]bool{"lib-public": true}})
+
+	pl := &playlist.Playlist{Name: "Manual", ProfileID: "user-1", Type: playlist.Manual}
+	svc.Create(context.Background(), pl)
+
+	if err := svc.AddItem(context.Background(), pl.ID, "media-1", "user-1"); err != nil {
+		t.Fatalf("unexpected error adding accessible item: %v", err)
+	}
+	_, items, _ := svc.GetItems(context.Background(), pl.ID, "user-1")
+	if len(items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(items))
+	}
+}
+
 type fakeMusicChecker struct {
 	ids map[string]bool
 	err error
