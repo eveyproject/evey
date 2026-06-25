@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -40,7 +41,16 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 
 	pattern := "%" + likeEscape(q) + "%"
 	args := []any{pattern, pattern}
-	where := "(mi.title ILIKE $1 ESCAPE '\\' OR COALESCE(mi.original_title,'') ILIKE $2 ESCAPE '\\')"
+	// Match title/original_title AND (like Meilisearch's searchable attributes)
+	// translated titles and cast names, so a search for a foreign-language title or
+	// an actor name still finds results while Meili is down. EXISTS subqueries keep
+	// one row per media item (no JOIN fan-out, so no DISTINCT needed).
+	where := `(mi.title ILIKE $1 ESCAPE '\'
+		OR COALESCE(mi.original_title,'') ILIKE $2 ESCAPE '\'
+		OR EXISTS (SELECT 1 FROM media_item_translations mt
+			WHERE mt.media_item_id = mi.id AND mt.title ILIKE $1 ESCAPE '\')
+		OR EXISTS (SELECT 1 FROM media_people mp JOIN people pe ON pe.id = mp.person_id
+			WHERE mp.media_item_id = mi.id AND pe.name ILIKE $1 ESCAPE '\'))`
 	argN := 3
 
 	if typ, ok := filters["type"]; ok && typ != "" {
@@ -51,6 +61,33 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 	if libID, ok := filters["library_id"]; ok && libID != "" {
 		where += fmt.Sprintf(" AND mi.library_id = $%d", argN)
 		args = append(args, libID)
+		argN++
+	}
+	// Genre and year filters: Meilisearch applies these (search_adapter filterable
+	// attributes), so the SQL fallback must too or a genre/year-filtered search
+	// silently returns unfiltered results while Meili is down. media_catalog (mc)
+	// is already joined below.
+	if g, ok := filters["genres"]; ok && g != "" {
+		gj, err := json.Marshal([]string{g})
+		if err == nil {
+			where += fmt.Sprintf(" AND mc.genres @> $%d::jsonb", argN)
+			args = append(args, string(gj))
+			argN++
+		}
+	}
+	if ymin, ok := filters["year_min"]; ok && ymin != "" {
+		if n, err := strconv.Atoi(ymin); err == nil {
+			where += fmt.Sprintf(" AND mc.year >= $%d", argN)
+			args = append(args, n)
+			argN++
+		}
+	}
+	if ymax, ok := filters["year_max"]; ok && ymax != "" {
+		if n, err := strconv.Atoi(ymax); err == nil {
+			where += fmt.Sprintf(" AND mc.year <= $%d", argN)
+			args = append(args, n)
+			argN++
+		}
 	}
 
 	if limit <= 0 {
