@@ -97,6 +97,7 @@ type mediaDeps struct {
 	syncPlayHub      *appsyncplay.Hub
 	deviceRegistry   *appsyncplay.DeviceRegistry
 	streamTokenStore *appmedia.StreamTokenStore
+	mediaItemCache   *applibrary.CachedMediaItemQueryRepo
 	shareSvc         *appmedia.ShareService
 }
 

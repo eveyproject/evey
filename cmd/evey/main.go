@@ -229,6 +229,7 @@ func run() error {
 	deps.media.playbackSvc.CommandService().StopProgressFlusher()
 	deps.bus.Stop()
 	deps.media.streamTokenStore.Stop()
+	deps.media.mediaItemCache.Stop() // stop the cache eviction loop like the other workers
 	grpcSrv.Stop()
 	if gwConn != nil {
 		if err := gwConn.Close(); err != nil {

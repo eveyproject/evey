@@ -1061,6 +1061,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			syncPlayHub:      syncPlayHub,
 			deviceRegistry:   deviceRegistry,
 			streamTokenStore: streamTokenStore,
+			mediaItemCache:   mediaItemCache,
 			shareSvc:         shareSvc,
 		},
 		content: contentDeps{
