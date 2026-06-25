@@ -65,7 +65,7 @@ func (r *LibraryRepository) List(ctx context.Context, filter library.ListLibrari
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	const baseQuery = `SELECT id, name, type, paths, scan_interval_minutes, enabled, last_scanned_at, created_at, updated_at, scan_on_startup, realtime_monitoring
-		 FROM libraries ORDER BY name`
+		 FROM libraries ORDER BY name, id`
 	var (
 		rows *sql.Rows
 		err  error

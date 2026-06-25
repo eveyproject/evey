@@ -56,7 +56,7 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID st
 	if unreadOnly {
 		q += ` AND read_at IS NULL`
 	}
-	q += ` ORDER BY created_at DESC`
+	q += ` ORDER BY created_at DESC, id DESC`
 	if limit <= 0 {
 		limit = 200
 	}

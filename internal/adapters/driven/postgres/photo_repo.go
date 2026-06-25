@@ -127,7 +127,7 @@ func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.Li
 		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM photos WHERE library_id = $1
-		ORDER BY taken_at DESC NULLS LAST, created_at DESC
+		ORDER BY taken_at DESC NULLS LAST, created_at DESC, id DESC
 		LIMIT $2 OFFSET $3`, libraryID, limit, offset,
 	)
 	if err != nil {
@@ -155,7 +155,7 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.Libr
 		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM photos WHERE library_id = $1 AND album = $2
-		ORDER BY taken_at DESC NULLS LAST, created_at DESC
+		ORDER BY taken_at DESC NULLS LAST, created_at DESC, id DESC
 		LIMIT $3 OFFSET $4`, libraryID, album, limit, offset,
 	)
 	if err != nil {

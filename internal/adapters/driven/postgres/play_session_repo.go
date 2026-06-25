@@ -265,7 +265,7 @@ func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlayS
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
 	}
-	query += " ORDER BY started_at DESC"
+	query += " ORDER BY started_at DESC, id DESC"
 
 	limit := f.Limit
 	if limit <= 0 || limit > 500 {
