@@ -294,6 +294,72 @@ func buildJPEGWithExifBE(datetime, model string) []byte {
 	return jpeg
 }
 
+// TestReadExifData_PrefersDateTimeOriginalFromSubIFD proves taken_at uses
+// DateTimeOriginal (0x9003, in the Exif sub-IFD = the capture moment) over IFD0's
+// DateTime (0x0132 = a possibly-later edit time). The old parser only walked IFD0
+// and never reached the sub-IFD, so it always used the edit time.
+func TestReadExifData_PrefersDateTimeOriginalFromSubIFD(t *testing.T) {
+	jpeg := buildJPEGWithExifSubIFD("2023:01:15 08:00:00", "2023:06:20 14:30:00")
+	takenAt, _ := readExifData(jpeg)
+	if takenAt == nil {
+		t.Fatal("expected non-nil takenAt")
+	}
+	want := time.Date(2023, 1, 15, 8, 0, 0, 0, time.UTC)
+	if !takenAt.Equal(want) {
+		t.Errorf("takenAt = %v, want DateTimeOriginal %v (not the edit DateTime)", takenAt, want)
+	}
+}
+
+// buildJPEGWithExifSubIFD builds a JPEG whose IFD0 holds DateTime (0x0132) plus an
+// ExifIFDPointer (0x8769) to a sub-IFD holding DateTimeOriginal (0x9003).
+func buildJPEGWithExifSubIFD(dateTimeOriginal, dateTime string) []byte {
+	dtStr := dateTime + "\x00"
+	dtoStr := dateTimeOriginal + "\x00"
+
+	ifd0Off := 8
+	ifd0End := ifd0Off + 2 + 2*12 + 4 // numEntries + 2 entries + next-IFD ptr
+	subOff := ifd0End
+	subEnd := subOff + 2 + 1*12 + 4
+	dtOff := subEnd
+	dtoOff := dtOff + len(dtStr)
+	totalLen := dtoOff + len(dtoStr)
+
+	tiff := make([]byte, totalLen)
+	tiff[0], tiff[1] = 'M', 'M'
+	putU16be(tiff[2:], 42)
+	putU32be(tiff[4:], uint32(ifd0Off))
+
+	putU16be(tiff[ifd0Off:], 2) // IFD0: 2 entries
+	e0 := tiff[ifd0Off+2:]
+	putU16be(e0[0:], 0x0132) // DateTime (ASCII)
+	putU16be(e0[2:], 2)
+	putU32be(e0[4:], uint32(len(dtStr)))
+	putU32be(e0[8:], uint32(dtOff))
+	e1 := tiff[ifd0Off+2+12:]
+	putU16be(e1[0:], 0x8769) // ExifIFDPointer (LONG)
+	putU16be(e1[2:], 4)
+	putU32be(e1[4:], 1)
+	putU32be(e1[8:], uint32(subOff))
+	putU32be(tiff[ifd0Off+2+24:], 0)
+
+	putU16be(tiff[subOff:], 1) // sub-IFD: 1 entry
+	s0 := tiff[subOff+2:]
+	putU16be(s0[0:], 0x9003) // DateTimeOriginal (ASCII)
+	putU16be(s0[2:], 2)
+	putU32be(s0[4:], uint32(len(dtoStr)))
+	putU32be(s0[8:], uint32(dtoOff))
+	putU32be(tiff[subOff+2+12:], 0)
+
+	copy(tiff[dtOff:], dtStr)
+	copy(tiff[dtoOff:], dtoStr)
+
+	payload := append([]byte("Exif\x00\x00"), tiff...)
+	segLen := 2 + len(payload)
+	app1 := append([]byte{0xFF, 0xE1, byte(segLen >> 8), byte(segLen & 0xFF)}, payload...)
+	jpeg := append([]byte{0xFF, 0xD8}, app1...)
+	return append(jpeg, 0xFF, 0xD9)
+}
+
 func putU16be(b []byte, v uint16) {
 	b[0] = byte(v >> 8)
 	b[1] = byte(v)

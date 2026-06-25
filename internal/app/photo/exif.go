@@ -59,36 +59,62 @@ func parseExifSegment(seg []byte) (takenAt *time.Time, cameraModel string) {
 	default:
 		return nil, ""
 	}
-	ifdOffset := int(order.Uint32(tiff[4:8]))
-	if ifdOffset+2 > len(tiff) {
+	const entrySize = 12
+	parseDT := func(entry []byte, dataType uint16, count int) *time.Time {
+		s := readExifString(tiff, entry[8:12], dataType, count, order)
+		if t, err := time.Parse("2006:01:02 15:04:05", s); err == nil {
+			return &t
+		}
+		return nil
+	}
+	// walkIFD invokes fn for each 12-byte entry of the IFD at off; returns false
+	// when the IFD header is out of range.
+	walkIFD := func(off int, fn func(tag, dataType uint16, count int, entry []byte)) bool {
+		if off < 0 || off+2 > len(tiff) {
+			return false
+		}
+		n := int(order.Uint16(tiff[off : off+2]))
+		pos := off + 2
+		for range n {
+			if pos+entrySize > len(tiff) {
+				break
+			}
+			entry := tiff[pos : pos+entrySize]
+			fn(order.Uint16(entry[0:2]), order.Uint16(entry[2:4]), int(order.Uint32(entry[4:8])), entry)
+			pos += entrySize
+		}
+		return true
+	}
+
+	var dateTime, dateTimeOriginal *time.Time
+	var exifIFDOffset int
+	// Tag 0x0110 = Model, 0x0132 = DateTime (IFD0), 0x8769 = ExifIFDPointer.
+	if !walkIFD(int(order.Uint32(tiff[4:8])), func(tag, dataType uint16, count int, entry []byte) {
+		switch tag {
+		case 0x0110:
+			cameraModel = readExifString(tiff, entry[8:12], dataType, count, order)
+		case 0x0132:
+			dateTime = parseDT(entry, dataType, count)
+		case 0x8769:
+			exifIFDOffset = int(order.Uint32(entry[8:12]))
+		}
+	}) {
 		return nil, ""
 	}
-	numEntries := int(order.Uint16(tiff[ifdOffset : ifdOffset+2]))
-	pos := ifdOffset + 2
-	const entrySize = 12
-	for range numEntries {
-		if pos+entrySize > len(tiff) {
-			break
-		}
-		entry := tiff[pos : pos+entrySize]
-		tag := order.Uint16(entry[0:2])
-		dataType := order.Uint16(entry[2:4])
-		count := int(order.Uint32(entry[4:8]))
-		// Tag 0x0110 = Model, 0x9003 = DateTimeOriginal, 0x0132 = DateTime
-		switch tag {
-		case 0x0110: // Model
-			cameraModel = readExifString(tiff, entry[8:12], dataType, count, order)
-		case 0x9003, 0x0132: // DateTimeOriginal or DateTime
-			if takenAt == nil {
-				s := readExifString(tiff, entry[8:12], dataType, count, order)
-				if t, err := time.Parse("2006:01:02 15:04:05", s); err == nil {
-					takenAt = &t
-				}
+	// DateTimeOriginal (the capture moment, tag 0x9003) lives in the Exif sub-IFD,
+	// not IFD0. Prefer it: IFD0's DateTime (0x0132) can be a later edit time, which
+	// would sort an edited photo by when it was edited, not when it was taken.
+	if exifIFDOffset > 0 {
+		walkIFD(exifIFDOffset, func(tag, dataType uint16, count int, entry []byte) {
+			if tag == 0x9003 {
+				dateTimeOriginal = parseDT(entry, dataType, count)
 			}
-		}
-		pos += entrySize
+		})
 	}
-	return takenAt, cameraModel
+	if dateTimeOriginal != nil {
+		return dateTimeOriginal, cameraModel
+	}
+	return dateTime, cameraModel
 }
 
 // readExifString reads an ASCII string EXIF value. For short values (<=4 bytes) they're
