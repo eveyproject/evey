@@ -148,7 +148,7 @@ func (r *MusicTrackRepository) ListByLibrary(ctx context.Context, libraryID shar
 		        artist ILIKE '%' || $2 || '%' ESCAPE '\' OR
 		        album ILIKE '%' || $2 || '%' ESCAPE '\'
 		      ))
-		ORDER BY album_artist, album, disk_number, track_number
+		ORDER BY album_artist, album, disk_number, track_number, id
 		LIMIT $3 OFFSET $4`, libraryID, escaped, limit, offset)
 	if err != nil {
 		span.RecordError(err)
@@ -266,7 +266,7 @@ func (r *MusicTrackRepository) ListByArtist(ctx context.Context, artist string, 
 		       genre, album_folder, cover_art_url, created_at, updated_at,
 		       COUNT(*) OVER() AS total
 		FROM music_tracks WHERE album_artist=$1 OR artist=$1
-		ORDER BY album, disk_number, track_number
+		ORDER BY album, disk_number, track_number, id
 		LIMIT $2 OFFSET $3`, artist, limit, offset)
 	if err != nil {
 		span.RecordError(err)
@@ -391,7 +391,10 @@ func (r *MusicTrackRepository) GetArtists(ctx context.Context, libraryID shared.
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
-		SELECT COALESCE(NULLIF(album_artist,''), artist), COUNT(*), COUNT(DISTINCT album), MIN(NULLIF(cover_art_url,''))
+		-- Album identity is the on-disk folder, not the album tag (GetAlbums groups
+		-- on album_folder): two folders sharing one album tag are two albums, so
+		-- count distinct folders to match the artist's actual album count.
+		SELECT COALESCE(NULLIF(album_artist,''), artist), COUNT(*), COUNT(DISTINCT album_folder), MIN(NULLIF(cover_art_url,''))
 		FROM music_tracks WHERE library_id=$1
 		GROUP BY 1 ORDER BY 1
 		LIMIT 10000`, libraryID)
