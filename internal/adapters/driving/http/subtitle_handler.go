@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os/exec"
@@ -13,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	mkvsubtitle "github.com/gravity-zero/mkvgo/mkv/subtitle"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
@@ -167,6 +170,21 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 		http.ServeFile(w, r, safePath)
 		return
+	}
+	// SRT sidecars convert in-process via mkvgo — no ffmpeg fork per request. Buffer
+	// the result first so a parse error can still fall back to ffmpeg without having
+	// already written a partial body. Only .srt (the dominant sidecar, a lossless
+	// reformat to WebVTT); .ass/.ssa and exotic formats stay on ffmpeg below.
+	if ext == ".srt" {
+		var buf bytes.Buffer
+		err := mkvsubtitle.FileToWebVTT(safePath, &buf)
+		if err == nil {
+			w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+			_, _ = io.Copy(w, &buf)
+			return
+		}
+		slog.Warn("mkvgo srt->webvtt failed, falling back to ffmpeg",
+			slog.String("path", safePath), slog.Any("err", err))
 	}
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()

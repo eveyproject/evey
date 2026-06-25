@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -536,5 +538,33 @@ func TestSubtitleHandler_ParentalAdmin_NotBlocked(t *testing.T) {
 	// ffmpeg is not present in unit tests so we get some non-403 status.
 	if w.Code == http.StatusForbidden {
 		t.Errorf("admin must not be blocked by parental, got 403")
+	}
+}
+
+// An .srt sidecar converts to WebVTT in-process via mkvgo (no ffmpeg fork): the
+// response is WebVTT (header + '.'-separated timestamps + cue text).
+func TestServeExternalSubtitle_SRT_InProcessWebVTT(t *testing.T) {
+	dir := t.TempDir()
+	srt := "1\n00:00:01,000 --> 00:00:02,000\nHello\n\n2\n00:00:03,000 --> 00:00:04,000\nWorld\n"
+	path := filepath.Join(dir, "movie.srt")
+	if err := os.WriteFile(path, []byte(srt), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	w := httptest.NewRecorder()
+	serveExternalSubtitle(w, req, path, dir, "")
+
+	if ct := w.Result().Header.Get("Content-Type"); ct != "text/vtt; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/vtt; charset=utf-8", ct)
+	}
+	body := w.Body.String()
+	if !strings.HasPrefix(body, "WEBVTT") {
+		t.Errorf("body must start with WEBVTT, got: %q", body)
+	}
+	for _, want := range []string{"Hello", "World", "00:00:01.000", "00:00:02.000"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("WebVTT body missing %q; got:\n%s", want, body)
+		}
 	}
 }
