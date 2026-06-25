@@ -244,20 +244,34 @@ func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID strin
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// DISTINCT ON (parent_id) must order by parent_id first, so its rows come out
+	// in series-id order. Wrap it and re-order the de-duplicated set by how
+	// recently each series was watched, applying LIMIT in the outer query so the
+	// N most-recently-watched series surface (the inner LIMIT would instead keep
+	// the N alphabetically-first series and could drop the one you just watched).
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT DISTINCT ON (mi.parent_id)
-		   COALESCE(wp.id, ''), $1, mi.id, COALESCE(wp.position_ms, 0),
-		   COALESCE(wp.completed, FALSE), COALESCE(wp.play_count, 0), COALESCE(wp.last_played_at, NOW())
-		 FROM media_items mi
-		 INNER JOIN media_items prev ON prev.parent_id = mi.parent_id
-		   AND prev.index_number = mi.index_number - 1
-		 INNER JOIN watch_progress prev_wp ON prev_wp.profile_id = $1
-		   AND prev_wp.media_item_id = prev.id
-		   AND prev_wp.completed = TRUE
-		 LEFT JOIN watch_progress wp ON wp.profile_id = $1 AND wp.media_item_id = mi.id
-		 WHERE mi.type = 'episode' AND mi.index_number IS NOT NULL
-		   AND (wp.completed IS NULL OR wp.completed = FALSE)
-		 ORDER BY mi.parent_id, COALESCE(prev_wp.last_played_at, NOW()) DESC
+		`SELECT nu.id, nu.profile_id, nu.media_item_id, nu.position_ms,
+		        nu.completed, nu.play_count, nu.last_played_at
+		 FROM (
+		   SELECT DISTINCT ON (mi.parent_id)
+		     COALESCE(wp.id, '') AS id, $1 AS profile_id, mi.id AS media_item_id,
+		     COALESCE(wp.position_ms, 0) AS position_ms,
+		     COALESCE(wp.completed, FALSE) AS completed,
+		     COALESCE(wp.play_count, 0) AS play_count,
+		     COALESCE(wp.last_played_at, NOW()) AS last_played_at,
+		     COALESCE(prev_wp.last_played_at, NOW()) AS prev_last_played
+		   FROM media_items mi
+		   INNER JOIN media_items prev ON prev.parent_id = mi.parent_id
+		     AND prev.index_number = mi.index_number - 1
+		   INNER JOIN watch_progress prev_wp ON prev_wp.profile_id = $1
+		     AND prev_wp.media_item_id = prev.id
+		     AND prev_wp.completed = TRUE
+		   LEFT JOIN watch_progress wp ON wp.profile_id = $1 AND wp.media_item_id = mi.id
+		   WHERE mi.type = 'episode' AND mi.index_number IS NOT NULL
+		     AND (wp.completed IS NULL OR wp.completed = FALSE)
+		   ORDER BY mi.parent_id, COALESCE(prev_wp.last_played_at, NOW()) DESC
+		 ) nu
+		 ORDER BY nu.prev_last_played DESC, nu.media_item_id
 		 LIMIT $2`, profileID, limit)
 	if err != nil {
 		span.RecordError(err)
