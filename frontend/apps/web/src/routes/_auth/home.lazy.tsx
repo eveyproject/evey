@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef, useMemo, memo, type FC } from "react";
-import { Folder, Play, Settings2 } from "lucide-react";
+import { useState, useMemo, memo, type FC } from "react";
+import { Folder, Settings2 } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQueries } from "@tanstack/react-query";
 import {
   useFeedServiceRecommended,
   useFeedServiceGetFeedConfig,
@@ -9,7 +8,6 @@ import {
   useFeedServiceResumePlayback,
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
-  libraryServiceGetMediaItem,
   useMusicServiceGetAlbums,
   usePhotoServiceListPhotoAlbums,
 } from "@evey/api";
@@ -24,205 +22,11 @@ import { CollectionCard } from "../../features/collection/CollectionCard";
 import { useMostPopular } from "@/hooks/usePopular";
 import { useWatchedMap } from "@/hooks/useWatchedMap";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
-import { artworkUrl } from "@/features/library/artworkUrl";
 import { CustomizePanel } from "@/features/home/CustomizePanel";
 import { NextUpRow } from "@/features/home/NextUpRow";
 
 export const Route = createLazyFileRoute("/_auth/home")({
   component: HomePage,
-});
-
-const HERO_COUNT = 5;
-const HERO_INTERVAL = 8000;
-
-const HeroBanner = memo(function HeroBanner() {
-  const { t } = useTranslation();
-  const { data, isLoading } = useFeedServiceRecentlyAdded(undefined, { query: { staleTime: 5 * 60_000 } });
-
-  const candidates = useMemo(
-    () => (data?.items ?? []).filter((i) => !!i.mediaItemId).slice(0, HERO_COUNT),
-    [data],
-  );
-  const heroIds = useMemo(() => candidates.map((c) => c.mediaItemId!), [candidates]);
-
-  const details = useQueries({
-    queries: useMemo(
-      () => heroIds.map((id) => ({
-        queryKey: [`/api/v1/media/${id}`],
-        queryFn: ({ signal }: { signal: AbortSignal }) => libraryServiceGetMediaItem(id, signal),
-        enabled: !!id,
-        staleTime: 5 * 60_000,
-      })),
-      [heroIds],
-    ),
-  });
-
-  const [activeIndex, setActiveIndex] = useState(0);
-  const pausedRef = useRef(false);
-  const [seenSlides, setSeenSlides] = useState<Set<number>>(() => new Set([0]));
-
-  const goToSlide = useCallback((idx: number) => {
-    setActiveIndex(idx);
-    setSeenSlides((prev) => { if (prev.has(idx)) return prev; const next = new Set(prev); next.add(idx); return next; });
-  }, []);
-
-  const advance = useCallback(() => {
-    if (heroIds.length <= 1) return;
-    const next = (activeIndex + 1) % heroIds.length;
-    goToSlide(next);
-  }, [heroIds.length, activeIndex, goToSlide]);
-
-  useEffect(() => {
-    if (heroIds.length <= 1) return;
-    const id = setInterval(() => {
-      if (!pausedRef.current) advance();
-    }, HERO_INTERVAL);
-    return () => clearInterval(id);
-  }, [advance, heroIds.length]);
-
-  if (isLoading && heroIds.length === 0) {
-    return (
-      <div
-        className="w-full animate-shimmer h-[clamp(320px,50vh,600px)]"
-      />
-    );
-  }
-
-  if (heroIds.length === 0) return null;
-
-  return (
-    <div
-      className="relative w-full overflow-hidden h-[clamp(320px,50vh,600px)]"
-      data-testid="hero-banner"
-      onMouseEnter={() => { pausedRef.current = true; }}
-      onMouseLeave={() => { pausedRef.current = false; }}
-    >
-      {heroIds.map((id, idx) => {
-        const detail = details[idx]?.data;
-        const candidate = candidates[idx];
-        const backdropUrl = artworkUrl(id, "backdrop", detail);
-        // backdropUrl may already carry a ?v= version, so pick the right separator.
-        const wSep = backdropUrl.includes("?") ? "&" : "?";
-        const backdropSrcSet = `${backdropUrl}${wSep}w=800 800w, ${backdropUrl}${wSep}w=1280 1280w, ${backdropUrl}${wSep}w=1920 1920w`;
-        const displayTitle = candidate?.title ?? detail?.title ?? "";
-        const overview = detail?.overview;
-        const year = detail?.year;
-        const genres = detail?.genres ?? [];
-        const rating = detail?.communityRating;
-        const isActive = idx === activeIndex;
-
-        return (
-          <div
-            key={id}
-            className="absolute inset-0 transition-opacity-fast duration-1000"
-            style={{ opacity: isActive ? 1 : 0, pointerEvents: isActive ? "auto" : "none" }}
-          >
-            {seenSlides.has(idx) && (
-              <img
-                src={backdropUrl}
-                srcSet={backdropSrcSet}
-                sizes="100vw"
-                alt=""
-                aria-hidden="true"
-                className="absolute inset-0 w-full h-full object-cover animate-ken-burns"
-                loading={isActive ? "eager" : "lazy"}
-                fetchPriority={isActive ? "high" : "low"}
-                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
-            )}
-            <div
-              className="absolute inset-0"
-              style={{
-                background: "linear-gradient(to right, color-mix(in srgb, var(--bg) 90%, transparent) 0%, color-mix(in srgb, var(--bg) 40%, transparent) 60%, transparent 100%)",
-              }}
-            />
-            <div
-              className="absolute inset-0"
-              style={{
-                background: "linear-gradient(to top, var(--bg) 0%, color-mix(in srgb, var(--bg) 40%, transparent) 40%, transparent 100%)",
-              }}
-            />
-
-            <div className="absolute inset-0 flex flex-col justify-end px-6 sm:px-10 pb-8 sm:pb-12 max-w-2xl">
-              <h1
-                className="text-2xl sm:text-4xl font-bold mb-2 leading-tight text-[var(--overlay-text)] tracking-[-0.02em]"
-                style={{
-                  textShadow: "0 2px 8px var(--overlay-bg-strong)",
-                }}
-              >
-                {displayTitle}
-              </h1>
-
-              <div className="flex items-center gap-3 flex-wrap mb-2">
-                {year && (
-                  <span className="text-sm font-medium text-[var(--overlay-text-muted)]">
-                    {year}
-                  </span>
-                )}
-                {rating !== undefined && rating > 0 && (
-                  <span className="text-sm text-[var(--overlay-text-muted)]">
-                    {"\u2605"} {rating.toFixed(1)}
-                  </span>
-                )}
-                {genres.slice(0, 3).map((g) => (
-                  <span
-                    key={g}
-                    className="text-xs px-2 py-0.5 font-medium hidden sm:inline-block bg-[var(--glass-bg)] text-[var(--overlay-text-bright)] rounded-full border border-[var(--glass-border)] backdrop-blur-[var(--glass-blur)]"
-                  >
-                    {g}
-                  </span>
-                ))}
-              </div>
-
-              {overview && (
-                <p
-                  className="text-sm leading-relaxed mb-4 hidden sm:line-clamp-3 text-white/90"
-                  style={{ textShadow: "0 1px 6px var(--overlay-scrim)" }}
-                >
-                  {overview}
-                </p>
-              )}
-
-              <div className="flex gap-3 mt-2">
-                <Link
-                  to="/player/$mediaId"
-                  params={{ mediaId: id }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast hover:opacity-90 bg-[var(--accent)] text-[var(--filter-active-text)]"
-                >
-                  <Play size={16} fill="currentColor" />
-                  {t("media.home.play")}
-                </Link>
-                <Link
-                  to="/media/$mediaId"
-                  params={{ mediaId: id }}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-[var(--radius-md)] font-semibold text-sm transition-opacity-fast hover:opacity-90 bg-[var(--glass-bg)] text-[var(--overlay-text)] border border-[var(--glass-border)] backdrop-blur-[var(--glass-blur)]"
-                >
-                  {t("media.home.moreInfo")}
-                </Link>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-
-      {heroIds.length > 1 && (
-        <div className="absolute bottom-4 right-6 flex gap-2 z-raised">
-          {heroIds.map((id, idx) => (
-            <button
-              key={id}
-              onClick={() => goToSlide(idx)}
-              className="w-2 h-2 rounded-full transition-all duration-300"
-              style={{
-                backgroundColor: idx === activeIndex ? "var(--accent)" : "var(--overlay-dot-inactive)",
-                transform: idx === activeIndex ? "scale(1.3)" : "scale(1)",
-              }}
-              aria-label={t("common.slideNumber", { number: idx + 1 })}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
 });
 
 const MusicLibrarySlider = memo(function MusicLibrarySlider({ libraryId, name, maxItems }: LibrarySliderProps) {
@@ -474,8 +278,6 @@ function HomePage() {
 
   return (
     <div className="animate-fade-in" data-testid="home-page">
-      <HeroBanner />
-
       <div className="px-4 sm:px-6 pt-6">
         <div className="flex justify-end mb-2">
           <button
