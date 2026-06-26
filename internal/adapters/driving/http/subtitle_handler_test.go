@@ -541,6 +541,37 @@ func TestSubtitleHandler_ParentalAdmin_NotBlocked(t *testing.T) {
 	}
 }
 
+// An .ass sidecar converts to WebVTT in-process via mkvgo (no ffmpeg fork): the
+// response is WebVTT with cue text extracted from Dialogue lines.
+func TestServeExternalSubtitle_ASS_InProcessWebVTT(t *testing.T) {
+	dir := t.TempDir()
+	ass := "[Script Info]\nTitle: Test\nScriptType: v4.00+\n\n[Events]\n" +
+		"Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n" +
+		"Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Hello\n" +
+		"Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,World\n"
+	path := filepath.Join(dir, "movie.ass")
+	if err := os.WriteFile(path, []byte(ass), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	w := httptest.NewRecorder()
+	serveExternalSubtitle(w, req, path, dir, "")
+
+	if ct := w.Result().Header.Get("Content-Type"); ct != "text/vtt; charset=utf-8" {
+		t.Errorf("Content-Type = %q, want text/vtt; charset=utf-8", ct)
+	}
+	body := w.Body.String()
+	if !strings.HasPrefix(body, "WEBVTT") {
+		t.Errorf("body must start with WEBVTT, got: %q", body)
+	}
+	for _, want := range []string{"Hello", "World"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("WebVTT body missing %q; got:\n%s", want, body)
+		}
+	}
+}
+
 // An .srt sidecar converts to WebVTT in-process via mkvgo (no ffmpeg fork): the
 // response is WebVTT (header + '.'-separated timestamps + cue text).
 func TestServeExternalSubtitle_SRT_InProcessWebVTT(t *testing.T) {

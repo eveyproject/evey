@@ -171,20 +171,19 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 		http.ServeFile(w, r, safePath)
 		return
 	}
-	// SRT sidecars convert in-process via mkvgo — no ffmpeg fork per request. Buffer
-	// the result first so a parse error can still fall back to ffmpeg without having
-	// already written a partial body. Only .srt (the dominant sidecar, a lossless
-	// reformat to WebVTT); .ass/.ssa and exotic formats stay on ffmpeg below.
-	if ext == ".srt" {
+	// .srt, .ass and .ssa convert in-process via mkvgo — no ffmpeg fork per
+	// request. Buffer the result first so a parse error can still fall back to
+	// ffmpeg without having already written a partial body.
+	if ext == ".srt" || ext == ".ass" || ext == ".ssa" {
 		var buf bytes.Buffer
-		err := mkvsubtitle.FileToWebVTT(safePath, &buf)
-		if err == nil {
+		mkvErr := mkvsubtitle.FileToWebVTT(safePath, &buf)
+		if mkvErr == nil {
 			w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 			_, _ = io.Copy(w, &buf)
 			return
 		}
-		slog.Warn("mkvgo srt->webvtt failed, falling back to ffmpeg",
-			slog.String("path", safePath), slog.Any("err", err))
+		slog.Warn("mkvgo subtitle->webvtt failed, falling back to ffmpeg",
+			slog.String("path", safePath), slog.String("ext", ext), slog.Any("err", mkvErr))
 	}
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
