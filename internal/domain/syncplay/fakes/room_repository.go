@@ -91,28 +91,36 @@ func (r *FakeRoomRepository) RemoveMember(_ context.Context, roomID string, user
 	return nil
 }
 
-func (r *FakeRoomRepository) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID string, userID string) (bool, error) {
+func (r *FakeRoomRepository) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID string, userID string) (bool, string, error) {
 	if r.Err != nil {
-		return false, r.Err
+		return false, "", r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	room, ok := r.items[roomID]
 	if !ok {
-		return false, ErrNotFound
+		return false, "", ErrNotFound
 	}
-	members := make([]syncplay.Member, 0, len(room.Members))
+	filtered := make([]syncplay.Member, 0, len(room.Members))
 	for _, m := range room.Members {
 		if string(m.UserID) != userID {
-			members = append(members, m)
+			filtered = append(filtered, m)
 		}
 	}
-	if len(members) == 0 {
+	if len(filtered) == 0 {
 		delete(r.items, roomID)
-		return true, nil
+		return true, "", nil
 	}
-	room.Members = members
-	return false, nil
+	// Elect a new host if the departing member was the host — mirrors the
+	// atomicity guarantee provided by the postgres FOR UPDATE transaction.
+	newHostID := ""
+	if string(room.HostID) == userID {
+		newHost := syncplay.OldestMember(filtered)
+		newHostID = string(newHost.UserID)
+		room.HostID = newHost.UserID
+	}
+	room.Members = filtered
+	return false, newHostID, nil
 }
 
 func (r *FakeRoomRepository) UpdateState(_ context.Context, roomID string, state syncplay.PlaybackState) error {

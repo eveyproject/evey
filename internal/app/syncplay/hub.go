@@ -20,15 +20,17 @@ type connEntry struct {
 }
 
 type Hub struct {
-	repo    syncplay.RoomRepository
-	mu      sync.RWMutex
-	conns   map[string]map[string]*connEntry // roomID → userID → entry
+	repo       syncplay.RoomRepository
+	mu         sync.RWMutex
+	conns      map[string]map[string]*connEntry // roomID → userID → entry (latest sender)
+	connCounts map[string]map[string]int        // roomID → userID → active connection count
 }
 
 func NewHub(repo syncplay.RoomRepository) *Hub {
 	return &Hub{
-		repo:  repo,
-		conns: make(map[string]map[string]*connEntry),
+		repo:       repo,
+		conns:      make(map[string]map[string]*connEntry),
+		connCounts: make(map[string]map[string]int),
 	}
 }
 
@@ -147,7 +149,7 @@ func (h *Hub) JoinRoom(ctx context.Context, roomID, userID, username string) err
 func (h *Hub) LeaveRoom(ctx context.Context, roomID, userID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.LeaveRoom")
 	defer span.End()
-	if _, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID); err != nil {
+	if _, _, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID); err != nil {
 		return fmt.Errorf("leave room: %w", err)
 	}
 	return nil
@@ -170,7 +172,11 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 	if h.conns[roomID] == nil {
 		h.conns[roomID] = make(map[string]*connEntry)
 	}
+	if h.connCounts[roomID] == nil {
+		h.connCounts[roomID] = make(map[string]int)
+	}
 	h.conns[roomID][userID] = &connEntry{sender: sender, username: username}
+	h.connCounts[roomID][userID]++
 	h.mu.Unlock()
 
 	room, err := h.repo.Get(ctx, roomID)
@@ -185,6 +191,15 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 			delete(m, userID)
 			if len(m) == 0 {
 				delete(h.conns, roomID)
+			}
+		}
+		if c := h.connCounts[roomID]; c != nil {
+			c[userID]--
+			if c[userID] <= 0 {
+				delete(c, userID)
+			}
+			if len(c) == 0 {
+				delete(h.connCounts, roomID)
 			}
 		}
 		h.mu.Unlock()
@@ -228,17 +243,40 @@ func (h *Hub) ConnectMember(ctx context.Context, roomID, userID, username string
 }
 
 // DisconnectMember removes the sender and broadcasts member_left.
+// Bug #3: only the last connection for a user triggers member removal; while a
+// second tab is open the member record stays and no member_left is emitted.
+// Bug #2: host election is delegated to RemoveMemberAndDeleteIfEmpty, which
+// performs it atomically under the repo lock so a concurrent disconnect cannot
+// elect a member who has already departed.
 func (h *Hub) DisconnectMember(ctx context.Context, roomID, userID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.DisconnectMember")
 	defer span.End()
+
 	h.mu.Lock()
-	if m := h.conns[roomID]; m != nil {
-		delete(m, userID)
-		if len(m) == 0 {
-			delete(h.conns, roomID)
+	var activeConns int
+	if c := h.connCounts[roomID]; c != nil {
+		c[userID]--
+		activeConns = c[userID]
+		if activeConns <= 0 {
+			delete(c, userID)
+			if m := h.conns[roomID]; m != nil {
+				delete(m, userID)
+				if len(m) == 0 {
+					delete(h.conns, roomID)
+				}
+			}
+			if len(c) == 0 {
+				delete(h.connCounts, roomID)
+			}
 		}
 	}
 	h.mu.Unlock()
+
+	if activeConns > 0 {
+		// User still has other active connections in this room; member record
+		// stays and no member_left is broadcast to avoid false departures.
+		return nil
+	}
 
 	leaveMsg := syncplay.SyncCommand{
 		Type:   "member_left",
@@ -250,9 +288,20 @@ func (h *Hub) DisconnectMember(ctx context.Context, roomID, userID string) error
 	// Delete the room when this was the last member — otherwise a watch party
 	// that ends by everyone closing their tab (the WS-close path, not the
 	// LeaveRoom button) leaks its syncplay_rooms row forever.
-	if _, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID); err != nil {
+	// Host election (if needed) is performed atomically inside the repo call.
+	_, newHostID, err := h.repo.RemoveMemberAndDeleteIfEmpty(ctx, roomID, userID)
+	if err != nil {
 		return fmt.Errorf("disconnect member: %w", err)
 	}
+
+	if newHostID != "" {
+		h.broadcast(roomID, "", syncplay.SyncCommand{
+			Type:   "host_changed",
+			UserID: newHostID,
+			RoomID: roomID,
+		})
+	}
+
 	return nil
 }
 

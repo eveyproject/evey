@@ -198,12 +198,14 @@ func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, user
 	return tx.Commit()
 }
 
-// RemoveMemberAndDeleteIfEmpty removes userID from the room and, when no members
-// remain, deletes the room — all under one FOR UPDATE lock. This closes two
-// gaps the separate RemoveMember+Get+Delete sequence has: an emptied room left
-// behind on the WS-close (DisconnectMember) path, and the last-leaver-vs-joiner
-// TOCTOU where a delete races a concurrent join. Returns whether it deleted.
-func (r *SyncPlayRoomRepo) RemoveMemberAndDeleteIfEmpty(ctx context.Context, roomID string, userID string) (bool, error) {
+// RemoveMemberAndDeleteIfEmpty removes userID from the room and, when no
+// members remain, deletes the room — all under one FOR UPDATE lock.
+// If the departing member was the host and the room is not deleted, the
+// oldest remaining member (earliest JoinedAt; tie-break: ascending UserID) is
+// elected as the new host inside the same transaction, preventing a ghost host
+// from a concurrent DisconnectMember. Returns deleted=true when the room was
+// removed; newHostID is non-empty when a host election occurred.
+func (r *SyncPlayRoomRepo) RemoveMemberAndDeleteIfEmpty(ctx context.Context, roomID string, userID string) (bool, string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.RemoveMemberAndDeleteIfEmpty")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -211,25 +213,26 @@ func (r *SyncPlayRoomRepo) RemoveMemberAndDeleteIfEmpty(ctx context.Context, roo
 
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 	defer tx.Rollback()
 
 	var membersJSON []byte
+	var hostID shared.UserID
 	err = tx.QueryRowContext(ctx,
-		`SELECT members FROM syncplay_rooms WHERE id = $1 FOR UPDATE`,
+		`SELECT members, host_id FROM syncplay_rooms WHERE id = $1 FOR UPDATE`,
 		roomID,
-	).Scan(&membersJSON)
+	).Scan(&membersJSON, &hostID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, shared.ErrNotFound
+		return false, "", shared.ErrNotFound
 	}
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 
 	var members []syncplay.Member
 	if err = json.Unmarshal(membersJSON, &members); err != nil {
-		return false, err
+		return false, "", err
 	}
 	filtered := make([]syncplay.Member, 0, len(members))
 	for _, m := range members {
@@ -240,28 +243,45 @@ func (r *SyncPlayRoomRepo) RemoveMemberAndDeleteIfEmpty(ctx context.Context, roo
 
 	if len(filtered) == 0 {
 		if _, err = tx.ExecContext(ctx, `DELETE FROM syncplay_rooms WHERE id = $1`, roomID); err != nil {
-			return false, err
+			return false, "", err
 		}
 		if err = tx.Commit(); err != nil {
-			return false, err
+			return false, "", err
 		}
-		return true, nil
+		return true, "", nil
 	}
 
 	updated, err := json.Marshal(filtered)
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
-	if _, err = tx.ExecContext(ctx,
-		`UPDATE syncplay_rooms SET members = $1 WHERE id = $2`,
-		updated, roomID,
-	); err != nil {
-		return false, err
+
+	// Elect a new host when the departing member was the host. The election
+	// runs under the same FOR UPDATE lock so a concurrent DisconnectMember sees
+	// the committed result and cannot elect a member who is already gone.
+	newHostID := ""
+	if string(hostID) == userID {
+		newHost := syncplay.OldestMember(filtered)
+		newHostID = string(newHost.UserID)
+		if _, err = tx.ExecContext(ctx,
+			`UPDATE syncplay_rooms SET members = $1, host_id = $2 WHERE id = $3`,
+			updated, newHostID, roomID,
+		); err != nil {
+			return false, "", err
+		}
+	} else {
+		if _, err = tx.ExecContext(ctx,
+			`UPDATE syncplay_rooms SET members = $1 WHERE id = $2`,
+			updated, roomID,
+		); err != nil {
+			return false, "", err
+		}
 	}
+
 	if err = tx.Commit(); err != nil {
-		return false, err
+		return false, "", err
 	}
-	return false, nil
+	return false, newHostID, nil
 }
 
 func (r *SyncPlayRoomRepo) UpdateState(ctx context.Context, roomID string, state syncplay.PlaybackState) error {

@@ -111,6 +111,20 @@ func NewRoom(id, code, name string, hostID shared.UserID, mediaID shared.MediaIt
 	return r, nil
 }
 
+// OldestMember returns the member with the earliest JoinedAt from a non-empty
+// slice. Ties are broken by ascending UserID for a deterministic, stable result.
+// Used to elect a new host when the current host disconnects.
+func OldestMember(members []Member) Member {
+	oldest := members[0]
+	for _, m := range members[1:] {
+		if m.JoinedAt.Before(oldest.JoinedAt) ||
+			(m.JoinedAt.Equal(oldest.JoinedAt) && string(m.UserID) < string(oldest.UserID)) {
+			oldest = m
+		}
+	}
+	return oldest
+}
+
 func (r *Room) IsHost(userID string) bool {
 	return string(r.HostID) == userID
 }

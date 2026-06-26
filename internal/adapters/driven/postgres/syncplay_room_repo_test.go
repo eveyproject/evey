@@ -144,7 +144,7 @@ func TestSyncPlayRoomRepo_RemoveMemberAndDeleteIfEmpty(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, room))
 
 	// Removing one of two members keeps the room alive.
-	deleted, err := repo.RemoveMemberAndDeleteIfEmpty(ctx, "sp9", "guest-a")
+	deleted, _, err := repo.RemoveMemberAndDeleteIfEmpty(ctx, "sp9", "guest-a")
 	require.NoError(t, err)
 	assert.False(t, deleted, "room with a remaining member must not be deleted")
 	got, err := repo.Get(ctx, "sp9")
@@ -152,7 +152,7 @@ func TestSyncPlayRoomRepo_RemoveMemberAndDeleteIfEmpty(t *testing.T) {
 	assert.Len(t, got.Members, 1)
 
 	// Removing the last member deletes the room in the same operation.
-	deleted, err = repo.RemoveMemberAndDeleteIfEmpty(ctx, "sp9", "guest-b")
+	deleted, _, err = repo.RemoveMemberAndDeleteIfEmpty(ctx, "sp9", "guest-b")
 	require.NoError(t, err)
 	assert.True(t, deleted, "emptied room must be deleted, not left behind")
 	_, err = repo.Get(ctx, "sp9")
@@ -351,6 +351,99 @@ func TestSyncPlayRoomRepo_ConcurrentAddMember_NoLostUpdate(t *testing.T) {
 	// Without the FOR UPDATE fix, concurrent RMW would lose updates;
 	// with it, all 8 distinct members must be present.
 	assert.Len(t, got.Members, n)
+}
+
+// TestSyncPlayRoomRepo_RemoveMemberAndDeleteIfEmpty_HostElection covers the
+// three host-election cases inside the atomic FOR UPDATE transaction.
+func TestSyncPlayRoomRepo_RemoveMemberAndDeleteIfEmpty_HostElection(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedSyncplayDeps(t, db, "he-host", "he-u1", "he-lib", "he-media")
+	// Seed two additional profiles to be regular members (no library/media needed).
+	ctx := context.Background()
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, newTestUser("he-u2")))
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, newTestProfile("he-m2", shared.UserID("he-u2"))))
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, newTestUser("he-u3")))
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, newTestProfile("he-m3", shared.UserID("he-u3"))))
+
+	repo := postgres.NewSyncPlayRoomRepo(db)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+
+	// --- (a) host departs with ≥2 remaining members → host_id = oldest ---
+	roomA := &syncplay.Room{
+		ID:      "he-a",
+		Code:    "HEA001",
+		Name:    "Election A",
+		HostID:  "he-host",
+		MediaID: "he-media",
+		Members: []syncplay.Member{
+			// he-m2 joined earlier (smallest JoinedAt) → must be elected
+			{UserID: "he-host", Username: "host", JoinedAt: now},
+			{UserID: "he-m2", Username: "m2", JoinedAt: now.Add(-time.Second)},
+			{UserID: "he-m3", Username: "m3", JoinedAt: now.Add(time.Second)},
+		},
+		State:     syncplay.PlaybackState{},
+		CreatedAt: now,
+	}
+	require.NoError(t, repo.Create(ctx, roomA))
+
+	deleted, newHostID, err := repo.RemoveMemberAndDeleteIfEmpty(ctx, "he-a", "he-host")
+	require.NoError(t, err)
+	assert.False(t, deleted, "room must not be deleted while members remain")
+	assert.Equal(t, "he-m2", newHostID, "oldest remaining member must be elected host")
+
+	gotA, err := repo.Get(ctx, "he-a")
+	require.NoError(t, err)
+	assert.Equal(t, shared.UserID("he-m2"), gotA.HostID, "host_id must be persisted atomically")
+	assert.Len(t, gotA.Members, 2, "departing host must be removed from members")
+
+	// --- (b) non-host departs → host_id unchanged, newHostID="" ---
+	roomB := &syncplay.Room{
+		ID:      "he-b",
+		Code:    "HEB002",
+		Name:    "Election B",
+		HostID:  "he-host",
+		MediaID: "he-media",
+		Members: []syncplay.Member{
+			{UserID: "he-host", Username: "host", JoinedAt: now},
+			{UserID: "he-m2", Username: "m2", JoinedAt: now},
+		},
+		State:     syncplay.PlaybackState{},
+		CreatedAt: now,
+	}
+	require.NoError(t, repo.Create(ctx, roomB))
+
+	deleted, newHostID, err = repo.RemoveMemberAndDeleteIfEmpty(ctx, "he-b", "he-m2")
+	require.NoError(t, err)
+	assert.False(t, deleted)
+	assert.Empty(t, newHostID, "no election when a non-host departs")
+
+	gotB, err := repo.Get(ctx, "he-b")
+	require.NoError(t, err)
+	assert.Equal(t, shared.UserID("he-host"), gotB.HostID, "host_id must remain unchanged")
+
+	// --- (c) last member departs → room deleted, newHostID="" ---
+	roomC := &syncplay.Room{
+		ID:      "he-c",
+		Code:    "HEC003",
+		Name:    "Election C",
+		HostID:  "he-host",
+		MediaID: "he-media",
+		Members: []syncplay.Member{
+			{UserID: "he-host", Username: "host", JoinedAt: now},
+		},
+		State:     syncplay.PlaybackState{},
+		CreatedAt: now,
+	}
+	require.NoError(t, repo.Create(ctx, roomC))
+
+	deleted, newHostID, err = repo.RemoveMemberAndDeleteIfEmpty(ctx, "he-c", "he-host")
+	require.NoError(t, err)
+	assert.True(t, deleted, "room must be deleted when last member departs")
+	assert.Empty(t, newHostID)
+	_, err = repo.Get(ctx, "he-c")
+	require.Error(t, err, "room row must be gone after last member removal")
 }
 
 // Regression: an audio room's media_id references a music track, which is not

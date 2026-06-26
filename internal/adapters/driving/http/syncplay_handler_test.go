@@ -119,12 +119,12 @@ func (r *fakeSyncPlayRepo) RemoveMember(_ context.Context, roomID, userID string
 	return nil
 }
 
-func (r *fakeSyncPlayRepo) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID, userID string) (bool, error) {
+func (r *fakeSyncPlayRepo) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID, userID string) (bool, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	room, ok := r.rooms[roomID]
 	if !ok {
-		return false, http.ErrNoCookie
+		return false, "", http.ErrNoCookie
 	}
 	filtered := make([]domainsyncplay.Member, 0, len(room.Members))
 	for _, m := range room.Members {
@@ -134,10 +134,16 @@ func (r *fakeSyncPlayRepo) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomI
 	}
 	if len(filtered) == 0 {
 		delete(r.rooms, roomID)
-		return true, nil
+		return true, "", nil
 	}
 	room.Members = filtered
-	return false, nil
+	newHostID := ""
+	if string(room.HostID) == userID {
+		newHost := domainsyncplay.OldestMember(filtered)
+		newHostID = string(newHost.UserID)
+		room.HostID = newHost.UserID
+	}
+	return false, newHostID, nil
 }
 
 func (r *fakeSyncPlayRepo) UpdateState(_ context.Context, roomID string, state domainsyncplay.PlaybackState) error {

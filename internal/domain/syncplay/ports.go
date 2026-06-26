@@ -10,9 +10,14 @@ type RoomRepository interface {
 	RemoveMember(ctx context.Context, roomID string, userID string) error
 	// RemoveMemberAndDeleteIfEmpty removes the member and, when no members
 	// remain, deletes the room — atomically under one row lock so a concurrent
-	// join is never clobbered and an emptied room is never left behind. Returns
-	// whether the room was deleted.
-	RemoveMemberAndDeleteIfEmpty(ctx context.Context, roomID string, userID string) (bool, error)
+	// join is never clobbered and an emptied room is never left behind.
+	// If the departing member was the host and the room is not deleted, the
+	// oldest remaining member (earliest JoinedAt; tie-break: ascending UserID)
+	// is elected as the new host inside the same lock/transaction so the room
+	// is never left with a ghost host.
+	// Returns: deleted=true when the room was deleted; newHostID is non-empty
+	// when a host election occurred; err for any failure.
+	RemoveMemberAndDeleteIfEmpty(ctx context.Context, roomID string, userID string) (deleted bool, newHostID string, err error)
 	UpdateState(ctx context.Context, roomID string, state PlaybackState) error
 	UpdateTrackIndex(ctx context.Context, roomID string, idx int, mediaID string) error
 	// AdvanceTrackIndex atomically applies delta (+1 next / -1 prev) to the

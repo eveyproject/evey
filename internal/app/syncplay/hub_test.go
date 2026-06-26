@@ -99,25 +99,33 @@ func (r *fakeRoomRepo) RemoveMember(_ context.Context, roomID, userID string) er
 	return nil
 }
 
-func (r *fakeRoomRepo) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID, userID string) (bool, error) {
+func (r *fakeRoomRepo) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID, userID string) (bool, string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	room, ok := r.rooms[roomID]
 	if !ok {
-		return false, errors.New("room not found")
+		return false, "", errors.New("room not found")
 	}
-	filtered := room.Members[:0]
+	filtered := make([]syncplay.Member, 0, len(room.Members))
 	for _, m := range room.Members {
 		if string(m.UserID) != userID {
 			filtered = append(filtered, m)
 		}
 	}
-	room.Members = filtered
 	if len(filtered) == 0 {
 		delete(r.rooms, roomID)
-		return true, nil
+		return true, "", nil
 	}
-	return false, nil
+	// Elect a new host if the departing member was the host — mirrors the
+	// atomicity guarantee provided by the postgres FOR UPDATE transaction.
+	newHostID := ""
+	if string(room.HostID) == userID {
+		newHost := syncplay.OldestMember(filtered)
+		newHostID = string(newHost.UserID)
+		room.HostID = newHost.UserID
+	}
+	room.Members = filtered
+	return false, newHostID, nil
 }
 
 func (r *fakeRoomRepo) UpdateState(_ context.Context, roomID string, state syncplay.PlaybackState) error {
@@ -1419,5 +1427,145 @@ func TestHub_HandleNext_NonHostIgnored(t *testing.T) {
 	got, _ := h.GetRoom(ctx, room.ID)
 	if got.TrackIndex != 0 {
 		t.Errorf("TrackIndex = %d, want 0 (guest cannot advance)", got.TrackIndex)
+	}
+}
+
+// --- Bug #2: host departure → host reassignment ---
+
+// (a) Host disconnects with ≥1 member remaining → HostID reassigned to oldest member.
+// "oldest" = earliest JoinedAt; tie-break = lexicographic UserID ascending.
+func TestHub_DisconnectMember_HostDeparture_ReassignsToOldest(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	s1 := fakes.NewFakeMessageSender()
+	s2 := fakes.NewFakeMessageSender()
+	s3 := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", s1)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", s2) // joins after host
+	_, _ = h.ConnectMember(ctx, room.ID, "user-3", "Bob", s3)   // joins last
+
+	if err := h.DisconnectMember(ctx, room.ID, "host-1"); err != nil {
+		t.Fatalf("DisconnectMember: %v", err)
+	}
+
+	fetched, err := h.GetRoom(ctx, room.ID)
+	if err != nil {
+		t.Fatalf("GetRoom: %v", err)
+	}
+	// user-2 joined before user-3; if timestamps are equal "user-2" < "user-3"
+	// by lexicographic order, so user-2 wins in both cases.
+	if string(fetched.HostID) != "user-2" {
+		t.Errorf("HostID = %q after host departure, want user-2 (oldest remaining)", fetched.HostID)
+	}
+}
+
+// (b) After host departure the new host's play/pause commands are accepted.
+func TestHub_DisconnectMember_NewHost_CanSendCommands(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	s1 := fakes.NewFakeMessageSender()
+	s2 := fakes.NewFakeMessageSender()
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", s1)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", s2)
+
+	// Host disconnects → user-2 is elected new host.
+	if err := h.DisconnectMember(ctx, room.ID, "host-1"); err != nil {
+		t.Fatalf("DisconnectMember: %v", err)
+	}
+
+	// user-2 (now host) sends play — must be accepted.
+	if _, err := h.HandleCommand(ctx, room.ID, "user-2", "Alice", syncplay.SyncCommand{
+		Type: "play", PositionMs: 5000,
+	}); err != nil {
+		t.Fatalf("HandleCommand by new host: %v", err)
+	}
+
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	if !fetched.State.Playing {
+		t.Error("new host's play command must be accepted (room was frozen before fix)")
+	}
+	if fetched.State.PositionMs != 5000 {
+		t.Errorf("PositionMs = %d, want 5000", fetched.State.PositionMs)
+	}
+}
+
+// (c) Host is the sole member → room is cleaned up as before (no regression).
+func TestHub_DisconnectMember_HostAlone_DeletesRoom(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", fakes.NewFakeMessageSender())
+
+	if err := h.DisconnectMember(ctx, room.ID, "host-1"); err != nil {
+		t.Fatalf("DisconnectMember: %v", err)
+	}
+
+	if _, err := h.GetRoom(ctx, room.ID); err == nil {
+		t.Error("room must be deleted when the last member (host) disconnects")
+	}
+}
+
+// --- Bug #3: double-tab does not orphan the member ---
+
+// (d) Two connections for same user; closing one keeps the member present and
+// the second connection still receives broadcasts.
+func TestHub_DisconnectMember_DoubleTab_MemberStays(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	tab1 := fakes.NewFakeMessageSender()
+	tab2 := fakes.NewFakeMessageSender()
+	otherSender := fakes.NewFakeMessageSender()
+
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", tab1)
+	_, _ = h.ConnectMember(ctx, room.ID, "user-2", "Alice", otherSender)
+	// host-1 opens a second tab: overwrites tab1's sender in conns, count → 2.
+	_, _ = h.ConnectMember(ctx, room.ID, "host-1", "Host", tab2)
+	otherSender.Messages = nil
+
+	// tab1 closes.
+	if err := h.DisconnectMember(ctx, room.ID, "host-1"); err != nil {
+		t.Fatalf("DisconnectMember tab1: %v", err)
+	}
+
+	// host-1 must remain in the room (tab2 is still open).
+	fetched, err := h.GetRoom(ctx, room.ID)
+	if err != nil {
+		t.Fatalf("GetRoom after tab1 disconnect: %v", err)
+	}
+	found := false
+	for _, m := range fetched.Members {
+		if m.UserID == "host-1" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("host-1 must remain in room while tab2 is still open")
+	}
+
+	// No member_left must have been broadcast (host-1 is still connected).
+	if got := len(otherSender.Received()); got != 0 {
+		t.Errorf("member_left broadcast to other members while user still has tab2 open: got %d messages", got)
+	}
+
+	// tab2 is still the active connection: broadcasts must reach user-2.
+	otherSender.Messages = nil
+	if _, err := h.HandleCommand(ctx, room.ID, "host-1", "Host", syncplay.SyncCommand{
+		Type: "play", PositionMs: 1000,
+	}); err != nil {
+		t.Fatalf("HandleCommand via tab2: %v", err)
+	}
+	if got := len(otherSender.Received()); got != 1 {
+		t.Errorf("broadcast via remaining connection: user-2 got %d messages, want 1", got)
 	}
 }
