@@ -48,9 +48,18 @@ interface AuthState {
   profileId: string | null;
   isAdmin: boolean;
 
+  // Impersonation (admin "connect as"): impersonatedBy is the admin user id from
+  // the active token's `imp_by` claim (null = a normal session). impersonationOrigin
+  // holds the admin's own token so exitImpersonation can restore it seamlessly.
+  impersonatedBy: string | null;
+  impersonatedUsername: string | null;
+  impersonationOrigin: string | null;
+
   // Setters — write to shadow fields AND to tokensByServer[activeServerId]
   setTokens: (access: string) => void;
   setProfile: (profileId: string) => void;
+  impersonate: (access: string) => void;
+  exitImpersonation: () => void;
   logout: () => void;
   logoutAll: () => void;
 
@@ -69,6 +78,9 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       profileId: null,
       isAdmin: false,
+      impersonatedBy: null,
+      impersonatedUsername: null,
+      impersonationOrigin: null,
 
       _getActiveServerId: () => {
         try {
@@ -84,6 +96,8 @@ export const useAuthStore = create<AuthState>()(
       setTokens: (access: string) => {
         const claims = parseJwtPayload(access);
         const activeId = get()._getActiveServerId();
+        const impBy = typeof claims?.imp_by === "string" && claims.imp_by ? claims.imp_by : null;
+        const username = typeof claims?.username === "string" ? claims.username : null;
 
         const incoming: ServerTokens = {
           accessToken: access,
@@ -96,6 +110,8 @@ export const useAuthStore = create<AuthState>()(
           const next: ServerTokens = { ...prev, ...incoming };
           return {
             ...incoming,
+            impersonatedBy: impBy,
+            impersonatedUsername: impBy ? username : null,
             tokensByServer: activeId
               ? { ...state.tokensByServer, [activeId]: next }
               : state.tokensByServer,
@@ -120,10 +136,27 @@ export const useAuthStore = create<AuthState>()(
         });
       },
 
+      impersonate: (access: string) => {
+        // Stash the admin's own token so exitImpersonation can restore it without
+        // a re-login. setTokens then swaps to the impersonation token (whose imp_by
+        // claim drives impersonatedBy) and activates the target's profile/locale.
+        set({ impersonationOrigin: get().accessToken });
+        get().setTokens(access);
+      },
+
+      exitImpersonation: () => {
+        const origin = get().impersonationOrigin;
+        set({ impersonationOrigin: null });
+        if (origin) get().setTokens(origin);
+      },
+
       logout: () => {
         const activeId = get()._getActiveServerId();
         set((state) => ({
           ...EMPTY_TOKENS,
+          impersonatedBy: null,
+          impersonatedUsername: null,
+          impersonationOrigin: null,
           tokensByServer: activeId
             ? { ...state.tokensByServer, [activeId]: { ...EMPTY_TOKENS } }
             : state.tokensByServer,
@@ -131,7 +164,7 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logoutAll: () => {
-        set({ ...EMPTY_TOKENS, tokensByServer: {} });
+        set({ ...EMPTY_TOKENS, impersonatedBy: null, impersonatedUsername: null, impersonationOrigin: null, tokensByServer: {} });
       },
 
       syncFromServer: (id: string | null) => {
@@ -149,6 +182,9 @@ export const useAuthStore = create<AuthState>()(
         profileId: state.profileId,
         accessToken: state.accessToken,
         isAdmin: state.isAdmin,
+        impersonatedBy: state.impersonatedBy,
+        impersonatedUsername: state.impersonatedUsername,
+        impersonationOrigin: state.impersonationOrigin,
       }),
     }
   )

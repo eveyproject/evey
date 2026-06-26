@@ -190,6 +190,11 @@ users:
   failedDeleteUser: Failed to delete user
   failedCreateUser: Failed to create user
   failedUpdateUser: Failed to update user
+  impersonate: "Connect as"
+  failedImpersonate: "Failed to connect as user"
+  impersonationBanner: "You are acting as {{name}}"
+  impersonationBannerGeneric: "You are acting as another user"
+  exitImpersonation: "Exit"
   userUpdated: User updated
   deleteUserTitle: Delete User
   deleteUserConfirm: "Delete user \"{{name}}\"? This cannot be undone."

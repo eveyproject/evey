@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
 import { userServiceRefreshToken } from "@evey/api";
 import { AuthLayout } from "@/components/layout/AuthLayout";
+import { ImpersonationBanner } from "@/components/layout/ImpersonationBanner";
 import { RouteErrorComponent } from "@/components/ui/RouteErrorComponent";
 
 function isTokenExpired(token: string): boolean {
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/_auth")({
   errorComponent: RouteErrorComponent,
   component: () => (
     <AuthLayout>
+      <ImpersonationBanner />
       <Outlet />
     </AuthLayout>
   ),

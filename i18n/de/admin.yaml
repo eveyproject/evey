@@ -190,6 +190,11 @@ users:
   failedDeleteUser: Benutzer konnte nicht gelöscht werden
   failedCreateUser: Benutzer konnte nicht erstellt werden
   failedUpdateUser: Benutzer konnte nicht aktualisiert werden
+  impersonate: "Anmelden als"
+  failedImpersonate: "Anmelden als Benutzer fehlgeschlagen"
+  impersonationBanner: "Sie handeln als {{name}}"
+  impersonationBannerGeneric: "Sie handeln als ein anderer Benutzer"
+  exitImpersonation: "Beenden"
   userUpdated: Benutzer aktualisiert
   deleteUserTitle: Benutzer löschen
   deleteUserConfirm: "Benutzer \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."

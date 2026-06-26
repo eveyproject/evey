@@ -43,12 +43,21 @@ vi.mock("@evey/api", () => ({
     disableOnError = opts?.mutation?.onError;
     return { mutate: mockDisableMutate, isPending: mockDisableIsPending };
   },
+  useUserServiceImpersonateUser: () => ({ mutate: vi.fn(), isPending: false }),
   getUserServiceListUsersQueryKey: () => ["/api/v1/users"],
   getUserServiceListInviteLinksQueryKey: () => ["/api/v1/invites"],
 }));
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useAuthStore: (sel?: (s: Record<string, unknown>) => unknown) => {
+    const state = { impersonate: vi.fn(), exitImpersonation: vi.fn(), impersonatedBy: null, impersonatedUsername: null };
+    return sel ? sel(state) : state;
+  },
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useNavigate: () => vi.fn(),
 }));
 
 // Sub-modals are outside scope for this test (they have their own test files).

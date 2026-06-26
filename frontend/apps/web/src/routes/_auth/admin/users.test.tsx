@@ -18,6 +18,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceCreateUser: (...args: unknown[]) => mockCreateUser(...args),
   useUserServiceDeleteUser: (...args: unknown[]) => mockDeleteUser(...args),
   useUserServiceDisableUser: (...args: unknown[]) => mockDisableUser(...args),
+  useUserServiceImpersonateUser: () => ({ mutate: vi.fn(), isPending: false }),
   useUserServiceUpdateUser: (...args: unknown[]) => mockUpdateUser(...args),
   useUserServiceListInviteLinks: (...args: unknown[]) => mockListInviteLinks(...args),
   useUserServiceCreateInviteLink: (...args: unknown[]) => mockCreateInviteLink(...args),
@@ -48,10 +49,20 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useAuthStore: (sel?: (s: Record<string, unknown>) => unknown) => {
+    const state = {
+      impersonate: vi.fn(),
+      exitImpersonation: vi.fn(),
+      impersonatedBy: null,
+      impersonatedUsername: null,
+    };
+    return sel ? sel(state) : state;
+  },
 }));
 
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,
+  useNavigate: () => vi.fn(),
 }));
 
 function createWrapper() {

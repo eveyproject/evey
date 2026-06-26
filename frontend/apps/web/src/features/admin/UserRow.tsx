@@ -4,8 +4,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceDeleteUser,
   useUserServiceDisableUser,
+  useUserServiceImpersonateUser,
 } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
+import { useNavigate } from "@tanstack/react-router";
 import type { V1User } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -22,6 +24,20 @@ export function UserRow({ user }: { user: V1User }) {
   const [showLibraryAccess, setShowLibraryAccess] = useState(false);
   const [showBitrate, setShowBitrate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+
+  const navigate = useNavigate();
+  const doImpersonate = useAuthStore((s) => s.impersonate);
+  const impersonateUser = useUserServiceImpersonateUser({
+    mutation: {
+      onSuccess: (data) => {
+        if (!data.accessToken) return;
+        // Stash the admin token, swap to the target's, land on the home grid.
+        doImpersonate(data.accessToken);
+        navigate({ to: "/" });
+      },
+      onError: (err: Error) => toast.error(err.message || t("admin.users.failedImpersonate")),
+    },
+  });
 
   const deleteUser = useUserServiceDeleteUser({
     mutation: {
@@ -69,6 +85,15 @@ export function UserRow({ user }: { user: V1User }) {
           >
             {t("common.edit") || "Edit"}
           </Button>
+          {user.enabled !== false && (
+            <Button
+              variant="secondary"
+              loading={impersonateUser.isPending}
+              onClick={() => impersonateUser.mutate({ userId: user.id!, data: {} })}
+            >
+              {t("admin.users.impersonate")}
+            </Button>
+          )}
           {!user.isAdmin && (
             <Button
               variant="secondary"
