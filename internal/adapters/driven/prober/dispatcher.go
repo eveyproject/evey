@@ -112,7 +112,10 @@ func (realMetaReader) ReadMeta(ctx context.Context, path string) (*extmkv.Contai
 	// WithInBandColourFallback: same bare-hvcC HEVC recovery for Matroska — lets
 	// HDR10/HLG/PQ in-band titles fast-path instead of bailing to ffprobe; the
 	// mapper's no-colour gate is the last resort if even this yields nothing.
-	c, err := reader.OpenMeta(ctx, path, reader.WithInBandColourFallback())
+	// WithBitrate: follow the head SeekHead to the Tags element for the per-track
+	// BPS bitrate (one bounded seek, still head-only) so a fast-pathed MKV carries
+	// the same Bitrate the ffprobe fallback reads from TAG:BPS.
+	c, err := reader.OpenMeta(ctx, path, reader.WithInBandColourFallback(), reader.WithBitrate())
 	if errors.Is(err, reader.ErrNotMatroska) {
 		// A .mkv/.webm extension on an ISO-BMFF (MP4) payload — a mislabeled file.
 		// mkvgo typed the input rather than returning a cryptic EBML error, so read

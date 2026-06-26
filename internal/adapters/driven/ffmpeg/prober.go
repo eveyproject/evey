@@ -83,6 +83,22 @@ type ffprobeDisposition struct {
 	Original        int `json:"original"`
 }
 
+// bpsTagBitrate returns the per-track bitrate from a Matroska "BPS" tag (the
+// value ffprobe surfaces only as TAG:BPS, never as bit_rate for MKV), or 0 when
+// absent. mkvgo's WithBitrate reads the same "BPS" SimpleTag, so both prober
+// paths report the same MKV bitrate. ffmpeg may suffix the key with a language
+// (e.g. "BPS-eng"), so accept that form too.
+func bpsTagBitrate(tags map[string]string) int64 {
+	for k, v := range tags {
+		if k == "BPS" || strings.HasPrefix(k, "BPS-") {
+			if b, err := strconv.ParseInt(v, 10, 64); err == nil && b > 0 {
+				return b
+			}
+		}
+	}
+	return 0
+}
+
 func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.ProbeResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeStreams")
 	defer span.End()
@@ -190,6 +206,11 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 		}
 		if br, err := strconv.ParseInt(s.BitRate, 10, 64); err == nil && br > 0 {
 			ms.Bitrate = &br
+		} else if bps := bpsTagBitrate(s.Tags); bps > 0 {
+			// Matroska keeps the per-track bitrate in a TAG:BPS, not the bit_rate
+			// field (which ffprobe leaves N/A for MKV). Mirror mkvgo's WithBitrate so
+			// the ffprobe fallback reports the same MKV bitrate as the fast path.
+			ms.Bitrate = &bps
 		}
 		streams = append(streams, ms)
 	}
