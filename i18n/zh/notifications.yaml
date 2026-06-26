@@ -19,6 +19,8 @@ push:
     title: "新季:{series} — {season}（{episodes}集）"
   episodes_batched:
     title: "新剧集：{series}（{count}集）"
+  seasons_batched:
+    title: "新季：{series}（{count}季）"
   album_with_tracks:
     title: "新专辑：{album}（{tracks}首）"
   backup_failed:

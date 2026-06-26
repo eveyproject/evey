@@ -1194,6 +1194,69 @@ func TestNotificationService_Batch_EpisodesOnly_MultipleAmalgamated(t *testing.T
 	assert.Contains(t, notifs[0].Title, "3 episodes")
 }
 
+func TestNotificationService_Batch_SeasonsOnly_GroupedAndNamed(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	// 3 seasons of an existing series added (no series event, no episodes):
+	// must collapse to a single notification that names the series.
+	for i := range 3 {
+		bus.Publish(ctx, libevent.MediaItemAdded{
+			MediaItemID: shared.MediaItemID(fmt.Sprintf("sn%d", i)), LibraryID: "lib1",
+			Title: fmt.Sprintf("Season %d", i+1), SeriesTitle: "The Sopranos",
+			Type: "season", OccurredAt: time.Now(),
+		})
+	}
+
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1, "multiple seasons should group into 1 notification")
+	assert.Equal(t, notifdom.TypeNewSeason, notifs[0].Type)
+	assert.Contains(t, notifs[0].Title, "The Sopranos")
+	assert.Contains(t, notifs[0].Title, "3 seasons")
+}
+
+func TestNotificationService_Batch_SingleSeason_NamesSeries(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	_ = profileRepo.Create(ctx, &user.Profile{ID: "p1", UserID: "u1", Name: "Alice"})
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
+	svc.Register()
+
+	bus.Publish(ctx, libevent.MediaItemAdded{
+		MediaItemID: "sn1", LibraryID: "lib1",
+		Title: "Season 4", SeriesTitle: "The Sopranos",
+		Type: "season", OccurredAt: time.Now(),
+	})
+
+	svc.FlushBatches()
+
+	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, notifs, 1)
+	assert.Equal(t, notifdom.TypeNewSeason, notifs[0].Type)
+	assert.Equal(t, "new_season:The Sopranos — Season 4", notifs[0].Title)
+}
+
 func TestNotificationService_Batch_SingleEpisode_NormalNotification(t *testing.T) {
 	t.Parallel()
 	repo := notiffakes.NewFakeNotificationRepository()

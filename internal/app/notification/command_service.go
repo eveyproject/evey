@@ -313,12 +313,13 @@ func (s *CommandService) flushBatch(key string) {
 		return
 	}
 
-	// Season(s) alone — emit each one
+	// Season(s) alone — group into ONE notification that names the series,
+	// instead of one bare "Season N" per season.
 	if seasonCount > 0 {
-		for _, season := range batch.seasons {
-			seriesKey := seriesKeyFor(string(season.LibraryID), season.SeriesTitle)
-			s.emitNotifications(season.Type, season.Title, season.SeriesTitle, string(season.MediaItemID), seriesKey, season.Genres, nil)
-		}
+		season := batch.seasons[0]
+		seriesKey := seriesKeyFor(string(season.LibraryID), season.SeriesTitle)
+		title, push := batchedSeasonsTitle(season.SeriesTitle, season.Title, seasonCount)
+		s.emitNotifications("season", title, "", string(season.MediaItemID), seriesKey, season.Genres, &push)
 		return
 	}
 

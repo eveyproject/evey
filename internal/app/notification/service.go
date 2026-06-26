@@ -156,6 +156,39 @@ func batchedSeasonTitle(seriesTitle, seasonTitle string, episodeCount int) (labe
 	return label, push
 }
 
+// batchedSeasonsTitle groups one or more new seasons of the same series (added
+// without a full-series event) into a single label that always names the series
+// — never a bare "Season N". One season → "Series — Season N"; several →
+// "Series (N seasons)".
+func batchedSeasonsTitle(seriesTitle, seasonTitle string, seasonCount int) (label string, push pushSpec) {
+	if seasonCount > 1 {
+		name := seriesTitle
+		if name == "" {
+			name = seasonTitle
+		}
+		label = fmt.Sprintf("%s (%d seasons)", name, seasonCount)
+		push = pushSpec{
+			key:      "notifications.push.seasons_batched.title",
+			params:   map[string]string{"series": name, "count": fmt.Sprintf("%d", seasonCount)},
+			fallback: "New Seasons: " + label,
+		}
+		return label, push
+	}
+	// Single season: name the series unless we don't have one (or it would just
+	// repeat the season title) — then fall back to the bare season title.
+	if seriesTitle == "" || seriesTitle == seasonTitle {
+		label = seasonTitle
+	} else {
+		label = fmt.Sprintf("%s — %s", seriesTitle, seasonTitle)
+	}
+	push = pushSpec{
+		key:      "notifications.push.new_season.title",
+		params:   map[string]string{"label": label},
+		fallback: "New Season: " + label,
+	}
+	return label, push
+}
+
 func batchedEpisodesTitle(seriesTitle string, count int) (label string, push pushSpec) {
 	label = fmt.Sprintf("%s (%d episodes)", seriesTitle, count)
 	push = pushSpec{

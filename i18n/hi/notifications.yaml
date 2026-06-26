@@ -19,6 +19,8 @@ push:
     title: "नया सीज़न: {series} — {season} ({episodes} एपिसोड)"
   episodes_batched:
     title: "नए एपिसोड: {series} ({count} एपिसोड)"
+  seasons_batched:
+    title: "नए सीज़न: {series} ({count} सीज़न)"
   album_with_tracks:
     title: "नया एल्बम: {album} ({tracks} ट्रैक)"
   backup_failed:

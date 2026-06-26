@@ -19,6 +19,8 @@ push:
     title: "Neue Staffel: {series} — {season} ({episodes} Folgen)"
   episodes_batched:
     title: "Neue Folgen: {series} ({count} Folgen)"
+  seasons_batched:
+    title: "Neue Staffeln: {series} ({count} Staffeln)"
   album_with_tracks:
     title: "Neues Album: {album} ({tracks} Titel)"
   backup_failed:
