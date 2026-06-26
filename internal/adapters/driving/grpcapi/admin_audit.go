@@ -121,7 +121,8 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "session not found")
-		return nil, status.Errorf(codes.NotFound, "session not found: %v", err)
+		slog.Warn("grpc KillSession: session query failed", slog.Any("err", err))
+		return nil, status.Error(codes.NotFound, "session not found")
 	}
 	// Send stop command so the player closes gracefully. This stops the
 	// PLAYBACK session only — it deliberately does NOT revoke the owner's auth

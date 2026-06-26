@@ -70,7 +70,8 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "library not found")
-		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
+		slog.Warn("grpc GetLibrary: query failed", slog.Any("err", err))
+		return nil, status.Error(codes.NotFound, "library not found")
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, lib.ID); !ok {
 		if accessErr != nil {
@@ -116,7 +117,8 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "library not found")
-		return nil, status.Errorf(codes.NotFound, "library not found: %v", err)
+		slog.Warn("grpc UpdateLibrary: query failed", slog.Any("err", err))
+		return nil, status.Error(codes.NotFound, "library not found")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
 	// but we re-check here so a future RBAC misconfiguration does not silently
@@ -218,7 +220,8 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "media item not found")
-		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
+		slog.Warn("grpc: media item query failed", slog.Any("err", err))
+		return nil, status.Error(codes.NotFound, "media item not found")
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
 		if accessErr != nil {
@@ -304,7 +307,8 @@ func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.Get
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "media item not found")
-		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
+		slog.Warn("grpc: media item query failed", slog.Any("err", err))
+		return nil, status.Error(codes.NotFound, "media item not found")
 	}
 	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
 		if accessErr != nil {
@@ -387,7 +391,8 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(otelcodes.Error, "invalid cursor")
-				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
+				slog.Warn("grpc ListMediaItems: invalid cursor", slog.Any("err", err))
+				return nil, status.Error(codes.InvalidArgument, "invalid cursor")
 			}
 			filter.Cursor = cursor
 			filter.Offset = 0
@@ -952,7 +957,8 @@ func (h *libraryHandler) SetLibrarySchedule(ctx context.Context, req *eveyv1.Set
 		span.RecordError(err)
 		if strings.HasPrefix(err.Error(), "invalid cron") {
 			span.SetStatus(otelcodes.Error, "invalid cron expression")
-			return nil, status.Errorf(codes.InvalidArgument, "invalid cron expression: %v", err)
+			slog.Warn("grpc SetLibrarySchedule: invalid cron expression", slog.Any("err", err))
+			return nil, status.Error(codes.InvalidArgument, "invalid cron expression")
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("set schedule", err)

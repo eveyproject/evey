@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -110,7 +111,8 @@ func (h *transcodingHandler) GetTranscodeStatus(ctx context.Context, req *eveyv1
 	}
 	progress, err := h.svc.GetProgress(ctx, req.JobId)
 	if err != nil {
-		return nil, status.Errorf(codes.NotFound, "job not found: %v", err)
+		slog.Warn("grpc GetTranscodeStatus: progress query failed", slog.Any("err", err))
+		return nil, status.Error(codes.NotFound, "job not found")
 	}
 	return &eveyv1.TranscodeJob{
 		Id:              progress.JobID,

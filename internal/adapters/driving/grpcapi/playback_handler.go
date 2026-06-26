@@ -82,7 +82,8 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.NotFound, "media item not found: %v", err)
+		slog.Warn("grpc GetStreamInfo: media item query failed", slog.Any("err", err))
+		return nil, status.Error(codes.NotFound, "media item not found")
 	}
 	// Mirror StartStream: a parental-blocked item must look non-existent. Without
 	// this gate a kids profile could call GetStreamInfo by media ID and harvest a
@@ -536,7 +537,8 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(otelcodes.Error, err.Error())
-				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
+				slog.Warn("grpc GetWatchHistory: invalid cursor", slog.Any("err", err))
+				return nil, status.Error(codes.InvalidArgument, "invalid cursor")
 			}
 			cursor = &playback.WatchHistoryCursor{LastPlayedAt: c.t, MediaItemID: c.id}
 		}

@@ -159,7 +159,8 @@ func (h *userHandler) GetCurrentUser(ctx context.Context, _ *eveyv1.GetCurrentUs
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.NotFound, "%v", err)
+		slog.Warn("grpc GetCurrentUser: user query failed", slog.Any("err", err))
+		return nil, status.Error(codes.NotFound, "user not found")
 	}
 	return userToProto(u), nil
 }
@@ -253,7 +254,8 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.NotFound, "%v", err)
+		slog.Warn("grpc UpdateUser: user query failed", slog.Any("err", err))
+		return nil, status.Error(codes.NotFound, "user not found")
 	}
 	if req.Username != nil {
 		u.Username = *req.Username
