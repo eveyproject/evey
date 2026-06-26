@@ -21,6 +21,9 @@ type DatabaseDumper interface {
 	// wedge that goroutine and leave the pg_dump child unreaped. Close unblocks it.
 	DumpTables(ctx context.Context, tables []string) (io.ReadCloser, error)
 	RestoreTables(ctx context.Context, data io.Reader) error
+	// CurrentSchemaVersion reads the current schema version from schema_migrations.
+	// Returns an error if the schema is in a dirty state (failed migration).
+	CurrentSchemaVersion(ctx context.Context) (string, error)
 }
 
 // ScheduleRepository is the port for the singleton backup_schedule row.

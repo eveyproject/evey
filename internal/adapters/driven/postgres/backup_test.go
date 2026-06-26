@@ -4,9 +4,24 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 )
+
+// TestCurrentSchemaVersion_ConnectionRefused verifies that CurrentSchemaVersion
+// surfaces a connection error rather than silently returning an empty version
+// when the database is unreachable. Port 19999 is used as a clearly unused
+// port; the connection is refused immediately, so no timeout budget is consumed.
+func TestCurrentSchemaVersion_ConnectionRefused(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	d := postgres.NewDatabaseDumper("127.0.0.1", 19999, "u", "p", "db", "disable")
+	_, err := d.CurrentSchemaVersion(ctx)
+	if err == nil {
+		t.Fatal("expected error on connection failure")
+	}
+}
 
 // rejected reports whether the validator (not psql) refused the input.
 func rejected(err error) bool {

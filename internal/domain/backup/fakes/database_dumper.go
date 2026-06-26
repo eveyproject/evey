@@ -8,10 +8,12 @@ import (
 )
 
 type FakeDatabaseDumper struct {
-	mu       sync.Mutex
-	DumpData []byte
-	Restored []byte
-	Err      error
+	mu               sync.Mutex
+	DumpData         []byte
+	Restored         []byte
+	Err              error
+	SchemaVersion    string
+	SchemaVersionErr error
 }
 
 func NewFakeDatabaseDumper() *FakeDatabaseDumper {
@@ -45,4 +47,14 @@ func (d *FakeDatabaseDumper) RestoreTables(_ context.Context, data io.Reader) er
 	}
 	d.Restored = b
 	return nil
+}
+
+func (d *FakeDatabaseDumper) CurrentSchemaVersion(_ context.Context) (string, error) {
+	if d.Err != nil {
+		return "", d.Err
+	}
+	if d.SchemaVersionErr != nil {
+		return "", d.SchemaVersionErr
+	}
+	return d.SchemaVersion, nil
 }

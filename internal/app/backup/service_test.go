@@ -457,6 +457,71 @@ func TestRestoreBackup_InvalidManifestJSON(t *testing.T) {
 	}
 }
 
+// --- Schema version guard ---
+
+// buildTarGzWithSchema is like buildTarGz but sets SchemaVersion on the manifest.
+func buildTarGzWithSchema(t *testing.T, schemaVersion string, dump []byte) []byte {
+	t.Helper()
+	hash := sha256.Sum256(dump)
+	m := &backupmodel.BackupManifest{
+		ID:            "bk-schema-test",
+		CreatedAt:     time.Now().UTC(),
+		Version:       "1.0.0",
+		SchemaVersion: schemaVersion,
+		Tables:        BackupTables,
+		DumpSHA256:    hex.EncodeToString(hash[:]),
+	}
+	return buildTarGz(t, m, dump, nil)
+}
+
+func TestRestoreBackup_SchemaVersionMismatch_Rejected(t *testing.T) {
+	// The fake returns SchemaVersion "42" as current; the backup carries "41".
+	svc, _, dumper := setup()
+	dumper.SchemaVersion = "42"
+	dump := []byte("-- PostgreSQL database dump\nSET statement_timeout = 0;\n")
+	archive := buildTarGzWithSchema(t, "41", dump)
+
+	err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive))
+	if err == nil {
+		t.Fatal("expected error when schema versions mismatch")
+	}
+	if !strings.Contains(err.Error(), "schema version") {
+		t.Fatalf("expected schema version error, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), `"41"`) || !strings.Contains(err.Error(), `"42"`) {
+		t.Fatalf("error should name both versions, got: %v", err)
+	}
+	// Schema mismatch is NOT a client input error — it is a policy rejection.
+	if errors.Is(err, ErrInvalidBackup) {
+		t.Fatalf("schema mismatch must NOT satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
+	}
+}
+
+func TestRestoreBackup_SchemaVersionMatch_Succeeds(t *testing.T) {
+	svc, _, dumper := setup()
+	dumper.SchemaVersion = "42"
+	dump := []byte("-- PostgreSQL database dump\nSET statement_timeout = 0;\n")
+	archive := buildTarGzWithSchema(t, "42", dump)
+
+	if err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive)); err != nil {
+		t.Fatalf("expected success when schema versions match, got: %v", err)
+	}
+}
+
+func TestRestoreBackup_SchemaVersionEmpty_Skipped(t *testing.T) {
+	// Backup with empty SchemaVersion (pre-feature) must succeed with a warning,
+	// not a rejection — preserving restorability of existing backups.
+	svc, _, dumper := setup()
+	dumper.SchemaVersion = "42"
+	dump := []byte("-- PostgreSQL database dump\nSET statement_timeout = 0;\n")
+	// buildTarGzWithSchema with "" sets an empty SchemaVersion.
+	archive := buildTarGzWithSchema(t, "", dump)
+
+	if err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive)); err != nil {
+		t.Fatalf("legacy backup (empty SchemaVersion) must be accepted, got: %v", err)
+	}
+}
+
 // --- Create edge cases ---
 
 func TestCreateBackup_DumpError(t *testing.T) {
@@ -490,6 +555,9 @@ func (d closeTrackingDumper) DumpTables(_ context.Context, _ []string) (io.ReadC
 	return &trackedRC{Reader: strings.NewReader(d.data), closed: d.closed}, nil
 }
 func (d closeTrackingDumper) RestoreTables(_ context.Context, _ io.Reader) error { return nil }
+func (d closeTrackingDumper) CurrentSchemaVersion(_ context.Context) (string, error) {
+	return "", nil
+}
 
 func TestCreateBackup_ClosesDumpReader(t *testing.T) {
 	closed := false

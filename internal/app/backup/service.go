@@ -104,6 +104,11 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 	ctx, span := tracing.StartSpan(ctx, "app.backup.CreateBackup")
 	defer span.End()
 
+	schemaVersion, err := s.dumper.CurrentSchemaVersion(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("Service.CreateBackup: check schema version: %w", err)
+	}
+
 	data, err := s.dumper.DumpTables(ctx, BackupTables)
 	if err != nil {
 		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
@@ -130,6 +135,7 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 
 	m, err := backup.NewBackupManifest(id.New("bk-"), s.version, BackupTables,
 		backup.WithBackupSHA256(hex.EncodeToString(h.Sum(nil))),
+		backup.WithBackupSchemaVersion(schemaVersion),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
@@ -159,6 +165,14 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 	ctx, span := tracing.StartSpan(ctx, "app.backup.RestoreBackup")
 	defer span.End()
 
+	// Obtain the current schema version before extracting the archive so that
+	// a dirty schema (failed migration) is caught immediately, before we spend
+	// time decompressing a potentially large dump.
+	currentSchemaVersion, err := s.dumper.CurrentSchemaVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("restore: check current schema version: %w", err)
+	}
+
 	archive, extractErr := extractTarGz(data)
 	if extractErr != nil {
 		// extractTarGz already wraps bad-input errors with ErrInvalidBackup;
@@ -172,6 +186,15 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 	}
 	if archive.dumpSHA256 != archive.manifest.DumpSHA256 {
 		return fmt.Errorf("restore: dump integrity check failed (sha256 mismatch): %w", ErrInvalidBackup)
+	}
+
+	// Schema version guard. Backups created before this field was added carry an
+	// empty SchemaVersion — skip the check rather than breaking existing backups.
+	if archive.manifest.SchemaVersion == "" {
+		slog.Warn("restore: backup predates schema-version stamping, skipping schema check")
+	} else if archive.manifest.SchemaVersion != currentSchemaVersion {
+		return fmt.Errorf("restore: backup schema version %q does not match current schema %q; restore aborted to avoid corruption",
+			archive.manifest.SchemaVersion, currentSchemaVersion)
 	}
 
 	f, err := os.Open(archive.dumpPath)

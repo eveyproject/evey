@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -234,6 +235,38 @@ func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// CurrentSchemaVersion queries schema_migrations to return the current migration
+// version as a string. Returns an error when the schema is in a dirty state
+// (a previous migration failed halfway), since neither creating nor restoring
+// a backup into an inconsistent schema is safe.
+func (d *DatabaseDumper) CurrentSchemaVersion(ctx context.Context) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.backup.CurrentSchemaVersion")
+	defer span.End()
+
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		d.host, d.port, d.user, d.password, d.dbName, d.sslMode)
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return "", fmt.Errorf("CurrentSchemaVersion: open db: %w", err)
+	}
+	defer db.Close() //nolint:errcheck
+
+	var version int64
+	var dirty bool
+	row := db.QueryRowContext(ctx, `SELECT version, dirty FROM schema_migrations LIMIT 1`)
+	if scanErr := row.Scan(&version, &dirty); scanErr != nil {
+		if errors.Is(scanErr, sql.ErrNoRows) {
+			// No migrations have been applied yet.
+			return "0", nil
+		}
+		return "", fmt.Errorf("CurrentSchemaVersion: query schema_migrations: %w", scanErr)
+	}
+	if dirty {
+		return "", fmt.Errorf("CurrentSchemaVersion: schema_migrations is in dirty state at version %d; resolve the failed migration before operating on backups", version)
+	}
+	return strconv.FormatInt(version, 10), nil
 }
 
 var _ backup.DatabaseDumper = (*DatabaseDumper)(nil)
