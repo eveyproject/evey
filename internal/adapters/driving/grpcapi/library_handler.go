@@ -330,7 +330,7 @@ func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.Get
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.Internal, "aggregate series: %v", err)
+		return nil, internalError("aggregate series", err)
 	}
 	return &eveyv1.SeriesAggregate{
 		SeriesId:        req.Id,
