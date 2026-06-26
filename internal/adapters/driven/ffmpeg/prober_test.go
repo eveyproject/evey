@@ -306,3 +306,54 @@ func TestParseIdetSummary(t *testing.T) {
 	_, _, err = parseIdetSummary([]byte("garbage"))
 	require.Error(t, err)
 }
+
+// TestProbeStreams_ExtendedDispositions verifies that the 5 extended disposition
+// fields (comment / hearing_impaired / visual_impaired / descriptions / original)
+// are parsed from the ffprobe JSON and mapped to the corresponding MediaStream
+// fields (Commentary / HearingImpaired / VisualImpaired / TextDescriptions /
+// Original).
+func TestProbeStreams_ExtendedDispositions(t *testing.T) {
+	// Stream 0: audio with comment=1 (director's commentary).
+	// Stream 1: subtitle with hearing_impaired=1, visual_impaired=1.
+	// Stream 2: audio with descriptions=1 and original=1.
+	fakeJSON := `{"streams":[` +
+		`{"index":0,"codec_name":"aac","codec_type":"audio","channels":2,"sample_rate":"48000","disposition":{"default":0,"forced":0,"comment":1,"hearing_impaired":0,"visual_impaired":0,"descriptions":0,"original":0},"tags":{"language":"eng"}},` +
+		`{"index":1,"codec_name":"subrip","codec_type":"subtitle","disposition":{"default":0,"forced":0,"comment":0,"hearing_impaired":1,"visual_impaired":1,"descriptions":0,"original":0},"tags":{"language":"eng"}},` +
+		`{"index":2,"codec_name":"aac","codec_type":"audio","channels":2,"sample_rate":"48000","disposition":{"default":1,"forced":0,"comment":0,"hearing_impaired":0,"visual_impaired":0,"descriptions":1,"original":1},"tags":{"language":"eng"}}` +
+		`],"format":{"duration":"3600.0"}}`
+
+	script, err := os.CreateTemp("", "fake_ffprobe_disp_*.sh")
+	require.NoError(t, err)
+	defer os.Remove(script.Name())
+
+	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
+	require.NoError(t, err)
+	script.Close()
+	require.NoError(t, os.Chmod(script.Name(), 0755))
+
+	p := NewProber(script.Name())
+	result, err := p.ProbeStreams(context.Background(), "/fake/multi.mkv")
+	require.NoError(t, err)
+	require.Len(t, result.Streams, 3)
+
+	audioCommentary := result.Streams[0]
+	assert.True(t, audioCommentary.Commentary, "comment=1 must set Commentary")
+	assert.False(t, audioCommentary.HearingImpaired)
+	assert.False(t, audioCommentary.VisualImpaired)
+	assert.False(t, audioCommentary.TextDescriptions)
+	assert.False(t, audioCommentary.Original)
+
+	sub := result.Streams[1]
+	assert.False(t, sub.Commentary)
+	assert.True(t, sub.HearingImpaired, "hearing_impaired=1 must set HearingImpaired")
+	assert.True(t, sub.VisualImpaired, "visual_impaired=1 must set VisualImpaired")
+	assert.False(t, sub.TextDescriptions)
+	assert.False(t, sub.Original)
+
+	audioDesc := result.Streams[2]
+	assert.False(t, audioDesc.Commentary)
+	assert.False(t, audioDesc.HearingImpaired)
+	assert.False(t, audioDesc.VisualImpaired)
+	assert.True(t, audioDesc.TextDescriptions, "descriptions=1 must set TextDescriptions")
+	assert.True(t, audioDesc.Original, "original=1 must set Original")
+}
