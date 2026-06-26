@@ -69,7 +69,7 @@ describe("LoginPage", () => {
     const LoginPage = await getLoginPage();
     render(React.createElement(LoginPage), { wrapper: createWrapper() });
     expect(screen.getByLabelText(/username/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/password/i, { selector: "input" })).toBeInTheDocument();
   });
 
   it("renders sign in button", async () => {
@@ -82,7 +82,7 @@ describe("LoginPage", () => {
     const LoginPage = await getLoginPage();
     render(React.createElement(LoginPage), { wrapper: createWrapper() });
     fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "alice" } });
-    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: "secret123" } });
+    fireEvent.change(screen.getByLabelText(/password/i, { selector: "input" }), { target: { value: "secret123" } });
     fireEvent.click(screen.getByTestId("login-submit"));
     await waitFor(() => {
       expect(mockMutate).toHaveBeenCalledWith({ data: { username: "alice", password: "secret123" } });

@@ -148,8 +148,9 @@ describe("ServerConfigPage", () => {
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
     // The password toggle lives inside the (collapsed) SMTP card — expand first.
     fireEvent.click(screen.getByRole("button", { name: /Email \/ SMTP/i }));
-    const showBtn = await screen.findByRole("button", { name: /Show/i });
-    fireEvent.click(showBtn);
+    // Several password fields each carry a Show/Hide eye; toggle the first.
+    const showBtns = await screen.findAllByRole("button", { name: /Show/i });
+    fireEvent.click(showBtns[0]);
     expect(screen.getByRole("button", { name: /Hide/i })).toBeInTheDocument();
   });
 });
