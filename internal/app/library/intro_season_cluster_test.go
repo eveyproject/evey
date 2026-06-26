@@ -1,10 +1,23 @@
 package library
 
 import (
+	"context"
 	"math/bits"
 	"math/rand"
 	"testing"
+
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
+
+// fakeChromaprinter returns a canned fingerprint per file path, so the season
+// clustering path can be exercised end-to-end without fpcalc/ffmpeg.
+type fakeChromaprinter struct{ byPath map[string][]uint32 }
+
+func (f *fakeChromaprinter) Available(context.Context) error { return nil }
+func (f *fakeChromaprinter) Compute(_ context.Context, path string, _, _ float64) ([]uint32, error) {
+	return f.byPath[path], nil
+}
 
 // noiseFrames returns n pseudo-random fingerprint frames (deterministic per rng).
 func noiseFrames(rng *rand.Rand, n int) []uint32 {
@@ -166,6 +179,68 @@ func TestBuildSeasonCluster_BitErrorTolerance(t *testing.T) {
 	}
 	if _, ok := byID["highBER"]; ok {
 		t.Error("highBER (20 bits flipped) must not be a carrier")
+	}
+}
+
+// clusterSeasonIntro end-to-end (service glue) with a canned chromaprinter:
+// 5 episodes carry the same signature at different offsets, 2 are noise. The
+// method must return a per-carrier "audio_cluster" hint with the right start
+// and exclude the noise episodes.
+func TestClusterSeasonIntro_ReturnsCarrierHints(t *testing.T) {
+	rng := rand.New(rand.NewSource(7))
+	sig := noiseFrames(rng, 130)
+	const totalLen = 1100
+	offsets := map[string]int{"ep1": 200, "ep2": 520, "ep3": 360, "ep4": 800, "ep5": 240}
+	fps := map[string][]uint32{
+		"ep1":    embedSignature(rng, 200, sig, totalLen, 0),
+		"ep2":    embedSignature(rng, 520, sig, totalLen, 0),
+		"ep3":    embedSignature(rng, 360, sig, totalLen, 0),
+		"ep4":    embedSignature(rng, 800, sig, totalLen, 0),
+		"ep5":    embedSignature(rng, 240, sig, totalLen, 0),
+		"noiseA": noiseFrames(rng, totalLen),
+		"noiseB": noiseFrames(rng, totalLen),
+	}
+	var siblings []*domainlibrary.MediaItem
+	for _, id := range []string{"ep1", "ep2", "ep3", "ep4", "ep5", "noiseA", "noiseB"} {
+		siblings = append(siblings, &domainlibrary.MediaItem{
+			ID:       shared.MediaItemID(id),
+			ParentID: "season-1",
+			Type:     domainlibrary.Episode,
+			File:     &domainlibrary.MediaFile{Path: id},
+		})
+	}
+	svc := NewIntroDetectionService(
+		&fakeSegmentRepo{},
+		&fakeTrickplayRepo{},
+		&fakeMediaItemRepo{siblings: siblings},
+		&fakeConfigRepo{},
+		&fakeDetector{},
+		t.TempDir(),
+	)
+	svc.WithChromaprinter(&fakeChromaprinter{byPath: fps})
+
+	hints := svc.clusterSeasonIntro(context.Background(), "season-1")
+	if len(hints) != 5 {
+		t.Fatalf("expected 5 carrier hints, got %d: %+v", len(hints), hints)
+	}
+	for id, off := range offsets {
+		h, ok := hints[id]
+		if !ok {
+			t.Errorf("%s should have a cluster hint", id)
+			continue
+		}
+		if h.Type != "intro" || h.Source != "audio_cluster" {
+			t.Errorf("%s hint = %q/%q, want intro/audio_cluster", id, h.Type, h.Source)
+		}
+		// The raw cluster window can wobble by a frame or two where noise
+		// coincidentally aligns next to the signature; the downstream precision
+		// pass tightens it. A few-frame tolerance is the realistic contract.
+		if want, got := framesToMs(off), h.StartMs; got < want-400 || got > want+400 {
+			t.Errorf("%s start = %d ms, want ~%d (+/-400)", id, got, want)
+		}
+	}
+	if _, ok := hints["noiseA"]; ok {
+		t.Error("noiseA must not carry the cluster")
 	}
 }
 
