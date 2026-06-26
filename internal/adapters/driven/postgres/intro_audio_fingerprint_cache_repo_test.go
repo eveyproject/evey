@@ -55,7 +55,7 @@ func TestAudioFingerprintEncodeDecodeRoundTrip(t *testing.T) {
 			buf := encodeUint32Slice(tc.values)
 
 			// Buffer must be exactly 4 bytes per value.
-			assert.Equal(t, 4*len(tc.values), len(buf))
+			assert.Len(t, buf, 4*len(tc.values))
 
 			got, err := decodeUint32Slice(buf)
 			require.NoError(t, err)
