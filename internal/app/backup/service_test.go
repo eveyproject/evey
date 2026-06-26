@@ -85,6 +85,19 @@ func makeManifest(dump []byte) *backupmodel.BackupManifest {
 	}
 }
 
+func TestBackupTables_ContainsRequiredTables(t *testing.T) {
+	required := []string{"api_keys", "push_subscriptions"}
+	tableSet := make(map[string]bool, len(BackupTables))
+	for _, tbl := range BackupTables {
+		tableSet[tbl] = true
+	}
+	for _, want := range required {
+		if !tableSet[want] {
+			t.Errorf("BackupTables missing required table %q", want)
+		}
+	}
+}
+
 func TestCreateBackup(t *testing.T) {
 	svc, store, _ := setup()
 	ctx := context.Background()

@@ -76,6 +76,7 @@ var BackupTables = []string{
 	"music_tracks",
 	"photos",
 	"push_subscriptions",
+	"api_keys",
 }
 
 type Service struct {
