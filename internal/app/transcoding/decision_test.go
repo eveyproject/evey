@@ -67,6 +67,36 @@ func TestAudioCopy_EAC3AliasMatchesEC3(t *testing.T) {
 	assert.NotContains(t, d.TranscodeReasons, "audio_codec_unsupported")
 }
 
+// A client advertising AC-3 under the hyphenated RFC/MIME form "ac-3" must match
+// an "ac3" source (same codec, different spelling) and copy, not transcode.
+func TestAudioCopy_AC3AliasMatches(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "ac3", Channels: intPtr(6), IsDefault: true},
+	}
+	client := transcoding.DefaultWebProfile
+	client.AudioCodecs = []string{"aac", "ac-3"} // "ac-3" RFC form, no literal "ac3"
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
+
+	assert.Equal(t, "copy", d.AudioDecision, "ac-3 alias must match ac3 source")
+	assert.NotContains(t, d.TranscodeReasons, "audio_codec_unsupported")
+}
+
+// A client advertising E-AC-3 under the hyphenated form "e-ac-3" must match an
+// "eac3" source (same codec, different spelling) and copy, not transcode.
+func TestAudioCopy_EAC3AliasMatches(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "eac3", Channels: intPtr(6), IsDefault: true},
+	}
+	client := transcoding.DefaultWebProfile
+	client.AudioCodecs = []string{"aac", "e-ac-3"} // "e-ac-3" RFC form, no literal "eac3"
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
+
+	assert.Equal(t, "copy", d.AudioDecision, "e-ac-3 alias must match eac3 source")
+	assert.NotContains(t, d.TranscodeReasons, "audio_codec_unsupported")
+}
+
 func TestAudioTranscode_DTS(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
