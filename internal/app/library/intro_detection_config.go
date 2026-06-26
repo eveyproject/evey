@@ -39,6 +39,11 @@ type introConfig struct {
 	// Frame range
 	FrameCutoffPercent float64 `json:"frame_cutoff_percent"` // fraction of the episode searched for the intro (default 0.25)
 	MaxIntroStartMs    int64   `json:"max_intro_start_ms"`   // reject candidates whose start ms is past this point (default 240_000 = 4min) — beyond that it's not an intro, it's a recurring chapter card or in-episode element
+
+	// Season clustering (v2): fingerprint each episode once and cluster the
+	// recurring intro shared across the season, located at each episode's own
+	// offset. Replaces per-episode audio discovery when it carries the episode.
+	SeasonClusterEnabled bool `json:"season_cluster_enabled"` // default true
 }
 
 // defaultIntroConfig returns the values previously hardcoded throughout the
@@ -64,19 +69,20 @@ type introConfig struct {
 // Cuisine" detected at 9:20-10:00.
 func defaultIntroConfig() introConfig {
 	return introConfig{
-		MaxHamming:         8,
-		FreqMapThreshold:   0.30,
-		PadSec:             10.0,
-		SearchSec:          30.0,
-		BinMs:              250,
-		NumBands:           12,
-		CorrThreshold:      0.45,
-		DriftTolSec:        6.0,
-		MinMatches:         3,
-		MinRatio:           0.7,
-		RecapMaxMs:         60 * 1000,
-		FrameCutoffPercent: 0.25,
-		MaxIntroStartMs:    240_000,
+		MaxHamming:           8,
+		FreqMapThreshold:     0.30,
+		PadSec:               10.0,
+		SearchSec:            30.0,
+		BinMs:                250,
+		NumBands:             12,
+		CorrThreshold:        0.45,
+		DriftTolSec:          6.0,
+		MinMatches:           3,
+		MinRatio:             0.7,
+		RecapMaxMs:           60 * 1000,
+		FrameCutoffPercent:   0.25,
+		MaxIntroStartMs:      240_000,
+		SeasonClusterEnabled: true,
 	}
 }
 

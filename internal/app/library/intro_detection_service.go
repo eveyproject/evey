@@ -48,9 +48,9 @@ type IntroDetectionService struct {
 	trickplayRepo     domainlibrary.TrickplayRepository
 	mediaItems        domainlibrary.MediaItemRepository
 	configRepo        shared.ServerConfigRepository
-	fpCache      domainlibrary.IntroFingerprintCacheRepository
-	audioFPCache domainlibrary.IntroAudioFingerprintCacheRepository
-	chapterRepo  domainlibrary.ChapterQueryRepo
+	fpCache           domainlibrary.IntroFingerprintCacheRepository
+	audioFPCache      domainlibrary.IntroAudioFingerprintCacheRepository
+	chapterRepo       domainlibrary.ChapterQueryRepo
 	chromaprinter     Chromaprinter
 	metadataProvider  domainlibrary.IntroMetadataProvider
 	contributor       domainlibrary.SegmentContributor
@@ -396,6 +396,13 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 	defer span.End()
 
 	episodeType := string(domainlibrary.Episode)
+
+	// Season-level clustering hint (v2): one pass over the whole season locates
+	// the recurring intro per episode at its own offset (cached fingerprints, no
+	// per-candidate re-extraction). nil when disabled or no cluster is found —
+	// episodes then fall through to the per-episode pipeline unchanged.
+	clusterHints := s.clusterSeasonIntro(ctx, parentID)
+
 	// Page through the whole season. A single Limit:100 (or even the repo's 500
 	// cap) would silently skip episodes 101+ of a long single-season (anime,
 	// daily soaps), leaving them without intro markers forever — this is the only
@@ -446,7 +453,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 				// resort heuristics — keep them eligible for re-detection so
 				// a future TIDB/IntroDB hit can replace them.
 				switch sg.Source {
-				case "mkv_chapter", "tidb", "introdb":
+				case "mkv_chapter", "tidb", "introdb", "audio_cluster":
 					if sg.EndMs-sg.StartMs >= 5_000 {
 						hasGoodIntro = true
 					}
@@ -466,8 +473,13 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			if exhausted, exErr := s.segmentRepo.IntroDetectionExhausted(ctx, string(ep.ID), introDetectionAlgoVersion, maxIntroDetectionAttempts); exErr == nil && exhausted {
 				continue
 			}
+			var hint *domainlibrary.MediaSegment
+			if h, ok := clusterHints[string(ep.ID)]; ok {
+				hh := h
+				hint = &hh
+			}
 			epCtx, cancel := context.WithTimeout(ctx, 30*time.Minute)
-			detErr := s.DetectIntro(epCtx, string(ep.ID))
+			detErr := s.detectIntroWithHint(epCtx, string(ep.ID), hint)
 			cancel()
 			if detErr != nil {
 				// A real failure (ffmpeg crash, I/O) — don't count it toward the cap
@@ -493,6 +505,13 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 // of admin /detect-segments triggers (or worker auto-runs) don't pile up
 // ffmpeg processes that thrash the host.
 func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID string) error {
+	return s.detectIntroWithHint(ctx, mediaItemID, nil)
+}
+
+// detectIntroWithHint runs the per-episode pipeline. hint, when non-nil, is the
+// season-cluster intro window for this episode — authoritative over the visual
+// heuristics (applied in runPipeline, below explicit metadata/chapters).
+func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaItemID string, hint *domainlibrary.MediaSegment) error {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.DetectIntro")
 	defer span.End()
 	if s.concurrencyLimiter != nil {
@@ -511,7 +530,7 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 		return errors.New("media item has no file path")
 	}
 
-	segments, err := s.runPipeline(ctx, item)
+	segments, err := s.runPipeline(ctx, item, hint)
 	if err != nil {
 		return fmt.Errorf("detection pipeline: %w", err)
 	}
@@ -859,7 +878,7 @@ func validateSegmentInput(segType string, startMs, endMs int64) error {
 // false positives (e.g. recurring landscape inserts), because runs of matched
 // frames inside an episode can outscore the real intro when intro frames are
 // fragmented by unique transition frames.
-func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlibrary.MediaItem) ([]domainlibrary.MediaSegment, error) {
+func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlibrary.MediaItem, hint *domainlibrary.MediaSegment) ([]domainlibrary.MediaSegment, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.runPipeline")
 	defer span.End()
 	defer bgtasks.Begin("intro_detection", string(item.ID))()
@@ -897,6 +916,24 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 			slog.Int("segments", len(chSegs)),
 		)
 		return chSegs, nil
+	}
+
+	// Season cluster hint: a season-level audio clustering already located this
+	// episode's recurring intro at its own offset. Audio recurrence is a stronger
+	// signal than the visual pHash heuristic, so the hint wins over pHash; it
+	// stays below the explicit metadata/chapters above. Refine the raw cluster
+	// window to silence/black boundaries, anchored on the cluster window.
+	if hint != nil {
+		seg := *hint
+		refined := s.refineWithPrecisionPass(ctx, item.File.Path, []confirmedWindow{{startMs: hint.StartMs, endMs: hint.EndMs}})
+		if len(refined) > 0 {
+			seg.StartMs, seg.EndMs = refined[0].startMs, refined[0].endMs
+		}
+		slog.Info("intro_detection.pipeline_decision",
+			slog.String("media_id", mediaItemID),
+			slog.String("decision", "season_cluster_hint"),
+		)
+		return []domainlibrary.MediaSegment{seg}, nil
 	}
 
 	if s.isTrickplayEnabled(ctx) {

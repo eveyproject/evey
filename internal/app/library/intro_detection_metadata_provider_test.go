@@ -50,7 +50,7 @@ func TestRunPipeline_MetadataProviderWinsOverChapterPass(t *testing.T) {
 	}
 	svc.WithIntroMetadataProvider(provider)
 
-	got, err := svc.runPipeline(context.Background(), item)
+	got, err := svc.runPipeline(context.Background(), item, nil)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, 1, provider.calls)
@@ -72,7 +72,7 @@ func TestRunPipeline_MetadataProviderEmpty_FallsThroughToChapters(t *testing.T) 
 	provider := &fakeIntroMetadataProvider{segs: nil}
 	svc.WithIntroMetadataProvider(provider)
 
-	got, err := svc.runPipeline(context.Background(), item)
+	got, err := svc.runPipeline(context.Background(), item, nil)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, 1, provider.calls)
@@ -93,7 +93,7 @@ func TestRunPipeline_MetadataProviderError_FallsThroughToChapters(t *testing.T) 
 	provider := &fakeIntroMetadataProvider{err: errors.New("rate limited by upstream")}
 	svc.WithIntroMetadataProvider(provider)
 
-	got, err := svc.runPipeline(context.Background(), item)
+	got, err := svc.runPipeline(context.Background(), item, nil)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, 1, provider.calls)
@@ -126,7 +126,7 @@ func TestRunPipeline_NoMetadataProvider_DoesNotCallProvider(t *testing.T) {
 	svc.WithChapterRepo(chapRepo)
 	// Note: intentionally no WithIntroMetadataProvider call.
 
-	got, err := svc.runPipeline(context.Background(), item)
+	got, err := svc.runPipeline(context.Background(), item, nil)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "mkv_chapter", got[0].Source)

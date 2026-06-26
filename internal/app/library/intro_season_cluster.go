@@ -1,5 +1,12 @@
 package library
 
+import (
+	"context"
+	"log/slog"
+
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+)
+
 // Season-level intro clustering (v2).
 //
 // The per-episode discovery in intro_audio_discovery.go anchors on a single
@@ -164,4 +171,68 @@ func buildSeasonCluster(eps []episodeFP, p clusterParams) (seasonCluster, bool) 
 		return seasonCluster{}, false
 	}
 	return best, true
+}
+
+// seasonClusterEpisodeCap bounds how many episodes the clustering fingerprints,
+// keeping the anchor/score passes affordable on very long single seasons.
+const seasonClusterEpisodeCap = 40
+
+// clusterSeasonIntro fingerprints every episode of the season once (cached) and
+// clusters the recurring intro shared across the season. It returns a per-
+// episode intro hint (a raw, un-refined window) keyed by media item id, or nil
+// when the feature is off, audio is unavailable, or no signature reaches KMin
+// carriers. It forks no ffmpeg beyond the cached Chromaprint compute — the
+// per-carrier boundary refinement happens later, in the per-episode pipeline.
+func (s *IntroDetectionService) clusterSeasonIntro(ctx context.Context, parentID string) map[string]domainlibrary.MediaSegment {
+	cfg := loadIntroConfig(ctx, s.configRepo)
+	if !cfg.SeasonClusterEnabled || s.chromaprinter == nil {
+		return nil
+	}
+	episodeType := string(domainlibrary.Episode)
+	var eps []episodeFP
+	for offset := 0; len(eps) < seasonClusterEpisodeCap; offset += 200 {
+		page, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
+			ParentID: &parentID, Type: &episodeType, Limit: 200, Offset: offset,
+		})
+		if err != nil || len(page) == 0 {
+			break
+		}
+		for _, ep := range page {
+			if ep.File == nil || ep.File.Path == "" {
+				continue
+			}
+			fp, ferr := s.extractEpisodeAudioCached(ctx, ep, discoverWindowSec)
+			if ferr != nil || len(fp) == 0 {
+				continue
+			}
+			eps = append(eps, episodeFP{id: string(ep.ID), fp: fp})
+			if len(eps) >= seasonClusterEpisodeCap {
+				break
+			}
+		}
+		if len(page) < 200 {
+			break
+		}
+	}
+	cluster, ok := buildSeasonCluster(eps, defaultClusterParams(len(eps)))
+	if !ok {
+		return nil
+	}
+	sigFrames := len(cluster.sig)
+	out := make(map[string]domainlibrary.MediaSegment, len(cluster.carriers))
+	for _, c := range cluster.carriers {
+		out[c.id] = domainlibrary.MediaSegment{
+			Type:       "intro",
+			StartMs:    framesToMs(c.offsetFrames),
+			EndMs:      framesToMs(c.offsetFrames + sigFrames),
+			Source:     "audio_cluster",
+			Confidence: 0.9,
+		}
+	}
+	slog.Info("intro_detection: season cluster",
+		slog.String("parent_id", parentID),
+		slog.Int("episodes", len(eps)),
+		slog.Int("carriers", len(cluster.carriers)),
+		slog.Int("sig_frames", sigFrames))
+	return out
 }
