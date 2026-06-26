@@ -78,8 +78,12 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 		if cln := t.CodecLongName(); cln != "" {
 			ms.CodecLongName = cln
 		}
-		// Per-stream average bitrate (MP4 btrt/esds); nil for Matroska (no element,
-		// matching ffprobe). Consistent fast-path↔ffprobe + unblocks the music scan.
+		// Per-stream average bitrate (MP4 btrt/esds). nil for Matroska on this
+		// head-only path: the per-track bitrate lives in the Matroska BPS Tag, which
+		// mkvgo only fills on a FULL read (OpenMeta stops before Tags). ffprobe DOES
+		// surface that tag as bit_rate, so this is a known head-only gap, not parity.
+		// Closing it should read the BPS tag head-only via the SeekHead (a mkvgo
+		// feature), never an ffprobe fork or a whole-file read. Unblocks the music scan.
 		if t.Bitrate != nil && *t.Bitrate > 0 {
 			br := int64(*t.Bitrate)
 			ms.Bitrate = &br
