@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { View, Text, ScrollView, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,10 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 330;
 const CARD_TOTAL_WIDTH = CARD_WIDTH + 16; // card + separator
+
+const HERO_COUNT = 5;
+const HERO_INTERVAL = 8000;
+const HERO_HEIGHT = 480;
 
 const tvRowGetItemLayout = (_: unknown, index: number) => ({
   length: CARD_TOTAL_WIDTH,
@@ -126,6 +130,86 @@ function MediaRow({
   );
 }
 
+// HeroBanner spotlights the most recently added titles at the top of the home
+// screen — the 10-foot equivalent of the web/mobile hero, which we deliberately
+// keep TV-only. It is text-and-action driven (big title, genres, overview, Play
+// / More info) so it carries its weight even though the TV app has no image
+// renderer yet: once expo-image lands, drop the item's backdrop behind `content`.
+function HeroBanner({ items }: { items: V1MediaItem[] }) {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const heroItems = items.slice(0, HERO_COUNT);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    if (heroItems.length <= 1) return;
+    const id = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % heroItems.length);
+    }, HERO_INTERVAL);
+    return () => clearInterval(id);
+  }, [heroItems.length]);
+
+  if (heroItems.length === 0) return null;
+
+  const active = heroItems[activeIndex] ?? heroItems[0];
+  const id = active?.id ?? "";
+  const genres = (active?.genres ?? []).slice(0, 3);
+  const metaLine = [active?.year ? String(active.year) : "", genres.join(" · ")]
+    .filter(Boolean)
+    .join("   ·   ");
+
+  return (
+    <View style={[styles.heroContainer, { height: HERO_HEIGHT, backgroundColor: theme.colors.surface }]}>
+      {/* Backdrop placeholder: the TV app ships no image renderer yet (see
+          MediaCard), so we render a flat surface. Swap for the item's backdrop
+          artwork here once expo-image is available on TV. */}
+      <View style={styles.heroContent}>
+        <Text style={[styles.heroTitle, { color: theme.colors.text }]} numberOfLines={2}>
+          {active?.title}
+        </Text>
+        {metaLine ? (
+          <Text style={[styles.heroMeta, { color: theme.colors.textMuted }]}>{metaLine}</Text>
+        ) : null}
+        {active?.overview ? (
+          <Text style={[styles.heroOverview, { color: theme.colors.textMuted }]} numberOfLines={3}>
+            {active.overview}
+          </Text>
+        ) : null}
+        <View style={styles.heroButtons}>
+          <FocusableCard
+            onPress={() => id && router.push(`/player/${id}`)}
+            hasTVPreferredFocus
+            style={[styles.heroPlayBtn, { backgroundColor: theme.colors.accent }]}
+            accessibilityLabel={t("media.detail.play")}
+          >
+            <Text style={[styles.heroBtnLabel, { color: theme.colors.bg }]}>{t("media.detail.play")}</Text>
+          </FocusableCard>
+          <FocusableCard
+            onPress={() => id && router.push(`/media/${id}`)}
+            style={[styles.heroInfoBtn, { backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }]}
+            accessibilityLabel={t("media.home.moreInfo")}
+          >
+            <Text style={[styles.heroBtnLabel, { color: theme.colors.text }]}>{t("media.home.moreInfo")}</Text>
+          </FocusableCard>
+        </View>
+        {heroItems.length > 1 && (
+          <View style={styles.heroDots}>
+            {heroItems.map((it, i) => (
+              <View
+                key={it.id ?? i}
+                style={[
+                  styles.heroDot,
+                  { backgroundColor: i === activeIndex ? theme.colors.accent : theme.colors.border },
+                ]}
+              />
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
 export default function HomeScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
@@ -175,6 +259,7 @@ export default function HomeScreen() {
           </Text>
         </FocusableCard>
       )}
+      <HeroBanner items={recentlyAdded.data?.items ?? []} />
       <MediaRow
         title={t("media.home.continueWatching")}
         items={resume.data?.items ?? []}
@@ -251,5 +336,60 @@ const styles = StyleSheet.create({
   cardYear: {
     fontSize: 14,
     marginTop: 2,
+  },
+  heroContainer: {
+    width: "100%",
+    justifyContent: "flex-end",
+    overflow: "hidden",
+    marginBottom: 32,
+  },
+  heroContent: {
+    paddingHorizontal: 48,
+    paddingBottom: 48,
+    maxWidth: 1100,
+  },
+  heroTitle: {
+    fontSize: 48,
+    fontWeight: "800",
+  },
+  heroMeta: {
+    fontSize: 20,
+    marginTop: 12,
+  },
+  heroOverview: {
+    fontSize: 20,
+    lineHeight: 28,
+    marginTop: 12,
+  },
+  heroButtons: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 24,
+  },
+  heroPlayBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroInfoBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroBtnLabel: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  heroDots: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 24,
+  },
+  heroDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
 });
