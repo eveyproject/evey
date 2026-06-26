@@ -204,6 +204,70 @@ func TestMapContainer_FallbackGates(t *testing.T) {
 	}
 }
 
+// TestMapContainer_ExtendedDispositions verifies that the 5 extended
+// disposition flags (Commentary / HearingImpaired / VisualImpaired /
+// TextDescriptions / Original) are propagated from mkvgo Track to MediaStream
+// for both audio and subtitle stream types.
+func TestMapContainer_ExtendedDispositions(t *testing.T) {
+	c := &extmkv.Container{
+		DurationMs: 3_600_000,
+		Tracks: []extmkv.Track{
+			// Video track — dispositions don't apply but must not block mapping.
+			{
+				Type: extmkv.VideoTrack, Codec: "h264",
+				Width: new(uint32(1920)), Height: new(uint32(1080)),
+				ColourDetermined: true,
+				IsDefault:        true,
+				LanguagePresent:  true, Language: "und",
+			},
+			// Audio: commentary track (director's commentary).
+			{
+				Type:            extmkv.AudioTrack, Codec: "aac",
+				Channels:        new(uint8(2)), SampleRate: new(48000.0),
+				Language:        "eng", LanguagePresent: true,
+				Commentary:      true,
+			},
+			// Audio: hearing-impaired descriptive track.
+			{
+				Type:            extmkv.AudioTrack, Codec: "aac",
+				Channels:        new(uint8(2)), SampleRate: new(48000.0),
+				Language:        "eng", LanguagePresent: true,
+				HearingImpaired: true,
+				IsDefault:       true,
+			},
+			// Subtitle: visually impaired + text descriptions + original.
+			{
+				Type:             extmkv.SubtitleTrack, Codec: "srt",
+				Language:         "eng", LanguagePresent: true,
+				VisualImpaired:   true,
+				TextDescriptions: true,
+				Original:         true,
+			},
+		},
+	}
+
+	res, ok := mapContainer(c, true)
+	require.True(t, ok)
+	require.Len(t, res.Streams, 4)
+
+	audioCommentary := res.Streams[1]
+	assert.True(t, audioCommentary.Commentary, "commentary flag must be set on audio track")
+	assert.False(t, audioCommentary.HearingImpaired)
+	assert.False(t, audioCommentary.VisualImpaired)
+	assert.False(t, audioCommentary.TextDescriptions)
+	assert.False(t, audioCommentary.Original)
+
+	audioHI := res.Streams[2]
+	assert.False(t, audioHI.Commentary)
+	assert.True(t, audioHI.HearingImpaired, "hearing_impaired flag must be set")
+
+	sub := res.Streams[3]
+	assert.False(t, sub.Commentary)
+	assert.True(t, sub.VisualImpaired, "visual_impaired flag must be set on subtitle")
+	assert.True(t, sub.TextDescriptions, "text_descriptions flag must be set on subtitle")
+	assert.True(t, sub.Original, "original flag must be set on subtitle")
+}
+
 // An HDR-capable codec with no colour tags bails ONLY when the colour was never
 // read. When mkvgo parsed a colour source (container Colour / MP4 colr / SPS VUI)
 // and it resolved to unspecified, ColourDetermined is true and the track is

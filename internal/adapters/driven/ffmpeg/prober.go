@@ -73,9 +73,14 @@ type ffprobeSideData struct {
 }
 
 type ffprobeDisposition struct {
-	Default     int `json:"default"`
-	Forced      int `json:"forced"`
-	AttachedPic int `json:"attached_pic"`
+	Default         int `json:"default"`
+	Forced          int `json:"forced"`
+	AttachedPic     int `json:"attached_pic"`
+	Comment         int `json:"comment"`
+	HearingImpaired int `json:"hearing_impaired"`
+	VisualImpaired  int `json:"visual_impaired"`
+	Descriptions    int `json:"descriptions"`
+	Original        int `json:"original"`
 }
 
 func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.ProbeResult, error) {
@@ -107,14 +112,19 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 			continue
 		}
 		ms := &library.MediaStream{
-			ID:            uuid.New().String(),
-			StreamIndex:   s.Index,
-			StreamType:    codecTypeToStreamType(s.CodecType),
-			Codec:         s.CodecName,
-			CodecLongName: s.CodecLongName,
-			Profile:       s.Profile,
-			IsDefault:     s.Disposition.Default == 1,
-			IsForced:      s.Disposition.Forced == 1,
+			ID:               uuid.New().String(),
+			StreamIndex:      s.Index,
+			StreamType:       codecTypeToStreamType(s.CodecType),
+			Codec:            s.CodecName,
+			CodecLongName:    s.CodecLongName,
+			Profile:          s.Profile,
+			IsDefault:        s.Disposition.Default == 1,
+			IsForced:         s.Disposition.Forced == 1,
+			Commentary:       s.Disposition.Comment == 1,
+			HearingImpaired:  s.Disposition.HearingImpaired == 1,
+			VisualImpaired:   s.Disposition.VisualImpaired == 1,
+			TextDescriptions: s.Disposition.Descriptions == 1,
+			Original:         s.Disposition.Original == 1,
 		}
 		// Matroska carries language in the track header (ffprobe lowercases it to
 		// "language") OR, when it only lives in a Tags SimpleTag, ffprobe preserves

@@ -57,12 +57,17 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			// Surfaced-track ordinal, not the ffprobe global stream index (ffprobe
 			// counts attachments mkvgo never surfaces). Display-only: track
 			// selection re-counts per stream-type, so this divergence is benign.
-			StreamIndex: i,
-			StreamType:  st,
-			Codec:       codec,
-			Profile:     t.Profile, // from the SPS as of mkvgo v0.6.0; "" otherwise (== ffprobe when absent)
-			IsDefault:   t.IsDefault,
-			IsForced:    t.IsForced,
+			StreamIndex:      i,
+			StreamType:       st,
+			Codec:            codec,
+			Profile:          t.Profile, // from the SPS as of mkvgo v0.6.0; "" otherwise (== ffprobe when absent)
+			IsDefault:        t.IsDefault,
+			IsForced:         t.IsForced,
+			Commentary:       t.Commentary,
+			HearingImpaired:  t.HearingImpaired,
+			VisualImpaired:   t.VisualImpaired,
+			TextDescriptions: t.TextDescriptions,
+			Original:         t.Original,
 		}
 		// Language from the carried element (ResolvedLanguage prefers BCP-47); for
 		// Matroska, fall back to the spec default "eng" when no element is present

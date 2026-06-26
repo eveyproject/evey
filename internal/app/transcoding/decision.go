@@ -29,6 +29,10 @@ type StreamSpec struct {
 	Channels  *int
 	Bitrate   *int64
 	IsDefault bool
+	// Commentary marks a director/cast commentary audio track. The auto-selection
+	// (selectedAudioSpec) prefers a non-commentary default over a commentary default
+	// when both exist; an explicit AudioTrack selection always wins regardless.
+	Commentary bool
 }
 
 // toStreamSpecs adapts the persistence-flavored library.MediaStream slice
@@ -56,14 +60,15 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			}
 		}
 		out = append(out, StreamSpec{
-			Type:      string(s.StreamType),
-			Codec:     s.Codec,
-			Width:     s.Width,
-			Height:    s.Height,
-			HDRType:   hdrType,
-			Channels:  s.Channels,
-			Bitrate:   s.Bitrate,
-			IsDefault: s.IsDefault,
+			Type:       string(s.StreamType),
+			Codec:      s.Codec,
+			Width:      s.Width,
+			Height:     s.Height,
+			HDRType:    hdrType,
+			Channels:   s.Channels,
+			Bitrate:    s.Bitrate,
+			IsDefault:  s.IsDefault,
+			Commentary: s.Commentary,
 		})
 	}
 	return out
@@ -442,11 +447,18 @@ func applyAudioChannelTarget(d *transcoding.PlaybackDecision, specs []StreamSpec
 }
 
 // selectedAudioSpec returns the audio stream the client will actually hear:
-// the prefs.AudioTrack audio-relative index when selected, else the
-// default-flag track, else the first audio stream.
+// the prefs.AudioTrack audio-relative index when selected (honored even for
+// commentary tracks), else the default-flag track skipping commentary when a
+// non-commentary audio exists, else the first audio stream.
+//
+// Commentary skip rule: when the implicit fallback would select a
+// commentary-flagged track (either the default or the sole track), but a
+// non-commentary audio track exists, the first non-commentary track is
+// returned instead. If every audio track is commentary the behaviour is
+// unchanged (a commentary track is better than silence).
 func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *StreamSpec {
 	audIdx := 0
-	var def, first *StreamSpec
+	var def, firstNonCommentary, first *StreamSpec
 	for i := range specs {
 		s := &specs[i]
 		if s.Type != "audio" {
@@ -458,6 +470,9 @@ func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *Stream
 		if s.IsDefault && def == nil {
 			def = s
 		}
+		if !s.Commentary && firstNonCommentary == nil {
+			firstNonCommentary = s
+		}
 		if first == nil {
 			first = s
 		}
@@ -466,6 +481,18 @@ func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *Stream
 	if prefs.AudioTrack >= 0 {
 		return nil // explicit selection out of range: judge nothing extra
 	}
+	// If the default track exists and is NOT commentary, return it unchanged.
+	if def != nil && !def.Commentary {
+		return def
+	}
+	// If the default track IS commentary but a non-commentary alternative exists,
+	// prefer the non-commentary track so director/cast commentary tracks are not
+	// played by default even when the container flags them as the default stream.
+	if firstNonCommentary != nil {
+		return firstNonCommentary
+	}
+	// All audio tracks are commentary (or no default): fall back to the original
+	// logic (default if flagged, else first) — commentary is better than silence.
 	if def != nil {
 		return def
 	}

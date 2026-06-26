@@ -306,7 +306,17 @@ type MediaStream struct {
 	Title      string
 	IsDefault  bool
 	IsForced   bool
-	Width      *int
+	// Extended disposition flags, sourced from Matroska FlagCommentary/… and the
+	// matching ffprobe disposition fields. All false when the container or the probe
+	// did not report the flag. Commentary marks director/cast commentary audio tracks
+	// and is used by the audio-track auto-selection to prefer a non-commentary default
+	// when one exists.
+	Commentary       bool
+	HearingImpaired  bool
+	VisualImpaired   bool
+	TextDescriptions bool
+	Original         bool
+	Width            *int
 	Height     *int
 	Framerate  *float64
 	BitDepth   *int

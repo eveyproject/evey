@@ -438,3 +438,96 @@ func TestMediaStreamRepo_DeleteByMediaItemID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, got)
 }
+
+// TestMediaStreamRepo_ExtendedDispositions_RoundTrip verifies that the 5 extended
+// disposition columns (commentary / hearing_impaired / visual_impaired /
+// text_descriptions / original) are persisted and read back correctly.
+func TestMediaStreamRepo_ExtendedDispositions_RoundTrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("displib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("dispmi1", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	streams := []*library.MediaStream{
+		{
+			ID: "disp-v", MediaItemID: item.ID, StreamIndex: 0,
+			StreamType: "video", Codec: "h264",
+			// No flags set — zero values for the extended booleans.
+		},
+		{
+			ID: "disp-a1", MediaItemID: item.ID, StreamIndex: 1,
+			StreamType: "audio", Codec: "aac", Language: "eng",
+			IsDefault: true, Commentary: true,
+		},
+		{
+			ID: "disp-a2", MediaItemID: item.ID, StreamIndex: 2,
+			StreamType: "audio", Codec: "aac", Language: "eng",
+			HearingImpaired: true,
+		},
+		{
+			ID: "disp-s", MediaItemID: item.ID, StreamIndex: 3,
+			StreamType: "subtitle", Codec: "subrip", Language: "eng",
+			VisualImpaired: true, TextDescriptions: true, Original: true,
+		},
+	}
+	require.NoError(t, streamRepo.CreateBatch(ctx, streams))
+
+	got, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 4)
+
+	video := got[0]
+	assert.False(t, video.Commentary)
+	assert.False(t, video.HearingImpaired)
+	assert.False(t, video.VisualImpaired)
+	assert.False(t, video.TextDescriptions)
+	assert.False(t, video.Original)
+
+	audioCommentary := got[1]
+	assert.True(t, audioCommentary.Commentary, "commentary must round-trip")
+	assert.False(t, audioCommentary.HearingImpaired)
+	assert.False(t, audioCommentary.VisualImpaired)
+	assert.False(t, audioCommentary.TextDescriptions)
+	assert.False(t, audioCommentary.Original)
+
+	audioHI := got[2]
+	assert.False(t, audioHI.Commentary)
+	assert.True(t, audioHI.HearingImpaired, "hearing_impaired must round-trip")
+
+	sub := got[3]
+	assert.False(t, sub.Commentary)
+	assert.False(t, sub.HearingImpaired)
+	assert.True(t, sub.VisualImpaired, "visual_impaired must round-trip")
+	assert.True(t, sub.TextDescriptions, "text_descriptions must round-trip")
+	assert.True(t, sub.Original, "original must round-trip")
+
+	// Also verify that ReplaceBatch correctly persists the flags.
+	replacement := []*library.MediaStream{
+		{
+			ID: "disp-r", MediaItemID: item.ID, StreamIndex: 0,
+			StreamType: "audio", Codec: "eac3", Language: "eng",
+			Commentary: true, HearingImpaired: true,
+			VisualImpaired: true, TextDescriptions: true, Original: true,
+		},
+	}
+	require.NoError(t, streamRepo.ReplaceBatch(ctx, item.ID, replacement))
+
+	got2, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got2, 1)
+
+	r := got2[0]
+	assert.True(t, r.Commentary)
+	assert.True(t, r.HearingImpaired)
+	assert.True(t, r.VisualImpaired)
+	assert.True(t, r.TextDescriptions)
+	assert.True(t, r.Original)
+}

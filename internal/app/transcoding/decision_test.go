@@ -567,3 +567,70 @@ func TestAudioChannelTarget(t *testing.T) {
 	d = apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), mk("dts", 6), "mp4", stereoClient, 0, prefs)
 	assert.Equal(t, 2, d.MaxAudioChannels, "client cap honored")
 }
+
+// --- Commentary audio track selection ---
+
+// TestSelectedAudioSpec_SkipsCommentaryDefault verifies that when the
+// default-flagged audio track is a commentary track but a non-commentary audio
+// track also exists, the non-commentary track is used for the audio decision
+// (the commentary default is NOT selected). We observe this indirectly: the
+// commentary track uses DTS (requires transcode), the non-commentary track uses
+// AAC (copy-eligible). If the non-commentary track is selected, AudioDecision
+// is "copy"; if the commentary default is selected, it would be "transcode".
+func TestSelectedAudioSpec_SkipsCommentaryDefault(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
+		// Commentary track marked as default — should NOT be auto-selected when a
+		// non-commentary alternative exists.
+		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true, Commentary: true},
+		// Non-commentary track — should be preferred by auto-selection.
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: false, Commentary: false},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mkv", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "copy", d.AudioDecision, "non-commentary AAC must be selected over commentary DTS default")
+}
+
+// TestSelectedAudioSpec_OnlyCommentaryKeptWhenNoAlternative verifies that when
+// ALL audio tracks are commentary, the auto-selection still returns one (no
+// silent drop).
+func TestSelectedAudioSpec_OnlyCommentaryKeptWhenNoAlternative(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true, Commentary: true},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "copy", d.AudioDecision, "sole commentary track must still be selected (no audio would be worse)")
+}
+
+// TestSelectedAudioSpec_ExplicitAudioTrackHonorsCommentary verifies that an
+// explicit AudioTrack selection pointing at a commentary-flagged DTS track is
+// honored (the commentary flag must NOT override an explicit user choice).
+func TestSelectedAudioSpec_ExplicitAudioTrackHonorsCommentary(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
+		// Track 0 (audio-relative): commentary DTS — user explicitly selects this.
+		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true, Commentary: true},
+		// Track 1: non-commentary AAC.
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: false},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.AudioTrack = 0 // explicitly select the commentary DTS track
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mkv", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "transcode", d.AudioDecision, "explicit selection of commentary DTS must still transcode")
+}
+
+// TestSelectedAudioSpec_NoCommentaryFlagUnchanged verifies that the commentary
+// logic does not regress when no track has Commentary=true (the common case):
+// the default-flagged track must still be selected.
+func TestSelectedAudioSpec_NoCommentaryFlagUnchanged(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: false},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mkv", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "transcode", d.AudioDecision, "default DTS (no commentary flag) must still be selected and transcoded")
+}
