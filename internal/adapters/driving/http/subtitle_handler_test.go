@@ -541,6 +541,67 @@ func TestSubtitleHandler_ParentalAdmin_NotBlocked(t *testing.T) {
 	}
 }
 
+// --- isMKVSubtitleFastPath ---
+
+// isMKVSubtitleFastPath is a pure function; test it directly so the "non-MKV
+// extension does not attempt the mkvgo fast path" property is verifiable without
+// spawning ffmpeg or touching the filesystem.
+func TestSubtitleHandler_IsMKVFastPath(t *testing.T) {
+	cases := []struct {
+		ext  string
+		want bool
+	}{
+		{".mkv", true},
+		{".webm", true},
+		{".mp4", false},
+		{".ts", false},
+		{".avi", false},
+		{".MKV", false}, // caller lower-cases before calling; upper-case must be false
+		{"", false},
+	}
+	for _, tc := range cases {
+		if got := isMKVSubtitleFastPath(tc.ext); got != tc.want {
+			t.Errorf("isMKVSubtitleFastPath(%q) = %v, want %v", tc.ext, got, tc.want)
+		}
+	}
+}
+
+// TestSubtitleHandler_MKV_TextSub_MkVgoFallback verifies that when the mkvgo
+// fast path is triggered for a .mkv file but the file cannot be opened (no
+// fixture on disk), the handler falls back to ffmpeg rather than returning a
+// 4xx/5xx error from our own logic. Full happy-path validation (mkvgo extracts
+// WebVTT from a real embedded subtitle) requires a real MKV fixture, which is
+// not present in the test corpus; that validation must be performed against
+// actual media files in integration / E2E tests.
+func TestSubtitleHandler_MKV_TextSub_MkVgoFallback(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		// Non-existent path: mkvgo.OpenMeta will fail → handler falls back to ffmpeg.
+		File: &domainlibrary.MediaFile{Path: "/tmp/nonexistent-subtitle-test.mkv"},
+	}
+	h := subtitleHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeMediaStreamsGetter{item: item, streams: []*domainlibrary.MediaStream{
+			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},
+		}},
+		"http://localhost", allowAll(), allowAllParental{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("track", "0")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	// mkvgo.OpenMeta fails (non-existent file) → ffmpeg fallback is attempted.
+	// ffmpeg is also absent in the unit-test environment, but the handler writes
+	// headers before the spawn attempt, so status 200 is the observable outcome.
+	// The key assertion: our logic must NOT produce 404/422/500 (those are our
+	// own guard responses, not ffmpeg's).
+	if w.Code == http.StatusNotFound || w.Code == http.StatusUnprocessableEntity || w.Code == http.StatusInternalServerError {
+		t.Errorf("mkvgo fallback must not produce %d: expected fall-through to ffmpeg", w.Code)
+	}
+}
+
 // An .ass sidecar converts to WebVTT in-process via mkvgo (no ffmpeg fork): the
 // response is WebVTT with cue text extracted from Dialogue lines.
 func TestServeExternalSubtitle_ASS_InProcessWebVTT(t *testing.T) {

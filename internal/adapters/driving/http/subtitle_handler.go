@@ -15,6 +15,9 @@ import (
 	"strings"
 	"time"
 
+	extmkv "github.com/gravity-zero/mkvgo/mkv"
+	mkvops "github.com/gravity-zero/mkvgo/mkv/ops"
+	"github.com/gravity-zero/mkvgo/mkv/reader"
 	mkvsubtitle "github.com/gravity-zero/mkvgo/mkv/subtitle"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -94,6 +97,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 		subIdx := 0
 		matched := false
 		imageSub := false
+		var matchedCodec, matchedLanguage string
 		for _, s := range streams {
 			if s.StreamType != "subtitle" {
 				continue
@@ -105,6 +109,8 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 				}
 				matched = true
 				imageSub = apptranscoding.IsImageSubtitle(s.Codec)
+				matchedCodec = s.Codec
+				matchedLanguage = s.Language
 				break
 			}
 			subIdx++
@@ -124,6 +130,16 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 			span.SetStatus(otelcodes.Error, "image subtitle not text-convertible")
 			http.Error(w, `{"message":"subtitle not available as text"}`, http.StatusUnprocessableEntity)
 			return
+		}
+
+		// Fast path: serve the embedded subtitle in-process via mkvgo (no ffmpeg
+		// fork) for EBML containers. Falls back to ffmpeg transparently on any failure
+		// — the guard + buffer-first approach ensures we never write a partial or
+		// mismatched subtitle to the client.
+		if isMKVSubtitleFastPath(strings.ToLower(filepath.Ext(filePath))) {
+			if tryMKVGoSubtitle(ctx, w, r, filePath, trackIndex, matchedCodec, matchedLanguage, baseURL) {
+				return
+			}
 		}
 
 		ctx, cancel := context.WithCancel(r.Context())
@@ -155,6 +171,93 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 			slog.Warn("ffmpeg subtitle", slog.String("media_id", mediaID), slog.Any("err", err))
 		}
 	}
+}
+
+// isMKVSubtitleFastPath reports whether ext (already lower-cased by the caller
+// via strings.ToLower) is an EBML container for which mkvgo can extract embedded
+// subtitle tracks in-process. Only .mkv and .webm qualify; everything else goes
+// through the ffmpeg fork.
+func isMKVSubtitleFastPath(ext string) bool {
+	return ext == ".mkv" || ext == ".webm"
+}
+
+// tryMKVGoSubtitle attempts to serve embedded subtitle trackIndex from the EBML
+// container at filePath as WebVTT, in-process via mkvgo. It returns true only
+// when the subtitle was successfully buffered and written to w; false in every
+// other case (caller should fall back to ffmpeg). It never writes a partial body:
+// extraction into a local bytes.Buffer happens first, and w is only touched on
+// success. The codec guard (DB value matchedCodec vs mkvgo FFprobeCodecName)
+// ensures we never serve a track whose identity has drifted from the DB record.
+func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Request,
+	filePath string, trackIndex int, matchedCodec, matchedLanguage, baseURL string) bool {
+
+	c, err := reader.OpenMeta(ctx, filePath)
+	if err != nil {
+		slog.Warn("subtitle: mkvgo open failed, falling back to ffmpeg",
+			slog.String("path", filePath), slog.Any("err", err))
+		return false
+	}
+
+	// Enumerate subtitle tracks in declaration order; pick the trackIndex-th.
+	subIdx := 0
+	var mkvTrack *extmkv.Track
+	for i := range c.Tracks {
+		if c.Tracks[i].Type != extmkv.SubtitleTrack {
+			continue
+		}
+		if subIdx == trackIndex {
+			mkvTrack = &c.Tracks[i]
+			break
+		}
+		subIdx++
+	}
+	if mkvTrack == nil {
+		slog.Warn("subtitle: mkvgo subtitle track index out of range, falling back to ffmpeg",
+			slog.String("path", filePath), slog.Int("track_index", trackIndex))
+		return false
+	}
+
+	// Codec guard: the DB stores the ffprobe codec_name; mkvgo uses its own short
+	// name. FFprobeCodecName translates the short name to the ffprobe form. A
+	// mismatch means the DB ordinal has drifted from mkvgo's ordinal (e.g. the
+	// file was edited and the library was not re-scanned). Falling back to ffmpeg
+	// is the safe option — never serve a track that doesn't match the DB entry.
+	mkvCodec := extmkv.FFprobeCodecName(mkvTrack.Codec)
+	if mkvCodec != matchedCodec {
+		slog.Warn("subtitle: mkvgo codec mismatch vs DB, falling back to ffmpeg",
+			slog.String("path", filePath),
+			slog.String("db_codec", matchedCodec),
+			slog.String("mkvgo_codec", mkvCodec))
+		return false
+	}
+
+	// Language guard: only enforced when both sides carry a non-empty tag.
+	// Empty language on either side means "unknown" — don't reject.
+	if matchedLanguage != "" && mkvTrack.Language != "" && matchedLanguage != mkvTrack.Language {
+		slog.Warn("subtitle: mkvgo language mismatch vs DB, falling back to ffmpeg",
+			slog.String("path", filePath),
+			slog.String("db_lang", matchedLanguage),
+			slog.String("mkvgo_lang", mkvTrack.Language))
+		return false
+	}
+
+	// Buffer-first: populate a local buffer before touching w. A failed extraction
+	// therefore produces no partial response.
+	var buf bytes.Buffer
+	if err := mkvops.ExtractSubtitleWebVTT(ctx, filePath, mkvTrack.ID, &buf); err != nil {
+		slog.Warn("subtitle: mkvgo WebVTT extraction failed, falling back to ffmpeg",
+			slog.String("path", filePath), slog.Any("err", err))
+		return false
+	}
+
+	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache")
+	setCORSHeaders(w, r, baseURL)
+	if _, err := io.Copy(w, &buf); err != nil {
+		slog.Warn("subtitle: mkvgo response write failed",
+			slog.String("path", filePath), slog.Any("err", err))
+	}
+	return true
 }
 
 func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir, baseURL string) {
