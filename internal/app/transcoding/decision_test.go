@@ -71,8 +71,8 @@ func TestAudioCopy_EAC3AliasMatchesEC3(t *testing.T) {
 // an "ac3" source (same codec, different spelling) and copy, not transcode.
 func TestAudioCopy_AC3AliasMatches(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "ac3", Channels: intPtr(6), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "ac3", Channels: new(6), IsDefault: true},
 	}
 	client := transcoding.DefaultWebProfile
 	client.AudioCodecs = []string{"aac", "ac-3"} // "ac-3" RFC form, no literal "ac3"
@@ -86,8 +86,8 @@ func TestAudioCopy_AC3AliasMatches(t *testing.T) {
 // "eac3" source (same codec, different spelling) and copy, not transcode.
 func TestAudioCopy_EAC3AliasMatches(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "eac3", Channels: intPtr(6), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "eac3", Channels: new(6), IsDefault: true},
 	}
 	client := transcoding.DefaultWebProfile
 	client.AudioCodecs = []string{"aac", "e-ac-3"} // "e-ac-3" RFC form, no literal "eac3"

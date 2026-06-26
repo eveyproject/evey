@@ -251,7 +251,7 @@ func (d *DatabaseDumper) CurrentSchemaVersion(ctx context.Context) (string, erro
 	if err != nil {
 		return "", fmt.Errorf("CurrentSchemaVersion: open db: %w", err)
 	}
-	defer db.Close() //nolint:errcheck
+	defer db.Close()
 
 	var version int64
 	var dirty bool
