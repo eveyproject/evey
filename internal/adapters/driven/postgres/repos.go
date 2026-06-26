@@ -45,8 +45,9 @@ type Repos struct {
 	FeedConfigQuery       *FeedConfigQueryRepo
 	Chapter               *ChapterRepository
 	MediaSegment          *MediaSegmentRepository
-	IntroFingerprintCache *IntroFingerprintCacheRepository
-	IntroMetadataCache    *IntroMetadataCacheRepository
+	IntroFingerprintCache      *IntroFingerprintCacheRepository
+	IntroAudioFingerprintCache *IntroAudioFingerprintCacheRepository
+	IntroMetadataCache         *IntroMetadataCacheRepository
 	ScanSchedule          *ScanScheduleRepository
 	BackupSchedule        *BackupScheduleRepository
 	LibraryAccess         *LibraryAccessRepository
@@ -109,8 +110,9 @@ func NewRepos(db *sql.DB) *Repos {
 		FeedConfigQuery:       NewFeedConfigQueryRepo(db),
 		Chapter:               NewChapterRepository(db),
 		MediaSegment:          NewMediaSegmentRepository(db),
-		IntroFingerprintCache: NewIntroFingerprintCacheRepository(db),
-		IntroMetadataCache:    NewIntroMetadataCacheRepository(db),
+		IntroFingerprintCache:      NewIntroFingerprintCacheRepository(db),
+		IntroAudioFingerprintCache: NewIntroAudioFingerprintCacheRepository(db),
+		IntroMetadataCache:         NewIntroMetadataCacheRepository(db),
 		ScanSchedule:          NewScanScheduleRepository(db),
 		BackupSchedule:        NewBackupScheduleRepository(db),
 		LibraryAccess:         NewLibraryAccessRepository(db),

@@ -929,6 +929,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	)
 	introDetectionSvc.WithShutdownCtx(ctx)
 	introDetectionSvc.WithFingerprintCache(r.IntroFingerprintCache)
+	introDetectionSvc.WithAudioFingerprintCache(r.IntroAudioFingerprintCache)
 	introDetectionSvc.WithChapterRepo(r.Chapter)
 	chroma := ffmpeg.NewChromaprinter("fpcalc")
 	chroma.WithBusyChecker(isBusy)

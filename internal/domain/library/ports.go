@@ -447,3 +447,26 @@ type IntroFingerprintCacheRepository interface {
 	Delete(ctx context.Context, mediaItemID string) error
 	DeleteByAlgoVersionBelow(ctx context.Context, version int16) (int64, error)
 }
+
+// IntroAudioFingerprintCacheEntry is the cached Chromaprint fingerprint for one
+// media item over [0, WindowSec]. The cache is keyed by (MediaItemID,
+// FileFingerprint, AlgoVersion, WindowSec) — any mismatch triggers recompute.
+type IntroAudioFingerprintCacheEntry struct {
+	MediaItemID     string
+	FileFingerprint string
+	WindowSec       int       // length of the analysed window fed to fpcalc
+	Fingerprint     []uint32  // raw Chromaprint []uint32 over [0, WindowSec]
+	AlgoVersion     int16     // bumped when windowSec or the Chromaprint method changes
+	ExtractedAt     time.Time
+}
+
+// IntroAudioFingerprintCacheRepository persists and retrieves cached Chromaprint
+// fingerprints keyed by media item id. Same invalidation contract as
+// IntroFingerprintCacheRepository — the caller owns invalidation logic, the
+// repository stays dumb.
+type IntroAudioFingerprintCacheRepository interface {
+	Get(ctx context.Context, mediaItemID string) (*IntroAudioFingerprintCacheEntry, error)
+	Upsert(ctx context.Context, entry *IntroAudioFingerprintCacheEntry) error
+	Delete(ctx context.Context, mediaItemID string) error
+	DeleteByAlgoVersionBelow(ctx context.Context, version int16) (int64, error)
+}

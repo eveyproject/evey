@@ -203,7 +203,7 @@ func (s *IntroDetectionService) discoverIntroByAudio(ctx context.Context, item *
 	if len(sibs) == 0 {
 		return none, false
 	}
-	itemFP, err := s.chromaprinter.Compute(ctx, item.File.Path, 0, discoverWindowSec)
+	itemFP, err := s.extractEpisodeAudioCached(ctx, item, discoverWindowSec)
 	if err != nil || len(itemFP) == 0 {
 		return none, false
 	}
@@ -212,7 +212,7 @@ func (s *IntroDetectionService) discoverIntroByAudio(ctx context.Context, item *
 		if ctx.Err() != nil {
 			return none, false
 		}
-		fp, ferr := s.chromaprinter.Compute(ctx, sib.File.Path, 0, discoverWindowSec)
+		fp, ferr := s.extractEpisodeAudioCached(ctx, sib, discoverWindowSec)
 		if ferr == nil && len(fp) > 0 {
 			sibFPs = append(sibFPs, fp)
 		}

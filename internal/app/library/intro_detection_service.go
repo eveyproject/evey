@@ -48,8 +48,9 @@ type IntroDetectionService struct {
 	trickplayRepo     domainlibrary.TrickplayRepository
 	mediaItems        domainlibrary.MediaItemRepository
 	configRepo        shared.ServerConfigRepository
-	fpCache           domainlibrary.IntroFingerprintCacheRepository
-	chapterRepo       domainlibrary.ChapterQueryRepo
+	fpCache      domainlibrary.IntroFingerprintCacheRepository
+	audioFPCache domainlibrary.IntroAudioFingerprintCacheRepository
+	chapterRepo  domainlibrary.ChapterQueryRepo
 	chromaprinter     Chromaprinter
 	metadataProvider  domainlibrary.IntroMetadataProvider
 	contributor       domainlibrary.SegmentContributor
@@ -74,6 +75,13 @@ type IntroDetectionService struct {
 //	v2 = pHash DCT 8×8 of a 32×32 grayscale grid, DC dropped, median split
 //	     over 63 AC coefs (current).
 const currentPHashAlgoVersion int16 = 2
+
+// currentAudioAlgoVersion versions the Chromaprint fingerprint cache.
+// Bump whenever windowSec or the Chromaprint method changes so cached rows
+// are invalidated en masse.
+//
+//	v1 = raw fpcalc []uint32 over discoverWindowSec (current).
+const currentAudioAlgoVersion int16 = 1
 
 // introDetectionAlgoVersion versions the OVERALL detection pipeline (pHash +
 // Chromaprint + blackdetect + audio-primary), distinct from currentPHashAlgoVersion
@@ -145,6 +153,13 @@ func (s *IntroDetectionService) WithEventBus(bus shared.EventBus) {
 // always recomputed from the trickplay sprites (no behavior change vs. v0).
 func (s *IntroDetectionService) WithFingerprintCache(cache domainlibrary.IntroFingerprintCacheRepository) {
 	s.fpCache = cache
+}
+
+// WithAudioFingerprintCache enables persistent caching of Chromaprint fingerprints.
+// When set, discoverIntroByAudio reads from / writes to the cache; when nil,
+// fingerprints are always recomputed via fpcalc (no behavior change vs. v0).
+func (s *IntroDetectionService) WithAudioFingerprintCache(cache domainlibrary.IntroAudioFingerprintCacheRepository) {
+	s.audioFPCache = cache
 }
 
 // WithChapterRepo enables intro detection via Matroska chapter names.
@@ -1884,6 +1899,50 @@ func (s *IntroDetectionService) extractEpisodeHashesCached(ctx context.Context, 
 	}
 	h, t := truncate(allHashes, allTimestamps)
 	return h, t, nil
+}
+
+// extractEpisodeAudioCached returns the Chromaprint fingerprint for a media item,
+// reading from the audio fingerprint cache when available and valid.
+//
+// Cache is skipped (read and write) when:
+//   - s.audioFPCache is nil, OR
+//   - item.File is nil, OR
+//   - item.File.Fingerprint is empty (pre-fingerprint media files).
+//
+// On cache miss or invalidation (FileFingerprint, AlgoVersion, or WindowSec
+// mismatch) the fingerprint is recomputed via Chromaprint and the result is
+// stored back. Upsert failures are non-fatal (slog.Warn); the freshly computed
+// fingerprint is still returned so the pipeline produces a result.
+func (s *IntroDetectionService) extractEpisodeAudioCached(ctx context.Context, item *domainlibrary.MediaItem, windowSec float64) ([]uint32, error) {
+	if s.audioFPCache == nil || item.File == nil || item.File.Fingerprint == "" {
+		return s.chromaprinter.Compute(ctx, item.File.Path, 0, windowSec)
+	}
+	cached, err := s.audioFPCache.Get(ctx, string(item.ID))
+	if err == nil &&
+		cached.FileFingerprint == item.File.Fingerprint &&
+		cached.AlgoVersion == currentAudioAlgoVersion &&
+		cached.WindowSec == int(windowSec) {
+		return cached.Fingerprint, nil
+	}
+	fp, computeErr := s.chromaprinter.Compute(ctx, item.File.Path, 0, windowSec)
+	if computeErr != nil || len(fp) == 0 {
+		return fp, computeErr
+	}
+	if upsertErr := s.audioFPCache.Upsert(ctx, &domainlibrary.IntroAudioFingerprintCacheEntry{
+		MediaItemID:     string(item.ID),
+		FileFingerprint: item.File.Fingerprint,
+		WindowSec:       int(windowSec),
+		Fingerprint:     fp,
+		AlgoVersion:     currentAudioAlgoVersion,
+	}); upsertErr != nil {
+		// Cache write failures are non-fatal: log and proceed with the freshly
+		// computed fingerprint so the pipeline still produces a result.
+		slog.Warn("intro_detection: audio cache upsert failed",
+			slog.String("media_id", string(item.ID)),
+			slog.Any("err", upsertErr),
+		)
+	}
+	return fp, nil
 }
 
 // extractEpisodeHashes reads trickplay sprites for a manifest and returns the
