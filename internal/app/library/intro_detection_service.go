@@ -25,11 +25,9 @@ import (
 // IntroDetector is the port for the FFmpeg intro-detection adapter.
 type IntroDetector interface {
 	ExtractTileHashes(spritePath string, tileWidth, tileHeight, tilePixelWidth, tilePixelHeight int) ([]uint64, error)
-	ExtractTileBrightness(spritePath string, tileWidth, tileHeight, tilePixelWidth, tilePixelHeight int) ([]float64, error)
 	PrecisionPass(ctx context.Context, filePath string, startSec, endSec, padSec float64) (int64, int64, error)
 	AudioFallback(ctx context.Context, filePath string, maxSec float64) (int64, int64, bool, error)
 	DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (int64, int64, bool, error)
-	DetectEndCreditsFromBrightness(brightness []float64, intervalSec int, durationMs int64) (startMs, endMs int64, found bool)
 	DetectStudioLogo(hashes []uint64, intervalSec int) (int64, int64, bool)
 	AudioBandedFingerprint(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error)
 }
@@ -2255,54 +2253,9 @@ func (s *IntroDetectionService) detectStudioLogo(ctx context.Context, item *doma
 	}
 }
 
-// extractEpisodeBrightness reads all trickplay sprites for a manifest and returns
-// the mean normalised luminance [0,1] for every frame. The sidecar is used to
-// bound reading to actual video frames (guards against partially-filled last
-// sprite). Mirrors extractEpisodeHashes but returns brightness instead of hashes
-// and does not apply a cutoff — end-credits detection needs the full episode.
-func (s *IntroDetectionService) extractEpisodeBrightness(manifest *domainlibrary.TrickplayManifest) ([]float64, error) {
-	tilesPerSprite := manifest.TileWidth * manifest.TileHeight
-	if tilesPerSprite <= 0 {
-		return nil, nil
-	}
-	tileH := manifest.Height
-	if tileH <= 0 {
-		tileH = manifest.Width * 9 / 16
-	}
-
-	spriteDir := filepath.Join(s.trickplayCacheDir, string(manifest.MediaItemID))
-	sidecar, err := readTrickplaySidecar(spriteDir)
-	if err != nil {
-		return nil, fmt.Errorf("read trickplay sidecar for %s: %w", manifest.MediaItemID, err)
-	}
-	totalFrames := len(sidecar.FrameTimestamps)
-
-	var brightness []float64
-	frameIdx := 0
-	for spriteN := 1; ; spriteN++ {
-		spritePath := filepath.Join(spriteDir, fmt.Sprintf("trickplay_%03d.webp", spriteN))
-		tileBrightness, err := s.detector.ExtractTileBrightness(spritePath, manifest.TileWidth, manifest.TileHeight, manifest.Width, tileH)
-		if err != nil {
-			break
-		}
-		for _, b := range tileBrightness {
-			if frameIdx >= totalFrames {
-				return brightness, nil
-			}
-			brightness = append(brightness, b)
-			frameIdx++
-		}
-	}
-	return brightness, nil
-}
-
-// detectEndCredits attempts credits detection via trickplay brightness (fast path,
-// no ffmpeg decode) and falls back to ffmpeg blackdetect when trickplay is absent,
-// brightness extraction fails, or no credits run is found.
-//
-// Fast path mirrors detectStudioLogo: GetByMediaItemID → extractEpisodeBrightness
-// → DetectEndCreditsFromBrightness. Source is "blackframe_trickplay" on success.
-// Caller is responsible for setting ID and MediaItemID before persisting.
+// detectEndCredits runs the credits detector on the file and returns a
+// MediaSegment if found. Caller is responsible for setting ID and MediaItemID
+// before persisting.
 func (s *IntroDetectionService) detectEndCredits(ctx context.Context, item *domainlibrary.MediaItem) (*domainlibrary.MediaSegment, error) {
 	if item.File == nil || item.File.Path == "" {
 		return nil, nil
@@ -2311,24 +2264,6 @@ func (s *IntroDetectionService) detectEndCredits(ctx context.Context, item *doma
 	if durationSec < 60 {
 		return nil, nil
 	}
-	durationMs := item.File.Duration.Milliseconds()
-
-	// Fast path: read trickplay sprites already on disk — no ffmpeg video decode.
-	if manifest, mErr := s.trickplayRepo.GetByMediaItemID(ctx, item.ID); mErr == nil && manifest.Interval > 0 {
-		if brightness, bErr := s.extractEpisodeBrightness(manifest); bErr == nil && len(brightness) > 0 {
-			if startMs, endMs, found := s.detector.DetectEndCreditsFromBrightness(brightness, manifest.Interval, durationMs); found {
-				return &domainlibrary.MediaSegment{
-					Type:       "end_credits",
-					StartMs:    startMs,
-					EndMs:      endMs,
-					Confidence: 0.7,
-					Source:     "blackframe_trickplay",
-				}, nil
-			}
-		}
-	}
-
-	// Fallback: ffmpeg blackdetect over the last 10% / 10min of the file.
 	startMs, endMs, found, err := s.detector.DetectEndCredits(ctx, item.File.Path, durationSec)
 	if err != nil {
 		return nil, fmt.Errorf("detect end credits: %w", err)

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"image"
 	"math"
 	"os"
 	"os/exec"
@@ -16,16 +15,6 @@ import (
 	"golang.org/x/image/webp"
 
 	"github.com/evey-project/evey/internal/pkg/tracing"
-)
-
-const (
-	// endCreditsDarkThreshold is the normalised [0,1] luminance below which a
-	// trickplay frame is classified as dark for end-credits detection. Tune
-	// after validation on real content.
-	endCreditsDarkThreshold = 0.15
-	// endCreditsMinCreditsSec is the minimum duration (seconds) of the trailing
-	// dark run required to be classified as end credits.
-	endCreditsMinCreditsSec = 20
 )
 
 // IntroDetector performs pHash-based intro detection and FFmpeg audio/black passes.
@@ -90,111 +79,6 @@ func (d *IntroDetector) ExtractTileHashes(spritePath string, tileWidth, tileHeig
 		}
 	}
 	return hashes, nil
-}
-
-// tileMeanLuminance computes the mean normalised luminance [0,1] for the pixel
-// rectangle [x0,x1)×[y0,y1) in img. Every 4th pixel in each axis is sampled;
-// the mean is stable under this sub-sampling at the precision needed for
-// dark-frame detection.
-//
-// Luminance formula: 0.299·R + 0.587·G + 0.114·B with R, G, B ∈ [0,1]
-// (from the RGBA() 16-bit values divided by 0xffff).
-func tileMeanLuminance(img image.Image, x0, y0, x1, y1 int) float64 {
-	const step = 4
-	var sum float64
-	count := 0
-	for y := y0; y < y1; y += step {
-		for x := x0; x < x1; x += step {
-			r, g, b, _ := img.At(x, y).RGBA()
-			lum := (0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)) / 0xffff
-			sum += lum
-			count++
-		}
-	}
-	if count == 0 {
-		return 0
-	}
-	return sum / float64(count)
-}
-
-// ExtractTileBrightness opens a trickplay sprite file and returns the mean
-// normalised luminance [0,1] per tile. Tiles are laid out in a
-// tileWidth×tileHeight grid; each tile is tilePixelWidth×tilePixelHeight px.
-// Every 4th pixel in x and y is sampled for performance — the mean luminance
-// is stable under this sub-sampling.
-func (d *IntroDetector) ExtractTileBrightness(spritePath string, tileWidth, tileHeight, tilePixelWidth, tilePixelHeight int) ([]float64, error) {
-	f, err := os.Open(spritePath)
-	if err != nil {
-		return nil, fmt.Errorf("open sprite %q: %w", spritePath, err)
-	}
-	defer f.Close()
-
-	img, err := webp.Decode(f)
-	if err != nil {
-		return nil, fmt.Errorf("decode webp %q: %w", spritePath, err)
-	}
-
-	total := tileWidth * tileHeight
-	brightness := make([]float64, 0, total)
-	for row := range tileHeight {
-		for col := range tileWidth {
-			x0 := col * tilePixelWidth
-			y0 := row * tilePixelHeight
-			x1 := x0 + tilePixelWidth
-			y1 := y0 + tilePixelHeight
-			brightness = append(brightness, tileMeanLuminance(img, x0, y0, x1, y1))
-		}
-	}
-	return brightness, nil
-}
-
-// DetectEndCreditsFromBrightness identifies end credits as the last sustained
-// dark run in a per-frame trickplay brightness sequence. brightness[i] is the
-// mean normalised luminance [0,1] of trickplay frame i; frames are spaced
-// intervalSec apart.
-//
-// Algorithm: scan backward from the last frame. A frame is dark when its
-// luminance is below endCreditsDarkThreshold. Up to one consecutive non-dark
-// frame is tolerated so a brief flash does not split a real credits roll.
-// The run is accepted when it spans at least endCreditsMinCreditsSec.
-//
-// Returns (runStart×intervalSec×1000, durationMs, true) on success.
-func (d *IntroDetector) DetectEndCreditsFromBrightness(brightness []float64, intervalSec int, durationMs int64) (startMs, endMs int64, found bool) {
-	if len(brightness) == 0 || intervalSec <= 0 {
-		return 0, 0, false
-	}
-	minFrames := endCreditsMinCreditsSec / intervalSec
-	if minFrames < 1 {
-		minFrames = 1
-	}
-
-	n := len(brightness)
-	runEnd := -1  // index of the last dark frame (highest index)
-	runStart := -1
-	gapCount := 0
-
-	for i := n - 1; i >= 0; i-- {
-		if brightness[i] < endCreditsDarkThreshold {
-			if runEnd < 0 {
-				runEnd = i
-			}
-			runStart = i
-			gapCount = 0
-		} else {
-			gapCount++
-			if gapCount > 1 {
-				break
-			}
-		}
-	}
-
-	if runStart < 0 || runEnd < 0 {
-		return 0, 0, false
-	}
-	if runEnd-runStart+1 < minFrames {
-		return 0, 0, false
-	}
-	return int64(runStart) * int64(intervalSec) * 1000, durationMs, true
 }
 
 // PrecisionPass runs FFmpeg silencedetect+blackdetect on [startSec-padSec, endSec+padSec].
