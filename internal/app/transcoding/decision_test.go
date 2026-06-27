@@ -14,8 +14,8 @@ func int64Ptr(v int64) *int64 { return &v }
 
 func TestDirectPlay_H264_AAC_MP4(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
@@ -27,8 +27,8 @@ func TestDirectPlay_H264_AAC_MP4(t *testing.T) {
 
 func TestVideoTranscode_HEVC(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "hevc", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
@@ -43,8 +43,8 @@ func TestVideoTranscode_HEVC(t *testing.T) {
 // (same codec) and copy, not needlessly transcode.
 func TestVideoCopy_H265AliasMatchesHevc(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "hevc", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	client := transcoding.DefaultWebProfile
 	client.VideoCodecs = []string{"h264", "h265", "vp9"} // "h265" alias, no literal "hevc"
@@ -56,8 +56,8 @@ func TestVideoCopy_H265AliasMatchesHevc(t *testing.T) {
 
 func TestAudioCopy_EAC3AliasMatchesEC3(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "eac3", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "eac3", Channels: new(2), IsDefault: true},
 	}
 	client := transcoding.DefaultWebProfile
 	client.AudioCodecs = []string{"aac", "ec-3"} // "ec-3" (RFC-6381) alias of eac3, no literal "eac3"
@@ -99,8 +99,8 @@ func TestAudioCopy_EAC3AliasMatches(t *testing.T) {
 
 func TestAudioTranscode_DTS(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
@@ -116,9 +116,9 @@ func TestAudioTranscode_DTS(t *testing.T) {
 // transcode, not copy it raw (previously the loop judged no track and left copy).
 func TestAudioTranscode_NoDefaultTrack_JudgesFirst(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: false},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: false},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: false},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: false},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
@@ -132,9 +132,9 @@ func TestAudioTranscode_NoDefaultTrack_JudgesFirst(t *testing.T) {
 // an earlier track is unsupported — the fix must not over-transcode.
 func TestAudioCopy_DefaultTrackPreferredOverFirst(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: false},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: false},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
@@ -143,8 +143,8 @@ func TestAudioCopy_DefaultTrackPreferredOverFirst(t *testing.T) {
 
 func TestBitrateCap(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(40000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), Bitrate: int64Ptr(192000), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), Bitrate: int64Ptr(40000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), Bitrate: int64Ptr(192000), IsDefault: true},
 	}
 	// user cap 8 Mbps
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 8000)
@@ -166,8 +166,8 @@ func TestResolutionCap(t *testing.T) {
 		MaxAudioChannels: 8,
 	}
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 
@@ -180,8 +180,8 @@ func TestResolutionCap(t *testing.T) {
 
 func TestDirectStream_MKV_Container(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "matroska", transcoding.DefaultWebProfile, 0)
 
@@ -195,8 +195,8 @@ func TestDirectStream_MKV_Container(t *testing.T) {
 func TestHDR_NonHDRClient(t *testing.T) {
 	hdrType := "HDR10"
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(3840), Height: intPtr(2160), HDRType: &hdrType, Bitrate: int64Ptr(20000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), HDRType: &hdrType, Bitrate: int64Ptr(20000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
@@ -307,8 +307,8 @@ func burnPrefs(track int) apptranscode.TranscodingPreferences {
 
 func TestSubtitleBurnIn_PGS(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 		{StreamType: "subtitle", Codec: "hdmv_pgs_subtitle", IsDefault: true},
 	}
 	// User SELECTED the PGS track (subtitle index 0) → burn.
@@ -324,8 +324,8 @@ func TestSubtitleBurnIn_PGS(t *testing.T) {
 
 func TestSubtitleBurnIn_DVDSub(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 		{StreamType: "subtitle", Codec: "dvd_subtitle", IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, burnPrefs(0))
@@ -355,8 +355,8 @@ func TestSubtitleBitmap_NotSelected_StaysCopy(t *testing.T) {
 
 func TestTextSubtitle_External(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 		{StreamType: "subtitle", Codec: "subrip", IsDefault: true, IsExternal: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
@@ -378,8 +378,8 @@ func TestMultiReason_Codec_Bitrate_Resolution(t *testing.T) {
 		MaxAudioChannels: 2,
 	}
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "hevc", Width: intPtr(3840), Height: intPtr(2160), Bitrate: int64Ptr(40000000), IsDefault: true},
-		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), Bitrate: int64Ptr(1536000), IsDefault: true},
+		{StreamType: "video", Codec: "hevc", Width: new(3840), Height: new(2160), Bitrate: int64Ptr(40000000), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: new(6), Bitrate: int64Ptr(1536000), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mkv", client, 8000)
 
@@ -405,8 +405,8 @@ func TestAudioChannelsExceeded(t *testing.T) {
 		MaxAudioChannels: 2,
 	}
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(6), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(6), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 
@@ -428,8 +428,8 @@ func TestAudioChannelsNotExceeded_NoCap(t *testing.T) {
 		MaxAudioChannels: 8,
 	}
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 	assert.Equal(t, 0, d.MaxAudioChannels, "MaxAudioChannels should stay zero when channels fit")
@@ -447,8 +447,8 @@ func TestHDRClient_DirectPlay(t *testing.T) {
 		MaxAudioChannels: 8,
 	}
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "hevc", Width: intPtr(3840), Height: intPtr(2160), HDRType: &hdrType, Bitrate: int64Ptr(20000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "hevc", Width: new(3840), Height: new(2160), HDRType: &hdrType, Bitrate: int64Ptr(20000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", client, 0)
 
@@ -460,8 +460,8 @@ func TestHDRClient_DirectPlay(t *testing.T) {
 
 func hevcEac3Streams() []*library.MediaStream {
 	return []*library.MediaStream{
-		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(4000000), IsDefault: true},
-		{StreamType: "audio", Codec: "eac3", Channels: intPtr(6), Bitrate: int64Ptr(640000), IsDefault: true},
+		{StreamType: "video", Codec: "hevc", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(4000000), IsDefault: true},
+		{StreamType: "audio", Codec: "eac3", Channels: new(6), Bitrate: int64Ptr(640000), IsDefault: true},
 	}
 }
 
@@ -609,12 +609,12 @@ func TestAudioChannelTarget(t *testing.T) {
 // is "copy"; if the commentary default is selected, it would be "transcode".
 func TestSelectedAudioSpec_SkipsCommentaryDefault(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
 		// Commentary track marked as default — should NOT be auto-selected when a
 		// non-commentary alternative exists.
-		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true, Commentary: true},
+		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true, Commentary: true},
 		// Non-commentary track — should be preferred by auto-selection.
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: false, Commentary: false},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: false, Commentary: false},
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mkv", transcoding.DefaultWebProfile, 0, prefs)
@@ -626,8 +626,8 @@ func TestSelectedAudioSpec_SkipsCommentaryDefault(t *testing.T) {
 // silent drop).
 func TestSelectedAudioSpec_OnlyCommentaryKeptWhenNoAlternative(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true, Commentary: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true, Commentary: true},
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
@@ -639,11 +639,11 @@ func TestSelectedAudioSpec_OnlyCommentaryKeptWhenNoAlternative(t *testing.T) {
 // honored (the commentary flag must NOT override an explicit user choice).
 func TestSelectedAudioSpec_ExplicitAudioTrackHonorsCommentary(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
 		// Track 0 (audio-relative): commentary DTS — user explicitly selects this.
-		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true, Commentary: true},
+		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true, Commentary: true},
 		// Track 1: non-commentary AAC.
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: false},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: false},
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.AudioTrack = 0 // explicitly select the commentary DTS track
@@ -656,9 +656,9 @@ func TestSelectedAudioSpec_ExplicitAudioTrackHonorsCommentary(t *testing.T) {
 // the default-flagged track must still be selected.
 func TestSelectedAudioSpec_NoCommentaryFlagUnchanged(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true},
-		{StreamType: "audio", Codec: "dts", Channels: intPtr(6), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: false},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
+		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: false},
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mkv", transcoding.DefaultWebProfile, 0, prefs)

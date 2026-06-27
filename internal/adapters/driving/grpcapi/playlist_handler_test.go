@@ -342,11 +342,11 @@ func TestPlaylistGetPlaylistItems_FiltersInaccessibleLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreatePlaylist: %v", err)
 	}
-	if _, err := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-ok"}); err != nil {
-		t.Fatalf("AddPlaylistItem mi-ok: %v", err)
+	if _, addErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-ok"}); addErr != nil {
+		t.Fatalf("AddPlaylistItem mi-ok: %v", addErr)
 	}
-	if _, err := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-secret"}); err != nil {
-		t.Fatalf("AddPlaylistItem mi-secret: %v", err)
+	if _, addErr := h.AddPlaylistItem(ctx, &eveyv1.AddPlaylistItemRequest{Id: created.Id, MediaItemId: "mi-secret"}); addErr != nil {
+		t.Fatalf("AddPlaylistItem mi-secret: %v", addErr)
 	}
 
 	resp, err := h.GetPlaylistItems(ctx, &eveyv1.GetPlaylistItemsRequest{Id: created.Id})

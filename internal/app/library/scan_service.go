@@ -807,7 +807,8 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 				preserved = append(preserved, st)
 			}
 		}
-		allStreams = append(preserved, extSubs...)
+		preserved = append(preserved, extSubs...)
+		allStreams = preserved
 	}
 
 	if err := s.mediaStreams.ReplaceBatch(ctx, shared.MediaItemID(mediaItemID), allStreams); err != nil {

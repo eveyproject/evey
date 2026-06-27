@@ -86,7 +86,6 @@ func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters ma
 		if n, err := strconv.Atoi(ymax); err == nil {
 			where += fmt.Sprintf(" AND mc.year <= $%d", argN)
 			args = append(args, n)
-			argN++
 		}
 	}
 
