@@ -221,10 +221,27 @@ type fakeDetector struct {
 
 	// tileHashes is returned by ExtractTileHashes when non-nil; defaults to nil (no hashes).
 	tileHashes []uint64
+
+	// tileBrightness is returned by ExtractTileBrightness; defaults to nil (no brightness).
+	tileBrightness []float64
+
+	// fbCredits* configure the DetectEndCreditsFromBrightness return values.
+	fbCreditsStartMs int64
+	fbCreditsEndMs   int64
+	fbCreditsFound   bool
 }
 
 func (f *fakeDetector) ExtractTileHashes(_ string, _, _, _, _ int) ([]uint64, error) {
 	return f.tileHashes, nil
+}
+func (f *fakeDetector) ExtractTileBrightness(_ string, _, _, _, _ int) ([]float64, error) {
+	// Return an error when unconfigured so extractEpisodeBrightness's outer loop
+	// breaks immediately (mirrors "sprite file not found" in the real adapter).
+	// This prevents the loop from spinning forever on nil returns.
+	if f.tileBrightness == nil {
+		return nil, errors.New("fake: no tile brightness configured")
+	}
+	return f.tileBrightness, nil
 }
 func (f *fakeDetector) PrecisionPass(_ context.Context, _ string, startSec, endSec, _ float64) (int64, int64, error) {
 	return int64(startSec * 1000), int64(endSec * 1000), nil
@@ -234,6 +251,9 @@ func (f *fakeDetector) AudioFallback(_ context.Context, _ string, _ float64) (in
 }
 func (f *fakeDetector) DetectEndCredits(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
 	return f.creditsStartMs, f.creditsEndMs, f.creditsFound, f.creditsErr
+}
+func (f *fakeDetector) DetectEndCreditsFromBrightness(_ []float64, _ int, _ int64) (int64, int64, bool) {
+	return f.fbCreditsStartMs, f.fbCreditsEndMs, f.fbCreditsFound
 }
 func (f *fakeDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool) {
 	return f.logoStartMs, f.logoEndMs, f.logoFound
@@ -585,6 +605,114 @@ func TestDetectIntro_SkipsEndCreditsWhenNotFound(t *testing.T) {
 	for _, seg := range segRepo.upserted {
 		assert.NotEqual(t, "end_credits", seg.Type, "no end_credits segment should be upserted when not found")
 	}
+}
+
+// TestDetectIntro_EndCreditsTrickplayPath verifies that when a trickplay manifest
+// is available, detectEndCredits uses the brightness fast path and emits a
+// segment with source="blackframe_trickplay" and confidence=0.7, without
+// calling the ffmpeg DetectEndCredits.
+func TestDetectIntro_EndCreditsTrickplayPath(t *testing.T) {
+	t.Parallel()
+
+	dur, _ := shared.NewDurationMs(3_600_000) // 60 min
+	item := &domainlibrary.MediaItem{
+		ID:        shared.MediaItemID("item-tp-credits"),
+		LibraryID: shared.LibraryID("lib-1"),
+		Type:      domainlibrary.MovieItem,
+		Title:     "Test Movie Trickplay Credits",
+		File: &domainlibrary.MediaFile{
+			Path:     "/movies/tp_test.mkv",
+			Duration: dur,
+		},
+	}
+	manifest := &domainlibrary.TrickplayManifest{
+		MediaItemID: item.ID,
+		Interval:    15,
+		TileWidth:   5,
+		TileHeight:  3,
+		Width:       160,
+		Height:      90,
+		ImageCount:  1,
+	}
+
+	det := &fakeDetector{
+		// tileHashes is needed so detectStudioLogo → extractEpisodeHashes
+		// terminates via cutoffFrame (maxFrames=6) rather than looping forever
+		// on nil ExtractTileHashes returns. logoFound stays false (zero value)
+		// so no studio_logo segment is emitted.
+		tileHashes: []uint64{0x1111},
+		// tileBrightness is returned by ExtractTileBrightness for every sprite call;
+		// the loop terminates once frameIdx ≥ totalFrames (15) from the sidecar.
+		tileBrightness:   []float64{0.05, 0.05, 0.05, 0.05, 0.05},
+		fbCreditsFound:   true,
+		fbCreditsStartMs: 3_480_000, // 58 min
+		fbCreditsEndMs:   3_600_000, // 60 min
+		// creditsFound remains false — proves ffmpeg path is NOT reached when
+		// the trickplay fast path succeeds.
+		creditsFound: false,
+	}
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestServiceWithTrickplay(t, det, segRepo, item, manifest)
+
+	err := svc.DetectIntro(context.Background(), "item-tp-credits")
+	require.NoError(t, err)
+
+	var creditsSeg *domainlibrary.MediaSegment
+	for _, seg := range segRepo.upserted {
+		if seg.Type == "end_credits" {
+			creditsSeg = seg
+			break
+		}
+	}
+	require.NotNil(t, creditsSeg, "end_credits segment must be upserted via trickplay path")
+	assert.Equal(t, "blackframe_trickplay", creditsSeg.Source)
+	assert.InDelta(t, 0.7, creditsSeg.Confidence, 0.001)
+	assert.Equal(t, int64(3_480_000), creditsSeg.StartMs)
+	assert.Equal(t, int64(3_600_000), creditsSeg.EndMs)
+}
+
+// TestDetectIntro_EndCreditsFallsBackToFfmpegWhenNoTrickplay verifies that when
+// no trickplay manifest is available, detectEndCredits falls back to ffmpeg
+// DetectEndCredits (source="blackdetect").
+func TestDetectIntro_EndCreditsFallsBackToFfmpegWhenNoTrickplay(t *testing.T) {
+	t.Parallel()
+
+	dur, _ := shared.NewDurationMs(3_600_000)
+	item := &domainlibrary.MediaItem{
+		ID:        shared.MediaItemID("item-no-tp"),
+		LibraryID: shared.LibraryID("lib-1"),
+		Type:      domainlibrary.MovieItem,
+		Title:     "Movie No Trickplay",
+		File: &domainlibrary.MediaFile{
+			Path:     "/movies/no_tp.mkv",
+			Duration: dur,
+		},
+	}
+
+	det := &fakeDetector{
+		creditsStartMs: 3_480_000,
+		creditsEndMs:   3_600_000,
+		creditsFound:   true,
+		// fbCreditsFound stays false — proves the ffmpeg path is used, not brightness.
+	}
+	// newTestService uses fakeTrickplayRepo which returns ErrNotFound → trickplay fast
+	// path is skipped, ffmpeg DetectEndCredits is called.
+	segRepo := &fakeSegmentRepo{}
+	svc := newTestService(det, segRepo, item)
+
+	err := svc.DetectIntro(context.Background(), "item-no-tp")
+	require.NoError(t, err)
+
+	var creditsSeg *domainlibrary.MediaSegment
+	for _, seg := range segRepo.upserted {
+		if seg.Type == "end_credits" {
+			creditsSeg = seg
+			break
+		}
+	}
+	require.NotNil(t, creditsSeg)
+	assert.Equal(t, "blackdetect", creditsSeg.Source)
+	assert.InDelta(t, 0.6, creditsSeg.Confidence, 0.001)
 }
 
 // TestDetectIntro_AppendsStudioLogoWhenDetected verifies that when DetectStudioLogo
