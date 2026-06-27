@@ -36,6 +36,10 @@ func (f *fakeIntroDetectionTrigger) DetectIntro(_ context.Context, _ string) err
 	return f.detectErr
 }
 
+func (f *fakeIntroDetectionTrigger) BackfillLibrary(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
+
 func (f *fakeIntroDetectionTrigger) SetManualSegment(_ context.Context, _, _ string, _, _ int64) error {
 	f.setCalled = true
 	return f.setErr

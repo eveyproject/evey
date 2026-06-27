@@ -145,6 +145,7 @@ type LibraryLister interface {
 // exposes manual override operations for admin use.
 type IntroDetectionTrigger interface {
 	DetectIntro(ctx context.Context, mediaItemID string) error
+	BackfillLibrary(ctx context.Context, libraryID string) (int, error)
 	SetManualSegment(ctx context.Context, mediaItemID, segType string, startMs, endMs int64) error
 	DeleteSegment(ctx context.Context, mediaItemID, segType string) error
 	PropagateSegment(ctx context.Context, refMediaItemID, segType string) ([]string, error)

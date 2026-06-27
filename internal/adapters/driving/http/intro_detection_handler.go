@@ -48,3 +48,45 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger) ht
 		_, _ = w.Write([]byte(`{"status":"started"}`))
 	})
 }
+
+// libraryIntroBackfillHandler handles POST /api/v1/admin/libraries/{id}/detect-intros.
+// Admin-only. Re-runs intro/segment detection across EVERY season of the library
+// (not just seasons missing segments) asynchronously, returning 202 Accepted.
+// This is the supported way to force a re-detection after a detection quality
+// improvement + an introDetectionAlgoVersion bump.
+func libraryIntroBackfillHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger) http.HandlerFunc {
+	admin := httpAdminMiddleware(tokenGen)
+	return admin(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.intro.BackfillLibrary")
+		defer span.End()
+		r = r.WithContext(ctx)
+		libraryID := r.PathValue("id")
+		if libraryID == "" {
+			http.Error(w, `{"message":"missing library id"}`, http.StatusBadRequest)
+			return
+		}
+		detached := context.WithoutCancel(r.Context())
+		go func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					slog.Error("panic in library intro backfill goroutine",
+						slog.String("library_id", libraryID),
+						slog.Any("recover", rec),
+						slog.String("stack", string(debug.Stack())),
+					)
+				}
+			}()
+			n, err := svc.BackfillLibrary(detached, libraryID)
+			if err != nil {
+				slog.Warn("library intro backfill failed",
+					slog.String("library_id", libraryID), slog.Any("err", err))
+				return
+			}
+			slog.Info("library intro backfill scheduled",
+				slog.String("library_id", libraryID), slog.Int("seasons", n))
+		}()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"status":"started"}`))
+	})
+}

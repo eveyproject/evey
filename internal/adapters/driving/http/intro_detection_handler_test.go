@@ -33,6 +33,9 @@ func (f *fakeAsyncDetector) DetectIntro(_ context.Context, mediaID string) error
 	return f.err
 }
 
+func (f *fakeAsyncDetector) BackfillLibrary(_ context.Context, _ string) (int, error) {
+	return 0, nil
+}
 func (f *fakeAsyncDetector) SetManualSegment(_ context.Context, _, _ string, _, _ int64) error {
 	return nil
 }
