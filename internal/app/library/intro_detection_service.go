@@ -257,6 +257,14 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 		if !ok || e.Type != string(domainlibrary.Episode) {
 			return
 		}
+		// When trickplay is enabled, defer to the trickplay.generated trigger:
+		// on a fresh add the sprites don't exist yet, and the pHash + trickplay-
+		// based passes (visual intro, studio logo, end credits) need them. Running
+		// now would detect on audio-only signals and re-run on trickplay.generated
+		// anyway. When trickplay is disabled, no such event is coming, so detect now.
+		if s.isTrickplayEnabled(ctx) {
+			return
+		}
 		item, err := s.mediaItems.GetByID(ctx, e.MediaItemID)
 		if err != nil || item.ParentID == "" {
 			return
