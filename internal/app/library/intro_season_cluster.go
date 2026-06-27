@@ -41,9 +41,14 @@ type clusterParams struct {
 func defaultClusterParams(n int) clusterParams {
 	kMin := max((n+1)/2, 3)
 	return clusterParams{
-		MaxFrameBits:   12,
-		MinRunFrames:   110, // ~14.5s @ 7.56fps — longer than discovery's 80 to reject short recaps
-		MinStartFrames: msToFrames(25000),
+		MaxFrameBits: 12,
+		MinRunFrames: 110, // ~14.5s @ 7.56fps — longer than discovery's 80 to reject short recaps
+		// No 0:00 guard for the cluster: in ripped/remuxed media the intro very
+		// often starts at the very beginning (no broadcast bumper to skip), so a
+		// 25s floor (used by the per-episode discovery fallback) would miss those
+		// entirely. The MinRunFrames length filter plus picking the longest shared
+		// run are what keep a short recurring promo from posing as the intro.
+		MinStartFrames: 0,
 		SimThreshold:   0.65,
 		KMin:           kMin,
 		MaxAnchors:     5,
