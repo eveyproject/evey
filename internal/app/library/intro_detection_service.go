@@ -94,7 +94,10 @@ const currentAudioAlgoVersion int16 = 1
 // previously produced no usable intro becomes eligible again exactly once at the
 // new version. This is the supported way to force a global re-detection after a
 // quality improvement — no DB surgery, no admin action.
-const introDetectionAlgoVersion = 1
+// v2: season-level audio clustering (intro_season_cluster.go) added to the
+// pipeline — every episode that previously had no/weak intro becomes eligible
+// for re-detection once at this version.
+const introDetectionAlgoVersion = 2
 
 // maxIntroDetectionAttempts bounds the backfill's re-decodes of an episode that
 // keeps yielding no usable intro at the same algo version (one retry for the
