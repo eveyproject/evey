@@ -86,7 +86,7 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
+        className="relative text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast min-h-11 min-w-11 inline-flex items-center justify-center"
         aria-label={t("common.notifications.title")}
         aria-haspopup="true"
         aria-expanded={open}
