@@ -546,6 +546,56 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 	return s.detectIntroWithHint(ctx, mediaItemID, nil)
 }
 
+// DetectIntroDryRun runs the full per-episode pipeline (season-cluster hint
+// included, for parity with the real detectSeason path) and RETURNS the segments
+// it would store — applying the same heuristic-floor guard — WITHOUT persisting
+// anything. It is the read-only path behind the admin ?dry_run tooling: it lets
+// an operator measure the detector against a known ground truth (an authoritative
+// tidb/introdb/chapter intro already stored for the episode) without clobbering
+// that truth via upsert. No community contribution, no end-credit/studio side
+// effects beyond the returned list.
+func (s *IntroDetectionService) DetectIntroDryRun(ctx context.Context, mediaItemID string) ([]domainlibrary.MediaSegment, error) {
+	item, err := s.mediaItems.GetByID(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil {
+		return nil, fmt.Errorf("get media item: %w", err)
+	}
+	if item.File == nil || item.File.Path == "" {
+		return nil, errors.New("media item has no file path")
+	}
+
+	// Season-cluster hint for parity with detectSeason. Cached audio fingerprints
+	// keep re-clustering mostly in-memory. Deliberately NOT guarded by the
+	// concurrencyLimiter: clusterSeasonIntro extracts sibling fingerprints and a
+	// shared limiter slot could deadlock; the eval driver issues requests serially.
+	var hint *domainlibrary.MediaSegment
+	if item.ParentID != "" {
+		if hints := s.clusterSeasonIntro(ctx, item.ParentID); hints != nil {
+			if h, ok := hints[mediaItemID]; ok {
+				hh := h
+				hint = &hh
+			}
+		}
+	}
+
+	// Intro pipeline only: the eval harness scores intro start/end, and the
+	// end-credits blackdetect scans the WHOLE file (a full-length 2160p black
+	// scan dominates the call), so it is intentionally skipped here.
+	segments, err := s.runPipeline(ctx, item, hint)
+	if err != nil {
+		return nil, fmt.Errorf("detection pipeline: %w", err)
+	}
+
+	out := make([]domainlibrary.MediaSegment, 0, len(segments))
+	for _, seg := range segments {
+		if seg.Type == "intro" && isHeuristicSegmentSource(seg.Source) &&
+			seg.EndMs-seg.StartMs < minHeuristicIntroMs {
+			continue
+		}
+		out = append(out, seg)
+	}
+	return out, nil
+}
+
 // detectIntroWithHint runs the per-episode pipeline. hint, when non-nil, is the
 // season-cluster intro window for this episode — authoritative over the visual
 // heuristics (applied in runPipeline, below explicit metadata/chapters).

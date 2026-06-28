@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -20,6 +21,25 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger) ht
 		mediaID := r.PathValue("id")
 		if mediaID == "" {
 			http.Error(w, `{"message":"missing media id"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Dry-run: run detection synchronously and return the segments it WOULD
+		// store, without persisting. Used by the offline eval harness to score the
+		// detector against a known ground truth without clobbering it via upsert.
+		if r.URL.Query().Get("dry_run") == "true" {
+			segs, err := svc.DetectIntroDryRun(r.Context(), mediaID)
+			if err != nil {
+				slog.Warn("intro detection dry-run failed",
+					slog.String("media_id", mediaID), slog.Any("err", err))
+				http.Error(w, `{"message":"detection failed"}`, http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if encErr := json.NewEncoder(w).Encode(segs); encErr != nil {
+				slog.Warn("intro detection dry-run encode failed",
+					slog.String("media_id", mediaID), slog.Any("err", encErr))
+			}
 			return
 		}
 

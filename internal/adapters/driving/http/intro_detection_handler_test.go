@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 )
 
 // fakeAsyncDetector signals when DetectIntro is invoked so tests can wait on
@@ -33,6 +35,9 @@ func (f *fakeAsyncDetector) DetectIntro(_ context.Context, mediaID string) error
 	return f.err
 }
 
+func (f *fakeAsyncDetector) DetectIntroDryRun(_ context.Context, _ string) ([]domainlibrary.MediaSegment, error) {
+	return nil, nil
+}
 func (f *fakeAsyncDetector) BackfillLibrary(_ context.Context, _ string) (int, error) {
 	return 0, nil
 }

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/auth"
 )
@@ -34,6 +35,10 @@ type fakeIntroDetectionTrigger struct {
 func (f *fakeIntroDetectionTrigger) DetectIntro(_ context.Context, _ string) error {
 	f.detectCalled = true
 	return f.detectErr
+}
+
+func (f *fakeIntroDetectionTrigger) DetectIntroDryRun(_ context.Context, _ string) ([]domainlibrary.MediaSegment, error) {
+	return nil, nil
 }
 
 func (f *fakeIntroDetectionTrigger) BackfillLibrary(_ context.Context, _ string) (int, error) {
