@@ -394,7 +394,13 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			span.RecordError(closeErr)
+			span.SetStatus(otelcodes.Error, "flush plugin upload failed")
+			slog.Error("close plugin upload temp file", slog.Any("err", closeErr))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
 
 		// Optional cosign signature: save alongside the zip so the verifier
 		// can find it at <zipPath>.sig without the caller needing to know the
@@ -525,7 +531,13 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 			return
 		}
-		tmpFile.Close()
+		if closeErr := tmpFile.Close(); closeErr != nil {
+			span.RecordError(closeErr)
+			span.SetStatus(otelcodes.Error, "flush plugin preview failed")
+			slog.Error("close plugin preview temp file", slog.Any("err", closeErr))
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
+		}
 
 		preview, previewErr := svc.PreviewPlugin(r.Context(), tmpName)
 		if previewErr != nil {

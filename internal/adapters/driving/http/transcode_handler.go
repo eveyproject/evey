@@ -187,6 +187,14 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	mediaID := r.PathValue("id")
 	claims := HTTPClaimsFromContext(r.Context())
 
+	if st, ok := StreamTokenFromContext(r.Context()); ok {
+		if st.MediaItemID != shared.MediaItemID(mediaID) {
+			span.SetStatus(codes.Error, "stream token media mismatch")
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+	}
+
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil || item.File == nil || item.File.Path == "" {
 		if err != nil {
