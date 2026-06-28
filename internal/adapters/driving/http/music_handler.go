@@ -345,7 +345,13 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("set write deadline", slog.Any("err", err))
 	}
 	zw := zip.NewWriter(w)
-	defer zw.Close()
+	defer func() {
+		if closeErr := zw.Close(); closeErr != nil {
+			slog.Error("music: zip writer close failed",
+				slog.String("album", album), slog.String("library_id", libraryID),
+				slog.Any("err", closeErr))
+		}
+	}()
 	seen := make(map[string]int)
 	for _, tr := range tracks {
 		// Defense-in-depth: the query already filtered by library_id, but assert

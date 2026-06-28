@@ -31,6 +31,7 @@ type photoHandler struct {
 	libChecker LibraryAccessChecker
 	transcoder PhotoTranscoder
 	cacheDir   string
+	libLister  LibraryLister // may be nil; used for path confinement (fail-open)
 }
 
 func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +60,14 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 	}
 	if dlErr := http.NewResponseController(w).SetWriteDeadline(time.Time{}); dlErr != nil {
 		slog.Warn("set write deadline", slog.Any("err", dlErr))
+	}
+	// Defense-in-depth: a poisoned photos.file_path must not become an arbitrary-file
+	// read. Mirror media/remux handlers: fail-open when roots are unknown.
+	if h.libLister != nil && !pathWithinRoots(mediaRoots(r.Context(), h.libLister), p.FilePath) {
+		slog.Warn("photo serve: file path outside configured library roots",
+			slog.String("photo_id", photoID), slog.String("path", p.FilePath))
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
 	}
 
 	// Transcode path: only if w or fmt query params provided AND transcoder configured.
@@ -157,13 +166,14 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 	return true
 }
 
-func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, _ context.Context, transcoder PhotoTranscoder, cacheDir string) {
+func registerPhotoRoutes(mux *http.ServeMux, photoSvc *appphoto.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, libLister LibraryLister, _ context.Context, transcoder PhotoTranscoder, cacheDir string) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &photoHandler{
 		photoSvc:   photoSvc,
 		libChecker: libChecker,
 		transcoder: transcoder,
 		cacheDir:   cacheDir,
+		libLister:  libLister,
 	}
 	mux.HandleFunc("GET /api/v1/photos/{id}/serve", authMw(h.servePhoto))
 }
