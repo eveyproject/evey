@@ -255,6 +255,8 @@ type fakeDetector struct {
 
 	// subtitleCues is returned by SubtitleCueStarts (nil = no subtitles).
 	subtitleCues []int64
+	// sceneCuts is returned by SceneCutTimestamps (nil = none).
+	sceneCuts []int64
 }
 
 func (f *fakeDetector) ExtractTileHashes(_ string, _, _, _, _ int) ([]uint64, error) {
@@ -277,6 +279,9 @@ func (f *fakeDetector) AudioBandedFingerprint(_ context.Context, _ string, _, _ 
 }
 func (f *fakeDetector) SubtitleCueStarts(_ context.Context, _ string) ([]int64, error) {
 	return f.subtitleCues, nil
+}
+func (f *fakeDetector) SceneCutTimestamps(_ context.Context, _ string, _, _, _ float64) ([]int64, error) {
+	return f.sceneCuts, nil
 }
 
 // fakeSegmentRepo records all Upsert calls and stores segments by (mediaItemID, type).

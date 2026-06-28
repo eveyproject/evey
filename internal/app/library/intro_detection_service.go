@@ -31,6 +31,7 @@ type IntroDetector interface {
 	DetectStudioLogo(hashes []uint64, intervalSec int) (int64, int64, bool)
 	AudioBandedFingerprint(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error)
 	SubtitleCueStarts(ctx context.Context, filePath string) ([]int64, error)
+	SceneCutTimestamps(ctx context.Context, filePath string, startSec, durationSec, threshold float64) ([]int64, error)
 }
 
 // Chromaprinter is an optional adapter wrapping fpcalc — when set, the
@@ -1047,9 +1048,14 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 		if len(refined) > 0 {
 			seg.StartMs, seg.EndMs = refined[0].startMs, refined[0].endMs
 		}
-		// The audio run length is a poor end on music-bleed shows; the subtitle
-		// dialogue-resume (no-op without subs) is a sharper end where available.
-		seg.EndMs = s.refineEndBySubtitleOnset(ctx, item.File.Path, seg.StartMs, seg.EndMs)
+		// The audio run length is a poor end on music-bleed shows. Fuse every
+		// available end witness (audio + subtitle + silence) and snap to a scene
+		// cut; raise the confidence when independent signals agree.
+		end, conf := s.fuseIntroEnd(ctx, item.File.Path, seg.StartMs, seg.EndMs)
+		seg.EndMs = end
+		if conf > 0 {
+			seg.Confidence = 0.6 + 0.4*conf
+		}
 		add([]domainlibrary.MediaSegment{seg}, "season_cluster_hint")
 	}
 
@@ -1257,14 +1263,57 @@ func (s *IntroDetectionService) refineEndBySubtitleOnset(ctx context.Context, fi
 	return endMs
 }
 
-// refineIntroEndsBySubtitle applies refineEndBySubtitleOnset to every intro
-// segment in segs (in place), leaving recap/other types untouched. Used by the
-// heuristic paths (cluster hint, pHash) whose ends overshoot on music-bleed
-// shows; authoritative paths (chapter/provider) are never routed through here.
+// fuseIntroEnd combines every available END witness into a consensus boundary,
+// then snaps it to a frame-accurate scene cut. No single signal is reliable, so
+// they VOTE: the audio run end (always present), the subtitle dialogue-resume
+// (when subs exist), and a silence/black boundary (when present). Where they
+// AGREE we are confident; stacking them is what keeps the end robust on series
+// with NO subtitles. Returns the fused end and a confidence in [0,1] (the share
+// of evidence weight that agreed). All votes are bounded by the audio end + a
+// little slack — the recurring-audio run overshoots, so the true resume is at or
+// before it.
+func (s *IntroDetectionService) fuseIntroEnd(ctx context.Context, filePath string, startMs, audioEnd int64) (int64, float64) {
+	if s.detector == nil || filePath == "" {
+		return audioEnd, 0.5
+	}
+	votes := []boundaryVote{{ms: audioEnd, weight: 0.4, source: "audio"}}
+
+	// Subtitle dialogue-resume (already capped at the audio end inside the helper).
+	if subEnd := s.refineEndBySubtitleOnset(ctx, filePath, startMs, audioEnd); subEnd != audioEnd {
+		votes = append(votes, boundaryVote{ms: subEnd, weight: 1.0, source: "subtitle"})
+	}
+	// Silence/black boundary near the audio end (PrecisionPass returns the input
+	// unchanged when it finds nothing, so a differing end means a real boundary).
+	if _, refEnd, err := s.detector.PrecisionPass(ctx, filePath, float64(startMs)/1000, float64(audioEnd)/1000, 6); err == nil {
+		if d := refEnd - audioEnd; refEnd > startMs && refEnd != audioEnd && d < 20_000 && d > -20_000 {
+			votes = append(votes, boundaryVote{ms: refEnd, weight: 0.6, source: "silence"})
+		}
+	}
+
+	fb, ok := fuseBoundary(votes, 4_000)
+	if !ok {
+		return audioEnd, 0.5
+	}
+	end := fb.ms
+	// Snap the consensus to a frame-accurate content cut so the skip lands on a
+	// scene boundary, not mid-shot. Bounded window → cheap.
+	dur := float64(end-startMs)/1000 + 6
+	if cuts, cErr := s.detector.SceneCutTimestamps(ctx, filePath, float64(startMs)/1000, dur, 0.3); cErr == nil {
+		if snapped, did := snapToNearest(end, cuts, 2_500); did {
+			end = snapped
+		}
+	}
+	return end, fb.confidence
+}
+
+// refineIntroEndsBySubtitle fuses the END of every intro segment in segs (in
+// place), leaving recap/other types untouched. Used by the heuristic paths
+// (cluster hint, pHash) whose ends overshoot on music-bleed shows; authoritative
+// paths (chapter/provider) are never routed through here.
 func (s *IntroDetectionService) refineIntroEndsBySubtitle(ctx context.Context, filePath string, segs []domainlibrary.MediaSegment) []domainlibrary.MediaSegment {
 	for i := range segs {
 		if segs[i].Type == "intro" {
-			segs[i].EndMs = s.refineEndBySubtitleOnset(ctx, filePath, segs[i].StartMs, segs[i].EndMs)
+			segs[i].EndMs, _ = s.fuseIntroEnd(ctx, filePath, segs[i].StartMs, segs[i].EndMs)
 		}
 	}
 	return segs

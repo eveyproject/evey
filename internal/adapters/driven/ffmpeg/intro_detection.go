@@ -392,6 +392,53 @@ func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, st
 	return out, nil
 }
 
+// SceneCutTimestamps returns the timestamps (ms, ascending, absolute) of every
+// frame whose scene-change score exceeds threshold within [startSec, +duration].
+// Frame-accurate content cuts — the post-intro content resumes at one of these.
+// Used as a witness/snap target for the intro END (always available from video,
+// even when the show has no subtitles). threshold ~0.3–0.4 isolates real cuts.
+func (d *IntroDetector) SceneCutTimestamps(ctx context.Context, filePath string, startSec, durationSec, threshold float64) ([]int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.SceneCutTimestamps")
+	defer span.End()
+	if filePath == "" || durationSec <= 0 {
+		return nil, nil
+	}
+	args := []string{
+		"-nostdin",
+		"-threads", strconv.Itoa(introFFmpegThreads()),
+		"-ss", strconv.FormatFloat(startSec, 'f', 3, 64),
+		"-t", strconv.FormatFloat(durationSec, 'f', 3, 64),
+		"-i", filePath,
+		"-an",
+		"-vf", fmt.Sprintf("select='gt(scene,%.3f)',showinfo", threshold),
+		"-f", "null",
+		"-",
+	}
+	cmd := exec.CommandContext(ctx, d.binary, args...)
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+	//nolint:errcheck // ffmpeg exits non-zero for -f null; we parse stderr regardless
+	_ = d.runPausable(cmd)
+
+	// -ss before -i resets output pts to 0 at the segment start, so showinfo's
+	// pts_time is relative to startSec; add it back for an absolute timestamp.
+	var cuts []int64
+	sc := bufio.NewScanner(&stderrBuf)
+	for sc.Scan() {
+		line := sc.Text()
+		if !strings.Contains(line, "pts_time:") {
+			continue
+		}
+		pt := parseAfterColon(line, "pts_time:")
+		if pt <= 0 {
+			continue
+		}
+		cuts = append(cuts, int64((startSec+pt)*1000))
+	}
+	slices.Sort(cuts)
+	return cuts, nil
+}
+
 // SubtitleCueStarts returns the start timestamps (ms, ascending) of every cue
 // in the file's first subtitle stream, read from packet pts_time via ffprobe.
 // Cue TIMING is language-independent, so the first stream suffices regardless of
