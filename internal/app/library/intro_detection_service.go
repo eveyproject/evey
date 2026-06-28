@@ -30,6 +30,7 @@ type IntroDetector interface {
 	DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (int64, int64, bool, error)
 	DetectStudioLogo(hashes []uint64, intervalSec int) (int64, int64, bool)
 	AudioBandedFingerprint(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error)
+	SubtitleCueStarts(ctx context.Context, filePath string) ([]int64, error)
 }
 
 // Chromaprinter is an optional adapter wrapping fpcalc — when set, the
@@ -1046,6 +1047,9 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 		if len(refined) > 0 {
 			seg.StartMs, seg.EndMs = refined[0].startMs, refined[0].endMs
 		}
+		// The audio run length is a poor end on music-bleed shows; the subtitle
+		// dialogue-resume (no-op without subs) is a sharper end where available.
+		seg.EndMs = s.refineEndBySubtitleOnset(ctx, item.File.Path, seg.StartMs, seg.EndMs)
 		add([]domainlibrary.MediaSegment{seg}, "season_cluster_hint")
 	}
 
@@ -1212,6 +1216,44 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 		})
 	}
 	return out
+}
+
+// refineEndBySubtitleOnset pulls an intro END to where dialogue resumes. A
+// title sequence carries no dialogue, so the first subtitle cue after the intro
+// start (past a short guard that skips a cold-open line lingering into the theme)
+// marks content resumption ≈ the visual intro end. This is the one signal that
+// nails the end on "music-bleed" shows, where the recurring AUDIO run overshoots
+// the visual cut (theme music continues under the next scene) — the eval showed
+// audio_cluster ends ~+30s late there. Returns endMs unchanged (a no-op) when
+// the file has no subtitles or no plausible cue is found, so media without subs
+// is unaffected.
+func (s *IntroDetectionService) refineEndBySubtitleOnset(ctx context.Context, filePath string, startMs, endMs int64) int64 {
+	if s.detector == nil || filePath == "" {
+		return endMs
+	}
+	cues, err := s.detector.SubtitleCueStarts(ctx, filePath)
+	if err != nil || len(cues) == 0 {
+		return endMs
+	}
+	const (
+		guardMs = 5_000 // skip a cold-open line lingering into the theme onset
+		slackMs = 8_000 // tolerate a little past the audio end (grid jitter)
+	)
+	// Upper bound = the audio end. The recurring-audio run length OVERSHOOTS the
+	// visual cut (theme bleeds into the next scene), so the true dialogue-resume
+	// sits at or before it. A first cue PAST the audio end means dialogue didn't
+	// resume right after the intro (a silent post-intro action scene) — that cue
+	// is not the intro's end, so we keep the audio end rather than overshoot far.
+	for _, c := range cues {
+		if c <= startMs+guardMs {
+			continue
+		}
+		if c > endMs+slackMs {
+			break // first plausible cue is past the audio end → don't trust it
+		}
+		return c // dialogue resumes within the intro window ≈ the visual end
+	}
+	return endMs
 }
 
 // chapterPass looks for Matroska chapters whose title matches a known

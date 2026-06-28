@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -389,6 +390,49 @@ func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, st
 		out[b] = math.Sqrt(acc / float64(samplesPerBin))
 	}
 	return out, nil
+}
+
+// SubtitleCueStarts returns the start timestamps (ms, ascending) of every cue
+// in the file's first subtitle stream, read from packet pts_time via ffprobe.
+// Cue TIMING is language-independent, so the first stream suffices regardless of
+// language or codec (text or bitmap). Returns an empty slice with no error when
+// the file has no usable subtitle stream — callers then treat it as a no-op.
+func (d *IntroDetector) SubtitleCueStarts(ctx context.Context, filePath string) ([]int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.SubtitleCueStarts")
+	defer span.End()
+	if filePath == "" {
+		return nil, nil
+	}
+	args := []string{
+		"-v", "error",
+		"-select_streams", "s:0",
+		"-show_entries", "packet=pts_time",
+		"-of", "csv=p=0",
+		filePath,
+	}
+	cmd := exec.CommandContext(ctx, d.probeBinary, args...)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
+	if err := cmd.Run(); err != nil {
+		// No subtitle stream / probe failure: a no-op, not an error.
+		return nil, nil
+	}
+	var cues []int64
+	sc := bufio.NewScanner(&stdout)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" || line == "N/A" {
+			continue
+		}
+		sec, err := strconv.ParseFloat(line, 64)
+		if err != nil || sec < 0 {
+			continue
+		}
+		cues = append(cues, int64(sec*1000))
+	}
+	// Packet order usually follows pts but isn't guaranteed; sort to be safe.
+	slices.Sort(cues)
+	return cues, nil
 }
 
 // AudioBandedFingerprint decodes the segment to PCM 8kHz mono and produces

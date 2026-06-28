@@ -51,6 +51,9 @@ func (d *hashesDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool
 func (d *hashesDetector) AudioBandedFingerprint(_ context.Context, _ string, _, _ float64, _ int) ([]float64, error) {
 	return nil, nil
 }
+func (d *hashesDetector) SubtitleCueStarts(_ context.Context, _ string) ([]int64, error) {
+	return nil, nil
+}
 
 // newServiceWithCache wires the smallest possible IntroDetectionService for
 // cache-behavior tests: a detector that fails on second extract, a temp

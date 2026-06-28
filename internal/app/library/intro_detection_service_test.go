@@ -13,6 +13,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRefineEndBySubtitleOnset(t *testing.T) {
+	t.Parallel()
+	newSvc := func(cues []int64) *IntroDetectionService {
+		return &IntroDetectionService{detector: &fakeDetector{subtitleCues: cues}}
+	}
+	const start, audioEnd int64 = 260_000, 349_000 // music-bleed end, +34s too late
+
+	// Dialogue resumes at 315s → end pulled in from 349s to 315s.
+	if got := newSvc([]int64{12_000, 250_000, 315_000, 360_000}).
+		refineEndBySubtitleOnset(context.Background(), "f.mkv", start, audioEnd); got != 315_000 {
+		t.Errorf("music-bleed: end = %d, want 315000", got)
+	}
+	// A cold-open line lingering at the theme onset (within guard) is skipped;
+	// the next cue (320s) is the real resume.
+	if got := newSvc([]int64{262_000, 320_000}).
+		refineEndBySubtitleOnset(context.Background(), "f.mkv", start, audioEnd); got != 320_000 {
+		t.Errorf("guard skip: end = %d, want 320000", got)
+	}
+	// No subtitles → no-op (audio end kept). Media without subs is unaffected.
+	if got := newSvc(nil).
+		refineEndBySubtitleOnset(context.Background(), "f.mkv", start, audioEnd); got != audioEnd {
+		t.Errorf("no subs: end = %d, want %d", got, audioEnd)
+	}
+	// First post-guard cue past the audio end (silent post-intro scene) → not
+	// trusted, keep the audio end rather than overshoot far.
+	if got := newSvc([]int64{600_000}).
+		refineEndBySubtitleOnset(context.Background(), "f.mkv", start, audioEnd); got != audioEnd {
+		t.Errorf("implausible cue: end = %d, want %d", got, audioEnd)
+	}
+}
+
 // TestFrequencyMap_AllPresent verifies that hashes present in all episodes are returned.
 func TestFrequencyMap_AllPresent(t *testing.T) {
 	t.Parallel()
@@ -221,6 +252,9 @@ type fakeDetector struct {
 
 	// tileHashes is returned by ExtractTileHashes when non-nil; defaults to nil (no hashes).
 	tileHashes []uint64
+
+	// subtitleCues is returned by SubtitleCueStarts (nil = no subtitles).
+	subtitleCues []int64
 }
 
 func (f *fakeDetector) ExtractTileHashes(_ string, _, _, _, _ int) ([]uint64, error) {
@@ -240,6 +274,9 @@ func (f *fakeDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool) 
 }
 func (f *fakeDetector) AudioBandedFingerprint(_ context.Context, _ string, _, _ float64, _ int) ([]float64, error) {
 	return nil, nil
+}
+func (f *fakeDetector) SubtitleCueStarts(_ context.Context, _ string) ([]int64, error) {
+	return f.subtitleCues, nil
 }
 
 // fakeSegmentRepo records all Upsert calls and stores segments by (mediaItemID, type).
