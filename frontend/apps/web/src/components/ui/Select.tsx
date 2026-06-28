@@ -45,7 +45,7 @@ export function Select({
           aria-invalid={error ? true : undefined}
           aria-describedby={errorId}
           {...props}
-          className={`w-full appearance-none px-3 py-2 pr-8 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${error ? "border-[var(--color-danger)]" : ""} ${className}`}
+          className={`w-full appearance-none px-3 py-2 pr-8 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed ${error ? "border-[var(--color-danger)]" : ""} ${className}`}
         >
           {placeholder && (
             <option value="" disabled>

@@ -135,7 +135,7 @@ export function TopBar() {
               if (searchValue.trim().length > 1 || recents.length > 0) setDropdownOpen(true);
             }}
             onKeyDown={handleKeyDown}
-            className="w-full pl-9 pr-14 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            className="w-full pl-9 pr-14 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-base sm:text-sm text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
           />
           <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium text-[var(--text-muted)] bg-[var(--surface)] border border-[var(--border)] pointer-events-none">
             {/Mac|iPhone|iPad/.test(navigator.userAgent) ? <><span className="text-xs">&#8984;</span>K</> : <><span className="text-xs">Ctrl+</span>K</>}

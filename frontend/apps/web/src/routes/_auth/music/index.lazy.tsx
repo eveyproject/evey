@@ -797,7 +797,7 @@ function TracksTab({
           aria-label={t("media.music.searchPlaceholder")}
           value={search}
           onChange={(e) => { onSearchChange(e.target.value); setPage(0); }}
-          className="w-full max-w-[400px] px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] text-sm"
+          className="w-full max-w-[400px] px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] text-base sm:text-sm"
         />
         {albumFilter && (
           <button
