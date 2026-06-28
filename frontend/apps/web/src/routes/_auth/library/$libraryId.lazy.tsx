@@ -584,9 +584,32 @@ function LibraryPage() {
         </>
       )}
 
+      {/* Mobile bottom-sheet overlay — only below md breakpoint */}
+      {filtersOpen && (
+        <>
+          {/* Backdrop */}
+          <button
+            type="button"
+            aria-label={t("common.close")}
+            className="md:hidden fixed inset-0 z-[60] bg-black/50"
+            onClick={() => setFiltersOpen(false)}
+          />
+          {/* Bottom-sheet panel */}
+          <div className="md:hidden fixed inset-x-0 bottom-0 z-[61] rounded-t-[var(--radius-lg)] bg-[var(--surface)] max-h-[80dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+            <LibraryFiltersPanel
+              search={search}
+              availableGenres={genres}
+              availableOptions={availableOptions}
+              onUpdate={(patch) => updateSearch(patch)}
+            />
+          </div>
+        </>
+      )}
+
       <div className={`flex gap-4 ${filtersOpen ? "items-start" : ""}`}>
+        {/* Desktop inline column — only md and above */}
         {filtersOpen && (
-          <div className="flex-shrink-0 w-52">
+          <div className="hidden md:block flex-shrink-0 w-52">
             <LibraryFiltersPanel
               search={search}
               availableGenres={genres}
