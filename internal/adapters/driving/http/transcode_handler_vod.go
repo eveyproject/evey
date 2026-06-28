@@ -814,6 +814,19 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	audioTrack := h.resolveAudioTrack(r, streams)
 	subBurnIn := parseIntQuery(r, "subtitleTrack", -1)
 
+	// When the audio-rendition feature is on, the audio is served as a SEPARATE
+	// HLS rendition (audio_T.m3u8 / audio_T_*.m4s) and the video segments MUST be
+	// video-only. Otherwise stream_0 keeps muxing the audio track while the master
+	// also advertises the separate audio group with DEFAULT=YES — hls.js then
+	// appends audio twice (muxed-in-stream_0 + audio_0), which throws
+	// bufferAppendError on any seek. Signalling "no audio" with track -1 reuses the
+	// tested video-only ladder (hasAudio) and forks the cache (atrack=-1 in Hash())
+	// so muxed and video-only segments for the same media never alias.
+	videoAudioTrack := audioTrack
+	if h.audioRenditionEnabled {
+		videoAudioTrack = -1
+	}
+
 	fpProfiles := make([]apptranscoding.ProfileFingerprint, len(profiles))
 	for i, p := range profiles {
 		// Single, reflection-guarded projection (TestProfileFingerprintOf_CopiesEveryField).
@@ -845,7 +858,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		// The builder only reads it on the transcode branch; here it keeps the
 		// hash truthful per served bytes.
 		AudioCodec:          servedAudioCodec(audioCopy, srcAudio, decision),
-		AudioTrack:          audioTrack,
+		AudioTrack:          videoAudioTrack,
 		SubtitleBurnInTrack: subBurnIn,
 		// HDR->SDR tonemap is needed whenever the decision flagged it (HDR source +
 		// non-HDR client, or Dolby Vision). Baked into the fingerprint so it (a)
