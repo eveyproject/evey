@@ -97,12 +97,39 @@ const currentAudioAlgoVersion int16 = 1
 // v2: season-level audio clustering (intro_season_cluster.go) added to the
 // pipeline — every episode that previously had no/weak intro becomes eligible
 // for re-detection once at this version.
-const introDetectionAlgoVersion = 2
+// v3: combine-by-type pipeline (a partial provider/chapter match no longer
+// suppresses local detection of the other types) + heuristic-floor guard
+// (sub-5s heuristic intros are dropped instead of surfacing as broken skip
+// buttons). Every previously-uncovered/weak episode becomes eligible once more.
+const introDetectionAlgoVersion = 3
 
 // maxIntroDetectionAttempts bounds the backfill's re-decodes of an episode that
 // keeps yielding no usable intro at the same algo version (one retry for the
 // detector's sampling variance, then park until introDetectionAlgoVersion bumps).
 const maxIntroDetectionAttempts = 2
+
+// minHeuristicIntroMs is the shortest intro any in-house heuristic (silence,
+// audio, pHash, cluster) is allowed to emit. Below this the result is almost
+// always degenerate — the sub-second studio-logo silence at 0:00, or a pHash
+// match that confirmed only a sliver — not a real title sequence. It sits below
+// the "good intro" floor used by detectSeason's skip check anyway, so a
+// non-result beats a junk stub the user sees as a broken skip button.
+const minHeuristicIntroMs = 5_000
+
+// isHeuristicSegmentSource reports whether a segment was produced by an in-house
+// heuristic (pHash, audio clustering/discovery, silence) rather than an
+// authoritative source (an uploader-labelled MKV chapter, a community DB, or a
+// manual lock). Only heuristic results are subject to the minHeuristicIntroMs
+// floor — an authoritative short intro is intentional (e.g. 9-1-1's ~2s title
+// card), not noise.
+func isHeuristicSegmentSource(source string) bool {
+	switch source {
+	case "mkv_chapter", "tidb", "introdb", "manual", "manual_propagated":
+		return false
+	default:
+		return true
+	}
+}
 
 // defaultMaxParallelDetections caps how many pipeline runs may execute
 // concurrently. 2 is a safe default for shared boxes — pHashPass extracts
@@ -566,6 +593,22 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 	}
 
 	for _, seg := range segments {
+		// Heuristic-floor guard: a sub-5s intro from a heuristic source is almost
+		// always a degenerate result — the silence pass locking onto the
+		// studio-logo silence at 0:00, or a pHash match that confirmed only a
+		// sliver. It surfaces to the user as a broken skip button. Drop it; a
+		// non-result is strictly better. Authoritative sources are exempt: a
+		// short intro from an uploader chapter or a community DB is intentional
+		// (e.g. 9-1-1's ~2s title card), not noise.
+		if seg.Type == "intro" && isHeuristicSegmentSource(seg.Source) &&
+			seg.EndMs-seg.StartMs < minHeuristicIntroMs {
+			slog.Info("intro_detection: dropping degenerate heuristic intro",
+				slog.String("media_id", mediaItemID),
+				slog.String("source", seg.Source),
+				slog.Int64("start_ms", seg.StartMs),
+				slog.Int64("end_ms", seg.EndMs))
+			continue
+		}
 		seg.ID = uuid.New().String()
 		seg.MediaItemID = shared.MediaItemID(mediaItemID)
 		if err := s.upsertSegmentRespectingManual(ctx, &seg); err != nil {
@@ -897,57 +940,68 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	mediaItemID := string(item.ID)
 	cfg := loadIntroConfig(ctx, s.configRepo)
 
-	// External metadata provider first: when an adapter is wired (e.g. an
-	// AniDB / simkl / community-DB lookup) and it knows this item, those
-	// segments are the most authoritative. Provider errors are non-fatal —
-	// fall through to chapters/heuristics.
-	if s.metadataProvider != nil {
-		mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item)
-		if mdErr != nil {
-			slog.Warn("intro_detection: metadata provider failed, falling back",
-				slog.String("media_id", mediaItemID), slog.Any("err", mdErr))
-		} else if len(mdSegs) > 0 {
+	// Accumulate the best segment PER TYPE. Passes run in DESCENDING authority;
+	// the first pass to fill a type wins, and later passes only supply the types
+	// still missing. This replaces the previous early-return design, where a
+	// PARTIAL match (a provider that only knows the recap, chapters that only
+	// mark the intro) suppressed local detection of every OTHER type. The
+	// in-house pipeline must be self-sufficient — external providers are an
+	// additive bonus layered on top, never a precondition for local detection.
+	found := make(map[string]domainlibrary.MediaSegment, 3)
+	add := func(segs []domainlibrary.MediaSegment, decision string) {
+		var addedTypes []string
+		for _, seg := range segs {
+			if seg.Type == "" {
+				continue
+			}
+			if _, ok := found[seg.Type]; ok {
+				continue // a higher-authority pass already filled this type
+			}
+			found[seg.Type] = seg
+			addedTypes = append(addedTypes, seg.Type)
+		}
+		if len(addedTypes) > 0 {
 			slog.Info("intro_detection.pipeline_decision",
 				slog.String("media_id", mediaItemID),
-				slog.String("decision", "metadata_provider_match"),
-				slog.Int("segments", len(mdSegs)),
+				slog.String("decision", decision),
+				slog.String("types", strings.Join(addedTypes, ",")),
 			)
-			return mdSegs, nil
+		}
+	}
+	needIntro := func() bool { _, ok := found["intro"]; return !ok }
+
+	// External metadata provider first: most authoritative for any type it
+	// returns. Non-fatal on error — fall through to chapters/heuristics.
+	if s.metadataProvider != nil {
+		if mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item); mdErr != nil {
+			slog.Warn("intro_detection: metadata provider failed, falling back",
+				slog.String("media_id", mediaItemID), slog.Any("err", mdErr))
+		} else {
+			add(mdSegs, "metadata_provider_match")
 		}
 	}
 
-	// MKV chapters next: authoritative when present (uploader labelled
-	// the chapter "Intro" / "Opening" / "Generique" etc.). Skip the rest
-	// of the pipeline if we got something — no heuristic beats explicit
-	// metadata.
-	if chSegs := s.chapterPass(ctx, item); len(chSegs) > 0 {
-		slog.Info("intro_detection.pipeline_decision",
-			slog.String("media_id", mediaItemID),
-			slog.String("decision", "mkv_chapter_match"),
-			slog.Int("segments", len(chSegs)),
-		)
-		return chSegs, nil
-	}
+	// MKV chapters next: authoritative when the uploader labelled them
+	// ("Intro" / "Opening" / "Generique" / "Previously" …).
+	add(s.chapterPass(ctx, item), "mkv_chapter_match")
+
+	// ---- intro-only passes: each runs only while the intro is still missing ----
 
 	// Season cluster hint: a season-level audio clustering already located this
-	// episode's recurring intro at its own offset. Audio recurrence is a stronger
-	// signal than the visual pHash heuristic, so the hint wins over pHash; it
-	// stays below the explicit metadata/chapters above. Refine the raw cluster
-	// window to silence/black boundaries, anchored on the cluster window.
-	if hint != nil {
+	// episode's recurring intro at its own offset. Refine the raw cluster window
+	// to silence/black boundaries, anchored on the cluster window.
+	if needIntro() && hint != nil {
 		seg := *hint
 		refined := s.refineWithPrecisionPass(ctx, item.File.Path, []confirmedWindow{{startMs: hint.StartMs, endMs: hint.EndMs}})
 		if len(refined) > 0 {
 			seg.StartMs, seg.EndMs = refined[0].startMs, refined[0].endMs
 		}
-		slog.Info("intro_detection.pipeline_decision",
-			slog.String("media_id", mediaItemID),
-			slog.String("decision", "season_cluster_hint"),
-		)
-		return []domainlibrary.MediaSegment{seg}, nil
+		add([]domainlibrary.MediaSegment{seg}, "season_cluster_hint")
 	}
 
-	if s.isTrickplayEnabled(ctx) {
+	// Visual pHash + audio confirmation. classifyConfirmed can yield an intro
+	// AND a short preceding recap.
+	if needIntro() && s.isTrickplayEnabled(ctx) {
 		result, phashErr := s.pHashPass(ctx, item, cfg)
 		if phashErr != nil {
 			slog.Warn("intro_detection: phash pass failed, falling back",
@@ -974,42 +1028,58 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 				// "first silence in the file" failure mode (studio logo
 				// at 0s) doesn't apply.
 				refined := s.refineWithPrecisionPass(ctx, item.File.Path, confirmed)
-				return classifyConfirmed(refined, cfg), nil
+				add(classifyConfirmed(refined, cfg), "phash_confirmed")
+			} else {
+				slog.Info("intro_detection.pipeline_decision",
+					slog.String("media_id", mediaItemID),
+					slog.Int("candidates_evaluated", len(result.candidates)),
+					slog.Int("siblings_total", len(result.siblings)),
+					slog.String("decision", "fallback_no_candidate_confirmed"),
+				)
 			}
-			slog.Info("intro_detection.pipeline_decision",
-				slog.String("media_id", mediaItemID),
-				slog.Int("candidates_evaluated", len(result.candidates)),
-				slog.Int("siblings_total", len(result.siblings)),
-				slog.String("decision", "fallback_no_candidate_confirmed"),
-			)
 		}
 	}
 
 	// Audio-primary DISCOVERY: the visual pass produced nothing confirmable
 	// (poor SD trickplay, or a cold-open show whose title card isn't visually
-	// stable). Before the weak silencedetect fallback, let chromaprint discover
-	// a recurring intro directly across siblings at a free per-episode offset —
-	// the variable-teaser case the visual+confirm path structurally misses.
-	if seg, ok := s.discoverIntroByAudio(ctx, item); ok {
-		slog.Info("intro_detection.pipeline_decision",
-			slog.String("media_id", mediaItemID),
-			slog.String("decision", "chromaprint_discovery"),
-		)
-		return []domainlibrary.MediaSegment{seg}, nil
+	// stable). Let chromaprint discover a recurring intro directly across
+	// siblings at a free per-episode offset — the variable-teaser case the
+	// visual+confirm path structurally misses.
+	if needIntro() {
+		if seg, ok := s.discoverIntroByAudio(ctx, item); ok {
+			add([]domainlibrary.MediaSegment{seg}, "chromaprint_discovery")
+		}
 	}
 
-	// Fallback: concurrent audio/subtitle passes.
-	startMs, endMs, source, confidence, err := s.concurrentFallback(ctx, item)
-	if err != nil || (startMs == 0 && endMs == 0) {
-		return nil, err
+	// Last resort: concurrent audio/subtitle silence passes. Its error is only
+	// fatal when nothing else covered the episode — a recap found upstream must
+	// still be returned even if the silence pass fails to find the intro. A
+	// degenerate sub-second result (the studio-logo silence at 0:00) is dropped
+	// downstream by the heuristic-floor guard in detectIntroWithHint.
+	if needIntro() {
+		startMs, endMs, source, confidence, fbErr := s.concurrentFallback(ctx, item)
+		if fbErr != nil {
+			if len(found) == 0 {
+				return nil, fbErr
+			}
+			slog.Warn("intro_detection: silence fallback failed",
+				slog.String("media_id", mediaItemID), slog.Any("err", fbErr))
+		} else if startMs != 0 || endMs != 0 {
+			add([]domainlibrary.MediaSegment{{
+				Type:       "intro",
+				StartMs:    startMs,
+				EndMs:      endMs,
+				Source:     source,
+				Confidence: confidence,
+			}}, "silence_fallback")
+		}
 	}
-	return []domainlibrary.MediaSegment{{
-		Type:       "intro",
-		StartMs:    startMs,
-		EndMs:      endMs,
-		Source:     source,
-		Confidence: confidence,
-	}}, nil
+
+	out := make([]domainlibrary.MediaSegment, 0, len(found))
+	for _, seg := range found {
+		out = append(out, seg)
+	}
+	return out, nil
 }
 
 // refineWithPrecisionPass widens each pHash window to the actual intro
