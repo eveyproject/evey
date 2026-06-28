@@ -1082,7 +1082,8 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 				// "first silence in the file" failure mode (studio logo
 				// at 0s) doesn't apply.
 				refined := s.refineWithPrecisionPass(ctx, item.File.Path, confirmed)
-				add(classifyConfirmed(refined, cfg), "phash_confirmed")
+				segs := s.refineIntroEndsBySubtitle(ctx, item.File.Path, classifyConfirmed(refined, cfg))
+				add(segs, "phash_confirmed")
 			} else {
 				slog.Info("intro_detection.pipeline_decision",
 					slog.String("media_id", mediaItemID),
@@ -1254,6 +1255,19 @@ func (s *IntroDetectionService) refineEndBySubtitleOnset(ctx context.Context, fi
 		return c // dialogue resumes within the intro window ≈ the visual end
 	}
 	return endMs
+}
+
+// refineIntroEndsBySubtitle applies refineEndBySubtitleOnset to every intro
+// segment in segs (in place), leaving recap/other types untouched. Used by the
+// heuristic paths (cluster hint, pHash) whose ends overshoot on music-bleed
+// shows; authoritative paths (chapter/provider) are never routed through here.
+func (s *IntroDetectionService) refineIntroEndsBySubtitle(ctx context.Context, filePath string, segs []domainlibrary.MediaSegment) []domainlibrary.MediaSegment {
+	for i := range segs {
+		if segs[i].Type == "intro" {
+			segs[i].EndMs = s.refineEndBySubtitleOnset(ctx, filePath, segs[i].StartMs, segs[i].EndMs)
+		}
+	}
+	return segs
 }
 
 // chapterPass looks for Matroska chapters whose title matches a known
