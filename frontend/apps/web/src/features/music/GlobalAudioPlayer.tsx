@@ -183,7 +183,7 @@ export function GlobalAudioPlayer() {
   const currentIndex = queue.findIndex((q) => q.ID === playing.ID);
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 flex items-center gap-2 sm:gap-4 px-3 sm:px-6 py-3 bg-[var(--surface)] border-t border-[var(--border)] z-overlay">
+    <div className="fixed bottom-0 left-0 right-0 flex items-center gap-2 sm:gap-4 px-3 sm:px-6 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-[var(--surface)] border-t border-[var(--border)] z-overlay">
       <audio
         ref={audioRef}
         key={playing.ID}
@@ -230,20 +230,20 @@ export function GlobalAudioPlayer() {
         <div className="flex items-center gap-4">
           <button
             onClick={toggleShuffle}
-            className={`bg-transparent border-none cursor-pointer ${shuffle ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}
+            className={`bg-transparent border-none cursor-pointer min-h-11 min-w-11 flex items-center justify-center ${shuffle ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}
             aria-label={t("media.music.shuffle")}
             aria-pressed={shuffle}
             title={t("media.music.shuffle")}
           >
             <Shuffle size={16} aria-hidden="true" />
           </button>
-          <button onClick={prev} disabled={!shuffle && currentIndex <= 0} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer" aria-label={t("common.previous")}>
+          <button onClick={prev} disabled={!shuffle && currentIndex <= 0} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer min-h-11 min-w-11 flex items-center justify-center" aria-label={t("common.previous")}>
             <SkipBack size={18} aria-hidden="true" />
           </button>
-          <button onClick={togglePlay} className="bg-[var(--accent)] border-none cursor-pointer text-[var(--filter-active-text)] rounded-full w-9 h-9 flex items-center justify-center" aria-label={isPlaying ? t("common.aria.pause") : t("common.aria.play")}>
+          <button onClick={togglePlay} className="bg-[var(--accent)] border-none cursor-pointer text-[var(--filter-active-text)] rounded-full min-w-11 min-h-11 flex items-center justify-center" aria-label={isPlaying ? t("common.aria.pause") : t("common.aria.play")}>
             {isPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
           </button>
-          <button onClick={next} disabled={!shuffle && currentIndex >= queue.length - 1} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer" aria-label={t("common.next")}>
+          <button onClick={next} disabled={!shuffle && currentIndex >= queue.length - 1} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer min-h-11 min-w-11 flex items-center justify-center" aria-label={t("common.next")}>
             <SkipForward size={18} aria-hidden="true" />
           </button>
         </div>

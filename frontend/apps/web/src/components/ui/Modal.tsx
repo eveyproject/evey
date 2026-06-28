@@ -54,7 +54,7 @@ export function Modal({ open, onClose, title, size = "md", children }: ModalProp
         aria-labelledby={title ? titleId : undefined}
         aria-describedby={bodyId}
         tabIndex={-1}
-        className={`bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--border)] p-4 sm:p-6 w-full ${sizeClasses[size]} shadow-xl outline-none`}
+        className={`bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--border)] p-4 sm:p-6 w-full ${sizeClasses[size]} shadow-xl outline-none max-h-[90dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]`}
       >
         {title && (
           <h2 id={titleId} className="text-lg font-semibold text-[var(--text)] mb-4">

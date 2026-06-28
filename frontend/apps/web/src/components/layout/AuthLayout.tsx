@@ -28,7 +28,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   if (isPlayer) return <>{children}</>;
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:z-popover focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded-[var(--radius-md)] focus:bg-[var(--accent)] focus:text-white focus:text-sm focus:font-medium"
