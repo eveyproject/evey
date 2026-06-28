@@ -805,15 +805,15 @@ func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 		if err := e.apiLimiter.Wait(ctx); err != nil {
 			return
 		}
+		sem <- struct{}{}
 		wg.Add(1)
 		go func(it *domainlib.MediaItem) {
-			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
 					slog.Error("panic recovered in metadata enricher", "error", r, "stack", string(debug.Stack()))
 				}
 			}()
-			sem <- struct{}{}
+			defer wg.Done()
 			defer func() { <-sem }()
 			e.autoEnrichItem(ctx, it, log, force)
 		}(item)

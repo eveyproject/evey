@@ -172,6 +172,9 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 							trackID = binary.BigEndian.Uint32(buf[co+12 : co+16])
 						}
 					case "tfdt":
+						if csz < 12 {
+							return true // truncated: cannot read version byte
+						}
 						tfdtVer = buf[co+8]
 						if tfdtVer == 1 && csz >= 20 {
 							tfdtVal = binary.BigEndian.Uint64(buf[co+12 : co+20])

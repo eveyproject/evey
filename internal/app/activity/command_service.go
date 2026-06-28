@@ -109,6 +109,11 @@ func (s *CommandService) StartRetentionPurge(ctx context.Context, auditDays, met
 		return
 	}
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("retention purge panic recovered", slog.Any("panic", r))
+			}
+		}()
 		s.runRetention(ctx, auditDays, metricsDays)
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
