@@ -1095,7 +1095,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	// stable). Let chromaprint discover a recurring intro directly across
 	// siblings at a free per-episode offset — the variable-teaser case the
 	// visual+confirm path structurally misses.
-	if needIntro() {
+	if needIntro() && cfg.AudioDiscoveryEnabled {
 		if seg, ok := s.discoverIntroByAudio(ctx, item); ok {
 			add([]domainlibrary.MediaSegment{seg}, "chromaprint_discovery")
 		}

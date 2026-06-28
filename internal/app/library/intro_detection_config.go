@@ -44,6 +44,17 @@ type introConfig struct {
 	// recurring intro shared across the season, located at each episode's own
 	// offset. Replaces per-episode audio discovery when it carries the episode.
 	SeasonClusterEnabled bool `json:"season_cluster_enabled"` // default true
+
+	// AudioDiscoveryEnabled gates the per-episode Chromaprint discovery fallback
+	// (discoverIntroByAudio). Demoted to OFF by default: an eval against
+	// community ground truth (tidb/introdb) showed it frequently locks onto the
+	// WRONG recurring segment — a "previously on" recap or a mid-episode musical
+	// sting — landing intros ~65s off on BOTH edges (start +65s, end +69s median).
+	// The season cluster (SeasonClusterEnabled) covers its useful "variable
+	// teaser" cases more robustly, and a wrong skip button is worse than none
+	// (same rationale as the heuristic-floor guard). Re-enable explicitly to
+	// restore the old behaviour.
+	AudioDiscoveryEnabled bool `json:"audio_discovery_enabled"` // default false
 }
 
 // defaultIntroConfig returns the values previously hardcoded throughout the
@@ -69,20 +80,21 @@ type introConfig struct {
 // Cuisine" detected at 9:20-10:00.
 func defaultIntroConfig() introConfig {
 	return introConfig{
-		MaxHamming:           8,
-		FreqMapThreshold:     0.30,
-		PadSec:               10.0,
-		SearchSec:            30.0,
-		BinMs:                250,
-		NumBands:             12,
-		CorrThreshold:        0.45,
-		DriftTolSec:          6.0,
-		MinMatches:           3,
-		MinRatio:             0.7,
-		RecapMaxMs:           60 * 1000,
-		FrameCutoffPercent:   0.25,
-		MaxIntroStartMs:      240_000,
-		SeasonClusterEnabled: true,
+		MaxHamming:            8,
+		FreqMapThreshold:      0.30,
+		PadSec:                10.0,
+		SearchSec:             30.0,
+		BinMs:                 250,
+		NumBands:              12,
+		CorrThreshold:         0.45,
+		DriftTolSec:           6.0,
+		MinMatches:            3,
+		MinRatio:              0.7,
+		RecapMaxMs:            60 * 1000,
+		FrameCutoffPercent:    0.25,
+		MaxIntroStartMs:       240_000,
+		SeasonClusterEnabled:  true,
+		AudioDiscoveryEnabled: false,
 	}
 }
 
