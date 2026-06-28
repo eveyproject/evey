@@ -50,12 +50,6 @@ export const MediaSlider = memo(function MediaSlider({
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(false);
 
-  // Touch state
-  const touchStartX = useRef<number | null>(null);
-  const touchStartY = useRef<number | null>(null);
-  const touchStartTime = useRef<number>(0);
-  const touchLocked = useRef<"horizontal" | "vertical" | null>(null);
-
   // Mouse drag state
   const isDragging = useRef(false);
   const dragStartX = useRef(0);
@@ -80,66 +74,6 @@ export const MediaSlider = memo(function MediaSlider({
     const amount = el.clientWidth - CARD_WIDTH;
     el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
-
-  // --- Touch handlers ---
-
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    touchStartTime.current = Date.now();
-    touchLocked.current = null;
-  }
-
-  function handleTouchMove(e: React.TouchEvent) {
-    if (touchStartX.current === null || touchStartY.current === null) return;
-    const dx = e.touches[0].clientX - touchStartX.current;
-    const dy = e.touches[0].clientY - touchStartY.current;
-
-    if (touchLocked.current === null) {
-      if (Math.abs(dx) > Math.abs(dy)) {
-        touchLocked.current = "horizontal";
-      } else {
-        touchLocked.current = "vertical";
-      }
-    }
-
-    if (touchLocked.current === "horizontal") {
-      e.preventDefault();
-      const el = scrollRef.current;
-      if (el) {
-        // Live tracking while dragging
-        el.scrollLeft -= dx * 0.05; // small incremental nudge (full tracking via touchEnd)
-      }
-    }
-  }
-
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null || touchLocked.current !== "horizontal") {
-      touchStartX.current = null;
-      touchStartY.current = null;
-      touchLocked.current = null;
-      return;
-    }
-
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    const dt = Date.now() - touchStartTime.current;
-    const velocity = Math.abs(dx) / dt; // px/ms
-
-    touchStartX.current = null;
-    touchStartY.current = null;
-    touchLocked.current = null;
-
-    if (Math.abs(dx) < 30) return;
-
-    // Momentum: high velocity → scroll more cards
-    const cards = velocity > 0.8 ? 3 : velocity > 0.4 ? 2 : 1;
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollBy({
-      left: dx < 0 ? CARD_WIDTH * cards : -(CARD_WIDTH * cards),
-      behavior: "smooth",
-    });
-  }
 
   // --- Mouse drag handlers ---
 
@@ -205,9 +139,6 @@ export const MediaSlider = memo(function MediaSlider({
         <div
           ref={scrollRef}
           onScroll={checkOverflow}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={stopDrag}
