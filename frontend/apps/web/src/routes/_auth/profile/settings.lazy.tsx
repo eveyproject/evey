@@ -206,13 +206,13 @@ function SettingsPage() {
 
       <ProfileCard />
 
-      <div className="flex gap-1 border-b border-[var(--border)]">
+      <div className="flex gap-1 border-b border-[var(--border)] overflow-x-auto scrollbar-none">
         {TABS.map((tb) => (
           <button
             key={tb.key}
             data-testid={`profile-settings-tab-${tb.key}`}
             onClick={() => setTab(tb.key)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors-fast border-b-2 -mb-px ${
+            className={`flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm transition-colors-fast border-b-2 -mb-px ${
               tab === tb.key
                 ? "border-[var(--accent)] text-[var(--accent)]"
                 : "border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
