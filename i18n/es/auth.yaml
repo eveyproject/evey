@@ -53,6 +53,8 @@ forgotPassword:
   backToLogin: "Volver al inicio de sesión"
   checkEmail: "Revisa tu email"
   emailSent: "Si existe una cuenta con ese email, hemos enviado un enlace de restablecimiento."
+  unavailableTitle: "Recuperación de contraseña no disponible"
+  unavailableDescription: "La recuperación de contraseña no está habilitada en este servidor. Contacta con tu administrador para restablecer tu contraseña."
 resetPassword:
   title: "Nueva contraseña"
   description: "Elige una nueva contraseña."

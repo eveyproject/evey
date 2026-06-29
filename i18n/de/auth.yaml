@@ -53,6 +53,8 @@ forgotPassword:
   backToLogin: Zurück zur Anmeldung
   checkEmail: Überprüfen Sie Ihre E-Mail
   emailSent: Falls ein Konto mit dieser E-Mail existiert, haben wir einen Link zum Zurücksetzen gesendet.
+  unavailableTitle: Passwort-Wiederherstellung nicht verfügbar
+  unavailableDescription: Die Passwort-Wiederherstellung ist auf diesem Server nicht aktiviert. Wenden Sie sich an Ihren Administrator, um Ihr Passwort zurückzusetzen.
 resetPassword:
   title: Neues Passwort festlegen
   description: Wählen Sie ein neues Passwort für Ihr Konto.
