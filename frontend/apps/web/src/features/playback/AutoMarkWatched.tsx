@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceGetWatchProgress } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 
@@ -35,7 +36,26 @@ export function AutoMarkWatched({ mediaId, videoRef, knownDurationSec, transcode
     { profileId },
     { query: { enabled: !!mediaId && !!profileId } },
   );
-  const { mutate } = usePlaybackServiceMarkAsWatched();
+  const queryClient = useQueryClient();
+  const { mutate } = usePlaybackServiceMarkAsWatched({
+    mutation: {
+      // Mirror the manual mark-watched paths (MediaCard.invalidateItem): without
+      // this the silent 90% auto-mark updated the server but no cache, so a
+      // finished episode lingered as unwatched / in "Continue Watching" until
+      // staleTime (5min) elapsed.
+      onSuccess: () => {
+        if (mediaId) void queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
+        void queryClient.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
+        void queryClient.invalidateQueries({
+          predicate: (q) => {
+            const k = q.queryKey?.[0];
+            if (typeof k !== "string") return false;
+            return k.startsWith("/api/v1/feeds/") || k === "/api/v1/activity/popular-media";
+          },
+        });
+      },
+    },
+  });
   const firedRef = useRef(false);
 
   // Reset on media change.

@@ -6,8 +6,17 @@ import { AutoMarkWatched } from "./AutoMarkWatched";
 const mockMutate = vi.fn();
 let mockProgress: { played?: boolean } | undefined;
 
+vi.mock("@tanstack/react-query", () => ({
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+}));
+
 vi.mock("@evey/api", () => ({
-  usePlaybackServiceMarkAsWatched: () => ({ mutate: mockMutate }),
+  usePlaybackServiceMarkAsWatched: (opts?: { mutation?: { onSuccess?: () => void } }) => ({
+    mutate: (vars: unknown) => {
+      mockMutate(vars);
+      opts?.mutation?.onSuccess?.();
+    },
+  }),
   usePlaybackServiceGetWatchProgress: () => ({ data: mockProgress }),
 }));
 
