@@ -297,6 +297,8 @@ watchHistory:
   clearTitle: "清除观看历史"
   clearConfirm: "这将永久删除您的所有观看历史。此操作无法撤销。"
   clearAll: "全部清除"
+  cleared: 观看历史已清除
+  clearFailed: 无法清除观看历史
   title: 观看历史
   openMedia: 打开媒体详情
 apiDocs:

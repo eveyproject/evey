@@ -302,5 +302,7 @@ watchHistory:
   clearTitle: "Borrar historial de reproducción"
   clearConfirm: "Esto eliminará permanentemente todo tu historial de reproducción. Esta acción no se puede deshacer."
   clearAll: "Borrar todo"
+  cleared: "Historial de reproducción borrado"
+  clearFailed: "No se pudo borrar el historial de reproducción"
   title: Historial de visualización
   openMedia: Abrir detalles del medio
