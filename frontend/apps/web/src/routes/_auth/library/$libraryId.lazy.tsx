@@ -143,17 +143,23 @@ function LibraryPage() {
     if (!profileId || selectedIds.size === 0) return;
     const ids = Array.from(selectedIds);
     const fn = watched ? markWatched.mutateAsync : markUnwatched.mutateAsync;
-    await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
-    ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
-    // The grid cards render watched status from the library LIST queries, not the
-    // per-item detail query, so those must be invalidated too — otherwise the
-    // watched badges stay stale after a bulk mark until reload.
-    queryClient.invalidateQueries({ queryKey: ["lib-infinite"] });
-    queryClient.invalidateQueries({ queryKey: ["lib-infinite-filter"] });
-    queryClient.invalidateQueries({ queryKey: ["lib-search"] });
-    toast.success(watched ? t("media.favorites.markedWatched", { count: ids.length }) : t("media.favorites.markedUnwatched", { count: ids.length }));
-    setSelectedIds(new Set());
-    setBulkMode(false);
+    try {
+      await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
+      ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
+      // The grid cards render watched status from the library LIST queries, not the
+      // per-item detail query, so those must be invalidated too — otherwise the
+      // watched badges stay stale after a bulk mark until reload.
+      queryClient.invalidateQueries({ queryKey: ["lib-infinite"] });
+      queryClient.invalidateQueries({ queryKey: ["lib-infinite-filter"] });
+      queryClient.invalidateQueries({ queryKey: ["lib-search"] });
+      toast.success(watched ? t("media.favorites.markedWatched", { count: ids.length }) : t("media.favorites.markedUnwatched", { count: ids.length }));
+      setSelectedIds(new Set());
+      setBulkMode(false);
+    } catch {
+      // Without this, a rejected Promise.all left the selection + bulk bar stuck
+      // with no feedback and skipped the cache invalidations above.
+      toast.error(t("common.error"));
+    }
   }
 
   async function bulkAddFavorites() {
