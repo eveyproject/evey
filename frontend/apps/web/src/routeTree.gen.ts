@@ -373,9 +373,7 @@ const AuthAdminFeedsRoute = AuthAdminFeedsRouteImport.update({
   id: '/feeds',
   path: '/feeds',
   getParentRoute: () => AuthAdminRoute,
-} as any).lazy(() =>
-  import('./routes/_auth/admin/feeds.lazy').then((d) => d.Route),
-)
+} as any)
 const AuthAdminBackupRoute = AuthAdminBackupRouteImport.update({
   id: '/backup',
   path: '/backup',
