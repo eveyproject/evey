@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Folder } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -443,6 +443,24 @@ function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const [from, setFrom] = useState(() => val("smtp.from"));
   const [tls, setTls] = useState(() => val("smtp.tls") || "starttls");
   const [showPassword, setShowPassword] = useState(false);
+
+  // Re-seed from the config the FIRST time it arrives. useState(() => val())
+  // only seeds at mount, so if this card mounts BEFORE the config query
+  // resolves, the fields stay empty and Save would overwrite the stored SMTP
+  // settings with blanks (data loss). Seed once (ref guard) so subsequent user
+  // edits are never clobbered by a refetch.
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current || !entries) return;
+    seeded.current = true;
+    const get = (k: SmtpKey) => entries.find((e) => e.key === k)?.value ?? "";
+    setHost(get("smtp.host"));
+    setPort(get("smtp.port") || "587");
+    setUsername(get("smtp.username"));
+    setPassword(get("smtp.password"));
+    setFrom(get("smtp.from"));
+    setTls(get("smtp.tls") || "starttls");
+  }, [entries]);
 
   function handleSave() {
     const pairs: { key: SmtpKey; value: string }[] = [
