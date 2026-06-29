@@ -173,7 +173,7 @@ function RemoteAccessPage() {
                 <div
                   className="rounded-[var(--radius-md)] overflow-hidden border border-[var(--border)]"
                 >
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-cards">
                     <thead>
                       <tr className="border-b border-[var(--border)]">
                         <th
@@ -196,11 +196,13 @@ function RemoteAccessPage() {
                         >
                           <td
                             className="px-4 py-2 font-mono text-xs text-[var(--text)]"
+                            data-label={t("admin.remoteAccess.interface")}
                           >
                             {iface.name}
                           </td>
                           <td
                             className="px-4 py-2 font-mono text-xs text-[var(--text-muted)]"
+                            data-label={t("admin.remoteAccess.address")}
                           >
                             {iface.address}
                           </td>

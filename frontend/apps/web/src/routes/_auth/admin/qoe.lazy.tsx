@@ -252,7 +252,7 @@ function QoEPage() {
                 {t("admin.qoe.topStarved.empty")}
               </p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-cards">
                 <thead className="bg-muted/40 text-left">
                   <tr>
                     <th className="p-3">{t("admin.qoe.col.title", "Title")}</th>
@@ -273,7 +273,7 @@ function QoEPage() {
                 <tbody>
                   {data.top_starved_titles.map((row) => (
                     <tr key={row.media_item_id} className="border-t border-border align-top">
-                      <td className="p-3">
+                      <td className="p-3" data-label={t("admin.qoe.col.title", "Title")}>
                         {/* Title (or fallback to short ID for orphans
                             after a library cleanup) + secondary line
                             with file_path so an admin can grep the
@@ -295,16 +295,16 @@ function QoEPage() {
                           </div>
                         )}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label={t("admin.qoe.col.starvedRatio")}>
                         {formatPct(row.starved_ratio)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label={t("admin.qoe.col.starvedEvents")}>
                         {formatInt(row.starved_events)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label={t("admin.qoe.col.totalEvents")}>
                         {formatInt(row.total_events)}
                       </td>
-                      <td className="p-3 text-right text-muted-foreground">
+                      <td className="p-3 text-right text-muted-foreground" data-label={t("admin.qoe.col.lastStarved")}>
                         {formatRelative(row.last_starved_at, t)}
                       </td>
                     </tr>
@@ -328,7 +328,7 @@ function QoEPage() {
                 {t("admin.qoe.byDevice.empty")}
               </p>
             ) : (
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-cards">
                 <thead className="bg-muted/40 text-left">
                   <tr>
                     <th className="p-3">{t("admin.qoe.col.deviceClass")}</th>
@@ -349,19 +349,19 @@ function QoEPage() {
                 <tbody>
                   {data.by_device.map((row) => (
                     <tr key={row.device_class} className="border-t border-border">
-                      <td className="p-3 font-mono text-xs">
+                      <td className="p-3 font-mono text-xs" data-label={t("admin.qoe.col.deviceClass")}>
                         {row.device_class}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label={t("admin.qoe.col.totalEvents")}>
                         {formatInt(row.total_events)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label={t("admin.qoe.col.starvedRatio")}>
                         {formatPct(row.starved_ratio)}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label={t("admin.qoe.col.avgBufferMs")}>
                         {formatInt(Math.round(row.avg_buffer_ms))}
                       </td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right" data-label={t("admin.qoe.col.avgEncodedKbps")}>
                         {formatInt(Math.round(row.avg_encoded_kbps))}
                       </td>
                     </tr>
@@ -458,7 +458,7 @@ function EncodeOverridesCard() {
           )}
         </p>
       ) : (
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-cards">
           <thead className="bg-muted/40 text-left">
             <tr>
               <th className="p-3">{t("admin.qoe.overrides.col.sourceClass", "Source bucket")}</th>
@@ -474,14 +474,14 @@ function EncodeOverridesCard() {
           <tbody>
             {overrides.map((o) => (
               <tr key={o.source_class} className="border-t border-border">
-                <td className="p-3 font-medium">{o.source_class}</td>
-                <td className="p-3 text-right">{o.max_height}p</td>
-                <td className="p-3 text-right">{formatPct(o.starved_ratio)}</td>
-                <td className="p-3 text-right">{o.samples_count}</td>
-                <td className="p-3 text-xs text-muted-foreground">{fmtDate(o.applied_at)}</td>
-                <td className="p-3 text-xs text-muted-foreground">{fmtDate(o.expires_at)}</td>
-                <td className="p-3 text-xs text-muted-foreground">{o.reason}</td>
-                <td className="p-3 text-right">
+                <td className="p-3 font-medium" data-label={t("admin.qoe.overrides.col.sourceClass", "Source bucket")}>{o.source_class}</td>
+                <td className="p-3 text-right" data-label={t("admin.qoe.overrides.col.maxHeight", "Cap")}>{o.max_height}p</td>
+                <td className="p-3 text-right" data-label={t("admin.qoe.overrides.col.starvedRatio", "Starved")}>{formatPct(o.starved_ratio)}</td>
+                <td className="p-3 text-right" data-label={t("admin.qoe.overrides.col.samples", "Samples")}>{o.samples_count}</td>
+                <td className="p-3 text-xs text-muted-foreground" data-label={t("admin.qoe.overrides.col.appliedAt", "Applied")}>{fmtDate(o.applied_at)}</td>
+                <td className="p-3 text-xs text-muted-foreground" data-label={t("admin.qoe.overrides.col.expiresAt", "Expires")}>{fmtDate(o.expires_at)}</td>
+                <td className="p-3 text-xs text-muted-foreground" data-label={t("admin.qoe.overrides.col.reason", "Reason")}>{o.reason}</td>
+                <td className="p-3 text-right" data-label="">
                   <button
                     type="button"
                     onClick={() => resetOverride(o.source_class)}
