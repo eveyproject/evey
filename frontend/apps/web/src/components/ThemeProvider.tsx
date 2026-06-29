@@ -21,11 +21,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Reset theme if the active plugin was uninstalled
   useEffect(() => {
     if (!pluginId) return;
+    let ignore = false;
     const checkPlugin = async () => {
       try {
         const res = await eveyFetch<ListPluginsResponse>({ url: "/api/v1/plugins", method: "GET" });
         const installed = res.plugins ?? [];
-        if (!installed.some((p) => p.id === pluginId)) {
+        if (!ignore && !installed.some((p) => p.id === pluginId)) {
           setTheme("default");
         }
       } catch {
@@ -33,6 +34,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       }
     };
     checkPlugin();
+    return () => { ignore = true; };
   }, [pluginId, setTheme]);
 
   useEffect(() => {

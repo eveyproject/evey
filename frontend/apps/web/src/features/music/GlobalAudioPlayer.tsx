@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { eveyFetchRaw } from "@evey/api";
-import { useAuthStore, useMusicPlayerStore } from "@evey/store";
+import { toast, useAuthStore, useMusicPlayerStore } from "@evey/store";
 import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX, Shuffle } from "lucide-react";
 
 function formatDuration(seconds: number): string {
@@ -205,6 +205,10 @@ export function GlobalAudioPlayer() {
         }}
         onPlay={() => setIsPlaying(true)}
         onPause={() => setIsPlaying(false)}
+        onError={() => {
+          toast.error(t("common.error"));
+          next();
+        }}
       />
       <div className="flex items-center gap-3 min-w-0 w-[120px] sm:w-[200px]">
         <MiniTrackArt trackID={playing.ID} coverArtURL={playing.CoverArtURL} />

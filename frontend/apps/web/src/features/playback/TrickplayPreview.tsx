@@ -71,6 +71,13 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
   const hasTrickplay = !mediaType || TRICKPLAY_TYPES.has(mediaType);
 
+  // When mediaId changes without remount (e.g. next episode), evict stale cues
+  // immediately so the previous episode's thumbnails are never shown on hover.
+  useEffect(() => {
+    setCues(cueCache.get(mediaId) ?? []);
+    setLoaded((cueCache.get(mediaId)?.length ?? 0) > 0);
+  }, [mediaId]);
+
   useEffect(() => {
     if (!mediaId || !hasTrickplay || fetchedIds.has(mediaId)) return;
     fetchedIds.add(mediaId);
