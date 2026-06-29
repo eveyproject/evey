@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, X, ListFilter, Music } from "lucide-react";
+import { Search, X, ListFilter, Music, TriangleAlert } from "lucide-react";
 import { createLazyFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -122,7 +122,7 @@ function SearchPage() {
 
   // Music search (separate index, cross-library) — only when the music scope is
   // selected.
-  const { data: musicData, isLoading: musicLoading } = useQuery({
+  const { data: musicData, isLoading: musicLoading, isError: musicIsError } = useQuery({
     queryKey: ["/api/v1/music/search", debouncedQuery],
     queryFn: ({ signal }) => musicServiceSearchMusic({ query: debouncedQuery, limit: 40 }, signal),
     enabled: debouncedQuery.length > 1 && searchKind === "music",
@@ -306,7 +306,7 @@ function SearchPage() {
         </div>
       )}
 
-      {hasQuery && !isLoading && !musicLoading && items.length === 0 && musicItems.length === 0 && (
+      {hasQuery && !isLoading && !musicLoading && items.length === 0 && musicItems.length === 0 && !musicIsError && (
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
@@ -377,6 +377,18 @@ function SearchPage() {
             ))}
           </MediaGrid>
         </>
+      )}
+
+      {searchKind === "music" && hasQuery && !musicLoading && musicIsError && (
+        <div
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
+        >
+          <EmptyState
+            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+            title={t("common.errorBoundary.title")}
+            description={t("common.errorBoundary.description")}
+          />
+        </div>
       )}
 
       {searchKind === "music" && musicItems.length > 0 && (

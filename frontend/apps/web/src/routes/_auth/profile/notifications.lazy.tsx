@@ -1,4 +1,4 @@
-import { Bell, Plus, Play, Info } from "lucide-react";
+import { Bell, Plus, Play, Info, TriangleAlert } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import {
@@ -102,7 +102,7 @@ function NotificationsPage() {
     void qc.invalidateQueries({ queryKey: getNotificationServiceGetUnreadCountQueryKey() });
   };
 
-  const { data, isLoading } = useNotificationServiceListNotifications();
+  const { data, isLoading, isError } = useNotificationServiceListNotifications();
   const markAllRead = useNotificationServiceMarkAllRead({ mutation: { onSuccess: invalidate } });
   const deleteAll = useNotificationServiceDeleteAllNotifications({
     mutation: {
@@ -141,11 +141,15 @@ function NotificationsPage() {
 
       {isLoading && <p className="text-sm text-[var(--text-muted)]">{t("common.loading")}</p>}
 
-      {!isLoading && notifications.length === 0 && (
+      {!isLoading && isError && (
+        <EmptyState icon={<TriangleAlert size={48} strokeWidth={1.5} />} title={t("common.errorBoundary.title")} description={t("common.errorBoundary.description")} />
+      )}
+
+      {!isLoading && !isError && notifications.length === 0 && (
         <EmptyState icon={<Bell size={48} strokeWidth={1.5} />} title={t("common.notifications.noNotifications")} description={t("common.notifications.allCaughtUp")} />
       )}
 
-      {!isLoading && notifications.length > 0 && (
+      {!isLoading && !isError && notifications.length > 0 && (
         <div className="bg-[var(--surface-raised)] rounded-[var(--radius-md)] overflow-hidden">
           {notifications.map((n) => (
             <NotificationRow key={n.id} notif={n} />

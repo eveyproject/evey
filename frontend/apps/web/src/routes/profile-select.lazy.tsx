@@ -8,7 +8,7 @@ import {
   userServiceRefreshToken,
 } from "@evey/api";
 import type { V1Profile } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
@@ -73,7 +73,8 @@ function ProfileSelectPage() {
     const ok = await switchProfile(p);
     setBusy(null);
     if (ok) void navigate({ to: "/home" });
-  }, [busy, currentIsKids, switchProfile, navigate]);
+    else toast.error(t("common.error"));
+  }, [busy, currentIsKids, switchProfile, navigate, t]);
 
   useEffect(() => {
     if (loading || autoRedirectedRef.current) return;
@@ -165,6 +166,7 @@ function ProfileSelectPage() {
             const ok = await switchProfile(target, pinToken);
             setBusy(null);
             if (ok) void navigate({ to: "/home" });
+            else toast.error(t("common.error"));
           }}
         />
       )}

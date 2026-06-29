@@ -1,5 +1,5 @@
 import { useState, useMemo, memo, type FC } from "react";
-import { Folder, Settings2 } from "lucide-react";
+import { Folder, Settings2, TriangleAlert } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   useFeedServiceRecommended,
@@ -243,15 +243,16 @@ function HomePage() {
   const profileId = useAuthStore((s) => s.profileId);
   const [customizeOpen, setCustomizeOpen] = useState(false);
 
-  const { data: librariesData, isLoading: librariesLoading } = useLibraryServiceListLibraries();
+  const { data: librariesData, isLoading: librariesLoading, isError: librariesIsError } = useLibraryServiceListLibraries();
   const libraries = librariesData?.libraries ?? [];
-  const { data: recentlyAdded, isLoading: recentLoading } = useFeedServiceRecentlyAdded();
+  const { data: recentlyAdded, isLoading: recentLoading, isError: recentIsError } = useFeedServiceRecentlyAdded();
   const { data: feedConfig, isError: feedConfigError } = useFeedServiceGetFeedConfig(
     { profileId: profileId ?? undefined },
     { query: { retry: 1, staleTime: 60_000 } },
   );
   const hasContent = (recentlyAdded?.items ?? []).length > 0 || libraries.length > 0;
   const isLoading = librariesLoading || recentLoading;
+  const isContentError = librariesIsError || recentIsError;
 
   const allSections = useMemo(() => {
     const configs = feedConfig?.configs;
@@ -291,7 +292,13 @@ function HomePage() {
           </button>
         </div>
 
-        {!isLoading && !hasContent ? (
+        {!isLoading && isContentError ? (
+          <EmptyState
+            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+            title={t("common.errorBoundary.title")}
+            description={t("common.errorBoundary.description")}
+          />
+        ) : !isLoading && !hasContent ? (
           <EmptyState
             icon={<Folder size={48} strokeWidth={1.5} />}
             title={t("media.home.emptyLibrary")}
