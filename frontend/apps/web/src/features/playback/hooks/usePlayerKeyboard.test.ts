@@ -35,7 +35,7 @@ function defaultArgs(video: HTMLVideoElement) {
     closePanelRef: { current: vi.fn() },
     onCloseRef: { current: vi.fn() },
     setPlaybackSpeed: vi.fn(),
-    setCurrentSubtitle: vi.fn(),
+    onSubtitleChange: vi.fn(),
     setShowShortcuts: vi.fn(),
     showActionFlash: vi.fn(),
   };
@@ -202,7 +202,7 @@ describe("usePlayerKeyboard", () => {
 
       pressKey("c");
 
-      expect(args.setCurrentSubtitle).toHaveBeenCalledWith(0);
+      expect(args.onSubtitleChange).toHaveBeenCalledWith(0);
     });
 
     it("disables subtitle when currently on", () => {
@@ -216,7 +216,7 @@ describe("usePlayerKeyboard", () => {
 
       pressKey("c");
 
-      expect(args.setCurrentSubtitle).toHaveBeenCalledWith(null);
+      expect(args.onSubtitleChange).toHaveBeenCalledWith(null);
     });
 
     it("does nothing when no subtitles available", () => {
@@ -226,7 +226,7 @@ describe("usePlayerKeyboard", () => {
 
       pressKey("c");
 
-      expect(args.setCurrentSubtitle).not.toHaveBeenCalled();
+      expect(args.onSubtitleChange).not.toHaveBeenCalled();
     });
   });
 

@@ -437,10 +437,44 @@ export function HLSPlayer({
     return true;
   }, [isDirectPlay, castSeek, castReload, title]);
 
+  // Canonical subtitle selection — shared by the settings panel picker and the
+  // keyboard "c" shortcut. Crucially, when toggling a burn-in track (PGS/VobSub)
+  // in transcode mode it restarts the transcode from the current position so the
+  // server re-encodes with the subtitle burned in. The raw setCurrentSubtitle
+  // setter alone flips the state without re-encoding, so a burn-in subtitle
+  // picked via "c" never actually appeared.
+  const handleSubtitleChange = useCallback((trackIndex: number | null) => {
+    userPickedSubtitleRef.current = true;
+    const prevBurnIn = selectedBurnInTrack;
+    const nextSub = trackIndex !== null ? subtitleStreams.find((st) => st.trackIndex === trackIndex) : null;
+    const nextBurnIn = nextSub?.burnIn ? trackIndex : null;
+
+    setCurrentSubtitle(trackIndex);
+
+    if (transcodeMode && prevBurnIn !== nextBurnIn) {
+      setTranscodeStartTime(positionRef.current);
+    }
+
+    if (trackIndex === null) {
+      setPreferredSubtitleLang(null);
+      if (seriesId) {
+        const cur = getSeriesTrackPrefs(seriesId) ?? {};
+        setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: null });
+      }
+    } else {
+      const lang = nextSub?.language ?? nextSub?.title ?? null;
+      setPreferredSubtitleLang(lang);
+      if (seriesId) {
+        const cur = getSeriesTrackPrefs(seriesId) ?? {};
+        setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: lang });
+      }
+    }
+  }, [selectedBurnInTrack, subtitleStreams, transcodeMode, setCurrentSubtitle, setTranscodeStartTime, setPreferredSubtitleLang, seriesId, getSeriesTrackPrefs, setSeriesTrackPrefs]);
+
   usePlayerKeyboard({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef,
     playbackSpeedRef, subtitleStreamsRef, currentSubtitleRef, anyPanelOpenRef,
-    closePanelRef, onCloseRef, setPlaybackSpeed, setCurrentSubtitle,
+    closePanelRef, onCloseRef, setPlaybackSpeed, onSubtitleChange: handleSubtitleChange,
     setShowShortcuts, showActionFlash,
   });
 
@@ -749,34 +783,7 @@ export function HLSPlayer({
           onAudioChange={handleAudioChange}
           onQualityChange={handleQualityChange}
           onAutoQualityToggle={handleAutoQualityToggle}
-          onSubtitleChange={(trackIndex) => {
-            userPickedSubtitleRef.current = true;
-            const prevBurnIn = selectedBurnInTrack;
-            const nextSub = trackIndex !== null ? subtitleStreams.find((st) => st.trackIndex === trackIndex) : null;
-            const nextBurnIn = nextSub?.burnIn ? trackIndex : null;
-
-            setCurrentSubtitle(trackIndex);
-
-            if (transcodeMode && prevBurnIn !== nextBurnIn) {
-              setTranscodeStartTime(positionRef.current);
-            }
-
-            if (trackIndex === null) {
-              setPreferredSubtitleLang(null);
-              if (seriesId) {
-                const cur = getSeriesTrackPrefs(seriesId) ?? {};
-                setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: null });
-              }
-            } else {
-              const s = subtitleStreams.find((st) => st.trackIndex === trackIndex);
-              const lang = s?.language ?? s?.title ?? null;
-              setPreferredSubtitleLang(lang);
-              if (seriesId) {
-                const cur = getSeriesTrackPrefs(seriesId) ?? {};
-                setSeriesTrackPrefs(seriesId, { ...cur, subtitleLang: lang });
-              }
-            }
-          }}
+          onSubtitleChange={handleSubtitleChange}
           onSpeedChange={setPlaybackSpeed}
           onSeasonChange={onSeasonChange}
           onEpisodeChange={onEpisodeChange}

@@ -16,7 +16,10 @@ interface UsePlayerKeyboardArgs {
   closePanelRef: React.MutableRefObject<(() => void) | null>;
   onCloseRef: React.MutableRefObject<(() => void) | undefined>;
   setPlaybackSpeed: (s: number) => void;
-  setCurrentSubtitle: (v: number | null) => void;
+  // Burn-in-aware subtitle selector (same handler the settings panel uses), so
+  // the "c" shortcut restarts the transcode for PGS/VobSub tracks instead of
+  // silently flipping state with no on-screen subtitle.
+  onSubtitleChange: (trackIndex: number | null) => void;
   setShowShortcuts: (fn: (prev: boolean) => boolean) => void;
   showActionFlash: (action: "play" | "pause") => void;
 }
@@ -35,14 +38,14 @@ export function usePlayerKeyboard({
   closePanelRef,
   onCloseRef,
   setPlaybackSpeed,
-  setCurrentSubtitle,
+  onSubtitleChange,
   setShowShortcuts,
   showActionFlash,
 }: UsePlayerKeyboardArgs) {
   const setPlaybackSpeedRef = useRef(setPlaybackSpeed);
   setPlaybackSpeedRef.current = setPlaybackSpeed;
-  const setCurrentSubtitleRef = useRef(setCurrentSubtitle);
-  setCurrentSubtitleRef.current = setCurrentSubtitle;
+  const onSubtitleChangeRef = useRef(onSubtitleChange);
+  onSubtitleChangeRef.current = onSubtitleChange;
   const setShowShortcutsRef = useRef(setShowShortcuts);
   setShowShortcutsRef.current = setShowShortcuts;
   const showActionFlashRef = useRef(showActionFlash);
@@ -130,8 +133,9 @@ export function usePlayerKeyboard({
           const subs = subtitleStreamsRef.current;
           const cur = currentSubtitleRef.current;
           if (subs.length === 0) break;
-          if (cur === null) setCurrentSubtitleRef.current(subs[0].trackIndex);
-          else setCurrentSubtitleRef.current(null);
+          // Route through the burn-in-aware handler so PGS/VobSub tracks
+          // trigger a transcode restart (otherwise nothing renders on screen).
+          onSubtitleChangeRef.current(cur === null ? subs[0].trackIndex : null);
           break;
         }
         case "p":
