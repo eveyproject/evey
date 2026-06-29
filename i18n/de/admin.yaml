@@ -195,6 +195,7 @@ users:
   impersonationBanner: "Sie handeln als {{name}}"
   impersonationBannerGeneric: "Sie handeln als ein anderer Benutzer"
   exitImpersonation: "Beenden"
+  impersonationEnded: "Sie agieren nicht mehr als anderer Benutzer"
   userUpdated: Benutzer aktualisiert
   deleteUserTitle: Benutzer löschen
   deleteUserConfirm: "Benutzer \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."

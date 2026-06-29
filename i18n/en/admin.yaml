@@ -195,6 +195,7 @@ users:
   impersonationBanner: "You are acting as {{name}}"
   impersonationBannerGeneric: "You are acting as another user"
   exitImpersonation: "Exit"
+  impersonationEnded: "You're no longer acting as another user"
   userUpdated: User updated
   deleteUserTitle: Delete User
   deleteUserConfirm: "Delete user \"{{name}}\"? This cannot be undone."

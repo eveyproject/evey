@@ -195,6 +195,7 @@ users:
   impersonationBanner: "आप {{name}} के रूप में कार्य कर रहे हैं"
   impersonationBannerGeneric: "आप किसी अन्य उपयोगकर्ता के रूप में कार्य कर रहे हैं"
   exitImpersonation: "बाहर निकलें"
+  impersonationEnded: "अब आप किसी अन्य उपयोगकर्ता के रूप में कार्य नहीं कर रहे हैं"
   userUpdated: "उपयोगकर्ता अपडेट हुआ"
   deleteUserTitle: "उपयोगकर्ता मिटाएं"
   deleteUserConfirm: "उपयोगकर्ता \"{{name}}\" मिटाएं? यह क्रिया पूर्ववत नहीं की जा सकती।"

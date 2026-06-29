@@ -195,6 +195,7 @@ users:
   impersonationBanner: "您正在以 {{name}} 的身份操作"
   impersonationBannerGeneric: "您正在以其他用户身份操作"
   exitImpersonation: "退出"
+  impersonationEnded: "您已不再以其他用户身份操作"
   userUpdated: "用户已更新"
   deleteUserTitle: "删除用户"
   deleteUserConfirm: "确定删除用户「{{name}}」？此操作无法撤销。"

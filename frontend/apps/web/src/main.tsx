@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { setTokenProvider, setTokensUpdater, setLocaleProvider, userServiceRefreshToken } from "@evey/api";
 import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
@@ -61,6 +61,21 @@ function scheduleTokenRefresh() {
     if (tokenParts.length < 3 || !tokenParts[1]) return;
     const payload = JSON.parse(atob(tokenParts[1].replace(/-/g, "+").replace(/_/g, "/")));
     const expiresMs = payload.exp * 1000;
+    // While impersonating, the HttpOnly refresh cookie still belongs to the
+    // admin (ImpersonateUser issues only an access token, no cookie rotation).
+    // A proactive refresh would therefore silently mint a fresh ADMIN token and
+    // revert identity mid-session — the banner vanishes but the UI stays on the
+    // impersonated user's pages, so further actions run as the admin unannounced.
+    // Instead of refreshing, end impersonation cleanly when the token expires,
+    // which restores the admin's own token and leaves a consistent state.
+    if (useAuthStore.getState().impersonatedBy) {
+      refreshTimer = setTimeout(() => {
+        if (!useAuthStore.getState().impersonatedBy) return;
+        useAuthStore.getState().exitImpersonation();
+        toast.info(i18n.t("admin.users.impersonationEnded"));
+      }, Math.max(expiresMs - Date.now(), 0));
+      return;
+    }
     // Random jitter in [0, 30s] so two tabs don't wake at the same millisecond.
     const jitter = Math.floor(Math.random() * 30_000);
     const refreshAt = expiresMs - 2 * 60 * 1000 + jitter;

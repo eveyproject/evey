@@ -194,6 +194,7 @@ users:
   impersonationBanner: "Vous agissez en tant que {{name}}"
   impersonationBannerGeneric: "Vous agissez en tant qu'un autre utilisateur"
   exitImpersonation: "Quitter"
+  impersonationEnded: "Vous n'agissez plus en tant qu'un autre utilisateur"
   userUpdated: "Utilisateur mis à jour"
   deleteUserTitle: "Supprimer l'utilisateur"
   deleteUserConfirm: "Supprimer l'utilisateur \"{{name}}\" ? Cette action est irréversible."
