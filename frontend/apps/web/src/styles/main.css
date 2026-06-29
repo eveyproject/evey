@@ -220,3 +220,33 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
     scroll-behavior: auto !important;
   }
 }
+
+/* Responsive data tables: below md (768px) each row becomes a stacked card so
+   every column is visible WITHOUT horizontal scroll. Add `table-cards` to the
+   <table> and `data-label="…"` to each <td>; cells without a data-label (e.g.
+   colSpan empty-state) render full-width. */
+@media (max-width: 767px) {
+  .table-cards thead { display: none; }
+  .table-cards tr {
+    display: block;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-cards td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 1rem !important;
+    white-space: normal !important;
+    text-align: right;
+  }
+  .table-cards td::before {
+    content: attr(data-label);
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: left;
+    flex-shrink: 0;
+  }
+  .table-cards td:not([data-label]) { display: block; text-align: left; }
+}

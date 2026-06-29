@@ -61,23 +61,23 @@ export function UserRow({ user }: { user: V1User }) {
 
   return (
     <tr className="border-b border-[var(--border)]">
-      <td className="px-4 py-3 font-medium text-[var(--text)]">
+      <td data-label={t("admin.users.username")} className="px-4 py-3 font-medium text-[var(--text)]">
         {user.username}
       </td>
-      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+      <td data-label={t("admin.users.email")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {user.email ?? "\u2014"}
       </td>
-      <td className="px-4 py-3">
+      <td data-label={t("admin.users.role")} className="px-4 py-3">
         {user.isAdmin ? <Badge variant="warning">{t("admin.users.admin")}</Badge> : <Badge>{t("admin.users.user")}</Badge>}
       </td>
-      <td className="px-4 py-3">
+      <td data-label={t("common.status")} className="px-4 py-3">
         {user.enabled !== false ? (
           <Badge variant="success">{t("common.enabled")}</Badge>
         ) : (
           <Badge variant="error">{t("common.disabled")}</Badge>
         )}
       </td>
-      <td className="px-4 py-3 whitespace-nowrap">
+      <td data-label={t("common.actions")} className="px-4 py-3 whitespace-nowrap">
         <div className="flex gap-2 flex-wrap">
           <Button
             variant="secondary"
