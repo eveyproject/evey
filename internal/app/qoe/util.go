@@ -1,17 +1,17 @@
 package qoe
 
 import (
-	"net/http"
 	"strings"
 )
 
-// DeviceClass derives a coarse client class from User-Agent at ingest time.
-// Cheap to compute up front, expensive to do at dashboard query time across
-// millions of rows. Kept deliberately coarse — we only need to slice
+// DeviceClass derives a coarse client class from a User-Agent string at ingest
+// time. Cheap to compute up front, expensive to do at dashboard query time
+// across millions of rows. Kept deliberately coarse — we only need to slice
 // "web vs mobile vs TV" in the admin view, not to fingerprint individual
-// browsers.
-func DeviceClass(r *http.Request) string {
-	ua := strings.ToLower(r.UserAgent())
+// browsers. Takes the raw UA string (not *http.Request) so this application-
+// layer helper stays free of the net/http transport dependency.
+func DeviceClass(userAgent string) string {
+	ua := strings.ToLower(userAgent)
 	switch {
 	case ua == "":
 		return "unknown"
@@ -32,11 +32,12 @@ func DeviceClass(r *http.Request) string {
 	}
 }
 
-// RemoteIP returns the request's remote address with the port stripped.
-// Trusted-proxy unwinding is already done by the proxy middleware upstream,
-// so r.RemoteAddr at this layer is already the real client IP.
-func RemoteIP(r *http.Request) string {
-	addr := r.RemoteAddr
+// RemoteIP strips the port from a remote-address string ("host:port" →
+// "host"). Trusted-proxy unwinding is already done by the proxy middleware
+// upstream, so the address passed here is already the real client IP. Takes a
+// string (not *http.Request) to keep this layer transport-agnostic.
+func RemoteIP(remoteAddr string) string {
+	addr := remoteAddr
 	if addr == "" {
 		return ""
 	}

@@ -1,7 +1,6 @@
 package qoe
 
 import (
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,13 +34,7 @@ func TestDeviceClass(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r := httptest.NewRequest("GET", "/", nil)
-			if c.ua != "" {
-				r.Header.Set("User-Agent", c.ua)
-			} else {
-				r.Header.Del("User-Agent")
-			}
-			assert.Equal(t, c.want, DeviceClass(r))
+			assert.Equal(t, c.want, DeviceClass(c.ua))
 		})
 	}
 }
@@ -60,9 +53,7 @@ func TestRemoteIP(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r := httptest.NewRequest("GET", "/", nil)
-			r.RemoteAddr = c.addr
-			assert.Equal(t, c.want, RemoteIP(r))
+			assert.Equal(t, c.want, RemoteIP(c.addr))
 		})
 	}
 }
