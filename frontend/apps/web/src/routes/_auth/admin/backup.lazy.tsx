@@ -264,22 +264,22 @@ function BackupRow({ backup }: { backup: Backup }) {
 
   return (
     <tr className="border-b border-[var(--border)]">
-      <td className="px-4 py-3 font-mono text-xs text-[var(--text)]">
+      <td data-label={t("admin.backup.tableHeaders.id")} className="px-4 py-3 font-mono text-xs text-[var(--text)]">
         {backup.id}
       </td>
-      <td className="px-4 py-3 text-sm whitespace-nowrap text-[var(--text-muted)]">
+      <td data-label={t("admin.backup.tableHeaders.date")} className="px-4 py-3 text-sm whitespace-nowrap text-[var(--text-muted)]">
         {backup.createdAt ? new Date(backup.createdAt).toLocaleString() : ""}
       </td>
-      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+      <td data-label={t("admin.backup.tableHeaders.version")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {backup.version}
       </td>
-      <td className="px-4 py-3 text-sm whitespace-nowrap text-[var(--text-muted)]">
+      <td data-label={t("admin.backup.tableHeaders.size")} className="px-4 py-3 text-sm whitespace-nowrap text-[var(--text-muted)]">
         {formatSize(Number(backup.size ?? 0))}
       </td>
-      <td className="px-4 py-3">
+      <td data-label={t("admin.backup.tableHeaders.status")} className="px-4 py-3">
         <Badge variant="success">{t("admin.backup.ready")}</Badge>
       </td>
-      <td className="px-4 py-3">
+      <td data-label={t("admin.backup.tableHeaders.actions")} className="px-4 py-3">
         <div className="flex gap-2">
           <Button variant="secondary" onClick={handleDownload} className="text-xs">
             {t("common.download")}
@@ -449,7 +449,7 @@ function BackupPage() {
         <div
           className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
         >
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-cards">
             <thead>
               <tr
                 className="bg-[var(--surface)] border-b border-[var(--border)]"

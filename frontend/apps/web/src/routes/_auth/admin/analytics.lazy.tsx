@@ -99,7 +99,7 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
     <div
       className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
     >
-      <table className="w-full text-sm">
+      <table className="w-full text-sm table-cards">
         <thead>
           <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
             {[t("admin.analytics.tableHeaders.title"), t("admin.analytics.tableHeaders.plays"), t("admin.analytics.tableHeaders.totalWatchTime")].map((h) => (
@@ -115,13 +115,13 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
         <tbody>
           {items.map((item) => (
             <tr key={item.media_item_id} className="border-b border-[var(--border)]">
-              <td className="px-4 py-3 font-medium text-[var(--text)]">
+              <td data-label={t("admin.analytics.tableHeaders.title")} className="px-4 py-3 font-medium text-[var(--text)]">
                 {item.title}
               </td>
-              <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
+              <td data-label={t("admin.analytics.tableHeaders.plays")} className="px-4 py-3 text-xs text-[var(--text-muted)]">
                 {item.play_count}
               </td>
-              <td className="px-4 py-3 min-w-[200px]">
+              <td data-label={t("admin.analytics.tableHeaders.totalWatchTime")} className="px-4 py-3 min-w-[200px]">
                 <div className="flex items-center gap-2">
                   <div className="h-1.5 flex-1 rounded-full bg-[var(--border)]">
                     <div
@@ -159,7 +159,7 @@ function RecentActivityTable({ entries }: { entries: RecentActivityEntry[] }) {
     <div
       className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
     >
-      <table className="w-full text-sm">
+      <table className="w-full text-sm table-cards">
         <thead>
           <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
             {[t("admin.analytics.tableHeaders.user"), t("admin.analytics.tableHeaders.media"), t("admin.analytics.tableHeaders.when")].map((h) => (
@@ -175,13 +175,13 @@ function RecentActivityTable({ entries }: { entries: RecentActivityEntry[] }) {
         <tbody>
           {entries.map((entry, i) => (
             <tr key={`${entry.user_id}-${entry.played_at}-${i}`} className="border-b border-[var(--border)]">
-              <td className="px-4 py-3 font-medium text-[var(--text)]">
+              <td data-label={t("admin.analytics.tableHeaders.user")} className="px-4 py-3 font-medium text-[var(--text)]">
                 {entry.username}
               </td>
-              <td className="px-4 py-3 text-[var(--text)]">
+              <td data-label={t("admin.analytics.tableHeaders.media")} className="px-4 py-3 text-[var(--text)]">
                 {entry.media_title}
               </td>
-              <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
+              <td data-label={t("admin.analytics.tableHeaders.when")} className="px-4 py-3 text-xs text-[var(--text-muted)]">
                 {formatDate(entry.played_at)}
               </td>
             </tr>

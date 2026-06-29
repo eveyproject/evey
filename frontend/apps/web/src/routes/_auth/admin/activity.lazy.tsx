@@ -68,7 +68,7 @@ function PlayHistoryTab() {
       <div
         className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
       >
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-cards">
           <thead>
             <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
               {[t("admin.activity.playHeaders.title"), t("admin.activity.playHeaders.device"), t("admin.activity.playHeaders.duration"), t("admin.activity.playHeaders.progress"), t("admin.activity.playHeaders.started")].map((h) => (
@@ -95,16 +95,16 @@ function PlayHistoryTab() {
                 const pct = dur > 0 ? Math.round((pos / dur) * 100) : 0;
                 return (
                   <tr key={e.id} className="border-b border-[var(--border)]">
-                    <td className="px-4 py-3 text-[var(--text)]">
+                    <td data-label={t("admin.activity.playHeaders.title")} className="px-4 py-3 text-[var(--text)]">
                       {e.mediaTitle ?? "\u2014"}
                     </td>
-                    <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
+                    <td data-label={t("admin.activity.playHeaders.device")} className="px-4 py-3 text-xs text-[var(--text-muted)]">
                       {e.deviceName ?? e.clientName ?? "\u2014"}
                     </td>
-                    <td className="px-4 py-3 text-[var(--text-muted)]">
+                    <td data-label={t("admin.activity.playHeaders.duration")} className="px-4 py-3 text-[var(--text-muted)]">
                       {formatMs(e.durationMs)}
                     </td>
-                    <td className="px-4 py-3 min-w-[100px]">
+                    <td data-label={t("admin.activity.playHeaders.progress")} className="px-4 py-3 min-w-[100px]">
                       <div className="flex items-center gap-2">
                         <div
                           className="h-1.5 flex-1 rounded-full bg-[var(--border)]"
@@ -119,7 +119,7 @@ function PlayHistoryTab() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-[var(--text-muted)]">
+                    <td data-label={t("admin.activity.playHeaders.started")} className="px-4 py-3 text-xs text-[var(--text-muted)]">
                       {formatDate(e.startedAt)}
                     </td>
                   </tr>

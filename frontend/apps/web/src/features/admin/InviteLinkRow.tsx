@@ -38,16 +38,16 @@ export function InviteLinkRow({ link }: { link: V1InviteLink }) {
 
   return (
     <tr className="border-b border-[var(--border)]">
-      <td className="px-4 py-3 font-mono text-sm text-[var(--text)]">
+      <td data-label={t("admin.users.code")} className="px-4 py-3 font-mono text-sm text-[var(--text)]">
         {link.code ?? "\u2014"}
       </td>
-      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+      <td data-label={t("admin.users.uses")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {link.timesUsed ?? 0} / {link.maxUses ?? "\u221E"}
       </td>
-      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+      <td data-label={t("admin.users.expires")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
         {link.expiresAt ? new Date(link.expiresAt).toLocaleString() : t("admin.users.never")}
       </td>
-      <td className="px-4 py-3 whitespace-nowrap">
+      <td data-label={t("common.actions")} className="px-4 py-3 whitespace-nowrap">
         <div className="flex gap-2">
           <Button variant="secondary" onClick={copyLink}>
             {t("admin.users.copyLink")}

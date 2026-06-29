@@ -109,7 +109,7 @@ function UsersPage() {
           <div
             className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
           >
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-cards">
               <thead>
                 <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
                   {[t("admin.users.code"), t("admin.users.uses"), t("admin.users.expires"), t("common.actions")].map((h) => (
