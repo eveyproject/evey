@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 
-export function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
+export function CreateUserForm({ onSuccess }: { onSuccess: (accessOk: boolean) => void }) {
   const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -38,6 +38,10 @@ export function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
     mutation: {
       onSuccess: async (data) => {
         const userId = data?.id;
+        // The user row is created at this point, but its library grants are a
+        // second call. If that fails we must NOT report success — otherwise the
+        // admin gets a "user created" toast for a user left with zero access.
+        let accessOk = true;
         if (userId && !isAdmin && selectedLibs.size > 0) {
           try {
             await setAccess.mutateAsync({
@@ -45,10 +49,11 @@ export function CreateUserForm({ onSuccess }: { onSuccess: () => void }) {
               data: { libraryIds: Array.from(selectedLibs) },
             });
           } catch {
+            accessOk = false;
             toast.error(t("admin.users.failedLibraryAccess"));
           }
         }
-        onSuccess();
+        onSuccess(accessOk);
       },
       // Without onError a rejected create (dup username, weak password, cap
       // reached) just stops the spinner and shows nothing.

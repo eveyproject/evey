@@ -32,10 +32,12 @@ function UsersPage() {
   const users = data?.users ?? [];
   const invites = inviteData?.inviteLinks ?? [];
 
-  function handleCreateSuccess() {
+  function handleCreateSuccess(accessOk = true) {
     queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
     setShowUserModal(false);
-    toast.success(t("admin.users.userCreated"));
+    // When library-access assignment failed the form already raised an error
+    // toast; don't also claim the create fully succeeded.
+    if (accessOk) toast.success(t("admin.users.userCreated"));
   }
 
   function handleInviteSuccess() {

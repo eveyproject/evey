@@ -107,6 +107,20 @@ describe("CreateUserForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create User" }));
     await createUserOnSuccess!({ id: "user-1" });
     expect(setAccessMutateAsync).not.toHaveBeenCalled();
-    expect(onSuccess).toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledWith(true);
+  });
+
+  it("signals accessOk=false when library-access assignment fails (no false success)", async () => {
+    librariesData = { libraries: [{ id: "lib-1", name: "Movies" }] };
+    setAccessMutateAsync.mockRejectedValueOnce(new Error("access denied"));
+    const onSuccess = vi.fn();
+    render(<CreateUserForm onSuccess={onSuccess} />, { wrapper: createWrapper() });
+    await userEvent.type(screen.getByLabelText("Username"), "bob");
+    await userEvent.type(screen.getByLabelText("Password"), "pwd");
+    await userEvent.click(screen.getByLabelText("Movies"));
+    await userEvent.click(screen.getByRole("button", { name: "Create User" }));
+    await createUserOnSuccess!({ id: "user-7" });
+    expect(setAccessMutateAsync).toHaveBeenCalled();
+    expect(onSuccess).toHaveBeenCalledWith(false);
   });
 });
