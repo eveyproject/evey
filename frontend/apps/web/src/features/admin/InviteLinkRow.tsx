@@ -31,7 +31,7 @@ export function InviteLinkRow({ link }: { link: V1InviteLink }) {
         await navigator.clipboard.writeText(inviteUrl);
         toast.success(t("admin.users.linkCopied"));
       } catch {
-        toast.error("Clipboard not available");
+        toast.error(t("common.clipboardFailed"));
       }
     }
   }

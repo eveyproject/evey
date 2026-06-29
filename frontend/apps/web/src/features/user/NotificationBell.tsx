@@ -8,6 +8,7 @@ import {
   useNotificationServiceListNotifications,
   useNotificationServiceMarkAllRead,
 } from "@evey/api";
+import { toast } from "@evey/store";
 import { translateNotificationTitle, useRelativeTime } from "./notificationUtils";
 
 interface Notification {
@@ -53,6 +54,7 @@ export function NotificationBell() {
         queryClient.invalidateQueries({ queryKey: ["/api/v1/notifications"] });
         queryClient.invalidateQueries({ queryKey: ["/api/v1/notifications/unread-count"] });
       },
+      onError: (err: Error) => toast.error(err?.message || t("common.error")),
     },
   });
 

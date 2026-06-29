@@ -158,7 +158,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
           onClick={(e) => { e.stopPropagation(); setRotation((r) => (r + 270) % 360); }}
           className="transition-colors-fast text-[var(--overlay-text)]"
           aria-label={t("common.rotateLeft")}
-          title="Rotate left (Shift+R)"
+          title={`${t("common.rotateLeft")} (Shift+R)`}
         >
           <RotateCcw size={22} />
         </button>
@@ -166,7 +166,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
           onClick={(e) => { e.stopPropagation(); setRotation((r) => (r + 90) % 360); }}
           className="transition-colors-fast text-[var(--overlay-text)]"
           aria-label={t("common.rotateRight")}
-          title="Rotate right (R)"
+          title={`${t("common.rotateRight")} (R)`}
         >
           <RotateCw size={22} />
         </button>

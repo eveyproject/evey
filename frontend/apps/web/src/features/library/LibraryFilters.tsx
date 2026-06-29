@@ -405,7 +405,7 @@ export function LibraryFilterToggle({
           color: count > 0 ? "var(--filter-active-text)" : "var(--text-muted)",
           borderColor: count > 0 ? "var(--accent)" : "var(--border)",
         }}
-        title="Toggle filters"
+        title={t("media.library.filters")}
         aria-label={t("media.library.filters")}
         data-testid="filter-toggle"
       >
