@@ -1512,5 +1512,7 @@
   "media.playlist.phCollectionName": "e.g. Action movies after 2015",
   "player.controls.more": "More controls",
   "auth.forgotPassword.unavailableTitle": "Password recovery unavailable",
-  "auth.forgotPassword.unavailableDescription": "Password recovery is not enabled on this server. Contact your administrator to reset your password."
+  "auth.forgotPassword.unavailableDescription": "Password recovery is not enabled on this server. Contact your administrator to reset your password.",
+  "admin.transcodeCache.settingsSaveFailed": "Failed to save settings",
+  "admin.segments.locked": "Locked"
 }

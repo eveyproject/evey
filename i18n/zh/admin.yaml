@@ -626,6 +626,7 @@ transcodeCache:
     modified: "修改时间"
   maxConcurrent: "最大并发"
   settingsSaved: "设置已保存"
+  settingsSaveFailed: "设置保存失败"
   throttle: "当客户端缓冲区满时限制转码"
   transcodingSettings: "转码设置"
   hwAccelNote: "硬件加速在服务器配置 → 编码校准中设置。"

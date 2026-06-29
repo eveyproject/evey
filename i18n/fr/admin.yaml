@@ -625,6 +625,7 @@ transcodeCache:
     modified: "Modifié"
   maxConcurrent: "Maximum simultané"
   settingsSaved: "Paramètres enregistrés"
+  settingsSaveFailed: "Échec de l'enregistrement des paramètres"
   throttle: "Brider les transcodages quand le buffer client est plein"
   transcodingSettings: "Paramètres de transcodage"
   hwAccelNote: "L'accélération matérielle se configure dans Configuration serveur → Calibration d'encodage."

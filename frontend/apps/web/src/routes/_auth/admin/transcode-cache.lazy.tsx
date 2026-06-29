@@ -81,7 +81,7 @@ function TranscodingSettings() {
       await qc.invalidateQueries({ queryKey: CONFIG_QUERY_KEY });
       toast.success(t("admin.transcodeCache.settingsSaved") || "Transcoding settings saved");
     } catch {
-      toast.error("Failed to save settings");
+      toast.error(t("admin.transcodeCache.settingsSaveFailed"));
     }
     setSaving(false);
   }, [maxConcurrent, throttle, qc, t]);

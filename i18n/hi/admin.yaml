@@ -626,6 +626,7 @@ transcodeCache:
     modified: "संशोधित"
   maxConcurrent: "अधिकतम समवर्ती"
   settingsSaved: "सेटिंग्स सहेजी गईं"
+  settingsSaveFailed: "सेटिंग्स सहेजने में विफल"
   throttle: "क्लाइंट बफ़र भरने पर ट्रांसकोड थ्रॉटल करें"
   transcodingSettings: "ट्रांसकोडिंग सेटिंग्स"
   hwAccelNote: "हार्डवेयर एक्सेलेरेशन सर्वर कॉन्फ़िगरेशन → एन्कोड कैलिब्रेशन में कॉन्फ़िगर किया जाता है।"

@@ -85,6 +85,7 @@ interface SegmentEditorProps {
 }
 
 function SegmentEditor({ segment, durationMs, onStartChange, onEndChange }: SegmentEditorProps) {
+  const { t } = useTranslation();
   const manual = isManualSource(segment.source);
 
   return (
@@ -102,10 +103,10 @@ function SegmentEditor({ segment, durationMs, onStartChange, onEndChange }: Segm
         {manual && (
           <span
             className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)]"
-            title="Ce segment est verrouillé manuellement et ne sera pas écrasé par la détection auto."
+            title={t("admin.segments.lockedHint")}
           >
             <Lock size={10} />
-            verrouillé
+            {t("admin.segments.locked")}
           </span>
         )}
       </div>

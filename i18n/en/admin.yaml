@@ -626,6 +626,7 @@ transcodeCache:
     modified: Modified
   maxConcurrent: "Max Concurrent"
   settingsSaved: "Settings saved"
+  settingsSaveFailed: "Failed to save settings"
   throttle: "Throttle transcodes when client buffer is full"
   transcodingSettings: "Transcoding Settings"
   hwAccelNote: "Hardware acceleration is configured in Server Config → Encode calibration."

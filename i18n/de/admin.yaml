@@ -626,6 +626,7 @@ transcodeCache:
     modified: Geändert
   maxConcurrent: "Max. gleichzeitig"
   settingsSaved: "Einstellungen gespeichert"
+  settingsSaveFailed: "Einstellungen konnten nicht gespeichert werden"
   throttle: "Transkodierungen drosseln, wenn der Client-Puffer voll ist"
   transcodingSettings: "Transkodierungs-Einstellungen"
   hwAccelNote: "Die Hardware-Beschleunigung wird in Serverkonfiguration → Encode-Kalibrierung konfiguriert."

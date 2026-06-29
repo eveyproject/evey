@@ -626,6 +626,7 @@ transcodeCache:
     modified: "Modificado"
   maxConcurrent: "Máximo concurrente"
   settingsSaved: "Ajustes guardados"
+  settingsSaveFailed: "Error al guardar los ajustes"
   throttle: "Limitar transcodificaciones cuando el búfer del cliente está lleno"
   transcodingSettings: "Ajustes de transcodificación"
   hwAccelNote: "La aceleración de hardware se configura en Configuración del servidor → Calibración de codificación."
