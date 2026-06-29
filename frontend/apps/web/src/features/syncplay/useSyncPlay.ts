@@ -69,7 +69,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   const reconnectAttemptRef = useRef(0);
   const messageQueueRef = useRef<SyncMessage[]>([]);
 
-  const connect = useCallback((roomId: string) => {
+  const connect = useCallback((roomId: string, isReconnect = false) => {
     // Cancel any reconnect already scheduled by a previous connection's onclose.
     // Without this, switching rooms (joinRoom/createRoom after an earlier room
     // dropped) lets a stale setTimeout(() => connect(oldRoomId)) fire and
@@ -79,7 +79,11 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
       reconnectTimerRef.current = null;
     }
     leftVoluntarilyRef.current = false;
-    reconnectAttemptRef.current = 0;
+    // Only a fresh, user-initiated connect resets the attempt counter. The
+    // reconnect timer below re-enters connect() too; resetting here on that path
+    // would collapse the exponential backoff to a constant 1s and defeat the
+    // 5-attempt give-up, producing an endless reconnect storm on a down server.
+    if (!isReconnect) reconnectAttemptRef.current = 0;
     messageQueueRef.current = [];
     if (wsRef.current) {
       // Detach onclose before the deliberate close: otherwise closing the old
@@ -111,7 +115,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
       if (!leftVoluntarilyRef.current && reconnectAttemptRef.current < 5) {
         const delay = Math.min(1000 * Math.pow(2, reconnectAttemptRef.current), 30000);
         reconnectAttemptRef.current += 1;
-        reconnectTimerRef.current = setTimeout(() => connect(roomId), delay);
+        reconnectTimerRef.current = setTimeout(() => connect(roomId, true), delay);
       }
     };
 
