@@ -47,13 +47,17 @@ describe("CreateInviteForm", () => {
     });
   });
 
-  it("submits with expiresAt when provided", async () => {
+  it("converts the datetime-local expiresAt to RFC3339 before submit", async () => {
     render(<CreateInviteForm onSuccess={vi.fn()} />, { wrapper: createWrapper() });
     const expires = screen.getByLabelText("Expires at (optional)");
     fireChange(expires, "2026-12-31T10:00");
     await userEvent.click(screen.getByRole("button", { name: "Create Invite Link" }));
+    // The proto expiresAt is a Timestamp (strict RFC3339); the raw "2026-12-31T10:00"
+    // (no seconds/zone) would be rejected. Expected value computed the same way so
+    // the assertion holds regardless of the runner's timezone.
+    const expectedISO = new Date("2026-12-31T10:00").toISOString();
     expect(mutateMock).toHaveBeenCalledWith({
-      data: { maxUses: undefined, expiresAt: "2026-12-31T10:00", isAdmin: false, libraryIds: [] },
+      data: { maxUses: undefined, expiresAt: expectedISO, isAdmin: false, libraryIds: [] },
     });
   });
 });
