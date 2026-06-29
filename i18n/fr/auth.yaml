@@ -53,6 +53,8 @@ forgotPassword:
   backToLogin: "Retour à la connexion"
   checkEmail: "Vérifiez votre email"
   emailSent: "Si un compte existe avec cet email, nous avons envoyé un lien de réinitialisation."
+  unavailableTitle: "Récupération de mot de passe indisponible"
+  unavailableDescription: "La récupération de mot de passe n'est pas activée sur ce serveur. Contactez votre administrateur pour réinitialiser votre mot de passe."
 resetPassword:
   title: "Nouveau mot de passe"
   description: "Choisissez un nouveau mot de passe."

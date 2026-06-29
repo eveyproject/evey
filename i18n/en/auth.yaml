@@ -53,6 +53,8 @@ forgotPassword:
   backToLogin: Back to sign in
   checkEmail: Check Your Email
   emailSent: If an account exists with that email, we've sent a password reset link.
+  unavailableTitle: Password recovery unavailable
+  unavailableDescription: Password recovery is not enabled on this server. Contact your administrator to reset your password.
 resetPassword:
   title: Set New Password
   description: Choose a new password for your account.
