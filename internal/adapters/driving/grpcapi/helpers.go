@@ -4,6 +4,7 @@ import (
 	"context"
 	crypto_rand "crypto/rand"
 	"encoding/hex"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -104,8 +105,29 @@ func clampPagination(pageSize, page int32, defaultLimit int) (int, int) {
 
 // internalError logs the real error server-side and returns a generic message to the client.
 func internalError(op string, err error) error {
+	if isClientCanceled(err) {
+		// The client disconnected mid-request, which cancels the context; the DB
+		// driver then surfaces context.Canceled or pg's 57014 "canceling statement
+		// due to user request". That is the caller giving up, not a server fault —
+		// log it at DEBUG so it doesn't pollute the ERROR stream. The return code
+		// is left unchanged (the client is already gone, so it never sees it).
+		slog.Debug(op+": client canceled", slog.Any("err", err))
+		return status.Error(codes.Internal, "internal error")
+	}
 	slog.Error(op, slog.Any("err", err))
 	return status.Error(codes.Internal, "internal error")
+}
+
+// isClientCanceled reports whether err is the result of the caller going away
+// (a canceled context or its DB-driver projection) rather than a genuine
+// server-side failure.
+func isClientCanceled(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	// lib/pq surfaces a cancellation as SQLSTATE 57014 without wrapping
+	// context.Canceled; match on the code without importing the driver here.
+	return strings.Contains(err.Error(), "57014")
 }
 
 // resolveProfileID returns the profile a profile-scoped RPC must act on. The

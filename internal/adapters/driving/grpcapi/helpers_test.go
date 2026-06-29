@@ -1,10 +1,37 @@
 package grpcapi
 
 import (
+	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/user"
 )
+
+func TestIsClientCanceled(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"context canceled", context.Canceled, true},
+		{"deadline exceeded", context.DeadlineExceeded, true},
+		{"wrapped context canceled", fmt.Errorf("query failed: %w", context.Canceled), true},
+		{"pg 57014 query canceled", errors.New("pq: canceling statement due to user request (57014)"), true},
+		{"genuine server error", errors.New("connection refused"), false},
+		{"unrelated constraint error", errors.New("constraint violation"), false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := isClientCanceled(tc.err); got != tc.want {
+				t.Errorf("isClientCanceled(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
 
 func TestSecureToken(t *testing.T) {
 	t.Parallel()
