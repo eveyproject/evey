@@ -12,6 +12,7 @@ import (
 
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/langcode"
 )
 
 // TestParity_AgainstFFprobe maps every mkvgo-readable container in
@@ -156,28 +157,14 @@ func derefS(p *string) string {
 	return *p
 }
 
-// normLang folds the ffprobe ISO-639-2 vocabulary (fre/ger/...) and mkvgo's
-// BCP-47 (fr/de/...) to a common 2-letter form for comparison, matching how the
-// decision's audio_track_resolver normalizes before use.
+// normLang folds the ffprobe ISO-639-2 vocabulary (fre/ger/tur/dut/...) and
+// mkvgo's BCP-47 (fr/de/tr/nl/...) to a common 2-letter form, using the SAME
+// shared table the production audio_track_resolver uses (pkg/langcode) so the
+// parity gate can't drift from real behaviour. "und"/"" are treated as equal.
 func normLang(s string) string {
-	switch s {
-	case "fre", "fra":
-		return "fr"
-	case "ger", "deu":
-		return "de"
-	case "eng":
-		return "en"
-	case "spa":
-		return "es"
-	case "ita":
-		return "it"
-	case "chi", "zho", "cmn", "yue", "wuu", "hak", "nan":
-		return "zh" // legacy 639-2 (ffprobe) and BCP-47 macrolang (mkvgo) both -> zh
-	case "und", "":
+	n := langcode.Normalize(s)
+	if n == "und" {
 		return ""
 	}
-	if len(s) > 2 {
-		return s[:2]
-	}
-	return s
+	return n
 }
