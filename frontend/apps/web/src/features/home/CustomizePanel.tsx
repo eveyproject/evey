@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -78,6 +78,8 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   const [rows, setRows] = useState<Row[]>([]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
+  const dragIdxRef = useRef<number | null>(null);
+  const overIdxRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!data?.configs) return;
@@ -175,13 +177,45 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
     });
   }, [rows, updateMutation, queryClient]);
 
-  const handleDragEnd = useCallback(() => {
-    if (dragIdx !== null && overIdx !== null && dragIdx !== overIdx) {
-      commitReorder(dragIdx, overIdx);
-    }
-    setDragIdx(null);
-    setOverIdx(null);
-  }, [dragIdx, overIdx, commitReorder]);
+  const startPointerDrag = useCallback((i: number, e: ReactPointerEvent) => {
+    e.preventDefault();
+    dragIdxRef.current = i;
+    overIdxRef.current = i;
+    setDragIdx(i);
+    setOverIdx(i);
+  }, []);
+
+  // Pointer-based reordering: works on touch AND mouse. The previous native
+  // HTML5 drag&drop (draggable/onDragStart) has NO touch support, so the drag
+  // handle did nothing on phones/tablets.
+  useEffect(() => {
+    if (dragIdx === null) return;
+    const onMove = (e: PointerEvent) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const row = el?.closest("[data-dragidx]");
+      if (row) {
+        const j = Number(row.getAttribute("data-dragidx"));
+        if (!Number.isNaN(j)) { overIdxRef.current = j; setOverIdx(j); }
+      }
+    };
+    const onUp = () => {
+      const from = dragIdxRef.current;
+      const to = overIdxRef.current;
+      if (from !== null && to !== null && from !== to) commitReorder(from, to);
+      dragIdxRef.current = null;
+      overIdxRef.current = null;
+      setDragIdx(null);
+      setOverIdx(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [dragIdx, commitReorder]);
 
   const resetAll = () => {
     rows.forEach((r) => {
@@ -217,17 +251,19 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
           {rows.map((row, i) => (
             <div
               key={row.feedType}
-              draggable
-              onDragStart={() => setDragIdx(i)}
-              onDragOver={(e) => { e.preventDefault(); setOverIdx(i); }}
-              onDragEnd={handleDragEnd}
+              data-dragidx={i}
               className="flex items-center gap-2 px-3 py-2.5 rounded-[var(--radius-md)] transition-all"
               style={{
                 backgroundColor: overIdx === i && dragIdx !== null && dragIdx !== i ? "var(--accent-subtle)" : "var(--bg)",
                 opacity: dragIdx === i ? 0.5 : 1,
               }}
             >
-              <GripVertical size={14} className="flex-shrink-0 cursor-grab active:cursor-grabbing text-[var(--text-muted)]" />
+              <GripVertical
+                size={14}
+                onPointerDown={(e) => startPointerDrag(i, e)}
+                style={{ touchAction: "none" }}
+                className="flex-shrink-0 cursor-grab active:cursor-grabbing text-[var(--text-muted)]"
+              />
 
               <span
                 className="flex-1 text-sm select-none"
