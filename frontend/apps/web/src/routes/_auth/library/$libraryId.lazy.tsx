@@ -63,6 +63,12 @@ const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSo
 ];
 
 const PAGE_SIZE = 48;
+// Fetch-until-filled safety bounds (local-filter path only).
+// Stop auto-fetching once the visible filtered count reaches the target OR the
+// total loaded item count exceeds the hard cap — prevents loading an entire
+// huge library when only a handful of items match the local facet.
+const AUTO_FETCH_FILL_TARGET = 24;
+const AUTO_FETCH_ITEM_CAP = 500;
 
 const DEDICATED_ROUTES: Partial<Record<string, string>> = {
   LIBRARY_TYPE_PHOTOS: "/photos",
@@ -381,6 +387,25 @@ function LibraryPage() {
   const displayItems = hasLocalFilters ? localFiltered : items;
   const displayCount = hasLocalFilters ? localFiltered.length : totalItems;
 
+  // Proactive fetch-until-filled: when client-side facets (resolution, codec,
+  // audio/sub lang…) are active the filtered list can be short — not tall
+  // enough to reach the scroll bottom and trigger onEndReached. We therefore
+  // fetch the next server page proactively until the filtered count reaches
+  // AUTO_FETCH_FILL_TARGET or the total loaded items hit AUTO_FETCH_ITEM_CAP.
+  // isFetchingNextPage prevents overlapping fetches; hasMore short-circuits
+  // when the server has no further pages (including when searchActive, because
+  // hasMore is false for the one-shot search path).
+  useEffect(() => {
+    if (
+      !hasLocalFilters ||
+      !hasMore ||
+      activeQuery.isFetchingNextPage ||
+      localFiltered.length >= AUTO_FETCH_FILL_TARGET ||
+      items.length >= AUTO_FETCH_ITEM_CAP
+    ) return;
+    void activeQuery.fetchNextPage();
+  }, [hasLocalFilters, hasMore, activeQuery.isFetchingNextPage, activeQuery.fetchNextPage, localFiltered.length, items.length]);
+
   const [randomLoading, setRandomLoading] = useState(false);
   // Shuffle play: start one random item from the current view. A movie plays
   // straight away; a series goes to its detail so the user picks an episode.
@@ -628,7 +653,12 @@ function LibraryPage() {
                 // Stable callback (always defined). Gating inside the body
                 // avoids react-virtuoso losing the prop reference mid-fetch,
                 // which used to leave the user stuck on page 1.
-                if (hasMore && !hasLocalFilters && !activeQuery.isFetchingNextPage) {
+                // Local filters are intentionally NOT gated here: scrolling
+                // continues to load more server pages even when client-side
+                // facets are active; the fetch-until-filled effect above
+                // handles the case where the filtered list is too short to
+                // reach the scroll bottom.
+                if (hasMore && !activeQuery.isFetchingNextPage) {
                   void activeQuery.fetchNextPage();
                 }
               }}
