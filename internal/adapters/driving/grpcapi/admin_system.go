@@ -73,6 +73,12 @@ func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSe
 		return nil, internalError("count admins", err)
 	}
 	resp := &eveyv1.SetupStatusResponse{SetupComplete: admins > 0}
+	// Public projection of the recovery flag so the logged-out login page can
+	// show the "Forgot password?" link (mirrors GetSystemInfo). It only reads
+	// config (SMTP configured + auth.password_recovery_enabled), no auth needed.
+	if d.userCmd != nil {
+		resp.PasswordRecoveryEnabled = d.userCmd.IsPasswordRecoveryEnabled(ctx)
+	}
 	if d.serverCfgSvc != nil {
 		if e, err := d.serverCfgSvc.Get(ctx, "server.language"); err == nil {
 			resp.ServerLanguage = e.Value

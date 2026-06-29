@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Play } from "lucide-react";
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useUserServiceLogin, useAdminSystemServiceGetSystemInfo, eveyFetch } from "@evey/api";
+import { useUserServiceLogin, useAdminSystemServiceGetSetupStatus, eveyFetch } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
@@ -48,7 +48,7 @@ function LoginPage() {
   const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const { setTokens, accessToken } = useAuthStore();
+  const { setTokens } = useAuthStore();
   const navigate = useNavigate();
   const { oidc_error } = Route.useSearch();
 
@@ -58,8 +58,11 @@ function LoginPage() {
     staleTime: 60 * 1000,
   });
 
-  // Endpoint requires admin auth — only fetch when authenticated, else 401 loop.
-  const systemInfo = useAdminSystemServiceGetSystemInfo({ query: { staleTime: 60 * 1000, enabled: !!accessToken } });
+  // Public setup-status endpoint (no auth) exposes whether password recovery is
+  // configured, so the "Forgot password?" link can show on the logged-out login
+  // page. (Previously read from the admin-only SystemInfo, gated on accessToken,
+  // so the link never appeared.)
+  const setupStatus = useAdminSystemServiceGetSetupStatus({ query: { staleTime: 60 * 1000 } });
 
   const login = useUserServiceLogin({
     mutation: {
@@ -121,7 +124,7 @@ function LoginPage() {
           <Button type="submit" loading={login.isPending} className="w-full mt-2" data-testid="login-submit">
             {t("auth.login.signIn")}
           </Button>
-          {systemInfo.data?.passwordRecoveryEnabled && (
+          {setupStatus.data?.passwordRecoveryEnabled && (
             <div className="text-center mt-2">
               <Link to="/forgot-password" className="text-sm text-[var(--accent)] hover:underline">
                 {t("auth.login.forgotPassword")}

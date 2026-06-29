@@ -3,12 +3,15 @@ package grpcapi
 import (
 	"context"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	transcodingfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -21,6 +24,33 @@ func TestAdminGetSetupStatus_NoAdmins(t *testing.T) {
 	}
 	if resp.SetupComplete {
 		t.Error("expected SetupComplete=false with no admins")
+	}
+}
+
+// The public (unauthenticated) setup status must surface password recovery so
+// the logged-out login page can show the "Forgot password?" link.
+func TestAdminGetSetupStatus_ExposesPasswordRecovery(t *testing.T) {
+	d := newTestSystemHandler()
+	events := sharedfakes.NewFakeEventBus()
+	roles := userfakes.NewFakeRoleRepository()
+	serverCfg := sharedfakes.NewFakeServerConfigRepository()
+	if err := serverCfg.Set(context.Background(), "auth.password_recovery_enabled", "true"); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+	d.userCmd = appuser.NewCommandService(
+		userfakes.NewFakeUserRepository(), userfakes.NewFakeProfileRepository(),
+		userfakes.NewFakeRefreshTokenRepository(), roles, userfakes.NewFakeUserRoleRepository(roles),
+		userfakes.NewFakePasswordHasher(), userfakes.NewFakeTokenGenerator(), events,
+		7*24*time.Hour, userfakes.NewFakeQuickConnectRepository(),
+		appuser.WithPasswordReset(userfakes.NewFakePasswordResetTokenRepository(), serverCfg, true),
+	)
+
+	resp, err := d.GetSetupStatus(context.Background(), &eveyv1.GetSetupStatusRequest{})
+	if err != nil {
+		t.Fatalf("GetSetupStatus: %v", err)
+	}
+	if !resp.PasswordRecoveryEnabled {
+		t.Error("expected public setup status to expose PasswordRecoveryEnabled=true")
 	}
 }
 

@@ -24,7 +24,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@evey/api", () => ({
   useUserServiceLogin: (_opts?: unknown) => mockLogin,
-  useAdminSystemServiceGetSystemInfo: () => ({ data: { passwordRecoveryEnabled: false } }),
+  useAdminSystemServiceGetSetupStatus: () => ({ data: { passwordRecoveryEnabled: false } }),
   eveyFetch: vi.fn(),
 }));
 
