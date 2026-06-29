@@ -20,6 +20,7 @@ export function Button({
   variant = "primary",
   loading,
   disabled,
+  type = "button",
   className = "",
   children,
   ...props
@@ -27,6 +28,7 @@ export function Button({
   return (
     <button
       {...props}
+      type={type}
       disabled={disabled || loading}
       className={`inline-flex items-center justify-center gap-2 px-4 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${className}`}
     >
