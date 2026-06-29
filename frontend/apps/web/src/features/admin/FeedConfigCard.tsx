@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useFeedServiceGetAdminFeedConfigs,
@@ -88,6 +88,8 @@ export function FeedConfigCard() {
   // dirty tracks whether the admin has made unsaved local edits. While true,
   // background refetches must NOT overwrite in-progress changes.
   const [dirty, setDirty] = useState(false);
+  const dragIdxRef = useRef<number | null>(null);
+  const overIdxRef = useRef<number | null>(null);
 
   useEffect(() => {
     // Don't overwrite unsaved local edits when a background refetch arrives.
@@ -124,25 +126,62 @@ export function FeedConfigCard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, pluginsData, dirty]);
 
-  const handleDragEnd = useCallback(() => {
-    if (dragIdx !== null && overIdx !== null && dragIdx !== overIdx) {
-      setRows((prev) => {
-        // Plugin rows: admin can disable but not reorder for users — drop
-        // a drag attempt rather than persist a bogus admin order that we
-        // wouldn't honour at merge time anyway.
-        if (isPluginRow(prev[dragIdx].feedType) || isPluginRow(prev[overIdx].feedType)) {
-          return prev;
-        }
-        const next = [...prev];
-        const [moved] = next.splice(dragIdx, 1);
-        next.splice(overIdx, 0, moved);
-        return next.map((r, i) => ({ ...r, displayOrder: i }));
-      });
-      setDirty(true);
-    }
-    setDragIdx(null);
-    setOverIdx(null);
-  }, [dragIdx, overIdx]);
+  const commitReorder = useCallback((from: number, to: number) => {
+    if (from === to) return;
+    setRows((prev) => {
+      // Plugin rows: admin can disable but not reorder for users — drop
+      // a drag attempt rather than persist a bogus admin order that we
+      // wouldn't honour at merge time anyway.
+      if (isPluginRow(prev[from].feedType) || isPluginRow(prev[to].feedType)) {
+        return prev;
+      }
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next.map((r, i) => ({ ...r, displayOrder: i }));
+    });
+    setDirty(true);
+  }, []);
+
+  const startPointerDrag = useCallback((i: number, e: ReactPointerEvent) => {
+    e.preventDefault();
+    dragIdxRef.current = i;
+    overIdxRef.current = i;
+    setDragIdx(i);
+    setOverIdx(i);
+  }, []);
+
+  // Pointer-based reordering: works on touch AND mouse. The previous native
+  // HTML5 drag&drop (draggable/onDragStart) has NO touch support, so the drag
+  // handle did nothing on phones/tablets.
+  useEffect(() => {
+    if (dragIdx === null) return;
+    const onMove = (e: PointerEvent) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const row = el?.closest("[data-dragidx]");
+      if (row) {
+        const j = Number(row.getAttribute("data-dragidx"));
+        if (!Number.isNaN(j)) { overIdxRef.current = j; setOverIdx(j); }
+      }
+    };
+    const onUp = () => {
+      const from = dragIdxRef.current;
+      const to = overIdxRef.current;
+      if (from !== null && to !== null && from !== to) commitReorder(from, to);
+      dragIdxRef.current = null;
+      overIdxRef.current = null;
+      setDragIdx(null);
+      setOverIdx(null);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [dragIdx, commitReorder]);
 
   const toggle = (i: number) => {
     setRows((prev) =>
@@ -203,13 +242,7 @@ export function FeedConfigCard() {
           return (
           <div
             key={row.feedType}
-            draggable
-            onDragStart={() => setDragIdx(i)}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setOverIdx(i);
-            }}
-            onDragEnd={handleDragEnd}
+            data-dragidx={i}
             className="grid grid-cols-[24px_1fr_80px_80px] gap-2 items-center px-4 py-3 transition-all"
             style={{
               borderBottom:
@@ -230,6 +263,8 @@ export function FeedConfigCard() {
           >
             <GripVertical
               size={16}
+              onPointerDown={(e) => startPointerDrag(i, e)}
+              style={{ touchAction: "none" }}
               className="cursor-grab active:cursor-grabbing text-[var(--text-muted)]"
             />
             {/* The Puzzle icon used to sit here for plugins, but it
