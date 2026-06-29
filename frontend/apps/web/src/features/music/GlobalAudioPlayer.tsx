@@ -102,6 +102,10 @@ export function GlobalAudioPlayer() {
   // play-count taste signal. Reset on each new track's loadedmetadata, set on
   // the first ended — a genuine replay reloads the track and counts again.
   const playRecordedRef = useRef(false);
+  // Counts consecutive stream errors. A systemic failure (expired token, server
+  // down) makes every track error, and onError -> next() -> onError would loop
+  // forever in shuffle (and flood toasts). Reset whenever a track actually plays.
+  const errorCountRef = useRef(0);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -203,10 +207,21 @@ export function GlobalAudioPlayer() {
           }
           next();
         }}
-        onPlay={() => setIsPlaying(true)}
+        onPlay={() => {
+          errorCountRef.current = 0;
+          setIsPlaying(true);
+        }}
         onPause={() => setIsPlaying(false)}
         onError={() => {
-          toast.error(t("common.error"));
+          errorCountRef.current += 1;
+          // Quietly skip a one-off bad track, but once we've failed across the
+          // whole queue, stop and surface a single error instead of looping.
+          if (errorCountRef.current >= Math.max(queue.length, 1)) {
+            errorCountRef.current = 0;
+            setIsPlaying(false);
+            toast.error(t("common.error"));
+            return;
+          }
           next();
         }}
       />
