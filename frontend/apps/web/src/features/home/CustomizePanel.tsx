@@ -8,7 +8,7 @@ import {
   useLibraryServiceListLibraries,
   eveyFetch,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { X, GripVertical, RotateCcw } from "lucide-react";
 import { FEED_LABEL_KEYS, isKnownFeedType, isPluginFeedType, pluginIdFromFeedType, pluginFeedType } from "./feedTypes";
 
@@ -139,6 +139,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   }, [open, onClose]);
 
   const toggle = (i: number) => {
+    const snapshot = rows;
     setRows((prev) => {
       const next = [...prev];
       next[i] = { ...next[i], enabled: !next[i].enabled, displayOrder: i };
@@ -151,31 +152,47 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
     // interacts with them.
     updateMutation.mutate(
       { feedType: row.feedType, data: { enabled: !row.enabled, displayOrder: i } },
-      { onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] }) },
+      {
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] }),
+        onError: () => { setRows(snapshot); toast.error(t("common.error")); },
+      },
     );
   };
 
   const commitReorder = useCallback((from: number, to: number) => {
     if (from === to) return;
+    const snapshot = rows;
     setRows((prev) => {
       const next = [...prev];
       const [moved] = next.splice(from, 1);
       next.splice(to, 0, moved);
       return next.map((r, i) => ({ ...r, displayOrder: i }));
     });
-    // Persist both swapped items
+    // Persist both swapped items; on the first network error restore the
+    // snapshot and toast once (errored flag guards against duplicate toasts
+    // when several mutations fail for the same drag).
     const reordered = [...rows];
     const [moved] = reordered.splice(from, 1);
     reordered.splice(to, 0, moved);
+    let errored = false;
     reordered.forEach((r, i) => {
       if (r.displayOrder !== i) {
         updateMutation.mutate(
           { feedType: r.feedType, data: { enabled: r.enabled, displayOrder: i } },
-          { onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] }) },
+          {
+            onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/v1/feeds/config"] }),
+            onError: () => {
+              if (!errored) {
+                errored = true;
+                setRows(snapshot);
+                toast.error(t("common.error"));
+              }
+            },
+          },
         );
       }
     });
-  }, [rows, updateMutation, queryClient]);
+  }, [rows, updateMutation, queryClient, t]);
 
   const startPointerDrag = useCallback((i: number, e: ReactPointerEvent) => {
     e.preventDefault();

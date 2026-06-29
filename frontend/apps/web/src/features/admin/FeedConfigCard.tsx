@@ -85,8 +85,13 @@ export function FeedConfigCard() {
   const [saving, setSaving] = useState(false);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
+  // dirty tracks whether the admin has made unsaved local edits. While true,
+  // background refetches must NOT overwrite in-progress changes.
+  const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
+    // Don't overwrite unsaved local edits when a background refetch arrives.
+    if (dirty) return;
     if (data?.configs) {
       const persisted = data.configs.map((c) => ({
         feedType: c.feedType ?? "",
@@ -117,7 +122,7 @@ export function FeedConfigCard() {
     // pluginsData is stable enough — re-run only when configs or plugin
     // set actually change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, pluginsData]);
+  }, [data, pluginsData, dirty]);
 
   const handleDragEnd = useCallback(() => {
     if (dragIdx !== null && overIdx !== null && dragIdx !== overIdx) {
@@ -133,6 +138,7 @@ export function FeedConfigCard() {
         next.splice(overIdx, 0, moved);
         return next.map((r, i) => ({ ...r, displayOrder: i }));
       });
+      setDirty(true);
     }
     setDragIdx(null);
     setOverIdx(null);
@@ -142,10 +148,12 @@ export function FeedConfigCard() {
     setRows((prev) =>
       prev.map((r, idx) => (idx === i ? { ...r, enabled: !r.enabled } : r)),
     );
+    setDirty(true);
   };
 
   const setMaxItems = (i: number, v: number) => {
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, maxItems: v } : r)));
+    setDirty(true);
   };
 
   const save = async () => {
@@ -153,6 +161,7 @@ export function FeedConfigCard() {
     try {
       await feedServiceBatchUpdateAdminFeedConfigs({ configs: rows });
       toast.success(t("common.feeds.saved"));
+      setDirty(false);
       queryClient.invalidateQueries({
         queryKey: getFeedServiceGetAdminFeedConfigsQueryKey(),
       });
