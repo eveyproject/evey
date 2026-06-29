@@ -63,6 +63,11 @@ export function useDirectPlayback({
       video.src = streamInfo.directPlayUrl;
       video.currentTime = startPositionMs / 1000;
       video.play().catch((err) => console.warn("video.play failed", err));
+    } else {
+      // Server said DIRECT_PLAY but provided no URL — fall back to transcode
+      // rather than leaving the <video> unloaded with no visible error.
+      setTranscodeMode(true);
+      return;
     }
 
     let canPlayTimer: ReturnType<typeof setTimeout> | null = null;
