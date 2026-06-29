@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { TriangleAlert } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 // EncodeCapability is the JSON shape served by the backend at
 // /api/v1/admin/transcode/calibration. Mirrors the Go domain struct.
@@ -49,7 +51,7 @@ export function EncodeCalibrationCard() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
 
-  const { data, isLoading } = useQuery<EncodeCapability>({
+  const { data, isLoading, isError } = useQuery<EncodeCapability>({
     queryKey: QK_CALIBRATION,
     queryFn: () => eveyFetch<EncodeCapability>({ url: "/api/v1/admin/transcode/calibration", method: "GET" }),
   });
@@ -123,8 +125,18 @@ export function EncodeCalibrationCard() {
     },
   });
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return <div className="animate-shimmer h-32 rounded-[var(--radius-md)]" />;
+  }
+
+  if (isError || !data) {
+    return (
+      <EmptyState
+        icon={<TriangleAlert size={32} />}
+        title={t("common.errorBoundary.title")}
+        description={t("common.errorBoundary.description")}
+      />
+    );
   }
 
   const fmtDate = (iso: string) => {

@@ -54,7 +54,7 @@ export const SearchDropdown = memo(function SearchDropdown({
 
   // Music lives in a separate index; searched cross-library (libraryId omitted
   // → all libraries the user may access).
-  const { data: musicData, isLoading: musicLoading } = useQuery({
+  const { data: musicData, isLoading: musicLoading, isError: musicError } = useQuery({
     queryKey: ["/api/v1/music/search/quick", trimmed],
     queryFn: ({ signal }) =>
       musicServiceSearchMusic({ query: trimmed, limit: 6 }, signal),
@@ -233,7 +233,15 @@ export const SearchDropdown = memo(function SearchDropdown({
         </div>
       )}
 
-      {!activeLoading && !(kind === "media" && isError) && activeCount === 0 && (
+      {kind === "music" && !musicLoading && musicError && (
+        <div className="px-4 py-3" data-testid="search-dropdown-music-error">
+          <span className="text-sm text-[var(--color-danger)]">
+            {t("common.error")}
+          </span>
+        </div>
+      )}
+
+      {!activeLoading && !(kind === "media" && isError) && !(kind === "music" && musicError) && activeCount === 0 && (
         <div className="px-4 py-3" data-testid="search-dropdown-empty">
           <span className="text-sm text-[var(--text-muted)]">
             {t("media.search.noResults", { query: trimmed })}

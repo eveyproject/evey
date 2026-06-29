@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { TriangleAlert } from "lucide-react";
 import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 type Device = {
   token: string;
@@ -45,7 +47,7 @@ export function DeviceSettings() {
     const qc = useQueryClient();
   const [revokeTarget, setRevokeTarget] = useState<Device | null>(null);
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: DEVICES_QUERY_KEY,
     queryFn: () =>
       eveyFetch<{ devices: Device[] }>({
@@ -89,6 +91,12 @@ export function DeviceSettings() {
           <span className="inline-block w-4 h-4 border-2 border-[var(--text-muted)] border-t-transparent rounded-full animate-spin" />
           {t("common.loading")}
         </div>
+      ) : isError ? (
+        <EmptyState
+          icon={<TriangleAlert size={32} />}
+          title={t("common.errorBoundary.title")}
+          description={t("common.errorBoundary.description")}
+        />
       ) : devices.length === 0 ? (
         <div className="text-sm text-[var(--text-muted)]">{t("auth.devices.noDevices")}</div>
       ) : (

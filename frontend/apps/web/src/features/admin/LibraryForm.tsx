@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { eveyFetch, useLibraryServiceCreateLibrary, useLibraryServiceUpdateLibrary } from "@evey/api";
+import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -34,11 +35,17 @@ export function LibraryForm({ onSuccess, library }: LibraryFormProps) {
   }, []);
 
   const createLib = useLibraryServiceCreateLibrary({
-    mutation: { onSuccess },
+    mutation: {
+      onSuccess,
+      onError: (err: Error) => toast.error(err.message || t("common.error")),
+    },
   });
 
   const updateLib = useLibraryServiceUpdateLibrary({
-    mutation: { onSuccess },
+    mutation: {
+      onSuccess,
+      onError: (err: Error) => toast.error(err.message || t("common.error")),
+    },
   });
 
   function addPath() {
