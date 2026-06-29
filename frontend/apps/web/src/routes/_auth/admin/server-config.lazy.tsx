@@ -90,10 +90,10 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
 
   return (
     <tr className="border-b border-[var(--border)]">
-      <td className="px-4 py-3 font-mono text-sm text-[var(--text)]">
+      <td data-label={t("admin.serverConfig.tableHeaders.key")} className="px-4 py-3 font-mono text-sm text-[var(--text)]">
         {entry.key}
       </td>
-      <td className="px-4 py-3 text-sm text-[var(--text)]">
+      <td data-label={t("admin.serverConfig.tableHeaders.value")} className="px-4 py-3 text-sm text-[var(--text)]">
         {editing ? (
           <input
             aria-label={`${entry.key} ${t("admin.serverConfig.tableHeaders.value")}`}
@@ -110,10 +110,10 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
           <span className="font-mono text-xs break-all">{entry.value}</span>
         )}
       </td>
-      <td className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
+      <td data-label={t("admin.serverConfig.tableHeaders.updated")} className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
         {entry.updatedAt ? new Date(entry.updatedAt).toLocaleString() : ""}
       </td>
-      <td className="px-4 py-3">
+      <td data-label={t("admin.serverConfig.tableHeaders.actions")} className="px-4 py-3">
         <div className="flex gap-2">
           {editing ? (
             <>
@@ -236,7 +236,7 @@ function AddEntryRow() {
 
   return (
     <tr className="border-b border-[var(--border)] bg-[var(--surface)]">
-      <td className="px-4 py-3">
+      <td data-label={t("admin.serverConfig.tableHeaders.key")} className="px-4 py-3">
         <input
           placeholder="key"
           aria-label={t("admin.serverConfig.tableHeaders.key")}
@@ -245,7 +245,7 @@ function AddEntryRow() {
           onChange={(e) => setKey(e.target.value)}
         />
       </td>
-      <td className="px-4 py-3">
+      <td data-label={t("admin.serverConfig.tableHeaders.value")} className="px-4 py-3">
         <input
           placeholder="value"
           aria-label={t("admin.serverConfig.tableHeaders.value")}
@@ -255,8 +255,8 @@ function AddEntryRow() {
           onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
         />
       </td>
-      <td />
-      <td className="px-4 py-3">
+      <td className="hidden md:table-cell" />
+      <td data-label={t("admin.serverConfig.tableHeaders.actions")} className="px-4 py-3">
         <Button onClick={handleAdd} loading={setEntry.isPending} className="text-xs" disabled={!key.trim()}>{t("common.add")}</Button>
       </td>
     </tr>
@@ -999,7 +999,7 @@ function ServerConfigPage() {
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : (
         <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-cards">
             <thead>
               <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
                 {[t("admin.serverConfig.tableHeaders.key"), t("admin.serverConfig.tableHeaders.value"), t("admin.serverConfig.tableHeaders.updated"), t("admin.serverConfig.tableHeaders.actions")].map((h) => (
