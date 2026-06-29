@@ -67,6 +67,10 @@ export function QuickConnect() {
       if (closed) return;
       const url = `/api/v1/auth/quick-connect/${code}/events`;
       es = new EventSource(url);
+      // A successful (re)connection resets the retry budget; otherwise 3 transient
+      // drops across the code's whole 120s window exhaust it and we stop listening
+      // for good, leaving the user stuck on the QR after authorizing on their phone.
+      es.onopen = () => { attempt = 0; };
       es.onmessage = (e) => {
         try {
           const data = JSON.parse(e.data) as { event: string; accessToken?: string };

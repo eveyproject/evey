@@ -200,10 +200,14 @@ export function FeedConfigCard() {
     try {
       await feedServiceBatchUpdateAdminFeedConfigs({ configs: rows });
       toast.success(t("common.feeds.saved"));
-      setDirty(false);
-      queryClient.invalidateQueries({
+      // Await the refetch of THIS card's source query before clearing dirty:
+      // the rows-sync effect is gated on !dirty, so clearing it while the cache
+      // still holds the pre-save config would momentarily rebuild rows from the
+      // stale data and flash the old order/maxItems until the refetch lands.
+      await queryClient.invalidateQueries({
         queryKey: getFeedServiceGetAdminFeedConfigsQueryKey(),
       });
+      setDirty(false);
       // The home page reads merged config via GetFeedConfig (admin defaults
       // + profile overrides). Without this second invalidation the admin
       // save lands in DB but every open HP keeps showing the stale merged

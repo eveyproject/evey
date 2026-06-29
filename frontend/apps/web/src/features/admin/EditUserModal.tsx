@@ -59,7 +59,12 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       // accessData effect repopulates it once this user's access loads.
       setSelectedLibs(new Set());
     }
-  }, [open, user]);
+    // Key on user.id, not the whole object: `user` is a list-query row whose
+    // identity changes on any users-list refetch, and depending on it would wipe
+    // in-progress edits (including a typed password) mid-edit. We only want to
+    // reset when the modal opens or switches to a different user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, user.id]);
 
   useEffect(() => {
     if (accessData) {
