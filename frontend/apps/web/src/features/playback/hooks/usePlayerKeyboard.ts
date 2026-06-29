@@ -60,6 +60,12 @@ export function usePlayerKeyboard({
       const video = videoRef.current;
       if (!video) return;
 
+      // Yield to any modal dialog open over the player (share, shortcuts help,
+      // parental gate). It owns the keyboard — most importantly Escape, which
+      // must close the dialog, not exit the player. This listener is on
+      // window-capture and would otherwise fire before the dialog's own handler.
+      if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+
       // Don't hijack typing: if focus is in a text field (search box,
       // settings input, contentEditable), let the keystroke through instead
       // of treating "k"/"l"/"j"/space as player shortcuts.

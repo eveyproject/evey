@@ -252,6 +252,41 @@ describe("usePlayerKeyboard", () => {
 
       expect(args.onCloseRef.current).toHaveBeenCalled();
     });
+
+    it("yields Escape to an open aria-modal dialog (does not exit the player)", () => {
+      const dialog = document.createElement("div");
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      document.body.appendChild(dialog);
+      try {
+        const args = makeArgs(video);
+        args.anyPanelOpenRef.current = false;
+        renderHook(() => usePlayerKeyboard(args));
+
+        pressKey("Escape");
+
+        expect(args.onCloseRef.current).not.toHaveBeenCalled();
+      } finally {
+        document.body.removeChild(dialog);
+      }
+    });
+
+    it("ignores playback keys while an aria-modal dialog is open", () => {
+      const dialog = document.createElement("div");
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      document.body.appendChild(dialog);
+      try {
+        const args = makeArgs(video);
+        renderHook(() => usePlayerKeyboard(args));
+
+        pressKey(" ");
+
+        expect(video.play).not.toHaveBeenCalled();
+      } finally {
+        document.body.removeChild(dialog);
+      }
+    });
   });
 
   describe("playback speed (< and >)", () => {

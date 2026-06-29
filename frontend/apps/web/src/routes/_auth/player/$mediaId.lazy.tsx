@@ -15,6 +15,7 @@ import { SyncPlayBar } from "@/features/syncplay/SyncPlayBar";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
 import { ParentalPINDialog } from "@/components/ParentalPINDialog";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useAuthStore, usePlayerStore, setPlayerCleanup, useMusicPlayerStore } from "@evey/store";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
@@ -86,6 +87,23 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const router = useRouter();
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [shareRoomId, setShareRoomId] = useState<string | null>(null);
+  const shareDialogRef = useRef<HTMLDivElement>(null);
+  const shareOpen = showShareDialog && !!shareRoomId;
+  useFocusTrap(shareDialogRef, shareOpen);
+  // Escape closes the share dialog. Capture phase + stopImmediatePropagation so
+  // it wins over the player's bubble-phase window keydown listener, which would
+  // otherwise exit the player entirely.
+  useEffect(() => {
+    if (!shareOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopImmediatePropagation();
+        setShowShareDialog(false);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [shareOpen]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { streamInfo, sessionId, streamToken, fetchStreamToken, isLoading, isError, progress, stopSession } = usePlaySession(mediaId);
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
@@ -366,11 +384,16 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             onClick={() => setShowShareDialog(false)}
           >
             <div
+              ref={shareDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="share-dialog-title"
+              tabIndex={-1}
               className="rounded-xl p-4 sm:p-6 text-white flex flex-col gap-4 max-w-sm w-full mx-4 max-h-[90vh] overflow-y-auto"
               style={{ background: "var(--bg-gradient-mid)", border: "1px solid var(--overlay-border-subtle)" }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h2 className="text-lg font-semibold">{t("player.watchTogether")}</h2>
+              <h2 id="share-dialog-title" className="text-lg font-semibold">{t("player.watchTogether")}</h2>
               <p className="text-sm text-white/70">{t("player.shareDesc")}</p>
               <div
                 className="rounded px-3 py-2 text-sm font-mono break-all select-all"
