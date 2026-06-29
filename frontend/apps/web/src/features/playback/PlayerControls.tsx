@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Cast, Loader } from "lucide-react";
 import { PlayOnPicker } from "./PlayOnPicker";
 import { useTranslation } from "react-i18next";
@@ -52,7 +52,7 @@ interface PlayerControlsProps {
   isPlaying?: boolean;
 }
 
-export function PlayerControls({
+function PlayerControlsInner({
   onClose,
   onAudioChange,
   onQualityChange,
@@ -631,3 +631,5 @@ export function PlayerControls({
     </div>
   );
 }
+
+export const PlayerControls = memo(PlayerControlsInner);
