@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Cast, Loader } from "lucide-react";
+import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Cast, Loader, MoreHorizontal } from "lucide-react";
 import { PlayOnPicker } from "./PlayOnPicker";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
@@ -121,6 +121,9 @@ function PlayerControlsInner({
 
   const [visible, setVisible] = useState(true);
   const [openPanel, setOpenPanel] = useState<"settings" | "episodes" | "chapters" | "streaminfo" | null>(null);
+  // On phones the secondary controls collapse behind a "⋯" button; this tracks
+  // whether that overflow row is revealed. Inline (no overflow) from sm up.
+  const [overflowOpen, setOverflowOpen] = useState(false);
   const settingsOpen = openPanel === "settings";
   const episodesOpen = openPanel === "episodes";
   const chaptersOpen = openPanel === "chapters";
@@ -128,6 +131,12 @@ function PlayerControlsInner({
   useEffect(() => {
     onPanelOpenChange?.(openPanel !== null);
   }, [openPanel, onPanelOpenChange]);
+
+  // Collapse the overflow row whenever the controls hide, so it doesn't reappear
+  // already-open the next time the user taps to show the controls.
+  useEffect(() => {
+    if (!visible) setOverflowOpen(false);
+  }, [visible]);
 
   useEffect(() => {
     if (closePanelRef) closePanelRef.current = () => setOpenPanel(null);
@@ -411,7 +420,7 @@ function PlayerControlsInner({
           </div>
         )}
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="relative flex items-center gap-2 sm:gap-3">
           {/* previous episode */}
           {prevEpisode && onEpisodeChange && (
             <button
@@ -521,6 +530,22 @@ function PlayerControlsInner({
 
           <div className="flex-1" />
 
+          {/* Overflow toggle — phones only. Taps reveal the secondary controls
+              as a floating row above the bar; from sm up they stay inline. */}
+          <button
+            onClick={() => setOverflowOpen((v) => !v)}
+            aria-label={t("player.controls.more")}
+            aria-expanded={overflowOpen}
+            className="sm:hidden text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
+          >
+            <MoreHorizontal size={20} aria-hidden="true" />
+          </button>
+
+          {/* Secondary controls. Below sm they live behind the ⋯ toggle as a
+              floating row; from sm up the sm:* utilities reset them to inline. */}
+          <div
+            className={`items-center gap-2 sm:gap-3 sm:flex sm:static sm:bottom-auto sm:right-auto sm:mb-0 sm:p-0 sm:bg-transparent sm:shadow-none ${overflowOpen ? "flex absolute bottom-full right-0 mb-2 px-3 py-2 rounded-[var(--radius-md)] bg-[var(--overlay-bg-strong)] shadow-2xl" : "hidden"}`}
+          >
           {/* Chapters panel */}
           {chapters.length > 0 && (
             <LiveChaptersPanel
@@ -637,6 +662,7 @@ function PlayerControlsInner({
               <Maximize size={20}  aria-hidden="true" />
             )}
           </button>
+          </div>
         </div>
       </div>
     </div>
