@@ -175,11 +175,15 @@ describe("EncodeCalibrationCard", () => {
     expect(screen.queryByTestId("recalibrate-btn")).toBeNull();
   });
 
-  it("renders shimmer when data is undefined even if not loading flag", () => {
+  it("renders error state (not an endless shimmer) when data is missing and not loading", () => {
+    // Previously this rendered an endless shimmer; now a finished-but-empty
+    // query shows an explicit error/empty state (TriangleAlert) so the card
+    // doesn't pretend to be perpetually loading.
     mockCalibrationIsLoading = false;
     mockCalibrationData = undefined;
     const { container } = renderCard();
-    expect(container.querySelector(".animate-shimmer")).toBeInTheDocument();
+    expect(container.querySelector(".animate-shimmer")).toBeNull();
+    expect(container.querySelector(".lucide-triangle-alert")).toBeInTheDocument();
   });
 
   // ── Software-only host ────────────────────────────────────────────────────────

@@ -24,7 +24,10 @@ vi.mock("@evey/store", () => ({
 }));
 
 vi.mock("lucide-react", () => {
-  const Icon = ({ size }: { size?: number }) => <span data-size={size} />;
+  // Forward className/style/onPointerDown so tests can assert on the drag handle.
+  const Icon = ({ size, ...rest }: { size?: number } & Record<string, unknown>) => (
+    <span data-size={size} {...rest} />
+  );
   return { X: Icon, GripVertical: Icon, RotateCcw: Icon };
 });
 
@@ -150,10 +153,16 @@ describe("CustomizePanel", () => {
     );
   });
 
-  it("rows are draggable", () => {
+  it("rows have a pointer-drag handle (touch-capable reorder)", () => {
     renderPanel();
-    const row = screen.getByText("Resume Playback").closest("[draggable]");
-    expect(row).toHaveAttribute("draggable", "true");
+    // Reorder now uses Pointer Events (HTML5 native DnD has no touch support):
+    // each row carries data-dragidx and a grip handle that opts out of native
+    // touch scrolling via touch-action:none.
+    const row = screen.getByText("Resume Playback").closest("[data-dragidx]");
+    expect(row).not.toBeNull();
+    const grip = row!.querySelector(".cursor-grab");
+    expect(grip).not.toBeNull();
+    expect(grip!.getAttribute("style")).toContain("touch-action: none");
   });
 
   it("sorts rows by displayOrder", () => {
