@@ -180,6 +180,12 @@ export function PlayerControls({
     };
   }, [scheduleHide]);
 
+  useEffect(() => {
+    return () => {
+      if (clickTimer.current) clearTimeout(clickTimer.current);
+    };
+  }, []);
+
   function togglePlay() {
     if (castConnected && onCastPlayPause) {
       onCastPlayPause();

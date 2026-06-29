@@ -212,9 +212,9 @@ function RegisterPage() {
 
         <p className="text-center text-sm text-[var(--text-muted)] mt-6">
           {t("auth.register.alreadyHaveAccount")}{" "}
-          <a href="/login" className="text-[var(--accent)] hover:underline">
+          <Link to="/login" className="text-[var(--accent)] hover:underline">
             {t("auth.register.signIn")}
-          </a>
+          </Link>
         </p>
       </Card>
     </div>

@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import type { SyncPlayMember } from "./useSyncPlay";
@@ -16,6 +16,15 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const codeCopiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      if (codeCopiedTimerRef.current) clearTimeout(codeCopiedTimerRef.current);
+    };
+  }, []);
 
   const shareUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
 
@@ -23,7 +32,7 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
     navigator.clipboard.writeText(shareUrl).then(
       () => {
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        copiedTimerRef.current = setTimeout(() => setCopied(false), 2000);
       },
       () => toast.error(t("common.clipboardFailed")),
     );
@@ -34,7 +43,7 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
     navigator.clipboard.writeText(roomCode).then(
       () => {
         setCodeCopied(true);
-        setTimeout(() => setCodeCopied(false), 2000);
+        codeCopiedTimerRef.current = setTimeout(() => setCodeCopied(false), 2000);
       },
       () => toast.error(t("common.clipboardFailed")),
     );

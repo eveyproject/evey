@@ -37,14 +37,18 @@ function ToastItem({ toast }: { toast: Toast }) {
   const removeToast = useToastStore((s) => s.removeToast);
   const ref = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const innerTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     const duration = toast.duration ?? 4000;
     timerRef.current = setTimeout(() => {
       ref.current?.classList.add("toast-exit");
-      setTimeout(() => removeToast(toast.id), 300);
+      innerTimerRef.current = setTimeout(() => removeToast(toast.id), 300);
     }, duration);
-    return () => clearTimeout(timerRef.current);
+    return () => {
+      clearTimeout(timerRef.current);
+      clearTimeout(innerTimerRef.current);
+    };
   }, [toast.id, toast.duration, removeToast]);
 
   const style = typeStyles[toast.type];
