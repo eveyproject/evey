@@ -21,7 +21,7 @@ import {
 import { useAuthStore, useMusicPlayerStore, toast, type MusicSource } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Music, X, Plus, Trash2, ArrowLeft, Play, Download, Shuffle, Sparkles } from "lucide-react";
+import { Music, X, Plus, Trash2, ArrowLeft, Download, Shuffle, Sparkles } from "lucide-react";
 import { useGeneratePlaylist } from "@/features/playlist/api";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
@@ -260,7 +260,7 @@ function AddToPlaylistButton({ trackID }: { trackID: string }) {
       toast.success(t("media.music.addedToPlaylist"));
     } catch (err) {
       console.warn("add to playlist failed", err);
-      toast.error(t("media.music.addedToPlaylist"));
+      toast.error(t("media.playlist.addError"));
     }
     setOpen(false);
   }
@@ -591,10 +591,10 @@ function PlaylistsTab({
           {playlistTracks.length > 0 && (
             <button
               type="button"
-              onClick={() => onPlay(playlistTracks[0], playlistTracks, playlistSource)}
+              onClick={() => { const shuffled = shuffleTracks(playlistTracks); onPlay(shuffled[0], shuffled, playlistSource); }}
               className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius-sm)] bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer"
             >
-              <Play size={14} />
+              <Shuffle size={14} />
               {t("media.music.shuffle")}
             </button>
           )}
@@ -689,7 +689,7 @@ function PlaylistsTab({
           </button>
           <button
             type="button"
-            onClick={() => p.id && handleDeletePlaylist(p.id)}
+            onClick={() => p.id && confirm(t("media.playlist.deleteConfirm", { name: p.name ?? "" })) && handleDeletePlaylist(p.id)}
             aria-label={t("common.delete")}
             className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--color-danger)] p-1 rounded"
           >
