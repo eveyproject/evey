@@ -142,6 +142,11 @@ export function useUpdateCollection() {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: getCollectionServiceListCollectionsQueryKey() });
       qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionQueryKey(vars.id) });
+      // A smart collection's rules decide which items match, so editing them
+      // changes the items list — refresh it too, not just the metadata (mirrors
+      // the smart-playlist path). Without this the collection shows the old
+      // matching items for up to staleTime after a rule edit.
+      qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionItemsQueryKey(vars.id) });
     },
   });
 }

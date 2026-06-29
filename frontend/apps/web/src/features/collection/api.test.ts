@@ -121,6 +121,9 @@ describe("useUpdateCollection", () => {
     );
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["collections"] }));
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["collection", "c-1"] }));
+    // A smart collection's rules decide its items, so editing must refresh the
+    // items query too — otherwise the collection shows stale matches.
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["collection-items", "c-1"] }));
   });
 });
 
