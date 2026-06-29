@@ -378,7 +378,7 @@ function SeekIndexPage() {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-cards">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
                     <th className="text-left px-4 py-3 font-medium text-[var(--text-muted)]">
@@ -399,7 +399,7 @@ function SeekIndexPage() {
                 <tbody>
                   {visible.map((it: V1SeekIndexItem) => (
                     <tr key={it.mediaId} className="border-b border-[var(--border)]" data-testid="seek-index-row">
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" data-label={t("admin.seekIndex.tableHeaders.file")}>
                         <div className="text-[var(--text)]">{it.title || it.path}</div>
                         <div
                           className="font-mono text-xs text-[var(--text-muted)] truncate max-w-[280px] sm:max-w-[480px]"
@@ -408,13 +408,13 @@ function SeekIndexPage() {
                           {it.path}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" data-label={t("admin.seekIndex.tableHeaders.container")}>
                         <Badge>{(it.container ?? "").toUpperCase()}</Badge>
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-[var(--text-muted)]">
+                      <td className="px-4 py-3 whitespace-nowrap text-[var(--text-muted)]" data-label={t("admin.seekIndex.tableHeaders.size")}>
                         {formatSize(Number(it.sizeBytes ?? 0))}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap" data-label={t("admin.seekIndex.tableHeaders.status")}>
                         {it.hasIndex ? (
                           <Badge variant="success">{t("admin.seekIndex.statusIndexed")}</Badge>
                         ) : (
@@ -426,7 +426,7 @@ function SeekIndexPage() {
                           </Badge>
                         )}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap" data-label="">
                         <div className="flex items-center justify-end gap-2">
                           {!it.hasIndex && (
                             <Button

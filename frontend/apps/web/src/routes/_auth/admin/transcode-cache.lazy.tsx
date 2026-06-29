@@ -212,7 +212,7 @@ function TranscodeCachePage() {
             <div
               className="rounded-[var(--radius-lg)] overflow-hidden bg-[var(--surface)] border border-[var(--border)]"
             >
-              <table className="w-full text-sm">
+              <table className="w-full text-sm table-cards">
                 <thead>
                   <tr className="border-b border-[var(--border)]">
                     <th className="text-left px-4 py-3 font-medium text-[var(--text-muted)]">
@@ -230,16 +230,16 @@ function TranscodeCachePage() {
                 <tbody>
                   {files.map((file) => (
                     <tr key={file.name} className="border-b border-[var(--border)]">
-                      <td className="px-4 py-3 font-mono text-xs truncate max-w-[200px] sm:max-w-[400px] text-[var(--text)]" title={file.name}>
+                      <td className="px-4 py-3 font-mono text-xs truncate max-w-[200px] sm:max-w-[400px] text-[var(--text)]" title={file.name} data-label={t("admin.transcodeCache.tableHeaders.file")}>
                         {file.name}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-[var(--text-muted)]">
+                      <td className="px-4 py-3 whitespace-nowrap text-[var(--text-muted)]" data-label={t("admin.transcodeCache.tableHeaders.size")}>
                         {formatSize(Number(file.size ?? 0))}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell text-[var(--text-muted)]">
+                      <td className="px-4 py-3 whitespace-nowrap hidden sm:table-cell text-[var(--text-muted)]" data-label={t("admin.transcodeCache.tableHeaders.modified")}>
                         {formatDate(file.lastModified)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" data-label="">
                         <Button
                           variant="danger"
                           loading={deletingFile === file.name}

@@ -278,22 +278,22 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
 
   return (
     <tr className="border-b border-[var(--border)]">
-      <td className="px-4 py-3 text-[var(--text)]">
+      <td className="px-4 py-3 text-[var(--text)]" data-label={t("admin.libraries.tableHeaders.name")}>
         {library.name}
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3" data-label={t("admin.libraries.tableHeaders.type")}>
         <Badge variant="info">{libraryTypeLabel(library.type, t)}</Badge>
       </td>
-      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]" data-label={t("admin.libraries.tableHeaders.paths")}>
         {library.paths?.join(", ") ?? "\u2014"}
       </td>
-      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]" data-label={t("admin.libraries.tableHeaders.items")}>
         {totalItems != null ? t("admin.libraries.items", { count: totalItems }) : <span className="opacity-50">{"\u2014"}</span>}
       </td>
-      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]" data-label={t("admin.libraries.tableHeaders.lastScanned")}>
         {formatDate(libStat?.lastScannedAt ?? undefined)}
       </td>
-      <td className="px-4 py-3 text-sm text-[var(--text-muted)]">
+      <td className="px-4 py-3 text-sm text-[var(--text-muted)]" data-label={t("admin.libraries.tableHeaders.nextScan")}>
         {schedule?.enabled ? (
           <span title={`Cron: ${schedule.cron}`}>
             {schedule.nextRunAt ? formatDate(schedule.nextRunAt) : t("common.enabled")}
@@ -302,7 +302,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
           <span className="opacity-50">{t("admin.libraries.off")}</span>
         )}
       </td>
-      <td className="px-4 py-3 whitespace-nowrap">
+      <td className="px-4 py-3 whitespace-nowrap" data-label={t("admin.libraries.tableHeaders.actions")}>
         <div className="flex items-center gap-2">
           {scanLib.isPending ? (
             <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
@@ -417,7 +417,7 @@ function LibrariesPage() {
         <div
           className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
         >
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-cards">
             <thead>
               <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
                 {[t("admin.libraries.tableHeaders.name"), t("admin.libraries.tableHeaders.type"), t("admin.libraries.tableHeaders.paths"), t("admin.libraries.tableHeaders.items"), t("admin.libraries.tableHeaders.lastScanned"), t("admin.libraries.tableHeaders.nextScan"), t("admin.libraries.tableHeaders.actions")].map((h) => (

@@ -85,7 +85,7 @@ function WebhookRow({
 
   return (
     <tr className="border-b border-[var(--border)]">
-      <td className="px-4 py-3 max-w-xs">
+      <td className="px-4 py-3 max-w-xs" data-label={t("admin.webhooks.tableHeaders.nameUrl")}>
         <div className="font-medium text-sm truncate text-[var(--text)]">
           {webhook.name || "\u2014"}
         </div>
@@ -93,7 +93,7 @@ function WebhookRow({
           {webhook.url}
         </div>
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3" data-label={t("admin.webhooks.tableHeaders.events")}>
         <div className="flex flex-wrap gap-1">
           {eventTags.map((evt) => (
             <span
@@ -105,7 +105,7 @@ function WebhookRow({
           ))}
         </div>
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3" data-label={t("admin.webhooks.tableHeaders.status")}>
         <button
           type="button"
           onClick={handleToggleEnabled}
@@ -121,10 +121,10 @@ function WebhookRow({
           )}
         </button>
       </td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--text-muted)]">
+      <td className="px-4 py-3 whitespace-nowrap text-sm text-[var(--text-muted)]" data-label={t("admin.webhooks.tableHeaders.created")}>
         {webhook.createdAt ? new Date(webhook.createdAt).toLocaleString() : "\u2014"}
       </td>
-      <td className="px-4 py-3">
+      <td className="px-4 py-3" data-label={t("admin.webhooks.tableHeaders.actions")}>
         <div className="flex gap-2 flex-wrap">
           <Button variant="secondary" loading={testing} onClick={handleTest}>
             {t("common.test")}
@@ -201,7 +201,7 @@ function WebhooksPage() {
         <div
           className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
         >
-          <table className="w-full text-sm">
+          <table className="w-full text-sm table-cards">
             <thead>
               <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
                 {[t("admin.webhooks.tableHeaders.nameUrl"), t("admin.webhooks.tableHeaders.events"), t("admin.webhooks.tableHeaders.status"), t("admin.webhooks.tableHeaders.created"), t("admin.webhooks.tableHeaders.actions")].map((h) => (
