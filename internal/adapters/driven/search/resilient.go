@@ -56,6 +56,19 @@ func (r *ResilientSearch) RemoveMediaItem(ctx context.Context, id string) error 
 	return nil
 }
 
+func (r *ResilientSearch) Clear(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "search.resilient.Clear")
+	defer span.End()
+
+	if r.primary == nil {
+		return nil
+	}
+	// Unlike the other writes, surface the error: the reconcile clears then
+	// reindexes and must NOT proceed to reindex (and log success) if the wipe
+	// silently failed — that would leave the stale docs in place.
+	return r.primary.Clear(ctx)
+}
+
 func (r *ResilientSearch) Primary() library.SearchIndex { return r.primary }
 
 func (r *ResilientSearch) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {

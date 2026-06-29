@@ -16,6 +16,9 @@ type FakeSearchIndex struct {
 	// LastSearchLimit records the limit of the most recent Search call so tests
 	// can assert the handler clamped it. Atomic so it never races the RLock.
 	LastSearchLimit atomic.Int64
+	// ClearCalls counts Clear invocations so the reconcile test can assert an
+	// oversized index was wiped before the rebuild.
+	ClearCalls atomic.Int64
 }
 
 func NewFakeSearchIndex() *FakeSearchIndex {
@@ -74,6 +77,17 @@ func (s *FakeSearchIndex) RemoveMediaItem(_ context.Context, id string) error {
 		return s.Err
 	}
 	delete(s.items, id)
+	return nil
+}
+
+func (s *FakeSearchIndex) Clear(_ context.Context) error {
+	s.ClearCalls.Add(1)
+	if s.Err != nil {
+		return s.Err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.items = make(map[string]*library.MediaItem)
 	return nil
 }
 

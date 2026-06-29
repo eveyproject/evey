@@ -19,19 +19,19 @@ type ListLibrariesFilter struct {
 const MaxListLibrariesLimit = 500
 
 type ListMediaItemsFilter struct {
-	LibraryID      *shared.LibraryID
-	LibraryIDs     []shared.LibraryID // filter to these library IDs (nil = no filter)
-	ParentID       *string
-	Type           *string
-	Genres         []string
-	Year           *int
-	YearFrom       int     // inclusive lower bound on year (0 = no filter)
-	YearTo         int     // inclusive upper bound on year (0 = no filter)
-	MinRating      float64 // minimum community_rating (0 = no filter)
-	SortField      string
-	SortOrder      string
-	Limit          int
-	Offset         int
+	LibraryID  *shared.LibraryID
+	LibraryIDs []shared.LibraryID // filter to these library IDs (nil = no filter)
+	ParentID   *string
+	Type       *string
+	Genres     []string
+	Year       *int
+	YearFrom   int     // inclusive lower bound on year (0 = no filter)
+	YearTo     int     // inclusive upper bound on year (0 = no filter)
+	MinRating  float64 // minimum community_rating (0 = no filter)
+	SortField  string
+	SortOrder  string
+	Limit      int
+	Offset     int
 	// AfterID enables keyset pagination: when set, forces ORDER BY id ASC
 	// and restricts to rows with id > AfterID. Prefer this over Offset for
 	// full-table iteration (Meili reindex) — O(log N) per page vs O(n²)
@@ -303,6 +303,11 @@ type SearchIndex interface {
 	IndexMediaItem(ctx context.Context, item *MediaItem, castNames []string) error
 	IndexMediaItemsBatch(ctx context.Context, items []*MediaItem) error
 	RemoveMediaItem(ctx context.Context, id string) error
+	// Clear removes every document from the index. The index/upsert path can only
+	// add or overwrite, so it can never SHRINK an index that has drifted larger
+	// than the DB (a delete dropped during an outage). Clear lets the reconcile
+	// wipe-then-reindex to evict those stale docs.
+	Clear(ctx context.Context) error
 	Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]SearchHit, int64, error)
 }
 
@@ -427,12 +432,12 @@ type PersonTranslationFetcher interface {
 // cost of regenerating them per detection run is small compared to the
 // trickplay sprite decode + tile hash cycle that this cache short-circuits.
 type IntroFingerprintCacheEntry struct {
-	MediaItemID      string
-	FileFingerprint  string
-	PhashTiles       []uint64 // one hash per kept tile, in tile order
-	PhashTimestamps  []int64  // matching source-video timestamp (ms) for every PhashTiles entry
-	AlgoVersion      int16    // bumped whenever the hash function changes — invalidates the row
-	ExtractedAt      time.Time
+	MediaItemID     string
+	FileFingerprint string
+	PhashTiles      []uint64 // one hash per kept tile, in tile order
+	PhashTimestamps []int64  // matching source-video timestamp (ms) for every PhashTiles entry
+	AlgoVersion     int16    // bumped whenever the hash function changes — invalidates the row
+	ExtractedAt     time.Time
 }
 
 // IntroFingerprintCacheRepository persists and retrieves cached pHash
@@ -454,9 +459,9 @@ type IntroFingerprintCacheRepository interface {
 type IntroAudioFingerprintCacheEntry struct {
 	MediaItemID     string
 	FileFingerprint string
-	WindowSec       int       // length of the analysed window fed to fpcalc
-	Fingerprint     []uint32  // raw Chromaprint []uint32 over [0, WindowSec]
-	AlgoVersion     int16     // bumped when windowSec or the Chromaprint method changes
+	WindowSec       int      // length of the analysed window fed to fpcalc
+	Fingerprint     []uint32 // raw Chromaprint []uint32 over [0, WindowSec]
+	AlgoVersion     int16    // bumped when windowSec or the Chromaprint method changes
 	ExtractedAt     time.Time
 }
 

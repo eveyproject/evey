@@ -12,10 +12,11 @@ import (
 )
 
 type fakeSearchIndex struct {
-	searchFunc          func(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error)
-	indexFunc           func(ctx context.Context, item *library.MediaItem, castNames []string) error
-	indexBatchFunc      func(ctx context.Context, items []*library.MediaItem) error
-	removeFunc          func(ctx context.Context, id string) error
+	searchFunc     func(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error)
+	indexFunc      func(ctx context.Context, item *library.MediaItem, castNames []string) error
+	indexBatchFunc func(ctx context.Context, items []*library.MediaItem) error
+	removeFunc     func(ctx context.Context, id string) error
+	clearFunc      func(ctx context.Context) error
 }
 
 func (f *fakeSearchIndex) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
@@ -39,6 +40,13 @@ func (f *fakeSearchIndex) IndexMediaItemsBatch(ctx context.Context, items []*lib
 func (f *fakeSearchIndex) RemoveMediaItem(ctx context.Context, id string) error {
 	if f.removeFunc != nil {
 		return f.removeFunc(ctx, id)
+	}
+	return nil
+}
+
+func (f *fakeSearchIndex) Clear(ctx context.Context) error {
+	if f.clearFunc != nil {
+		return f.clearFunc(ctx)
 	}
 	return nil
 }
@@ -215,6 +223,32 @@ func TestRemoveMediaItem_PrimaryFails_NoError(t *testing.T) {
 	rs := search.NewResilient(primary, nil)
 	err := rs.RemoveMediaItem(context.Background(), "1")
 	require.NoError(t, err)
+}
+
+// --- Clear ---
+
+func TestClear_NilPrimary_Noop(t *testing.T) {
+	rs := search.NewResilient(nil, nil)
+	require.NoError(t, rs.Clear(context.Background()))
+}
+
+func TestClear_DelegatesToPrimary(t *testing.T) {
+	var cleared bool
+	primary := &fakeSearchIndex{clearFunc: func(_ context.Context) error { cleared = true; return nil }}
+	rs := search.NewResilient(primary, nil)
+	require.NoError(t, rs.Clear(context.Background()))
+	assert.True(t, cleared)
+}
+
+// Unlike Index/Remove (which swallow), Clear SURFACES the primary's error so the
+// reconcile does not proceed to reindex — and log success — over a failed wipe,
+// which would leave the stale docs in place.
+func TestClear_SurfacesPrimaryError(t *testing.T) {
+	primary := &fakeSearchIndex{clearFunc: func(_ context.Context) error { return errors.New("meili down") }}
+	rs := search.NewResilient(primary, nil)
+	err := rs.Clear(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "meili down")
 }
 
 // --- Primary accessor ---

@@ -151,19 +151,26 @@ func TestReconcileSearchIndex_DriftRebuilds(t *testing.T) {
 // Stale docs (engine has MORE than the DB, e.g. a delete dropped during an
 // outage) must NOT trigger a rebuild: a re-index only upserts and can never
 // shrink the count, so firing every tick would loop forever (the CPU-loop bug).
-func TestReconcileSearchIndex_StaleDocs_NoRebuild(t *testing.T) {
+func TestReconcileSearchIndex_StaleDocs_WipesThenRebuilds(t *testing.T) {
 	t.Parallel()
 	repo := libfakes.NewFakeMediaItemQueryRepo()
 	seedItem(repo, "m1", "libA")
 	seedItem(repo, "m2", "libA")
 	search := libfakes.NewFakeSearchIndex()
+	// Index holds 5 docs, 3 of which are stale (a delete dropped during an outage);
+	// the DB holds only 2. An upsert reindex can't shrink it, so the reconcile must
+	// WIPE then rebuild from the DB, evicting the stale docs.
+	for _, id := range []string{"m1", "m2", "stale1", "stale2", "stale3"} {
+		require.NoError(t, search.IndexMediaItem(context.Background(),
+			&library.MediaItem{ID: shared.MediaItemID(id), Title: id}, nil))
+	}
 
-	// Engine holds 5 docs, DB holds 2 → stale → must skip (no loop).
 	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
 		fakeDocCounter{count: 5}, nil)
 	require.NoError(t, err)
-	assert.Equal(t, 0, n)
-	assert.Equal(t, 0, search.Indexed(), "stale-doc divergence must NOT rebuild (would loop)")
+	assert.Equal(t, int64(1), search.ClearCalls.Load(), "oversized index must be wiped first")
+	assert.Equal(t, 2, n, "rebuild re-indexes the DB items")
+	assert.Equal(t, 2, search.Indexed(), "after wipe+rebuild only the 2 DB items remain (3 stale docs evicted)")
 }
 
 func TestReindexSearchIndex_SingleLibrary(t *testing.T) {

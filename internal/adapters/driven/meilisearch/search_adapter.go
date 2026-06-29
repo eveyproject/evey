@@ -24,6 +24,7 @@ const (
 type IndexClient interface {
 	AddDocumentsWithContext(ctx context.Context, documentsPtr any, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
 	DeleteDocumentWithContext(ctx context.Context, identifier string, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
+	DeleteAllDocumentsWithContext(ctx context.Context, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
 	SearchWithContext(ctx context.Context, query string, request *ms.SearchRequest) (*ms.SearchResponse, error)
 	UpdateSettingsWithContext(ctx context.Context, request *ms.Settings) (*ms.TaskInfo, error)
 	GetStatsWithContext(ctx context.Context) (*ms.StatsIndex, error)
@@ -319,6 +320,18 @@ func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
 	_, err := a.index.DeleteDocumentWithContext(ctx, id, nil)
 	if err != nil {
 		return fmt.Errorf("remove media item: %w", err)
+	}
+	return nil
+}
+
+// Clear deletes every document in the index. Used by the reconcile to evict
+// stale docs (a delete dropped during an outage) before a full reindex — an
+// upsert reindex alone can never shrink the index back to the DB count.
+func (a *SearchAdapter) Clear(ctx context.Context) error {
+	ctx, span := tracing.StartSpan(ctx, "meilisearch.Clear")
+	defer span.End()
+	if _, err := a.index.DeleteAllDocumentsWithContext(ctx, nil); err != nil {
+		return fmt.Errorf("clear index: %w", err)
 	}
 	return nil
 }

@@ -15,12 +15,13 @@ import (
 )
 
 type fakeIndex struct {
-	addedDocs   []any
-	deletedIDs  []string
-	searchResp  *ms.SearchResponse
-	searchErr   error
-	searchQuery string
-	searchReq   *ms.SearchRequest
+	addedDocs    []any
+	deletedIDs   []string
+	deleteAllHit int
+	searchResp   *ms.SearchResponse
+	searchErr    error
+	searchQuery  string
+	searchReq    *ms.SearchRequest
 }
 
 func (f *fakeIndex) AddDocumentsWithContext(_ context.Context, docs any, _ *ms.DocumentOptions) (*ms.TaskInfo, error) {
@@ -31,6 +32,11 @@ func (f *fakeIndex) AddDocumentsWithContext(_ context.Context, docs any, _ *ms.D
 func (f *fakeIndex) DeleteDocumentWithContext(_ context.Context, id string, _ *ms.DocumentOptions) (*ms.TaskInfo, error) {
 	f.deletedIDs = append(f.deletedIDs, id)
 	return &ms.TaskInfo{TaskUID: 2}, nil
+}
+
+func (f *fakeIndex) DeleteAllDocumentsWithContext(_ context.Context, _ *ms.DocumentOptions) (*ms.TaskInfo, error) {
+	f.deleteAllHit++
+	return &ms.TaskInfo{TaskUID: 4}, nil
 }
 
 func (f *fakeIndex) SearchWithContext(_ context.Context, query string, req *ms.SearchRequest) (*ms.SearchResponse, error) {
@@ -54,8 +60,8 @@ type fakeServiceClient struct {
 	getIndexErr    error
 	createIndexErr error
 	indexResult    *ms.IndexResult
-	createdConfig *ms.IndexConfig
-	indexUID      string
+	createdConfig  *ms.IndexConfig
+	indexUID       string
 }
 
 func (f *fakeServiceClient) Index(uid string) ms.IndexManager {
@@ -167,8 +173,8 @@ func TestToDocument_TranslatedTitles(t *testing.T) {
 			{Locale: "fr-FR", Title: "Le Voyage"},
 			{Locale: "de-DE", Title: "Die Reise"},
 			{Locale: "en-US", Title: "The Journey"}, // dup of primary → skipped
-			{Locale: "es-ES", Title: "  "},           // empty → skipped
-			{Locale: "it-IT", Title: "Le Voyage"},     // dup of another translation → skipped
+			{Locale: "es-ES", Title: "  "},          // empty → skipped
+			{Locale: "it-IT", Title: "Le Voyage"},   // dup of another translation → skipped
 		},
 		AddedAt: time.Now(),
 	}
@@ -196,8 +202,8 @@ func TestToDocument_TranslationsByLocale(t *testing.T) {
 		Translations: []library.MediaItemTranslation{
 			{Locale: "fr-FR", Title: "Le Voyage"},
 			{Locale: "en-US", Title: "The Journey"}, // kept in the map (not deduped vs primary)
-			{Locale: "es-ES", Title: "  "},           // empty → skipped
-			{Locale: "fr", Title: "Le Trajet"},        // normalizes to "fr" too → first wins
+			{Locale: "es-ES", Title: "  "},          // empty → skipped
+			{Locale: "fr", Title: "Le Trajet"},      // normalizes to "fr" too → first wins
 		},
 		AddedAt: time.Now(),
 	}
@@ -318,11 +324,11 @@ func TestSearch(t *testing.T) {
 	year := 2023
 	yearRaw, _ := json.Marshal(year)
 	hit := ms.Hit{
-		"id":     json.RawMessage(`"abc-123"`),
-		"title":  json.RawMessage(`"Fight Club"`),
-		"year":   json.RawMessage(yearRaw),
-		"type":   json.RawMessage(`"movie"`),
-		"genres": json.RawMessage(`["Action","Drama"]`),
+		"id":         json.RawMessage(`"abc-123"`),
+		"title":      json.RawMessage(`"Fight Club"`),
+		"year":       json.RawMessage(yearRaw),
+		"type":       json.RawMessage(`"movie"`),
+		"genres":     json.RawMessage(`["Action","Drama"]`),
 		"_formatted": json.RawMessage(`{"title":"<mark>Fight</mark> Club"}`),
 	}
 	fake := &fakeIndex{

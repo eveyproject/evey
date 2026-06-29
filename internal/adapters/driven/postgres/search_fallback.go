@@ -31,6 +31,12 @@ func (s *SQLSearchFallback) RemoveMediaItem(_ context.Context, _ string) error {
 	return nil
 }
 
+// Clear is a no-op: the SQL fallback queries Postgres directly (the DB IS the
+// source of truth), so there is no separate index to wipe.
+func (s *SQLSearchFallback) Clear(_ context.Context) error {
+	return nil
+}
+
 func (s *SQLSearchFallback) Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]library.SearchHit, int64, error) {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()

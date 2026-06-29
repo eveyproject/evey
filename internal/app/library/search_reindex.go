@@ -158,21 +158,27 @@ func ReconcileSearchIndex(
 	if err != nil {
 		return 0, fmt.Errorf("reconcile: count media items: %w", err)
 	}
-	// Rebuild ONLY when the index has FEWER docs than the DB — that is the outage
-	// drift a re-index can actually heal (missing items get added back). When it
-	// has MORE (a delete dropped during an outage left a stale doc), a re-index
-	// upserts and can never shrink the count, so firing every tick would rebuild
-	// forever — a CPU loop. Skip that case (a stale doc just 404s on click; clear
-	// it with a manual admin reindex). Equal counts = in sync.
-	if docCount >= int64(dbCount) {
-		if docCount > int64(dbCount) {
-			slog.Warn("search reconcile: index has more docs than the DB (stale doc from a dropped delete); a re-index only upserts and can't shrink it — wipe the search index and reindex to clear",
-				slog.Int64("index_docs", docCount), slog.Int("db_items", dbCount))
-		}
+	// Equal counts = in sync, nothing to do.
+	if docCount == int64(dbCount) {
 		return 0, nil
 	}
-	slog.Info("search reconcile: index behind the DB, rebuilding",
-		slog.Int64("index_docs", docCount), slog.Int("db_items", dbCount))
+	// When the index has MORE docs than the DB, a delete was dropped during an
+	// outage and left a stale doc. An upsert reindex can only add/overwrite, never
+	// shrink, so we WIPE the index first and then rebuild it from the DB. This is
+	// not a CPU loop: after the wipe+reindex the counts match, so the next tick is
+	// in sync and does nothing. (The trade-off is a brief empty-search window while
+	// the rebuild runs — acceptable for a 15-min reconcile, and far better than
+	// stale deleted items lingering in search indefinitely.)
+	if docCount > int64(dbCount) {
+		slog.Info("search reconcile: index larger than DB (stale docs from a dropped delete), wiping then rebuilding",
+			slog.Int64("index_docs", docCount), slog.Int("db_items", dbCount))
+		if err := search.Clear(ctx); err != nil {
+			return 0, fmt.Errorf("reconcile: clear oversized index: %w", err)
+		}
+	} else {
+		slog.Info("search reconcile: index behind the DB, rebuilding",
+			slog.Int64("index_docs", docCount), slog.Int("db_items", dbCount))
+	}
 
 	indexed := 0
 	afterID := ""
