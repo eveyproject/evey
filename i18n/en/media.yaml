@@ -393,6 +393,22 @@ syncplay:
   createFailed: "Failed to create room"
   joinFailed: "Failed to join room"
 playlist:
+  fieldGenre: Genre
+  fieldYear: Year
+  fieldType: Type
+  fieldLibrary: Library
+  fieldRating: "Rating ≥"
+  typeMovie: Movie
+  typeSeries: Series
+  typeEpisode: Episode
+  typeAlbum: Album
+  typeArtist: Artist
+  typeTrack: Track
+  phGenre: "e.g. Action"
+  phYear: "e.g. 2020"
+  phLibrary: "e.g. library-id"
+  phRating: "e.g. 7.0"
+  phCollectionName: "e.g. Action movies after 2015"
   name: Name
   description: Description
   type: Type

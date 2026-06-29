@@ -393,6 +393,22 @@ syncplay:
   createFailed: "Error al crear la sala"
   joinFailed: "Error al unirse a la sala"
 playlist:
+  fieldGenre: Género
+  fieldYear: Año
+  fieldType: Tipo
+  fieldLibrary: Biblioteca
+  fieldRating: "Valoración ≥"
+  typeMovie: Película
+  typeSeries: Serie
+  typeEpisode: Episodio
+  typeAlbum: Álbum
+  typeArtist: Artista
+  typeTrack: Pista
+  phGenre: "p. ej. Acción"
+  phYear: "p. ej. 2020"
+  phLibrary: "p. ej. library-id"
+  phRating: "p. ej. 7.0"
+  phCollectionName: "p. ej. Películas de acción posteriores a 2015"
   name: Nombre
   description: Descripción
   type: Tipo

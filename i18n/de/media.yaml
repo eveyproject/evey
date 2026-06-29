@@ -393,6 +393,22 @@ syncplay:
   createFailed: "Raum konnte nicht erstellt werden"
   joinFailed: "Raum konnte nicht beigetreten werden"
 playlist:
+  fieldGenre: Genre
+  fieldYear: Jahr
+  fieldType: Typ
+  fieldLibrary: Bibliothek
+  fieldRating: "Bewertung ≥"
+  typeMovie: Film
+  typeSeries: Serie
+  typeEpisode: Folge
+  typeAlbum: Album
+  typeArtist: Künstler
+  typeTrack: Titel
+  phGenre: "z. B. Action"
+  phYear: "z. B. 2020"
+  phLibrary: "z. B. library-id"
+  phRating: "z. B. 7.0"
+  phCollectionName: "z. B. Actionfilme nach 2015"
   name: Name
   description: Beschreibung
   type: Typ

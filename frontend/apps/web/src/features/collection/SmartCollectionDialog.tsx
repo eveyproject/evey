@@ -27,20 +27,20 @@ export interface SmartCollection {
 }
 
 const MEDIA_TYPES = [
-  { value: "MEDIA_ITEM_TYPE_MOVIE", label: "Movie" },
-  { value: "MEDIA_ITEM_TYPE_SERIES", label: "Series" },
-  { value: "MEDIA_ITEM_TYPE_EPISODE", label: "Episode" },
-  { value: "MEDIA_ITEM_TYPE_ALBUM", label: "Album" },
-  { value: "MEDIA_ITEM_TYPE_ARTIST", label: "Artist" },
-  { value: "MEDIA_ITEM_TYPE_TRACK", label: "Track" },
+  { value: "MEDIA_ITEM_TYPE_MOVIE", labelKey: "media.playlist.typeMovie" },
+  { value: "MEDIA_ITEM_TYPE_SERIES", labelKey: "media.playlist.typeSeries" },
+  { value: "MEDIA_ITEM_TYPE_EPISODE", labelKey: "media.playlist.typeEpisode" },
+  { value: "MEDIA_ITEM_TYPE_ALBUM", labelKey: "media.playlist.typeAlbum" },
+  { value: "MEDIA_ITEM_TYPE_ARTIST", labelKey: "media.playlist.typeArtist" },
+  { value: "MEDIA_ITEM_TYPE_TRACK", labelKey: "media.playlist.typeTrack" },
 ];
 
-const FIELD_LABELS: Record<RuleField, string> = {
-  genre: "Genre",
-  year: "Year",
-  type: "Type",
-  rating_gte: "Rating >=",
-  library_id: "Library",
+const FIELD_LABEL_KEYS: Record<RuleField, string> = {
+  genre: "media.playlist.fieldGenre",
+  year: "media.playlist.fieldYear",
+  type: "media.playlist.fieldType",
+  rating_gte: "media.playlist.fieldRating",
+  library_id: "media.playlist.fieldLibrary",
 };
 
 const YEAR_OPERATORS: { value: YearOperator; label: string }[] = [
@@ -75,14 +75,14 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
       <span
         className="text-sm font-medium w-16 flex-shrink-0 text-[var(--text-muted)]"
       >
-        {FIELD_LABELS[rule.field]}
+        {t(FIELD_LABEL_KEYS[rule.field])}
       </span>
 
       {rule.field === "year" ? (
         <select
           value={rule.operator}
           onChange={(e) => onChange({ ...rule, operator: e.target.value as YearOperator })}
-          aria-label={`${FIELD_LABELS[rule.field]} ${t("media.playlist.op")}`}
+          aria-label={`${t(FIELD_LABEL_KEYS[rule.field])} ${t("media.playlist.op")}`}
           className="text-sm px-2 py-1.5 rounded-[var(--radius-md)] w-16 flex-shrink-0 bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         >
           {YEAR_OPERATORS.map((op) => (
@@ -101,11 +101,11 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
         <select
           value={rule.value}
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
-          aria-label={`${FIELD_LABELS[rule.field]} ${t("media.playlist.value")}`}
+          aria-label={`${t(FIELD_LABEL_KEYS[rule.field])} ${t("media.playlist.value")}`}
           className="flex-1 text-sm px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         >
-          {MEDIA_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
+          {MEDIA_TYPES.map((mt) => (
+            <option key={mt.value} value={mt.value}>{t(mt.labelKey)}</option>
           ))}
         </select>
       ) : (
@@ -116,13 +116,13 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
           max={rule.field === "year" ? new Date().getFullYear() + 2 : rule.field === "rating_gte" ? 10 : undefined}
           step={rule.field === "rating_gte" ? 0.1 : undefined}
           placeholder={
-            rule.field === "genre" ? "e.g. Action" :
-            rule.field === "year" ? "e.g. 2020" :
-            rule.field === "rating_gte" ? "e.g. 7.0" :
-            rule.field === "library_id" ? "Library ID" : ""
+            rule.field === "genre" ? t("media.playlist.phGenre") :
+            rule.field === "year" ? t("media.playlist.phYear") :
+            rule.field === "rating_gte" ? t("media.playlist.phRating") :
+            rule.field === "library_id" ? t("media.playlist.phLibrary") : ""
           }
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
-          aria-label={`${FIELD_LABELS[rule.field]} ${t("media.playlist.value")}`}
+          aria-label={`${t(FIELD_LABEL_KEYS[rule.field])} ${t("media.playlist.value")}`}
           className="flex-1 text-sm px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         />
       )}
@@ -220,7 +220,7 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
           label={t("common.name")}
           value={name}
           onChange={(e) => { setName(e.target.value); setNameError(""); }}
-          placeholder="e.g. Action movies after 2015"
+          placeholder={t("media.playlist.phCollectionName")}
           error={nameError}
           autoFocus
         />
@@ -253,7 +253,7 @@ export function SmartCollectionDialog({ open, onClose, onSaved, editing }: Smart
                   className="flex items-center gap-1 text-xs px-2 py-1 rounded-[var(--radius-md)] transition-colors-fast bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--accent)]"
                 >
                   <Plus size={12} strokeWidth={2.5} />
-                  {FIELD_LABELS[f]}
+                  {t(FIELD_LABEL_KEYS[f])}
                 </button>
               ))}
             </div>

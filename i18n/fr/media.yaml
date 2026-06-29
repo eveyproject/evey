@@ -393,6 +393,22 @@ syncplay:
   createFailed: "Échec de création de la salle"
   joinFailed: "Échec de connexion à la salle"
 playlist:
+  fieldGenre: Genre
+  fieldYear: Année
+  fieldType: Type
+  fieldLibrary: Bibliothèque
+  fieldRating: "Note ≥"
+  typeMovie: Film
+  typeSeries: Série
+  typeEpisode: Épisode
+  typeAlbum: Album
+  typeArtist: Artiste
+  typeTrack: Piste
+  phGenre: "ex. Action"
+  phYear: "ex. 2020"
+  phLibrary: "ex. library-id"
+  phRating: "ex. 7.0"
+  phCollectionName: "ex. Films d'action après 2015"
   name: Nom
   description: Description
   type: Type

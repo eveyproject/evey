@@ -15,11 +15,11 @@ interface TypeRule { field: "type"; operator: StringOperator; value: string }
 interface LibraryRule { field: "library_id"; operator: StringOperator; value: string }
 type SmartRule = GenreRule | YearRule | TypeRule | LibraryRule;
 
-const FIELD_LABELS: Record<RuleField, string> = {
-  genre: "Genre",
-  year: "Year",
-  type: "Type",
-  library_id: "Library",
+const FIELD_LABEL_KEYS: Record<RuleField, string> = {
+  genre: "media.playlist.fieldGenre",
+  year: "media.playlist.fieldYear",
+  type: "media.playlist.fieldType",
+  library_id: "media.playlist.fieldLibrary",
 };
 
 const ALL_FIELDS: RuleField[] = ["genre", "year", "type", "library_id"];
@@ -33,12 +33,12 @@ const YEAR_OPERATORS: { value: YearOperator; label: string }[] = [
 ];
 
 const MEDIA_TYPES = [
-  { value: "MEDIA_ITEM_TYPE_MOVIE", label: "Movie" },
-  { value: "MEDIA_ITEM_TYPE_SERIES", label: "Series" },
-  { value: "MEDIA_ITEM_TYPE_EPISODE", label: "Episode" },
-  { value: "MEDIA_ITEM_TYPE_ALBUM", label: "Album" },
-  { value: "MEDIA_ITEM_TYPE_ARTIST", label: "Artist" },
-  { value: "MEDIA_ITEM_TYPE_TRACK", label: "Track" },
+  { value: "MEDIA_ITEM_TYPE_MOVIE", labelKey: "media.playlist.typeMovie" },
+  { value: "MEDIA_ITEM_TYPE_SERIES", labelKey: "media.playlist.typeSeries" },
+  { value: "MEDIA_ITEM_TYPE_EPISODE", labelKey: "media.playlist.typeEpisode" },
+  { value: "MEDIA_ITEM_TYPE_ALBUM", labelKey: "media.playlist.typeAlbum" },
+  { value: "MEDIA_ITEM_TYPE_ARTIST", labelKey: "media.playlist.typeArtist" },
+  { value: "MEDIA_ITEM_TYPE_TRACK", labelKey: "media.playlist.typeTrack" },
 ];
 
 function defaultRule(field: RuleField): SmartRule {
@@ -69,7 +69,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
       <span
         className="text-sm font-medium w-16 flex-shrink-0 text-[var(--text-muted)]"
       >
-        {FIELD_LABELS[rule.field]}
+        {t(FIELD_LABEL_KEYS[rule.field])}
       </span>
 
       {rule.field === "year" ? (
@@ -98,8 +98,8 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
           aria-label={t("media.playlist.value")}
           className="flex-1 text-sm px-2 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         >
-          {MEDIA_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
+          {MEDIA_TYPES.map((mt) => (
+            <option key={mt.value} value={mt.value}>{t(mt.labelKey)}</option>
           ))}
         </select>
       ) : (
@@ -108,7 +108,7 @@ function RuleRow({ rule, onChange, onRemove }: RuleRowProps) {
           value={rule.value}
           min={rule.field === "year" ? 1900 : undefined}
           max={rule.field === "year" ? new Date().getFullYear() + 2 : undefined}
-          placeholder={rule.field === "genre" ? "e.g. Action" : rule.field === "year" ? "e.g. 2020" : "e.g. library-id"}
+          placeholder={rule.field === "genre" ? t("media.playlist.phGenre") : rule.field === "year" ? t("media.playlist.phYear") : t("media.playlist.phLibrary")}
           onChange={(e) => onChange({ ...rule, value: e.target.value })}
           aria-label={t("media.playlist.value")}
           className="flex-1 text-sm px-3 py-1.5 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
@@ -197,7 +197,7 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
                 key={i}
                 className="text-xs px-2 py-1 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
               >
-                {FIELD_LABELS[rule.field as RuleField] ?? rule.field} {rule.operator} {rule.value}
+                {FIELD_LABEL_KEYS[rule.field as RuleField] ? t(FIELD_LABEL_KEYS[rule.field as RuleField]) : rule.field} {rule.operator} {rule.value}
               </span>
             ))}
           </div>
@@ -242,11 +242,11 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
               key={f}
               type="button"
               onClick={() => addRule(f)}
-              aria-label={t("media.playlist.addFieldRule", { field: FIELD_LABELS[f], defaultValue: `Add ${FIELD_LABELS[f]} rule` })}
+              aria-label={t("media.playlist.addFieldRule", { field: t(FIELD_LABEL_KEYS[f]), defaultValue: `Add ${t(FIELD_LABEL_KEYS[f])} rule` })}
               className="flex items-center gap-1 text-xs px-2 py-1 rounded-[var(--radius-md)] transition-colors-fast bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--accent)]"
             >
               <Plus size={12} strokeWidth={2.5}  aria-hidden="true" />
-              {FIELD_LABELS[f]}
+              {t(FIELD_LABEL_KEYS[f])}
             </button>
           ))}
         </div>
