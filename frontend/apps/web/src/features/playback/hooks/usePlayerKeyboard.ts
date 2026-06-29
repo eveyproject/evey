@@ -14,6 +14,9 @@ interface UsePlayerKeyboardArgs {
   currentSubtitleRef: React.MutableRefObject<number | null>;
   anyPanelOpenRef: React.MutableRefObject<boolean>;
   closePanelRef: React.MutableRefObject<(() => void) | null>;
+  // PlayerControls' Document-PiP-aware toggle. When present the "p" shortcut
+  // uses it; otherwise it falls back to the legacy bare-<video> PiP.
+  pipToggleRef: React.MutableRefObject<(() => void) | null>;
   onCloseRef: React.MutableRefObject<(() => void) | undefined>;
   setPlaybackSpeed: (s: number) => void;
   // Burn-in-aware subtitle selector (same handler the settings panel uses), so
@@ -36,6 +39,7 @@ export function usePlayerKeyboard({
   currentSubtitleRef,
   anyPanelOpenRef,
   closePanelRef,
+  pipToggleRef,
   onCloseRef,
   setPlaybackSpeed,
   onSubtitleChange,
@@ -139,7 +143,11 @@ export function usePlayerKeyboard({
           break;
         }
         case "p":
-          if (document.pictureInPictureEnabled) {
+          // Prefer the controls' Document-PiP-aware toggle (rich PiP window);
+          // fall back to legacy bare-<video> PiP when controls aren't mounted.
+          if (pipToggleRef.current) {
+            pipToggleRef.current();
+          } else if (document.pictureInPictureEnabled) {
             if (document.pictureInPictureElement) void document.exitPictureInPicture();
             else void video.requestPictureInPicture();
           }

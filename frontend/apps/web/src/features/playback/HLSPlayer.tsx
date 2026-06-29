@@ -109,6 +109,10 @@ export function HLSPlayer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
   const controlsToggleRef = useRef<(() => void) | null>(null);
+  // Set by PlayerControls to its Document-PiP-aware toggle, so the "p" keyboard
+  // shortcut opens the same rich PiP window as the on-screen button instead of
+  // the bare-<video> legacy PiP.
+  const pipToggleRef = useRef<(() => void) | null>(null);
   const positionRef = useRef(startPositionMs / 1000);
   const knownDurationSecRef = useRef(knownDurationMs ? knownDurationMs / 1000 : 0);
   knownDurationSecRef.current = knownDurationMs ? knownDurationMs / 1000 : 0;
@@ -475,7 +479,7 @@ export function HLSPlayer({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef,
     playbackSpeedRef, subtitleStreamsRef, currentSubtitleRef, anyPanelOpenRef,
     closePanelRef, onCloseRef, setPlaybackSpeed, onSubtitleChange: handleSubtitleChange,
-    setShowShortcuts, showActionFlash,
+    setShowShortcuts, showActionFlash, pipToggleRef,
   });
 
   const { overlayTime, overlayDuration } = useOverlayTime({
@@ -796,6 +800,7 @@ export function HLSPlayer({
           onPanelOpenChange={(anyOpen) => { anyPanelOpenRef.current = anyOpen; }}
           closePanelRef={closePanelRef}
           controlsToggleRef={controlsToggleRef}
+          pipToggleRef={pipToggleRef}
           onActionFlash={showActionFlash}
           onBrightnessChange={setBrightnessValue}
           castAvailable={castAvailable}

@@ -32,6 +32,7 @@ interface PlayerControlsProps {
   onActionFlash?: (action: "play" | "pause") => void;
   onBrightnessChange?: (value: number) => void;
   controlsToggleRef?: React.MutableRefObject<(() => void) | null>;
+  pipToggleRef?: React.MutableRefObject<(() => void) | null>;
   castAvailable?: boolean;
   castConnected?: boolean;
   castDeviceName?: string | null;
@@ -69,6 +70,7 @@ function PlayerControlsInner({
   onActionFlash,
   onBrightnessChange,
   controlsToggleRef,
+  pipToggleRef,
   castAvailable,
   castConnected,
   castDeviceName,
@@ -153,6 +155,15 @@ function PlayerControlsInner({
     };
     return () => { if (controlsToggleRef) controlsToggleRef.current = null; };
   }, [controlsToggleRef, scheduleHide]);
+
+  // Expose the Document-PiP-aware toggle to the parent so the "p" keyboard
+  // shortcut uses it too. No deps: re-assign every render so the ref always
+  // holds the latest closure (docPiP.available/toggle can change).
+  useEffect(() => {
+    if (!pipToggleRef) return;
+    pipToggleRef.current = togglePip;
+    return () => { pipToggleRef.current = null; };
+  });
 
   const resetHideTimer = useCallback(() => {
     setVisible(true);

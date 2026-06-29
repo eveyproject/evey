@@ -33,6 +33,7 @@ function defaultArgs(video: HTMLVideoElement) {
     currentSubtitleRef: { current: null as number | null },
     anyPanelOpenRef: { current: false },
     closePanelRef: { current: vi.fn() },
+    pipToggleRef: { current: null as (() => void) | null },
     onCloseRef: { current: vi.fn() },
     setPlaybackSpeed: vi.fn(),
     onSubtitleChange: vi.fn(),
