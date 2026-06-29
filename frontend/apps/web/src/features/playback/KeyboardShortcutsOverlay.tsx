@@ -1,5 +1,6 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface KeyboardShortcutsOverlayProps {
   onClose: () => void;
@@ -9,6 +10,9 @@ interface KeyboardShortcutsOverlayProps {
 
 export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 30, skipForwardSeconds = 30 }: KeyboardShortcutsOverlayProps) {
   const { t } = useTranslation();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  // Always active — component is only mounted when the overlay is open
+  useFocusTrap(dialogRef, true);
   const shortcuts: [string, string][] = useMemo(() => [
     ["Space / K", t("player.shortcuts.playPause")],
     ["F", t("player.shortcuts.toggleFullscreen")],
@@ -42,7 +46,12 @@ export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 30, sk
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-[var(--radius-md)] p-6 shadow-2xl bg-[var(--surface)] border border-[var(--border)]"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("player.shortcuts.title")}
+        tabIndex={-1}
+        className="w-full max-w-md rounded-[var(--radius-md)] p-6 shadow-2xl bg-[var(--surface)] border border-[var(--border)] outline-none"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold mb-4 text-[var(--text)]">
