@@ -70,8 +70,10 @@ function SearchPage() {
     setSearchKind(kind === "music" ? "music" : "media");
   }, [kind]);
 
+  // NOTE: recents are committed on an explicit action (blur / Enter), not here —
+  // pushing on every debounced value would save every keystroke prefix ("in",
+  // "inc", "ince", …) and evict real past searches (MAX 8).
   useEffect(() => {
-    if (debouncedQuery.length > 1) pushRecent(debouncedQuery);
     const urlKind = kind === "music" ? "music" : undefined;
     const nextKind = searchKind === "music" ? "music" : undefined;
     if ((q ?? "") !== debouncedQuery || urlKind !== nextKind) {
@@ -153,6 +155,12 @@ function SearchPage() {
             data-testid="search-page-input"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
+            // Commit to recents on a deliberate action (leaving the field — e.g.
+            // clicking a result — or pressing Enter), not on every keystroke.
+            onBlur={() => { const v = inputValue.trim(); if (v.length > 1) pushRecent(v); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { const v = inputValue.trim(); if (v.length > 1) pushRecent(v); }
+            }}
             className="w-full pl-10 pr-4 py-3 rounded-[var(--radius-lg)] text-base bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-shadow"
           />
           {inputValue && (
@@ -306,7 +314,7 @@ function SearchPage() {
         </div>
       )}
 
-      {hasQuery && !isLoading && !musicLoading && items.length === 0 && musicItems.length === 0 && !musicIsError && (
+      {hasQuery && !isLoading && !musicLoading && items.length === 0 && musicItems.length === 0 && !musicIsError && !isError && (
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
@@ -380,6 +388,18 @@ function SearchPage() {
       )}
 
       {searchKind === "music" && hasQuery && !musicLoading && musicIsError && (
+        <div
+          className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
+        >
+          <EmptyState
+            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+            title={t("common.errorBoundary.title")}
+            description={t("common.errorBoundary.description")}
+          />
+        </div>
+      )}
+
+      {searchKind === "media" && hasQuery && !isLoading && isError && (
         <div
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
