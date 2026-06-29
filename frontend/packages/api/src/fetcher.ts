@@ -84,8 +84,14 @@ function isJwtExpired(token: string): boolean {
  *
  * Exported for the test suite.
  */
-export async function _ensureFreshToken(): Promise<string | undefined> {
+export async function _ensureFreshToken(url?: string): Promise<string | undefined> {
   const token = getToken?.() ?? undefined;
+  // Never pre-refresh before hitting the refresh endpoint itself: it
+  // authenticates via the HttpOnly cookie, not the Bearer, so triggering
+  // attemptRefresh here would rotate the cookie once, then the explicit
+  // /auth/refresh POST rotates it again — a double rotation that needlessly
+  // doubles the multi-tab reuse-detection surface (which purges all sessions).
+  if (url && url.endsWith("/auth/refresh")) return token;
   if (!token) return undefined;
   if (!isJwtExpired(token)) return token;
   if (refreshFailed) return token;       // give up — caller will get 401 → fireUnauthorized
@@ -212,7 +218,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
     });
   }
 
-  const token = await _ensureFreshToken();
+  const token = await _ensureFreshToken(request.url);
   const headers: Record<string, string> = { ...extraHeaders, ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const locale = getLocale?.();
@@ -236,7 +242,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
 }
 
 export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
-  const token = await _ensureFreshToken();
+  const token = await _ensureFreshToken(request.url);
   const headers: Record<string, string> = { ...extraHeaders, ...(request.headers ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const locale = getLocale?.();

@@ -171,6 +171,18 @@ describe("eveyFetch", () => {
     expect(fetchMock.mock.calls[0][0]).not.toContain("/auth/refresh");
   });
 
+  it("does NOT pre-flight refresh before hitting /auth/refresh itself (no double rotation)", async () => {
+    setTokenProvider(() => mkJwt(-30)); // expired — would normally pre-refresh
+    fetchMock.mockResolvedValueOnce(mockResponse(200, { accessToken: "rotated" }));
+
+    await eveyFetch<{ accessToken: string }>({ url: "/api/v1/auth/refresh", method: "POST" });
+
+    // Exactly ONE fetch: the refresh POST. Without the guard, _ensureFreshToken
+    // would rotate the cookie once here, then this POST rotates it again.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toContain("/auth/refresh");
+  });
+
   it("concurrent calls with an expired token share a single refresh", async () => {
     setTokenProvider(() => mkJwt(-1));
     const updater = vi.fn();
