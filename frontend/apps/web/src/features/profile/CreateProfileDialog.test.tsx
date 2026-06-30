@@ -144,6 +144,21 @@ describe("CreateProfileDialog", () => {
     expect(screen.queryByLabelText(/pin/i)).toBeNull();
   });
 
+  it("does NOT leak a typed PIN onto a kids profile after toggling isKids on", async () => {
+    renderDialog({ hasKidsProfile: true });
+    const nameInput = screen.getByLabelText(/name/i);
+    fireEvent.change(nameInput, { target: { value: "Junior" } });
+    // Type a PIN while the field is shown (adult profile), then switch to kids:
+    // the field unmounts but the pin state persists.
+    fireEvent.change(screen.getByLabelText(/pin/i), { target: { value: "1234" } });
+    fireEvent.click(screen.getByLabelText(/kids profile/i));
+    fireEvent.submit(nameInput.closest("form")!);
+    await waitFor(() => expect(mockMutate).toHaveBeenCalled());
+    const arg = mockMutate.mock.calls[0][0];
+    expect(arg.data.isKids).toBe(true);
+    expect(arg.data.pin).toBeUndefined();
+  });
+
   // ── Kids toggle + maxAge ───────────────────────────────────────────────────
 
   it("does not show max age rating select when isKids is false", () => {

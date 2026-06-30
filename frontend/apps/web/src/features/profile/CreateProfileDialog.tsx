@@ -136,7 +136,11 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: C
         if (!Number.isNaN(n)) data.maxAge = n;
       }
     }
-    if (pin.length === 4) data.pin = pin;
+    // Only attach a PIN to a non-kids profile: the PIN field is shown solely for
+    // adult profiles (pinRequired = hasKidsProfile && !isKids). Without the !isKids
+    // guard, a PIN typed before ticking "Kids profile" stays in state and leaks
+    // onto the new kids profile — a PIN the user can no longer see or intended.
+    if (!isKids && pin.length === 4) data.pin = pin;
     if (locale) data.locale = locale;
     if (region) data.region = region;
     createProfile.mutate({ userId, data });
