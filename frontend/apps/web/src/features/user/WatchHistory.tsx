@@ -16,6 +16,14 @@ import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 
+// Home feeds (and popular-media) filter watched items server-side, so a change
+// to watch state must invalidate them too. Mirrors MediaCard.invalidateItem.
+function isWatchedFeedQuery(q: { queryKey: readonly unknown[] }): boolean {
+  const k = q.queryKey?.[0];
+  if (typeof k !== "string") return false;
+  return k.startsWith("/api/v1/feeds/") || k === "/api/v1/activity/popular-media";
+}
+
 type WatchProgress = {
   id?: string;
   profileId?: string;
@@ -72,6 +80,8 @@ function HistoryItem({ item }: { item: WatchProgress }) {
     mutation: {
       onSuccess: () => {
         void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
+        // Unwatching restores the item to the watched-filtered home feeds.
+        void qc.invalidateQueries({ predicate: isWatchedFeedQuery });
       },
     },
   });
@@ -176,6 +186,9 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
     mutation: {
       onSuccess: () => {
         void qc.invalidateQueries({ queryKey: getPlaybackServiceGetWatchHistoryQueryKey() });
+        // Clearing history un-watches everything, so the items return to the
+        // watched-filtered home feeds ("Continue Watching" etc.).
+        void qc.invalidateQueries({ predicate: isWatchedFeedQuery });
         toast.success(t("auth.watchHistory.cleared"));
       },
       onError: (err: Error) => toast.error(err?.message || t("auth.watchHistory.clearFailed")),
