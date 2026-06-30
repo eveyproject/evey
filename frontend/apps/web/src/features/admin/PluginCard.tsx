@@ -236,12 +236,22 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
   const isDirty = Object.keys(edits).length > 0;
 
   function handleSave() {
+    // Resolve each field exactly as it is rendered (fall back to the schema
+    // default). Otherwise a required field that shows its default but was never
+    // edited validates as empty ("<key> is required") and can never be saved.
+    const resolved: Record<string, string> = { ...current };
+    for (const key of keys) {
+      const schema = configSchema?.[key];
+      if (schema && resolved[key] == null && schema.default !== undefined) {
+        resolved[key] = String(schema.default);
+      }
+    }
     if (configSchema) {
       const newErrors: Record<string, string> = {};
       for (const key of keys) {
         const schema = configSchema[key];
         if (schema) {
-          const err = validateField(key, current[key] ?? "", schema);
+          const err = validateField(key, resolved[key] ?? "", schema);
           if (err) newErrors[key] = err;
         }
       }
@@ -251,7 +261,7 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
       }
     }
     setErrors({});
-    updateConfig.mutate({ pluginId, data: { values: current } });
+    updateConfig.mutate({ pluginId, data: { values: resolved } });
   }
 
   return (
