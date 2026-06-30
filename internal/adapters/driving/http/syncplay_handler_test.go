@@ -290,6 +290,40 @@ func TestSyncPlayWS_NonMember_403(t *testing.T) {
 	}
 }
 
+// A music room's MediaID is a track ID, not a media_item, so the video
+// media-item gate used to 404 it. The handler must skip that gate for music
+// rooms and rely on membership. Regression for the "music syncplay ws 404" bug.
+func TestSyncPlayWS_MusicRoom_SkipsMediaItemCheck(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter() // empty: GetMediaItem would 404 for any id
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+
+	// Music room: track-1 is not a media_item.
+	room, err := hub.CreateRoomFromQueue(context.Background(), "host-music", "MusicRoom", []string{"track-1"})
+	if err != nil {
+		t.Fatalf("hub.CreateRoomFromQueue: %v", err)
+	}
+	if room.MediaType != "music" {
+		t.Fatalf("expected music room, got MediaType=%q", room.MediaType)
+	}
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	hostToken, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "host-music", Username: "Host", IsAdmin: false})
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + room.ID + "/ws"
+	ws, _, err := dialWS(wsURL, srv.URL, hostToken)
+	if err != nil {
+		// Before the fix the media-item gate returned 404 here, failing the handshake.
+		t.Fatalf("music room WS should connect (media gate skipped + member), got: %v", err)
+	}
+	defer ws.Close()
+}
+
 func TestSyncPlayWS_ValidHostToken_NotRejectedByAuth(t *testing.T) {
 	t.Parallel()
 	tokenGen := newTestJWTGen(t)

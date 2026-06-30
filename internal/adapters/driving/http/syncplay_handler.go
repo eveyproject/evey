@@ -108,20 +108,26 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
 		return
 	}
-	item, mErr := s.media.GetMediaItem(r.Context(), string(room.MediaID))
-	if mErr != nil || item == nil {
-		if mErr != nil {
-			span.RecordError(mErr)
+	// Music rooms carry a track ID in MediaID, which is not a media_item — the
+	// video media/library gate below would 404 it. For music, access is gated at
+	// create/join time (track library access) plus room membership (checked
+	// below); the video media-item lookup is skipped.
+	if room.MediaType != "music" {
+		item, mErr := s.media.GetMediaItem(r.Context(), string(room.MediaID))
+		if mErr != nil || item == nil {
+			if mErr != nil {
+				span.RecordError(mErr)
+			}
+			span.SetStatus(otelcodes.Error, "media item not found")
+			span.End()
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
 		}
-		span.SetStatus(otelcodes.Error, "media item not found")
-		span.End()
-		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
-		return
-	}
-	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
-		span.SetStatus(otelcodes.Error, "library access denied")
-		span.End()
-		return
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
+			span.SetStatus(otelcodes.Error, "library access denied")
+			span.End()
+			return
+		}
 	}
 	if !room.IsMember(claims.UserID) {
 		span.SetStatus(otelcodes.Error, "non-member attempt")
