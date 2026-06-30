@@ -242,7 +242,7 @@ describe("CardContextMenu", () => {
 
   // ── Mark watched: onSuccess / onError callbacks ───────────────────────────────
 
-  it("markWatched onSuccess invalidates the media item query", async () => {
+  it("markWatched onSuccess invalidates item, watch history, and feeds", async () => {
     renderMenu({ mediaId: "mi-test" });
     fireEvent.click(screen.getByTestId("media-context-menu-mark-watched"));
     watchedOnSuccess?.();
@@ -251,6 +251,19 @@ describe("CardContextMenu", () => {
         expect.objectContaining({ queryKey: ["/api/v1/media/mi-test"] }),
       ),
     );
+    // Must mirror MediaCard.invalidateItem so the watched badge + "Continue
+    // Watching" feeds update, not just the detail query.
+    expect(mockInvalidateQueries).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ["/api/v1/playback/history"] }),
+    );
+    const predicateCall = mockInvalidateQueries.mock.calls.find(
+      ([arg]) => typeof arg?.predicate === "function",
+    );
+    expect(predicateCall).toBeTruthy();
+    const predicate = predicateCall![0].predicate as (q: { queryKey: unknown[] }) => boolean;
+    expect(predicate({ queryKey: ["/api/v1/feeds/continue-watching"] })).toBe(true);
+    expect(predicate({ queryKey: ["/api/v1/activity/popular-media"] })).toBe(true);
+    expect(predicate({ queryKey: ["/api/v1/media/mi-test"] })).toBe(false);
   });
 
   it("markWatched onSuccess shows success toast", async () => {

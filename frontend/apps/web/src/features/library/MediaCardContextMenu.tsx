@@ -28,10 +28,25 @@ export const CardContextMenu = memo(function CardContextMenu({
   const profileId = useAuthStore((s) => s.profileId);
   const { data: isFav } = useIsFavorite(mediaId);
   const toggleFav = useToggleFavorite(mediaId);
+  // Mirror MediaCard.invalidateItem: marking watched from the card's dedicated
+  // button refreshes the item, the watch-history map (the green badge) and the
+  // home feeds that filter watched items — the context-menu path must do the
+  // same, else the badge stays grey and the item lingers in "Continue Watching".
+  const invalidateWatched = () => {
+    queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
+    queryClient.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
+    queryClient.invalidateQueries({
+      predicate: (q) => {
+        const k = q.queryKey?.[0];
+        if (typeof k !== "string") return false;
+        return k.startsWith("/api/v1/feeds/") || k === "/api/v1/activity/popular-media";
+      },
+    });
+  };
   const markWatched = usePlaybackServiceMarkAsWatched({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
+        invalidateWatched();
         toast.success(t("media.contextMenu.markedWatched"));
         onClose();
       },
@@ -44,7 +59,7 @@ export const CardContextMenu = memo(function CardContextMenu({
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({
     mutation: {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
+        invalidateWatched();
         toast.success(t("media.contextMenu.markedUnwatched"));
         onClose();
       },
