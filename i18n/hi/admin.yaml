@@ -508,6 +508,7 @@ serverConfig:
   configUpdated: "कॉन्फ़िग अपडेट हुआ"
   failedUpdate: "कॉन्फ़िग अपडेट करने में विफल"
   configDeleted: "कॉन्फ़िग प्रविष्टि मिटाई गई"
+  deleteEntryConfirm: "कॉन्फ़िग प्रविष्टि \"{{key}}\" हटाएं? इसे पूर्ववत नहीं किया जा सकता।"
   failedDeleteEntry: "प्रविष्टि मिटाने में विफल"
   emailSmtp: "ईमेल / SMTP"
   emailSmtpDesc: "सूचनाओं और आमंत्रणों के लिए आउटगोइंग ईमेल कॉन्फ़िगर करें।"

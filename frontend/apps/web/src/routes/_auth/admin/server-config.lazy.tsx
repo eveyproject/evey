@@ -123,7 +123,7 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
           ) : (
             <>
               <Button variant="secondary" onClick={() => setEditing(true)} className="text-xs">{t("common.edit")}</Button>
-              <Button variant="danger" onClick={() => deleteEntry.mutate(entry.key ?? "")} loading={deleteEntry.isPending} className="text-xs">{t("common.delete")}</Button>
+              <Button variant="danger" onClick={() => { const k = entry.key ?? ""; if (window.confirm(t("admin.serverConfig.deleteEntryConfirm", { key: k }))) deleteEntry.mutate(k); }} loading={deleteEntry.isPending} className="text-xs">{t("common.delete")}</Button>
             </>
           )}
         </div>

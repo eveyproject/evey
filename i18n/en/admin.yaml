@@ -507,6 +507,7 @@ serverConfig:
   configUpdated: Config updated
   failedUpdate: Failed to update config
   configDeleted: Config entry deleted
+  deleteEntryConfirm: "Delete config entry \"{{key}}\"? This cannot be undone."
   failedDeleteEntry: Failed to delete entry
   emailSmtp: Email / SMTP
   emailSmtpDesc: Configure outgoing email for notifications and invitations.

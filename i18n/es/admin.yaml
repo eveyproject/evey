@@ -508,6 +508,7 @@ serverConfig:
   configUpdated: "Configuración actualizada"
   failedUpdate: "Error al actualizar la configuración"
   configDeleted: "Entrada de configuración eliminada"
+  deleteEntryConfirm: "¿Eliminar la entrada de configuración \"{{key}}\"? Esta acción no se puede deshacer."
   failedDeleteEntry: "Error al eliminar la entrada"
   emailSmtp: "Correo / SMTP"
   emailSmtpDesc: "Configura el correo saliente para notificaciones e invitaciones."

@@ -506,6 +506,7 @@ serverConfig:
   configUpdated: "Configuration mise à jour"
   failedUpdate: "Échec de la mise à jour de la configuration"
   configDeleted: "Entrée de configuration supprimée"
+  deleteEntryConfirm: "Supprimer l'entrée de configuration « {{key}} » ? Cette action est irréversible."
   failedDeleteEntry: "Échec de la suppression de l'entrée"
   emailSmtp: "E-mail / SMTP"
   emailSmtpDesc: "Configurer l'envoi d'e-mails pour les notifications et invitations."

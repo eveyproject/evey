@@ -508,6 +508,7 @@ serverConfig:
   configUpdated: Konfiguration aktualisiert
   failedUpdate: Konfiguration konnte nicht aktualisiert werden
   configDeleted: Konfigurationseintrag gelöscht
+  deleteEntryConfirm: "Konfigurationseintrag \"{{key}}\" löschen? Dies kann nicht rückgängig gemacht werden."
   failedDeleteEntry: Eintrag konnte nicht gelöscht werden
   emailSmtp: E-Mail / SMTP
   emailSmtpDesc: Ausgehende E-Mails für Benachrichtigungen und Einladungen konfigurieren.

@@ -508,6 +508,7 @@ serverConfig:
   configUpdated: "配置已更新"
   failedUpdate: "更新配置失败"
   configDeleted: "配置条目已删除"
+  deleteEntryConfirm: "删除配置项 \"{{key}}\"？此操作无法撤销。"
   failedDeleteEntry: "删除配置条目失败"
   emailSmtp: "邮件 / SMTP"
   emailSmtpDesc: "配置用于通知和邀请的外发邮件。"
