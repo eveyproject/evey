@@ -13,6 +13,7 @@ import { typeLabel } from "@/utils/typeLabel";
 import { HoverPreview } from "./MediaCardHoverPreview";
 import { CardContextMenu } from "./MediaCardContextMenu";
 import { artworkUrl } from "./artworkUrl";
+import { PosterPlaceholder } from "./PosterPlaceholder";
 
 const WATCHED_THRESHOLD_PCT = 95;
 
@@ -137,7 +138,6 @@ export const MediaCard = memo(function MediaCard({
     return `${poster}${sep}w=185 185w, ${poster}${sep}w=342 342w, ${poster}${sep}w=500 500w`;
   }, [poster]);
 
-  const initial = item.title ? item.title[0].toUpperCase() : "?";
   const pct =
     progressPercent !== undefined
       ? Math.min(100, Math.max(0, Math.round(progressPercent)))
@@ -288,16 +288,12 @@ export const MediaCard = memo(function MediaCard({
             />
           </>
         ) : null}
-        <div
-          role="img"
-          aria-label={item.title || "Media poster"}
-          className="absolute inset-0 items-center justify-center text-2xl font-bold bg-[var(--surface-raised)] text-[var(--text-muted)]"
-          style={{
-            display: poster ? "none" : "flex",
-          }}
-        >
-          {initial}
-        </div>
+        <PosterPlaceholder
+          title={item.title}
+          type={item.type}
+          className="absolute inset-0"
+          style={{ display: poster ? "none" : "flex" }}
+        />
 
         {showYear && item.year !== undefined && (
           <span

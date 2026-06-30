@@ -138,9 +138,10 @@ describe("MediaCard", () => {
     expect(bar).toBeInTheDocument();
   });
 
-  it("renders fallback initial when no poster", () => {
+  it("renders titled placeholder when no poster", () => {
     render(<MediaCard item={{ id: undefined, title: "Arrival" }} />, { wrapper: Wrapper });
-    expect(screen.getByText("A")).toBeInTheDocument();
+    // The posterless placeholder is the role="img" labelled by the title.
+    expect(screen.getByRole("img", { name: "Arrival" })).toBeInTheDocument();
   });
 
   // Badge tests

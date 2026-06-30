@@ -18,6 +18,7 @@ import { SeriesSection, SeasonEpisodesSection } from "./MediaDetailSeries";
 import { SimilarSection } from "./MediaDetailSimilar";
 import { MediaDetailFileInfo } from "./MediaDetailFileInfo";
 import { artworkUrl } from "./artworkUrl";
+import { PosterPlaceholder } from "./PosterPlaceholder";
 
 interface MediaDetailProps {
   item: V1MediaItem;
@@ -118,15 +119,32 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
       <div className="flex gap-6 mt-6">
         <div className="flex-shrink-0 w-48 hidden md:block">
           <div
-            className="evey-poster w-48 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)]"
+            className="evey-poster relative w-48 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)]"
           >
             {posterUrl ? (
-              <img src={posterUrl} srcSet={posterSrcSet} sizes="192px" alt={item.title ?? ""} fetchPriority="high" className="w-full h-full object-cover" data-testid="media-poster" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-[var(--text-muted)]">
-                {item.title?.[0]?.toUpperCase() ?? "?"}
-              </div>
-            )}
+              <img
+                src={posterUrl}
+                srcSet={posterSrcSet}
+                sizes="192px"
+                alt={item.title ?? ""}
+                fetchPriority="high"
+                className="w-full h-full object-cover"
+                data-testid="media-poster"
+                onError={(e) => {
+                  const t = e.currentTarget as HTMLImageElement;
+                  t.style.display = "none";
+                  const fb = t.nextElementSibling as HTMLElement | null;
+                  if (fb) fb.style.display = "flex";
+                }}
+              />
+            ) : null}
+            <PosterPlaceholder
+              title={item.title}
+              type={item.type}
+              iconSize={36}
+              className="absolute inset-0"
+              style={{ display: posterUrl ? "none" : "flex" }}
+            />
           </div>
         </div>
 

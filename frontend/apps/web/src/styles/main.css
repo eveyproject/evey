@@ -187,6 +187,18 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   background: linear-gradient(135deg, var(--bg) 0%, var(--bg-gradient-mid) 50%, var(--bg) 100%);
 }
 
+/* Poster placeholder (artwork missing / failed to load): soft, intentional
+   diagonal — a faint accent tint up top fading into a slightly deeper surface,
+   so a posterless card reads as designed, not broken. */
+.evey-poster-fallback {
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--accent) 9%, var(--surface-raised)) 0%,
+    var(--surface-raised) 45%,
+    color-mix(in srgb, var(--bg) 40%, var(--surface-raised)) 100%
+  );
+}
+
 /* TopBar scroll-driven glass — toggled by data-scrolled attribute, no JS re-render */
 .topbar-glass {
   background-color: var(--surface);

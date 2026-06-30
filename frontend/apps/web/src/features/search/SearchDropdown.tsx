@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceSearchMedia, musicServiceSearchMusic } from "@evey/api";
 import { typeLabel } from "@/utils/typeLabel";
+import { PosterPlaceholder } from "@/features/library/PosterPlaceholder";
 
 type SearchKind = "media" | "music";
 
@@ -260,25 +261,27 @@ export const SearchDropdown = memo(function SearchDropdown({
                   className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[var(--surface)] focus:bg-[var(--surface)] focus:outline-none transition-colors-fast cursor-pointer"
                 >
                   <div
-                    className="w-9 h-13 rounded overflow-hidden shrink-0 flex items-center justify-center aspect-[2/3] bg-[var(--surface)]"
+                    className="relative w-9 h-13 rounded overflow-hidden shrink-0 aspect-[2/3]"
                   >
+                    <PosterPlaceholder
+                      title={item.title}
+                      type={item.type}
+                      iconSize={16}
+                      showTitle={false}
+                      className="absolute inset-0"
+                    />
                     {item.id ? (
                       <img
                         src={`/api/v1/media/${item.id}/artwork/poster`}
                         srcSet={`/api/v1/media/${item.id}/artwork/poster?w=50 50w, /api/v1/media/${item.id}/artwork/poster?w=100 100w`}
                         sizes="36px"
                         alt={item.title || "Media poster"}
-                        className="w-full h-full object-cover"
+                        className="absolute inset-0 w-full h-full object-cover"
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
                         }}
                       />
                     ) : null}
-                    <span
-                      className="text-xs font-bold text-[var(--text-muted)]"
-                    >
-                      {item.title?.[0]?.toUpperCase() ?? "?"}
-                    </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p
