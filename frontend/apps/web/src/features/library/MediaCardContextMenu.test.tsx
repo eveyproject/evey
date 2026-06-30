@@ -262,7 +262,7 @@ describe("CardContextMenu", () => {
     expect(predicateCall).toBeTruthy();
     const predicate = predicateCall![0].predicate as (q: { queryKey: unknown[] }) => boolean;
     expect(predicate({ queryKey: ["/api/v1/feeds/continue-watching"] })).toBe(true);
-    expect(predicate({ queryKey: ["/api/v1/activity/popular-media"] })).toBe(true);
+    expect(predicate({ queryKey: ["/api/v1/popular"] })).toBe(true);
     expect(predicate({ queryKey: ["/api/v1/media/mi-test"] })).toBe(false);
   });
 

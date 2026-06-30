@@ -101,7 +101,7 @@ export const MediaCard = memo(function MediaCard({
       predicate: (q) => {
         const k = q.queryKey?.[0];
         if (typeof k !== "string") return false;
-        return k.startsWith("/api/v1/feeds/") || k === "/api/v1/activity/popular-media";
+        return k.startsWith("/api/v1/feeds/") || k === "/api/v1/popular";
       },
     });
   };
