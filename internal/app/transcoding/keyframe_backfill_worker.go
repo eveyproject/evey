@@ -40,11 +40,14 @@ type KeyframeProber interface {
 // stuck file is attempted at most once per run). It runs AFTER the level
 // backfill by construction (the query requires level IS NOT NULL).
 //
-// Pacing is deliberately gentler than the level worker: the keyframe probe scans
-// every packet header (~tens of seconds for a long film over a network mount),
-// so this is the heaviest sustained NAS load of the whole pipeline. Defaults are
-// conservative; validate on the real NAS before raising. The proper fix for the
-// cost is the container seek index (mkvgo OpenCues) — see the memory note.
+// Pacing is deliberately gentler than the level worker: the ffprobe packet scan
+// (~tens of seconds for a long film over a network mount) is the heaviest
+// sustained NAS load of the whole pipeline. That scan is now only the FALLBACK:
+// the keyframe prober fed to this worker is an mkvgo-fronted KeyframeDispatcher
+// (wire.go) that reads the container seek index head-only (Cues for mkv, stss
+// for mp4) in milliseconds, and only drops to the ffprobe packet scan when the
+// container yields no index. Defaults stay conservative for the fallback case;
+// validate on the real NAS before raising.
 type KeyframeBackfillWorker struct {
 	store  KeyframeBackfillStore
 	items  MediaItemReader
