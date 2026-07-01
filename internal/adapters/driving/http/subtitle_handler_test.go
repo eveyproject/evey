@@ -541,11 +541,11 @@ func TestSubtitleHandler_ParentalAdmin_NotBlocked(t *testing.T) {
 	}
 }
 
-// --- isMKVSubtitleFastPath ---
+// --- isMkvgoSubtitleFastPath ---
 
-// isMKVSubtitleFastPath is a pure function; test it directly so the "non-MKV
-// extension does not attempt the mkvgo fast path" property is verifiable without
-// spawning ffmpeg or touching the filesystem.
+// isMkvgoSubtitleFastPath is a pure function; test it directly so the container
+// eligibility ("EBML + ISO-BMFF via mkvgo, everything else through ffmpeg")
+// property is verifiable without spawning ffmpeg or touching the filesystem.
 func TestSubtitleHandler_IsMKVFastPath(t *testing.T) {
 	cases := []struct {
 		ext  string
@@ -553,15 +553,18 @@ func TestSubtitleHandler_IsMKVFastPath(t *testing.T) {
 	}{
 		{".mkv", true},
 		{".webm", true},
-		{".mp4", false},
-		{".ts", false},
+		{".mp4", true},  // tx3g/wvtt via the mkvgo mp4 package
+		{".m4v", true},  // ISO-BMFF sibling of .mp4
+		{".mov", false}, // QuickTime deliberately excluded (not parity-validated)
+		{".ts", false},  // MPEG-TS is out of mkvgo's scope
 		{".avi", false},
 		{".MKV", false}, // caller lower-cases before calling; upper-case must be false
+		{".MP4", false},
 		{"", false},
 	}
 	for _, tc := range cases {
-		if got := isMKVSubtitleFastPath(tc.ext); got != tc.want {
-			t.Errorf("isMKVSubtitleFastPath(%q) = %v, want %v", tc.ext, got, tc.want)
+		if got := isMkvgoSubtitleFastPath(tc.ext); got != tc.want {
+			t.Errorf("isMkvgoSubtitleFastPath(%q) = %v, want %v", tc.ext, got, tc.want)
 		}
 	}
 }
@@ -599,6 +602,37 @@ func TestSubtitleHandler_MKV_TextSub_MkVgoFallback(t *testing.T) {
 	// own guard responses, not ffmpeg's).
 	if w.Code == http.StatusNotFound || w.Code == http.StatusUnprocessableEntity || w.Code == http.StatusInternalServerError {
 		t.Errorf("mkvgo fallback must not produce %d: expected fall-through to ffmpeg", w.Code)
+	}
+}
+
+// TestSubtitleHandler_MP4_TextSub_MkvgoFallback is the ISO-BMFF counterpart of
+// the .mkv fallback test: a .mp4 with an embedded text subtitle triggers the
+// mkvgo mp4 fast path (mp4.ExtractSubtitleWebVTT, tx3g/wvtt), and when the file
+// cannot be opened (no fixture on disk) the handler must fall back to ffmpeg
+// rather than emit one of our own guard responses. Happy-path extraction from a
+// real tx3g track is covered in integration / E2E tests against actual media.
+func TestSubtitleHandler_MP4_TextSub_MkvgoFallback(t *testing.T) {
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		// Non-existent path: mp4.OpenMeta fails → handler falls back to ffmpeg.
+		File: &domainlibrary.MediaFile{Path: "/tmp/nonexistent-subtitle-test.mp4"},
+	}
+	h := subtitleHandler(
+		&fakeTokenVerifier{claims: testClaims(true)},
+		&fakeMediaStreamsGetter{item: item, streams: []*domainlibrary.MediaStream{
+			// tx3g scanned via the mkvgo mp4 fast path stores "subrip" (srt→FFprobeCodecName).
+			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},
+		}},
+		"http://localhost", allowAll(), allowAllParental{},
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitle/0", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("track", "0")
+	req = withHTTPClaims(req, testClaims(true))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code == http.StatusNotFound || w.Code == http.StatusUnprocessableEntity || w.Code == http.StatusInternalServerError {
+		t.Errorf("mkvgo mp4 fallback must not produce %d: expected fall-through to ffmpeg", w.Code)
 	}
 }
 
