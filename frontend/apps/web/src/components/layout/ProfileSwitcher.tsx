@@ -4,11 +4,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore, toast } from "@evey/store";
-import { userServiceRefreshToken, userServiceLogout } from "@evey/api";
+import { userServiceRefreshToken, userServiceLogout, syncPlayServiceJoinByCode } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { Users, Check, Settings, Clock, BarChart3, QrCode, LayoutList, LogOut, ArrowLeftRight } from "lucide-react";
 import { PinPromptDialog } from "@/features/profile/PinPromptDialog";
 import { Modal } from "@/components/ui/Modal";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 
 // Accept undefined: `active` can be undefined when the profiles list is empty
 // (loading window, or a transient 0-profile state), and the avatar button calls
@@ -52,6 +54,9 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
   const [switchOpen, setSwitchOpen] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
   const [pinTarget, setPinTarget] = useState<V1Profile | null>(null);
+  const [joinOpen, setJoinOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [joining, setJoining] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -126,12 +131,33 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
     void navigate({ to: "/login" });
   }, [qc, logout, navigate]);
 
+  const handleJoinRoom = useCallback(async () => {
+    const code = joinCode.trim();
+    if (code.length < 4) return;
+    setJoining(true);
+    try {
+      const info = await syncPlayServiceJoinByCode({ code });
+      setJoinOpen(false);
+      setJoinCode("");
+      if (info.mediaType === "music") {
+        void navigate({ to: "/syncplay" });
+      } else if (info.mediaId) {
+        void navigate({ to: "/player/$mediaId", params: { mediaId: info.mediaId }, search: { room: info.roomId } });
+      }
+    } catch {
+      toast.error(t("media.syncplay.joinError", "Could not join — check the code"));
+    } finally {
+      setJoining(false);
+    }
+  }, [joinCode, navigate, t]);
+
   type UserMenuItem = { label: string; icon: React.ReactNode; action: () => void; testid: string };
   const userItems: UserMenuItem[] = [
     { label: t("common.nav.settings"), icon: <Settings size={16} />, action: () => go("/profile/settings"), testid: "topbar-user-menu-settings" },
     { label: t("common.nav.watchHistory"), icon: <Clock size={16} />, action: () => go("/profile/history"), testid: "topbar-user-menu-history" },
     { label: t("common.nav.myStats"), icon: <BarChart3 size={16} />, action: () => go("/profile/stats"), testid: "topbar-user-menu-stats" },
     { label: t("common.nav.quickConnect"), icon: <QrCode size={16} />, action: () => go("/quickconnect"), testid: "topbar-user-menu-quickconnect" },
+    { label: t("common.nav.joinRoom", "Join a room"), icon: <Users size={16} />, action: () => { setOpen(false); setJoinOpen(true); }, testid: "topbar-user-menu-joinroom" },
   ];
   if (isAdmin) {
     userItems.push({ label: t("common.nav.admin"), icon: <LayoutList size={16} />, action: () => go("/admin"), testid: "topbar-user-menu-admin" });
@@ -256,6 +282,30 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
             await doSwitch(target, pinToken);
           }}
         />
+      )}
+      {joinOpen && (
+        <Modal open onClose={() => setJoinOpen(false)} title={t("common.nav.joinRoom", "Join a room")}>
+          <form onSubmit={(e) => { e.preventDefault(); void handleJoinRoom(); }} className="flex flex-col gap-4">
+            <Input
+              label={t("media.syncplay.codeLabel", "Code")}
+              value={joinCode}
+              onChange={(e) => setJoinCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
+              placeholder="12345"
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              className="font-mono tracking-widest text-center text-lg"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" type="button" onClick={() => setJoinOpen(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button type="submit" loading={joining} disabled={joinCode.trim().length < 4}>
+                {t("media.syncplay.joinRoom", "Join")}
+              </Button>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

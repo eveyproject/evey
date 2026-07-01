@@ -147,6 +147,7 @@ nav:
   watchHistory: "Historique de lecture"
   myStats: "Mes stats"
   quickConnect: "Connexion rapide"
+  joinRoom: "Rejoindre une salle"
   signOut: "Se déconnecter"
   expandSidebar: "Agrandir la barre latérale"
   collapseSidebar: "Réduire la barre latérale"
