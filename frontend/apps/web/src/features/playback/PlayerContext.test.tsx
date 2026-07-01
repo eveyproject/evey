@@ -1,18 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { computeEffectiveDuration } from "./PlayerContext";
 import type { PlayerState } from "./PlayerContext";
 
 describe("PlayerContext — effectiveDuration logic", () => {
-  function computeEffectiveDuration(
-    knownDurationSec: number | undefined,
-    duration: number,
-  ): number {
-    return knownDurationSec && knownDurationSec > 0
-      ? knownDurationSec
-      : duration && isFinite(duration) && duration > 0
-        ? duration
-        : 0;
-  }
-
   it("prefers knownDurationSec over video duration", () => {
     expect(computeEffectiveDuration(3600, 120)).toBe(3600);
   });

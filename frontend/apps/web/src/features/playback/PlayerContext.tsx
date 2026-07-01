@@ -13,6 +13,18 @@ const EMPTY_CHAPTERS: Chapter[] = [];
 const EMPTY_SEASONS: SeasonNavItem[] = [];
 const EMPTY_EPISODES: EpisodeNavItem[] = [];
 
+// effectiveDuration prefers a server-known duration (accurate for transcodes,
+// where the <video> element only reports the current segment window) and falls
+// back to the element's own duration. Exported so the real logic is unit-tested
+// directly instead of being reimplemented in the test.
+export function computeEffectiveDuration(knownDurationSec: number | undefined, duration: number): number {
+  return knownDurationSec && knownDurationSec > 0
+    ? knownDurationSec
+    : duration && isFinite(duration) && duration > 0
+      ? duration
+      : 0;
+}
+
 export interface PlayerState {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   playing: boolean;
@@ -214,9 +226,7 @@ export function PlayerProvider({
     };
   }, [videoRef]);
 
-  const effectiveDuration = (knownDurationSec && knownDurationSec > 0)
-    ? knownDurationSec
-    : (duration && isFinite(duration) && duration > 0) ? duration : 0;
+  const effectiveDuration = computeEffectiveDuration(knownDurationSec, duration);
 
   const absoluteTime = transcodeOffset + currentTime;
 
