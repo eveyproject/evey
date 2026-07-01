@@ -1108,3 +1108,225 @@ func TestPlaybackHandler_StartStream_CrossLibrary_NotFound(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, codes.NotFound, status.Code(err), "cross-library StartStream must be denied with NotFound")
 }
+
+// newTestPlaybackHandlerFull builds a playbackHandler with a wired userAccess
+// service (so the library-access filter inside GetWatchHistory, GetResumeItems,
+// and GetNextUp is exercised) and also exposes the watch-progress repository so
+// tests can seed progress rows. It registers user-1 (admin, profile-1) and
+// user-2 (non-admin, profile-2) so a single handler covers both the filtered
+// and the admin-bypass code paths.
+func newTestPlaybackHandlerFull() (
+	*playbackHandler,
+	*pbfakes.FakeWatchProgressRepository,
+	*libfakes.FakeMediaItemQueryRepo,
+	*userfakes.FakeLibraryAccessRepository,
+) {
+	progressRepo := pbfakes.NewFakeWatchProgressRepository()
+	sessionRepo := pbfakes.NewFakePlaySessionRepository()
+	userRepo := userfakes.NewFakeUserRepository()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	eventBus := sharedfakes.NewFakeEventBus()
+
+	userRepo.Create(context.Background(), &user.User{ID: "user-1", Username: "admin", IsAdmin: true, Enabled: true})
+	profileRepo.Create(context.Background(), &user.Profile{ID: "profile-1", UserID: "user-1", Name: "Admin"})
+	userRepo.Create(context.Background(), &user.User{ID: "user-2", Username: "viewer", IsAdmin: false, Enabled: true})
+	profileRepo.Create(context.Background(), &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Default"})
+
+	cmdSvc := appplayback.NewCommandService(progressRepo, sessionRepo, sessionRepo, userRepo, profileRepo, eventBus)
+	querySvc := appplayback.NewQueryService(progressRepo, sessionRepo)
+
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	streamRepo := libfakes.NewFakeMediaStreamRepository()
+	searchIdx := libfakes.NewFakeSearchIndex()
+	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
+	libQuerySvc := applibrary.NewQueryService(libQueryRepo, mediaQueryRepo, streamRepo, searchIdx)
+
+	apiKeyRepo := userfakes.NewFakeAPIKeyRepository()
+	inviteRepo := userfakes.NewFakeInviteLinkRepository()
+	qcRepo := userfakes.NewFakeQuickConnectRepository()
+	libraryAccess := userfakes.NewFakeLibraryAccessRepository()
+	userAccess := appuser.NewAccessService(
+		userRepo, apiKeyRepo, inviteRepo, qcRepo,
+		userfakes.NewFakePasswordHasher(), eventBus,
+		appuser.WithLibraryAccess(libraryAccess),
+	)
+	userQuery := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
+
+	h := &playbackHandler{
+		cmd:        cmdSvc,
+		query:      querySvc,
+		librarySvc: libQuerySvc,
+		userQuery:  userQuery,
+		userAccess: userAccess,
+	}
+	return h, progressRepo, mediaQueryRepo, libraryAccess
+}
+
+// TestPlaybackHandler_GetWatchHistory_LibraryAccessFilter proves that
+// enrichWatchHistory drops items whose library is not in the caller's grant
+// list. Without userAccess wired (as in newTestPlaybackHandler, which leaves it
+// nil), getAllowedLibraryIDs always returns nil and the filter is never entered,
+// so a regression leaking forbidden-library titles would pass green.
+func TestPlaybackHandler_GetWatchHistory_LibraryAccessFilter(t *testing.T) {
+	h, progressRepo, mediaQueryRepo, libraryAccess := newTestPlaybackHandlerFull()
+
+	// Two items: one in the allowed library, one the caller is not granted.
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-hist-ok", LibraryID: "lib-allowed", Type: "movie", Title: "Allowed"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-hist-no", LibraryID: "lib-forbidden", Type: "movie", Title: "Forbidden"})
+
+	// user-2 may only access lib-allowed.
+	libraryAccess.Grant(context.Background(), "user-2", "lib-allowed")
+
+	// Seed watch history for the restricted user (profile-2).
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-hist-ok", ProfileID: "profile-2", MediaItemID: "mi-hist-ok",
+		Position: mustPlaybackDurationMs(t, 10000), LastPlayedAt: time.Now(),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-hist-no", ProfileID: "profile-2", MediaItemID: "mi-hist-no",
+		Position: mustPlaybackDurationMs(t, 10000), LastPlayedAt: time.Now(),
+	})
+
+	// Seed watch history for the admin (profile-1) so the bypass sub-test can
+	// assert that both items are visible without a filter.
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-hist-adm-ok", ProfileID: "profile-1", MediaItemID: "mi-hist-ok",
+		Position: mustPlaybackDurationMs(t, 10000), LastPlayedAt: time.Now(),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-hist-adm-no", ProfileID: "profile-1", MediaItemID: "mi-hist-no",
+		Position: mustPlaybackDurationMs(t, 10000), LastPlayedAt: time.Now(),
+	})
+
+	t.Run("restricted user sees only allowed-library items", func(t *testing.T) {
+		resp, err := h.GetWatchHistory(pbUserCtx("user-2", "profile-2"), &eveyv1.GetWatchHistoryRequest{Limit: 10})
+		require.NoError(t, err)
+		ids := make([]string, len(resp.Items))
+		for i, it := range resp.Items {
+			ids[i] = it.MediaItemId
+		}
+		assert.Contains(t, ids, "mi-hist-ok", "allowed-library item must appear in history")
+		assert.NotContains(t, ids, "mi-hist-no", "forbidden-library item must be filtered out of history")
+	})
+
+	t.Run("admin ctx bypasses library filter and sees both", func(t *testing.T) {
+		resp, err := h.GetWatchHistory(pbAdminCtx(), &eveyv1.GetWatchHistoryRequest{Limit: 10})
+		require.NoError(t, err)
+		ids := make([]string, len(resp.Items))
+		for i, it := range resp.Items {
+			ids[i] = it.MediaItemId
+		}
+		assert.Contains(t, ids, "mi-hist-ok", "admin must see the allowed-library item")
+		assert.Contains(t, ids, "mi-hist-no", "admin must see the forbidden-library item (no filter for admins)")
+	})
+}
+
+// TestPlaybackHandler_GetResumeItems_LibraryAccessFilter proves that the
+// resume-items library-access gate drops entries from libraries the caller
+// cannot access. The filter branch is only reached when allowedIDs is non-nil,
+// which requires userAccess to be wired on the handler.
+func TestPlaybackHandler_GetResumeItems_LibraryAccessFilter(t *testing.T) {
+	h, progressRepo, mediaQueryRepo, libraryAccess := newTestPlaybackHandlerFull()
+
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-res-ok", LibraryID: "lib-allowed", Type: "movie", Title: "Allowed"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-res-no", LibraryID: "lib-forbidden", Type: "movie", Title: "Forbidden"})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-allowed")
+
+	// GetResumeItems requires incomplete progress with a non-zero position.
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-res-ok", ProfileID: "profile-2", MediaItemID: "mi-res-ok",
+		Position: mustPlaybackDurationMs(t, 30000), Completed: false, LastPlayedAt: time.Now(),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-res-no", ProfileID: "profile-2", MediaItemID: "mi-res-no",
+		Position: mustPlaybackDurationMs(t, 30000), Completed: false, LastPlayedAt: time.Now(),
+	})
+
+	// Admin profile-1 resume items for the bypass sub-test.
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-res-adm-ok", ProfileID: "profile-1", MediaItemID: "mi-res-ok",
+		Position: mustPlaybackDurationMs(t, 30000), Completed: false, LastPlayedAt: time.Now(),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-res-adm-no", ProfileID: "profile-1", MediaItemID: "mi-res-no",
+		Position: mustPlaybackDurationMs(t, 30000), Completed: false, LastPlayedAt: time.Now(),
+	})
+
+	t.Run("restricted user sees only allowed-library items", func(t *testing.T) {
+		resp, err := h.GetResumeItems(pbUserCtx("user-2", "profile-2"), &eveyv1.GetResumeItemsRequest{Limit: 10})
+		require.NoError(t, err)
+		ids := make([]string, len(resp.Progress))
+		for i, p := range resp.Progress {
+			ids[i] = p.MediaItemId
+		}
+		assert.Contains(t, ids, "mi-res-ok", "allowed-library resume item must appear")
+		assert.NotContains(t, ids, "mi-res-no", "forbidden-library resume item must be filtered out")
+	})
+
+	t.Run("admin ctx bypasses library filter and sees both", func(t *testing.T) {
+		resp, err := h.GetResumeItems(pbAdminCtx(), &eveyv1.GetResumeItemsRequest{Limit: 10})
+		require.NoError(t, err)
+		ids := make([]string, len(resp.Progress))
+		for i, p := range resp.Progress {
+			ids[i] = p.MediaItemId
+		}
+		assert.Contains(t, ids, "mi-res-ok", "admin must see the allowed-library resume item")
+		assert.Contains(t, ids, "mi-res-no", "admin must see the forbidden-library resume item (no filter for admins)")
+	})
+}
+
+// TestPlaybackHandler_GetNextUp_LibraryAccessFilter proves that the next-up
+// library-access gate drops items from libraries the caller cannot access.
+// The filter is only applied when allowedIDs is non-nil, which requires
+// userAccess to be wired on the handler.
+func TestPlaybackHandler_GetNextUp_LibraryAccessFilter(t *testing.T) {
+	h, progressRepo, mediaQueryRepo, libraryAccess := newTestPlaybackHandlerFull()
+
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-nup-ok", LibraryID: "lib-allowed", Type: "episode", Title: "Allowed"})
+	mediaQueryRepo.Seed(&library.MediaItem{ID: "mi-nup-no", LibraryID: "lib-forbidden", Type: "episode", Title: "Forbidden"})
+
+	libraryAccess.Grant(context.Background(), "user-2", "lib-allowed")
+
+	// GetNextUp requires completed progress.
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-nup-ok", ProfileID: "profile-2", MediaItemID: "mi-nup-ok",
+		Completed: true, LastPlayedAt: time.Now(),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-nup-no", ProfileID: "profile-2", MediaItemID: "mi-nup-no",
+		Completed: true, LastPlayedAt: time.Now(),
+	})
+
+	// Admin profile-1 next-up items for the bypass sub-test.
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-nup-adm-ok", ProfileID: "profile-1", MediaItemID: "mi-nup-ok",
+		Completed: true, LastPlayedAt: time.Now(),
+	})
+	progressRepo.Upsert(context.Background(), &playback.WatchProgress{
+		ID: "wp-nup-adm-no", ProfileID: "profile-1", MediaItemID: "mi-nup-no",
+		Completed: true, LastPlayedAt: time.Now(),
+	})
+
+	t.Run("restricted user sees only allowed-library items", func(t *testing.T) {
+		resp, err := h.GetNextUp(pbUserCtx("user-2", "profile-2"), &eveyv1.GetNextUpRequest{Limit: 10})
+		require.NoError(t, err)
+		ids := make([]string, len(resp.Items))
+		for i, it := range resp.Items {
+			ids[i] = it.Id
+		}
+		assert.Contains(t, ids, "mi-nup-ok", "allowed-library next-up item must appear")
+		assert.NotContains(t, ids, "mi-nup-no", "forbidden-library next-up item must be filtered out")
+	})
+
+	t.Run("admin ctx bypasses library filter and sees both", func(t *testing.T) {
+		resp, err := h.GetNextUp(pbAdminCtx(), &eveyv1.GetNextUpRequest{Limit: 10})
+		require.NoError(t, err)
+		ids := make([]string, len(resp.Items))
+		for i, it := range resp.Items {
+			ids[i] = it.Id
+		}
+		assert.Contains(t, ids, "mi-nup-ok", "admin must see the allowed-library next-up item")
+		assert.Contains(t, ids, "mi-nup-no", "admin must see the forbidden-library next-up item (no filter for admins)")
+	})
+}
