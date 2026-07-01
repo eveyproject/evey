@@ -224,18 +224,11 @@ func run() error {
 		return err
 	}
 
-	deps.engagement.pluginHostServer.Stop()
-	deps.engagement.notifCmdSvc.Stop()
-	deps.media.playbackSvc.CommandService().StopProgressFlusher()
-	deps.bus.Stop()
-	deps.media.streamTokenStore.Stop()
-	deps.media.mediaItemCache.Stop() // stop the cache eviction loop like the other workers
-	grpcSrv.Stop()
-	if gwConn != nil {
-		if err := gwConn.Close(); err != nil {
-			slog.Warn("gateway conn close", slog.Any("err", err))
-		}
-	}
+	// Drain the front door FIRST: stop accepting new HTTP and let in-flight
+	// requests finish while gRPC — which they proxy to via gwConn — is still up.
+	// The previous order stopped gRPC before the HTTP gateway, so any request the
+	// still-open gateway accepted in that window got an Unavailable 5xx instead of
+	// a clean drain.
 	if httpSrv != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
@@ -243,6 +236,18 @@ func run() error {
 			slog.Warn("http shutdown", slog.Any("err", err))
 		}
 	}
+	deps.engagement.pluginHostServer.Stop()
+	deps.engagement.notifCmdSvc.Stop()
+	deps.media.playbackSvc.CommandService().StopProgressFlusher()
+	deps.bus.Stop()
+	deps.media.streamTokenStore.Stop()
+	deps.media.mediaItemCache.Stop() // stop the cache eviction loop like the other workers
+	if gwConn != nil {
+		if err := gwConn.Close(); err != nil {
+			slog.Warn("gateway conn close", slog.Any("err", err))
+		}
+	}
+	grpcSrv.Stop()
 	rootLog.Info("shutdown complete")
 	return nil
 }
