@@ -421,6 +421,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
           members={syncState.members}
           connected={syncState.connected}
           onLeave={() => void syncControls.leaveRoom()}
+          onResync={() => syncControls.sendResync(Math.floor((videoRef.current?.currentTime ?? 0) * 1000))}
         />
       )}
       <PluginSlot name="player.overlay" context={{ mediaId }} />

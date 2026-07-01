@@ -10,9 +10,11 @@ interface SyncPlayBarProps {
   members: SyncPlayMember[];
   connected: boolean;
   onLeave: () => void;
+  /** v2 "everyone sync to me": pull the whole party to this member's position. */
+  onResync?: () => void;
 }
 
-export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost, members, connected, onLeave }: SyncPlayBarProps) {
+export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost, members, connected, onLeave, onResync }: SyncPlayBarProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -84,6 +86,16 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
       >
         {copied ? t("common.copied") : t("media.syncplay.shareLink")}
       </button>
+      {onResync && (
+        <button
+          onClick={onResync}
+          className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity-fast flex-shrink-0 bg-[var(--overlay-btn-bg)]"
+          title={t("media.syncplay.resyncAll", "Sync everyone to my position")}
+          aria-label={t("media.syncplay.resyncAll", "Sync everyone to my position")}
+        >
+          {t("media.syncplay.resyncAll", "Sync everyone")}
+        </button>
+      )}
       <button
         onClick={onLeave}
         className="px-3 py-1 rounded text-xs font-medium hover:opacity-80 transition-opacity-fast flex-shrink-0 bg-[color-mix(in_srgb,var(--color-danger)_30%,transparent)]"

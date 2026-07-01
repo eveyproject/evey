@@ -359,6 +359,7 @@ syncplay:
   connected: Connected
   connecting: "Connecting..."
   leave: Leave
+  resyncAll: Sync everyone
   shareLink: Share link
   copyCode: Copy code
   watchTogetherRoom: Watch Together room
