@@ -44,8 +44,8 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, "evey", cfg.DB.Password)
 	assert.Equal(t, "evey", cfg.DB.DBName)
 	assert.Equal(t, "prefer", cfg.DB.SSLMode)
-	assert.Equal(t, 50, cfg.DB.MaxOpenConns)
-	assert.Equal(t, 20, cfg.DB.MaxIdleConns)
+	assert.Equal(t, 25, cfg.DB.MaxOpenConns)
+	assert.Equal(t, 10, cfg.DB.MaxIdleConns)
 
 	assert.Equal(t, "http://localhost:7700", cfg.Meilisearch.URL)
 	assert.Equal(t, "changeme", cfg.Meilisearch.APIKey)

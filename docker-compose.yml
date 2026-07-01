@@ -73,7 +73,7 @@ services:
     environment:
       POSTGRES_DB: ${EVEY_DB_NAME:-evey}
       POSTGRES_USER: ${EVEY_DB_USER:-evey}
-      POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:-evey}
+      POSTGRES_PASSWORD: ${EVEY_DB_PASSWORD:?EVEY_DB_PASSWORD must be set in .env}
     expose:
       - "5432"
     volumes:

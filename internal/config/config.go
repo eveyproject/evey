@@ -613,8 +613,12 @@ func Load() (*Config, error) {
 			Password:     envStr("EVEY_DB_PASSWORD", "evey"),
 			DBName:       envStr("EVEY_DB_NAME", "evey"),
 			SSLMode:      envStr("EVEY_DB_SSLMODE", "prefer"),
-			MaxOpenConns: envInt("EVEY_DB_MAX_OPEN_CONNS", 50),
-			MaxIdleConns: envInt("EVEY_DB_MAX_IDLE_CONNS", 20),
+			// Defaults sized for the weak-NAS target (Celeron, 2-4 GB): 50 open
+			// Postgres connections there cost ~250-500 MB of backend RAM for little
+			// gain on a low-concurrency media server. 25/10 halves that footprint
+			// while staying generous; larger deployments raise it via the env vars.
+			MaxOpenConns: envInt("EVEY_DB_MAX_OPEN_CONNS", 25),
+			MaxIdleConns: envInt("EVEY_DB_MAX_IDLE_CONNS", 10),
 		},
 		Meilisearch: MeilisearchConfig{
 			URL:    envStr("EVEY_MEILI_URL", "http://localhost:7700"),
