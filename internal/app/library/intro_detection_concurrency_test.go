@@ -86,10 +86,14 @@ func TestDetectIntro_ConcurrencyCap(t *testing.T) {
 			_ = svc.DetectIntro(context.Background(), "media-1")
 		}()
 	}
-	// Give the goroutines time to acquire / queue. 100ms is generous: the
-	// blocking GetByID returns instantly once release is closed, so the
-	// peak inflight count is captured before the unblock.
-	time.Sleep(100 * time.Millisecond)
+	// Wait until inflight actually reaches the cap instead of guessing with a
+	// fixed sleep: under -race on a loaded runner a goroutine may not reach the
+	// blocking GetByID within a fixed window, which made the exact-peak assertion
+	// flaky. maxInflight is a high-water mark the limiter can never push past
+	// `cap`, so once it reaches cap it is safe to read deterministically.
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt32(&repo.maxInflight) >= int32(cap)
+	}, 2*time.Second, 5*time.Millisecond, "inflight never reached cap %d", cap)
 	peak := atomic.LoadInt32(&repo.maxInflight)
 	close(repo.release)
 	wg.Wait()
@@ -118,7 +122,9 @@ func TestDetectIntro_ConcurrencyDisabled(t *testing.T) {
 			_ = svc.DetectIntro(context.Background(), "media-1")
 		}()
 	}
-	time.Sleep(100 * time.Millisecond)
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt32(&repo.maxInflight) >= int32(callers)
+	}, 2*time.Second, 5*time.Millisecond, "inflight never reached %d", callers)
 	peak := atomic.LoadInt32(&repo.maxInflight)
 	close(repo.release)
 	wg.Wait()

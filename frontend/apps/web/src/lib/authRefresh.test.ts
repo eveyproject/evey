@@ -56,4 +56,27 @@ describe("refreshTokenUnderLock", () => {
     const ok = await refreshTokenUnderLock();
     expect(ok).toBe(false);
   });
+
+  it("routes the refresh through the evey-refresh-token exclusive Web Lock", async () => {
+    // jsdom has no navigator.locks, so inject a minimal one to prove the refresh
+    // is serialized under the named exclusive lock (the whole reason this helper
+    // exists: concurrent /auth/refresh trips reuse-detection and purges sessions).
+    currentToken = jwt(-10);
+    refreshMock.mockResolvedValue({ accessToken: "new-token" });
+    const requestMock = vi.fn((_name: string, _opts: unknown, fn: () => Promise<unknown>) => fn());
+    Object.defineProperty(navigator, "locks", { value: { request: requestMock }, configurable: true });
+    try {
+      const ok = await refreshTokenUnderLock();
+      expect(ok).toBe(true);
+      expect(requestMock).toHaveBeenCalledWith(
+        "evey-refresh-token",
+        { mode: "exclusive" },
+        expect.any(Function),
+      );
+      expect(refreshMock).toHaveBeenCalledOnce();
+    } finally {
+      // @ts-expect-error remove the injected API so the other tests keep exercising the fallback
+      delete navigator.locks;
+    }
+  });
 });

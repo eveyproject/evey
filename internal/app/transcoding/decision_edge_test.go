@@ -112,6 +112,10 @@ func TestOnlyHeightExceeded(t *testing.T) {
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Contains(t, d.TranscodeReasons, "resolution_exceeded")
 	assert.Equal(t, 720, d.MaxHeight)
+	// Only the height cap binds (1920 < MaxWidth 3840): width must stay unset so
+	// the encoder preserves aspect ratio. Without this the "OnlyHeightExceeded"
+	// name would pass even if a spurious MaxWidth over-constrained the encode.
+	assert.Equal(t, 0, d.MaxWidth)
 }
 
 func TestNoBitrate_NoExceed(t *testing.T) {
