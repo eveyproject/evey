@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"strconv"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -913,20 +912,6 @@ func normalizeNetworkType(raw string) string {
 		return "cellular"
 	}
 	return "wifi"
-}
-
-// cellularCapFromPreferences parses max_bitrate_cellular_kbps out of a profile's
-// preferences map. Returns 0 when missing, empty, or invalid.
-func cellularCapFromPreferences(prefs map[string]string) int {
-	v, ok := prefs["max_bitrate_cellular_kbps"]
-	if !ok || v == "" {
-		return 0
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil || n <= 0 {
-		return 0
-	}
-	return n
 }
 
 func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, mediaItemID string) (bool, string) {

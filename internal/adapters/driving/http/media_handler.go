@@ -23,67 +23,6 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-// filterMasterPlaylist removes #EXT-X-STREAM-INF variants exceeding maxBps (bps).
-// If all variants exceed the limit, keeps the one with the lowest BANDWIDTH.
-func filterMasterPlaylist(content string, maxBps int64) string {
-	if maxBps <= 0 {
-		return content
-	}
-	lines := strings.Split(content, "\n")
-	type variant struct {
-		inf string
-		uri string
-		bw  int64
-	}
-	var header []string
-	var variants []variant
-	i := 0
-	for i < len(lines) {
-		line := lines[i]
-		if strings.HasPrefix(line, "#EXT-X-STREAM-INF:") {
-			bw := int64(0)
-			attrs := strings.TrimPrefix(line, "#EXT-X-STREAM-INF:")
-			if _, after, ok := strings.Cut(attrs, "BANDWIDTH="); ok {
-				if _, err := fmt.Sscanf(after, "%d", &bw); err != nil {
-					slog.Warn("parse BANDWIDTH", slog.Any("err", err))
-				}
-			}
-			uri := ""
-			if i+1 < len(lines) {
-				uri = lines[i+1]
-				i++
-			}
-			variants = append(variants, variant{inf: line, uri: uri, bw: bw})
-		} else {
-			header = append(header, line)
-		}
-		i++
-	}
-
-	var allowed []variant
-	for _, v := range variants {
-		if v.bw <= maxBps {
-			allowed = append(allowed, v)
-		}
-	}
-	if len(allowed) == 0 && len(variants) > 0 {
-		lowest := variants[0]
-		for _, v := range variants[1:] {
-			if v.bw < lowest.bw {
-				lowest = v
-			}
-		}
-		allowed = []variant{lowest}
-	}
-
-	var out []string
-	out = append(out, header...)
-	for _, v := range allowed {
-		out = append(out, v.inf, v.uri)
-	}
-	return strings.Join(out, "\n")
-}
-
 // --- mediaHandler: stream + download ---
 
 type mediaServe struct {

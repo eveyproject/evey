@@ -177,37 +177,6 @@ func TestLibraryStatsHandler_OK(t *testing.T) {
 	}
 }
 
-// --- tests: filterMasterPlaylist ---
-
-func TestFilterMasterPlaylist_NoLimit(t *testing.T) {
-	input := "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=5000000\nhigh.m3u8\n"
-	if got := filterMasterPlaylist(input, 0); got != input {
-		t.Error("with maxBps=0, content should be unchanged")
-	}
-}
-
-func TestFilterMasterPlaylist_FiltersHigh(t *testing.T) {
-	input := "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=5000000,CODECS=\"avc1\"\nhigh.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=2000000,CODECS=\"avc1\"\nmid.m3u8\n"
-	result := filterMasterPlaylist(input, 2500000)
-	if strings.Contains(result, "high.m3u8") {
-		t.Error("high bitrate should be filtered")
-	}
-	if !strings.Contains(result, "mid.m3u8") {
-		t.Error("mid bitrate should remain")
-	}
-}
-
-func TestFilterMasterPlaylist_KeepsLowestWhenAllExceed(t *testing.T) {
-	input := "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=5000000,CODECS=\"avc1\"\nhigh.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=3000000,CODECS=\"avc1\"\nmid.m3u8\n"
-	result := filterMasterPlaylist(input, 1000000)
-	if !strings.Contains(result, "mid.m3u8") {
-		t.Error("lowest variant should remain when all exceed limit")
-	}
-	if strings.Contains(result, "high.m3u8") {
-		t.Error("high bitrate should be removed")
-	}
-}
-
 // --- tests: checkLibraryAccess ---
 
 func TestCheckLibraryAccess_Admin_AlwaysAllowed(t *testing.T) {
