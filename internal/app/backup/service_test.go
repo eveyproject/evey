@@ -716,15 +716,11 @@ func TestWithEventBus_PublishesBackupFailedOnScheduledError(t *testing.T) {
 	bus := &fakeEventCollector{}
 	svc := NewService(store, dumper, "1.0.0", WithEventBus(bus))
 
-	ctx, cancel := context.WithCancel(context.Background())
-	// Manually call CreateBackup + event publish path (scheduler loop is hard to test)
-	if _, err := svc.CreateBackup(ctx); err != nil {
-		if svc.events != nil {
-			evt := backupmodel.BackupFailed{Error: err.Error()}
-			_ = svc.events.Publish(ctx, evt)
-		}
-	}
-	cancel()
+	// Exercise the PRODUCTION scheduled-cycle path: a failing dump must make the
+	// service ITSELF emit backup.failed (for alerting). Previously this test
+	// hand-published the event, so the real publish branch was never covered — a
+	// regression that stopped emitting backup.failed would have passed green.
+	svc.runScheduledBackupCycle(context.Background(), 0)
 
 	if len(bus.events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(bus.events))

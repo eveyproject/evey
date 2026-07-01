@@ -242,26 +242,34 @@ func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDa
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if _, err := s.CreateBackup(ctx); err != nil {
-					slog.Warn("scheduled backup failed", slog.Any("err", err))
-					if s.events != nil {
-						evt := backup.BackupFailed{
-							Error:      err.Error(),
-							OccurredAt: time.Now(),
-						}
-						if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
-							slog.Warn("publish backup.failed event", slog.Any("err", pubErr))
-						}
-					}
-				} else {
-					slog.Info("scheduled backup created")
-				}
-				if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
-					slog.Warn("backup retention cleanup", slog.Any("err", err))
-				}
+				s.runScheduledBackupCycle(ctx, retentionDays)
 			}
 		}
 	}()
+}
+
+// runScheduledBackupCycle performs one scheduled backup pass: create a backup,
+// publish backup.failed (for alerting) if it errors, then run retention cleanup.
+// Extracted from the ticker loop so the failure-notification path is unit-testable
+// without waiting on the hour-scale ticker.
+func (s *Service) runScheduledBackupCycle(ctx context.Context, retentionDays int) {
+	if _, err := s.CreateBackup(ctx); err != nil {
+		slog.Warn("scheduled backup failed", slog.Any("err", err))
+		if s.events != nil {
+			evt := backup.BackupFailed{
+				Error:      err.Error(),
+				OccurredAt: time.Now(),
+			}
+			if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
+				slog.Warn("publish backup.failed event", slog.Any("err", pubErr))
+			}
+		}
+	} else {
+		slog.Info("scheduled backup created")
+	}
+	if err := s.CleanupOldBackups(ctx, retentionDays); err != nil {
+		slog.Warn("backup retention cleanup", slog.Any("err", err))
+	}
 }
 
 func (s *Service) CleanupOldBackups(ctx context.Context, retentionDays int) error {
