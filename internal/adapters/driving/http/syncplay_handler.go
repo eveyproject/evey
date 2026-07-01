@@ -38,6 +38,66 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen d
 	mux.Handle("/api/v1/syncplay/rooms/{id}/ws", http.HandlerFunc(h.wsUpgradeHandler))
 }
 
+// guestTokenMinter mints a streaming-only, media-scoped token for an
+// unauthenticated syncplay guest. Satisfied by *media.StreamTokenStore.
+type guestTokenMinter interface {
+	CreateGuestToken(mediaItemID string, ttl time.Duration) string
+}
+
+// guestTokenTTL bounds an unauthenticated "watch together" guest session.
+const guestTokenTTL = 24 * time.Hour
+
+// syncplayJoinByCodeHandler is the PUBLIC (unauthenticated) entry point for a
+// "watch together" guest: given a room code it mints a guest stream token scoped
+// to the room's media so the guest can watch that one title, streaming-only.
+// Must be rate-limited by the caller (brute-force of a 5-digit code). It reveals
+// nothing beyond a generic 404 for an unknown/expired code.
+func syncplayJoinByCodeHandler(hub *appsyncplay.Hub, tokens guestTokenMinter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.syncplay.JoinByCode")
+		defer span.End()
+		r = r.WithContext(ctx)
+
+		var body struct {
+			Code string `json:"code"`
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 4<<10)
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		code := strings.TrimSpace(body.Code)
+		if len(code) < 4 || len(code) > 8 {
+			http.Error(w, `{"message":"invalid code"}`, http.StatusBadRequest)
+			return
+		}
+
+		room, err := hub.GetRoomByCode(ctx, code)
+		if err != nil || room == nil {
+			span.SetStatus(otelcodes.Error, "room not found")
+			http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
+			return
+		}
+		// Guest join is video-only: a music room's MediaID advances with the
+		// queue, so a token pinned to one track would break on the next song.
+		if room.MediaType == "music" {
+			span.SetStatus(otelcodes.Error, "guest join unsupported for music rooms")
+			http.Error(w, `{"message":"guest join is not available for music rooms"}`, http.StatusConflict)
+			return
+		}
+
+		token := tokens.CreateGuestToken(string(room.MediaID), guestTokenTTL)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"token":     token,
+			"roomId":    room.ID,
+			"mediaId":   string(room.MediaID),
+			"mediaType": room.MediaType,
+			"code":      room.Code,
+		})
+	}
+}
+
 type wsCtxKey string
 
 const (

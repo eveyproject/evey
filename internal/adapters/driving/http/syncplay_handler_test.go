@@ -8,7 +8,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
+	appmedia "github.com/evey-project/evey/internal/app/media"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -236,6 +238,63 @@ func TestSyncPlayWS_LibraryAccessDenied_403(t *testing.T) {
 
 	if wsW.Code != http.StatusNotFound {
 		t.Errorf("expected 404 when library access denied on WS, got %d", wsW.Code)
+	}
+}
+
+func TestSyncPlayJoinByCode(t *testing.T) {
+	t.Parallel()
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	store := appmedia.NewStreamTokenStore(5 * time.Minute)
+	defer store.Stop()
+
+	room := createTestRoom(t, hub, "host-jc", "media-jc") // CreateRoom defaults to a video room
+	h := syncplayJoinByCodeHandler(hub, store)
+
+	// valid code -> 200 + a guest token scoped to the room's media
+	w := httptest.NewRecorder()
+	h(w, httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join-code", strings.NewReader(`{"code":"`+room.Code+`"}`)))
+	if w.Code != http.StatusOK {
+		t.Fatalf("valid code: expected 200, got %d (%s)", w.Code, w.Body.String())
+	}
+	var resp struct {
+		Token   string `json:"token"`
+		RoomID  string `json:"roomId"`
+		MediaID string `json:"mediaId"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if resp.RoomID != room.ID || resp.MediaID != "media-jc" {
+		t.Errorf("unexpected room/media in response: %+v", resp)
+	}
+	if resp.Token == "" {
+		t.Fatal("expected a guest token in the response")
+	}
+	st, ok := store.Validate(resp.Token, "media-jc")
+	if !ok || st.Scope != shared.ScopeSyncplayGuest {
+		t.Errorf("token must stream media-jc as a guest, got ok=%v scope=%q", ok, st.Scope)
+	}
+	if _, ok := store.Validate(resp.Token, "other-media"); ok {
+		t.Error("guest token must be scoped to its single media item")
+	}
+
+	// unknown code -> generic 404
+	w2 := httptest.NewRecorder()
+	h(w2, httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join-code", strings.NewReader(`{"code":"00000"}`)))
+	if w2.Code != http.StatusNotFound {
+		t.Errorf("unknown code: expected 404, got %d", w2.Code)
+	}
+
+	// music room -> 409 (guest join is video-only)
+	mroom, err := hub.CreateRoomFromQueue(context.Background(), "host-m", "MusicRoom", []string{"track-1"})
+	if err != nil {
+		t.Fatalf("CreateRoomFromQueue: %v", err)
+	}
+	w3 := httptest.NewRecorder()
+	h(w3, httptest.NewRequest(http.MethodPost, "/api/v1/syncplay/join-code", strings.NewReader(`{"code":"`+mroom.Code+`"}`)))
+	if w3.Code != http.StatusConflict {
+		t.Errorf("music room: expected 409, got %d", w3.Code)
 	}
 }
 
