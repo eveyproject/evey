@@ -36,6 +36,8 @@ interface SyncPlayControls {
   sendNext: () => void;
   sendPrev: () => void;
   sendSetIndex: (index: number) => void;
+  /** v2 "everyone sync to me": any member pulls the party to their position. */
+  sendResync: (positionMs: number) => void;
 }
 
 interface SyncMessage {
@@ -160,9 +162,26 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
             optsRef.current.onMemberLeft?.(msg.userId);
           }
           break;
+        case "host_changed":
+          // The server elected a new host (typically the old host left). Recompute
+          // our own host status so the promoted member regains the host-only
+          // controls; without this the whole party would lose playback control.
+          setState((prev) => ({ ...prev, isHost: msg.userId === myUserIdRef.current }));
+          break;
+        case "resync":
+          // v2 "everyone sync to me": jump to the sender's position and resume.
+          if (msg.positionMs !== undefined) {
+            optsRef.current.onSeek?.(msg.positionMs);
+            optsRef.current.onPlay?.(msg.positionMs);
+          }
+          break;
         case "state":
           if (msg.positionMs !== undefined) {
             optsRef.current.onSeek?.(msg.positionMs);
+            // A late joiner must also START playing when the room is already
+            // playing, otherwise it seeks to the live position but stays paused
+            // and desynced until the next command.
+            if (msg.playing) optsRef.current.onPlay?.(msg.positionMs);
           }
           break;
       }
@@ -311,6 +330,10 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     send({ type: "setIndex", trackIndex: index });
   }, [send]);
 
+  const sendResync = useCallback((positionMs: number) => {
+    send({ type: "resync", positionMs });
+  }, [send]);
+
   useEffect(() => {
     if (!accessToken) return;
     try {
@@ -323,5 +346,5 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     }
   }, [accessToken]);
 
-  return [state, { createRoom, createRoomFromPlaylist, createRoomFromQueue, joinRoom, joinByCode, leaveRoom, sendPlay, sendPause, sendSeek, sendNext, sendPrev, sendSetIndex }];
+  return [state, { createRoom, createRoomFromPlaylist, createRoomFromQueue, joinRoom, joinByCode, leaveRoom, sendPlay, sendPause, sendSeek, sendNext, sendPrev, sendSetIndex, sendResync }];
 }
