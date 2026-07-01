@@ -162,6 +162,9 @@ func run() error {
 	deps.user.authSvc.StartCleanup(ctx)
 	deps.media.playbackSvc.CommandService().StartCleanup(ctx)
 	deps.media.playbackSvc.CommandService().StartProgressFlusher(ctx)
+	// Sweep syncplay rooms whose host created them but never opened the ws (or
+	// orphans the leave path missed); rooms with a live member are untouched.
+	go deps.media.syncPlayHub.StartJanitor(ctx, 10*time.Minute, time.Hour)
 	// Daily retention sweep for the audit_log + server_metric tables.
 	// audit_log is opt-in (EVEY_AUDIT_LOG_RETENTION_DAYS, default 0 = keep
 	// forever) so an existing deployment never silently loses history;

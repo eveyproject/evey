@@ -200,6 +200,10 @@ func (r *fakeSyncPlayRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *fakeSyncPlayRepo) DeleteStaleEmptyRooms(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
+
 func newSyncPlayTestMux(t *testing.T) (*http.ServeMux, *appsyncplay.Hub, *fakeSyncPlayRepo) {
 	t.Helper()
 	tokenGen := newTestJWTGen(t)

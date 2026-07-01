@@ -174,6 +174,19 @@ func (r *fakeRoomRepo) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *fakeRoomRepo) DeleteStaleEmptyRooms(_ context.Context, olderThan time.Time) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var n int64
+	for id, room := range r.rooms {
+		if len(room.Members) == 0 && room.CreatedAt.Before(olderThan) {
+			delete(r.rooms, id)
+			n++
+		}
+	}
+	return n, nil
+}
+
 func newTestHub() *Hub {
 	return NewHub(newFakeRoomRepo())
 }

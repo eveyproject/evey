@@ -34,6 +34,29 @@ func NewHub(repo syncplay.RoomRepository) *Hub {
 	}
 }
 
+// StartJanitor sweeps stale empty rooms every interval until ctx is cancelled,
+// deleting rooms with no members older than maxAge (a room created via REST
+// whose host never opened the ws would otherwise leak). It runs one sweep
+// immediately, then on each tick. Blocking — run it in its own goroutine.
+func (h *Hub) StartJanitor(ctx context.Context, interval, maxAge time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		if n, err := h.repo.DeleteStaleEmptyRooms(ctx, time.Now().Add(-maxAge)); err != nil {
+			if ctx.Err() == nil {
+				slog.Warn("syncplay janitor: sweep failed", slog.Any("err", err))
+			}
+		} else if n > 0 {
+			slog.Info("syncplay janitor: swept stale rooms", slog.Int64("count", n))
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
 func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*syncplay.Room, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.CreateRoom")
 	defer span.End()

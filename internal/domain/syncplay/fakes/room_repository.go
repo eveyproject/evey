@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/syncplay"
@@ -182,4 +183,20 @@ func (r *FakeRoomRepository) Delete(_ context.Context, id string) error {
 	}
 	delete(r.items, id)
 	return nil
+}
+
+func (r *FakeRoomRepository) DeleteStaleEmptyRooms(_ context.Context, olderThan time.Time) (int64, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var n int64
+	for id, room := range r.items {
+		if len(room.Members) == 0 && room.CreatedAt.Before(olderThan) {
+			delete(r.items, id)
+			n++
+		}
+	}
+	return n, nil
 }

@@ -1,6 +1,9 @@
 package syncplay
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 type RoomRepository interface {
 	Create(ctx context.Context, room *Room) error
@@ -27,6 +30,13 @@ type RoomRepository interface {
 	// when the result would fall outside the queue bounds.
 	AdvanceTrackIndex(ctx context.Context, roomID string, delta int) (newIndex int, mediaID string, changed bool, err error)
 	Delete(ctx context.Context, id string) error
+	// DeleteStaleEmptyRooms removes rooms with no members that were created
+	// before olderThan, and returns how many were deleted. A room created via
+	// REST whose host never opens the ws (or an orphan the delete-if-empty path
+	// missed) otherwise lingers forever; the janitor sweeps them. Rooms with a
+	// live member are never touched, so olderThan only needs to exceed the
+	// create→join window.
+	DeleteStaleEmptyRooms(ctx context.Context, olderThan time.Time) (int64, error)
 }
 
 type MessageSender interface {

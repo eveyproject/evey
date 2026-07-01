@@ -477,3 +477,43 @@ func TestSyncPlayRoomRepo_Create_AudioMediaNotInMediaItems(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, shared.MediaItemID("track-not-a-media-item"), got.MediaID)
 }
+
+func TestSyncPlayRoomRepo_DeleteStaleEmptyRooms(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedSyncplayDeps(t, db, "host-u1", "sp-user1", "sp-lib1", "media-1")
+
+	repo := postgres.NewSyncPlayRoomRepo(db)
+	ctx := context.Background()
+
+	old := time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Millisecond)
+	fresh := time.Now().UTC().Truncate(time.Millisecond)
+
+	// stale + empty (nil members -> stored as JSON 'null'): swept.
+	require.NoError(t, repo.Create(ctx, &syncplay.Room{
+		ID: "stale-empty", Code: "STALE1", Name: "x", HostID: "host-u1", MediaID: "media-1",
+		Members: nil, CreatedAt: old,
+	}))
+	// stale but with a live member: kept.
+	require.NoError(t, repo.Create(ctx, &syncplay.Room{
+		ID: "stale-full", Code: "STALE2", Name: "x", HostID: "host-u1", MediaID: "media-1",
+		Members: []syncplay.Member{{UserID: "host-u1", Username: "h", JoinedAt: old}}, CreatedAt: old,
+	}))
+	// fresh + empty (inside the create->join window): kept.
+	require.NoError(t, repo.Create(ctx, &syncplay.Room{
+		ID: "fresh-empty", Code: "FRESH1", Name: "x", HostID: "host-u1", MediaID: "media-1",
+		Members: nil, CreatedAt: fresh,
+	}))
+
+	n, err := repo.DeleteStaleEmptyRooms(ctx, time.Now().Add(-time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), n)
+
+	_, err = repo.Get(ctx, "stale-empty")
+	assert.Error(t, err, "stale empty room should be deleted")
+	_, err = repo.Get(ctx, "stale-full")
+	assert.NoError(t, err, "stale room with a member must be kept")
+	_, err = repo.Get(ctx, "fresh-empty")
+	assert.NoError(t, err, "fresh empty room must be kept")
+}
