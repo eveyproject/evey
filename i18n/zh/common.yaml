@@ -147,6 +147,7 @@ nav:
   watchHistory: "观看历史"
   myStats: "我的统计"
   quickConnect: "快速连接"
+  joinRoom: "加入房间"
   signOut: "退出登录"
   expandSidebar: "展开侧栏"
   collapseSidebar: "收起侧栏"

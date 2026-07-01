@@ -163,6 +163,7 @@ nav:
   watchHistory: Wiedergabeverlauf
   myStats: Meine Statistiken
   quickConnect: Schnellverbindung
+  joinRoom: "Raum beitreten"
   signOut: Abmelden
   expandSidebar: Seitenleiste erweitern
   collapseSidebar: Seitenleiste einklappen

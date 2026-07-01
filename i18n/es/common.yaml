@@ -147,6 +147,7 @@ nav:
   watchHistory: "Historial de reproducción"
   myStats: "Mis estadísticas"
   quickConnect: "Conexión rápida"
+  joinRoom: "Unirse a una sala"
   signOut: "Cerrar sesión"
   expandSidebar: "Expandir barra lateral"
   collapseSidebar: "Contraer barra lateral"

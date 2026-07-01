@@ -88,6 +88,8 @@ retry: "重试"
 goBack: "返回"
 shareDesc: "分享此链接给朋友一起观看："
 copyLink: "复制链接"
+copyCode: "复制代码"
+codeShareDesc: "分享此代码 — 任何人都可以输入它加入并与你一起观看。"
 close: "关闭"
 shortcuts:
   title: "键盘快捷键"

@@ -33,6 +33,8 @@ setup:
     photos: "照片"
 signingIn: "登录中…"
 login:
+  guestJoinDesc: "受邀一起观看？输入代码 — 无需账户。"
+  guestJoinError: "无法加入 — 请检查代码।"
   signIn: "登录"
   signInToAccount: "登录到您的账户"
   username: "用户名"

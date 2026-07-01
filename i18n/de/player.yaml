@@ -88,6 +88,8 @@ retry: Erneut versuchen
 goBack: Zurück
 shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"
 copyLink: Link kopieren
+copyCode: "Code kopieren"
+codeShareDesc: "Teile diesen Code — jeder kann ihn eingeben, um beizutreten und mit dir zu schauen."
 close: Schließen
 shortcuts:
   title: Tastenkürzel

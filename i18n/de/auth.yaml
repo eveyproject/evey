@@ -33,6 +33,8 @@ setup:
     photos: Fotos
 signingIn: "Anmeldung läuft…"
 login:
+  guestJoinDesc: "Zum gemeinsamen Ansehen eingeladen? Code eingeben — kein Konto nötig."
+  guestJoinError: "Beitritt fehlgeschlagen — Code prüfen."
   signIn: Anmelden
   signInToAccount: Bei Ihrem Konto anmelden
   username: Benutzername

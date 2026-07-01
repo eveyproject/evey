@@ -359,6 +359,7 @@ syncplay:
   connected: Connected
   connecting: "Connecting..."
   leave: Leave
+  joinError: "Could not join — check the code."
   resyncAll: Sync everyone
   shareLink: Share link
   copyCode: Copy code

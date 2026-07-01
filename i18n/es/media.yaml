@@ -359,6 +359,8 @@ syncplay:
   connected: Conectado
   connecting: "Conectando..."
   leave: Salir
+  resyncAll: "Sincronizar a todos"
+  joinError: "No se pudo unir — comprueba el código."
   shareLink: Compartir enlace
   copyCode: Copiar código
   watchTogetherRoom: Sala Ver juntos

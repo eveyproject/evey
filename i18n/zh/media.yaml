@@ -359,6 +359,8 @@ syncplay:
   connected: 已连接
   connecting: "连接中..."
   leave: 离开
+  resyncAll: "同步所有人"
+  joinError: "无法加入 — 请检查代码。"
   shareLink: 分享链接
   copyCode: 复制代码
   watchTogetherRoom: 一起看房间

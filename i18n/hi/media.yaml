@@ -359,6 +359,8 @@ syncplay:
   connected: कनेक्ट हो गया
   connecting: "कनेक्ट हो रहा है..."
   leave: छोड़ें
+  resyncAll: "सभी को सिंक करें"
+  joinError: "शामिल नहीं हो सके — कोड जांचें।"
   shareLink: लिंक शेयर करें
   copyCode: कोड कॉपी करें
   watchTogetherRoom: साथ में देखें कमरा

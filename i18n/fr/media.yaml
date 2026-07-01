@@ -359,6 +359,7 @@ syncplay:
   connected: Connecté
   connecting: "Connexion..."
   leave: Quitter
+  joinError: "Impossible de rejoindre — vérifiez le code."
   resyncAll: Tout le monde me rejoint
   shareLink: Partager le lien
   copyCode: Copier le code
