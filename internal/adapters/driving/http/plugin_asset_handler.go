@@ -361,6 +361,9 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 		ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Upload")
 		defer span.End()
 		r = r.WithContext(ctx)
+		// A 100 MB plugin on a slow link can take a while — opt out of the body
+		// read deadline (BodyReadTimeoutMiddleware) so it is not cut off.
+		ClearBodyReadDeadline(w)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
 		file, _, formErr := r.FormFile("plugin")
 		if formErr != nil {
@@ -498,6 +501,9 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Preview")
 		defer span.End()
 		r = r.WithContext(ctx)
+		// A 100 MB plugin on a slow link can take a while — opt out of the body
+		// read deadline (BodyReadTimeoutMiddleware) so it is not cut off.
+		ClearBodyReadDeadline(w)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
 		file, _, formErr := r.FormFile("plugin")
 		if formErr != nil {

@@ -58,6 +58,9 @@ func avatarUploadHandler(
 			return
 		}
 
+		// An avatar upload on a slow mobile link may exceed the body read deadline;
+		// opt out (BodyReadTimeoutMiddleware) so it is not cut off.
+		ClearBodyReadDeadline(w)
 		r.Body = http.MaxBytesReader(w, r.Body, maxAvatarSize)
 		if err := r.ParseMultipartForm(maxAvatarSize); err != nil {
 			span.RecordError(err)
