@@ -68,6 +68,15 @@ func EnricherWithArtworkPostSaveHook(hook ArtworkPostSaveHook) EnricherOption {
 	return func(e *Enricher) { e.artworkPostSaveHook = hook }
 }
 
+// SetArtworkPostSaveHook wires the post-save hook after construction. Needed
+// because the CommandService that owns the hook (maybeAutoDownload) is itself
+// built WITH the enricher — the back-reference can only be set once both exist,
+// so it cannot go through the NewEnricher option. Wire-time only (no concurrent
+// enrichment runs yet), so no locking.
+func (e *Enricher) SetArtworkPostSaveHook(hook ArtworkPostSaveHook) {
+	e.artworkPostSaveHook = hook
+}
+
 // EnricherWithUnitOfWork makes EnrichItem's persistence steps atomic: the item
 // update, the artwork delete+insert and the cast/crew delete+insert commit or
 // roll back together. Without it a failure between the steps left the item

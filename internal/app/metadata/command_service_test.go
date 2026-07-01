@@ -942,6 +942,65 @@ func (d *writingDownloader) Download(_ context.Context, url, destPath string) er
 	return os.WriteFile(destPath, []byte("img:"+url), 0o644)
 }
 
+// TestArtworkAutoDownloadHook_DownloadsWhenEnabled exercises the wiring finished
+// in wire.go: the enricher fires ArtworkAutoDownloadHook after saving a record,
+// and with the admin toggle on it must fetch the image to disk and persist the
+// local path. Before the wiring the hook existed but was never invoked, so the
+// admin toggle did nothing.
+func TestArtworkAutoDownloadHook_DownloadsWhenEnabled(t *testing.T) {
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	dl := &writingDownloader{}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(), artworkRepo, dl,
+		sharedfakes.NewFakeEventBus(), nil,
+	)
+	dataDir := t.TempDir()
+	appmetadata.WithAutoDownload(dataDir, true)(cmdSvc)
+
+	ctx := context.Background()
+	rec, err := metadata.NewArtworkRecord("art-auto", shared.MediaItemID("mi-a"), metadata.ArtworkTypePoster, "tmdb",
+		metadata.WithArtworkSource("https://img.test/poster.jpg"))
+	require.NoError(t, err)
+	require.NoError(t, artworkRepo.Create(ctx, rec))
+
+	cmdSvc.ArtworkAutoDownloadHook()(ctx, rec)
+
+	assert.Equal(t, int32(1), dl.calls.Load(), "auto-download must fetch the image once")
+	stored, err := artworkRepo.GetByMediaItem(ctx, "mi-a")
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	require.NotNil(t, stored[0].LocalPath, "local path must be persisted after auto-download")
+	fi, err := os.Stat(*stored[0].LocalPath)
+	require.NoError(t, err)
+	assert.Positive(t, fi.Size(), "downloaded file must be non-empty")
+}
+
+// TestArtworkAutoDownloadHook_NoopWhenDisabled: with the toggle off the hook must
+// be a cheap no-op — the enricher fires it for every saved record regardless.
+func TestArtworkAutoDownloadHook_NoopWhenDisabled(t *testing.T) {
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	dl := &writingDownloader{}
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(), artworkRepo, dl,
+		sharedfakes.NewFakeEventBus(), nil,
+	)
+	appmetadata.WithAutoDownload(t.TempDir(), false)(cmdSvc)
+
+	ctx := context.Background()
+	rec, err := metadata.NewArtworkRecord("art-off", shared.MediaItemID("mi-off"), metadata.ArtworkTypePoster, "tmdb",
+		metadata.WithArtworkSource("https://img.test/poster.jpg"))
+	require.NoError(t, err)
+	require.NoError(t, artworkRepo.Create(ctx, rec))
+
+	cmdSvc.ArtworkAutoDownloadHook()(ctx, rec)
+
+	assert.Equal(t, int32(0), dl.calls.Load(), "disabled toggle must not download")
+	stored, err := artworkRepo.GetByMediaItem(ctx, "mi-off")
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	assert.Nil(t, stored[0].LocalPath, "no local path when auto-download is off")
+}
+
 // TestArtwork_ContentAddressed_NoDuplicateFiles is the regression guard for the
 // 250 GB duplication bug: two artwork records for the SAME source URL (as
 // re-enrichment mints fresh record UUIDs every pass) must resolve to ONE

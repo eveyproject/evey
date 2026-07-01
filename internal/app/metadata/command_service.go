@@ -634,6 +634,16 @@ func (s *CommandService) RetryMissingArtworksLoop(ctx context.Context, interval 
 	}
 }
 
+// ArtworkAutoDownloadHook exposes maybeAutoDownload as an ArtworkPostSaveHook so
+// the enricher fires an auto-download the instant it persists a new artwork
+// record (gated on the admin toggle inside maybeAutoDownload). Registered
+// post-construction in wire.go via Enricher.SetArtworkPostSaveHook, because the
+// CommandService is built WITH the enricher — the back-reference can only be set
+// once both exist.
+func (s *CommandService) ArtworkAutoDownloadHook() ArtworkPostSaveHook {
+	return s.maybeAutoDownload
+}
+
 // maybeAutoDownload triggers an automatic download when auto-download is enabled.
 // It is best-effort: errors are only logged.
 func (s *CommandService) maybeAutoDownload(ctx context.Context, rec *metadata.ArtworkRecord) {

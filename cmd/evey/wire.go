@@ -478,6 +478,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appmetadata.WithEnricher(enricher, r.MediaItem),
 		appmetadata.WithMediaPersons(r.MediaPerson),
 	)
+	// Fire the artwork auto-download the moment the enricher persists a new record
+	// (no-op unless the admin toggle artwork.auto_download is on, checked inside
+	// maybeAutoDownload). Set here rather than as a NewEnricher option because
+	// metadataCmdSvc is built WITH the enricher — the hook back-reference only
+	// exists once both do.
+	enricher.SetArtworkPostSaveHook(metadataCmdSvc.ArtworkAutoDownloadHook())
 
 	activityCmdSvc := appactivity.NewCommandService(r.LoginHistory, r.ServerMetric, r.AuditLog, bus)
 	activityQuerySvc := appactivity.NewQueryService(r.LoginHistory, r.ServerMetric, r.AuditLog, r.PlaySessionStats, r.PlayHistory,
