@@ -198,6 +198,12 @@ func downloadHandler(tokens TokenVerifier, libSvc MediaArchiveSource, baseURL st
 		claims := HTTPClaimsFromContext(r.Context())
 
 		if st, ok := StreamTokenFromContext(r.Context()); ok {
+			// A syncplay guest may stream but never download the shared media.
+			if st.Scope == shared.ScopeSyncplayGuest {
+				span.SetStatus(codes.Error, "syncplay guest token cannot download")
+				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+				return
+			}
 			if st.MediaItemID != shared.MediaItemID(mediaID) {
 				span.SetStatus(codes.Error, "stream token media mismatch")
 				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)

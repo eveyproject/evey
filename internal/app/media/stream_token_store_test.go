@@ -60,6 +60,24 @@ func TestStreamTokenStore_ValidateWrongMedia(t *testing.T) {
 	assert.False(t, ok, "wrong mediaItemID should fail")
 }
 
+func TestStreamTokenStore_CreateGuestToken(t *testing.T) {
+	store := media.NewStreamTokenStore(5 * time.Minute)
+	defer store.Stop()
+
+	token := store.CreateGuestToken("media-1", 24*time.Hour)
+	require.NotEmpty(t, token)
+
+	st, ok := store.Validate(token, "media-1")
+	require.True(t, ok, "guest token must stream its own media")
+	assert.Equal(t, shared.ScopeSyncplayGuest, st.Scope)
+	assert.Equal(t, shared.MediaItemID("media-1"), st.MediaItemID)
+	assert.Empty(t, st.UserID, "guest token carries no user")
+	assert.Empty(t, st.ProfileID, "guest token carries no profile")
+
+	_, ok = store.Validate(token, "media-2")
+	assert.False(t, ok, "guest token is scoped to its single media item")
+}
+
 func TestStreamTokenStore_ValidateAny(t *testing.T) {
 	store := media.NewStreamTokenStore(5 * time.Minute)
 	defer store.Stop()

@@ -61,7 +61,26 @@ func (s *StreamTokenStore) CreateWithTTL(userID, profileID, mediaItemID string, 
 		UserID:      shared.UserID(userID),
 		ProfileID:   shared.ProfileID(profileID),
 		MediaItemID: shared.MediaItemID(mediaItemID),
-		Scope:       "stream",
+		Scope:       shared.ScopeStream,
+		ExpiresAt:   time.Now().Add(ttl),
+		TTL:         ttl,
+	})
+	return token
+}
+
+// CreateGuestToken mints a media-scoped token for an unauthenticated syncplay
+// "watch together" guest (no user, no profile). It carries ScopeSyncplayGuest so
+// the download handler (and any non-streaming endpoint) can refuse it while
+// streaming the room's single media item still works.
+func (s *StreamTokenStore) CreateGuestToken(mediaItemID string, ttl time.Duration) string {
+	if ttl <= 0 {
+		ttl = s.ttl
+	}
+	token := uuid.New().String()
+	s.tokens.Store(token, &shared.StreamToken{
+		Token:       token,
+		MediaItemID: shared.MediaItemID(mediaItemID),
+		Scope:       shared.ScopeSyncplayGuest,
 		ExpiresAt:   time.Now().Add(ttl),
 		TTL:         ttl,
 	})

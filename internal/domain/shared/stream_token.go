@@ -2,6 +2,18 @@ package shared
 
 import "time"
 
+// Stream-token scopes.
+const (
+	// ScopeStream is an authenticated user's normal playback token.
+	ScopeStream = "stream"
+	// ScopeShare is a public share link.
+	ScopeShare = "share"
+	// ScopeSyncplayGuest is an unauthenticated "watch together" guest token: it
+	// may stream exactly one media item (the room's), but must be refused by the
+	// download handler and any endpoint that is not read-only streaming.
+	ScopeSyncplayGuest = "syncplay-guest"
+)
+
 type StreamToken struct {
 	Token  string
 	UserID UserID // empty for share links
