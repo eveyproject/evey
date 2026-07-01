@@ -63,7 +63,11 @@ func TestInvalidSignature(t *testing.T) {
 
 	token, _ := gen1.GenerateAccessToken(user.Claims{UserID: "u1", Username: "test"})
 	_, err := gen2.ValidateAccessToken(token)
-	assert.ErrorContains(t, err, "token")
+	// Pin the rejection reason to the signature specifically — the previous
+	// assertion ("token") also matched expiry/malformed errors, so it would not
+	// catch a regression where a wrong-key token was rejected for the wrong
+	// reason (or accepted and rejected later on an unrelated check).
+	assert.ErrorContains(t, err, "signature")
 }
 
 func TestAlgorithmConfusionRejected(t *testing.T) {
