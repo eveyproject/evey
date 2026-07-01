@@ -308,7 +308,10 @@ const (
 type devHandler struct {
 	w     io.Writer
 	attrs []slog.Attr
-	group string
+	// prefix is the dotted group chain ("http.request.") applied to record attrs
+	// and to attrs added after a WithGroup. Empty at the top level. Replaces a
+	// previously-stored group name that Handle never read (WithGroup was a no-op).
+	prefix string
 }
 
 func (h *devHandler) Enabled(_ context.Context, level slog.Level) bool {
@@ -347,7 +350,7 @@ func (h *devHandler) Handle(_ context.Context, r slog.Record) error {
 	}
 
 	r.Attrs(func(a slog.Attr) bool {
-		fmt.Fprintf(&sb, " %s%s=%v%s", colorGray, a.Key, a.Value, colorReset)
+		fmt.Fprintf(&sb, " %s%s%s=%v%s", colorGray, h.prefix, a.Key, a.Value, colorReset)
 		return true
 	})
 
@@ -357,12 +360,21 @@ func (h *devHandler) Handle(_ context.Context, r slog.Record) error {
 }
 
 func (h *devHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	merged := make([]slog.Attr, len(h.attrs)+len(attrs))
-	copy(merged, h.attrs)
-	copy(merged[len(h.attrs):], attrs)
-	return &devHandler{w: h.w, attrs: merged, group: h.group}
+	merged := make([]slog.Attr, 0, len(h.attrs)+len(attrs))
+	merged = append(merged, h.attrs...)
+	for _, a := range attrs {
+		// Attrs added after a WithGroup belong under that group, so qualify the key
+		// with the current prefix now (prefix is "" before any group, leaving
+		// top-level attrs untouched).
+		merged = append(merged, slog.Attr{Key: h.prefix + a.Key, Value: a.Value})
+	}
+	return &devHandler{w: h.w, attrs: merged, prefix: h.prefix}
 }
 
 func (h *devHandler) WithGroup(name string) slog.Handler {
-	return &devHandler{w: h.w, attrs: h.attrs, group: name}
+	// An empty group name is a no-op per the slog.Handler contract.
+	if name == "" {
+		return h
+	}
+	return &devHandler{w: h.w, attrs: h.attrs, prefix: h.prefix + name + "."}
 }
