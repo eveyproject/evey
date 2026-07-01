@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { QuickConnect } from "@/components/QuickConnect";
+import { writeGuestSession } from "@/features/syncplay/guestSession";
 
 type LoginSearch = {
   oidc_error?: string;
@@ -50,6 +51,31 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const { setTokens } = useAuthStore();
   const navigate = useNavigate();
+  const [guestCode, setGuestCode] = useState("");
+  const [guestJoining, setGuestJoining] = useState(false);
+  const [guestError, setGuestError] = useState(false);
+
+  async function handleGuestJoin(e: React.FormEvent) {
+    e.preventDefault();
+    const code = guestCode.trim();
+    if (code.length < 4) return;
+    setGuestJoining(true);
+    setGuestError(false);
+    try {
+      const info = await eveyFetch<{ token: string; roomId: string; mediaId: string; mediaType: string }>({
+        url: "/api/v1/syncplay/join-code",
+        method: "POST",
+        data: { code },
+      });
+      if (!info.token || !info.mediaId) throw new Error("invalid room");
+      writeGuestSession({ token: info.token, roomId: info.roomId, mediaId: info.mediaId });
+      void navigate({ to: "/watch/$mediaId", params: { mediaId: info.mediaId } });
+    } catch {
+      setGuestError(true);
+    } finally {
+      setGuestJoining(false);
+    }
+  }
   const { oidc_error } = Route.useSearch();
 
   const oidcConfig = useQuery<{ enabled: boolean }>({
@@ -150,6 +176,30 @@ function LoginPage() {
           </>
         )}
         <QuickConnect />
+        <form onSubmit={handleGuestJoin} className="mt-4 pt-4 border-t border-[var(--border)] flex flex-col gap-2">
+          <p className="text-sm text-[var(--text-muted)]">
+            {t("auth.login.guestJoinDesc", "Invited to watch together? Enter the code — no account needed.")}
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={guestCode}
+              onChange={(e) => { setGuestCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6)); setGuestError(false); }}
+              placeholder="12345"
+              inputMode="numeric"
+              autoComplete="off"
+              aria-label={t("media.syncplay.codeLabel", "Code")}
+              className="flex-1 font-mono tracking-widest text-center"
+            />
+            <Button type="submit" variant="secondary" loading={guestJoining} disabled={guestCode.trim().length < 4}>
+              {t("media.syncplay.joinRoom", "Join")}
+            </Button>
+          </div>
+          {guestError && (
+            <p className="text-xs" style={{ color: "var(--color-danger)" }}>
+              {t("auth.login.guestJoinError", "Could not join — check the code.")}
+            </p>
+          )}
+        </form>
       </Card>
     </div>
   );

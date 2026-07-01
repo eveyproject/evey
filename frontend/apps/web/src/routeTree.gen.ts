@@ -18,6 +18,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WatchMediaIdRouteImport } from './routes/watch.$mediaId'
 import { Route as AuthSyncplayRouteImport } from './routes/_auth/syncplay'
 import { Route as AuthSearchRouteImport } from './routes/_auth/search'
 import { Route as AuthQuickconnectRouteImport } from './routes/_auth/quickconnect'
@@ -110,6 +111,11 @@ const AuthRoute = AuthRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WatchMediaIdRoute = WatchMediaIdRouteImport.update({
+  id: '/watch/$mediaId',
+  path: '/watch/$mediaId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthSyncplayRoute = AuthSyncplayRouteImport.update({
@@ -460,6 +466,7 @@ export interface FileRoutesByFullPath {
   '/quickconnect': typeof AuthQuickconnectRoute
   '/search': typeof AuthSearchRoute
   '/syncplay': typeof AuthSyncplayRoute
+  '/watch/$mediaId': typeof WatchMediaIdRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/api-docs': typeof AuthAdminApiDocsRoute
@@ -516,6 +523,7 @@ export interface FileRoutesByTo {
   '/quickconnect': typeof AuthQuickconnectRoute
   '/search': typeof AuthSearchRoute
   '/syncplay': typeof AuthSyncplayRoute
+  '/watch/$mediaId': typeof WatchMediaIdRoute
   '/admin/activity': typeof AuthAdminActivityRoute
   '/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/admin/api-docs': typeof AuthAdminApiDocsRoute
@@ -575,6 +583,7 @@ export interface FileRoutesById {
   '/_auth/quickconnect': typeof AuthQuickconnectRoute
   '/_auth/search': typeof AuthSearchRoute
   '/_auth/syncplay': typeof AuthSyncplayRoute
+  '/watch/$mediaId': typeof WatchMediaIdRoute
   '/_auth/admin/activity': typeof AuthAdminActivityRoute
   '/_auth/admin/analytics': typeof AuthAdminAnalyticsRoute
   '/_auth/admin/api-docs': typeof AuthAdminApiDocsRoute
@@ -634,6 +643,7 @@ export interface FileRouteTypes {
     | '/quickconnect'
     | '/search'
     | '/syncplay'
+    | '/watch/$mediaId'
     | '/admin/activity'
     | '/admin/analytics'
     | '/admin/api-docs'
@@ -690,6 +700,7 @@ export interface FileRouteTypes {
     | '/quickconnect'
     | '/search'
     | '/syncplay'
+    | '/watch/$mediaId'
     | '/admin/activity'
     | '/admin/analytics'
     | '/admin/api-docs'
@@ -748,6 +759,7 @@ export interface FileRouteTypes {
     | '/_auth/quickconnect'
     | '/_auth/search'
     | '/_auth/syncplay'
+    | '/watch/$mediaId'
     | '/_auth/admin/activity'
     | '/_auth/admin/analytics'
     | '/_auth/admin/api-docs'
@@ -800,6 +812,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SetupRoute: typeof SetupRoute
+  WatchMediaIdRoute: typeof WatchMediaIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -865,6 +878,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/watch/$mediaId': {
+      id: '/watch/$mediaId'
+      path: '/watch/$mediaId'
+      fullPath: '/watch/$mediaId'
+      preLoaderRoute: typeof WatchMediaIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth/syncplay': {
@@ -1321,6 +1341,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SetupRoute: SetupRoute,
+  WatchMediaIdRoute: WatchMediaIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
