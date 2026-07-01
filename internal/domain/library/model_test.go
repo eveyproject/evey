@@ -76,28 +76,6 @@ func TestStreamTypeConstants(t *testing.T) {
 	}
 }
 
-func TestPersonRoleConstants(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		role library.PersonRole
-		want string
-	}{
-		{library.Actor, "actor"},
-		{library.Director, "director"},
-		{library.Writer, "writer"},
-		{library.Producer, "producer"},
-	}
-	for _, c := range cases {
-		t.Run(c.want, func(t *testing.T) {
-			t.Parallel()
-			if string(c.role) != c.want {
-				t.Errorf("PersonRole = %q, want %q", c.role, c.want)
-			}
-		})
-	}
-}
-
 func TestFileOpConstants(t *testing.T) {
 	t.Parallel()
 

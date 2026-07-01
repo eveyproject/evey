@@ -1,7 +1,5 @@
 package transcoding
 
-import "strings"
-
 // ContentClass tags each media item with a per-title encoding hint computed
 // at scan time from cheap source-side metrics (signalstats YDEV + scenecut
 // rate + source bitrate + resolution). The hint maps to one of four
@@ -32,16 +30,6 @@ func (c ContentClass) IsValid() bool {
 		return true
 	}
 	return false
-}
-
-// ParseContentClass normalises an admin-typed value (case-insensitive, spaces
-// stripped). Returns empty + ok=false on unknown.
-func ParseContentClass(s string) (ContentClass, bool) {
-	c := ContentClass(strings.ToLower(strings.TrimSpace(s)))
-	if c.IsValid() {
-		return c, true
-	}
-	return "", false
 }
 
 // LadderAnimation — light ladder for high-compressibility content (cell-shaded

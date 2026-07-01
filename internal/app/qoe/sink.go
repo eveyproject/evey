@@ -206,9 +206,3 @@ func (s *BufferedSink) processEvent(evt Event) {
 			slog.Any("err", err))
 	}
 }
-
-// NoopSink is the test/dev double — Record is a no-op, Close returns nil.
-type NoopSink struct{}
-
-func (NoopSink) Record(Event)                {}
-func (NoopSink) Close(context.Context) error { return nil }

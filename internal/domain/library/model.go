@@ -61,23 +61,6 @@ func (t StreamType) IsValid() bool {
 	return false
 }
 
-type PersonRole string
-
-const (
-	Actor    PersonRole = "actor"
-	Director PersonRole = "director"
-	Writer   PersonRole = "writer"
-	Producer PersonRole = "producer"
-)
-
-func (r PersonRole) IsValid() bool {
-	switch r {
-	case Actor, Director, Writer, Producer:
-		return true
-	}
-	return false
-}
-
 type Library struct {
 	ID                  shared.LibraryID
 	Name                string

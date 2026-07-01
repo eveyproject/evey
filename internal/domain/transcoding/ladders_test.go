@@ -6,29 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestParseContentClass(t *testing.T) {
-	cases := []struct {
-		in   string
-		want ContentClass
-		ok   bool
-	}{
-		{"animation", ClassAnimation, true},
-		{"ANIMATION", ClassAnimation, true},
-		{" film_normal ", ClassFilmNormal, true},
-		{"film_high_motion", ClassFilmHighMotion, true},
-		{"sport", ClassSport, true},
-		{"", "", false},
-		{"junk", "", false},
-	}
-	for _, c := range cases {
-		t.Run(c.in, func(t *testing.T) {
-			got, ok := ParseContentClass(c.in)
-			assert.Equal(t, c.ok, ok)
-			assert.Equal(t, c.want, got)
-		})
-	}
-}
-
 func TestLadderFor_UnknownClassFallsBackToNormal(t *testing.T) {
 	got := LadderFor(ContentClass("garbage"))
 	assert.Equal(t, LadderFilmNormal, got, "unknown class must fall back to LadderFilmNormal")

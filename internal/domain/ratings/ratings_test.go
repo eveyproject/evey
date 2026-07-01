@@ -69,36 +69,6 @@ func TestMinAgeFor(t *testing.T) {
 	}
 }
 
-func TestIsAllowedByAge(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		country, rating string
-		maxAge          int
-		want            bool
-	}{
-		// FR CSA
-		{"FR", "-12", 12, true},
-		{"FR", "-16", 12, false},
-		{"FR", "-12", 18, true},
-		{"FR", "TP", 0, true},
-		// US MPAA
-		{"US", "PG-13", 13, true},
-		{"US", "R", 13, false},
-		{"US", "R", 17, true},
-		// Unknown rating: permissive (don't block on missing data)
-		{"FR", "UNKNOWN", 10, true},
-		{"ZZ", "XYZ", 10, true},
-		// maxAge < 0 disables filter
-		{"US", "R", -1, true},
-	}
-	for _, tt := range tests {
-		got := IsAllowedByAge(tt.country, tt.rating, tt.maxAge)
-		if got != tt.want {
-			t.Errorf("IsAllowedByAge(%q, %q, %d) = %v, want %v", tt.country, tt.rating, tt.maxAge, got, tt.want)
-		}
-	}
-}
-
 func TestHasBlockedTag(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
