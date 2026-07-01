@@ -49,6 +49,14 @@ func TestSyncPlayIDOR_CreateRoomAllowed(t *testing.T) {
 	}
 }
 
+// fakeGuestTokens is a minimal guest-token validator for the syncplay ws tests.
+type fakeGuestTokens map[string]*shared.StreamToken
+
+func (f fakeGuestTokens) ValidateAny(token string) (*shared.StreamToken, bool) {
+	st, ok := f[token]
+	return st, ok
+}
+
 // fakeSyncPlayRepo is a minimal in-memory RoomRepository for HTTP handler tests.
 type fakeSyncPlayRepo struct {
 	mu    sync.Mutex
@@ -201,7 +209,7 @@ func newSyncPlayTestMux(t *testing.T) (*http.ServeMux, *appsyncplay.Hub, *fakeSy
 	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
 
 	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{})
 	return mux, hub, repo
 }
 
@@ -228,7 +236,7 @@ func TestSyncPlayWS_LibraryAccessDenied_403(t *testing.T) {
 	room := createTestRoom(t, hub, "host-ws", "media-1")
 
 	denyMux := http.NewServeMux()
-	registerSyncPlayRoutes(denyMux, hub, tokenGen, mediaGetter, denyAll())
+	registerSyncPlayRoutes(denyMux, hub, tokenGen, mediaGetter, denyAll(), fakeGuestTokens{})
 
 	hostToken, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "host-ws", Username: "Host", IsAdmin: false})
 	wsReq := httptest.NewRequest(http.MethodGet, "/api/v1/syncplay/rooms/"+room.ID+"/ws", nil)
@@ -298,6 +306,45 @@ func TestSyncPlayJoinByCode(t *testing.T) {
 	}
 }
 
+func TestSyncPlayWS_GuestToken(t *testing.T) {
+	t.Parallel()
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter()
+	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+
+	room := createTestRoom(t, hub, "host-g", "media-1") // video room, MediaID = media-1
+
+	guests := fakeGuestTokens{
+		"guest-ok":    {Scope: shared.ScopeSyncplayGuest, MediaItemID: "media-1"},
+		"guest-wrong": {Scope: shared.ScopeSyncplayGuest, MediaItemID: "media-2"},
+		"not-guest":   {Scope: shared.ScopeStream, MediaItemID: "media-1"},
+	}
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), guests)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + room.ID + "/ws"
+
+	// A guest token scoped to the room's media connects (no JWT, no membership).
+	ws, _, err := dialWS(wsURL, srv.URL, "guest-ok")
+	if err != nil {
+		t.Fatalf("guest with a valid room-scoped token should connect, got: %v", err)
+	}
+	ws.Close()
+
+	// A guest token scoped to a DIFFERENT media must be rejected.
+	if _, _, err := dialWS(wsURL, srv.URL, "guest-wrong"); err == nil {
+		t.Error("guest token scoped to another media must be rejected")
+	}
+	// A normal (non-guest) stream token must NOT grant ws access.
+	if _, _, err := dialWS(wsURL, srv.URL, "not-guest"); err == nil {
+		t.Error("a non-guest stream token must not grant ws access")
+	}
+}
+
 func TestSyncPlayWS_NoToken_401(t *testing.T) {
 	t.Parallel()
 	mux, _, _ := newSyncPlayTestMux(t)
@@ -333,7 +380,7 @@ func TestSyncPlayWS_NonMember_403(t *testing.T) {
 	mediaGetter := newFakeMediaGetter()
 	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
 	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{})
 
 	room := createTestRoom(t, hub, "host-1", "media-1")
 
@@ -359,7 +406,7 @@ func TestSyncPlayWS_MusicRoom_SkipsMediaItemCheck(t *testing.T) {
 	hub := appsyncplay.NewHub(repo)
 	mediaGetter := newFakeMediaGetter() // empty: GetMediaItem would 404 for any id
 	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{})
 
 	// Music room: track-1 is not a media_item.
 	room, err := hub.CreateRoomFromQueue(context.Background(), "host-music", "MusicRoom", []string{"track-1"})
@@ -391,7 +438,7 @@ func TestSyncPlayWS_ValidHostToken_NotRejectedByAuth(t *testing.T) {
 	mediaGetter := newFakeMediaGetter()
 	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
 	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{})
 
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
@@ -428,7 +475,7 @@ func TestSyncPlayWS_StateOnJoin(t *testing.T) {
 	mediaGetter := newFakeMediaGetter()
 	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
 	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
@@ -468,7 +515,7 @@ func TestSyncPlayWS_PlayPauseSeek(t *testing.T) {
 	mediaGetter := newFakeMediaGetter()
 	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
 	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()
 
@@ -542,7 +589,7 @@ func TestSyncPlayWS_SubprotocolToken_Auth(t *testing.T) {
 	mediaGetter := newFakeMediaGetter()
 	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
 	mux := http.NewServeMux()
-	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll())
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{})
 
 	hostClaims := domainuser.Claims{UserID: "host-sub", Username: "Host", IsAdmin: false}
 	hostToken, err := tokenGen.GenerateAccessToken(hostClaims)

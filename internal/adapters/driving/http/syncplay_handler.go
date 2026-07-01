@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
@@ -16,23 +18,33 @@ import (
 	"golang.org/x/net/websocket"
 
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
+	"github.com/evey-project/evey/internal/domain/shared"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-type syncplayHandler struct {
-	hub        *appsyncplay.Hub
-	tokenGen   domainuser.TokenGenerator
-	media      mediaLibraryGetter
-	libChecker LibraryAccessChecker
+// guestTokenValidator resolves an opaque stream token. Satisfied by
+// *media.StreamTokenStore. Used to authenticate a "watch together" guest on the
+// sync WebSocket (a guest holds a stream token, not a JWT).
+type guestTokenValidator interface {
+	ValidateAny(token string) (*shared.StreamToken, bool)
 }
 
-func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen domainuser.TokenGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker) {
+type syncplayHandler struct {
+	hub         *appsyncplay.Hub
+	tokenGen    domainuser.TokenGenerator
+	media       mediaLibraryGetter
+	libChecker  LibraryAccessChecker
+	guestTokens guestTokenValidator
+}
+
+func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen domainuser.TokenGenerator, mediaGetter mediaLibraryGetter, libChecker LibraryAccessChecker, guestTokens guestTokenValidator) {
 	h := &syncplayHandler{
-		hub:        hub,
-		tokenGen:   tokenGen,
-		media:      mediaGetter,
-		libChecker: libChecker,
+		hub:         hub,
+		tokenGen:    tokenGen,
+		media:       mediaGetter,
+		libChecker:  libChecker,
+		guestTokens: guestTokens,
 	}
 	// WebSocket uses Sec-WebSocket-Protocol for auth — can't use standard middleware
 	mux.Handle("/api/v1/syncplay/rooms/{id}/ws", http.HandlerFunc(h.wsUpgradeHandler))
@@ -143,6 +155,15 @@ func (s *wsSender) SendMessage(data []byte) error {
 	return nil
 }
 
+// guestMemberID derives a stable, non-reversible member id for a syncplay guest
+// from their opaque token, so the token bytes are never exposed to other room
+// members (member ids are broadcast). Same token → same id, so a reconnect maps
+// back to the same guest.
+func guestMemberID(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return "guest-" + hex.EncodeToString(sum[:6])
+}
+
 func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
 	// Span only covers the upgrade handshake — the long-lived ws loop runs after.
 	spanCtx, span := tracing.StartSpan(r.Context(), "http.syncplay.WSUpgrade")
@@ -150,14 +171,24 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 	roomID := r.PathValue("id")
 	span.SetAttributes(attribute.String("room_id", roomID))
 	token := extractWSToken(r)
-	claims, vErr := s.tokenGen.ValidateAccessToken(token)
-	if vErr != nil {
-		span.RecordError(vErr)
-		span.SetStatus(otelcodes.Error, "invalid token")
-		span.End()
-		slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
-		http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
-		return
+	claims, jwtErr := s.tokenGen.ValidateAccessToken(token)
+	// A "watch together" guest holds a stream token, not a JWT. When the JWT is
+	// invalid, only a guest-scoped stream token may proceed — reject anything else
+	// here, BEFORE the room lookup, so an unauthenticated caller can't probe room
+	// existence. The token is minted only by /syncplay/join-code (rate limited)
+	// and is refused by the download handler.
+	var guestTok *shared.StreamToken
+	if jwtErr != nil {
+		st, ok := s.guestTokens.ValidateAny(token)
+		if !ok || st.Scope != shared.ScopeSyncplayGuest {
+			span.RecordError(jwtErr)
+			span.SetStatus(otelcodes.Error, "invalid token")
+			span.End()
+			slog.Warn("syncplay ws: invalid token", slog.String("room", roomID))
+			http.Error(w, `{"message":"unauthenticated"}`, http.StatusUnauthorized)
+			return
+		}
+		guestTok = st
 	}
 
 	room, err := s.hub.GetRoom(r.Context(), roomID)
@@ -168,39 +199,55 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, `{"message":"room not found"}`, http.StatusNotFound)
 		return
 	}
-	// Music rooms carry a track ID in MediaID, which is not a media_item — the
-	// video media/library gate below would 404 it. For music, access is gated at
-	// create/join time (track library access) plus room membership (checked
-	// below); the video media-item lookup is skipped.
-	if room.MediaType != "music" {
-		item, mErr := s.media.GetMediaItem(r.Context(), string(room.MediaID))
-		if mErr != nil || item == nil {
-			if mErr != nil {
-				span.RecordError(mErr)
+
+	var wsUserID, wsUsername string
+	if guestTok == nil {
+		// Authenticated member path.
+		wsUserID, wsUsername = claims.UserID, claims.Username
+		// Music rooms carry a track ID in MediaID, not a media_item, so the video
+		// media/library gate below would 404 it; music access is gated at
+		// create/join time plus room membership (checked below).
+		if room.MediaType != "music" {
+			item, mErr := s.media.GetMediaItem(r.Context(), string(room.MediaID))
+			if mErr != nil || item == nil {
+				if mErr != nil {
+					span.RecordError(mErr)
+				}
+				span.SetStatus(otelcodes.Error, "media item not found")
+				span.End()
+				http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+				return
 			}
-			span.SetStatus(otelcodes.Error, "media item not found")
+			if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
+				span.SetStatus(otelcodes.Error, "library access denied")
+				span.End()
+				return
+			}
+		}
+		if !room.IsMember(claims.UserID) {
+			span.SetStatus(otelcodes.Error, "non-member attempt")
 			span.End()
-			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			slog.Warn("syncplay ws: non-member attempt", slog.String("user", claims.UserID), slog.String("room", roomID))
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
-		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, s.libChecker) {
-			span.SetStatus(otelcodes.Error, "library access denied")
+	} else {
+		// Guest: the scoped token must belong to THIS room's media. The guest skips
+		// the member and library checks — the room-media-scoped token IS the
+		// authorization, and ConnectMember adds the guest as a member.
+		if string(guestTok.MediaItemID) != string(room.MediaID) {
+			span.SetStatus(otelcodes.Error, "guest token media mismatch")
 			span.End()
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 			return
 		}
-	}
-	if !room.IsMember(claims.UserID) {
-		span.SetStatus(otelcodes.Error, "non-member attempt")
-		span.End()
-		slog.Warn("syncplay ws: non-member attempt", slog.String("user", claims.UserID), slog.String("room", roomID))
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-		return
+		wsUserID, wsUsername = guestMemberID(token), "Guest"
 	}
 	// End the upgrade-span before entering the long-lived ws loop.
 	span.End()
 
-	ctx := context.WithValue(r.Context(), wsCtxUserID, claims.UserID)
-	ctx = context.WithValue(ctx, wsCtxUsername, claims.Username)
+	ctx := context.WithValue(r.Context(), wsCtxUserID, wsUserID)
+	ctx = context.WithValue(ctx, wsCtxUsername, wsUsername)
 
 	wsHandler := websocket.Handler(func(ws *websocket.Conn) {
 		wsR := ws.Request()
