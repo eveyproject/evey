@@ -86,6 +86,21 @@ describe("LibraryAccessModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("clearing every library then Save calls RevokeAll (unrestricted), not Set", async () => {
+    // Security-sensitive branch: an empty selection is treated as "grant access
+    // to ALL libraries" (revoke the per-library restriction), NOT "no access".
+    // lib1/Movies is pre-checked; unchecking it empties the selection.
+    const u = userEvent.setup();
+    const onClose = vi.fn();
+    render(<LibraryAccessModal user={user} open={true} onClose={onClose} />, { wrapper: createWrapper() });
+    await u.click(screen.getByLabelText("Movies"));
+    expect(screen.getByLabelText("Movies")).not.toBeChecked();
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    expect(revokeMutateAsync).toHaveBeenCalledWith({ userId: "u1" });
+    expect(setMutateAsync).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
   it("Cancel calls onClose without mutation", async () => {
     const u = userEvent.setup();
     const onClose = vi.fn();
