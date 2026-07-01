@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
-import { useAuthStore, toast } from "@evey/store";
+import { useAuthStore, toast, type PersistedAuthState } from "@evey/store";
 import { setTokenProvider, setTokensUpdater, setLocaleProvider, userServiceRefreshToken } from "@evey/api";
 import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
@@ -125,13 +125,35 @@ function isNearExpiry(token: string): boolean {
 // tabs see the newly-refreshed access token.
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (ev) => {
-    if (ev.key !== "evey-auth" || !ev.newValue) return;
+    if (ev.key !== "evey-auth") return;
+    const current = useAuthStore.getState().accessToken;
+    // Key removed entirely (some browsers on clear) → treat as logout.
+    if (!ev.newValue) {
+      if (current) window.dispatchEvent(new Event("evey:unauthorized"));
+      return;
+    }
     try {
-      const next = JSON.parse(ev.newValue) as { state?: { accessToken?: string | null } };
-      const newAccess = next.state?.accessToken ?? null;
-      const current = useAuthStore.getState().accessToken;
-      if (newAccess && newAccess !== current) {
-        useAuthStore.getState().setTokens(newAccess);
+      const next = JSON.parse(ev.newValue) as { state?: PersistedAuthState };
+      const persisted = next.state;
+      if (!persisted) return;
+      const newAccess = persisted.accessToken ?? null;
+      // Logout in another tab: the persisted blob now has a null token. Clearing
+      // only on token *change* (the old guard) left this tab authenticated —
+      // a residual session on a shared machine. Reuse the canonical logout flow.
+      if (!newAccess) {
+        if (current) window.dispatchEvent(new Event("evey:unauthorized"));
+        return;
+      }
+      // Token or impersonation changed in another tab → rehydrate the FULL blob.
+      // setTokens alone dropped impersonationOrigin, so a cross-tab
+      // exitImpersonation would no-op; hydrateFromPersisted restores it.
+      const st = useAuthStore.getState();
+      if (
+        newAccess !== current ||
+        persisted.impersonatedBy !== st.impersonatedBy ||
+        persisted.impersonationOrigin !== st.impersonationOrigin
+      ) {
+        st.hydrateFromPersisted(persisted);
       }
     } catch { /* ignore malformed payload */ }
   });

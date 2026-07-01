@@ -39,6 +39,19 @@ const EMPTY_TOKENS: ServerTokens = {
   isAdmin: false,
 };
 
+// Shape persisted to localStorage by persist().partialize below. Used by
+// hydrateFromPersisted for faithful cross-tab sync (a storage event carries
+// exactly this blob).
+export interface PersistedAuthState {
+  tokensByServer?: Record<string, ServerTokens>;
+  accessToken?: string | null;
+  profileId?: string | null;
+  isAdmin?: boolean;
+  impersonatedBy?: string | null;
+  impersonatedUsername?: string | null;
+  impersonationOrigin?: string | null;
+}
+
 interface AuthState {
   // Internal per-server storage
   tokensByServer: Record<string, ServerTokens>;
@@ -62,6 +75,11 @@ interface AuthState {
   exitImpersonation: () => void;
   logout: () => void;
   logoutAll: () => void;
+
+  // Cross-tab sync: apply a persisted auth blob (from another tab's storage
+  // write) to the in-memory store, INCLUDING the impersonation fields that
+  // setTokens cannot reconstruct from the JWT alone (impersonationOrigin).
+  hydrateFromPersisted: (persisted: PersistedAuthState) => void;
 
   // Called by useServerListStore when active server changes
   syncFromServer: (id: string | null) => void;
@@ -165,6 +183,18 @@ export const useAuthStore = create<AuthState>()(
 
       logoutAll: () => {
         set({ ...EMPTY_TOKENS, impersonatedBy: null, impersonatedUsername: null, impersonationOrigin: null, tokensByServer: {} });
+      },
+
+      hydrateFromPersisted: (persisted) => {
+        set((state) => ({
+          accessToken: persisted.accessToken ?? null,
+          profileId: persisted.profileId ?? null,
+          isAdmin: persisted.isAdmin ?? false,
+          impersonatedBy: persisted.impersonatedBy ?? null,
+          impersonatedUsername: persisted.impersonatedUsername ?? null,
+          impersonationOrigin: persisted.impersonationOrigin ?? null,
+          tokensByServer: persisted.tokensByServer ?? state.tokensByServer,
+        }));
       },
 
       syncFromServer: (id: string | null) => {

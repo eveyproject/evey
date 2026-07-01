@@ -21,6 +21,45 @@ function resetStore() {
 
 beforeEach(resetStore);
 
+// ─── hydrateFromPersisted (cross-tab sync) ──────────────────────────────────────
+
+describe("hydrateFromPersisted", () => {
+  it("restores impersonationOrigin so a cross-tab exitImpersonation works", () => {
+    const originToken = makeJwt({ is_admin: true });
+    const impToken = makeJwt({ imp_by: "usr-admin", username: "Target", profile_id: "prf-t", is_admin: true });
+    // Another tab impersonated: persisted blob carries the impersonation token
+    // AND the admin's own origin token.
+    useAuthStore.getState().hydrateFromPersisted({
+      accessToken: impToken,
+      impersonatedBy: "usr-admin",
+      impersonatedUsername: "Target",
+      impersonationOrigin: originToken,
+      isAdmin: true,
+      profileId: "prf-t",
+    });
+    let s = useAuthStore.getState();
+    expect(s.accessToken).toBe(impToken);
+    expect(s.impersonatedBy).toBe("usr-admin");
+    expect(s.impersonationOrigin).toBe(originToken);
+
+    // Before the fix, setTokens dropped impersonationOrigin → this was a no-op.
+    useAuthStore.getState().exitImpersonation();
+    s = useAuthStore.getState();
+    expect(s.accessToken).toBe(originToken);
+    expect(s.impersonationOrigin).toBeNull();
+    expect(s.impersonatedBy).toBeNull();
+  });
+
+  it("clears stale impersonation fields when the incoming blob has none", () => {
+    useAuthStore.setState({ impersonatedBy: "x", impersonatedUsername: "y", impersonationOrigin: "z" });
+    useAuthStore.getState().hydrateFromPersisted({ accessToken: makeJwt({ profile_id: "p" }), profileId: "p" });
+    const s = useAuthStore.getState();
+    expect(s.impersonatedBy).toBeNull();
+    expect(s.impersonatedUsername).toBeNull();
+    expect(s.impersonationOrigin).toBeNull();
+  });
+});
+
 // ─── initial state ────────────────────────────────────────────────────────────
 
 describe("initial state", () => {
