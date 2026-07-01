@@ -250,6 +250,19 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   }, [connect]);
 
   const joinRoom = useCallback(async (roomId: string): Promise<void> => {
+    // A guest has no JWT — the REST join/get-room RPCs would 401. The ws-guest
+    // upgrade path adds the guest as a member on connect, so a guest just opens
+    // the socket directly; member/state come from the ws broadcasts.
+    if (optsRef.current.guestToken) {
+      setState({ roomId, roomCode: null, members: [], connected: false, isHost: false, queue: [], trackIndex: 0 });
+      // Defer to a microtask so the connect lands AFTER React StrictMode's
+      // mount→unmount→remount churn (the unmount cleanup closes any ws opened in
+      // the first pass); the authenticated path is deferred naturally by its
+      // awaited REST calls.
+      await Promise.resolve();
+      connect(roomId);
+      return;
+    }
     await syncPlayServiceJoinRoom(roomId, {});
     const info = await syncPlayServiceGetRoom(roomId);
     setState({

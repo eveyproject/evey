@@ -22,6 +22,7 @@ function GuestWatch() {
   const navigate = useNavigate();
   const guest = useMemo(() => readGuestSession(mediaId), [mediaId]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const joinedRef = useRef(false);
 
   const [syncState, syncControls] = useSyncPlay({
     guestToken: guest?.token,
@@ -54,6 +55,10 @@ function GuestWatch() {
       void navigate({ to: "/login" });
       return;
     }
+    // Join exactly once — guard against React StrictMode's double-invoke, whose
+    // second connect() would close the first ws before it finished handshaking.
+    if (joinedRef.current) return;
+    joinedRef.current = true;
     syncControls.joinRoom(guest.roomId).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps -- join once on mount for this guest session
   }, []);
