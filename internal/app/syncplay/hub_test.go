@@ -541,6 +541,40 @@ func TestHub_HandleCommand_Play(t *testing.T) {
 	}
 }
 
+func TestHub_HandleCommand_Resync_AnyMember(t *testing.T) {
+	t.Parallel()
+	h := newTestHub()
+	ctx := context.Background()
+
+	room, _ := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	if err := h.JoinRoom(ctx, room.ID, "guest-1", "Bob"); err != nil {
+		t.Fatalf("JoinRoom: %v", err)
+	}
+
+	// Unlike host-only play/pause/seek, a non-host member CAN pull the party to
+	// their position (the v2 "everyone sync to me").
+	if _, err := h.HandleCommand(ctx, room.ID, "guest-1", "Bob", syncplay.SyncCommand{
+		Type:       "resync",
+		PositionMs: 42000,
+	}); err != nil {
+		t.Fatalf("HandleCommand resync: %v", err)
+	}
+	fetched, _ := h.GetRoom(ctx, room.ID)
+	if !fetched.State.Playing || fetched.State.PositionMs != 42000 || fetched.State.UpdatedBy != "guest-1" {
+		t.Errorf("resync must move the room to the sender's position and play, got %+v", fetched.State)
+	}
+
+	// A non-member must not be able to resync the room.
+	_, _ = h.HandleCommand(ctx, room.ID, "outsider", "Eve", syncplay.SyncCommand{
+		Type:       "resync",
+		PositionMs: 99000,
+	})
+	after, _ := h.GetRoom(ctx, room.ID)
+	if after.State.PositionMs == 99000 {
+		t.Error("a non-member must not be able to resync the room")
+	}
+}
+
 func TestHub_HandleCommand_Pause(t *testing.T) {
 	t.Parallel()
 	h := newTestHub()

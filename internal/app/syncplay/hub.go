@@ -342,6 +342,28 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 			return cmd, fmt.Errorf("update room state: %w", err)
 		}
 		h.broadcast(roomID, userID, cmd)
+	case "resync":
+		// The v2 "everyone sync to me": ANY member — not just the host — can pull
+		// the whole party to their current position and resume. Unlike host-only
+		// play/pause/seek, resync is intentionally open: v2 playback control is
+		// local, and this explicit regroup is the only cross-member broadcast a
+		// non-host can trigger. Only actual members may send it.
+		room, err := h.repo.Get(ctx, roomID)
+		if err != nil || room == nil {
+			return cmd, fmt.Errorf("get room: %w", err)
+		}
+		if !room.IsMember(userID) {
+			return cmd, nil
+		}
+		if err := h.repo.UpdateState(ctx, roomID, syncplay.PlaybackState{
+			Playing:    true,
+			PositionMs: cmd.PositionMs,
+			UpdatedAt:  time.Now().UTC(),
+			UpdatedBy:  shared.UserID(userID),
+		}); err != nil {
+			return cmd, fmt.Errorf("update room state: %w", err)
+		}
+		h.broadcast(roomID, userID, cmd)
 	case "next", "prev", "setIndex":
 		room, err := h.repo.Get(ctx, roomID)
 		if err != nil || room == nil {
