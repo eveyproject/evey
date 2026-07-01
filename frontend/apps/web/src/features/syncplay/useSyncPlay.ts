@@ -57,6 +57,8 @@ interface UseSyncPlayOptions {
   onMemberJoined?: (userId: string, username: string) => void;
   onMemberLeft?: (userId: string) => void;
   onTrackChange?: (trackIndex: number, mediaId: string) => void;
+  /** Unauthenticated guest: media-scoped stream token used for the ws instead of the JWT. */
+  guestToken?: string;
 }
 
 export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, SyncPlayControls] {
@@ -97,8 +99,10 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     }
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${proto}//${window.location.host}/api/v1/syncplay/rooms/${roomId}/ws`;
-    // Read fresh token from store on each connect/reconnect
-    const freshToken = useAuthStore.getState().accessToken;
+    // Read a fresh token on each connect/reconnect. An unauthenticated
+    // "watch together" guest has no JWT in the store — it passes its media-scoped
+    // guest stream token instead, which the ws upgrade accepts for this room.
+    const freshToken = optsRef.current.guestToken ?? useAuthStore.getState().accessToken;
     const ws = new WebSocket(url, [`Bearer.${freshToken ?? ""}`]);
     wsRef.current = ws;
 
