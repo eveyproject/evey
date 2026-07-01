@@ -88,6 +88,8 @@ retry: "Réessayer"
 goBack: "Retour"
 shareDesc: "Partagez ce lien avec vos amis pour regarder ensemble :"
 copyLink: "Copier le lien"
+copyCode: "Copier le code"
+codeShareDesc: "Partagez ce code — n'importe qui peut le saisir pour vous rejoindre et regarder avec vous."
 close: "Fermer"
 shortcuts:
   title: "Raccourcis clavier"

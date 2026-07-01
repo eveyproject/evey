@@ -88,6 +88,8 @@ retry: Retry
 goBack: Go back
 shareDesc: "Share this link with friends to watch together:"
 copyLink: Copy link
+copyCode: Copy code
+codeShareDesc: "Share this code — anyone can enter it to join and watch with you."
 close: Close
 shortcuts:
   title: Keyboard Shortcuts

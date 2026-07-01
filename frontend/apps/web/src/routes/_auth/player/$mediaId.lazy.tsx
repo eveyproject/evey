@@ -279,10 +279,6 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     }
   }
 
-  const shareUrl = shareRoomId
-    ? `${window.location.origin}/player/${mediaId}?room=${shareRoomId}`
-    : "";
-
   return (
     <div
       className="fixed inset-0 bg-black z-overlay flex flex-col"
@@ -394,16 +390,20 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 id="share-dialog-title" className="text-lg font-semibold">{t("player.watchTogether")}</h2>
-              <p className="text-sm text-white/70">{t("player.shareDesc")}</p>
+              <p className="text-sm text-white/70">{t("player.codeShareDesc", "Share this code — anyone can enter it to join and watch with you.")}</p>
               <div
-                className="rounded px-3 py-2 text-sm font-mono break-all select-all"
+                className="rounded px-3 py-3 text-center font-mono text-3xl tracking-[0.3em] font-bold select-all"
                 style={{ background: "var(--overlay-border-subtle)" }}
               >
-                {shareUrl}
+                {syncState.roomCode}
               </div>
               <div className="flex gap-3">
-                <Button variant="overlay" className="flex-1" onClick={() => void navigator.clipboard.writeText(shareUrl)}>
-                  {t("player.copyLink")}
+                <Button
+                  variant="overlay"
+                  className="flex-1"
+                  onClick={() => { if (syncState.roomCode) void navigator.clipboard.writeText(syncState.roomCode); }}
+                >
+                  {t("player.copyCode", "Copy code")}
                 </Button>
                 <Button variant="overlay-accent" className="flex-1" onClick={() => setShowShareDialog(false)}>
                   {t("player.close")}
