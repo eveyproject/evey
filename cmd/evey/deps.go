@@ -183,4 +183,5 @@ type appDeps struct {
 	imageConverter    httpapi.ImageConverter
 	frameExtractor    httpapi.FrameExtractor
 	copySeekProber    apptranscoding.SeekLandingProber
+	onDemandPackager  apptranscoding.OnDemandPackager
 }

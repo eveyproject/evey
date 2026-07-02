@@ -132,6 +132,11 @@ type HTTPServer struct {
 	// landing (only safe for dense-cue sources).
 	CopySeekProber apptranscoding.SeekLandingProber
 
+	// OnDemandPackager serves the copy rung straight from mkvgo's mp4.PlanHLS
+	// (zero-storage, stateless HLS + DASH). Gated on transcoding.hls_ondemand;
+	// nil-safe (feature off → the ffmpeg copy/transcode pipeline is unchanged).
+	OnDemandPackager apptranscoding.OnDemandPackager
+
 	// transcodeCloser tears down the VOD software producers built during route
 	// registration (the selector's SoftwareProducer + the optional copy
 	// producer). They own long-lived ffmpeg sessions that would otherwise

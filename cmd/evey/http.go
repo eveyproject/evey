@@ -161,6 +161,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		ProfilePrefs:         httpapi.NewProfilePrefsAdapter(deps.user.querySvc),
 		FrameExtractor:       deps.frameExtractor,
 		CopySeekProber:       deps.copySeekProber,
+		OnDemandPackager:     deps.onDemandPackager,
 		IntroDetector:        deps.library.introDetectionSvc,
 		StreamMeter:          deps.engagement.streamMeter,
 	}

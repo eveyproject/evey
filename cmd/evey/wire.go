@@ -102,6 +102,7 @@ type infraDeps struct {
 	introDetector     *ffmpeg.IntroDetector
 	imageConverter    *ffmpeg.ImageConverter
 	mkvAdapter        *mkvgoadapter.Adapter
+	onDemandPackager  *mkvgoadapter.OnDemandPackager
 	bus               *eventbus.InMemoryEventBus
 	hasher            auth.BcryptHasher
 	tokenGen          *auth.JWTGenerator
@@ -165,6 +166,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	introDetector := ffmpeg.NewIntroDetector("ffmpeg", "ffprobe")
 	imageConverter := ffmpeg.NewImageConverter("ffmpeg")
 	mkvAdapter := mkvgoadapter.New()
+	onDemandPackager := mkvgoadapter.NewOnDemandPackager()
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
 
@@ -267,6 +269,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		introDetector:     introDetector,
 		imageConverter:    imageConverter,
 		mkvAdapter:        mkvAdapter,
+		onDemandPackager:  onDemandPackager,
 		bus:               bus,
 		hasher:            hasher,
 		tokenGen:          tokenGen,
@@ -1129,6 +1132,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		imageConverter:    infra.imageConverter,
 		frameExtractor:    infra.trickplayGen,
 		copySeekProber:    infra.prober,
+		onDemandPackager:  infra.onDemandPackager,
 	}, nil
 }
 

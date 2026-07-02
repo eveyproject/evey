@@ -71,6 +71,14 @@ type hlsVODServe struct {
 	// satisfy it; only copy requests (isCopyRequest) are routed here.
 	copyProducer apptranscoding.StreamProducer
 
+	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS —
+	// zero-storage, stateless, byte-identical HLS + DASH — when wired (behind
+	// transcoding.hls_ondemand). It supersedes copyProducer for video+audio
+	// copy-eligible requests whose source packages verbatim (see planHLSEligible
+	// / transcode_ondemand.go); everything else falls through to the ffmpeg
+	// pipeline unchanged. nil = feature off, no behaviour change.
+	onDemand apptranscoding.OnDemandPackager
+
 	// qoeSink ingests CMCD telemetry from segment requests. Nil when QoE is
 	// disabled (tests, dev without postgres). Record is non-blocking.
 	qoeSink appqoe.EventSink
@@ -209,6 +217,12 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case file == "master.m3u8":
 		h.serveMaster(w, r, mediaID, item, streams, span)
+	case file == "manifest.mpd" || strings.HasPrefix(file, onDemandPrefix):
+		// On-demand copy rung (mp4.PlanHLS): the DASH manifest entry point and
+		// every prefixed sub-resource (od_playlist.m3u8, od_seg00001.m4s,
+		// od_audio1.m3u8, od_init.mp4, od_sub1.vtt …) the plan's manifests
+		// reference. 404 when the feature is off / the source can't be packaged.
+		h.serveOnDemandResource(w, r, mediaID, file, item, span)
 	case vodVariantNameRE.MatchString(file):
 		h.serveVariant(w, r, mediaID, file, item, streams, span)
 	case vodSegmentNameRE.MatchString(file):
@@ -323,6 +337,14 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// Catches the startup CMCD payload (?CMCD=su,sid=...,ot=m) — the first
 	// thing every player sends. Useful for "time to first frame" admin views.
 	h.ingestCMCD(r, mediaID, 0, 0, false, true, false)
+
+	// On-demand copy rung: when the request is video+audio copy-eligible and the
+	// source packages verbatim, serve the whole presentation from mp4.PlanHLS
+	// (stateless, byte-identical, DASH included) instead of the ffmpeg pipeline.
+	// Falls through (feature off / not eligible / plan build failed) unchanged.
+	if h.tryServePlanMaster(w, r, mediaID, item, streams, span) {
+		return
+	}
 
 	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
@@ -1524,6 +1546,18 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		), s.CopySeekProber)
 		h.copyProducer = softwareCopy
 		slog.Default().Info("hls vod: copy/remux rung enabled (default; disable with server_config transcoding.remux_copy=off or EVEY_REMUX_COPY=off)")
+	}
+
+	// On-demand copy rung (mp4.PlanHLS): supersedes the ffmpeg copy producer for
+	// video+audio copy-eligible sources that package verbatim — no ffmpeg, no
+	// fMP4 rebase, no session state, DASH included. OFF BY DEFAULT (opt-in:
+	// server_config transcoding.hls_ondemand=on or EVEY_HLS_ONDEMAND=on). When
+	// off, or on a source it can't package, requests fall through to the copy
+	// producer / transcode ladder exactly as before.
+	if s.OnDemandPackager != nil &&
+		resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand", "EVEY_HLS_ONDEMAND") == "on" {
+		h.onDemand = s.OnDemandPackager
+		slog.Default().Info("hls vod: on-demand copy rung enabled (mp4.PlanHLS; enable/disable with server_config transcoding.hls_ondemand=on)")
 	}
 
 	// The selector routes each request: software unless resolveHW confirms the
