@@ -32,11 +32,14 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 		t.Skip("set EVEY_PARITY_DIR to a folder of real .mkv/.mp4 files to run the parity check")
 	}
 	var files []string
-	for _, pat := range []string{"*.mkv", "*.webm", "*.mp4", "*.m4v", "*.m4a"} {
+	// *.MOV uppercase matters: filepath.Glob is case-sensitive and real
+	// iPhone/camera files ship as IMG_xxxx.MOV (production lowercases the ext,
+	// so those files DO take the fast-path — the gate must see them too).
+	for _, pat := range []string{"*.mkv", "*.webm", "*.mp4", "*.m4v", "*.m4a", "*.mov", "*.MOV"} {
 		matched, _ := filepath.Glob(filepath.Join(dir, pat))
 		files = append(files, matched...)
 	}
-	require.NotEmpty(t, files, "no .mkv/.webm/.mp4/.m4v in EVEY_PARITY_DIR")
+	require.NotEmpty(t, files, "no .mkv/.webm/.mp4/.m4v/.mov in EVEY_PARITY_DIR")
 
 	mr := realMetaReader{} // routes EBML vs ISO-BMFF exactly like the dispatcher
 	ff := ffmpeg.NewProber("ffprobe")

@@ -178,13 +178,14 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 // isMkvgoSubtitleFastPath reports whether ext (already lower-cased by the caller
 // via strings.ToLower) is a container for which mkvgo can extract embedded text
 // subtitle tracks in-process (no ffmpeg fork): EBML (.mkv/.webm) via the
-// reader/ops packages, and ISO-BMFF (.mp4/.m4v) tx3g/wvtt via the mp4 package.
-// .mov is deliberately excluded (QuickTime sibling not yet parity-validated) and
-// .ts is out of mkvgo's scope (MPEG-TS is neither EBML nor ISO-BMFF); both fall
-// back to the ffmpeg fork.
+// reader/ops packages, and ISO-BMFF (.mp4/.m4v/.mov) tx3g/wvtt via the mp4
+// package (.mov since mkvgo v0.12.0's QuickTime support — the codec guard plus
+// buffer-first extraction means any parse failure falls back to ffmpeg). .ts is
+// out of mkvgo's scope (MPEG-TS is neither EBML nor ISO-BMFF) and stays on the
+// ffmpeg fork.
 func isMkvgoSubtitleFastPath(ext string) bool {
 	switch ext {
-	case ".mkv", ".webm", ".mp4", ".m4v":
+	case ".mkv", ".webm", ".mp4", ".m4v", ".mov":
 		return true
 	default:
 		return false
@@ -194,7 +195,7 @@ func isMkvgoSubtitleFastPath(ext string) bool {
 // isMkvgoMP4Ext reports whether ext is an ISO-BMFF container served by the mkvgo
 // mp4 package rather than the EBML reader/ops packages.
 func isMkvgoMP4Ext(ext string) bool {
-	return ext == ".mp4" || ext == ".m4v"
+	return ext == ".mp4" || ext == ".m4v" || ext == ".mov"
 }
 
 // openMkvgoSubtitleContainer opens filePath head-only through the mkvgo package

@@ -39,11 +39,13 @@ func IsEBMLContainer(path string) bool {
 }
 
 // mp4ContainerExts holds the ISO base media file format extensions the mkvgo
-// mp4 reader (OpenMeta / RemuxFromMP4) can parse. Kept to the unambiguous
-// ISO-BMFF members: .mov (QuickTime, an ISO-BMFF sibling) is deliberately left
-// out so a misparse never silently mislabels a track — it falls back to ffprobe.
+// mp4 reader (OpenMeta / RemuxFromMP4) can parse. .mov (QuickTime) is included
+// since mkvgo v0.12.0, which parses the non-faststart layout raw iPhone/camera
+// files use (wide + mdat first, moov at the end) plus the QuickTime audio
+// sample-description variants; a file it still cannot parse errors cleanly and
+// falls back to ffprobe.
 var mp4ContainerExts = map[string]bool{
-	".mp4": true, ".m4v": true, ".m4a": true,
+	".mp4": true, ".m4v": true, ".m4a": true, ".mov": true,
 }
 
 // IsMP4Container reports whether path's extension is an ISO-BMFF container the

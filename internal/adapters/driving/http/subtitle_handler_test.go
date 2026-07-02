@@ -555,7 +555,7 @@ func TestSubtitleHandler_IsMKVFastPath(t *testing.T) {
 		{".webm", true},
 		{".mp4", true},  // tx3g/wvtt via the mkvgo mp4 package
 		{".m4v", true},  // ISO-BMFF sibling of .mp4
-		{".mov", false}, // QuickTime deliberately excluded (not parity-validated)
+		{".mov", true},  // QuickTime via the mkvgo mp4 package (mkvgo >= v0.12.0)
 		{".ts", false},  // MPEG-TS is out of mkvgo's scope
 		{".avi", false},
 		{".MKV", false}, // caller lower-cases before calling; upper-case must be false
