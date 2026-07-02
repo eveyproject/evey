@@ -511,9 +511,9 @@ func TestSyncPlayRoomRepo_DeleteStaleEmptyRooms(t *testing.T) {
 	assert.Equal(t, int64(1), n)
 
 	_, err = repo.Get(ctx, "stale-empty")
-	assert.Error(t, err, "stale empty room should be deleted")
+	require.Error(t, err, "stale empty room should be deleted")
 	_, err = repo.Get(ctx, "stale-full")
-	assert.NoError(t, err, "stale room with a member must be kept")
+	require.NoError(t, err, "stale room with a member must be kept")
 	_, err = repo.Get(ctx, "fresh-empty")
-	assert.NoError(t, err, "fresh empty room must be kept")
+	require.NoError(t, err, "fresh empty room must be kept")
 }
