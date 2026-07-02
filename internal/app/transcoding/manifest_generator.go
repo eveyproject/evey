@@ -101,6 +101,15 @@ type ManifestInput struct {
 	// behaviour bit-for-bit — every existing client and test keeps
 	// working without change.
 	AudioRenditions []AudioRendition
+
+	// VideoPlaylistURI, when set, overrides the video variant's playlist URI
+	// (the default is stream_<idx>.m3u8). It is honoured ONLY for a
+	// single-variant input — the on-demand copy rung uses it to point the one
+	// video variant at the mkvgo packager's playlist (od_playlist.m3u8) while
+	// the audio renditions stay Evey's ffmpeg pipeline (the hybrid master:
+	// stateless video from PlanHLS + transcoded AAC audio). Empty preserves the
+	// stream_N.m3u8 default bit-for-bit.
+	VideoPlaylistURI string
 }
 
 // AudioRendition describes a single source audio track exposed as an
@@ -257,7 +266,15 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%s,CODECS=%q%s%s\n",
 			bps, avg, res, rungCodecs, videoRangeAttr, audioAttr,
 		)
-		fmt.Fprintf(&b, "stream_%d.m3u8%s\n", i, suffix)
+		// The video variant's playlist URI. Default stream_<idx>.m3u8; the
+		// on-demand copy rung overrides it (single-variant only) so the video
+		// rendition is served by the mkvgo packager while the audio group stays
+		// Evey's ffmpeg renditions.
+		if in.VideoPlaylistURI != "" && len(in.Profiles) == 1 {
+			fmt.Fprintf(&b, "%s%s\n", in.VideoPlaylistURI, suffix)
+		} else {
+			fmt.Fprintf(&b, "stream_%d.m3u8%s\n", i, suffix)
+		}
 	}
 
 	return b.String(), nil

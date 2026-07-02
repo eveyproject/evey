@@ -13,10 +13,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
@@ -85,37 +87,41 @@ func onDemandReq() *http.Request {
 
 // --- eligibility ---
 
-func TestPlanHLSEligible(t *testing.T) {
+func TestPlanHLSVideoEligible(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 
-	assert.True(t, h.planHLSEligible(onDemandReq(), onDemandItem(), copyEligibleAV()),
-		"h264 video + aac audio, both copy → on-demand eligible")
+	assert.True(t, h.planHLSVideoEligible(onDemandReq(), onDemandItem(), copyEligibleAV()),
+		"h264 copy video → video-eligible")
 
 	// Feature not wired → never eligible (falls through to ffmpeg).
 	h2 := newCopyTestHandler(t)
-	assert.False(t, h2.planHLSEligible(onDemandReq(), onDemandItem(), copyEligibleAV()),
+	assert.False(t, h2.planHLSVideoEligible(onDemandReq(), onDemandItem(), copyEligibleAV()),
 		"onDemand nil → not eligible")
 }
 
-func TestPlanHLSEligible_NonCarriableAudio(t *testing.T) {
+func TestAudioAllCopyEligible(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 
+	assert.True(t, h.audioAllCopyEligible(onDemandReq(), onDemandItem(), copyEligibleAV()),
+		"aac audio, copy decision → all-copy eligible (full packager path)")
+
+	// A non-carriable track (dts) → not all-copy → hybrid path instead.
 	streams := copyEligibleAV()
-	streams[1].Codec = "dts" // the packager would copy it verbatim; a client can't decode it
-	assert.False(t, h.planHLSEligible(onDemandReq(), onDemandItem(), streams),
-		"a non-carriable audio track (dts) forces the ffmpeg fallback")
+	streams[1].Codec = "dts"
+	assert.False(t, h.audioAllCopyEligible(onDemandReq(), onDemandItem(), streams),
+		"a non-carriable audio track (dts) → hybrid (Evey re-encodes), not full copy")
 }
 
-func TestPlanHLSEligible_NoKeyframes(t *testing.T) {
+func TestPlanHLSVideoEligible_NoKeyframes(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 
 	streams := copyEligibleAV()
 	streams[0].Keyframes = nil // not keyframe-backfilled → isCopyRequest is false
-	assert.False(t, h.planHLSEligible(onDemandReq(), onDemandItem(), streams),
-		"no keyframe index → not copy → not on-demand eligible")
+	assert.False(t, h.planHLSVideoEligible(onDemandReq(), onDemandItem(), streams),
+		"no keyframe index → not copy → not video-eligible")
 }
 
 // --- serve ---
@@ -144,6 +150,27 @@ func TestTryServePlanMaster_FallsBackOnBuildError(t *testing.T) {
 	assert.False(t, served, "a plan-build error falls through to the ffmpeg master (no response written)")
 	assert.Equal(t, http.StatusOK, w.Code, "nothing written yet")
 	assert.Empty(t, w.Body.String())
+}
+
+func TestBuildHybridMaster(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	h.audioRenditionEnabled = true
+
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{
+		Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000,
+	}}
+	streams := copyEligibleAV()
+	streams[1].Codec = "dts" // audio must be re-encoded → hybrid master
+
+	master, err := h.buildHybridMaster(onDemandReq(), "m1", item, streams)
+	require.NoError(t, err)
+	assert.Contains(t, master, "od_playlist.m3u8", "video variant points at the packager")
+	assert.Contains(t, master, "#EXT-X-MEDIA:TYPE=AUDIO", "Evey audio rendition group present")
+	assert.Contains(t, master, "mp4a.40.2", "audio advertised as AAC (re-encoded), not dts")
+	assert.NotContains(t, master, "stream_0.m3u8", "video is NOT served by the ffmpeg pipeline")
 }
 
 func TestServeOnDemandResource_Segment(t *testing.T) {
