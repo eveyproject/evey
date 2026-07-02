@@ -3,6 +3,7 @@ package prober
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
@@ -17,7 +18,7 @@ import (
 // metaReader is the slice of mkvgo the dispatcher depends on (so tests can
 // inject a fake without touching the filesystem or the real library). It covers
 // both container families mkvgo can read head-only: EBML (.mkv/.webm) and
-// ISO-BMFF (.mp4/.m4v). ReadMeta returns the same mkv.Container shape for both
+// ISO-BMFF (.mp4/.m4v/.mov). ReadMeta returns the same mkv.Container shape for both
 // (mp4.OpenMeta builds Matroska-shaped metadata), so a single mapper serves
 // them.
 type metaReader interface {
@@ -27,7 +28,7 @@ type metaReader interface {
 }
 
 // Dispatcher implements library.StreamProber. For a container mkvgo can read
-// head-only (EBML .mkv/.webm, or ISO-BMFF .mp4/.m4v) it reads metadata
+// head-only (EBML .mkv/.webm, or ISO-BMFF .mp4/.m4v/.mov) it reads metadata
 // in-process via mkvgo OpenMeta and maps it to a ProbeResult; for everything
 // else — and for any file it cannot map field-equivalent — it delegates to
 // fallback (the ffprobe prober, the authority). The fast-path is a fork-free,
@@ -127,12 +128,33 @@ func (realMetaReader) ReadMeta(ctx context.Context, path string) (*extmkv.Contai
 
 // readMP4Meta reads ISO-BMFF metadata head-only (no sample table); keyframes are
 // derived on demand by the keyframe backfill worker via mp4.Options{Keyframes:
-// true}. Dropped tracks (cover art, QuickTime chapter text) are not surfaced as
-// streams. InBandColour recovers colour for bare-hvcC HEVC (no SPS in the sample
+// true}. InBandColour recovers colour for bare-hvcC HEVC (no SPS in the sample
 // description): a bounded first-sample read extracts the SPS VUI + the HLG ATC
 // SEI. Only fires when head-only colour is missing, so files with header colour
 // stay pure head-only.
 func readMP4Meta(ctx context.Context, path string) (*extmkv.Container, error) {
-	c, _, err := mp4.OpenMeta(ctx, path, mp4.Options{InBandColour: true})
-	return c, err
+	c, dropped, err := mp4.OpenMeta(ctx, path, mp4.Options{InBandColour: true})
+	return gateMP4Drops(c, dropped, err)
+}
+
+// gateMP4Drops decides whether an mp4.OpenMeta result is safe to fast-path given
+// the tracks the reader could not surface. A dropped VIDEO or AUDIO track (e.g.
+// an s263/h263 sample entry in an old camera mp4) means the file holds more
+// media than the returned container shows — scanning it would record the file
+// as audio-only and the playback decision would be wrong — so those files go to
+// ffprobe (the authority) instead. Benign drops keep the fast-path: non-media
+// handlers (hint/timecode/metadata, Type == "") and subtitle drops (QuickTime
+// chapter text — surfaced as Chapters, and the subtitle serve path has its own
+// codec guard with ffmpeg fallback).
+func gateMP4Drops(c *extmkv.Container, dropped []mp4.DroppedTrack, err error) (*extmkv.Container, error) {
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range dropped {
+		if d.Type == extmkv.VideoTrack || d.Type == extmkv.AudioTrack {
+			return nil, fmt.Errorf("mp4 fast-path: dropped %s track %d (%s): %s — deferring to ffprobe",
+				d.Type, d.ID, d.Codec, d.Reason)
+		}
+	}
+	return c, nil
 }

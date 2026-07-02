@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
+	"github.com/gravity-zero/mkvgo/mp4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -144,4 +145,49 @@ func TestDispatcher_GatesIndependent_MP4OffMKVOn(t *testing.T) {
 
 func TestDispatcher_ImplementsStreamProber(t *testing.T) {
 	var _ library.StreamProber = New(&fakeFallback{}, nil, nil)
+}
+
+// --- gateMP4Drops ---
+
+// A dropped video or audio track means the container holds media the fast-path
+// result would silently omit (a scan would record e.g. an h263 camera mp4 as
+// audio-only) — those files must error out of the fast-path so the dispatcher
+// falls back to ffprobe. Non-media handler drops (hint/tmcd/meta, Type == "")
+// and subtitle drops (QuickTime chapter text) stay fast-path.
+func TestGateMP4Drops(t *testing.T) {
+	c := mappable()
+	cases := []struct {
+		name    string
+		dropped []mp4.DroppedTrack
+		wantErr bool
+	}{
+		{"no drops", nil, false},
+		{"dropped video (h263 sample entry)", []mp4.DroppedTrack{
+			{ID: 1, Type: extmkv.VideoTrack, Codec: "s263", Reason: "unsupported sample entry"}}, true},
+		{"dropped audio", []mp4.DroppedTrack{
+			{ID: 2, Type: extmkv.AudioTrack, Codec: "qdm2", Reason: "unsupported sample entry"}}, true},
+		{"dropped subtitle (chapter text) tolerated", []mp4.DroppedTrack{
+			{ID: 3, Type: extmkv.SubtitleTrack, Codec: "text", Reason: "unsupported sample entry"}}, false},
+		{"dropped non-media handler tolerated", []mp4.DroppedTrack{
+			{ID: 4, Codec: "tmcd", Reason: "non-media handler"}}, false},
+		{"benign drop then video drop still errors", []mp4.DroppedTrack{
+			{ID: 4, Codec: "tmcd", Reason: "non-media handler"},
+			{ID: 1, Type: extmkv.VideoTrack, Codec: "s263", Reason: "unsupported sample entry"}}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := gateMP4Drops(c, tc.dropped, nil)
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Nil(t, got)
+			} else {
+				require.NoError(t, err)
+				assert.Same(t, c, got)
+			}
+		})
+	}
+
+	// An OpenMeta error passes through regardless of drops.
+	_, err := gateMP4Drops(nil, nil, errors.New("parse failed"))
+	require.Error(t, err)
 }
