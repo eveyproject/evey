@@ -1130,7 +1130,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		translator:        infra.translator,
 		searchHealth:      infra.searchHealth,
 		imageConverter:    infra.imageConverter,
-		frameExtractor:    infra.trickplayGen,
+		// Snapshot fast path: seek the nearest keyframe through the Cues (mkvgo,
+		// bounded reads) and decode just that frame (ffmpeg), falling back to the
+		// exact -ss extractor for non-Matroska / too-distant keyframes / errors.
+		frameExtractor:    httpapi.NewFastFrameExtractor(infra.mkvAdapter, infra.trickplayGen, infra.trickplayGen),
 		copySeekProber:    infra.prober,
 		onDemandPackager:  infra.onDemandPackager,
 	}, nil

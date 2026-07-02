@@ -116,6 +116,25 @@ type FrameExtractor interface {
 	ExtractFrame(ctx context.Context, filePath string, positionSec float64, width int) ([]byte, error)
 }
 
+// KeyframeExtractor pulls the encoded video keyframe nearest a timestamp
+// straight from the container's seek index (mkvgo, bounded reads — no full-file
+// scan, no decode). Returns the packet bytes, a codec extension
+// (".h264"/".hevc"/".ivf") a decoder needs, and the keyframe's real PTS (so the
+// caller can reject a too-distant keyframe and fall back to an exact decode).
+// Errors when the source can't be seeked this way (no Cues, unsupported
+// container), signalling the ffmpeg fallback.
+type KeyframeExtractor interface {
+	ExtractKeyframePacket(ctx context.Context, filePath string, atMs int64) (packet []byte, ext string, ptsMs int64, err error)
+}
+
+// FramePacketDecoder decodes one encoded keyframe packet to a JPEG (ffmpeg, a
+// single frame), scaled to width. Companion to KeyframeExtractor: mkvgo seeks +
+// extracts the packet, ffmpeg decodes just that one frame instead of the whole
+// GOP up to the requested position.
+type FramePacketDecoder interface {
+	DecodePacketToJPEG(ctx context.Context, packet []byte, ext string, width int) ([]byte, error)
+}
+
 // ArtworkRepo reads and updates artwork records.
 type ArtworkRepo interface {
 	GetByMediaItem(ctx context.Context, mediaItemID string) ([]*domainmeta.ArtworkRecord, error)

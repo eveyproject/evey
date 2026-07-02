@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,11 +11,21 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
+
+// keyframeInputFormat maps a mkvgo keyframe-packet extension to the ffmpeg
+// demuxer that reads it: Annex-B elementary streams for H.264/HEVC, an IVF
+// container for VP8/VP9/AV1.
+var keyframeInputFormat = map[string]string{
+	".h264": "h264",
+	".hevc": "hevc",
+	".ivf":  "ivf",
+}
 
 // TrickplayWorkers delegates to cpuutil.TrickplayWorkers.
 // Kept for backward compatibility within the adapter.
@@ -206,6 +217,38 @@ func (g *TrickplayGenerator) ExtractFrame(ctx context.Context, filePath string, 
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("ffmpeg extract frame at %ss: %w", ss, err)
+	}
+	return out, nil
+}
+
+// DecodePacketToJPEG decodes a single encoded keyframe packet (from mkvgo's
+// ExtractKeyframeSample — Annex-B or IVF) into a scaled JPEG. It decodes just
+// that one frame, so on a weak NAS it avoids the seek + GOP decode ExtractFrame
+// pays. ext selects the input demuxer (.h264/.hevc/.ivf); an unknown ext errors
+// so the caller falls back to the exact ffmpeg -ss path.
+func (g *TrickplayGenerator) DecodePacketToJPEG(ctx context.Context, packet []byte, ext string, width int) ([]byte, error) {
+	ctx, span := tracing.StartSpan(ctx, "ffmpeg.trickplay.DecodePacketToJPEG")
+	defer span.End()
+
+	inFmt := keyframeInputFormat[strings.ToLower(ext)]
+	if inFmt == "" {
+		return nil, fmt.Errorf("decode keyframe packet: unsupported ext %q", ext)
+	}
+	cmd := exec.CommandContext(ctx, g.binary,
+		"-nostdin",
+		"-f", inFmt,
+		"-i", "pipe:0",
+		"-frames:v", "1",
+		"-vf", fmt.Sprintf("scale=%d:-1", width),
+		"-f", "image2",
+		"-c:v", "mjpeg",
+		"-q:v", "3",
+		"-y", "pipe:1",
+	)
+	cmd.Stdin = bytes.NewReader(packet)
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("ffmpeg decode keyframe packet (%s): %w", inFmt, err)
 	}
 	return out, nil
 }
