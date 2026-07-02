@@ -46,6 +46,8 @@ func runAdmin(args []string) error {
 		return adminReclassify(args[1:])
 	case "reindex-no-cue":
 		return adminReindexNoCue(args[1:])
+	case "validate-streaming":
+		return adminValidateStreaming(args[1:])
 	case "artwork-gc":
 		return adminArtworkGC(args[1:])
 	case "-h", "--help", "help":
@@ -81,6 +83,10 @@ Media maintenance subcommands:
                                     Each rewrite is validated + cross-checked and keeps a .mkvgobak
                                     backup. --limit N for a cautious first run; --keep-backup=false
                                     to drop backups.
+  validate-streaming --root <dir>   Report each MKV/WebM file's streaming-readiness
+                                    (Cues index, keyframe cues, DefaultDuration…) —
+                                    what the on-demand HLS rung and seeking rely on.
+                                    Read-only; --errors-only to skip warnings.
   artwork-gc [--root <dir>] [--apply]
                                     Delete artwork files on disk that no DB row
                                     references (orphans from the old UUID-named
