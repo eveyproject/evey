@@ -184,4 +184,5 @@ type appDeps struct {
 	frameExtractor    httpapi.FrameExtractor
 	copySeekProber    apptranscoding.SeekLandingProber
 	onDemandPackager  apptranscoding.OnDemandPackager
+	hlsAESSecret      []byte
 }

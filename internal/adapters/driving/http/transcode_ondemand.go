@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -63,7 +65,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	// The source must package verbatim (a codec CMAF can't carry, or a
 	// Matroska without a Cues seek index → ffmpeg). Building here also warms
 	// the plan cache the sub-resource requests hit.
-	plan, err := h.buildPlan(r, item)
+	plan, err := h.buildPlan(r, mediaID, item)
 	if err != nil {
 		slog.Warn("hls-vod: on-demand plan build failed, falling back to ffmpeg",
 			slog.String("media_id", mediaID), slog.Any("err", err))
@@ -139,7 +141,7 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	name := strings.TrimPrefix(file, onDemandPrefix) // "od_seg1.m4s" → "seg1.m4s"; "manifest.mpd" unchanged
-	plan, err := h.buildPlan(r, item)
+	plan, err := h.buildPlan(r, mediaID, item)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "on-demand plan build")
@@ -172,12 +174,44 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 }
 
 // buildPlan resolves the plan for this request's media file with the fixed
-// on-demand options (segment duration + URL prefix). Cheap on a cache hit.
-func (h *hlsVODServe) buildPlan(r *http.Request, item *domainlibrary.MediaItem) (apptranscoding.OnDemandPlan, error) {
-	return h.onDemand.Plan(r.Context(), item.File.Path, apptranscoding.OnDemandOptions{
+// on-demand options (segment duration + URL prefix, plus AES-128 when the
+// feature is on). Cheap on a cache hit. The AES key is deterministic per media,
+// so the plan cache stays coherent across the master and its sub-requests.
+func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlibrary.MediaItem) (apptranscoding.OnDemandPlan, error) {
+	opts := apptranscoding.OnDemandOptions{
 		SegmentMs: onDemandSegmentMs,
 		URLPrefix: onDemandPrefix,
-	})
+	}
+	if h.onDemandEncrypt && len(h.hlsAESSecret) > 0 {
+		opts.AESKey = h.deriveHLSKey(mediaID)
+		opts.AESKeyURI = "key" // relative to /hls/{id}/ — served by serveHLSKey; not URL-prefixed by mkvgo
+	}
+	return h.onDemand.Plan(r.Context(), item.File.Path, opts)
+}
+
+// deriveHLSKey derives this media's 16-byte AES-128 key from the server secret,
+// HMAC-SHA256(secret, mediaID) truncated to 128 bits. Deterministic (no
+// per-media storage) and unlinkable to the secret.
+func (h *hlsVODServe) deriveHLSKey(mediaID string) []byte {
+	mac := hmac.New(sha256.New, h.hlsAESSecret)
+	mac.Write([]byte(mediaID))
+	return mac.Sum(nil)[:16]
+}
+
+// serveHLSKey returns this media's AES-128 key bytes. Access is already
+// enforced by commonAuth (token/JWT + library + parental) upstream in serveHTTP,
+// so reaching here means the caller may decrypt this media. 404 when encryption
+// is off so the endpoint doesn't exist unless in use.
+func (h *hlsVODServe) serveHLSKey(w http.ResponseWriter, r *http.Request, mediaID string, span trace.Span) {
+	if !h.onDemandEncrypt || len(h.hlsAESSecret) == 0 {
+		span.SetStatus(codes.Error, "hls key endpoint disabled")
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	setCORSHeaders(w, r, "")
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write(h.deriveHLSKey(mediaID))
 }
 
 // planHLSVideoEligible reports whether this request's VIDEO can be served by

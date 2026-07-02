@@ -79,6 +79,14 @@ type hlsVODServe struct {
 	// pipeline unchanged. nil = feature off, no behaviour change.
 	onDemand apptranscoding.OnDemandPackager
 
+	// onDemandEncrypt AES-128-encrypts the on-demand rung's media segments
+	// (behind transcoding.hls_ondemand_encrypt). Off by default; requires
+	// hlsAESSecret. When on, no DASH manifest is emitted (AES-128 is HLS-only).
+	onDemandEncrypt bool
+	// hlsAESSecret derives per-media AES-128 keys (HMAC(secret, mediaID)); the
+	// /hls/{id}/key endpoint serves the derived key to authorised clients.
+	hlsAESSecret []byte
+
 	// qoeSink ingests CMCD telemetry from segment requests. Nil when QoE is
 	// disabled (tests, dev without postgres). Record is non-blocking.
 	qoeSink appqoe.EventSink
@@ -217,6 +225,10 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case file == "master.m3u8":
 		h.serveMaster(w, r, mediaID, item, streams, span)
+	case file == "key":
+		// AES-128 key for the on-demand encrypted rung (EXT-X-KEY URI="key").
+		// Access already enforced by commonAuth above.
+		h.serveHLSKey(w, r, mediaID, span)
 	case file == "manifest.mpd" || strings.HasPrefix(file, onDemandPrefix):
 		// On-demand copy rung (mp4.PlanHLS): the DASH manifest entry point and
 		// every prefixed sub-resource (od_playlist.m3u8, od_seg00001.m4s,
@@ -1558,6 +1570,16 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand", "EVEY_HLS_ONDEMAND") == "on" {
 		h.onDemand = s.OnDemandPackager
 		slog.Default().Info("hls vod: on-demand copy rung enabled (mp4.PlanHLS; enable/disable with server_config transcoding.hls_ondemand=on)")
+
+		// AES-128 encryption of the on-demand segments (HLS-only, no DASH).
+		// Off by default; needs the derivation secret. Only meaningful with the
+		// rung enabled, hence nested.
+		if len(s.HLSAESSecret) > 0 &&
+			resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand_encrypt", "EVEY_HLS_ONDEMAND_ENCRYPT") == "on" {
+			h.onDemandEncrypt = true
+			h.hlsAESSecret = s.HLSAESSecret
+			slog.Default().Info("hls vod: on-demand AES-128 encryption enabled (HLS only; no DASH manifest)")
+		}
 	}
 
 	// The selector routes each request: software unless resolveHW confirms the

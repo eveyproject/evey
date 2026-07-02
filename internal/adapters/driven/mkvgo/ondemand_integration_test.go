@@ -107,4 +107,27 @@ func TestOnDemandPackagerIntegration(t *testing.T) {
 	if _, err := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{SegmentMs: 6000, URLPrefix: "od_"}); err != nil {
 		t.Fatalf("second Plan (cache hit): %v", err)
 	}
+
+	// Encrypted plan: the media playlist advertises EXT-X-KEY and no DASH
+	// manifest is emitted (AES-128 is HLS-only).
+	encPlan, err := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{
+		SegmentMs: 6000, URLPrefix: "od_",
+		AESKey:    []byte("0123456789abcdef"), AESKeyURI: "key",
+	})
+	if err != nil {
+		t.Fatalf("encrypted Plan: %v", err)
+	}
+	pl, _, err := encPlan.Resource(ctx, "playlist.m3u8")
+	if err != nil {
+		t.Fatalf("Resource(playlist.m3u8) encrypted: %v", err)
+	}
+	if !bytes.Contains(pl, []byte("EXT-X-KEY:METHOD=AES-128")) {
+		t.Errorf("encrypted playlist missing EXT-X-KEY:\n%s", pl)
+	}
+	if !bytes.Contains(pl, []byte(`URI="key"`)) {
+		t.Errorf("EXT-X-KEY does not point at the key URI:\n%s", pl)
+	}
+	if encPlan.HasDASH() {
+		t.Error("HasDASH = true for an encrypted plan, want false (HLS only)")
+	}
 }

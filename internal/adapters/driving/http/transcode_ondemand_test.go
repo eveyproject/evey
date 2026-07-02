@@ -40,13 +40,15 @@ func (p *fakeOnDemandPlan) NumSegments() int    { return 1 }
 func (p *fakeOnDemandPlan) HasDASH() bool        { return p.dash }
 
 type fakeOnDemandPackager struct {
-	plan  *fakeOnDemandPlan
-	err   error
-	calls int
+	plan     *fakeOnDemandPlan
+	err      error
+	calls    int
+	lastOpts apptranscoding.OnDemandOptions
 }
 
-func (p *fakeOnDemandPackager) Plan(_ context.Context, _ string, _ apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
+func (p *fakeOnDemandPackager) Plan(_ context.Context, _ string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
 	p.calls++
+	p.lastOpts = opts
 	if p.err != nil {
 		return nil, p.err
 	}
@@ -199,6 +201,50 @@ func TestServeOnDemandResource_UnknownName404(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.serveOnDemandResource(w, onDemandReq(), "m1", "od_bogus.m4s", onDemandItem(), noopSpan())
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// --- AES-128 encryption ---
+
+func TestDeriveHLSKey(t *testing.T) {
+	h := &hlsVODServe{hlsAESSecret: []byte("0123456789abcdef0123456789abcdef")}
+	k1 := h.deriveHLSKey("mi-1")
+	assert.Len(t, k1, 16, "AES-128 key is 16 bytes")
+	assert.Equal(t, k1, h.deriveHLSKey("mi-1"), "deterministic per media")
+	assert.NotEqual(t, k1, h.deriveHLSKey("mi-2"), "different media → different key")
+}
+
+func TestServeHLSKey_DisabledIs404(t *testing.T) {
+	h := &hlsVODServe{} // onDemandEncrypt false, no secret
+	w := httptest.NewRecorder()
+	h.serveHLSKey(w, onDemandReq(), "mi-1", noopSpan())
+	assert.Equal(t, http.StatusNotFound, w.Code, "key endpoint 404s unless encryption is on")
+}
+
+func TestServeHLSKey_ServesKeyBytes(t *testing.T) {
+	h := &hlsVODServe{onDemandEncrypt: true, hlsAESSecret: []byte("0123456789abcdef0123456789abcdef")}
+	w := httptest.NewRecorder()
+	h.serveHLSKey(w, onDemandReq(), "mi-1", noopSpan())
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Len(t, w.Body.Bytes(), 16, "serves the raw 16-byte key")
+	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"), "key must not be cached")
+	assert.Equal(t, h.deriveHLSKey("mi-1"), w.Body.Bytes(), "serves this media's derived key")
+}
+
+func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h := &hlsVODServe{onDemand: pkg, onDemandEncrypt: true, hlsAESSecret: []byte("0123456789abcdef0123456789abcdef")}
+
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem())
+	assert.NoError(t, err)
+	assert.Len(t, pkg.lastOpts.AESKey, 16, "AES key threaded into the plan options")
+	assert.Equal(t, "key", pkg.lastOpts.AESKeyURI)
+
+	// Encryption off → no key in the options.
+	pkg2 := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h2 := &hlsVODServe{onDemand: pkg2}
+	_, err = h2.buildPlan(onDemandReq(), "mi-1", onDemandItem())
+	assert.NoError(t, err)
+	assert.Empty(t, pkg2.lastOpts.AESKey, "no AES key when encryption is off")
 }
 
 func noopSpan() trace.Span { return trace.SpanFromContext(context.Background()) }

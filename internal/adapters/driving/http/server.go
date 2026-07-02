@@ -137,6 +137,11 @@ type HTTPServer struct {
 	// nil-safe (feature off → the ffmpeg copy/transcode pipeline is unchanged).
 	OnDemandPackager apptranscoding.OnDemandPackager
 
+	// HLSAESSecret is the server secret the on-demand rung derives per-media
+	// AES-128 HLS keys from (HMAC(secret, mediaID)). Only used when
+	// transcoding.hls_ondemand_encrypt is on; empty disables encryption.
+	HLSAESSecret []byte
+
 	// transcodeCloser tears down the VOD software producers built during route
 	// registration (the selector's SoftwareProducer + the optional copy
 	// producer). They own long-lived ffmpeg sessions that would otherwise

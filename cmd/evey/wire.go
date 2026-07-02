@@ -106,6 +106,7 @@ type infraDeps struct {
 	bus               *eventbus.InMemoryEventBus
 	hasher            auth.BcryptHasher
 	tokenGen          *auth.JWTGenerator
+	hlsAESSecret      []byte
 	translator        *eveyi18n.Translator
 	metadataHTTP      *http.Client
 	tmdbProvider      *metadataadapter.TMDBProvider
@@ -254,6 +255,13 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	}
 	tokenGen := auth.NewJWTGenerator(privateKey, cfg.JWT.AccessTokenTTL)
 
+	// Secret for deriving per-media AES-128 HLS keys (on-demand rung, off by
+	// default). Bootstrapped next to the JWT key, same first-run model.
+	hlsAESSecret, err := auth.LoadOrGenerateSecret(filepath.Join(filepath.Dir(cfg.JWT.PrivateKeyPath), "hls_aes.key"), 32)
+	if err != nil {
+		return nil, fmt.Errorf("hls aes secret: %w", err)
+	}
+
 	subScanner := filesystem.NewSubtitleScanner()
 
 	return &infraDeps{
@@ -273,6 +281,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		bus:               bus,
 		hasher:            hasher,
 		tokenGen:          tokenGen,
+		hlsAESSecret:      hlsAESSecret,
 		translator:        translator,
 		metadataHTTP:      metadataHTTP,
 		tmdbProvider:      tmdbProvider,
@@ -1136,6 +1145,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		frameExtractor:    httpapi.NewFastFrameExtractor(infra.mkvAdapter, infra.trickplayGen, infra.trickplayGen),
 		copySeekProber:    infra.prober,
 		onDemandPackager:  infra.onDemandPackager,
+		hlsAESSecret:      infra.hlsAESSecret,
 	}, nil
 }
 

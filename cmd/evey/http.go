@@ -162,6 +162,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		FrameExtractor:       deps.frameExtractor,
 		CopySeekProber:       deps.copySeekProber,
 		OnDemandPackager:     deps.onDemandPackager,
+		HLSAESSecret:         deps.hlsAESSecret,
 		IntroDetector:        deps.library.introDetectionSvc,
 		StreamMeter:          deps.engagement.streamMeter,
 	}
