@@ -2,6 +2,8 @@ package mkvgo
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
@@ -88,13 +90,23 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 // change the bytes. A replaced/re-scanned source yields a new key, so a stale
 // plan is never served. The URLPrefix is constant in practice, but keying on it
 // keeps prefixed and unprefixed plans distinct if that ever changes.
+//
+// The AES key is hashed into the key (not just its length): the encrypted
+// segment bytes depend on the exact key, so a rotated secret — same file, new
+// derived key — must not alias onto a plan encrypted with the old key. The
+// KeyURI rides along since it changes the playlists' EXT-X-KEY line.
 func onDemandCacheKey(srcPath string, opts apptranscoding.OnDemandOptions) string {
 	var mtime, size int64
 	if fi, err := os.Stat(srcPath); err == nil {
 		mtime = fi.ModTime().UnixNano()
 		size = fi.Size()
 	}
-	return fmt.Sprintf("%s|%d|%d|%d|%s|%d", srcPath, size, mtime, opts.SegmentMs, opts.URLPrefix, len(opts.AESKey))
+	keyTag := ""
+	if len(opts.AESKey) > 0 {
+		sum := sha256.Sum256(opts.AESKey)
+		keyTag = hex.EncodeToString(sum[:8]) + ":" + opts.AESKeyURI
+	}
+	return fmt.Sprintf("%s|%d|%d|%d|%s|%s", srcPath, size, mtime, opts.SegmentMs, opts.URLPrefix, keyTag)
 }
 
 // ondemandPlan wraps *mp4.HLSPlan to satisfy apptranscoding.OnDemandPlan.

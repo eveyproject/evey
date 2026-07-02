@@ -177,6 +177,11 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	go func() {
 		<-ctx.Done()
 		srv.CloseTranscodeProducers()
+		// Stop the on-demand plan cache's janitor goroutine (created
+		// unconditionally in wire, independent of the VOD handler).
+		if c, ok := deps.onDemandPackager.(interface{ Close() }); ok {
+			c.Close()
+		}
 	}()
 
 	go func() {
