@@ -17,8 +17,8 @@ func TestLoadOrGenerateSecret(t *testing.T) {
 	if len(s1) != 32 {
 		t.Fatalf("len = %d, want 32", len(s1))
 	}
-	if info, err := os.Stat(path); err != nil {
-		t.Fatalf("secret file not written: %v", err)
+	if info, statErr := os.Stat(path); statErr != nil {
+		t.Fatalf("secret file not written: %v", statErr)
 	} else if info.Mode().Perm() != 0600 {
 		t.Errorf("perm = %o, want 0600", info.Mode().Perm())
 	}

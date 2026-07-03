@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"strings"
 )
@@ -43,12 +44,21 @@ func NewFastFrameExtractor(kf KeyframeExtractor, dec FramePacketDecoder, fallbac
 func (e *fastFrameExtractor) ExtractFrame(ctx context.Context, filePath string, positionSec float64, width int) ([]byte, error) {
 	if e.kf != nil && e.dec != nil && keyframeFastPathExts[strings.ToLower(filepath.Ext(filePath))] {
 		atMs := int64(positionSec * 1000)
-		if packet, ext, ptsMs, err := e.kf.ExtractKeyframePacket(ctx, filePath, atMs); err == nil && len(packet) > 0 {
-			if abs64(atMs-ptsMs) <= maxSnapshotDriftMs {
-				if jpeg, derr := e.dec.DecodePacketToJPEG(ctx, packet, ext, width); derr == nil && len(jpeg) > 0 {
-					return jpeg, nil
-				}
+		packet, ext, ptsMs, err := e.kf.ExtractKeyframePacket(ctx, filePath, atMs)
+		switch {
+		case err != nil:
+			// Common on exotic files (no Cues, odd lacing) — the exact decoder
+			// covers it, but keep a trace so an mkvgo regression is visible.
+			slog.Debug("snapshot fast path: keyframe extract failed, using exact decoder",
+				slog.String("path", filePath), slog.Any("err", err))
+		case len(packet) > 0 && abs64(atMs-ptsMs) <= maxSnapshotDriftMs:
+			jpeg, derr := e.dec.DecodePacketToJPEG(ctx, packet, ext, width)
+			if derr == nil && len(jpeg) > 0 {
+				return jpeg, nil
 			}
+			// Unexpected: mkvgo handed us a keyframe packet ffmpeg can't decode.
+			slog.Warn("snapshot fast path: keyframe packet decode failed, using exact decoder",
+				slog.String("path", filePath), slog.Any("err", derr))
 		}
 	}
 	return e.fallback.ExtractFrame(ctx, filePath, positionSec, width)

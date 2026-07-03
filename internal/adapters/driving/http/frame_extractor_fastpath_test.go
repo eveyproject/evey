@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeKF struct {
@@ -49,7 +50,7 @@ func TestFastFrameExtractor_FastPathWhenClose(t *testing.T) {
 	e := NewFastFrameExtractor(kf, dec, fb)
 
 	out, err := e.ExtractFrame(context.Background(), "/m.mkv", 10.0, 640)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "jpeg", string(out), "close keyframe → fast path used")
 	assert.Equal(t, 1, dec.calls)
 	assert.Equal(t, 0, fb.calls, "fallback not called")
@@ -62,7 +63,7 @@ func TestFastFrameExtractor_FallbackWhenDistant(t *testing.T) {
 	e := NewFastFrameExtractor(kf, dec, fb)
 
 	out, err := e.ExtractFrame(context.Background(), "/m.mkv", 10.0, 640)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "fallback", string(out), "distant keyframe → exact ffmpeg fallback")
 	assert.Equal(t, 0, dec.calls, "no decode of a too-distant keyframe")
 	assert.Equal(t, 1, fb.calls)
@@ -75,7 +76,7 @@ func TestFastFrameExtractor_FallbackForNonMatroska(t *testing.T) {
 	e := NewFastFrameExtractor(kf, dec, fb)
 
 	out, err := e.ExtractFrame(context.Background(), "/m.mp4", 10.0, 640)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "fallback", string(out))
 	assert.Equal(t, 0, kf.calls, "mp4 never touches the EBML keyframe extractor")
 }
@@ -87,7 +88,7 @@ func TestFastFrameExtractor_FallbackOnExtractError(t *testing.T) {
 	e := NewFastFrameExtractor(kf, dec, fb)
 
 	out, err := e.ExtractFrame(context.Background(), "/m.mkv", 10.0, 640)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "fallback", string(out), "extract error → fallback, never a failed snapshot")
 	assert.Equal(t, 0, dec.calls)
 	assert.Equal(t, 1, fb.calls)
@@ -100,7 +101,7 @@ func TestFastFrameExtractor_FallbackOnDecodeError(t *testing.T) {
 	e := NewFastFrameExtractor(kf, dec, fb)
 
 	out, err := e.ExtractFrame(context.Background(), "/m.webm", 10.0, 640)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "fallback", string(out), "decode error → fallback")
 	assert.Equal(t, 1, dec.calls)
 	assert.Equal(t, 1, fb.calls)

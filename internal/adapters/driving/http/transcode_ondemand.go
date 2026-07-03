@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"log/slog"
@@ -59,7 +60,13 @@ const (
 // video not copy-eligible, plan unbuildable, or hybrid audio unavailable — a
 // clean, logged fallback).
 func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) bool {
-	if !h.planHLSVideoEligible(r, item, streams) {
+	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
+		return false
+	}
+	// One decision per master request: both the video gate and the audio gate
+	// read it, and makeDecision re-derives client caps + content class each call.
+	decision := h.makeDecision(r.Context(), streams, containerOf(item), r)
+	if !h.planHLSVideoEligible(decision, item, streams) {
 		return false
 	}
 	// The source must package verbatim (a codec CMAF can't carry, or a
@@ -72,7 +79,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 		return false
 	}
 
-	if h.audioAllCopyEligible(r, item, streams) {
+	if h.audioAllCopyEligible(r.Context(), decision, streams) {
 		// Full packager presentation (video + audio + subtitles).
 		h.servePlanResourceData(w, r, plan, "master.m3u8", span)
 		return true
@@ -218,12 +225,12 @@ func (h *hlsVODServe) serveHLSKey(w http.ResponseWriter, r *http.Request, mediaI
 // the on-demand packager: the feature is wired on and the video was decided as
 // copy (reusing isCopyRequest — same codec/level/HDR/disk gates as today's copy
 // rung). Audio eligibility is decided separately (audioAllCopyEligible) because
-// the packager can serve video-only and let Evey re-encode the audio.
-func (h *hlsVODServe) planHLSVideoEligible(r *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) bool {
+// the packager can serve video-only and let Evey re-encode the audio. The
+// decision is the caller's (computed once per request).
+func (h *hlsVODServe) planHLSVideoEligible(decision domaintranscoding.PlaybackDecision, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) bool {
 	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
 		return false
 	}
-	decision := h.makeDecision(r.Context(), streams, containerOf(item), r)
 	return h.isCopyRequest(decision, streams, sourceBytesOf(item))
 }
 
@@ -232,12 +239,11 @@ func (h *hlsVODServe) planHLSVideoEligible(r *http.Request, item *domainlibrary.
 // CMAF-carriable — the packager demuxes them all into renditions, so one track
 // it can't carry would strand a client that selects it. False routes to the
 // hybrid master (packager video + Evey AAC audio renditions).
-func (h *hlsVODServe) audioAllCopyEligible(r *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) bool {
-	decision := h.makeDecision(r.Context(), streams, containerOf(item), r)
+func (h *hlsVODServe) audioAllCopyEligible(ctx context.Context, decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
 	if decision.AudioDecision != "copy" {
 		return false
 	}
-	if h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()) {
+	if h.audioNormalizeGetter != nil && h.audioNormalizeGetter(ctx) {
 		return false // loudnorm requires a re-encode — hybrid path
 	}
 	for _, s := range streams {

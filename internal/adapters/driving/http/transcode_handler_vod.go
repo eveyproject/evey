@@ -1562,14 +1562,15 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 
 	// On-demand copy rung (mp4.PlanHLS): supersedes the ffmpeg copy producer for
 	// video+audio copy-eligible sources that package verbatim — no ffmpeg, no
-	// fMP4 rebase, no session state, DASH included. OFF BY DEFAULT (opt-in:
-	// server_config transcoding.hls_ondemand=on or EVEY_HLS_ONDEMAND=on). When
-	// off, or on a source it can't package, requests fall through to the copy
-	// producer / transcode ladder exactly as before.
+	// fMP4 rebase, no session state, DASH included. DEFAULT ON, same opt-out
+	// model as the copy rung above (server_config transcoding.hls_ondemand=off
+	// or EVEY_HLS_ONDEMAND=off, applied on restart). When off, or on a source it
+	// can't package, requests fall through to the copy producer / transcode
+	// ladder exactly as before.
 	if s.OnDemandPackager != nil &&
-		resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand", "EVEY_HLS_ONDEMAND") == "on" {
+		resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand", "EVEY_HLS_ONDEMAND") != "off" {
 		h.onDemand = s.OnDemandPackager
-		slog.Default().Info("hls vod: on-demand copy rung enabled (mp4.PlanHLS; enable/disable with server_config transcoding.hls_ondemand=on)")
+		slog.Default().Info("hls vod: on-demand copy rung enabled (mp4.PlanHLS, default; disable with server_config transcoding.hls_ondemand=off or EVEY_HLS_ONDEMAND=off)")
 
 		// AES-128 encryption of the on-demand segments (HLS-only, no DASH).
 		// Off by default; needs the derivation secret. Only meaningful with the

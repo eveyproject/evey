@@ -133,8 +133,9 @@ type HTTPServer struct {
 	CopySeekProber apptranscoding.SeekLandingProber
 
 	// OnDemandPackager serves the copy rung straight from mkvgo's mp4.PlanHLS
-	// (zero-storage, stateless HLS + DASH). Gated on transcoding.hls_ondemand;
-	// nil-safe (feature off → the ffmpeg copy/transcode pipeline is unchanged).
+	// (zero-storage, stateless HLS + DASH). Default on, opt-out via
+	// transcoding.hls_ondemand=off; nil-safe (feature off → the ffmpeg
+	// copy/transcode pipeline is unchanged).
 	OnDemandPackager apptranscoding.OnDemandPackager
 
 	// HLSAESSecret is the server secret the on-demand rung derives per-media

@@ -255,11 +255,16 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	}
 	tokenGen := auth.NewJWTGenerator(privateKey, cfg.JWT.AccessTokenTTL)
 
-	// Secret for deriving per-media AES-128 HLS keys (on-demand rung, off by
-	// default). Bootstrapped next to the JWT key, same first-run model.
-	hlsAESSecret, err := auth.LoadOrGenerateSecret(filepath.Join(filepath.Dir(cfg.JWT.PrivateKeyPath), "hls_aes.key"), 32)
-	if err != nil {
-		return nil, fmt.Errorf("hls aes secret: %w", err)
+	// Secret for deriving per-media AES-128 HLS keys (on-demand encryption,
+	// opt-in). Bootstrapped next to the JWT key, same first-run model. A
+	// corrupt/unreadable secret must NOT block boot — encryption is an optional
+	// hardening, so degrade to "encryption unavailable" (the handler requires a
+	// non-empty secret) and let the operator repair the file.
+	hlsAESSecret, secErr := auth.LoadOrGenerateSecret(filepath.Join(filepath.Dir(cfg.JWT.PrivateKeyPath), "hls_aes.key"), 32)
+	if secErr != nil {
+		slog.Error("hls aes secret unavailable — on-demand HLS encryption disabled until the file is repaired or removed",
+			slog.Any("err", secErr))
+		hlsAESSecret = nil
 	}
 
 	subScanner := filesystem.NewSubtitleScanner()
@@ -1142,7 +1147,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// Snapshot fast path: seek the nearest keyframe through the Cues (mkvgo,
 		// bounded reads) and decode just that frame (ffmpeg), falling back to the
 		// exact -ss extractor for non-Matroska / too-distant keyframes / errors.
-		frameExtractor:    httpapi.NewFastFrameExtractor(infra.mkvAdapter, infra.trickplayGen, infra.trickplayGen),
+		// DEFAULT ON with the standard opt-out (server_config
+		// transcoding.snapshot_fastpath=off or EVEY_SNAPSHOT_FASTPATH=off, applied
+		// on restart) so a bad mkvgo keyframe read can be ruled out from the admin
+		// panel without a rebuild.
+		frameExtractor:    snapshotFrameExtractor(ctx, r.ServerCfg, infra),
 		copySeekProber:    infra.prober,
 		onDemandPackager:  infra.onDemandPackager,
 		hlsAESSecret:      infra.hlsAESSecret,
@@ -1351,6 +1360,19 @@ func resolveAPIKey(ctx context.Context, cfgRepo shared.ServerConfigRepository, d
 // accepted as DB keys, so a row keyed either way takes effect. Unlike
 // resolveAPIKey it does NOT seed the env value back into the DB (nothing to hide
 // and no surprise rows). cfgRepo may be nil (pure-env fallback).
+// snapshotFrameExtractor picks the timeline-snapshot extractor: the mkvgo
+// keyframe fast path over the exact ffmpeg -ss decoder (default), or the exact
+// decoder alone when the operator opted out (transcoding.snapshot_fastpath=off
+// / EVEY_SNAPSHOT_FASTPATH=off). The fast path already fails soft per request;
+// the flag exists to rule it out entirely when debugging a wrong-frame report.
+func snapshotFrameExtractor(ctx context.Context, cfgRepo shared.ServerConfigRepository, infra *infraDeps) httpapi.FrameExtractor {
+	if resolveFlag(ctx, cfgRepo, "transcoding.snapshot_fastpath", "EVEY_SNAPSHOT_FASTPATH") == "off" {
+		slog.Info("snapshot: mkvgo keyframe fast path disabled (transcoding.snapshot_fastpath=off) — exact ffmpeg -ss extractor only")
+		return infra.trickplayGen
+	}
+	return httpapi.NewFastFrameExtractor(infra.mkvAdapter, infra.trickplayGen, infra.trickplayGen)
+}
+
 func resolveFlag(ctx context.Context, cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
 	if cfgRepo != nil {
 		for _, k := range [...]string{dbKey, envVar} {

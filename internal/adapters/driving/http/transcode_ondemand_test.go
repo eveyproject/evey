@@ -19,6 +19,7 @@ import (
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
@@ -89,16 +90,24 @@ func onDemandReq() *http.Request {
 
 // --- eligibility ---
 
+// decisionFor mirrors tryServePlanMaster: one decision per request, handed to
+// both eligibility gates.
+func decisionFor(h *hlsVODServe, r *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) domaintranscoding.PlaybackDecision {
+	return h.makeDecision(r.Context(), streams, containerOf(item), r)
+}
+
 func TestPlanHLSVideoEligible(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 
-	assert.True(t, h.planHLSVideoEligible(onDemandReq(), onDemandItem(), copyEligibleAV()),
+	d := decisionFor(h, onDemandReq(), onDemandItem(), copyEligibleAV())
+	assert.True(t, h.planHLSVideoEligible(d, onDemandItem(), copyEligibleAV()),
 		"h264 copy video → video-eligible")
 
 	// Feature not wired → never eligible (falls through to ffmpeg).
 	h2 := newCopyTestHandler(t)
-	assert.False(t, h2.planHLSVideoEligible(onDemandReq(), onDemandItem(), copyEligibleAV()),
+	d2 := decisionFor(h2, onDemandReq(), onDemandItem(), copyEligibleAV())
+	assert.False(t, h2.planHLSVideoEligible(d2, onDemandItem(), copyEligibleAV()),
 		"onDemand nil → not eligible")
 }
 
@@ -106,13 +115,15 @@ func TestAudioAllCopyEligible(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 
-	assert.True(t, h.audioAllCopyEligible(onDemandReq(), onDemandItem(), copyEligibleAV()),
+	d := decisionFor(h, onDemandReq(), onDemandItem(), copyEligibleAV())
+	assert.True(t, h.audioAllCopyEligible(context.Background(), d, copyEligibleAV()),
 		"aac audio, copy decision → all-copy eligible (full packager path)")
 
 	// A non-carriable track (dts) → not all-copy → hybrid path instead.
 	streams := copyEligibleAV()
 	streams[1].Codec = "dts"
-	assert.False(t, h.audioAllCopyEligible(onDemandReq(), onDemandItem(), streams),
+	dDts := decisionFor(h, onDemandReq(), onDemandItem(), streams)
+	assert.False(t, h.audioAllCopyEligible(context.Background(), dDts, streams),
 		"a non-carriable audio track (dts) → hybrid (Evey re-encodes), not full copy")
 }
 
@@ -122,7 +133,8 @@ func TestPlanHLSVideoEligible_NoKeyframes(t *testing.T) {
 
 	streams := copyEligibleAV()
 	streams[0].Keyframes = nil // not keyframe-backfilled → isCopyRequest is false
-	assert.False(t, h.planHLSVideoEligible(onDemandReq(), onDemandItem(), streams),
+	d := decisionFor(h, onDemandReq(), onDemandItem(), streams)
+	assert.False(t, h.planHLSVideoEligible(d, onDemandItem(), streams),
 		"no keyframe index → not copy → not video-eligible")
 }
 
@@ -235,7 +247,7 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 	h := &hlsVODServe{onDemand: pkg, onDemandEncrypt: true, hlsAESSecret: []byte("0123456789abcdef0123456789abcdef")}
 
 	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, pkg.lastOpts.AESKey, 16, "AES key threaded into the plan options")
 	assert.Equal(t, "key", pkg.lastOpts.AESKeyURI)
 
@@ -243,7 +255,7 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 	pkg2 := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h2 := &hlsVODServe{onDemand: pkg2}
 	_, err = h2.buildPlan(onDemandReq(), "mi-1", onDemandItem())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, pkg2.lastOpts.AESKey, "no AES key when encryption is off")
 }
 

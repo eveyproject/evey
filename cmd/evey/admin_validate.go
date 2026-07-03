@@ -68,11 +68,12 @@ func adminValidateStreaming(args []string) error {
 				warns = append(warns, iss)
 			}
 		}
-		if len(errs) > 0 {
+		switch {
+		case len(errs) > 0:
 			withErrors++
-		} else if len(warns) > 0 {
+		case len(warns) > 0:
 			withWarnings++
-		} else {
+		default:
 			clean++
 			return nil
 		}

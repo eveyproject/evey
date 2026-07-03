@@ -104,8 +104,8 @@ func TestOnDemandPackagerIntegration(t *testing.T) {
 	}
 
 	// A second Plan for the same source hits the cache (no rebuild).
-	if _, err := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{SegmentMs: 6000, URLPrefix: "od_"}); err != nil {
-		t.Fatalf("second Plan (cache hit): %v", err)
+	if _, replanErr := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{SegmentMs: 6000, URLPrefix: "od_"}); replanErr != nil {
+		t.Fatalf("second Plan (cache hit): %v", replanErr)
 	}
 
 	// Encrypted plan: the media playlist advertises EXT-X-KEY and no DASH
