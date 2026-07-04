@@ -174,18 +174,21 @@ func isHLSPath(p string) bool   { return strings.Contains(p, "/hls/") }
 // Called on each validated HLS request, its Max-Age tracks the token's sliding
 // TTL: the master fetch mints it, each segment slides it.
 func setHLSCookie(w http.ResponseWriter, reqPath, token string, ttl time.Duration, httpsOnly bool) {
-	idx := strings.Index(reqPath, "/hls/")
-	if idx < 0 {
+	before, _, found := strings.Cut(reqPath, "/hls/")
+	if !found {
 		return
 	}
 	maxAge := int(ttl.Seconds())
 	if maxAge <= 0 {
 		maxAge = int((5 * time.Minute).Seconds())
 	}
+	//nolint:gosec // G124: Secure follows the reverse-proxy's forwarded-proto
+	// (same as the evey_refresh cookie) so it works on a plain-http dev origin;
+	// HttpOnly + SameSite=Lax are always set and it is path-scoped to the media.
 	http.SetCookie(w, &http.Cookie{
 		Name:     hlsCookieName,
 		Value:    token,
-		Path:     reqPath[:idx] + "/hls",
+		Path:     before + "/hls",
 		HttpOnly: true,
 		Secure:   httpsOnly,
 		SameSite: http.SameSiteLaxMode,
