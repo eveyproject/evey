@@ -1,0 +1,71 @@
+package postgres
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+)
+
+// PendingSearchWriteRepository is the durable outbox for search-index writes the
+// engine rejected while it was down (see internal/adapters/driven/search).
+type PendingSearchWriteRepository struct {
+	db *sql.DB
+}
+
+func NewPendingSearchWriteRepository(db *sql.DB) *PendingSearchWriteRepository {
+	return &PendingSearchWriteRepository{db: db}
+}
+
+// Enqueue records a failed write, last-op-wins per item (a later op overwrites a
+// pending earlier one for the same item).
+func (r *PendingSearchWriteRepository) Enqueue(ctx context.Context, mediaItemID, op string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.pending_search_index.Enqueue")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`INSERT INTO pending_search_index (media_item_id, op, enqueued_at)
+		 VALUES ($1, $2, now())
+		 ON CONFLICT (media_item_id) DO UPDATE SET op = EXCLUDED.op, enqueued_at = now()`,
+		mediaItemID, op)
+	return err
+}
+
+// List returns up to limit pending ops, oldest first.
+func (r *PendingSearchWriteRepository) List(ctx context.Context, limit int) ([]library.PendingSearchWrite, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.pending_search_index.List")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if limit <= 0 {
+		limit = 500
+	}
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT media_item_id, op FROM pending_search_index ORDER BY enqueued_at LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []library.PendingSearchWrite
+	for rows.Next() {
+		var w library.PendingSearchWrite
+		if err := rows.Scan(&w.MediaItemID, &w.Op); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+// Delete removes a drained op.
+func (r *PendingSearchWriteRepository) Delete(ctx context.Context, mediaItemID string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.pending_search_index.Delete")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM pending_search_index WHERE media_item_id = $1`, mediaItemID)
+	return err
+}

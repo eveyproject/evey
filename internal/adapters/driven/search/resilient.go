@@ -11,10 +11,33 @@ import (
 type ResilientSearch struct {
 	primary  library.SearchIndex
 	fallback library.SearchIndex
+	// queue is the durable outbox: a write the engine rejects is recorded here and
+	// replayed by the drain worker, instead of being silently lost (which the
+	// count-based reconcile can't always heal). nil keeps the legacy swallow.
+	queue library.PendingSearchWriteQueue
 }
 
 func NewResilient(primary, fallback library.SearchIndex) *ResilientSearch {
 	return &ResilientSearch{primary: primary, fallback: fallback}
+}
+
+// WithQueue wires the durable outbox so failed writes are replayed later. Chainable.
+func (r *ResilientSearch) WithQueue(q library.PendingSearchWriteQueue) *ResilientSearch {
+	r.queue = q
+	return r
+}
+
+// enqueue records a failed write for replay. It detaches from the caller's ctx
+// cancellation (WithoutCancel) so a write failing as the request ends is still
+// durably queued rather than lost.
+func (r *ResilientSearch) enqueue(ctx context.Context, id, op string) {
+	if r.queue == nil {
+		return
+	}
+	if err := r.queue.Enqueue(context.WithoutCancel(ctx), id, op); err != nil {
+		slog.Error("search index: enqueue pending write failed (item may drift out of search)",
+			slog.String("media_item_id", id), slog.String("op", op), slog.Any("err", err))
+	}
 }
 
 func (r *ResilientSearch) IndexMediaItem(ctx context.Context, item *library.MediaItem, castNames []string) error {
@@ -25,7 +48,8 @@ func (r *ResilientSearch) IndexMediaItem(ctx context.Context, item *library.Medi
 		return nil
 	}
 	if err := r.primary.IndexMediaItem(ctx, item, castNames); err != nil {
-		slog.Warn("search index: primary failed, skipping", slog.Any("err", err))
+		slog.Warn("search index: primary failed, queuing for replay", slog.Any("err", err))
+		r.enqueue(ctx, string(item.ID), library.SearchOpUpsert)
 	}
 	return nil
 }
@@ -38,7 +62,10 @@ func (r *ResilientSearch) IndexMediaItemsBatch(ctx context.Context, items []*lib
 		return nil
 	}
 	if err := r.primary.IndexMediaItemsBatch(ctx, items); err != nil {
-		slog.Warn("search index batch: primary failed, skipping", slog.Any("err", err))
+		slog.Warn("search index batch: primary failed, queuing for replay", slog.Any("err", err), slog.Int("count", len(items)))
+		for _, it := range items {
+			r.enqueue(ctx, string(it.ID), library.SearchOpUpsert)
+		}
 	}
 	return nil
 }
@@ -51,7 +78,8 @@ func (r *ResilientSearch) RemoveMediaItem(ctx context.Context, id string) error 
 		return nil
 	}
 	if err := r.primary.RemoveMediaItem(ctx, id); err != nil {
-		slog.Warn("search remove: primary failed, skipping", slog.Any("err", err))
+		slog.Warn("search remove: primary failed, queuing for replay", slog.Any("err", err))
+		r.enqueue(ctx, id, library.SearchOpDelete)
 	}
 	return nil
 }

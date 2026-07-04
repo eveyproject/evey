@@ -63,6 +63,7 @@ type Repos struct {
 	Subtitle              *SubtitleRepository
 	PasswordResetToken    *PasswordResetTokenRepository
 	MediaItemTranslation  *MediaItemTranslationRepository
+	PendingSearchWrite    *PendingSearchWriteRepository
 	PersonTranslation     *PersonTranslationRepository
 	LoginAttempt          *LoginAttemptRepository
 }
@@ -128,6 +129,7 @@ func NewRepos(db *sql.DB) *Repos {
 		Subtitle:              NewSubtitleRepository(db),
 		PasswordResetToken:    NewPasswordResetTokenRepository(db),
 		MediaItemTranslation:  NewMediaItemTranslationRepository(db),
+		PendingSearchWrite:    NewPendingSearchWriteRepository(db),
 		PersonTranslation:     NewPersonTranslationRepository(db),
 		LoginAttempt:          NewLoginAttemptRepository(db),
 	}

@@ -136,7 +136,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		slog.Warn("meilisearch unavailable, using SQL search fallback", slog.Any("err", err))
 		searchAdapter = search.NewResilient(nil, sqlFallback)
 	} else {
-		searchAdapter = search.NewResilient(sa, sqlFallback)
+		searchAdapter = search.NewResilient(sa, sqlFallback).WithQueue(r.PendingSearchWrite)
 		searchHealth = sa
 	}
 
@@ -1151,10 +1151,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// transcoding.snapshot_fastpath=off or EVEY_SNAPSHOT_FASTPATH=off, applied
 		// on restart) so a bad mkvgo keyframe read can be ruled out from the admin
 		// panel without a rebuild.
-		frameExtractor:    snapshotFrameExtractor(ctx, r.ServerCfg, infra),
-		copySeekProber:    infra.prober,
-		onDemandPackager:  infra.onDemandPackager,
-		hlsAESSecret:      infra.hlsAESSecret,
+		frameExtractor:   snapshotFrameExtractor(ctx, r.ServerCfg, infra),
+		copySeekProber:   infra.prober,
+		onDemandPackager: infra.onDemandPackager,
+		hlsAESSecret:     infra.hlsAESSecret,
 	}, nil
 }
 
@@ -1256,6 +1256,40 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 						return
 					case <-ticker.C:
 						reconcileSearch()
+					}
+				}
+			}()
+
+			// Drain the durable search write-queue: replay writes the engine
+			// rejected while it was down (recorded by the resilient wrapper into the
+			// pending_search_index outbox). This is the PRIMARY drift-prevention path
+			// — no write is lost — so the count-based reconcile above is left only for
+			// the total-index-loss case it handles well. Runs often and cheap (the
+			// queue is normally empty), so a recovered engine catches up within a
+			// minute. Uses `sa` (the PRIMARY) so a still-down engine surfaces its error
+			// and the ops stay queued instead of being dropped.
+			drainSearch := func() {
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("panic recovered in search write-queue drain", "error", r, "stack", string(debug.Stack()))
+					}
+				}()
+				dctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				defer cancel()
+				if _, err := applibrary.DrainSearchWriteQueue(dctx, infra.repos.PendingSearchWrite, infra.repos.MediaItemQuery, sa, infra.repos.MediaItemTranslation); err != nil {
+					slog.Warn("search write-queue drain failed (engine still down?)", slog.Any("err", err))
+				}
+			}
+			go drainSearch()
+			go func() {
+				ticker := time.NewTicker(1 * time.Minute)
+				defer ticker.Stop()
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-ticker.C:
+						drainSearch()
 					}
 				}
 			}()

@@ -26,6 +26,13 @@ func NewFakeMediaItemQueryRepo() *FakeMediaItemQueryRepo {
 	}
 }
 
+// Add seeds an item so GetByID/GetByIDs/List can return it in tests.
+func (r *FakeMediaItemQueryRepo) Add(item *library.MediaItem) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.items[string(item.ID)] = item
+}
+
 func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
 	if r.Err != nil {
 		return nil, r.Err

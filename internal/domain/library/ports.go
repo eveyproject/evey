@@ -317,6 +317,31 @@ type SearchIndex interface {
 	Search(ctx context.Context, query string, filters map[string]string, sort []string, limit int64) ([]SearchHit, int64, error)
 }
 
+// Search-index write ops recorded in the durable outbox.
+const (
+	SearchOpUpsert = "upsert"
+	SearchOpDelete = "delete"
+)
+
+// PendingSearchWrite is one queued search-index op: the media item to re-index
+// or remove once the engine recovers. Only the ID + op are stored — the drain
+// worker re-reads the item from the DB (the source of truth), so a value that
+// changed between enqueue and drain is indexed at its current state.
+type PendingSearchWrite struct {
+	MediaItemID string
+	Op          string // SearchOpUpsert | SearchOpDelete
+}
+
+// PendingSearchWriteQueue is the durable outbox the resilient search wrapper
+// appends to when the engine rejects a live index write, and the drain worker
+// replays. Enqueue is last-op-wins per item (an upsert then a delete during one
+// outage → the delete wins).
+type PendingSearchWriteQueue interface {
+	Enqueue(ctx context.Context, mediaItemID, op string) error
+	List(ctx context.Context, limit int) ([]PendingSearchWrite, error)
+	Delete(ctx context.Context, mediaItemID string) error
+}
+
 type FileEvent struct {
 	Path string
 	Op   FileOp
