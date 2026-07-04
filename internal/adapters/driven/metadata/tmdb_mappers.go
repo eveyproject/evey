@@ -181,12 +181,40 @@ func applyRegionalTitle(result *domain.MetadataResult, d tmdbDetailResponse, ser
 	alts := d.AlternativeTitles.all()
 	for _, want := range regions {
 		for _, a := range alts {
-			if strings.EqualFold(a.Region, want) && a.Title != "" {
+			// Skip a regional title that carries no real localization over the
+			// current one — TMDB contributors pollute this list with "(1)"/"(2)"
+			// disambiguators, and swapping "Avatar" for "Avatar (1)" only degrades
+			// the display name. Keep scanning for a genuinely different one.
+			if strings.EqualFold(a.Region, want) && a.Title != "" && !regionalTitleAddsNothing(a.Title, result.Title) {
 				result.Title = a.Title
 				return
 			}
 		}
 	}
+}
+
+// regionalTitleAddsNothing reports whether a regional alternative title is the
+// same as the current title modulo a trailing parenthetical annotation, so
+// substituting it would only pollute the display name (e.g. "Avatar (1)" for a
+// film whose FR and original titles are both "Avatar"). Case-insensitive after
+// stripping trailing "( … )" groups.
+func regionalTitleAddsNothing(candidate, current string) bool {
+	return strings.EqualFold(stripTrailingParens(candidate), strings.TrimSpace(current))
+}
+
+// stripTrailingParens drops one or more trailing "( … )" groups (with the
+// surrounding space): "Avatar (1)" -> "Avatar", "X (1) (uncredited)" -> "X". A
+// wholly parenthesised title ("(Untitled)") is left intact.
+func stripTrailingParens(s string) string {
+	s = strings.TrimSpace(s)
+	for strings.HasSuffix(s, ")") {
+		open := strings.LastIndexByte(s, '(')
+		if open <= 0 {
+			break
+		}
+		s = strings.TrimSpace(s[:open])
+	}
+	return s
 }
 
 // regionsForLanguage maps a language code to the ISO-3166 country codes whose

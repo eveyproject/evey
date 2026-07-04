@@ -90,6 +90,59 @@ func TestApplyRegionalTitle_TVUsesResultsAndEnRegions(t *testing.T) {
 	}
 }
 
+// The exact Avatar case: FR title == original ("Avatar"), and the only FR
+// alternative title is the polluted "Avatar (1)" — it must NOT be applied.
+func TestApplyRegionalTitle_SkipsPollutedRegionalTitle(t *testing.T) {
+	d := tmdbDetailResponse{
+		ID:               19995,
+		Title:            "Avatar",
+		OriginalTitle:    "Avatar",
+		OriginalLanguage: "en",
+		AlternativeTitles: &tmdbAltTitles{Titles: []tmdbAltTitle{
+			{Region: "FR", Title: "Avatar (1)"},
+		}},
+	}
+	r := mapDetailResult(d, "movie", "fr")
+	if r.Title != "Avatar" {
+		t.Fatalf("polluted regional title applied: got %q, want %q", r.Title, "Avatar")
+	}
+}
+
+// A polluted FR alt must be skipped so a genuinely-different one later in the
+// list still wins.
+func TestApplyRegionalTitle_SkipsPollutedButKeepsGenuineLater(t *testing.T) {
+	d := tmdbDetailResponse{
+		ID:               123,
+		Title:            "Heat",
+		OriginalTitle:    "Heat",
+		OriginalLanguage: "en",
+		AlternativeTitles: &tmdbAltTitles{Titles: []tmdbAltTitle{
+			{Region: "FR", Title: "Heat (1)"},
+			{Region: "FR", Title: "Coup de chaleur"},
+		}},
+	}
+	r := mapDetailResult(d, "movie", "fr")
+	if r.Title != "Coup de chaleur" {
+		t.Fatalf("want genuine FR title after skipping polluted one, got %q", r.Title)
+	}
+}
+
+func TestStripTrailingParens(t *testing.T) {
+	cases := map[string]string{
+		"Avatar (1)":         "Avatar",
+		"Avatar":             "Avatar",
+		"X (1) (uncredited)": "X",
+		"  Spaced (2) ":      "Spaced",
+		"(Untitled)":         "(Untitled)",
+		"Le (Bon) Film":      "Le (Bon) Film", // paren not trailing
+	}
+	for in, want := range cases {
+		if got := stripTrailingParens(in); got != want {
+			t.Errorf("stripTrailingParens(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestRegionsForLanguage(t *testing.T) {
 	cases := map[string][]string{
 		"fr": {"FR"},
