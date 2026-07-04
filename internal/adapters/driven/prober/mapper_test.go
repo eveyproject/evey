@@ -44,6 +44,14 @@ func TestMapContainer_FullSDRHEVC(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, res.Streams, 3)
 	assert.Equal(t, int64(7_200_000), res.Duration.Milliseconds())
+	// Container MUST be reported — an empty ContainerFormat reads as
+	// "container_incompatible" and forces a needless remux (Android seek/color
+	// regression). EBML family -> "matroska" (decision maps it to "mkv"); the
+	// same container over the ISO-BMFF route reports "mp4".
+	assert.Equal(t, "matroska", res.Container)
+	if mp4Res, mp4OK := mapContainer(c, false); assert.True(t, mp4OK) {
+		assert.Equal(t, "mp4", mp4Res.Container)
+	}
 
 	v := res.Streams[0]
 	assert.Equal(t, 0, v.StreamIndex)

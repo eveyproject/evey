@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
@@ -139,53 +140,120 @@ func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *doma
 	return true
 }
 
+// hlsCookieName is the httpOnly cookie that carries a media's opaque stream
+// token for the web player. It lets a native <video> HLS element (and hls.js)
+// authenticate the master playlist and every segment without the token ever
+// appearing in the URL: it can't then leak via history/logs/referrer, and a
+// native player that cannot rewrite segment URIs keeps working across the
+// token's sliding TTL (which no query-baked token allows).
+const hlsCookieName = "evey_hls"
+
 // TokenRedactMiddleware moves ?token= from URL query to Authorization header.
 // For opaque stream tokens (no "." = not a JWT), it resolves the token via the store
 // and injects synthetic claims into the context so handlers work unchanged.
-func TokenRedactMiddleware(next http.Handler) http.Handler { return tokenRedactMiddleware(nil, next) }
+func TokenRedactMiddleware(next http.Handler) http.Handler {
+	return tokenRedactMiddleware(nil, false, next)
+}
 
-// TokenRedactMiddlewareWithStore creates a token middleware that also resolves opaque stream tokens.
-func TokenRedactMiddlewareWithStore(store streamTokenValidator, next http.Handler) http.Handler {
-	return tokenRedactMiddleware(store, next)
+// TokenRedactMiddlewareWithStore creates a token middleware that also resolves
+// opaque stream tokens and, for HLS requests, mints/slides the evey_hls cookie.
+// httpsOnly sets the cookie's Secure flag (true behind a TLS-terminating proxy).
+func TokenRedactMiddlewareWithStore(store streamTokenValidator, httpsOnly bool, next http.Handler) http.Handler {
+	return tokenRedactMiddleware(store, httpsOnly, next)
 }
 
 type streamTokenValidator interface {
 	ValidateAny(token string) (*shared.StreamToken, bool)
 }
 
-func tokenRedactMiddleware(store streamTokenValidator, next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t := r.URL.Query().Get("token")
-		if t != "" {
-			ctx := context.WithValue(r.Context(), rawTokenCtxKey, t)
-			r = r.WithContext(ctx)
+func isMediaPath(p string) bool { return strings.HasPrefix(p, "/api/v1/media/") }
+func isHLSPath(p string) bool   { return strings.Contains(p, "/hls/") }
 
+// setHLSCookie (re)issues evey_hls scoped to the media's own /hls path, so it
+// is sent for that item's master playlist and every segment but nothing else.
+// Called on each validated HLS request, its Max-Age tracks the token's sliding
+// TTL: the master fetch mints it, each segment slides it.
+func setHLSCookie(w http.ResponseWriter, reqPath, token string, ttl time.Duration, httpsOnly bool) {
+	idx := strings.Index(reqPath, "/hls/")
+	if idx < 0 {
+		return
+	}
+	maxAge := int(ttl.Seconds())
+	if maxAge <= 0 {
+		maxAge = int((5 * time.Minute).Seconds())
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     hlsCookieName,
+		Value:    token,
+		Path:     reqPath[:idx] + "/hls",
+		HttpOnly: true,
+		Secure:   httpsOnly,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   maxAge,
+	})
+}
+
+func tokenRedactMiddleware(store streamTokenValidator, httpsOnly bool, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The player hits the media routes as raw URLs, so a stream token can
+		// arrive three ways: ?token= (legacy web + cast), the evey_hls httpOnly
+		// cookie (native <video>/hls.js — auto-sent same-origin, and the only
+		// channel a native HLS element has), or an opaque Bearer token (mobile
+		// expo-video passes it as a request header). Resolve whichever is present
+		// into the Authorization + context shape the downstream stream-auth wants.
+		rawTok := r.URL.Query().Get("token")
+		fromQuery := rawTok != ""
+		if fromQuery {
+			// Keep the token out of the (logged / referrer'd) URL.
+			r = r.WithContext(context.WithValue(r.Context(), rawTokenCtxKey, rawTok))
 			q := r.URL.Query()
 			q.Del("token")
 			r.URL.RawQuery = q.Encode()
-
-			if r.Header.Get("Authorization") == "" {
-				isOpaque := store != nil && !strings.Contains(t, ".")
-				if isOpaque {
-					if st, ok := store.ValidateAny(t); ok {
-						r.Header.Set("Authorization", "Bearer "+t)
-						ctx := context.WithValue(r.Context(), streamTokenCtxKey, st)
-						r = r.WithContext(ctx)
-					} else {
-						// opaque token invalid/expired: don't set as Bearer, handler returns 401.
-						// Logged so a Chromecast disconnect caused by a vanished token (server
-						// restart wiped the in-memory store; token actually expired) is visible
-						// instead of being silently spanned away.
-						slog.Warn("stream token: opaque token validation failed",
-							slog.String("path", r.URL.Path),
-							slog.String("user_agent", r.UserAgent()),
-							slog.Int("token_len", len(t)))
-					}
-				} else {
-					// JWT or no store: set as Bearer, handlers validate
-					r.Header.Set("Authorization", "Bearer "+t)
+		} else if isMediaPath(r.URL.Path) {
+			// No query token: accept the cookie, else an opaque Bearer. A real
+			// JWT Bearer is left untouched for the downstream verifier.
+			if c, err := r.Cookie(hlsCookieName); err == nil && c.Value != "" {
+				rawTok = c.Value
+			} else if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+				if b := strings.TrimPrefix(h, "Bearer "); !strings.Contains(b, ".") {
+					rawTok = b
 				}
 			}
+		}
+
+		if rawTok == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		isOpaque := store != nil && !strings.Contains(rawTok, ".")
+		if isOpaque {
+			if st, ok := store.ValidateAny(rawTok); ok {
+				if r.Header.Get("Authorization") == "" {
+					r.Header.Set("Authorization", "Bearer "+rawTok)
+				}
+				if !fromQuery {
+					r = r.WithContext(context.WithValue(r.Context(), rawTokenCtxKey, rawTok))
+				}
+				r = r.WithContext(context.WithValue(r.Context(), streamTokenCtxKey, st))
+				// Mint/slide the httpOnly cookie so a native player re-authenticates
+				// on every segment without the token ever touching the URL.
+				if isHLSPath(r.URL.Path) {
+					setHLSCookie(w, r.URL.Path, rawTok, st.TTL, httpsOnly)
+				}
+			} else if fromQuery {
+				// opaque token invalid/expired: don't set as Bearer, handler returns 401.
+				// Logged so a Chromecast disconnect caused by a vanished token (server
+				// restart wiped the in-memory store; token actually expired) is visible
+				// instead of being silently spanned away.
+				slog.Warn("stream token: opaque token validation failed",
+					slog.String("path", r.URL.Path),
+					slog.String("user_agent", r.UserAgent()),
+					slog.Int("token_len", len(rawTok)))
+			}
+		} else if fromQuery && r.Header.Get("Authorization") == "" {
+			// JWT delivered via ?token= (legacy): promote to a Bearer header.
+			r.Header.Set("Authorization", "Bearer "+rawTok)
 		}
 		next.ServeHTTP(w, r)
 	})

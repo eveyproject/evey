@@ -602,7 +602,7 @@ func TestTokenRedactMiddlewareWithStore_OpaqueToken(t *testing.T) {
 	inner := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		capturedCtx = r.Context()
 	})
-	handler := TokenRedactMiddlewareWithStore(store, inner)
+	handler := TokenRedactMiddlewareWithStore(store, false, inner)
 
 	req := httptest.NewRequest(http.MethodGet, "/test?token=opaque-no-dots", nil)
 	w := httptest.NewRecorder()
@@ -624,7 +624,7 @@ func TestTokenRedactMiddlewareWithStore_JWTFallback(t *testing.T) {
 	inner := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		capturedAuth = r.Header.Get("Authorization")
 	})
-	handler := TokenRedactMiddlewareWithStore(store, inner)
+	handler := TokenRedactMiddlewareWithStore(store, false, inner)
 
 	req := httptest.NewRequest(http.MethodGet, "/test?token=jwt.with.dots", nil)
 	w := httptest.NewRecorder()
@@ -633,6 +633,81 @@ func TestTokenRedactMiddlewareWithStore_JWTFallback(t *testing.T) {
 	if capturedAuth != "Bearer jwt.with.dots" {
 		t.Errorf("expected JWT in auth header, got %q", capturedAuth)
 	}
+}
+
+// Plan B P1: the stream token also resolves from the evey_hls cookie (native
+// <video>/hls.js) and from an opaque Bearer header (mobile expo-video), scoped
+// to /api/v1/media/*, and an HLS request (re)issues the httpOnly cookie.
+func TestTokenRedactMiddleware_CookieAndBearerTransports(t *testing.T) {
+	st := &shared.StreamToken{UserID: "u1", MediaItemID: "m1", TTL: 5 * time.Minute}
+	store := &fakeStreamTokenValidator{token: st}
+	newHandler := func() (http.Handler, *context.Context) {
+		var captured context.Context
+		inner := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) { captured = r.Context() })
+		return TokenRedactMiddlewareWithStore(store, false, inner), &captured
+	}
+	hlsCookieOf := func(w *httptest.ResponseRecorder) *http.Cookie {
+		for _, c := range w.Result().Cookies() {
+			if c.Name == "evey_hls" {
+				return c
+			}
+		}
+		return nil
+	}
+
+	t.Run("cookie resolves token and master (re)issues it", func(t *testing.T) {
+		h, ctx := newHandler()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8", nil)
+		req.AddCookie(&http.Cookie{Name: "evey_hls", Value: "opaque-cookie"})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if _, ok := StreamTokenFromContext(*ctx); !ok {
+			t.Fatal("cookie transport: expected stream token in context")
+		}
+		c := hlsCookieOf(w)
+		if c == nil {
+			t.Fatal("expected evey_hls Set-Cookie on HLS response")
+		}
+		if c.Path != "/api/v1/media/m1/hls" {
+			t.Errorf("cookie path = %q, want /api/v1/media/m1/hls", c.Path)
+		}
+		if !c.HttpOnly {
+			t.Error("cookie must be HttpOnly")
+		}
+	})
+
+	t.Run("opaque Bearer resolves token (mobile)", func(t *testing.T) {
+		h, ctx := newHandler()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/seg_00001.m4s", nil)
+		req.Header.Set("Authorization", "Bearer opaque-bearer")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if _, ok := StreamTokenFromContext(*ctx); !ok {
+			t.Error("bearer transport: expected stream token in context")
+		}
+	})
+
+	t.Run("real JWT Bearer is not treated as a stream token", func(t *testing.T) {
+		h, ctx := newHandler()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8", nil)
+		req.Header.Set("Authorization", "Bearer header.body.sig")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if _, ok := StreamTokenFromContext(*ctx); ok {
+			t.Error("JWT bearer must not resolve as an opaque stream token")
+		}
+	})
+
+	t.Run("cookie is ignored off the media paths", func(t *testing.T) {
+		h, ctx := newHandler()
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/user/me", nil)
+		req.AddCookie(&http.Cookie{Name: "evey_hls", Value: "opaque-cookie"})
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if _, ok := StreamTokenFromContext(*ctx); ok {
+			t.Error("cookie must not authenticate non-media paths")
+		}
+	})
 }
 
 // ============================================================

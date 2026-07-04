@@ -1,5 +1,50 @@
+import Hls from "hls.js";
 import type { SubtitleStream } from "../SubtitleSelector";
 import { getBrowserCapabilities } from "@/utils/codec";
+
+// computeNativeHLSPreference is the pure decision behind prefersNativeHLS,
+// factored out so every browser can be exercised in a unit test without a real
+// engine. Native HLS (the <video> element's own player) is preferred on Safari
+// (macOS laptops + iOS) — lighter on CPU/battery than hls.js+MSE — and is the
+// only option where MSE is missing (old iOS). Chrome/Firefox/Edge/Android stay
+// on hls.js even when the OS can decode HLS, because that path is the mature one
+// and carries our token refresh / CMCD / ABR control.
+export function computeNativeHLSPreference(
+  canPlayHLS: boolean,
+  userAgent: string,
+  platform: string,
+  maxTouchPoints: number,
+  mseSupported: boolean,
+): boolean {
+  if (!canPlayHLS) return false;
+  // Safari, and only Safari, among the engines on Apple hardware: Chrome/Edge/
+  // Firefox on macOS carry chrome/crios/fxios/edg tokens and must be excluded.
+  const safari = /^((?!chrome|chromium|android|crios|fxios|edg).)*safari/i.test(userAgent);
+  const ios =
+    /iP(hone|ad|od)/.test(userAgent) ||
+    // iPadOS 13+ masquerades as desktop Safari (MacIntel) but is touch-capable.
+    (platform === "MacIntel" && maxTouchPoints > 1);
+  return safari || ios || !mseSupported;
+}
+
+// prefersNativeHLS reports whether this browser should play HLS through the
+// <video> element's native engine instead of hls.js/MSE. Memoised: it reads a
+// static capability (canPlayType) + UA.
+let _prefersNativeHLS: boolean | undefined;
+export function prefersNativeHLS(): boolean {
+  if (_prefersNativeHLS !== undefined) return _prefersNativeHLS;
+  if (typeof document === "undefined" || typeof navigator === "undefined") return false;
+  const canPlayHLS =
+    document.createElement("video").canPlayType("application/vnd.apple.mpegurl") !== "";
+  _prefersNativeHLS = computeNativeHLSPreference(
+    canPlayHLS,
+    navigator.userAgent,
+    navigator.platform,
+    navigator.maxTouchPoints,
+    Hls.isSupported(),
+  );
+  return _prefersNativeHLS;
+}
 
 export function getSelectedBurnInTrack(
   currentSubtitle: number | null,

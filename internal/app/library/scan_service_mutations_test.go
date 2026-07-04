@@ -896,7 +896,7 @@ func TestScanService_ProbeAndStoreStreams_EmptyProbePreservesExistingStreams(t *
 	}
 	h.svc.WithSubtitleScanner(subScanner)
 
-	_, probedOK := h.svc.ProbeAndStoreStreams(context.Background(), itemID, "/m/a.mkv")
+	_, _, probedOK := h.svc.ProbeAndStoreStreams(context.Background(), itemID, "/m/a.mkv")
 	assert.False(t, probedOK, "0 container streams must count as a failed probe")
 
 	streams, err := h.streams.GetByMediaItemID(context.Background(), mid)

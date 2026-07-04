@@ -39,14 +39,17 @@ func streamTokenHandler(tokenGen domainuser.TokenGenerator, store *appmedia.Stre
 			return
 		}
 
-		// Cast playback gets a long-lived token: the Chromecast fetches
-		// segments itself and can't re-validate the short sliding token
-		// the way the local player's xhrSetup does, so the 5-minute
-		// default expires during its buffer-quiet stretches.
+		// Cast playback AND native <video> HLS (Safari/iOS) both get a
+		// long-lived token: they fetch segments themselves and can't
+		// re-validate the short sliding token the way the local hls.js
+		// xhrSetup does, so the 5-minute default would expire during a
+		// pause or a buffer-quiet stretch. The httpOnly evey_hls cookie
+		// then slides this longer window across the session.
 		var token string
-		if r.URL.Query().Get("purpose") == "cast" {
+		switch r.URL.Query().Get("purpose") {
+		case "cast", "native":
 			token = store.CreateWithTTL(claims.UserID, claims.ProfileID, mediaID, appmedia.CastStreamTokenTTL)
-		} else {
+		default:
 			token = store.Create(claims.UserID, claims.ProfileID, mediaID)
 		}
 

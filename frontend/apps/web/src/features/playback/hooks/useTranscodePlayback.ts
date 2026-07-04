@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Hls from "hls.js";
-import { buildTranscodeHlsUrl } from "./hlsPlayerUtils";
+import { buildTranscodeHlsUrl, prefersNativeHLS } from "./hlsPlayerUtils";
 
 interface UseTranscodePlaybackArgs {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -81,9 +81,13 @@ export function useTranscodePlayback({
       0, // server ignores startSec on the VOD path
     );
 
-    if (!Hls.isSupported()) {
+    if (prefersNativeHLS()) {
       video.src = hlsUrl;
-      // Native-HLS path (Safari/iOS, where Hls.isSupported() is false). The
+      // Native-HLS path (Safari macOS laptops + iOS). Preferred wherever the
+      // <video> decodes HLS itself — lighter on CPU/battery than hls.js+MSE —
+      // not only where MSE is missing. Segment auth rides the httpOnly evey_hls
+      // cookie (issued off this master request's ?token=), and the token is the
+      // long-lived native session token so a pause can't expire it mid-stream. The
       // stream is transcoded starting at `offset`, so video.currentTime is
       // local to the restarted segment — positionRef must hold the ABSOLUTE
       // position (offset + local) like the Hls.js path does, otherwise every

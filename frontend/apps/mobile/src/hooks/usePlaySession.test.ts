@@ -21,6 +21,7 @@ vi.mock("react-native", () => ({
   Dimensions: {
     get: () => ({ width: 360, height: 800, scale: 2 }),
   },
+  Platform: { OS: "android" },
 }));
 
 beforeEach(() => {
@@ -56,6 +57,14 @@ describe("buildStreamUrl", () => {
     expect(url).toContain("videoCodecs=");
   });
 
+  it("declares mkv/webm containers on Android so a compatible MKV direct-plays", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
+    // Without mkv here the server flags container_incompatible and transcodes
+    // every .mkv — the root cause of broken seeking + shifted colors.
+    expect(decodeURIComponent(url)).toContain("containers=mp4,mkv,webm,hls");
+  });
+
   it("includes startSec when > 0 on HLS URL", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 42.7);
@@ -78,18 +87,17 @@ describe("buildStreamUrl", () => {
 });
 
 describe("fetchStreamToken", () => {
-  it("calls stream-token endpoint and returns token", async () => {
+  it("requests the long-lived native-purpose token and returns it", async () => {
     eveyFetchMock.mockResolvedValue({ token: "abc123", mediaId: "m1" });
+    const { fetchStreamToken } = await import("./usePlaySession");
 
-    // Call the same endpoint the hook uses
-    const res = await eveyFetchMock({
-      url: "/api/v1/media/m1/stream-token",
-      method: "POST",
-    });
+    const token = await fetchStreamToken("m1");
 
-    expect(res.token).toBe("abc123");
+    expect(token).toBe("abc123");
+    // Plan B P3: the native player can't re-mint mid-stream, so it must ask for
+    // the 12h window (purpose=native), not the 5-minute default.
     expect(eveyFetchMock).toHaveBeenCalledWith({
-      url: "/api/v1/media/m1/stream-token",
+      url: "/api/v1/media/m1/stream-token?purpose=native",
       method: "POST",
     });
   });
@@ -117,7 +125,7 @@ describe("usePlaySession integration", () => {
     expect(getStreamInfoMock).toHaveBeenCalledWith("m1", expect.objectContaining({
       supportedCodecs: ["h264", "hevc", "vp9"],
       supportedAudioCodecs: ["aac", "mp3", "opus", "flac", "ac3", "eac3"],
-      supportedContainers: ["mp4", "hls"],
+      supportedContainers: ["mp4", "mkv", "webm", "hls"],
     }));
   });
 

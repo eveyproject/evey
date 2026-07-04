@@ -256,6 +256,12 @@ type FileScanner interface {
 type ProbeResult struct {
 	Streams  []*MediaStream
 	Duration shared.Duration
+	// Container is the source container/format (ffprobe vocabulary, e.g.
+	// "matroska", "mp4", "webm"), stored on MediaFile.ContainerFormat. Empty when
+	// the prober couldn't determine it. The playback decision matches it against
+	// the client's supported containers — an empty value reads as "incompatible"
+	// and forces a needless remux, so probers MUST populate it.
+	Container string
 }
 
 type StreamProber interface {

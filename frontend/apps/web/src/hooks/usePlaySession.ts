@@ -7,7 +7,7 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { getBrowserCapabilities } from "@/utils/codec";
-import { appendCodecParams } from "@/features/playback/hooks/hlsPlayerUtils";
+import { appendCodecParams, prefersNativeHLS } from "@/features/playback/hooks/hlsPlayerUtils";
 import { useStreamToken } from "./useStreamToken";
 
 // postStopStream tears down the server-side play session with a raw keepalive
@@ -123,7 +123,13 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
 
     (async () => {
       try {
-        const token = await fetchStreamToken(mediaId);
+        // A native <video> HLS session (Safari/iOS) can't re-mint the sliding
+        // token mid-stream, so it gets the long-lived window up front; the
+        // httpOnly evey_hls cookie then carries it across segments/pauses.
+        const token = await fetchStreamToken(
+          mediaId,
+          prefersNativeHLS() ? { native: true } : undefined,
+        );
         streamTokenRef.current = token;
         const session = await playbackServiceStartStream({
           mediaItemId: mediaId,

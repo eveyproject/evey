@@ -19,6 +19,7 @@ import {
   resolveDefaultAudio,
   resolveDefaultSubtitle,
   shouldRestartTranscodeSeek,
+  computeNativeHLSPreference,
 } from "./hlsPlayerUtils";
 
 // Minimal TimeRanges stub: one contiguous buffered range [start, end].
@@ -243,5 +244,65 @@ describe("resolveDefaultSubtitle", () => {
 
   it("returns null for empty streams with a pref", () => {
     expect(resolveDefaultSubtitle([], undefined, () => null, () => "eng")).toBeNull();
+  });
+});
+
+// Plan B P2: which browsers get native <video> HLS (Safari macOS laptops + iOS,
+// the CPU/battery win) vs hls.js (everything else). Real User-Agent strings
+// stand in for a live engine so every device is exercised deterministically —
+// the Safari/Mac "simulation" a WebKit binary can't reliably give us on WSL.
+describe("computeNativeHLSPreference", () => {
+  const UA = {
+    safariMac:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    chromeMac:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    edgeMac:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+    firefoxMac:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0",
+    iosSafari:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    // iPadOS 13+ reports the desktop-Safari UA; only maxTouchPoints betrays it.
+    iPadOS:
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+    iosChrome:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.0.0 Mobile/15E148 Safari/604.1",
+    androidChrome:
+      "Mozilla/5.0 (Linux; Android 13; Phone) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+  };
+
+  it("prefers native on macOS Safari (laptop battery win)", () => {
+    expect(computeNativeHLSPreference(true, UA.safariMac, "MacIntel", 0, true)).toBe(true);
+  });
+
+  it("stays on hls.js for macOS Chrome / Edge / Firefox", () => {
+    expect(computeNativeHLSPreference(true, UA.chromeMac, "MacIntel", 0, true)).toBe(false);
+    expect(computeNativeHLSPreference(true, UA.edgeMac, "MacIntel", 0, true)).toBe(false);
+    expect(computeNativeHLSPreference(true, UA.firefoxMac, "MacIntel", 0, true)).toBe(false);
+  });
+
+  it("prefers native on iOS Safari", () => {
+    expect(computeNativeHLSPreference(true, UA.iosSafari, "iPhone", 0, true)).toBe(true);
+  });
+
+  it("prefers native on iPadOS masquerading as desktop Safari (touch-capable)", () => {
+    expect(computeNativeHLSPreference(true, UA.iPadOS, "MacIntel", 5, true)).toBe(true);
+  });
+
+  it("stays on hls.js for Chrome-on-iOS (CriOS)", () => {
+    expect(computeNativeHLSPreference(false, UA.iosChrome, "iPhone", 5, true)).toBe(false);
+  });
+
+  it("stays on hls.js for Android Chrome even if it reports HLS support", () => {
+    expect(computeNativeHLSPreference(true, UA.androidChrome, "Linux armv8l", 5, true)).toBe(false);
+  });
+
+  it("falls back to native when MSE is unavailable (old iOS without hls.js)", () => {
+    expect(computeNativeHLSPreference(true, UA.safariMac, "MacIntel", 0, false)).toBe(true);
+  });
+
+  it("never native when the element can't play HLS at all", () => {
+    expect(computeNativeHLSPreference(false, UA.safariMac, "MacIntel", 0, true)).toBe(false);
   });
 });

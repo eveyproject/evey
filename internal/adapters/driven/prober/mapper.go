@@ -195,7 +195,15 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 	if err != nil {
 		dur = shared.Duration{} // negative/corrupt duration -> unknown, scan recovers
 	}
-	return &library.ProbeResult{Streams: streams, Duration: dur}, true
+	// The dispatcher only routes EBML (Matroska/WebM) and ISO-BMFF here; the
+	// fast-path can't tell WebM from MKV, so report the family name "matroska"
+	// (checkContainer normalises it to "mkv", and WebM is a Matroska subset the
+	// same players handle). ffprobe classifies everything else.
+	container := "mp4"
+	if ebml {
+		container = "matroska"
+	}
+	return &library.ProbeResult{Streams: streams, Duration: dur, Container: container}, true
 }
 
 func mapStreamType(t extmkv.TrackType) library.StreamType {

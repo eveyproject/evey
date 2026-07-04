@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Dimensions } from "react-native";
+import { Platform } from "react-native";
 import * as Network from "expo-network";
 import {
   playbackServiceGetStreamInfo,
@@ -15,7 +15,12 @@ const DEVICE_NAME = "Evey Mobile";
 
 const VIDEO_CODECS = ["h264", "hevc", "vp9"];
 const AUDIO_CODECS = ["aac", "mp3", "opus", "flac", "ac3", "eac3"];
-const CONTAINERS = ["mp4", "hls"];
+// Android's player (ExoPlayer/AndroidXMedia3) demuxes Matroska/WebM natively, so
+// a compatible-codec .mkv (the bulk of a self-hosted library) can DIRECT-PLAY
+// instead of being needlessly transcoded — which is what breaks in-timeline
+// seeking (transcode serves a sliding window) and shifts colors (ffmpeg). iOS's
+// AVPlayer can't demux MKV, so it stays on mp4/hls and lets the server remux it.
+const CONTAINERS = Platform.OS === "android" ? ["mp4", "mkv", "webm", "hls"] : ["mp4", "hls"];
 
 // Probe the connection state via expo-network so the server can apply the
 // per-profile max_bitrate_cellular_kbps cap when relevant. Anything that
@@ -37,6 +42,10 @@ interface StreamTokenResponse {
 
 export interface PlaySessionResult {
   streamUrl: string | null;
+  // The opaque stream token, exposed so the native player can also send it as an
+  // Authorization: Bearer header on the source (segment auth without the token
+  // riding in every URL) — the server accepts cookie/Bearer/query alike.
+  streamToken: string | null;
   sessionId: string | null;
   streamInfo: V1StreamInfo | null;
   isLoading: boolean;
@@ -48,9 +57,13 @@ export interface PlaySessionResult {
   progress: V1WatchProgress | null;
 }
 
-async function fetchStreamToken(mediaId: string): Promise<string> {
+export async function fetchStreamToken(mediaId: string): Promise<string> {
+  // Native player (expo-video/ExoPlayer/AVPlayer): like a Chromecast or a web
+  // native <video>, it fetches segments itself and can't re-mint the short
+  // sliding token mid-stream, so a pause would 401 on the 5-minute default.
+  // purpose=native returns the long-lived (12h) window instead.
   const res = await eveyFetch<StreamTokenResponse>({
-    url: `/api/v1/media/${mediaId}/stream-token`,
+    url: `/api/v1/media/${mediaId}/stream-token?purpose=native`,
     method: "POST",
   });
   return res.token;
@@ -86,6 +99,7 @@ export function buildStreamUrl(
 
 export function usePlaySession(mediaId: string): PlaySessionResult {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [streamToken, setStreamToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<V1StreamInfo | null>(null);
   const [progress, setProgress] = useState<V1WatchProgress | null>(null);
@@ -109,17 +123,13 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       try {
         const serverUrl = serverUrlRef.current || ((await getServerUrl()) ?? "");
         serverUrlRef.current = serverUrl;
-        const screen = Dimensions.get("screen");
-        // Video plays rotated to landscape, so the long screen edge ends up
-        // along the video's width. Send (long, short) as (maxWidth, maxHeight)
-        // — otherwise the server sees source.width=1920 > client.maxWidth=1080
-        // (portrait short edge), triggers resolution_exceeded, and transcodes
-        // a 1080p source down to 1080p again with quality loss.
-        const w = Math.round(screen.width * (screen.scale ?? 1));
-        const h = Math.round(screen.height * (screen.scale ?? 1));
-        const longEdge = Math.max(w, h);
-        const shortEdge = Math.min(w, h);
-        const cappedMaxHeight = maxHeight && maxHeight > 0 ? Math.min(maxHeight, shortEdge) : shortEdge;
+        // Screen size is NOT a decode capability: the display downscales high-res
+        // content for free. Sending the screen dims made the server flag
+        // resolution_exceeded and transcode/downscale a 1080p/4K title the device
+        // plays natively — killing direct-play (and with it native seek + correct
+        // colors). Cap resolution ONLY when the user explicitly picks a lower
+        // quality via restartWithTracks(maxHeight). (Mirrors the web player.)
+        const explicitMaxHeight = maxHeight && maxHeight > 0 ? maxHeight : undefined;
         const networkType = await detectNetworkType();
 
         const [info, wp] = await Promise.all([
@@ -127,8 +137,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             supportedCodecs: VIDEO_CODECS,
             supportedAudioCodecs: AUDIO_CODECS,
             supportedContainers: CONTAINERS,
-            maxWidth: longEdge,
-            maxHeight: cappedMaxHeight,
+            maxHeight: explicitMaxHeight,
             audioStreamIndex,
             subtitleStreamIndex,
             networkType,
@@ -146,6 +155,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           token = await fetchStreamToken(mediaId);
           tokenRef.current = token;
         }
+        setStreamToken(token);
         const url = buildStreamUrl(serverUrl, mediaId, info, token, startSec);
 
         const startPosMs = startSec ? String(Math.floor(startSec * 1000)) : (wp?.positionMs && !wp.played ? wp.positionMs : "0");
@@ -238,5 +248,5 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress };
+  return { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress };
 }

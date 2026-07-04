@@ -357,3 +357,26 @@ func TestProbeStreams_ExtendedDispositions(t *testing.T) {
 	assert.True(t, audioDesc.TextDescriptions, "descriptions=1 must set TextDescriptions")
 	assert.True(t, audioDesc.Original, "original=1 must set Original")
 }
+
+// normalizeContainer collapses ffprobe's comma-joined format_name to the single
+// name the playback decision matches on. An empty/unmapped container reads as
+// "container_incompatible" downstream, so the mapping must be right.
+func TestNormalizeContainer(t *testing.T) {
+	cases := map[string]string{
+		"matroska,webm":           "matroska",
+		"webm":                    "matroska",
+		"MATROSKA":                "matroska",
+		"mov,mp4,m4a,3gp,3g2,mj2": "mp4",
+		"mp4":                     "mp4",
+		"avi":                     "avi",
+		"mpegts":                  "mpegts",
+		"flv":                     "flv",
+		"":                        "",
+		"  matroska,webm  ":       "matroska",
+	}
+	for in, want := range cases {
+		if got := normalizeContainer(in); got != want {
+			t.Errorf("normalizeContainer(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

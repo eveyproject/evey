@@ -111,7 +111,7 @@ export default function PlayerScreen() {
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
+  const { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
     usePlaySession(sessionMediaId);
 
   const { data: chapters = [] } = useChapters(mediaId);
@@ -174,6 +174,26 @@ export default function PlayerScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [seekTouchX, setSeekTouchX] = useState<number | null>(null);
+  // While the user scrubs the timeline, freeze the live timeUpdate: otherwise it
+  // overwrites the scrubbed position ~4×/s and the thumb jumps between the finger
+  // and the real playback position (the "wobbly" seek).
+  const seekingRef = useRef(false);
+  useEffect(() => {
+    seekingRef.current = seekTouchX != null;
+  }, [seekTouchX]);
+  // Measured seek-bar width (the bar is flex:1 between the time labels, so it is
+  // NOT screenW-minus-insets) and the last previewed fraction. onResponderRelease's
+  // locationX is unreliable on Android (it can report a coordinate relative to a
+  // nested absolute child like the trickplay preview → a near-zero x → the seek
+  // jumps to ~0:00). So we commit the fraction tracked during the reliable move
+  // events, divided by the real measured width.
+  const seekBarWidthRef = useRef(0);
+  const seekPctRef = useRef(0);
+  const pctFromX = useCallback((x: number) => {
+    const w = seekBarWidthRef.current;
+    if (w <= 0) return 0;
+    return Math.max(0, Math.min(1, x / w));
+  }, []);
   const volumeBaseRef = useRef(1);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSyncPlay, setShowSyncPlay] = useState(false);
@@ -200,8 +220,14 @@ export default function PlayerScreen() {
     return {
       uri: streamUrl,
       ...(isHls ? { contentType: "hls" as const } : {}),
+      // Also send the opaque stream token as a Bearer header: the server accepts
+      // cookie/Bearer/query, so if the native player forwards the source headers
+      // to its segment requests they authenticate without the token in the URL.
+      // The ?token= stays in the URL as the reliable fallback (some engines drop
+      // headers on the manifest's relative segment/redirect fetches).
+      ...(streamToken ? { headers: { Authorization: `Bearer ${streamToken}` } } : {}),
     };
-  }, [streamUrl]);
+  }, [streamUrl, streamToken]);
 
   const resumePositionSec = useMemo(() => {
     if (!progress?.positionMs || progress.played) return 0;
@@ -223,6 +249,7 @@ export default function PlayerScreen() {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
       if (!mountedRef.current) return;
+      if (seekingRef.current) return; // frozen while scrubbing — see seekingRef
       setCurrentTime(ev.currentTime + transcodeOffset);
       try { setDuration(player.duration); } catch (err) { console.warn("released", err); }
     });
@@ -428,6 +455,9 @@ export default function PlayerScreen() {
       const d = knownDuration > 0 ? knownDuration : duration;
       if (d <= 0) return;
       const targetSec = pct * d;
+      // Optimistic: show the target immediately so the release doesn't flash the
+      // pre-seek position before the first post-seek timeUpdate lands.
+      setCurrentTime(targetSec);
       if (isTranscode) {
         restartAtPosition(targetSec);
       } else if (player) {
@@ -831,21 +861,25 @@ export default function PlayerScreen() {
                 accessible={true}
                 accessibilityRole="adjustable"
                 accessibilityLabel={t("player.controls.seek")}
+                onLayout={(e) => { seekBarWidthRef.current = e.nativeEvent.layout.width; }}
                 onStartShouldSetResponder={() => true}
                 onMoveShouldSetResponder={() => true}
                 onResponderGrant={(e) => {
                   const x = e.nativeEvent.locationX;
                   setSeekTouchX(x);
-                  seekPreview(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 40))));
+                  seekPctRef.current = pctFromX(x);
+                  seekPreview(seekPctRef.current);
                 }}
                 onResponderMove={(e) => {
                   const x = e.nativeEvent.locationX;
                   setSeekTouchX(x);
-                  seekPreview(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 40))));
+                  seekPctRef.current = pctFromX(x);
+                  seekPreview(seekPctRef.current);
                 }}
-                onResponderRelease={(e) => {
-                  const x = e.nativeEvent.locationX;
-                  seekTo(Math.max(0, Math.min(1, x / (screenW - insets.left - insets.right - 40))));
+                onResponderRelease={() => {
+                  // Commit the fraction tracked during move — NOT the release
+                  // event's locationX, which is unreliable on Android.
+                  seekTo(seekPctRef.current);
                   setSeekTouchX(null);
                 }}
               >

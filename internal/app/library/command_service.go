@@ -128,7 +128,7 @@ func (s *CommandService) ScanLibrary(ctx context.Context, libraryID string) (add
 }
 
 func (s *CommandService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) shared.Duration {
-	dur, _ := s.scan.ProbeAndStoreStreams(ctx, mediaItemID, filePath)
+	dur, _, _ := s.scan.ProbeAndStoreStreams(ctx, mediaItemID, filePath)
 	return dur
 }
 

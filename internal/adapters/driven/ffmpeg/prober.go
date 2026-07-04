@@ -27,6 +27,31 @@ func NewProber(binary string) *Prober {
 
 type ffprobeFormat struct {
 	Duration string `json:"duration"`
+	// FormatName is ffprobe's (comma-joined) container list, e.g.
+	// "matroska,webm" or "mov,mp4,m4a,3gp,3g2,mj2". normalizeContainer collapses
+	// it to the single name the playback decision matches on.
+	FormatName string `json:"format_name"`
+}
+
+// normalizeContainer collapses ffprobe's comma-joined format_name to one
+// container name in the decision's vocabulary. "matroska"/"webm" -> "matroska"
+// (checkContainer maps it to "mkv"; WebM is a Matroska subset), the MP4 family
+// -> "mp4"; anything else keeps its first token (avi, mpegts, flv, ...).
+func normalizeContainer(formatName string) string {
+	f := strings.ToLower(strings.TrimSpace(formatName))
+	switch {
+	case f == "":
+		return ""
+	case strings.Contains(f, "matroska"), strings.Contains(f, "webm"):
+		return "matroska"
+	case strings.Contains(f, "mp4"), strings.Contains(f, "mov"), strings.Contains(f, "m4a"), strings.Contains(f, "3gp"):
+		return "mp4"
+	default:
+		if i := strings.IndexByte(f, ','); i > 0 {
+			return f[:i]
+		}
+		return f
+	}
 }
 
 type ffprobeOutput struct {
@@ -226,7 +251,7 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 		}
 	}
 
-	return &library.ProbeResult{Streams: streams, Duration: duration}, nil
+	return &library.ProbeResult{Streams: streams, Duration: duration, Container: normalizeContainer(probe.Format.FormatName)}, nil
 }
 
 // ProbeKeyframes returns the presentation timestamps (milliseconds, sorted

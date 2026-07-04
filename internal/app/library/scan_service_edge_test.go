@@ -328,7 +328,7 @@ func TestScanService_ProbeAndStoreStreams_NilProberReturnsZero(t *testing.T) {
 		h.libCmd, h.libQuery, h.media, h.streams, h.persons, h.mediaPersons,
 		h.scanner, nil /* prober */, h.search, h.bus,
 	)
-	got, probedOK := svc.ProbeAndStoreStreams(context.Background(), "m1", "/unused")
+	got, _, probedOK := svc.ProbeAndStoreStreams(context.Background(), "m1", "/unused")
 	assert.True(t, got.IsZero())
 	assert.False(t, probedOK)
 }
