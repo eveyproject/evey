@@ -44,6 +44,14 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
     if (sourceRef.current && elRef.current !== video) teardown();
     if (gainRef.current) return gainRef.current;
 
+    // Only build the graph once the page has genuine user activation. The "play"
+    // event can fire from muted autoplay (not a gesture), and creating/resuming an
+    // AudioContext then just logs "AudioContext couldn't start automatically"
+    // without producing sound. Defer until the user actually interacts (dragging
+    // the slider, scrolling the wheel, a key press). Undefined API (older Safari)
+    // → assume active so behaviour there is unchanged.
+    if (navigator.userActivation?.hasBeenActive === false) return null;
+
     const AC: typeof AudioContext | undefined =
       window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return null;

@@ -497,7 +497,7 @@ export function HLSPlayer({
     if (controlsToggleRef.current) controlsToggleRef.current();
   }, []);
 
-  const { seekFlash, brightness, setBrightnessValue, swipeIndicator, handleTouchStart, handleTouchMove, handleTouchEnd, handleWheel, cleanupTimers } = useTouchGestures({
+  const { seekFlash, brightness, setBrightnessValue, swipeIndicator, handleTouchStart, handleTouchMove, handleTouchEnd, cleanupTimers } = useTouchGestures({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, onToggleFullscreen: toggleFullscreen, onSingleTap: handleSingleTap,
   });
 
@@ -656,7 +656,6 @@ export function HLSPlayer({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onWheel={handleWheel}
     >
       <video ref={(el) => { videoRef.current = el; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
       {seekFlash === "left" && (

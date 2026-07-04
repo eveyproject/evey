@@ -182,17 +182,6 @@ export function useTouchGestures({
     }
   }, []);
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    const video = videoRef.current;
-    if (!video) return;
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.05 : -0.05;
-    const next = Math.min(1, Math.max(0, video.volume + delta));
-    video.volume = next;
-    // Same intent as the volume slider: scrolling up past 0 clears the
-    // muted-autoplay flag.
-    if (next > 0 && video.muted) video.muted = false;
-  }, []);
 
   const setBrightnessValue = useCallback((value: number) => {
     const clamped = Math.max(MIN_BRIGHTNESS, Math.min(MAX_BRIGHTNESS, value));
@@ -214,7 +203,6 @@ export function useTouchGestures({
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
-    handleWheel,
     cleanupTimers,
   };
 }

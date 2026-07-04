@@ -225,6 +225,23 @@ export function PlayerProvider({
       const b = video!.buffered;
       if (b.length > 0) setBufferedEnd(b.end(b.length - 1));
     }
+    function onWheel(e: WheelEvent) {
+      // Wheel over the video adjusts volume across the full 0-200% range: the
+      // 0-100% part rides the native element volume, the 100-200% part the boost
+      // gain (same split as the slider). Registered passive:false so
+      // preventDefault actually stops the page scrolling under the cursor.
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.05 : -0.05;
+      const current = boostRef.current > 1 ? boostRef.current : video!.volume;
+      const next = Math.min(2, Math.max(0, current + delta));
+      video!.volume = Math.min(1, next);
+      if (next > 0 && video!.muted) video!.muted = false;
+      setBoost(next > 1 ? next : 1);
+    }
+
+    // Wheel is caught on the player container (the video's parent) so scrolling
+    // over the controls overlay counts too, matching the old handler's reach.
+    const wheelTarget: HTMLElement = video.parentElement ?? video;
 
     video.addEventListener("play", onPlay);
     video.addEventListener("pause", onPause);
@@ -232,6 +249,7 @@ export function PlayerProvider({
     video.addEventListener("durationchange", onDurationChange);
     video.addEventListener("volumechange", onVolumeChange);
     video.addEventListener("progress", onProgress);
+    wheelTarget.addEventListener("wheel", onWheel, { passive: false });
     video.addEventListener("enterpictureinpicture", onEnterPip);
     video.addEventListener("leavepictureinpicture", onLeavePip);
     document.addEventListener("fullscreenchange", onFullscreenChange);
@@ -249,11 +267,12 @@ export function PlayerProvider({
       video.removeEventListener("durationchange", onDurationChange);
       video.removeEventListener("volumechange", onVolumeChange);
       video.removeEventListener("progress", onProgress);
+      wheelTarget.removeEventListener("wheel", onWheel);
       video.removeEventListener("enterpictureinpicture", onEnterPip);
       video.removeEventListener("leavepictureinpicture", onLeavePip);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
-  }, [videoRef, applyBoost]);
+  }, [videoRef, applyBoost, setBoost]);
 
   const effectiveDuration = computeEffectiveDuration(knownDurationSec, duration);
 
