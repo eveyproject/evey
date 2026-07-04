@@ -1,8 +1,27 @@
 export const canPlayHevc = (() => {
   const v = document.createElement("video");
-  // "maybe" is unreliable (Firefox returns it without actual HEVC support)
-  return v.canPlayType('video/mp4; codecs="hvc1"') === "probably"
-    || v.canPlayType('video/mp4; codecs="hev1"') === "probably";
+  // "maybe" is unreliable (Firefox returns it without actual HEVC support), so
+  // require "probably" on the plain element first.
+  const byElement =
+    v.canPlayType('video/mp4; codecs="hvc1"') === "probably" ||
+    v.canPlayType('video/mp4; codecs="hev1"') === "probably";
+  if (!byElement) return false;
+  // The streaming path is hls.js → Media Source Extensions. Firefox on Windows
+  // reports HEVC "probably" on the plain <video> element (via the OS decoder)
+  // while its MSE cannot decode HEVC — advertising hevc then makes the server
+  // direct-play a stream MSE chokes on ("no decoder for video/mp4; codecs=hvc1").
+  // Gate on isTypeSupported so we only claim HEVC the actual (MSE) path can do.
+  // No MSE at all (native/progressive path) → keep the element result.
+  const MS =
+    typeof window !== "undefined"
+      ? (window.MediaSource ??
+        (window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource)
+      : undefined;
+  if (!MS || typeof MS.isTypeSupported !== "function") return true;
+  return (
+    MS.isTypeSupported('video/mp4; codecs="hvc1"') ||
+    MS.isTypeSupported('video/mp4; codecs="hev1"')
+  );
 })();
 
 // canDisplayHdr is true only when the display reports an HDR-capable dynamic
