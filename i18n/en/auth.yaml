@@ -33,8 +33,9 @@ setup:
     photos: Photos
 signingIn: "Signing in…"
 login:
-  guestJoinDesc: "Invited to watch together? Enter the code — no account needed."
-  guestJoinError: "Could not join — check the code."
+  guestJoinTrigger: "Watch together"
+  guestJoinDesc: "Enter the code - no account needed."
+  guestJoinError: "Could not join - check the code."
   signIn: Sign in
   signInToAccount: Sign in to your account
   username: Username

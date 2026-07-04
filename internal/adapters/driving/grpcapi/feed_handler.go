@@ -70,7 +70,9 @@ func (h *feedHandler) filterAccessibleAndAllowed(ctx context.Context, items []*f
 		if err != nil {
 			return nil, err
 		}
-		if ids != nil {
+		// Zero grants = unrestricted (opt-out default): only filter when the user
+		// has an explicit whitelist. Matches getAllowedLibraryIDs / HasAccess.
+		if len(ids) > 0 {
 			allowedIDs = ids
 			libFilter = true
 		}

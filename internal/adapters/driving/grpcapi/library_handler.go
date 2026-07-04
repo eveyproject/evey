@@ -876,12 +876,12 @@ func (h *libraryHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, er
 	if err != nil {
 		return nil, fmt.Errorf("libraryHandler.getAllowedLibraryIDs: %w", err)
 	}
-	// Always return a NON-NIL slice for a non-admin: nil means "unrestricted"
-	// to filterLibrariesByAccess (the admin path above), whereas an empty slice
-	// means "access to NO library" and must filter to zero. Collapsing empty→nil
-	// here showed a zero-grant user EVERY library (authz bypass).
-	if ids == nil {
-		return []string{}, nil
+	// A non-admin with zero grants is UNRESTRICTED (sees every library): the admin
+	// panel treats "no library checked" as the default-all opt-out, matching
+	// HasAccess (zero restrictions = full access). Grants act as a whitelist only
+	// when present; nil here means "unrestricted" to filterLibrariesByAccess.
+	if len(ids) == 0 {
+		return nil, nil
 	}
 	return ids, nil
 }

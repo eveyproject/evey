@@ -347,7 +347,14 @@ func (h *collectionHandler) allowedLibraryIDs(ctx context.Context) ([]string, er
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
 	}
-	return h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil // zero grants = unrestricted (opt-out default)
+	}
+	return ids, nil
 }
 
 // checkCollectionAccess verifies the caller can interact with the collection

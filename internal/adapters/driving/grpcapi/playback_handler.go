@@ -903,7 +903,14 @@ func (h *playbackHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, e
 	if claims == nil || claims.IsAdmin {
 		return nil, nil
 	}
-	return h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, nil // zero grants = unrestricted (opt-out default)
+	}
+	return ids, nil
 }
 
 // normalizeNetworkType accepts "wifi" or "cellular" and defaults unknown/empty to "wifi".

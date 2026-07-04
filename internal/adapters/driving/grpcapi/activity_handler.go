@@ -277,7 +277,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 		if aErr != nil {
 			return nil, internalError("popular media: library access", aErr)
 		}
-		if libIDs != nil {
+		if len(libIDs) > 0 {
 			allowedLibs = make(map[string]bool, len(libIDs))
 			for _, id := range libIDs {
 				allowedLibs[id] = true

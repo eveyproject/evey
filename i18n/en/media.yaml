@@ -106,6 +106,7 @@ library:
   noItemsFiltered: Try adjusting your filters or search term.
   noItemsType: Try a different filter, or scan the library to add content.
   noItemsEmpty: This library is empty. Trigger a scan to add content.
+  noItemsEmptyUser: No content here yet. Check back later.
   goToAdmin: Go to Admin
   selected: selected
   addToFavorites: Add to favorites

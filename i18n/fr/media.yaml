@@ -106,6 +106,7 @@ library:
   noItemsFiltered: "Essayez d'ajuster vos filtres ou votre recherche."
   noItemsType: "Essayez un filtre différent, ou scannez la bibliothèque pour ajouter du contenu."
   noItemsEmpty: Cette bibliothèque est vide. Lancez un scan pour ajouter du contenu.
+  noItemsEmptyUser: Aucun contenu ici pour le moment. Revenez plus tard.
   goToAdmin: "Aller à l'administration"
   selected: sélectionné(s)
   addToFavorites: Ajouter aux favoris

@@ -259,6 +259,9 @@ func (h *notificationHandler) allowedLibraryIDs(ctx context.Context) ([]string, 
 	if err != nil {
 		return nil, err
 	}
+	if len(ids) == 0 {
+		return nil, nil // zero grants = unrestricted (opt-out default)
+	}
 	return ids, nil
 }
 

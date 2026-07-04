@@ -7,6 +7,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
@@ -29,21 +30,30 @@ func newAccessServiceWithGrants(t *testing.T) (*appuser.AccessService, *userfake
 	return svc, repo
 }
 
-// Regression: a non-admin user granted ZERO libraries must see NO libraries.
-// getAllowedLibraryIDs used to collapse a non-nil empty grant list to nil, which
-// filterLibrariesByAccess treats as "unrestricted" → the user saw EVERY library
-// (authz bypass). The nil result must stay reserved for the admin path.
-func TestFilterLibrariesByAccess_ZeroGrantsSeesNone(t *testing.T) {
+// A non-admin's library grants are an opt-out WHITELIST: zero grants means
+// "unrestricted" (sees every library, the admin-panel default when no box is
+// checked), and grants only restrict once present. This mirrors HasAccess
+// (zero restrictions = full access) so the library list, home feeds and the
+// per-item check all agree.
+func TestFilterLibrariesByAccess_ZeroGrantsSeesAll(t *testing.T) {
 	t.Parallel()
-	userAccess, _ := newAccessServiceWithGrants(t)
+	userAccess, repo := newAccessServiceWithGrants(t)
 	h := &libraryHandler{userAccess: userAccess}
 	libs := []*library.Library{{ID: "lib-1"}, {ID: "lib-2"}}
 
-	// Non-admin with no grants → zero libraries.
+	// Non-admin with NO grants → unrestricted (sees all libraries).
 	nonAdmin := interceptors.ContextWithClaims(context.Background(), &user.Claims{UserID: "u-noaccess", IsAdmin: false})
 	got, err := h.filterLibrariesByAccess(nonAdmin, libs)
 	require.NoError(t, err)
-	assert.Empty(t, got, "non-admin with zero grants must see NO libraries")
+	assert.Len(t, got, 2, "non-admin with zero grants sees ALL libraries (opt-out default)")
+
+	// Non-admin WITH an explicit grant → restricted to that library only.
+	require.NoError(t, repo.Grant(context.Background(), shared.UserID("u-restricted"), shared.LibraryID("lib-1")))
+	restricted := interceptors.ContextWithClaims(context.Background(), &user.Claims{UserID: "u-restricted", IsAdmin: false})
+	gotRestricted, err := h.filterLibrariesByAccess(restricted, libs)
+	require.NoError(t, err)
+	require.Len(t, gotRestricted, 1, "granted non-admin sees only whitelisted libraries")
+	assert.Equal(t, shared.LibraryID("lib-1"), gotRestricted[0].ID)
 
 	// Admin → unrestricted (sees all).
 	admin := interceptors.ContextWithClaims(context.Background(), &user.Claims{UserID: "admin-1", IsAdmin: true})

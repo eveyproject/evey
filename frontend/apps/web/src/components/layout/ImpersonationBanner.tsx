@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 export function ImpersonationBanner() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const impersonatedBy = useAuthStore((s) => s.impersonatedBy);
   const username = useAuthStore((s) => s.impersonatedUsername);
   const exitImpersonation = useAuthStore((s) => s.exitImpersonation);
@@ -25,8 +27,11 @@ export function ImpersonationBanner() {
       <Button
         variant="ghost"
         onClick={() => {
+          // Drop the target's cached data before restoring the admin token so
+          // the admin doesn't keep seeing the impersonated user's filtered views.
           exitImpersonation();
-          navigate({ to: "/" });
+          queryClient.clear();
+          navigate({ to: "/admin/users" });
         }}
       >
         {t("admin.users.exitImpersonation")}

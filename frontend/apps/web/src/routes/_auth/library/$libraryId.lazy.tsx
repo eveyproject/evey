@@ -94,6 +94,7 @@ function LibraryPage() {
   const [bulkCollectionOpen, setBulkCollectionOpen] = useState(false);
   const [bulkFavPending, setBulkFavPending] = useState(false);
   const profileId = useAuthStore((s) => s.profileId);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const queryClient = useQueryClient();
 
   const updateSearch = useCallback(
@@ -693,12 +694,14 @@ function LibraryPage() {
                 description={
                   hasActiveFilters
                     ? t("media.library.noItemsFiltered")
-                    : typeFilter
-                      ? t("media.library.noItemsType")
-                      : t("media.library.noItemsEmpty")
+                    : isAdmin
+                      ? typeFilter
+                        ? t("media.library.noItemsType")
+                        : t("media.library.noItemsEmpty")
+                      : t("media.library.noItemsEmptyUser")
                 }
                 action={
-                  !hasActiveFilters
+                  isAdmin && !hasActiveFilters
                     ? { label: t("media.library.goToAdmin"), onClick: () => void navigate({ to: "/admin/libraries" }) }
                     : undefined
                 }

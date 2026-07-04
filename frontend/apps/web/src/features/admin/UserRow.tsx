@@ -32,7 +32,11 @@ export function UserRow({ user }: { user: V1User }) {
       onSuccess: (data) => {
         if (!data.accessToken) return;
         // Stash the admin token, swap to the target's, land on the home grid.
+        // Clear the query cache so admin-session data (which sees every library
+        // unfiltered) is not served stale under the target's identity — every
+        // query refetches with the impersonation token.
         doImpersonate(data.accessToken);
+        queryClient.clear();
         navigate({ to: "/" });
       },
       onError: (err: Error) => toast.error(err.message || t("admin.users.failedImpersonate")),

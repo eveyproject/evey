@@ -33,8 +33,9 @@ setup:
     photos: Photos
 signingIn: "Connexion en cours…"
 login:
-  guestJoinDesc: "Invité à regarder ensemble ? Saisissez le code — aucun compte requis."
-  guestJoinError: "Impossible de rejoindre — vérifiez le code."
+  guestJoinTrigger: "Regarder ensemble"
+  guestJoinDesc: "Saisissez le code - aucun compte requis."
+  guestJoinError: "Impossible de rejoindre - vérifiez le code."
   signIn: "Se connecter"
   signInToAccount: "Connectez-vous à votre compte"
   username: "Nom d'utilisateur"

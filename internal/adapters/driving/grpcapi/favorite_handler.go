@@ -72,11 +72,15 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 	allowed := func(libraryID string) bool { return true }
 	if !claims.IsAdmin && h.userAccess != nil {
 		access, _ := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
-		accessSet := make(map[string]struct{}, len(access))
-		for _, libID := range access {
-			accessSet[libID] = struct{}{}
+		// Zero grants = unrestricted (opt-out default): only restrict when the
+		// user has an explicit whitelist.
+		if len(access) > 0 {
+			accessSet := make(map[string]struct{}, len(access))
+			for _, libID := range access {
+				accessSet[libID] = struct{}{}
+			}
+			allowed = func(libraryID string) bool { _, ok := accessSet[libraryID]; return ok }
 		}
-		allowed = func(libraryID string) bool { _, ok := accessSet[libraryID]; return ok }
 	}
 	// Parental: a kid profile must not see adult favorites' metadata (title /
 	// year / rating) — drop blocked items entirely, mirroring resume/next-up.
