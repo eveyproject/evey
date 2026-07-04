@@ -30,6 +30,22 @@ export function setPreferredSubtitleLang(lang: string | null) {
   set(SUBTITLE_KEY, lang);
 }
 
+const VOLUME_BOOST_KEY = "evey:volume-boost";
+
+// Amplification factor for the >100% zone (1..2). Clamped and NaN-guarded so a
+// corrupted value can never feed a bogus gain into the audio graph.
+export function getVolumeBoost(): number {
+  const raw = get(VOLUME_BOOST_KEY);
+  if (!raw) return 1;
+  const n = Number(raw);
+  if (!isFinite(n)) return 1;
+  return Math.min(2, Math.max(1, n));
+}
+
+export function setVolumeBoost(boost: number) {
+  set(VOLUME_BOOST_KEY, boost > 1 ? String(boost) : null);
+}
+
 interface SeriesTrackPrefs {
   audioLang?: string;
   subtitleLang?: string | null;

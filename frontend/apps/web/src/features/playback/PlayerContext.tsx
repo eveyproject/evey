@@ -1,10 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { AudioStream } from "./AudioTrackSelector";
 import type { SubtitleStream } from "./SubtitleSelector";
 import type { Chapter } from "@/hooks/useChapters";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
 import { useMediaSession } from "./hooks/useMediaSession";
+import { useVolumeBoost } from "./hooks/useVolumeBoost";
+import { getVolumeBoost, setVolumeBoost } from "@/hooks/usePlaybackPrefs";
 
 // Stable empty defaults: inline `= []` default params allocate a fresh array on
 // every render, which would churn the `value` memo (and every consumer) on each
@@ -31,6 +33,10 @@ export interface PlayerState {
   duration: number;
   volume: number;
   muted: boolean;
+  /** Amplification above 100% (1..2). 1 = no boost; the base 0-100% is `volume`. */
+  boost: number;
+  /** Set the >100% amplification factor (1..2); persisted and applied live. */
+  setBoost: (boost: number) => void;
   fullscreen: boolean;
   isPip: boolean;
 
@@ -168,15 +174,38 @@ export function PlayerProvider({
   const [bufferedEnd, setBufferedEnd] = useState(0);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+  const [boost, setBoostState] = useState<number>(() => getVolumeBoost());
   const [fullscreen, setFullscreen] = useState(false);
   const [isPip, setIsPip] = useState(false);
   const lastTimeUpdate = useRef(0);
+
+  const applyBoost = useVolumeBoost(videoRef);
+  // Read-latest mirror so the "play" listener can re-arm the persisted boost
+  // without the boost value being a dependency of the (element-scoped) effect.
+  const boostRef = useRef(boost);
+  boostRef.current = boost;
+
+  const setBoost = useCallback(
+    (next: number) => {
+      const clamped = Math.min(2, Math.max(1, next));
+      setBoostState(clamped);
+      setVolumeBoost(clamped);
+      applyBoost(clamped);
+    },
+    [applyBoost],
+  );
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    function onPlay() { setPlaying(true); }
+    function onPlay() {
+      setPlaying(true);
+      // Re-arm a persisted boost once playback (a user gesture) starts: the
+      // AudioContext can only resume from suspended inside a gesture, so we
+      // can't apply the stored >100% level at mount.
+      if (boostRef.current > 1) applyBoost(boostRef.current);
+    }
     function onPause() { setPlaying(false); }
     function onTimeUpdate() {
       const now = performance.now();
@@ -224,7 +253,7 @@ export function PlayerProvider({
       video.removeEventListener("leavepictureinpicture", onLeavePip);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
     };
-  }, [videoRef]);
+  }, [videoRef, applyBoost]);
 
   const effectiveDuration = computeEffectiveDuration(knownDurationSec, duration);
 
@@ -264,6 +293,8 @@ export function PlayerProvider({
     duration,
     volume,
     muted,
+    boost,
+    setBoost,
     fullscreen,
     isPip,
     knownDurationSec,
@@ -297,6 +328,8 @@ export function PlayerProvider({
     duration,
     volume,
     muted,
+    boost,
+    setBoost,
     fullscreen,
     isPip,
     knownDurationSec,

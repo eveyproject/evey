@@ -90,7 +90,7 @@ function PlayerControlsInner({
   const timeRef = usePlayerTimeRef();
   const docPiP = useDocumentPiP();
   const {
-    videoRef, playing: localPlaying, volume: localVolume, muted: localMuted, fullscreen, isPip,
+    videoRef, playing: localPlaying, volume: localVolume, muted: localMuted, boost, setBoost, fullscreen, isPip,
     effectiveDuration: localDuration, transcodeOffset,
     audioStreams, subtitleStreams, currentAudioIndex, currentQuality,
     currentSubtitleTrackIndex, playbackSpeed, autoQuality, autoQualityLabel,
@@ -106,8 +106,11 @@ function PlayerControlsInner({
   const isCasting = castConnected && castPlayback?.isMediaLoaded;
   const playing = isCasting ? !castPlayback.isPaused : localPlaying;
   const effectiveDuration = localDuration;
-  const volume = isCasting ? (castPlayback.volume ?? 1) : localVolume;
   const muted = isCasting ? (castPlayback.isMuted ?? false) : localMuted;
+  // The slider's continuous 0-2 value: the native 0-100% comes from the element
+  // (localVolume), the >100% zone from the boost gain. Casting can't amplify, so
+  // it stays on the device's own 0-1 level.
+  const volume = isCasting ? (castPlayback.volume ?? 1) : (boost > 1 ? boost : localVolume);
 
   // The live position no longer lives in this component's render (it's split
   // into PlayerTimeContext, consumed by the Live* leaves below) so the control
@@ -251,14 +254,18 @@ function PlayerControlsInner({
   })();
 
   function handleVolume(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = Number(e.target.value);
+    const val = Number(e.target.value); // 0..2
     if (isCasting && onCastSetVolume) {
-      onCastSetVolume(val);
+      // The receiver device tops out at 100%; never hand it a boosted level.
+      onCastSetVolume(Math.min(1, val));
       return;
     }
     const video = videoRef.current;
     if (!video) return;
-    video.volume = val;
+    // Split the continuous 0-2 slider: 0-1 rides the native element volume,
+    // 1-2 pins the element at full and amplifies the rest through the gain node.
+    video.volume = Math.min(1, val);
+    setBoost(val > 1 ? val : 1);
     // The muted-autoplay fallback leaves video.muted=true even after the user
     // grabs the slider; without this unmute, dragging the bar visibly raises
     // the slider but produces no sound — they have to also click the volume
