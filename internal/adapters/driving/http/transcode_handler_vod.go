@@ -430,7 +430,14 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 					http.Error(w, `{"message":"manifest error"}`, http.StatusInternalServerError)
 					return
 				}
-				out, served = string(data), true
+				// The copy manifest emits BARE segment URIs. Re-bake the same
+				// auth + decision suffix the generator's playlists carry:
+				// without it the segment requests arrive with no token (401 for
+				// native players that don't hold the evey_hls cookie) and no
+				// codec/hdr caps — makeDecision then re-derives a TRANSCODE
+				// fingerprint and spawns a parallel ffmpeg re-encode whose
+				// bytes contradict the master's copy CODECS.
+				out, served = rebakeManifestURIs(string(data), apptranscoding.QuerySuffixFor(in)), true
 			}
 		}
 	}
@@ -463,6 +470,29 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 			producer.PreWarm(fp, 0)
 		}
 	}
+}
+
+// rebakeManifestURIs appends the request's auth + decision query suffix to
+// every URI in a producer-owned media playlist (media segments and the
+// #EXT-X-MAP init). No-op on empty suffix or on playlists whose URIs already
+// carry a query (defensive - the copy manifest never does).
+func rebakeManifestURIs(manifest, suffix string) string {
+	if suffix == "" {
+		return manifest
+	}
+	lines := strings.Split(manifest, "\n")
+	for i, ln := range lines {
+		switch {
+		case strings.HasPrefix(ln, "#EXT-X-MAP:URI=\""):
+			if !strings.Contains(ln, "?") {
+				uri := strings.TrimSuffix(strings.TrimPrefix(ln, "#EXT-X-MAP:URI=\""), "\"")
+				lines[i] = "#EXT-X-MAP:URI=\"" + uri + suffix + "\""
+			}
+		case ln != "" && !strings.HasPrefix(ln, "#") && !strings.Contains(ln, "?"):
+			lines[i] = ln + suffix
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
@@ -725,6 +755,11 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		AudioRenditions: audioRenditions,
 		CopyVideoCodec:  sourceCopyVideoCodec(streams),
 		CopyVideoRange:  sourceCopyVideoRange(streams),
+		// hdr=1 is a decision input (copy rung vs tonemap) exactly like the
+		// codec lists: it MUST be re-baked into the variant/segment URLs or the
+		// segment-time makeDecision silently downgrades an HDR copy rung to a
+		// tonemapped h264 transcode that contradicts the master's CODECS.
+		HDRCapable: r != nil && r.URL.Query().Get("hdr") == "1",
 	}, nil
 }
 

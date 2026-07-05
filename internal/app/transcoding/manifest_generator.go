@@ -102,6 +102,13 @@ type ManifestInput struct {
 	// working without change.
 	AudioRenditions []AudioRendition
 
+	// HDRCapable mirrors the request's `hdr=1` client capability into every
+	// baked URL. The master decision (copy rung vs tonemap) reads this flag;
+	// without re-baking it, the variant/segment requests re-derive the decision
+	// WITHOUT it and produce tonemapped SDR h264 segments inside a variant the
+	// master advertised as hvc1/PQ copy — codec mismatch, broken playback.
+	HDRCapable bool
+
 	// VideoPlaylistURI, when set, overrides the video variant's playlist URI
 	// (the default is stream_<idx>.m3u8). It is honoured ONLY for a
 	// single-variant input — the on-demand copy rung uses it to point the one
@@ -609,6 +616,11 @@ func audioCodecAttr(c string) string {
 	}
 }
 
+// QuerySuffixFor exposes the baked query suffix so the HTTP layer can
+// post-process producer-owned playlists (the copy manifest emits bare URIs;
+// they must carry the same auth + decision params as the generator's own).
+func QuerySuffixFor(in ManifestInput) string { return querySuffix(in) }
+
 // querySuffix builds the `?…` to append to every URL in the playlists. The
 // stream token + decision params are baked into each entry so hls.js doesn't
 // need to negotiate auth per request.
@@ -629,6 +641,11 @@ func querySuffix(in ManifestInput) string {
 	}
 	if len(in.Containers) > 0 {
 		q.Set("containers", strings.Join(in.Containers, ","))
+	}
+	if in.HDRCapable {
+		// Decision input like the codec lists: dropping it flips the segment
+		// decision from copy to tonemap-transcode mid-presentation (see field doc).
+		q.Set("hdr", "1")
 	}
 	if encoded := q.Encode(); encoded != "" {
 		return "?" + encoded

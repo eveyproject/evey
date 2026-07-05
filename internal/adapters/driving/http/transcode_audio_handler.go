@@ -123,6 +123,8 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		Containers:          splitCSVQuery(r, "containers"),
 		UseFMP4:             true,
 		AudioRenditions:     audioRenditions,
+		// Same re-bake rule as buildManifestInput: hdr is a decision input.
+		HDRCapable: r.URL.Query().Get("hdr") == "1",
 	}
 
 	out, err := h.manifestGen.AudioPlaylist(in, trackIdx)
