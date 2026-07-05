@@ -23,7 +23,7 @@ import (
 // so change-detection agrees. No-op when no row matches the path.
 func (r *MediaItemRepository) RefreshFileState(ctx context.Context, path string, size int64, modTime time.Time) error {
 	fingerprint := fmt.Sprintf("%d-%d", size, modTime.UnixNano())
-	if _, err := r.db.ExecContext(ctx,
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE media_files SET file_size = $1, mod_time = $2, file_fingerprint = $3 WHERE file_path = $4`,
 		size, modTime, fingerprint, path); err != nil {
 		return fmt.Errorf("refresh media_files state: %w", err)

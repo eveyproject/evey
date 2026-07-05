@@ -1,6 +1,6 @@
 .PHONY: proto-gen plugin-sdk plugin-zips build test test-image test-shell lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
-	ci-local ci-local-lint ci-local-test ci-local-frontend pre-push hooks \
+	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch pre-push hooks \
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go
@@ -147,8 +147,17 @@ ci-local-frontend:
 # govulncheck + build + gosec ratchet + general lint), run by the git pre-push
 # hook so a red `quality` pipeline never surprises you again. No -race tests
 # here (that's the separate `correctness` job — use `make ci-local` for those).
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec ci-local-lint transcode-itest-gate
-	@echo "✅ pre-push OK — quality gate green (vet + govulncheck + build + gosec + lint + transcode contract)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec ci-local-lint ci-arch transcode-itest-gate
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + gosec + lint + arch guards + transcode contract)."
+
+# ci-arch: the static architecture guards (TxUnit bypass, etc.) that need NO DB -
+# they only regex the source tree, so they run in milliseconds. Their sibling
+# postgres_test package boots a testcontainers Postgres (~130s) which is why the
+# full suite is CI-only; these guards live in .../postgres/txguard so pre-push
+# catches a TxUnit bypass locally instead of on CI.
+ci-arch:
+	@echo "→ arch guards (txguard: no DB, sub-second)"
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go test ./internal/adapters/driven/postgres/txguard/...'
 
 # transcode-itest-gate: run the copy-pipeline contract test (make transcode-itest)
 # whenever the outgoing changes touch the transcoding stack — the bug class it
