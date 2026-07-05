@@ -9,6 +9,7 @@ import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrl } from "../src/hooks/useServerUrl";
 import { setRefreshToken } from "../src/lib/refresh-token";
+import { getSavedCredentials, saveCredentials, clearSavedCredentials } from "../src/lib/saved-credentials";
 import { useBiometricAvailable, useBiometricEnabled, authenticateBiometric } from "../src/hooks/useBiometric";
 
 export default function Login() {
@@ -16,13 +17,18 @@ export default function Login() {
   const { t } = useTranslation();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [oidcLoading, setOidcLoading] = useState(false);
   const setTokens = useAuthStore((s) => s.setTokens);
   const accessToken = useAuthStore((s) => s.accessToken);
   const serverUrl = useServerUrl();
   const { available: biometricAvailable, biometricType } = useBiometricAvailable();
   const { enabled: biometricEnabled } = useBiometricEnabled();
-  const canUseBiometric = biometricAvailable && biometricEnabled && !!accessToken;
+  const [hasSavedCreds, setHasSavedCreds] = useState(false);
+  // Biometric works two ways: with a live session it just unlocks; with saved
+  // "remember me" credentials it performs a REAL login - landing here after a
+  // session purge is one fingerprint away from being back in, not a retype.
+  const canUseBiometric = biometricAvailable && biometricEnabled && (!!accessToken || hasSavedCreds);
 
   useEffect(() => {
     if (canUseBiometric) {
@@ -30,11 +36,30 @@ export default function Login() {
     }
   }, [canUseBiometric]);
 
+  // Prefill from the keystore when the user opted into "remember me" - being
+  // bounced to this screen (expired session, server hiccup) shouldn't mean
+  // retyping credentials every time.
+  useEffect(() => {
+    let cancelled = false;
+    void getSavedCredentials().then((saved) => {
+      if (cancelled || !saved) return;
+      setUsername((u) => u || saved.username);
+      setPassword((p) => p || saved.password);
+      setRemember(true);
+      setHasSavedCreds(true);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   async function handleBiometricLogin() {
     const success = await authenticateBiometric(t("mobile.auth.biometricPrompt") || "Unlock Evey");
-    if (success) {
+    if (!success) return;
+    if (accessToken) {
       router.replace("/profile-select");
+      return;
     }
+    const saved = await getSavedCredentials();
+    if (saved) login({ data: { username: saved.username, password: saved.password } });
   }
 
   const oidcConfig = useQuery<{ enabled: boolean }>({
@@ -89,6 +114,8 @@ export default function Login() {
         if (data.accessToken) {
           setTokens(data.accessToken);
           if (data.refreshToken) await setRefreshToken(data.refreshToken);
+          if (remember) await saveCredentials(username.trim(), password.trim());
+          else await clearSavedCredentials();
           router.replace("/profile-select");
         }
       },
@@ -152,6 +179,23 @@ export default function Login() {
         accessible={true}
         accessibilityLabel="Password"
       />
+      <Pressable
+        onPress={() => setRemember((r) => !r)}
+        accessible={true}
+        accessibilityLabel={t("mobile.auth.rememberMe", "Remember me")}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: remember }}
+        style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: theme.spacing.md, minHeight: 44 }}
+      >
+        <Ionicons
+          name={remember ? "checkbox" : "square-outline"}
+          size={22}
+          color={remember ? theme.colors.accent : theme.colors.textMuted}
+        />
+        <Text style={{ color: theme.colors.text, fontSize: 14 }}>
+          {t("mobile.auth.rememberMe", "Remember me")}
+        </Text>
+      </Pressable>
       <Pressable
         onPress={handleLogin}
         disabled={isPending}
