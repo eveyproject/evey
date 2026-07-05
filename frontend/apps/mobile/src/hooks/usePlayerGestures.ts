@@ -51,6 +51,20 @@ export function usePlayerGestures({
   const swipeStartVolumeRef = useRef(1);
   const swipeStartBrightnessRef = useRef(1);
 
+  // Latest callbacks/params in a ref so the PanResponder can be built ONCE with
+  // stable panHandlers. Recreating it mid-swipe (which happened whenever one of
+  // these changed identity on a setState re-render) re-granted the gesture and
+  // reset gestureState.dy to ~0 — so volume/brightness barely moved ("stuck at
+  // ~97% then snaps back").
+  const cb = useRef({
+    onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange,
+    onBrightnessChange, getVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
+  });
+  cb.current = {
+    onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange,
+    onBrightnessChange, getVolume, getBrightness, skipForwardSeconds, skipBackwardSeconds,
+  };
+
   const flashSeek = useCallback((side: "left" | "right") => {
     setSeekFlash(side);
     if (seekFlashTimer.current) clearTimeout(seekFlashTimer.current);
@@ -66,8 +80,8 @@ export function usePlayerGestures({
 
         onPanResponderGrant: () => {
           swipeActiveRef.current = null;
-          swipeStartVolumeRef.current = getVolume();
-          swipeStartBrightnessRef.current = getBrightness();
+          swipeStartVolumeRef.current = cb.current.getVolume();
+          swipeStartBrightnessRef.current = cb.current.getBrightness();
         },
 
         onPanResponderMove: (evt: GestureResponderEvent, gs: PanResponderGestureState) => {
@@ -100,12 +114,14 @@ export function usePlayerGestures({
           const dy = -gs.dy; // positive = swipe up
 
           if (swipeActiveRef.current === "volume") {
-            const newVol = Math.max(0, Math.min(1, swipeStartVolumeRef.current + dy * SENSITIVITY));
-            onVolumeChange(newVol);
+            // 0-2 range: 0-1 rides the native player volume, 1-2 engages the
+            // LoudnessEnhancer boost (see handleVolumeChange in the player screen).
+            const newVol = Math.max(0, Math.min(2, swipeStartVolumeRef.current + dy * SENSITIVITY));
+            cb.current.onVolumeChange(newVol);
             setVolumeIndicator(newVol);
           } else if (swipeActiveRef.current === "brightness") {
             const newBri = Math.max(0, Math.min(1, swipeStartBrightnessRef.current + dy * SENSITIVITY));
-            onBrightnessChange(newBri);
+            cb.current.onBrightnessChange(newBri);
             setBrightnessIndicator(newBri);
           }
         },
@@ -136,25 +152,27 @@ export function usePlayerGestures({
             lastTapRef.current = null;
 
             if (relX < LEFT_ZONE) {
-              onSeekBy(-skipBackwardSeconds);
+              cb.current.onSeekBy(-cb.current.skipBackwardSeconds);
               flashSeek("left");
             } else if (relX > RIGHT_ZONE) {
-              onSeekBy(skipForwardSeconds);
+              cb.current.onSeekBy(cb.current.skipForwardSeconds);
               flashSeek("right");
             } else {
-              onTogglePlayPause();
+              cb.current.onTogglePlayPause();
             }
           } else {
             lastTapRef.current = { x: tapX, time: now };
             if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
             singleTapTimer.current = setTimeout(() => {
               singleTapTimer.current = null;
-              onToggleControls();
+              cb.current.onToggleControls();
             }, DOUBLE_TAP_DELAY);
           }
         },
       }),
-    [onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange, onBrightnessChange, getVolume, getBrightness, flashSeek, skipForwardSeconds, skipBackwardSeconds],
+    // Built ONCE — all callbacks/params are read through the `cb` ref (see above),
+    // so the panHandlers stay stable and a swipe is never re-granted mid-gesture.
+    [flashSeek],
   );
 
   const cleanup = useCallback(() => {

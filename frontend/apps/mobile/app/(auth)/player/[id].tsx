@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { getCastBaseUrl } from "../../../src/lib/server-config";
+import { setAudioBoost, releaseAudioBoost } from "../../../src/lib/audioBoost";
 import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
 import {
@@ -118,7 +119,7 @@ export default function PlayerScreen() {
   const videoViewRef = useRef<VideoView>(null);
   const pipSupported = useMemo(() => isPictureInPictureSupported(), []);
   const mountedRef = useRef(true);
-  useEffect(() => { return () => { mountedRef.current = false; }; }, []);
+  useEffect(() => { return () => { mountedRef.current = false; void releaseAudioBoost(); }; }, []);
 
   const [showControls, setShowControls] = useState(true);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
@@ -266,7 +267,10 @@ export default function PlayerScreen() {
       statusSub.remove();
       playSub.remove();
     };
-  }, [player]);
+    // transcodeOffset MUST be a dep: after a transcode seek it changes, and a
+    // stale closure here would keep adding the old offset (0) — the position
+    // snaps back to the start even though the server restarted at the seek point.
+  }, [player, transcodeOffset]);
 
   const castState = useCastStateHook();
   const castClient = useRemoteMediaClientHook();
@@ -280,11 +284,16 @@ export default function PlayerScreen() {
     if (!player) return;
     try { player.pause(); } catch (err) { console.warn("released", err); }
     try { player.volume = 0; } catch (err) { console.warn("released", err); }
+    void setAudioBoost(1); // drop the amplification while muted for casting
   }, [player]);
 
   const unmuteLocalPlayer = useCallback(() => {
     if (!player) return;
-    try { player.volume = volume; } catch (err) { console.warn("released", err); }
+    // volume is the 0-2 level: restore the native part and re-arm the boost.
+    try {
+      player.volume = Math.min(1, volume);
+      void setAudioBoost(volume > 1 ? volume : 1);
+    } catch (err) { console.warn("released", err); }
   }, [player, volume]);
 
   const castLoadMedia = useCallback(async (client: any) => {
@@ -458,9 +467,10 @@ export default function PlayerScreen() {
       // Optimistic: show the target immediately so the release doesn't flash the
       // pre-seek position before the first post-seek timeUpdate lands.
       setCurrentTime(targetSec);
-      if (isTranscode) {
-        restartAtPosition(targetSec);
-      } else if (player) {
+      // Native seek on the absolute HLS timeline — works for direct-play AND
+      // transcode (the event playlist is 0-based; the server rafales any not-yet-
+      // produced segment). Reloading the stream instead replayed it from the start.
+      if (player) {
         player.currentTime = targetSec;
       }
       if (syncPlay.state.connected) syncPlay.sendSeek(targetSec * 1000);
@@ -471,27 +481,25 @@ export default function PlayerScreen() {
 
   const seekBy = useCallback(
     (seconds: number) => {
-      // On a transcode stream the server only produces media from the current
-      // offset forward, so seeking with the local player past the buffered
-      // window stalls. Restart the transcode at the absolute target instead.
-      if (isTranscode) {
-        const d = knownDuration > 0 ? knownDuration : duration;
-        const target = (player?.currentTime ?? 0) + transcodeOffset + seconds;
-        restartAtPosition(d > 0 ? Math.max(0, Math.min(d, target)) : Math.max(0, target));
-      } else if (player) {
+      // Native relative seek on the 0-based HLS timeline (transcode included).
+      if (player) {
         player.seekBy(seconds);
       }
       resetHideTimer();
     },
-    [player, isTranscode, restartAtPosition, transcodeOffset, knownDuration, duration, resetHideTimer],
+    [player, resetHideTimer],
   );
 
   const handleVolumeChange = useCallback(
     (value: number) => {
       if (!player) return;
-      player.volume = value;
-      volumeBaseRef.current = value;
-      setVolume(value);
+      // 0-2 split: 0-1 rides the native element volume, 1-2 amplifies through the
+      // native LoudnessEnhancer (Android; no-op elsewhere until its module lands).
+      const v = Math.max(0, Math.min(2, value));
+      player.volume = Math.min(1, v);
+      void setAudioBoost(v > 1 ? v : 1);
+      volumeBaseRef.current = v;
+      setVolume(v);
     },
     [player],
   );
@@ -637,15 +645,11 @@ export default function PlayerScreen() {
 
   const handleSkipIntro = useCallback(
     (toSec: number) => {
-      // toSec is the absolute segment end; on transcode it must restart the
-      // session rather than seek into the unbuffered region (see seekBy).
-      if (isTranscode) {
-        restartAtPosition(toSec);
-      } else if (player) {
+      if (player) {
         player.currentTime = toSec;
       }
     },
-    [player, isTranscode, restartAtPosition],
+    [player],
   );
 
   const handlePip = useCallback(async () => {
@@ -783,9 +787,14 @@ export default function PlayerScreen() {
           <View style={styles.volumeIndicator}>
             <Text style={styles.volumeIcon}>{"\u266A"}</Text>
             <View style={styles.volumeBarBg}>
-              <View style={[styles.volumeBarFill, { height: `${Math.round(volumeIndicator * 100)}%` }]} />
+              {/* Bar is full at 100%; the >100% boost is shown by the amber fill + the % text. */}
+              <View style={[
+                styles.volumeBarFill,
+                { height: `${Math.min(100, Math.round(volumeIndicator * 100))}%` },
+                volumeIndicator > 1 && { backgroundColor: "#f59e0b" },
+              ]} />
             </View>
-            <Text style={styles.volumeText}>{Math.round(volumeIndicator * 100)}</Text>
+            <Text style={[styles.volumeText, volumeIndicator > 1 && { color: "#f59e0b" }]}>{Math.round(volumeIndicator * 100)}</Text>
           </View>
         )}
 

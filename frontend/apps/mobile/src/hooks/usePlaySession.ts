@@ -9,12 +9,12 @@ import {
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
+import { getDeviceAudioCodecs, getDeviceHdrSupport } from "../lib/deviceCodecs";
 
 const DEVICE_ID = "evey-mobile";
 const DEVICE_NAME = "Evey Mobile";
 
 const VIDEO_CODECS = ["h264", "hevc", "vp9"];
-const AUDIO_CODECS = ["aac", "mp3", "opus", "flac", "ac3", "eac3"];
 // Android's player (ExoPlayer/AndroidXMedia3) demuxes Matroska/WebM natively, so
 // a compatible-codec .mkv (the bulk of a self-hosted library) can DIRECT-PLAY
 // instead of being needlessly transcoded — which is what breaks in-timeline
@@ -71,8 +71,14 @@ export async function fetchStreamToken(mediaId: string): Promise<string> {
 
 function appendCodecParams(params: URLSearchParams): void {
   params.set("videoCodecs", VIDEO_CODECS.join(","));
-  params.set("audioCodecs", AUDIO_CODECS.join(","));
+  // Audio codecs come from the device's real decoder list (MediaCodecList via
+  // the MediaCaps native module) - a hardcoded list with ac3/eac3 direct-played
+  // Dolby tracks on devices with no Dolby decoder: video without sound.
+  params.set("audioCodecs", getDeviceAudioCodecs().join(","));
   params.set("containers", CONTAINERS.join(","));
+  // hdr=1 lets the decision keep the video COPY rung for HDR10/HLG sources on
+  // an HDR panel (exact colors + on-demand seek) instead of tonemapping to SDR.
+  if (getDeviceHdrSupport()) params.set("hdr", "1");
 }
 
 export function buildStreamUrl(
@@ -135,8 +141,9 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         const [info, wp] = await Promise.all([
           playbackServiceGetStreamInfo(mediaId, {
             supportedCodecs: VIDEO_CODECS,
-            supportedAudioCodecs: AUDIO_CODECS,
+            supportedAudioCodecs: getDeviceAudioCodecs(),
             supportedContainers: CONTAINERS,
+            supportsHdr: getDeviceHdrSupport(),
             maxHeight: explicitMaxHeight,
             audioStreamIndex,
             subtitleStreamIndex,

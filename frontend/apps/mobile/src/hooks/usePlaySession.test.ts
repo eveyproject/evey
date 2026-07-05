@@ -22,6 +22,9 @@ vi.mock("react-native", () => ({
     get: () => ({ width: 360, height: 800, scale: 2 }),
   },
   Platform: { OS: "android" },
+  // deviceCodecs reads NativeModules.MediaCaps at import time; absent = the
+  // conservative baseline audio codec list.
+  NativeModules: {},
 }));
 
 beforeEach(() => {
@@ -124,7 +127,9 @@ describe("usePlaySession integration", () => {
 
     expect(getStreamInfoMock).toHaveBeenCalledWith("m1", expect.objectContaining({
       supportedCodecs: ["h264", "hevc", "vp9"],
-      supportedAudioCodecs: ["aac", "mp3", "opus", "flac", "ac3", "eac3"],
+      // Baseline list: no MediaCaps native module in the test env, and never
+      // ac3/eac3 without a probed Dolby decoder (silent direct-play otherwise).
+      supportedAudioCodecs: ["aac", "mp3", "opus", "flac", "vorbis"],
       supportedContainers: ["mp4", "mkv", "webm", "hls"],
     }));
   });
