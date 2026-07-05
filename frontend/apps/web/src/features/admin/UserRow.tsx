@@ -81,6 +81,12 @@ export function UserRow({ user }: { user: V1User }) {
           <Badge variant="error">{t("common.disabled")}</Badge>
         )}
       </td>
+      <td data-label={t("admin.users.registered", "Inscrit le")} className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
+        {user.createdAt ? new Date(user.createdAt).toLocaleString() : "—"}
+      </td>
+      <td data-label={t("admin.users.lastLogin", "Dernière connexion")} className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
+        {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : "—"}
+      </td>
       <td data-label={t("common.actions")} className="px-4 py-3 whitespace-nowrap">
         <div className="flex gap-2 flex-wrap">
           <Button

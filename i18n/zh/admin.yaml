@@ -177,6 +177,8 @@ users:
   title: "用户"
   createUser: "创建用户"
   username: "用户名"
+  registered: "注册于"
+  lastLogin: "上次登录"
   email: "邮箱"
   password: "密码"
   newPassword: "新密码"

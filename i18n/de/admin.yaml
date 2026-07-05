@@ -177,6 +177,8 @@ users:
   title: Benutzer
   createUser: Benutzer erstellen
   username: Benutzername
+  registered: "Registriert am"
+  lastLogin: "Letzte Anmeldung"
   email: E-Mail
   password: Passwort
   newPassword: "Neues Passwort"

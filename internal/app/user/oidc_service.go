@@ -285,6 +285,9 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.Warn("oidc: publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
+	if err := s.userRepo.TouchLastLogin(ctx, u.ID, evt.OccurredAt); err != nil {
+		slog.Warn("oidc: touch last_login", slog.String("user_id", string(u.ID)), slog.Any("err", err))
+	}
 
 	return accessToken, refreshToken, rawIDToken, nil
 }

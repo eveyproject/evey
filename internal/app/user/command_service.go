@@ -335,6 +335,9 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	if err := s.events.Publish(ctx, evtLogin); err != nil {
 		slog.Warn("publish event", slog.String("event", evtLogin.EventName()), slog.Any("err", err))
 	}
+	if err := s.users.TouchLastLogin(ctx, u.ID, evtLogin.OccurredAt); err != nil {
+		slog.Warn("touch last_login", slog.String("user_id", string(u.ID)), slog.Any("err", err))
+	}
 	return accessToken, refreshToken, nil
 }
 

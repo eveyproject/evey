@@ -214,6 +214,8 @@ message User {
   // Per-user caps. 0 / absent = unlimited.
   optional int32 max_profiles = 9;
   optional int32 max_devices_per_profile = 10;
+  // Most recent successful login (local or OIDC); absent until first login.
+  optional google.protobuf.Timestamp last_login = 11;
 }
 
 message Profile {

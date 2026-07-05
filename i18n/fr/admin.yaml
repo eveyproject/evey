@@ -176,6 +176,8 @@ users:
   title: "Utilisateurs"
   createUser: "Créer un utilisateur"
   username: "Nom d'utilisateur"
+  registered: "Inscrit le"
+  lastLogin: "Dernière connexion"
   email: "E-mail"
   password: "Mot de passe"
   newPassword: "Nouveau mot de passe"

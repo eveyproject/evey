@@ -45,6 +45,9 @@ type User struct {
 	PushConsent          bool
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	// LastLogin is the timestamp of the most recent successful login (local or
+	// OIDC). nil until the user has logged in at least once since the feature.
+	LastLogin *time.Time
 }
 
 type ParentalSettings struct {

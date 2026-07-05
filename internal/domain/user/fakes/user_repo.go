@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
@@ -158,6 +159,19 @@ func (r *FakeUserRepository) Update(_ context.Context, u *user.User) error {
 		return ErrNotFound
 	}
 	r.items[string(u.ID)] = u
+	return nil
+}
+
+func (r *FakeUserRepository) TouchLastLogin(_ context.Context, id shared.UserID, at time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if u, ok := r.items[string(id)]; ok {
+		t := at
+		u.LastLogin = &t
+	}
 	return nil
 }
 

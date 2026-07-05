@@ -30,6 +30,9 @@ func userToProto(u *user.User) *eveyv1.User {
 		v := int32(*u.MaxDevicesPerProfile)
 		pb.MaxDevicesPerProfile = &v
 	}
+	if u.LastLogin != nil {
+		pb.LastLogin = toTimestamppb(*u.LastLogin)
+	}
 	return pb
 }
 

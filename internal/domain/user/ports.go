@@ -25,6 +25,9 @@ type UserRepository interface {
 	GetByOIDCSubject(ctx context.Context, issuer, subject string) (*User, error)
 	List(ctx context.Context) ([]*User, error)
 	Update(ctx context.Context, u *User) error
+	// TouchLastLogin stamps the user's last_login_at. Best-effort on the login
+	// path — failure must not block the login itself.
+	TouchLastLogin(ctx context.Context, id shared.UserID, at time.Time) error
 	Delete(ctx context.Context, id shared.UserID) error
 	// DeleteIfNotLastAdmin and DisableIfNotLastAdmin perform the last-admin
 	// check and the mutation atomically (a serialized check-then-act): two

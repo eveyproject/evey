@@ -177,6 +177,8 @@ users:
   title: "उपयोगकर्ता"
   createUser: "उपयोगकर्ता बनाएं"
   username: "उपयोगकर्ता नाम"
+  registered: "पंजीकृत"
+  lastLogin: "अंतिम लॉगिन"
   email: "ईमेल"
   password: "पासवर्ड"
   newPassword: "नया पासवर्ड"

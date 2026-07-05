@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
@@ -19,7 +20,7 @@ import (
 
 const userColumns = `id, username, email, password_hash, is_admin, enabled,
 	 oidc_subject, oidc_issuer, max_streams, max_profiles, max_devices_per_profile,
-	 max_bitrate_kbps, push_consent, created_at, updated_at`
+	 max_bitrate_kbps, push_consent, created_at, updated_at, last_login_at`
 
 type UserRepository struct {
 	db *sql.DB
@@ -141,7 +142,7 @@ func (r *UserRepository) List(ctx context.Context) ([]*user.User, error) {
 		u := &user.User{}
 		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.Enabled,
 			&u.OIDCSubject, &u.OIDCIssuer, &u.MaxStreams, &u.MaxProfiles, &u.MaxDevicesPerProfile,
-			&u.MaxBitrateKbps, &u.PushConsent, &u.CreatedAt, &u.UpdatedAt); err != nil {
+			&u.MaxBitrateKbps, &u.PushConsent, &u.CreatedAt, &u.UpdatedAt, &u.LastLogin); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, fmt.Errorf("UserRepo.List scan: %w", err)
@@ -363,7 +364,7 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 	u := &user.User{}
 	err := row.Scan(&u.ID, &u.Username, &u.Email, &u.PasswordHash, &u.IsAdmin, &u.Enabled,
 		&u.OIDCSubject, &u.OIDCIssuer, &u.MaxStreams, &u.MaxProfiles, &u.MaxDevicesPerProfile,
-		&u.MaxBitrateKbps, &u.PushConsent, &u.CreatedAt, &u.UpdatedAt)
+		&u.MaxBitrateKbps, &u.PushConsent, &u.CreatedAt, &u.UpdatedAt, &u.LastLogin)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, shared.ErrNotFound
 	}
@@ -371,6 +372,19 @@ func (r *UserRepository) scanUser(row *sql.Row) (*user.User, error) {
 		return nil, fmt.Errorf("UserRepo.scanUser: %w", err)
 	}
 	return u, nil
+}
+
+func (r *UserRepository) TouchLastLogin(ctx context.Context, id shared.UserID, at time.Time) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.TouchLastLogin")
+	defer span.End()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE users SET last_login_at = $2 WHERE id = $1`, string(id), at)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("UserRepo.TouchLastLogin: %w", err)
+	}
+	return nil
 }
 
 var _ user.UserRepository = (*UserRepository)(nil)
