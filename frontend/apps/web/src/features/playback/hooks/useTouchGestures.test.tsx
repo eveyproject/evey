@@ -1,7 +1,7 @@
 /**
  * useTouchGestures — unit tests
  *
- * Strategy: the hook exposes handleTouchStart/Move/End/handleWheel as plain
+ * Strategy: the hook exposes handleTouchStart/Move/End as plain
  * React callbacks.  We call them directly with shaped plain-objects that
  * satisfy the property accesses in the source.  No jsdom TouchEvent dispatch
  * is needed; the callbacks never call addEventListener on any element.
@@ -144,94 +144,9 @@ describe("useTouchGestures", () => {
     expect(result.current.brightness).toBe(1.5);
   });
 
-  // ── handleWheel ──────────────────────────────────────────────────────────
+  // handleWheel moved to PlayerContext (33040c337: wheel spans 0-200% via the
+  // boost gain, registered passive:false on the container) - covered there.
 
-  it("handleWheel scrolling up increases video volume by 0.05", () => {
-    const args = defaultArgs(video);
-    const { result } = renderHook(() => useTouchGestures(args));
-
-    act(() => {
-      result.current.handleWheel({
-        deltaY: -1,
-        preventDefault: vi.fn(),
-      } as unknown as React.WheelEvent);
-    });
-
-    expect(video.volume).toBeCloseTo(0.55);
-  });
-
-  it("handleWheel scrolling down decreases video volume by 0.05", () => {
-    const args = defaultArgs(video);
-    const { result } = renderHook(() => useTouchGestures(args));
-
-    act(() => {
-      result.current.handleWheel({
-        deltaY: 1,
-        preventDefault: vi.fn(),
-      } as unknown as React.WheelEvent);
-    });
-
-    expect(video.volume).toBeCloseTo(0.45);
-  });
-
-  it("handleWheel clears muted flag when scrolling volume above 0", () => {
-    Object.defineProperty(video, "muted", { value: true, writable: true, configurable: true });
-    Object.defineProperty(video, "volume", { value: 0, writable: true, configurable: true });
-    const args = defaultArgs(video);
-    const { result } = renderHook(() => useTouchGestures(args));
-
-    act(() => {
-      result.current.handleWheel({
-        deltaY: -1,
-        preventDefault: vi.fn(),
-      } as unknown as React.WheelEvent);
-    });
-
-    expect(video.muted).toBe(false);
-  });
-
-  it("handleWheel caps volume at 1", () => {
-    Object.defineProperty(video, "volume", { value: 0.98, writable: true, configurable: true });
-    const args = defaultArgs(video);
-    const { result } = renderHook(() => useTouchGestures(args));
-
-    act(() => {
-      result.current.handleWheel({
-        deltaY: -1,
-        preventDefault: vi.fn(),
-      } as unknown as React.WheelEvent);
-    });
-
-    expect(video.volume).toBeLessThanOrEqual(1);
-  });
-
-  it("handleWheel floors volume at 0", () => {
-    Object.defineProperty(video, "volume", { value: 0.02, writable: true, configurable: true });
-    const args = defaultArgs(video);
-    const { result } = renderHook(() => useTouchGestures(args));
-
-    act(() => {
-      result.current.handleWheel({
-        deltaY: 1,
-        preventDefault: vi.fn(),
-      } as unknown as React.WheelEvent);
-    });
-
-    expect(video.volume).toBeGreaterThanOrEqual(0);
-  });
-
-  it("handleWheel does nothing when videoRef is null", () => {
-    const args = defaultArgs(video);
-    args.videoRef = { current: null };
-    const { result } = renderHook(() => useTouchGestures(args));
-
-    // Must not throw
-    expect(() =>
-      act(() => {
-        result.current.handleWheel({ deltaY: -1, preventDefault: vi.fn() } as unknown as React.WheelEvent);
-      }),
-    ).not.toThrow();
-  });
 
   // ── handleTouchStart: control target guard ────────────────────────────────
 

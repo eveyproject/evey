@@ -49,6 +49,15 @@ class MockHls {
 
 vi.mock("hls.js", () => ({ default: MockHls }));
 
+// The transcode branch routes on prefersNativeHLS() (4ced99e1b), not on
+// Hls.isSupported() - jsdom's canPlayType returns "" so the real helper always
+// says false. Overridable so the native-HLS (Safari) tests can enter the branch.
+const { prefersNativeHLSMock } = vi.hoisted(() => ({ prefersNativeHLSMock: vi.fn(() => false) }));
+vi.mock("./hooks/hlsPlayerUtils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./hooks/hlsPlayerUtils")>()),
+  prefersNativeHLS: () => prefersNativeHLSMock(),
+}));
+
 vi.mock("@evey/store", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@evey/store")>();
   return {
@@ -64,6 +73,8 @@ vi.mock("@/hooks/usePlaybackSettings", () => ({
 }));
 
 vi.mock("@/hooks/usePlaybackPrefs", () => ({
+  getVolumeBoost: vi.fn(() => 1),
+  setVolumeBoost: vi.fn(),
   getPreferredAudioLang: vi.fn(() => null),
   setPreferredAudioLang: vi.fn(),
   getPreferredSubtitleLang: vi.fn(() => null),
@@ -230,6 +241,7 @@ describe("HLSPlayer", () => {
 describe("HLSPlayer: native HLS (Safari) resume", () => {
   it("seeks to the resume position on loadedmetadata instead of restarting at 0", () => {
     MockHls.isSupported.mockReturnValue(false);
+    prefersNativeHLSMock.mockReturnValue(true);
     try {
       renderPlayer(
         { ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" },
@@ -248,6 +260,7 @@ describe("HLSPlayer: native HLS (Safari) resume", () => {
       expect(video.currentTime).toBe(600);
     } finally {
       MockHls.isSupported.mockReturnValue(true);
+      prefersNativeHLSMock.mockReturnValue(false);
     }
   });
 });

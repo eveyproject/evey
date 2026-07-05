@@ -53,7 +53,7 @@ describe("usePlaySession", () => {
     await act(async () => {
       renderHook(() => usePlaySession("media-1"));
     });
-    expect(fetchStreamTokenFn).toHaveBeenCalledWith("media-1");
+    expect(fetchStreamTokenFn).toHaveBeenCalledWith("media-1", undefined);
     expect(startStreamFn).toHaveBeenCalledTimes(1);
     expect(startStreamFn).toHaveBeenCalledWith(
       expect.objectContaining({ mediaItemId: "media-1" }),
