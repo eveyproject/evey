@@ -1,20 +1,34 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Film, Download } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { eveyFetch, activityServiceGetPlayHistory, activityServiceGetServerStats } from "@evey/api";
-import {
-  useActivityServiceGetPlayHistory,
-  useActivityServiceGetServerStats,
-  useAdminSessionServiceGetAuditLog,
-} from "@evey/api";
+import { eveyFetch, activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog } from "@evey/api";
+import { useActivityServiceGetServerStats } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
-import { Pagination } from "@/components/ui/Pagination";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { AuditLogTable } from "@/features/admin/AuditLogTable";
+
+// useInfiniteSentinel wires an IntersectionObserver on a bottom sentinel div to
+// auto-load the next page when it scrolls into view. Returns the ref to attach.
+function useInfiniteSentinel(hasNext: boolean, isFetching: boolean, fetchNext: () => void) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasNext && !isFetching) fetchNext();
+      },
+      { rootMargin: "300px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [hasNext, isFetching, fetchNext]);
+  return ref;
+}
 
 export const Route = createLazyFileRoute("/_auth/admin/activity")({
   component: ActivityPage,
@@ -47,13 +61,19 @@ function formatDate(d?: string): string {
 function PlayHistoryTab() {
   const { t } = useTranslation();
   const PAGE_SIZE = 25;
-  const [page, setPage] = useState(1);
-  const { data, isLoading } = useActivityServiceGetPlayHistory({
-    "pagination.page": page,
-    "pagination.pageSize": PAGE_SIZE,
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ["play-history-infinite"],
+    initialPageParam: "" as string,
+    queryFn: ({ pageParam, signal }) =>
+      activityServiceGetPlayHistory(
+        { "pagination.pageSize": PAGE_SIZE, ...(pageParam ? { "pagination.cursor": pageParam } : {}) },
+        signal,
+      ),
+    getNextPageParam: (last) => last.pagination?.nextCursor || undefined,
   });
-  const entries = data?.entries ?? [];
-  const total = data?.pagination?.totalItems ?? 0;
+  const entries = data?.pages.flatMap((p) => p.entries ?? []) ?? [];
+  const total = data?.pages[0]?.pagination?.totalItems ?? 0;
+  const sentinelRef = useInfiniteSentinel(hasNextPage, isFetchingNextPage, fetchNextPage);
 
   if (isLoading) {
     return (
@@ -129,25 +149,33 @@ function PlayHistoryTab() {
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between text-sm text-[var(--text-muted)]">
-        <span>{t("admin.activity.totalEntries", { count: total })}</span>
-        <Pagination
-          page={page}
-          totalPages={Math.max(1, Math.ceil(total / PAGE_SIZE))}
-          onPageChange={setPage}
-        />
+      <div className="text-sm text-[var(--text-muted)]">
+        {t("admin.activity.totalEntries", { count: total })}
       </div>
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex justify-center py-4">
+          <Spinner size="md" />
+        </div>
+      )}
     </div>
   );
 }
 
 function AuditTab() {
   const PAGE_SIZE = 25;
-  const [page, setPage] = useState(0);
-  const { data, isLoading } = useAdminSessionServiceGetAuditLog({
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ["audit-log-infinite"],
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) => adminSessionServiceGetAuditLog({ limit: PAGE_SIZE, offset: pageParam }, signal),
+    getNextPageParam: (last, allPages) => {
+      const fetched = allPages.reduce((n, p) => n + (p.entries?.length ?? 0), 0);
+      return fetched < (last.total ?? 0) ? fetched : undefined;
+    },
   });
+  const entries = data?.pages.flatMap((p) => p.entries ?? []) ?? [];
+  const total = data?.pages[0]?.total ?? 0;
+  const sentinelRef = useInfiniteSentinel(hasNextPage, isFetchingNextPage, fetchNextPage);
 
   if (isLoading) {
     return (
@@ -158,13 +186,15 @@ function AuditTab() {
   }
 
   return (
-    <AuditLogTable
-      entries={data?.entries ?? []}
-      total={data?.total ?? 0}
-      page={page}
-      pageSize={PAGE_SIZE}
-      onPageChange={setPage}
-    />
+    <div className="flex flex-col gap-2">
+      <AuditLogTable entries={entries} total={total} />
+      <div ref={sentinelRef} className="h-1" />
+      {isFetchingNextPage && (
+        <div className="flex justify-center py-4">
+          <Spinner size="md" />
+        </div>
+      )}
+    </div>
   );
 }
 

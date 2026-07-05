@@ -143,6 +143,43 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	return result, nil
 }
 
+// Count returns the total rows matching the filter predicates (no joins needed
+// — resource_name resolution is a display concern of List only).
+func (r *AuditLogRepository) Count(ctx context.Context, f activity.AuditLogFilter) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.audit_log.Count")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var conditions []string
+	var args []any
+	argIdx := 1
+	if f.UserID != nil {
+		conditions = append(conditions, fmt.Sprintf("user_id = $%d", argIdx))
+		args = append(args, *f.UserID)
+		argIdx++
+	}
+	if f.Action != nil {
+		conditions = append(conditions, fmt.Sprintf("action = $%d", argIdx))
+		args = append(args, *f.Action)
+		argIdx++
+	}
+	if f.ResourceType != nil {
+		conditions = append(conditions, fmt.Sprintf("resource_type = $%d", argIdx))
+		args = append(args, *f.ResourceType)
+	}
+	query := "SELECT COUNT(*) FROM audit_log"
+	if len(conditions) > 0 {
+		query += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	var n int
+	if err := txFromCtx(ctx, r.db).QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return n, nil
+}
+
 func (r *AuditLogRepository) Purge(ctx context.Context, before time.Time) (int64, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.audit_log.Purge")
 	defer span.End()

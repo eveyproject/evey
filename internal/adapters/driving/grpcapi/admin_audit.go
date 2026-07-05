@@ -60,7 +60,15 @@ func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAu
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("get audit log", err)
 	}
-	resp := &eveyv1.GetAuditLogResponse{Total: int32(len(entries))}
+	// Real total across all matching rows (a COUNT), so the client can paginate
+	// past the first page — Total used to be len(entries), i.e. the page size.
+	total, err := d.activitySvc.CountAuditLog(ctx, filter)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError("count audit log", err)
+	}
+	resp := &eveyv1.GetAuditLogResponse{Total: int32(total)} //nolint:gosec // count fits int32
 	for _, e := range entries {
 		resp.Entries = append(resp.Entries, auditLogEntryToProto(e))
 	}

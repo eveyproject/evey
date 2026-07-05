@@ -121,4 +121,45 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	return result, nil
 }
 
+// Count returns the total sessions matching the filter predicates (same INNER
+// JOIN as List so the total matches what List can return), ignoring
+// Limit/Offset/Cursor.
+func (r *PlayHistoryRepository) Count(ctx context.Context, filter activity.PlayHistoryFilter) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.play_history.Count")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	query := `SELECT COUNT(*) FROM play_sessions ps
+		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		WHERE 1=1`
+	args := []any{}
+	i := 1
+	if filter.ProfileID != "" {
+		query += fmt.Sprintf(" AND ps.profile_id = $%d", i)
+		args = append(args, filter.ProfileID)
+		i++
+	}
+	if filter.MediaItemID != "" {
+		query += fmt.Sprintf(" AND ps.media_item_id = $%d", i)
+		args = append(args, filter.MediaItemID)
+		i++
+	}
+	if filter.From != nil {
+		query += fmt.Sprintf(" AND ps.started_at >= $%d", i)
+		args = append(args, *filter.From)
+		i++
+	}
+	if filter.To != nil {
+		query += fmt.Sprintf(" AND ps.started_at <= $%d", i)
+		args = append(args, *filter.To)
+	}
+	var n int
+	if err := txFromCtx(ctx, r.db).QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return n, nil
+}
+
 var _ activity.PlayHistoryRepository = (*PlayHistoryRepository)(nil)

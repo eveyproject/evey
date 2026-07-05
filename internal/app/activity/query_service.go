@@ -80,6 +80,12 @@ func (s *QueryService) GetAuditLog(ctx context.Context, filter activity.AuditLog
 	return s.auditLog.List(ctx, filter)
 }
 
+func (s *QueryService) CountAuditLog(ctx context.Context, filter activity.AuditLogFilter) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.activity.CountAuditLog")
+	defer span.End()
+	return s.auditLog.Count(ctx, filter)
+}
+
 func (s *QueryService) GetUserStats(ctx context.Context, profileID string) (*activity.UserStats, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.activity.GetUserStats")
 	defer span.End()
@@ -138,6 +144,12 @@ func (s *QueryService) GetPlayHistory(ctx context.Context, filter activity.PlayH
 	ctx, span := tracing.StartSpan(ctx, "app.activity.GetPlayHistory")
 	defer span.End()
 	return s.playHistory.List(ctx, filter)
+}
+
+func (s *QueryService) CountPlayHistory(ctx context.Context, filter activity.PlayHistoryFilter) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.activity.CountPlayHistory")
+	defer span.End()
+	return s.playHistory.Count(ctx, filter)
 }
 
 func (s *QueryService) GetMostPopular(ctx context.Context, profileID string, limit int) ([]activity.MediaPlayCount, error) {

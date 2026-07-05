@@ -7,9 +7,11 @@ import { EmptyState } from "@/components/ui/EmptyState";
 interface AuditLogTableProps {
   entries: V1AuditLogEntry[];
   total?: number;
-  onPageChange: (page: number) => void;
-  page: number;
-  pageSize: number;
+  // Numbered-pager mode. Omit all three for infinite-scroll mode (the caller
+  // renders its own sentinel below the table); only the total count shows.
+  onPageChange?: (page: number) => void;
+  page?: number;
+  pageSize?: number;
 }
 
 const HIDDEN_DETAIL_KEYS = /(_id|_ids|^title|^method)$/;
@@ -35,7 +37,8 @@ export function AuditLogTable({
   pageSize,
 }: AuditLogTableProps) {
   const { t } = useTranslation();
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const paged = onPageChange != null && page != null && pageSize != null;
+  const totalPages = Math.max(1, Math.ceil(total / (pageSize || 1)));
 
   return (
     <div className="flex flex-col gap-4">
@@ -97,11 +100,13 @@ export function AuditLogTable({
         <span className="text-sm text-[var(--text-muted)]">
           {t("admin.audit.entries", { count: total })}
         </span>
-        <Pagination
-          page={page + 1}
-          totalPages={totalPages}
-          onPageChange={(p) => onPageChange(p - 1)}
-        />
+        {paged && (
+          <Pagination
+            page={page + 1}
+            totalPages={totalPages}
+            onPageChange={(p) => onPageChange(p - 1)}
+          />
+        )}
       </div>
     </div>
   );

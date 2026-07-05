@@ -64,6 +64,28 @@ func (r *FakeAuditLogRepository) List(_ context.Context, filter activity.AuditLo
 	return result, nil
 }
 
+func (r *FakeAuditLogRepository) Count(_ context.Context, filter activity.AuditLogFilter) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	n := 0
+	for _, e := range r.items {
+		if filter.UserID != nil && string(e.UserID) != *filter.UserID {
+			continue
+		}
+		if filter.Action != nil && e.Action != *filter.Action {
+			continue
+		}
+		if filter.ResourceType != nil && e.ResourceType != *filter.ResourceType {
+			continue
+		}
+		n++
+	}
+	return n, nil
+}
+
 func (r *FakeAuditLogRepository) Purge(_ context.Context, before time.Time) (int64, error) {
 	if r.Err != nil {
 		return 0, r.Err

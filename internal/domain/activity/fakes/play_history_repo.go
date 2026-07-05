@@ -73,3 +73,28 @@ func (r *FakePlayHistoryRepository) List(_ context.Context, filter activity.Play
 	}
 	return result, nil
 }
+
+func (r *FakePlayHistoryRepository) Count(_ context.Context, filter activity.PlayHistoryFilter) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	n := 0
+	for _, e := range r.items {
+		if filter.ProfileID != "" && e.ProfileID != filter.ProfileID {
+			continue
+		}
+		if filter.MediaItemID != "" && e.MediaItemID != filter.MediaItemID {
+			continue
+		}
+		if filter.From != nil && e.StartedAt.Before(*filter.From) {
+			continue
+		}
+		if filter.To != nil && e.StartedAt.After(*filter.To) {
+			continue
+		}
+		n++
+	}
+	return n, nil
+}

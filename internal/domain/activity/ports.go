@@ -43,6 +43,9 @@ type AuditLogFilter struct {
 type AuditLogRepository interface {
 	Create(ctx context.Context, entry *AuditLogEntry) error
 	List(ctx context.Context, filter AuditLogFilter) ([]*AuditLogEntry, error)
+	// Count returns the total number of entries matching the filter's
+	// predicates (ignoring Limit/Offset), for pagination totals.
+	Count(ctx context.Context, filter AuditLogFilter) (int, error)
 	// Purge deletes entries strictly older than before. Returns the number
 	// of rows removed so a retention runner can log/observe its work.
 	Purge(ctx context.Context, before time.Time) (int64, error)
@@ -79,6 +82,9 @@ type PlayHistoryFilter struct {
 
 type PlayHistoryRepository interface {
 	List(ctx context.Context, filter PlayHistoryFilter) ([]*PlayHistoryEntry, error)
+	// Count returns the total number of entries matching the filter's
+	// predicates (ignoring Limit/Offset/Cursor), for pagination totals.
+	Count(ctx context.Context, filter PlayHistoryFilter) (int, error)
 }
 
 type AnalyticsReader interface {

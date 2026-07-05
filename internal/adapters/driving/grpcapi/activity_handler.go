@@ -62,7 +62,13 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 	if err != nil {
 		return nil, internalError("get play history", err)
 	}
-	resp := &eveyv1.GetPlayHistoryResponse{Pagination: &eveyv1.PaginationResponse{}}
+	// Real total across all matching sessions (a COUNT) — was never set, so the
+	// UI always showed "0 entrées au total" despite rendering rows.
+	total, err := h.svc.CountPlayHistory(ctx, filter)
+	if err != nil {
+		return nil, internalError("count play history", err)
+	}
+	resp := &eveyv1.GetPlayHistoryResponse{Pagination: &eveyv1.PaginationResponse{TotalItems: int32(total)}} //nolint:gosec // count fits int32
 	for _, e := range entries {
 		resp.Entries = append(resp.Entries, playHistoryEntryToProto(e))
 	}
