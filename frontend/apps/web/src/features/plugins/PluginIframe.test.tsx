@@ -34,9 +34,11 @@ vi.mock("./front-bridge", () => ({
 
 const eveyFetchMock = vi.fn();
 const eveyFetchRawMock = vi.fn();
+const issuePluginTokenMock = vi.fn();
 vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => eveyFetchMock(...args),
   eveyFetchRaw: (...args: unknown[]) => eveyFetchRawMock(...args),
+  adminPluginServiceIssuePluginToken: (...args: unknown[]) => issuePluginTokenMock(...args),
 }));
 
 const PLUGIN_BUNDLE = "console.log('hello from plugin');";
@@ -54,6 +56,7 @@ beforeEach(() => {
     status: 200,
     text: async () => PLUGIN_BUNDLE,
   });
+  issuePluginTokenMock.mockResolvedValue({ token: "PLUGIN-TOKEN" });
 });
 
 describe("PluginIframe", () => {
@@ -326,5 +329,68 @@ describe("isAllowedNavPath", () => {
     expect(isAllowedNavPath("home")).toBe(false);
     expect(isAllowedNavPath("../admin")).toBe(false);
     expect(isAllowedNavPath("/" + "library/" + "x".repeat(3000))).toBe(false);
+  });
+});
+
+describe("PluginIframe assets.read bridge", () => {
+  // Routes an rpc("assets.read") to the plugin's OWN asset endpoint and hands
+  // the bytes back as a data: URL. This is the path the weather-v2 plugin uses
+  // to display the sun image its backend downloaded at runtime.
+  function assetAwareFetch() {
+    eveyFetchRawMock.mockImplementation(async (req: { url: string }) => {
+      if (req.url.includes("/assets/") && req.url.includes("sun-live")) {
+        return {
+          ok: true,
+          status: 200,
+          blob: async () => new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0x01])], { type: "image/jpeg" }),
+        };
+      }
+      return { ok: true, status: 200, text: async () => PLUGIN_BUNDLE };
+    });
+  }
+
+  // jsdom gives the iframe a real contentWindow; replace it with a stub so we
+  // can observe the rpc-result postMessage. The source guard still matches
+  // because dispatchPluginMessage uses this same object as the event source.
+  function stubPostMessage(iframe: HTMLIFrameElement) {
+    const post = vi.fn();
+    Object.defineProperty(iframe, "contentWindow", { value: { postMessage: post }, configurable: true });
+    return post;
+  }
+
+  it("fetches the plugin's own asset with the plugin token and returns a data URL", async () => {
+    assetAwareFetch();
+    const iframe = await mountIframe();
+    const post = stubPostMessage(iframe);
+    dispatchPluginMessage(iframe, { type: "rpc", id: 7, method: "assets.read", args: { path: "sun-live-aia171.jpg" } });
+
+    await waitFor(() => {
+      const call = post.mock.calls.find(([m]) => (m as { type?: string; id?: number }).type === "rpc-result" && (m as { id?: number }).id === 7);
+      expect(call, "rpc-result for id 7 expected").toBeTruthy();
+      const msg = call![0] as { ok: boolean; data: string };
+      expect(msg.ok).toBe(true);
+      expect(msg.data).toMatch(/^data:image\/jpeg;base64,/);
+    });
+
+    const assetCall = eveyFetchRawMock.mock.calls.find(([r]) => (r as { url: string }).url.includes("sun-live-aia171.jpg"));
+    expect(assetCall, "asset endpoint should have been called").toBeTruthy();
+    const req = assetCall![0] as { url: string; authToken: string };
+    expect(req.url).toContain("/api/v1/plugins/plg-test1/assets/sun-live-aia171.jpg");
+    expect(req.authToken).toBe("PLUGIN-TOKEN");
+  });
+
+  it("rejects a path-traversal asset request before any fetch", async () => {
+    assetAwareFetch();
+    const iframe = await mountIframe();
+    const post = stubPostMessage(iframe);
+    dispatchPluginMessage(iframe, { type: "rpc", id: 8, method: "assets.read", args: { path: "../../etc/passwd" } });
+
+    await waitFor(() => {
+      const call = post.mock.calls.find(([m]) => (m as { type?: string; id?: number }).type === "rpc-result" && (m as { id?: number }).id === 8);
+      expect(call, "rpc-result for id 8 expected").toBeTruthy();
+      expect((call![0] as { ok: boolean }).ok).toBe(false);
+    });
+    const traversalCall = eveyFetchRawMock.mock.calls.find(([r]) => (r as { url: string }).url.includes("etc/passwd"));
+    expect(traversalCall).toBeFalsy();
   });
 });

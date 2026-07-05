@@ -258,10 +258,22 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
         return eveyFetchRaw({ url: `/api/v1/public/media/${enc(String(args.id ?? ""))}`, method: "GET", authToken: token });
       case "media.list":
         return eveyFetchRaw({ url: `/api/v1/public/media${args.libraryId ? `?libraryId=${enc(String(args.libraryId))}` : ""}`, method: "GET", authToken: token });
+      case "assets.read": {
+        // Reads one of the plugin's OWN web_root assets. Strict path guard
+        // (the server also rejects traversal, this is defense in depth); the
+        // cache-buster forces a fresh copy so a runtime-updated asset is picked
+        // up despite the immutable Cache-Control on plugin assets.
+        const p = String(args.path ?? "");
+        if (!p || p.length > 256 || p.includes("..") || p.startsWith("/") || p.includes("\\") || !/^[a-zA-Z0-9._/-]+$/.test(p)) {
+          return Promise.reject(new Error("invalid asset path"));
+        }
+        const encPath = p.split("/").map(enc).join("/");
+        return eveyFetchRaw({ url: `/api/v1/plugins/${enc(pluginId)}/assets/${encPath}?_=${Date.now()}`, method: "GET", authToken: token });
+      }
       default:
         return Promise.reject(new Error(`method not permitted: ${method}`));
     }
-  }, []);
+  }, [pluginId]);
 
   const pluginRpcCall = useCallback(async (method: string, args: Record<string, unknown>): Promise<unknown> => {
     let token = await ensurePluginToken();
@@ -279,6 +291,17 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
         if (b.message) msg = b.message;
       } catch { /* ignore */ }
       throw new Error(msg);
+    }
+    // assets.read returns binary; hand it back as a data: URL so the iframe can
+    // use it directly (data URLs are same-origin, safe for WebGL textures).
+    if (method === "assets.read") {
+      const blob = await res.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(new Error("asset read failed"));
+        fr.readAsDataURL(blob);
+      });
     }
     const text = await res.text();
     return text ? JSON.parse(text) : {};

@@ -148,12 +148,17 @@ export interface RawFetcherRequest {
   // (e.g. a scoped plugin token). When set, the user-token refresh-on-401 path
   // is skipped — the caller owns this token's lifecycle.
   authToken?: string;
+  // raw: return the Response even on a non-2xx status instead of throwing, so
+  // the caller can branch on res.status/body (e.g. 428 escalation, 403 blocked).
+  // 401 still goes through the token-refresh/unauthorized flow.
+  raw?: boolean;
 }
 
 async function fetchWithRefresh(
   url: string,
   doFetch: (authToken: string | undefined) => Promise<Response>,
   initialToken: string | undefined,
+  rawOnError = false,
 ): Promise<Response> {
   let response = await doFetch(initialToken);
 
@@ -175,6 +180,14 @@ async function fetchWithRefresh(
 
   if (response.status === 401) {
     fireUnauthorized();
+  }
+
+  // rawOnError: hand the caller the Response even on non-2xx (except 401, which
+  // still triggers the refresh/unauthorized flow above) so it can inspect
+  // res.status/body itself — e.g. a 428 permission-escalation or 403 blocked
+  // response whose body carries structured fields the caller must act on.
+  if (rawOnError) {
+    return response;
   }
 
   if (!response.ok) {
@@ -238,7 +251,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
       signal: request.signal,
     });
 
-  return fetchWithRefresh(fullURL, doFetch, token ?? undefined);
+  return fetchWithRefresh(fullURL, doFetch, token ?? undefined, request.raw ?? false);
 }
 
 export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {

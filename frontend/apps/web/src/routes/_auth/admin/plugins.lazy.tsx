@@ -57,6 +57,7 @@ interface PluginPreview {
   analysis?: {
     safe: boolean;
     issues: string[];
+    urls?: string[];
     total_files_scanned: number;
   };
 }
@@ -175,6 +176,19 @@ function PreviewPanel({
         </div>
       )}
 
+      {preview.analysis?.urls && preview.analysis.urls.length > 0 && (
+        <div className="flex flex-col gap-1.5 text-xs">
+          <span className="font-semibold text-[var(--text-muted)]">
+            {t("admin.plugin.analysisReport.urls", "URLs externes détectées")}
+          </span>
+          {preview.analysis.urls.map((url, i) => (
+            <span key={i} className="font-mono break-all text-[var(--text-muted)]">
+              {url}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="flex justify-end gap-2 pt-2">
         <Button variant="ghost" onClick={onCancel}>{t("common.cancel")}</Button>
         <Button
@@ -272,25 +286,31 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
       formData.append("plugin", file);
       if (selectedSigFile) formData.append("sig", selectedSigFile);
       if (acceptPermissionChanges) formData.append("accept_permission_changes", "true");
-      const res = await eveyFetchRaw({ url: "/api/v1/admin/plugins/upload", method: "POST", body: formData });
-      // 428 PreconditionRequired = update widens permissions; show diff and
-      // re-POST with accept_permission_changes once the admin confirms.
+      // raw: true so a 428 (permission escalation) or 403 (blocked) comes back
+      // as a Response to branch on, instead of the fetcher throwing the raw
+      // (untranslated) backend message before we can show the proper UI.
+      const res = await eveyFetchRaw({ url: "/api/v1/admin/plugins/upload", method: "POST", body: formData, raw: true });
+      // 428 PreconditionRequired = update widens permissions; show the diff +
+      // an Approve button, then re-POST with accept_permission_changes.
       if (res.status === 428) {
-        const body = (await res.json()) as { permission_changes?: boolean; new_entries?: string[] };
+        const body = (await res.json().catch(() => ({}))) as { permission_changes?: boolean; new_entries?: string[] };
         if (body.permission_changes) {
           setEscalationEntries(body.new_entries ?? []);
           setStep("reviewing");
           return;
         }
       }
-      if (!res.ok) throw new Error((await res.text()) || t("admin.plugins.installFailed"));
-      const body = (await res.json()) as { blocked?: boolean; issues?: string[] };
-      if (body.blocked && body.issues) {
-        setBlockedIssues(body.issues);
-        setError(t("admin.plugins.blockedByAnalysis"));
-        setStep("reviewing");
-        return;
+      // 403 Forbidden = blocked by the static security analysis.
+      if (res.status === 403) {
+        const body = (await res.json().catch(() => ({}))) as { blocked?: boolean; issues?: string[] };
+        if (body.blocked && body.issues) {
+          setBlockedIssues(body.issues);
+          setError(t("admin.plugins.blockedByAnalysis"));
+          setStep("reviewing");
+          return;
+        }
       }
+      if (!res.ok) throw new Error(t("admin.plugins.installFailed"));
       setEscalationEntries([]);
       setStep("done");
       onSuccess();

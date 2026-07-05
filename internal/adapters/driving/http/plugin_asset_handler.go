@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
 	"log/slog"
@@ -598,9 +599,33 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 			if issues == nil {
 				issues = []string{}
 			}
+			// Surface the outbound URLs the analyzer extracted so the admin can
+			// SEE which endpoints a plugin will contact, right next to the
+			// network warning - not just that it makes network calls. Dedup by
+			// URL, annotate with the first location, cap to avoid flooding.
+			var urls []string
+			seen := make(map[string]bool)
+			for _, u := range preview.Analysis.URLs {
+				// Trim quote/backtick artifacts left by template-literal
+				// extraction so the displayed URL reads cleanly.
+				clean := strings.Trim(u.URL, "`'\"")
+				if clean == "" || seen[clean] {
+					continue
+				}
+				seen[clean] = true
+				label := clean
+				if u.File != "" {
+					label = fmt.Sprintf("%s  (%s:%d)", clean, u.File, u.Line)
+				}
+				urls = append(urls, label)
+				if len(urls) >= 100 {
+					break
+				}
+			}
 			resp.Analysis = &analysisResp{
 				Safe:              preview.Analysis.Safe,
 				Issues:            issues,
+				URLs:              urls,
 				TotalFilesScanned: preview.Analysis.FileCount,
 			}
 		}

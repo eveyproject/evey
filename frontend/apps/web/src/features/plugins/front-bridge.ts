@@ -16,6 +16,15 @@ export interface EveyBridge {
     get(id: string): Promise<unknown>;
     list(opts?: { libraryId?: string }): Promise<unknown>;
   };
+  // Reads one of the plugin's OWN web_root assets (by relative path) and
+  // returns it as a data: URL. The host fetches it same-origin with the
+  // scoped plugin token, so a runtime-written asset (e.g. an image the plugin
+  // backend just downloaded) becomes usable as a WebGL texture inside the
+  // sandboxed, opaque-origin iframe without any CORS/taint concern. Scoped to
+  // the plugin's own assets only - not an arbitrary-URL fetch.
+  assets: {
+    read(path: string): Promise<string>;
+  };
 }
 
 export const BRIDGE_SCRIPT = `
@@ -50,6 +59,9 @@ export const BRIDGE_SCRIPT = `
     media: {
       get: function(id) { return rpc("media.get", { id: id }); },
       list: function(opts) { return rpc("media.list", opts || {}); }
+    },
+    assets: {
+      read: function(path) { return rpc("assets.read", { path: path }); }
     },
     onInit: function(cb) {
       initCallbacks.push(cb);
