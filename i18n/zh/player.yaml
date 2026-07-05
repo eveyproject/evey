@@ -130,6 +130,7 @@ streamInfo:
 jumpToChapter: "跳转到章节：{{chapter}}"
 cast:
   noDevices: 在服务器网络中未找到投屏设备。
+  loadFailed: "无法在投屏设备上开始播放。"
 playOn:
   button: 在其他设备上播放
   title: 播放到

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"go.opentelemetry.io/otel/codes"
@@ -174,6 +175,24 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", contentType)
 	if strings.HasSuffix(name, ".m3u8") || strings.HasSuffix(name, ".mpd") {
 		w.Header().Set("Cache-Control", "no-cache")
+		// mkvgo emits BARE sub-resource URIs (od_playlist.m3u8, od_seg*.m4s,
+		// od_init.mp4, the AES key, DASH segment templates). A same-origin
+		// browser authenticates those via the evey_hls cookie, but a cookie-less
+		// second device (Chromecast) can only use the query token it was handed
+		// on the master URL. When THIS request carried a query token, bake it
+		// into every sub-resource URI so the cast device authenticates them;
+		// cookie/Bearer clients keep bare URIs (token stays out of their URLs).
+		if tok := RawTokenFromContext(r.Context()); tok != "" && TokenFromQuery(r.Context()) {
+			suffix := "?token=" + url.QueryEscape(tok)
+			if rq := r.URL.RawQuery; rq != "" {
+				suffix += "&" + rq
+			}
+			if strings.HasSuffix(name, ".mpd") {
+				data = []byte(rebakeDASHManifestURIs(string(data), suffix))
+			} else {
+				data = []byte(rebakeManifestURIs(string(data), suffix))
+			}
+		}
 	} else {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	}

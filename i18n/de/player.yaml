@@ -130,6 +130,7 @@ streamInfo:
 jumpToChapter: "Zum Kapitel springen: {{chapter}}"
 cast:
   noDevices: Keine Cast-Geräte im Netzwerk des Servers gefunden.
+  loadFailed: "Wiedergabe auf dem Cast-Gerät konnte nicht gestartet werden."
 playOn:
   button: Auf einem anderen Gerät abspielen
   title: Abspielen auf

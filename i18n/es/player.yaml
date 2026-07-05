@@ -130,6 +130,7 @@ streamInfo:
 jumpToChapter: "Ir al capítulo: {{chapter}}"
 cast:
   noDevices: No se encontraron dispositivos de cast en la red del servidor.
+  loadFailed: "No se pudo iniciar la reproducción en el dispositivo de cast."
 playOn:
   button: Reproducir en otro dispositivo
   title: Reproducir en

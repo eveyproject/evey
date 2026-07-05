@@ -473,9 +473,10 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 }
 
 // rebakeManifestURIs appends the request's auth + decision query suffix to
-// every URI in a producer-owned media playlist (media segments and the
-// #EXT-X-MAP init). No-op on empty suffix or on playlists whose URIs already
-// carry a query (defensive - the copy manifest never does).
+// every URI in an HLS playlist: bare segment lines, plus the URI="..." of any
+// tag that carries one (#EXT-X-MAP init, #EXT-X-KEY AES key, #EXT-X-MEDIA
+// audio/subtitle renditions, #EXT-X-STREAM-INF children in a master). No-op on
+// empty suffix or on URIs that already carry a query.
 func rebakeManifestURIs(manifest, suffix string) string {
 	if suffix == "" {
 		return manifest
@@ -483,16 +484,47 @@ func rebakeManifestURIs(manifest, suffix string) string {
 	lines := strings.Split(manifest, "\n")
 	for i, ln := range lines {
 		switch {
-		case strings.HasPrefix(ln, "#EXT-X-MAP:URI=\""):
-			if !strings.Contains(ln, "?") {
-				uri := strings.TrimSuffix(strings.TrimPrefix(ln, "#EXT-X-MAP:URI=\""), "\"")
-				lines[i] = "#EXT-X-MAP:URI=\"" + uri + suffix + "\""
-			}
+		case strings.HasPrefix(ln, "#") && strings.Contains(ln, "URI=\""):
+			lines[i] = addSuffixToURIAttr(ln, suffix)
 		case ln != "" && !strings.HasPrefix(ln, "#") && !strings.Contains(ln, "?"):
 			lines[i] = ln + suffix
 		}
 	}
 	return strings.Join(lines, "\n")
+}
+
+// addSuffixToURIAttr appends suffix inside the first URI="..." attribute of an
+// HLS tag line, unless the value is empty or already has a query.
+func addSuffixToURIAttr(line, suffix string) string {
+	const marker = "URI=\""
+	i := strings.Index(line, marker)
+	if i < 0 {
+		return line
+	}
+	start := i + len(marker)
+	rel := strings.IndexByte(line[start:], '"')
+	if rel < 0 {
+		return line
+	}
+	val := line[start : start+rel]
+	if val == "" || strings.Contains(val, "?") {
+		return line
+	}
+	return line[:start] + val + suffix + line[start+rel:]
+}
+
+// dashURIAttrRE matches the segment/init template attributes of a DASH manifest
+// whose value carries no query yet.
+var dashURIAttrRE = regexp.MustCompile(`(media|initialization)="([^"?]*)"`)
+
+// rebakeDASHManifestURIs appends suffix to the media/initialization template
+// URIs of a DASH manifest so a cookie-less client (Chromecast) authenticates
+// its segment/init requests via the query token.
+func rebakeDASHManifestURIs(manifest, suffix string) string {
+	if suffix == "" {
+		return manifest
+	}
+	return dashURIAttrRE.ReplaceAllString(manifest, `${1}="${2}`+suffix+`"`)
 }
 
 func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {

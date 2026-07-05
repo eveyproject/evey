@@ -129,6 +129,7 @@ streamInfo:
   transcodeReasons: Transcode reasons
 cast:
   noDevices: No cast devices found on the server's network.
+  loadFailed: "Could not start playback on the cast device."
 jumpToChapter: "Jump to chapter: {{chapter}}"
 playOn:
   button: Play on another device

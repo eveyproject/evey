@@ -21,7 +21,16 @@ async function loadChromecastMedia(session: cast.framework.CastSession, absolute
   const contentType = isHls ? "application/x-mpegurl" : "video/mp4";
   const mediaInfo = new chrome.cast.media.MediaInfo(absoluteUrl, contentType);
   mediaInfo.streamType = chrome.cast.media.StreamType.BUFFERED;
-  if (isHls) mediaInfo.hlsSegmentFormat = chrome.cast.media.HlsSegmentFormat.TS;
+  // Evey's HLS is fMP4/CMAF (.m4s + #EXT-X-MAP init) by default (UseFMP4),
+  // muxed video+audio. The default Cast receiver needs BOTH format hints:
+  // hlsVideoSegmentFormat for the video (it otherwise assumes MPEG2-TS and
+  // can't demux the fMP4 — the receiver loads the manifest but buffers
+  // forever with no picture), and hlsSegmentFormat for the audio. Omitting
+  // the video one is why cast stalled on "loading" despite a valid stream.
+  if (isHls) {
+    mediaInfo.hlsVideoSegmentFormat = chrome.cast.media.HlsVideoSegmentFormat.FMP4;
+    mediaInfo.hlsSegmentFormat = chrome.cast.media.HlsSegmentFormat.FMP4;
+  }
   mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
   mediaInfo.metadata.title = title ?? "";
   const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
@@ -289,7 +298,18 @@ export function useDLNA() {
         log(TAG, "Connected to:", device?.friendlyName);
 
         log(TAG, "Loading media...", { url: absoluteUrl });
-        await loadChromecastMedia(session, absoluteUrl, title);
+        try {
+          await loadChromecastMedia(session, absoluteUrl, title);
+        } catch (loadErr) {
+          // A session exists (the user picked a device) but the receiver
+          // couldn't load the stream. Falling through to server-side LAN
+          // discovery here is wrong — it just yields a misleading "no devices"
+          // toast while the film keeps playing locally. Surface the real
+          // failure and stop.
+          error(TAG, "Chromecast loadMedia failed:", loadErr);
+          toast.error(i18n.t("player.cast.loadFailed"));
+          return;
+        }
         log(TAG, "Media loaded on Chromecast");
 
         setState((prev) => ({
@@ -301,7 +321,10 @@ export function useDLNA() {
         return;
       } catch (err: unknown) {
         const e = err as { code?: string; description?: string };
-        error(TAG, "Chromecast failed:", e.code, e.description);
+        error(TAG, "Chromecast session failed:", e.code, e.description);
+        // User dismissed the device picker, or a session error before load.
+        // Only a genuine "no native SDK" situation should reach the server-side
+        // fallback below; a cancel just aborts.
         if (e.code === "cancel") return;
       }
     }

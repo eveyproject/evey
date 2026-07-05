@@ -209,6 +209,11 @@ func tokenRedactMiddleware(store streamTokenValidator, httpsOnly bool, next http
 		if fromQuery {
 			// Keep the token out of the (logged / referrer'd) URL.
 			r = r.WithContext(context.WithValue(r.Context(), rawTokenCtxKey, rawTok))
+			// Remember the token arrived by query so cookie-less second devices
+			// (Chromecast) get the token baked back into on-demand manifest URIs;
+			// same-origin cookie/Bearer clients keep bare URIs (token stays out
+			// of their URLs).
+			r = r.WithContext(context.WithValue(r.Context(), tokenFromQueryCtxKey, true))
 			q := r.URL.Query()
 			q.Del("token")
 			r.URL.RawQuery = q.Encode()
@@ -264,9 +269,20 @@ func tokenRedactMiddleware(store streamTokenValidator, httpsOnly bool, next http
 
 type ctxKeyStreamToken struct{}
 type ctxKeyRawToken struct{}
+type ctxKeyTokenFromQuery struct{}
 
 var streamTokenCtxKey = ctxKeyStreamToken{}
 var rawTokenCtxKey = ctxKeyRawToken{}
+var tokenFromQueryCtxKey = ctxKeyTokenFromQuery{}
+
+// TokenFromQuery reports whether the request authenticated via a ?token= query
+// param (web-legacy / cast) rather than the evey_hls cookie or a Bearer header.
+// On-demand manifest handlers use it to decide whether to bake the token back
+// into sub-resource URIs so a cookie-less Chromecast can authenticate them.
+func TokenFromQuery(ctx context.Context) bool {
+	v, _ := ctx.Value(tokenFromQueryCtxKey).(bool)
+	return v
+}
 
 // StreamTokenFromContext returns the resolved stream token if the request was authenticated via opaque token.
 func StreamTokenFromContext(ctx context.Context) (*shared.StreamToken, bool) {

@@ -63,6 +63,7 @@ declare namespace chrome.cast {
       constructor(contentId: string, contentType: string);
       streamType: string;
       hlsSegmentFormat: string;
+      hlsVideoSegmentFormat: string;
       metadata: GenericMediaMetadata;
     }
 
@@ -76,7 +77,8 @@ declare namespace chrome.cast {
     }
 
     const StreamType: { BUFFERED: string };
-    const HlsSegmentFormat: { TS: string };
+    const HlsSegmentFormat: { TS: string; FMP4: string };
+    const HlsVideoSegmentFormat: { MPEG2_TS: string; FMP4: string };
   }
 }
 

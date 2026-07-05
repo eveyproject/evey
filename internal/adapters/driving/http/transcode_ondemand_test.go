@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -260,3 +261,55 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 }
 
 func noopSpan() trace.Span { return trace.SpanFromContext(context.Background()) }
+
+// --- Chromecast cast-token propagation into on-demand manifest URIs ---
+
+func TestRebakeManifestURIs_CastToken(t *testing.T) {
+	in := "#EXTM3U\n" +
+		"#EXT-X-KEY:METHOD=AES-128,URI=\"key\",IV=0x00\n" +
+		"#EXT-X-MAP:URI=\"od_init.mp4\"\n" +
+		"#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",URI=\"od_audio.m3u8\"\n" +
+		"#EXTINF:6.0,\n" +
+		"od_seg00001.m4s\n"
+	out := rebakeManifestURIs(in, "?token=CASTTOK")
+	for _, want := range []string{
+		"URI=\"key?token=CASTTOK\"",
+		"URI=\"od_init.mp4?token=CASTTOK\"",
+		"URI=\"od_audio.m3u8?token=CASTTOK\"",
+		"od_seg00001.m4s?token=CASTTOK",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in rebaked manifest, got:\n%s", want, out)
+		}
+	}
+	// Idempotent: a URI that already has a query is left alone.
+	again := rebakeManifestURIs(out, "?token=CASTTOK")
+	if strings.Contains(again, "?token=CASTTOK?token=CASTTOK") {
+		t.Errorf("double-appended token on second pass:\n%s", again)
+	}
+	// Master reference to a child playlist gets suffixed too.
+	master := "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=5000000\nod_playlist.m3u8\n"
+	if mo := rebakeManifestURIs(master, "?token=T"); !strings.Contains(mo, "od_playlist.m3u8?token=T") {
+		t.Errorf("master child not suffixed:\n%s", mo)
+	}
+	// Empty suffix is a no-op.
+	if rebakeManifestURIs(in, "") != in {
+		t.Error("empty suffix should be a no-op")
+	}
+}
+
+func TestRebakeDASHManifestURIs_CastToken(t *testing.T) {
+	in := `<SegmentTemplate initialization="od_init.mp4" media="od_$Number$.m4s"></SegmentTemplate>`
+	out := rebakeDASHManifestURIs(in, "?token=CASTTOK")
+	if !strings.Contains(out, `initialization="od_init.mp4?token=CASTTOK"`) {
+		t.Errorf("init not suffixed: %s", out)
+	}
+	if !strings.Contains(out, `media="od_$Number$.m4s?token=CASTTOK"`) {
+		t.Errorf("media template not suffixed: %s", out)
+	}
+	// Already-queried attribute is left alone.
+	q := `media="od_$Number$.m4s?x=1"`
+	if rebakeDASHManifestURIs(q, "?token=T") != q {
+		t.Error("already-queried media attr should be untouched")
+	}
+}

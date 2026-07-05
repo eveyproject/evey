@@ -130,6 +130,7 @@ streamInfo:
 jumpToChapter: "अध्याय पर जाएं: {{chapter}}"
 cast:
   noDevices: सर्वर के नेटवर्क पर कोई कास्ट डिवाइस नहीं मिला।
+  loadFailed: "कास्ट डिवाइस पर प्लेबैक शुरू नहीं किया जा सका।"
 playOn:
   button: किसी अन्य डिवाइस पर चलाएं
   title: इस पर चलाएं

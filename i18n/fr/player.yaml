@@ -130,6 +130,7 @@ streamInfo:
 jumpToChapter: "Aller au chapitre : {{chapter}}"
 cast:
   noDevices: Aucun appareil de diffusion trouvé sur le réseau du serveur.
+  loadFailed: "Impossible de lancer la lecture sur l'appareil de diffusion."
 playOn:
   button: Lire sur un autre appareil
   title: Lire sur
