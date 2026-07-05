@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { Redirect, Stack } from "expo-router";
 import { useAuthStore } from "@evey/store";
+import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
 import { DrawerProvider } from "../../src/providers/DrawerProvider";
 import { SideDrawer } from "../../src/components/SideDrawer";
 import { MiniPlayer } from "../../src/components/MiniPlayer";
@@ -20,11 +22,28 @@ function isTokenExpired(token: string): boolean {
 export default function AuthLayout() {
   const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
-  const logout = useAuthStore((s) => s.logout);
+  const expired = !!accessToken && isTokenExpired(accessToken);
+  const [refreshFailed, setRefreshFailed] = useState(false);
 
-  if (!accessToken || isTokenExpired(accessToken)) {
-    if (accessToken) logout();
-    return <Redirect href="/login" />;
+  // An expired ACCESS token is not a logout: a valid refresh token usually
+  // still sits in SecureStore (access TTL is 15 min). Swap it for a fresh JWT
+  // instead of bouncing to /login - logging out here raced every re-render of
+  // this layout (navigation, rotation, resume) against the fetchers' own
+  // refresh and disconnected users mid-session. refreshAccessTokenIfNeeded is
+  // single-flight, so this coalesces with bootstrap/resume/401 refreshes.
+  useEffect(() => {
+    if (!expired) return;
+    let cancelled = false;
+    void refreshAccessTokenIfNeeded().then((ok) => {
+      if (!cancelled && !ok) setRefreshFailed(true);
+    });
+    return () => { cancelled = true; };
+  }, [expired, accessToken]);
+
+  if (!accessToken) return <Redirect href="/login" />;
+  if (expired) {
+    if (refreshFailed) return <Redirect href="/login" />;
+    return null; // refresh in flight; setTokens re-renders us with the new JWT
   }
   if (!profileId) return <Redirect href="/profile-select" />;
 
