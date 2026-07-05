@@ -43,6 +43,19 @@ func seekEntry(t *testing.T, targetID uint64, pos uint64) []byte {
 	return elem(t, 0x4DBB, payload)
 }
 
+// validCues builds a Cues element holding one parseable CuePoint targeting
+// clusterPos. HasSeekIndex now confirms a probe positive by PARSING the
+// element (a bare "Cues bytes exist" is the phantom-index false positive this
+// suite regression-tests below), so indexed fixtures need real cue content.
+// Fixed-width ints keep the length independent of clusterPos, so offsets can
+// be computed with a placeholder first.
+func validCues(t *testing.T, clusterPos uint64) []byte {
+	t.Helper()
+	ctp := elem(t, 0xB7, append(uintElem(t, 0xF7, 1, 1), uintElem(t, 0xF1, clusterPos, 8)...)) // CueTrackPositions{CueTrack, CueClusterPosition}
+	cp := elem(t, 0xBB, append(uintElem(t, 0xB3, 0, 1), ctp...))                               // CuePoint{CueTime, ...}
+	return elem(t, extmkv.IDCues, cp)
+}
+
 func writeFixture(t *testing.T, name string, segChildren ...[]byte) string {
 	t.Helper()
 	var seg bytes.Buffer
@@ -59,12 +72,14 @@ func writeFixture(t *testing.T, name string, segChildren ...[]byte) string {
 
 func TestHasSeekIndex_FastPath_SeekHeadListsCues(t *testing.T) {
 	void := elem(t, extmkv.IDVoid, make([]byte, 32))
-	cues := elem(t, extmkv.IDCues, []byte("not real cue entries"))
-	// Fixed-width entries keep the SeekHead length stable across rewrites.
-	placeholder := elem(t, extmkv.IDSeekHead, seekEntry(t, extmkv.IDCues, 0))
-	cuesPos := uint64(len(placeholder) + len(void))
+	// Fixed-width entries keep the SeekHead/Cues lengths stable across rewrites.
+	placeholderSH := elem(t, extmkv.IDSeekHead, seekEntry(t, extmkv.IDCues, 0))
+	cuesPos := uint64(len(placeholderSH) + len(void))
+	clusterPos := cuesPos + uint64(len(validCues(t, 0)))
+	cues := validCues(t, clusterPos)
 	sh := elem(t, extmkv.IDSeekHead, seekEntry(t, extmkv.IDCues, cuesPos))
-	path := writeFixture(t, "indexed.mkv", sh, void, cues)
+	cluster := elem(t, extmkv.IDCluster, []byte("garbage a full cluster walk would reject"))
+	path := writeFixture(t, "indexed.mkv", sh, void, cues, cluster)
 
 	has, err := New().HasSeekIndex(context.Background(), path)
 	if err != nil {
@@ -92,8 +107,10 @@ func TestHasSeekIndex_FastPath_SeekHeadWithoutCuesEntry(t *testing.T) {
 }
 
 func TestHasSeekIndex_FastPath_CuesAtHead(t *testing.T) {
-	// mkvmerge --cues-before-clusters: the Cues element itself sits at the head.
-	cues := elem(t, extmkv.IDCues, []byte("cues first"))
+	// mkvmerge --cues-before-clusters: the Cues element itself sits at the head
+	// (no SeekHead needed - the meta reader walks the head elements directly).
+	clusterPos := uint64(len(validCues(t, 0)))
+	cues := validCues(t, clusterPos)
 	cluster := elem(t, extmkv.IDCluster, []byte("garbage"))
 	path := writeFixture(t, "cueshead.mkv", cues, cluster)
 
@@ -102,7 +119,30 @@ func TestHasSeekIndex_FastPath_CuesAtHead(t *testing.T) {
 		t.Fatalf("HasSeekIndex: %v", err)
 	}
 	if !has {
-		t.Error("a head Cues element must report indexed")
+		t.Error("a head Cues element with parseable cue points must report indexed")
+	}
+}
+
+func TestHasSeekIndex_PhantomEmptyCues_ReportsUnindexed(t *testing.T) {
+	// The repack pathology found in the wild (2026-07-04): the SeekHead points
+	// at a REAL Cues element whose body holds no parseable CuePoint. ffmpeg
+	// scans the whole file on any -ss (measured 103s on a 33 GB source), native
+	// players report the stream unseekable, and PlanHLS refuses the source -
+	// yet the old element-presence probe reported "indexed" and the repair
+	// SKIPPED exactly the files that needed it.
+	void := elem(t, extmkv.IDVoid, make([]byte, 32))
+	cues := elem(t, extmkv.IDCues, nil) // present but EMPTY
+	placeholder := elem(t, extmkv.IDSeekHead, seekEntry(t, extmkv.IDCues, 0))
+	cuesPos := uint64(len(placeholder) + len(void))
+	sh := elem(t, extmkv.IDSeekHead, seekEntry(t, extmkv.IDCues, cuesPos))
+	path := writeFixture(t, "phantom.mkv", sh, void, cues)
+
+	has, err := New().HasSeekIndex(context.Background(), path)
+	if err != nil {
+		t.Fatalf("HasSeekIndex: %v", err)
+	}
+	if has {
+		t.Error("an empty Cues element must report UN-indexed (phantom index)")
 	}
 }
 

@@ -69,10 +69,17 @@ func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 	if !IsEBMLContainer(path) {
 		return false, nil
 	}
-	if has, confirmed := probeCuesPresence(path); confirmed {
-		return has, nil
+	if has, confirmed := probeCuesPresence(path); confirmed && !has {
+		return false, nil
 	}
-	c, err := reader.Open(ctx, path)
+	// A probe positive only proves a Cues ELEMENT sits at the SeekHead offset.
+	// Repacks in the wild ship an EMPTY/garbage Cues body (phantom index):
+	// ffmpeg then scans the whole file on any -ss and native players report the
+	// stream unseekable - exactly the files a repair must flag. Confirm through
+	// OpenMeta, which parses the element's REAL content without the cluster
+	// walk (the full reader.Open synthesizes cue points from the walk, so its
+	// Cues are non-empty even when the file's index is unusable).
+	c, err := reader.OpenMeta(ctx, path, reader.WithCues())
 	if err != nil {
 		return false, fmt.Errorf("mkvgo has-seek-index: %w", err)
 	}
@@ -108,12 +115,21 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 		return mkv.ReindexResult{Skipped: true}, nil
 	}
 
+	// (1) Bail only when the FILE carries a parseable index. OpenMeta reads the
+	// actual Cues element; the full reader below synthesizes cue points from
+	// the cluster walk, so ITS Cues are non-empty even for a phantom/empty
+	// on-disk index - trusting it skipped exactly the files needing repair.
+	meta, err := reader.OpenMeta(ctx, path, reader.WithCues())
+	if err != nil {
+		return mkv.ReindexResult{}, fmt.Errorf("reindex: open source meta: %w", err)
+	}
+	if len(meta.Cues) > 0 {
+		return mkv.ReindexResult{Skipped: true}, nil // already indexed — nothing to do
+	}
+
 	src, err := reader.Open(ctx, path)
 	if err != nil {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: open source: %w", err)
-	}
-	if len(src.Cues) > 0 {
-		return mkv.ReindexResult{Skipped: true}, nil // already indexed — nothing to do
 	}
 	srcTracks := len(src.Tracks)
 	srcDurMs := src.DurationMs
@@ -160,7 +176,14 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	if len(out.Tracks) != srcTracks {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: track count changed (%d -> %d), refusing swap", srcTracks, len(out.Tracks))
 	}
-	if len(out.Cues) == 0 {
+	// Same OpenMeta rule as the bail-out: out.Cues (full reader) is synthesized
+	// from the cluster walk, so it can't prove the rebuilt FILE carries an
+	// index. Read the element's real content.
+	outMeta, err := reader.OpenMeta(ctx, tmp, reader.WithCues())
+	if err != nil {
+		return mkv.ReindexResult{}, fmt.Errorf("reindex: re-open output meta: %w", err)
+	}
+	if len(outMeta.Cues) == 0 {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: output still has no seek index, refusing swap")
 	}
 	if srcDurMs > 0 && out.DurationMs > 0 {
