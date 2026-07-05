@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
-import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun } from "lucide-react";
+import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Cast, Users } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
 import type { AudioStream } from "./AudioTrackSelector";
@@ -76,6 +76,11 @@ interface HLSPlayerProps {
   chapters?: Chapter[];
   seriesId?: string;
   onVideoRef?: (el: HTMLVideoElement | null) => void;
+  // "Watch together" is rendered in the top-right cluster next to the cast
+  // button (which owns the cast state). The route passes the trigger + whether
+  // to show it (hidden once a sync room is active).
+  onWatchTogether?: () => void;
+  showWatchTogether?: boolean;
 }
 
 export function HLSPlayer({
@@ -103,6 +108,8 @@ export function HLSPlayer({
   chapters = [],
   seriesId,
   onVideoRef,
+  onWatchTogether,
+  showWatchTogether,
 }: HLSPlayerProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -658,6 +665,34 @@ export function HLSPlayer({
       onTouchEnd={handleTouchEnd}
     >
       <video ref={(el) => { videoRef.current = el; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
+
+      {/* Top-right cluster: Watch together, then the cast icon to its right. */}
+      {(showWatchTogether || castAvailable) && (
+        <div className="absolute top-4 right-4 z-[11] flex items-center gap-2">
+          {showWatchTogether && onWatchTogether && (
+            <button
+              aria-label={t("player.watchTogether")}
+              onClick={onWatchTogether}
+              className="flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity-fast hover:opacity-80"
+              style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
+            >
+              <Users size={16} aria-hidden="true" />
+              {t("player.watchTogether")}
+            </button>
+          )}
+          {castAvailable && (
+            <button
+              onClick={handleCastToggle}
+              aria-label={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
+              title={castConnected && castDeviceName ? castDeviceName : undefined}
+              className={`flex items-center justify-center w-10 h-10 rounded-full text-white transition-opacity-fast hover:opacity-80 ${castConnected ? "text-[var(--accent)]" : ""}`}
+              style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
+            >
+              <Cast size={18} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      )}
       {seekFlash === "left" && (
         <div className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none z-[6]">
           <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
@@ -802,12 +837,10 @@ export function HLSPlayer({
           pipToggleRef={pipToggleRef}
           onActionFlash={showActionFlash}
           onBrightnessChange={setBrightnessValue}
-          castAvailable={castAvailable}
           castConnected={castConnected}
           castDeviceName={castDeviceName}
           castPlayback={castPlayback}
           castTranscodeOffset={castTranscodeOffsetRef.current}
-          onCastToggle={handleCastToggle}
           onCastPlayPause={castPlayPause}
           onCastSeek={handleCastSeek}
           onCastSetVolume={castSetVolume}

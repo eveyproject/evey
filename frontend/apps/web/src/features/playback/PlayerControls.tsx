@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Cast, Loader, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Loader, MoreHorizontal, Cast } from "lucide-react";
 import { PlayOnPicker } from "./PlayOnPicker";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
@@ -33,7 +33,6 @@ interface PlayerControlsProps {
   onBrightnessChange?: (value: number) => void;
   controlsToggleRef?: React.MutableRefObject<(() => void) | null>;
   pipToggleRef?: React.MutableRefObject<(() => void) | null>;
-  castAvailable?: boolean;
   castConnected?: boolean;
   castDeviceName?: string | null;
   castPlayback?: { playerState: string | null; currentTime: number; duration: number; isPaused: boolean; isMediaLoaded: boolean; volume: number; isMuted: boolean };
@@ -41,7 +40,6 @@ interface PlayerControlsProps {
   // The device reports currentTime local to that stream, so the absolute
   // position is castTranscodeOffset + castPlayback.currentTime.
   castTranscodeOffset?: number;
-  onCastToggle?: () => void;
   onCastPlayPause?: () => void;
   onCastSeek?: (timeSec: number) => boolean;
   onCastSetVolume?: (level: number) => void;
@@ -71,12 +69,10 @@ function PlayerControlsInner({
   onBrightnessChange,
   controlsToggleRef,
   pipToggleRef,
-  castAvailable,
   castConnected,
   castDeviceName,
   castPlayback,
   castTranscodeOffset = 0,
-  onCastToggle,
   onCastPlayPause,
   onCastSeek,
   onCastSetVolume,
@@ -620,17 +616,8 @@ function PlayerControlsInner({
             <PlayOnPicker mediaId={mediaId} getPositionMs={() => Math.floor(currentAbsoluteTime() * 1000)} />
           )}
 
-          {/* Cast */}
-          {castAvailable && onCastToggle && (
-            <button
-              onClick={onCastToggle}
-              aria-label={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
-              title={castConnected && castDeviceName ? castDeviceName : undefined}
-              className={`transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded ${castConnected ? "text-[var(--accent)]" : "text-[var(--overlay-text)] hover:text-[var(--accent)]"}`}
-            >
-              <Cast size={20}  aria-hidden="true" />
-            </button>
-          )}
+          {/* Cast button moved to the top-right cluster (next to Watch Together)
+              in HLSPlayer; the cast STATE props below stay for remote control. */}
 
           {/* Picture-in-Picture (Document PiP when available, falls back to the legacy video-only PiP) */}
           {typeof document !== "undefined" && (docPiP.available || document.pictureInPictureEnabled) && (

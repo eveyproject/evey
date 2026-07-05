@@ -1,4 +1,4 @@
-import { Users, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -284,17 +284,8 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
       className="fixed inset-0 bg-black z-overlay flex flex-col"
     >
       <div className="flex-1 relative flex items-center justify-center">
-        {!syncState.roomId && !isLoading && !isError && streamInfo && (
-          <button
-            aria-label={t("player.watchTogether")}
-            onClick={() => void handleWatchTogether()}
-            className="absolute top-4 right-4 z-overlay-raised flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity-fast hover:opacity-80"
-            style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
-          >
-            <Users size={16}  aria-hidden="true" />
-            {t("player.watchTogether")}
-          </button>
-        )}
+        {/* Watch Together moved into HLSPlayer's top-right cluster (next to the
+            cast icon); the trigger + visibility are passed down below. */}
         {isError ? (
           <div className="flex flex-col items-center gap-4 text-white">
             <TriangleAlert size={48} style={{ color: "var(--color-danger)" }} strokeWidth={1.5} />
@@ -334,6 +325,8 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             streamToken={streamToken}
             onStreamTokenRefresh={handleStreamTokenRefresh}
             onCastTokenRequest={handleCastTokenRequest}
+            onWatchTogether={() => void handleWatchTogether()}
+            showWatchTogether={!syncState.roomId}
             mediaId={mediaId}
             mediaType={mediaItem?.type}
             startPositionMs={startPositionMs}
