@@ -25,6 +25,7 @@ auth:
   enableBiometric: 启用生物识别登录？
   enableBiometricDesc: 下次使用生物识别解锁应用。
   haveInvite: 有邀请？注册
+  rememberMe: 记住我
 profileSelect:
   title: 谁在观看？
 servers:

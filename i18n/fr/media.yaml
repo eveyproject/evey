@@ -173,6 +173,7 @@ person:
   guestStar: Guest star
   yearsOld: ans
 detail:
+  shareLink: Partager le lien
   notFound: Élément multimédia introuvable.
   play: Lecture
   resume: Reprendre

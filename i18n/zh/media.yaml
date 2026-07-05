@@ -172,6 +172,7 @@ person:
   guestStar: 特邀嘉宾
   yearsOld: 岁
 detail:
+  shareLink: 分享链接
   downloadSeason: "下载本季"
   downloadSeries: "下载剧集"
   notFound: 未找到媒体项。

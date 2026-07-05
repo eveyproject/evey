@@ -172,6 +172,7 @@ person:
   guestStar: Estrella invitada
   yearsOld: años
 detail:
+  shareLink: Compartir enlace
   notFound: Elemento multimedia no encontrado.
   play: Reproducir
   resume: Reanudar

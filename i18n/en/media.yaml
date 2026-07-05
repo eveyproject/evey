@@ -173,6 +173,7 @@ person:
   guestStar: Guest Star
   yearsOld: years old
 detail:
+  shareLink: Share link
   notFound: Media item not found.
   play: Play
   resume: Resume

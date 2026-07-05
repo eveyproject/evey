@@ -172,6 +172,7 @@ person:
   guestStar: Gaststar
   yearsOld: Jahre alt
 detail:
+  shareLink: Link teilen
   notFound: Medienelement nicht gefunden.
   play: Abspielen
   resume: Fortsetzen

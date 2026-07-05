@@ -1062,6 +1062,7 @@
   "media.detail.metadataReset": "Metadata reset — re-enrichment will start",
   "media.detail.metadataSaved": "Metadata saved",
   "media.detail.noProfileSelected": "No profile selected",
+  "media.detail.shareLink": "Share link",
   "media.detail.notFound": "Media item not found.",
   "media.detail.originalTitle": "Original Title",
   "media.detail.overridden": "Overridden",

@@ -25,6 +25,7 @@ auth:
   enableBiometric: ¿Activar inicio de sesión biométrico?
   enableBiometricDesc: Usa biometría para desbloquear la app la próxima vez.
   haveInvite: ¿Tienes una invitación? Regístrate
+  rememberMe: Recordarme
 profileSelect:
   title: ¿Quién está viendo?
 servers:

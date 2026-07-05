@@ -25,6 +25,7 @@ auth:
   enableBiometric: Enable biometric login?
   enableBiometricDesc: Use biometrics to unlock the app next time.
   haveInvite: Have an invite? Sign up
+  rememberMe: Remember me
 profileSelect:
   title: Who's watching?
 servers:

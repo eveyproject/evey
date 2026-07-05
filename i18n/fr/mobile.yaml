@@ -25,6 +25,7 @@ auth:
   enableBiometric: Activer la connexion biométrique ?
   enableBiometricDesc: Utilisez la biométrie pour déverrouiller l'app la prochaine fois.
   haveInvite: Vous avez une invitation ? Inscrivez-vous
+  rememberMe: Se souvenir de moi
 profileSelect:
   title: Qui regarde ?
 servers:
