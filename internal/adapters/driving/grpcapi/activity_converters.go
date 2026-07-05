@@ -72,6 +72,12 @@ func auditLogEntryToProto(e *activity.AuditLogEntry) *eveyv1.AuditLogEntry {
 	if e.ClientIP != nil {
 		pb.IpAddress = *e.ClientIP
 	}
+	if e.UserAgent != nil {
+		pb.UserAgent = *e.UserAgent
+	}
+	if e.DeviceName != nil {
+		pb.DeviceName = *e.DeviceName
+	}
 	if len(e.Details) > 0 {
 		if b, err := json.Marshal(e.Details); err == nil {
 			pb.Details = string(b)

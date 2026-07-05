@@ -2,29 +2,24 @@ import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAdminSessionServiceGetAuditLog } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
 import { Spinner } from "@/components/ui/Spinner";
 
 export function RecentActivity() {
   const { t } = useTranslation();
   const { data, isLoading } = useAdminSessionServiceGetAuditLog({ limit: 8, offset: 0 });
   const entries = data?.entries ?? [];
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center py-8">
-        <Spinner size="md" />
-      </div>
-    );
-  }
-
-  if (entries.length === 0) return null;
+  const total = data?.total ?? 0;
 
   return (
-    <div>
+    <Card>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-[var(--text)]">
-          {t("admin.dashboardStats.recentActivity")}
-        </h3>
+        <div className="flex items-baseline gap-2">
+          <h3 className="text-sm font-semibold text-[var(--text)]">
+            {t("admin.dashboardStats.recentActivity")}
+          </h3>
+          {total > 0 && <span className="text-xs text-[var(--text-muted)]">({total})</span>}
+        </div>
         <Link
           to="/admin/activity"
           className="text-xs font-medium hover:underline text-[var(--accent)]"
@@ -32,6 +27,13 @@ export function RecentActivity() {
           {t("admin.dashboardStats.viewAll")}
         </Link>
       </div>
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Spinner size="md" />
+        </div>
+      ) : entries.length === 0 ? (
+        <p className="text-sm text-[var(--text-muted)] py-4 text-center">{t("admin.audit.noEntries")}</p>
+      ) : (
       <div
         className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]"
       >
@@ -74,6 +76,7 @@ export function RecentActivity() {
           </tbody>
         </table>
       </div>
-    </div>
+      )}
+    </Card>
   );
 }

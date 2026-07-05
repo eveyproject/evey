@@ -200,7 +200,7 @@ func (s *GRPCServer) RegisterServices() {
 		playbackQry: d.PlaybackQuery,
 		hlsManager:  hlsMgr,
 	})
-	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
+	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, cmd: d.ActivityCmd, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
 	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook})

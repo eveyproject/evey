@@ -45,6 +45,8 @@ message AuditLogEntry {
   string ip_address = 8;
   google.protobuf.Timestamp created_at = 9;
   string resource_name = 10;
+  string user_agent = 11;
+  string device_name = 12;
 }
 
 message ActiveSession {

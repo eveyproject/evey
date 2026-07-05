@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -24,10 +25,49 @@ import (
 type activityHandler struct {
 	eveyv1.UnimplementedActivityServiceServer
 	svc        *appactivity.QueryService
+	cmd        *appactivity.CommandService
 	libQuery   *applibrary.QueryService
 	userAccess *appuser.AccessService
 	userQuery  *appuser.QueryService
 	translator *eveyi18n.Translator
+}
+
+// RecordPageView logs a client navigation as a "page_view" audit entry, so
+// admins can see which pages users visit. Best-effort: a failure or an empty/
+// oversized path is swallowed (return OK) — page-view logging must never break
+// navigation. UA/device/IP are captured from the request by the interceptors.
+func (h *activityHandler) RecordPageView(ctx context.Context, req *eveyv1.RecordPageViewRequest) (*eveyv1.RecordPageViewResponse, error) {
+	resp := &eveyv1.RecordPageViewResponse{}
+	if h.cmd == nil {
+		return resp, nil
+	}
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("activityHandler.RecordPageView: %w", err)
+	}
+	path := strings.TrimSpace(req.Path)
+	if path == "" || len(path) > 512 || !strings.HasPrefix(path, "/") {
+		return resp, nil // ignore junk; not an error
+	}
+	e := &activity.AuditLogEntry{
+		UserID:       shared.UserID(claims.UserID),
+		Action:       "page_view",
+		ResourceType: "page",
+		Details:      map[string]any{"path": path},
+	}
+	if ua := interceptors.UserAgentFromCtx(ctx); ua != "" {
+		e.UserAgent = &ua
+	}
+	if dn := interceptors.DeviceNameFromCtx(ctx); dn != "" {
+		e.DeviceName = &dn
+	}
+	if ip := interceptors.ClientIPFromCtx(ctx); ip != "" {
+		e.ClientIP = &ip
+	}
+	if err := h.cmd.CreateAuditEntry(ctx, e); err != nil {
+		slog.Warn("record page view", slog.String("path", path), slog.Any("err", err))
+	}
+	return resp, nil
 }
 
 func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPlayHistoryRequest) (*eveyv1.GetPlayHistoryResponse, error) {

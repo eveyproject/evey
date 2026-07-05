@@ -53,13 +53,14 @@ export function AuditLogTable({
               <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)]">{t("admin.audit.tableHeaders.action")}</th>
               <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] hidden md:table-cell">{t("admin.audit.tableHeaders.resource")}</th>
               <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] hidden lg:table-cell">{t("admin.audit.tableHeaders.details")}</th>
+              <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] hidden lg:table-cell">{t("admin.audit.tableHeaders.device", "Device")}</th>
               <th className="px-4 py-2 text-left font-medium text-[var(--text-muted)] hidden md:table-cell">{t("admin.audit.tableHeaders.ip")}</th>
             </tr>
           </thead>
           <tbody>
             {entries.length === 0 ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={7}>
                   <EmptyState icon={<Clock size={48} strokeWidth={1.5} />} title={t("admin.audit.noEntries")} />
                 </td>
               </tr>
@@ -85,6 +86,9 @@ export function AuditLogTable({
                   </td>
                   <td className="px-4 py-2 text-[var(--text-muted)] hidden lg:table-cell">
                     {formatDetails(entry.details) || "-"}
+                  </td>
+                  <td className="px-4 py-2 text-[var(--text-muted)] hidden lg:table-cell max-w-[200px] truncate" title={entry.userAgent ?? undefined}>
+                    {entry.deviceName || entry.userAgent || "-"}
                   </td>
                   <td className="px-4 py-2 whitespace-nowrap text-[var(--text-muted)] hidden md:table-cell">
                     {entry.ipAddress ?? "-"}

@@ -1,6 +1,7 @@
-import { createRootRouteWithContext, Outlet, redirect } from "@tanstack/react-router";
+import { useEffect, useRef } from "react";
+import { createRootRouteWithContext, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { type QueryClient } from "@tanstack/react-query";
-import { adminSystemServiceGetSetupStatus } from "@evey/api";
+import { adminSystemServiceGetSetupStatus, activityServiceRecordPageView } from "@evey/api";
 import { useAuthStore, useLocaleStore } from "@evey/store";
 import i18n from "@/i18n";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -46,10 +47,26 @@ export const Route = createRootRouteWithContext<RouterContext>()({
   errorComponent: RouteErrorComponent,
 });
 
+// PageViewReporter logs each in-app navigation to the audit log (one POST per
+// distinct path, authenticated users only), so admins can see which pages
+// users visit. Fire-and-forget; failures are swallowed.
+function PageViewReporter() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const lastRef = useRef<string>("");
+  useEffect(() => {
+    if (!useAuthStore.getState().accessToken) return;
+    if (!pathname || pathname === lastRef.current || pathname === "/login" || pathname === "/setup") return;
+    lastRef.current = pathname;
+    void activityServiceRecordPageView({ path: pathname }).catch(() => {});
+  }, [pathname]);
+  return null;
+}
+
 function RootComponent() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
+        <PageViewReporter />
         <Outlet />
         <ToastContainer />
       </ThemeProvider>

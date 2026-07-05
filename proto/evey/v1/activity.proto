@@ -50,7 +50,23 @@ service ActivityService {
       get: "/api/v1/admin/analytics"
     };
   }
+
+  // RecordPageView logs a client-side navigation as an audit entry
+  // (action "page_view", resource "page"), so admins can see which pages
+  // users visit. Best-effort; the client dedups/throttles.
+  rpc RecordPageView(RecordPageViewRequest) returns (RecordPageViewResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/activity/page-view"
+      body: "*"
+    };
+  }
 }
+
+message RecordPageViewRequest {
+  string path = 1;
+}
+
+message RecordPageViewResponse {}
 
 message PlayHistoryEntry {
   string id = 1;

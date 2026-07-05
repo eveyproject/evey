@@ -284,6 +284,7 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.ActivityService/GetLoginHistory": "own history; admin-can-view-other enforced in handler",
 	"/evey.v1.ActivityService/GetPopularMedia": "lib-access-filtered read",
 	"/evey.v1.ActivityService/GetAnalytics":    "admin enforced in handler (PermissionDenied for non-admin)",
+	"/evey.v1.ActivityService/RecordPageView":  "own navigation logged as audit page_view; writes only the caller's own path",
 	// AdminPluginService
 	"/evey.v1.AdminPluginService/IssuePluginToken": "RoleUser by design; FilterPluginScopes strips admin scopes, tokens floor-denied from admin methods",
 	// CollectionService
