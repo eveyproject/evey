@@ -5,9 +5,31 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
 )
+
+// RefreshFileState re-stamps ONLY the change-detection columns (file_size,
+// mod_time, and the size-mtime-derived file_fingerprint) on the media_files row
+// at path, leaving every probed field — streams, keyframes_ms, duration_ms,
+// container_format — untouched. It exists for the reindex path: rewriting a
+// container in place (to add a Cues seek index) gives the file new bytes but
+// identical logical content, so the next library scan must treat it as
+// UNCHANGED (matching size+mtime) rather than re-probe it and DELETE+re-INSERT
+// its streams — which drops the keyframe index and forces a transcode window
+// (copy rung needs keyframes_ms) until the backfill worker catches up. The
+// fingerprint format mirrors the scanner (filesystem/scanner.go: "<size>-<mtimeNs>")
+// so change-detection agrees. No-op when no row matches the path.
+func (r *MediaItemRepository) RefreshFileState(ctx context.Context, path string, size int64, modTime time.Time) error {
+	fingerprint := fmt.Sprintf("%d-%d", size, modTime.UnixNano())
+	if _, err := r.db.ExecContext(ctx,
+		`UPDATE media_files SET file_size = $1, mod_time = $2, file_fingerprint = $3 WHERE file_path = $4`,
+		size, modTime, fingerprint, path); err != nil {
+		return fmt.Errorf("refresh media_files state: %w", err)
+	}
+	return nil
+}
 
 // upsertMediaFile writes (or deletes) the 1:1 media_files row driven by
 // item.File. nil File (or empty Path) means the item owns no on-disk

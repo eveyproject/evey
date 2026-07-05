@@ -14,6 +14,7 @@ import (
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	appfeed "github.com/evey-project/evey/internal/app/feed"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmedia "github.com/evey-project/evey/internal/app/media"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
@@ -185,4 +186,5 @@ type appDeps struct {
 	copySeekProber    apptranscoding.SeekLandingProber
 	onDemandPackager  apptranscoding.OnDemandPackager
 	hlsAESSecret      []byte
+	seekIndexFileState appmaintenance.FileStateRefresher
 }

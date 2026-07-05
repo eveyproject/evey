@@ -35,7 +35,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		mkvgo.New(),
 		seekIndexCatalog{lib: deps.library.querySvc},
 		eveylogger.NewWith(rootLog, "seek-index"),
-	)
+	).WithFileStateRefresher(deps.seekIndexFileState)
 
 	grpcDeps := grpcapi.GRPCServerDeps{
 		LibCmd:                 deps.library.cmdSvc,

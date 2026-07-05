@@ -1049,6 +1049,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	return &appDeps{
 		bus: bus,
+		// The media-item repo doubles as the seek-index fingerprint refresher, so a
+		// reindexed file isn't re-probed (and its keyframe index dropped) by the
+		// next scan. r.MediaItem satisfies appmaintenance.FileStateRefresher.
+		seekIndexFileState: r.MediaItem,
 		library: libraryDeps{
 			cmdSvc:            libCmdSvc,
 			querySvc:          libQuerySvc,

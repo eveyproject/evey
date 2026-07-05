@@ -24,7 +24,8 @@ type fakeReindexer struct {
 	hasIndex  map[string]bool
 	hasBackup map[string]bool
 	failWith  map[string]error
-	panicOn   string // when set, ReindexInPlace panics on this path
+	skip      map[string]bool // when true, ReindexInPlace reports Skipped (already indexed)
+	panicOn   string          // when set, ReindexInPlace panics on this path
 	reindexed []string
 	restored  []string
 	gate      chan struct{} // when non-nil, ReindexInPlace blocks until it's closed
@@ -45,6 +46,9 @@ func (f *fakeReindexer) ReindexInPlace(_ context.Context, p string, _ mkv.Reinde
 	}
 	if err := f.failWith[p]; err != nil {
 		return mkv.ReindexResult{}, err
+	}
+	if f.skip[p] {
+		return mkv.ReindexResult{Skipped: true}, nil
 	}
 	f.mu.Lock()
 	f.reindexed = append(f.reindexed, p)
@@ -166,6 +170,70 @@ func TestSeekIndexService_ReindexMedia_AsyncAndUpdatesCache(t *testing.T) {
 
 	// A media id with no file is a clean, synchronous error — not a job.
 	require.Error(t, svc.StartReindexMedia(context.Background(), "missing-id"))
+}
+
+// fakeFileState records the fingerprint refreshes the reindex asks for.
+type fakeFileState struct {
+	mu    sync.Mutex
+	calls []fileStateCall
+	err   error
+}
+type fileStateCall struct {
+	path string
+	size int64
+	mt   time.Time
+}
+
+func (f *fakeFileState) RefreshFileState(_ context.Context, path string, size int64, mt time.Time) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls = append(f.calls, fileStateCall{path, size, mt})
+	return f.err
+}
+
+// After a successful reindex the service re-stamps the file's scan fingerprint
+// (its real on-disk size+mtime) so the next library scan sees it UNCHANGED and
+// keeps the keyframe index instead of re-probing — no transcode window.
+func TestSeekIndexService_ReindexMedia_RefreshesFileState(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("reindexed-bytes"), 0o644))
+	fi, err := os.Stat(p)
+	require.NoError(t, err)
+
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: false}, hasBackup: map[string]bool{}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}
+	fs := &fakeFileState{}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithFileStateRefresher(fs)
+
+	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1"))
+	waitIdle(t, svc)
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	require.Len(t, fs.calls, 1, "refreshed the reindexed file's fingerprint exactly once")
+	assert.Equal(t, p, fs.calls[0].path)
+	assert.Equal(t, fi.Size(), fs.calls[0].size, "stamps the real on-disk size")
+	assert.True(t, fi.ModTime().Equal(fs.calls[0].mt), "stamps the real on-disk mtime")
+}
+
+// A skipped reindex (file already indexed) must NOT refresh — nothing changed
+// on disk, so re-stamping would be a lie that could mask a genuine future edit.
+func TestSeekIndexService_ReindexMedia_SkippedDoesNotRefresh(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: true}, hasBackup: map[string]bool{}, skip: map[string]bool{p: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}
+	fs := &fakeFileState{}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithFileStateRefresher(fs)
+
+	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1"))
+	waitIdle(t, svc)
+
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	assert.Empty(t, fs.calls, "a skipped (already-indexed) reindex refreshes nothing")
 }
 
 func TestSeekIndexService_RollbackMedia_Async(t *testing.T) {

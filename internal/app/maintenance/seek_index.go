@@ -60,6 +60,19 @@ type MediaCatalog interface {
 	GetMediaFile(ctx context.Context, mediaID string) (MediaRef, error)
 }
 
+// FileStateRefresher re-stamps the change-detection fingerprint (size + mtime)
+// the library scan keys on for a media file. After a reindex rewrites a
+// container in place, the bytes change but the logical content — streams,
+// keyframe times, duration — does not; refreshing the stored fingerprint makes
+// the next scan treat the file as UNCHANGED instead of re-probing it and
+// dropping the keyframe index, which would force a transcode window (the copy
+// rung needs keyframes_ms) until the keyframe backfill worker catches up.
+// Implemented by the media-item repository; optional (nil disables the refresh,
+// falling back to the re-probe path).
+type FileStateRefresher interface {
+	RefreshFileState(ctx context.Context, path string, size int64, modTime time.Time) error
+}
+
 // SeekStatus is the per-file diagnosis surfaced by a scan.
 type SeekStatus struct {
 	MediaID   string
@@ -124,6 +137,7 @@ type cachedScan struct {
 type SeekIndexService struct {
 	reindexer mkv.Reindexer
 	catalog   MediaCatalog
+	fileState FileStateRefresher // optional; see WithFileStateRefresher
 	logger    *slog.Logger
 
 	mu          sync.Mutex
@@ -143,6 +157,39 @@ func NewSeekIndexService(reindexer mkv.Reindexer, catalog MediaCatalog, logger *
 		catalog:   catalog,
 		logger:    logger.With("component", "seek_index"),
 		scans:     map[string]cachedScan{},
+	}
+}
+
+// WithFileStateRefresher wires the post-reindex fingerprint refresh so a
+// rewritten file is not re-probed (and its keyframe index dropped) by the next
+// library scan. Optional and chainable; without it the reindex still succeeds,
+// the file is just re-probed later (a transcode window until keyframes
+// backfill).
+func (s *SeekIndexService) WithFileStateRefresher(r FileStateRefresher) *SeekIndexService {
+	s.fileState = r
+	return s
+}
+
+// refreshFileState re-stamps the scan fingerprint (size+mtime) on a file a
+// reindex just rewrote, so the next library scan sees it UNCHANGED and keeps
+// the existing streams + keyframe index instead of re-probing (which nulls
+// keyframes_ms and forces a transcode window). Best-effort: any failure only
+// means the file is re-probed later — the pre-refresh behaviour — so it is
+// logged, never fatal to the job. Runs right after the swap to beat the ~2 min
+// periodic scan to the file.
+func (s *SeekIndexService) refreshFileState(ctx context.Context, path string) {
+	if s.fileState == nil {
+		return
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		s.logger.Warn("seek-index: stat after reindex failed (file will be re-probed)",
+			slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	if err := s.fileState.RefreshFileState(ctx, path, fi.Size(), fi.ModTime()); err != nil {
+		s.logger.Warn("seek-index: refresh file fingerprint failed (file will be re-probed)",
+			slog.String("path", path), slog.Any("err", err))
 	}
 }
 
@@ -233,6 +280,7 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 				return false, err
 			}
 			if !res.Skipped {
+				s.refreshFileState(bg, path)
 				s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = true })
 			}
 			return res.Skipped, nil
@@ -264,6 +312,7 @@ func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID string
 			return false, err
 		}
 		if !res.Skipped {
+			s.refreshFileState(bg, path)
 			s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = true })
 		}
 		return res.Skipped, nil
