@@ -8,9 +8,11 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/pkg/network"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -32,6 +34,20 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 			default:
 				return runtime.DefaultHeaderMatcher(key)
 			}
+		}),
+		// Capture the REAL client user-agent + IP into metadata. Without this,
+		// downstream sees grpc-go's own user-agent and the gateway->grpc peer
+		// (a private container IP) — useless in the audit log. ratelimit.ClientIP
+		// only trusts X-Forwarded-For from a trusted proxy (anti-spoof).
+		runtime.WithMetadata(func(_ context.Context, r *http.Request) metadata.MD {
+			pairs := make([]string, 0, 4)
+			if ua := r.Header.Get("User-Agent"); ua != "" {
+				pairs = append(pairs, "x-real-user-agent", ua)
+			}
+			if ip := ratelimit.ClientIP(r); ip != "" {
+				pairs = append(pairs, "x-real-ip", ip)
+			}
+			return metadata.Pairs(pairs...)
 		}),
 	)
 	for _, fn := range []func(context.Context, *runtime.ServeMux, *grpc.ClientConn) error{

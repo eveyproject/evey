@@ -35,8 +35,11 @@ func enrichClientInfo(ctx context.Context) context.Context {
 	if !ok {
 		return ctx
 	}
-	if vals := md.Get("user-agent"); len(vals) > 0 {
-		ctx = context.WithValue(ctx, userAgentKey{}, vals[0])
+	// Prefer the REAL client user-agent the gateway annotator captured; the raw
+	// "user-agent" metadata is grpc-go's own ("grpc-go/x.y.z") once a request
+	// crosses the HTTP->gRPC gateway.
+	if ua := firstMD(md, "x-real-user-agent", "grpcgateway-user-agent", "user-agent"); ua != "" {
+		ctx = context.WithValue(ctx, userAgentKey{}, ua)
 	}
 	if vals := md.Get("x-device-name"); len(vals) > 0 {
 		ctx = context.WithValue(ctx, deviceNameKey{}, vals[0])
@@ -48,7 +51,22 @@ func enrichClientInfo(ctx context.Context) context.Context {
 	return ctx
 }
 
+// firstMD returns the first non-empty value across the given metadata keys.
+func firstMD(md metadata.MD, keys ...string) string {
+	for _, k := range keys {
+		if vals := md.Get(k); len(vals) > 0 && vals[0] != "" {
+			return vals[0]
+		}
+	}
+	return ""
+}
+
 func resolveClientIP(ctx context.Context, md metadata.MD) string {
+	// The gateway annotator resolves the real client IP (trusted-proxy aware);
+	// prefer it over the raw x-forwarded-for chain / gateway peer.
+	if ip := firstMD(md, "x-real-ip"); ip != "" {
+		return ip
+	}
 	if vals := md.Get("x-forwarded-for"); len(vals) > 0 {
 		parts := strings.Split(vals[0], ",")
 		ip := strings.TrimSpace(parts[0])
