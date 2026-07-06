@@ -220,6 +220,52 @@ func TestHLSVOD_Segment_OutOfRange_404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code, "out-of-range segment must 404, not spawn+503")
 }
 
+// Regression (prod: a series episode, user the owner stalled at 46:43): a COPY rung
+// cuts on source keyframes, which are routinely SHORTER than the transcode grid,
+// so it lists MORE segments than ceil(dur/grid). The forged-index guard used a
+// grid bound and false-404'd every copy segment past ceil(dur/grid) — the tail of
+// the file. The guard must SKIP copy requests; they range-check a forged index
+// cheaply downstream via the plan's len(segs), with no ffmpeg -ss spawn.
+func TestHLSVOD_Segment_CopyRung_DeepIndexNotFalse404(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000) // 60s → ceil(dur/3s) = 20 transcode segments
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{
+			Path:            "/test.mkv",
+			ContainerFormat: "matroska",
+			Duration:        dur,
+			// Size zero → the copy disk guard fails open → copy allowed.
+		},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item, streams: copyEligibleStreams()},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	// Wire the copy path so isCopyRequest can return true (the guard's skip gate).
+	copyProd := apptranscoding.NewSoftwareProducer(h.cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
+	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
+	h.copyProducer = copyProd
+	h.segmentWaitTimeout = 50 * time.Millisecond
+
+	// Deep index far past the 20-segment transcode grid — a legitimate copy tail
+	// segment. Old code: 404 "segment index out of range". Fixed: guard skipped, so
+	// the request reaches the producer and 503s on the (empty) cache instead.
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/media/m1/hls/v2/stream_0_999.m4s?videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4,fmp4", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("file", "stream_0_999.m4s")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.serveHTTP(w, req)
+
+	assert.NotContains(t, w.Body.String(), "segment index out of range",
+		"copy-rung deep index must not be false-404'd by the transcode grid guard")
+	assert.NotEqual(t, http.StatusNotFound, w.Code,
+		"copy-rung deep index reaches the producer (503 on cache miss), not the out-of-range 404")
+}
+
 // A forged variant index (past the rung count) is rejected with 404 before
 // EnsureSegmentRange, so the HW orchestrator never spawns a rafale that would
 // write stream_99_* (a wasted session + full WaitBudget for the client).

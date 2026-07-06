@@ -538,15 +538,24 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 
 	// Bound segmentIdx against the media duration so a forged stream_N_99999.m4s
 	// can't spawn an `ffmpeg -ss <past-the-end>` (fast exit, but 25-60s of
-	// cache.Wait + session-slot churn per request). Copy mode already rejects via
-	// the plan's len(segs); this guards the transcode path. The transcode grid
-	// (ManifestSegmentSeconds) is the SMALLEST segment, so ceil(dur/grid)+1 is a
-	// safe upper bound for copy too (its segments are >= 6s → fewer of them).
+	// cache.Wait + session-slot churn per request). This applies ONLY to the
+	// transcode ladder, whose segments are exactly ManifestSegmentSeconds long,
+	// so ceil(dur/grid) is the EXACT segment count and any index >= it is forged.
+	//
+	// The COPY rung must be excluded: it cuts on source keyframes, which are
+	// routinely SHORTER than the grid (sub-3s GOPs are common), so it lists MORE
+	// segments than ceil(dur/grid). A grid bound here false-404'd the tail of
+	// every such copy stream — e.g. a 51:48 h264 source with ~2.7s GOPs lists
+	// 1146 segments but ceil(dur/3s)+1 = 1038, killing the last ~5 min at 46:43.
+	// The copy path range-checks a forged index cheaply downstream via the plan's
+	// len(segs) (software_producer startSession) with no ffmpeg -ss spawn, so it
+	// needs no pre-bound here.
 	if !isInit && item.File != nil {
-		if durMs := item.File.Duration.Milliseconds(); durMs > 0 {
+		if durMs := item.File.Duration.Milliseconds(); durMs > 0 &&
+			!h.isCopyRequest(h.makeDecision(r.Context(), streams, containerOf(item), r), streams, sourceBytesOf(item)) {
 			const segMs = int64(apptranscoding.ManifestSegmentSeconds * 1000)
-			maxSeg := int((durMs+segMs-1)/segMs) + 1
-			if segmentIdx > maxSeg {
+			maxSeg := int((durMs + segMs - 1) / segMs) // ceil = exact transcode segment count
+			if segmentIdx >= maxSeg {
 				span.SetStatus(codes.Error, "segment index past media end")
 				http.Error(w, `{"message":"segment index out of range"}`, http.StatusNotFound)
 				return
