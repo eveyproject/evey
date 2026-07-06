@@ -694,9 +694,12 @@ func BuildFFmpegArgs(opts transcoding.HLSProcessOpts) []string {
 // the OutputDir at session end — no manual segment deletion needed. Worst case
 // is bitrate x media_duration per session (~5 GB for a 2h 1080p multivariant).
 
-// hlsSegmentSeconds is the target HLS segment length. It MUST stay in sync with
-// the -force_key_frames cadence (hlsForceKeyframesArgs) so ffmpeg emits a
-// keyframe exactly at each segment boundary.
+// hlsSegmentSeconds is the target HLS segment length (the -hls_time cadence for
+// every video AND audio-rendition session). It MUST stay in sync with the
+// -force_key_frames cadence (hlsForceKeyframesArgs) so ffmpeg emits a keyframe
+// exactly at each segment boundary, and with apptranscoding.ManifestSegmentSeconds
+// so the manifests advertise exactly as many segments as the encoder cuts.
+// TestSegmentGridConstantsInSync enforces the latter across the two packages.
 const hlsSegmentSeconds = "3"
 
 // deinterlaceFilter deinterlaces only frames the decoder flags as interlaced

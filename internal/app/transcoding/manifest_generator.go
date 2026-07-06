@@ -11,7 +11,9 @@ import (
 
 // ManifestSegmentSeconds is the target HLS segment length. MUST stay in sync with
 // the ffmpeg `-force_key_frames expr:gte(t,n_forced*N)` cadence (hlsForceKeyframesArgs
-// in adapters/driven/ffmpeg/hls_transcoder.go) so each segment lands on a keyframe.
+// in adapters/driven/ffmpeg/hls_transcoder.go) so each segment lands on a keyframe,
+// and with ffmpeg's hlsSegmentSeconds (-hls_time) so the advertised segment count
+// matches what the encoder cuts. TestSegmentGridConstantsInSync enforces the latter.
 const ManifestSegmentSeconds = 3.0
 
 // ManifestInput is the minimal info needed to render an HLS master + variant playlists
