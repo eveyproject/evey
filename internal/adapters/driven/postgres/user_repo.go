@@ -18,9 +18,16 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-const userColumns = `id, username, email, password_hash, is_admin, enabled,
+// userInsertColumns is the single source of truth for the columns Create writes
+// (must match the $N VALUES count). userColumns appends last_login_at, which is
+// read on SELECT but NULL at creation (only set on login), so it must NOT be in
+// the INSERT list. Derive rather than duplicate: adding a base column then means
+// touching one literal, not two.
+const userInsertColumns = `id, username, email, password_hash, is_admin, enabled,
 	 oidc_subject, oidc_issuer, max_streams, max_profiles, max_devices_per_profile,
-	 max_bitrate_kbps, push_consent, created_at, updated_at, last_login_at`
+	 max_bitrate_kbps, push_consent, created_at, updated_at`
+
+const userColumns = userInsertColumns + `, last_login_at`
 
 type UserRepository struct {
 	db *sql.DB
@@ -37,7 +44,7 @@ func (r *UserRepository) Create(ctx context.Context, u *user.User) error {
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO users (`+userColumns+`)
+		`INSERT INTO users (`+userInsertColumns+`)
 		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 		u.ID, u.Username, u.Email, u.PasswordHash, u.IsAdmin, u.Enabled,
 		u.OIDCSubject, u.OIDCIssuer, u.MaxStreams, u.MaxProfiles, u.MaxDevicesPerProfile,
