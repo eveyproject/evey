@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -90,12 +91,12 @@ scan:
 		if err != nil {
 			continue
 		}
-		for i := len(lines) - 1; i >= 0; i-- {
+		for _, raw := range slices.Backward(lines) {
 			if scanned >= logScanLineBudget {
 				trunc = true
 				break scan
 			}
-			line := strings.TrimSpace(lines[i])
+			line := strings.TrimSpace(raw)
 			if line == "" {
 				continue
 			}
@@ -121,10 +122,7 @@ scan:
 		return matches[i].Time > matches[j].Time
 	})
 
-	lo := f.Offset
-	if lo > len(matches) {
-		lo = len(matches)
-	}
+	lo := min(f.Offset, len(matches))
 	hi := lo + f.Limit
 	if f.Limit <= 0 || hi > len(matches) {
 		hi = len(matches)

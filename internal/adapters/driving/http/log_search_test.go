@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -91,11 +92,12 @@ func TestParseLogLine_NonJSONDropped(t *testing.T) {
 func writeLog(t *testing.T, dir, name string, lines ...string) string {
 	t.Helper()
 	p := filepath.Join(dir, name)
-	content := ""
+	var b strings.Builder
 	for _, l := range lines {
-		content += l + "\n"
+		b.WriteString(l)
+		b.WriteString("\n")
 	}
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte(b.String()), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return p

@@ -177,7 +177,7 @@ func parseLevels(raw string) map[string]bool {
 		return nil
 	}
 	out := map[string]bool{}
-	for _, p := range strings.Split(raw, ",") {
+	for p := range strings.SplitSeq(raw, ",") {
 		p = strings.ToUpper(strings.TrimSpace(p))
 		switch p {
 		case "ERROR", "WARN", "INFO", "DEBUG":
