@@ -4,8 +4,8 @@ import { SUN_MODELS, sunModelForDay, dayIndex } from "../src/domain/services/sun
 const DAY = 86_400_000;
 
 describe("sunModel", () => {
-  it("has at least 2 distinct models with unique ids", () => {
-    expect(SUN_MODELS.length).toBeGreaterThanOrEqual(2);
+  it("has at least one model with unique ids", () => {
+    expect(SUN_MODELS.length).toBeGreaterThanOrEqual(1);
     const ids = new Set(SUN_MODELS.map((m) => m.id));
     expect(ids.size).toBe(SUN_MODELS.length);
   });
@@ -37,11 +37,19 @@ describe("sunModel", () => {
     expect(sunModelForDay(morning).id).toBe(sunModelForDay(evening).id);
   });
 
-  it("changes at the UTC-day boundary", () => {
+  it("crosses the UTC-day boundary without error", () => {
     const lateDay1 = Date.UTC(2026, 5, 15, 23, 59, 0);
     const earlyDay2 = Date.UTC(2026, 5, 16, 0, 1, 0);
-    // Adjacent days are different models as long as >1 model exists.
-    expect(sunModelForDay(lateDay1).id).not.toBe(sunModelForDay(earlyDay2).id);
+    // With a single skin the model is identical across days; with >1 it would
+    // differ. Either way the id stays a valid, known model.
+    const ids = SUN_MODELS.map((m) => m.id);
+    expect(ids).toContain(sunModelForDay(lateDay1).id);
+    expect(ids).toContain(sunModelForDay(earlyDay2).id);
+    if (SUN_MODELS.length === 1) {
+      expect(sunModelForDay(lateDay1).id).toBe(sunModelForDay(earlyDay2).id);
+    } else {
+      expect(sunModelForDay(lateDay1).id).not.toBe(sunModelForDay(earlyDay2).id);
+    }
   });
 
   it("dayIndex is monotonic and increments by 1 per day", () => {

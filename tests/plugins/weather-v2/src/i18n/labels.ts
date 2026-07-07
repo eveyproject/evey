@@ -49,6 +49,18 @@ export const LABELS: LabelDict = {
 
   loading:     { en: "Loading…", fr: "Chargement…", es: "Cargando…", de: "Lädt…" },
   unavailable: { en: "Unavailable", fr: "Indisponible", es: "No disponible", de: "Nicht verfügbar" },
+
+  // Settings panel (settings.user.appearance slot).
+  set_title:   { en: "Weather", fr: "Météo", es: "Clima", de: "Wetter" },
+  set_desc:    { en: "Your home city and temperature unit for the weather widget.", fr: "Ta ville de résidence et l'unité de température du widget météo.", es: "Tu ciudad y la unidad de temperatura del widget del clima.", de: "Deine Stadt und Temperatureinheit für das Wetter-Widget." },
+  set_city:    { en: "City", fr: "Ville", es: "Ciudad", de: "Stadt" },
+  set_city_ph: { en: "e.g. Paris", fr: "ex. Paris", es: "ej. París", de: "z. B. Paris" },
+  set_units:   { en: "Temperature unit", fr: "Unité de température", es: "Unidad de temperatura", de: "Temperatureinheit" },
+  set_celsius: { en: "Celsius (°C)", fr: "Celsius (°C)", es: "Celsius (°C)", de: "Celsius (°C)" },
+  set_fahrenheit: { en: "Fahrenheit (°F)", fr: "Fahrenheit (°F)", es: "Fahrenheit (°F)", de: "Fahrenheit (°F)" },
+  set_save:    { en: "Save", fr: "Enregistrer", es: "Guardar", de: "Speichern" },
+  set_saved:   { en: "Weather settings saved", fr: "Réglages météo enregistrés", es: "Ajustes del clima guardados", de: "Wetter-Einstellungen gespeichert" },
+  set_error:   { en: "Couldn't save", fr: "Enregistrement impossible", es: "No se pudo guardar", de: "Speichern fehlgeschlagen" },
 };
 
 export function translate(key: string, locale: string | undefined): string {

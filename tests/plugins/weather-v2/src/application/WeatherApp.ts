@@ -11,7 +11,7 @@
 import type { WeatherProvider } from "../domain/ports/WeatherProvider";
 import type { HostBridge, HostInit } from "../domain/ports/HostBridge";
 import type { SceneRenderer } from "../domain/ports/SceneRenderer";
-import type { GeoCoord, SunTimes, WeatherSnapshot } from "../domain/model/weather";
+import type { GeoCoord, SunTimes, WeatherSnapshot, Units } from "../domain/model/weather";
 import type { SceneParams } from "../domain/model/scene";
 import { conditionToScene } from "../domain/services/conditionToScene";
 import { computeDayCycle } from "../domain/services/dayCycle";
@@ -48,6 +48,11 @@ interface Deps {
 export class WeatherApp {
   private overlay: OverlayHandle | null = null;
   private init: HostInit | null = null;
+  // Effective location/units: the user's own per-profile residence pref when
+  // set, otherwise the admin config default (init). Re-read on every refresh so
+  // a change made in profile settings is picked up without a hard reload.
+  private city = "";
+  private units: Units = "celsius";
   private coord: GeoCoord | null = null;
   private snapshot: WeatherSnapshot | null = null;
   private sunTimes: SunTimes | null = null;
@@ -91,6 +96,8 @@ export class WeatherApp {
 
   private boot(init: HostInit): void {
     this.init = init;
+    this.city = init.city;
+    this.units = init.units;
     document.documentElement.style.background = "transparent";
     document.body.style.margin = "0";
     document.body.style.background = "transparent";
@@ -114,7 +121,9 @@ export class WeatherApp {
 
   // Ask the host for the plugin's own live sun asset (written by the backend)
   // and upgrade the texture. Silent no-op when unavailable - the bundled
-  // snapshot stays. Concurrency-guarded; cheap enough to call on refresh.
+  // snapshot stays. The backend seeds this asset with the bundled snapshot at
+  // build time, so the request resolves (200) from the very first load: there
+  // is never a 404 in the browser console, even before the first live fetch.
   private liveSunBusy = false;
   private async syncLiveSun(): Promise<void> {
     if (this.disposed || this.liveSunBusy) return;
@@ -135,16 +144,41 @@ export class WeatherApp {
     this.deps.bridge.resize(h);
   }
 
+  // Read the user's per-profile residence pref (city + units) over the admin
+  // default. A city change invalidates the cached geocode. Silent fallback to
+  // the current values when prefs are unavailable.
+  private async loadResidence(): Promise<void> {
+    const init = this.init;
+    if (!init) return;
+    try {
+      const [c, u] = await Promise.all([
+        this.deps.bridge.getPref("residence.city"),
+        this.deps.bridge.getPref("residence.units"),
+      ]);
+      const nextCity = (c && c.trim()) || init.city;
+      const nextUnits: Units = u === "fahrenheit" ? "fahrenheit" : u === "celsius" ? "celsius" : init.units;
+      if (nextCity !== this.city) {
+        this.city = nextCity;
+        this.coord = null; // re-geocode the new city
+      }
+      this.units = nextUnits;
+    } catch {
+      /* keep current city/units */
+    }
+  }
+
   private async refresh(): Promise<void> {
     const init = this.init;
     if (!init || this.disposed) return;
     try {
-      if (!this.coord) {
-        this.coord = await this.deps.provider.geocode(init.city, init.locale);
-      }
-      const res = await this.deps.provider.getCurrent(this.coord, init.units);
+      await this.loadResidence();
       if (this.disposed) return;
-      this.snapshot = { ...res.current, cityName: this.coord.name, units: init.units };
+      if (!this.coord) {
+        this.coord = await this.deps.provider.geocode(this.city, init.locale);
+      }
+      const res = await this.deps.provider.getCurrent(this.coord, this.units);
+      if (this.disposed) return;
+      this.snapshot = { ...res.current, cityName: this.coord.name, units: this.units };
       this.sunTimes = res.sunTimes;
       this.params = conditionToScene(this.snapshot);
       this.failed = false;

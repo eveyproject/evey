@@ -4,10 +4,16 @@
 //   1. gRPC lifecycle stub so the host keeps the plugin "running" and the
 //      frontend slot active.
 //   2. Sun-image updater: fetches the current NASA/SDO full-disc image for the
-//      day's rotation channel and writes it into web_root (dist/) so the
-//      frontend can display the LIVE sun, not just the bundled snapshot.
-//      Runs server-side, so NASA's lack of CORS headers is irrelevant here;
-//      the frontend then loads the file same-origin via the host asset route.
+//      day's channel and writes it into web_root (dist/) so the frontend can
+//      display the LIVE sun, not just the bundled snapshot. Runs server-side,
+//      so NASA's lack of CORS headers is irrelevant here; the frontend then
+//      loads the file same-origin via the host asset route.
+//
+// The live asset (dist/sun-live-aia171.jpg) is SEEDED at build time with the
+// bundled snapshot, so the frontend's asset request always resolves (200) -
+// there is no 404 in the browser console, even on the very first load before
+// any fetch. On a failed fetch the previous good image is kept (the filename is
+// stable, so yesterday's live image is naturally reused).
 
 const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
@@ -17,10 +23,11 @@ const https = require("https");
 
 // ---- Sun image updater ----------------------------------------------------
 
-// Must stay in sync with src/domain/services/sunModel.ts (same ids + order).
+// Must stay in sync with src/domain/services/sunModel.ts (same ids). The plugin
+// ships a single clean AIA 171 skin: AIA 193 was dropped because its large dark
+// coronal holes read as a "moth-eaten" black blotch on the disc.
 const SUN_MODELS = [
   { id: "aia171", code: "0171" },
-  { id: "aia193", code: "0193" },
 ];
 
 const SDO_HOST = "sdo.gsfc.nasa.gov";
@@ -85,14 +92,15 @@ async function updateSunImage() {
     }
     fs.mkdirSync(DIST_DIR, { recursive: true });
     // Atomic write: temp then rename, so the asset route never serves a
-    // half-written file.
+    // half-written file. On any failure the previous good image is left in
+    // place (stable filename → yesterday's live image is reused).
     const finalPath = path.join(DIST_DIR, `sun-live-${model.id}.jpg`);
     const tmpPath = path.join(DIST_DIR, `.sun-live-${model.id}.jpg.tmp`);
     fs.writeFileSync(tmpPath, buf);
     fs.renameSync(tmpPath, finalPath);
     console.error(`weather-v2: sun image updated (${model.id}, ${buf.length} bytes)`);
   } catch (e) {
-    // Non-fatal: the frontend falls back to the bundled snapshot.
+    // Non-fatal: the frontend falls back to the seeded/previous snapshot.
     console.error(`weather-v2: sun image update failed (${model.id}): ${e.message}`);
   }
 }

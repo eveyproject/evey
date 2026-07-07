@@ -1,12 +1,13 @@
 name: weather-v2
 kind: plugin
-version: 2.7.0
+version: 2.8.0
 description: Animated weather widget v2 - dependency-free WebGL scene, responsive, DDD architecture
 author: evey-examples
 language: nodejs
 entrypoint: node main.js
 permissions:
   - network
+  - prefs
 external_fetch:
   - api.open-meteo.com
   - geocoding-api.open-meteo.com
@@ -15,6 +16,8 @@ web_root: dist
 frontend:
   - slot: home.section
     src: dist/index.js
+  - slot: settings.user.appearance
+    src: dist/settings.js
 config_schema:
   city:
     type: string

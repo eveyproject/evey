@@ -20,16 +20,14 @@
 import type { SceneRenderer, RenderTarget } from "../../domain/ports/SceneRenderer";
 import { VERT_SRC, FRAG_SRC } from "./shaders";
 // Real NASA imagery (public domain). Moon: NASA/GSFC (FullMoon2010). Sun:
-// NASA/SDO and the AIA science team - one full-disc image per rotation skin,
-// cropped tight so the disc fills the frame. Keyed by the ids in
+// NASA/SDO and the AIA science team - one full-disc AIA 171 image, cropped
+// tight so the disc fills the frame. Keyed by the ids in
 // domain/services/sunModel.ts.
 import moonUrl from "../../assets/moon.jpg";
 import sunAia171 from "../../assets/sun_aia171.jpg";
-import sunAia193 from "../../assets/sun_aia193.jpg";
 
 const SUN_TEXTURES: Record<string, string> = {
   aia171: sunAia171,
-  aia193: sunAia193,
 };
 const DEFAULT_SUN_ID = "aia171";
 
@@ -41,20 +39,27 @@ interface Quality {
   maxDpr: number;
 }
 
+// Result is cached module-wide: the probe context is created at most once per
+// document, and its result is reused by every widget mount / context restore.
+let cachedQuality: Quality | null = null;
 function detectQuality(): Quality {
+  if (cachedQuality) return cachedQuality;
   try {
     const c = document.createElement("canvas");
     const gl = (c.getContext("webgl2") || c.getContext("webgl")) as WebGLRenderingContext | null;
-    if (!gl) return { scale: 0.5, fps: 24, maxDpr: 1 };
+    if (!gl) return (cachedQuality = { scale: 0.5, fps: 24, maxDpr: 1 });
     const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
     const cores = navigator.hardwareConcurrency ?? 2;
     const isWebGL2 = "drawBuffers" in gl;
-    (gl.getExtension("WEBGL_lose_context") as { loseContext(): void } | null)?.loseContext();
-    if (isWebGL2 && maxTex >= 8192 && cores >= 4) return { scale: 1.0, fps: 30, maxDpr: 1.5 };
-    if (maxTex >= 4096) return { scale: 0.75, fps: 30, maxDpr: 1.25 };
-    return { scale: 0.5, fps: 24, maxDpr: 1 };
+    // Intentionally NOT calling WEBGL_lose_context.loseContext() here: Firefox
+    // logs "WebGL context was lost." to the console on every such call, once
+    // per widget mount. The probe is a single tiny context the GC reclaims once
+    // this canvas goes out of scope, and caching guarantees at most one ever.
+    if (isWebGL2 && maxTex >= 8192 && cores >= 4) return (cachedQuality = { scale: 1.0, fps: 30, maxDpr: 1.5 });
+    if (maxTex >= 4096) return (cachedQuality = { scale: 0.75, fps: 30, maxDpr: 1.25 });
+    return (cachedQuality = { scale: 0.5, fps: 24, maxDpr: 1 });
   } catch {
-    return { scale: 0.5, fps: 24, maxDpr: 1 };
+    return (cachedQuality = { scale: 0.5, fps: 24, maxDpr: 1 });
   }
 }
 
