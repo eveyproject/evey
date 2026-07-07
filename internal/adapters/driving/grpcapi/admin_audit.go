@@ -104,6 +104,8 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 			VideoCodec:    s.VideoCodec,
 			AudioCodec:    s.AudioCodec,
 			Resolution:    s.Resolution,
+			VideoDecision: s.VideoDecision,
+			AudioDecision: s.AudioDecision,
 			BandwidthBps:  s.BandwidthBps,
 			SeriesTitle:   s.SeriesTitle,
 			SeasonNumber:  int32(s.SeasonNumber),

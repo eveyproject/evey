@@ -56,10 +56,10 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO play_sessions (id, profile_id, media_item_id, device_name, device_type, client_ip,
-		 play_method, video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		 play_method, video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
 		s.ID, s.ProfileID, s.MediaItemID, s.DeviceName, s.DeviceType, s.ClientIP,
-		s.PlayMethod, s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
+		s.PlayMethod, s.VideoCodec, s.AudioCodec, s.Resolution, s.VideoDecision, s.AudioDecision, s.BandwidthBps,
 		s.StartedAt, s.EndedAt, durationMsArg(s.Duration), positionMsArg(s.Position),
 	)
 	if err != nil {
@@ -98,11 +98,11 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE play_sessions SET device_name=$1, device_type=$2, client_ip=$3, play_method=$4,
-		 video_codec=$5, audio_codec=$6, resolution=$7, bandwidth_bps=$8, ended_at=$9, duration_ms=$10, position_ms=$11,
-		 is_paused=$12, updated_at=NOW()
-		 WHERE id=$13`,
+		 video_codec=$5, audio_codec=$6, resolution=$7, video_decision=$8, audio_decision=$9, bandwidth_bps=$10, ended_at=$11, duration_ms=$12, position_ms=$13,
+		 is_paused=$14, updated_at=NOW()
+		 WHERE id=$15`,
 		s.DeviceName, s.DeviceType, s.ClientIP, s.PlayMethod,
-		s.VideoCodec, s.AudioCodec, s.Resolution, s.BandwidthBps,
+		s.VideoCodec, s.AudioCodec, s.Resolution, s.VideoDecision, s.AudioDecision, s.BandwidthBps,
 		s.EndedAt, durationMsArg(s.Duration), positionMsArg(s.Position), s.IsPaused, s.ID,
 	)
 	if err != nil {
@@ -124,10 +124,10 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	var durationMs *int64
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused
+		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused
 		 FROM play_sessions WHERE id = $1`, id,
 	).Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
-		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
+		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
 		&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused)
 	if err != nil {
 		span.RecordError(err)
@@ -154,7 +154,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		`SELECT ps.id, ps.profile_id, p.name, ps.media_item_id, mi.title, mi.type,
 		        COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		        ps.started_at, ps.device_name, ps.device_type, ps.client_ip,
-		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.bandwidth_bps,
+		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.video_decision, ps.audio_decision, ps.bandwidth_bps,
 		        COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0),
 		        ps.is_paused
 		 FROM play_sessions ps
@@ -182,7 +182,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 			&s.MediaItemID, &s.MediaTitle, &s.MediaType,
 			&rawDurationMs, &rawPositionMs,
 			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,
-			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
+			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
 			&s.SeriesTitle, &s.SeasonNumber, &s.EpisodeNumber, &s.IsPaused,
 		); err != nil {
 			span.RecordError(err)
@@ -194,10 +194,6 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		}
 		if d, err := shared.NewDurationMs(rawPositionMs); err == nil {
 			s.Position = d
-		}
-		if s.PlayMethod == string(playback.Transcode) {
-			info := fmt.Sprintf("%s -> %s", s.VideoCodec, "h264")
-			s.TranscodeInfo = &info
 		}
 		result = append(result, s)
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -188,6 +189,12 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	resp.TranscodeReasons = decision.TranscodeReasons
 	resp.VideoDecision = decision.VideoDecision
 	resp.AudioDecision = decision.AudioDecision
+	// Target (served) codecs + resolution so the player can echo what's actually
+	// served back onto the session for the admin panel. VideoCodec/AudioCodec are
+	// only set by the decision when transcoding (empty == copy, i.e. source==served).
+	resp.VideoCodec = decision.VideoCodec
+	resp.AudioCodec = decision.AudioCodec
+	resp.Resolution = servedResolution(decision, streams)
 
 	switch decision.PlayMethod {
 	case "direct_play":
@@ -262,6 +269,34 @@ func servedBitrateBps(playMethod string, videoKbps, audioKbps, sourceBps int64) 
 	return (videoKbps + audioKbps) * 1000
 }
 
+// clampSessionField bounds a client-supplied descriptive session field (codec
+// label, decision) so a misbehaving client can't stuff the play_sessions row.
+func clampSessionField(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > 48 {
+		return s[:48]
+	}
+	return s
+}
+
+// servedResolution renders the served video height as e.g. "1080p": the
+// transcode target cap when transcoding, otherwise the source height.
+func servedResolution(d *transcoding.PlaybackDecision, streams []*library.MediaStream) string {
+	h := d.MaxHeight
+	if h <= 0 {
+		for _, s := range streams {
+			if s.StreamType == library.StreamTypeVideo && s.Height != nil && *s.Height > 0 {
+				h = *s.Height
+				break
+			}
+		}
+	}
+	if h <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%dp", h)
+}
+
 func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStreamRequest) (*eveyv1.PlaySession, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.playback.StartStream")
 	defer span.End()
@@ -322,6 +357,14 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
+	// Per-track serving detail the player copied from the StreamInfo it resolved.
+	// Purely descriptive (admin "Now Playing" panel); clamp to keep a spoofing
+	// client from stuffing the column.
+	session.VideoDecision = clampSessionField(req.VideoDecision)
+	session.AudioDecision = clampSessionField(req.AudioDecision)
+	session.VideoCodec = clampSessionField(req.VideoCodec)
+	session.AudioCodec = clampSessionField(req.AudioCodec)
+	session.Resolution = clampSessionField(req.Resolution)
 	if err := h.cmd.StartStream(ctx, session, claims.UserID); err != nil {
 		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {

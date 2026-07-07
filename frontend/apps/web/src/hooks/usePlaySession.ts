@@ -35,6 +35,20 @@ function postStopStream(sessionId: string) {
   }).catch((err) => console.warn("playback stop failed", err));
 }
 
+// servedCodecLabel builds the per-track codec label persisted on the session
+// for the admin panel: the source codec on a copy (source == served), or a
+// "source->target" form on a transcode. Language-neutral tokens; the admin UI
+// adds the localized "copié / transcodé" wording around it.
+function servedCodecLabel(decision: string | undefined, source: string, target: string | undefined): string {
+  if (decision === "transcode" && target) return source ? `${source}→${target}` : target;
+  return source;
+}
+
+function sourceCodec(streams: V1StreamInfo["mediaStreams"], kind: "VIDEO" | "AUDIO"): string {
+  const s = (streams ?? []).find((x) => x.type === `MEDIA_STREAM_TYPE_${kind}`);
+  return s?.codec ?? "";
+}
+
 export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
   sessionId: string | null;
@@ -141,6 +155,13 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           // Report the bitrate we'll actually pull (from the StreamInfo we just
           // resolved) so the admin dashboard shows the served rate, not source.
           servedBitrateBps: rawStreamInfo.bitrate ?? "0",
+          // Per-track serving decision + served codecs/resolution so the admin
+          // "Now Playing" panel can distinguish a copy rung from a real transcode.
+          videoDecision: rawStreamInfo.videoDecision ?? "",
+          audioDecision: rawStreamInfo.audioDecision ?? "",
+          videoCodec: servedCodecLabel(rawStreamInfo.videoDecision, sourceCodec(rawStreamInfo.mediaStreams, "VIDEO"), rawStreamInfo.videoCodec),
+          audioCodec: servedCodecLabel(rawStreamInfo.audioDecision, sourceCodec(rawStreamInfo.mediaStreams, "AUDIO"), rawStreamInfo.audioCodec),
+          resolution: rawStreamInfo.resolution ?? "",
         });
         if (session.id) {
           sessionIdRef.current = session.id;

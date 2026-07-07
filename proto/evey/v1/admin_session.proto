@@ -73,6 +73,12 @@ message ActiveSession {
   int32 season_number = 21;
   int32 episode_number = 22;
   bool is_paused = 23;
+  // Per-track serving decision ("copy"|"transcode"). The panel derives the
+  // serving engine from these (copy rung -> mkvgo on-demand, transcode -> ffmpeg)
+  // and renders per-track badges. video_codec/audio_codec/resolution above carry
+  // the served codecs (source->target form when transcoding).
+  string video_decision = 24;
+  string audio_decision = 25;
 }
 
 message ListActiveSessionsRequest {}

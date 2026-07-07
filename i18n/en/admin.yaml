@@ -380,8 +380,15 @@ sessions:
   audio: "Audio: {{codec}}"
   servedBitrate: "Served: {{rate}}"
   directPlay: Direct Play
-  directStream: Direct Stream
+  directStream: Remux
   transcode: Transcode
+  track:
+    video: Video
+    audio: Audio
+    videoCopied: copied
+    videoTranscoded: transcoded
+    audioCopied: copied
+    audioTranscoded: transcoded
   refreshStatus: "Updated {{time}} - auto-refresh every {{seconds}}s"
   sendMessage: Send message
   messageSent: Message sent

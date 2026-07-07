@@ -34,20 +34,25 @@ type WatchProgress struct {
 }
 
 type PlaySession struct {
-	ID           string
-	ProfileID    shared.ProfileID
-	MediaItemID  shared.MediaItemID
-	DeviceName   string
-	DeviceType   string
-	ClientIP     string
-	PlayMethod   string
-	VideoCodec   string
-	AudioCodec   string
-	Resolution   string
-	BandwidthBps int64
-	StartedAt    time.Time
-	EndedAt      *time.Time
-	Duration *shared.Duration
+	ID          string
+	ProfileID   shared.ProfileID
+	MediaItemID shared.MediaItemID
+	DeviceName  string
+	DeviceType  string
+	ClientIP    string
+	PlayMethod  string
+	VideoCodec  string
+	AudioCodec  string
+	Resolution  string
+	// VideoDecision / AudioDecision are the per-track serving decisions
+	// ("copy"|"transcode"), copied from the StreamInfo the player resolved.
+	// They let the admin panel distinguish a copy rung from a real transcode.
+	VideoDecision string
+	AudioDecision string
+	BandwidthBps  int64
+	StartedAt     time.Time
+	EndedAt       *time.Time
+	Duration      *shared.Duration
 	// Position is the last reported playback position. nil when no progress
 	// has been reported yet for this session.
 	Position *shared.Duration
@@ -132,6 +137,8 @@ type ActiveSessionInfo struct {
 	VideoCodec    string
 	AudioCodec    string
 	Resolution    string
+	VideoDecision string
+	AudioDecision string
 	BandwidthBps  int64
 	TranscodeInfo *string
 	SeriesTitle   string
@@ -153,10 +160,10 @@ func (a *ActiveSessionInfo) ProgressPercent() float64 {
 }
 
 type StreamInfo struct {
-	DirectPlayURL  *string
-	TranscodeURL   *string
-	PlayMethod     string
-	MediaStreams    []StreamDetail
+	DirectPlayURL *string
+	TranscodeURL  *string
+	PlayMethod    string
+	MediaStreams  []StreamDetail
 }
 
 type StreamDetail struct {

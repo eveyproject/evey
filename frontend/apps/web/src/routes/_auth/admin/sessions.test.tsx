@@ -117,6 +117,36 @@ describe("SessionsPage", () => {
     expect(screen.getByText("Direct Play")).toBeInTheDocument();
   });
 
+  it("renders per-track decision badges with codecs and engine (copy rung)", async () => {
+    // a beta tester-style copy rung: video copied (mkvgo), audio transcoded (ffmpeg).
+    const copyRung = {
+      ...mockSession,
+      playMethod: "transcode",
+      videoDecision: "copy",
+      audioDecision: "transcode",
+      videoCodec: "h264",
+      audioCodec: "ac3→aac",
+      resolution: "1040p",
+    };
+    mockUseQuery.mockReturnValue({ data: [copyRung], isLoading: false, isError: false });
+    const SessionsPage = await getSessionsPage();
+    render(React.createElement(SessionsPage), { wrapper: createWrapper() });
+    // Codec detail strings (language-neutral) prove the per-track rows rendered.
+    expect(screen.getByText("(h264, 1040p)")).toBeInTheDocument();
+    expect(screen.getByText("(ac3→aac)")).toBeInTheDocument();
+    // Engine derived per track: copy -> mkvgo, transcode -> ffmpeg.
+    expect(screen.getByText("· mkvgo")).toBeInTheDocument();
+    expect(screen.getByText("· ffmpeg")).toBeInTheDocument();
+  });
+
+  it("renders no per-track badges when decisions are absent (direct play)", async () => {
+    mockUseQuery.mockReturnValue({ data: [mockSession], isLoading: false, isError: false });
+    const SessionsPage = await getSessionsPage();
+    render(React.createElement(SessionsPage), { wrapper: createWrapper() });
+    expect(screen.queryByText("· mkvgo")).not.toBeInTheDocument();
+    expect(screen.queryByText("· ffmpeg")).not.toBeInTheDocument();
+  });
+
   it("shows Transcode badge for transcode method", async () => {
     const transcodeSession = { ...mockSession, playMethod: "transcode" };
     mockUseQuery.mockReturnValue({ data: [transcodeSession], isLoading: false, isError: false });

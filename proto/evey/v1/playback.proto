@@ -98,6 +98,13 @@ message StreamInfo {
   repeated string transcode_reasons = 8;
   string video_decision = 9;
   string audio_decision = 10;
+  // Target (served) codecs and resolution the client will actually receive.
+  // For a copy decision these equal the source; for a transcode they are the
+  // rung output (e.g. h264 / aac). The player echoes them back on StartStream
+  // so the admin "Now Playing" panel can show what's really being served.
+  string video_codec = 11;
+  string audio_codec = 12;
+  string resolution = 13;
 }
 
 message WatchProgress {
@@ -172,6 +179,16 @@ message StartStreamRequest {
   // shows the served rate, not the source. Absent/0 falls back to the source
   // bitrate server-side (older clients keep the previous behaviour).
   int64 served_bitrate_bps = 10;
+  // Per-track serving decision + served codecs/resolution, copied from the
+  // StreamInfo the player just resolved. Persisted on the session so the admin
+  // panel can distinguish a copy rung (video copied) from a real transcode and
+  // show the served codecs. video_decision/audio_decision are "copy"|"transcode";
+  // video_codec/audio_codec carry a "source->target" form when transcoding.
+  string video_decision = 11;
+  string audio_decision = 12;
+  string video_codec = 13;
+  string audio_codec = 14;
+  string resolution = 15;
 }
 
 message StopStreamRequest {
