@@ -1,0 +1,375 @@
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { Search, Radio, ChevronRight, Copy, SlidersHorizontal, AlertTriangle } from "lucide-react";
+import { eveyFetch, getBaseURL } from "@evey/api";
+import { useAuthStore } from "@evey/store";
+import { Select } from "@/components/ui/Select";
+import { Input } from "@/components/ui/Input";
+import { FilterChip } from "@/components/ui/FilterChip";
+import { Badge } from "@/components/ui/Badge";
+import { Spinner } from "@/components/ui/Spinner";
+import { EmptyState } from "@/components/ui/EmptyState";
+import {
+  type LogEntry,
+  type LogSearchResponse,
+  WHERE_VALUES,
+  SOURCE_VALUES,
+  parseLogLine,
+} from "./logsClassify";
+
+const LEVELS = ["ERROR", "WARN", "INFO", "DEBUG"] as const;
+const PAGE_SIZE = 100;
+const LIVE_CAP = 1000;
+
+interface FilterParams {
+  levels: string[];
+  where: string;
+  source: string;
+  q: string;
+  sessionId: string;
+  userId: string;
+  mediaId: string;
+}
+
+function levelVariant(level: string): "error" | "warning" | "info" | "default" {
+  switch (level) {
+    case "ERROR":
+      return "error";
+    case "WARN":
+      return "warning";
+    case "INFO":
+      return "info";
+    default:
+      return "default";
+  }
+}
+
+function levelBorder(level: string): string {
+  switch (level) {
+    case "ERROR":
+      return "var(--badge-error-text,#fca5a5)";
+    case "WARN":
+      return "var(--badge-warning-text,#fde047)";
+    case "INFO":
+      return "var(--badge-info-text,#93c5fd)";
+    default:
+      return "var(--border)";
+  }
+}
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString(undefined, { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0");
+}
+
+function buildSearchQS(f: FilterParams, limit: number, offset: number): string {
+  const p = new URLSearchParams();
+  if (f.levels.length) p.set("level", f.levels.join(","));
+  if (f.where) p.set("where", f.where);
+  if (f.source) p.set("source", f.source);
+  if (f.q) p.set("q", f.q);
+  if (f.sessionId) p.set("session_id", f.sessionId);
+  if (f.userId) p.set("user_id", f.userId);
+  if (f.mediaId) p.set("media_id", f.mediaId);
+  p.set("limit", String(limit));
+  p.set("offset", String(offset));
+  return p.toString();
+}
+
+// matchClient mirrors the server matchLog predicate, used to filter the live
+// SSE stream (which delivers unfiltered raw lines).
+function matchClient(e: LogEntry, f: FilterParams): boolean {
+  if (f.levels.length && !f.levels.includes(e.level)) return false;
+  if (f.where && e.where !== f.where) return false;
+  if (f.source && e.source !== f.source) return false;
+  if (f.sessionId && e.sessionId !== f.sessionId) return false;
+  if (f.userId && e.userId !== f.userId) return false;
+  if (f.mediaId && e.mediaId !== f.mediaId) return false;
+  if (f.q && !e.raw.toLowerCase().includes(f.q.toLowerCase())) return false;
+  return true;
+}
+
+function LogRow({ entry }: { entry: LogEntry }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const copy = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      void navigator.clipboard?.writeText(entry.raw);
+    },
+    [entry.raw],
+  );
+  const ids: Array<[string, string | undefined]> = [
+    ["media", entry.mediaId],
+    ["session", entry.sessionId],
+    ["user", entry.userId],
+  ];
+  return (
+    <div
+      className="border-b border-[var(--border)] text-sm"
+      style={{ borderLeft: `3px solid ${levelBorder(entry.level)}` }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-start gap-2 px-3 py-1.5 text-left hover:bg-[var(--surface-raised)] transition-colors-fast"
+        aria-expanded={open}
+      >
+        <ChevronRight
+          size={14}
+          className="mt-0.5 shrink-0 text-[var(--text-muted)] transition-transform-fast"
+          style={{ transform: open ? "rotate(90deg)" : "none" }}
+          aria-hidden="true"
+        />
+        <span
+          className="shrink-0 font-mono text-xs text-[var(--text-muted)] tabular-nums"
+          title={entry.time}
+        >
+          {fmtTime(entry.time)}
+        </span>
+        <Badge variant={levelVariant(entry.level)}>{entry.level || "?"}</Badge>
+        <Badge>{entry.where}</Badge>
+        {entry.source && entry.source !== "other" && <Badge>{entry.source}</Badge>}
+        <span className="min-w-0 flex-1 truncate text-[var(--text)]">{entry.msg}</span>
+      </button>
+      {open && (
+        <div className="px-9 pb-3 pt-1 flex flex-col gap-2">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
+            {entry.component && (
+              <span>
+                <span className="opacity-60">component:</span> {entry.component}
+              </span>
+            )}
+            {ids.map(([k, v]) =>
+              v ? (
+                <span key={k}>
+                  <span className="opacity-60">{k}:</span> {v}
+                </span>
+              ) : null,
+            )}
+            {entry.requestId && (
+              <span>
+                <span className="opacity-60">request_id:</span> {entry.requestId}
+              </span>
+            )}
+          </div>
+          {entry.fields && Object.keys(entry.fields).length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5 font-mono text-xs">
+              {Object.entries(entry.fields).map(([k, v]) => (
+                <div key={k} className="flex gap-2 break-all">
+                  <span className="text-[var(--accent)] shrink-0">{k}</span>
+                  <span className="text-[var(--text)]">{typeof v === "string" ? v : JSON.stringify(v)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={copy}
+            className="self-start flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
+          >
+            <Copy size={12} aria-hidden="true" />
+            {t("admin.logs.copyRaw")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function LogsExplorer() {
+  const { t } = useTranslation();
+  const [levels, setLevels] = useState<string[]>([]);
+  const [where, setWhere] = useState("");
+  const [source, setSource] = useState("");
+  const [qInput, setQInput] = useState("");
+  const [q, setQ] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  const [userId, setUserId] = useState("");
+  const [mediaId, setMediaId] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [live, setLive] = useState(false);
+  const [liveEntries, setLiveEntries] = useState<LogEntry[]>([]);
+
+  // Debounce the free-text box so we don't refetch on every keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setQ(qInput.trim()), 300);
+    return () => clearTimeout(id);
+  }, [qInput]);
+
+  const filters: FilterParams = useMemo(
+    () => ({ levels, where, source, q, sessionId: sessionId.trim(), userId: userId.trim(), mediaId: mediaId.trim() }),
+    [levels, where, source, q, sessionId, userId, mediaId],
+  );
+
+  const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ["admin-logs-search", filters],
+    enabled: !live,
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) =>
+      eveyFetch<LogSearchResponse>({
+        url: `/api/v1/admin/logs/search?${buildSearchQS(filters, PAGE_SIZE, pageParam)}`,
+        method: "GET",
+        signal,
+      }),
+    getNextPageParam: (last, all) => {
+      const fetched = all.reduce((n, p) => n + p.entries.length, 0);
+      return fetched < last.total ? fetched : undefined;
+    },
+  });
+
+  // Live tail: open an SSE stream and prepend classified, filtered lines.
+  useEffect(() => {
+    if (!live) return;
+    setLiveEntries([]);
+    const token = useAuthStore.getState().accessToken;
+    const url = `${getBaseURL()}/api/v1/admin/logs/stream?lines=100${token ? `&token=${encodeURIComponent(token)}` : ""}`;
+    const es = new EventSource(url);
+    es.onmessage = (ev: MessageEvent<string>) => {
+      const entry = parseLogLine(ev.data);
+      if (!entry || !matchClient(entry, filters)) return;
+      setLiveEntries((prev) => [entry, ...prev].slice(0, LIVE_CAP));
+    };
+    es.onerror = () => {
+      /* browser auto-reconnects; nothing to surface */
+    };
+    return () => es.close();
+  }, [live, filters]);
+
+  const searchEntries = useMemo(() => data?.pages.flatMap((p) => p.entries) ?? [], [data]);
+  const entries = live ? liveEntries : searchEntries;
+  const total = live ? liveEntries.length : (data?.pages[0]?.total ?? 0);
+  const truncated = !live && (data?.pages[0]?.truncated ?? false);
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || live) return;
+    const obs = new IntersectionObserver(
+      (obsEntries) => {
+        if (obsEntries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
+      },
+      { rootMargin: "300px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [live, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const toggleLevel = useCallback((l: string) => {
+    setLevels((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]));
+  }, []);
+
+  const whereOptions = useMemo(
+    () => [{ value: "", label: t("admin.logs.where.all") }, ...WHERE_VALUES.map((w) => ({ value: w, label: t(`admin.logs.where.${w}`) }))],
+    [t],
+  );
+  const sourceOptions = useMemo(
+    () => [{ value: "", label: t("admin.logs.source.all") }, ...SOURCE_VALUES.map((s) => ({ value: s, label: t(`admin.logs.source.${s}`) }))],
+    [t],
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Filter toolbar */}
+      <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="relative min-w-[200px] flex-1">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
+            <input
+              value={qInput}
+              onChange={(e) => setQInput(e.target.value)}
+              placeholder={t("admin.logs.searchPlaceholder")}
+              aria-label={t("admin.logs.searchPlaceholder")}
+              className="w-full pl-9 pr-3 py-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] placeholder:text-[var(--text-muted)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent"
+            />
+          </div>
+          <div className="w-[170px]">
+            <Select label={t("admin.logs.where.label")} options={whereOptions} value={where} onChange={setWhere} />
+          </div>
+          <div className="w-[150px]">
+            <Select label={t("admin.logs.source.label")} options={sourceOptions} value={source} onChange={setSource} />
+          </div>
+          <button
+            type="button"
+            onClick={() => setLive((v) => !v)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast border"
+            style={{
+              backgroundColor: live ? "var(--accent)" : "var(--surface-raised)",
+              color: live ? "white" : "var(--text-muted)",
+              borderColor: live ? "var(--accent)" : "var(--border)",
+            }}
+            aria-pressed={live}
+          >
+            <Radio size={14} className={live ? "animate-pulse" : ""} aria-hidden="true" />
+            {t("admin.logs.live")}
+          </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-[var(--text-muted)]">{t("admin.logs.level.label")}</span>
+          {LEVELS.map((l) => (
+            <FilterChip key={l} active={levels.includes(l)} onClick={() => toggleLevel(l)}>
+              {l}
+            </FilterChip>
+          ))}
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="ml-auto flex items-center gap-1.5 text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
+            aria-expanded={showAdvanced}
+          >
+            <SlidersHorizontal size={13} aria-hidden="true" />
+            {t("admin.logs.advanced")}
+          </button>
+        </div>
+
+        {showAdvanced && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+            <Input label={t("admin.logs.sessionId")} value={sessionId} onChange={(e) => setSessionId(e.target.value)} placeholder="ps-..." />
+            <Input label={t("admin.logs.userId")} value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="usr-..." />
+            <Input label={t("admin.logs.mediaId")} value={mediaId} onChange={(e) => setMediaId(e.target.value)} placeholder="mi-..." />
+          </div>
+        )}
+      </div>
+
+      {/* Result meta */}
+      <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-muted)]">
+        <span>{live ? t("admin.logs.liveCount", { count: total }) : t("admin.logs.resultCount", { count: total })}</span>
+        {truncated && (
+          <span className="flex items-center gap-1 text-[var(--badge-warning-text,#fde047)]">
+            <AlertTriangle size={13} aria-hidden="true" />
+            {t("admin.logs.truncated")}
+          </span>
+        )}
+      </div>
+
+      {/* Viewer */}
+      <div className="rounded-[var(--radius-lg)] border border-[var(--border)] overflow-hidden">
+        {isLoading && !live ? (
+          <div className="flex justify-center py-16">
+            <Spinner size="lg" />
+          </div>
+        ) : isError && !live ? (
+          <EmptyState icon={<AlertTriangle size={40} strokeWidth={1.5} />} title={t("admin.logs.error")} />
+        ) : entries.length === 0 ? (
+          <EmptyState icon={<Search size={40} strokeWidth={1.5} />} title={t("admin.logs.empty")} />
+        ) : (
+          entries.map((e, i) => <LogRow key={`${e.time}-${i}-${e.raw.length}`} entry={e} />)
+        )}
+      </div>
+
+      {!live && (
+        <>
+          <div ref={sentinelRef} className="h-1" />
+          {isFetchingNextPage && (
+            <div className="flex justify-center py-4">
+              <Spinner size="md" />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

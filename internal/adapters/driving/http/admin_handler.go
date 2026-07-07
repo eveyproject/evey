@@ -77,6 +77,7 @@ func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen domainuser.To
 	//nolint:exhaustruct // adminHandler is shared by two route groups; this one serves the logs routes and deliberately omits the metadata services (set by registerAdminRoutes).
 	h := &adminHandler{tokenGen: tokenGen, logDir: logDir}
 	mux.HandleFunc("GET /api/v1/admin/logs", admin(h.handleGetLogs))
+	mux.HandleFunc("GET /api/v1/admin/logs/search", admin(h.handleSearchLogs))
 	mux.HandleFunc("GET /api/v1/admin/logs/stream", admin(h.handleStreamLogs))
 }
 

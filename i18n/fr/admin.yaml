@@ -21,9 +21,53 @@ nav:
   monitoring: Surveillance
   analytics: Analytique
   activity: Activité
+  logs: Logs & Debug
   qoe: "Qualité streaming"
   maintenance: Maintenance
   backupRestore: Sauvegarde BDD et restauration
+
+logs:
+  title: Logs & Debug
+  subtitle: "Recherche et suivi en direct des logs serveur (ffmpeg, mkvgo, lecture...) pour diagnostiquer les problèmes remontés par les utilisateurs."
+  searchPlaceholder: "Rechercher dans les logs (texte, chemin, id, erreur...)"
+  live: Direct
+  advanced: Avancé
+  copyRaw: Copier le JSON brut
+  error: Impossible de charger les logs.
+  empty: Aucun log ne correspond à ces filtres.
+  truncated: Résultats tronqués - affine la recherche pour une vue complète.
+  resultCount_one: "{{count}} entrée"
+  resultCount_other: "{{count}} entrées"
+  liveCount_one: "{{count}} entrée en direct"
+  liveCount_other: "{{count}} entrées en direct"
+  sessionId: ID de session
+  userId: ID utilisateur
+  mediaId: ID média
+  level:
+    label: Niveau
+  where:
+    label: Zone
+    all: Toutes les zones
+    player: Lecteur / Transcodage
+    seek-index: Index de lecture (mkvgo)
+    subtitle: Sous-titres
+    remux: Remux
+    hw-detect: Détection matérielle
+    intro: Détection intro
+    trickplay: Trickplay
+    qoe: QoE lecture
+    chromecast: Chromecast
+    auth: Authentification
+    infra: Infrastructure
+    other: Autre
+  source:
+    label: Source
+    all: Toutes les sources
+    ffmpeg: ffmpeg
+    mkvgo: mkvgo
+    qoe: QoE (client)
+    grpc: gRPC
+    other: Autre
 
 artworks:
   title: "Artworks (cache local)"

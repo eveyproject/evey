@@ -21,6 +21,7 @@ import {
   ChevronDown,
   Image,
   ScanSearch,
+  ScrollText,
   type LucideIcon,
 } from "lucide-react";
 import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
@@ -76,6 +77,7 @@ const sectionsDef: NavSection[] = [
     links: [
       { href: "/admin/analytics", labelKey: "admin.nav.analytics", icon: TrendingUp },
       { href: "/admin/activity", labelKey: "admin.nav.activity", icon: BarChart3 },
+      { href: "/admin/logs", labelKey: "admin.nav.logs", icon: ScrollText },
       { href: "/admin/qoe", labelKey: "admin.nav.qoe", icon: Gauge },
     ],
   },

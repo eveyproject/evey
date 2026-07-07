@@ -21,9 +21,53 @@ nav:
   monitoring: Monitoring
   analytics: Analytics
   activity: Activity
+  logs: Logs & Debug
   qoe: Streaming Quality
   maintenance: Maintenance
   backupRestore: Database Backup
+
+logs:
+  title: Logs & Debug
+  subtitle: "Search and live-tail server logs (ffmpeg, mkvgo, playback...) to diagnose user-reported issues."
+  searchPlaceholder: "Search logs (text, path, id, error...)"
+  live: Live
+  advanced: Advanced
+  copyRaw: Copy raw JSON
+  error: Could not load logs.
+  empty: No logs match these filters.
+  truncated: Results truncated - narrow the search for a complete view.
+  resultCount_one: "{{count}} entry"
+  resultCount_other: "{{count}} entries"
+  liveCount_one: "{{count}} live entry"
+  liveCount_other: "{{count}} live entries"
+  sessionId: Session ID
+  userId: User ID
+  mediaId: Media ID
+  level:
+    label: Level
+  where:
+    label: Where
+    all: All areas
+    player: Player / Transcode
+    seek-index: Seek index (mkvgo)
+    subtitle: Subtitles
+    remux: Remux
+    hw-detect: HW detection
+    intro: Intro detection
+    trickplay: Trickplay
+    qoe: Playback QoE
+    chromecast: Chromecast
+    auth: Auth
+    infra: Infrastructure
+    other: Other
+  source:
+    label: Source
+    all: All sources
+    ffmpeg: ffmpeg
+    mkvgo: mkvgo
+    qoe: QoE (client)
+    grpc: gRPC
+    other: Other
 
 artworks:
   title: Artworks (local cache)

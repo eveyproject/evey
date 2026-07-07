@@ -130,6 +130,96 @@ func (h *adminHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleSearchLogs powers the admin log-debug UI: it scans the rotating
+// evey-*.log files, applies the query filters (level/where/source/ids/text/
+// time) and returns classified, newest-first entries with pagination.
+func (h *adminHandler) handleSearchLogs(w http.ResponseWriter, r *http.Request) {
+	_, span := tracing.StartSpan(r.Context(), "http.admin.SearchLogs")
+	defer span.End()
+
+	f := parseLogSearchFilter(r)
+	res, err := searchLogs(h.logDir, f)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, "log dir unreadable")
+		http.Error(w, `{"message":"log directory not found"}`, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(res); err != nil {
+		slog.Warn("json encode failed", slog.Any("err", err))
+	}
+}
+
+func parseLogSearchFilter(r *http.Request) logSearchFilter {
+	q := r.URL.Query()
+	f := logSearchFilter{
+		Q:         strings.TrimSpace(q.Get("q")),
+		Where:     q.Get("where"),
+		Source:    q.Get("source"),
+		SessionID: q.Get("session_id"),
+		UserID:    q.Get("user_id"),
+		MediaID:   q.Get("media_id"),
+		RequestID: q.Get("request_id"),
+		Levels:    parseLevels(q.Get("level")),
+		Since:     parseLogTime(q.Get("since")),
+		Until:     parseLogTime(q.Get("until")),
+		Limit:     parseLogSearchInt(q.Get("limit"), 200, 2000),
+		Offset:    parseLogSearchInt(q.Get("offset"), 0, 1_000_000),
+	}
+	return f
+}
+
+// parseLevels turns a comma-separated level list into a normalized set. An
+// empty or all-invalid input yields nil (matches any level).
+func parseLevels(raw string) map[string]bool {
+	if raw == "" {
+		return nil
+	}
+	out := map[string]bool{}
+	for _, p := range strings.Split(raw, ",") {
+		p = strings.ToUpper(strings.TrimSpace(p))
+		switch p {
+		case "ERROR", "WARN", "INFO", "DEBUG":
+			out[p] = true
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// parseLogTime accepts either RFC3339(Nano) or unix milliseconds. Empty or
+// unparseable input returns the zero time (unbounded).
+func parseLogTime(raw string) time.Time {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}
+	}
+	if ms, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		return time.UnixMilli(ms).UTC()
+	}
+	if t, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+		return t
+	}
+	return time.Time{}
+}
+
+func parseLogSearchInt(raw string, def, max int) int {
+	if raw == "" {
+		return def
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return def
+	}
+	if n > max {
+		return max
+	}
+	return n
+}
+
 func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) {
 	// Span only covers the SSE setup, not per-line streaming.
 	_, span := tracing.StartSpan(r.Context(), "http.admin.StreamLogsOpen")
