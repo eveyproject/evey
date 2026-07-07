@@ -22,6 +22,7 @@ import { DeviceSettings } from "@/features/user/DeviceSettings";
 import { QuickConnectSettings } from "@/features/user/QuickConnectSettings";
 import { ProfileManagerList } from "@/features/profile/ProfileManagerList";
 import { CreateProfileDialog } from "@/features/profile/CreateProfileDialog";
+import { PluginSlot } from "@/features/plugins/PluginSlot";
 
 export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
@@ -201,18 +202,23 @@ function SettingsPage() {
   const [tab, setTab] = useState<Tab>("appearance");
 
   return (
-    <div className="px-6 py-8 max-w-2xl flex flex-col gap-6">
+    <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 min-w-0">
       <h1 className="text-2xl font-bold text-[var(--text)]">{t("auth.settings.title")}</h1>
 
       <ProfileCard />
 
-      <div className="flex gap-1 border-b border-[var(--border)] overflow-x-auto scrollbar-none">
+      {/* Tab bar: horizontally scrollable on narrow screens so every tab stays
+          reachable, with an inset fade + snap so partially-cut tabs read as
+          scrollable instead of clipped/broken. */}
+      <div
+        className="flex gap-1 border-b border-[var(--border)] overflow-x-auto scrollbar-none snap-x -mx-4 px-4 sm:mx-0 sm:px-0"
+      >
         {TABS.map((tb) => (
           <button
             key={tb.key}
             data-testid={`profile-settings-tab-${tb.key}`}
             onClick={() => setTab(tb.key)}
-            className={`flex shrink-0 whitespace-nowrap items-center gap-2 px-4 py-2 text-sm transition-colors-fast border-b-2 -mb-px ${
+            className={`flex shrink-0 snap-start whitespace-nowrap items-center gap-2 px-3 sm:px-4 py-2 text-sm transition-colors-fast border-b-2 -mb-px ${
               tab === tb.key
                 ? "border-[var(--accent)] text-[var(--accent)]"
                 : "border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
@@ -225,7 +231,7 @@ function SettingsPage() {
       </div>
 
       <Card>
-        <div className="p-6">
+        <div className="p-4 sm:p-6 min-w-0">
           {tab === "appearance" && (
             <>
               <ThemeSettings />
@@ -235,6 +241,9 @@ function SettingsPage() {
               <div className="border-t border-[var(--border)] mt-6 pt-6">
                 <RegionSettings />
               </div>
+              {/* Plugins that declare a settings.user.appearance module render
+                  their own per-profile settings UI here (e.g. weather residence). */}
+              <PluginSlot name="settings.user.appearance" />
             </>
           )}
           {tab === "profiles" && <ProfilesSection />}
