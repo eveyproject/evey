@@ -57,7 +57,7 @@ func TestFilterPluginScopes_GrantableAndHardLocked(t *testing.T) {
 func TestGenerateAndParsePluginToken_Roundtrip(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
-	tok, exp, scopes, err := g.GeneratePluginToken("u1", "plg1",
+	tok, exp, scopes, err := g.GeneratePluginToken("u1", "plg1", "prf-1",
 		[]string{"media.read", "admin.x", "library.read"}, 5*time.Minute)
 	require.NoError(t, err)
 	assert.NotEmpty(t, tok)
@@ -68,6 +68,7 @@ func TestGenerateAndParsePluginToken_Roundtrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "u1", claims.UserID)
 	assert.Equal(t, "plg1", claims.PluginID)
+	assert.Equal(t, "prf-1", claims.ProfileID, "the active profile must round-trip through the token")
 	assert.Equal(t, auth.PluginTokenType, claims.TokenType)
 	assert.True(t, claims.HasScope("media.read"))
 	assert.False(t, claims.HasScope("admin.x"))
@@ -87,7 +88,7 @@ func TestParsePluginToken_RejectsUserAccessToken(t *testing.T) {
 func TestGeneratePluginToken_Expiry(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
-	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media.read"}, -1*time.Second)
+	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", "", []string{"media.read"}, -1*time.Second)
 	// negative ttl rejected
 	require.Error(t, err)
 	assert.Empty(t, tok)
@@ -96,7 +97,7 @@ func TestGeneratePluginToken_Expiry(t *testing.T) {
 func TestGeneratePluginToken_ZeroTTL(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
-	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media.read"}, 0)
+	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", "", []string{"media.read"}, 0)
 	require.Error(t, err, "ttl=0 must be rejected (boundary)")
 	assert.Empty(t, tok)
 }
@@ -105,7 +106,7 @@ func TestParsePluginToken_Expired(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
 	// generate with tiny positive ttl then wait
-	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", []string{"media.read"}, 1*time.Millisecond)
+	tok, _, _, err := g.GeneratePluginToken("u1", "plg1", "", []string{"media.read"}, 1*time.Millisecond)
 	require.NoError(t, err)
 	time.Sleep(20 * time.Millisecond)
 	_, err = g.ParsePluginToken(tok)
@@ -115,16 +116,16 @@ func TestParsePluginToken_Expired(t *testing.T) {
 func TestGeneratePluginToken_RequiresIDs(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
-	_, _, _, err := g.GeneratePluginToken("", "p", []string{"media.read"}, time.Minute)
+	_, _, _, err := g.GeneratePluginToken("", "p", "", []string{"media.read"}, time.Minute)
 	require.Error(t, err)
-	_, _, _, err = g.GeneratePluginToken("u", "", []string{"media.read"}, time.Minute)
+	_, _, _, err = g.GeneratePluginToken("u", "", "", []string{"media.read"}, time.Minute)
 	require.Error(t, err)
 }
 
 func TestGeneratePluginToken_ForbiddenScopesStripped(t *testing.T) {
 	t.Parallel()
 	g := newGen(t, time.Minute)
-	_, _, scopes, err := g.GeneratePluginToken("u", "p",
+	_, _, scopes, err := g.GeneratePluginToken("u", "p", "",
 		[]string{"admin.users", "auth.login", "system.x", "user.write", "library.write", "media.read"},
 		time.Minute)
 	require.NoError(t, err)

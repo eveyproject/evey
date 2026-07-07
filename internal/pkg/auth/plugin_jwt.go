@@ -17,16 +17,16 @@ const PluginTokenType = "plugin"
 // and the gRPC interceptor's methodPermissions table. Any scope not in this set is
 // stripped during issuance (defence-in-depth).
 var AllowedPluginScopes = map[string]bool{
-	"media.read":        true,
-	"media.write":       true,
-	"library.read":      true,
-	"user.read":         true,
-	"playback.read":     true,
-	"stats.read":        true,
-	"notification.read": true,
-	"api.library":       true,
-	"api.metadata":      true,
-	"api.user":          true,
+	"media.read":          true,
+	"media.write":         true,
+	"library.read":        true,
+	"user.read":           true,
+	"playback.read":       true,
+	"stats.read":          true,
+	"notification.read":   true,
+	"api.library":         true,
+	"api.metadata":        true,
+	"api.user":            true,
 	"notification.sender": true,
 	// public: read-only access to non-sensitive surface (server branding is
 	// already public; public media projection exposes title/poster/year only).
@@ -45,10 +45,13 @@ var forbiddenExact = map[string]bool{
 
 var forbiddenPrefix = []string{"admin.", "auth.", "system."}
 
-// PluginClaims are the claims carried by a scoped plugin iframe JWT.
+// PluginClaims are the claims carried by a scoped plugin iframe JWT. ProfileID
+// is the caller's ACTIVE profile at issuance time; it lets plugin prefs be
+// scoped per-profile (empty when no profile is active → per-user fallback).
 type PluginClaims struct {
 	UserID    string
 	PluginID  string
+	ProfileID string
 	Scopes    []string
 	TokenType string
 	ExpiresAt time.Time
@@ -86,8 +89,10 @@ func FilterPluginScopes(in []string) []string {
 }
 
 // GeneratePluginToken signs a short-lived scoped JWT for a plugin iframe. Scopes are
-// filtered through FilterPluginScopes before signing.
-func (g *JWTGenerator) GeneratePluginToken(userID, pluginID string, scopes []string, ttl time.Duration) (string, time.Time, []string, error) {
+// filtered through FilterPluginScopes before signing. profileID is the caller's
+// active profile (may be empty) and is embedded so plugin prefs can be
+// per-profile.
+func (g *JWTGenerator) GeneratePluginToken(userID, pluginID, profileID string, scopes []string, ttl time.Duration) (string, time.Time, []string, error) {
 	if userID == "" || pluginID == "" {
 		return "", time.Time{}, nil, errors.New("userID and pluginID required")
 	}
@@ -100,6 +105,7 @@ func (g *JWTGenerator) GeneratePluginToken(userID, pluginID string, scopes []str
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"sub":        userID,
 		"plugin_id":  pluginID,
+		"profile_id": profileID,
 		"scopes":     filtered,
 		"token_type": PluginTokenType,
 		"iat":        now.Unix(),
@@ -137,6 +143,7 @@ func (g *JWTGenerator) ParsePluginToken(raw string) (*PluginClaims, error) {
 	}
 	sub, _ := mc["sub"].(string)
 	pid, _ := mc["plugin_id"].(string)
+	prof, _ := mc["profile_id"].(string)
 	if sub == "" || pid == "" {
 		return nil, errors.New("missing sub or plugin_id")
 	}
@@ -155,6 +162,7 @@ func (g *JWTGenerator) ParsePluginToken(raw string) (*PluginClaims, error) {
 	return &PluginClaims{
 		UserID:    sub,
 		PluginID:  pid,
+		ProfileID: prof,
 		Scopes:    scopes,
 		TokenType: tt,
 		ExpiresAt: exp,
@@ -170,4 +178,3 @@ func (c *PluginClaims) HasScope(s string) bool {
 	}
 	return false
 }
-

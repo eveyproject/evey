@@ -14,26 +14,31 @@ type PluginRepository interface {
 	Delete(ctx context.Context, id string) error
 }
 
-// PluginDataEntry is one row of a plugin's own key/value store. UserID is the
-// empty string for plugin-global data and a user id for per-user data (e.g.
-// plugin-namespaced preferences).
+// PluginDataEntry is one row of a plugin's own key/value store. A per-profile
+// row is identified by ProfileID alone (a profile has exactly one owner, so
+// UserID is redundant and left empty there); a per-user row has UserID and no
+// ProfileID; a plugin-global row has neither.
 type PluginDataEntry struct {
 	PluginID  string
 	UserID    string
+	ProfileID string
 	Key       string
 	Value     string
 	UpdatedAt time.Time
 }
 
 // PluginDataRepository is a plugin's own persistence: a key/value store
-// namespaced per plugin (and optionally per user). Rows cascade-delete with the
-// plugin (on uninstall) and with the user, so a plugin never leaks data past
-// its own lifecycle. userID == "" addresses the plugin-global scope.
+// namespaced per plugin, and optionally per user or per profile. Rows
+// cascade-delete with the plugin (on uninstall), the user, and the profile, so
+// a plugin never leaks data past its own lifecycle. Scope selection, in order:
+//   - profileID set   -> per-profile (userID ignored; a profile has one owner)
+//   - userID set       -> per-user (shared across the user's profiles)
+//   - both empty       -> plugin-global
 type PluginDataRepository interface {
-	Get(ctx context.Context, pluginID, userID, key string) (*PluginDataEntry, error)
-	Set(ctx context.Context, pluginID, userID, key, value string) error
-	Delete(ctx context.Context, pluginID, userID, key string) error
-	List(ctx context.Context, pluginID, userID string) ([]*PluginDataEntry, error)
+	Get(ctx context.Context, pluginID, userID, profileID, key string) (*PluginDataEntry, error)
+	Set(ctx context.Context, pluginID, userID, profileID, key, value string) error
+	Delete(ctx context.Context, pluginID, userID, profileID, key string) error
+	List(ctx context.Context, pluginID, userID, profileID string) ([]*PluginDataEntry, error)
 }
 
 type PluginRuntimeRepository interface {

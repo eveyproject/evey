@@ -86,7 +86,7 @@ func (d *adminPluginHandler) IssuePluginToken(ctx context.Context, req *eveyv1.I
 		span.SetStatus(otelcodes.Error, "plugin token service not configured")
 		return nil, status.Error(codes.Unimplemented, "plugin token service not configured")
 	}
-	issued, err := d.tokenSvc.IssueToken(ctx, claims.UserID, req.PluginId)
+	issued, err := d.tokenSvc.IssueToken(ctx, claims.UserID, claims.ProfileID, req.PluginId)
 	if err != nil {
 		span.RecordError(err)
 		switch {

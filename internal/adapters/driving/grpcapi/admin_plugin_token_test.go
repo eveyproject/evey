@@ -20,7 +20,7 @@ type stubIssuer struct {
 	failWith error
 }
 
-func (s *stubIssuer) GeneratePluginToken(userID, pluginID string, scopes []string, ttl time.Duration) (string, time.Time, []string, error) {
+func (s *stubIssuer) GeneratePluginToken(userID, pluginID, profileID string, scopes []string, ttl time.Duration) (string, time.Time, []string, error) {
 	if s.failWith != nil {
 		return "", time.Time{}, nil, s.failWith
 	}

@@ -17,7 +17,7 @@ var ErrPluginNotEnabled = errors.New("plugin not enabled")
 
 // PluginTokenIssuer signs scoped plugin tokens.
 type PluginTokenIssuer interface {
-	GeneratePluginToken(userID, pluginID string, scopes []string, ttl time.Duration) (string, time.Time, []string, error)
+	GeneratePluginToken(userID, pluginID, profileID string, scopes []string, ttl time.Duration) (string, time.Time, []string, error)
 }
 
 // TokenService issues short-lived scoped JWTs for plugin iframes.
@@ -42,7 +42,7 @@ type IssuedToken struct {
 // intersection of the plugin's admin-approved permissions (Plugin.Permissions)
 // with the auth-level allow-list. Forbidden scopes (admin.*, auth.*, system.*,
 // user.write, library.write) are stripped unconditionally.
-func (s *TokenService) IssueToken(ctx context.Context, userID, pluginID string) (*IssuedToken, error) {
+func (s *TokenService) IssueToken(ctx context.Context, userID, profileID, pluginID string) (*IssuedToken, error) {
 	if userID == "" {
 		return nil, errors.New("userID required")
 	}
@@ -56,10 +56,9 @@ func (s *TokenService) IssueToken(ctx context.Context, userID, pluginID string) 
 
 	scopes := auth.FilterPluginScopes(p.Permissions)
 
-	tok, exp, final, err := s.issuer.GeneratePluginToken(userID, pluginID, scopes, s.ttl)
+	tok, exp, final, err := s.issuer.GeneratePluginToken(userID, pluginID, profileID, scopes, s.ttl)
 	if err != nil {
 		return nil, err
 	}
 	return &IssuedToken{Token: tok, ExpiresAt: exp, Scopes: final}, nil
 }
-

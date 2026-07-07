@@ -494,40 +494,42 @@ type fakeDataRepo struct {
 
 func newFakeDataRepo() *fakeDataRepo { return &fakeDataRepo{m: map[string]string{}} }
 
-func (f *fakeDataRepo) k(p, u, key string) string { return p + "\x00" + u + "\x00" + key }
+func (f *fakeDataRepo) k(p, u, pr, key string) string {
+	return p + "\x00" + u + "\x00" + pr + "\x00" + key
+}
 
-func (f *fakeDataRepo) Get(_ context.Context, p, u, key string) (*plugindomain.PluginDataEntry, error) {
+func (f *fakeDataRepo) Get(_ context.Context, p, u, pr, key string) (*plugindomain.PluginDataEntry, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	v, ok := f.m[f.k(p, u, key)]
+	v, ok := f.m[f.k(p, u, pr, key)]
 	if !ok {
 		return nil, shared.ErrNotFound
 	}
-	return &plugindomain.PluginDataEntry{PluginID: p, UserID: u, Key: key, Value: v}, nil
+	return &plugindomain.PluginDataEntry{PluginID: p, UserID: u, ProfileID: pr, Key: key, Value: v}, nil
 }
 
-func (f *fakeDataRepo) Set(_ context.Context, p, u, key, value string) error {
+func (f *fakeDataRepo) Set(_ context.Context, p, u, pr, key, value string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.m[f.k(p, u, key)] = value
+	f.m[f.k(p, u, pr, key)] = value
 	return nil
 }
 
-func (f *fakeDataRepo) Delete(_ context.Context, p, u, key string) error {
+func (f *fakeDataRepo) Delete(_ context.Context, p, u, pr, key string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	delete(f.m, f.k(p, u, key))
+	delete(f.m, f.k(p, u, pr, key))
 	return nil
 }
 
-func (f *fakeDataRepo) List(_ context.Context, p, u string) ([]*plugindomain.PluginDataEntry, error) {
+func (f *fakeDataRepo) List(_ context.Context, p, u, pr string) ([]*plugindomain.PluginDataEntry, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []*plugindomain.PluginDataEntry
-	prefix := p + "\x00" + u + "\x00"
+	prefix := p + "\x00" + u + "\x00" + pr + "\x00"
 	for k, v := range f.m {
 		if strings.HasPrefix(k, prefix) {
-			out = append(out, &plugindomain.PluginDataEntry{PluginID: p, UserID: u, Key: k[len(prefix):], Value: v})
+			out = append(out, &plugindomain.PluginDataEntry{PluginID: p, UserID: u, ProfileID: pr, Key: k[len(prefix):], Value: v})
 		}
 	}
 	return out, nil

@@ -468,7 +468,7 @@ func (h *HostServer) GetData(ctx context.Context, req *pluginv1.GetDataRequest) 
 	if h.data == nil {
 		return nil, status.Error(codes.Unimplemented, "data store unavailable")
 	}
-	e, err := h.data.Get(ctx, pluginIDFromCtx(ctx), "", req.Key)
+	e, err := h.data.Get(ctx, pluginIDFromCtx(ctx), "", "", req.Key)
 	if err != nil {
 		if errors.Is(err, shared.ErrNotFound) {
 			return &pluginv1.GetDataResponse{Found: false}, nil
@@ -487,7 +487,7 @@ func (h *HostServer) SetData(ctx context.Context, req *pluginv1.SetDataRequest) 
 	if req.Key == "" {
 		return nil, status.Error(codes.InvalidArgument, "key is required")
 	}
-	if err := h.data.Set(ctx, pluginIDFromCtx(ctx), "", req.Key, req.Value); err != nil {
+	if err := h.data.Set(ctx, pluginIDFromCtx(ctx), "", "", req.Key, req.Value); err != nil {
 		return nil, status.Errorf(codes.Internal, "set data: %v", err)
 	}
 	return &pluginv1.SetDataResponse{}, nil
@@ -499,7 +499,7 @@ func (h *HostServer) DeleteData(ctx context.Context, req *pluginv1.DeleteDataReq
 	if h.data == nil {
 		return nil, status.Error(codes.Unimplemented, "data store unavailable")
 	}
-	if err := h.data.Delete(ctx, pluginIDFromCtx(ctx), "", req.Key); err != nil {
+	if err := h.data.Delete(ctx, pluginIDFromCtx(ctx), "", "", req.Key); err != nil {
 		return nil, status.Errorf(codes.Internal, "delete data: %v", err)
 	}
 	return &pluginv1.DeleteDataResponse{}, nil
@@ -511,7 +511,7 @@ func (h *HostServer) ListDataKeys(ctx context.Context, _ *pluginv1.ListDataKeysR
 	if h.data == nil {
 		return nil, status.Error(codes.Unimplemented, "data store unavailable")
 	}
-	entries, err := h.data.List(ctx, pluginIDFromCtx(ctx), "")
+	entries, err := h.data.List(ctx, pluginIDFromCtx(ctx), "", "")
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "list data: %v", err)
 	}
