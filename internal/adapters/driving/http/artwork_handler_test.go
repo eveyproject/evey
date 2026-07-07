@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -238,8 +239,8 @@ func TestArtwork_IDOR_403(t *testing.T) {
 }
 
 // A self-referential parent_id (poisoned/buggy row) must not spin the parent
-// walk forever: the depth guard bounds it and the handler returns 404 instead
-// of hanging. The test completing at all is the assertion.
+// walk forever: the depth guard bounds it and the handler returns a no-artwork
+// response instead of hanging. The test completing at all is the assertion.
 func TestArtwork_ParentCycle_Terminates(t *testing.T) {
 	h := mediaHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
@@ -258,8 +259,41 @@ func TestArtwork_ParentCycle_Terminates(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404 after bounded parent walk, got %d", w.Code)
+	if w.Code != http.StatusNoContent {
+		t.Errorf("expected 204 after bounded parent walk, got %d", w.Code)
+	}
+}
+
+// An item that simply has no artwork records must NOT 404: a 404 makes the
+// browser log a console/network error for every posterless card. The handler
+// returns 204 No Content (empty body, mutable short cache) so the <img> load
+// fails silently and the client renders its own placeholder.
+func TestArtwork_NoRecords_204_NoConsoleError(t *testing.T) {
+	h := mediaHandler(
+		&fakeTokenVerifier{claims: testClaims(false)},
+		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
+		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}}, // item exists, no artwork
+		"http://localhost",
+		allowAll(),
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("artType", "poster")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204 for an item with no artwork, got %d", w.Code)
+	}
+	if body := w.Body.String(); body != "" {
+		t.Errorf("expected empty body, got %q", body)
+	}
+	// Must be cacheable but NOT immutable: lite feed URLs are unversioned, so an
+	// immutable 204 would freeze "no poster" even after artwork is added.
+	if cc := w.Header().Get("Cache-Control"); cc == "" || strings.Contains(cc, "immutable") {
+		t.Errorf("expected a mutable short cache, got Cache-Control=%q", cc)
 	}
 }
 

@@ -204,7 +204,10 @@ func TestMediaArtwork_NoAuth_401(t *testing.T) {
 	}
 }
 
-func TestMediaArtwork_NotFound_404(t *testing.T) {
+// An item that exists but has no artwork records returns 204 No Content (not
+// 404): a benign "no poster yet" state must not surface as a browser console
+// error for every posterless card. See writeNoArtwork in artwork_handler.go.
+func TestMediaArtwork_NoRecords_204(t *testing.T) {
 	h := mediaHandler(
 		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
@@ -218,8 +221,8 @@ func TestMediaArtwork_NotFound_404(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
+	if w.Code != http.StatusNoContent {
+		t.Errorf("expected 204, got %d", w.Code)
 	}
 }
 

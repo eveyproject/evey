@@ -9,7 +9,7 @@ const mockCaps = vi.hoisted(() => ({
 }));
 
 vi.mock("@/utils/codec", () => ({
-  canPlayHevc: false,
+  canPlayHevc: () => false,
   getBrowserCapabilities: () => mockCaps,
 }));
 

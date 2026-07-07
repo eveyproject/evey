@@ -107,7 +107,7 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	records := h.findArtworkRecords(r.Context(), mediaID, artType, artItem.ParentID)
 	if records == nil {
 		span.SetStatus(otelcodes.Error, "no artwork records")
-		http.NotFound(w, r)
+		writeNoArtwork(w)
 		return
 	}
 
@@ -179,7 +179,7 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	}
 	if artURL == "" {
 		span.SetStatus(otelcodes.Error, "no artwork url")
-		http.NotFound(w, r)
+		writeNoArtwork(w)
 		return
 	}
 	if err := urlvalidator.ValidateRedirectURL(artURL); err != nil {
@@ -190,6 +190,22 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	http.Redirect(w, r, artURL, http.StatusFound)
+}
+
+// writeNoArtwork answers an artwork request that resolved to no usable image
+// (no records at all, or a record with neither a local file nor a source URL).
+//
+// It returns 204 No Content rather than 404 Not Found on purpose: a media item
+// with no poster yet is an expected, benign state, not an error. A 404 makes the
+// browser log a red network error to the console for every posterless card in a
+// grid; a 204 lets the <img> load fail silently so the client shows its own
+// placeholder, with no console noise. A short, MUTABLE cache keeps a scrolling
+// grid from re-requesting on every render while still recovering within minutes
+// once artwork is added - the URL is often unversioned for lite feed items, so
+// it must never be cached immutably.
+func writeNoArtwork(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // localFileExists reports whether path resolves to an existing file on disk.

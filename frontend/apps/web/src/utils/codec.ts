@@ -1,11 +1,23 @@
-export const canPlayHevc = (() => {
+// canPlayHevc reports whether this browser can actually decode HEVC on the
+// streaming (MSE) path. Lazily memoized ON PURPOSE, not computed at module load:
+// the MediaSource.isTypeSupported probe below makes Firefox log "no decoder for
+// video/mp4; codecs=hvc1/hev1" to the console every time it runs on a machine
+// whose OS advertises HEVC on the plain <video> element while its MSE cannot
+// decode it. This module is pulled into the initial bundle (via the eagerly
+// imported /watch route → HLSPlayer), so an eager IIFE fired that log on EVERY
+// page at startup - home included - with no video present. Deferring the probe
+// to the first call (only reached when a playback session starts, via
+// getBrowserCapabilities) keeps it and its console log off non-playback views.
+let hevcSupport: boolean | undefined;
+export function canPlayHevc(): boolean {
+  if (hevcSupport !== undefined) return hevcSupport;
   const v = document.createElement("video");
   // "maybe" is unreliable (Firefox returns it without actual HEVC support), so
   // require "probably" on the plain element first.
   const byElement =
     v.canPlayType('video/mp4; codecs="hvc1"') === "probably" ||
     v.canPlayType('video/mp4; codecs="hev1"') === "probably";
-  if (!byElement) return false;
+  if (!byElement) return (hevcSupport = false);
   // The streaming path is hls.js → Media Source Extensions. Firefox on Windows
   // reports HEVC "probably" on the plain <video> element (via the OS decoder)
   // while its MSE cannot decode HEVC — advertising hevc then makes the server
@@ -17,12 +29,11 @@ export const canPlayHevc = (() => {
       ? (window.MediaSource ??
         (window as unknown as { ManagedMediaSource?: typeof MediaSource }).ManagedMediaSource)
       : undefined;
-  if (!MS || typeof MS.isTypeSupported !== "function") return true;
-  return (
+  if (!MS || typeof MS.isTypeSupported !== "function") return (hevcSupport = true);
+  return (hevcSupport =
     MS.isTypeSupported('video/mp4; codecs="hvc1"') ||
-    MS.isTypeSupported('video/mp4; codecs="hev1"')
-  );
-})();
+    MS.isTypeSupported('video/mp4; codecs="hev1"'));
+}
 
 // canDisplayHdr is true only when the display reports an HDR-capable dynamic
 // range. Conservative on purpose: a false negative just transcodes/tonemaps
@@ -52,7 +63,7 @@ export function getBrowserCapabilities(): BrowserCapabilities {
 
   const videoCodecs: string[] = [];
   if (canPlay('video/mp4; codecs="avc1.42E01E"')) videoCodecs.push("h264");
-  if (canPlayHevc) videoCodecs.push("hevc");
+  if (canPlayHevc()) videoCodecs.push("hevc");
   if (canPlay('video/webm; codecs="vp9"')) videoCodecs.push("vp9");
   if (canPlay('video/mp4; codecs="av01.0.00M.08"')) videoCodecs.push("av1");
 
