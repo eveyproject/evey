@@ -116,6 +116,13 @@ export function HLSPlayer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
   const controlsToggleRef = useRef<(() => void) | null>(null);
+  // Tracks whether PlayerControls is currently showing its bars, so the
+  // top-right Watch-together / cast cluster fades in lockstep instead of
+  // staying pinned on screen the whole time during playback.
+  const [controlsVisible, setControlsVisible] = useState(true);
+  // Set by PlayerControls to its reveal action, so hovering the cluster keeps
+  // the controls up (and reschedules the hide) just like hovering the bars.
+  const revealControlsRef = useRef<(() => void) | null>(null);
   // Set by PlayerControls to its Document-PiP-aware toggle, so the "p" keyboard
   // shortcut opens the same rich PiP window as the on-screen button instead of
   // the bare-<video> legacy PiP.
@@ -666,9 +673,14 @@ export function HLSPlayer({
     >
       <video ref={(el) => { videoRef.current = el; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
 
-      {/* Top-right cluster: Watch together, then the cast icon to its right. */}
+      {/* Top-right cluster: Watch together, then the cast icon to its right.
+          Fades with the control bars (auto-hide) so it doesn't stay pinned
+          on screen during playback. */}
       {(showWatchTogether || castAvailable) && (
-        <div className="absolute top-4 right-4 z-[11] flex items-center gap-2">
+        <div
+          className={`absolute top-4 right-4 z-[11] flex items-center gap-2 transition-opacity-fast duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+          onMouseMove={() => revealControlsRef.current?.()}
+        >
           {showWatchTogether && onWatchTogether && (
             <button
               aria-label={t("player.watchTogether")}
@@ -834,6 +846,8 @@ export function HLSPlayer({
           onPanelOpenChange={(anyOpen) => { anyPanelOpenRef.current = anyOpen; }}
           closePanelRef={closePanelRef}
           controlsToggleRef={controlsToggleRef}
+          onVisibilityChange={setControlsVisible}
+          revealRef={revealControlsRef}
           pipToggleRef={pipToggleRef}
           onActionFlash={showActionFlash}
           onBrightnessChange={setBrightnessValue}

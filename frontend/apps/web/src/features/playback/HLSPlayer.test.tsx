@@ -94,7 +94,7 @@ vi.mock("@/hooks/usePlaybackPrefs", () => ({
 }));
 
 vi.mock("@/utils/codec", () => ({
-  canPlayHevc: false,
+  canPlayHevc: () => false,
   getBrowserCapabilities: () => ({
     videoCodecs: ["h264"],
     audioCodecs: ["aac", "mp3", "opus"],

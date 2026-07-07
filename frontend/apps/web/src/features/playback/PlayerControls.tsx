@@ -32,6 +32,13 @@ interface PlayerControlsProps {
   onActionFlash?: (action: "play" | "pause") => void;
   onBrightnessChange?: (value: number) => void;
   controlsToggleRef?: React.MutableRefObject<(() => void) | null>;
+  /** Fires whenever the controls auto-hide/reveal, so sibling overlays (the
+   *  top-right Watch-together / cast cluster) can fade in lockstep with the bars. */
+  onVisibilityChange?: (visible: boolean) => void;
+  /** Exposes the "reveal + restart the auto-hide timer" action so a sibling
+   *  overlay (the top-right cluster) can keep the controls up while it's hovered,
+   *  exactly like hovering the bars does. */
+  revealRef?: React.MutableRefObject<(() => void) | null>;
   pipToggleRef?: React.MutableRefObject<(() => void) | null>;
   castConnected?: boolean;
   castDeviceName?: string | null;
@@ -68,6 +75,8 @@ function PlayerControlsInner({
   onActionFlash,
   onBrightnessChange,
   controlsToggleRef,
+  onVisibilityChange,
+  revealRef,
   pipToggleRef,
   castConnected,
   castDeviceName,
@@ -131,6 +140,13 @@ function PlayerControlsInner({
     onPanelOpenChange?.(openPanel !== null);
   }, [openPanel, onPanelOpenChange]);
 
+  // Mirror the visibility to the parent so overlays outside this component (the
+  // top-right Watch-together / cast cluster) fade with the bars instead of
+  // staying pinned on screen during playback.
+  useEffect(() => {
+    onVisibilityChange?.(visible);
+  }, [visible, onVisibilityChange]);
+
   // Collapse the overflow row whenever the controls hide, so it doesn't reappear
   // already-open the next time the user taps to show the controls.
   useEffect(() => {
@@ -182,6 +198,11 @@ function PlayerControlsInner({
     // forced visibility back to true.
     if (openPanel === null) scheduleHide();
   }, [openPanel, scheduleHide]);
+
+  useEffect(() => {
+    if (revealRef) revealRef.current = resetHideTimer;
+    return () => { if (revealRef) revealRef.current = null; };
+  }, [revealRef, resetHideTimer]);
 
   useEffect(() => {
     if (settingsOpen || episodesOpen || chaptersOpen) {
