@@ -25,6 +25,26 @@ npm test --silent
 npm run build --silent
 npm prune --omit=dev --silent
 
+# npm prune has been observed to non-deterministically leave dev-only
+# transitive packages on disk right after a test/build run in the same
+# process (vitest/esbuild/rollup and their platform binaries, ~3MB) even
+# though package-lock.json correctly marks them dev:true and a prune re-run
+# later (in a fresh shell) does clean them up. Rather than depend on npm's
+# flaky convergence, force-remove every package-lock.json entry marked
+# dev:true directly: this is deterministic and driven by the lockfile
+# (ground truth for what's actually a devDependency), not a guessed name list.
+node -e "
+  const fs = require('fs');
+  const path = require('path');
+  const lock = require('./package-lock.json');
+  for (const [pkgPath, meta] of Object.entries(lock.packages)) {
+    if (!meta.dev || !pkgPath.startsWith('node_modules/')) continue;
+    const rel = pkgPath.slice('node_modules/'.length);
+    if (rel.includes('/node_modules/')) continue; // nested: parent removal covers it
+    fs.rmSync(path.join('node_modules', rel), { recursive: true, force: true });
+  }
+"
+
 # Trim non-runtime cruft from vendored deps (same as scripts/build-test-plugins.sh).
 if [ -d node_modules ]; then
   find node_modules -type d \( \
@@ -35,7 +55,30 @@ if [ -d node_modules ]; then
     -name '*.md' -o -name '*.markdown' -o -name '*.map' -o -name '*.d.ts' -o \
     -name '*.ts' -o -name '.npmignore' -o -name '.eslintrc*' \
   \) -delete 2>/dev/null || true
+  # Runtime cache artifacts (e.g. vitest's node_modules/.vite/), never actual
+  # packages - safe to drop unconditionally, .bin is already handled above.
+  find node_modules -mindepth 1 -maxdepth 1 -type d -name '.*' ! -name '.bin' -exec rm -rf {} + 2>/dev/null || true
+  # Empty scope directories left behind once every package inside them was
+  # removed above (e.g. node_modules/@vitest/ once all of @vitest/* is gone):
+  # harmless (0 bytes) but pointless in the zip listing.
+  find node_modules -depth -type d -empty -delete 2>/dev/null || true
 fi
+
+# Deterministic proof the zip ships no devDependency: fail loudly instead of
+# silently shipping bloat if any lockfile-marked dev package survived.
+node -e "
+  const fs = require('fs');
+  const path = require('path');
+  const lock = require('./package-lock.json');
+  const leftover = Object.entries(lock.packages)
+    .filter(([p, m]) => m.dev && p.startsWith('node_modules/') && !p.slice('node_modules/'.length).includes('/node_modules/'))
+    .map(([p]) => path.join('node_modules', p.slice('node_modules/'.length)))
+    .filter((p) => fs.existsSync(p));
+  if (leftover.length > 0) {
+    console.error('devDependency leaked into the zip payload:', leftover);
+    process.exit(1);
+  }
+"
 
 out="../weather-v2.zip"
 rm -f "$out"
