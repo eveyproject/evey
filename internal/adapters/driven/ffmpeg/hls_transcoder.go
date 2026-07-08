@@ -29,6 +29,9 @@ func NewHLSTranscoder() *HLSTranscoder {
 }
 
 func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
+	// Probe (cached) the source's audio start delay here — once per session,
+	// before any per-variant fan-out — so BuildFFmpegArgs stays pure.
+	opts.AudioStartDelaySec = audioStartDelayFor(ctx, opts)
 	// Per-variant HW: one single-output ffmpeg per ABR rung behind a composite
 	// handle, instead of one multi-output process. Matches how Jellyfin/Plex
 	// drive HW — the multi-encode-in-one-process graph crashes fragile VA
@@ -627,6 +630,54 @@ func hasAudio(opts transcoding.HLSProcessOpts) bool {
 	return opts.AudioTrackIndex >= 0
 }
 
+// audioDelayCancelMinSec is the floor below which a probed source audio start
+// delay is ignored. Legitimate small offsets (AAC priming ~21-40ms, muxer
+// interleave jitter) live well under it; the mux-defect class this fix targets
+// measures hundreds of ms. Below the floor the args stay byte-identical.
+const audioDelayCancelMinSec = 0.1
+
+// audioDelayCancelActive reports whether this session cancels the source's
+// audio start delay by feeding audio from a second, -itsoffset-shifted input.
+// Only TRANSCODED audio is eligible: copied audio packets cannot be trimmed at
+// the seek edge, and the early shifted packets were measured (jellyfin-ffmpeg
+// 7.1) to hijack the make_zero zero-point of copy-on-seek sessions — the video
+// landed +0.87s off plan and the copy timeline tripwire fired. A copied track
+// keeps the source's delay exactly as before this feature.
+func audioDelayCancelActive(opts transcoding.HLSProcessOpts) bool {
+	return hasAudio(opts) && opts.AudioDecision == "transcode" &&
+		opts.AudioStartDelaySec > audioDelayCancelMinSec
+}
+
+// audioInput is the ffmpeg input index the audio maps read from: 0 (the main
+// input) normally, 1 (the delay-cancelling second input) when active.
+func audioInput(opts transcoding.HLSProcessOpts) int {
+	if audioDelayCancelActive(opts) {
+		return 1
+	}
+	return 0
+}
+
+// appendAudioDelayInput appends the delay-cancelling audio input right after
+// the caller's main input: `[-ss <ssSec>] [pacing] -itsoffset -<delay> -i FILE`.
+// ssSec > 0 replicates the caller's seek verbatim — ffmpeg compares the seek
+// target against POST-itsoffset timestamps, so the replica needs no +delay
+// adjustment (measured: the accurate-seek trim lands the shifted audio exactly
+// on the scene the video starts on). pacing mirrors input 0's pacing flags; an
+// unpaced audio input next to a paced video input would re-create the very
+// interleave skew the pacing bounds. No-op when the cancel is inactive.
+func appendAudioDelayInput(args []string, opts transcoding.HLSProcessOpts, ssSec float64, pacing func([]string) []string) []string {
+	if !audioDelayCancelActive(opts) {
+		return args
+	}
+	if ssSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", ssSec))
+	}
+	if pacing != nil {
+		args = pacing(args)
+	}
+	return append(args, "-itsoffset", fmt.Sprintf("-%.3f", opts.AudioStartDelaySec), "-i", opts.FilePath)
+}
+
 // audioOutputArgsSingle returns the audio map + single-stream encode/copy args
 // for the copy and single-variant transcode builders, or nil when the source
 // has no audio. Honours the copy-vs-transcode decision and optional loudnorm.
@@ -634,7 +685,7 @@ func audioOutputArgsSingle(opts transcoding.HLSProcessOpts, bitrateKbps int64) [
 	if !hasAudio(opts) {
 		return nil
 	}
-	a := []string{"-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex)}
+	a := []string{"-map", fmt.Sprintf("%d:a:%d", audioInput(opts), opts.AudioTrackIndex)}
 	if opts.AudioDecision == "transcode" {
 		a = append(a,
 			"-c:a", resolveAudioEncoder(opts.AudioCodec),
@@ -658,7 +709,7 @@ func audioVariantArgs(opts transcoding.HLSProcessOpts, i int, bitrateKbps int64)
 		return nil
 	}
 	a := []string{
-		"-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex),
+		"-map", fmt.Sprintf("%d:a:%d", audioInput(opts), opts.AudioTrackIndex),
 		fmt.Sprintf("-c:a:%d", i), resolveAudioEncoder(opts.AudioCodec),
 		"-ac", resolveAudioChannels(opts.MaxAudioChannels),
 		fmt.Sprintf("-b:a:%d", i), fmt.Sprintf("%dk", scaledAudioBitrateKbps(bitrateKbps, opts.MaxAudioChannels)),
@@ -991,9 +1042,18 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", target))
 		args = appendInputModifiers(args, opts.ReadRate)
 		args = appendCopyPacingBurst(args, opts.ReadRate)
-		args = append(args, "-i", opts.FilePath, "-map", "0:v:0")
+		args = append(args, "-i", opts.FilePath)
+		// Delay-cancelled audio input keeps ffmpeg's DEFAULT accurate seek (no
+		// -noaccurate_seek replica): the decode trim is what drops the shifted
+		// audio content sitting before the seek target, so the session's audio
+		// starts at the target instead of hijacking the make_zero zero-point.
+		args = appendAudioDelayInput(args, opts, target, func(a []string) []string {
+			a = appendInputModifiers(a, opts.ReadRate)
+			return appendCopyPacingBurst(a, opts.ReadRate)
+		})
+		args = append(args, "-map", "0:v:0")
 		if hasAudio(opts) {
-			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
+			args = append(args, "-map", fmt.Sprintf("%d:a:%d", audioInput(opts), opts.AudioTrackIndex))
 		}
 		args = append(args, "-c:v", "copy", "-avoid_negative_ts", "make_zero")
 		args = append(args, copyVideoTagArgs(opts)...)
@@ -1010,9 +1070,12 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 		args = appendInputModifiers(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath)
+		args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
+			return appendInputModifiers(a, opts.ReadRate)
+		})
 		args = append(args, "-map", "0:v:0")
 		if hasAudio(opts) {
-			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
+			args = append(args, "-map", fmt.Sprintf("%d:a:%d", audioInput(opts), opts.AudioTrackIndex))
 		}
 		args = append(args,
 			"-c:v", "libx264",
@@ -1034,9 +1097,13 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		args = appendInputModifiers(args, opts.ReadRate)
 		args = appendCopyPacingBurst(args, opts.ReadRate)
 		args = append(args, "-i", opts.FilePath)
+		args = appendAudioDelayInput(args, opts, 0, func(a []string) []string {
+			a = appendInputModifiers(a, opts.ReadRate)
+			return appendCopyPacingBurst(a, opts.ReadRate)
+		})
 		args = append(args, "-map", "0:v:0")
 		if hasAudio(opts) {
-			args = append(args, "-map", fmt.Sprintf("0:a:%d", opts.AudioTrackIndex))
+			args = append(args, "-map", fmt.Sprintf("%d:a:%d", audioInput(opts), opts.AudioTrackIndex))
 		}
 		args = append(args, "-c:v", "copy")
 		args = append(args, copyVideoTagArgs(opts)...)
@@ -1122,6 +1189,9 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	args = appendTranscodeInputModifiers(args, opts.ReadRate, opts.VideoCodec)
 	args = append(args, "-i", opts.FilePath)
+	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
+		return appendTranscodeInputModifiers(a, opts.ReadRate, opts.VideoCodec)
+	})
 
 	deint := deinterlaceFilterFor(opts)
 	if burnIn || toneMap != "" {
@@ -1202,6 +1272,9 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 	args = appendTranscodeInputModifiers(args, opts.ReadRate, opts.VideoCodec)
 	args = append(args, "-i", opts.FilePath)
+	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
+		return appendTranscodeInputModifiers(a, opts.ReadRate, opts.VideoCodec)
+	})
 	// Preserve source PTS in the output so an fMP4 fragment carries a
 	// tfdt that matches the EXTINF position the Go-precomputed VOD
 	// manifest gave hls.js for that segment. Without `-copyts`, a rafale
@@ -1551,6 +1624,11 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
 	args = appendInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
+	// The audio input decodes in software: the hwaccel flags above bind to the
+	// VIDEO input only (they precede its -i).
+	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
+		return appendInputModifiers(a, opts.ReadRate)
+	})
 
 	vf := hwScaleFilter(opts.HWAccel, p.Width)
 	if opts.HWTonemap {
@@ -1585,6 +1663,11 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
 	args = appendInputModifiers(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
+	// The audio input decodes in software: the hwaccel flags above bind to the
+	// VIDEO input only (they precede its -i).
+	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
+		return appendInputModifiers(a, opts.ReadRate)
+	})
 	// Same source-PTS preservation as the software multi-variant builder: a
 	// rafale spawned at seg N>0 must emit fMP4 fragments whose tfdt matches the
 	// VOD manifest's EXTINF, or the browser rejects them.

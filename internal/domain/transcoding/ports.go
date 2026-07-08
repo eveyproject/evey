@@ -233,4 +233,16 @@ type HLSProcessOpts struct {
 	// process graph that crashes fragile VA drivers and isolates per-rung
 	// failures). Software always uses the single-process multi-variant graph.
 	PerVariantHW bool
+
+	// AudioStartDelaySec is how far the SOURCE's selected audio track starts
+	// AFTER its video track (ffprobe start_time delta, seconds). Some repacks
+	// carry a large one (~1s) as a mux defect; the pipeline's PTS preservation
+	// (-copyts and friends) reproduces it verbatim as a constant A/V desync.
+	// When it exceeds the builder's floor AND the audio is transcoded, the
+	// builders cancel it by feeding audio from a second `-itsoffset -<delay>`
+	// input. The transcoder adapter probes and sets this at session start
+	// (HLSTranscoder.Start) so BuildFFmpegArgs stays pure; 0 (default) is a
+	// strict no-op. Copied audio is never delay-cancelled (its packets cannot
+	// be trimmed at the seek edge; see the builder tests).
+	AudioStartDelaySec float64
 }
