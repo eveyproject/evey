@@ -39,6 +39,14 @@ const KIND_KEYS: Record<string, string> = {
   rollback: "admin.seekIndex.jobRollback",
 };
 
+// Mirror of the backend's maintenance.AudioDelayFlagSec: above it the file's
+// audio starts late enough to be a mux defect, not codec priming.
+const AUDIO_DELAY_FLOOR_SEC = 0.1;
+
+function audioDelayed(it: V1SeekIndexItem): boolean {
+  return (it.audioDelaySec ?? 0) > AUDIO_DELAY_FLOOR_SEC;
+}
+
 function formatSize(bytes: number): string {
   if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -192,6 +200,7 @@ function SeekIndexPage() {
   const items = result?.items ?? [];
   const missing = result?.missingIndex ?? 0;
   const withBackup = result?.withBackup ?? 0;
+  const delayedAudio = result?.audioDelayed ?? 0;
 
   // When the running job finishes, refresh the cached scans and report the
   // outcome — completion happens server-side, not in a mutation callback.
@@ -258,7 +267,9 @@ function SeekIndexPage() {
     },
   });
 
-  const visible = onlyAttention ? items.filter((it) => !it.hasIndex || it.hasBackup) : items;
+  const visible = onlyAttention
+    ? items.filter((it) => !it.hasIndex || it.hasBackup || audioDelayed(it))
+    : items;
   const busy = running || startScan.isPending;
 
   return (
@@ -332,7 +343,7 @@ function SeekIndexPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Card>
               <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
                 {t("admin.seekIndex.statsInspected")}
@@ -352,6 +363,14 @@ function SeekIndexPage() {
                 {t("admin.seekIndex.statsBackup")}
               </dt>
               <dd className="text-xl font-bold text-[var(--text)]">{withBackup}</dd>
+            </Card>
+            <Card>
+              <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
+                {t("admin.seekIndex.statsAudioDelay")}
+              </dt>
+              <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-audio-delay-count">
+                {delayedAudio}
+              </dd>
             </Card>
           </div>
 
@@ -423,6 +442,13 @@ function SeekIndexPage() {
                         {it.hasBackup && (
                           <Badge variant="info" className="ml-1.5">
                             {t("admin.seekIndex.backupBadge")}
+                          </Badge>
+                        )}
+                        {audioDelayed(it) && (
+                          <Badge variant="warning" className="ml-1.5">
+                            {t("admin.seekIndex.audioDelayBadge", {
+                              sec: (it.audioDelaySec ?? 0).toFixed(1),
+                            })}
                           </Badge>
                         )}
                       </td>

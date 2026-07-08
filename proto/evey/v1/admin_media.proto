@@ -123,6 +123,10 @@ message SeekIndexItem {
   bool has_backup = 5;   // a .mkvgobak exists → a prior reindex is rollback-able
   int64 size_bytes = 6;
   string container = 7;  // e.g. "mkv", "webm"
+  // Audio starts this far after the video (seconds, max across audio tracks).
+  // Above ~0.1s = repack mux defect playing as a constant A/V desync on
+  // copied audio (transcoded audio auto-cancels it at playback). 0 = aligned.
+  double audio_delay_sec = 8;
 }
 
 message ScanSeekIndexRequest {
@@ -138,6 +142,8 @@ message ScanSeekIndexResponse {
   // When the last completed scan for this scope finished (unix ms). 0 = no
   // scan has completed yet — items/counters are empty, not "all clean".
   int64 scanned_at_ms = 5;
+  // Count with audio_delay_sec above the defect floor (~0.1s).
+  int32 audio_delayed = 6;
 }
 
 message StartSeekIndexScanRequest {

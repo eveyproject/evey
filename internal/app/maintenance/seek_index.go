@@ -73,6 +73,20 @@ type FileStateRefresher interface {
 	RefreshFileState(ctx context.Context, path string, size int64, modTime time.Time) error
 }
 
+// AudioDelayProber measures how far a file's audio content starts AFTER its
+// video (max across audio tracks, seconds) — the repack mux defect that plays
+// as a constant A/V desync. Satisfied by the ffmpeg prober; optional (nil
+// skips the diagnosis). Kept separate from the Cues probe: it is a different
+// defect class, repaired by a remux, not a reindex.
+type AudioDelayProber interface {
+	ProbeMaxAudioStartDelaySec(ctx context.Context, path string) (float64, error)
+}
+
+// AudioDelayFlagSec is the floor above which a probed audio start delay is
+// surfaced as a defect. Matches the HLS builders' cancel floor: legitimate
+// codec priming sits at ~20-40ms, the defect class at hundreds of ms.
+const AudioDelayFlagSec = 0.1
+
 // SeekStatus is the per-file diagnosis surfaced by a scan.
 type SeekStatus struct {
 	MediaID   string
@@ -82,6 +96,11 @@ type SeekStatus struct {
 	HasIndex  bool // false → muxed without Cues → slow seek/resume
 	HasBackup bool // a .mkvgobak exists → a prior reindex is rollback-able
 	SizeBytes int64
+	// AudioDelaySec > AudioDelayFlagSec → the audio track starts that far
+	// after the video (mux defect → constant A/V desync on copied audio).
+	// Playback with TRANSCODED audio auto-cancels it; the flag tells the
+	// operator the file itself carries the defect. 0 when not probed.
+	AudioDelaySec float64
 }
 
 // ScanResult bundles the per-file statuses with rollup counts.
@@ -90,6 +109,7 @@ type ScanResult struct {
 	Total        int
 	MissingIndex int
 	WithBackup   int
+	AudioDelayed int // count with AudioDelaySec > AudioDelayFlagSec
 }
 
 // Failure records one file a batch job could not process.
@@ -135,10 +155,11 @@ type cachedScan struct {
 
 // SeekIndexService is the admin-facing seek-index maintenance use case.
 type SeekIndexService struct {
-	reindexer mkv.Reindexer
-	catalog   MediaCatalog
-	fileState FileStateRefresher // optional; see WithFileStateRefresher
-	logger    *slog.Logger
+	reindexer  mkv.Reindexer
+	catalog    MediaCatalog
+	fileState  FileStateRefresher // optional; see WithFileStateRefresher
+	audioDelay AudioDelayProber   // optional; see WithAudioDelayProber
+	logger     *slog.Logger
 
 	mu          sync.Mutex
 	running     bool
@@ -167,6 +188,14 @@ func NewSeekIndexService(reindexer mkv.Reindexer, catalog MediaCatalog, logger *
 // backfill).
 func (s *SeekIndexService) WithFileStateRefresher(r FileStateRefresher) *SeekIndexService {
 	s.fileState = r
+	return s
+}
+
+// WithAudioDelayProber wires the audio start-delay diagnosis into scans (one
+// header-only ffprobe per file — the scan stays an async job with progress).
+// Optional and chainable; without it AudioDelaySec stays 0 everywhere.
+func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexService {
+	s.audioDelay = p
 	return s
 }
 
@@ -424,6 +453,9 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 		if st.HasBackup {
 			res.WithBackup++
 		}
+		if st.AudioDelaySec > AudioDelayFlagSec {
+			res.AudioDelayed++
+		}
 	}
 
 	s.mu.Lock()
@@ -454,14 +486,27 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef) (SeekStatu
 		s.logger.Warn("seek-index scan: backup probe failed",
 			slog.String("path", f.Path), slog.Any("err", bakErr))
 	}
+	var delay float64
+	if s.audioDelay != nil {
+		d, dErr := s.audioDelay.ProbeMaxAudioStartDelaySec(ctx, f.Path)
+		if dErr != nil {
+			// Secondary diagnostics like the backup probe: report "no delay"
+			// rather than dropping the file from the scan.
+			s.logger.Warn("seek-index scan: audio-delay probe failed",
+				slog.String("path", f.Path), slog.Any("err", dErr))
+		} else {
+			delay = d
+		}
+	}
 	return SeekStatus{
-		MediaID:   f.MediaID,
-		Title:     f.Title,
-		Path:      f.Path,
-		Container: containerOf(f.Path),
-		HasIndex:  hasIdx,
-		HasBackup: hasBak,
-		SizeBytes: fi.Size(),
+		MediaID:       f.MediaID,
+		Title:         f.Title,
+		Path:          f.Path,
+		Container:     containerOf(f.Path),
+		HasIndex:      hasIdx,
+		HasBackup:     hasBak,
+		SizeBytes:     fi.Size(),
+		AudioDelaySec: delay,
 	}, true
 }
 

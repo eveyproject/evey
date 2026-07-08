@@ -39,10 +39,12 @@ const scanned = {
       { mediaId: "mi-1", title: "Movie A", path: "/media/a.mkv", hasIndex: false, hasBackup: false, sizeBytes: "1073741824", container: "mkv" },
       { mediaId: "mi-2", title: "Movie B", path: "/media/b.mkv", hasIndex: true, hasBackup: true, sizeBytes: "2147483648", container: "mkv" },
       { mediaId: "mi-3", title: "Movie C", path: "/media/c.webm", hasIndex: true, hasBackup: false, sizeBytes: "1024", container: "webm" },
+      { mediaId: "mi-4", title: "Movie D", path: "/media/d.mkv", hasIndex: true, hasBackup: false, sizeBytes: "4096", container: "mkv", audioDelaySec: 0.9 },
     ],
-    total: 3,
+    total: 4,
     missingIndex: 1,
     withBackup: 1,
+    audioDelayed: 1,
     scannedAtMs: "1765584000000",
   },
   isError: false,
@@ -114,11 +116,21 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     expect(screen.getByTestId("seek-index-missing-count")).toHaveTextContent("1");
+    expect(screen.getByTestId("seek-index-audio-delay-count")).toHaveTextContent("1");
     expect(screen.getByTestId("seek-index-scanned-at")).toBeInTheDocument();
-    // mi-3 is healthy (indexed, no backup) → hidden by the default filter.
-    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(2);
+    // mi-3 is healthy (indexed, no backup, aligned audio) → hidden by the
+    // default filter; mi-4's delayed audio keeps it visible.
+    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(3);
     expect(screen.getByText("Movie A")).toBeInTheDocument();
+    expect(screen.getByText("Movie D")).toBeInTheDocument();
     expect(screen.queryByText("Movie C")).not.toBeInTheDocument();
+  });
+
+  it("a delayed-audio file shows the badge with the probed seconds", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    expect(screen.getByText("Audio +0.9s")).toBeInTheDocument();
   });
 
   it("a cached response with scannedAtMs 0 is treated as no scan yet", async () => {
@@ -133,7 +145,7 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     fireEvent.click(screen.getByRole("checkbox"));
-    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(3);
+    expect(screen.getAllByTestId("seek-index-row")).toHaveLength(4);
     expect(screen.getByText("Movie C")).toBeInTheDocument();
   });
 

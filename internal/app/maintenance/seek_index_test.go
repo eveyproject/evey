@@ -357,3 +357,80 @@ func TestSeekIndexService_RollbackLibrary(t *testing.T) {
 	assert.False(t, byPath[a].HasBackup)
 	assert.True(t, byPath[b].HasIndex)
 }
+
+// fakeAudioDelayProber answers from a canned map; unknown paths error (the
+// scan must keep the file and report 0).
+type fakeAudioDelayProber struct {
+	delays map[string]float64
+}
+
+func (f fakeAudioDelayProber) ProbeMaxAudioStartDelaySec(_ context.Context, p string) (float64, error) {
+	d, ok := f.delays[p]
+	if !ok {
+		return 0, os.ErrInvalid
+	}
+	return d, nil
+}
+
+// The audio-delay diagnosis is optional and per-file: with a prober wired,
+// scans carry each file's delay and roll up the count above the flag floor; a
+// probe failure keeps the file in the scan with delay 0 (secondary
+// diagnostics never drop items).
+func TestSeekIndexService_ScanFlagsAudioDelay(t *testing.T) {
+	dir := t.TempDir()
+	delayed := filepath.Join(dir, "delayed.mkv")
+	aligned := filepath.Join(dir, "aligned.mkv")
+	probeFails := filepath.Join(dir, "probefails.mkv")
+	for _, p := range []string{delayed, aligned, probeFails} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+
+	reidx := &fakeReindexer{
+		hasIndex: map[string]bool{delayed: true, aligned: true, probeFails: true},
+	}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Title: "Delayed", Path: delayed},
+		{MediaID: "m2", Title: "Aligned", Path: aligned},
+		{MediaID: "m3", Title: "ProbeFails", Path: probeFails},
+	}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{
+			delayed: 0.9,
+			aligned: 0.03, // AAC priming territory: under the flag floor
+		}})
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Empty(t, st.Last.Err)
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.Equal(t, 3, res.Total, "the probe failure must not drop the file")
+	assert.Equal(t, 1, res.AudioDelayed, "only the file above the flag floor counts")
+	byID := map[string]appmaintenance.SeekStatus{}
+	for _, it := range res.Items {
+		byID[it.MediaID] = it
+	}
+	assert.InDelta(t, 0.9, byID["m1"].AudioDelaySec, 1e-9)
+	assert.InDelta(t, 0.03, byID["m2"].AudioDelaySec, 1e-9)
+	assert.Zero(t, byID["m3"].AudioDelaySec)
+}
+
+// Without a prober wired (the default), scans behave exactly as before.
+func TestSeekIndexService_ScanWithoutAudioDelayProber(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil)
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.Zero(t, res.AudioDelayed)
+	require.Len(t, res.Items, 1)
+	assert.Zero(t, res.Items[0].AudioDelaySec)
+}

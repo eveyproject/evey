@@ -179,16 +179,18 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 	out.Total = int32(res.Total)
 	out.MissingIndex = int32(res.MissingIndex)
 	out.WithBackup = int32(res.WithBackup)
+	out.AudioDelayed = int32(res.AudioDelayed)
 	out.ScannedAtMs = at.UnixMilli()
 	for _, it := range res.Items {
 		out.Items = append(out.Items, &eveyv1.SeekIndexItem{
-			MediaId:   it.MediaID,
-			Title:     it.Title,
-			Path:      it.Path,
-			HasIndex:  it.HasIndex,
-			HasBackup: it.HasBackup,
-			SizeBytes: it.SizeBytes,
-			Container: it.Container,
+			MediaId:       it.MediaID,
+			Title:         it.Title,
+			Path:          it.Path,
+			HasIndex:      it.HasIndex,
+			HasBackup:     it.HasBackup,
+			SizeBytes:     it.SizeBytes,
+			Container:     it.Container,
+			AudioDelaySec: it.AudioDelaySec,
 		})
 	}
 	return out, nil

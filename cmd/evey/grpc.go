@@ -6,6 +6,7 @@ import (
 
 	"google.golang.org/grpc"
 
+	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -30,12 +31,14 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 
 	// Admin MKV/WebM seek-index maintenance (scan/reindex/rollback). The mkvgo
 	// adapter is stateless, and the catalog paginates the library to feed every
-	// file to the scanner.
+	// file to the scanner. The ffprobe audio-delay prober adds the "audio starts
+	// after video" diagnosis (repack mux defect → constant A/V desync).
 	seekIndexSvc := appmaintenance.NewSeekIndexService(
 		mkvgo.New(),
 		seekIndexCatalog{lib: deps.library.querySvc},
 		eveylogger.NewWith(rootLog, "seek-index"),
-	).WithFileStateRefresher(deps.seekIndexFileState)
+	).WithFileStateRefresher(deps.seekIndexFileState).
+		WithAudioDelayProber(ffmpeg.NewProber("ffprobe"))
 
 	grpcDeps := grpcapi.GRPCServerDeps{
 		LibCmd:                 deps.library.cmdSvc,

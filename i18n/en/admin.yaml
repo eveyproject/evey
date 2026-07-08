@@ -902,6 +902,7 @@ seekIndex:
   statsInspected: Files inspected
   statsMissing: Missing seek index
   statsBackup: With backup
+  statsAudioDelay: "Delayed audio"
   onlyAttention: Only show files needing attention
   emptyTitle: No scan yet
   emptyDescription: Pick a library and scan to find MKV/WebM files without a seek index.
@@ -915,6 +916,7 @@ seekIndex:
   statusIndexed: Indexed
   statusMissing: Missing
   backupBadge: Backup
+  audioDelayBadge: "Audio +{{sec}}s"
   repair: Repair
   rollback: Roll back
   startFailed: Could not start the operation
