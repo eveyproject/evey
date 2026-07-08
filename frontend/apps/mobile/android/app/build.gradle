@@ -86,6 +86,14 @@ def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBu
  */
 def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
 
+// Release signing: read from env vars first, then gradle.properties (project or
+// `~/.gradle/gradle.properties`, never committed). See android/app/SIGNING.md.
+def releaseStoreFileName = System.getenv("EVEY_UPLOAD_STORE_FILE") ?: findProperty('EVEY_UPLOAD_STORE_FILE') ?: 'release.keystore'
+def releaseKeyAlias = System.getenv("EVEY_UPLOAD_KEY_ALIAS") ?: findProperty('EVEY_UPLOAD_KEY_ALIAS') ?: 'evey'
+def releaseStorePassword = System.getenv("EVEY_UPLOAD_STORE_PASSWORD") ?: findProperty('EVEY_UPLOAD_STORE_PASSWORD')
+def releaseKeyPassword = System.getenv("EVEY_UPLOAD_KEY_PASSWORD") ?: findProperty('EVEY_UPLOAD_KEY_PASSWORD')
+def hasReleaseSigning = releaseStorePassword && releaseKeyPassword
+
 android {
     ndkVersion rootProject.ext.ndkVersion
 
@@ -110,10 +118,15 @@ android {
             keyPassword 'android'
         }
         release {
-            storeFile file('release.keystore')
-            storePassword 'evey2026'
-            keyAlias 'evey'
-            keyPassword 'evey2026'
+            // Credentials come from env vars or `~/.gradle/gradle.properties` (never committed).
+            // See android/app/SIGNING.md. No hardcoded fallback: a release build without
+            // real credentials must fail loudly rather than sign with a public secret.
+            if (hasReleaseSigning) {
+                storeFile file(releaseStoreFileName)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
     buildTypes {
@@ -158,6 +171,19 @@ android {
         options.each {
             android.packagingOptions[prop] += it
         }
+    }
+}
+
+// Fail fast (not silently with debug/public signing) when a release task is requested
+// but no real signing credentials were provided.
+gradle.taskGraph.whenReady { graph ->
+    def buildingRelease = graph.allTasks.any { task -> task.path.startsWith(':app:') && task.name =~ /(?i)release/ }
+    if (buildingRelease && !hasReleaseSigning) {
+        throw new GradleException(
+            "Release signing credentials are missing. Set EVEY_UPLOAD_STORE_PASSWORD and " +
+            "EVEY_UPLOAD_KEY_PASSWORD (plus optionally EVEY_UPLOAD_STORE_FILE / EVEY_UPLOAD_KEY_ALIAS) " +
+            "as environment variables or in ~/.gradle/gradle.properties. See android/app/SIGNING.md."
+        )
     }
 }
 

@@ -109,3 +109,6 @@ examples/plugins/*/dist/
 
 # ML intro-detection training labels (personal: library titles) — never committed
 ml-trigger.txt
+
+# Android release keystore - never committed (signing secret)
+**/release.keystore
