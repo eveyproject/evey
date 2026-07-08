@@ -319,6 +319,7 @@ libraries:
 
 sessions:
   title: "Reproduciendo ahora"
+  castingTo: "Reproduciendo en {{device}}"
   failedLoad: "Error al cargar sesiones"
   failedLoadDesc: "No se pudieron obtener las sesiones activas. Verifica tu conexión e inténtalo de nuevo."
   noSessions: "Sin sesiones activas"

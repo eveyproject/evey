@@ -251,9 +251,9 @@ func TestCommandService_ReportProgressBySession_BuffersWrite(t *testing.T) {
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 
 	// Three player ticks within one flush window: zero DB upserts.
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 5000, false))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 10000, false))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 15000, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 5000, false, ""))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 10000, false, ""))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 15000, false, ""))
 
 	assert.Equal(t, int64(0), pr.Calls(), "buffer should swallow upserts")
 
@@ -279,7 +279,7 @@ func TestCommandService_ReportProgressBySession_NoBufferStaysSynchronous(t *test
 	pfr.Create(ctx, &user.Profile{ID: "p1", UserID: "u1"})
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 5000, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 5000, false, ""))
 	assert.Equal(t, int64(1), pr.Calls(), "without buffer, every report hits DB")
 }
 
@@ -313,7 +313,7 @@ func TestCommandService_StartStopProgressFlusher_DrainsOnStop(t *testing.T) {
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 
 	cmd.StartProgressFlusher(ctx)
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 8000, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 8000, false, ""))
 	assert.Equal(t, int64(0), pr.Calls())
 
 	cmd.StopProgressFlusher()

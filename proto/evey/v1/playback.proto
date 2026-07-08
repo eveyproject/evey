@@ -204,6 +204,11 @@ message ReportProgressRequest {
   bool is_paused = 3;
   bool is_muted = 4;
   int32 volume_level = 5;
+  // Name of the remote device the media is ACTUALLY playing on when the
+  // reporting client is only a relay (web sender driving a Chromecast).
+  // The position/pause fields above then describe the REMOTE playback.
+  // Empty = playing on the session's own device (clears a previous value).
+  string cast_device_name = 6;
 }
 
 message ReportProgressResponse {

@@ -291,7 +291,11 @@ func (s *CommandService) StopStream(ctx context.Context, sessionID string) error
 	return nil
 }
 
-func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64, isPaused bool) error {
+// ReportProgressBySession records a playback tick. castDeviceName is the
+// remote device the media actually plays on when the reporting client is a
+// cast relay (web sender → Chromecast); empty = local playback (and clears a
+// previous relay). The position/isPaused then describe that remote playback.
+func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID string, positionMs int64, isPaused bool, castDeviceName string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.ReportProgressBySession")
 	defer span.End()
 	session, err := s.sessionQueries.GetByID(ctx, sessionID)
@@ -308,6 +312,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 		session.Position = &pos
 	}
 	session.IsPaused = isPaused
+	session.CastDeviceName = castDeviceName
 	if err := s.sessions.Update(ctx, session); err != nil {
 		return fmt.Errorf("update session position: %w", err)
 	}

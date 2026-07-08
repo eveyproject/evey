@@ -319,6 +319,7 @@ libraries:
 
 sessions:
   title: Aktuelle Wiedergabe
+  castingTo: "Wiedergabe auf {{device}}"
   failedLoad: Sitzungen konnten nicht geladen werden
   failedLoadDesc: Aktive Sitzungen konnten nicht abgerufen werden. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.
   noSessions: Keine aktiven Sitzungen

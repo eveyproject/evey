@@ -532,7 +532,7 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 	if cmd, cmdErr := h.cmd.ConsumeRemoteCommand(ctx, req.SessionId); cmdErr == nil && cmd != "" {
 		resp.RemoteCommand = cmd
 	}
-	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs, req.IsPaused); err != nil {
+	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs, req.IsPaused, req.CastDeviceName); err != nil {
 		span.RecordError(err)
 		if errors.Is(err, appplayback.ErrProfileNotFound) {
 			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")

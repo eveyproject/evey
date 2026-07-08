@@ -362,6 +362,7 @@ libraries:
 
 sessions:
   title: "En cours de lecture"
+  castingTo: "Lecture sur {{device}}"
   failedLoad: "Échec du chargement des sessions"
   failedLoadDesc: "Impossible de récupérer les sessions actives. Vérifiez votre connexion et réessayez."
   noSessions: "Aucune session active"

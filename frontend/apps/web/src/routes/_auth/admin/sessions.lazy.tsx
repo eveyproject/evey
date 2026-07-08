@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Film, Monitor, Square, Volume2 } from "lucide-react";
+import { Cast, Film, Monitor, Square, Volume2 } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -224,6 +224,15 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
               <DeviceIcon />
               {session.deviceName}
               {session.deviceType && ` (${session.deviceType})`}
+            </span>
+          )}
+          {session.castDeviceName && (
+            <span
+              className="flex items-center gap-1 text-[var(--accent)]"
+              title={t("admin.sessions.castingTo", { device: session.castDeviceName })}
+            >
+              <Cast size={12} aria-hidden="true" />
+              {session.castDeviceName}
             </span>
           )}
           {session.videoCodec && (

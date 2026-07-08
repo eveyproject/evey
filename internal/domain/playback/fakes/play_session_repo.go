@@ -73,21 +73,22 @@ func (r *FakePlaySessionRepository) ListActiveSessions(_ context.Context) ([]*pl
 	for _, s := range r.items {
 		if s.EndedAt == nil {
 			info := &playback.ActiveSessionInfo{
-				SessionID:    s.ID,
-				ProfileID:    s.ProfileID,
-				ProfileName:  "profile-" + string(s.ProfileID),
-				MediaItemID:  s.MediaItemID,
-				MediaTitle:   "media-" + string(s.MediaItemID),
-				MediaType:    "movie",
-				StartedAt:    s.StartedAt,
-				DeviceName:   s.DeviceName,
-				DeviceType:   s.DeviceType,
-				ClientIP:     s.ClientIP,
-				PlayMethod:   s.PlayMethod,
-				VideoCodec:   s.VideoCodec,
-				AudioCodec:   s.AudioCodec,
-				Resolution:   s.Resolution,
-				BandwidthBps: s.BandwidthBps,
+				SessionID:      s.ID,
+				ProfileID:      s.ProfileID,
+				ProfileName:    "profile-" + string(s.ProfileID),
+				MediaItemID:    s.MediaItemID,
+				MediaTitle:     "media-" + string(s.MediaItemID),
+				MediaType:      "movie",
+				StartedAt:      s.StartedAt,
+				DeviceName:     s.DeviceName,
+				DeviceType:     s.DeviceType,
+				CastDeviceName: s.CastDeviceName,
+				ClientIP:       s.ClientIP,
+				PlayMethod:     s.PlayMethod,
+				VideoCodec:     s.VideoCodec,
+				AudioCodec:     s.AudioCodec,
+				Resolution:     s.Resolution,
+				BandwidthBps:   s.BandwidthBps,
 			}
 			if s.Position != nil {
 				info.Position = *s.Position

@@ -99,11 +99,11 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE play_sessions SET device_name=$1, device_type=$2, client_ip=$3, play_method=$4,
 		 video_codec=$5, audio_codec=$6, resolution=$7, video_decision=$8, audio_decision=$9, bandwidth_bps=$10, ended_at=$11, duration_ms=$12, position_ms=$13,
-		 is_paused=$14, updated_at=NOW()
-		 WHERE id=$15`,
+		 is_paused=$14, cast_device_name=$15, updated_at=NOW()
+		 WHERE id=$16`,
 		s.DeviceName, s.DeviceType, s.ClientIP, s.PlayMethod,
 		s.VideoCodec, s.AudioCodec, s.Resolution, s.VideoDecision, s.AudioDecision, s.BandwidthBps,
-		s.EndedAt, durationMsArg(s.Duration), positionMsArg(s.Position), s.IsPaused, s.ID,
+		s.EndedAt, durationMsArg(s.Duration), positionMsArg(s.Position), s.IsPaused, s.CastDeviceName, s.ID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -124,11 +124,11 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	var durationMs *int64
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused
+		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name
 		 FROM play_sessions WHERE id = $1`, id,
 	).Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
 		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
-		&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused)
+		&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused, &s.CastDeviceName)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -156,7 +156,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 		        ps.started_at, ps.device_name, ps.device_type, ps.client_ip,
 		        ps.play_method, ps.video_codec, ps.audio_codec, ps.resolution, ps.video_decision, ps.audio_decision, ps.bandwidth_bps,
 		        COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0),
-		        ps.is_paused
+		        ps.is_paused, ps.cast_device_name
 		 FROM play_sessions ps
 		 INNER JOIN profiles p ON p.id = ps.profile_id
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
@@ -183,7 +183,7 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 			&rawDurationMs, &rawPositionMs,
 			&s.StartedAt, &s.DeviceName, &s.DeviceType, &s.ClientIP,
 			&s.PlayMethod, &s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
-			&s.SeriesTitle, &s.SeasonNumber, &s.EpisodeNumber, &s.IsPaused,
+			&s.SeriesTitle, &s.SeasonNumber, &s.EpisodeNumber, &s.IsPaused, &s.CastDeviceName,
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())

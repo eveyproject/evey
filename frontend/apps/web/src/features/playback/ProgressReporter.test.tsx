@@ -61,6 +61,7 @@ describe("ProgressReporter", () => {
       isPaused: false,
       isMuted: false,
       volumeLevel: 80,
+      castDeviceName: "",
     });
 
     await vi.advanceTimersByTimeAsync(3_000);
@@ -126,6 +127,91 @@ describe("ProgressReporter", () => {
     // tick 4: errorCount=3, 3%3 === 0, report
     await vi.advanceTimersByTimeAsync(3_000);
     expect(mockReportProgress).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports the CAST playback instead of the paused local video while a cast is active", async () => {
+    const { ProgressReporter } = await import("./ProgressReporter");
+    // Local video paused where the user handed off to the Chromecast.
+    const videoRef = createVideoRef({ paused: true, currentTime: 42 } as Partial<HTMLVideoElement>);
+
+    render(
+      React.createElement(ProgressReporter, {
+        sessionId: "sess1",
+        videoRef,
+        cast: {
+          active: true,
+          positionSec: 1500.5,
+          isPaused: false,
+          volume: 0.5,
+          isMuted: true,
+          deviceName: "Salon TV",
+          playPause: vi.fn(),
+          stop: vi.fn(),
+        },
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledWith({
+      sessionId: "sess1",
+      positionMs: "1500500",
+      isPaused: false,
+      isMuted: true,
+      volumeLevel: 50,
+      castDeviceName: "Salon TV",
+    });
+  });
+
+  it("reports the local video with an EMPTY castDeviceName when not casting (clears a previous relay)", async () => {
+    const { ProgressReporter } = await import("./ProgressReporter");
+    const videoRef = createVideoRef();
+
+    render(
+      React.createElement(ProgressReporter, { sessionId: "sess1", videoRef }),
+    );
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(mockReportProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ positionMs: "42000", castDeviceName: "" }),
+    );
+  });
+
+  it("routes admin remote commands to the cast session while casting", async () => {
+    const { ProgressReporter } = await import("./ProgressReporter");
+    const playPause = vi.fn();
+    const stop = vi.fn();
+    const onRemoteStop = vi.fn();
+    mockReportProgress.mockResolvedValue({ remoteCommand: "pause" });
+
+    const videoRef = createVideoRef({ paused: true } as Partial<HTMLVideoElement>);
+    const pauseSpy = vi.spyOn(videoRef.current, "pause");
+
+    render(
+      React.createElement(ProgressReporter, {
+        sessionId: "sess1",
+        videoRef,
+        onRemoteStop,
+        cast: {
+          active: true,
+          positionSec: 100,
+          isPaused: false,
+          volume: 1,
+          isMuted: false,
+          deviceName: "Salon TV",
+          playPause,
+          stop,
+        },
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(playPause).toHaveBeenCalledTimes(1);
+    expect(pauseSpy).not.toHaveBeenCalled();
+
+    mockReportProgress.mockResolvedValue({ remoteCommand: "stop" });
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(onRemoteStop).toHaveBeenCalledTimes(1);
   });
 
   it("clears interval on unmount", async () => {

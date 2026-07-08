@@ -319,6 +319,7 @@ libraries:
 
 sessions:
   title: "अभी चल रहा है"
+  castingTo: "{{device}} पर चल रहा है"
   failedLoad: "सत्र लोड करने में विफल"
   failedLoadDesc: "सक्रिय सत्र प्राप्त नहीं हो सके। अपना कनेक्शन जांचें और पुनः प्रयास करें।"
   noSessions: "कोई सक्रिय सत्र नहीं"

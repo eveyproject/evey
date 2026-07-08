@@ -79,6 +79,10 @@ message ActiveSession {
   // the served codecs (source->target form when transcoding).
   string video_decision = 24;
   string audio_decision = 25;
+  // Non-empty when the client relays playback to a cast device (web sender ->
+  // Chromecast): the media actually plays THERE, not on device_name. The
+  // panel shows it as the real playback target.
+  string cast_device_name = 26;
 }
 
 message ListActiveSessionsRequest {}

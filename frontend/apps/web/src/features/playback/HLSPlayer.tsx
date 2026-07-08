@@ -515,7 +515,18 @@ export function HLSPlayer({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, onToggleFullscreen: toggleFullscreen, onSingleTap: handleSingleTap,
   });
 
-  // Auto-pause local player when casting, resume when cast stops
+  // Last known ABSOLUTE cast position (media timeline). Render-time ref
+  // update, same pattern as onCloseRef: castPlayback ticks re-render this
+  // component ~1/s while casting, keeping it fresh for the handoff-back.
+  const lastCastPosRef = useRef(0);
+  if (castConnected && castPlayback.isMediaLoaded) {
+    lastCastPosRef.current = castTranscodeOffsetRef.current + castPlayback.currentTime;
+  }
+
+  // Auto-pause local player when casting, resume when cast stops — AT THE
+  // CAST'S POSITION. Without the seek the local player resumes on the frame
+  // it paused at during handoff, and its next progress tick would rewind the
+  // user's "continue watching" to a position they watched long past on TV.
   const wasPlayingBeforeCast = useRef(false);
   useEffect(() => {
     const video = videoRef.current;
@@ -523,7 +534,13 @@ export function HLSPlayer({
     if (castConnected) {
       wasPlayingBeforeCast.current = !video.paused;
       if (!video.paused) video.pause();
-    } else if (wasPlayingBeforeCast.current) {
+      return;
+    }
+    if (lastCastPosRef.current > 0) {
+      seekRef.current(lastCastPosRef.current);
+      lastCastPosRef.current = 0;
+    }
+    if (wasPlayingBeforeCast.current) {
       video.play().catch((err) => console.warn("video.play failed", err));
       wasPlayingBeforeCast.current = false;
     }
@@ -777,7 +794,24 @@ export function HLSPlayer({
           </div>
         </div>
       )}
-      <ProgressReporter sessionId={sessionId} videoRef={videoRef} transcodeOffsetRef={transcodeOffsetRef} mediaId={mediaId} mediaType={mediaType} onRemoteStop={onClose} />
+      <ProgressReporter
+        sessionId={sessionId}
+        videoRef={videoRef}
+        transcodeOffsetRef={transcodeOffsetRef}
+        mediaId={mediaId}
+        mediaType={mediaType}
+        onRemoteStop={onClose}
+        cast={castConnected && castPlayback.isMediaLoaded ? {
+          active: true,
+          positionSec: castTranscodeOffsetRef.current + castPlayback.currentTime,
+          isPaused: castPlayback.isPaused,
+          volume: castPlayback.volume,
+          isMuted: castPlayback.isMuted,
+          deviceName: castDeviceName ?? "",
+          playPause: castPlayPause,
+          stop: stopCast,
+        } : undefined}
+      />
       <AutoMarkWatched
         mediaId={mediaId}
         videoRef={videoRef}

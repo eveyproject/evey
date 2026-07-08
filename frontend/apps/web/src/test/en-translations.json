@@ -422,6 +422,7 @@
   "admin.sessions.activeCount_one": "{{count}} active session — refreshes every 10s",
   "admin.sessions.activeCount_other": "{{count}} active sessions — refreshes every 10s",
   "admin.sessions.audio": "Audio: {{codec}}",
+  "admin.sessions.castingTo": "Playing on {{device}}",
   "admin.sessions.directPlay": "Direct Play",
   "admin.sessions.directStream": "Direct Stream",
   "admin.sessions.elapsed": "elapsed",

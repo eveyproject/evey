@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Film, Play, Pause, Square, MessageSquare, Send } from "lucide-react";
+import { Cast, Film, Play, Pause, Square, MessageSquare, Send } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -195,9 +195,20 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
 
         <div className="flex items-center gap-2">
           <ProfileAvatar profileName={session.profileName} size={24} />
-          <span className="text-xs truncate text-[var(--text-muted)]">
-            {session.profileName}
-            {session.deviceName ? ` - ${session.deviceName}` : ""}
+          <span className="text-xs truncate text-[var(--text-muted)] flex items-center gap-1 min-w-0">
+            <span className="truncate">
+              {session.profileName}
+              {session.deviceName ? ` - ${session.deviceName}` : ""}
+            </span>
+            {session.castDeviceName && (
+              <span
+                className="inline-flex items-center gap-0.5 shrink-0 text-[var(--accent)]"
+                title={t("admin.sessions.castingTo", { device: session.castDeviceName })}
+              >
+                <Cast size={12} aria-hidden="true" />
+                {session.castDeviceName}
+              </span>
+            )}
           </span>
           <div className="ml-auto flex items-center gap-2 shrink-0">
             <Badge variant={session.playMethod === "transcode" ? "warning" : "success"}>

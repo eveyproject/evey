@@ -363,6 +363,7 @@ libraries:
 
 sessions:
   title: Now Playing
+  castingTo: "Playing on {{device}}"
   failedLoad: Failed to load sessions
   failedLoadDesc: Could not fetch active sessions. Check your connection and try again.
   noSessions: No active sessions

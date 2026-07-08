@@ -319,6 +319,7 @@ libraries:
 
 sessions:
   title: "正在播放"
+  castingTo: "正在 {{device}} 上播放"
   failedLoad: "加载会话失败"
   failedLoadDesc: "无法获取活跃会话。请检查连接后重试。"
   noSessions: "没有活跃会话"

@@ -57,6 +57,12 @@ type PlaySession struct {
 	// has been reported yet for this session.
 	Position *shared.Duration
 	IsPaused bool
+	// CastDeviceName is the remote device the media ACTUALLY plays on when the
+	// session's client is only a relay (web sender driving a Chromecast) — the
+	// reported Position/IsPaused then describe the remote playback. Empty =
+	// playing on the session's own device. Updated on every progress report,
+	// so a finished cast clears it.
+	CastDeviceName string
 }
 
 func (s *PlaySession) Validate() error {
@@ -145,6 +151,9 @@ type ActiveSessionInfo struct {
 	SeasonNumber  int
 	EpisodeNumber int
 	IsPaused      bool
+	// CastDeviceName: see PlaySession.CastDeviceName — the real playback
+	// target when the session's client relays to a cast device.
+	CastDeviceName string
 }
 
 func (a *ActiveSessionInfo) ProgressPercent() float64 {

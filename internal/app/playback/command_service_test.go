@@ -143,7 +143,7 @@ func TestReportProgressBySession_SessionNotFound(t *testing.T) {
 	cmd, _, _, _, _, _ := setupCmd()
 	ctx := context.Background()
 
-	err := cmd.ReportProgressBySession(ctx, "nonexistent", 5000, false)
+	err := cmd.ReportProgressBySession(ctx, "nonexistent", 5000, false, "")
 	assert.ErrorIs(t, err, appplayback.ErrSessionNotFound)
 }
 
@@ -326,7 +326,7 @@ func TestReportProgressBySession_UpdatesSessionPosition(t *testing.T) {
 	seedUserProfile(ctx, ur, pfr, nil)
 
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 42000, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 42000, false, ""))
 
 	stored, err := sr.GetByID(ctx, "s1")
 	require.NoError(t, err)
@@ -388,13 +388,13 @@ func TestReportProgressBySession_AutoCompletesAt90Percent(t *testing.T) {
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 
 	// 89% — must NOT auto-complete (just under the 90% threshold).
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 89*longTestPctMs, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 89*longTestPctMs, false, ""))
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.False(t, wp.Completed, "position 89%% must stay incomplete")
 
 	// 90% exactly — flips the flag.
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 90*longTestPctMs, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 90*longTestPctMs, false, ""))
 	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.True(t, wp.Completed, "position 90%% must auto-complete")
@@ -409,13 +409,13 @@ func TestReportProgressBySession_CompletedStickyAcrossSeekBack(t *testing.T) {
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 
 	// Cross threshold so Completed becomes true.
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 95*longTestPctMs, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 95*longTestPctMs, false, ""))
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.True(t, wp.Completed)
 
 	// User seeks back to 20% — repo's sticky-true semantic keeps Completed.
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 20*longTestPctMs, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 20*longTestPctMs, false, ""))
 	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.True(t, wp.Completed, "seek-back must NOT regress completed=true")
@@ -429,7 +429,7 @@ func TestReportProgressBySession_NoGetter_NoAutoComplete(t *testing.T) {
 	seedUserProfile(ctx, ur, pfr, nil)
 
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 999_999_999, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 999_999_999, false, ""))
 
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
@@ -443,7 +443,7 @@ func TestReportProgressBySession_GetterReturnsZero_NoAutoComplete(t *testing.T) 
 	seedUserProfile(ctx, ur, pfr, nil)
 
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 60_000, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 60_000, false, ""))
 
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
@@ -465,7 +465,7 @@ func TestReportProgressBySession_GetterError_DegradesGracefully(t *testing.T) {
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 	// Must succeed even when the duration lookup errors — auto-complete is
 	// best-effort, never blocks the progress write.
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 95_000, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 95_000, false, ""))
 
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
@@ -483,7 +483,7 @@ func TestReportProgressBySession_OverflowPosition_CompletesNotGarbage(t *testing
 	// A forged position that overflows positionMs*Denominator (int64). It is far
 	// beyond the duration, so the completion check must short-circuit to true
 	// instead of computing a garbage result from the wrapped multiply.
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", math.MaxInt64/5, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", math.MaxInt64/5, false, ""))
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.True(t, wp.Completed, "a position past the end must complete, not overflow to garbage")
@@ -527,7 +527,7 @@ func TestReportProgressBySession_ShortItemMidStream_NoProgressRow(t *testing.T) 
 	seedUserProfile(ctx, ur, pfr, nil)
 
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "trailer"}, "u1"))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 15_000, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 15_000, false, ""))
 
 	_, err := pr.GetByProfileAndMedia(ctx, "p1", "trailer")
 	assert.ErrorIs(t, err, shared.ErrNotFound, "short-item mid-stream tick must not persist a watch_progress row")
@@ -542,7 +542,7 @@ func TestReportProgressBySession_ShortItemCompleted_PersistsAndCounts(t *testing
 	seedUserProfile(ctx, ur, pfr, nil)
 
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "trailer"}, "u1"))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 115_000, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 115_000, false, ""))
 
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "trailer")
 	require.NoError(t, err)
@@ -587,7 +587,7 @@ func TestReportProgressBySession_PlayCountIncrementsOnFirstCompletion(t *testing
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 
 	// First crossing of the threshold: play_count bumps from 0 to 1.
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 92*longTestPctMs, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 92*longTestPctMs, false, ""))
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.True(t, wp.Completed)
@@ -598,7 +598,7 @@ func TestReportProgressBySession_PlayCountIncrementsOnFirstCompletion(t *testing
 	// the previous row already has completed=true, so the transition
 	// branch doesn't fire. Re-watching from scratch is a separate flow
 	// (Delete via MarkAsUnwatched, then new completion).
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 98*longTestPctMs, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 98*longTestPctMs, false, ""))
 	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.Equal(t, 1, wp.PlayCount, "follow-up ticks past 90% must NOT keep incrementing")
@@ -620,7 +620,7 @@ func TestReportProgressBySession_PlayCountPreservedBetweenSessions(t *testing.T)
 
 	// Mid-stream progress tick at 20% — must NOT regress PlayCount to 0.
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 20*longTestPctMs, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 20*longTestPctMs, false, ""))
 	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.Equal(t, 1, wp.PlayCount, "progress tick must NOT regress play_count from MarkAsWatched")
@@ -640,7 +640,7 @@ func TestMarkAsWatched_StaysStickyAgainstSubsequentProgressTick(t *testing.T) {
 	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
 
 	// Next tick lands well below 90% — must NOT regress to false.
-	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 10*longTestPctMs, false))
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 10*longTestPctMs, false, ""))
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.True(t, wp.Completed, "MarkAsWatched must survive a subsequent progress tick at <90%%")
@@ -820,7 +820,7 @@ func TestReportProgressBySession_UpdateError(t *testing.T) {
 	// delete the session so Update returns "not found" which wraps as "update session position"
 	// Actually, let's just set progress repo error to test the downstream call
 	pr.Err = errors.New("db error")
-	err := cmd.ReportProgressBySession(ctx, "s1", 5000, false)
+	err := cmd.ReportProgressBySession(ctx, "s1", 5000, false, "")
 	assert.Error(t, err)
 }
 
@@ -948,4 +948,31 @@ func TestStartStream_ProfileNotFound(t *testing.T) {
 
 	err := cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1")
 	assert.ErrorIs(t, err, appplayback.ErrProfileNotFound)
+}
+
+// Cast relay: while a web sender drives a Chromecast, each progress tick
+// carries the REMOTE device's name; the session records it (for the admin
+// Now Playing panel) without touching the session's own device identity,
+// and a tick without it (cast ended) clears it.
+func TestReportProgressBySession_CastDeviceRelay(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{
+		ID: "s1", ProfileID: "p1", MediaItemID: "m1",
+		DeviceName: "Web Browser", DeviceType: "browser",
+	}, "u1"))
+
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 42000, false, "Salon TV"))
+	stored, err := sr.GetByID(ctx, "s1")
+	require.NoError(t, err)
+	assert.Equal(t, "Salon TV", stored.CastDeviceName)
+	assert.Equal(t, "Web Browser", stored.DeviceName, "the session's own device identity stays intact")
+
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 45000, false, ""))
+	stored, err = sr.GetByID(ctx, "s1")
+	require.NoError(t, err)
+	assert.Empty(t, stored.CastDeviceName, "cast end clears the relay")
 }
