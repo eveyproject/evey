@@ -3,13 +3,18 @@
   <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
-  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-  <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+  <!-- The app never records audio (expo-camera is only used for QR barcode
+       scanning, expo-audio only for playback) - but expo-audio and expo-camera
+       each bundle RECORD_AUDIO unconditionally in their own module manifest,
+       so a plain omission here would still be merged in. tools:node="remove"
+       is required to actually strip it from the final APK. -->
+  <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove"/>
   <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
   <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
   <uses-permission android:name="android.permission.VIBRATE"/>
+  <!-- Legacy (API<=32) scoped write, required by expo-file-system (download
+       cache) and expo-image-picker (avatar upload); both bundle it themselves. -->
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
-  <uses-permission android:name="android.permission.WRITE_SETTINGS"/>
   <queries>
     <intent>
       <action android:name="android.intent.action.VIEW"/>
