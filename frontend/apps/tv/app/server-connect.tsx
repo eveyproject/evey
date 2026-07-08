@@ -6,7 +6,7 @@ import { setBaseURL } from "@evey/api";
 import { useAuthStore, useServerListStore } from "@evey/store";
 import { setServerUrl, getServerUrl } from "../src/lib/server-config";
 import { initFetcher } from "../src/lib/fetcher-setup";
-import { initI18n } from "../src/i18n";
+import { applyServerLanguage, initI18n } from "../src/i18n";
 import { useTheme } from "../src/providers/ThemeProvider";
 
 export default function ServerConnect() {
@@ -71,6 +71,7 @@ export default function ServerConnect() {
       await setServerUrl(trimmed);
       await initFetcher();
       await initI18n(trimmed);
+      await applyServerLanguage(trimmed);
       const saved = addServer(trimmed);
       setActiveServer(saved.id);
       setBaseURL(trimmed);

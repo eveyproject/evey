@@ -9,7 +9,7 @@ import { ThemeProvider } from "../src/providers/ThemeProvider";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
-import { initI18n } from "../src/i18n";
+import { applyServerLanguage, initI18n } from "../src/i18n";
 import { migrateFromSingleServer, useServerListStore } from "@evey/store";
 import { configureAudioSession } from "../src/lib/audio-session";
 
@@ -35,7 +35,10 @@ export default function RootLayout() {
       await configureAudioSession();
       const serverUrl =
         useServerListStore.getState().getActiveServer()?.url ?? await getServerUrl();
-      if (serverUrl) await initI18n(serverUrl);
+      if (serverUrl) {
+        await initI18n(serverUrl);
+        await applyServerLanguage(serverUrl);
+      }
     }
     bootstrap()
       .catch((err) => console.error("bootstrap failed:", err))
