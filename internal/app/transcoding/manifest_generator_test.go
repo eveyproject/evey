@@ -621,3 +621,15 @@ func TestManifestGenerator_AudioPlaylist_HonoursResumeOffset(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, out, "#EXT-X-START:TIME-OFFSET=42.500,PRECISE=YES")
 }
+
+// The pinned video decision must ride EVERY baked URL (variant + segment):
+// it is what keeps a live session's plan stable across playlist polls when
+// background enrichment flips copy-eligibility (the mid-play green-frames
+// incident). Empty = legacy request, suffix unchanged.
+func TestQuerySuffix_PinnedVideoDecision(t *testing.T) {
+	in := ManifestInput{StreamToken: "tok", PinnedVideoDecision: "transcode"}
+	assert.Contains(t, QuerySuffixFor(in), "vd=transcode")
+
+	in.PinnedVideoDecision = ""
+	assert.NotContains(t, QuerySuffixFor(in), "vd=")
+}

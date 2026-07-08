@@ -236,3 +236,87 @@ func TestAudioCopyEligibilityAndServedCodec(t *testing.T) {
 		})
 	}
 }
+
+// Mid-play decision pinning — regression lock for the prod "green frames on
+// Chromecast" incident (2026-07-07, "a beta tester"): a playback started as
+// TRANSCODE; ~22 min in, the keyframe backfill worker indexed the file, the
+// copy rung became eligible, and the next EVENT-playlist poll of the SAME
+// URLs flipped the served bitstream to the source h264 under the transcode
+// init/grid the player had already consumed → hardware decoders output
+// garbage (green), audio survived. The first playlist of a playback stamps
+// vd=<decision> into every child URL; makeDecision honors the pin so a live
+// session's decision can never flip under it.
+func TestMakeDecision_PinnedVideoDecision(t *testing.T) {
+	h := newCopyTestHandler(t)
+	streams := copyEligibleStreams()
+	newReq := func(vd string) *http.Request {
+		url := "/api/v1/media/m1/hls/stream_0.m3u8?videoCodecs=h264&audioCodecs=aac&containers=mp4"
+		if vd != "" {
+			url += "&vd=" + vd
+		}
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		return req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+			&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	}
+
+	// Precondition: with keyframes backfilled the fresh decision is COPY.
+	d := h.makeDecision(context.Background(), streams, "matroska", newReq(""))
+	require.Equal(t, "copy", d.VideoDecision)
+
+	// The session started BEFORE the backfill (its URLs carry vd=transcode):
+	// the pin holds even though the fresh decision would now say copy.
+	d = h.makeDecision(context.Background(), streams, "matroska", newReq("transcode"))
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "decision_pinned")
+	assert.NotEmpty(t, d.VideoCodec, "a pinned re-encode still needs an encoder")
+
+	// vd=copy on a still-copy decision: plain no-op.
+	d = h.makeDecision(context.Background(), streams, "matroska", newReq("copy"))
+	assert.Equal(t, "copy", d.VideoDecision)
+
+	// Garbage vd values are ignored.
+	d = h.makeDecision(context.Background(), streams, "matroska", newReq("banana"))
+	assert.Equal(t, "copy", d.VideoDecision)
+}
+
+// The pinned re-encode of an HDR source must still tonemap (the session's
+// master advertised an SDR rung) — the pin runs BEFORE the tonemap re-add.
+func TestMakeDecision_PinnedTranscodeStillTonemapsHDR(t *testing.T) {
+	w, hgt, level := 3840, 2160, 153
+	pq := "smpte2084"
+	bt2020 := "bt2020nc"
+	streams := []*domainlibrary.MediaStream{{
+		StreamType: domainlibrary.StreamTypeVideo, Codec: "hevc", Profile: "Main 10",
+		Width: &w, Height: &hgt, Level: &level,
+		ColorTransfer: &pq, ColorSpace: &bt2020,
+		Keyframes: []int64{0, 6000, 12000},
+	}}
+	req := httptest.NewRequest(http.MethodGet,
+		"/api/v1/media/m1/hls/stream_0.m3u8?videoCodecs=h264,hevc&audioCodecs=aac&containers=mp4&hdr=1&vd=transcode", nil)
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+
+	h := newCopyTestHandler(t)
+	d := h.makeDecision(context.Background(), streams, "matroska", req)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed",
+		"a pinned transcode of a PQ source must tonemap like any other re-encode")
+}
+
+// The pin stamp: the first playlist mints vd from its own decision; any
+// request already carrying a pin passes it through VERBATIM (children must
+// inherit the original stamp, never re-derive it from mutable DB state).
+func TestPinnedVideoDecision_MintAndPassthrough(t *testing.T) {
+	reqWith := func(rawQuery string) *http.Request {
+		return httptest.NewRequest(http.MethodGet, "/x?"+rawQuery, nil)
+	}
+	copyDec := domaintranscoding.PlaybackDecision{VideoDecision: "copy"}
+	trDec := domaintranscoding.PlaybackDecision{VideoDecision: "transcode"}
+
+	assert.Equal(t, "copy", pinnedVideoDecision(reqWith(""), copyDec), "first playlist mints its decision")
+	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith(""), trDec))
+	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith("vd=transcode"), copyDec),
+		"an inherited pin wins over the fresh decision — that IS the fix")
+	assert.Equal(t, "copy", pinnedVideoDecision(reqWith("vd=copy"), trDec))
+	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith("vd=banana"), trDec), "garbage pin is re-minted")
+}

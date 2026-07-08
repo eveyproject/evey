@@ -111,6 +111,13 @@ type ManifestInput struct {
 	// master advertised as hvc1/PQ copy — codec mismatch, broken playback.
 	HDRCapable bool
 
+	// PinnedVideoDecision ("copy"|"transcode") stamps the video decision the
+	// FIRST playlist of this playback computed into every baked URL (vd=...),
+	// so background enrichment (keyframe backfill flipping copy-eligibility)
+	// cannot change what a LIVE session's URLs serve between two polls of the
+	// EVENT playlist. Empty = legacy request, nothing stamped.
+	PinnedVideoDecision string
+
 	// VideoPlaylistURI, when set, overrides the video variant's playlist URI
 	// (the default is stream_<idx>.m3u8). It is honoured ONLY for a
 	// single-variant input — the on-demand copy rung uses it to point the one
@@ -648,6 +655,12 @@ func querySuffix(in ManifestInput) string {
 		// Decision input like the codec lists: dropping it flips the segment
 		// decision from copy to tonemap-transcode mid-presentation (see field doc).
 		q.Set("hdr", "1")
+	}
+	if in.PinnedVideoDecision != "" {
+		// Pins the playback's video decision across playlist polls (see field
+		// doc) — the fix for the mid-play transcode→copy flip the keyframe
+		// backfill caused on a live session (green frames on HW decoders).
+		q.Set("vd", in.PinnedVideoDecision)
 	}
 	if encoded := q.Encode(); encoded != "" {
 		return "?" + encoded

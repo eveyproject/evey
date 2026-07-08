@@ -801,7 +801,27 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		// segment-time makeDecision silently downgrades an HDR copy rung to a
 		// tonemapped h264 transcode that contradicts the master's CODECS.
 		HDRCapable: r != nil && r.URL.Query().Get("hdr") == "1",
+		// The playback's FIRST playlist stamps its decision; children inherit
+		// the stamp verbatim so the whole session stays on one plan even if
+		// background enrichment flips copy-eligibility mid-play.
+		PinnedVideoDecision: pinnedVideoDecision(r, decision),
 	}, nil
+}
+
+// pinnedVideoDecision returns the vd value to bake into this playback's URLs:
+// the request's own pin when it carries one (pass-through — children must
+// inherit the ORIGINAL stamp, not re-derive it), else the decision this very
+// request just computed (the first playlist of the playback mints the pin).
+func pinnedVideoDecision(r *http.Request, decision domaintranscoding.PlaybackDecision) string {
+	if r != nil {
+		if v := r.URL.Query().Get("vd"); v == "copy" || v == "transcode" {
+			return v
+		}
+	}
+	if decision.VideoDecision == "copy" {
+		return "copy"
+	}
+	return "transcode"
 }
 
 // sourceCopyVideoRange maps the source's HDR type to the HLS VIDEO-RANGE
@@ -1011,6 +1031,34 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, container, client, 0, prefs)
 	if d == nil {
 		return domaintranscoding.PlaybackDecision{}
+	}
+	// Mid-play decision pinning. The first playlist of a playback stamps the
+	// then-current video decision into every child URL (vd=..., see
+	// buildManifestInput/querySuffix); this honors it on the follow-up polls.
+	// Background enrichment can flip copy-eligibility BETWEEN two polls of a
+	// live EVENT playlist — measured in prod ("a beta tester", 2026-07-07): the
+	// keyframe backfill indexed the file 22 min into a TRANSCODE playback,
+	// the same playlist URL switched to the copy plan, and the source-h264
+	// segments under the transcode init rendered as green garbage on the
+	// Chromecast's hardware decoder. Pinning "transcode" always holds (a
+	// re-encode is always serveable). Pinning "copy" cannot be forced — if
+	// the fresh decision no longer says copy the plan is structurally gone
+	// (keyframes wiped) and a re-encode is the only serveable output — so a
+	// broken copy pin flips WITH a warning instead of 500ing the session.
+	switch r.URL.Query().Get("vd") {
+	case "transcode":
+		if d.VideoDecision == "copy" {
+			d.VideoDecision = "transcode"
+			d.TranscodeReasons = append(d.TranscodeReasons, "decision_pinned")
+			if d.VideoCodec == "" {
+				d.VideoCodec = "h264"
+			}
+		}
+	case "copy":
+		if d.VideoDecision != "copy" {
+			slog.Warn("hls-vod: pinned copy decision no longer serveable, session flips to transcode mid-play (player may need a restart)",
+				slog.String("reasons", strings.Join(d.TranscodeReasons, ",")))
+		}
 	}
 	// A transcoded rung is SDR BY CONTRACT — the master only advertises
 	// VIDEO-RANGE on the COPY rung. An HDR-capable client (hdr=1) legitimately
