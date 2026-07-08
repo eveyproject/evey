@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { View, Text, ScrollView, ActivityIndicator, StyleSheet, Dimensions } from "react-native";
+import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { eveyFetch, useLibraryServiceListMediaItems } from "@evey/api";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -47,6 +51,8 @@ export default function PersonDetailScreen() {
       { personId, "pagination.pageSize": 200 },
       { query: { enabled: !!personId } },
     );
+  const serverUrl = useServerUrl();
+  const authHeaders = useAuthHeaders();
 
   const items = mediaData?.items ?? [];
   const name = person?.name ?? "Unknown";
@@ -57,9 +63,18 @@ export default function PersonDetailScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ padding: PAD_H }}>
       {/* Header */}
       <View style={styles.headerRow}>
-        <View style={[styles.avatar, { backgroundColor: theme.colors.surface }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 56, fontWeight: "bold" }}>{initial}</Text>
-        </View>
+        {person?.thumbUrl ? (
+          <Image
+            source={{ uri: person.thumbUrl }}
+            style={styles.avatar}
+            contentFit="cover"
+            transition={200}
+          />
+        ) : (
+          <View style={[styles.avatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 56, fontWeight: "bold" }}>{initial}</Text>
+          </View>
+        )}
         <View style={{ flex: 1, marginLeft: 32 }}>
           <Text style={[styles.name, { color: theme.colors.text }]}>{name}</Text>
           {person?.birthday ? (
@@ -70,7 +85,7 @@ export default function PersonDetailScreen() {
                 day: "numeric",
               })}
               {person.deathday
-                ? ` \u2014 ${new Date(person.deathday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
+                ? ` - ${new Date(person.deathday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
                 : ` (${Math.floor((Date.now() - new Date(person.birthday).getTime()) / 31557600000)} years old)`}
             </Text>
           ) : null}
@@ -120,17 +135,32 @@ export default function PersonDetailScreen() {
                 hasTVPreferredFocus={index === 0}
                 style={{ width: POSTER_WIDTH, marginBottom: POSTER_GAP }}
               >
-                <View
-                  style={[
-                    styles.poster,
-                    {
+                {serverUrl && item.id ? (
+                  <Image
+                    source={{ uri: artworkUrl(serverUrl, item.id, "poster", Math.round(POSTER_WIDTH * 2)), headers: authHeaders }}
+                    style={{
                       width: POSTER_WIDTH,
                       height: POSTER_HEIGHT,
                       backgroundColor: theme.colors.surface,
                       borderRadius: theme.radii.sm,
-                    },
-                  ]}
-                />
+                    }}
+                    contentFit="cover"
+                    transition={200}
+                    recyclingKey={item.id}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.poster,
+                      {
+                        width: POSTER_WIDTH,
+                        height: POSTER_HEIGHT,
+                        backgroundColor: theme.colors.surface,
+                        borderRadius: theme.radii.sm,
+                      },
+                    ]}
+                  />
+                )}
                 <Text
                   style={{ color: theme.colors.text, fontSize: 16, marginTop: 6, width: POSTER_WIDTH }}
                   numberOfLines={1}

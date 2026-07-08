@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { View, Text, ScrollView, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -51,7 +52,8 @@ function MediaCard({
   watchPercent?: number;
 }) {
   const theme = useTheme();
-  const posterUri = item.id ? artworkUrl(serverUrl, item.id) : undefined;
+  const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2) : undefined;
+  const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
 
   return (
     <FocusableCard
@@ -62,8 +64,15 @@ function MediaCard({
       <View style={[styles.poster, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.sm }]}>
         {posterUri ? (
           <View style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: theme.radii.sm, overflow: "hidden" }}>
-            {/* expo-image not installed in TV, use a colored placeholder */}
-            <View style={{ flex: 1, backgroundColor: theme.colors.surfaceRaised ?? theme.colors.surface }} />
+            <Image
+              source={{ uri: posterUri, headers: authHeaders }}
+              style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
+              contentFit="cover"
+              transition={200}
+              recyclingKey={item.id}
+              placeholder={blurhash ? { blurhash } : undefined}
+              placeholderContentFit="cover"
+            />
           </View>
         ) : (
           <View style={[styles.posterPlaceholder, { backgroundColor: theme.colors.surface }]}>
@@ -131,11 +140,18 @@ function MediaRow({
 }
 
 // HeroBanner spotlights the most recently added titles at the top of the home
-// screen — the 10-foot equivalent of the web/mobile hero, which we deliberately
-// keep TV-only. It is text-and-action driven (big title, genres, overview, Play
-// / More info) so it carries its weight even though the TV app has no image
-// renderer yet: once expo-image lands, drop the item's backdrop behind `content`.
-function HeroBanner({ items }: { items: V1MediaItem[] }) {
+// screen - the 10-foot equivalent of the web/mobile hero, which we deliberately
+// keep TV-only. Backdrop artwork sits behind the text/action content, faded
+// into the background color so the title stays legible.
+function HeroBanner({
+  items,
+  serverUrl,
+  authHeaders,
+}: {
+  items: V1MediaItem[];
+  serverUrl: string;
+  authHeaders?: { Authorization: string };
+}) {
   const theme = useTheme();
   const { t } = useTranslation();
   const heroItems = items.slice(0, HERO_COUNT);
@@ -157,12 +173,29 @@ function HeroBanner({ items }: { items: V1MediaItem[] }) {
   const metaLine = [active?.year ? String(active.year) : "", genres.join(" · ")]
     .filter(Boolean)
     .join("   ·   ");
+  const backdropBlurhash = (active?.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.blurhash;
 
   return (
     <View style={[styles.heroContainer, { height: HERO_HEIGHT, backgroundColor: theme.colors.surface }]}>
-      {/* Backdrop placeholder: the TV app ships no image renderer yet (see
-          MediaCard), so we render a flat surface. Swap for the item's backdrop
-          artwork here once expo-image is available on TV. */}
+      {id ? (
+        <Image
+          key={id}
+          source={{ uri: artworkUrl(serverUrl, id, "backdrop"), headers: authHeaders }}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+          transition={400}
+          placeholder={backdropBlurhash ? { blurhash: backdropBlurhash } : undefined}
+          placeholderContentFit="cover"
+        />
+      ) : null}
+      {/* Gradient-ish fade (stacked opacity layers) so the title/overview stay
+          legible over any backdrop. */}
+      <View style={[StyleSheet.absoluteFillObject, { flexDirection: "column", justifyContent: "flex-end" }]}>
+        <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.15 }} />
+        <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.4 }} />
+        <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.75 }} />
+        <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.95 }} />
+      </View>
       <View style={styles.heroContent}>
         <Text style={[styles.heroTitle, { color: theme.colors.text }]} numberOfLines={2}>
           {active?.title}
@@ -259,7 +292,7 @@ export default function HomeScreen() {
           </Text>
         </FocusableCard>
       )}
-      <HeroBanner items={recentlyAdded.data?.items ?? []} />
+      <HeroBanner items={recentlyAdded.data?.items ?? []} serverUrl={serverUrl} authHeaders={authHeaders} />
       <MediaRow
         title={t("media.home.continueWatching")}
         items={resume.data?.items ?? []}

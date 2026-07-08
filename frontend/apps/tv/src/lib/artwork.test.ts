@@ -31,4 +31,19 @@ describe("artworkUrl", () => {
       "https://evey.test/api/v1/media//artwork/poster",
     );
   });
+
+  it("appends the width query param for row/grid thumbnails", () => {
+    expect(artworkUrl("https://evey.test", "m4", "poster", 220)).toBe(
+      "https://evey.test/api/v1/media/m4/artwork/poster?w=220",
+    );
+  });
+
+  it("omits the width param when 0 or undefined", () => {
+    expect(artworkUrl("https://evey.test", "m5", "poster", 0)).toBe(
+      "https://evey.test/api/v1/media/m5/artwork/poster",
+    );
+    expect(artworkUrl("https://evey.test", "m5", "backdrop")).toBe(
+      "https://evey.test/api/v1/media/m5/artwork/backdrop",
+    );
+  });
 });

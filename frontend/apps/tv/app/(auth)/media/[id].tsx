@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
 import {
   useLibraryServiceGetMediaItem,
@@ -14,8 +15,15 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
+
+const HERO_HEIGHT = 420;
+const POSTER_WIDTH = 220;
+const POSTER_HEIGHT = 330;
 
 function formatRuntime(ms?: string): string {
   if (!ms) return "";
@@ -54,6 +62,8 @@ export default function MediaDetailScreen() {
   const { data: watchProgress } = usePlaybackServiceGetWatchProgress(id ?? "");
   const profileId = useAuthStore((s) => s.profileId);
   const qc = useQueryClient();
+  const serverUrl = useServerUrl();
+  const authHeaders = useAuthHeaders();
 
   const { data: isFavorite } = useIsFavorite(id);
   const toggleFavorite = useToggleFavorite(id);
@@ -132,15 +142,59 @@ export default function MediaDetailScreen() {
   const resumeMs = watchProgress?.positionMs;
   const hasProgress = resumeMs && Number(resumeMs) > 0 && !watchProgress?.played;
 
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ padding: 48 }}>
-      {/* Title area */}
-      <Text style={[styles.title, { color: theme.colors.text }]}>{media.title}</Text>
-      {meta ? <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{meta}</Text> : null}
-      {media.genres && media.genres.length > 0 && (
-        <Text style={[styles.genres, { color: theme.colors.textMuted }]}>{media.genres.join(", ")}</Text>
-      )}
+  const primaryBlurhash = (media.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
+  const backdropBlurhash = (media.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.blurhash;
 
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: theme.colors.bg }} contentContainerStyle={{ paddingBottom: 48 }}>
+      {/* Backdrop */}
+      <View style={{ width: "100%", height: HERO_HEIGHT }}>
+        {serverUrl && id ? (
+          <Image
+            source={{ uri: artworkUrl(serverUrl, id, "backdrop"), headers: authHeaders }}
+            style={StyleSheet.absoluteFillObject}
+            contentFit="cover"
+            transition={300}
+            placeholder={backdropBlurhash ? { blurhash: backdropBlurhash } : undefined}
+            placeholderContentFit="cover"
+          />
+        ) : null}
+        {/* Fade to bg so the poster/title stay legible over any backdrop. */}
+        <View style={[StyleSheet.absoluteFillObject, { justifyContent: "flex-end" }]}>
+          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.1 }} />
+          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.35 }} />
+          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.7 }} />
+          <View style={{ flex: 1, backgroundColor: theme.colors.bg, opacity: 0.95 }} />
+        </View>
+      </View>
+
+      {/* Poster + title row, overlapping the backdrop */}
+      <View style={{ paddingHorizontal: 48, marginTop: -POSTER_HEIGHT * 0.4, flexDirection: "row", gap: 32 }}>
+        {serverUrl && id ? (
+          <Image
+            source={{ uri: artworkUrl(serverUrl, id, "poster"), headers: authHeaders }}
+            style={{
+              width: POSTER_WIDTH,
+              height: POSTER_HEIGHT,
+              borderRadius: theme.radii.md,
+              backgroundColor: theme.colors.surface,
+            }}
+            contentFit="cover"
+            transition={200}
+            placeholder={primaryBlurhash ? { blurhash: primaryBlurhash } : undefined}
+            placeholderContentFit="cover"
+          />
+        ) : null}
+        <View style={{ flex: 1, justifyContent: "flex-end" }}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{media.title}</Text>
+          {meta ? <Text style={[styles.meta, { color: theme.colors.textMuted }]}>{meta}</Text> : null}
+          {media.genres && media.genres.length > 0 && (
+            <Text style={[styles.genres, { color: theme.colors.textMuted }]}>{media.genres.join(", ")}</Text>
+          )}
+        </View>
+      </View>
+
+      <View style={{ paddingHorizontal: 48 }}>
       {/* Action buttons */}
       <View style={styles.actions}>
         <Pressable
@@ -308,9 +362,18 @@ export default function MediaDetailScreen() {
                 onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
                 style={styles.castCard}
               >
-                <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface }]}>
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 28 }}>?</Text>
-                </View>
+                {person.thumbUrl ? (
+                  <Image
+                    source={{ uri: person.thumbUrl }}
+                    style={styles.castAvatar}
+                    contentFit="cover"
+                    transition={200}
+                  />
+                ) : (
+                  <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 28 }}>?</Text>
+                  </View>
+                )}
                 <Text style={{ color: theme.colors.text, fontSize: 16, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
                   {person.name}
                 </Text>
@@ -327,6 +390,7 @@ export default function MediaDetailScreen() {
       )}
 
       <View style={{ height: 64 }} />
+      </View>
 
       {id ? (
         <AddToPlaylistSheet
