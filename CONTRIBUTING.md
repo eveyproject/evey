@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Evey. This doc is the short version; see [DEV.md](DEV.md) for setup and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for layering.
+Thanks for helping improve Evey. This doc is the short version; see [DEV.md](DEV.md) for setup, [docs/CODEBASE_MAP.md](docs/CODEBASE_MAP.md) for the 30-minute codebase orientation (where things live + the five golden-path recipes), and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for layering.
 
 ## Branching
 

@@ -222,6 +222,21 @@ migrate-version:
 
 # ── Dev (uses docker-compose.yml + docker-compose.override.yml) ───────────────
 
+# doctor: one-shot environment sanity check for contributors - each line tells
+# you what is broken and how to fix it, instead of failing later mid-task.
+doctor:
+	@echo "── evey doctor ──────────────────────────────────────"
+	@command -v go >/dev/null && echo "  ✓ go $$(go version | cut -d' ' -f3)" || echo "  ✗ go missing → https://go.dev/dl"
+	@command -v docker >/dev/null && echo "  ✓ docker" || echo "  ✗ docker missing"
+	@docker ps --format '{{.Names}}' 2>/dev/null | grep -q evey-server && echo "  ✓ evey-server container UP" || echo "  ✗ evey-server DOWN → make dev"
+	@docker ps --format '{{.Names}}' 2>/dev/null | grep -q evey-postgres && echo "  ✓ evey-postgres UP" || echo "  ✗ evey-postgres DOWN → make dev"
+	@docker ps --format '{{.Names}}' 2>/dev/null | grep -q evey-web && echo "  ✓ evey-web UP" || echo "  ✗ evey-web DOWN → make dev"
+	@curl -sf http://localhost:9091/healthz >/dev/null 2>&1 && echo "  ✓ backend /healthz OK" || echo "  ✗ backend not answering on :9091 → docker logs evey-server"
+	@docker exec evey-server sh -c 'command -v buf' >/dev/null 2>&1 && echo "  ✓ buf (in container)" || echo "  ⚠ buf not found in container (proto-gen unavailable)"
+	@docker exec evey-server sh -c 'ffmpeg -version 2>/dev/null | head -1' 2>/dev/null | grep -q Jellyfin && echo "  ✓ jellyfin-ffmpeg (in container)" || echo "  ⚠ bundled ffmpeg missing → transcode-itest will fail"
+	@grep -q evey.test /etc/hosts 2>/dev/null && echo "  ✓ evey.test in /etc/hosts" || echo "  ⚠ evey.test not in hosts → make setup"
+	@echo "─────────────────────────────────────────────────────"
+
 setup:
 	@echo "→ Adding evey.test to WSL /etc/hosts..."
 	@grep -q "evey.test" /etc/hosts || echo "127.0.0.1 evey.test" | sudo tee -a /etc/hosts
