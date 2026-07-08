@@ -1,0 +1,22 @@
+name: cosmos
+kind: plugin
+version: 1.0.0
+description: Real-time planetarium widget - the real sky above you, computed locally with zero network access
+author: evey-examples
+language: nodejs
+entrypoint: node main.js
+permissions:
+  - prefs
+web_root: dist
+frontend:
+  - slot: home.section
+    src: dist/index.js
+  - slot: settings.user.appearance
+    src: dist/settings.js
+config_schema:
+  city:
+    type: string
+    label: City
+    required: true
+    default: Paris
+    description: City used to compute your local sky (matched against an embedded, offline city list - no network request is ever made)
