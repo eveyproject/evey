@@ -17,6 +17,15 @@ services:
       - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
     environment:
       EVEY_DB_HOST: postgres
+      # PUID/PGID: the user the server runs as (default 1000:1000). Set them
+      # to the OWNER of your media files so write-features (seek-index repair)
+      # work without chown-ing your library — e.g. the output of `id -u` /
+      # `id -g` on the host. The container starts as root only long enough to
+      # apply the mapping, then drops privileges; the server never runs as
+      # root. If you refuse even that transient root, use `user: "UID:GID"`
+      # below instead (and manage ./evey-data ownership yourself).
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
       # Meilisearch runs embedded inside the evey container — the entrypoint
       # spawns it before exec'ing the server. Set EVEY_EMBEDDED_MEILI=false
       # AND point EVEY_MEILI_URL at an external instance to opt out (useful

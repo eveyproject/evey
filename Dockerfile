@@ -208,6 +208,9 @@ EXPOSE 9091
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
     CMD curl -sf http://localhost:9091/healthz || exit 1
 
-USER evey
-
+# No static USER: the entrypoint starts as root just long enough to re-map
+# the evey user to the operator's PUID/PGID (defaults 1000:1000), then
+# re-execs itself unprivileged via setpriv — the server process NEVER runs
+# as root. Operators who refuse the transient root can set `user:` in
+# compose; the entrypoint detects the non-root uid and skips the re-map.
 ENTRYPOINT ["/entrypoint.sh"]

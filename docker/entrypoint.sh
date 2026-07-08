@@ -14,11 +14,59 @@
 
 set -eu
 
-# The image runs as the unprivileged 'evey' user (Dockerfile USER evey, UID
-# 1000) — the server never runs as root. Per-plugin resource caps are enforced
-# in userspace by the runner's resource monitor (it polls /proc and stops a
-# plugin that exceeds its memory/PID/disk caps), so no cgroup delegation and no
-# privileged init step is needed. A plugin compromise lands as UID 1000.
+# ── PUID/PGID (linuxserver.io pattern) ────────────────────────────────────
+# The container starts as root ONLY long enough to re-map the 'evey' user to
+# the operator's PUID/PGID (compose env, defaults 1000:1000 = the historical
+# behaviour), re-own Evey's INTERNAL state dirs, then re-exec this script as
+# the unprivileged evey user — everything below the root block (Meili + the
+# server) runs exactly as before. The point: file-writing features (seek-index
+# repair, future remuxes) need the server to BE the owner of the user's media;
+# with PUID the operator aligns the container on their files instead of
+# chown-ing their library for us. Media mounts are NEVER touched here.
+#
+# Operators who refuse even transient root can keep `user: "UID:GID"` in
+# compose instead: this block sees a non-root uid and no-ops, at the price of
+# managing /data ownership themselves.
+#
+# Plugin isolation is unaffected: plugins are dropped to the separate
+# evey-plugin uid (1001) by the capability-bearing launcher and are sandboxed
+# by RBAC tokens + the resource monitor — none of that reads the server's
+# numeric uid. PUID=1001 is refused so the two identities can never collide.
+if [ "$(id -u)" = "0" ]; then
+    PUID="${PUID:-1000}"
+    PGID="${PGID:-1000}"
+    case "${PUID}${PGID}" in
+        *[!0-9]*) echo "evey: PUID/PGID must be numeric (got PUID=$PUID PGID=$PGID)" >&2; exit 1 ;;
+    esac
+    if [ "$PUID" = "0" ] || [ "$PGID" = "0" ]; then
+        echo "evey: running the server as root (PUID/PGID 0) is not supported" >&2
+        exit 1
+    fi
+    if [ "$PUID" = "1001" ]; then
+        echo "evey: PUID 1001 collides with the evey-plugin user (plugin UID separation would be void) — pick another UID" >&2
+        exit 1
+    fi
+    [ "$(id -g evey)" = "$PGID" ] || groupmod -o -g "$PGID" evey
+    [ "$(id -u evey)" = "$PUID" ] || usermod -o -u "$PUID" evey
+    # Re-own Evey's internal state when the identity changed — /data, /cache
+    # and the (rarely used) home. One-time cost after a PUID change; the
+    # plugin dir owner is restored to evey-plugin exactly as the Dockerfile
+    # set it (0750, plugins must not read the server's secret dirs).
+    if [ "$(stat -c %u /data)" != "$PUID" ] || [ "$(stat -c %g /data)" != "$PGID" ]; then
+        echo "evey: re-owning internal state to ${PUID}:${PGID} (one-time after a PUID/PGID change)"
+        chown -R evey:evey /data /cache /home/evey
+        chown evey-plugin:evey /data/plugins
+    fi
+    echo "evey: dropping privileges — server runs as uid=${PUID} gid=${PGID}"
+    exec setpriv --reuid evey --regid evey --init-groups "$0" "$@"
+fi
+
+# From here on we are the unprivileged evey user (re-exec'd above, or the
+# operator's `user:` override) — the server never runs as root. Per-plugin
+# resource caps are enforced in userspace by the runner's resource monitor
+# (it polls /proc and stops a plugin that exceeds its memory/PID/disk caps),
+# so no cgroup delegation and no privileged init step is needed. A plugin
+# compromise lands as the separate evey-plugin uid.
 
 EVEY_EMBEDDED_MEILI="${EVEY_EMBEDDED_MEILI:-true}"
 

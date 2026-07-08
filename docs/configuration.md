@@ -10,6 +10,36 @@ MEILI_MASTER_KEY=<run: openssl rand -hex 16>
 MEDIA_DIR=/path/to/your/media
 ```
 
+## File ownership (PUID/PGID)
+
+```env
+PUID=1000   # run the server as this user id  (host: `id -u`)
+PGID=1000   # ...and this group id             (host: `id -g`)
+```
+
+Set these to the **owner of your media files**. Reading works either way;
+they matter for the features that *write into* your library (the seek-index
+repair rebuilds files in place): the server can only write where its user
+may, and PUID/PGID lets you align the container on your files instead of
+`chown`-ing your library for Evey.
+
+How it works: the container starts as root just long enough to re-map its
+internal user to your PUID/PGID and re-own Evey's own state directories
+(`/data`, `/cache` — **never** your media mounts), then drops privileges.
+The server process itself never runs as root.
+
+Zero-root alternative: if even that transient root is unacceptable to you,
+set `user: "UID:GID"` on the service in your compose file instead. The
+entrypoint detects the non-root start and skips the re-map — you then own
+keeping `./evey-data` writable by that UID yourself.
+
+Notes:
+- `PUID=1001` is refused: it is the internal `evey-plugin` user, kept
+  distinct so plugins can never share the server's identity.
+- Media stays read-only (`:ro` in the compose file) until you decide
+  otherwise; PUID only determines *who* the server is when you do grant
+  write access.
+
 ## Recommended
 
 ```env
