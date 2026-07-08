@@ -389,16 +389,41 @@ export function HLSPlayer({
     streamTokenRef, onStreamTokenRefreshRef,
   });
 
+  // Live A/V and subtitle resync. Subtitles shift the LOADED cues client-side
+  // (instant, no reload); audio needs a re-encode with a shifted input, so a
+  // change restarts the transcode at the current position - debounced below so
+  // a burst of stepper clicks coalesces into ONE restart. The APPLIED value is
+  // what the stream URL carries; the raw value is what the UI shows.
+  const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(0);
+  const [audioOffsetMs, setAudioOffsetMs] = useState(0);
+  const [appliedAudioOffsetMs, setAppliedAudioOffsetMs] = useState(0);
+  useEffect(() => {
+    setSubtitleOffsetMs(0);
+    setAudioOffsetMs(0);
+    setAppliedAudioOffsetMs(0);
+  }, [mediaId]);
+
   const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef,
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
     startPositionMs, onEnded, setIsBuffering: setIsBufferingDebounced, setFatalError,
+    audioOffsetMs: appliedAudioOffsetMs,
   });
+
+  useEffect(() => {
+    if (audioOffsetMs === appliedAudioOffsetMs) return;
+    const id = setTimeout(() => {
+      setAppliedAudioOffsetMs(audioOffsetMs);
+      setTranscodeStartTime(positionRef.current);
+    }, 1200);
+    return () => clearTimeout(id);
+  }, [audioOffsetMs, appliedAudioOffsetMs, setTranscodeStartTime]);
 
   useSubtitleManager({
     videoRef, currentSubtitle, externalSubUrl, mediaId, streamToken,
     selectedBurnInTrack, transcodeStartTime, currentTrackIndex, subtitleStyle,
+    subtitleOffsetMs,
   });
 
   // Sync playbackRate
@@ -857,6 +882,11 @@ export function HLSPlayer({
         skipForwardSeconds={skipFwd}
         skipBackwardSeconds={skipBwd}
         subtitleStyle={subtitleStyle}
+        subtitleOffsetMs={subtitleOffsetMs}
+        onSubtitleOffsetChange={setSubtitleOffsetMs}
+        audioOffsetMs={audioOffsetMs}
+        onAudioOffsetChange={setAudioOffsetMs}
+        audioOffsetAvailable={transcodeMode}
         streamToken={streamToken}
         brightness={brightness}
         availableQualities={hlsLevels}

@@ -114,6 +114,72 @@ const CheckIcon = () => <Check size={14} aria-hidden="true" />;
 
 const ChevronRightIcon = () => <ChevronRight size={14} className="text-[var(--text-muted)]" aria-hidden="true" />;
 
+// OFFSET_STEP_MS is the resync granularity: fine enough to dial in lip sync,
+// coarse enough that a few clicks cover typical mux offsets.
+const OFFSET_STEP_MS = 100;
+const OFFSET_MAX_MS = 5000;
+
+// formatOffset renders a millisecond offset as a signed seconds label.
+function formatOffset(ms: number): string {
+  if (ms === 0) return "0 ms";
+  const sign = ms > 0 ? "+" : "-";
+  const abs = Math.abs(ms);
+  return abs >= 1000 ? `${sign}${(abs / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)} s` : `${sign}${abs} ms`;
+}
+
+// OffsetStepper is the shared +/- control for the subtitle and audio resync
+// rows: hold-free discrete steps, clamped, with a quick reset.
+function OffsetStepper({ label, valueMs, onChange, disabled, hint, testId }: {
+  label: string;
+  valueMs: number;
+  onChange: (ms: number) => void;
+  disabled?: boolean;
+  hint?: string;
+  testId: string;
+}) {
+  const step = (dir: 1 | -1) => {
+    const next = Math.max(-OFFSET_MAX_MS, Math.min(OFFSET_MAX_MS, valueMs + dir * OFFSET_STEP_MS));
+    onChange(next);
+  };
+  return (
+    <div className="px-4 py-2" data-testid={testId}>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
+        <span className={`text-xs ${valueMs !== 0 ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}>{formatOffset(valueMs)}</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => step(-1)}
+          disabled={disabled}
+          className="flex-1 py-1 rounded bg-[var(--surface-raised)] text-sm text-[var(--text)] hover:bg-[var(--border)] disabled:opacity-40 transition-colors-fast"
+          aria-label={`${label} -`}
+          data-testid={`${testId}-minus`}
+        >
+          -
+        </button>
+        <button
+          onClick={() => onChange(0)}
+          disabled={disabled || valueMs === 0}
+          className="px-2 py-1 rounded text-xs text-[var(--text-muted)] hover:bg-[var(--surface-raised)] disabled:opacity-40 transition-colors-fast"
+          data-testid={`${testId}-reset`}
+        >
+          0
+        </button>
+        <button
+          onClick={() => step(1)}
+          disabled={disabled}
+          className="flex-1 py-1 rounded bg-[var(--surface-raised)] text-sm text-[var(--text)] hover:bg-[var(--border)] disabled:opacity-40 transition-colors-fast"
+          aria-label={`${label} +`}
+          data-testid={`${testId}-plus`}
+        >
+          +
+        </button>
+      </div>
+      {hint && <p className="mt-1 text-[10px] leading-tight text-[var(--text-muted)]">{hint}</p>}
+    </div>
+  );
+}
+
 function SubMenuHeader({ label, onBack }: { label: string; onBack: () => void }) {
   const { t } = useTranslation();
   return (
@@ -148,6 +214,15 @@ export interface SettingsPanelProps {
   onExternalSubtitle?: (blobUrl: string, label: string) => void;
   subtitleStyle?: SubtitleStyle;
   onSubtitleStyleChange?: (patch: Partial<SubtitleStyle>) => void;
+  /** Live subtitle resync in ms (positive = subtitles later). */
+  subtitleOffsetMs?: number;
+  onSubtitleOffsetChange?: (ms: number) => void;
+  /** Audio resync in ms (positive = audio later). Applying restarts the
+   * transcode at the current position, so callers debounce it. */
+  audioOffsetMs?: number;
+  onAudioOffsetChange?: (ms: number) => void;
+  /** Audio resync needs a re-encode: disabled (with a hint) in direct play. */
+  audioOffsetAvailable?: boolean;
   brightness?: number;
   onBrightnessChange?: (value: number) => void;
   availableQualities?: number[];
@@ -172,6 +247,11 @@ export function SettingsPanel({
   onExternalSubtitle,
   subtitleStyle,
   onSubtitleStyleChange,
+  subtitleOffsetMs = 0,
+  onSubtitleOffsetChange,
+  audioOffsetMs = 0,
+  onAudioOffsetChange,
+  audioOffsetAvailable = true,
   brightness = 1,
   onBrightnessChange,
   availableQualities,
@@ -358,6 +438,19 @@ export function SettingsPanel({
           {menu === "audio" && (
             <>
               <SubMenuHeader label={t("player.settings.audio")} onBack={() => setMenu("main")} />
+              {onAudioOffsetChange && (
+                <>
+                  <OffsetStepper
+                    label={t("player.settings.audioSync")}
+                    valueMs={audioOffsetMs}
+                    onChange={onAudioOffsetChange}
+                    disabled={!audioOffsetAvailable}
+                    hint={audioOffsetAvailable ? t("player.settings.audioSyncHint") : t("player.settings.audioSyncUnavailable")}
+                    testId="audio-offset"
+                  />
+                  <div className="mx-3 my-1 border-t border-[var(--border)]" />
+                </>
+              )}
               {audioStreams.map((s) => {
                 const label = s.title ?? s.language ?? t("media.track", { number: s.index });
                 return (
@@ -454,6 +547,15 @@ export function SettingsPanel({
           {menu === "subtitle-style" && onSubtitleStyleChange && (
             <>
               <SubMenuHeader label={t("player.settings.subtitleStyle")} onBack={() => setMenu("main")} />
+              {onSubtitleOffsetChange && (
+                <OffsetStepper
+                  label={t("player.settings.subtitleSync")}
+                  valueMs={subtitleOffsetMs}
+                  onChange={onSubtitleOffsetChange}
+                  hint={t("player.settings.subtitleSyncHint")}
+                  testId="subtitle-offset"
+                />
+              )}
               <div className="px-4 py-2">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">

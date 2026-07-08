@@ -27,6 +27,11 @@ settings:
   audio: Audio
   subtitles: Subtítulos
   speed: Velocidad
+  audioSync: "Sincronización de audio"
+  audioSyncHint: "Positivo = audio más tarde. Aplicar reinicia el flujo en la posición actual."
+  audioSyncUnavailable: "Disponible solo en reproducción transcodificada"
+  subtitleSync: "Sincronización de subtítulos"
+  subtitleSyncHint: "Positivo = subtítulos más tarde. Aplicado al instante."
   sleepTimer: "Temporizador de suspensión"
   subtitleStyle: Estilo de subtítulos
   normal: Normal

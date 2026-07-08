@@ -70,6 +70,12 @@ export interface PlayerState {
   currentEpisodeId: string;
 
   subtitleStyle?: SubtitleStyle;
+  subtitleOffsetMs?: number;
+  onSubtitleOffsetChange?: (ms: number) => void;
+  audioOffsetMs?: number;
+  onAudioOffsetChange?: (ms: number) => void;
+  audioOffsetAvailable?: boolean;
+
 }
 
 const PlayerContext = createContext<PlayerState | null>(null);
@@ -134,6 +140,12 @@ export interface PlayerProviderProps {
   episodes?: EpisodeNavItem[];
   currentEpisodeId?: string;
   subtitleStyle?: SubtitleStyle;
+  subtitleOffsetMs?: number;
+  onSubtitleOffsetChange?: (ms: number) => void;
+  audioOffsetMs?: number;
+  onAudioOffsetChange?: (ms: number) => void;
+  audioOffsetAvailable?: boolean;
+
   /** Navigate to an episode (for Media Session prev/next). Optional. */
   onPlayEpisode?: (episodeId: string) => void;
   children: React.ReactNode;
@@ -165,6 +177,11 @@ export function PlayerProvider({
   episodes = EMPTY_EPISODES,
   currentEpisodeId = "",
   subtitleStyle,
+  subtitleOffsetMs,
+  onSubtitleOffsetChange,
+  audioOffsetMs,
+  onAudioOffsetChange,
+  audioOffsetAvailable,
   onPlayEpisode,
   children,
 }: PlayerProviderProps) {
@@ -341,6 +358,11 @@ export function PlayerProvider({
     episodes,
     currentEpisodeId,
     subtitleStyle,
+    subtitleOffsetMs,
+    onSubtitleOffsetChange,
+    audioOffsetMs,
+    onAudioOffsetChange,
+    audioOffsetAvailable,
   }), [
     videoRef,
     playing,
@@ -376,6 +398,11 @@ export function PlayerProvider({
     episodes,
     currentEpisodeId,
     subtitleStyle,
+    subtitleOffsetMs,
+    onSubtitleOffsetChange,
+    audioOffsetMs,
+    onAudioOffsetChange,
+    audioOffsetAvailable,
   ]);
 
   return (

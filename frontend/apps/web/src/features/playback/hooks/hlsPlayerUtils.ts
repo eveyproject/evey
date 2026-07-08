@@ -73,12 +73,17 @@ export function buildTranscodeHlsUrl(
   audioTrack: number,
   selectedBurnInTrack: number | null,
   startSec: number,
+  audioOffsetMs = 0,
 ): string {
   const params = new URLSearchParams();
   if (token) params.set("token", token);
   params.set("audioTrack", String(audioTrack));
   if (selectedBurnInTrack !== null) params.set("subtitleTrack", String(selectedBurnInTrack));
   if (startSec > 0) params.set("startSec", String(startSec));
+  // Audio resync: a decision input (forces the audio to re-encode with a
+  // shifted input) - the server re-bakes it on every child URL like the
+  // codec caps, so the whole session stays coherent.
+  if (audioOffsetMs !== 0) params.set("audioOffsetMs", String(Math.trunc(audioOffsetMs)));
   appendCodecParams(params);
   // VOD pipeline: server precomputes the manifest from the known media
   // duration so hls.js sees a complete VOD stream from t=0 and never

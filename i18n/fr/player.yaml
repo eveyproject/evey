@@ -27,6 +27,11 @@ settings:
   audio: Audio
   subtitles: Sous-titres
   speed: Vitesse
+  audioSync: "Synchro audio"
+  audioSyncHint: "Positif = audio plus tard. L'application relance le flux à la position courante."
+  audioSyncUnavailable: "Disponible uniquement en lecture transcodée"
+  subtitleSync: "Synchro sous-titres"
+  subtitleSyncHint: "Positif = sous-titres plus tard. Appliqué instantanément."
   sleepTimer: "Minuteur de veille"
   subtitleStyle: Style des sous-titres
   normal: Normal

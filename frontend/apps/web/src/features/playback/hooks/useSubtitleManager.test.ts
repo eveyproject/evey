@@ -64,3 +64,31 @@ describe("cueFontSizePx", () => {
     expect(cueFontSizePx(0, 100)).toBe(0);
   });
 });
+
+describe("applySubtitleOffset", () => {
+  function videoWithCue(start: number, end: number) {
+    const video = document.createElement("video");
+    const cue = { startTime: start, endTime: end, line: 90 } as VTTCue;
+    const track = { mode: "showing", cues: [cue] } as unknown as TextTrack;
+    Object.defineProperty(video, "textTracks", {
+      value: { length: 1, 0: track },
+    });
+    return { video, cue };
+  }
+
+  it("shifts loaded cues in place, preserving duration", async () => {
+    const { applySubtitleOffset } = await import("./useSubtitleManager");
+    const { video, cue } = videoWithCue(10, 12.5);
+    applySubtitleOffset(video, 0.3);
+    expect(cue.startTime).toBeCloseTo(10.3);
+    expect(cue.endTime).toBeCloseTo(12.8);
+  });
+
+  it("clamps a cue at zero without collapsing it", async () => {
+    const { applySubtitleOffset } = await import("./useSubtitleManager");
+    const { video, cue } = videoWithCue(0.2, 2.2);
+    applySubtitleOffset(video, -1);
+    expect(cue.startTime).toBe(0);
+    expect(cue.endTime).toBeCloseTo(2);
+  });
+});

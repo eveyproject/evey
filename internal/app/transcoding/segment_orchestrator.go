@@ -731,6 +731,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		VideoDecision:      "transcode",
 		AudioDecision:      fp.AudioDecision(),
 		AudioTrackIndex:    fp.AudioTrack,
+		AudioUserOffsetSec: float64(fp.AudioOffsetMs) / 1000.0,
 		SubtitleTrackIndex: fp.SubtitleBurnInTrack,
 		HDRSupported:       false,         // tonemap is part of decision; HDRSupported=false on the client forces tonemap
 		ToneMap:            fp.HDRTonemap, // HDR->SDR tonemap decision, carried as a bool (Streams not threaded here)

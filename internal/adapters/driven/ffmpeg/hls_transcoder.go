@@ -636,16 +636,32 @@ func hasAudio(opts transcoding.HLSProcessOpts) bool {
 // measures hundreds of ms. Below the floor the args stay byte-identical.
 const audioDelayCancelMinSec = 0.1
 
-// audioDelayCancelActive reports whether this session cancels the source's
-// audio start delay by feeding audio from a second, -itsoffset-shifted input.
-// Only TRANSCODED audio is eligible: copied audio packets cannot be trimmed at
-// the seek edge, and the early shifted packets were measured (jellyfin-ffmpeg
-// 7.1) to hijack the make_zero zero-point of copy-on-seek sessions — the video
-// landed +0.87s off plan and the copy timeline tripwire fired. A copied track
-// keeps the source's delay exactly as before this feature.
+// audioNetShiftSec is the single net input shift the second audio input
+// applies: the source-defect cancellation (shift audio EARLIER by the probed
+// start delay) minus the user's resync request (positive = audio LATER). The
+// two compose into one -itsoffset value: -net.
+func audioNetShiftSec(opts transcoding.HLSProcessOpts) float64 {
+	return opts.AudioStartDelaySec - opts.AudioUserOffsetSec
+}
+
+// audioDelayCancelActive reports whether this session feeds audio from a
+// second, -itsoffset-shifted input. Only TRANSCODED audio is eligible: copied
+// audio packets cannot be trimmed at the seek edge, and the early shifted
+// packets were measured (jellyfin-ffmpeg 7.1) to hijack the make_zero
+// zero-point of copy-on-seek sessions — the video landed +0.87s off plan and
+// the copy timeline tripwire fired. Two triggers:
+//   - the probed SOURCE start delay exceeds the noise floor (auto-cancel);
+//   - the USER requested a resync (honored exactly, no floor — they clicked
+//     a 100 ms step on purpose), unless it nets out to zero against the
+//     source delay.
 func audioDelayCancelActive(opts transcoding.HLSProcessOpts) bool {
-	return hasAudio(opts) && opts.AudioDecision == "transcode" &&
-		opts.AudioStartDelaySec > audioDelayCancelMinSec
+	if !hasAudio(opts) || opts.AudioDecision != "transcode" {
+		return false
+	}
+	if opts.AudioUserOffsetSec != 0 {
+		return audioNetShiftSec(opts) != 0
+	}
+	return opts.AudioStartDelaySec > audioDelayCancelMinSec
 }
 
 // audioInput is the ffmpeg input index the audio maps read from: 0 (the main
@@ -675,7 +691,7 @@ func appendAudioDelayInput(args []string, opts transcoding.HLSProcessOpts, ssSec
 	if pacing != nil {
 		args = pacing(args)
 	}
-	return append(args, "-itsoffset", fmt.Sprintf("-%.3f", opts.AudioStartDelaySec), "-i", opts.FilePath)
+	return append(args, "-itsoffset", fmt.Sprintf("%.3f", -audioNetShiftSec(opts)), "-i", opts.FilePath)
 }
 
 // audioOutputArgsSingle returns the audio map + single-stream encode/copy args

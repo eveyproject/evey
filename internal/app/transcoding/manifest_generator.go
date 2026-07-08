@@ -111,6 +111,11 @@ type ManifestInput struct {
 	// master advertised as hvc1/PQ copy — codec mismatch, broken playback.
 	HDRCapable bool
 
+	// AudioOffsetMs is the user's audio resync (positive = audio later). A
+	// decision input like the codec lists: it forces the audio decision to
+	// transcode and forks the segment cache, so it must ride every baked URL.
+	AudioOffsetMs int
+
 	// PinnedVideoDecision ("copy"|"transcode") stamps the video decision the
 	// FIRST playlist of this playback computed into every baked URL (vd=...),
 	// so background enrichment (keyframe backfill flipping copy-eligibility)
@@ -655,6 +660,9 @@ func querySuffix(in ManifestInput) string {
 		// Decision input like the codec lists: dropping it flips the segment
 		// decision from copy to tonemap-transcode mid-presentation (see field doc).
 		q.Set("hdr", "1")
+	}
+	if in.AudioOffsetMs != 0 {
+		q.Set("audioOffsetMs", fmt.Sprintf("%d", in.AudioOffsetMs))
 	}
 	if in.PinnedVideoDecision != "" {
 		// Pins the playback's video decision across playlist polls (see field

@@ -320,3 +320,31 @@ func TestPinnedVideoDecision_MintAndPassthrough(t *testing.T) {
 	assert.Equal(t, "copy", pinnedVideoDecision(reqWith("vd=copy"), trDec))
 	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith("vd=banana"), trDec), "garbage pin is re-minted")
 }
+
+// A user audio resync (audioOffsetMs) can only be applied by re-encoding the
+// audio from a shifted input: the decision must force audio transcode even
+// when passthrough would otherwise win, with an explicit reason.
+func TestMakeDecision_AudioOffsetForcesAudioTranscode(t *testing.T) {
+	h := newCopyTestHandler(t)
+	streams := copyEligibleStreams()
+	streams = append(streams, &domainlibrary.MediaStream{
+		StreamType: domainlibrary.StreamTypeAudio, Codec: "aac",
+		Channels: func() *int { c := 2; return &c }(), IsDefault: true,
+	})
+	newReq := func(q string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264&audioCodecs=aac&containers=mp4"+q, nil)
+		return req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+			&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	}
+
+	d := h.makeDecision(context.Background(), streams, "matroska", newReq("&audioOffsetMs=300"))
+	assert.Equal(t, "transcode", d.AudioDecision)
+	assert.Contains(t, d.TranscodeReasons, "audio_resync_requested")
+
+	d = h.makeDecision(context.Background(), streams, "matroska", newReq(""))
+	assert.NotContains(t, d.TranscodeReasons, "audio_resync_requested")
+
+	// Clamp: an absurd crafted offset is bounded, not honored.
+	assert.Equal(t, 30_000, audioOffsetMsQuery(newReq("&audioOffsetMs=999999999")))
+	assert.Equal(t, -30_000, audioOffsetMsQuery(newReq("&audioOffsetMs=-999999999")))
+}

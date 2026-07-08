@@ -18,6 +18,9 @@ interface UseTranscodePlaybackArgs {
   onEnded?: () => void;
   setIsBuffering: (v: boolean) => void;
   setFatalError: (v: boolean) => void;
+  /** Applied audio resync (ms; positive = audio later). Baked into the
+   * stream URL - a change re-creates the HLS session with a shifted encode. */
+  audioOffsetMs?: number;
 }
 
 export function useTranscodePlayback({
@@ -35,6 +38,7 @@ export function useTranscodePlayback({
   startPositionMs,
   onEnded,
   setIsBuffering,
+  audioOffsetMs = 0,
   setFatalError,
 }: UseTranscodePlaybackArgs) {
   const [transcodeStartTime, setTranscodeStartTime] = useState(startPositionMs / 1000);
@@ -79,6 +83,7 @@ export function useTranscodePlayback({
       currentTrackIndex,
       selectedBurnInTrack,
       0, // server ignores startSec on the VOD path
+      audioOffsetMs,
     );
 
     if (prefersNativeHLS()) {
@@ -235,7 +240,7 @@ export function useTranscodePlayback({
                 data.details === "levelLoadTimeOut";
               if (isManifestLevel) {
                 const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
-                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, currentTrackIndex, selectedBurnInTrack, seekPos);
+                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs);
                 hls.loadSource(freshUrl);
                 hls.startLoad();
               } else {
@@ -299,7 +304,7 @@ export function useTranscodePlayback({
       setIsBuffering(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setIsBuffering/setTranscodeStartTime are stable setState
-  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack]);
+  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs]);
 
   return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight };
 }

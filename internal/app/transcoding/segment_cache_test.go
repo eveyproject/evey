@@ -510,3 +510,20 @@ func TestDecisionFingerprint_AudioDecision(t *testing.T) {
 	fp.AudioCopy = true
 	assert.Equal(t, "copy", fp.AudioDecision())
 }
+
+// A user audio resync produces different bytes for the same media, so it MUST
+// fork the cache hash - conditionally (zero keeps the pre-feature hash so no
+// existing cache entry is orphaned).
+func TestDecisionFingerprint_Hash_DistinguishesAudioOffset(t *testing.T) {
+	base := DecisionFingerprint{MediaID: "m1", SourcePath: "/f.mkv", VideoCodec: "h264", AudioCodec: "aac"}
+	shifted := base
+	shifted.AudioOffsetMs = 300
+	if base.Hash() == shifted.Hash() {
+		t.Fatal("a non-zero audio offset must fork the cache hash")
+	}
+	zero := base
+	zero.AudioOffsetMs = 0
+	if base.Hash() != zero.Hash() {
+		t.Fatal("zero offset must keep the pre-feature hash")
+	}
+}

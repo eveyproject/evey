@@ -216,6 +216,37 @@ func TestAudioDelayIntegration(t *testing.T) {
 		}
 	})
 
+	// User resync: +300ms means the audio plays 300ms LATER than true sync,
+	// so the content at any label belongs 300ms EARLIER in the source. Both a
+	// bare offset (clean source) and an offset composed with the source-delay
+	// cancel must land the same net result.
+	t.Run("user_offset_composition", func(t *testing.T) {
+		bare := baseOpts()
+		bare.FilePath = clean // a healthy source: the offset is the ONLY shift
+		bare.AudioStartDelaySec = 0
+		bare.AudioUserOffsetSec = 0.3
+		outDir, segs := run(t, bare)
+		if off := correlate(t, outDir, segs[2], 6); math.Abs(off-(-0.3)) > 0.25 {
+			t.Errorf("bare +300ms resync: content offset %+.3fs, want ~-0.300", off)
+		}
+
+		composed := baseOpts() // AudioStartDelaySec = probed 0.9
+		composed.AudioUserOffsetSec = 0.3
+		outDir, segs = run(t, composed)
+		if off := correlate(t, outDir, segs[2], 6); math.Abs(off-(-0.3)) > 0.25 {
+			t.Errorf("cancel 0.9 + user +0.3: content offset %+.3fs, want ~-0.300", off)
+		}
+
+		negative := baseOpts()
+		negative.FilePath = clean
+		negative.AudioStartDelaySec = 0
+		negative.AudioUserOffsetSec = -0.3
+		outDir, segs = run(t, negative)
+		if off := correlate(t, outDir, segs[2], 6); math.Abs(off-0.3) > 0.25 {
+			t.Errorf("bare -300ms resync: content offset %+.3fs, want ~+0.300", off)
+		}
+	})
+
 	t.Run("copy_on_seek", func(t *testing.T) {
 		// Target 12.5: past the 12.0 keyframe with margin over the CLI's ~130ms
 		// DTS heuristic, so the session lands ON 12.0 like a real plan-driven

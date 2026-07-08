@@ -234,6 +234,12 @@ type HLSProcessOpts struct {
 	// failures). Software always uses the single-process multi-variant graph.
 	PerVariantHW bool
 
+	// AudioUserOffsetSec is the USER's audio resync request (seconds; positive
+	// = audio later), threaded from the decision fingerprint. Combined with
+	// AudioStartDelaySec below into one net input shift by the builders -
+	// transcoded audio only, like the source-delay cancel.
+	AudioUserOffsetSec float64
+
 	// AudioStartDelaySec is how far the SOURCE's selected audio track starts
 	// AFTER its video track (ffprobe start_time delta, seconds). Some repacks
 	// carry a large one (~1s) as a mux defect; the pipeline's PTS preservation

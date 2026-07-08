@@ -11,6 +11,10 @@ interface UseSubtitleManagerArgs {
   transcodeStartTime: number;
   currentTrackIndex: number;
   subtitleStyle: SubtitleStyle;
+  /** Live subtitle resync (ms; positive = subtitles later). Applied to the
+   * LOADED cues in place - instant, no track reload, works for embedded and
+   * external tracks alike. */
+  subtitleOffsetMs?: number;
 }
 
 // Cue anchor as a percentage of the video element height (snapToLines=false).
@@ -33,6 +37,25 @@ const MIN_CUE_FONT_PX = 13;
 export function cueFontSizePx(videoHeightPx: number, fontSizePct: number): number {
   if (videoHeightPx <= 0) return 0;
   return Math.max(MIN_CUE_FONT_PX, videoHeightPx * NATIVE_CUE_HEIGHT_RATIO * (fontSizePct / 100));
+}
+
+// applySubtitleOffset shifts every cue of the showing tracks by deltaSec.
+// Cue times are mutated IN PLACE (the browser re-schedules them live), so a
+// slider change lands on the very next cue without reloading the track.
+// Negative results clamp at 0 (a cue cannot start before the media).
+// Exported for tests.
+export function applySubtitleOffset(video: HTMLVideoElement, deltaSec: number) {
+  if (deltaSec === 0) return;
+  for (let i = 0; i < video.textTracks.length; i++) {
+    const cues = video.textTracks[i].cues;
+    if (!cues) continue;
+    for (let j = 0; j < cues.length; j++) {
+      const cue = cues[j];
+      const dur = cue.endTime - cue.startTime;
+      cue.startTime = Math.max(0, cue.startTime + deltaSec);
+      cue.endTime = cue.startTime + dur;
+    }
+  }
 }
 
 // applyCuePosition re-anchors every cue of the showing tracks. Percentage
@@ -65,13 +88,29 @@ export function useSubtitleManager({
   transcodeStartTime,
   currentTrackIndex,
   subtitleStyle,
+  subtitleOffsetMs = 0,
 }: UseSubtitleManagerArgs) {
   const externalSubUrlRef = useRef<string | null>(null);
+  // Offset already applied to the cues currently loaded: a change applies the
+  // DELTA; a fresh track load re-applies the full offset (ref reset below).
+  const appliedOffsetMsRef = useRef(0);
   const styleElRef = useRef<HTMLStyleElement | null>(null);
   // The track effect must see the current position without re-creating the
   // <track> element on a position toggle.
   const positionRef = useRef(subtitleStyle.position);
   positionRef.current = subtitleStyle.position;
+  const offsetRef = useRef(subtitleOffsetMs);
+  offsetRef.current = subtitleOffsetMs;
+
+  // Live resync: apply only the delta vs what the loaded cues already carry.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const deltaMs = subtitleOffsetMs - appliedOffsetMsRef.current;
+    if (deltaMs === 0) return;
+    applySubtitleOffset(video, deltaMs / 1000);
+    appliedOffsetMsRef.current = subtitleOffsetMs;
+  }, [subtitleOffsetMs, videoRef]);
 
   // Dynamic <track> element management
   useEffect(() => {
@@ -106,7 +145,16 @@ export function useSubtitleManager({
     // Re-anchor the cues once the VTT is parsed — without this, a freshly
     // loaded track keeps the browser default (glued to the bottom edge) until
     // the user happens to toggle the position setting.
-    track.addEventListener("load", () => applyCuePosition(video, positionRef.current));
+    appliedOffsetMsRef.current = 0;
+    track.addEventListener("load", () => {
+      applyCuePosition(video, positionRef.current);
+      // A freshly parsed track carries the source timings: bring it to the
+      // user's current resync setting.
+      if (offsetRef.current !== 0) {
+        applySubtitleOffset(video, offsetRef.current / 1000);
+        appliedOffsetMsRef.current = offsetRef.current;
+      }
+    });
     video.appendChild(track);
 
     // Force browser to load the track (Firefox compat: mode="showing")

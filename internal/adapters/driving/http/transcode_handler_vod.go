@@ -800,12 +800,31 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		// codec lists: it MUST be re-baked into the variant/segment URLs or the
 		// segment-time makeDecision silently downgrades an HDR copy rung to a
 		// tonemapped h264 transcode that contradicts the master's CODECS.
-		HDRCapable: r != nil && r.URL.Query().Get("hdr") == "1",
+		HDRCapable:    r != nil && r.URL.Query().Get("hdr") == "1",
+		AudioOffsetMs: audioOffsetMsQuery(r),
 		// The playback's FIRST playlist stamps its decision; children inherit
 		// the stamp verbatim so the whole session stays on one plan even if
 		// background enrichment flips copy-eligibility mid-play.
 		PinnedVideoDecision: pinnedVideoDecision(r, decision),
 	}, nil
+}
+
+// audioOffsetMsQuery parses the user's audio resync request (ms; positive =
+// audio later), clamped to a sane +/-30s so a crafted URL cannot demand an
+// absurd shift.
+func audioOffsetMsQuery(r *http.Request) int {
+	if r == nil {
+		return 0
+	}
+	v := parseIntQuery(r, "audioOffsetMs", 0)
+	const capMs = 30_000
+	if v > capMs {
+		return capMs
+	}
+	if v < -capMs {
+		return -capMs
+	}
+	return v
 }
 
 // pinnedVideoDecision returns the vd value to bake into this playback's URLs:
@@ -999,7 +1018,11 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		MaxAudioChannels: decision.MaxAudioChannels,
 		// Audio passthrough eligibility — see audioCopyEligible (shared with
 		// buildManifestInput so the master CODECS always matches the bytes).
-		AudioCopy:        audioCopy,
+		AudioCopy: audioCopy,
+		// User audio resync (ms) - hashed conditionally (non-zero only) and
+		// threaded to the builder as a net input shift with the source-delay
+		// cancel. makeDecision already forced audio transcode when non-zero.
+		AudioOffsetMs:    audioOffsetMsQuery(r),
 		ForceSidecarSubs: decision.SubtitleDecision == "external",
 		UseFMP4:          h.useFMP4,
 		HWAccel:          hwAccel,
@@ -1031,6 +1054,17 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, container, client, 0, prefs)
 	if d == nil {
 		return domaintranscoding.PlaybackDecision{}
+	}
+	// User audio resync: shifting audio requires re-encoding it from a
+	// time-shifted input, so a non-zero offset forces the audio decision to
+	// transcode (a copied track cannot be shifted). The offset itself rides
+	// the fingerprint (cache fork) and every baked URL.
+	if audioOffsetMsQuery(r) != 0 && d.AudioDecision != "transcode" {
+		d.AudioDecision = "transcode"
+		d.TranscodeReasons = append(d.TranscodeReasons, "audio_resync_requested")
+		if d.AudioCodec == "" {
+			d.AudioCodec = "aac"
+		}
 	}
 	// Mid-play decision pinning. The first playlist of a playback stamps the
 	// then-current video decision into every child URL (vd=..., see

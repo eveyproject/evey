@@ -102,6 +102,7 @@ function PlayerControlsInner({
     availableQualities, chapters, mediaId, mediaType,
     title, brightness, skipForwardSeconds, skipBackwardSeconds,
     seasons, currentSeasonId, episodes, currentEpisodeId, subtitleStyle,
+    subtitleOffsetMs, onSubtitleOffsetChange, audioOffsetMs, onAudioOffsetChange, audioOffsetAvailable,
   } = ctx;
 
   // When casting, use cast playback state instead of local video state.
@@ -615,6 +616,11 @@ function PlayerControlsInner({
             onExternalSubtitle={onExternalSubtitle}
             subtitleStyle={subtitleStyle}
             onSubtitleStyleChange={onSubtitleStyleChange}
+            subtitleOffsetMs={subtitleOffsetMs}
+            onSubtitleOffsetChange={onSubtitleOffsetChange}
+            audioOffsetMs={audioOffsetMs}
+            onAudioOffsetChange={onAudioOffsetChange}
+            audioOffsetAvailable={audioOffsetAvailable}
             brightness={brightness}
             onBrightnessChange={onBrightnessChange}
             availableQualities={availableQualities}

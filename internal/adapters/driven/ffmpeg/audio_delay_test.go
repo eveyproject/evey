@@ -189,3 +189,37 @@ func TestAudioDelayCancel_NonZeroAudioTrack(t *testing.T) {
 	assert.Contains(t, joined, "-map 1:a:2")
 	assert.NotContains(t, joined, "-map 0:a:")
 }
+
+// User audio resync composes with the source-delay cancel into ONE net input
+// shift: -itsoffset -(sourceDelay - userOffset). Positive user offsets (audio
+// later) flip the sign; an offset that exactly cancels the source delay drops
+// the second input entirely.
+func TestAudioDelayCancel_UserOffsetComposition(t *testing.T) {
+	userOnly := delayOpts("", 3)
+	userOnly.AudioStartDelaySec = 0
+	userOnly.AudioUserOffsetSec = 0.3
+	joined := strings.Join(ffmpeg.BuildFFmpegArgs(userOnly), " ")
+	assert.Contains(t, joined, "-itsoffset 0.300 -i /f.mkv",
+		"a bare user resync (+300ms) delays the audio input by +0.3s")
+	assert.Contains(t, joined, "-map 1:a:0")
+
+	combined := delayOpts("", 3)
+	combined.AudioStartDelaySec = 0.9
+	combined.AudioUserOffsetSec = 0.3
+	joined = strings.Join(ffmpeg.BuildFFmpegArgs(combined), " ")
+	assert.Contains(t, joined, "-itsoffset -0.600 -i /f.mkv",
+		"cancel 0.9s + user +0.3s = net -0.6s input shift")
+
+	cancelled := delayOpts("", 3)
+	cancelled.AudioStartDelaySec = 0.3
+	cancelled.AudioUserOffsetSec = 0.3
+	args := ffmpeg.BuildFFmpegArgs(cancelled)
+	assert.Equal(t, 1, countArg(args, "-i"), "a net-zero shift needs no second input")
+
+	earlier := delayOpts("", 3)
+	earlier.AudioStartDelaySec = 0
+	earlier.AudioUserOffsetSec = -0.1
+	joined = strings.Join(ffmpeg.BuildFFmpegArgs(earlier), " ")
+	assert.Contains(t, joined, "-itsoffset -0.100",
+		"user asks audio EARLIER by 100ms: net = 0 - (-0.1) = +0.1 → -itsoffset -0.100")
+}

@@ -27,6 +27,11 @@ settings:
   audio: Audio
   subtitles: Subtitles
   speed: Speed
+  audioSync: "Audio sync"
+  audioSyncHint: "Positive = audio later. Applying restarts the stream at the current position."
+  audioSyncUnavailable: "Available during transcoded playback only"
+  subtitleSync: "Subtitle sync"
+  subtitleSyncHint: "Positive = subtitles later. Applied instantly."
   sleepTimer: Sleep timer
   subtitleStyle: Subtitle Style
   normal: Normal

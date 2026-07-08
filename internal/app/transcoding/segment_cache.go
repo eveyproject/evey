@@ -97,6 +97,13 @@ type DecisionFingerprint struct {
 	// the dimension is covered by an explicit test: Hash_DistinguishesAudioCopy.
 	AudioCopy bool
 
+	// AudioOffsetMs is the user's audio resync (positive = audio later),
+	// applied by re-encoding the audio from a time-shifted input. A different
+	// offset = different bytes, so it is a Hash() dimension - emitted
+	// CONDITIONALLY (only when non-zero) so the zero-offset majority keeps its
+	// existing cache entries.
+	AudioOffsetMs int
+
 	// SourceVideoCodec is the codec of the SOURCE video stream ("h264",
 	// "hevc"…), set by the handler from the probed streams. The copy builder
 	// needs it to tag the fMP4 sample entry (`-tag:v hvc1` — Safari refuses
@@ -260,6 +267,10 @@ func (f DecisionFingerprint) Hash() string {
 	if f.AudioCopy {
 		// Conditional on purpose: see the AudioCopy field comment.
 		b.WriteString("acopy=true\n")
+	}
+	if f.AudioOffsetMs != 0 {
+		// Conditional: only a resynced session forks its cache.
+		fmt.Fprintf(&b, "aoffset=%d\n", f.AudioOffsetMs)
 	}
 	if f.DeinterlaceAll {
 		// Conditional: only an idet-flagged interlaced title forks its cache.
