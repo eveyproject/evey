@@ -9,6 +9,8 @@ const repairOneMutate = vi.fn();
 const rollbackOneMutate = vi.fn();
 const repairLibMutate = vi.fn();
 const rollbackLibMutate = vi.fn();
+const deleteBackupMutate = vi.fn();
+const purgeLibMutate = vi.fn();
 const invalidateQueries = vi.fn();
 const mockToast = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
 
@@ -21,6 +23,8 @@ vi.mock("@evey/api", () => ({
   useAdminMediaServiceRollbackMediaSeekIndex: () => ({ mutate: rollbackOneMutate, isPending: false, variables: undefined }),
   useAdminMediaServiceReindexLibrarySeekIndex: () => ({ mutate: repairLibMutate, isPending: false }),
   useAdminMediaServiceRollbackLibrarySeekIndex: () => ({ mutate: rollbackLibMutate, isPending: false }),
+  useAdminMediaServiceDeleteSeekIndexBackup: () => ({ mutate: deleteBackupMutate, isPending: false, variables: undefined }),
+  useAdminMediaServicePurgeSeekIndexBackups: () => ({ mutate: purgeLibMutate, isPending: false }),
 }));
 
 vi.mock("@evey/store", () => ({ toast: mockToast }));
@@ -207,4 +211,23 @@ describe("SeekIndexPage", () => {
     expect(screen.getByTestId("seek-index-ro-hint")).toBeInTheDocument();
     expect(screen.getAllByText(/x\.mkv/).length).toBeGreaterThan(0);
   });
+  it("row delete-backup button deletes the single backup synchronously", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    fireEvent.click(screen.getByTestId("seek-index-delete-backup-btn"));
+    expect(deleteBackupMutate).toHaveBeenCalledWith({ data: { mediaId: "mi-2" } });
+  });
+
+  it("purge-all opens the confirm modal and confirming queues the purge job", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    fireEvent.click(screen.getByTestId("seek-index-purge-all-btn"));
+    fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
+    expect(purgeLibMutate).toHaveBeenCalledWith({ data: {} });
+    expect(repairLibMutate).not.toHaveBeenCalled();
+    expect(rollbackLibMutate).not.toHaveBeenCalled();
+  });
+
 });

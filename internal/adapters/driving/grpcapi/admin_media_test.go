@@ -115,6 +115,7 @@ func (f fakeReindexer) ReindexInPlace(context.Context, string, mkv.ReindexOption
 	return mkv.ReindexResult{}, f.reindexErr
 }
 func (f fakeReindexer) RestoreBackup(context.Context, string) error { return f.restoreErr }
+func (f fakeReindexer) DeleteBackup(context.Context, string) error  { return nil }
 
 // waitJobDone polls the handler's job endpoint until the job finishes and
 // returns the final response (every seek-index entry point is async now).

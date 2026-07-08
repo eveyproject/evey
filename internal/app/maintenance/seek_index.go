@@ -36,6 +36,7 @@ const (
 	JobScan     = "scan"
 	JobReindex  = "reindex"
 	JobRollback = "rollback"
+	JobPurge    = "purge" // delete every .mkvgobak backup in scope
 
 	PhaseScanning   = "scanning"
 	PhaseProcessing = "processing"
@@ -346,6 +347,39 @@ func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID string
 		}
 		return res.Skipped, nil
 	})
+}
+
+// DeleteBackupMedia removes one media file's reindex backup, reclaiming the
+// duplicated disk space. Synchronous — an unlink is instant, no job needed —
+// and allowed while a job runs (it doesn't touch the media file itself).
+func (s *SeekIndexService) DeleteBackupMedia(ctx context.Context, mediaID string) error {
+	f, err := s.catalog.GetMediaFile(ctx, mediaID)
+	if err != nil {
+		return fmt.Errorf("seek-index delete-backup: lookup media %s: %w", mediaID, err)
+	}
+	if f.Path == "" {
+		return fmt.Errorf("seek-index delete-backup: media %s has no file", mediaID)
+	}
+	if err := s.reindexer.DeleteBackup(ctx, f.Path); err != nil {
+		return err
+	}
+	s.updateCachedFile(f.Path, func(st *SeekStatus) { st.HasBackup = false })
+	return nil
+}
+
+// StartPurgeBackups kicks a background job that re-scans the scope then
+// deletes every reindex backup in it — the bulk "the repairs are confirmed
+// fine, give me my disk back" action.
+func (s *SeekIndexService) StartPurgeBackups(_ context.Context, libraryID string) error {
+	return s.startBatch(JobPurge, libraryID,
+		func(it SeekStatus) bool { return it.HasBackup },
+		func(bg context.Context, path string) (bool, error) {
+			if err := s.reindexer.DeleteBackup(bg, path); err != nil {
+				return false, err
+			}
+			s.updateCachedFile(path, func(st *SeekStatus) { st.HasBackup = false })
+			return false, nil
+		})
 }
 
 // StartRollbackMedia restores one media file from its backup in the background.

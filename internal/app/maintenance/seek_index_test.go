@@ -2,6 +2,7 @@ package maintenance_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -28,6 +29,7 @@ type fakeReindexer struct {
 	panicOn   string          // when set, ReindexInPlace panics on this path
 	reindexed []string
 	restored  []string
+	deleted   []string
 	gate      chan struct{} // when non-nil, ReindexInPlace blocks until it's closed
 }
 
@@ -433,4 +435,77 @@ func TestSeekIndexService_ScanWithoutAudioDelayProber(t *testing.T) {
 	assert.Zero(t, res.AudioDelayed)
 	require.Len(t, res.Items, 1)
 	assert.Zero(t, res.Items[0].AudioDelaySec)
+}
+
+func (f *fakeReindexer) DeleteBackup(_ context.Context, p string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if !f.hasBackup[p] {
+		return errors.New("no backup at " + p)
+	}
+	delete(f.hasBackup, p)
+	f.deleted = append(f.deleted, p)
+	return nil
+}
+
+// DeleteBackupMedia is synchronous (an unlink), updates the cached scan, and
+// errors cleanly on a media without a backup.
+func TestSeekIndexService_DeleteBackupMedia(t *testing.T) {
+	dir := t.TempDir()
+	withBak := filepath.Join(dir, "a.mkv")
+	noBak := filepath.Join(dir, "b.mkv")
+	for _, p := range []string{withBak, noBak} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{
+		hasIndex:  map[string]bool{withBak: true, noBak: true},
+		hasBackup: map[string]bool{withBak: true},
+	}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Path: withBak},
+		{MediaID: "m2", Path: noBak},
+	}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil)
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+
+	require.NoError(t, svc.DeleteBackupMedia(context.Background(), "m1"))
+	assert.Equal(t, []string{withBak}, reidx.deleted)
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.Equal(t, 0, res.WithBackup, "the cached scan reflects the deletion without a re-scan")
+
+	require.Error(t, svc.DeleteBackupMedia(context.Background(), "m2"), "no backup → explicit error")
+	require.Error(t, svc.DeleteBackupMedia(context.Background(), "ghost"), "unknown media → explicit error")
+}
+
+// The purge job deletes every backup in scope and nothing else.
+func TestSeekIndexService_PurgeBackups(t *testing.T) {
+	dir := t.TempDir()
+	bak1 := filepath.Join(dir, "a.mkv")
+	bak2 := filepath.Join(dir, "b.mkv")
+	clean := filepath.Join(dir, "c.mkv")
+	for _, p := range []string{bak1, bak2, clean} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{
+		hasIndex:  map[string]bool{bak1: true, bak2: true, clean: true},
+		hasBackup: map[string]bool{bak1: true, bak2: true},
+	}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Path: bak1}, {MediaID: "m2", Path: bak2}, {MediaID: "m3", Path: clean},
+	}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil)
+
+	require.NoError(t, svc.StartPurgeBackups(context.Background(), ""))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, appmaintenance.JobPurge, st.Last.Kind)
+	assert.Equal(t, 2, st.Last.Done)
+	assert.Equal(t, 0, st.Last.Failed)
+	assert.ElementsMatch(t, []string{bak1, bak2}, reidx.deleted)
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.Equal(t, 0, res.WithBackup)
 }

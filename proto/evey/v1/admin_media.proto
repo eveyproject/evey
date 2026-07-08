@@ -112,7 +112,40 @@ service AdminMediaService {
       body: "*"
     };
   }
+
+  // DeleteSeekIndexBackup removes one media's reindex backup (.mkvgobak),
+  // reclaiming the duplicated disk space once the repair is confirmed fine.
+  // Synchronous (an unlink) - no job involved.
+  rpc DeleteSeekIndexBackup(DeleteSeekIndexBackupRequest) returns (DeleteSeekIndexBackupResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/seek-index/delete-backup"
+      body: "*"
+    };
+  }
+
+  // PurgeSeekIndexBackups kicks a background job that re-scans the scope then
+  // deletes EVERY reindex backup in it. Returns immediately; progress via
+  // GetSeekIndexJob.
+  rpc PurgeSeekIndexBackups(PurgeSeekIndexBackupsRequest) returns (PurgeSeekIndexBackupsResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/seek-index/purge-backups"
+      body: "*"
+    };
+  }
 }
+
+message DeleteSeekIndexBackupRequest {
+  string media_id = 1;
+}
+
+message DeleteSeekIndexBackupResponse {}
+
+message PurgeSeekIndexBackupsRequest {
+  // Optional: when set, only this library's backups are purged. Empty = all.
+  string library_id = 1;
+}
+
+message PurgeSeekIndexBackupsResponse {}
 
 // SeekIndexItem is the per-file diagnosis surfaced by ScanSeekIndex.
 message SeekIndexItem {

@@ -13,6 +13,8 @@ import {
   useAdminMediaServiceRollbackMediaSeekIndex,
   useAdminMediaServiceReindexLibrarySeekIndex,
   useAdminMediaServiceRollbackLibrarySeekIndex,
+  useAdminMediaServiceDeleteSeekIndexBackup,
+  useAdminMediaServicePurgeSeekIndexBackups,
 } from "@evey/api";
 import type { V1SeekIndexItem, V1GetSeekIndexJobResponse, V1SeekIndexJobFailure } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
@@ -37,6 +39,7 @@ const KIND_KEYS: Record<string, string> = {
   scan: "admin.seekIndex.jobScan",
   reindex: "admin.seekIndex.jobReindex",
   rollback: "admin.seekIndex.jobRollback",
+  purge: "admin.seekIndex.jobPurge",
 };
 
 // Mirror of the backend's maintenance.AudioDelayFlagSec: above it the file's
@@ -175,7 +178,7 @@ function SeekIndexPage() {
   const queryClient = useQueryClient();
   const [libraryId, setLibraryId] = useState("");
   const [onlyAttention, setOnlyAttention] = useState(true);
-  const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | null>(null);
+  const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | "purge" | null>(null);
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -266,6 +269,24 @@ function SeekIndexPage() {
       onError: onStartError,
     },
   });
+  // Synchronous (an unlink server-side): refresh the cached scan directly
+  // instead of the job-completion path the batch mutations rely on.
+  const deleteBackup = useAdminMediaServiceDeleteSeekIndexBackup({
+    mutation: {
+      onSuccess: () => {
+        toast.success(t("admin.seekIndex.backupDeleted"));
+        void queryClient.invalidateQueries({ queryKey: [SCAN_QUERY_BASE] });
+      },
+      onError: (err: { message?: string } | null) =>
+        toast.error(errText(err, t("admin.seekIndex.startFailed"))),
+    },
+  });
+  const purgeLib = useAdminMediaServicePurgeSeekIndexBackups({
+    mutation: {
+      onSuccess: onStarted("admin.seekIndex.purgeStarted"),
+      onError: onStartError,
+    },
+  });
 
   const visible = onlyAttention
     ? items.filter((it) => !it.hasIndex || it.hasBackup || audioDelayed(it))
@@ -319,6 +340,14 @@ function SeekIndexPage() {
               data-testid="seek-index-rollback-all-btn"
             >
               {t("admin.seekIndex.rollbackAll", { count: withBackup })}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={withBackup === 0 || busy}
+              onClick={() => setConfirmBatch("purge")}
+              data-testid="seek-index-purge-all-btn"
+            >
+              {t("admin.seekIndex.purgeAll", { count: withBackup })}
             </Button>
           </>
         )}
@@ -478,6 +507,18 @@ function SeekIndexPage() {
                               {t("admin.seekIndex.rollback")}
                             </Button>
                           )}
+                          {it.hasBackup && (
+                            <Button
+                              variant="ghost"
+                              className="text-xs"
+                              disabled={deleteBackup.isPending}
+                              loading={deleteBackup.isPending && deleteBackup.variables?.data?.mediaId === it.mediaId}
+                              onClick={() => it.mediaId && deleteBackup.mutate({ data: { mediaId: it.mediaId } })}
+                              data-testid="seek-index-delete-backup-btn"
+                            >
+                              {t("admin.seekIndex.deleteBackup")}
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -495,23 +536,28 @@ function SeekIndexPage() {
         title={
           confirmBatch === "rollback"
             ? t("admin.seekIndex.rollbackAllConfirmTitle")
-            : t("admin.seekIndex.repairAllConfirmTitle")
+            : confirmBatch === "purge"
+              ? t("admin.seekIndex.purgeAllConfirmTitle")
+              : t("admin.seekIndex.repairAllConfirmTitle")
         }
       >
         <p className="text-sm text-[var(--text-muted)] mb-4">
           {confirmBatch === "rollback"
             ? t("admin.seekIndex.rollbackAllConfirm", { count: withBackup })
-            : t("admin.seekIndex.repairAllConfirm", { count: missing })}
+            : confirmBatch === "purge"
+              ? t("admin.seekIndex.purgeAllConfirm", { count: withBackup })
+              : t("admin.seekIndex.repairAllConfirm", { count: missing })}
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setConfirmBatch(null)}>
             {t("common.cancel")}
           </Button>
           <Button
-            loading={repairLib.isPending || rollbackLib.isPending}
+            loading={repairLib.isPending || rollbackLib.isPending || purgeLib.isPending}
             onClick={() => {
               const req = { data: libraryId ? { libraryId } : {} };
               if (confirmBatch === "rollback") rollbackLib.mutate(req);
+              else if (confirmBatch === "purge") purgeLib.mutate(req);
               else repairLib.mutate(req);
               setConfirmBatch(null);
             }}

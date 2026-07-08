@@ -9,6 +9,7 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	domainmkv "github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -155,6 +156,8 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.seek_index_read_only")
 	case errors.Is(err, appmaintenance.ErrJobRunning):
 		return d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.seek_index_job_running")
+	case errors.Is(err, domainmkv.ErrNoBackup):
+		return d.translator.TranslatedError(ctx, codes.NotFound, "errors.admin.seek_index_no_backup")
 	case errors.Is(err, shared.ErrNotFound):
 		return status.Error(codes.NotFound, "media item not found")
 	default:
@@ -309,4 +312,35 @@ func (d *adminMediaHandler) RollbackLibrarySeekIndex(ctx context.Context, req *e
 		return nil, d.seekIndexError(ctx, "rollback library seek index", err)
 	}
 	return &eveyv1.RollbackLibrarySeekIndexResponse{Queued: -1}, nil
+}
+
+// DeleteSeekIndexBackup removes one media's reindex backup — synchronous, an
+// unlink; the freed space is the point once the repair is confirmed fine.
+func (d *adminMediaHandler) DeleteSeekIndexBackup(ctx context.Context, req *eveyv1.DeleteSeekIndexBackupRequest) (*eveyv1.DeleteSeekIndexBackupResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.DeleteSeekIndexBackup")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	if err := d.seekIndex.DeleteBackupMedia(ctx, req.GetMediaId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "delete seek index backup", err)
+	}
+	return &eveyv1.DeleteSeekIndexBackupResponse{}, nil
+}
+
+// PurgeSeekIndexBackups deletes every reindex backup in scope (background job).
+func (d *adminMediaHandler) PurgeSeekIndexBackups(ctx context.Context, req *eveyv1.PurgeSeekIndexBackupsRequest) (*eveyv1.PurgeSeekIndexBackupsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.PurgeSeekIndexBackups")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	if err := d.seekIndex.StartPurgeBackups(ctx, req.GetLibraryId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "purge seek index backups", err)
+	}
+	return &eveyv1.PurgeSeekIndexBackupsResponse{}, nil
 }

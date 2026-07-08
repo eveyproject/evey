@@ -47,6 +47,7 @@ admin:
   scheduled_task_not_found: "未找到计划任务"
   seek_index_read_only: "媒体卷以只读方式挂载——请改为可写挂载（移除 :ro）并重启容器后重试"
   seek_index_job_running: "已有一个索引任务正在运行——重新扫描即可查看进度"
+  seek_index_no_backup: "此文件没有备份"
 
 config:
   key_required: "键为必填项"
