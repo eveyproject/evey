@@ -24,14 +24,30 @@ export interface DayCycle {
   moonIntensity: number;
 }
 
-function clamp01(v: number): number {
+export function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-function smoothstep(edge0: number, edge1: number, x: number): number {
+export function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = clamp01((x - edge0) / (edge1 - edge0));
   return t * t * (3 - 2 * t);
 }
+
+// Real-world width of the golden-hour / twilight wash, in milliseconds. This
+// must NOT scale with the length of the day/night: at high latitudes a
+// "day" or "night" can last many hours (even weeks near the poles), and
+// sizing the warm-light window as a FRACTION of that duration (the v2.8.0
+// behaviour) stretched sunrise/sunset colours across most of the visible day
+// - clearly wrong. Anchoring the window to a fixed real-time budget keeps the
+// glow at the terminator regardless of season or latitude.
+const GOLDEN_WINDOW_MS = 45 * 60 * 1000;
+const TWILIGHT_WINDOW_MS = 40 * 60 * 1000;
+const FALLBACK_HALF_DAY_MS = 12 * 3600_000;
+// Sunrise/sunset pairs closer together than this are treated as unusable
+// (guards the (set - rise) division below against NaN/Infinity on
+// degenerate/duplicate provider data instead of ever handing the renderer a
+// non-finite sun/moon position).
+const MIN_EVENT_GAP_MS = 60_000;
 
 // Arc across the widget: progress 0..1 -> (x, y) with y=0 at top.
 function arcPosition(progress: number): { x: number; y: number } {
@@ -52,19 +68,23 @@ function fallbackCycle(nowMs: number, isDayHint: boolean): DayCycle {
   const sunProgress = day ? (t > 0 && t < 1 ? t : 0.5) : 0;
   const nightHours = hours >= 19 ? hours - 19 : hours + 5;
   const moonProgress = day ? 0 : clamp01(nightHours / 12);
-  return buildCycle(day, sunProgress, moonProgress);
+  return buildCycle(day, sunProgress, moonProgress, FALLBACK_HALF_DAY_MS);
 }
 
-function buildCycle(isDay: boolean, sunProgress: number, moonProgress: number): DayCycle {
+// durationMs is the length of the CURRENT phase (day length when isDay,
+// night length when !isDay): it anchors the golden/twilight window to a
+// fixed real-time budget instead of a fraction of that length (see
+// GOLDEN_WINDOW_MS above).
+function buildCycle(isDay: boolean, sunProgress: number, moonProgress: number, durationMs: number): DayCycle {
   let golden: number;
   let night: number;
   if (isDay) {
-    const edge = Math.min(sunProgress, 1 - sunProgress);
-    golden = 1 - smoothstep(0.0, 0.12, edge);
+    const edgeMs = Math.min(sunProgress, 1 - sunProgress) * durationMs;
+    golden = 1 - smoothstep(0, GOLDEN_WINDOW_MS, edgeMs);
     night = 0;
   } else {
-    const edge = Math.min(moonProgress, 1 - moonProgress);
-    const twilight = 1 - smoothstep(0.0, 0.08, edge);
+    const edgeMs = Math.min(moonProgress, 1 - moonProgress) * durationMs;
+    const twilight = 1 - smoothstep(0, TWILIGHT_WINDOW_MS, edgeMs);
     golden = twilight * 0.55;
     night = 1 - twilight * 0.45;
   }
@@ -97,8 +117,8 @@ export function computeDayCycle(
   // Daytime: some sunrise[i] <= now < the sunset that follows it.
   for (const rise of times.sunrises) {
     const set = times.sunsets.find((s) => s > rise);
-    if (set !== undefined && nowMs >= rise && nowMs < set) {
-      return buildCycle(true, (nowMs - rise) / (set - rise), 0);
+    if (set !== undefined && set - rise >= MIN_EVENT_GAP_MS && nowMs >= rise && nowMs < set) {
+      return buildCycle(true, (nowMs - rise) / (set - rise), 0, set - rise);
     }
   }
 
@@ -108,7 +128,9 @@ export function computeDayCycle(
   if (pastSets.length > 0 && nextRises.length > 0) {
     const set = Math.max(...pastSets);
     const rise = Math.min(...nextRises);
-    return buildCycle(false, 0, (nowMs - set) / (rise - set));
+    if (rise - set >= MIN_EVENT_GAP_MS) {
+      return buildCycle(false, 0, (nowMs - set) / (rise - set), rise - set);
+    }
   }
 
   return fallbackCycle(nowMs, isDayHint);

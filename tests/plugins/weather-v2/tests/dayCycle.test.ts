@@ -76,4 +76,58 @@ describe("computeDayCycle", () => {
     const c = computeDayCycle(DAY0, { sunrises: [], sunsets: [] }, true);
     expect(c.isDay).toBe(true);
   });
+
+  // Polar/high-latitude regression: a "day" or "night" bracket can legitimately
+  // span many hours (or days, near the poles). The golden-hour/twilight glow
+  // must stay anchored to a fixed real-time window at the terminator instead
+  // of stretching in proportion to the whole day/night length.
+  it("golden-hour width is a fixed real-time budget, not a fraction of day length", () => {
+    const shortDay: SunTimes = {
+      sunrises: [DAY0 + 6 * 3600_000],
+      sunsets: [DAY0 + 18 * 3600_000], // 12h day
+    };
+    const polarDay: SunTimes = {
+      sunrises: [DAY0 + 6 * 3600_000],
+      sunsets: [DAY0 + 6 * 3600_000 + 60 * 24 * 3600_000], // 60-day polar-summer "day"
+    };
+    const oneHourAfterRise = DAY0 + 7 * 3600_000;
+    const shortDayGolden = computeDayCycle(oneHourAfterRise, shortDay, true).golden;
+    const polarDayGolden = computeDayCycle(oneHourAfterRise, polarDay, true).golden;
+    // Same real elapsed time since sunrise (1h) -> same golden-hour falloff,
+    // regardless of how long the overall "day" bracket is.
+    expect(polarDayGolden).toBeCloseTo(shortDayGolden, 5);
+    // A full day into a 60-day polar day, the old fraction-based formula would
+    // still report ~0 golden (1/60th of the way in); confirm it's actually 0
+    // now that the window is a fixed 45 minutes.
+    const oneDayIn = computeDayCycle(DAY0 + 6 * 3600_000 + 24 * 3600_000, polarDay, true);
+    expect(oneDayIn.golden).toBe(0);
+  });
+
+  it("twilight width at night follows the same fixed real-time rule", () => {
+    const shortNight: SunTimes = {
+      sunrises: [DAY0 + 30 * 3600_000],
+      sunsets: [DAY0 + 20 * 3600_000], // 10h night
+    };
+    const polarNight: SunTimes = {
+      sunrises: [DAY0 + 6 * 3600_000 + 60 * 24 * 3600_000],
+      sunsets: [DAY0 + 20 * 3600_000], // 59+ day polar-winter "night"
+    };
+    const oneHourAfterSet = DAY0 + 21 * 3600_000;
+    const shortNightGolden = computeDayCycle(oneHourAfterSet, shortNight, false).golden;
+    const polarNightGolden = computeDayCycle(oneHourAfterSet, polarNight, false).golden;
+    expect(polarNightGolden).toBeCloseTo(shortNightGolden, 5);
+  });
+
+  // Degenerate/corrupt provider data (identical or near-identical sunrise and
+  // sunset timestamps) must never propagate a division-by-zero into the scene.
+  it("near-identical sunrise/sunset never produces non-finite output", () => {
+    const degenerate: SunTimes = {
+      sunrises: [DAY0 + 6 * 3600_000],
+      sunsets: [DAY0 + 6 * 3600_000], // zero-length "day"
+    };
+    const c = computeDayCycle(DAY0 + 6 * 3600_000, degenerate, true);
+    for (const v of [c.sunX, c.sunY, c.moonX, c.moonY, c.golden, c.night]) {
+      expect(Number.isFinite(v)).toBe(true);
+    }
+  });
 });
