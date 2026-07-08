@@ -5,7 +5,7 @@ import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { eveyFetch, adminPluginServiceIssuePluginToken } from "@evey/api";
+import { eveyFetch, eveyFetchRaw, adminPluginServiceIssuePluginToken } from "@evey/api";
 import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
@@ -80,6 +80,12 @@ function isAllowedNavPath(path: string): boolean {
   if (path.length > 2048) return false;
   return ALLOWED_NAV_PREFIXES.some((p) => path === p || path.startsWith(p + "/") || path.startsWith(p + "?"));
 }
+
+// Gates what we accept at the HTML boundary (mirrors web PluginIframe's
+// pluginIdShape). The server issues `plg-<24 hex>` slugs; re-asserting here
+// means a malformed pluginId can never terminate the `<base href>` attribute
+// or inject markup into the WebView document.
+const pluginIdShape = /^plg-[a-zA-Z0-9_-]{1,64}$/;
 
 export interface SlotEntry {
   pluginId: string;
@@ -250,10 +256,22 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         return fetch(`${serverUrl}/api/v1/public/media/${enc(String(args.id ?? ""))}`, { headers: h });
       case "media.list":
         return fetch(`${serverUrl}/api/v1/public/media${args.libraryId ? `?libraryId=${enc(String(args.libraryId))}` : ""}`, { headers: h });
+      case "assets.read": {
+        // Reads one of the plugin's OWN web_root assets. Strict path guard
+        // (the server also rejects traversal, this is defense in depth); the
+        // cache-buster forces a fresh copy despite the immutable Cache-Control
+        // on plugin assets. Mirrors web PluginIframe's assets.read.
+        const p = String(args.path ?? "");
+        if (!p || p.length > 256 || p.includes("..") || p.startsWith("/") || p.includes("\\") || !/^[a-zA-Z0-9._/-]+$/.test(p)) {
+          return Promise.reject(new Error("invalid asset path"));
+        }
+        const encPath = p.split("/").map(enc).join("/");
+        return eveyFetchRaw({ url: `/api/v1/plugins/${enc(pluginId)}/assets/${encPath}?_=${Date.now()}`, method: "GET", authToken: token });
+      }
       default:
         return Promise.reject(new Error(`method not permitted: ${method}`));
     }
-  }, [serverUrl]);
+  }, [pluginId, serverUrl]);
 
   const pluginRpcCall = useCallback(async (method: string, args: Record<string, unknown>): Promise<unknown> => {
     let token = await ensurePluginToken();
@@ -268,6 +286,18 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       let m = String(res.status);
       try { const b = (await res.json()) as { message?: string }; if (b.message) m = b.message; } catch { /* ignore */ }
       throw new Error(m);
+    }
+    // assets.read returns binary; hand it back as a data: URL so the WebView
+    // can use it directly (data URLs work as WebGL textures without any
+    // CORS/taint concern). Mirrors web PluginIframe's pluginRpcCall.
+    if (method === "assets.read") {
+      const blob = await res.blob();
+      return await new Promise<string>((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.onerror = () => reject(new Error("asset read failed"));
+        fr.readAsDataURL(blob);
+      });
     }
     const text = await res.text();
     return text ? JSON.parse(text) : {};
@@ -347,6 +377,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
 
   const html = useMemo(() => {
     if (!bundleCode) return null;
+    if (!pluginIdShape.test(pluginId)) return null;
     const connectSrc = externalFetch.length > 0
       ? externalFetch.map((h) => (/^https?:\/\//i.test(h) ? h : `https://${h}`)).join(" ")
       : "'none'";

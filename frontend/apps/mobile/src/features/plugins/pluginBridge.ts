@@ -1,7 +1,7 @@
 // Bridge script injected into the WebView that hosts a plugin's frontend
 // bundle. Mirrors the web `front-bridge.ts` 1:1 so the same plugin code
-// runs unchanged on both platforms — postMessage protocol, "ready" /
-// "init" lifecycle, evey.{navigate,toast,resize} surface.
+// runs unchanged on both platforms - postMessage protocol, "ready" /
+// "init" lifecycle, evey.{navigate,toast,resize,prefs,media,assets} surface.
 //
 // React-Native WebView delivers messages via window.ReactNativeWebView
 // (host → guest direction is window.postMessage of a serialized event).
@@ -39,6 +39,9 @@ export const PLUGIN_BRIDGE_SCRIPT = `
     media: {
       get: function(id) { return rpc("media.get", { id: id }); },
       list: function(opts) { return rpc("media.list", opts || {}); }
+    },
+    assets: {
+      read: function(path) { return rpc("assets.read", { path: path }); }
     },
     onInit: function(cb) {
       initCallbacks.push(cb);
