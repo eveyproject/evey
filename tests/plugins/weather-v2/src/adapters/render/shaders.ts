@@ -36,6 +36,7 @@ uniform float uRain;       // 0..1
 uniform float uSnow;       // 0..1
 uniform float uFog;        // 0..1
 uniform float uFlash;      // 0..1 thunder envelope
+uniform vec2  uFlashPos;   // widget uv, y up: where the flash bursts from
 
 uniform vec2  uSunPos;     // widget uv, y up
 uniform float uSunI;       // 0..1
@@ -51,6 +52,11 @@ uniform vec3 uCloudShadow;
 uniform vec3 uSunlight;
 uniform vec3 uFogCol;
 uniform vec3 uGlowCol;
+
+uniform float uAurora;     // 0..1, real latitude/night/clear-sky gated
+uniform vec2  uStarPos;    // widget uv, y up: current shooting-star head
+uniform vec2  uStarDir;    // unit travel direction, y up
+uniform float uStarLife;   // 0..1, 0 when no star is currently streaking
 
 varying vec2 vUv;
 
@@ -160,6 +166,18 @@ void main() {
   float glowA = uGolden * 0.20 * smoothstep(0.55, 0.0, uv.y);
   acc = ovr(acc, uGlowCol, glowA);
 
+  // 1b. Aurora (real latitude + night + clear-sky gated, see domain/services/
+  // aurora.ts): soft drifting bands in the upper sky, painted before the
+  // clouds so they occlude it exactly like they occlude the moon below.
+  if (uAurora > 0.004) {
+    float bandY = smoothstep(0.75, 0.05, uv.y);
+    float n1 = fbm(vec2(uv.x * 3.0 + uTime * 0.02, uv.y * 1.5));
+    float n2 = fbm(vec2(uv.x * 5.0 - uTime * 0.015 + 4.0, uv.y * 2.0 + 1.7));
+    float bands = n1 * 0.6 + n2 * 0.4;
+    vec3 auroraCol = mix(vec3(0.20, 1.00, 0.55), vec3(0.55, 0.35, 1.00), n2);
+    acc = ovr(acc, auroraCol, bandY * bands * uAurora * 0.55);
+  }
+
   // 2. Moon (under the clouds).
   if (uMoonI > 0.004) {
     vec2 dm = vec2((uv.x - uMoonPos.x) * aspect, uv.y - uMoonPos.y);
@@ -182,6 +200,20 @@ void main() {
     }
   }
 
+  // 2b. Occasional shooting star (see domain/services/shootingStar.ts for the
+  // rare, deterministic trigger). A short fading tail behind a bright head,
+  // drawn as a distance-to-segment so it costs one branch when absent.
+  if (uStarLife > 0.004) {
+    vec2 ds = vec2((uv.x - uStarPos.x) * aspect, uv.y - uStarPos.y);
+    vec2 dir = normalize(vec2(uStarDir.x * aspect, uStarDir.y));
+    float tailLen = 0.14;
+    float t = clamp(dot(ds, dir) / tailLen, 0.0, 1.0);
+    float distToTail = length(ds - dir * t * tailLen);
+    float streak = smoothstep(0.006, 0.0, distToTail) * (1.0 - t);
+    float head = exp(-dot(ds, ds) * 1400.0);
+    acc = ovr(acc, vec3(1.0, 1.0, 0.96), (streak * 0.7 + head) * uStarLife);
+  }
+
   // 3. Clouds: far layer (slow, big) then near layer (faster, smaller).
   vec2 lightPos = uSunI >= uMoonI ? uSunPos : uMoonPos;
   vec2 lightDir = lightPos - uv;
@@ -199,11 +231,26 @@ void main() {
     cloudsA = clamp(aF + aN * (1.0 - aF), 0.0, 1.0);
   }
 
-  // 4. Thunder: brief whole-scene wash.
-  acc = ovr(acc, vec3(0.85, 0.90, 1.05), uFlash * 0.14);
+  // 4. Thunder: a localized burst from the flash origin inside the storm
+  // cloud (uFlashPos), plus a much fainter whole-scene wash so the rest of
+  // the sky still reacts a little - the burst itself carries the "silhouette"
+  // read (cloudLayer's own uFlash term already lights the cloud cores it sits
+  // behind, from within).
+  if (uFlash > 0.004) {
+    vec2 df = vec2((uv.x - uFlashPos.x) * aspect, uv.y - uFlashPos.y);
+    float burst = exp(-dot(df, df) * 6.0) * uFlash;
+    acc = ovr(acc, vec3(0.90, 0.94, 1.05), burst * 0.55);
+    acc = ovr(acc, vec3(0.85, 0.90, 1.05), uFlash * 0.08);
+  }
 
-  // 5. Fog: denser toward the bottom.
-  acc = ovr(acc, uFogCol, uFog * (0.28 + 0.38 * (1.0 - uv.y)));
+  // 5. Fog: denser toward the bottom, with a soft drifting inner layer (two
+  // noise octaves at different scale/speed) so it reads with some depth
+  // instead of a flat wash - same fbm the clouds already pay for, no extra
+  // uniforms or CPU-side allocation.
+  float fogNear = fbm(vec2(uv.x * 1.6 + uWindDrift * 0.02, uv.y * 1.1 - uTime * 0.010));
+  float fogFar = fbm(vec2(uv.x * 0.9 - uWindDrift * 0.008 + 5.0, uv.y * 0.7 - uTime * 0.004));
+  float fogMix = mix(0.75, 1.15, fogNear * 0.6 + fogFar * 0.4);
+  acc = ovr(acc, uFogCol, uFog * (0.28 + 0.38 * (1.0 - uv.y)) * fogMix);
 
   // 6. Precipitation.
   if (uRain > 0.004) {

@@ -19,6 +19,8 @@
 
 import type { SceneRenderer, RenderTarget } from "../../domain/ports/SceneRenderer";
 import { VERT_SRC, FRAG_SRC } from "./shaders";
+import { initThunderState, stepThunder, type ThunderState } from "../../domain/services/thunder";
+import { shootingStar, type ShootingStar } from "../../domain/services/shootingStar";
 // Real NASA imagery (public domain). Moon: NASA/GSFC (FullMoon2010). Sun:
 // NASA/SDO and the AIA science team - one full-disc AIA 171 image, cropped
 // tight so the disc fills the frame. Keyed by the ids in
@@ -32,6 +34,13 @@ const SUN_TEXTURES: Record<string, string> = {
 const DEFAULT_SUN_ID = "aia171";
 
 const TIME_WRAP_S = 4096;
+
+const HIDDEN_STAR: ShootingStar = { visible: false, x: 0, y: 0, dirX: 0, dirY: 0, life: 0 };
+// Gate to keep the shooting-star check meaningfully rare from a night-sky
+// standpoint: clear-enough, dark-enough, and not on the lowest quality tier
+// (it's a cheap extra branch in the shader, but skip it on weak devices).
+const STAR_NIGHT_MIN = 0.85;
+const STAR_CLEARNESS_MIN = 0.6;
 
 interface Quality {
   scale: number; // backing-store scale on top of clamped DPR
@@ -67,8 +76,9 @@ function detectQuality(): Quality {
 interface UState {
   cover: number; density: number; wind: number;
   rain: number; snow: number; fog: number;
-  sunX: number; sunY: number; sunI: number; golden: number;
+  sunX: number; sunY: number; sunI: number; golden: number; night: number;
   moonX: number; moonY: number; moonI: number; moonPhase: number;
+  aurora: number;
   cloudR: number; cloudG: number; cloudB: number;
   shadR: number; shadG: number; shadB: number;
   sunlR: number; sunlG: number; sunlB: number;
@@ -80,8 +90,9 @@ function emptyState(): UState {
   return {
     cover: 0, density: 0, wind: 0.3,
     rain: 0, snow: 0, fog: 0,
-    sunX: 0.5, sunY: 0.75, sunI: 0, golden: 0,
+    sunX: 0.5, sunY: 0.75, sunI: 0, golden: 0, night: 0,
     moonX: 0.5, moonY: 0.75, moonI: 0, moonPhase: 0.5,
+    aurora: 0,
     cloudR: 0.84, cloudG: 0.87, cloudB: 0.93,
     shadR: 0.18, shadG: 0.24, shadB: 0.36,
     sunlR: 1, sunlG: 0.95, sunlB: 0.85,
@@ -114,8 +125,13 @@ export class GlRenderer implements SceneRenderer {
   private cloudSpeed = 0.15;
   private thunderRate = 0;
   private windDrift = 0;
-  private flash = 0;
-  private flashCountdown = 0;
+  private thunder: ThunderState = initThunderState();
+
+  // Per-mount seed so the shooting-star schedule differs between widget
+  // instances/reloads while staying a pure function of (time, seed) within
+  // one mount - see domain/services/shootingStar.ts.
+  private starSeed = Math.random() * 1000;
+  private star: ShootingStar = HIDDEN_STAR;
 
   private sunModelId = DEFAULT_SUN_ID;
 
@@ -186,6 +202,8 @@ export class GlRenderer implements SceneRenderer {
     tg.moonY = 1 - cycle.moonY;
     tg.moonI = cycle.moonIntensity * (1 - params.cloudCover * 0.25) * veil;
     tg.moonPhase = t.moonPhase;
+    tg.night = cycle.night;
+    tg.aurora = t.auroraIntensity;
     [tg.cloudR, tg.cloudG, tg.cloudB] = palette.cloudColor;
     [tg.shadR, tg.shadG, tg.shadB] = palette.cloudShadow;
     [tg.sunlR, tg.sunlG, tg.sunlB] = palette.sunlight;
@@ -312,9 +330,9 @@ export class GlRenderer implements SceneRenderer {
 
     for (const name of [
       "uRes", "uTime", "uCover", "uDensity", "uWindDrift", "uWind", "uRain", "uSnow",
-      "uFog", "uFlash", "uSunPos", "uSunI", "uGolden", "uMoonPos", "uMoonI",
+      "uFog", "uFlash", "uFlashPos", "uSunPos", "uSunI", "uGolden", "uMoonPos", "uMoonI",
       "uMoonPhase", "uMoonTex", "uSunTex", "uCloudCol", "uCloudShadow", "uSunlight",
-      "uFogCol", "uGlowCol",
+      "uFogCol", "uGlowCol", "uAurora", "uStarPos", "uStarDir", "uStarLife",
     ]) {
       this.loc[name] = gl.getUniformLocation(program, name);
     }
@@ -374,15 +392,8 @@ export class GlRenderer implements SceneRenderer {
     this.time = (this.time + step * motion) % TIME_WRAP_S;
     this.windDrift = (this.windDrift + step * motion * this.cloudSpeed * 0.15) % 512;
 
-    // Thunder envelope.
-    if (this.thunderRate > 0) {
-      this.flashCountdown -= step;
-      if (this.flashCountdown <= 0) {
-        this.flash = 0.7 + Math.random() * 0.5;
-        this.flashCountdown = Math.min(0.3 - Math.log(Math.random() + 1e-6) / this.thunderRate, 3 / this.thunderRate);
-      }
-    }
-    this.flash = Math.max(0, this.flash - step * 5);
+    // Thunder envelope: pure step function, see domain/services/thunder.ts.
+    this.thunder = stepThunder(this.thunder, step, this.thunderRate, Math.random);
 
     // In-place exponential smoothing toward the target.
     const k = 1 - Math.exp(-3 * step);
@@ -392,6 +403,13 @@ export class GlRenderer implements SceneRenderer {
       const key = U_KEYS[i];
       cur[key] += (tg[key] - cur[key]) * k;
     }
+
+    // Occasional shooting star: only rolled on a clear-enough, dark-enough
+    // sky, and skipped on the lowest quality tier.
+    const clearness = (1 - cur.cover) * (1 - cur.rain) * (1 - cur.snow) * (1 - cur.fog);
+    const starGate =
+      this.quality.scale >= 0.75 && cur.night >= STAR_NIGHT_MIN && clearness >= STAR_CLEARNESS_MIN;
+    this.star = shootingStar(this.time, this.starSeed, starGate);
 
     this.draw();
   };
@@ -413,7 +431,8 @@ export class GlRenderer implements SceneRenderer {
     gl.uniform1f(L.uRain, c.rain);
     gl.uniform1f(L.uSnow, c.snow);
     gl.uniform1f(L.uFog, c.fog);
-    gl.uniform1f(L.uFlash, this.flash);
+    gl.uniform1f(L.uFlash, this.thunder.flash);
+    gl.uniform2f(L.uFlashPos, this.thunder.flashX, 1 - this.thunder.flashY);
     gl.uniform2f(L.uSunPos, c.sunX, c.sunY);
     gl.uniform1f(L.uSunI, c.sunI);
     gl.uniform1f(L.uGolden, c.golden);
@@ -427,6 +446,10 @@ export class GlRenderer implements SceneRenderer {
     gl.uniform3f(L.uSunlight, c.sunlR, c.sunlG, c.sunlB);
     gl.uniform3f(L.uFogCol, c.fogR, c.fogG, c.fogB);
     gl.uniform3f(L.uGlowCol, c.glowR, c.glowG, c.glowB);
+    gl.uniform1f(L.uAurora, c.aurora);
+    gl.uniform2f(L.uStarPos, this.star.x, 1 - this.star.y);
+    gl.uniform2f(L.uStarDir, this.star.dirX, -this.star.dirY);
+    gl.uniform1f(L.uStarLife, this.star.visible ? this.star.life : 0);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.moonTex);
     gl.activeTexture(gl.TEXTURE1);

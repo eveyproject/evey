@@ -18,6 +18,7 @@ import { computeDayCycle } from "../domain/services/dayCycle";
 import { mixPalette } from "../domain/services/paletteMixer";
 import { moonPhase } from "../domain/services/moonPhase";
 import { sunModelForDay } from "../domain/services/sunModel";
+import { auroraIntensity } from "../domain/services/aurora";
 import { translate } from "../i18n/labels";
 import { createOverlay, type OverlayHandle } from "../ui/overlay";
 
@@ -94,7 +95,17 @@ export class WeatherApp {
 
   // ---- internals ----------------------------------------------------------
 
+  // Guards against a host that calls onInit more than once in the same page
+  // lifetime (e.g. an iframe soft-reload): without this, a second boot() ran
+  // the whole mount sequence again on top of the first - a second WebGL
+  // context/canvas the first is never disposed of, duplicate resize/pagehide/
+  // visibilitychange listeners, and the refreshTimer/tickTimer handles
+  // overwritten so the original intervals kept firing forever, uncancellable.
+  private booted = false;
+
   private boot(init: HostInit): void {
+    if (this.booted) return;
+    this.booted = true;
     this.init = init;
     this.city = init.city;
     this.units = init.units;
@@ -204,12 +215,14 @@ export class WeatherApp {
     const cycle = computeDayCycle(now, this.sunTimes, this.snapshot?.isDay ?? true);
     const palette = mixPalette(this.params.mood, cycle);
     const sunModelId = sunModelForDay(now).id;
+    const aurora = auroraIntensity(this.coord?.lat ?? 0, cycle, this.params.mood, this.params.cloudCover);
     this.deps.renderer.setTarget({
       params: this.params,
       cycle,
       palette,
       moonPhase: moonPhase(now),
       sunModelId,
+      auroraIntensity: aurora,
     });
     // Day rolled over to a new sun skin: fetch that skin's live image now
     // rather than waiting for the next weather refresh.

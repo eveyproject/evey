@@ -10,6 +10,10 @@ export interface RenderTarget {
   palette: ScenePalette;
   moonPhase: number;   // 0..1
   sunModelId: string;  // which daily sun skin to display
+  // 0..1: real-data-gated aurora visibility (latitude + night + clear sky).
+  // Computed in the application layer (needs the geocoded latitude), pushed
+  // through like any other scene parameter so the renderer just displays it.
+  auroraIntensity: number;
 }
 
 export interface SceneRenderer {
