@@ -144,10 +144,13 @@ describe("UserRow", () => {
     expect(screen.getByText("alice@example.com")).toBeInTheDocument();
   });
 
-  it("renders email placeholder dash when email is absent", () => {
-    renderRow({ ...BASE_USER, email: undefined });
-    // U+2014 em dash used as placeholder
-    expect(screen.getByText("—")).toBeInTheDocument();
+  it("renders a placeholder dash in the email cell when email is absent", () => {
+    const { container } = renderRow({ ...BASE_USER, email: undefined });
+    // Simple hyphen placeholder (project style: never an em dash). Scoped to
+    // the email cell: the registered/last-login cells share the placeholder.
+    const emailCell = container.querySelector('td[data-label="Email"]');
+    expect(emailCell).not.toBeNull();
+    expect(emailCell!.textContent).toBe("-");
   });
 
   it("renders the User badge for a non-admin user", () => {

@@ -3,14 +3,18 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+// The page's paginated tabs run real useInfiniteQuery over the RAW fetchers
+// (infinite-scroll migration); only server stats still goes through the
+// generated hook. Mock at the layer the page actually calls.
 const mockGetPlayHistory = vi.fn();
 const mockGetServerStats = vi.fn();
 const mockGetAuditLog = vi.fn();
 
 vi.mock("@evey/api", () => ({
-  useActivityServiceGetPlayHistory: (...args: unknown[]) => mockGetPlayHistory(...args),
+  activityServiceGetPlayHistory: (...args: unknown[]) => mockGetPlayHistory(...args),
+  adminSessionServiceGetAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
+  activityServiceGetServerStats: vi.fn(),
   useActivityServiceGetServerStats: (...args: unknown[]) => mockGetServerStats(...args),
-  useAdminSessionServiceGetAuditLog: (...args: unknown[]) => mockGetAuditLog(...args),
   eveyFetch: vi.fn(),
 }));
 
@@ -45,9 +49,9 @@ const mockPlayEntry = {
 describe("ActivityPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetPlayHistory.mockReturnValue({ data: { entries: [], pagination: { totalItems: 0 } }, isLoading: false });
+    mockGetPlayHistory.mockResolvedValue({ entries: [], pagination: { totalItems: 0 } });
     mockGetServerStats.mockReturnValue({ data: undefined, isLoading: false });
-    mockGetAuditLog.mockReturnValue({ data: { entries: [], total: 0 }, isLoading: false });
+    mockGetAuditLog.mockResolvedValue({ entries: [], total: 0 });
   });
 
   it("renders Activity heading", async () => {
@@ -67,17 +71,15 @@ describe("ActivityPage", () => {
   it("shows Play History by default with empty state", async () => {
     const ActivityPage = await getActivityPage();
     render(React.createElement(ActivityPage), { wrapper: createWrapper() });
-    expect(screen.getByText(/No play history/i)).toBeInTheDocument();
+    // The infinite query resolves asynchronously — wait for the fetch to land.
+    expect(await screen.findByText(/No play history/i)).toBeInTheDocument();
   });
 
   it("renders play history entries", async () => {
-    mockGetPlayHistory.mockReturnValue({
-      data: { entries: [mockPlayEntry], pagination: { totalItems: 1 } },
-      isLoading: false,
-    });
+    mockGetPlayHistory.mockResolvedValue({ entries: [mockPlayEntry], pagination: { totalItems: 1 } });
     const ActivityPage = await getActivityPage();
     render(React.createElement(ActivityPage), { wrapper: createWrapper() });
-    expect(screen.getByText("Breaking Bad S01E01")).toBeInTheDocument();
+    expect(await screen.findByText("Breaking Bad S01E01")).toBeInTheDocument();
     expect(screen.getByText("Chrome")).toBeInTheDocument();
   });
 
@@ -85,7 +87,7 @@ describe("ActivityPage", () => {
     const ActivityPage = await getActivityPage();
     render(React.createElement(ActivityPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /Audit Log/i }));
-    expect(screen.getByTestId("audit-table")).toBeInTheDocument();
+    expect(await screen.findByTestId("audit-table")).toBeInTheDocument();
   });
 
   it("switching to Server Stats tab renders all stat cards including watch time and storage", async () => {

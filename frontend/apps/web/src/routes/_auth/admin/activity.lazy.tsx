@@ -54,7 +54,7 @@ function formatMs(ms?: string): string {
 }
 
 function formatDate(d?: string): string {
-  if (!d) return "\u2014";
+  if (!d) return "-";
   return new Date(d).toLocaleString();
 }
 
@@ -116,10 +116,10 @@ function PlayHistoryTab() {
                 return (
                   <tr key={e.id} className="border-b border-[var(--border)]">
                     <td data-label={t("admin.activity.playHeaders.title")} className="px-4 py-3 text-[var(--text)]">
-                      {e.mediaTitle ?? "\u2014"}
+                      {e.mediaTitle ?? "-"}
                     </td>
                     <td data-label={t("admin.activity.playHeaders.device")} className="px-4 py-3 text-xs text-[var(--text-muted)]">
-                      {e.deviceName ?? e.clientName ?? "\u2014"}
+                      {e.deviceName ?? e.clientName ?? "-"}
                     </td>
                     <td data-label={t("admin.activity.playHeaders.duration")} className="px-4 py-3 text-[var(--text-muted)]">
                       {formatMs(e.durationMs)}
@@ -289,7 +289,7 @@ function StatsTab() {
                 key={m.mediaItemId}
                 className="flex items-center justify-between text-sm py-1 border-b border-[var(--border)]"
               >
-                <span className="text-[var(--text)]">{m.title ?? "\u2014"}</span>
+                <span className="text-[var(--text)]">{m.title ?? "-"}</span>
                 <div className="flex gap-4 text-xs text-[var(--text-muted)]">
                   <span>{t("admin.activity.plays", { count: m.playCount })}</span>
                   <span>{t("admin.activity.viewers", { count: m.uniqueViewers })}</span>

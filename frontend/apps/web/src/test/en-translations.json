@@ -535,6 +535,8 @@
   "admin.users.revoke": "Revoke",
   "admin.users.revokeInviteConfirm": "Revoke this invite link? It will no longer be usable.",
   "admin.users.revokeInviteTitle": "Revoke Invite",
+  "admin.users.lastLogin": "Last login",
+  "admin.users.registered": "Registered",
   "admin.users.role": "Role",
   "admin.users.title": "Users",
   "admin.users.unrestricted": "Unrestricted",

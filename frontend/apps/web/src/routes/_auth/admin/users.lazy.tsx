@@ -67,7 +67,7 @@ function UsersPage() {
             <table className="w-full text-sm table-cards">
               <thead>
                 <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
-                  {[t("admin.users.username"), t("admin.users.email"), t("admin.users.role"), t("common.status"), t("admin.users.registered", "Inscrit le"), t("admin.users.lastLogin", "Dernière connexion"), t("common.actions")].map((h) => (
+                  {[t("admin.users.username"), t("admin.users.email"), t("admin.users.role"), t("common.status"), t("admin.users.registered"), t("admin.users.lastLogin"), t("common.actions")].map((h) => (
                     <th
                       key={h}
                       className="px-4 py-2 text-left font-medium text-[var(--text-muted)]"

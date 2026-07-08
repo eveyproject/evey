@@ -83,10 +83,12 @@ describe("RecentActivity", () => {
 
   // ── Empty state ───────────────────────────────────────────────────────────────
 
-  it("renders nothing when entries list is empty (returns null)", () => {
+  it("renders the empty message when entries list is empty", () => {
+    // The card deliberately stays visible with a "no entries" line — the
+    // dashboard section must not silently vanish on a fresh install.
     mockEntries = [];
-    const { container } = renderRecentActivity();
-    expect(container.innerHTML).toBe("");
+    renderRecentActivity();
+    expect(screen.getByText("No entries found")).toBeInTheDocument();
   });
 
   // ── Loading state ─────────────────────────────────────────────────────────────

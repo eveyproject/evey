@@ -69,7 +69,7 @@ export function UserRow({ user }: { user: V1User }) {
         {user.username}
       </td>
       <td data-label={t("admin.users.email")} className="px-4 py-3 text-sm text-[var(--text-muted)]">
-        {user.email ?? "\u2014"}
+        {user.email ?? "-"}
       </td>
       <td data-label={t("admin.users.role")} className="px-4 py-3">
         {user.isAdmin ? <Badge variant="warning">{t("admin.users.admin")}</Badge> : <Badge>{t("admin.users.user")}</Badge>}
@@ -81,11 +81,11 @@ export function UserRow({ user }: { user: V1User }) {
           <Badge variant="error">{t("common.disabled")}</Badge>
         )}
       </td>
-      <td data-label={t("admin.users.registered", "Inscrit le")} className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
-        {user.createdAt ? new Date(user.createdAt).toLocaleString() : "—"}
+      <td data-label={t("admin.users.registered")} className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
+        {user.createdAt ? new Date(user.createdAt).toLocaleString() : "-"}
       </td>
-      <td data-label={t("admin.users.lastLogin", "Dernière connexion")} className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
-        {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : "—"}
+      <td data-label={t("admin.users.lastLogin")} className="px-4 py-3 text-xs whitespace-nowrap text-[var(--text-muted)]">
+        {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : "-"}
       </td>
       <td data-label={t("common.actions")} className="px-4 py-3 whitespace-nowrap">
         <div className="flex gap-2 flex-wrap">
