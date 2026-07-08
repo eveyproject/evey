@@ -6,7 +6,7 @@ import {
   playbackServiceStopStream,
   eveyFetch,
 } from "@evey/api";
-import type { V1StreamInfo } from "@evey/api";
+import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { getServerUrl } from "../lib/server-config";
 
 const DEVICE_ID = "evey-tv";
@@ -31,6 +31,7 @@ export interface PlaySessionResult {
   restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
   restartAtPosition: (positionSec: number) => void;
   transcodeOffset: number;
+  progress: V1WatchProgress | null;
 }
 
 async function fetchStreamToken(mediaId: string): Promise<string> {
@@ -73,6 +74,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<V1StreamInfo | null>(null);
+  const [progress, setProgress] = useState<V1WatchProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [transcodeOffset, setTranscodeOffset] = useState(0);
@@ -96,15 +98,23 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         const screen = Dimensions.get("screen");
         const screenH = Math.round(screen.height * (screen.scale ?? 1));
 
-        const info = await playbackServiceGetStreamInfo(mediaId, {
-          supportedCodecs: VIDEO_CODECS,
-          supportedAudioCodecs: AUDIO_CODECS,
-          supportedContainers: CONTAINERS,
-          maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
-          maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
-          audioStreamIndex,
-          subtitleStreamIndex,
-        });
+        const [info, wp] = await Promise.all([
+          playbackServiceGetStreamInfo(mediaId, {
+            supportedCodecs: VIDEO_CODECS,
+            supportedAudioCodecs: AUDIO_CODECS,
+            supportedContainers: CONTAINERS,
+            maxWidth: Math.round(screen.width * (screen.scale ?? 1)),
+            maxHeight: maxHeight && maxHeight > 0 ? Math.min(maxHeight, screenH) : screenH,
+            audioStreamIndex,
+            subtitleStreamIndex,
+          }),
+          eveyFetch<V1WatchProgress>({
+            url: `/api/v1/playback/${mediaId}/progress`,
+            method: "GET",
+          }).catch(() => null),
+        ]);
+
+        if (wp) setProgress(wp);
 
         let token = tokenRef.current;
         if (!token) {
@@ -113,7 +123,11 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         }
         const url = buildStreamUrl(serverUrl, mediaId, info, token, startSec);
 
-        const startPosMs = startSec ? String(Math.floor(startSec * 1000)) : "0";
+        const startPosMs = startSec
+          ? String(Math.floor(startSec * 1000))
+          : wp?.positionMs && !wp.played
+            ? wp.positionMs
+            : "0";
         const session = await playbackServiceStartStream({
           mediaItemId: mediaId,
           playMethod: info.playMethod ?? "PLAY_METHOD_TRANSCODE",
@@ -202,5 +216,5 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset };
+  return { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress };
 }
