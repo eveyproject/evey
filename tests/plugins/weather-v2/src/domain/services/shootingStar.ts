@@ -1,7 +1,14 @@
 // Occasional shooting star on clear nights. Deterministic pseudo-random
-// trigger keyed off elapsed animation time + a per-session seed, so the
-// scheduling decision is a pure, testable function - the renderer only owns
-// the clock and the "is it dark and clear enough" gate.
+// trigger keyed off elapsed animation time + a per-session seed - the
+// renderer only owns the clock and the "is it dark and clear enough" gate.
+//
+// shootingStar MUTATES the ShootingStar `out` param in place and returns
+// void: the render loop calls it every frame (~30/s), and the class comment
+// on GlRenderer promises the loop allocates nothing. `out` is allocated
+// exactly once, at mount (initShootingStar()), and reused for the widget's
+// whole lifetime. The scheduling MATH itself stays a pure function of
+// (timeSec, seed, active) - only the "return a fresh object" part changed -
+// so it's still fully testable via a throwaway target object per assertion.
 
 export interface ShootingStar {
   visible: boolean;
@@ -12,7 +19,9 @@ export interface ShootingStar {
   life: number; // 0..1 brightness, fades out over the streak
 }
 
-const HIDDEN: ShootingStar = { visible: false, x: 0, y: 0, dirX: 0, dirY: 0, life: 0 };
+export function initShootingStar(): ShootingStar {
+  return { visible: false, x: 0, y: 0, dirX: 0, dirY: 0, life: 0 };
+}
 
 // One candidate slot per this many seconds of elapsed animation time; only a
 // fraction of slots (APPEAR_CHANCE) actually produce a star, and each star is
@@ -29,17 +38,35 @@ function hash1(n: number): number {
   return s - Math.floor(s);
 }
 
-export function shootingStar(timeSec: number, seed: number, active: boolean): ShootingStar {
-  if (!active || !Number.isFinite(timeSec) || timeSec < 0) return HIDDEN;
+function hide(out: ShootingStar): void {
+  out.visible = false;
+  out.x = 0;
+  out.y = 0;
+  out.dirX = 0;
+  out.dirY = 0;
+  out.life = 0;
+}
+
+export function shootingStar(out: ShootingStar, timeSec: number, seed: number, active: boolean): void {
+  if (!active || !Number.isFinite(timeSec) || timeSec < 0) {
+    hide(out);
+    return;
+  }
 
   const windowIndex = Math.floor(timeSec / WINDOW_SEC);
   const base = windowIndex * 7.13 + seed;
-  if (hash1(base) > APPEAR_CHANCE) return HIDDEN;
+  if (hash1(base) > APPEAR_CHANCE) {
+    hide(out);
+    return;
+  }
 
   const tInWindow = timeSec - windowIndex * WINDOW_SEC;
   const startAt = hash1(base + 1.31) * (WINDOW_SEC - STREAK_SEC);
   const progress = (tInWindow - startAt) / STREAK_SEC;
-  if (progress < 0 || progress >= 1) return HIDDEN;
+  if (progress < 0 || progress >= 1) {
+    hide(out);
+    return;
+  }
 
   const dirSign = hash1(base + 2.47) < 0.5 ? -1 : 1;
   const descentDeg = 20 + hash1(base + 3.59) * 40; // 20..60 degrees below horizontal
@@ -51,12 +78,10 @@ export function shootingStar(timeSec: number, seed: number, active: boolean): Sh
   const startY = hash1(base + 5.83) * 0.35; // upper third of the sky
   const travel = 0.5 + hash1(base + 6.97) * 0.3;
 
-  return {
-    visible: true,
-    x: startX + progress * travel * dirX,
-    y: startY + progress * travel * dirY,
-    dirX,
-    dirY,
-    life: Math.pow(1 - progress, 1.5),
-  };
+  out.visible = true;
+  out.x = startX + progress * travel * dirX;
+  out.y = startY + progress * travel * dirY;
+  out.dirX = dirX;
+  out.dirY = dirY;
+  out.life = Math.pow(1 - progress, 1.5);
 }

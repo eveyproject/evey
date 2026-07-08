@@ -20,7 +20,7 @@
 import type { SceneRenderer, RenderTarget } from "../../domain/ports/SceneRenderer";
 import { VERT_SRC, FRAG_SRC } from "./shaders";
 import { initThunderState, stepThunder, type ThunderState } from "../../domain/services/thunder";
-import { shootingStar, type ShootingStar } from "../../domain/services/shootingStar";
+import { initShootingStar, shootingStar, type ShootingStar } from "../../domain/services/shootingStar";
 // Real NASA imagery (public domain). Moon: NASA/GSFC (FullMoon2010). Sun:
 // NASA/SDO and the AIA science team - one full-disc AIA 171 image, cropped
 // tight so the disc fills the frame. Keyed by the ids in
@@ -35,7 +35,6 @@ const DEFAULT_SUN_ID = "aia171";
 
 const TIME_WRAP_S = 4096;
 
-const HIDDEN_STAR: ShootingStar = { visible: false, x: 0, y: 0, dirX: 0, dirY: 0, life: 0 };
 // Gate to keep the shooting-star check meaningfully rare from a night-sky
 // standpoint: clear-enough, dark-enough, and not on the lowest quality tier
 // (it's a cheap extra branch in the shader, but skip it on weak devices).
@@ -131,7 +130,7 @@ export class GlRenderer implements SceneRenderer {
   // instances/reloads while staying a pure function of (time, seed) within
   // one mount - see domain/services/shootingStar.ts.
   private starSeed = Math.random() * 1000;
-  private star: ShootingStar = HIDDEN_STAR;
+  private star: ShootingStar = initShootingStar();
 
   private sunModelId = DEFAULT_SUN_ID;
 
@@ -392,8 +391,9 @@ export class GlRenderer implements SceneRenderer {
     this.time = (this.time + step * motion) % TIME_WRAP_S;
     this.windDrift = (this.windDrift + step * motion * this.cloudSpeed * 0.15) % 512;
 
-    // Thunder envelope: pure step function, see domain/services/thunder.ts.
-    this.thunder = stepThunder(this.thunder, step, this.thunderRate, Math.random);
+    // Thunder envelope: mutates this.thunder in place, see
+    // domain/services/thunder.ts - zero allocation in this per-frame path.
+    stepThunder(this.thunder, step, this.thunderRate, Math.random);
 
     // In-place exponential smoothing toward the target.
     const k = 1 - Math.exp(-3 * step);
@@ -409,7 +409,9 @@ export class GlRenderer implements SceneRenderer {
     const clearness = (1 - cur.cover) * (1 - cur.rain) * (1 - cur.snow) * (1 - cur.fog);
     const starGate =
       this.quality.scale >= 0.75 && cur.night >= STAR_NIGHT_MIN && clearness >= STAR_CLEARNESS_MIN;
-    this.star = shootingStar(this.time, this.starSeed, starGate);
+    // Mutates this.star in place, see domain/services/shootingStar.ts - zero
+    // allocation in this per-frame path.
+    shootingStar(this.star, this.time, this.starSeed, starGate);
 
     this.draw();
   };

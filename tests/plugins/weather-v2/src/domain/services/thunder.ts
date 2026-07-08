@@ -1,8 +1,12 @@
 // Lightning scheduler: decides WHEN a flash fires and WHERE it lands.
-// Pure state-transition function (the renderer owns the clock and the RNG),
-// so the scheduling logic is testable without a WebGL context - unlike the
+// State-transition logic is testable without a WebGL context - unlike the
 // v2.8.0 build where this lived inline in GlRenderer's render loop next to
 // non-deterministic Math.random() calls, untestable by construction.
+//
+// stepThunder MUTATES the ThunderState in place and returns void: the render
+// loop calls it every frame (~30/s), and the class comment on GlRenderer
+// promises the loop allocates nothing. `state` is allocated exactly once, at
+// mount (initThunderState()), and reused for the widget's whole lifetime.
 
 export interface ThunderState {
   flash: number;   // 0..1 current flash brightness (decays every step)
@@ -25,20 +29,18 @@ export function stepThunder(
   stepSec: number,
   thunderRate: number,
   rand: () => number,
-): ThunderState {
-  let { flash, countdown, flashX, flashY } = state;
+): void {
   if (thunderRate > 0) {
-    countdown -= stepSec;
-    if (countdown <= 0) {
-      flash = 0.7 + rand() * 0.5;
+    state.countdown -= stepSec;
+    if (state.countdown <= 0) {
+      state.flash = 0.7 + rand() * 0.5;
       // Flash origin: upper band where the storm cloud layer actually reads
       // (matches the shader's cloud vertical mask), so the burst looks like
       // it comes from inside the cloud rather than floating in open sky.
-      flashX = 0.15 + rand() * 0.70;
-      flashY = 0.05 + rand() * 0.35;
-      countdown = Math.min(0.3 - Math.log(rand() + 1e-6) / thunderRate, 3 / thunderRate);
+      state.flashX = 0.15 + rand() * 0.70;
+      state.flashY = 0.05 + rand() * 0.35;
+      state.countdown = Math.min(0.3 - Math.log(rand() + 1e-6) / thunderRate, 3 / thunderRate);
     }
   }
-  flash = Math.max(0, flash - stepSec * 5);
-  return { flash, countdown, flashX, flashY };
+  state.flash = Math.max(0, state.flash - stepSec * 5);
 }
