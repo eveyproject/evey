@@ -1,15 +1,9 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useLibraryServiceGetMediaItem, usePlaybackServiceMarkAsWatched, usePlaybackServiceGetWatchProgress } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-
-// react-native-tvos replaces react-native at runtime and exports useTVEventHandler
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { useTVEventHandler } = require("react-native") as {
-  useTVEventHandler: (handler: (evt: { eventType: string }) => void) => void;
-};
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
@@ -34,7 +28,7 @@ export default function PlayerScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
     usePlaySession(mediaId);
 
   const [showControls, setShowControls] = useState(true);
@@ -55,8 +49,17 @@ export default function PlayerScreen() {
     };
   }, [streamUrl]);
 
+  const resumePositionSec = useMemo(() => {
+    if (!progress?.positionMs || progress.played) return 0;
+    const ms = Number(progress.positionMs);
+    return ms > 0 ? ms / 1000 : 0;
+  }, [progress]);
+
   const player = useVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
+    if (resumePositionSec > 0) {
+      p.currentTime = resumePositionSec;
+    }
     p.play();
   });
 
@@ -199,7 +202,39 @@ export default function PlayerScreen() {
     return (transcodeOffset + (player?.currentTime ?? 0)) * 1000;
   }, [player, transcodeOffset]);
 
-  useProgressReporter(sessionId, getPositionMs);
+  const getIsPaused = useCallback(() => {
+    try {
+      return !(player?.playing ?? false);
+    } catch {
+      return true;
+    }
+  }, [player]);
+
+  const remoteCallbacks = useMemo(
+    () => ({
+      onRemotePause: () => {
+        try {
+          player?.pause();
+        } catch (err) {
+          console.warn("remote pause failed:", err);
+        }
+      },
+      onRemotePlay: () => {
+        try {
+          player?.play();
+        } catch (err) {
+          console.warn("remote play failed:", err);
+        }
+      },
+      onRemoteStop: () => {
+        stopSession();
+        router.back();
+      },
+    }),
+    [player, stopSession],
+  );
+
+  useProgressReporter(sessionId, getPositionMs, getIsPaused, undefined, undefined, remoteCallbacks);
 
   if (isError) {
     return (
@@ -220,7 +255,7 @@ export default function PlayerScreen() {
     );
   }
 
-  const progress = duration > 0 ? currentTime / duration : 0;
+  const seekProgress = duration > 0 ? currentTime / duration : 0;
 
   return (
     <View style={[styles.container, { backgroundColor: "#000" }]}>
@@ -274,8 +309,8 @@ export default function PlayerScreen() {
           <View style={styles.bottomBar}>
             <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
             <View style={styles.seekBarTrack}>
-              <View style={[styles.seekBarFill, { flex: progress }]} />
-              <View style={{ flex: 1 - progress }} />
+              <View style={[styles.seekBarFill, { flex: seekProgress }]} />
+              <View style={{ flex: 1 - seekProgress }} />
             </View>
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>

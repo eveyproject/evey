@@ -3,9 +3,9 @@
   "private": true,
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --tv",
-    "android-tv": "expo run:android --device tv",
-    "apple-tv": "expo run:ios --scheme tv",
+    "start": "EXPO_TV=1 expo start",
+    "android-tv": "EXPO_TV=1 expo run:android --device tv",
+    "apple-tv": "EXPO_TV=1 expo run:ios --scheme tv",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --config vitest.config.ts"
   },
@@ -18,6 +18,7 @@
     "@tanstack/react-query": "5.100.9",
     "expo": "55.0.23",
     "expo-audio": "^55.0.14",
+    "expo-image": "55.0.10",
     "expo-localization": "55.0.13",
     "expo-router": "55.0.14",
     "expo-secure-store": "55.0.13",
@@ -26,15 +27,15 @@
     "i18next-http-backend": "3.0.2",
     "react": "19.2.0",
     "react-i18next": "16.5.8",
-    "react-native": "0.83.6",
+    "react-native": "npm:react-native-tvos@0.83.1-0",
     "react-native-qrcode-svg": "6.3.21",
     "react-native-safe-area-context": "5.6.2",
     "react-native-screens": "4.23.0",
     "react-native-svg": "15.15.4",
-    "react-native-tvos": "0.83.1-0",
     "zustand": "5.0.13"
   },
   "devDependencies": {
+    "@react-native-tvos/config-tv": "0.1.6",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
     "@types/react": "19.2.14",

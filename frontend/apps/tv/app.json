@@ -22,6 +22,10 @@
         "backgroundColor": "#0A0A0A"
       }
     },
-    "plugins": ["expo-router", "expo-video"]
+    "plugins": [
+      "expo-router",
+      "expo-video",
+      ["@react-native-tvos/config-tv", { "isTV": true }]
+    ]
   }
 }
