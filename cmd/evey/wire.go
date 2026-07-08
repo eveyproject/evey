@@ -79,6 +79,7 @@ import (
 //                           → trickplay worker (auto-generate on new media)
 //                           → metadata enricher (auto-enrich on new media)
 //   "backup.failed"         → notification (handleBackupFailed)
+//   "library.scan.completed" → keyframe backfill worker (nudge after 10-min settle)
 //   "library.created"       → filesystem watcher (watch new library paths)
 //   "library.deleted"       → filesystem watcher (stop watching deleted library)
 //   "notification.created"  → email adapter (send email, only when SMTP configured)
@@ -887,16 +888,31 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	// Keyframe backfill: index keyframe times for copy-eligible media so the
 	// byte-range/per-segment copy rung can cut deterministic, keyframe-aligned
-	// segments. OFF by default (EVEY_KEYFRAME_BACKFILL=on): the keyframe probe
-	// scans every packet header — the heaviest sustained NAS load of the
-	// pipeline — so it must only run once the per-segment copy path is wanted,
-	// and its rate validated on the real NAS. Runs after the level backfill by
-	// construction (the candidate query requires a known level). Resolution:
-	// server_config DB key wins → env fallback, so an admin enables it from
-	// /admin/server-config (key transcoding.keyframe_backfill = on, or the raw
-	// EVEY_KEYFRAME_BACKFILL) without touching the container env; a restart is
-	// required.
-	if resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") == "on" {
+	// segments. ON by default since the mkvgo era (2026-07-08 decision): the
+	// probe reads the container's own seek index in milliseconds and even a
+	// cue-less MKV costs a bounded in-process scan, so the historical
+	// ffprobe-era caution (opt-in + ultra-slow pacing) no longer applies —
+	// out-of-the-box installs get the copy rung. Opt OUT with
+	// transcoding.keyframe_backfill = off (or EVEY_KEYFRAME_BACKFILL=off);
+	// pacing stays tunable via the server_config keys below. Runs after the
+	// level backfill by construction (the candidate query requires a known
+	// level); backs off to the polite pace while playback sessions are active
+	// (WithActivePlayback); a library scan-completed event nudges it after a
+	// 10-min settle so fresh additions are indexed without waiting the idle
+	// cycle. Resolution: server_config DB key wins → env fallback; a restart
+	// is required.
+	// Read the container seek index (mkvgo: MP4 stss / Matroska Cues) head-only
+	// before the multi-minute ffprobe packet scan; falls back to ffprobe when the
+	// container yields no index. Always on, like the metadata prober (nil gates).
+	// Shared by the paced background worker below AND the on-demand inline fill
+	// at playback negotiation.
+	kfProber := proberpkg.NewKeyframeDispatcher(infra.prober, nil, nil)
+	// On-demand keyframe fill at GetStreamInfo: unconditional (unlike the paced
+	// worker) because its budget context caps the attempt at the fast-path cost
+	// — a file the fast-path can't index stays on the worker's slow path.
+	keyframeOnDemand := apptranscoding.NewKeyframeOnDemand(r.MediaStream, kfProber, slog.Default())
+
+	if resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") != "off" {
 		kfOpts := apptranscoding.KeyframeBackfillOpts{}
 		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill_batch", "EVEY_KEYFRAME_BACKFILL_BATCH"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -913,10 +929,6 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 				kfOpts.IdleInterval = time.Duration(n) * time.Second
 			}
 		}
-		// Read the container seek index (mkvgo: MP4 stss / Matroska Cues) head-only
-		// before the multi-minute ffprobe packet scan; falls back to ffprobe when the
-		// container yields no index. Always on, like the metadata prober (nil gates).
-		kfProber := proberpkg.NewKeyframeDispatcher(infra.prober, nil, nil)
 		keyframeBackfillWorker := apptranscoding.NewKeyframeBackfillWorker(
 			r.MediaStream,
 			mediaItemReaderFunc(func(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
@@ -925,9 +937,15 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			kfProber,
 			kfOpts,
 			slog.Default(),
-		)
+		).WithActivePlayback(hlsVODRemover.ActiveSessionCount)
 		keyframeBackfillWorker.Start(ctx)
-		slog.Default().Info("keyframe backfill worker enabled (server_config transcoding.keyframe_backfill=on or EVEY_KEYFRAME_BACKFILL=on)")
+		// Fresh additions: once the library has been quiet for 10 min after a
+		// scan, drain the queue right away instead of waiting the idle cycle.
+		// (Playback that starts sooner is covered by the on-demand inline fill.)
+		bus.Subscribe(library.LibraryScanCompleted{}.EventName(), func(context.Context, shared.Event) {
+			keyframeBackfillWorker.NudgeAfterQuiet(10 * time.Minute)
+		})
+		slog.Default().Info("keyframe backfill worker enabled (default-on; opt out with server_config transcoding.keyframe_backfill=off)")
 	}
 
 	// CMCD (CTA-5004) ingest sink. The HTTP handler parses the CMCD query
@@ -1053,6 +1071,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// reindexed file isn't re-probed (and its keyframe index dropped) by the
 		// next scan. r.MediaItem satisfies appmaintenance.FileStateRefresher.
 		seekIndexFileState: r.MediaItem,
+		keyframeOnDemand:   keyframeOnDemand,
 		library: libraryDeps{
 			cmdSvc:            libCmdSvc,
 			querySvc:          libQuerySvc,

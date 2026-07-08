@@ -43,6 +43,9 @@ type playbackHandler struct {
 	// the fan-out remover (software + hardware) so a stopped software stream is
 	// torn down promptly instead of lingering until its idle GC.
 	hlsManager HLSSessionRemover
+	// keyframeOnDemand fills a missing keyframe index inline at GetStreamInfo
+	// (bounded fast-path probe; see apptranscoding.KeyframeOnDemand). Optional.
+	keyframeOnDemand *apptranscoding.KeyframeOnDemand
 }
 
 func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
@@ -68,6 +71,19 @@ func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceTyp
 	if err := h.activitySvc.CreateAuditEntry(ctx, e); err != nil {
 		slog.Warn("audit log failed", slog.String("action", action), slog.Any("err", err))
 	}
+}
+
+// videoKeyframesMissing reports whether the (first) video stream has no
+// keyframe index yet — the gate for the on-demand inline fill. Audio-only
+// media (no video stream) never probes.
+func videoKeyframesMissing(streams []*library.MediaStream) bool {
+	for _, s := range streams {
+		if s == nil || s.StreamType != library.StreamTypeVideo {
+			continue
+		}
+		return len(s.Keyframes) == 0
+	}
+	return false
 }
 
 func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStreamInfoRequest) (*eveyv1.StreamInfo, error) {
@@ -108,6 +124,18 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	streams, err := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId)
 	if err != nil {
 		slog.Warn("get media streams", slog.String("media_item_id", req.MediaItemId), slog.Any("err", err))
+	}
+	// On-demand keyframe fill: when the paced background backfill hasn't
+	// indexed this file yet, try the bounded fast-path (container seek index,
+	// milliseconds) right here so THIS playback's decision can already take
+	// the copy rung instead of transcoding the whole viewing. Cue-less files
+	// exceed the budget and stay on the worker's slow path — unchanged.
+	if h.keyframeOnDemand != nil && item.File != nil && videoKeyframesMissing(streams) {
+		if h.keyframeOnDemand.TryIndex(ctx, req.MediaItemId, item.File.Path) {
+			if fresh, freshErr := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId); freshErr == nil {
+				streams = fresh
+			}
+		}
 	}
 	for _, s := range streams {
 		resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s))

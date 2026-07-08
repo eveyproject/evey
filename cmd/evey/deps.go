@@ -165,26 +165,29 @@ type repoDeps struct {
 
 // appDeps holds all application-level services and adapters needed by HTTP/gRPC layers.
 type appDeps struct {
-	library           libraryDeps
-	user              userDeps
-	media             mediaDeps
-	content           contentDeps
-	engagement        engagementDeps
-	auth              authDeps
-	repos             repoDeps
-	bus               *eventbus.InMemoryEventBus
-	cfgStore          *httpapi.ServerConfigStore
-	serverCfgSvc      *appconfig.Service
-	pluginRunner      *pluginrunner.Runner
-	pluginResDefaults appplugin.ResourceDefaults
-	backupSvc         *appbackup.Service
-	backupScheduler   *appbackup.Scheduler
-	translator        *eveyi18n.Translator
-	searchHealth      httpapi.SearchHealthChecker
-	imageConverter    httpapi.ImageConverter
-	frameExtractor    httpapi.FrameExtractor
-	copySeekProber    apptranscoding.SeekLandingProber
-	onDemandPackager  apptranscoding.OnDemandPackager
-	hlsAESSecret      []byte
+	library            libraryDeps
+	user               userDeps
+	media              mediaDeps
+	content            contentDeps
+	engagement         engagementDeps
+	auth               authDeps
+	repos              repoDeps
+	bus                *eventbus.InMemoryEventBus
+	cfgStore           *httpapi.ServerConfigStore
+	serverCfgSvc       *appconfig.Service
+	pluginRunner       *pluginrunner.Runner
+	pluginResDefaults  appplugin.ResourceDefaults
+	backupSvc          *appbackup.Service
+	backupScheduler    *appbackup.Scheduler
+	translator         *eveyi18n.Translator
+	searchHealth       httpapi.SearchHealthChecker
+	imageConverter     httpapi.ImageConverter
+	frameExtractor     httpapi.FrameExtractor
+	copySeekProber     apptranscoding.SeekLandingProber
+	onDemandPackager   apptranscoding.OnDemandPackager
+	hlsAESSecret       []byte
 	seekIndexFileState appmaintenance.FileStateRefresher
+	// keyframeOnDemand fills a missing keyframe index inline at playback
+	// negotiation (bounded fast-path probe shared with the backfill worker).
+	keyframeOnDemand *apptranscoding.KeyframeOnDemand
 }

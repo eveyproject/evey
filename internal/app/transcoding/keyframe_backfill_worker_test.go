@@ -139,3 +139,62 @@ func TestKeyframeBackfill_StartStopClean(t *testing.T) {
 		t.Fatal("Stop() did not return")
 	}
 }
+
+
+func (s *fakeKeyframeStore) listCallCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.listCalls)
+}
+
+// A Nudge wakes an idle worker immediately instead of waiting the idle
+// interval — the library scan-completed trigger relies on it.
+func TestKeyframeBackfill_NudgeWakesIdleWorker(t *testing.T) {
+	store := &fakeKeyframeStore{} // no candidates → the worker goes idle
+	w := NewKeyframeBackfillWorker(store, &fakeMediaReader{}, &fakeKeyframeProber{}, KeyframeBackfillOpts{
+		BatchSize: 2, ItemPause: time.Millisecond, IdleInterval: time.Hour,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	w.Start(context.Background())
+	defer w.Stop()
+
+	require.Eventually(t, func() bool { return store.listCallCount() >= 1 }, 2*time.Second, 5*time.Millisecond)
+	before := store.listCallCount()
+
+	w.Nudge()
+	require.Eventually(t, func() bool { return store.listCallCount() > before },
+		2*time.Second, 5*time.Millisecond, "a nudge must trigger a fresh candidate pass without waiting the 1h idle")
+}
+
+// NudgeAfterQuiet debounces: re-arms reset the window, and only the last one
+// fires — a scan storm produces one drain, not one per event.
+func TestKeyframeBackfill_NudgeAfterQuietDebounces(t *testing.T) {
+	store := &fakeKeyframeStore{}
+	w := NewKeyframeBackfillWorker(store, &fakeMediaReader{}, &fakeKeyframeProber{}, KeyframeBackfillOpts{
+		BatchSize: 2, ItemPause: time.Millisecond, IdleInterval: time.Hour,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	w.Start(context.Background())
+	defer w.Stop()
+	require.Eventually(t, func() bool { return store.listCallCount() >= 1 }, 2*time.Second, 5*time.Millisecond)
+	before := store.listCallCount()
+
+	for range 5 {
+		w.NudgeAfterQuiet(150 * time.Millisecond)
+		time.Sleep(20 * time.Millisecond)
+	}
+	assert.Equal(t, before, store.listCallCount(), "the debounce must not fire while events keep re-arming it")
+	require.Eventually(t, func() bool { return store.listCallCount() > before },
+		2*time.Second, 5*time.Millisecond, "after the quiet window the nudge fires")
+}
+
+// While playback sessions are active the per-item gap switches to the polite
+// pace; back to the assertive pace when the server is quiet.
+func TestKeyframeBackfill_PolitePauseWhilePlaying(t *testing.T) {
+	active := 0
+	w := NewKeyframeBackfillWorker(&fakeKeyframeStore{}, &fakeMediaReader{}, &fakeKeyframeProber{}, KeyframeBackfillOpts{
+		ItemPause: 200 * time.Millisecond,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil))).WithActivePlayback(func() int { return active })
+
+	assert.Equal(t, 200*time.Millisecond, w.pause(), "quiet server → assertive pace")
+	active = 1
+	assert.Equal(t, politeItemPause, w.pause(), "someone is watching → polite pace")
+}

@@ -90,6 +90,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		IntroCache:             deps.repos.introMetaCache,
 		IntroBackfill:          deps.library.introDetectionSvc,
 		SeekIndex:              seekIndexSvc,
+		KeyframeOnDemand:       deps.keyframeOnDemand,
 		StreamMeter:            deps.engagement.streamMeter,
 	}
 

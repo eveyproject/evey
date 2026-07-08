@@ -78,7 +78,7 @@ type GRPCServerDeps struct {
 	CfgStore        remoteAccessConfigStore
 	Version         string
 	// Fields previously set via Set* methods
-	HLSVODOrch      *apptranscoding.SegmentOrchestrator
+	HLSVODOrch *apptranscoding.SegmentOrchestrator
 	// HLSVODRemover fans RemoveSession across the software AND hardware
 	// producers, so an explicit StopStream or admin force-kill tears down a
 	// software stream too (the bare orchestrator only knows its HW sessions).
@@ -107,6 +107,11 @@ type GRPCServerDeps struct {
 	// StreamMeter exposes the cumulative streaming bytes served (HLS/direct/
 	// download) for the dashboard's measured bandwidth. Optional.
 	StreamMeter appactivity.BytesTotaler
+	// KeyframeOnDemand fills a missing keyframe index inline at GetStreamInfo
+	// (bounded fast-path probe), so a freshly added file's FIRST playback can
+	// negotiate the copy rung instead of waiting on the paced background
+	// backfill. Optional: nil skips the attempt.
+	KeyframeOnDemand *apptranscoding.KeyframeOnDemand
 }
 
 type GRPCServer struct {
@@ -141,7 +146,7 @@ func (s *GRPCServer) RegisterServices() {
 	}
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, scheduler: d.Scheduler, translator: d.Translator})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg})
-	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, hlsManager: hlsMgr})
+	eveyv1.RegisterPlaybackServiceServer(s.server, &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand})
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv, libQuery: d.LibQuery, userAccess: d.UserAccess})
 	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: d.MetadataCmd, query: d.MetadataQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
