@@ -1,23 +1,42 @@
 package mkv
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrNoBackup is returned by RestoreBackup/DeleteBackup when path has no
+// "<path>.mkvgobak" — callers map it to a clean not-found instead of a 500.
+var ErrNoBackup = errors.New("no reindex backup")
 
 // Reindexer rebuilds the seek index (Cues) of an EBML container so a player can
 // seek/resume in O(1) instead of linearly scanning a file muxed without an
-// index — the root cause of slow resume on such files. The capability rewrites
-// the source file, so the implementation MUST be fail-safe: validate the rebuilt
-// file and never lose the original.
+// index — the root cause of slow resume on such files. The capability writes
+// into the source file, so the implementation MUST be fail-safe: whatever the
+// strategy, a failure leaves the original byte-for-byte intact.
 type Reindexer interface {
 	// HasSeekIndex reports whether the EBML file at path already carries a Cues
 	// seek index. Non-EBML files report (false, nil) — there is nothing to index.
 	HasSeekIndex(ctx context.Context, path string) (bool, error)
 
-	// ReindexInPlace rebuilds path's seek index safely: it writes a reindexed
-	// copy to a temp file, fully re-parses + validates it, cross-checks it against
-	// the original (track count, duration, presence of a new index), then
-	// atomically swaps it in while keeping the original as a backup. On ANY
-	// failure the original file is left byte-for-byte untouched. Returns
-	// Skipped=true when the file already has an index or is not an EBML container.
+	// ReindexInPlace rebuilds path's seek index safely. Two strategies, chosen
+	// by the implementation (ReindexResult.Method reports which ran):
+	//
+	//   - "inplace": surgically patch the file itself (append a fresh Cues,
+	//     extend the Segment, repoint the SeekHead) with an in-file journal
+	//     making the operation crash-safe. Needs write access to the FILE
+	//     only, never duplicates it on disk, and leaves NO backup — the
+	//     journal is truncated away on success.
+	//   - "rewrite": write a reindexed copy to a sibling temp file, fully
+	//     re-parse + validate it, cross-check it against the original (track
+	//     count, duration, a freshly-present index), then atomically swap it
+	//     in, keeping the original as a backup per opts. The fallback for
+	//     files the surgical patch refuses (streamed clusters, truncated
+	//     tails, no SeekHead slot).
+	//
+	// On ANY failure the original file is left byte-for-byte intact. Returns
+	// Skipped=true when the file already has an index or is not an EBML
+	// container.
 	ReindexInPlace(ctx context.Context, path string, opts ReindexOptions) (ReindexResult, error)
 
 	// HasBackup reports whether a reindex backup ("<path>.mkvgobak") exists, i.e.
@@ -27,21 +46,36 @@ type Reindexer interface {
 	// RestoreBackup undoes a prior reindex by atomically replacing path with its
 	// "<path>.mkvgobak" backup. Returns an error if no backup exists.
 	RestoreBackup(ctx context.Context, path string) error
+
+	// DeleteBackup removes the "<path>.mkvgobak" backup once the operator has
+	// confirmed the repaired file plays fine — reclaiming the duplicated disk
+	// space is the point. Returns an error if no backup exists.
+	DeleteBackup(ctx context.Context, path string) error
 }
+
+// ReindexResult.Method values.
+const (
+	// ReindexMethodInPlace: the file was surgically patched (no backup exists).
+	ReindexMethodInPlace = "inplace"
+	// ReindexMethodRewrite: the file was rebuilt to a copy and swapped in.
+	ReindexMethodRewrite = "rewrite"
+)
 
 // ReindexOptions tunes the safe-replace behaviour.
 type ReindexOptions struct {
 	// KeepBackup retains the "<path>.mkvgobak" copy of the original after a
-	// successful swap, enabling a manual rollback even against a latent bug that
-	// slipped past validation. When false, the backup is removed once the swap
-	// commits.
+	// successful REWRITE swap, enabling a manual rollback even against a latent
+	// bug that slipped past validation. When false, the backup is removed once
+	// the swap commits. The in-place strategy never produces a backup and
+	// ignores this flag.
 	KeepBackup bool
 }
 
 // ReindexResult reports the outcome of a ReindexInPlace call.
 type ReindexResult struct {
 	Skipped    bool     // already indexed or not an EBML container — no-op
-	BackupPath string   // retained backup path ("" when not kept / skipped)
+	Method     string   // ReindexMethodInPlace | ReindexMethodRewrite ("" when skipped)
+	BackupPath string   // retained backup path ("" for in-place / not kept / skipped)
 	Warnings   []string // non-fatal validation warnings on the rebuilt file
 	SrcBytes   int64
 	DstBytes   int64

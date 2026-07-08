@@ -38,6 +38,43 @@ func (a *Adapter) HasBackup(_ context.Context, path string) (bool, error) {
 	return false, err
 }
 
+// DeleteBackup removes path's reindex backup, reclaiming the duplicated disk
+// space once the operator has confirmed the repaired file plays fine.
+func (a *Adapter) DeleteBackup(ctx context.Context, path string) error {
+	_, span := tracing.StartSpan(ctx, "mkvgo.DeleteBackup")
+	defer span.End()
+
+	bak := path + backupSuffix
+	if err := os.Remove(bak); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("delete backup: %w at %q", mkv.ErrNoBackup, bak)
+		}
+		return fmt.Errorf("delete backup: %w", err)
+	}
+	return nil
+}
+
+// errInPlaceUnavailable marks the surgical in-place strategy as not yet
+// reachable: it activates when the mkvgo pin reaches the release shipping
+// matroska.ReindexInPlace/RecoverInPlace (crash-safe in-file journal, no
+// directory write, no on-disk duplicate). PRE-WIRED on purpose — the call
+// site, fallback routing and result plumbing below are final; the bump only
+// swaps this stub for the real call.
+var errInPlaceUnavailable = errors.New("in-place reindex not available at this mkvgo pin")
+
+// reindexSurgical patches path's seek index in place. Stubbed until the mkvgo
+// bump; then:
+//
+//	func reindexSurgical(ctx context.Context, path string) error {
+//	    return matroska.ReindexInPlace(ctx, path)
+//	}
+//
+// mkvgo runs its own crash-recovery (journal rollback) before patching, so no
+// extra RecoverInPlace call is needed here.
+func reindexSurgical(_ context.Context, _ string) error {
+	return errInPlaceUnavailable
+}
+
 // RestoreBackup atomically replaces path with its backup, undoing a reindex.
 func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
 	_, span := tracing.StartSpan(ctx, "mkvgo.RestoreBackup")
@@ -46,7 +83,7 @@ func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
 	bak := path + backupSuffix
 	if _, err := os.Stat(bak); err != nil {
 		if os.IsNotExist(err) {
-			return fmt.Errorf("restore: no backup at %q", bak)
+			return fmt.Errorf("restore: %w at %q", mkv.ErrNoBackup, bak)
 		}
 		return fmt.Errorf("restore: stat backup: %w", err)
 	}
@@ -125,6 +162,41 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	}
 	if len(meta.Cues) > 0 {
 		return mkv.ReindexResult{Skipped: true}, nil // already indexed — nothing to do
+	}
+
+	// (2) Surgical in-place first: needs write access to the FILE only (no
+	// temp in the directory), never duplicates it on disk, leaves no backup.
+	// Falls back to the full rewrite below when the strategy is unavailable
+	// (pre-bump stub) or refuses this file (streamed clusters, truncated
+	// tail, no SeekHead slot) — the in-place journal guarantees the original
+	// is intact after any refusal, so the rewrite can safely proceed.
+	if srcInfo, statErr := os.Stat(path); statErr == nil {
+		switch inErr := reindexSurgical(ctx, path); {
+		case inErr == nil:
+			// Tripwire mirroring the rewrite path's step (4): the patched file
+			// must now carry a parseable, non-empty Cues element.
+			outMeta, vErr := reader.OpenMeta(ctx, path, reader.WithCues())
+			if vErr != nil {
+				return mkv.ReindexResult{}, fmt.Errorf("reindex: in-place patched file unreadable: %w", vErr)
+			}
+			if len(outMeta.Cues) == 0 {
+				return mkv.ReindexResult{}, fmt.Errorf("reindex: in-place patch left no seek index (contract regression)")
+			}
+			dstBytes := srcInfo.Size()
+			if dstInfo, dErr := os.Stat(path); dErr == nil {
+				dstBytes = dstInfo.Size()
+			}
+			return mkv.ReindexResult{
+				Method:   mkv.ReindexMethodInPlace,
+				SrcBytes: srcInfo.Size(),
+				DstBytes: dstBytes,
+			}, nil
+		case errors.Is(inErr, errInPlaceUnavailable):
+			// Pre-bump: the rewrite below is today's only strategy.
+		default:
+			slog.Info("mkvgo: in-place reindex refused, falling back to the full rewrite",
+				slog.String("path", path), slog.Any("err", inErr))
+		}
 	}
 
 	src, err := reader.Open(ctx, path)
@@ -213,6 +285,7 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	committed = true
 
 	res := mkv.ReindexResult{
+		Method:     mkv.ReindexMethodRewrite,
 		BackupPath: bak,
 		Warnings:   warnings,
 		SrcBytes:   srcInfo.Size(),
