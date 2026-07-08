@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/(auth)/(tabs)/favorites", labelKey: "media.favorites.title", icon: "heart-outline", activeIcon: "heart" },
   { href: "/(auth)/(tabs)/music", labelKey: "common.nav.music", icon: "musical-notes-outline", activeIcon: "musical-notes" },
   { href: "/(auth)/syncplay", labelKey: "common.nav.syncplay", icon: "people-outline", activeIcon: "people" },
+  { href: "/(auth)/downloads", labelKey: "downloads.title", icon: "download-outline", activeIcon: "download" },
 ];
 
 export function SideDrawer() {

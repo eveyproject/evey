@@ -17,6 +17,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { getCastBaseUrl } from "../../../src/lib/server-config";
 import { setAudioBoost, releaseAudioBoost } from "../../../src/lib/audioBoost";
+import { getDownloadPath } from "../../../src/lib/downloads";
 import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
 import {
@@ -70,6 +71,21 @@ export default function PlayerScreen() {
   const { width: screenW, height: screenH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const mediaId = id ?? "";
+
+  // Offline playback: if this media was downloaded, prefer the file already
+  // on disk over the network stream. NOTE this only short-circuits the video
+  // SOURCE - usePlaySession below still opens a play session against the
+  // server for progress reporting/watched-state, so this doesn't give a fully
+  // network-free experience (no network still means that session request
+  // hangs/fails in the background); it does mean the video itself plays from
+  // disk and isn't blocked on the network being reachable.
+  const [localFilePath, setLocalFilePath] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    if (!mediaId) { setLocalFilePath(null); return; }
+    getDownloadPath(mediaId).then((p) => { if (!cancelled) setLocalFilePath(p); });
+    return () => { cancelled = true; };
+  }, [mediaId]);
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
   // Series and seasons have no underlying file, so the streaming endpoints 404.
@@ -216,6 +232,12 @@ export default function PlayerScreen() {
   });
 
   const videoSource = useMemo(() => {
+    // Downloaded copy on disk takes priority over the network stream - no
+    // reason to re-download bytes the device already has, and it plays even
+    // if the play-session request above is stuck/failing offline.
+    if (localFilePath) {
+      return { uri: localFilePath.startsWith("file://") ? localFilePath : `file://${localFilePath}` };
+    }
     if (!streamUrl) return null;
     const isHls = streamUrl.includes("m3u8");
     return {
@@ -228,7 +250,7 @@ export default function PlayerScreen() {
       // headers on the manifest's relative segment/redirect fetches).
       ...(streamToken ? { headers: { Authorization: `Bearer ${streamToken}` } } : {}),
     };
-  }, [streamUrl, streamToken]);
+  }, [streamUrl, streamToken, localFilePath]);
 
   const resumePositionSec = useMemo(() => {
     if (!progress?.positionMs || progress.played) return 0;
@@ -675,7 +697,10 @@ export default function PlayerScreen() {
     router.back();
   }, [stopSession]);
 
-  if (isError) {
+  // A local download plays regardless of the play-session network state -
+  // don't gate on isError/isLoading/streamUrl when we already have bytes on
+  // disk (see the videoSource useMemo above for the same rationale).
+  if (isError && !localFilePath) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
         <StatusBar hidden />
@@ -687,7 +712,7 @@ export default function PlayerScreen() {
     );
   }
 
-  if (isLoading || !streamUrl) {
+  if (!localFilePath && (isLoading || !streamUrl)) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
         <StatusBar hidden />
