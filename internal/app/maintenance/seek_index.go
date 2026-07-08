@@ -299,19 +299,36 @@ func (s *SeekIndexService) recoverJob() {
 	}
 }
 
+// reindexOptionsFor maps the operator's mode onto the port options. The
+// standard mode keeps a rollback backup; the surgical in-place mode cannot
+// produce one by design (the file is patched, never duplicated).
+func reindexOptionsFor(mode string) mkv.ReindexOptions {
+	if mode == mkv.ModeInPlace {
+		return mkv.ReindexOptions{Mode: mkv.ModeInPlace}
+	}
+	return mkv.ReindexOptions{Mode: mkv.ModeRewrite, KeepBackup: true}
+}
+
+// SupportsInPlace mirrors the reindexer's capability for the scan/UI layer.
+func (s *SeekIndexService) SupportsInPlace() bool { return s.reindexer.SupportsInPlace() }
+
 // StartReindexLibrary kicks a background job that re-scans the library then
-// rebuilds the seek index of every un-indexed file (keeping backups).
-func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID string) error {
+// rebuilds the seek index of every un-indexed file. mode picks the strategy:
+// mkv.ModeInPlace (surgical patch, no backup) or anything else = the standard
+// rewrite that keeps a .mkvgobak rollback backup.
+func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID, mode string) error {
+	opts := reindexOptionsFor(mode)
 	return s.startBatch(JobReindex, libraryID,
 		func(it SeekStatus) bool { return !it.HasIndex },
 		func(bg context.Context, path string) (bool, error) {
-			res, err := s.reindexer.ReindexInPlace(bg, path, mkv.ReindexOptions{KeepBackup: true})
+			res, err := s.reindexer.ReindexInPlace(bg, path, opts)
 			if err != nil {
 				return false, err
 			}
 			if !res.Skipped {
 				s.refreshFileState(bg, path)
-				s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = true })
+				hasBak := res.BackupPath != ""
+				s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = hasBak })
 			}
 			return res.Skipped, nil
 		})
@@ -334,16 +351,19 @@ func (s *SeekIndexService) StartRollbackLibrary(_ context.Context, libraryID str
 }
 
 // StartReindexMedia rebuilds one media file's seek index in the background.
-// The media lookup happens synchronously so unknown IDs fail fast.
-func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID string) error {
+// The media lookup happens synchronously so unknown IDs fail fast. See
+// StartReindexLibrary for the mode semantics.
+func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID, mode string) error {
+	opts := reindexOptionsFor(mode)
 	return s.startSingle(ctx, JobReindex, mediaID, func(bg context.Context, path string) (bool, error) {
-		res, err := s.reindexer.ReindexInPlace(bg, path, mkv.ReindexOptions{KeepBackup: true})
+		res, err := s.reindexer.ReindexInPlace(bg, path, opts)
 		if err != nil {
 			return false, err
 		}
 		if !res.Skipped {
 			s.refreshFileState(bg, path)
-			s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = true })
+			hasBak := res.BackupPath != ""
+			s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = hasBak })
 		}
 		return res.Skipped, nil
 	})

@@ -75,6 +75,14 @@ func reindexSurgical(_ context.Context, _ string) error {
 	return errInPlaceUnavailable
 }
 
+// surgicalAvailable mirrors the stub above: flip to true with the bump. The
+// admin UI reads it (via SupportsInPlace) to offer the in-place mode only
+// when it can actually run.
+const surgicalAvailable = false
+
+// SupportsInPlace reports whether this build carries the surgical strategy.
+func (a *Adapter) SupportsInPlace() bool { return surgicalAvailable }
+
 // RestoreBackup atomically replaces path with its backup, undoing a reindex.
 func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
 	_, span := tracing.StartSpan(ctx, "mkvgo.RestoreBackup")
@@ -164,13 +172,18 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 		return mkv.ReindexResult{Skipped: true}, nil // already indexed — nothing to do
 	}
 
-	// (2) Surgical in-place first: needs write access to the FILE only (no
-	// temp in the directory), never duplicates it on disk, leaves no backup.
-	// Falls back to the full rewrite below when the strategy is unavailable
-	// (pre-bump stub) or refuses this file (streamed clusters, truncated
-	// tail, no SeekHead slot) — the in-place journal guarantees the original
-	// is intact after any refusal, so the rewrite can safely proceed.
-	if srcInfo, statErr := os.Stat(path); statErr == nil {
+	// (2) Surgical in-place first (Mode auto/inplace): needs write access to
+	// the FILE only (no temp in the directory), never duplicates it on disk,
+	// leaves no backup. In ModeAuto it falls back to the full rewrite below
+	// when the strategy is unavailable (pre-bump stub) or refuses this file
+	// (streamed clusters, truncated tail, no SeekHead slot) — the in-place
+	// journal guarantees the original is intact after any refusal, so the
+	// rewrite can safely proceed. In ModeInPlace the operator explicitly
+	// refused a rewrite: refusal is surfaced as ErrInPlaceUnsupported.
+	// ModeRewrite never attempts the patch.
+	if srcInfo, statErr := os.Stat(path); statErr != nil && opts.Mode == mkv.ModeInPlace {
+		return mkv.ReindexResult{}, fmt.Errorf("reindex: stat source: %w", statErr)
+	} else if statErr == nil && opts.Mode != mkv.ModeRewrite {
 		switch inErr := reindexSurgical(ctx, path); {
 		case inErr == nil:
 			// Tripwire mirroring the rewrite path's step (4): the patched file
@@ -191,8 +204,11 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 				SrcBytes: srcInfo.Size(),
 				DstBytes: dstBytes,
 			}, nil
+		case opts.Mode == mkv.ModeInPlace:
+			// The operator demanded the patch: no silent rewrite.
+			return mkv.ReindexResult{}, fmt.Errorf("reindex: %w: %w", mkv.ErrInPlaceUnsupported, inErr)
 		case errors.Is(inErr, errInPlaceUnavailable):
-			// Pre-bump: the rewrite below is today's only strategy.
+			// Pre-bump ModeAuto: the rewrite below is today's only strategy.
 		default:
 			slog.Info("mkvgo: in-place reindex refused, falling back to the full rewrite",
 				slog.String("path", path), slog.Any("err", inErr))

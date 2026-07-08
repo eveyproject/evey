@@ -11,8 +11,8 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/evey-project/evey/internal/domain/shared"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -116,6 +116,7 @@ func (f fakeReindexer) ReindexInPlace(context.Context, string, mkv.ReindexOption
 }
 func (f fakeReindexer) RestoreBackup(context.Context, string) error { return f.restoreErr }
 func (f fakeReindexer) DeleteBackup(context.Context, string) error  { return nil }
+func (f fakeReindexer) SupportsInPlace() bool                       { return false }
 
 // waitJobDone polls the handler's job endpoint until the job finishes and
 // returns the final response (every seek-index entry point is async now).

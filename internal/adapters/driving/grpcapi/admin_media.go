@@ -183,6 +183,7 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 	out.MissingIndex = int32(res.MissingIndex)
 	out.WithBackup = int32(res.WithBackup)
 	out.AudioDelayed = int32(res.AudioDelayed)
+	out.InplaceAvailable = d.seekIndex.SupportsInPlace()
 	out.ScannedAtMs = at.UnixMilli()
 	for _, it := range res.Items {
 		out.Items = append(out.Items, &eveyv1.SeekIndexItem{
@@ -264,7 +265,7 @@ func (d *adminMediaHandler) ReindexMediaSeekIndex(ctx context.Context, req *evey
 	if err := d.seekIndexConfigured(ctx, span); err != nil {
 		return nil, err
 	}
-	if err := d.seekIndex.StartReindexMedia(ctx, req.GetMediaId()); err != nil {
+	if err := d.seekIndex.StartReindexMedia(ctx, req.GetMediaId(), req.GetMode()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "reindex media seek index", err)
@@ -292,7 +293,7 @@ func (d *adminMediaHandler) ReindexLibrarySeekIndex(ctx context.Context, req *ev
 	if err := d.seekIndexConfigured(ctx, span); err != nil {
 		return nil, err
 	}
-	if err := d.seekIndex.StartReindexLibrary(ctx, req.GetLibraryId()); err != nil {
+	if err := d.seekIndex.StartReindexLibrary(ctx, req.GetLibraryId(), req.GetMode()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "reindex library seek index", err)

@@ -158,7 +158,7 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     fireEvent.click(screen.getByTestId("seek-index-repair-btn"));
-    expect(repairOneMutate).toHaveBeenCalledWith({ mediaId: "mi-1" });
+    expect(repairOneMutate).toHaveBeenCalledWith({ mediaId: "mi-1", params: { mode: "" } });
   });
 
   it("row rollback button calls the single-file rollback mutation", async () => {
@@ -176,7 +176,7 @@ describe("SeekIndexPage", () => {
     fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
-    expect(repairLibMutate).toHaveBeenCalledWith({ data: {} });
+    expect(repairLibMutate).toHaveBeenCalledWith({ data: { mode: "" } });
     expect(rollbackLibMutate).not.toHaveBeenCalled();
   });
 

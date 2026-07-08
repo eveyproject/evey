@@ -925,6 +925,9 @@ seekIndex:
   backupDeleted: "Backup deleted"
   audioDelayBadge: "Audio +{{sec}}s"
   repair: Repair
+  repairMode: "Repair method"
+  repairModeInplace: "Surgical (in-place, no duplicate, recommended)"
+  repairModeStandard: "Standard (rebuilt copy + rollback backup)"
   rollback: Roll back
   startFailed: Could not start the operation
   scanStarted: Scan started — it runs in the background, progress shows below

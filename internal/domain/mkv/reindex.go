@@ -51,7 +51,31 @@ type Reindexer interface {
 	// confirmed the repaired file plays fine — reclaiming the duplicated disk
 	// space is the point. Returns an error if no backup exists.
 	DeleteBackup(ctx context.Context, path string) error
+
+	// SupportsInPlace reports whether the surgical in-place strategy is
+	// available in this build (it activates with the mkvgo release shipping
+	// ReindexInPlace). The UI uses it to offer the mode only when real.
+	SupportsInPlace() bool
 }
+
+// ErrInPlaceUnsupported is returned by ReindexInPlace when the caller demands
+// ModeInPlace but the strategy is unavailable (pre-bump build) or the file is
+// refused by it (streamed clusters, truncated tail, no SeekHead slot). The
+// operator can retry with ModeRewrite.
+var ErrInPlaceUnsupported = errors.New("in-place reindex not supported for this file or build")
+
+// Reindex modes the operator can demand (ReindexOptions.Mode).
+const (
+	// ModeAuto (empty string): surgical in-place when available, otherwise the
+	// rewrite fallback — the safest default.
+	ModeAuto = ""
+	// ModeInPlace: surgical patch ONLY; fail with ErrInPlaceUnsupported instead
+	// of silently rewriting (the operator explicitly refused a duplicate).
+	ModeInPlace = "inplace"
+	// ModeRewrite: full rewrite + swap ONLY (never attempts the patch); the
+	// KeepBackup option applies.
+	ModeRewrite = "rewrite"
+)
 
 // ReindexResult.Method values.
 const (
@@ -63,6 +87,10 @@ const (
 
 // ReindexOptions tunes the safe-replace behaviour.
 type ReindexOptions struct {
+	// Mode selects the strategy: ModeAuto (default), ModeInPlace or
+	// ModeRewrite. See the constants for the exact contract.
+	Mode string
+
 	// KeepBackup retains the "<path>.mkvgobak" copy of the original after a
 	// successful REWRITE swap, enabling a manual rollback even against a latent
 	// bug that slipped past validation. When false, the backup is removed once

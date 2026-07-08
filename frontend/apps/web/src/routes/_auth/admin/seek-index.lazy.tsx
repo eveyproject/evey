@@ -179,6 +179,10 @@ function SeekIndexPage() {
   const [libraryId, setLibraryId] = useState("");
   const [onlyAttention, setOnlyAttention] = useState(true);
   const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | "purge" | null>(null);
+  // Repair strategy: surgical in-place (no backup, file-write only) vs the
+  // standard rewrite (+ .mkvgobak rollback). Only offered when the build
+  // actually ships the surgical strategy.
+  const [repairMode, setRepairMode] = useState<"inplace" | "rewrite">("rewrite");
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -199,11 +203,16 @@ function SeekIndexPage() {
     query: { retry: false },
   });
   const hasScan = Number(scan.data?.scannedAtMs ?? 0) > 0;
+  const inplaceAvailable = scan.data?.inplaceAvailable === true;
   const result = hasScan ? scan.data : undefined;
   const items = result?.items ?? [];
   const missing = result?.missingIndex ?? 0;
   const withBackup = result?.withBackup ?? 0;
   const delayedAudio = result?.audioDelayed ?? 0;
+
+  useEffect(() => {
+    if (inplaceAvailable) setRepairMode("inplace");
+  }, [inplaceAvailable]);
 
   // When the running job finishes, refresh the cached scans and report the
   // outcome — completion happens server-side, not in a mutation callback.
@@ -489,7 +498,7 @@ function SeekIndexPage() {
                               className="text-xs"
                               disabled={busy}
                               loading={repairOne.isPending && repairOne.variables?.mediaId === it.mediaId}
-                              onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId })}
+                              onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, params: { mode: inplaceAvailable ? repairMode : "" } })}
                               data-testid="seek-index-repair-btn"
                             >
                               {t("admin.seekIndex.repair")}
@@ -548,6 +557,20 @@ function SeekIndexPage() {
               ? t("admin.seekIndex.purgeAllConfirm", { count: withBackup })
               : t("admin.seekIndex.repairAllConfirm", { count: missing })}
         </p>
+        {confirmBatch === "repair" && inplaceAvailable && (
+          <div className="mb-4">
+            <Select
+              label={t("admin.seekIndex.repairMode")}
+              value={repairMode}
+              onChange={(v) => setRepairMode(v === "inplace" ? "inplace" : "rewrite")}
+              options={[
+                { value: "inplace", label: t("admin.seekIndex.repairModeInplace") },
+                { value: "rewrite", label: t("admin.seekIndex.repairModeStandard") },
+              ]}
+              data-testid="seek-index-repair-mode"
+            />
+          </div>
+        )}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setConfirmBatch(null)}>
             {t("common.cancel")}
@@ -555,10 +578,9 @@ function SeekIndexPage() {
           <Button
             loading={repairLib.isPending || rollbackLib.isPending || purgeLib.isPending}
             onClick={() => {
-              const req = { data: libraryId ? { libraryId } : {} };
-              if (confirmBatch === "rollback") rollbackLib.mutate(req);
-              else if (confirmBatch === "purge") purgeLib.mutate(req);
-              else repairLib.mutate(req);
+              if (confirmBatch === "rollback") rollbackLib.mutate({ data: libraryId ? { libraryId } : {} });
+              else if (confirmBatch === "purge") purgeLib.mutate({ data: libraryId ? { libraryId } : {} });
+              else repairLib.mutate({ data: { ...(libraryId ? { libraryId } : {}), mode: inplaceAvailable ? repairMode : "" } });
               setConfirmBatch(null);
             }}
             data-testid="seek-index-confirm-batch-btn"
