@@ -15,6 +15,10 @@ export const UNITS_KEY = "residence.units";
 export class SettingsApp {
   private locale = "en";
   private saving = false;
+  // Guards against a host calling onInit more than once (see the same guard
+  // in WeatherApp): without it, a second call re-appended a whole duplicate
+  // form (style + inputs + button) into document.body on top of the first.
+  private booted = false;
 
   constructor(private bridge: HostBridge) {}
 
@@ -27,6 +31,8 @@ export class SettingsApp {
   }
 
   private async boot(init: HostInit): Promise<void> {
+    if (this.booted) return;
+    this.booted = true;
     this.locale = init.locale;
     document.documentElement.style.background = "transparent";
     document.body.style.margin = "0";
