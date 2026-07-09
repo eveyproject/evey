@@ -224,6 +224,10 @@ type HTTPServer struct {
 	// from a genuinely full host (see copyBlockedOnlyByMissingIndex).
 	KeyframeWarmer func(ctx context.Context, mediaID, path string) bool
 
+	// VideoLimiter lets the VOD handler shed a variant playlist early, before a
+	// player commits to a stream it cannot be given. Optional.
+	VideoLimiter *apptranscoding.VideoSessionLimiter
+
 	// DLNA
 	DLNASvc *appdlna.Service
 

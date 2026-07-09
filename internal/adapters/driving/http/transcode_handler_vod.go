@@ -49,6 +49,18 @@ const ErrCodeFileNotReady = "file_not_ready"
 // "transcoding capacity".
 const ErrCodeTooManyStreams = "too_many_streams"
 
+// topFingerprintHeight is the tallest rung this fingerprint's session may
+// encode - the rung whose measured cost the admission budget must cover.
+func topFingerprintHeight(fp apptranscoding.DecisionFingerprint) int {
+	top := 0
+	for _, p := range fp.Profiles {
+		if p.Height > top {
+			top = p.Height
+		}
+	}
+	return top
+}
+
 // writeShed sheds a request with everything a client needs to react well: a
 // machine-readable code (in a header AND the body, since a media element only
 // exposes the status line and headers), a Retry-After, and a technical message
@@ -143,6 +155,10 @@ type hlsVODServe struct {
 	// keyframeWarmer nudges the bounded on-demand index walk. Optional (nil =
 	// no nudge); see copyBlockedOnlyByMissingIndex for why it matters here.
 	keyframeWarmer func(ctx context.Context, mediaID, path string) bool
+	// videoAdmission is the limiter's read-only probe, used to shed a variant
+	// playlist before a player commits to a stream. Optional (nil = no early
+	// shed; the segment route still gates authoritatively).
+	videoAdmission func(key string, topHeight int) bool
 
 	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS —
 	// zero-storage, stateless, byte-identical HLS + DASH — when wired (behind
@@ -523,6 +539,33 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 			return
 		}
 		out = v
+	}
+
+	// Shed EARLY, while the player has not yet committed to this stream. The
+	// segment route is the authoritative gate, but by then a native player is
+	// already buffering and can only surface "playback failed". Probing here
+	// lets every client - including mobile/TV, whose players never expose a
+	// segment's status code - tell the viewer plainly what is happening.
+	//
+	// Advisory by construction: two viewers can both pass this probe and race
+	// at spawn. That is fine; the loser is shed at the segment, as before.
+	if h.videoAdmission != nil {
+		decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
+		if !h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
+			if fp, fpErr := h.buildFingerprint(r, mediaID, item, streams); fpErr == nil && !h.videoAdmission(fp.Hash(), topFingerprintHeight(fp)) {
+				if copyBlockedOnlyByMissingIndex(decision, streams) {
+					if h.keyframeWarmer != nil {
+						go h.keyframeWarmer(context.WithoutCancel(r.Context()), mediaID, sourcePathOf(item))
+					}
+					writeShed(w, ErrCodeFileNotReady, 10, "source keyframe index still being built; the copy rung needs no encode slot")
+					return
+				}
+				slog.Info("hls-vod: shedding a variant playlist, host at video capacity",
+					slog.String("media_id", mediaID), slog.Int("variant", profileIdx))
+				writeTooManyStreams(w, 5, "server at video transcoding capacity")
+				return
+			}
+		}
 	}
 
 	setCORSHeaders(w, r, "")
@@ -1770,6 +1813,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	classLookup, _ := pkgcache.NewWithMaxSize[domaintranscoding.ContentClass](0, mediaLookupMax)
 	h := &hlsVODServe{
 		keyframeWarmer:       s.KeyframeWarmer,
+		videoAdmission:       videoAdmissionOf(s.VideoLimiter),
 		mediaLookup:          mediaLookup,
 		classLookup:          classLookup,
 		tokens:               s.TokenGen,
@@ -2166,4 +2210,13 @@ func (h *hlsVODServe) notifyProducerHint(producer apptranscoding.StreamProducer,
 	// the policy. Object type "v"/"av" matters most (video pipeline),
 	// audio-only fetches can still bump clientHighWater forward harmlessly.
 	producer.NotifyClientHint(mediaID, payload.BufferLengthMs, payload.BufferStarved, segmentIdx)
+}
+
+// videoAdmissionOf adapts the limiter to the handler's narrow probe, keeping a
+// TRUE-nil func when no limiter is wired (tests, hand-built servers).
+func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, int) bool {
+	if l == nil {
+		return nil
+	}
+	return l.CanAdmit
 }

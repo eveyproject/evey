@@ -181,6 +181,29 @@ func (l *VideoSessionLimiter) TryAcquire(key string, topHeight int) bool {
 	return true
 }
 
+// CanAdmit answers TryAcquire's question WITHOUT reserving anything: would a
+// stream identified by key, whose top rung is topHeight, be admitted right
+// now? Advisory by nature - the answer can go stale the instant it returns -
+// so it is only ever used to shed EARLY (at manifest time, before a player
+// commits to a stream), never to authorise. The authoritative decision stays
+// in TryAcquire, at spawn.
+//
+// A key that already holds a slot always can: its sibling encoders join it.
+func (l *VideoSessionLimiter) CanAdmit(key string, topHeight int) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if _, joining := l.refs[key]; joining {
+		return true
+	}
+	if l.limit > 0 && len(l.refs) >= l.limit {
+		return false
+	}
+	if l.costModel == nil {
+		return true
+	}
+	return l.used+l.costModel.CostForHeight(topHeight) <= l.budget+budgetEpsilon
+}
+
 // Release gives back the reference key took in TryAcquire; the stream's slot
 // (and its reserved cost, if any) frees when its last encoder is gone. A
 // stray Release for an unknown key is a no-op rather than a corrupting

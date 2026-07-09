@@ -379,6 +379,54 @@ func TestHLSVOD_Segment_CopyEligibleSourceNeverBlamesOtherViewers(t *testing.T) 
 	}
 }
 
+// A native player (mobile, TV) never exposes a segment's status code, so a
+// host at capacity would surface as a generic "playback failed". Shedding the
+// VARIANT PLAYLIST instead tells every client, before it commits to the
+// stream, exactly what is happening.
+func TestHLSVOD_VariantPlaylist_ShedsEarlyWhenHostIsFull(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+
+	// The probe refuses everything: stand in for a host with no budget left.
+	h.videoAdmission = func(string, int) bool { return false }
+
+	w := doVODRequest(h, "m1", "stream_0.m3u8")
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, ErrCodeTooManyStreams, w.Header().Get("X-Evey-Error"))
+	assert.Equal(t, "5", w.Header().Get("Retry-After"))
+	assert.NotContains(t, w.Body.String(), "#EXTM3U", "a shed request must not hand out a playlist")
+}
+
+func TestHLSVOD_VariantPlaylist_ServedNormallyWhenAdmitted(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.videoAdmission = func(string, int) bool { return true }
+
+	w := doVODRequest(h, "m1", "stream_0.m3u8")
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "#EXTM3U")
+}
+
 func TestHLSVOD_Routing_InitSegment(t *testing.T) {
 	dur, _ := shared.NewDurationMs(60_000)
 	item := &domainlibrary.MediaItem{
