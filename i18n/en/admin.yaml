@@ -579,6 +579,13 @@ serverConfig:
   trickplayEnabled: Enable trickplay thumbnails
   trickplayAdaptiveCpu: "Adaptive CPU"
   trickplayAdaptiveCpuDesc: "Gentle mode (~25% CPU). Disable for faster generation (~50% CPU)."
+  memoryProfileTitle: "Memory Profile"
+  memoryProfileSubtitle: "Controls how aggressively idle plugin processes are suspended to save RAM."
+  memoryProfileLabel: "Memory profile"
+  memoryProfileAuto: "Auto (recommended)"
+  memoryProfileNormal: "Normal"
+  memoryProfileLow: "Low"
+  memoryProfileDesc: "Low suspends idle plugin processes to save RAM (resumed on demand); Auto picks Low on machines under 3 GB."
   artworkTitle: "Artwork Downloads"
   artworkDesc: "Cache posters and other artwork locally on the server."
   artworkInfo: "When off, the frontend depends on external CDN URLs that some browsers block (Firefox's Opaque Response Blocking, for instance). Caching locally also lets the server normalise the format to WebP."

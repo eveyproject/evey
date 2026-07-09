@@ -529,6 +529,13 @@ serverConfig:
   trickplayEnabled: Trickplay-Vorschaubilder aktivieren
   trickplayAdaptiveCpu: "Adaptive CPU"
   trickplayAdaptiveCpuDesc: "Schonender Modus (~25% CPU). Deaktivieren für schnellere Generierung (~50% CPU)."
+  memoryProfileTitle: "Speicherprofil"
+  memoryProfileSubtitle: "Steuert, wie aggressiv inaktive Plugin-Prozesse ausgesetzt werden, um RAM zu sparen."
+  memoryProfileLabel: "Speicherprofil"
+  memoryProfileAuto: "Auto (empfohlen)"
+  memoryProfileNormal: "Normal"
+  memoryProfileLow: "Niedrig"
+  memoryProfileDesc: "Niedrig setzt inaktive Plugin-Prozesse aus, um RAM zu sparen (werden bei Bedarf fortgesetzt); Auto wählt Niedrig auf Rechnern mit weniger als 3 GB."
   parserTokensTitle: "Parser-Tokens"
   parserTokensDesc: "Zusätzliche Release-Tags, die der Dateinamen-Parser über seine Standardliste hinaus erkennt."
   parserTokensInfo: "Tags ergänzen, die der Parser standardmäßig nicht entfernt (HDRIP, eigene Editionen usw.), damit verwaiste Dateien mit TMDB übereinstimmen. Änderungen werden beim nächsten Scan sofort wirksam."

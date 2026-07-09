@@ -153,4 +153,52 @@ describe("ServerConfigPage", () => {
     fireEvent.click(showBtns[0]);
     expect(screen.getByRole("button", { name: /Hide/i })).toBeInTheDocument();
   });
+
+  it("renders Memory Profile card with Auto/Normal/Low options", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    expect(screen.getByText(/Memory Profile/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Memory Profile/i }));
+    const select = await screen.findByLabelText(/^Memory profile$/i);
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
+    expect(options).toEqual(["Auto (recommended)", "Normal", "Low"]);
+    expect(screen.getByText(/Low suspends idle plugin processes to save RAM/i)).toBeInTheDocument();
+  });
+
+  it("defaults the Memory Profile select to Auto when no entry is stored", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Memory Profile/i }));
+    const select = (await screen.findByLabelText(/^Memory profile$/i)) as HTMLSelectElement;
+    expect(select.value).toBe("");
+  });
+
+  it("reflects a stored server.memory_profile value in the select", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [{ key: "server.memory_profile", value: "low", updatedAt: "2024-01-15T10:00:00Z" }],
+      isLoading: false,
+    });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Memory Profile/i }));
+    const select = (await screen.findByLabelText(/^Memory profile$/i)) as HTMLSelectElement;
+    expect(select.value).toBe("low");
+  });
+
+  it("saves the selected memory profile value", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const mutate = vi.fn();
+    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Memory Profile/i }));
+    const select = await screen.findByLabelText(/^Memory profile$/i);
+    fireEvent.change(select, { target: { value: "low" } });
+    expect(mutate).toHaveBeenCalledWith(
+      { key: "server.memory_profile", value: "low" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
 });
