@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
@@ -290,4 +291,34 @@ func TestEffectiveVideoCodec_AV1Gate(t *testing.T) {
 			t.Errorf("h264 must be unchanged, got %q", got)
 		}
 	})
+}
+
+// The routing gate and the fingerprint tag must tell the same story: the route
+// decides which physical resource (GPU vs CPU) the session burns, and the
+// fingerprint is what admission prices. The AV1 fallback is where they used to
+// diverge - an AV1-preferring client on an AV1-disabled host encodes H.264
+// (fingerprint says HW when H.264 is HW-capable), so the ROUTE must be HW too.
+func TestHWRouteUsable_MatchesEffectiveCodec_AV1Fallback(t *testing.T) {
+	nvencH264 := domaintranscoding.EncodeCapability{
+		HWBackend:      "nvenc",
+		HWCodecs:       []string{"h264", "hevc"}, // no AV1 encode
+		HWDecodeCodecs: []string{"h264", "hevc"},
+	}
+	h := &hlsVODServe{
+		capability:     func() domaintranscoding.EncodeCapability { return nvencH264 },
+		hwAccelEnabled: func() bool { return true },
+		av1Enabled:     func() bool { return false },
+	}
+	decision := domaintranscoding.PlaybackDecision{VideoCodec: "av1", VideoDecision: "transcode"}
+	src := apptranscoding.SourceDims{Codec: "h264"}
+
+	_, accel, _, _, usable := h.effectiveVideoCodec(decision, []*domainlibrary.MediaStream{{
+		StreamType: domainlibrary.StreamTypeVideo, Codec: "h264",
+	}})
+	if !usable || accel != "nvenc" {
+		t.Fatalf("fingerprint side: effective H.264 must be HW-usable, got (%q,%v)", accel, usable)
+	}
+	if !h.hwRouteUsable(decision, src) {
+		t.Error("route side must agree: this session runs on the GPU")
+	}
 }

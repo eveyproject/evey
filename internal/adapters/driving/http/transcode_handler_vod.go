@@ -1494,6 +1494,23 @@ func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit, h
 	return cap.HWBackend, cap.HWDevice, cap.HWFeatures, true
 }
 
+// hwRouteUsable is the selector's routing gate: does the HARDWARE producer
+// take this request? It must answer exactly like effectiveVideoCodec tags the
+// fingerprint - the route decides which physical resource the session burns
+// (GPU vs CPU pools), so a gate/fingerprint disagreement makes admission price
+// one pool while the spawn consumes the other. In particular it replays the
+// AV1 fallback: an AV1-preferring client on an AV1-disabled (or AV1-incapable)
+// host is ENCODED as H.264, so the route must be resolved for H.264 too.
+func (h *hlsVODServe) hwRouteUsable(decision domaintranscoding.PlaybackDecision, src apptranscoding.SourceDims) bool {
+	hwTonemap := h.hwTonemapWanted(decision)
+	codec := decision.VideoCodec
+	_, _, _, usable := h.resolveHW(codec, src.Codec, src.TenBit, hwTonemap)
+	if strings.EqualFold(codec, "av1") && ((h.av1Enabled != nil && !h.av1Enabled()) || !usable) {
+		_, _, _, usable = h.resolveHW("h264", src.Codec, src.TenBit, hwTonemap)
+	}
+	return usable
+}
+
 // hwTonemapWanted reports whether this request should tone-map HDR->SDR on the
 // GPU: the decision needs tone-mapping, the toggle is on, the host probed
 // HWTonemap, and the backend has a wired HW tone-map filter (vaapi/qsv — NVENC's
@@ -2048,14 +2065,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// hardware path is usable end-to-end for this content. hwUsableForContent
 	// reuses the handler's resolveHW + hwTonemapWanted so the routing matches
 	// exactly what tags the fingerprint (HW vs SW segments share the cache).
-	h.selector = apptranscoding.NewProducerSelector(
-		software,
-		orch,
-		func(decision domaintranscoding.PlaybackDecision, src apptranscoding.SourceDims) bool {
-			_, _, _, usable := h.resolveHW(decision.VideoCodec, src.Codec, src.TenBit, h.hwTonemapWanted(decision))
-			return usable
-		},
-	)
+	h.selector = apptranscoding.NewProducerSelector(software, orch, h.hwRouteUsable)
 
 	// Shutdown teardown for the producers built HERE: the software producer and
 	// the optional copy producer own long-lived ffmpeg sessions that would
