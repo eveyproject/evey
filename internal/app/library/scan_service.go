@@ -12,13 +12,14 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/scanindex"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 )
@@ -61,7 +62,7 @@ type ScanService struct {
 	mediaItems   library.MediaItemCommandRepo
 	libQueries   library.LibraryQueryRepo
 	libraries    library.LibraryCommandRepo
-	mediaStreams  library.MediaStreamRepository
+	mediaStreams library.MediaStreamRepository
 	persons      library.PersonRepository
 	mediaPersons library.MediaPersonRepository
 
@@ -69,6 +70,15 @@ type ScanService struct {
 	musicScanner TypedDirectoryScanner
 	photoScanner TypedDirectoryScanner
 	pruner       *OrphanPruner
+
+	// Ingest-plan precompute (mkvgo ops.Ingest, v0.17.0) for freshly-scanned
+	// files. All optional; nil ingestPlanner/servingPlans disables the
+	// feature outright regardless of what ingestCfg says. See ingest_plan.go.
+	ingestCfg            shared.ServerConfigRepository
+	ingestPlanner        library.IngestPlanner
+	servingPlans         library.ServingPlanRepository
+	reindexer            mkv.Reindexer
+	ingestActivePlayback func() int
 
 	scanMu   sync.Mutex
 	scanning map[string]bool
@@ -90,7 +100,7 @@ func NewScanService(
 		libraries:    libraries,
 		libQueries:   libQueries,
 		mediaItems:   mediaItems,
-		mediaStreams:  mediaStreams,
+		mediaStreams: mediaStreams,
 		persons:      persons,
 		mediaPersons: mediaPersons,
 		scanner:      scanner,
@@ -116,6 +126,31 @@ func (s *ScanService) WithMusicScanner(sc TypedDirectoryScanner) {
 
 func (s *ScanService) WithPhotoScanner(sc TypedDirectoryScanner) {
 	s.photoScanner = sc
+}
+
+// WithIngestPlanning wires the mkvgo-fronted serving-plan precompute for
+// freshly-scanned files, gated at runtime by the server_config key
+// IngestServingPlanConfigKey (see ingest_plan.go). planner/store/reindexer
+// come from the composition root: planner is the mkvgo adapter's Plan
+// method, store persists the decision, reindexer drives the "plan+repair"
+// mode's in-place seek-index repair (mkv.Reindexer, ModeAuto - same port
+// app/maintenance/seek_index.go uses). A nil planner or store leaves the
+// feature off even when the config says otherwise. Chainable.
+func (s *ScanService) WithIngestPlanning(cfgRepo shared.ServerConfigRepository, planner library.IngestPlanner, store library.ServingPlanRepository, reindexer mkv.Reindexer) *ScanService {
+	s.ingestCfg = cfgRepo
+	s.ingestPlanner = planner
+	s.servingPlans = store
+	s.reindexer = reindexer
+	return s
+}
+
+// WithIngestActivePlayback wires the live playback-session counter so the
+// ingest-plan pacing backs off to ingestPoliteItemPause while someone is
+// streaming - mirrors KeyframeBackfillWorker.WithActivePlayback. Optional;
+// nil (the default) keeps the fixed ingestItemPause gap. Chainable.
+func (s *ScanService) WithIngestActivePlayback(count func() int) *ScanService {
+	s.ingestActivePlayback = count
+	return s
 }
 
 type scanWork struct {
@@ -613,6 +648,13 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 			slog.Warn("update media item after probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 		}
 	}
+	// Ingest-plan precompute runs for brand-new files ONLY (this is
+	// createMediaFile, never reached by an unchanged re-scan - see
+	// detectChanges' short-circuit and updateMediaFile for the changed-content
+	// path, which intentionally does not call this). No-op unless
+	// WithIngestPlanning wired a planner+store and the server_config mode is
+	// not "off".
+	s.applyIngestPlan(ctx, item.ID, f.Path)
 	if s.metadata != nil {
 		s.metadata.extractAndStoreChapters(ctx, string(item.ID), f.Path)
 	}
@@ -838,4 +880,3 @@ func scanWorkerCount() int {
 	}
 	return sysinfo.CPUBudget()
 }
-
