@@ -24,5 +24,7 @@ Structural decisions for Evey. New ADRs are numbered sequentially and never rewr
 | [0018](0018-cmcd-qoe-pipeline.md) | CMCD-based QoE telemetry with a non-blocking drop-on-full sink | 2026-06-14 | Accepted |
 | [0019](0019-token-epoch-revocation.md) | Token-epoch revocation for stateless JWTs | 2026-06-14 | Accepted |
 | [0020](0020-hls-native-audio-rendition.md) | HLS-native audio rendition (EXT-X-MEDIA) for multi-language switching | 2026-06-14 | Accepted |
+| [0021](0021-plugins-on-tv.md) | Plugins on TV: WebView portage now, native SDUI renderer later | 2026-07-09 | Accepted |
+| [0022](0022-hls-decision-pinning-and-av-resync.md) | HLS decision pinning (vd=/ad=) and A/V resync (source-delay cancel + user offset) | 2026-07-09 | Accepted |
 
 See also [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for the high-level picture.
