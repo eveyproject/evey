@@ -32,7 +32,9 @@ func selfRestartFn() func() {
 	return func() {
 		slog.Warn("admin restart: sending SIGTERM to self for graceful shutdown")
 		if p, err := os.FindProcess(os.Getpid()); err == nil {
-			_ = p.Signal(syscall.SIGTERM)
+			if sigErr := p.Signal(syscall.SIGTERM); sigErr != nil {
+				slog.Error("admin restart: SIGTERM self failed", slog.Any("err", sigErr))
+			}
 		}
 	}
 }

@@ -39,10 +39,7 @@ func (h *presenceHandler) ListOnline(_ context.Context, _ *eveyv1.ListOnlineRequ
 	entries := h.tracker.Online()
 	users := make([]*eveyv1.OnlineUser, 0, len(entries))
 	for _, e := range entries {
-		idle := int32(now.Sub(e.LastSeen).Seconds())
-		if idle < 0 {
-			idle = 0
-		}
+		idle := max(int32(now.Sub(e.LastSeen).Seconds()), 0)
 		users = append(users, &eveyv1.OnlineUser{
 			UserId:       e.UserID,
 			Username:     e.Username,
