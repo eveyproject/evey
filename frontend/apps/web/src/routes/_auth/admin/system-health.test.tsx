@@ -160,4 +160,68 @@ describe("SystemHealthPage", () => {
     const { container } = render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
     expect(container.innerHTML).toContain("color-danger");
   });
+
+  it("does not render the video capacity card when videoSessions is undefined", async () => {
+    mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    expect(screen.queryByTestId("video-capacity-card")).not.toBeInTheDocument();
+  });
+
+  it("renders the video capacity card with active/limit ratio", async () => {
+    const sysWithVideo = {
+      ...sysData,
+      videoSessions: {
+        autoCapacity: 3,
+        effectiveLimit: 3,
+        active: 1,
+        evidence: { height: 1080, fps: 42.5, requiredFps: 24, cpuBudget: 4, derived: true },
+      },
+    };
+    mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysWithVideo, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    const card = screen.getByTestId("video-capacity-card");
+    expect(card).toHaveTextContent("1 / 3 streams");
+    expect(card).toHaveTextContent("Measured: 1080p at 42.5 fps for 24.0 required, 4 cores");
+  });
+
+  it("shows the auto-capacity note when the admin has reduced the effective limit", async () => {
+    const sysWithVideo = {
+      ...sysData,
+      videoSessions: {
+        autoCapacity: 3,
+        effectiveLimit: 1,
+        active: 1,
+        evidence: { height: 1080, fps: 42.5, requiredFps: 24, cpuBudget: 4, derived: true },
+      },
+    };
+    mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysWithVideo, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    const card = screen.getByTestId("video-capacity-card");
+    expect(card).toHaveTextContent("1 / 1 streams");
+    expect(card).toHaveTextContent("Auto capacity is 3 streams (reduced by admin override)");
+  });
+
+  it("shows an unmeasured-capacity warning when evidence.derived is false", async () => {
+    const sysWithVideo = {
+      ...sysData,
+      videoSessions: {
+        autoCapacity: 1,
+        effectiveLimit: 1,
+        active: 0,
+        evidence: { height: 0, fps: 0, requiredFps: 0, cpuBudget: 0, derived: false },
+      },
+    };
+    mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysWithVideo, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    const card = screen.getByTestId("video-capacity-card");
+    expect(card).toHaveTextContent("Capacity not measured (no benchmark available), conservative fallback to 1");
+  });
 });

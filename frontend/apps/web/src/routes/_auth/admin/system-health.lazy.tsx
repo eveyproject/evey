@@ -213,6 +213,63 @@ function InfoRow({ label, value }: { label: string; value: string | undefined })
   );
 }
 
+type VideoSessionCapacity = NonNullable<V1SystemInfo["videoSessions"]>;
+type VideoCapacityEvidence = NonNullable<VideoSessionCapacity["evidence"]>;
+
+function VideoCapacityEvidenceRow({ evidence }: { evidence: VideoCapacityEvidence | undefined }) {
+  const { t } = useTranslation();
+  if (!evidence) return null;
+  if (evidence.derived === false) {
+    return (
+      <p className="text-xs text-[var(--color-warning)]">
+        {t("admin.systemHealth.videoCapacityNotMeasured")}
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs text-[var(--text-muted)]">
+      {t("admin.systemHealth.videoCapacityEvidence", {
+        height: evidence.height ?? 0,
+        fps: (evidence.fps ?? 0).toFixed(1),
+        requiredFps: (evidence.requiredFps ?? 0).toFixed(1),
+        cpuBudget: evidence.cpuBudget ?? 0,
+      })}
+    </p>
+  );
+}
+
+function VideoCapacityCard({ capacity }: { capacity: VideoSessionCapacity }) {
+  const { t } = useTranslation();
+  const active = capacity.active ?? 0;
+  const limit = capacity.effectiveLimit ?? 0;
+  const auto = capacity.autoCapacity ?? 0;
+  const reduced = limit < auto;
+  return (
+    <div
+      className="p-4 rounded-[var(--radius-lg)] flex flex-col gap-2 bg-[var(--surface)] border border-[var(--border)]"
+      data-testid="video-capacity-card"
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+          {t("admin.systemHealth.videoCapacityTitle")}
+        </span>
+        <span className="text-xl font-bold text-[var(--text)]">
+          {t("admin.systemHealth.videoCapacityRatio", { active, limit })}
+        </span>
+      </div>
+      {reduced && (
+        <p className="text-xs text-[var(--text-muted)]">
+          {t("admin.systemHealth.videoCapacityAutoNote", { auto })}
+        </p>
+      )}
+      <VideoCapacityEvidenceRow evidence={capacity.evidence} />
+      <p className="text-xs text-[var(--text-muted)]">
+        {t("admin.systemHealth.videoCapacityHint")}
+      </p>
+    </div>
+  );
+}
+
 function ServerInfoPanel({ info }: { info: V1SystemInfo }) {
   const { t } = useTranslation();
   const devices = info.hwDevices ?? [];
@@ -355,6 +412,15 @@ function SystemHealthPage() {
                 {t("admin.systemHealth.activitySection")}
               </h2>
               <DashboardPanel info={dashData} />
+            </div>
+          )}
+
+          {sysData?.videoSessions && (
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
+                {t("admin.systemHealth.videoCapacitySection")}
+              </h2>
+              <VideoCapacityCard capacity={sysData.videoSessions} />
             </div>
           )}
 

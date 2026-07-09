@@ -598,6 +598,11 @@ serverConfig:
   memoryProfileDesc: "Low suspends idle plugin processes to save RAM (resumed on demand); Auto picks Low on machines under 3 GB."
   mkvgoTitle: "mkvgo"
   mkvgoSubtitle: "Media inspection and repair via the mkvgo library."
+  videoSessionsTitle: "Video Transcode Capacity"
+  videoSessionsSubtitle: "Limit how many video streams may be transcoded at once."
+  maxVideoSessionsLabel: "Max concurrent video transcodes"
+  maxVideoSessionsAuto: "Auto (recommended)"
+  maxVideoSessionsDesc: "Can only reduce the auto-detected capacity, never increase it. Audio-only transcodes (video copied through) don't use a slot; a viewer switching quality still uses just one."
   ingestServingPlanLabel: "Ingest serving plan"
   ingestServingPlanOff: "Off"
   ingestServingPlanPlan: "Plan"
@@ -691,6 +696,13 @@ systemHealth:
   totalUsers: Total Users
   hwAcceleration: HW Acceleration
   serverId: Server ID
+  videoCapacitySection: Video Transcode Capacity
+  videoCapacityTitle: Video Transcode Capacity
+  videoCapacityRatio: "{{active}} / {{limit}} streams"
+  videoCapacityAutoNote: "Auto capacity is {{auto}} streams (reduced by admin override)"
+  videoCapacityEvidence: "Measured: {{height}}p at {{fps}} fps for {{requiredFps}} required, {{cpuBudget}} cores"
+  videoCapacityNotMeasured: "Capacity not measured (no benchmark available), conservative fallback to 1"
+  videoCapacityHint: "Counts simultaneous transcoded video streams. Audio-only transcodes (video copied through) don't use a slot, and a viewer switching quality still uses just one."
 
 transcodeCache:
   title: Transcode Cache

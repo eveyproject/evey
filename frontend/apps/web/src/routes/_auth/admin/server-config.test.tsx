@@ -275,4 +275,43 @@ describe("ServerConfigPage", () => {
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
   });
+
+  it("renders the Video Transcode Capacity card with an Auto placeholder", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    expect(screen.getByText(/Video Transcode Capacity/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Video Transcode Capacity/i }));
+    const input = (await screen.findByLabelText(/^Max concurrent video transcodes$/i)) as HTMLInputElement;
+    expect(input.value).toBe("");
+    expect(input.placeholder).toBe("Auto (recommended)");
+  });
+
+  it("reflects a stored transcoding.max_video_sessions value", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [{ key: "transcoding.max_video_sessions", value: "2", updatedAt: "2024-01-15T10:00:00Z" }],
+      isLoading: false,
+    });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Video Transcode Capacity/i }));
+    const input = (await screen.findByLabelText(/^Max concurrent video transcodes$/i)) as HTMLInputElement;
+    expect(input.value).toBe("2");
+  });
+
+  it("saves the max video sessions value with the right key when Save is clicked", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const mutate = vi.fn();
+    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Video Transcode Capacity/i }));
+    const input = await screen.findByLabelText(/^Max concurrent video transcodes$/i);
+    fireEvent.change(input, { target: { value: "2" } });
+    fireEvent.click(screen.getByTestId("max-video-sessions-save-btn"));
+    expect(mutate).toHaveBeenCalledWith(
+      { key: "transcoding.max_video_sessions", value: "2" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
 });

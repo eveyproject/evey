@@ -538,6 +538,11 @@ serverConfig:
   memoryProfileDesc: "Niedrig setzt inaktive Plugin-Prozesse aus, um RAM zu sparen (werden bei Bedarf fortgesetzt); Auto wählt Niedrig auf Rechnern mit weniger als 3 GB."
   mkvgoTitle: "mkvgo"
   mkvgoSubtitle: "Medienprüfung und -reparatur über die mkvgo-Bibliothek."
+  videoSessionsTitle: "Video-Transcodierkapazität"
+  videoSessionsSubtitle: "Begrenzt, wie viele Videostreams gleichzeitig transkodiert werden dürfen."
+  maxVideoSessionsLabel: "Max. gleichzeitige Video-Transkodierungen"
+  maxVideoSessionsAuto: "Automatisch (empfohlen)"
+  maxVideoSessionsDesc: "Kann die automatisch erkannte Kapazität nur verringern, niemals erhöhen. Reine Audio-Transkodierungen (Video wird durchgereicht) belegen keinen Platz; ein Zuschauer, der die Qualität wechselt, belegt weiterhin nur einen."
   ingestServingPlanLabel: "Ingest-Wiedergabeplan"
   ingestServingPlanOff: "Aus"
   ingestServingPlanPlan: "Plan"
@@ -630,6 +635,13 @@ systemHealth:
   totalUsers: Benutzer gesamt
   hwAcceleration: HW-Beschleunigung
   serverId: Server-ID
+  videoCapacitySection: "Video-Transcodierkapazität"
+  videoCapacityTitle: "Video-Transcodierkapazität"
+  videoCapacityRatio: "{{active}} / {{limit}} Streams"
+  videoCapacityAutoNote: "Automatische Kapazität: {{auto}} Streams (vom Administrator reduziert)"
+  videoCapacityEvidence: "Gemessen: {{height}}p bei {{fps}} fps, {{requiredFps}} benötigt, {{cpuBudget}} Kerne"
+  videoCapacityNotMeasured: "Kapazität nicht gemessen (kein Benchmark verfügbar), vorsichtiger Rückfall auf 1"
+  videoCapacityHint: "Zählt gleichzeitig transkodierte Videostreams. Reine Audio-Transkodierungen (Video wird durchgereicht) belegen keinen Platz, und ein Zuschauer, der die Qualität wechselt, belegt weiterhin nur einen."
 
 transcodeCache:
   title: Transkodierungs-Cache
