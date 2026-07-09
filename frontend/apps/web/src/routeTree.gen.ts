@@ -55,7 +55,6 @@ import { Route as AuthAdminSeekIndexRouteImport } from './routes/_auth/admin/see
 import { Route as AuthAdminRemoteAccessRouteImport } from './routes/_auth/admin/remote-access'
 import { Route as AuthAdminQoeRouteImport } from './routes/_auth/admin/qoe'
 import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugins'
-import { Route as AuthAdminOnlineRouteImport } from './routes/_auth/admin/online'
 import { Route as AuthAdminLogsRouteImport } from './routes/_auth/admin/logs'
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
 import { Route as AuthAdminFeedsRouteImport } from './routes/_auth/admin/feeds'
@@ -370,13 +369,6 @@ const AuthAdminPluginsRoute = AuthAdminPluginsRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/plugins.lazy').then((d) => d.Route),
 )
-const AuthAdminOnlineRoute = AuthAdminOnlineRouteImport.update({
-  id: '/online',
-  path: '/online',
-  getParentRoute: () => AuthAdminRoute,
-} as any).lazy(() =>
-  import('./routes/_auth/admin/online.lazy').then((d) => d.Route),
-)
 const AuthAdminLogsRoute = AuthAdminLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
@@ -492,7 +484,6 @@ export interface FileRoutesByFullPath {
   '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/logs': typeof AuthAdminLogsRoute
-  '/admin/online': typeof AuthAdminOnlineRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/qoe': typeof AuthAdminQoeRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
@@ -551,7 +542,6 @@ export interface FileRoutesByTo {
   '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/logs': typeof AuthAdminLogsRoute
-  '/admin/online': typeof AuthAdminOnlineRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/qoe': typeof AuthAdminQoeRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
@@ -613,7 +603,6 @@ export interface FileRoutesById {
   '/_auth/admin/feeds': typeof AuthAdminFeedsRoute
   '/_auth/admin/libraries': typeof AuthAdminLibrariesRoute
   '/_auth/admin/logs': typeof AuthAdminLogsRoute
-  '/_auth/admin/online': typeof AuthAdminOnlineRoute
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
   '/_auth/admin/qoe': typeof AuthAdminQoeRoute
   '/_auth/admin/remote-access': typeof AuthAdminRemoteAccessRoute
@@ -675,7 +664,6 @@ export interface FileRouteTypes {
     | '/admin/feeds'
     | '/admin/libraries'
     | '/admin/logs'
-    | '/admin/online'
     | '/admin/plugins'
     | '/admin/qoe'
     | '/admin/remote-access'
@@ -734,7 +722,6 @@ export interface FileRouteTypes {
     | '/admin/feeds'
     | '/admin/libraries'
     | '/admin/logs'
-    | '/admin/online'
     | '/admin/plugins'
     | '/admin/qoe'
     | '/admin/remote-access'
@@ -795,7 +782,6 @@ export interface FileRouteTypes {
     | '/_auth/admin/feeds'
     | '/_auth/admin/libraries'
     | '/_auth/admin/logs'
-    | '/_auth/admin/online'
     | '/_auth/admin/plugins'
     | '/_auth/admin/qoe'
     | '/_auth/admin/remote-access'
@@ -1167,13 +1153,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminPluginsRouteImport
       parentRoute: typeof AuthAdminRoute
     }
-    '/_auth/admin/online': {
-      id: '/_auth/admin/online'
-      path: '/online'
-      fullPath: '/admin/online'
-      preLoaderRoute: typeof AuthAdminOnlineRouteImport
-      parentRoute: typeof AuthAdminRoute
-    }
     '/_auth/admin/logs': {
       id: '/_auth/admin/logs'
       path: '/logs'
@@ -1271,7 +1250,6 @@ interface AuthAdminRouteChildren {
   AuthAdminFeedsRoute: typeof AuthAdminFeedsRoute
   AuthAdminLibrariesRoute: typeof AuthAdminLibrariesRoute
   AuthAdminLogsRoute: typeof AuthAdminLogsRoute
-  AuthAdminOnlineRoute: typeof AuthAdminOnlineRoute
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
   AuthAdminQoeRoute: typeof AuthAdminQoeRoute
   AuthAdminRemoteAccessRoute: typeof AuthAdminRemoteAccessRoute
@@ -1298,7 +1276,6 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminFeedsRoute: AuthAdminFeedsRoute,
   AuthAdminLibrariesRoute: AuthAdminLibrariesRoute,
   AuthAdminLogsRoute: AuthAdminLogsRoute,
-  AuthAdminOnlineRoute: AuthAdminOnlineRoute,
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,
   AuthAdminQoeRoute: AuthAdminQoeRoute,
   AuthAdminRemoteAccessRoute: AuthAdminRemoteAccessRoute,

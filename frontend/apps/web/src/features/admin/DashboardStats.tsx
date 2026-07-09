@@ -22,6 +22,7 @@ import { QuickActions } from "./DashboardQuickActions";
 import { RecentActivity } from "./DashboardRecentActivity";
 import { PlayActivityChart, StorageDonut, PeakHours } from "./DashboardCharts";
 import { ActiveUsersSummary } from "./DashboardActiveUsers";
+import { OnlineNow } from "./DashboardOnline";
 import { PopularMedia } from "./DashboardPopularMedia";
 
 interface DashboardStatsProps {
@@ -83,7 +84,10 @@ export function DashboardStats({ info }: DashboardStatsProps) {
         <PeakHours />
       </div>
 
-      <ActiveUsersSummary />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        <OnlineNow />
+        <ActiveUsersSummary />
+      </div>
 
       <QuickActions />
 

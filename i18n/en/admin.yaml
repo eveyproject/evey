@@ -2,7 +2,6 @@ nav:
   dashboardSystem: Dashboard & System
   dashboard: Dashboard
   nowPlaying: Now Playing
-  online: Online
   remoteAccess: Remote Access
   serverConfig: Server Config
   transcodingConfig: Transcoding
@@ -29,14 +28,9 @@ nav:
 
 online:
   title: Who's Online
-  subtitle: Users connected right now (live)
   countOne: "{{count}} user online"
   countOther: "{{count}} users online"
   empty: No one is connected right now.
-  colUser: User
-  colDevice: Device
-  colIp: IP address
-  colLastSeen: Last seen
   adminBadge: Admin
   justNow: just now
   secondsAgo: "{{count}}s ago"

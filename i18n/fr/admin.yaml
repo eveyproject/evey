@@ -2,7 +2,6 @@ nav:
   dashboardSystem: Tableau de bord et système
   dashboard: Tableau de bord
   nowPlaying: En cours de lecture
-  online: En ligne
   remoteAccess: Accès distant
   serverConfig: Configuration du serveur
   transcodingConfig: Configuration transcodage
@@ -29,14 +28,9 @@ nav:
 
 online:
   title: Qui est en ligne
-  subtitle: Utilisateurs connectés en ce moment (live)
   countOne: "{{count}} utilisateur en ligne"
   countOther: "{{count}} utilisateurs en ligne"
   empty: Personne n'est connecté pour le moment.
-  colUser: Utilisateur
-  colDevice: Appareil
-  colIp: Adresse IP
-  colLastSeen: Vu
   adminBadge: Admin
   justNow: à l'instant
   secondsAgo: "il y a {{count}} s"
