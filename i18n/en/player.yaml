@@ -27,6 +27,7 @@ settings:
   audio: Audio
   subtitles: Subtitles
   speed: Speed
+  trackOptions: "Audio & Subtitles"
   audioSync: "Audio sync"
   audioSyncHint: "Positive = audio later. Applying restarts the stream at the current position."
   audioSyncUnavailable: "Available during transcoded playback only"

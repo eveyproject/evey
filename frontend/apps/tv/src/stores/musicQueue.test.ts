@@ -43,7 +43,7 @@ describe("musicQueue store", () => {
     useMusicQueueStore.getState().next();
     expect(useMusicQueueStore.getState().currentIndex).toBe(2);
 
-    // Already on the last track — next() is a no-op, it never wraps around.
+    // Already on the last track - next() is a no-op, it never wraps around.
     useMusicQueueStore.getState().next();
     expect(useMusicQueueStore.getState().currentIndex).toBe(2);
   });

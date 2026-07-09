@@ -1,0 +1,7 @@
+title: डाउनलोड
+delete: डाउनलोड हटाएं
+deleteTitle: डाउनलोड हटाएं
+deleteConfirm: '"{{title}}" को इस डिवाइस से हटाएं?'
+empty: अभी कोई डाउनलोड नहीं
+inProgress: "{{percent}}%"
+totalSize: "इस डिवाइस पर {{size}} उपयोग में"

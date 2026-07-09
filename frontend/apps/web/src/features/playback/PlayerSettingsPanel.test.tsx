@@ -98,3 +98,60 @@ describe("assToVtt", () => {
     expect(vtt).toContain("Line one\nLine two, with comma");
   });
 });
+
+describe("OffsetStepper (audio/subtitle resync rows)", () => {
+  it("steps the audio offset by 100ms, clamps at 5s, and resets to zero", async () => {
+    const user = userEvent.setup();
+    const onAudioOffsetChange = vi.fn();
+    render(
+      <SettingsPanel
+        {...defaultProps}
+        open={true}
+        audioStreams={[{ index: 0, codec: "aac", title: "Main" }]}
+        audioOffsetMs={4950}
+        onAudioOffsetChange={onAudioOffsetChange}
+      />,
+    );
+    await user.click(screen.getByText("Audio"));
+    await user.click(screen.getByTestId("audio-offset-plus"));
+    expect(onAudioOffsetChange).toHaveBeenLastCalledWith(5000);
+    await user.click(screen.getByTestId("audio-offset-minus"));
+    expect(onAudioOffsetChange).toHaveBeenLastCalledWith(4850);
+    await user.click(screen.getByTestId("audio-offset-reset"));
+    expect(onAudioOffsetChange).toHaveBeenLastCalledWith(0);
+  });
+
+  it("disables the audio resync controls outside transcoded playback", async () => {
+    const user = userEvent.setup();
+    render(
+      <SettingsPanel
+        {...defaultProps}
+        open={true}
+        audioStreams={[{ index: 0, codec: "aac", title: "Main" }]}
+        audioOffsetMs={0}
+        onAudioOffsetChange={vi.fn()}
+        audioOffsetAvailable={false}
+      />,
+    );
+    await user.click(screen.getByText("Audio"));
+    expect(screen.getByTestId("audio-offset-plus")).toBeDisabled();
+    expect(screen.getByTestId("audio-offset-minus")).toBeDisabled();
+  });
+
+  it("shows the subtitle resync stepper in the subtitle style submenu", async () => {
+    const user = userEvent.setup();
+    const onSubtitleOffsetChange = vi.fn();
+    render(
+      <SettingsPanel
+        {...defaultProps}
+        open={true}
+        onSubtitleStyleChange={vi.fn()}
+        subtitleOffsetMs={0}
+        onSubtitleOffsetChange={onSubtitleOffsetChange}
+      />,
+    );
+    await user.click(screen.getByText("Subtitle Style"));
+    await user.click(screen.getByTestId("subtitle-offset-minus"));
+    expect(onSubtitleOffsetChange).toHaveBeenLastCalledWith(-100);
+  });
+});

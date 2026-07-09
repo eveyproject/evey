@@ -27,6 +27,7 @@ settings:
   audio: Audio
   subtitles: Subtítulos
   speed: Velocidad
+  trackOptions: "Audio y subtítulos"
   audioSync: "Sincronización de audio"
   audioSyncHint: "Positivo = audio más tarde. Aplicar reinicia el flujo en la posición actual."
   audioSyncUnavailable: "Disponible solo en reproducción transcodificada"

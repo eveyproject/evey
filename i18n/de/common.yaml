@@ -185,6 +185,7 @@ parental:
   pinRequired: Dieser Inhalt erfordert eine PIN-Überprüfung.
   pinLabel: "PIN (4 Ziffern)"
   pinIncorrect: Falsche PIN
+  delete: Löschen
   validate: Bestätigen
 feeds:
   title: Startseiten-Bereiche

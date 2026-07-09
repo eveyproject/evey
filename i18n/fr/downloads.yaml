@@ -1,0 +1,7 @@
+title: Téléchargements
+delete: Supprimer le téléchargement
+deleteTitle: Supprimer le téléchargement
+deleteConfirm: Retirer "{{title}}" de cet appareil ?
+empty: Aucun téléchargement pour le moment
+inProgress: "{{percent}}%"
+totalSize: "{{size}} utilisés sur cet appareil"

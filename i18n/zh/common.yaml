@@ -169,6 +169,7 @@ parental:
   pinRequired: "此内容需要家长PIN验证。"
   pinLabel: "PIN（4位数字）"
   pinIncorrect: "PIN不正确"
+  delete: "删除"
   validate: "验证"
 feeds:
   title: "首页板块"

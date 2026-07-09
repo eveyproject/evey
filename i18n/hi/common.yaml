@@ -169,6 +169,7 @@ parental:
   pinRequired: "इस सामग्री के लिए अभिभावकीय PIN सत्यापन आवश्यक है।"
   pinLabel: "PIN (4 अंक)"
   pinIncorrect: "गलत PIN"
+  delete: "हटाएं"
   validate: "सत्यापित करें"
 feeds:
   title: "होम पेज अनुभाग"

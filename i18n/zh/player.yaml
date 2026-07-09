@@ -27,6 +27,7 @@ settings:
   audio: "音频"
   subtitles: "字幕"
   speed: "速度"
+  trackOptions: "音频与字幕"
   audioSync: "音频同步"
   audioSyncHint: "正值 = 音频延后。应用后将从当前位置重新启动流。"
   audioSyncUnavailable: "仅在转码播放时可用"

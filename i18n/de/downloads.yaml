@@ -1,0 +1,7 @@
+title: Downloads
+delete: Download löschen
+deleteTitle: Download löschen
+deleteConfirm: '"{{title}}" von diesem Gerät entfernen?'
+empty: Noch keine Downloads
+inProgress: "{{percent}}%"
+totalSize: "{{size}} auf diesem Gerät belegt"

@@ -169,6 +169,7 @@ parental:
   pinRequired: "Este contenido requiere verificación del PIN parental."
   pinLabel: "PIN (4 dígitos)"
   pinIncorrect: PIN incorrecto
+  delete: Borrar
   validate: Validar
 feeds:
   title: "Secciones de la página de inicio"

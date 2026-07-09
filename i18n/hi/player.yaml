@@ -27,6 +27,7 @@ settings:
   audio: "ऑडियो"
   subtitles: "उपशीर्षक"
   speed: "गति"
+  trackOptions: "ऑडियो और उपशीर्षक"
   audioSync: "ऑडियो सिंक"
   audioSyncHint: "धनात्मक = ऑडियो बाद में। लागू करने पर स्ट्रीम वर्तमान स्थिति से फिर शुरू होती है।"
   audioSyncUnavailable: "केवल ट्रांसकोडेड प्लेबैक में उपलब्ध"

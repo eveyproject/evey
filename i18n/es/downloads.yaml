@@ -1,0 +1,7 @@
+title: Descargas
+delete: Eliminar descarga
+deleteTitle: Eliminar descarga
+deleteConfirm: ¿Quitar "{{title}}" de este dispositivo?
+empty: Aún no hay descargas
+inProgress: "{{percent}}%"
+totalSize: "{{size}} usados en este dispositivo"

@@ -185,6 +185,7 @@ parental:
   pinRequired: This content requires parental PIN verification.
   pinLabel: "PIN (4 digits)"
   pinIncorrect: Incorrect PIN
+  delete: Delete
   validate: Validate
 feeds:
   title: Homepage Sections
