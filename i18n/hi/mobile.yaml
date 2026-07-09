@@ -1,4 +1,7 @@
 serverConnect:
+  hint: "अपने सेल्फ-होस्टेड Evey इंस्टेंस का URL दर्ज करें"
+  scanLocalNetwork: "स्थानीय नेटवर्क स्कैन करें"
+  missingScheme: "पता http:// या https:// से शुरू करें।"
   title: सर्वर से कनेक्ट करें
   connect: कनेक्ट
   connectionFailed: कनेक्शन विफल

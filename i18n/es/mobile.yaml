@@ -1,4 +1,7 @@
 serverConnect:
+  hint: "Introduzca la URL de su instancia Evey autoalojada"
+  scanLocalNetwork: "Escanear la red local"
+  missingScheme: "Empiece la dirección con http:// o https://."
   title: Conectar al servidor
   connect: Conectar
   connectionFailed: Conexion fallida

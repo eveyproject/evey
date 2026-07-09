@@ -1,4 +1,7 @@
 serverConnect:
+  hint: "Enter the URL of your self-hosted Evey instance"
+  scanLocalNetwork: "Scan local network"
+  missingScheme: "Start the address with http:// or https://."
   title: Connect to Server
   connect: Connect
   connectionFailed: Connection failed

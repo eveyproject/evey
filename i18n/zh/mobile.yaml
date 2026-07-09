@@ -1,4 +1,7 @@
 serverConnect:
+  hint: "输入您自托管 Evey 实例的 URL"
+  scanLocalNetwork: "扫描本地网络"
+  missingScheme: "地址请以 http:// 或 https:// 开头。"
   title: 连接到服务器
   connect: 连接
   connectionFailed: 连接失败
