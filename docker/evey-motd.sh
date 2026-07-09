@@ -1,49 +1,93 @@
-# Evey container — one-time admin greeting, sourced from /etc/bash.bashrc on an
-# interactive shell (e.g. `docker exec -it evey-server bash`). Prints the Evey
-# wordmark and the two CLIs an operator has on hand — the `evey` maintenance
-# commands and the `mkvgo` media tool — then gets out of the way. Colour is
-# dropped when NO_COLOR is set or stdout is not a terminal.
+# Evey container — one-time interactive greeting, sourced from /etc/bash.bashrc
+# on an interactive shell (`docker exec -it evey-server bash`). Shows the Evey
+# wordmark and an arrow-key menu of the handy `evey` / `mkvgo` commands; picking
+# one drops it onto the real prompt (so Tab-completion applies), and the last
+# entry just hands you an empty prompt to type your own (`evey`/`mkvgo` <Tab>).
+# Non-interactive or no-tty: a plain list, no key capture. NO_COLOR drops colour.
 
 case $- in
-    *i*) : ;;                              # interactive only
+    *i*) : ;;
     *) return 0 2>/dev/null || exit 0 ;;
 esac
 [ -n "${EVEY_MOTD_SHOWN:-}" ] && return 0 2>/dev/null
 EVEY_MOTD_SHOWN=1
 export EVEY_MOTD_SHOWN
 
-if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-    W=$'\033[38;2;236;238;244m'; R=$'\033[38;2;220;38;38m'; S=$'\033[38;2;136;145;163m'
-    D=$'\033[38;2;120;128;145m'; G=$'\033[38;2;108;192;139m'; Z=$'\033[0m'
-else
-    W=''; R=''; S=''; D=''; G=''; Z=''
-fi
+_evey_greeting() {
+    local W R S D G Z mkv
+    if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+        W=$'\033[38;2;236;238;244m'; R=$'\033[38;2;220;38;38m'; S=$'\033[38;2;136;145;163m'
+        D=$'\033[38;2;120;128;145m'; G=$'\033[38;2;108;192;139m'; Z=$'\033[0m'
+    else
+        W=''; R=''; S=''; D=''; G=''; Z=''
+    fi
+    mkv=$(mkvgo --version 2>/dev/null | awk '{print $2}'); [ -n "$mkv" ] || mkv='?'
 
-mkv=$(mkvgo --version 2>/dev/null | awk '{print $2}')
-[ -n "$mkv" ] || mkv='?'
+    printf '\n'
+    printf '  %s███████╗%s██╗   ██╗%s███████╗%s██╗   ██╗%s\n' "$W" "$R" "$W" "$W" "$Z"
+    printf '  %s██╔════╝%s██║   ██║%s██╔════╝%s╚██╗ ██╔╝%s\n' "$W" "$R" "$W" "$W" "$Z"
+    printf '  %s█████╗  %s██║   ██║%s█████╗  %s ╚████╔╝ %s\n' "$W" "$R" "$W" "$W" "$Z"
+    printf '  %s██╔══╝  %s╚██╗ ██╔╝%s██╔══╝  %s  ╚██╔╝  %s\n' "$W" "$R" "$W" "$W" "$Z"
+    printf '  %s███████╗%s ╚████╔╝ %s███████╗%s   ██║   %s\n' "$W" "$R" "$W" "$W" "$Z"
+    printf '  %s╚══════╝%s  ╚═══╝  %s╚══════╝%s   ╚═╝   %s\n' "$W" "$R" "$W" "$W" "$Z"
+    printf '  %sadmin shell%s   %s·%s   %stab-completion on%s\n\n' "$D" "$Z" "$D" "$Z" "$G" "$Z"
 
-printf '\n'
-printf '  %s███████╗%s██╗   ██╗%s███████╗%s██╗   ██╗%s\n' "$W" "$R" "$W" "$W" "$Z"
-printf '  %s██╔════╝%s██║   ██║%s██╔════╝%s╚██╗ ██╔╝%s\n' "$W" "$R" "$W" "$W" "$Z"
-printf '  %s█████╗  %s██║   ██║%s█████╗  %s ╚████╔╝ %s\n' "$W" "$R" "$W" "$W" "$Z"
-printf '  %s██╔══╝  %s╚██╗ ██╔╝%s██╔══╝  %s  ╚██╔╝  %s\n' "$W" "$R" "$W" "$W" "$Z"
-printf '  %s███████╗%s ╚████╔╝ %s███████╗%s   ██║   %s\n' "$W" "$R" "$W" "$W" "$Z"
-printf '  %s╚══════╝%s  ╚═══╝  %s╚══════╝%s   ╚═╝   %s\n' "$W" "$R" "$W" "$W" "$Z"
-printf '  %sadmin shell%s   %s·%s   %stab-completion on%s\n\n' "$D" "$Z" "$D" "$Z" "$G" "$Z"
+    local -a cmd desc
+    cmd=( 'evey admin reset-password' 'evey admin migrate up' 'evey admin reindex-search' \
+          'evey admin validate-streaming' 'evey admin reindex-no-cue' 'evey admin artwork-gc' \
+          'mkvgo <cmd>' '' )
+    desc=( "reset a user's password" "apply pending migrations" "rebuild the search index" \
+           "report seek / HLS readiness" "repair MKV seek indexes" "delete orphaned artwork" \
+           "inspect / repair a media file  ($mkv)" "type your own  —  evey / mkvgo + Tab Tab" )
+    local n=${#cmd[@]} last=$(( ${#cmd[@]} - 1 ))
 
-# menu — one row per command; the arrow + command in the brand palette, the
-# description dim. `evey admin` is the default group; mkvgo is the media tool.
-menu() { printf '  %s▸%s %s%-31s%s %s%s%s\n' "$R" "$Z" "$W" "$1" "$Z" "$D" "$2" "$Z"; }
-menu 'evey admin reset-password'     "new password for a user, printed once"
-menu 'evey admin migrate up'         "apply pending schema migrations"
-menu 'evey admin reindex-search'     "rebuild the search index"
-menu 'evey admin validate-streaming' "report each file's seek / HLS readiness"
-menu 'evey admin reindex-no-cue'     "repair MKV seek indexes (slow resume)"
-menu 'evey admin artwork-gc'         "delete orphaned artwork files"
-menu 'mkvgo <cmd>'                   "inspect / repair one media file  ($mkv)"
-printf '\n'
-printf '  %sTab-complete any of these.%s  %sevey admin help%s %s·%s %smkvgo%s %sfor the full list.%s\n\n' \
-    "$D" "$Z" "$R" "$Z" "$D" "$Z" "$R" "$Z" "$D" "$Z"
-unset -f menu
+    # Plain list when there is no keyboard (piped shell, log capture).
+    if [ ! -t 0 ] || [ ! -t 1 ]; then
+        local i
+        for ((i=0; i<last; i++)); do
+            printf '  %s▸%s %s%-31s%s %s%s%s\n' "$R" "$Z" "$W" "${cmd[i]}" "$Z" "$D" "${desc[i]}" "$Z"
+        done
+        printf '\n  %sTab-complete: %sevey admin%s %s<Tab>%s  ·  %smkvgo%s %s<Tab>%s\n\n' \
+            "$D" "$R" "$Z" "$D" "$Z" "$R" "$Z" "$D" "$Z"
+        return 0
+    fi
 
-unset W R S D G Z mkv
+    local sel=0 i key k2
+    _row() {
+        local i="$1" mark col
+        if [ "$i" -eq "$sel" ]; then mark="${R}►${Z} "; col="$W"; else mark="  "; col="$D"; fi
+        if [ "$i" -eq "$last" ]; then
+            printf '%s%s⌨  %s%s\n' "$mark" "$col" "${desc[i]}" "$Z"
+        else
+            printf '%s%s%-31s%s %s%s%s\n' "$mark" "$col" "${cmd[i]}" "$Z" "$D" "${desc[i]}" "$Z"
+        fi
+    }
+    printf '  %s↑/↓ to choose · Enter to load · q for a blank prompt%s\n' "$D" "$Z"
+    for ((i=0; i<n; i++)); do _row "$i"; done
+
+    while true; do
+        IFS= read -rsn1 key 2>/dev/null || { sel=-1; break; }
+        if [ "$key" = $'\033' ]; then read -rsn2 -t 0.05 k2 2>/dev/null; key+="$k2"; fi
+        case "$key" in
+            $'\033[A'|$'\033OA'|k) sel=$(( (sel - 1 + n) % n )) ;;
+            $'\033[B'|$'\033OB'|j|$'\t') sel=$(( (sel + 1) % n )) ;;
+            ''|$'\n'|$'\r') break ;;
+            q|Q|$'\033') sel=-1; break ;;
+            *) continue ;;
+        esac
+        printf '\033[%dA' "$n"          # back to the top of the list
+        for ((i=0; i<n; i++)); do printf '\033[2K'; _row "$i"; done
+    done
+    unset -f _row
+
+    printf '\n'
+    if [ "$sel" -ge 0 ] && [ "$sel" -lt "$last" ]; then
+        local pick="${cmd[sel]} "
+        history -s "${cmd[sel]}"                       # ↑ also recalls it
+        # Prefill the *real* prompt so Tab-completion applies: bind the terminal's
+        # status reply to type the command, then ask for that reply.
+        bind "\"\033[0n\": \"$pick\"" 2>/dev/null && printf '\033[5n'
+    fi
+}
+_evey_greeting
+unset -f _evey_greeting
