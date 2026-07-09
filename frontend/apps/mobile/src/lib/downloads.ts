@@ -56,6 +56,19 @@ export async function getDownloads(): Promise<DownloadedMedia[]> {
   return readIndex();
 }
 
+// A media id must never carry characters that let it escape the sandbox
+// directory on write ("/", "..", backslash) or, via a deep link, redirect the
+// authenticated request to an arbitrary API path ("?", "#", whitespace, control
+// chars). Evey ids are opaque slugs, so rather than assume an exact grammar we
+// reject the dangerous shapes and fail closed at the boundary.
+const UNSAFE_MEDIA_ID = /[/\\?#\s]|\.\./;
+
+function assertMediaId(id: string): void {
+  if (id.length === 0 || id.length > 128 || UNSAFE_MEDIA_ID.test(id)) {
+    throw new Error("invalid media id");
+  }
+}
+
 // destPath under directories.documents (system-managed by the native module).
 // Keep the .mp4 extension so Android's MediaScanner indexes the file and the
 // system player can open it from the downloads folder if needed.
@@ -109,6 +122,7 @@ export async function startDownload(
   title: string,
   onProgress?: (progress: number) => void,
 ): Promise<string> {
+  assertMediaId(mediaItemId);
   await ensureDir();
   const serverUrl = await getServerUrl();
   if (!serverUrl) throw new Error("Not authenticated");

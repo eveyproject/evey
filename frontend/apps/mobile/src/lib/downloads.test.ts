@@ -266,3 +266,11 @@ describe("getTotalDownloadSize", () => {
     expect(total).toBe(3000);
   });
 });
+
+describe("startDownload media-id validation", () => {
+  it("rejects a media id that could escape the sandbox path or redirect the API request", async () => {
+    for (const bad of ["mi-1/../../etc", "mi-1/../admin", "../secret", "mi-1?x=y", "mi 1"]) {
+      await expect(startDownload(bad, "x")).rejects.toThrow(/invalid media id/);
+    }
+  });
+});
