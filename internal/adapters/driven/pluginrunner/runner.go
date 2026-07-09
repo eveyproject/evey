@@ -414,7 +414,8 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		return err
 	}
 
-	cmd.Env = buildPluginEnv(p.ID, sock, hostSock)
+	memCap, _, _ := r.limitsSnapshot()
+	cmd.Env = buildPluginEnv(p.ID, sock, hostSock, memCap.defaults().memBytes)
 	hostsCleanup, err := r.applySandbox(parentCtx, p, cmd)
 	if err != nil {
 		r.rollbackStart(cancel, pluginSockDir, p.ID, true)
@@ -624,8 +625,8 @@ func (r *Runner) rollbackStart(cancel context.CancelFunc, pluginSockDir, pluginI
 	}
 }
 
-func buildPluginEnv(pluginID, sock, hostSock string) []string {
-	return []string{
+func buildPluginEnv(pluginID, sock, hostSock string, memCapBytes int64) []string {
+	env := []string{
 		"PATH=/usr/local/bin:/usr/bin:/bin",
 		"HOME=/tmp",
 		"NODE_PATH=/usr/local/lib/node_modules",
@@ -633,6 +634,16 @@ func buildPluginEnv(pluginID, sock, hostSock string) []string {
 		"EVEY_PLUGIN_SOCK=" + sock,
 		"EVEY_HOST_SOCK=" + hostSock,
 	}
+	// Align V8's heap ceiling with the resource monitor's RSS cap: node's
+	// default old-space limit (~4 GB) lets a leaky plugin balloon straight
+	// into the monitor's kill threshold instead of garbage-collecting below
+	// it. 3/4 of the cap leaves room for the non-heap RSS (code, stack,
+	// buffers). Harmless for non-node plugins - only node reads NODE_OPTIONS.
+	if memCapBytes > 0 {
+		heapMB := memCapBytes * 3 / 4 >> 20
+		env = append(env, fmt.Sprintf("NODE_OPTIONS=--max-old-space-size=%d", heapMB))
+	}
+	return env
 }
 
 // applySandbox sets up the sandbox for a plugin process. The behaviour
