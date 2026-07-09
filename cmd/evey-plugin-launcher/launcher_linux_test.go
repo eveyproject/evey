@@ -99,8 +99,8 @@ func TestLauncher_ParentDeathSignalReachesPlugin(t *testing.T) {
 	if os.Getuid() != 0 {
 		t.Skip("needs root to setcap the launcher copy")
 	}
-	if out, err := exec.Command(setcap, "cap_setuid+ep", launcherBin).CombinedOutput(); err != nil {
-		t.Skipf("setcap failed (%v: %s); cannot reproduce the file-caps trigger", err, out)
+	if out, capErr := exec.Command(setcap, "cap_setuid+ep", launcherBin).CombinedOutput(); capErr != nil {
+		t.Skipf("setcap failed (%v: %s); cannot reproduce the file-caps trigger", capErr, out)
 	}
 
 	helper := exec.Command(os.Args[0])
@@ -114,9 +114,9 @@ func TestLauncher_ParentDeathSignalReachesPlugin(t *testing.T) {
 		t.Fatalf("helper failed: %v (output=%q)", err, out)
 	}
 	var childPid int
-	for _, line := range strings.Split(string(out), "\n") {
-		if strings.HasPrefix(line, "childpid=") {
-			childPid, _ = strconv.Atoi(strings.TrimPrefix(line, "childpid="))
+	for line := range strings.SplitSeq(string(out), "\n") {
+		if rest, ok := strings.CutPrefix(line, "childpid="); ok {
+			childPid, _ = strconv.Atoi(rest)
 		}
 	}
 	if childPid <= 0 {
@@ -144,8 +144,8 @@ func copyToWorldExecutable(t *testing.T, bin string) string {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(dir) })
-	if err := os.Chmod(dir, 0o755); err != nil {
-		t.Fatal(err)
+	if chmodErr := os.Chmod(dir, 0o755); chmodErr != nil {
+		t.Fatal(chmodErr)
 	}
 	data, err := os.ReadFile(bin)
 	if err != nil {

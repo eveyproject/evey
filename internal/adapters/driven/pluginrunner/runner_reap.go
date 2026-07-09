@@ -67,7 +67,9 @@ func (r *Runner) ReapStaleProcesses() int {
 		slog.Warn("reaping stale plugin process from a previous server instance",
 			slog.Int("pid", pid))
 		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil {
-			_ = syscall.Kill(pid, syscall.SIGTERM)
+			if killErr := syscall.Kill(pid, syscall.SIGTERM); killErr != nil && killErr != syscall.ESRCH {
+				slog.Warn("reap stale plugin: SIGTERM failed", slog.Int("pid", pid), slog.Any("err", killErr))
+			}
 		}
 	}
 	if len(victims) > 0 {
@@ -76,7 +78,9 @@ func (r *Runner) ReapStaleProcesses() int {
 			for _, pid := range pids {
 				if syscall.Kill(pid, 0) == nil {
 					if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
-						_ = syscall.Kill(pid, syscall.SIGKILL)
+						if killErr := syscall.Kill(pid, syscall.SIGKILL); killErr != nil && killErr != syscall.ESRCH {
+							slog.Warn("reap stale plugin: SIGKILL failed", slog.Int("pid", pid), slog.Any("err", killErr))
+						}
 					}
 				}
 			}
@@ -94,7 +98,7 @@ func (r *Runner) cmdlineUnderPluginDir(pid int) bool {
 	if err != nil || len(data) == 0 {
 		return false
 	}
-	for _, arg := range strings.Split(string(data), "\x00") {
+	for arg := range strings.SplitSeq(string(data), "\x00") {
 		for _, dir := range r.pluginDirs {
 			if dir != "" && dir != "/" && strings.HasPrefix(arg, dir+"/") {
 				return true
@@ -110,7 +114,7 @@ func procUID(pid int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
+	for line := range strings.SplitSeq(string(data), "\n") {
 		if rest, ok := strings.CutPrefix(line, "Uid:"); ok {
 			fields := strings.Fields(rest)
 			if len(fields) > 0 {

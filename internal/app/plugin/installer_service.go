@@ -569,7 +569,8 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		return nil, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 	}
 
-	if !p.IsTheme() && p.Enabled {
+	switch {
+	case !p.IsTheme() && p.Enabled:
 		if err := s.runner.Start(ctx, p); err != nil {
 			p.Status = plugin.Error
 			p.ErrorMessage = err.Error()
@@ -583,11 +584,11 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			s.permChecker.LoadPermissions(p.ID, p.Permissions)
 		}
 		p.Status = plugin.Initializing
-	} else if !p.IsTheme() {
+	case !p.IsTheme():
 		// Upgrading a plugin the admin had disabled: keep it stopped rather than
 		// silently re-starting it on update.
 		p.Status = plugin.Stopped
-	} else {
+	default:
 		p.Status = plugin.Running
 	}
 	if err := s.plugins.Update(ctx, p); err != nil {

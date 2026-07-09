@@ -24,7 +24,7 @@ func spawnFakeStalePlugin(t *testing.T, dir string) *exec.Cmd {
 	}
 	// Collect the child as soon as it dies: without a waiter it lingers as a
 	// zombie and kill(pid, 0) keeps succeeding, masking a successful reap.
-	go cmd.Wait() //nolint:errcheck
+	go func() { _ = cmd.Wait() }()
 	t.Cleanup(func() {
 		syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	})

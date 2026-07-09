@@ -35,10 +35,7 @@ func applyMemoryLimit(log *slog.Logger) {
 	if !ok {
 		return
 	}
-	limit := budget / memLimitFraction
-	if limit < memLimitFloorBytes {
-		limit = memLimitFloorBytes
-	}
+	limit := max(budget/memLimitFraction, memLimitFloorBytes)
 	debug.SetMemoryLimit(limit)
 	log.Info("memory budget detected",
 		slog.Int64("budget_mb", budget>>20),
