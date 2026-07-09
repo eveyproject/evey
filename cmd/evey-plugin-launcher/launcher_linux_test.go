@@ -3,13 +3,16 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -22,7 +25,137 @@ func TestMain(m *testing.M) {
 	if os.Getenv("EVEY_LAUNCHER_REEXEC") == "1" {
 		os.Exit(run(os.Args[1:]))
 	}
+	if os.Getenv("EVEY_PDEATHSIG_HELPER") == "1" {
+		os.Exit(pdeathsigHelperMain())
+	}
 	os.Exit(m.Run())
+}
+
+// pdeathsigHelperMain plays the plugin-runner parent: it spawns the launcher
+// (re-exec of this binary, via the world-executable copy in
+// EVEY_LAUNCHER_BIN since the dropped uid cannot read the go-build cache)
+// with Pdeathsig+Setpgid exactly like the runner does, prints the child pid
+// on stdout, then exits WITHOUT killing the child. The outer test then
+// checks whether parent death reached the plugin.
+func pdeathsigHelperMain() int {
+	launcherBin := os.Getenv("EVEY_LAUNCHER_BIN")
+	if launcherBin == "" {
+		launcherBin = os.Args[0]
+	}
+	// Mirror the production argv shape (buildLauncherArgv): the seccomp filter
+	// is always installed for real plugins, and it is precisely what loses the
+	// runner-armed pdeathsig across execve — without -seccomp this scenario
+	// passes even unfixed.
+	args := []string{
+		"-ro", "/usr", "-ro", "/bin", "-ro", "/lib", "-ro", "/lib64", "-ro", "/etc",
+		"-seccomp",
+		"--", "/bin/sleep", "300",
+	}
+	cmd := exec.Command(launcherBin, args...)
+	cmd.Env = append(os.Environ(), "EVEY_LAUNCHER_REEXEC=1")
+	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid:   true,
+		Pdeathsig: syscall.SIGTERM,
+	}
+	// A root server drops the plugin to the evey-plugin uid (pluginSysProcAttr);
+	// the uid change is part of the losing combination (uid drop + seccomp), so
+	// reproduce it whenever we can (the make-test container runs as root).
+	if os.Getuid() == 0 {
+		cmd.SysProcAttr.Credential = &syscall.Credential{Uid: 1001, Gid: 1001}
+	}
+	if err := cmd.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "helper: start launcher: %v\n", err)
+		return 1
+	}
+	fmt.Printf("childpid=%d\n", cmd.Process.Pid)
+	// Give the launcher time to reach execve so the test exercises the
+	// post-exec process, not the launcher's own setup window.
+	time.Sleep(700 * time.Millisecond)
+	return 0 // die; pdeathsig should now SIGTERM the plugin
+}
+
+// TestLauncher_ParentDeathSignalReachesPlugin locks the launcher's core
+// lifecycle contract: a plugin spawned through the launcher must die when the
+// server process dies. The production launcher carries the cap_setuid file
+// capability (Dockerfile: setcap cap_setuid+ep), and the kernel CLEARS the
+// runner-armed PR_SET_PDEATHSIG when execve'ing a binary with file caps
+// (prctl(2)) — so the launcher must re-arm it on the exec'ing thread right
+// before exec'ing the plugin. Regression: orphaned node plugin processes
+// piling up across server restarts (~25 MB each).
+func TestLauncher_ParentDeathSignalReachesPlugin(t *testing.T) {
+	// The dropped plugin uid (1001) must be able to exec the launcher; the
+	// go-build cache holding os.Args[0] is 0700, so re-exec a copy from a
+	// world-traversable temp dir.
+	launcherBin := copyToWorldExecutable(t, os.Args[0])
+
+	// Reproduce the production trigger: file caps on the launcher binary make
+	// the kernel clear the inherited pdeathsig at execve. Without them the
+	// attribute happens to survive and the scenario can pass unfixed.
+	setcap, err := exec.LookPath("setcap")
+	if err != nil {
+		t.Skip("setcap not available; cannot reproduce the file-caps pdeathsig clearing")
+	}
+	if os.Getuid() != 0 {
+		t.Skip("needs root to setcap the launcher copy")
+	}
+	if out, err := exec.Command(setcap, "cap_setuid+ep", launcherBin).CombinedOutput(); err != nil {
+		t.Skipf("setcap failed (%v: %s); cannot reproduce the file-caps trigger", err, out)
+	}
+
+	helper := exec.Command(os.Args[0])
+	helper.Env = append(os.Environ(), "EVEY_PDEATHSIG_HELPER=1", "EVEY_LAUNCHER_BIN="+launcherBin)
+	// Hand the helper (and transitively the plugin) the test's REAL stderr, not
+	// a capture pipe: a surviving orphan would hold a pipe open and wedge
+	// Output() until the go test timeout instead of failing fast below.
+	helper.Stderr = os.Stderr
+	out, err := helper.Output()
+	if err != nil {
+		t.Fatalf("helper failed: %v (output=%q)", err, out)
+	}
+	var childPid int
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.HasPrefix(line, "childpid=") {
+			childPid, _ = strconv.Atoi(strings.TrimPrefix(line, "childpid="))
+		}
+	}
+	if childPid <= 0 {
+		t.Fatalf("helper did not report a child pid (output=%q)", out)
+	}
+	// The helper has exited (Output waits). The plugin must now receive the
+	// parent-death SIGTERM; poll briefly to absorb delivery scheduling.
+	defer syscall.Kill(-childPid, syscall.SIGKILL) // cleanup either way
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if syscall.Kill(childPid, 0) != nil {
+			return // died with its parent: contract holds
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("plugin process %d survived parent death: PR_SET_PDEATHSIG was lost across the launcher exec", childPid)
+}
+
+// copyToWorldExecutable copies bin into a fresh 0755 temp dir and returns the
+// 0755 copy's path, cleaned up with the test.
+func copyToWorldExecutable(t *testing.T, bin string) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("", "evey-launcher-test-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(dir, "launcher")
+	if err := os.WriteFile(dst, data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dst
 }
 
 func TestSupportedFSAccess_PerABI(t *testing.T) {

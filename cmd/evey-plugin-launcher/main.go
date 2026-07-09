@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -77,6 +78,10 @@ func main() {
 }
 
 func run(argv []string) int {
+	// Captured before any setup so the pre-exec orphan check below can detect a
+	// parent that died while the launcher was confining itself.
+	startPPID := os.Getppid()
+
 	// Everything after the first "--" is the command to exec; flags come before.
 	sep := -1
 	for i, a := range argv {
@@ -180,6 +185,26 @@ func run(argv []string) int {
 		if err := applySeccomp(cfg.denyInet); err != nil {
 			fmt.Fprintf(os.Stderr, "evey-plugin-launcher: WARNING seccomp filter not installed: %v\n", err)
 		}
+	}
+
+	// Re-arm the parent-death signal on the exec'ing thread, LAST. The runner
+	// arms PR_SET_PDEATHSIG via SysProcAttr, but the attribute is per-thread and
+	// does not reliably survive this launcher (empirically: installing the
+	// seccomp filter above loses it across execve; a plugin then outlives a dead
+	// server and leaks ~25 MB of node per restart). prctl is not in the seccomp
+	// denylist, so this works after the filter is installed; the attribute is
+	// preserved across the execve below (the plugin binary carries no setuid/file
+	// caps). runtime.LockOSThread pins us to the thread the confinement layers
+	// restricted — the same one syscall.Exec replaces.
+	runtime.LockOSThread()
+	if err := armParentDeathSignal(); err != nil {
+		fmt.Fprintf(os.Stderr, "evey-plugin-launcher: WARNING parent-death signal not armed: %v\n", err)
+	} else if os.Getppid() != startPPID {
+		// The server died while we were setting up: pdeathsig missed the window
+		// (the attribute only fires on a FUTURE parent death). Refuse to start an
+		// already-orphaned plugin rather than leak it.
+		fmt.Fprintln(os.Stderr, "evey-plugin-launcher: parent exited during setup, refusing to start orphaned plugin")
+		return 1
 	}
 
 	// syscall.Exec runs on the current (Landlock-restricted, OS-locked) thread;
