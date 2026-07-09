@@ -222,14 +222,18 @@ func (w *KeyframeBackfillWorker) processBatch(ctx context.Context) int {
 		if !w.backfillOne(ctx, id) {
 			w.attempted[id] = struct{}{}
 		}
-		if i < len(ids)-1 {
-			select {
-			case <-time.After(w.pause()):
-			case <-w.stop:
-				return i + 1
-			case <-ctx.Done():
-				return i + 1
-			}
+		// Pause after EVERY item, including the last of the batch: run() loops
+		// straight into the next batch, so skipping the gap on the last item
+		// let two probes run back-to-back across the batch boundary (every 64
+		// items on a large library), defeating the politeness pacing. The
+		// trailing pause when the queue then empties is harmless - it precedes
+		// the far longer idle sleep.
+		select {
+		case <-time.After(w.pause()):
+		case <-w.stop:
+			return i + 1
+		case <-ctx.Done():
+			return i + 1
 		}
 	}
 	return len(ids)
