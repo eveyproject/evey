@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/cpuutil"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -27,10 +27,25 @@ var keyframeInputFormat = map[string]string{
 	".ivf":  "ivf",
 }
 
-// TrickplayWorkers delegates to cpuutil.TrickplayWorkers.
-// Kept for backward compatibility within the adapter.
+// TrickplayWorkers returns the ffmpeg internal thread count for a single
+// trickplay generation, sized off sysinfo.CPUBudget() (the cgroup CPU quota
+// when one is set, else runtime.NumCPU()) rather than the host's raw core
+// count, so a container with a CPU limit doesn't oversubscribe.
+// adaptiveCPU=true -> 25% of the budget (gentle), false -> 50% (faster).
+// Minimum 1, maximum 4.
 func TrickplayWorkers(adaptiveCPU bool) int {
-	return cpuutil.TrickplayWorkers(adaptiveCPU)
+	divisor := 4
+	if !adaptiveCPU {
+		divisor = 2
+	}
+	n := sysinfo.CPUBudget() / divisor
+	if n < 1 {
+		return 1
+	}
+	if n > 4 {
+		return 4
+	}
+	return n
 }
 
 type TrickplayGenerator struct {
@@ -78,7 +93,7 @@ func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string)
 // Typical speedup: 5-15× on 4K content vs the N-call approach.
 //
 // maxWorkers now caps ffmpeg's internal decode/encode thread count
-// (0 → use cpuutil default; adaptive stays gentle at ~25% of cores).
+// (0 → use the CPU-budget default; adaptive stays gentle at ~25% of budget).
 func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int) (*library.TrickplayResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.trickplay.Generate")
 	defer span.End()

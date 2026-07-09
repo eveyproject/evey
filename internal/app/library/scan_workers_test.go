@@ -1,14 +1,18 @@
 package library
 
 import (
-	"runtime"
 	"testing"
+
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
-func TestScanWorkerCount_DefaultNumCPU(t *testing.T) {
+func TestScanWorkerCount_DefaultCPUBudget(t *testing.T) {
 	t.Setenv("EVEY_LIBRARY_SCAN_WORKERS", "")
-	if got, want := scanWorkerCount(), runtime.NumCPU(); got != want {
-		t.Fatalf("default = NumCPU: got %d want %d", got, want)
+	if got, want := scanWorkerCount(), sysinfo.CPUBudget(); got != want {
+		t.Fatalf("default = CPUBudget: got %d want %d", got, want)
+	}
+	if scanWorkerCount() < 1 {
+		t.Fatalf("default worker count must be >= 1")
 	}
 }
 
@@ -21,14 +25,14 @@ func TestScanWorkerCount_EnvOverride(t *testing.T) {
 
 func TestScanWorkerCount_InvalidFallsBack(t *testing.T) {
 	t.Setenv("EVEY_LIBRARY_SCAN_WORKERS", "not-a-number")
-	if got, want := scanWorkerCount(), runtime.NumCPU(); got != want {
-		t.Fatalf("invalid env -> fallback NumCPU: got %d want %d", got, want)
+	if got, want := scanWorkerCount(), sysinfo.CPUBudget(); got != want {
+		t.Fatalf("invalid env -> fallback CPUBudget: got %d want %d", got, want)
 	}
 }
 
 func TestScanWorkerCount_ZeroFallsBack(t *testing.T) {
 	t.Setenv("EVEY_LIBRARY_SCAN_WORKERS", "0")
-	if got, want := scanWorkerCount(), runtime.NumCPU(); got != want {
+	if got, want := scanWorkerCount(), sysinfo.CPUBudget(); got != want {
 		t.Fatalf("zero -> fallback: got %d want %d", got, want)
 	}
 }

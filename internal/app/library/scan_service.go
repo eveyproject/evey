@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"runtime"
 	"runtime/debug"
 	"strconv"
 	"sync"
@@ -18,6 +17,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/scanindex"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -828,13 +828,14 @@ func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, fil
 }
 
 // scanWorkerCount returns the scan goroutine pool size.
-// Override via EVEY_LIBRARY_SCAN_WORKERS (int > 0). Defaults to runtime.NumCPU().
+// Override via EVEY_LIBRARY_SCAN_WORKERS (int > 0). Defaults to sysinfo.CPUBudget(),
+// the cgroup CPU quota when one is set, else runtime.NumCPU().
 func scanWorkerCount() int {
 	if v := os.Getenv("EVEY_LIBRARY_SCAN_WORKERS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			return n
 		}
 	}
-	return runtime.NumCPU()
+	return sysinfo.CPUBudget()
 }
 

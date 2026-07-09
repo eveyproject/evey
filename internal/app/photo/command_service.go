@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +15,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/photo"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/scanindex"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -111,13 +111,14 @@ func (s *CommandService) buildPhotoJobs(ctx context.Context, dir string, idx *sc
 	return jobs, walkErr
 }
 
-// processPhotoJobs fans the photo jobs out across NumCPU workers with
+// processPhotoJobs fans the photo jobs out across sysinfo.CPUBudget() workers
+// (the cgroup CPU quota when one is set, else runtime.NumCPU()) with
 // per-goroutine panic recovery. Each worker reads EXIF when applicable,
 // computes album from the relative subdir, upserts the row, and
 // publishes a PhotoAdded event.
 func (s *CommandService) processPhotoJobs(ctx context.Context, libraryID string, jobs []photoJob) int {
 	var total atomic.Int64
-	sem := make(chan struct{}, runtime.NumCPU())
+	sem := make(chan struct{}, sysinfo.CPUBudget())
 	var wg sync.WaitGroup
 	for _, j := range jobs {
 		wg.Add(1)

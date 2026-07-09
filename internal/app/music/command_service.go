@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -20,6 +19,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/music"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/scanindex"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"github.com/google/uuid"
 )
@@ -317,13 +317,14 @@ func (s *CommandService) buildTrackJobs(ctx context.Context, dir string, idx *sc
 	return jobs, walkErr
 }
 
-// processTrackJobs fans track jobs out across NumCPU workers. Each
+// processTrackJobs fans track jobs out across sysinfo.CPUBudget() workers
+// (the cgroup CPU quota when one is set, else runtime.NumCPU()). Each
 // worker parses tags (with fallback), upserts, and publishes Track/
 // Album events. Panic recovery per-goroutine keeps one bad file from
 // killing the rest.
 func (s *CommandService) processTrackJobs(ctx context.Context, libraryID string, jobs []trackJob) int {
 	var total atomic.Int64
-	sem := make(chan struct{}, runtime.NumCPU())
+	sem := make(chan struct{}, sysinfo.CPUBudget())
 	var wg sync.WaitGroup
 	for _, j := range jobs {
 		wg.Add(1)
