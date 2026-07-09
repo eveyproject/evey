@@ -1,7 +1,9 @@
 package loadtest
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -65,13 +67,30 @@ type serverState struct {
 	masterHits int
 
 	// masterHook lets a test deny/redirect a master playlist request. A
-	// zero status means "serve the default playlist".
-	masterHook func(hitNum int, mediaID string) (status int, headers map[string]string)
+	// zero status means "serve the default playlist". rawQuery lets a test
+	// distinguish a forced-transcode request (vd=transcode) from a natural
+	// one without adding a whole new dimension to the state.
+	masterHook func(hitNum int, mediaID, rawQuery string) (status int, headers map[string]string)
 	// segmentHook lets a test deny or delay a segment fetch. A zero status
 	// means "200 OK", after the returned sleep (if any).
 	segmentHook func(mediaID string, segIdx int) (status int, headers map[string]string, sleep time.Duration)
 
+	// servedByFn decides whether a given resource (master/variant/segment)
+	// carries X-Evey-Served-By: mkvgo. nil means "always". resource is one
+	// of "master", "variant", "segment"; segIdx is -1 for master/variant.
+	servedByFn func(mediaID, resource string, segIdx int) bool
+
 	fetches []fetchRecord
+}
+
+func (s *serverState) servedBy(mediaID, resource string, segIdx int) bool {
+	s.mu.Lock()
+	fn := s.servedByFn
+	s.mu.Unlock()
+	if fn == nil {
+		return true
+	}
+	return fn(mediaID, resource, segIdx)
 }
 
 func newServerState() *serverState {
@@ -124,7 +143,7 @@ func (s *serverState) serveMaster(w http.ResponseWriter, r *http.Request) {
 
 	mediaID := mediaIDFromPath(r.URL.Path)
 	if hook != nil {
-		if status, headers := hook(hitNum, mediaID); status != 0 {
+		if status, headers := hook(hitNum, mediaID, r.URL.RawQuery); status != 0 {
 			for k, v := range headers {
 				w.Header().Set(k, v)
 			}
@@ -140,6 +159,9 @@ func (s *serverState) serveMaster(w http.ResponseWriter, r *http.Request) {
 	for i, bw := range bandwidths {
 		fmt.Fprintf(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%d\n%sv%d.m3u8\n", bw, dir, i)
 	}
+	if s.servedBy(mediaID, "master", -1) {
+		w.Header().Set(headerServedBy, servedByMkvgo)
+	}
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(b.String()))
@@ -152,6 +174,7 @@ func (s *serverState) serveVariant(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	path := r.URL.Path
+	mediaID := mediaIDFromPath(path)
 	dir := path[:strings.LastIndex(path, "/")+1]
 	variant := strings.TrimSuffix(path[strings.LastIndex(path, "/")+1:], ".m3u8")
 
@@ -161,6 +184,9 @@ func (s *serverState) serveVariant(w http.ResponseWriter, r *http.Request) {
 	for i := range segCount {
 		b.WriteString("#EXTINF:1.0,\n")
 		fmt.Fprintf(&b, "%s%s-seg%d.ts\n", dir, variant, i)
+	}
+	if s.servedBy(mediaID, "variant", -1) {
+		w.Header().Set(headerServedBy, servedByMkvgo)
 	}
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.WriteHeader(http.StatusOK)
@@ -193,6 +219,9 @@ func (s *serverState) serveSegment(w http.ResponseWriter, r *http.Request) {
 	if sleep > 0 {
 		time.Sleep(sleep)
 	}
+	if s.servedBy(mediaID, "segment", segIdx) {
+		w.Header().Set(headerServedBy, servedByMkvgo)
+	}
 	for k, v := range headers {
 		w.Header().Set(k, v)
 	}
@@ -222,7 +251,7 @@ func waitForReport(t *testing.T, r *Runner, timeout time.Duration) *Report {
 
 func TestRunner_AdmissionFullStopsRampAtSustainedTier(t *testing.T) {
 	st := newServerState()
-	st.masterHook = func(hitNum int, _ string) (int, map[string]string) {
+	st.masterHook = func(hitNum int, _, _ string) (int, map[string]string) {
 		if hitNum == 4 {
 			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
 		}
@@ -256,7 +285,7 @@ func TestRunner_SLOBreachStopsAtPriorTier(t *testing.T) {
 	st := newServerState()
 	st.targetDurRaw = "0.1" // 100ms auto SLO
 	var tier atomic.Int32
-	st.masterHook = func(hitNum int, _ string) (int, map[string]string) {
+	st.masterHook = func(hitNum int, _, _ string) (int, map[string]string) {
 		tier.Store(int32(hitNum))
 		return 0, nil
 	}
@@ -402,7 +431,7 @@ func TestRunner_CancelStopsAndReportsPartial(t *testing.T) {
 
 func TestRunner_TokenExpiredStopsImmediately(t *testing.T) {
 	st := newServerState()
-	st.masterHook = func(_ int, _ string) (int, map[string]string) {
+	st.masterHook = func(_ int, _, _ string) (int, map[string]string) {
 		return http.StatusUnauthorized, nil
 	}
 	srv := httptest.NewServer(st.handler())
@@ -496,5 +525,231 @@ func TestRunner_PacesSegmentFetchesInRealTime(t *testing.T) {
 		if gap < 35*time.Millisecond {
 			t.Fatalf("segment fetch %d came too fast: gap=%v, want >= ~50ms pace", i, gap)
 		}
+	}
+}
+
+// --- mkvgo scenario -------------------------------------------------------
+
+func TestRunner_MkvgoSkipsIneligibleCandidateAndCountsIt(t *testing.T) {
+	st := newServerState()
+	st.servedByFn = func(mediaID, resource string, _ int) bool {
+		if resource == "master" && mediaID == "m1" {
+			return false // m1 isn't actually mkvgo-served, sandwiched between two that are.
+		}
+		return true
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, MaxDuration: 3 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 3*time.Second)
+	if report.StopReason != StopLibraryLimit {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopLibraryLimit, report.StopDetail)
+	}
+	if report.SustainedViewers != 2 {
+		t.Fatalf("sustained viewers = %d, want 2", report.SustainedViewers)
+	}
+	if report.SkippedCandidates != 1 {
+		t.Fatalf("skipped candidates = %d, want 1", report.SkippedCandidates)
+	}
+	if report.StopDetail == "" {
+		t.Fatalf("expected an explicit stop detail")
+	}
+}
+
+func TestRunner_MkvgoFirstSegmentWithoutHeaderCountsAsFailure(t *testing.T) {
+	st := newServerState()
+	st.segCount = 6
+	st.servedByFn = func(_, resource string, segIdx int) bool {
+		// Master is genuinely mkvgo-served (eligible), but the very first
+		// segment silently isn't - the defense check must catch it.
+		return resource != "segment" || segIdx != 0
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
+		MaxViewers: 1, RampEvery: 5 * time.Second, MaxDuration: 2 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	time.Sleep(300 * time.Millisecond)
+	r.Cancel()
+	report := waitForReport(t, r, 2*time.Second)
+
+	if report.TTFFMsP50 != 0 || report.TTFFMsP95 != 0 {
+		t.Fatalf("TTFF = (%d,%d), want (0,0): the first segment lacked the mkvgo header and must not count as a TTFF sample", report.TTFFMsP50, report.TTFFMsP95)
+	}
+	if report.Samples == 0 {
+		t.Fatalf("expected later segments (which do carry the header) to still be counted")
+	}
+}
+
+func TestRunner_LogsFinalReport(t *testing.T) {
+	st := newServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, logger)
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
+		MaxViewers: 2, RampEvery: 40 * time.Millisecond, MaxDuration: 3 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitForReport(t, r, 3*time.Second)
+
+	var found map[string]any
+	dec := json.NewDecoder(bytes.NewReader(buf.Bytes()))
+	for dec.More() {
+		var entry map[string]any
+		if err := dec.Decode(&entry); err != nil {
+			t.Fatalf("decode log line: %v", err)
+		}
+		if entry["msg"] == "loadtest: report" {
+			found = entry
+		}
+	}
+	if found == nil {
+		t.Fatalf("no %q log line found in:\n%s", "loadtest: report", buf.String())
+	}
+	for _, key := range []string{
+		"scenario", "sustained_viewers", "stop_reason", "stop_detail",
+		"ttff_ms_p50", "ttff_ms_p95", "segment_ms_p50", "segment_ms_p95",
+		"segment_slo_ms", "samples", "shared_cache_viewers", "skipped_candidates", "duration_ms",
+	} {
+		if _, ok := found[key]; !ok {
+			t.Errorf("report log missing key %q, got %v", key, found)
+		}
+	}
+}
+
+// --- mix scenarios ---------------------------------------------------------
+
+func countMasterHitsByType(st *serverState) (mkvgo, transcode int) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	for _, f := range st.fetches {
+		if !strings.HasSuffix(f.path, "master.m3u8") {
+			continue
+		}
+		if strings.Contains(f.rawQuery, "vd=transcode") {
+			transcode++
+		} else {
+			mkvgo++
+		}
+	}
+	return mkvgo, transcode
+}
+
+func TestRunner_BalancedMixAlternatesTypes(t *testing.T) {
+	st := newServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
+		MaxViewers: 6, RampEvery: 40 * time.Millisecond, MaxDuration: 4 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 4*time.Second)
+	if report.StopReason != StopMaxViewers {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopMaxViewers, report.StopDetail)
+	}
+	if report.SustainedViewers != 6 {
+		t.Fatalf("sustained viewers = %d, want 6", report.SustainedViewers)
+	}
+	if report.ViewerMix["mkvgo"] != 3 || report.ViewerMix["transcode"] != 3 {
+		t.Fatalf("viewer mix = %v, want mkvgo=3 transcode=3", report.ViewerMix)
+	}
+
+	mkvgoHits, transcodeHits := countMasterHitsByType(st)
+	if mkvgoHits != 3 || transcodeHits != 3 {
+		t.Fatalf("master hits by type = (mkvgo=%d, transcode=%d), want (3,3)", mkvgoHits, transcodeHits)
+	}
+}
+
+func TestRunner_LightMixIsMostlyMkvgo(t *testing.T) {
+	st := newServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioLight,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, MaxDuration: 4 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 4*time.Second)
+	if report.StopReason != StopMaxViewers {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopMaxViewers, report.StopDetail)
+	}
+	if report.SustainedViewers != 5 {
+		t.Fatalf("sustained viewers = %d, want 5", report.SustainedViewers)
+	}
+	if report.ViewerMix["mkvgo"] != 4 || report.ViewerMix["transcode"] != 1 {
+		t.Fatalf("viewer mix = %v, want mkvgo=4 transcode=1", report.ViewerMix)
+	}
+}
+
+func TestRunner_HeavyMixAdmissionFullOnTranscodePool(t *testing.T) {
+	st := newServerState()
+	var transcodeHits atomic.Int32
+	st.masterHook = func(_ int, _, rawQuery string) (int, map[string]string) {
+		if !strings.Contains(rawQuery, "vd=transcode") {
+			return 0, nil
+		}
+		if transcodeHits.Add(1) == 3 {
+			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
+		}
+		return 0, nil
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioHeavy,
+		MaxViewers: 8, RampEvery: 40 * time.Millisecond, MaxDuration: 4 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// heavy pattern is [mkvgo, transcode, transcode, transcode, transcode]:
+	// slot1=mkvgo, slot2=transcode(1st), slot3=transcode(2nd),
+	// slot4=transcode(3rd, denied) -> sustained=3 (slots 1-3).
+	report := waitForReport(t, r, 4*time.Second)
+	if report.StopReason != StopAdmissionFull {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopAdmissionFull, report.StopDetail)
+	}
+	if report.SustainedViewers != 3 {
+		t.Fatalf("sustained viewers = %d, want 3", report.SustainedViewers)
+	}
+	if report.ViewerMix["mkvgo"] != 1 || report.ViewerMix["transcode"] != 2 {
+		t.Fatalf("viewer mix = %v, want mkvgo=1 transcode=2", report.ViewerMix)
 	}
 }

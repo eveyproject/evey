@@ -21,6 +21,14 @@ const (
 	errCodeFileNotReady   = "file_not_ready"
 )
 
+// headerServedBy names which subsystem actually served an HLS resource
+// (master/variant/segment). An mkvgo-typed viewer requires it on the master
+// playlist (eligibility) and, as a defense in depth, on the first segment.
+const (
+	headerServedBy = "X-Evey-Served-By"
+	servedByMkvgo  = "mkvgo"
+)
+
 // maxConsecutiveViewerFailures is how many fetch failures in a row (outside
 // admission/auth signals, which are handled separately) turn a viewer into a
 // StopError verdict.
@@ -43,38 +51,47 @@ const (
 // buffer-filling burst, then real-time-paced segment fetches until ctx is
 // cancelled. It never panics the run: any panic is recovered and reported as
 // a viewer error.
-func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, media MediaCandidate, forked bool, events chan<- viewerEvent, wg *sync.WaitGroup) {
+func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt viewerType, media MediaCandidate, forked bool, events chan<- viewerEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer func() {
 		if rec := recover(); rec != nil {
 			r.logger.Warn("loadtest viewer recovered from panic", "panic", fmt.Sprint(rec))
-			sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: "viewer panic"})
+			sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: "viewer panic"})
 		}
 	}()
 
-	masterURL := buildMasterURL(cfg, media, forked, tierAtSpawn)
+	masterURL := buildMasterURL(cfg, vt, media, forked, tierAtSpawn)
 	masterBase, parseErr := url.Parse(masterURL)
 	if parseErr != nil {
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: "invalid master url"})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: "invalid master url"})
 		return
 	}
 
 	status, header, body, _, err := r.fetchWithRetry(ctx, masterURL, cfg.Token)
 	switch classify(status, header, err) {
 	case outcomeTokenExpired:
-		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, detail: "401 on master playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, detail: "401 on master playlist"})
 		return
 	case outcomeAdmissionFull:
-		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, detail: "too_many_streams on master playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, detail: "too_many_streams on master playlist"})
 		return
 	case outcomeOtherFail:
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: fmt.Sprintf("master playlist fetch failed (status=%d, err=%v)", status, err)})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: fmt.Sprintf("master playlist fetch failed (status=%d, err=%v)", status, err)})
+		return
+	}
+
+	// mkvgo eligibility: the master playlist itself must have been packaged
+	// on demand by mkvgo. If not, this candidate isn't part of the "mkvgo
+	// alone" measurement - abandon it cleanly, no error, no data point; the
+	// run loop retries the same slot against the next distinct candidate.
+	if vt == viewerTypeMkvgo && header.Get(headerServedBy) != servedByMkvgo {
+		sendEvent(ctx, events, viewerEvent{kind: evCandidateSkipped, vt: vt, detail: "master not served by mkvgo"})
 		return
 	}
 
 	variants, err := parseMasterPlaylist(body, masterBase)
 	if err != nil {
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: "unparsable master playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: "unparsable master playlist"})
 		return
 	}
 	chosen := pickMedianVariant(variants)
@@ -82,22 +99,22 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, med
 	status, header, body, _, err = r.fetchWithRetry(ctx, chosen.uri.String(), cfg.Token)
 	switch classify(status, header, err) {
 	case outcomeTokenExpired:
-		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, detail: "401 on variant playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, detail: "401 on variant playlist"})
 		return
 	case outcomeAdmissionFull:
-		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, detail: "too_many_streams on variant playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, detail: "too_many_streams on variant playlist"})
 		return
 	case outcomeOtherFail:
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: fmt.Sprintf("variant playlist fetch failed (status=%d, err=%v)", status, err)})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: fmt.Sprintf("variant playlist fetch failed (status=%d, err=%v)", status, err)})
 		return
 	}
 
 	targetMs, segments, err := parseVariantPlaylist(body, chosen.uri)
 	if err != nil {
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: "unparsable variant playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: "unparsable variant playlist"})
 		return
 	}
-	sendEvent(ctx, events, viewerEvent{kind: evTargetDuration, ms: targetMs})
+	sendEvent(ctx, events, viewerEvent{kind: evTargetDuration, vt: vt, ms: targetMs})
 
 	idx := 0
 	consecutiveFail := 0
@@ -106,25 +123,32 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, med
 		idx = (idx + 1) % len(segments)
 
 		status, header, _, elapsedMs, err := r.fetchWithRetry(ctx, segURL.String(), cfg.Token)
-		switch classify(status, header, err) {
+		outcome := classify(status, header, err)
+		// Defense in depth: the first segment of an mkvgo-typed viewer must
+		// also carry the header, or a silent fallback to transcode on the
+		// segment path would flatter the "mkvgo alone" measurement.
+		if outcome == outcomeOK && isFirst && vt == viewerTypeMkvgo && header.Get(headerServedBy) != servedByMkvgo {
+			outcome = outcomeOtherFail
+		}
+		switch outcome {
 		case outcomeOK:
 			consecutiveFail = 0
 			if isFirst {
-				sendEvent(ctx, events, viewerEvent{kind: evTTFF, ms: elapsedMs})
+				sendEvent(ctx, events, viewerEvent{kind: evTTFF, vt: vt, ms: elapsedMs})
 			} else {
-				sendEvent(ctx, events, viewerEvent{kind: evSegment, ms: elapsedMs})
+				sendEvent(ctx, events, viewerEvent{kind: evSegment, vt: vt, ms: elapsedMs})
 			}
 			return false
 		case outcomeTokenExpired:
-			sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, detail: "401 on segment fetch"})
+			sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, detail: "401 on segment fetch"})
 			return true
 		case outcomeAdmissionFull:
-			sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, detail: "too_many_streams on segment fetch"})
+			sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, detail: "too_many_streams on segment fetch"})
 			return true
 		default:
 			consecutiveFail++
 			if consecutiveFail >= maxConsecutiveViewerFailures {
-				sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: fmt.Sprintf("%d consecutive segment fetch failures", consecutiveFail)})
+				sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: fmt.Sprintf("%d consecutive segment fetch failures", consecutiveFail)})
 				return true
 			}
 			return false
@@ -160,14 +184,14 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, med
 }
 
 // buildMasterURL constructs the master playlist request a real player would
-// issue. forked viewers (transcode scenario reusing a media item because the
-// library ran out of distinct candidates) add an audioOffsetMs so the
-// server's decision hash forks into a distinct session instead of sharing
-// the original viewer's.
-func buildMasterURL(cfg Config, media MediaCandidate, forked bool, forkTag int) string {
+// issue. forked viewers (a transcode-typed viewer reusing a media item
+// because the library ran out of distinct candidates) add an audioOffsetMs
+// so the server's decision hash forks into a distinct session instead of
+// sharing the original viewer's.
+func buildMasterURL(cfg Config, vt viewerType, media MediaCandidate, forked bool, forkTag int) string {
 	u := strings.TrimRight(cfg.BaseURL, "/") + "/api/v1/media/" + media.ID + "/hls/master.m3u8"
 	q := url.Values{}
-	if cfg.Scenario == ScenarioTranscode {
+	if vt == viewerTypeTranscode {
 		q.Set("vd", "transcode")
 		q.Set("ad", "transcode")
 	}

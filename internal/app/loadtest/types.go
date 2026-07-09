@@ -44,6 +44,21 @@ const (
 	// across two simulated viewers so direct-play/remux cache hits can't
 	// flatter the numbers.
 	ScenarioNatural = "natural"
+	// ScenarioMkvgo measures how far playback served by the mkvgo on-demand
+	// packager alone climbs: natural negotiation, distinct media only, and
+	// every response is verified to actually come from mkvgo (the
+	// X-Evey-Served-By header) rather than falling back to a transcode -
+	// zero encode, zero capacity slot burned.
+	ScenarioMkvgo = "mkvgo"
+	// ScenarioLight, ScenarioBalanced and ScenarioHeavy simulate a mixed
+	// household: each simulated viewer is independently typed mkvgo or
+	// transcode by a deterministic weighted pattern (see scenarioViewerType),
+	// and behaves exactly like ScenarioMkvgo or ScenarioTranscode
+	// respectively. These answer "how many different users can this
+	// machine serve" rather than a single worst/best case.
+	ScenarioLight    = "light"    // 80% mkvgo / 20% transcode
+	ScenarioBalanced = "balanced" // 50% / 50%
+	ScenarioHeavy    = "heavy"    // 20% mkvgo / 80% transcode
 )
 
 // Config configures one load test run.
@@ -139,8 +154,23 @@ type Report struct {
 
 	// SharedCacheViewers counts viewers that reused an already-in-flight
 	// media item (via a forked audio-resync param) because the library ran
-	// out of distinct candidates. Only non-zero in the transcode scenario.
+	// out of distinct candidates. Only non-zero for transcode-typed viewers.
 	SharedCacheViewers int
+
+	// SkippedCandidates counts media items an mkvgo-typed viewer tried and
+	// abandoned because the server didn't actually serve them via mkvgo
+	// (missing X-Evey-Served-By: mkvgo). Each skip is retried against the
+	// next distinct candidate without counting as a sustained viewer.
+	SkippedCandidates int
+
+	// ViewerMix is the viewer-type composition of the sustained tier, e.g.
+	// {"mkvgo": 4, "transcode": 1}. Populated for every scenario (a pure
+	// scenario reports a single key).
+	ViewerMix map[string]int
+	// SegmentMsP95ByType is the per-type p95 segment-fetch latency at the
+	// sustained tier, so a slow viewer type can't hide behind a fast one in
+	// the blended SegmentMsP95.
+	SegmentMsP95ByType map[string]int
 
 	StartedAt, EndedAt time.Time
 }

@@ -36,10 +36,15 @@ const (
 	evAdmissionFull
 	evTokenExpired
 	evViewerError
+	// evCandidateSkipped: an mkvgo-typed viewer's candidate media wasn't
+	// actually served by mkvgo. It never becomes a counted viewer; the run
+	// loop retries the same ramp slot against the next distinct candidate.
+	evCandidateSkipped
 )
 
 type viewerEvent struct {
 	kind   eventKind
+	vt     viewerType
 	ms     int
 	detail string
 }
@@ -147,14 +152,32 @@ func (r *Runner) wasCancelRequested() bool {
 }
 
 func (r *Runner) finish(report Report) {
-	r.logger.Info("loadtest finished",
+	args := []any{
 		"scenario", report.Scenario,
 		"sustained_viewers", report.SustainedViewers,
 		"stop_reason", string(report.StopReason),
-		"slo_ms", report.SegmentSLOMs,
-		"shared_cache_viewers", report.SharedCacheViewers,
+		"stop_detail", report.StopDetail,
+		"ttff_ms_p50", report.TTFFMsP50,
+		"ttff_ms_p95", report.TTFFMsP95,
+		"segment_ms_p50", report.SegmentMsP50,
+		"segment_ms_p95", report.SegmentMsP95,
+		"segment_slo_ms", report.SegmentSLOMs,
 		"samples", report.Samples,
-	)
+		"shared_cache_viewers", report.SharedCacheViewers,
+		"skipped_candidates", report.SkippedCandidates,
+		"duration_ms", report.EndedAt.Sub(report.StartedAt).Milliseconds(),
+	}
+	for _, vt := range sortedKeys(report.ViewerMix) {
+		args = append(args, "mix_"+vt, report.ViewerMix[vt])
+	}
+	for _, vt := range sortedKeys(report.SegmentMsP95ByType) {
+		args = append(args, "segment_ms_p95_"+vt, report.SegmentMsP95ByType[vt])
+	}
+	// A single flat-attribute line is deliberate: an operator can drive and
+	// read back a whole run with curl + `docker logs`, no admin panel
+	// required.
+	r.logger.Info("loadtest: report", args...)
+
 	r.mu.Lock()
 	r.running = false
 	r.cancelFn = nil
@@ -206,36 +229,53 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	tier := 0
 	nextCandidate := 0
 	sharedCacheViewers := 0
+	skippedCandidates := 0
+	viewerTypeBySlot := map[int]viewerType{}
 
-	spawn := func() bool {
+	// spawn tries to fill the next ramp slot (tier+1). mkvgo-typed slots
+	// only ever take a fresh distinct candidate (never share); transcode-
+	// typed slots fall back to forking (audioOffsetMs) once distinct
+	// candidates run out. It returns false with an explanatory detail
+	// (naming the type that couldn't be filled) when the slot can't be
+	// filled at all.
+	spawn := func() (bool, string) {
+		slot := tier + 1
+		vt := scenarioViewerType(cfg.Scenario, slot)
+
 		var media MediaCandidate
 		forked := false
 		switch {
 		case nextCandidate < len(candidates):
 			media = candidates[nextCandidate]
 			nextCandidate++
-		case cfg.Scenario == ScenarioTranscode:
+		case vt == viewerTypeTranscode:
 			media = candidates[tier%len(candidates)]
 			forked = true
+		case vt == viewerTypeMkvgo:
+			return false, "no more mkvgo-eligible titles"
 		default:
-			return false
+			return false, fmt.Sprintf("no more distinct media available for %s viewers", vt)
 		}
 		tier++
+		viewerTypeBySlot[tier] = vt
 		if forked {
 			sharedCacheViewers++
 		}
 		wg.Add(1)
-		go r.runViewer(viewerCtx, cfg, tier, media, forked, events, &wg)
-		return true
+		go r.runViewer(viewerCtx, cfg, tier, vt, media, forked, events, &wg)
+		return true, ""
 	}
 
 	r.setStatus("ramping", tier)
-	if !spawn() {
+	if ok, detail := spawn(); !ok {
 		cancelViewers()
 		wg.Wait()
+		if detail == "" {
+			detail = "no media candidates available"
+		}
 		r.finish(Report{
 			Scenario: cfg.Scenario, StopReason: StopLibraryLimit,
-			StopDetail: "no media candidates available",
+			StopDetail: detail,
 			StartedAt:  startedAt, EndedAt: time.Now(),
 		})
 		return
@@ -248,6 +288,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	var ring []int
 	tierSegments := map[int][]int{}
 	tierTTFF := map[int][]int{}
+	perTypeSegments := map[viewerType]map[int][]int{}
 
 	rampTicker := time.NewTicker(cfg.RampEvery)
 	defer rampTicker.Stop()
@@ -283,6 +324,10 @@ runLoop:
 				tierTTFF[tier] = append(tierTTFF[tier], ev.ms)
 			case evSegment:
 				tierSegments[tier] = append(tierSegments[tier], ev.ms)
+				if perTypeSegments[ev.vt] == nil {
+					perTypeSegments[ev.vt] = map[int][]int{}
+				}
+				perTypeSegments[ev.vt][tier] = append(perTypeSegments[ev.vt][tier], ev.ms)
 				ring = append(ring, ev.ms)
 				if len(ring) > sloWindowSize {
 					ring = ring[len(ring)-sloWindowSize:]
@@ -310,6 +355,19 @@ runLoop:
 				sustained = max(tier-1, 0)
 				stopDetail = ev.detail
 				break runLoop
+			case evCandidateSkipped:
+				// This slot never became a real viewer: give it back and
+				// immediately retry the same slot (same type) against the
+				// next distinct candidate.
+				skippedCandidates++
+				tier--
+				if ok, detail := spawn(); !ok {
+					stopReason = StopLibraryLimit
+					sustained = tier
+					stopDetail = detail
+					break runLoop
+				}
+				r.setStatus("ramping", tier)
 			}
 
 		case <-rampTicker.C:
@@ -319,10 +377,10 @@ runLoop:
 				stopDetail = fmt.Sprintf("reached configured max of %d viewers cleanly", tier)
 				break runLoop
 			}
-			if !spawn() {
+			if ok, detail := spawn(); !ok {
 				stopReason = StopLibraryLimit
 				sustained = tier
-				stopDetail = fmt.Sprintf("media pool exhausted at %d distinct candidates", len(candidates))
+				stopDetail = detail
 				break runLoop
 			}
 			r.logger.Info("loadtest tier advanced", "viewers", tier)
@@ -340,6 +398,19 @@ runLoop:
 		ttffSamples = append(ttffSamples, tierTTFF[t]...)
 	}
 
+	mix := map[string]int{}
+	for slot := 1; slot <= sustained; slot++ {
+		if vt, ok := viewerTypeBySlot[slot]; ok {
+			mix[string(vt)]++
+		}
+	}
+	p95ByType := map[string]int{}
+	for vt, byTier := range perTypeSegments {
+		if samples := byTier[sustained]; len(samples) > 0 {
+			p95ByType[string(vt)] = percentile(samples, 95)
+		}
+	}
+
 	r.finish(Report{
 		Scenario:           cfg.Scenario,
 		SustainedViewers:   sustained,
@@ -352,9 +423,23 @@ runLoop:
 		SegmentSLOMs:       sloMs,
 		Samples:            len(segSamples),
 		SharedCacheViewers: sharedCacheViewers,
+		SkippedCandidates:  skippedCandidates,
+		ViewerMix:          mix,
+		SegmentMsP95ByType: p95ByType,
 		StartedAt:          startedAt,
 		EndedAt:            time.Now(),
 	})
+}
+
+// sortedKeys returns m's keys in a deterministic order, so the same run
+// always logs its per-type attributes in the same order.
+func sortedKeys(m map[string]int) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // percentile returns the nearest-rank p-th percentile of samples (p in
