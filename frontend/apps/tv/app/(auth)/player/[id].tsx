@@ -175,8 +175,11 @@ export default function PlayerScreen() {
     router.back();
   }, [stopSession]);
 
-  // D-pad remote handler
-  useTVEventHandler((evt) => {
+  // D-pad remote handler. The callback param is annotated explicitly: the
+  // react-native-tvos alias resolves per-app, and the hoisted classic RN
+  // types (shared workspace) leave HWEvent unresolvable in some installs -
+  // a structural annotation keeps tsc deterministic everywhere.
+  useTVEventHandler((evt: { eventType: string } | undefined) => {
     if (!evt) return;
     const type = evt.eventType;
 
