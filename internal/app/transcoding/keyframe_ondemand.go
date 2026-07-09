@@ -60,6 +60,13 @@ type KeyframeOnDemand struct {
 	budget time.Duration
 	sem    chan struct{}
 
+	// Optional CFR/VFR classification riding the same walk (mirrors the
+	// backfill worker's WithFrameRateAnalyzer): files indexed here never
+	// reappear in the backfill queue, so without this the frame-rate mode
+	// would stay unknown exactly for on-demand- and ingest-warmed files.
+	frAnalyzer FrameRateAnalyzer
+	frStore    FrameRateStore
+
 	mu       sync.Mutex
 	inflight map[string]struct{}  // media IDs probed right now (skip duplicates)
 	failed   map[string]time.Time // media ID → last failed attempt
@@ -78,6 +85,15 @@ func NewKeyframeOnDemand(store KeyframeBackfillStore, prober KeyframeProber, log
 		inflight: make(map[string]struct{}),
 		failed:   make(map[string]time.Time),
 	}
+}
+
+// WithFrameRateAnalyzer arms the optional CFR/VFR classification performed
+// after a successful index (nil = skip, previous behavior). Best-effort:
+// analysis failures never fail the index itself.
+func (k *KeyframeOnDemand) WithFrameRateAnalyzer(a FrameRateAnalyzer, store FrameRateStore) *KeyframeOnDemand {
+	k.frAnalyzer = a
+	k.frStore = store
+	return k
 }
 
 // WithInlineBudget overrides how long TryIndex waits before detaching
@@ -194,9 +210,29 @@ func (k *KeyframeOnDemand) index(ctx context.Context, mediaID, filePath string) 
 		// The background worker beat us to it — the index exists either way.
 		return true
 	}
+	k.classifyFrameRate(ctx, mediaID, filePath)
 	k.logger.Info("keyframe on-demand: indexed at negotiation",
 		slog.String("media_id", mediaID),
 		slog.Int("keyframes", len(kf)),
 		slog.Duration("took", time.Since(start)))
 	return true
+}
+
+// classifyFrameRate persists the CFR/VFR mode alongside a fresh index when
+// the analyzer is armed. Errors and unknown modes are debug-logged and
+// dropped - the copy gate fails open on "" by design.
+func (k *KeyframeOnDemand) classifyFrameRate(ctx context.Context, mediaID, filePath string) {
+	if k.frAnalyzer == nil || k.frStore == nil {
+		return
+	}
+	mode, err := k.frAnalyzer.AnalyzeFrameRateMode(ctx, filePath)
+	if err != nil || mode == "" {
+		k.logger.Debug("keyframe on-demand: frame-rate classification skipped",
+			slog.String("media_id", mediaID), slog.Any("err", err))
+		return
+	}
+	if _, err := k.frStore.SetFrameRateMode(ctx, shared.MediaItemID(mediaID), mode); err != nil {
+		k.logger.Warn("keyframe on-demand: frame-rate persist failed",
+			slog.String("media_id", mediaID), slog.Any("err", err))
+	}
 }
