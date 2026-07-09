@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -422,6 +423,52 @@ func TestHLSVOD_VariantPlaylist_ServedNormallyWhenAdmitted(t *testing.T) {
 	h.videoAdmission = func(string, int) bool { return true }
 
 	w := doVODRequest(h, "m1", "stream_0.m3u8")
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "#EXTM3U")
+}
+
+// The master is what a native mobile/TV player fetches first (and all our
+// preflight probe ever sees). It must shed too - but only when NO rung fits,
+// never merely because the tallest one does not.
+func TestHLSVOD_Master_ShedsWhenHostIsFull(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
+
+	var probedHeights []int
+	h.videoAdmission = func(_ string, topHeight int) bool {
+		probedHeights = append(probedHeights, topHeight)
+		return false
+	}
+
+	w := doVODRequest(h, "m1", "master.m3u8")
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, ErrCodeTooManyStreams, w.Header().Get("X-Evey-Error"))
+	assert.NotContains(t, w.Body.String(), "#EXTM3U")
+	require.NotEmpty(t, probedHeights)
+	// The master is probed against the CHEAPEST rung it advertises: refusing on
+	// the tallest would deny a viewer a stream the host could still serve lower.
+	assert.Equal(t, slices.Min(probedHeights), probedHeights[0],
+		"the master probe must use the cheapest rung, not the tallest")
+}
+
+func TestHLSVOD_Master_ServedWhenAdmitted(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
+	h.videoAdmission = func(string, int) bool { return true }
+
+	w := doVODRequest(h, "m1", "master.m3u8")
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "#EXTM3U")

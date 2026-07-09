@@ -49,16 +49,52 @@ const ErrCodeFileNotReady = "file_not_ready"
 // "transcoding capacity".
 const ErrCodeTooManyStreams = "too_many_streams"
 
-// topFingerprintHeight is the tallest rung this fingerprint's session may
-// encode - the rung whose measured cost the admission budget must cover.
-func topFingerprintHeight(fp apptranscoding.DecisionFingerprint) int {
-	top := 0
+// cheapestFingerprintHeight is the SHORTEST rung this stream could fall back
+// to. Probing with it answers "can this viewer be served at all?", never "can
+// they have the rung they asked for" - so an early shed only ever refuses
+// someone the host genuinely cannot serve at any quality. Being wrong the
+// other way (admitting here, shedding at the segment) merely delays the same
+// answer; being wrong this way would deny a playable stream.
+func cheapestFingerprintHeight(fp apptranscoding.DecisionFingerprint) int {
+	best := 0
 	for _, p := range fp.Profiles {
-		if p.Height > top {
-			top = p.Height
+		if p.Height > 0 && (best == 0 || p.Height < best) {
+			best = p.Height
 		}
 	}
-	return top
+	return best
+}
+
+// shedIfHostFull probes the limiter and, when this stream cannot be admitted,
+// writes the shed response and reports true. probeHeight says how generous the
+// probe is. It never sheds a request the copy rung would serve for free, and
+// it tells a still-indexing source apart from a genuinely full host.
+//
+// Advisory by construction: two viewers can both pass the probe and race at
+// spawn. That is fine - the loser is shed at the segment, which remains the
+// authoritative gate.
+func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, probeHeight func(apptranscoding.DecisionFingerprint) int) bool {
+	if h.videoAdmission == nil {
+		return false
+	}
+	decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
+	if h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
+		return false // remuxed, never encoded: no capacity slot is taken
+	}
+	fp, fpErr := h.buildFingerprint(r, mediaID, item, streams)
+	if fpErr != nil || h.videoAdmission(fp.Hash(), probeHeight(fp)) {
+		return false
+	}
+	if copyBlockedOnlyByMissingIndex(decision, streams) {
+		if h.keyframeWarmer != nil {
+			go h.keyframeWarmer(context.WithoutCancel(r.Context()), mediaID, sourcePathOf(item))
+		}
+		writeShed(w, ErrCodeFileNotReady, 10, "source keyframe index still being built; the copy rung needs no encode slot")
+		return true
+	}
+	slog.Info("hls-vod: shedding, host at video capacity", slog.String("media_id", mediaID))
+	writeTooManyStreams(w, 5, "server at video transcoding capacity")
+	return true
 }
 
 // writeShed sheds a request with everything a client needs to react well: a
@@ -447,6 +483,14 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		return
 	}
 
+	// Tell a viewer the host is full BEFORE their player parses a ladder it can
+	// never fetch - the only signal a native mobile/TV player ever sees. Probed
+	// against the CHEAPEST rung: a master is refused only when no quality at
+	// all fits, never merely because the tallest one does not.
+	if h.shedIfHostFull(w, r, mediaID, item, streams, cheapestFingerprintHeight) {
+		return
+	}
+
 	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
 		h.writeManifestErr(w, span, err, mediaID)
@@ -549,23 +593,15 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	//
 	// Advisory by construction: two viewers can both pass this probe and race
 	// at spawn. That is fine; the loser is shed at the segment, as before.
-	if h.videoAdmission != nil {
-		decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
-		if !h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
-			if fp, fpErr := h.buildFingerprint(r, mediaID, item, streams); fpErr == nil && !h.videoAdmission(fp.Hash(), topFingerprintHeight(fp)) {
-				if copyBlockedOnlyByMissingIndex(decision, streams) {
-					if h.keyframeWarmer != nil {
-						go h.keyframeWarmer(context.WithoutCancel(r.Context()), mediaID, sourcePathOf(item))
-					}
-					writeShed(w, ErrCodeFileNotReady, 10, "source keyframe index still being built; the copy rung needs no encode slot")
-					return
-				}
-				slog.Info("hls-vod: shedding a variant playlist, host at video capacity",
-					slog.String("media_id", mediaID), slog.Int("variant", profileIdx))
-				writeTooManyStreams(w, 5, "server at video transcoding capacity")
-				return
-			}
+	// Probe with the rung actually requested: that is what the session about to
+	// spawn will encode.
+	if h.shedIfHostFull(w, r, mediaID, item, streams, func(fp apptranscoding.DecisionFingerprint) int {
+		if profileIdx >= 0 && profileIdx < len(fp.Profiles) {
+			return fp.Profiles[profileIdx].Height
 		}
+		return cheapestFingerprintHeight(fp)
+	}) {
+		return
 	}
 
 	setCORSHeaders(w, r, "")
