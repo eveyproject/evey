@@ -306,14 +306,20 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// IsPaused still gets recorded so pause UI doesn't desync. shared.Duration
 	// rejects negatives by construction.
 	pos, dErr := shared.NewDurationMs(positionMs)
+	safePositionMs := positionMs
 	if dErr != nil {
 		slog.Warn("invalid report progress position", slog.String("sessionID", sessionID), slog.Int64("ms", positionMs), slog.Any("err", dErr))
+		safePositionMs = 0
 	} else {
 		session.Position = &pos
 	}
 	session.IsPaused = isPaused
 	session.CastDeviceName = castDeviceName
-	if err := s.sessions.Update(ctx, session); err != nil {
+	// Targeted, ended_at-guarded write: a tick that races an in-flight
+	// StopStream must not resurrect the stopped session (a full read-modify-
+	// write would rewrite ended_at back to NULL from this stale snapshot). A
+	// no-op here (session already ended) still records watch-progress below.
+	if _, err := s.sessions.UpdateProgress(ctx, sessionID, safePositionMs, isPaused, castDeviceName); err != nil {
 		return fmt.Errorf("update session position: %w", err)
 	}
 	// Auto-completion: when a duration source is wired and the position

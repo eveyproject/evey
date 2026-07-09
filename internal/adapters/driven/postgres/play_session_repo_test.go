@@ -255,3 +255,62 @@ func TestPlaySessionRepo_ListActiveSessions(t *testing.T) {
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(active), 1)
 }
+
+// UpdateProgress is guarded on ended_at IS NULL: it updates a live session but
+// is a no-op on an already-ended one, and NEVER clears ended_at. This is the
+// property that stops a progress tick racing an in-flight StopStream from
+// resurrecting the stopped session (the "Now Playing ghost + phantom quota"
+// lost-update the audit traced on the normal player-close path).
+func TestPlaySessionRepo_UpdateProgress_GuardedOnEndedAt(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("psu8")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("psp8", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("pslib8")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("psmi8", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	session := newTestPlaySession("ps8", string(p.ID), string(item.ID))
+	require.NoError(t, sessionRepo.Create(ctx, session))
+
+	// Live session: the progress write lands and reports a row updated.
+	updated, err := sessionRepo.UpdateProgress(ctx, session.ID, 42000, true, "Living room TV")
+	require.NoError(t, err)
+	assert.True(t, updated, "a live session must accept the progress tick")
+	got, err := sessionRepo.GetByID(ctx, session.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Position)
+	assert.Equal(t, int64(42000), got.Position.Milliseconds())
+	assert.True(t, got.IsPaused)
+	assert.Equal(t, "Living room TV", got.CastDeviceName)
+	assert.Nil(t, got.EndedAt)
+
+	// End the session the way StopStream does: read the FRESH row (carrying
+	// the 42000 position UpdateProgress just wrote), set ended_at, Update.
+	fresh, err := sessionRepo.GetByID(ctx, session.ID)
+	require.NoError(t, err)
+	endedAt := time.Now().UTC().Truncate(time.Millisecond)
+	fresh.EndedAt = &endedAt
+	require.NoError(t, sessionRepo.Update(ctx, fresh))
+
+	updated, err = sessionRepo.UpdateProgress(ctx, session.ID, 99000, false, "Someone Else TV")
+	require.NoError(t, err)
+	assert.False(t, updated, "a tick on an ended session must not update any row")
+
+	after, err := sessionRepo.GetByID(ctx, session.ID)
+	require.NoError(t, err)
+	require.NotNil(t, after.EndedAt, "ended_at must stay set - no resurrection")
+	assert.Equal(t, int64(42000), after.Position.Milliseconds(), "the ended session's fields must be untouched by the late tick")
+	assert.Equal(t, "Living room TV", after.CastDeviceName)
+}

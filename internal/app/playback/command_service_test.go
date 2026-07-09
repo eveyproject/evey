@@ -976,3 +976,34 @@ func TestReportProgressBySession_CastDeviceRelay(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, stored.CastDeviceName, "cast end clears the relay")
 }
+
+// A progress tick that lands AFTER StopStream must not resurrect the stopped
+// session: the guarded UpdateProgress never rewrites ended_at, so the session
+// stays closed and drops out of the active-session views (the "Now Playing
+// ghost after stop" + phantom quota bug the audit traced to a lost-update race
+// on the normal player-close path). Regression guard for the resurrection.
+func TestReportProgressAfterStop_DoesNotResurrectSession(t *testing.T) {
+	t.Parallel()
+	cmd, _, sr, ur, pfr, _ := setupCmd()
+	ctx := context.Background()
+	seedUserProfile(ctx, ur, pfr, nil)
+
+	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
+	require.NoError(t, cmd.StopStream(ctx, "s1"))
+
+	// The player-close cleanup fires a final progress report after stop.
+	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 123456, false, ""))
+
+	// The session must remain ended: no active session, zero quota usage.
+	active, err := sr.ListActiveSessions(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, active, "a stopped session must not reappear as active after a late progress tick")
+
+	n, err := sr.CountActiveByUser(ctx, "u1")
+	require.NoError(t, err)
+	assert.Equal(t, 0, n, "a resurrected ghost would inflate the active-stream quota")
+
+	got, err := sr.GetByID(ctx, "s1")
+	require.NoError(t, err)
+	assert.NotNil(t, got.EndedAt, "ended_at must stay set")
+}

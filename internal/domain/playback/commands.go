@@ -24,6 +24,15 @@ type ProgressCommandRepo interface {
 type SessionCommandRepo interface {
 	Create(ctx context.Context, session *PlaySession) error
 	Update(ctx context.Context, session *PlaySession) error
+	// UpdateProgress writes ONLY the live-playback fields (position, pause,
+	// cast relay) and is guarded on the session still being active
+	// (ended_at IS NULL). A progress tick that races an in-flight StopStream
+	// must never be able to rewrite ended_at back to NULL from a stale
+	// snapshot and resurrect a stopped session - so progress reports go
+	// through this targeted update instead of a full read-modify-write.
+	// Returns whether a row was updated (false = the session already ended;
+	// the tick is a no-op for the live session, watch-progress still records).
+	UpdateProgress(ctx context.Context, sessionID string, positionMs int64, isPaused bool, castDeviceName string) (bool, error)
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
 	SetRemoteCommand(ctx context.Context, sessionID, command string) error
 	ConsumeRemoteCommand(ctx context.Context, sessionID string) (string, error)

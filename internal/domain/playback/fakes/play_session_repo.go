@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 type FakePlaySessionRepository struct {
@@ -43,6 +44,26 @@ func (r *FakePlaySessionRepository) Update(_ context.Context, session *playback.
 	}
 	r.items[session.ID] = session
 	return nil
+}
+
+func (r *FakePlaySessionRepository) UpdateProgress(_ context.Context, sessionID string, positionMs int64, isPaused bool, castDeviceName string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return false, r.Err
+	}
+	s, ok := r.items[sessionID]
+	if !ok || s.EndedAt != nil {
+		// Guard mirrors the SQL `WHERE id=$ AND ended_at IS NULL`: a tick on an
+		// ended (or absent) session is a no-op and cannot touch ended_at.
+		return false, nil
+	}
+	if pos, err := shared.NewDurationMs(positionMs); err == nil {
+		s.Position = &pos
+	}
+	s.IsPaused = isPaused
+	s.CastDeviceName = castDeviceName
+	return true, nil
 }
 
 func (r *FakePlaySessionRepository) GetByID(_ context.Context, id string) (*playback.PlaySession, error) {

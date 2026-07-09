@@ -113,6 +113,34 @@ func (r *PlaySessionRepository) Update(ctx context.Context, s *playback.PlaySess
 	return nil
 }
 
+func (r *PlaySessionRepository) UpdateProgress(ctx context.Context, sessionID string, positionMs int64, isPaused bool, castDeviceName string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.UpdateProgress")
+	defer span.End()
+	span.SetAttributes(attribute.String("play_session.id", sessionID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	// ended_at IS NULL guard: a progress tick that commits AFTER a concurrent
+	// StopStream must not touch the row (it would otherwise leave ended_at set
+	// but bump updated_at, keeping the stopped session in the 45s active
+	// window). Only the live-playback columns are written - ended_at is never
+	// in this statement, so it can never be cleared.
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE play_sessions SET position_ms=$2, is_paused=$3, cast_device_name=$4, updated_at=NOW()
+		 WHERE id=$1 AND ended_at IS NULL`,
+		sessionID, positionMs, isPaused, castDeviceName,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return false, fmt.Errorf("PlaySessionRepo.UpdateProgress: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("PlaySessionRepo.UpdateProgress: rows affected: %w", err)
+	}
+	return n > 0, nil
+}
+
 func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playback.PlaySession, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.GetByID")
 	defer span.End()
