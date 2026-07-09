@@ -59,6 +59,8 @@ func run() error {
 		return fmt.Errorf("config validation: %w", err)
 	}
 
+	applyMemoryLimit(rootLog)
+
 	tracingShutdown, err := tracing.Init(context.Background(), tracing.Config{
 		Endpoint:    cfg.Tracing.OTLPEndpoint,
 		ServiceName: cfg.Tracing.ServiceName,
