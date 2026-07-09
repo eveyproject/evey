@@ -30,6 +30,11 @@ import { TextureManager } from "./TextureManager";
 
 const BASE_HALF_WIDTH = WALL_GEOMETRY.colSpacing * 0.47;
 const BASE_HALF_HEIGHT = BASE_HALF_WIDTH / WALL_GEOMETRY.posterAspect;
+// Click/hover picking fills the whole cell (half a colSpacing) rather than the
+// drawn poster half-width, so the thin gaps between posters are not dead zones -
+// every point on the wall maps to its nearest poster (frontmost row wins ties).
+const HIT_HALF_WIDTH = WALL_GEOMETRY.colSpacing * 0.5;
+const HIT_HALF_HEIGHT = HIT_HALF_WIDTH / WALL_GEOMETRY.posterAspect;
 const BASELINE_Y = -0.25;
 const HOVER_LIFT = 0.09;
 const HOVER_SCALE_BOOST = 1.16;
@@ -59,20 +64,20 @@ function detectQuality(): Quality {
     const c = document.createElement("canvas");
     const gl = (c.getContext("webgl2") || c.getContext("webgl")) as WebGLRenderingContext | null;
     if (!gl) {
-      return (cachedQuality = { scale: 0.5, fps: 24, maxDpr: 1, posterCount: 14, rows: 2, reflections: false, textureCapacity: 16 });
+      return (cachedQuality = { scale: 0.5, fps: 24, maxDpr: 1, posterCount: 14, rows: 2, reflections: false, textureCapacity: 20 });
     }
     const maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
     const cores = navigator.hardwareConcurrency ?? 2;
     const isWebGL2 = "drawBuffers" in gl;
     if (isWebGL2 && maxTex >= 8192 && cores >= 4) {
-      return (cachedQuality = { scale: 1.0, fps: 30, maxDpr: 1.5, posterCount: 30, rows: 3, reflections: true, textureCapacity: 32 });
+      return (cachedQuality = { scale: 1.0, fps: 30, maxDpr: 1.5, posterCount: 30, rows: 3, reflections: true, textureCapacity: 42 });
     }
     if (maxTex >= 4096) {
-      return (cachedQuality = { scale: 0.75, fps: 30, maxDpr: 1.25, posterCount: 24, rows: 3, reflections: true, textureCapacity: 28 });
+      return (cachedQuality = { scale: 0.75, fps: 30, maxDpr: 1.25, posterCount: 24, rows: 3, reflections: true, textureCapacity: 36 });
     }
-    return (cachedQuality = { scale: 0.5, fps: 24, maxDpr: 1, posterCount: 14, rows: 2, reflections: false, textureCapacity: 16 });
+    return (cachedQuality = { scale: 0.5, fps: 24, maxDpr: 1, posterCount: 14, rows: 2, reflections: false, textureCapacity: 20 });
   } catch {
-    return (cachedQuality = { scale: 0.5, fps: 24, maxDpr: 1, posterCount: 14, rows: 2, reflections: false, textureCapacity: 16 });
+    return (cachedQuality = { scale: 0.5, fps: 24, maxDpr: 1, posterCount: 14, rows: 2, reflections: false, textureCapacity: 20 });
   }
 }
 
@@ -159,7 +164,22 @@ export class GlRenderer implements SceneRenderer {
   private onPointerLeave = () => this.setHover(null);
 
   getCapacity(): WallCapacity {
-    return { posterCount: this.quality.posterCount, rows: this.quality.rows };
+    const rows = this.quality.rows;
+    // A full loop of the wall must be WIDER than the viewport, or the
+    // seamless-loop tiling paints a second copy of the same poster on screen
+    // at the same time (the "same media appears twice" artifact the user hit).
+    // With colSpacing = 1 the loop width equals the column count, and the
+    // viewport spans [-aspect, aspect] in wall space, so we need
+    // colsPerRow > 2*aspect; +2 columns of margin push a poster fully
+    // off-screen before its looped copy re-enters. Capped at the texture
+    // budget so no poster that is actually on the wall is ever LRU-evicted
+    // back to a placeholder.
+    const aspect = this.aspect();
+    const neededCols = Math.ceil(2 * aspect) + 2;
+    const baseCols = Math.ceil(this.quality.posterCount / rows);
+    const cols = Math.max(baseCols, neededCols);
+    const posterCount = Math.min(cols * rows, this.quality.textureCapacity);
+    return { posterCount, rows };
   }
 
   mount(host: HTMLElement): void {
@@ -371,12 +391,18 @@ export class GlRenderer implements SceneRenderer {
     const wallY = ndcY - BASELINE_Y;
 
     const index = hitTestWall(this.slots, this.scrollOffset, this.period, { x: wallX, y: wallY }, {
-      halfWidth: BASE_HALF_WIDTH,
-      halfHeight: BASE_HALF_HEIGHT,
+      halfWidth: HIT_HALF_WIDTH,
+      halfHeight: HIT_HALF_HEIGHT,
     });
 
     if (isActivate) {
-      if (index !== null && !this.spin) this.activateCb?.(index);
+      // Navigate to the poster the pointer is actually over. hoverIndex is
+      // kept in sync frame-by-frame by pointermove, so on a click it already
+      // holds exactly the emphasised poster the user is looking at - use it
+      // when present, and fall back to this fresh hit-test for touch taps
+      // where no move event preceded the up.
+      const target = this.hoverIndex ?? index;
+      if (target !== null && !this.spin) this.activateCb?.(target);
     } else {
       this.setHover(index);
     }
