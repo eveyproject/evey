@@ -1,19 +1,11 @@
-# Evey container — one-time interactive greeting, sourced from /etc/bash.bashrc
-# on an interactive shell (`docker exec -it evey-server bash`). Shows the Evey
-# wordmark and an arrow-key menu of the handy `evey` / `mkvgo` commands; picking
-# one drops it onto the real prompt (so Tab-completion applies), and the last
-# entry just hands you an empty prompt to type your own (`evey`/`mkvgo` <Tab>).
-# Non-interactive or no-tty: a plain list, no key capture. NO_COLOR drops colour.
+# Evey container greeting + a reusable `menu` command. Sourced from
+# /etc/bash.bashrc on an interactive shell (`docker exec -it evey-server bash`):
+# it defines evey_menu()/menu() and shows the menu once per shell. Run `menu`
+# any time to bring the assisted picker back. Arrow keys move; Enter drops the
+# chosen command onto the real prompt (Tab-completion applies); the last entry
+# gives a blank prompt to type your own. No tty (piped/logs): a plain list.
 
-case $- in
-    *i*) : ;;
-    *) return 0 2>/dev/null || exit 0 ;;
-esac
-[ -n "${EVEY_MOTD_SHOWN:-}" ] && return 0 2>/dev/null
-EVEY_MOTD_SHOWN=1
-export EVEY_MOTD_SHOWN
-
-_evey_greeting() {
+evey_menu() {
     local W R S D G Z mkv
     if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
         W=$'\033[38;2;236;238;244m'; R=$'\033[38;2;220;38;38m'; S=$'\033[38;2;136;145;163m'
@@ -41,7 +33,6 @@ _evey_greeting() {
            "inspect / repair a media file  ($mkv)" "type your own  —  evey / mkvgo + Tab Tab" )
     local n=${#cmd[@]} last=$(( ${#cmd[@]} - 1 ))
 
-    # Plain list when there is no keyboard (piped shell, log capture).
     if [ ! -t 0 ] || [ ! -t 1 ]; then
         local i
         for ((i=0; i<last; i++)); do
@@ -62,7 +53,8 @@ _evey_greeting() {
             printf '%s%s%-31s%s %s%s%s\n' "$mark" "$col" "${cmd[i]}" "$Z" "$D" "${desc[i]}" "$Z"
         fi
     }
-    printf '  %s↑/↓ to choose · Enter to load · q for a blank prompt%s\n' "$D" "$Z"
+    printf '  %s↑/↓ choose · Enter load · q for a blank prompt · run %smenu%s%s to reopen%s\n' \
+        "$D" "$R" "$Z" "$D" "$Z"
     for ((i=0; i<n; i++)); do _row "$i"; done
 
     while true; do
@@ -75,7 +67,7 @@ _evey_greeting() {
             q|Q|$'\033') sel=-1; break ;;
             *) continue ;;
         esac
-        printf '\033[%dA' "$n"          # back to the top of the list
+        printf '\033[%dA' "$n"
         for ((i=0; i<n; i++)); do printf '\033[2K'; _row "$i"; done
     done
     unset -f _row
@@ -83,11 +75,20 @@ _evey_greeting() {
     printf '\n'
     if [ "$sel" -ge 0 ] && [ "$sel" -lt "$last" ]; then
         local pick="${cmd[sel]} "
-        history -s "${cmd[sel]}"                       # ↑ also recalls it
-        # Prefill the *real* prompt so Tab-completion applies: bind the terminal's
-        # status reply to type the command, then ask for that reply.
+        history -s "${cmd[sel]}"
         bind "\"\033[0n\": \"$pick\"" 2>/dev/null && printf '\033[5n'
     fi
 }
-_evey_greeting
-unset -f _evey_greeting
+
+menu() { evey_menu; }
+
+# Auto-show once per interactive shell.
+case $- in
+    *i*)
+        if [ -z "${EVEY_MOTD_SHOWN:-}" ]; then
+            EVEY_MOTD_SHOWN=1
+            export EVEY_MOTD_SHOWN
+            evey_menu
+        fi
+        ;;
+esac
