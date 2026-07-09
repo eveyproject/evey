@@ -2,6 +2,49 @@ import { useEffect, useState } from "react";
 import Hls from "hls.js";
 import { buildTranscodeHlsUrl, prefersNativeHLS } from "./hlsPlayerUtils";
 
+// Mirrors the server's shed contract (HTTP 503 on a refused playback start):
+// - too_many_streams: the box can't prepare one more stream because of OTHER
+//   concurrent playbacks.
+// - file_not_ready: unrelated to load - this specific file's seek index is
+//   still being built and will serve fine once that finishes.
+// Never surface the server's `message` field (English, technical) to users -
+// the client picks its own non-technical copy from this code.
+export type ShedReason = "too_many_streams" | "file_not_ready" | null;
+
+interface ShedErrorData {
+  response?: { code?: number; text?: string };
+  networkDetails?: unknown;
+}
+
+// Reads the shed reason off a fatal NETWORK_ERROR hls.js reports for a 503.
+//
+// hls.js's default XHR loader does NOT forward the response BODY to its
+// onError callback on a failed request - it only passes
+// `{ code: xhr.status, text: xhr.statusText }` (see XhrLoader.readystatechange
+// in hls.js), so `data.response.text` here is the HTTP reason phrase (e.g.
+// "Service Unavailable"), not our JSON body. The raw XHR is still reachable
+// via `data.networkDetails` though, and manifest/level loads use
+// `responseType: "text"`, so `.responseText` remains readable after the
+// error - that's where the real body lives. `response.text` is checked first
+// in case a custom loader (or a future hls.js version) starts forwarding the
+// body directly under that field.
+function extractShedReason(data: ShedErrorData): ShedReason {
+  const raw = data.response?.text || (data.networkDetails as { responseText?: string } | undefined)?.responseText;
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as { code?: string };
+      if (parsed.code === "too_many_streams" || parsed.code === "file_not_ready") return parsed.code;
+    } catch {
+      // Not our JSON shape (e.g. a proxy's plain-text 503 page) - fall through
+      // to the default below.
+    }
+  }
+  // No parseable body: default to the "too many streams" framing. It's the
+  // more common shed cause, and its "try again shortly" copy reads fine
+  // either way.
+  return "too_many_streams";
+}
+
 interface UseTranscodePlaybackArgs {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   hlsRef: React.MutableRefObject<InstanceType<typeof Hls> | null>;
@@ -18,6 +61,7 @@ interface UseTranscodePlaybackArgs {
   onEnded?: () => void;
   setIsBuffering: (v: boolean) => void;
   setFatalError: (v: boolean) => void;
+  setShedReason: (v: ShedReason) => void;
   /** Applied audio resync (ms; positive = audio later). Baked into the
    * stream URL - a change re-creates the HLS session with a shifted encode. */
   audioOffsetMs?: number;
@@ -40,6 +84,7 @@ export function useTranscodePlayback({
   setIsBuffering,
   audioOffsetMs = 0,
   setFatalError,
+  setShedReason,
 }: UseTranscodePlaybackArgs) {
   const [transcodeStartTime, setTranscodeStartTime] = useState(startPositionMs / 1000);
   const [hlsLevels, setHlsLevels] = useState<number[]>([]);
@@ -212,6 +257,14 @@ export function useTranscodePlayback({
     hls.on(Hls.Events.ERROR, (_, data) => {
       if (!data.fatal) return;
       if (import.meta.env.DEV) console.warn("[player] HLS fatal error:", data.type, data.details, data.response?.code);
+      if (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.response?.code === 503) {
+        // Server-side load shed (SegmentOrchestrator refusing to start a new
+        // stream) - not a transient network blip, so don't burn the generic
+        // retry budget below. Surface a typed, non-technical reason instead;
+        // the UI decides its own copy from it and offers a manual retry.
+        setShedReason(extractShedReason(data));
+        return;
+      }
       retries++;
       if (retries > 20) {
         setFatalError(true);
@@ -278,7 +331,7 @@ export function useTranscodePlayback({
         setFatalError(true);
       }
     });
-    hls.on(Hls.Events.FRAG_LOADED, () => { retries = 0; consecutive404 = 0; });
+    hls.on(Hls.Events.FRAG_LOADED, () => { retries = 0; consecutive404 = 0; setShedReason(null); });
 
     function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
     function handleEnded() { onEnded?.(); }
@@ -303,7 +356,7 @@ export function useTranscodePlayback({
       // surviving the transition.
       setIsBuffering(false);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setIsBuffering/setTranscodeStartTime are stable setState
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
   }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs]);
 
   return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight };

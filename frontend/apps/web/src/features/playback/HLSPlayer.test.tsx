@@ -382,3 +382,90 @@ describe("HLSPlayer: download fallback on fatal playback error", () => {
     expect(link).toHaveAttribute("href", "/api/v1/media/media-1/download?token=test-token");
   });
 });
+
+// Server-side load shed (HTTP 503): the server refuses to start a NEW stream
+// for two unrelated reasons that must read as unrelated to a non-technical
+// user - "too many streams" (other playbacks saturate the box) vs "this file
+// isn't ready yet" (its own seek index is still building). Neither is the
+// generic "something is broken" fatalError, and a single 503 must not get
+// chewed up by the 20-retry generic backoff.
+describe("HLSPlayer: server load-shed (503) overlays", () => {
+  function fireFatal503(body?: unknown) {
+    const handlers = hlsEventListeners[MockHls.Events.ERROR] ?? [];
+    for (const h of handlers) {
+      h(MockHls.Events.ERROR, {
+        fatal: true,
+        type: MockHls.ErrorTypes.NETWORK_ERROR,
+        details: "manifestLoadError",
+        response: {
+          code: 503,
+          // hls.js's default loader doesn't actually forward the body under
+          // `text` on error (see the extractShedReason comment) - this test
+          // covers the "custom/future loader forwards it here" path directly,
+          // independently of the extraction fallback covered below.
+          ...(body !== undefined ? { text: JSON.stringify(body) } : {}),
+        },
+      });
+    }
+  }
+
+  it("shows the 'too many streams' overlay for a 503 carrying that code, and a single fatal event doesn't trip the generic fatalError path", async () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "test-token" });
+    act(() => { fireFatal503({ code: "too_many_streams", retryAfterSec: 5, message: "shed: too many concurrent streams" }); });
+
+    expect(await screen.findByText("Too many streams right now")).toBeInTheDocument();
+    expect(screen.getByText(/can't prepare another video/i)).toBeInTheDocument();
+    // The technical `message` field must never reach the UI.
+    expect(screen.queryByText(/shed: too many concurrent streams/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Playback failed")).not.toBeInTheDocument();
+  });
+
+  it("shows the 'file is getting ready' overlay for a 503 carrying that code", async () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "test-token" });
+    act(() => { fireFatal503({ code: "file_not_ready", retryAfterSec: 10, message: "shed: seek index building" }); });
+
+    expect(await screen.findByText("This video is getting ready")).toBeInTheDocument();
+    expect(screen.getByText(/still being prepared/i)).toBeInTheDocument();
+  });
+
+  it("falls back to the 'too many streams' overlay when the 503 body can't be parsed", async () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "test-token" });
+    // No body at all (the common real-world case with hls.js's default loader).
+    act(() => { fireFatal503(); });
+
+    expect(await screen.findByText("Too many streams right now")).toBeInTheDocument();
+  });
+
+  it("retrying calls hls.startLoad() to resume the live instance instead of reloading the page", async () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "test-token" });
+    act(() => { fireFatal503({ code: "too_many_streams" }); });
+    await screen.findByText("Too many streams right now");
+
+    act(() => { screen.getByText("Retry").click(); });
+
+    expect(lastHlsInstance!.startLoad).toHaveBeenCalled();
+    expect(screen.queryByText("Too many streams right now")).not.toBeInTheDocument();
+  });
+
+  function fireFatal404() {
+    const handlers = hlsEventListeners[MockHls.Events.ERROR] ?? [];
+    for (const h of handlers) {
+      h(MockHls.Events.ERROR, {
+        fatal: true,
+        type: MockHls.ErrorTypes.NETWORK_ERROR,
+        details: "fragLoadError",
+        response: { code: 404 },
+      });
+    }
+  }
+
+  it("a plain 404 still follows the existing fatalError path, not the shed overlay", async () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "test-token" });
+    act(() => { fireFatal404(); });
+    act(() => { fireFatal404(); });
+
+    expect(await screen.findByTestId("download-btn")).toBeInTheDocument();
+    expect(screen.queryByText("Too many streams right now")).not.toBeInTheDocument();
+    expect(screen.queryByText("This video is getting ready")).not.toBeInTheDocument();
+  });
+});

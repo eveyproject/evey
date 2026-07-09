@@ -127,7 +127,7 @@ export default function PlayerScreen() {
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
-  const { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
+  const { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
     usePlaySession(sessionMediaId);
 
   const { data: chapters = [] } = useChapters(mediaId);
@@ -687,6 +687,35 @@ export default function PlayerScreen() {
     stopSession();
     router.back();
   }, [stopSession]);
+
+  // Server-side load shed (HTTP 503): distinct from isError below - nothing is
+  // broken, the server just isn't ready to serve THIS request yet, for one of
+  // two unrelated reasons (see usePlaySession's ShedReason doc). Calm clock
+  // icon (not a red error) and copy that names neither "transcoding" nor any
+  // other internal term. A local download plays regardless (see below).
+  if (shedReason && !localFilePath) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
+        <StatusBar hidden />
+        <Ionicons name="time-outline" size={40} color={theme.colors.textMuted} />
+        <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600", marginTop: 16, textAlign: "center", paddingHorizontal: 24 }}>
+          {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.title" : "player.shed.tooManyStreams.title")}
+        </Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 14, marginTop: 8, textAlign: "center", paddingHorizontal: 32 }}>
+          {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.body" : "player.shed.tooManyStreams.body")}
+        </Text>
+        <Pressable
+          onPress={() => restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined)}
+          style={{ marginTop: 20 }}
+        >
+          <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{t("player.retry")}</Text>
+        </Pressable>
+        <Pressable onPress={handleBack} style={{ marginTop: 16 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>{t("player.goBack")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   // A local download plays regardless of the play-session network state -
   // don't gate on isError/isLoading/streamUrl when we already have bytes on

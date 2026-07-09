@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
-import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Cast, Users } from "lucide-react";
+import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Cast, Users, Clock } from "lucide-react";
 import Hls from "hls.js";
 import type { V1StreamInfo } from "@evey/api";
 import type { AudioStream } from "./AudioTrackSelector";
@@ -32,7 +32,7 @@ import {
 } from "@/hooks/usePlaybackPrefs";
 import { buildTranscodeHlsUrl, getSelectedBurnInTrack, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
-import { useTranscodePlayback } from "./hooks/useTranscodePlayback";
+import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
 import { useSubtitleManager } from "./hooks/useSubtitleManager";
 import { usePlayerKeyboard } from "./hooks/usePlayerKeyboard";
 import { useTouchGestures } from "./hooks/useTouchGestures";
@@ -351,6 +351,11 @@ export function HLSPlayer({
     if (bufferingTimerRef.current !== null) clearTimeout(bufferingTimerRef.current);
   }, []);
   const [fatalError, setFatalError] = useState(false);
+  // Server-side load shed (HTTP 503): distinct from fatalError - the stream
+  // itself isn't broken, the server just refused to start it right now for
+  // one of two unrelated reasons. Kept separate so the overlay/copy/icon can
+  // differ from the "something is actually wrong" fatal-error case.
+  const [shedReason, setShedReason] = useState<ShedReason>(null);
   const wasPausedRef = useRef(false);
   const playbackSpeedRef = useRef(playbackSpeed);
   playbackSpeedRef.current = playbackSpeed;
@@ -401,6 +406,7 @@ export function HLSPlayer({
     setSubtitleOffsetMs(0);
     setAudioOffsetMs(0);
     setAppliedAudioOffsetMs(0);
+    setShedReason(null);
   }, [mediaId]);
 
   const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight } = useTranscodePlayback({
@@ -408,6 +414,7 @@ export function HLSPlayer({
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef,
     transcodeMode, mediaId, currentTrackIndex, selectedBurnInTrack,
     startPositionMs, onEnded, setIsBuffering: setIsBufferingDebounced, setFatalError,
+    setShedReason,
     audioOffsetMs: appliedAudioOffsetMs,
   });
 
@@ -440,6 +447,22 @@ export function HLSPlayer({
     setActionFlash(action);
     actionFlashTimer.current = setTimeout(() => setActionFlash(null), 500);
   }
+
+  // Retries a shed playback without a full page reload: hls.js's own
+  // recommendation for a fatal NETWORK_ERROR is startLoad() (it re-issues
+  // whichever request last failed - manifest, level or fragment), so this
+  // reuses the live hls.js instance instead of tearing the player down.
+  // Native-HLS (Safari, no hls.js instance) falls back to reloading the
+  // <video> element, which is the native-path equivalent.
+  const handleShedRetry = useCallback(() => {
+    setShedReason(null);
+    const hls = hlsRef.current;
+    if (hls) {
+      hls.startLoad();
+    } else {
+      videoRef.current?.load();
+    }
+  }, []);
 
   const handleSeekRequest = useCallback((absoluteTimeSec: number) => {
     const video = videoRef.current;
@@ -816,6 +839,29 @@ export function HLSPlayer({
                 <DownloadButton mediaId={mediaId} token={streamToken} title={title} />
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {/* Server-side load shed (503): distinct overlay from fatalError above -
+          nothing is broken, the server just isn't ready to serve THIS request
+          yet. Calm icon (no red TriangleAlert) and copy that names neither
+          "transcoding" nor any other internal term. */}
+      {shedReason && !fatalError && (
+        <div className="absolute inset-0 flex items-center justify-center z-[10] bg-[var(--overlay-bg-strong)]">
+          <div className="flex flex-col items-center gap-4 text-white text-center px-6">
+            <Clock size={48} className="text-white/80" strokeWidth={1.5} />
+            <p className="text-lg font-medium">
+              {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.title" : "player.shed.tooManyStreams.title")}
+            </p>
+            <p className="text-sm text-[var(--overlay-text-muted)] max-w-sm">
+              {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.body" : "player.shed.tooManyStreams.body")}
+            </p>
+            <button
+              onClick={handleShedRetry}
+              className="px-4 py-2 rounded text-sm font-medium bg-[var(--overlay-btn-hover-bg)]"
+            >
+              {t("player.retry")}
+            </button>
           </div>
         </div>
       )}

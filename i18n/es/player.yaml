@@ -90,6 +90,13 @@ playbackFailed: "Error de reproducción"
 unableToPlayAnyQuality: "No se puede reproducir a ningún nivel de calidad"
 failedToStart: "Error al iniciar la reproducción"
 failedToLoadStream: "Error al cargar el flujo"
+shed:
+  tooManyStreams:
+    title: "Demasiadas reproducciones a la vez"
+    body: "El servidor no puede preparar otro vídeo en este momento. Inténtalo de nuevo en un momento, o espera a que alguien termine de ver el suyo."
+  fileNotReady:
+    title: "Este vídeo se está preparando"
+    body: "Este vídeo todavía se está preparando; normalmente solo tarda unos segundos. Inténtalo de nuevo en un momento."
 retry: "Reintentar"
 goBack: "Volver"
 shareDesc: "Comparte este enlace con tus amigos para ver juntos:"

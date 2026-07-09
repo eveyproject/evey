@@ -90,6 +90,13 @@ playbackFailed: Playback failed
 unableToPlayAnyQuality: Unable to play at any quality level
 failedToStart: Failed to start playback
 failedToLoadStream: Failed to load stream
+shed:
+  tooManyStreams:
+    title: Too many streams right now
+    body: "The server can't prepare another video right now. Try again in a moment, or wait for someone else to finish watching."
+  fileNotReady:
+    title: This video is getting ready
+    body: "This video is still being prepared - that usually only takes a few seconds. Try again in a moment."
 retry: Retry
 goBack: Go back
 shareDesc: "Share this link with friends to watch together:"

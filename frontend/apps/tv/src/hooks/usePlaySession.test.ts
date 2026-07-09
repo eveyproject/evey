@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const eveyFetchMock = vi.fn();
 const getStreamInfoMock = vi.fn();
@@ -98,5 +98,101 @@ describe("usePlaySession resume", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isError).toBe(true);
+  });
+});
+
+// Server-side load shed (HTTP 503): expo-video's native player only exposes a
+// free-text error message, so usePlaySession probes the manifest URL itself
+// before handing it to the player - this is the only place that can read the
+// server's structured shed code.
+describe("usePlaySession: server load-shed (503)", () => {
+  const realFetch = global.fetch;
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+  });
+
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  function mockHappyNegotiation() {
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_TRANSCODE" });
+    eveyFetchMock
+      .mockResolvedValueOnce(null) // progress
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" }); // stream-token
+  }
+
+  it("reads the shed code off the X-Evey-Error header and does not start a play session", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    mockHappyNegotiation();
+    fetchMock.mockResolvedValue({
+      status: 503,
+      headers: { get: (name: string) => (name === "X-Evey-Error" ? "too_many_streams" : null) },
+      json: async () => ({ code: "too_many_streams", retryAfterSec: 5, message: "shed: too many streams" }),
+    });
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.shedReason).toBe("too_many_streams");
+    expect(result.current.isError).toBe(false);
+    expect(result.current.streamUrl).toBeNull();
+    expect(startStreamMock).not.toHaveBeenCalled();
+  });
+
+  it("reads file_not_ready from the JSON body when the header is absent", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    mockHappyNegotiation();
+    fetchMock.mockResolvedValue({
+      status: 503,
+      headers: { get: () => null },
+      json: async () => ({ code: "file_not_ready", retryAfterSec: 10, message: "shed: index building" }),
+    });
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.shedReason).toBe("file_not_ready");
+  });
+
+  it("does not probe for PLAY_METHOD_DIRECT_PLAY (nothing to shed)", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_PLAY" });
+    eveyFetchMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.shedReason).toBeNull();
+    expect(result.current.streamUrl).not.toBeNull();
+  });
+
+  it("proceeds normally when the preflight succeeds (2xx)", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    mockHappyNegotiation();
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+    fetchMock.mockResolvedValue({ status: 200, headers: { get: () => null }, json: async () => ({}) });
+
+    const { result } = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.shedReason).toBeNull();
+    expect(result.current.streamUrl).not.toBeNull();
+    expect(startStreamMock).toHaveBeenCalled();
   });
 });

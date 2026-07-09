@@ -29,6 +29,24 @@ vi.mock("expo-video", () => ({
   VideoView: () => React.createElement("div", { "data-testid": "video-view" }),
 }));
 
+// --- react-i18next mock ----------------------------------------------------------
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key }),
+}));
+
+// --- @expo/vector-icons mock ---------------------------------------------------
+// Real @expo/vector-icons build/*.js files use bare-relative ESM imports
+// (e.g. `import createIconSet from './createIconSet'`) with no package.json
+// "type": "module" - vitest's SSR module resolution can't resolve those
+// extensionless imports, so any test that renders a component importing this
+// package (unmocked) fails with "Cannot find module ... imported from
+// AntDesign.js", unrelated to any app logic. Pre-existing gap, first hit here
+// because this screen is the first TV test to render a real (un-mocked)
+// Ionicons usage.
+vi.mock("@expo/vector-icons", () => ({
+  Ionicons: () => null,
+}));
+
 // --- expo-router mock ---------------------------------------------------------
 const replaceMock = vi.fn();
 const backMock = vi.fn();

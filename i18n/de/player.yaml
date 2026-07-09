@@ -90,6 +90,13 @@ playbackFailed: Wiedergabe fehlgeschlagen
 unableToPlayAnyQuality: Wiedergabe in keiner Qualitätsstufe möglich
 failedToStart: Wiedergabe konnte nicht gestartet werden
 failedToLoadStream: Stream konnte nicht geladen werden
+shed:
+  tooManyStreams:
+    title: Gerade zu viele Wiedergaben
+    body: "Der Server kann gerade kein weiteres Video vorbereiten. Versuchen Sie es gleich noch einmal, oder warten Sie, bis jemand anderes fertig geschaut hat."
+  fileNotReady:
+    title: Dieses Video wird vorbereitet
+    body: "Dieses Video wird noch vorbereitet - das dauert normalerweise nur wenige Sekunden. Versuchen Sie es gleich noch einmal."
 retry: Erneut versuchen
 goBack: Zurück
 shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"

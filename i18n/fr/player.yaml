@@ -90,6 +90,13 @@ playbackFailed: "Échec de la lecture"
 unableToPlayAnyQuality: "Impossible de lire à quelque qualité que ce soit"
 failedToStart: "Échec du lancement de la lecture"
 failedToLoadStream: "Échec du chargement du flux"
+shed:
+  tooManyStreams:
+    title: "Trop de lectures en même temps"
+    body: "Le serveur ne peut pas préparer une vidéo de plus pour l'instant. Réessayez dans quelques instants, ou attendez que quelqu'un termine sa lecture."
+  fileNotReady:
+    title: "Cette vidéo se prépare"
+    body: "Cette vidéo est en cours de préparation, cela ne prend généralement que quelques secondes. Réessayez dans un instant."
 retry: "Réessayer"
 goBack: "Retour"
 shareDesc: "Partagez ce lien avec vos amis pour regarder ensemble :"

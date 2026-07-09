@@ -90,6 +90,13 @@ playbackFailed: "播放失败"
 unableToPlayAnyQuality: "无法以任何画质播放"
 failedToStart: "播放启动失败"
 failedToLoadStream: "加载流失败"
+shed:
+  tooManyStreams:
+    title: "当前播放人数过多"
+    body: "服务器暂时无法准备更多视频。请稍后重试，或等待其他人观看结束。"
+  fileNotReady:
+    title: "这个视频正在准备中"
+    body: "这个视频仍在准备中，通常只需几秒钟。请稍后重试。"
 retry: "重试"
 goBack: "返回"
 shareDesc: "分享此链接给朋友一起观看："

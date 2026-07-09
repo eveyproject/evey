@@ -40,6 +40,47 @@ interface StreamTokenResponse {
   mediaId: string;
 }
 
+// Mirrors the server's shed contract (HTTP 503 on a refused playback start):
+// - too_many_streams: the box can't prepare one more stream because of OTHER
+//   concurrent playbacks.
+// - file_not_ready: unrelated to load - this specific file's seek index is
+//   still being built and will serve fine once that finishes.
+// Never surface the server's `message` field (English, technical) to users -
+// the screen picks its own non-technical copy from this code.
+export type ShedReason = "too_many_streams" | "file_not_ready" | null;
+
+// expo-video's PlayerError is just `{ message: string }` - ExoPlayer/AVPlayer
+// give no structured HTTP status or response body, so there is no reliable
+// way to read the shed code off a native player error. Instead, probe the
+// manifest/remux URL directly before handing it to the player: the server
+// returns the code both as an `X-Evey-Error` header and a JSON body (see
+// transcode_handler_vod.go's writeShed). A second identical GET for the same
+// token right after (the native player fetching the same URL) is expected
+// and safe - repeated HLS manifest requests are idempotent, the same as a
+// manifest reload on seek, so this doesn't consume a second capacity slot.
+async function detectShed(url: string): Promise<ShedReason> {
+  try {
+    const res = await fetch(url);
+    if (res.status !== 503) return null;
+    const headerCode = res.headers.get("X-Evey-Error");
+    if (headerCode === "too_many_streams" || headerCode === "file_not_ready") return headerCode;
+    try {
+      const body = (await res.json()) as { code?: string };
+      if (body.code === "too_many_streams" || body.code === "file_not_ready") return body.code;
+    } catch {
+      // Not parseable JSON - fall through to the default below.
+    }
+    // No usable code: default to the "too many streams" framing. It's the
+    // more common shed cause, and its "try again shortly" copy reads fine
+    // either way.
+    return "too_many_streams";
+  } catch {
+    // The preflight itself failed (offline, DNS, ...) - let the native player
+    // attempt playback and surface its own generic error if it also fails.
+    return null;
+  }
+}
+
 export interface PlaySessionResult {
   streamUrl: string | null;
   // The opaque stream token, exposed so the native player can also send it as an
@@ -50,6 +91,9 @@ export interface PlaySessionResult {
   streamInfo: V1StreamInfo | null;
   isLoading: boolean;
   isError: boolean;
+  // Set instead of isError when the server refused to start THIS request for
+  // one of the two shed reasons above - distinct from a genuine failure.
+  shedReason: ShedReason;
   stopSession: () => void;
   restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
   restartAtPosition: (positionSec: number) => void;
@@ -115,6 +159,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [progress, setProgress] = useState<V1WatchProgress | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
+  const [shedReason, setShedReason] = useState<ShedReason>(null);
   const [transcodeOffset, setTranscodeOffset] = useState(0);
   const sessionIdRef = useRef<string | null>(null);
   const startedRef = useRef(false);
@@ -168,6 +213,16 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         }
         setStreamToken(token);
         const url = buildStreamUrl(serverUrl, mediaId, info, token, startSec);
+
+        // Direct play streams the original file with no orchestrator involved,
+        // so it cannot be shed - only probe the transcode/HLS paths.
+        if (info.playMethod !== "PLAY_METHOD_DIRECT_PLAY") {
+          const shed = await detectShed(url);
+          if (shed) {
+            if (!stoppedRef.current) setShedReason(shed);
+            return;
+          }
+        }
 
         const startPosMs = startSec ? String(Math.floor(startSec * 1000)) : (wp?.positionMs && !wp.played ? wp.positionMs : "0");
         const session = await playbackServiceStartStream({
@@ -230,6 +285,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       }
       stoppedRef.current = false;
       setIsError(false);
+      setShedReason(null);
       setIsLoading(true);
       startStream(audioIndex, subtitleIndex, maxHeight);
     },
@@ -249,6 +305,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       stoppedRef.current = false;
       setStreamUrl(null);
       setIsError(false);
+      setShedReason(null);
       setIsLoading(true);
       startStream(undefined, undefined, undefined, positionSec);
     },
@@ -259,5 +316,5 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress };
+  return { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress };
 }

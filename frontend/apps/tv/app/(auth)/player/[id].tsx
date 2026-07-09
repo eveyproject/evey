@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetMediaItem,
   usePlaybackServiceMarkAsWatched,
@@ -40,11 +42,12 @@ function formatTime(seconds: number): string {
 export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { t } = useTranslation();
   const mediaId = id ?? "";
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
     usePlaySession(mediaId);
 
   const [showControls, setShowControls] = useState(true);
@@ -405,6 +408,34 @@ export default function PlayerScreen() {
   );
 
   useProgressReporter(sessionId, getPositionMs, getIsPaused, undefined, undefined, remoteCallbacks);
+
+  // Server-side load shed (HTTP 503): distinct from isError below - nothing is
+  // broken, the server just isn't ready to serve THIS request yet, for one of
+  // two unrelated reasons (see usePlaySession's ShedReason doc). Calm clock
+  // icon (not a red error) and copy that names neither "transcoding" nor any
+  // other internal term.
+  if (shedReason) {
+    return (
+      <View style={[styles.container, { backgroundColor: "#000" }]}>
+        <Ionicons name="time-outline" size={48} color="rgba(255,255,255,0.7)" />
+        <Text style={{ color: "#fff", fontSize: 24, fontWeight: "600", marginTop: 20, textAlign: "center", paddingHorizontal: 60 }}>
+          {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.title" : "player.shed.tooManyStreams.title")}
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18, marginTop: 12, textAlign: "center", paddingHorizontal: 80 }}>
+          {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.body" : "player.shed.tooManyStreams.body")}
+        </Text>
+        <Pressable
+          onPress={() => restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined)}
+          style={{ marginTop: 28 }}
+        >
+          <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("player.retry")}</Text>
+        </Pressable>
+        <Pressable onPress={handleBack} style={{ marginTop: 20 }}>
+          <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 18 }}>{t("player.goBack", "Go back")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (isError) {
     return (
