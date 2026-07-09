@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -28,24 +28,10 @@ var keyframeInputFormat = map[string]string{
 }
 
 // TrickplayWorkers returns the ffmpeg internal thread count for a single
-// trickplay generation, sized off sysinfo.CPUBudget() (the cgroup CPU quota
-// when one is set, else runtime.NumCPU()) rather than the host's raw core
-// count, so a container with a CPU limit doesn't oversubscribe.
-// adaptiveCPU=true -> 25% of the budget (gentle), false -> 50% (faster).
-// Minimum 1, maximum 4.
+// trickplay generation. Delegates to cpuutil.TrickplayWorkers - the single
+// cgroup-budget-aware sizing rule, shared with the trickplay worker pool.
 func TrickplayWorkers(adaptiveCPU bool) int {
-	divisor := 4
-	if !adaptiveCPU {
-		divisor = 2
-	}
-	n := sysinfo.CPUBudget() / divisor
-	if n < 1 {
-		return 1
-	}
-	if n > 4 {
-		return 4
-	}
-	return n
+	return cpuutil.TrickplayWorkers(adaptiveCPU)
 }
 
 type TrickplayGenerator struct {
