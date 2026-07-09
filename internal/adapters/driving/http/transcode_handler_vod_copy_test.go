@@ -347,6 +347,12 @@ func TestMakeDecision_AudioOffsetForcesAudioTranscode(t *testing.T) {
 	// Clamp: an absurd crafted offset is bounded, not honored.
 	assert.Equal(t, 30_000, audioOffsetMsQuery(newReq("&audioOffsetMs=999999999")))
 	assert.Equal(t, -30_000, audioOffsetMsQuery(newReq("&audioOffsetMs=-999999999")))
+	// Quantized to the 100ms UI grid so adjacent-millisecond sweeps cannot
+	// fork a distinct ffmpeg session per value.
+	assert.Equal(t, 300, audioOffsetMsQuery(newReq("&audioOffsetMs=337")))
+	assert.Equal(t, 400, audioOffsetMsQuery(newReq("&audioOffsetMs=351")))
+	assert.Equal(t, -300, audioOffsetMsQuery(newReq("&audioOffsetMs=-337")))
+	assert.Equal(t, 0, audioOffsetMsQuery(newReq("&audioOffsetMs=49")))
 }
 
 // Audio-side decision pin (ad=), same class as the vd pin: an admin loudnorm

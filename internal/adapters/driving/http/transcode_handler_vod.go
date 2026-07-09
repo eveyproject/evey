@@ -820,12 +820,20 @@ func audioOffsetMsQuery(r *http.Request) int {
 	v := parseIntQuery(r, "audioOffsetMs", 0)
 	const capMs = 30_000
 	if v > capMs {
-		return capMs
+		v = capMs
+	} else if v < -capMs {
+		v = -capMs
 	}
-	if v < -capMs {
-		return -capMs
+	// Quantize to the UI's 100ms step. Each distinct value forks the segment
+	// cache into its own ffmpeg session, so snapping to the grid the player
+	// actually emits caps the distinct-session count at 601 instead of 60001
+	// - a crafted sweep of adjacent millisecond offsets can no longer spawn an
+	// unbounded fleet of encoders. Round half away from zero so the sign holds.
+	const stepMs = 100
+	if v >= 0 {
+		return ((v + stepMs/2) / stepMs) * stepMs
 	}
-	return v
+	return -(((-v + stepMs/2) / stepMs) * stepMs)
 }
 
 // pinnedAudioDecision mirrors pinnedVideoDecision for the audio side.
