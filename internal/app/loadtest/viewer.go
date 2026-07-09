@@ -1,0 +1,261 @@
+package loadtest
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+// Real Evey response contract for capacity/readiness backpressure (mirrors
+// internal/adapters/driving/http/transcode_handler_vod.go): a 503 carries
+// this header naming which condition applies.
+const (
+	headerEveyError       = "X-Evey-Error"
+	errCodeTooManyStreams = "too_many_streams"
+	errCodeFileNotReady   = "file_not_ready"
+)
+
+// maxConsecutiveViewerFailures is how many fetch failures in a row (outside
+// admission/auth signals, which are handled separately) turn a viewer into a
+// StopError verdict.
+const maxConsecutiveViewerFailures = 3
+
+// burstSegments is how many segments a viewer fetches back-to-back on
+// startup, mirroring a real player filling its initial buffer.
+const burstSegments = 3
+
+type fetchOutcome int
+
+const (
+	outcomeOK fetchOutcome = iota
+	outcomeTokenExpired
+	outcomeAdmissionFull
+	outcomeOtherFail
+)
+
+// runViewer simulates one real player: master playlist, median variant,
+// buffer-filling burst, then real-time-paced segment fetches until ctx is
+// cancelled. It never panics the run: any panic is recovered and reported as
+// a viewer error.
+func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, media MediaCandidate, forked bool, events chan<- viewerEvent, wg *sync.WaitGroup) {
+	defer wg.Done()
+	defer func() {
+		if rec := recover(); rec != nil {
+			r.logger.Warn("loadtest viewer recovered from panic", "panic", fmt.Sprint(rec))
+			sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: "viewer panic"})
+		}
+	}()
+
+	masterURL := buildMasterURL(cfg, media, forked, tierAtSpawn)
+	masterBase, parseErr := url.Parse(masterURL)
+	if parseErr != nil {
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: "invalid master url"})
+		return
+	}
+
+	status, header, body, _, err := r.fetchWithRetry(ctx, masterURL, cfg.Token)
+	switch classify(status, header, err) {
+	case outcomeTokenExpired:
+		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, detail: "401 on master playlist"})
+		return
+	case outcomeAdmissionFull:
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, detail: "too_many_streams on master playlist"})
+		return
+	case outcomeOtherFail:
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: fmt.Sprintf("master playlist fetch failed (status=%d, err=%v)", status, err)})
+		return
+	}
+
+	variants, err := parseMasterPlaylist(body, masterBase)
+	if err != nil {
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: "unparsable master playlist"})
+		return
+	}
+	chosen := pickMedianVariant(variants)
+
+	status, header, body, _, err = r.fetchWithRetry(ctx, chosen.uri.String(), cfg.Token)
+	switch classify(status, header, err) {
+	case outcomeTokenExpired:
+		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, detail: "401 on variant playlist"})
+		return
+	case outcomeAdmissionFull:
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, detail: "too_many_streams on variant playlist"})
+		return
+	case outcomeOtherFail:
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: fmt.Sprintf("variant playlist fetch failed (status=%d, err=%v)", status, err)})
+		return
+	}
+
+	targetMs, segments, err := parseVariantPlaylist(body, chosen.uri)
+	if err != nil {
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: "unparsable variant playlist"})
+		return
+	}
+	sendEvent(ctx, events, viewerEvent{kind: evTargetDuration, ms: targetMs})
+
+	idx := 0
+	consecutiveFail := 0
+	fetchNext := func(isFirst bool) (stop bool) {
+		segURL := segments[idx]
+		idx = (idx + 1) % len(segments)
+
+		status, header, _, elapsedMs, err := r.fetchWithRetry(ctx, segURL.String(), cfg.Token)
+		switch classify(status, header, err) {
+		case outcomeOK:
+			consecutiveFail = 0
+			if isFirst {
+				sendEvent(ctx, events, viewerEvent{kind: evTTFF, ms: elapsedMs})
+			} else {
+				sendEvent(ctx, events, viewerEvent{kind: evSegment, ms: elapsedMs})
+			}
+			return false
+		case outcomeTokenExpired:
+			sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, detail: "401 on segment fetch"})
+			return true
+		case outcomeAdmissionFull:
+			sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, detail: "too_many_streams on segment fetch"})
+			return true
+		default:
+			consecutiveFail++
+			if consecutiveFail >= maxConsecutiveViewerFailures {
+				sendEvent(ctx, events, viewerEvent{kind: evViewerError, detail: fmt.Sprintf("%d consecutive segment fetch failures", consecutiveFail)})
+				return true
+			}
+			return false
+		}
+	}
+
+	burst := min(burstSegments, len(segments))
+	for i := range burst {
+		if ctx.Err() != nil {
+			return
+		}
+		if fetchNext(i == 0) {
+			return
+		}
+	}
+
+	pace := time.Duration(targetMs) * time.Millisecond
+	if pace <= 0 {
+		pace = segmentDefaultMs * time.Millisecond
+	}
+	ticker := time.NewTicker(pace)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if fetchNext(false) {
+				return
+			}
+		}
+	}
+}
+
+// buildMasterURL constructs the master playlist request a real player would
+// issue. forked viewers (transcode scenario reusing a media item because the
+// library ran out of distinct candidates) add an audioOffsetMs so the
+// server's decision hash forks into a distinct session instead of sharing
+// the original viewer's.
+func buildMasterURL(cfg Config, media MediaCandidate, forked bool, forkTag int) string {
+	u := strings.TrimRight(cfg.BaseURL, "/") + "/api/v1/media/" + media.ID + "/hls/master.m3u8"
+	q := url.Values{}
+	if cfg.Scenario == ScenarioTranscode {
+		q.Set("vd", "transcode")
+		q.Set("ad", "transcode")
+	}
+	if forked {
+		q.Set("audioOffsetMs", strconv.Itoa(forkTag))
+	}
+	if len(q) == 0 {
+		return u
+	}
+	return u + "?" + q.Encode()
+}
+
+// classify maps a fetch's status/header/error into the outcome the run loop
+// or viewer cares about.
+func classify(status int, header http.Header, err error) fetchOutcome {
+	if err != nil {
+		return outcomeOtherFail
+	}
+	switch {
+	case status == http.StatusOK:
+		return outcomeOK
+	case status == http.StatusUnauthorized:
+		return outcomeTokenExpired
+	case status == http.StatusServiceUnavailable && header.Get(headerEveyError) == errCodeTooManyStreams:
+		return outcomeAdmissionFull
+	default:
+		return outcomeOtherFail
+	}
+}
+
+// fetchWithRetry performs one GET, retrying exactly once (after the server's
+// Retry-After) when the response is a file_not_ready 503 - a transient
+// "still preparing the segment" signal, not a capacity or auth verdict.
+func (r *Runner) fetchWithRetry(ctx context.Context, rawURL, token string) (status int, header http.Header, body []byte, elapsedMs int, err error) {
+	status, header, body, elapsedMs, err = r.fetchOnce(ctx, rawURL, token)
+	if err == nil && status == http.StatusServiceUnavailable && header.Get(headerEveyError) == errCodeFileNotReady {
+		wait := retryAfter(header)
+		select {
+		case <-time.After(wait):
+		case <-ctx.Done():
+			return status, header, body, elapsedMs, ctx.Err()
+		}
+		status, header, body, elapsedMs, err = r.fetchOnce(ctx, rawURL, token)
+	}
+	return status, header, body, elapsedMs, err
+}
+
+// retryAfter parses a Retry-After header in seconds, defaulting to 1s.
+func retryAfter(header http.Header) time.Duration {
+	raw := header.Get("Retry-After")
+	if raw == "" {
+		return time.Second
+	}
+	secs, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil || secs < 0 {
+		return time.Second
+	}
+	return time.Duration(secs) * time.Second
+}
+
+func (r *Runner) fetchOnce(ctx context.Context, rawURL, token string) (status int, header http.Header, body []byte, elapsedMs int, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return 0, nil, nil, 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	start := time.Now()
+	resp, err := r.httpClient.Do(req)
+	if err != nil {
+		return 0, nil, nil, int(time.Since(start).Milliseconds()), err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	b, readErr := io.ReadAll(resp.Body)
+	elapsedMs = int(time.Since(start).Milliseconds())
+	if readErr != nil {
+		return resp.StatusCode, resp.Header, nil, elapsedMs, readErr
+	}
+	return resp.StatusCode, resp.Header, b, elapsedMs, nil
+}
+
+// sendEvent forwards ev to the run loop, giving up only if ctx has already
+// ended (the run loop is buffered generously, so this practically never
+// blocks in steady state).
+func sendEvent(ctx context.Context, events chan<- viewerEvent, ev viewerEvent) {
+	select {
+	case events <- ev:
+	case <-ctx.Done():
+	}
+}
