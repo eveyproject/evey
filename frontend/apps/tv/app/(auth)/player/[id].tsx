@@ -272,6 +272,24 @@ export default function PlayerScreen() {
   // both on its own countdown and from playNow, so gating that single
   // callback covers both paths. onNavigate is wired through a ref so the
   // gate (which needs nextEp.nextEpisode's rating, only known once
+  // Entry gate: the player is reachable WITHOUT going through the media detail
+  // screen - the home hero, a deep link, and the remote "loadAndPlay" device
+  // command all land straight here. Gating the screen itself (rather than each
+  // caller) is the invariant that holds for any future entry point. The server
+  // refuses the stream regardless; this turns a dead error into a PIN prompt.
+  const { needsPin: entryNeedsPin, profileId: entryGateProfileId } = useParentalGate(media?.officialRating);
+  const [entryUnlocked, setEntryUnlocked] = useState(false);
+  const entryGated = !!media && !entryUnlocked && entryNeedsPin();
+
+  useEffect(() => {
+    if (entryGated) player?.pause();
+  }, [entryGated, player]);
+
+  const handleEntryPinVerified = useCallback(() => {
+    setEntryUnlocked(true);
+    player?.play();
+  }, [player]);
+
   // useNextEpisode itself has resolved it) can be defined after the hook
   // call without creating a circular dependency.
   const nextEpNavigateRef = useRef<(episodeId: string) => void>(() => {});
@@ -466,6 +484,15 @@ export default function PlayerScreen() {
         onPlayNow={nextEp.playNow}
         onCancel={nextEp.cancel}
       />
+
+      {entryGateProfileId ? (
+        <ParentalPINModal
+          visible={entryGated}
+          onClose={() => router.back()}
+          onVerified={handleEntryPinVerified}
+          profileId={entryGateProfileId}
+        />
+      ) : null}
 
       {nextEpGateProfileId ? (
         <ParentalPINModal

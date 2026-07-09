@@ -12,14 +12,17 @@ vi.mock("@evey/store", () => ({ useAuthStore: vi.fn() }));
 import { isAgeExceeded, isProfileUnlocked, markUnlocked } from "./useParentalGate";
 
 describe("isAgeExceeded", () => {
-  it("returns false when rating undefined", () => {
-    expect(isAgeExceeded("US", undefined, 10)).toBe(false);
+  it("fails CLOSED when the item carries no rating (server blocks it too)", () => {
+    expect(isAgeExceeded("US", undefined, 10)).toBe(true);
   });
-  it("returns false when maxAge < 0", () => {
+  it("returns false when maxAge < 0 (profile carries no age cap)", () => {
     expect(isAgeExceeded("US", "R", -1)).toBe(false);
   });
-  it("returns false when rating is unknown", () => {
-    expect(isAgeExceeded("US", "UNKNOWN", 10)).toBe(false);
+  it("fails CLOSED when the rating cannot be resolved to an age", () => {
+    expect(isAgeExceeded("US", "UNKNOWN", 10)).toBe(true);
+  });
+  it("an uncapped profile is never gated, even on unrated content", () => {
+    expect(isAgeExceeded("US", undefined, -1)).toBe(false);
   });
   it("US PG-13 exceeds age 10", () => {
     expect(isAgeExceeded("US", "PG-13", 10)).toBe(true);

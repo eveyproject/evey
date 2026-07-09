@@ -15,11 +15,13 @@ vi.mock("react-native", () => ({
 }));
 
 // --- expo-video mock ---------------------------------------------------------
+const playMock = vi.fn();
+const pauseMock = vi.fn();
 vi.mock("expo-video", () => ({
   useVideoPlayer: () => ({
     addListener: () => ({ remove: () => {} }),
-    play: () => {},
-    pause: () => {},
+    play: (...args: unknown[]) => playMock(...args),
+    pause: (...args: unknown[]) => pauseMock(...args),
     playing: false,
     currentTime: 0,
     duration: 0,
@@ -118,9 +120,12 @@ vi.mock("../../../src/components/ParentalPINModal", () => ({
 }));
 
 // --- useParentalGate mock ---------------------------------------------------------
-const needsPinMock = vi.fn(() => false);
+// Rating-aware: the screen mounts TWO gates (the media being played, and the
+// resolved next episode). Keying the mock on the rating lets each test drive
+// exactly one of them.
+const needsPinMock = vi.fn((_rating?: string) => false);
 vi.mock("../../../src/hooks/useParentalGate", () => ({
-  useParentalGate: () => ({ needsPin: needsPinMock, profileId: "prof-1" }),
+  useParentalGate: (rating?: string) => ({ needsPin: () => needsPinMock(rating), profileId: "prof-1" }),
 }));
 
 import PlayerScreen from "./[id]";
@@ -128,7 +133,7 @@ import PlayerScreen from "./[id]";
 beforeEach(() => {
   vi.clearAllMocks();
   capturedOnNavigate = null;
-  needsPinMock.mockReturnValue(false);
+  needsPinMock.mockImplementation(() => false);
   localSearchParamsMock.mockReturnValue({ id: "ep-1" });
   getMediaItemMock.mockReturnValue({ data: { id: "ep-1", type: "MEDIA_ITEM_TYPE_EPISODE", title: "Episode 1" } });
   markAsWatchedMock.mockReturnValue({ mutate: vi.fn() });
@@ -153,7 +158,7 @@ describe("PlayerScreen next-episode parental gate (TV)", () => {
   });
 
   it("blocks the auto-advance behind a PIN modal instead of navigating", () => {
-    needsPinMock.mockReturnValue(true);
+    needsPinMock.mockImplementation((rating) => rating === "R"); // next episode only
     render(<PlayerScreen />);
     act(() => { capturedOnNavigate?.("ep-2"); });
     expect(replaceMock).not.toHaveBeenCalled();
@@ -161,7 +166,7 @@ describe("PlayerScreen next-episode parental gate (TV)", () => {
   });
 
   it("navigates to the next episode only after the PIN is verified", () => {
-    needsPinMock.mockReturnValue(true);
+    needsPinMock.mockImplementation((rating) => rating === "R"); // next episode only
     render(<PlayerScreen />);
     act(() => { capturedOnNavigate?.("ep-2"); });
     expect(replaceMock).not.toHaveBeenCalled();
@@ -171,7 +176,7 @@ describe("PlayerScreen next-episode parental gate (TV)", () => {
   });
 
   it("also gates the manual 'play now' next-episode button", () => {
-    needsPinMock.mockReturnValue(true);
+    needsPinMock.mockImplementation((rating) => rating === "R"); // next episode only
     render(<PlayerScreen />);
     // Simulates the NextEpisodeOverlay's onPlayNow, which routes through the
     // same onNavigate callback captured above.
@@ -181,11 +186,53 @@ describe("PlayerScreen next-episode parental gate (TV)", () => {
   });
 
   it("does not navigate if the PIN modal is cancelled", () => {
-    needsPinMock.mockReturnValue(true);
+    needsPinMock.mockImplementation((rating) => rating === "R"); // next episode only
     render(<PlayerScreen />);
     act(() => { capturedOnNavigate?.("ep-2"); });
     fireEvent.click(screen.getByLabelText("cancel-pin"));
     expect(replaceMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("pin-modal")).toBeNull();
+  });
+});
+
+// The player is reachable without the media detail screen: the home hero, a
+// deep link, and the remote "loadAndPlay" device command all land here
+// directly. The screen itself must gate the media it is about to play.
+describe("player entry gate", () => {
+  beforeEach(() => {
+    getMediaItemMock.mockReturnValue({
+      data: { id: "ep-1", type: "MEDIA_ITEM_TYPE_EPISODE", title: "Episode 1", officialRating: "NC-17" },
+    });
+    nextEpisodeStateMock.mockReturnValue({
+      visible: false, ended: false, countdown: 5, nextEpisode: undefined, playNow: vi.fn(), cancel: vi.fn(),
+    });
+  });
+
+  it("prompts for the PIN and pauses playback when the media itself is gated", () => {
+    needsPinMock.mockImplementation((rating) => rating === "NC-17");
+    render(<PlayerScreen />);
+    expect(screen.getByTestId("pin-modal")).toBeTruthy();
+    expect(pauseMock).toHaveBeenCalled();
+  });
+
+  it("resumes playback once the PIN is verified", () => {
+    needsPinMock.mockImplementation((rating) => rating === "NC-17");
+    render(<PlayerScreen />);
+    fireEvent.click(screen.getByLabelText("verify-pin"));
+    expect(playMock).toHaveBeenCalled();
+    expect(screen.queryByTestId("pin-modal")).toBeNull();
+  });
+
+  it("leaves the player when the PIN prompt is cancelled", () => {
+    needsPinMock.mockImplementation((rating) => rating === "NC-17");
+    render(<PlayerScreen />);
+    fireEvent.click(screen.getByLabelText("cancel-pin"));
+    expect(backMock).toHaveBeenCalled();
+  });
+
+  it("plays straight away when the media is not gated", () => {
+    needsPinMock.mockImplementation(() => false);
+    render(<PlayerScreen />);
     expect(screen.queryByTestId("pin-modal")).toBeNull();
   });
 });

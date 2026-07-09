@@ -28,10 +28,16 @@ function minAgeFor(country: string, rating: string): number {
   return -1;
 }
 
+// Fail CLOSED on an unclassified or unresolvable rating, mirroring the server
+// (ratings.WorstCaseMinAge < 0 blocks the item): a gated profile must never be
+// offered content the backend is going to refuse, and unknown content is the
+// one case where guessing wrong exposes a child. maxAge < 0 means the profile
+// carries no age cap at all, so nothing is gated.
 function isAgeExceeded(country: string, rating: string | undefined, maxAge: number): boolean {
-  if (!rating || maxAge < 0) return false;
+  if (maxAge < 0) return false;
+  if (!rating) return true;
   const age = minAgeFor(country, rating);
-  if (age < 0) return false;
+  if (age < 0) return true;
   return age > maxAge;
 }
 
