@@ -58,7 +58,7 @@ func (i *AuthInterceptor) Unary() grpc.UnaryServerInterceptor {
 			if err := i.authorizePluginToken(ctx, claims, info.FullMethod); err != nil {
 				return nil, err
 			}
-			return handler(ctx, req)
+			return handler(pluginUserContext(ctx, claims), req)
 		}
 		newCtx, err := i.authenticate(ctx)
 		if err != nil {
@@ -80,7 +80,8 @@ func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 			if err := i.authorizePluginToken(ss.Context(), claims, info.FullMethod); err != nil {
 				return err
 			}
-			return handler(srv, ss)
+			wrapped := &wrappedStream{ServerStream: ss, ctx: pluginUserContext(ss.Context(), claims)}
+			return handler(srv, wrapped)
 		}
 		newCtx, err := i.authenticate(ss.Context())
 		if err != nil {
@@ -232,6 +233,21 @@ func (i *AuthInterceptor) translatedErr(ctx context.Context, code codes.Code, ke
 		return i.translator.TranslatedError(ctx, code, key)
 	}
 	return status.Error(code, key)
+}
+
+// pluginUserContext injects a minimal NON-ADMIN user.Claims derived from the
+// plugin token's minting user/profile, so the handlers a plugin may reach
+// (the public media reads) enforce that user's library ACL and the active
+// profile's parental filter. Without it those handlers see claims==nil and
+// treat the caller as unrestricted/admin - a restricted user's plugin could
+// list media from libraries they cannot access and above the profile's age
+// limit. Deliberately IsAdmin=false: a plugin token must never confer admin.
+func pluginUserContext(ctx context.Context, pc *authpkg.PluginClaims) context.Context {
+	return ContextWithClaims(ctx, &user.Claims{
+		UserID:    pc.UserID,
+		ProfileID: pc.ProfileID,
+		IsAdmin:   false,
+	})
 }
 
 func ClaimsFromContext(ctx context.Context) *user.Claims {

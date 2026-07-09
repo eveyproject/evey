@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/user"
 	authpkg "github.com/evey-project/evey/internal/pkg/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -90,5 +91,40 @@ func TestAuthInterceptor_PluginToken_AdminFloor(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "admin_access_required") {
 		t.Fatalf("reason = %q, want admin_access_required (the floor must fire before the allowlist check)", err.Error())
+	}
+}
+
+// A plugin token on an allowlisted method must hand the handler a NON-ADMIN
+// user.Claims derived from the minting user/profile, so downstream library
+// ACL + parental filters actually apply (audit H1: without this the media
+// reads a plugin can reach saw claims==nil and treated the caller as
+// unrestricted, leaking other libraries and age-gated content).
+func TestAuthInterceptor_Unary_PluginToken_InjectsRestrictedClaims(t *testing.T) {
+	i := pluginAuthInterceptor()
+	claims := &authpkg.PluginClaims{
+		UserID: "u-restricted", ProfileID: "prf-kids", PluginID: "plg1",
+		TokenType: "plugin", ExpiresAt: time.Now().Add(time.Minute),
+		Scopes: []string{""},
+	}
+	ctx := context.WithValue(context.Background(), pluginClaimsKey{}, claims)
+
+	var seen *user.Claims
+	handler := func(hctx context.Context, _ any) (any, error) {
+		seen = ClaimsFromContext(hctx)
+		return nil, nil
+	}
+	_, err := i.Unary()(ctx, nil,
+		&grpc.UnaryServerInfo{FullMethod: "/evey.v1.PreferencesService/ListPrefs"}, handler)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if seen == nil {
+		t.Fatal("handler saw nil user.Claims - library/parental filters would treat the plugin as admin")
+	}
+	if seen.UserID != "u-restricted" || seen.ProfileID != "prf-kids" {
+		t.Fatalf("claims = %+v, want UserID/ProfileID from the plugin token", seen)
+	}
+	if seen.IsAdmin {
+		t.Fatal("a plugin token must never confer admin")
 	}
 }

@@ -94,6 +94,8 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminMediaService/RollbackMediaSeekIndex",
 		"/evey.v1.AdminMediaService/ReindexLibrarySeekIndex",
 		"/evey.v1.AdminMediaService/RollbackLibrarySeekIndex",
+		"/evey.v1.AdminMediaService/DeleteSeekIndexBackup",
+		"/evey.v1.AdminMediaService/PurgeSeekIndexBackups",
 		// AdminIntroService
 		"/evey.v1.AdminIntroService/BackfillIntroDetection",
 		"/evey.v1.AdminIntroService/InvalidateIntroCache",
