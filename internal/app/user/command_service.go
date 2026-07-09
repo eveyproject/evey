@@ -525,8 +525,8 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 
 	// Every rejection above leaves the refresh token usable; from here the
 	// rotation is committed.
-	if err := s.markRefreshTokenUsed(ctx, rt); err != nil {
-		return "", "", err
+	if markErr := s.markRefreshTokenUsed(ctx, rt); markErr != nil {
+		return "", "", markErr
 	}
 
 	accessToken, err := s.tokens.GenerateAccessToken(user.Claims{
