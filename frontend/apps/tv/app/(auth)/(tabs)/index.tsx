@@ -15,6 +15,7 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 330;
@@ -293,6 +294,7 @@ export default function HomeScreen() {
         </FocusableCard>
       )}
       <HeroBanner items={recentlyAdded.data?.items ?? []} serverUrl={serverUrl} authHeaders={authHeaders} />
+      <PluginSlot name="home.section" />
       <MediaRow
         title={t("media.home.continueWatching")}
         items={resume.data?.items ?? []}
