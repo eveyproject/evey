@@ -1,3 +1,8 @@
+// The "(tabs)" segment name is a historical leftover from an earlier bottom-tab
+// navigation design. The route group was kept to avoid breaking deep links and
+// expo-router's generated routes, but the actual navigation UI is the
+// SideDrawer (see src/components/SideDrawer.tsx) opened via BurgerButton
+// below; this layout itself renders a plain Stack, not a Tabs navigator.
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
