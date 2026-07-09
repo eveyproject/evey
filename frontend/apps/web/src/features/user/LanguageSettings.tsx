@@ -86,11 +86,14 @@ export function LanguageSettings() {
       } catch (err) { console.warn("locale update failed", err); }
     }
     // 5. Server responses are localized by locale (Accept-Language + JWT), but
-    //    React Query keys don't include it — so cached lists, the home feed
-    //    especially, keep the old language until staleTime lapses. Invalidate
-    //    everything now that both locale signals are updated, so they refetch
-    //    in the new language.
-    void qc.invalidateQueries();
+    //    React Query keys don't include it - so cached lists, the home feed
+    //    especially, keep the old language. refetchType "all" refetches the
+    //    INACTIVE queries too (the home feed is not mounted from the settings
+    //    page): the default "active" only marks them stale, so navigating back
+    //    to the home showed the old-language cache (stale-while-revalidate)
+    //    until a remount refetched it. Refetching inactive queries in the
+    //    background now means the home is already fresh on arrival.
+    void qc.invalidateQueries({ refetchType: "all" });
   };
 
   const handleAudioLangChange = async (code: string) => {

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -57,5 +57,21 @@ describe("LanguageSettings", () => {
     const select = screen.getAllByRole("combobox")[0]; // [0] = UI language (audio/subtitle prefs added after)
     await user.selectOptions(select, "fr");
     expect(select).toHaveValue("fr");
+  });
+
+  // Regression: the home feed (inactive when the user is on the settings page)
+  // kept the old language until a remount refetched it, because the default
+  // invalidate only refetches ACTIVE queries. refetchType "all" refetches the
+  // inactive queries in the background so the home is fresh on arrival.
+  it("invalidates with refetchType 'all' so inactive queries (home feed) refetch too", async () => {
+    const spy = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+    const user = userEvent.setup();
+    render(<LanguageSettings />, { wrapper: createWrapper() });
+    const select = screen.getAllByRole("combobox")[0];
+    await user.selectOptions(select, "fr");
+    await waitFor(() => {
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ refetchType: "all" }));
+    });
+    spy.mockRestore();
   });
 });
