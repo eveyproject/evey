@@ -15,7 +15,6 @@ import { useVideoPlayer, VideoView, isPictureInPictureSupported } from "expo-vid
 import { Ionicons } from "@expo/vector-icons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
-import { getCastBaseUrl } from "../../../src/lib/server-config";
 import { setAudioBoost, releaseAudioBoost } from "../../../src/lib/audioBoost";
 import { getDownloadPath } from "../../../src/lib/downloads";
 import { useTranslation } from "react-i18next";
@@ -321,15 +320,7 @@ export default function PlayerScreen() {
   const castLoadMedia = useCallback(async (client: any) => {
     if (!streamUrl || !media?.title) return;
     muteLocalPlayer();
-    // Use cast base URL if configured (e.g. different network than server)
-    let castUrl = streamUrl;
-    try {
-      const castBase = await getCastBaseUrl();
-      if (castBase) {
-        const parsed = new URL(streamUrl);
-        castUrl = `${castBase}${parsed.pathname}${parsed.search}`;
-      }
-    } catch (err) { console.warn("use original", err); }
+    const castUrl = streamUrl;
     console.log("[Cast] loadMedia URL:", castUrl);
     const isHls = castUrl.includes("m3u8");
     try {
