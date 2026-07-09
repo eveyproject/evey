@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -16,7 +17,6 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { EncodeCalibrationCard } from "@/features/admin/EncodeCalibrationCard";
 
@@ -201,7 +201,10 @@ function VideoSessionsCard() {
 // ones once the client lands; the shape is a 1:1 match so no behavior change
 // is expected.
 
-type LoadTestScenario = "transcode" | "natural";
+// The 3 "pure" scenarios exercise a single playback path; the 3 usage
+// profiles mix mkvgo direct-play and transcode viewers in a fixed ratio to
+// stand in for a real household's device mix ("how many different humans").
+type LoadTestScenario = "transcode" | "natural" | "mkvgo" | "light" | "balanced" | "heavy";
 
 type LoadTestStopReason =
   | "slo_breach"
@@ -226,6 +229,13 @@ interface LoadTestReport {
   sharedCacheViewers?: number;
   startedAt?: string;
   endedAt?: string;
+  // skippedCandidates: titles that weren't mkvgo-eligible and were passed
+  // over while picking media for the mkvgo/light/balanced/heavy scenarios.
+  skippedCandidates?: number;
+  // viewerMix: composition of the sustained rung by playback path, e.g.
+  // {"mkvgo": 4, "transcode": 1} - keyed the same as segmentMsP95ByType.
+  viewerMix?: Record<string, number>;
+  segmentMsP95ByType?: Record<string, number>;
 }
 
 interface LoadTestStatus {
@@ -253,6 +263,44 @@ const STOP_REASON_KEYS: Partial<Record<LoadTestStopReason, string>> = {
   token_expired: "admin.loadtest.stopReason.tokenExpired",
   error: "admin.loadtest.stopReason.error",
 };
+
+// Noun form of each scenario for the report headline ("...in {{scenario}}.").
+const SCENARIO_NOUN_KEYS: Record<LoadTestScenario, string> = {
+  transcode: "admin.loadtest.scenarioTranscodeNoun",
+  natural: "admin.loadtest.scenarioNaturalNoun",
+  mkvgo: "admin.loadtest.scenarioMkvgoNoun",
+  light: "admin.loadtest.scenarioLightNoun",
+  balanced: "admin.loadtest.scenarioBalancedNoun",
+  heavy: "admin.loadtest.scenarioHeavyNoun",
+};
+
+// Playback-path label for a viewerMix / segmentMsP95ByType key. Falls back to
+// the raw key for any type the server reports that the panel doesn't know
+// about yet, so a new backend type never renders blank.
+const MIX_TYPE_LABEL_KEYS: Record<string, string> = {
+  mkvgo: "admin.loadtest.mixType.mkvgo",
+  transcode: "admin.loadtest.mixType.transcode",
+  natural: "admin.loadtest.mixType.natural",
+};
+
+function mixTypeLabel(t: (key: string, opts?: Record<string, unknown>) => string, type: string): string {
+  const key = MIX_TYPE_LABEL_KEYS[type];
+  return key ? t(key) : type;
+}
+
+// Renders "{{count}} {{label}}" (or "{{label}} {{ms}} ms") per playback path
+// present in the record, joined into one discreet line - never a table.
+function mixParts(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  record: Record<string, number> | undefined,
+  partKey: string,
+  valueField: "count" | "ms",
+): string {
+  return Object.entries(record ?? {})
+    .filter(([, v]) => (v ?? 0) > 0)
+    .map(([type, v]) => t(partKey, { [valueField]: v, label: mixTypeLabel(t, type) }))
+    .join(", ");
+}
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.max(0, Math.round(ms / 1000));
@@ -288,7 +336,10 @@ function LoadTestCard() {
   const qc = useQueryClient();
   const { data: sysData } = useAdminSystemServiceGetSystemInfo();
   const pools = sysData?.videoSessions?.pools ?? [];
-  const [scenario, setScenario] = useState<LoadTestScenario>("transcode");
+  // "balanced" (50/50 mkvgo/transcode) answers the question that actually
+  // matters to an operator - "how many different humans, with a realistic
+  // device mix, can this host hold" - so it's the default, not a pure lane.
+  const [scenario, setScenario] = useState<LoadTestScenario>("balanced");
 
   const statusQuery = useQuery<LoadTestStatus>({
     queryKey: LOAD_TEST_QUERY_KEY,
@@ -353,16 +404,19 @@ function LoadTestCard() {
               <p className="text-xl font-bold text-[var(--text)]">
                 {t("admin.loadtest.reportHeadline", {
                   count: report.sustainedViewers ?? 0,
-                  scenario: t(
-                    report.scenario === "natural"
-                      ? "admin.loadtest.scenarioNaturalNoun"
-                      : "admin.loadtest.scenarioTranscodeNoun",
-                  ),
+                  scenario: t(SCENARIO_NOUN_KEYS[report.scenario ?? "balanced"]),
                 })}
               </p>
               {predicted !== undefined && (
                 <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-predicted">
                   {t("admin.loadtest.predictedLine", { count: predicted })}
+                </p>
+              )}
+              {report.viewerMix && Object.keys(report.viewerMix).length > 0 && (
+                <p className="text-sm text-[var(--text)]" data-testid="load-test-viewer-mix">
+                  {t("admin.loadtest.viewerMixLine", {
+                    parts: mixParts(t, report.viewerMix, "admin.loadtest.mixPart", "count"),
+                  })}
                 </p>
               )}
               <p className="text-sm text-[var(--text-muted)]">
@@ -378,9 +432,21 @@ function LoadTestCard() {
                   slo: Math.round(report.segmentSloMs ?? 0),
                 })}
               </p>
+              {report.segmentMsP95ByType && Object.keys(report.segmentMsP95ByType).length > 0 && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-segment-by-type">
+                  {t("admin.loadtest.segmentByTypeLine", {
+                    parts: mixParts(t, report.segmentMsP95ByType, "admin.loadtest.segmentByTypePart", "ms"),
+                  })}
+                </p>
+              )}
               {(report.sharedCacheViewers ?? 0) > 0 && (
                 <p className="text-sm text-[var(--text-muted)]">
                   {t("admin.loadtest.sharedCacheLine", { count: report.sharedCacheViewers })}
+                </p>
+              )}
+              {(report.skippedCandidates ?? 0) > 0 && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-skipped">
+                  {t("admin.loadtest.skippedCandidatesLine", { count: report.skippedCandidates })}
                 </p>
               )}
               <p className="text-sm text-[var(--text)]" data-testid="load-test-stop-reason">
@@ -408,18 +474,39 @@ function LoadTestCard() {
             ) : null}
 
             <div className="flex flex-wrap items-end gap-3">
-              <div className="w-48">
-                <Select
-                  label={t("admin.loadtest.scenarioLabel")}
-                  value={scenario}
-                  onChange={(v) => setScenario(v === "natural" ? "natural" : "transcode")}
-                  disabled={start.isPending}
-                  data-testid="load-test-scenario-select"
-                  options={[
-                    { value: "transcode", label: t("admin.loadtest.scenarioTranscode") },
-                    { value: "natural", label: t("admin.loadtest.scenarioNatural") },
-                  ]}
-                />
+              {/* Native <select> with <optgroup> - the shared Select component
+                  doesn't support groups, and grouping "usage profile" (the
+                  question that matters: how many different humans) from the
+                  3 "pure" single-path lanes is the whole point here. */}
+              <div className="flex flex-col gap-1 w-64">
+                <label htmlFor="load-test-scenario" className="text-sm font-medium text-[var(--text-muted)]">
+                  {t("admin.loadtest.scenarioLabel")}
+                </label>
+                <div className="relative">
+                  <select
+                    id="load-test-scenario"
+                    value={scenario}
+                    onChange={(e) => setScenario(e.target.value as LoadTestScenario)}
+                    disabled={start.isPending}
+                    data-testid="load-test-scenario-select"
+                    className="w-full appearance-none px-3 py-2 pr-8 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <optgroup label={t("admin.loadtest.scenarioGroupUsage")}>
+                      <option value="light">{t("admin.loadtest.scenarioLight")}</option>
+                      <option value="balanced">{t("admin.loadtest.scenarioBalanced")}</option>
+                      <option value="heavy">{t("admin.loadtest.scenarioHeavy")}</option>
+                    </optgroup>
+                    <optgroup label={t("admin.loadtest.scenarioGroupPure")}>
+                      <option value="transcode">{t("admin.loadtest.scenarioTranscode")}</option>
+                      <option value="mkvgo">{t("admin.loadtest.scenarioMkvgo")}</option>
+                      <option value="natural">{t("admin.loadtest.scenarioNatural")}</option>
+                    </optgroup>
+                  </select>
+                  <ChevronDown
+                    className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]"
+                    size={16}
+                  />
+                </div>
               </div>
               <Button
                 loading={start.isPending}

@@ -197,12 +197,13 @@ describe("TranscodingConfigPage capacity", () => {
 });
 
 describe("LoadTestCard", () => {
-  it("rests with a start button and launches the default (transcode) scenario", async () => {
+  it("rests with a start button and launches the default (balanced mix) scenario", async () => {
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
 
     expect(screen.getByTestId("load-test-idle")).toBeTruthy();
     expect(screen.queryByTestId("load-test-running")).toBeNull();
+    expect((screen.getByTestId("load-test-scenario-select") as HTMLSelectElement).value).toBe("balanced");
 
     fireEvent.click(screen.getByTestId("load-test-start-btn"));
 
@@ -210,23 +211,50 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "transcode" },
+        data: { scenario: "balanced" },
       }),
     );
   });
 
-  it("sends the picked scenario in the POST payload", async () => {
+  it("offers all 6 scenarios grouped into usage profiles and pure scenarios", async () => {
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
 
-    fireEvent.change(screen.getByTestId("load-test-scenario-select"), { target: { value: "natural" } });
+    const select = screen.getByTestId("load-test-scenario-select");
+    const values = Array.from(select.querySelectorAll("option")).map((o) => (o as HTMLOptionElement).value);
+    expect(values).toEqual(["light", "balanced", "heavy", "transcode", "mkvgo", "natural"]);
+    const groups = Array.from(select.querySelectorAll("optgroup")).map((g) => g.getAttribute("label"));
+    expect(groups).toEqual(["Usage profiles", "Pure scenarios"]);
+  });
+
+  it("sends the picked usage-profile scenario in the POST payload", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    fireEvent.change(screen.getByTestId("load-test-scenario-select"), { target: { value: "light" } });
     fireEvent.click(screen.getByTestId("load-test-start-btn"));
 
     await waitFor(() =>
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "natural" },
+        data: { scenario: "light" },
+      }),
+    );
+  });
+
+  it("sends the picked pure (mkvgo-only) scenario in the POST payload", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    fireEvent.change(screen.getByTestId("load-test-scenario-select"), { target: { value: "mkvgo" } });
+    fireEvent.click(screen.getByTestId("load-test-start-btn"));
+
+    await waitFor(() =>
+      expect(mockEveyFetch).toHaveBeenCalledWith({
+        url: "/api/v1/admin/load-test",
+        method: "POST",
+        data: { scenario: "mkvgo" },
       }),
     );
   });
@@ -275,6 +303,50 @@ describe("LoadTestCard", () => {
     expect(report.textContent).toMatch(/2 of them served/i);
     // The idle controls stay reachable so the operator can relaunch a test.
     expect(screen.getByTestId("load-test-idle")).toBeTruthy();
+  });
+
+  it("renders the viewer mix composition when the server reports it", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "balanced",
+        sustainedViewers: 5,
+        stopReason: "slo_breach",
+        viewerMix: { mkvgo: 4, transcode: 1 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const mix = screen.getByTestId("load-test-viewer-mix");
+    expect(mix.textContent).toContain("4");
+    expect(mix.textContent).toMatch(/direct play \(mkvgo\)/i);
+    expect(mix.textContent).toContain("1");
+    expect(mix.textContent).toMatch(/transcoding/i);
+  });
+
+  it("renders skippedCandidates as a discreet line only when greater than zero", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: { scenario: "mkvgo", sustainedViewers: 6, stopReason: "max_viewers", skippedCandidates: 3 },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const skipped = screen.getByTestId("load-test-skipped");
+    expect(skipped.textContent).toContain("3");
+    expect(skipped.textContent).toMatch(/not eligible for mkvgo/i);
+  });
+
+  it("does not render a skippedCandidates line when it is zero or absent", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: { scenario: "heavy", sustainedViewers: 2, stopReason: "error", skippedCandidates: 0 },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    expect(screen.queryByTestId("load-test-skipped")).toBeNull();
   });
 
   it("shows a clear message when the POST is refused because real streams are active", async () => {
