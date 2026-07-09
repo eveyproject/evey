@@ -6,11 +6,25 @@
 // program, so unlike marquee/cosmos this renderer is raw Canvas2D + vanilla
 // DOM (still zero runtime dependencies).
 //
-// Memory/CPU discipline mirrors the WebGL renderers in this repo: node state
-// is allocated once per setScene() call (a data reload, not a frame) and
-// mutated in place every tick by the render loop - draw() never pushes into
-// a JS array or allocates a typed buffer. Paused when hidden/out of view.
-// Everything is torn down in dispose(): observers, listeners, the canvas.
+// Memory/CPU discipline mirrors the WebGL renderers in this repo, adapted to
+// what Canvas2D actually requires: node state is allocated once per
+// setScene() call (a data reload, not a frame) and mutated in place every
+// tick. draw() itself performs zero JS allocations once a node's entrance
+// animation has settled:
+//   - every color string (fill stops, shadow color) is precomputed once per
+//     node in setScene() from the decade's deterministic hue, never rebuilt
+//     from a template literal inside the render loop;
+//   - each node's CanvasGradient is cached on its state and only rebuilt
+//     when the values it actually depends on (screen position/radius) change
+//     - entrance easing, a hover bump, or a resize - not on every tick;
+//   - advance() snaps a node to its target once within an epsilon of it, so
+//     the eased position/radius stop producing floating-point noise and the
+//     cached gradient stays valid indefinitely once settled;
+//   - the idle "breathing" glow modulates ctx.shadowBlur (a plain number)
+//     instead of resizing the drawn circle, so it never invalidates the
+//     cached gradient.
+// Paused when hidden/out of view. Everything is torn down in dispose():
+// observers, listeners, the canvas.
 
 import type { SceneRenderer, GalaxyTarget, RendererCapacity } from "../../domain/ports/SceneRenderer";
 import type { GalaxyNode } from "../../domain/services/galaxyLayout";
@@ -41,6 +55,18 @@ interface NodeState {
   opacity: number;
   phase: number;
   hovered: boolean;
+  // Precomputed once per scene from the node's decade hue - never rebuilt
+  // from a template literal inside draw().
+  colorInner: string;
+  colorOuter: string;
+  glowColor: string;
+  // Cached gradient + the screen-space params it was built for, so draw()
+  // only calls createRadialGradient() again when position/radius actually
+  // changed (not on every tick once the entrance animation has settled).
+  gradient: CanvasGradient | null;
+  gradientPx: number;
+  gradientPy: number;
+  gradientR: number;
 }
 
 // Fraction of min(canvas width, height) used as the orbit/radius scale,
@@ -48,6 +74,10 @@ interface NodeState {
 const SPACE_SCALE = 0.42;
 const ENTER_EASE_PER_60FPS = 0.1;
 const HOVER_SCALE = 1.08;
+// Below this delta a node is considered "arrived": snapped exactly onto its
+// target so the eased value stops drifting by floating-point noise forever
+// (which would otherwise keep invalidating the cached gradient every frame).
+const SETTLE_EPSILON = 0.0005;
 
 export class CanvasRenderer implements SceneRenderer {
   private host: HTMLElement | null = null;
@@ -114,6 +144,7 @@ export class CanvasRenderer implements SceneRenderer {
     for (let i = 0; i < target.nodes.length; i++) {
       const node = target.nodes[i];
       const existing = prev[i];
+      const hue = hueForDecade(node.decade);
       next[i] = {
         x: existing ? existing.x : 0,
         y: existing ? existing.y : 0,
@@ -124,6 +155,13 @@ export class CanvasRenderer implements SceneRenderer {
         opacity: existing ? existing.opacity : 0,
         phase: (i * 0.61803398875) % 1,
         hovered: false,
+        colorInner: `hsla(${hue}, 90%, 78%, 0.95)`,
+        colorOuter: `hsla(${hue}, 78%, 42%, 0.88)`,
+        glowColor: `hsla(${hue}, 85%, 70%, 0.55)`,
+        gradient: null,
+        gradientPx: NaN,
+        gradientPy: NaN,
+        gradientR: NaN,
       };
     }
     this.state = next;
@@ -226,10 +264,10 @@ export class CanvasRenderer implements SceneRenderer {
     const ease = Math.min(1, ENTER_EASE_PER_60FPS * (dt * 60));
     for (let i = 0; i < this.state.length; i++) {
       const s = this.state[i];
-      s.x += (s.targetX - s.x) * ease;
-      s.y += (s.targetY - s.y) * ease;
-      s.radius += (s.targetRadius - s.radius) * ease;
-      s.opacity += (1 - s.opacity) * ease;
+      s.x = settle(s.x, s.targetX, ease);
+      s.y = settle(s.y, s.targetY, ease);
+      s.radius = settle(s.radius, s.targetRadius, ease);
+      s.opacity = settle(s.opacity, 1, ease);
     }
   }
 
@@ -253,21 +291,30 @@ export class CanvasRenderer implements SceneRenderer {
       const px = cx + s.x * scale;
       const py = cy + s.y * scale;
       const baseR = Math.max(1, s.radius * scale);
-      const pulse = this.reducedMotion ? 0 : Math.sin(this.time * 1.4 + s.phase * Math.PI * 2) * 0.06;
-      const drawR = baseR * (1 + pulse) * (s.hovered ? HOVER_SCALE : 1);
-      const hue = hueForDecade(node.decade);
+      const drawR = baseR * (s.hovered ? HOVER_SCALE : 1);
 
+      // The idle "breathing" glow only modulates the shadow blur amount (a
+      // plain number) - it never resizes the drawn circle, so it can never
+      // invalidate the cached gradient below.
       ctx.globalAlpha = s.opacity;
       if (this.glow) {
-        ctx.shadowBlur = drawR * 0.9;
-        ctx.shadowColor = `hsla(${hue}, 85%, 70%, 0.55)`;
+        const pulse = this.reducedMotion ? 1 : 0.82 + Math.sin(this.time * 1.4 + s.phase * Math.PI * 2) * 0.18;
+        ctx.shadowBlur = drawR * 0.9 * pulse;
+        ctx.shadowColor = s.glowColor;
       } else {
         ctx.shadowBlur = 0;
       }
-      const gradient = ctx.createRadialGradient(px, py, 0, px, py, drawR);
-      gradient.addColorStop(0, `hsla(${hue}, 90%, 78%, 0.95)`);
-      gradient.addColorStop(1, `hsla(${hue}, 78%, 42%, 0.88)`);
-      ctx.fillStyle = gradient;
+
+      if (!s.gradient || s.gradientPx !== px || s.gradientPy !== py || s.gradientR !== drawR) {
+        const gradient = ctx.createRadialGradient(px, py, 0, px, py, drawR);
+        gradient.addColorStop(0, s.colorInner);
+        gradient.addColorStop(1, s.colorOuter);
+        s.gradient = gradient;
+        s.gradientPx = px;
+        s.gradientPy = py;
+        s.gradientR = drawR;
+      }
+      ctx.fillStyle = s.gradient;
       ctx.beginPath();
       ctx.arc(px, py, drawR, 0, Math.PI * 2);
       ctx.fill();
@@ -275,6 +322,16 @@ export class CanvasRenderer implements SceneRenderer {
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
   }
+}
+
+// Eases `current` towards `target` by `factor`, snapping exactly onto the
+// target once within SETTLE_EPSILON of it. Without the snap, an
+// asymptotically-approaching float never becomes bit-identical to the
+// target, which would keep invalidating the render loop's cached gradients
+// forever instead of just for the entrance animation's actual duration.
+function settle(current: number, target: number, factor: number): number {
+  const next = current + (target - current) * factor;
+  return Math.abs(target - next) < SETTLE_EPSILON ? target : next;
 }
 
 // Deterministic, purely cosmetic hue per decade: sweeps from deep violet
