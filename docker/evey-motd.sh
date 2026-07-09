@@ -31,12 +31,19 @@ printf '  %s███████╗%s ╚████╔╝ %s█████�
 printf '  %s╚══════╝%s  ╚═══╝  %s╚══════╝%s   ╚═╝   %s\n' "$W" "$R" "$W" "$W" "$Z"
 printf '  %sadmin shell%s   %s·%s   %stab-completion on%s\n\n' "$D" "$Z" "$D" "$Z" "$G" "$Z"
 
-printf '  %sevey admin%s %s<cmd>%s   %sserver maintenance & recovery%s\n' "$R" "$Z" "$W" "$Z" "$D" "$Z"
-printf '     %sreset-password · migrate · reindex-search · validate-streaming · artwork-gc%s\n\n' "$S" "$Z"
-printf '  %smkvgo%s %s<cmd>%s        %sinspect / repair media files%s   %s(%s)%s\n' "$R" "$Z" "$W" "$Z" "$D" "$Z" "$S" "$mkv" "$Z"
-printf '     %singest -analyze · reindex-inplace · playability -target%s\n\n' "$S" "$Z"
-
-printf '  %sTab-complete either.%s  %sevey admin help%s %sor%s %smkvgo%s %slists everything.%s\n\n' \
+# menu — one row per command; the arrow + command in the brand palette, the
+# description dim. `evey admin` is the default group; mkvgo is the media tool.
+menu() { printf '  %s▸%s %s%-31s%s %s%s%s\n' "$R" "$Z" "$W" "$1" "$Z" "$D" "$2" "$Z"; }
+menu 'evey admin reset-password'     "new password for a user, printed once"
+menu 'evey admin migrate up'         "apply pending schema migrations"
+menu 'evey admin reindex-search'     "rebuild the search index"
+menu 'evey admin validate-streaming' "report each file's seek / HLS readiness"
+menu 'evey admin reindex-no-cue'     "repair MKV seek indexes (slow resume)"
+menu 'evey admin artwork-gc'         "delete orphaned artwork files"
+menu 'mkvgo <cmd>'                   "inspect / repair one media file  ($mkv)"
+printf '\n'
+printf '  %sTab-complete any of these.%s  %sevey admin help%s %s·%s %smkvgo%s %sfor the full list.%s\n\n' \
     "$D" "$Z" "$R" "$Z" "$D" "$Z" "$R" "$Z" "$D" "$Z"
+unset -f menu
 
 unset W R S D G Z mkv
