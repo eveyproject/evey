@@ -85,6 +85,17 @@ func TestOnDemandPackagerIntegration(t *testing.T) {
 		t.Errorf("master content-type = %q, want an HLS type", ct)
 	}
 
+	// A chapterless source emits no EXT-X-DATERANGE lines: ChapterMarkers is
+	// hardcoded on in the adapter, but it must stay a no-op for a file with no
+	// chapters (byte-identical to the pre-ChapterMarkers output).
+	videoPlaylist, _, err := plan.Resource(ctx, "playlist.m3u8")
+	if err != nil {
+		t.Fatalf("Resource(playlist.m3u8): %v", err)
+	}
+	if bytes.Contains(videoPlaylist, []byte("EXT-X-DATERANGE")) {
+		t.Errorf("chapterless source's playlist carries EXT-X-DATERANGE:\n%s", videoPlaylist)
+	}
+
 	// First media segment: a real fMP4 CMAF fragment (styp box).
 	seg, _, err := plan.Resource(ctx, "seg00001.m4s")
 	if err != nil {
@@ -129,5 +140,70 @@ func TestOnDemandPackagerIntegration(t *testing.T) {
 	}
 	if encPlan.HasDASH() {
 		t.Error("HasDASH = true for an encrypted plan, want false (HLS only)")
+	}
+}
+
+// TestOnDemandPackagerIntegration_ChapterMarkers proves the mkvgo v0.17.0
+// ChapterMarkers wiring: a source with chapters gets EXT-X-DATERANGE lines in
+// its media playlist, one per chapter, carrying the chapter title.
+func TestOnDemandPackagerIntegration_ChapterMarkers(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not in PATH")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	dir := t.TempDir()
+	metaPath := filepath.Join(dir, "chapters.txt")
+	meta := ";FFMETADATA1\n\n" +
+		"[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=15000\ntitle=Chapter One\n\n" +
+		"[CHAPTER]\nTIMEBASE=1/1000\nSTART=15000\nEND=30000\ntitle=Chapter Two\n"
+	if err := os.WriteFile(metaPath, []byte(meta), 0o644); err != nil {
+		t.Fatalf("write chapters metadata: %v", err)
+	}
+
+	// Same synthetic source as the base test, plus a chapters metadata input
+	// mapped in via -map_metadata so ffmpeg's matroska muxer writes real
+	// Matroska ChapterAtom entries.
+	src := filepath.Join(dir, "src_chapters.mkv")
+	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+		"-i", metaPath,
+		"-map_metadata", "2",
+		"-t", "30",
+		"-c:v", "libx264", "-g", "48", "-keyint_min", "48", "-pix_fmt", "yuv420p",
+		"-c:a", "aac", "-b:a", "128k",
+		src)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("ffmpeg source generation failed: %v\n%s", err, out)
+	}
+
+	pkg := NewOnDemandPackager()
+	defer pkg.Close()
+
+	plan, err := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{
+		SegmentMs: 6000,
+		URLPrefix: "od_",
+	})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+
+	videoPlaylist, _, err := plan.Resource(ctx, "playlist.m3u8")
+	if err != nil {
+		t.Fatalf("Resource(playlist.m3u8): %v", err)
+	}
+	if got := bytes.Count(videoPlaylist, []byte("EXT-X-DATERANGE")); got != 2 {
+		t.Errorf("EXT-X-DATERANGE count = %d, want 2 (one per chapter):\n%s", got, videoPlaylist)
+	}
+	if !bytes.Contains(videoPlaylist, []byte("Chapter One")) {
+		t.Errorf("playlist missing first chapter title:\n%s", videoPlaylist)
+	}
+	if !bytes.Contains(videoPlaylist, []byte("Chapter Two")) {
+		t.Errorf("playlist missing second chapter title:\n%s", videoPlaylist)
 	}
 }

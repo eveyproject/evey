@@ -60,7 +60,10 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 		return pl, nil
 	}
 
-	o := mp4.Options{SegmentMs: opts.SegmentMs}
+	// ChapterMarkers is hardcoded on: per mp4.Options docs, it is additive and
+	// byte-identical for a chapterless source (no re-cut, no decode either way),
+	// so there is no reason to gate it behind an option.
+	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true}
 	if opts.URLPrefix != "" {
 		prefix := opts.URLPrefix
 		o.RewriteURL = func(name string) string { return prefix + name }
