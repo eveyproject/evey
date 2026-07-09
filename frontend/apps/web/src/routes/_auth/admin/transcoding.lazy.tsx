@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
 import { Spinner } from "@/components/ui/Spinner";
 import { EncodeCalibrationCard } from "@/features/admin/EncodeCalibrationCard";
 
@@ -189,6 +190,251 @@ function VideoSessionsCard() {
   );
 }
 
+// --- LoadTestCard --------------------------------------------------------
+//
+// The backend side of this contract (POST/GET/DELETE /api/v1/admin/load-test)
+// is not yet expressed as a proto/orval-generated client in this tree (the
+// service is landing in a parallel worktree). Until it does, this talks to
+// the endpoint through eveyFetch directly with hand-written types mirroring
+// the documented wire shape - the same pattern ConcurrencyCard below already
+// uses for /admin/server-settings. Swap these local types for the generated
+// ones once the client lands; the shape is a 1:1 match so no behavior change
+// is expected.
+
+type LoadTestScenario = "transcode" | "natural";
+
+type LoadTestStopReason =
+  | "slo_breach"
+  | "admission_full"
+  | "library_limit"
+  | "max_viewers"
+  | "cancelled"
+  | "token_expired"
+  | "error";
+
+interface LoadTestReport {
+  scenario?: LoadTestScenario;
+  sustainedViewers?: number;
+  stopReason?: LoadTestStopReason;
+  stopDetail?: string;
+  ttffMsP50?: number;
+  ttffMsP95?: number;
+  segmentMsP50?: number;
+  segmentMsP95?: number;
+  segmentSloMs?: number;
+  samples?: number;
+  sharedCacheViewers?: number;
+  startedAt?: string;
+  endedAt?: string;
+}
+
+interface LoadTestStatus {
+  running?: boolean;
+  phase?: string;
+  viewers?: number;
+  elapsedMs?: number;
+  lastReport?: LoadTestReport;
+}
+
+const LOAD_TEST_URL = "/api/v1/admin/load-test";
+const LOAD_TEST_QUERY_KEY = ["admin-load-test-status"];
+
+// A POST refused because real playback is active surfaces as 409 (conflict),
+// 423 (locked) or 500 (the admission guard erroring out defensively) - all
+// three read the same to an operator: "something is already streaming".
+const ACTIVE_STREAMS_STATUSES = [409, 423, 500];
+
+const STOP_REASON_KEYS: Partial<Record<LoadTestStopReason, string>> = {
+  slo_breach: "admin.loadtest.stopReason.sloBreach",
+  admission_full: "admin.loadtest.stopReason.admissionFull",
+  library_limit: "admin.loadtest.stopReason.libraryLimit",
+  max_viewers: "admin.loadtest.stopReason.maxViewers",
+  cancelled: "admin.loadtest.stopReason.cancelled",
+  token_expired: "admin.loadtest.stopReason.tokenExpired",
+  error: "admin.loadtest.stopReason.error",
+};
+
+function formatElapsed(ms: number): string {
+  const totalSec = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+// predictedStreams reads the SAME calibration table VideoSessionsCard renders
+// above (pools[].classes[].rungFits[]) and returns the median rung's
+// max_streams for the ladder class the load test actually exercises: "hw"
+// when a GPU pool exists, "software" otherwise - independent of which
+// scenario the operator picked, since the pool a stream lands on is a
+// hardware fact, not a test setting.
+function predictedStreams(pools: V1VideoPool[]): number | undefined {
+  const gpuPool = pools.find((p) => p.pool === "gpu");
+  const pool = gpuPool ?? pools.find((p) => p.pool === "cpu");
+  const classes = pool?.classes ?? [];
+  const wanted = gpuPool ? "hw" : "software";
+  const cls = classes.find((c) => c.ladderClass === wanted) ?? classes[0];
+  const rungs = cls?.rungFits ?? [];
+  if (rungs.length === 0) return undefined;
+  return rungs[Math.floor(rungs.length / 2)]?.maxStreams;
+}
+
+// LoadTestCard is the "constat, not a control panel" companion to
+// VideoSessionsCard: instead of trusting the calibration's prediction, it
+// throws real simulated viewers at the server and reports what actually held
+// up. Repose (launch) -> running (poll) -> report, with the calibration's own
+// prediction shown alongside the measured number for a sanity check.
+function LoadTestCard() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { data: sysData } = useAdminSystemServiceGetSystemInfo();
+  const pools = sysData?.videoSessions?.pools ?? [];
+  const [scenario, setScenario] = useState<LoadTestScenario>("transcode");
+
+  const statusQuery = useQuery<LoadTestStatus>({
+    queryKey: LOAD_TEST_QUERY_KEY,
+    queryFn: () => eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "GET" }),
+    refetchInterval: (query) => (query.state.data?.running ? 2000 : false),
+  });
+  const status = statusQuery.data;
+  const running = status?.running ?? false;
+  const report = status?.lastReport;
+
+  const start = useMutation({
+    mutationFn: () =>
+      eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "POST", data: { scenario } }),
+    onSuccess: (data) => {
+      qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
+      void qc.invalidateQueries({ queryKey: LOAD_TEST_QUERY_KEY });
+    },
+  });
+
+  const cancel = useMutation({
+    mutationFn: () => eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "DELETE" }),
+    onSuccess: (data) => {
+      qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
+      void qc.invalidateQueries({ queryKey: LOAD_TEST_QUERY_KEY });
+    },
+  });
+
+  const startError = start.error as (Error & { httpStatus?: number }) | null;
+  const blockedByActiveStreams =
+    !!startError && ACTIVE_STREAMS_STATUSES.includes(startError.httpStatus ?? 0);
+
+  const predicted = predictedStreams(pools);
+
+  return (
+    <div className="flex flex-col gap-3 pt-3 mt-2 border-t border-[var(--border)]" data-testid="load-test-card">
+      <h4 className="text-sm font-semibold text-[var(--text)]">{t("admin.loadtest.heading")}</h4>
+
+      {running && status ? (
+        <div className="flex flex-col gap-2" data-testid="load-test-running">
+          <p className="text-sm text-[var(--text)]">
+            {t("admin.loadtest.runningViewers", { count: status.viewers ?? 0 })}
+            {" · "}
+            {t("admin.loadtest.runningPhase", { phase: status.phase ?? "" })}
+            {" · "}
+            {t("admin.loadtest.runningElapsed", { elapsed: formatElapsed(status.elapsedMs ?? 0) })}
+          </p>
+          <div className="flex justify-start">
+            <Button
+              variant="secondary"
+              loading={cancel.isPending}
+              onClick={() => cancel.mutate()}
+              data-testid="load-test-cancel-btn"
+            >
+              {t("admin.loadtest.cancelButton")}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {report && (
+            <div className="flex flex-col gap-1.5" data-testid="load-test-report">
+              <p className="text-xl font-bold text-[var(--text)]">
+                {t("admin.loadtest.reportHeadline", {
+                  count: report.sustainedViewers ?? 0,
+                  scenario: t(
+                    report.scenario === "natural"
+                      ? "admin.loadtest.scenarioNaturalNoun"
+                      : "admin.loadtest.scenarioTranscodeNoun",
+                  ),
+                })}
+              </p>
+              {predicted !== undefined && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-predicted">
+                  {t("admin.loadtest.predictedLine", { count: predicted })}
+                </p>
+              )}
+              <p className="text-sm text-[var(--text-muted)]">
+                {t("admin.loadtest.ttffLine", {
+                  p50: Math.round(report.ttffMsP50 ?? 0),
+                  p95: Math.round(report.ttffMsP95 ?? 0),
+                })}
+              </p>
+              <p className="text-sm text-[var(--text-muted)]">
+                {t("admin.loadtest.segmentLine", {
+                  p50: Math.round(report.segmentMsP50 ?? 0),
+                  p95: Math.round(report.segmentMsP95 ?? 0),
+                  slo: Math.round(report.segmentSloMs ?? 0),
+                })}
+              </p>
+              {(report.sharedCacheViewers ?? 0) > 0 && (
+                <p className="text-sm text-[var(--text-muted)]">
+                  {t("admin.loadtest.sharedCacheLine", { count: report.sharedCacheViewers })}
+                </p>
+              )}
+              <p className="text-sm text-[var(--text)]" data-testid="load-test-stop-reason">
+                {t(
+                  (report.stopReason && STOP_REASON_KEYS[report.stopReason]) ??
+                    "admin.loadtest.stopReason.error",
+                )}
+                {report.stopDetail ? ` (${report.stopDetail})` : ""}
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2" data-testid="load-test-idle">
+            <p className="text-sm text-[var(--text-muted)]">{t("admin.loadtest.idleDescription")}</p>
+            <p className="text-xs text-[var(--color-warning)]">{t("admin.loadtest.idleWarning")}</p>
+
+            {blockedByActiveStreams ? (
+              <p className="text-sm text-[var(--color-danger)]" role="alert" data-testid="load-test-error">
+                {t("admin.loadtest.errorActiveStreams")}
+              </p>
+            ) : startError ? (
+              <p className="text-sm text-[var(--color-danger)]" role="alert" data-testid="load-test-error">
+                {t("admin.loadtest.errorGeneric")}
+              </p>
+            ) : null}
+
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="w-48">
+                <Select
+                  label={t("admin.loadtest.scenarioLabel")}
+                  value={scenario}
+                  onChange={(v) => setScenario(v === "natural" ? "natural" : "transcode")}
+                  disabled={start.isPending}
+                  data-testid="load-test-scenario-select"
+                  options={[
+                    { value: "transcode", label: t("admin.loadtest.scenarioTranscode") },
+                    { value: "natural", label: t("admin.loadtest.scenarioNatural") },
+                  ]}
+                />
+              </div>
+              <Button
+                loading={start.isPending}
+                onClick={() => start.mutate()}
+                data-testid="load-test-start-btn"
+              >
+                {t("admin.loadtest.startButton")}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 export const Route = createLazyFileRoute("/_auth/admin/transcoding")({
   component: TranscodingConfigPage,
 });
@@ -319,6 +565,7 @@ function TranscodingConfigPage() {
         alwaysOpen
       >
         <VideoSessionsCard />
+        <LoadTestCard />
       </CollapsibleCard>
 
       <CollapsibleCard

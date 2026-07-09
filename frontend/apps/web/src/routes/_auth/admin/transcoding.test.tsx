@@ -6,9 +6,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const mockGetSystemInfo = vi.fn();
 const mockSetConfigEntry = vi.fn();
 const mockListConfigEntries = vi.fn();
+const mockEveyFetch = vi.fn(() => Promise.resolve({}));
 
 vi.mock("@evey/api", () => ({
-  eveyFetch: vi.fn(() => Promise.resolve({})),
+  eveyFetch: (...args: unknown[]) => mockEveyFetch(...args),
   useAdminSystemServiceGetSystemInfo: (...args: unknown[]) => mockGetSystemInfo(...args),
   useServerConfigServiceListServerConfigEntries: (...args: unknown[]) => mockListConfigEntries(...args),
   getServerConfigServiceListServerConfigEntriesQueryKey: () => ["cfg"],
@@ -23,6 +24,11 @@ vi.mock("@tanstack/react-router", () => ({
 
 // ConcurrencyCard (the background-job knob) fetches /admin/server-settings via
 // useQuery; give it a settled shape so the page renders both sections.
+// LoadTestCard's status poll (GET /admin/load-test) is intercepted the same
+// way - mockLoadTestStatus lets each test drive idle/running/report directly
+// instead of fighting the polling timer.
+let mockLoadTestStatus: unknown;
+
 vi.mock("@tanstack/react-query", async () => {
   const actual = await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query");
   return {
@@ -31,6 +37,9 @@ vi.mock("@tanstack/react-query", async () => {
       const key = JSON.stringify(opts?.queryKey ?? []);
       if (key.includes("server-settings")) {
         return { data: { maxConcurrentTranscodes: { value: 2, default: 2, source: "default" } }, isLoading: false };
+      }
+      if (key.includes("load-test")) {
+        return { data: mockLoadTestStatus, isLoading: false };
       }
       return { data: undefined, isLoading: false };
     },
@@ -66,6 +75,8 @@ beforeEach(() => {
   mockGetSystemInfo.mockReturnValue({ data: measured });
   mockListConfigEntries.mockReturnValue({ data: [] });
   mockSetConfigEntry.mockResolvedValue({});
+  mockEveyFetch.mockReset().mockResolvedValue({});
+  mockLoadTestStatus = undefined;
 });
 
 describe("TranscodingConfigPage capacity", () => {
@@ -182,5 +193,131 @@ describe("TranscodingConfigPage capacity", () => {
     await waitFor(() =>
       expect(mockSetConfigEntry).toHaveBeenCalledWith("transcoding.max_video_sessions", { value: "1" }),
     );
+  });
+});
+
+describe("LoadTestCard", () => {
+  it("rests with a start button and launches the default (transcode) scenario", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    expect(screen.getByTestId("load-test-idle")).toBeTruthy();
+    expect(screen.queryByTestId("load-test-running")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("load-test-start-btn"));
+
+    await waitFor(() =>
+      expect(mockEveyFetch).toHaveBeenCalledWith({
+        url: "/api/v1/admin/load-test",
+        method: "POST",
+        data: { scenario: "transcode" },
+      }),
+    );
+  });
+
+  it("sends the picked scenario in the POST payload", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    fireEvent.change(screen.getByTestId("load-test-scenario-select"), { target: { value: "natural" } });
+    fireEvent.click(screen.getByTestId("load-test-start-btn"));
+
+    await waitFor(() =>
+      expect(mockEveyFetch).toHaveBeenCalledWith({
+        url: "/api/v1/admin/load-test",
+        method: "POST",
+        data: { scenario: "natural" },
+      }),
+    );
+  });
+
+  it("shows the running state (viewers, phase, elapsed) while polling, with a cancel button", async () => {
+    mockLoadTestStatus = { running: true, phase: "ramping", viewers: 3, elapsedMs: 15_000 };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const running = screen.getByTestId("load-test-running");
+    expect(running.textContent).toContain("3");
+    expect(running.textContent).toContain("ramping");
+    expect(running.textContent).toContain("0:15");
+    expect(screen.queryByTestId("load-test-idle")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("load-test-cancel-btn"));
+    await waitFor(() =>
+      expect(mockEveyFetch).toHaveBeenCalledWith({ url: "/api/v1/admin/load-test", method: "DELETE" }),
+    );
+  });
+
+  it("renders the report with the headline number up front and the stop reason in plain language", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "transcode",
+        sustainedViewers: 5,
+        stopReason: "admission_full",
+        ttffMsP50: 120,
+        ttffMsP95: 300,
+        segmentMsP50: 400,
+        segmentMsP95: 900,
+        segmentSloMs: 1000,
+        samples: 42,
+        sharedCacheViewers: 2,
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const report = screen.getByTestId("load-test-report");
+    expect(report.textContent).toContain("5");
+    expect(report.textContent).toMatch(/sustains/i);
+    const stopReason = screen.getByTestId("load-test-stop-reason");
+    expect(stopReason.textContent).toMatch(/refused the next viewer, as designed/i);
+    expect(report.textContent).toMatch(/2 of them served/i);
+    // The idle controls stay reachable so the operator can relaunch a test.
+    expect(screen.getByTestId("load-test-idle")).toBeTruthy();
+  });
+
+  it("shows a clear message when the POST is refused because real streams are active", async () => {
+    mockEveyFetch.mockRejectedValueOnce(Object.assign(new Error("locked"), { httpStatus: 423 }));
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    fireEvent.click(screen.getByTestId("load-test-start-btn"));
+
+    const err = await screen.findByTestId("load-test-error");
+    expect(err.textContent).toMatch(/test refuses to run over real viewers/i);
+  });
+
+  it("shows the calibration's predicted stream count next to the measured report", async () => {
+    mockGetSystemInfo.mockReturnValue({
+      data: {
+        videoSessions: {
+          ...measured.videoSessions,
+          pools: [
+            {
+              pool: "cpu",
+              budgetUsed: 0.431,
+              budgetTotal: 1,
+              classes: [{ ladderClass: "software", rungFits: [{ height: 1080, cost: 0.431, maxStreams: 2 }] }],
+            },
+            {
+              pool: "gpu",
+              budgetUsed: 0.98,
+              budgetTotal: 1,
+              classes: [{ ladderClass: "hw", rungFits: [{ height: 1080, cost: 0.245, maxStreams: 4 }] }],
+            },
+          ],
+        },
+      },
+    });
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: { scenario: "transcode", sustainedViewers: 3, stopReason: "slo_breach" },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const predicted = screen.getByTestId("load-test-predicted");
+    expect(predicted.textContent).toContain("4");
   });
 });
