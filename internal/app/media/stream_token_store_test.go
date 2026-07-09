@@ -179,3 +179,31 @@ func TestStreamTokenStore_MultipleMedias(t *testing.T) {
 	_, ok = store.Validate(t1, "media-2")
 	assert.False(t, ok)
 }
+
+func TestStreamTokenStore_RevokeByUser(t *testing.T) {
+	store := media.NewStreamTokenStore(5 * time.Minute)
+	defer store.Stop()
+
+	a1 := store.Create("user-1", "profile-1", "media-1")
+	a2 := store.CreateWithTTL("user-1", "profile-1", "media-2", 12*time.Hour) // long-lived cast token
+	b1 := store.Create("user-2", "profile-2", "media-1")
+	guest := store.CreateGuestToken("media-3", 5*time.Minute)
+
+	n := store.RevokeByUser("user-1")
+	assert.Equal(t, 2, n, "both of user-1's tokens (incl. the 12h cast token) must be revoked")
+
+	if _, ok := store.Validate(a1, "media-1"); ok {
+		t.Error("user-1 token a1 should be revoked")
+	}
+	if _, ok := store.Validate(a2, "media-2"); ok {
+		t.Error("user-1 long-lived cast token a2 should be revoked")
+	}
+	if _, ok := store.Validate(b1, "media-1"); !ok {
+		t.Error("user-2 token must survive - only the banned user is purged")
+	}
+	if _, ok := store.Validate(guest, "media-3"); !ok {
+		t.Error("guest token (no user) must survive")
+	}
+
+	assert.Equal(t, 0, store.RevokeByUser(""), "empty userID is a no-op")
+}

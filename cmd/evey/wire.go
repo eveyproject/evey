@@ -388,11 +388,18 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// JWTGenerator stays only where plugin-token methods are needed.
 	guardedTokens, stopEpochCache := appuser.NewEpochGuardedTokens(infra.tokenGen, r.User)
 	_ = stopEpochCache // cache janitor lives for the process lifetime
+	// On a security event (ban / password reset) the epoch bump kills JWTs
+	// within ~30s, but opaque STREAM tokens are not epoch-guarded and a
+	// cast/native token lives up to 12h. Wrap the epoch revoker so the same
+	// revoke path also purges the user's stream tokens. purgeStreams is bound
+	// after streamTokenStore is constructed (further down); it is only ever
+	// invoked at runtime on a real security event, long after wiring completes.
+	securityRevoker := &compositeTokenRevoker{epoch: guardedTokens}
 	userAuthOpts := []appuser.CommandServiceOption{
 		appuser.WithPasswordReset(r.PasswordResetToken, r.ServerCfg, smtpConfigured),
 		appuser.WithUnitOfWork(postgres.NewTxUnit(db)),
 		appuser.WithLoginAttemptRepository(r.LoginAttempt),
-		appuser.CommandWithTokenRevoker(guardedTokens),
+		appuser.CommandWithTokenRevoker(securityRevoker),
 	}
 	userAuthSvc := appuser.NewCommandService(
 		r.User, r.Profile, r.RefreshToken,
@@ -411,7 +418,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}
 		return cfg.Metadata.Language
 	}
-	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), appuser.WithDefaultLocale(serverLocaleFn), appuser.WithTokenRevoker(guardedTokens))
+	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), appuser.WithDefaultLocale(serverLocaleFn), appuser.WithTokenRevoker(securityRevoker))
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess), appuser.WithAccessDefaultLocale(serverLocaleFn), appuser.WithAccessUnitOfWork(postgres.NewTxUnit(db)))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
 
@@ -640,6 +647,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
 	deviceRegistry := appsyncplay.NewDeviceRegistry()
 	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL)
+	// Bind the stream-token purge into the security revoker now that the store
+	// exists: a ban/password-reset cuts the user's live cast/native streams.
+	securityRevoker.purgeStreams = streamTokenStore.RevokeByUser
 	shareLinkRepo := postgres.NewShareLinkRepo(db)
 	shareSvc := appmedia.NewShareService(shareLinkRepo)
 
@@ -1545,4 +1555,26 @@ func (g mediaItemDurationGetter) GetMediaItemDurationMs(ctx context.Context, med
 		return 0, err
 	}
 	return item.File.Duration.Milliseconds(), nil
+}
+
+// compositeTokenRevoker layers stream-token purge on top of the JWT epoch
+// bump. epoch is always present; purgeStreams is bound after the stream token
+// store is constructed and stays nil-safe (a nil purge just preserves the
+// epoch-only behaviour). Revoke bumps the epoch first (JWT kill) then cuts the
+// user's live stream tokens - the order is not load-bearing, both are
+// idempotent, but epoch-first keeps the fast JWT revocation on the critical
+// path even if the stream purge ranges a large map.
+type compositeTokenRevoker struct {
+	epoch        appuser.TokenRevoker
+	purgeStreams func(userID string) int
+}
+
+func (c *compositeTokenRevoker) Revoke(ctx context.Context, userID string) error {
+	if err := c.epoch.Revoke(ctx, userID); err != nil {
+		return err
+	}
+	if c.purgeStreams != nil {
+		c.purgeStreams(userID)
+	}
+	return nil
 }

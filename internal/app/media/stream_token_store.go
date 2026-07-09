@@ -131,6 +131,28 @@ func (s *StreamTokenStore) Revoke(token string) {
 	s.tokens.Delete(token)
 }
 
+// RevokeByUser deletes every stream token minted for userID and returns how
+// many were removed. Called on a security event (ban, password reset) so a
+// banned user's long-lived cast/native token (up to 12h) is cut immediately
+// instead of surviving until expiry - the JWT epoch bump alone left that gap,
+// since opaque stream tokens are not epoch-guarded. Guest tokens (no user) are
+// untouched.
+func (s *StreamTokenStore) RevokeByUser(userID string) int {
+	if userID == "" {
+		return 0
+	}
+	revoked := 0
+	s.tokens.Range(func(key, value any) bool {
+		st, ok := value.(*shared.StreamToken)
+		if ok && string(st.UserID) == userID {
+			s.tokens.Delete(key)
+			revoked++
+		}
+		return true
+	})
+	return revoked
+}
+
 func (s *StreamTokenStore) Stop() {
 	select {
 	case <-s.done:
