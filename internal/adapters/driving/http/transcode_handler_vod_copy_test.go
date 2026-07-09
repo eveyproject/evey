@@ -132,6 +132,33 @@ func TestIsCopyRequest_HEVC(t *testing.T) {
 		"no keyframe index → transcode (empty plan would break)")
 }
 
+// The VFR gate must survive the handler-level projection: CopyRungEligible
+// refuses vfr sources (HLS copy segments drift A/V on them), but the refusal
+// only bites if sourceCopyVideoCodec threads FrameRateMode into CopySource.
+func TestIsCopyRequest_VFRSourceNeverRoutesToCopy(t *testing.T) {
+	h := newCopyTestHandler(t)
+	dec := domaintranscoding.PlaybackDecision{VideoDecision: "copy"}
+	w, hgt, level := 1920, 1080, 40
+	vfr := func(mode string) []*domainlibrary.MediaStream {
+		return []*domainlibrary.MediaStream{{
+			StreamType:    domainlibrary.StreamTypeVideo,
+			Codec:         "h264",
+			Profile:       "High",
+			Width:         &w,
+			Height:        &hgt,
+			Level:         &level,
+			Keyframes:     []int64{0, 6000, 12000},
+			FrameRateMode: mode,
+		}}
+	}
+	assert.True(t, h.isCopyRequest(dec, vfr(""), 1<<20),
+		"unknown frame-rate mode keeps today's behavior (copy allowed)")
+	assert.True(t, h.isCopyRequest(dec, vfr("cfr"), 1<<20),
+		"cfr routes to copy")
+	assert.False(t, h.isCopyRequest(dec, vfr("vfr"), 1<<20),
+		"vfr must fall back to transcode (CFR output), never copy")
+}
+
 // Regression lock (caught on prod bytes, SATAVG 3.1): an HDR-capable client
 // (hdr=1) suppresses the decision-level tonemap, but a transcoded rung is SDR
 // by contract — when the request will NOT be served as a raw copy (keyframes

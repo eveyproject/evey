@@ -916,6 +916,7 @@ func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 			ColorTransfer: s.ColorTransfer,
 			DoViProfile:   s.DoViProfile,
 			DoViBLCompat:  s.DoViBLCompat,
+			FrameRateMode: s.FrameRateMode,
 		})
 	}
 	return ""

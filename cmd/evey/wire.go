@@ -999,7 +999,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			kfProber,
 			kfOpts,
 			slog.Default(),
-		).WithActivePlayback(hlsVODRemover.ActiveSessionCount)
+		).WithActivePlayback(hlsVODRemover.ActiveSessionCount).
+			// Same paced pass as the keyframe walk: classify CFR/VFR via
+			// mkvgo ops.Analyze and persist it, so the decision engine can
+			// gate the copy rung off VFR sources (HLS copy segments drift
+			// A/V on them). Best-effort: analysis failures never fail the
+			// keyframe backfill itself.
+			WithFrameRateAnalyzer(infra.mkvAdapter, r.MediaStream)
 		keyframeBackfillWorker.Start(ctx)
 		// Fresh additions: once the library has been quiet for 10 min after a
 		// scan, drain the queue right away instead of waiting the idle cycle.
