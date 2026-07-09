@@ -131,6 +131,7 @@ type engagementDeps struct {
 	pluginTokenSvc             *appplugin.TokenService
 	pluginHostServer           *pluginhost.HostServer
 	pluginSecurityDashboardSvc *appplugin.SecurityDashboardService
+	pluginIdleMgr              *appplugin.IdleManager
 }
 
 // authDeps groups authentication infrastructure.

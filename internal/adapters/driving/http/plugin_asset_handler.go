@@ -30,12 +30,21 @@ type pluginManager interface {
 
 type cssSanitizer func(data []byte) (sanitized []byte, warnings []string)
 
+// PluginWakener is the slice of the idle manager the asset route drives: a
+// widget being loaded in a browser is the demand signal that resumes a
+// backend suspended by the low-memory profile (and refreshes its idle clock).
+type PluginWakener interface {
+	Touch(pluginID string)
+	EnsureStarted(ctx context.Context, pluginID string)
+}
+
 type pluginAssetHandler struct {
 	pluginDir    string
 	repo         domainplugin.PluginRepository
 	tokenGen     domainuser.TokenGenerator
 	pluginTokens PluginTokenParser
 	sanitizeCSS  cssSanitizer
+	wakener      PluginWakener
 }
 
 // maxPluginAssetBytes is the per-file size limit for plugin asset responses.
@@ -53,9 +62,9 @@ var corsRequiredAssetExt = map[string]bool{
 	".wasm": true,
 }
 
-func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, pluginTokens PluginTokenParser, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer) {
+func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, pluginTokens PluginTokenParser, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer, wakener PluginWakener) {
 	authMw := httpAuthMiddleware(tokenGen)
-	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen, pluginTokens: pluginTokens, sanitizeCSS: sanitize}
+	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen, pluginTokens: pluginTokens, sanitizeCSS: sanitize, wakener: wakener}
 	// Generic asset route — serves any file under <install_dir>/<web_root>/.
 	// Single-bundle frontends only in v1 (no dynamic-import code splitting).
 	// Authentication accepts a user access token OR the scoped plugin token
@@ -100,6 +109,14 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		span.SetStatus(otelcodes.Error, "unauthorized")
 		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 		return
+	}
+
+	// (2) Demand signal: a browser loading this widget refreshes the plugin's
+	// idle clock and resumes a backend the low-memory profile suspended.
+	// Async - the assets are served from disk and never wait on the process.
+	if h.wakener != nil {
+		h.wakener.Touch(pluginID)
+		go h.wakener.EnsureStarted(context.WithoutCancel(ctx), pluginID)
 	}
 
 	// (3) Path traversal — explicit reject before any join.

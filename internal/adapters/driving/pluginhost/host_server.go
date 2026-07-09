@@ -60,6 +60,7 @@ type HostServer struct {
 	permInterceptor grpc.UnaryServerInterceptor
 	rpcLimiter      *ratelimit.Limiter                // per-plugin HostService RPC rate limit (anti-flood)
 	data            plugindomain.PluginDataRepository // plugin-global key/value store; nil disables the data RPCs
+	activity        func(pluginID string)             // interaction signal for the idle manager; nil = disabled
 
 	mu       sync.RWMutex
 	registry map[string]*pluginEntry
@@ -104,6 +105,14 @@ func (h *HostServer) WithDataStore(repo plugindomain.PluginDataRepository) *Host
 	return h
 }
 
+// WithActivityFunc wires an interaction callback invoked on every accepted
+// HostService RPC, keyed by plugin ID. The low-memory profile's idle manager
+// uses it to know a plugin is alive and working; nil disables the signal.
+func (h *HostServer) WithActivityFunc(fn func(pluginID string)) *HostServer {
+	h.activity = fn
+	return h
+}
+
 // makeRateLimitInterceptor caps a plugin's HostService RPC rate (keyed by
 // plugin ID). On overrun it returns ResourceExhausted rather than letting a
 // flood load the server.
@@ -111,6 +120,9 @@ func (h *HostServer) makeRateLimitInterceptor(entry *pluginEntry) grpc.UnaryServ
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if h.rpcLimiter != nil && !h.rpcLimiter.Allow(entry.pluginID) {
 			return nil, status.Error(codes.ResourceExhausted, "plugin RPC rate limit exceeded")
+		}
+		if h.activity != nil {
+			h.activity(entry.pluginID)
 		}
 		return handler(ctx, req)
 	}

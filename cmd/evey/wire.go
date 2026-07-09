@@ -239,6 +239,11 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		WithDiskQuota(int64(cfg.Plugins.DiskMaxMB) * 1024 * 1024).
 		WithUIDSeparation(cfg.Plugins.UIDSeparation).
 		WithEventBus(bus)
+	// A previous instance's plugin processes can outlive it (pdeathsig is
+	// cleared by the launcher's file caps on older builds, and its delivery
+	// races on some kernels); each leaked node runtime holds ~25 MB. Sweep
+	// them before AutoStartPlugins spawns fresh ones.
+	pluginRunner.ReapStaleProcesses()
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
 	pluginAnalyzer := pluginrunner.NewStaticAnalyzer()
@@ -556,9 +561,29 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			return appplugin.SandboxStatus(infra.pluginRunner.SandboxStatus())
 		})
 
+	// Low-memory profile: suspend idle plugin processes and resume them on
+	// demand (widget asset fetch). The manager runs its sweep loop for the
+	// whole server lifetime; when the profile is normal every tick no-ops.
+	// Profile changes (admin setting) and the setting's "auto" resolution are
+	// re-evaluated live on ServerConfigChanged.
+	pluginIdleMgr := appplugin.NewIdleManager(r.Plugin, infra.pluginRunner, appplugin.DefaultPluginIdleTimeout)
+	memProfile, memBudget := appplugin.ResolveMemoryProfile(ctx, r.ServerCfg)
+	rootLog.Info("memory profile resolved",
+		slog.String("profile", memProfile),
+		slog.Int64("budget_mb", memBudget>>20))
+	pluginIdleMgr.SetEnabled(ctx, memProfile == appplugin.MemoryProfileLow)
+	go pluginIdleMgr.Run(ctx)
+	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(evtCtx context.Context, evt shared.Event) {
+		if c, ok := evt.(shared.ServerConfigChanged); ok && c.Key == appplugin.KeyMemoryProfile {
+			p, _ := appplugin.ResolveMemoryProfile(evtCtx, r.ServerCfg)
+			pluginIdleMgr.SetEnabled(evtCtx, p == appplugin.MemoryProfileLow)
+		}
+	})
+
 	permInterceptor := grpcapi.PluginPermissionInterceptor(permChecker)
 	pluginHostSrv := pluginhost.NewHostServer(r.MediaItemQuery, r.Plugin, bus, infra.pluginLogger, permInterceptor).
-		WithDataStore(r.PluginData)
+		WithDataStore(r.PluginData).
+		WithActivityFunc(pluginIdleMgr.Touch)
 	infra.pluginRunner.WithHostRegistry(pluginHostSrv)
 	infra.pluginLogger.StartCleanup(ctx, &pluginIDLister{repo: r.Plugin})
 
@@ -1147,6 +1172,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			pluginTokenSvc:             pluginTokenSvc,
 			pluginHostServer:           pluginHostSrv,
 			pluginSecurityDashboardSvc: pluginSecurityDashboardSvc,
+			pluginIdleMgr:              pluginIdleMgr,
 		},
 		auth: authDeps{
 			tokenGen:     infra.tokenGen,

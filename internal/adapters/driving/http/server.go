@@ -217,6 +217,7 @@ type HTTPServer struct {
 	PluginDir                  string
 	CSSSanitizer               cssSanitizer
 	PluginSecurityDashboardSvc pluginSecurityDashboardProvider
+	PluginWakener              PluginWakener
 
 	// DLNA
 	DLNASvc *appdlna.Service
@@ -569,7 +570,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	if s.PluginRepo != nil && s.PluginDir != "" {
-		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginTokenGen, s.PluginRepo, s.PluginDir, s.CSSSanitizer)
+		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginTokenGen, s.PluginRepo, s.PluginDir, s.CSSSanitizer, s.PluginWakener)
 		registerThemeAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir)
 		if s.PluginSvc != nil {
 			registerPluginUploadRoute(mux, s.TokenGen, s.PluginSvc, s.AdminWriteRL)

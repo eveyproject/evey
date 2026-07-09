@@ -136,6 +136,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PluginSvc:                  deps.engagement.pluginInstallerSvc,
 		CSSSanitizer:               pluginrunner.SanitizeCSS,
 		PluginSecurityDashboardSvc: deps.engagement.pluginSecurityDashboardSvc,
+		PluginWakener:              deps.engagement.pluginIdleMgr,
 		DataDir:                    "/data",
 		PluginDir:                  "/data/plugins",
 		WebDir:                     cfg.Server.WebDir,
