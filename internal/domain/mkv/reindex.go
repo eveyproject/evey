@@ -97,6 +97,15 @@ type ReindexOptions struct {
 	// the swap commits. The in-place strategy never produces a backup and
 	// ignores this flag.
 	KeepBackup bool
+
+	// DeepVerify makes mkvgo prove the rebuilt index against the real media
+	// before committing: every cue point is checked to land on an actual video
+	// keyframe (a full read of the file), on top of the always-on head-only
+	// round-trip check. A failure aborts the rewrite before the swap, and rolls
+	// the in-place patch back from its journal - so the original is intact
+	// either way. Costs one full read; the in-place strategy keeps NO backup,
+	// which is exactly why an operator may want it there.
+	DeepVerify bool
 }
 
 // ReindexResult reports the outcome of a ReindexInPlace call.

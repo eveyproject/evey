@@ -305,14 +305,14 @@ func (s *SeekIndexService) recoverJob() {
 // tries the patch first and falls back to the rewrite when the layout
 // defeats it (streamed clusters, no head-discoverable index slot) - the
 // fallback keeps the rewrite's backup semantics.
-func reindexOptionsFor(mode string) mkv.ReindexOptions {
+func reindexOptionsFor(mode string, deepVerify bool) mkv.ReindexOptions {
 	switch mode {
 	case mkv.ModeInPlace:
-		return mkv.ReindexOptions{Mode: mkv.ModeInPlace}
+		return mkv.ReindexOptions{Mode: mkv.ModeInPlace, DeepVerify: deepVerify}
 	case "auto":
-		return mkv.ReindexOptions{Mode: mkv.ModeAuto, KeepBackup: true}
+		return mkv.ReindexOptions{Mode: mkv.ModeAuto, KeepBackup: true, DeepVerify: deepVerify}
 	default:
-		return mkv.ReindexOptions{Mode: mkv.ModeRewrite, KeepBackup: true}
+		return mkv.ReindexOptions{Mode: mkv.ModeRewrite, KeepBackup: true, DeepVerify: deepVerify}
 	}
 }
 
@@ -323,8 +323,8 @@ func (s *SeekIndexService) SupportsInPlace() bool { return s.reindexer.SupportsI
 // rebuilds the seek index of every un-indexed file. mode picks the strategy:
 // mkv.ModeInPlace (surgical patch, no backup) or anything else = the standard
 // rewrite that keeps a .mkvgobak rollback backup.
-func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID, mode string) error {
-	opts := reindexOptionsFor(mode)
+func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID, mode string, deepVerify bool) error {
+	opts := reindexOptionsFor(mode, deepVerify)
 	return s.startBatch(JobReindex, libraryID,
 		func(it SeekStatus) bool { return !it.HasIndex },
 		func(bg context.Context, path string) (bool, error) {
@@ -360,8 +360,8 @@ func (s *SeekIndexService) StartRollbackLibrary(_ context.Context, libraryID str
 // StartReindexMedia rebuilds one media file's seek index in the background.
 // The media lookup happens synchronously so unknown IDs fail fast. See
 // StartReindexLibrary for the mode semantics.
-func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID, mode string) error {
-	opts := reindexOptionsFor(mode)
+func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID, mode string, deepVerify bool) error {
+	opts := reindexOptionsFor(mode, deepVerify)
 	return s.startSingle(ctx, JobReindex, mediaID, func(bg context.Context, path string) (bool, error) {
 		res, err := s.reindexer.ReindexInPlace(bg, path, opts)
 		if err != nil {

@@ -235,6 +235,12 @@ message ReindexMediaSeekIndexRequest {
   // defeats it - backup kept on the fallback), or "rewrite" (full rebuild +
   // .mkvgobak rollback backup). Empty = rewrite.
   string mode = 2;
+  // deep_verify makes mkvgo prove every rebuilt cue lands on a real video
+  // keyframe before committing (a full read of the file), on top of the
+  // always-on head-only check. A failure rolls the in-place patch back and
+  // aborts the rewrite before its swap. Recommended with "inplace", which
+  // keeps no backup.
+  bool deep_verify = 3;
 }
 
 message ReindexMediaSeekIndexResponse {
@@ -265,6 +271,9 @@ message ReindexLibrarySeekIndexRequest {
   string library_id = 1;
   // Repair strategy - see ReindexMediaSeekIndexRequest.mode.
   string mode = 2;
+  // See ReindexMediaSeekIndexRequest.deep_verify. Costs a full read PER FILE,
+  // so a whole-library sweep with it on is a long job.
+  bool deep_verify = 3;
 }
 
 message ReindexLibrarySeekIndexResponse {

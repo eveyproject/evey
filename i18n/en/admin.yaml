@@ -963,6 +963,10 @@ seekIndex:
   repairMode: "Repair method"
   repairModeInplace: "Surgical (in-place, no duplicate, recommended)"
   repairModeStandard: "Standard (rebuilt copy + rollback backup)"
+  repairModeInplaceHint: "Patches the index into the file. No duplicate on disk, no backup: mkvgo verifies the result and rolls the patch back automatically if it does not check out."
+  repairModeStandardHint: "Rebuilds the file next to the original, validates it, then swaps it in and keeps the original as a .mkvgobak backup."
+  deepVerify: "Deep verification (full read)"
+  deepVerifyHint: "Proves every rebuilt cue lands on a real video keyframe before the change is committed. Slower (reads the whole file); recommended with the surgical mode, which keeps no backup."
   rollback: Roll back
   startFailed: Could not start the operation
   scanStarted: Scan started — it runs in the background, progress shows below

@@ -64,8 +64,8 @@ var errInPlaceUnavailable = errors.New("in-place reindex not available at this m
 // index - cluster bytes never move, no on-disk duplicate. mkvgo runs its own
 // crash-recovery (journal rollback) before patching, so no extra
 // RecoverInPlace call is needed here.
-func reindexSurgical(ctx context.Context, path string) error {
-	return ops.ReindexInPlace(ctx, path)
+func reindexSurgical(ctx context.Context, path string, deepVerify bool) error {
+	return ops.ReindexInPlace(ctx, path, extmkv.Options{DeepVerify: deepVerify})
 }
 
 // surgicalAvailable: the pin carries ops.ReindexInPlace. The admin UI reads
@@ -177,7 +177,7 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	if srcInfo, statErr := os.Stat(path); statErr != nil && opts.Mode == mkv.ModeInPlace {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: stat source: %w", statErr)
 	} else if statErr == nil && opts.Mode != mkv.ModeRewrite {
-		switch inErr := reindexSurgical(ctx, path); {
+		switch inErr := reindexSurgical(ctx, path, opts.DeepVerify); {
 		case inErr == nil:
 			// Tripwire mirroring the rewrite path's step (4): the patched file
 			// must now carry a parseable, non-empty Cues element.
@@ -231,7 +231,7 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	// final swap is a true atomic rename.
 	tmp := path + ".reindex.tmp"
 	removeQuiet(tmp) // clear any stale temp from a previous aborted run
-	if err = ops.Reindex(ctx, path, tmp); err != nil {
+	if err = ops.Reindex(ctx, path, tmp, extmkv.Options{DeepVerify: opts.DeepVerify}); err != nil {
 		removeQuiet(tmp)
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: rebuild: %w", err)
 	}

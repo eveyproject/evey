@@ -157,7 +157,7 @@ func TestSeekIndexService_ReindexMedia_AsyncAndUpdatesCache(t *testing.T) {
 	require.NoError(t, svc.StartScan(context.Background(), ""))
 	waitIdle(t, svc)
 
-	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", ""))
+	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", "", false))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Equal(t, appmaintenance.JobReindex, st.Last.Kind)
@@ -173,7 +173,7 @@ func TestSeekIndexService_ReindexMedia_AsyncAndUpdatesCache(t *testing.T) {
 	assert.Zero(t, res.MissingIndex, "rollups recomputed")
 
 	// A media id with no file is a clean, synchronous error — not a job.
-	require.Error(t, svc.StartReindexMedia(context.Background(), "missing-id", ""))
+	require.Error(t, svc.StartReindexMedia(context.Background(), "missing-id", "", false))
 }
 
 // fakeFileState records the fingerprint refreshes the reindex asks for.
@@ -210,7 +210,7 @@ func TestSeekIndexService_ReindexMedia_RefreshesFileState(t *testing.T) {
 	fs := &fakeFileState{}
 	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithFileStateRefresher(fs)
 
-	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", ""))
+	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", "", false))
 	waitIdle(t, svc)
 
 	fs.mu.Lock()
@@ -232,7 +232,7 @@ func TestSeekIndexService_ReindexMedia_SkippedDoesNotRefresh(t *testing.T) {
 	fs := &fakeFileState{}
 	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithFileStateRefresher(fs)
 
-	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", ""))
+	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", "", false))
 	waitIdle(t, svc)
 
 	fs.mu.Lock()
@@ -276,10 +276,10 @@ func TestSeekIndexService_ReindexLibrary_GuardsConcurrencyAndReportsFailures(t *
 	}}
 	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil)
 
-	require.NoError(t, svc.StartReindexLibrary(context.Background(), "lib1", ""))
+	require.NoError(t, svc.StartReindexLibrary(context.Background(), "lib1", "", false))
 
 	// The job is blocked on the gate → any concurrent start is refused.
-	err := svc.StartReindexLibrary(context.Background(), "lib1", "")
+	err := svc.StartReindexLibrary(context.Background(), "lib1", "", false)
 	require.ErrorIs(t, err, appmaintenance.ErrJobRunning)
 	require.ErrorIs(t, svc.StartScan(context.Background(), ""), appmaintenance.ErrJobRunning,
 		"jobs are serialized globally, scan included")
@@ -316,14 +316,14 @@ func TestSeekIndexService_PanicReleasesJobSlot(t *testing.T) {
 	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}
 	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil)
 
-	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", ""))
+	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", "", false))
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Contains(t, st.Last.Err, "panicked", "the panic surfaces as the job error")
 
 	// The slot is free again: a new job starts cleanly.
 	reidx.panicOn = ""
-	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", ""))
+	require.NoError(t, svc.StartReindexMedia(context.Background(), "m1", "", false))
 	waitIdle(t, svc)
 }
 

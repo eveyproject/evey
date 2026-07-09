@@ -183,6 +183,10 @@ function SeekIndexPage() {
   // standard rewrite (+ .mkvgobak rollback). Only offered when the build
   // actually ships the surgical strategy.
   const [repairMode, setRepairMode] = useState<"inplace" | "rewrite">("rewrite");
+  // Deep verify proves every rebuilt cue lands on a real video keyframe before
+  // the change is committed (a full read of the file); a failure rolls the
+  // in-place patch back. Default ON with "inplace", which keeps no backup.
+  const [deepVerify, setDeepVerify] = useState(true);
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -498,7 +502,7 @@ function SeekIndexPage() {
                               className="text-xs"
                               disabled={busy}
                               loading={repairOne.isPending && repairOne.variables?.mediaId === it.mediaId}
-                              onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, params: { mode: inplaceAvailable ? repairMode : "" } })}
+                              onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { mode: inplaceAvailable ? repairMode : "", deepVerify } })}
                               data-testid="seek-index-repair-btn"
                             >
                               {t("admin.seekIndex.repair")}
@@ -569,6 +573,20 @@ function SeekIndexPage() {
               ]}
               data-testid="seek-index-repair-mode"
             />
+            <p className="mt-1 text-xs text-muted-foreground">
+              {repairMode === "inplace"
+                ? t("admin.seekIndex.repairModeInplaceHint")
+                : t("admin.seekIndex.repairModeStandardHint")}
+            </p>
+            <div className="mt-3">
+              <Checkbox
+                label={t("admin.seekIndex.deepVerify")}
+                checked={deepVerify}
+                onChange={setDeepVerify}
+                data-testid="seek-index-deep-verify"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{t("admin.seekIndex.deepVerifyHint")}</p>
+            </div>
           </div>
         )}
         <div className="flex justify-end gap-2">
@@ -580,7 +598,7 @@ function SeekIndexPage() {
             onClick={() => {
               if (confirmBatch === "rollback") rollbackLib.mutate({ data: libraryId ? { libraryId } : {} });
               else if (confirmBatch === "purge") purgeLib.mutate({ data: libraryId ? { libraryId } : {} });
-              else repairLib.mutate({ data: { ...(libraryId ? { libraryId } : {}), mode: inplaceAvailable ? repairMode : "" } });
+              else repairLib.mutate({ data: { ...(libraryId ? { libraryId } : {}), mode: inplaceAvailable ? repairMode : "", deepVerify } });
               setConfirmBatch(null);
             }}
             data-testid="seek-index-confirm-batch-btn"
