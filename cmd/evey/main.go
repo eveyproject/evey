@@ -59,6 +59,8 @@ func run() error {
 		return fmt.Errorf("config validation: %w", err)
 	}
 
+	printBootBanner(os.Stderr, cfg, version)
+
 	applyMemoryLimit(rootLog)
 
 	tracingShutdown, err := tracing.Init(context.Background(), tracing.Config{

@@ -50,6 +50,12 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /evey 
 # Landlock pre-exec shim used by sandbox_mode=landlock (and auto). Pure Go,
 # CGO-free; lives next to /evey so the runner finds it via os.Executable().
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /evey-plugin-launcher ./cmd/evey-plugin-launcher
+# mkvgo CLI — the pinned library also ships a command; build it so admins can
+# inspect/repair media from inside the container (`mkvgo <TAB>` for commands).
+# Version stamped from the go.mod pin so `mkvgo --version` matches the library.
+RUN CGO_ENABLED=0 go build \
+      -ldflags="-s -w -X main.version=$(go list -m -f '{{.Version}}' github.com/gravity-zero/mkvgo)" \
+      -o /mkvgo github.com/gravity-zero/mkvgo/cmd/mkvgo
 
 # ── Stage 4b: Sandbox shim (glibc) ──
 # The Landlock LD_PRELOAD shim is C and links against the runtime's libc. The
@@ -195,6 +201,15 @@ COPY --from=builder /src/sdk /app/sdk
 COPY --from=builder /src/gen/evey/v1 /app/gen/evey/v1
 COPY --from=builder /src/docker/seccomp-evey.json /etc/evey/seccomp.json
 COPY --from=frontend /app/apps/web/dist /srv
+
+# mkvgo CLI + its bash completion + a one-time admin greeting (Evey banner +
+# mkvgo examples) shown on an interactive shell — `docker exec -it evey-server
+# bash`. Both are sourced from the system bashrc; neither touches the server.
+COPY --from=builder /mkvgo /usr/local/bin/mkvgo
+COPY docker/mkvgo-completion.bash /etc/bash_completion.d/mkvgo
+COPY docker/evey-motd.sh /etc/evey/motd.sh
+RUN printf '\n# Evey admin shell: mkvgo completion + one-time greeting\n[ -r /etc/bash_completion.d/mkvgo ] && . /etc/bash_completion.d/mkvgo\n[ -r /etc/evey/motd.sh ] && . /etc/evey/motd.sh\n' >> /etc/bash.bashrc
+
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
