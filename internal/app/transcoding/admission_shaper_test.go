@@ -3,6 +3,7 @@ package transcoding
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -318,4 +319,118 @@ func TestAdmissionShaper_SoftwareNatural_NeverSpills(t *testing.T) {
 		return nil
 	})
 	assert.False(t, g.OK)
+}
+
+// A full pin map must never evict a pin a LIVE session is bound to: moving an
+// active stream's ceiling desyncs the player's URLs from the bytes. Cold
+// unheld pins are the only legitimate eviction victims; when everything is
+// held, the map grows past its soft cap rather than corrupting a stream.
+func TestAdmissionShaper_FullMap_NeverEvictsAHeldPin(t *testing.T) {
+	t.Parallel()
+	// Counter-only limiter: holding 4 sessions is the point, not the budget.
+	limiter := NewVideoSessionLimiter(0)
+	shaper := NewVideoAdmissionShaper(limiter)
+	clock := time.Unix(1_700_000_000, 0)
+	shaper.now = func() time.Time { return clock }
+	shaper.maxPins = 4
+
+	// Four HELD pins fill the map: each is bound to a live session.
+	for i := range 4 {
+		key := fmt.Sprintf("held-%d", i)
+		hash := fmt.Sprintf("hash-%d", i)
+		g := shaper.GrantRoute(key, LadderClassSoftware, []int{720}, nil)
+		require.True(t, g.OK)
+		require.True(t, limiter.TryAcquire(hash, LadderClassSoftware, 720))
+		shaper.Bind(key, hash)
+	}
+	// Age everything: freshness alone no longer protects the held pins.
+	clock = clock.Add(defaultPinFreshFor * 2)
+
+	// A newcomer wants a pin while the map is full of held ones.
+	shaper.GrantRoute("newcomer", LadderClassSoftware, []int{720}, nil)
+
+	for i := range 4 {
+		cls, ok := shaper.PinnedClass(fmt.Sprintf("held-%d", i))
+		assert.True(t, ok, "held pin %d must survive a full-map insertion", i)
+		if ok {
+			assert.Equal(t, LadderClassSoftware, cls)
+		}
+	}
+}
+
+// The whole-system property test: many concurrent viewers going through the
+// REAL lifecycle (grant -> acquire -> bind -> release) with mixed classes,
+// spills, retries and abandonments. Two invariants must hold: no pool's
+// reserved cost ever exceeds its budget (+epsilon) at any observed instant,
+// and once everyone is gone, both pools and the stream count return exactly
+// to zero - any drift here means a leak that would rot into a permanent 503.
+func TestAdmission_StressLifecycle_PoolsNeverOverflowAndDrainToZero(t *testing.T) {
+	limiter := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
+	shaper := NewVideoAdmissionShaper(limiter)
+
+	hwLadder := []int{2160, 1440, 1080, 720}
+	swLadder := []int{1440, 1080, 720}
+	classes := []LadderClass{LadderClassHW, LadderClassSoftware, LadderClassSoftwareHDR}
+
+	var wg sync.WaitGroup
+	var overflowed atomic.Bool
+	stop := make(chan struct{})
+
+	// A watcher samples the invariant while the storm runs.
+	watcherDone := make(chan struct{})
+	go func() {
+		defer close(watcherDone)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			if limiter.UsedFor(PoolCPU) > limiter.BudgetFor(PoolCPU)+1e-6 ||
+				limiter.UsedFor(PoolGPU) > limiter.BudgetFor(PoolGPU)+1e-6 {
+				overflowed.Store(true)
+				return
+			}
+		}
+	}()
+
+	for v := range 60 {
+		wg.Add(1)
+		go func(v int) {
+			defer wg.Done()
+			natural := classes[v%len(classes)]
+			ladder := swLadder
+			if natural == LadderClassHW {
+				ladder = hwLadder
+			}
+			key := fmt.Sprintf("title-%d", v%17) // some viewers share a title
+			for range 8 {
+				g := shaper.GrantRoute(key, natural, ladder, func() []int { return swLadder })
+				if !g.OK {
+					continue // shed; the retry loops
+				}
+				hash := fmt.Sprintf("fp-%d-%d", v, g.Ceiling)
+				if !limiter.TryAcquire(hash, g.Class, g.Ceiling) {
+					continue // lost the spawn race; shed at the segment
+				}
+				shaper.Bind(key, hash)
+				if v%5 == 0 {
+					// An ABR sibling joins and leaves.
+					if limiter.TryAcquire(hash, g.Class, g.Ceiling) {
+						limiter.Release(hash)
+					}
+				}
+				limiter.Release(hash)
+			}
+		}(v)
+	}
+	// Wait for the viewers only, then stop the watcher.
+	wg.Wait()
+	close(stop)
+	<-watcherDone
+
+	assert.False(t, overflowed.Load(), "a pool exceeded its budget mid-storm")
+	assert.Zero(t, limiter.Active(), "every stream must have drained")
+	assert.InDelta(t, 0, limiter.UsedFor(PoolCPU), 1e-9, "CPU pool must drain to zero")
+	assert.InDelta(t, 0, limiter.UsedFor(PoolGPU), 1e-9, "GPU pool must drain to zero")
 }

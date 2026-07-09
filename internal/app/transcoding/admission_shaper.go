@@ -261,7 +261,13 @@ func (s *VideoAdmissionShaper) anyBoundHeld(pin *ceilingPin) bool {
 	return slices.ContainsFunc(pin.boundHashes, s.limiter.Holds)
 }
 
-// evictIfFull bounds the pin map: expired pins first, then the coldest one.
+// evictIfFull bounds the pin map: expired unheld pins first, then the coldest
+// UNHELD one. A pin a live session is bound to is never a victim - moving an
+// active stream's ceiling desyncs the player's URLs from the bytes, which is
+// the exact corruption the pin exists to prevent. When every pin is held, the
+// map grows past its soft cap instead: maxPins bounds churn from abandoned
+// playback attempts, and held pins are already bounded by the limiter's
+// admission (a session must fit a pool budget to hold anything).
 // Called with s.mu held.
 func (s *VideoAdmissionShaper) evictIfFull(now time.Time) {
 	if len(s.pins) < s.maxPins {
@@ -269,7 +275,10 @@ func (s *VideoAdmissionShaper) evictIfFull(now time.Time) {
 	}
 	oldestKey, oldest := "", time.Time{}
 	for k, p := range s.pins {
-		if now.Sub(p.lastSeen) >= s.pinFreshFor && !s.anyBoundHeld(p) {
+		if s.anyBoundHeld(p) {
+			continue // a live stream's pin is untouchable
+		}
+		if now.Sub(p.lastSeen) >= s.pinFreshFor {
 			delete(s.pins, k)
 			continue
 		}
