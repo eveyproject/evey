@@ -96,14 +96,30 @@ const DefaultKidsMaxAge = 12
 // read-only filtering decisions (rating cap, blocked tags); it does NOT
 // represent persisted state. Returns nil when no enforcement applies.
 //
-// Rule: parental age filtering is a kids-only concern. Adults don't need
-// to be protected from R-rated content, so a MaxAge stored on a non-kids
-// profile is ignored even when Parental.Enabled is true. Kids profiles
-// always enforce, falling back to DefaultKidsMaxAge when no explicit
-// cap is set.
+// Rule: kids profiles always enforce, falling back to DefaultKidsMaxAge
+// when no explicit cap is set. A non-kids profile enforces ONLY what an
+// admin explicitly enabled and configured (a shared family profile with a
+// PIN and an age cap) - without the explicit opt-in it stays unrestricted,
+// and it never inherits the kids default cap. Ignoring the opt-in entirely
+// was an audit HIGH: the PIN became pure UX with the server enforcing
+// nothing for such profiles.
 func (p *Profile) EffectiveParental() *ParentalSettings {
-	if p == nil || !p.IsKids {
+	if p == nil {
 		return nil
+	}
+	if !p.IsKids {
+		if p.Parental == nil || !p.Parental.Enabled {
+			return nil
+		}
+		if p.Parental.MaxAge == nil && len(p.Parental.BlockedTags) == 0 {
+			return nil // enabled but nothing configured: nothing to enforce
+		}
+		return &ParentalSettings{
+			Enabled:     true,
+			MaxAge:      p.Parental.MaxAge,
+			BlockedTags: p.Parental.BlockedTags,
+			PINHash:     p.Parental.PINHash,
+		}
 	}
 	eff := ParentalSettings{Enabled: true}
 	if p.Parental != nil {

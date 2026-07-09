@@ -784,15 +784,53 @@ func TestProfile_EffectiveParental(t *testing.T) {
 		}
 	})
 
-	t.Run("non-kids with parental enabled and MaxAge → still nil (filter is kids-only)", func(t *testing.T) {
+	t.Run("non-kids with parental EXPLICITLY enabled and MaxAge → enforced (shared family profile)", func(t *testing.T) {
 		t.Parallel()
 		p := &user.Profile{
 			ID:       "p1",
 			IsKids:   false,
-			Parental: &user.ParentalSettings{Enabled: true, MaxAge: intPtr(15)},
+			Parental: &user.ParentalSettings{Enabled: true, MaxAge: intPtr(15), BlockedTags: []string{"gore"}, PINHash: "h"},
+		}
+		got := p.EffectiveParental()
+		if got == nil {
+			t.Fatalf("an admin explicitly enabled parental controls on this profile: the server must enforce them, not treat the profile as unrestricted")
+		}
+		if got.MaxAge == nil || *got.MaxAge != 15 {
+			t.Errorf("MaxAge = %v, want 15", got.MaxAge)
+		}
+		if len(got.BlockedTags) != 1 || got.BlockedTags[0] != "gore" {
+			t.Errorf("BlockedTags = %v, want [gore]", got.BlockedTags)
+		}
+		if got.PINHash != "h" {
+			t.Errorf("PINHash must carry over")
+		}
+	})
+
+	t.Run("non-kids enabled with blocked tags only → enforced without an age cap", func(t *testing.T) {
+		t.Parallel()
+		p := &user.Profile{
+			ID:       "p1",
+			IsKids:   false,
+			Parental: &user.ParentalSettings{Enabled: true, BlockedTags: []string{"horror"}},
+		}
+		got := p.EffectiveParental()
+		if got == nil {
+			t.Fatalf("blocked tags on an enabled profile must be enforced")
+		}
+		if got.MaxAge != nil {
+			t.Errorf("non-kids profiles never get a DEFAULT age cap (kids-only fallback), got %v", *got.MaxAge)
+		}
+	})
+
+	t.Run("non-kids enabled but nothing configured → nil (nothing to enforce)", func(t *testing.T) {
+		t.Parallel()
+		p := &user.Profile{
+			ID:       "p1",
+			IsKids:   false,
+			Parental: &user.ParentalSettings{Enabled: true},
 		}
 		if got := p.EffectiveParental(); got != nil {
-			t.Errorf("non-kids profiles must never carry an age filter, got %+v", got)
+			t.Errorf("enabled with no MaxAge and no tags has nothing to enforce, got %+v", got)
 		}
 	})
 
