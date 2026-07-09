@@ -262,15 +262,42 @@ export class GlRenderer implements SceneRenderer {
   // No CORS concern: the images are inlined as data: urls at build time.
   private loadImageInto(tex: WebGLTexture | null, url: string): void {
     if (!tex) return;
-    const img = new Image();
-    img.onload = () => {
+    // The plugin runs in a sandboxed iframe (sandbox="allow-scripts", no
+    // allow-same-origin) => OPAQUE origin. WebGL treats an <img> decoded there
+    // as cross-origin and texImage2D throws SecurityError, leaving the sun/moon
+    // a blank 1x1 texture (the disc reads as "just a halo"). createImageBitmap
+    // from a Blob yields an origin-clean source that uploads even at an opaque
+    // origin - the canonical fix for textures in sandboxed iframes. Fall back
+    // to <img> only where createImageBitmap is missing.
+    const uploadFlipped = () => {
       const g = this.gl;
       if (!g || !tex) return;
       g.bindTexture(g.TEXTURE_2D, tex);
       g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 1);
+      return g;
+    };
+    if (typeof createImageBitmap === "function") {
+      fetch(url)
+        .then((r) => r.blob())
+        .then((b) => createImageBitmap(b))
+        .then((bmp) => {
+          const g = uploadFlipped();
+          if (!g) { bmp.close?.(); return; }
+          g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, bmp);
+          g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 0);
+          bmp.close?.();
+        })
+        .catch((e) => console.warn("weather-v2: texture load failed (bitmap)", e));
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      const g = uploadFlipped();
+      if (!g) return;
       g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img);
       g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 0);
     };
+    img.onerror = (e) => console.warn("weather-v2: image load failed", e);
     img.src = url;
   }
 
