@@ -16,6 +16,7 @@ import (
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
@@ -404,4 +405,55 @@ func TestMakeDecision_AudioDecisionPin(t *testing.T) {
 	req.URL.RawQuery = q.Encode()
 	d = h.makeDecision(context.Background(), streams, "matroska", req)
 	assert.Equal(t, "transcode", d.AudioDecision)
+}
+
+// sourceSubtitleCodec resolves the burn-in subtitle track by its
+// SUBTITLE-relative index (ffmpeg 0:s:N), skipping video/audio streams.
+func TestSourceSubtitleCodec_ResolvesByRelativeIndex(t *testing.T) {
+	ch := func(n int) *int { return &n }
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264"},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Channels: ch(2)},
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},            // s:0 (text)
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "HDMV_PGS_SUBTITLE"}, // s:1 (bitmap)
+	}
+	assert.Equal(t, "subrip", sourceSubtitleCodec(streams, 0))
+	assert.Equal(t, "hdmv_pgs_subtitle", sourceSubtitleCodec(streams, 1), "must lowercase and skip non-subtitle streams")
+	assert.Empty(t, sourceSubtitleCodec(streams, -1), "no burn-in track")
+	assert.Empty(t, sourceSubtitleCodec(streams, 9), "out of range")
+}
+
+// End-to-end wiring: selecting a BITMAP subtitle for burn-in must (a) force a
+// video transcode and (b) thread the subtitle codec into the fingerprint, so
+// the ffmpeg builder's burn-in gate (IsImageSubtitle) actually fires. Before
+// this wiring the codec was never populated in production, so bitmap subtitles
+// were silently dropped while the pipeline paid the transcode cost (audit HIGH).
+func TestBuildFingerprint_BitmapBurnIn_ThreadsCodecAndForcesTranscode(t *testing.T) {
+	h := newCopyTestHandler(t)
+	ch := func(n int) *int { return &n }
+	w, hgt, level := 1920, 1080, 40
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264", Profile: "High", Width: &w, Height: &hgt, Level: &level, Keyframes: []int64{0, 6000, 12000}},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Channels: ch(2), IsDefault: true},
+		{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "hdmv_pgs_subtitle"}, // s:0, bitmap
+	}
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur}}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0.m3u8?videoCodecs=h264&audioCodecs=aac&containers=mp4&subtitleTrack=0", nil)
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+
+	fp, err := h.buildFingerprint(req, "m1", item, streams)
+	require.NoError(t, err)
+	assert.Equal(t, 0, fp.SubtitleBurnInTrack)
+	assert.Equal(t, "hdmv_pgs_subtitle", fp.SubtitleBurnInCodec, "the bitmap codec must be threaded so IsImageSubtitle fires in the builder")
+
+	// The decision layer must have forced a video transcode to burn the bitmap
+	// subtitle in (a copy rung cannot overlay).
+	d := h.makeDecision(req.Context(), streams, "matroska", req)
+	assert.Equal(t, "transcode", d.VideoDecision, "a bitmap burn-in must force a video transcode")
+	assert.Equal(t, "burn", d.SubtitleDecision)
+
+	// And the threaded codec actually activates the builder's burn-in gate.
+	assert.True(t, domaintranscoding.IsImageSubtitle(fp.SubtitleBurnInCodec), "the threaded codec must be recognised as a bitmap subtitle")
 }

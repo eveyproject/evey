@@ -112,6 +112,15 @@ type DecisionFingerprint struct {
 	// never alias two different byte streams.
 	SourceVideoCodec string
 
+	// SubtitleBurnInCodec is the codec of the burn-in subtitle track
+	// (SubtitleBurnInTrack), set by the handler from the probed streams. The
+	// ffmpeg builder re-derives burn-in eligibility from it (IsImageSubtitle),
+	// so a bitmap subtitle the decision forced a transcode to burn is silently
+	// dropped without it. Deliberately EXCLUDED from Hash(): it is fully
+	// determined by (MediaID, SourcePath, SubtitleBurnInTrack), all already
+	// hashed, so it can never alias two different byte streams.
+	SubtitleBurnInCodec string
+
 	// DeinterlaceAll switches the software builder to bwdif deint=all (vs the
 	// default flag-gated deint=interlaced) for legacy sources the idet content
 	// detection flagged interlaced despite their container flags. Different

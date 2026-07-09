@@ -972,6 +972,28 @@ func sourceAudioCodec(streams []*domainlibrary.MediaStream, audioIdx int) string
 	return ""
 }
 
+// sourceSubtitleCodec returns the codec of the burn-in subtitle track (the Nth
+// subtitle stream, ffmpeg's 0:s:N), lowercased, or "" when absent. The VOD
+// pipeline re-derives burn-in eligibility inside the ffmpeg builder from this
+// codec (IsImageSubtitle), so it MUST be threaded or a bitmap subtitle the
+// decision forced a transcode to burn is silently dropped.
+func sourceSubtitleCodec(streams []*domainlibrary.MediaStream, subIdx int) string {
+	if subIdx < 0 {
+		return ""
+	}
+	n := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != "subtitle" {
+			continue
+		}
+		if n == subIdx {
+			return strings.ToLower(s.Codec)
+		}
+		n++
+	}
+	return ""
+}
+
 // buildFingerprint reproduces the DecisionFingerprint from a segment-time
 // request. Must match exactly what was produced at manifest time, or the
 // cache lookup misses on every segment. Hence shared helpers.
@@ -1031,6 +1053,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		AudioCodec:          servedAudioCodec(audioCopy, srcAudio, decision),
 		AudioTrack:          videoAudioTrack,
 		SubtitleBurnInTrack: subBurnIn,
+		SubtitleBurnInCodec: sourceSubtitleCodec(streams, subBurnIn),
 		// HDR->SDR tonemap is needed whenever the decision flagged it (HDR source +
 		// non-HDR client, or Dolby Vision). Baked into the fingerprint so it (a)
 		// enters the cache hash — tonemapped vs not are different bytes — and (b)

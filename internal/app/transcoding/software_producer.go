@@ -619,6 +619,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		AudioTrackIndex:    fp.AudioTrack,
 		AudioUserOffsetSec: float64(fp.AudioOffsetMs) / 1000.0,
 		SubtitleTrackIndex: fp.SubtitleBurnInTrack,
+		SubtitleCodec:      fp.SubtitleBurnInCodec,
 		HDRSupported:       false, // tonemap is part of the decision; HDRSupported=false forces it
 		ToneMap:            fp.HDRTonemap,
 		AudioNormalize:     fp.AudioNormalize,
