@@ -99,7 +99,7 @@ type HTTPServer struct {
 	// addressing, cancel-on-seek, inactivity GC). Also satisfies the legacy
 	// HLSSessionRemover + ActiveStreamChecker contracts so admin kill-session
 	// and the trickplay scheduler keep working without a separate HLSManager.
-	HLSVODOrch    *apptranscoding.SegmentOrchestrator
+	HLSVODOrch *apptranscoding.SegmentOrchestrator
 	// HLSVODSoftware is the shared software StreamProducer (built in wire.go) so
 	// the gRPC StopStream / admin-kill path can tear down the very sessions this
 	// handler's routing selector creates. nil in hand-built test servers →
@@ -227,6 +227,10 @@ type HTTPServer struct {
 	// VideoLimiter lets the VOD handler shed a variant playlist early, before a
 	// player commits to a stream it cannot be given. Optional.
 	VideoLimiter *apptranscoding.VideoSessionLimiter
+
+	// VideoAdmissionShaper serves a lower ladder rung instead of refusing when
+	// the top one does not fit the budget. Optional (nil = shed instead).
+	VideoAdmissionShaper *apptranscoding.VideoAdmissionShaper
 
 	// DLNA
 	DLNASvc *appdlna.Service
@@ -525,8 +529,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// PUBLIC: a "watch together" guest exchanges a room code for a streaming-only
 	// guest token. Rate-limited (LoginRL) against 5-digit code brute-force.
 	mux.HandleFunc("POST /api/v1/syncplay/join-code", ratelimit.MiddlewareFunc(s.LoginRL, syncplayJoinByCodeHandler(s.SyncPlayHub, s.StreamTokenStore)))
-	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                                                                               // Play On: WebSocket + REST
-	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL)                                                    // binary: download/restore
+	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                            // Play On: WebSocket + REST
+	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
 	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, s.HLSVODOrch, hwModeControllerOf(s.CalibrationSvc), s.LoginRL, s.GlobalRL, s.AdminWriteRL)
 	registerBackgroundTasksRoute(mux, s.TokenGen)

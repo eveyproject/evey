@@ -195,6 +195,14 @@ type hlsVODServe struct {
 	// playlist before a player commits to a stream. Optional (nil = no early
 	// shed; the segment route still gates authoritatively).
 	videoAdmission func(key string, topHeight int) bool
+	// admissionCeiling asks the admission shaper for this stream's pinned
+	// ladder ceiling (see profilesForDecision's third cap). Optional: nil
+	// keeps the ladder whole and viewers over budget are shed instead of
+	// downgraded.
+	admissionCeiling func(key string, heights []int) (int, bool)
+	// admissionBind reports the fingerprint hash built under a pin so the
+	// shaper can freeze the ceiling while that session holds a slot. Optional.
+	admissionBind func(key, fingerprintHash string)
 
 	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS —
 	// zero-storage, stateless, byte-identical HLS + DASH — when wired (behind
@@ -1216,7 +1224,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	audioCopy := audioCopyEligible(decision,
 		h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
 		len(fpProfiles), srcAudio)
-	return apptranscoding.DecisionFingerprint{
+	fp := apptranscoding.DecisionFingerprint{
 		MediaID:    mediaID,
 		SourcePath: item.File.Path,
 		VideoCodec: videoCodec,
@@ -1259,7 +1267,14 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 		// segment is interchangeable in the addressable cache.
 		HWTonemap: hwTonemap && hwUsable,
 		Profiles:  fpProfiles,
-	}, nil
+	}
+	// Tell the admission shaper which session this pin shaped: while that
+	// session holds a limiter slot, the pinned ceiling must not move (see
+	// VideoAdmissionShaper - the cache-hash invariant, live edition).
+	if h.admissionBind != nil {
+		h.admissionBind(h.admissionPinKey(item, streams, decision), fp.Hash())
+	}
+	return fp, nil
 }
 
 func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, r *http.Request) domaintranscoding.PlaybackDecision {
@@ -1621,7 +1636,35 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 			}
 		}
 	}
+
+	// Load-forced ceiling (the third cap, same shared-head discipline as the
+	// two above): when the host cannot afford this stream's top rung but CAN
+	// afford a lower one, serve that one instead of refusing the viewer. The
+	// granted ceiling is PINNED per stream by the admission shaper, so the
+	// manifest a player holds and every segment it fetches shape the same
+	// ladder - the cache-hash invariant that rules this whole function. Copy
+	// requests are exempt: they never take a capacity slot.
+	if h.admissionCeiling != nil && len(laddered) > 0 &&
+		!h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
+		heights := make([]int, 0, len(laddered))
+		for _, p := range laddered {
+			heights = append(heights, p.Height)
+		}
+		if ceiling, forced := h.admissionCeiling(h.admissionPinKey(item, streams, decision), heights); forced && ceiling > 0 {
+			laddered = domaintranscoding.CapLadderToHeight(laddered, ceiling)
+		}
+	}
 	return laddered
+}
+
+// admissionPinKey identifies a stream for the admission shaper. Coarser than
+// the decision-fingerprint hash on purpose: burn-in/audio variants of the same
+// title share one pinned ceiling (their video ladder is the same shape), while
+// distinct titles or codecs never collide. It must be derivable identically at
+// manifest- and segment-time from the request alone.
+func (h *hlsVODServe) admissionPinKey(item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision) string {
+	ec, _, _, _, _ := h.effectiveVideoCodec(decision, streams)
+	return string(item.ID) + "|" + ec + "|" + decision.VideoDecision
 }
 
 // sourceDimsOf extracts the first video stream's resolution + 10-bit flag.
@@ -1850,6 +1893,8 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	h := &hlsVODServe{
 		keyframeWarmer:       s.KeyframeWarmer,
 		videoAdmission:       videoAdmissionOf(s.VideoLimiter),
+		admissionCeiling:     admissionCeilingOf(s.VideoAdmissionShaper),
+		admissionBind:        admissionBindOf(s.VideoAdmissionShaper),
 		mediaLookup:          mediaLookup,
 		classLookup:          classLookup,
 		tokens:               s.TokenGen,
@@ -2255,4 +2300,20 @@ func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, int) b
 		return nil
 	}
 	return l.CanAdmit
+}
+
+// admissionCeilingOf / admissionBindOf adapt the shaper the same way: TRUE-nil
+// funcs when it is not wired, so the handler's nil-checks stay meaningful.
+func admissionCeilingOf(s *apptranscoding.VideoAdmissionShaper) func(string, []int) (int, bool) {
+	if s == nil {
+		return nil
+	}
+	return s.CeilingFor
+}
+
+func admissionBindOf(s *apptranscoding.VideoAdmissionShaper) func(string, string) {
+	if s == nil {
+		return nil
+	}
+	return s.Bind
 }

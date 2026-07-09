@@ -237,6 +237,14 @@ func (l *VideoSessionLimiter) Active() int {
 	return len(l.refs)
 }
 
+// Holds reports whether key currently holds at least one slot. Read-only, for
+// the admission shaper: a ceiling pinned to a still-held stream must not move.
+func (l *VideoSessionLimiter) Holds(key string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.refs[key] > 0
+}
+
 // Limit reports the current cap (0 = unlimited).
 func (l *VideoSessionLimiter) Limit() int {
 	l.mu.Lock()

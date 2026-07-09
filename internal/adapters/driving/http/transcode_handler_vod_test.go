@@ -431,6 +431,88 @@ func TestHLSVOD_VariantPlaylist_ServedNormallyWhenAdmitted(t *testing.T) {
 // The master is what a native mobile/TV player fetches first (and all our
 // preflight probe ever sees). It must shed too - but only when NO rung fits,
 // never merely because the tallest one does not.
+// The rung forcing feature, seen from the shared shaping head: when the
+// admission shaper grants a ceiling below the ladder's top, BOTH the manifest
+// a player receives and the fingerprint every segment request rebuilds must
+// shape the same trimmed ladder - one drifting from the other is a permanent
+// cache miss and wrong bytes under stable URLs.
+func TestHLSVOD_ForcedCeiling_ShapesManifestAndFingerprintAlike(t *testing.T) {
+	w, hgt := 3840, 2160
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	streams := []*domainlibrary.MediaStream{{
+		StreamType: domainlibrary.StreamTypeVideo,
+		Codec:      "hevc", // forces the transcode path (h264 client caps)
+		Width:      &w,
+		Height:     &hgt,
+	}}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
+
+	var pinKeys []string
+	var boundHashes []string
+	h.admissionCeiling = func(key string, heights []int) (int, bool) {
+		pinKeys = append(pinKeys, key)
+		return 720, true // the host can only afford the short rung
+	}
+	h.admissionBind = func(_ string, fpHash string) { boundHashes = append(boundHashes, fpHash) }
+
+	// Manifest side: the master must not advertise anything above the ceiling.
+	master := doVODRequest(h, "m1", "master.m3u8")
+	require.Equal(t, http.StatusOK, master.Code)
+	assert.NotContains(t, master.Body.String(), "RESOLUTION=1920x1080",
+		"the manifest must not promise a rung the granted ceiling excludes")
+
+	// Segment side: the fingerprint shapes the SAME trimmed ladder...
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0_000.ts", nil)
+	req = withHTTPClaims(req, testClaims(false))
+	fp, err := h.buildFingerprint(req, "m1", item, streams)
+	require.NoError(t, err)
+	for _, p := range fp.Profiles {
+		assert.LessOrEqual(t, p.Height, 720, "no fingerprint profile may exceed the pinned ceiling")
+	}
+
+	// ...deterministically: same request, same hash, every time.
+	fp2, err := h.buildFingerprint(req, "m1", item, streams)
+	require.NoError(t, err)
+	assert.Equal(t, fp.Hash(), fp2.Hash())
+
+	// And the shaper learned which session the pin shaped, under the same key
+	// the ceiling was asked with.
+	require.NotEmpty(t, boundHashes)
+	assert.Equal(t, fp.Hash(), boundHashes[len(boundHashes)-1])
+	for _, k := range pinKeys[1:] {
+		assert.Equal(t, pinKeys[0], k, "manifest- and segment-time must derive the same pin key")
+	}
+}
+
+// Copy requests never take a capacity slot, so they must never be trimmed.
+func TestHLSVOD_ForcedCeiling_NeverTouchesACopyRequest(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur, ContainerFormat: "matroska"},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: copyEligibleStreams()}, allowAll(), testFakeParentalChecker{})
+	// Wire the copy path: isCopyRequest only answers true with a producer set.
+	copyProd := apptranscoding.NewSoftwareProducer(h.cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
+	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
+	h.copyProducer = copyProd
+	h.admissionCeiling = func(string, []int) (int, bool) {
+		t.Fatal("the shaper must not be consulted for a copy request")
+		return 0, false
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0_000.ts", nil)
+	req = withHTTPClaims(req, testClaims(false))
+	_, err := h.buildFingerprint(req, "m1", item, copyEligibleStreams())
+	require.NoError(t, err)
+}
+
 func TestHLSVOD_Master_ShedsWhenHostIsFull(t *testing.T) {
 	dur, _ := shared.NewDurationMs(60_000)
 	item := &domainlibrary.MediaItem{

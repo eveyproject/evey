@@ -784,6 +784,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	videoLimiter := apptranscoding.NewVideoSessionLimiter(0)
 	hlsVODSoftware.WithVideoSessionLimiter(videoLimiter)
 	hlsVODOrch.WithVideoSessionLimiter(videoLimiter)
+	videoShaper := apptranscoding.NewVideoAdmissionShaper(videoLimiter)
 
 	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch, nil)
 
@@ -1230,6 +1231,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			complexityRepo:   complexityRepo,
 			calibrationSvc:   calibrationSvc,
 			videoLimiter:     videoLimiter,
+			videoShaper:      videoShaper,
 			capsOverrideSvc:  capsOverrideSvc,
 			mkvSvc:           mkvSvc,
 			mkvAdapter:       infra.mkvAdapter,

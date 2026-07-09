@@ -83,12 +83,15 @@ type mediaDeps struct {
 	// wired (uses the same hlsVODCache); the HTTP routes that consume
 	// it gate on Cfg.Transcoding.AudioRenditionEnabled so it stays
 	// inert until the feature flag flips.
-	audioOrch        *apptranscoding.AudioSegmentOrchestrator
-	qoeSink          appqoe.EventSink
-	qoeQuerySvc      *appqoe.QueryService
-	complexityRepo   domaintranscoding.ComplexityRepo
-	calibrationSvc   *apptranscoding.CalibrationService
-	videoLimiter     *apptranscoding.VideoSessionLimiter
+	audioOrch      *apptranscoding.AudioSegmentOrchestrator
+	qoeSink        appqoe.EventSink
+	qoeQuerySvc    *appqoe.QueryService
+	complexityRepo domaintranscoding.ComplexityRepo
+	calibrationSvc *apptranscoding.CalibrationService
+	videoLimiter   *apptranscoding.VideoSessionLimiter
+	// videoShaper pins per-stream ladder ceilings so an over-budget viewer is
+	// served a lower rung instead of refused (see VideoAdmissionShaper).
+	videoShaper      *apptranscoding.VideoAdmissionShaper
 	capsOverrideSvc  *apptranscoding.CapOverrideService
 	mkvSvc           *appmkv.Service
 	mkvAdapter       *mkvgoadapter.Adapter // also drives the /remux.mp4 fast-start MP4 repackage

@@ -139,6 +139,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PluginWakener:              deps.engagement.pluginIdleMgr,
 		KeyframeWarmer:             deps.keyframeOnDemand.TryIndex,
 		VideoLimiter:               deps.media.videoLimiter,
+		VideoAdmissionShaper:       deps.media.videoShaper,
 		DataDir:                    "/data",
 		PluginDir:                  "/data/plugins",
 		WebDir:                     cfg.Server.WebDir,
