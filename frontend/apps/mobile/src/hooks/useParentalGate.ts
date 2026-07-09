@@ -26,16 +26,22 @@ function minAgeFor(country: string, rating: string): number {
   return -1;
 }
 
-// Fail CLOSED on an unclassified or unresolvable rating, mirroring the server
-// (ratings.WorstCaseMinAge < 0 blocks the item): a gated profile must never be
-// offered content the backend is going to refuse, and unknown content is the
-// one case where guessing wrong exposes a child. maxAge < 0 means the profile
-// carries no age cap at all, so nothing is gated.
+// The SERVER is authoritative and already fails closed: it computes the
+// worst-case minimum age across every country's certification and refuses the
+// item (404, list-filtered) when that age exceeds the profile's cap or cannot
+// be resolved. Anything this client can see has therefore been vetted for the
+// active profile.
+//
+// So this gate must never be STRICTER than the server: it holds a 12-country
+// table where the server holds 26, and it only sees officialRating (often
+// empty on titles that carry per-country certifications). Failing closed here
+// would demand a parental PIN for legitimate, all-ages content - verified on a
+// real title rated TP in France whose officialRating is empty. Unresolvable
+// rating -> defer to the server, which already decided.
 export function isAgeExceeded(country: string, rating: string | undefined, maxAge: number): boolean {
-  if (maxAge < 0) return false;
-  if (!rating) return true;
+  if (!rating || maxAge < 0) return false;
   const age = minAgeFor(country, rating);
-  if (age < 0) return true;
+  if (age < 0) return false;
   return age > maxAge;
 }
 
