@@ -54,9 +54,12 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 	expectedAdmin := []string{
 		// AdminSystemService
 		"/evey.v1.AdminSystemService/GetSystemInfo",
+		"/evey.v1.AdminSystemService/RestartServer",
 		"/evey.v1.AdminSystemService/GetServerConfig",
 		"/evey.v1.AdminSystemService/UpdateServerConfig",
 		"/evey.v1.AdminSystemService/GetDashboard",
+		// PresenceService
+		"/evey.v1.PresenceService/ListOnline",
 		// AdminTaskService
 		"/evey.v1.AdminTaskService/ListScheduledTasks",
 		"/evey.v1.AdminTaskService/UpdateScheduledTask",
@@ -289,6 +292,8 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.ActivityService/RecordPageView":  "own navigation logged as audit page_view; writes only the caller's own path",
 	// AdminPluginService
 	"/evey.v1.AdminPluginService/IssuePluginToken": "RoleUser by design; FilterPluginScopes strips admin scopes, tokens floor-denied from admin methods",
+	// PresenceService
+	"/evey.v1.PresenceService/Heartbeat": "any authed user announces their own presence; records only the caller's own claims, no read of others",
 	// CollectionService
 	"/evey.v1.CollectionService/ListCollections":    "read",
 	"/evey.v1.CollectionService/GetCollection":      "read",

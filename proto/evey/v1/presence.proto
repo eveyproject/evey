@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/evey-project/evey/gen/evey/v1;eveyv1";
+
+// PresenceService tracks who is currently connected to the server in real time.
+// Presence is heartbeat-driven and in-memory (never persisted): any client pings
+// Heartbeat periodically while it is open, and admins read ListOnline.
+service PresenceService {
+  // Heartbeat marks the caller as online right now. Any authenticated user; the
+  // web app calls it on an interval while its tab is visible.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/presence/heartbeat"
+      body: "*"
+    };
+  }
+
+  // ListOnline returns everyone currently online (admin only).
+  rpc ListOnline(ListOnlineRequest) returns (ListOnlineResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/presence/online"
+    };
+  }
+}
+
+message HeartbeatRequest {}
+
+message HeartbeatResponse {
+  // How many users are online right now (including the caller).
+  int32 online_count = 1;
+}
+
+message ListOnlineRequest {}
+
+message ListOnlineResponse {
+  repeated OnlineUser users = 1;
+  int32 total = 2;
+}
+
+message OnlineUser {
+  string user_id = 1;
+  string username = 2;
+  string profile_id = 3;
+  bool is_admin = 4;
+  string client_ip = 5;
+  string user_agent = 6;
+  // Epoch seconds of the last heartbeat, and how many seconds ago that was.
+  int64 last_seen_unix = 7;
+  int32 idle_seconds = 8;
+}

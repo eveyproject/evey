@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { useAuthStore } from "@evey/store";
 import { AuthLayout } from "@/components/layout/AuthLayout";
 import { ImpersonationBanner } from "@/components/layout/ImpersonationBanner";
+import { PresenceHeartbeat } from "@/components/PresenceHeartbeat";
 import { RouteErrorComponent } from "@/components/ui/RouteErrorComponent";
 import { isTokenExpired, refreshTokenUnderLock } from "@/lib/authRefresh";
 
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/_auth")({
   errorComponent: RouteErrorComponent,
   component: () => (
     <AuthLayout>
+      <PresenceHeartbeat />
       <ImpersonationBanner />
       <Outlet />
     </AuthLayout>

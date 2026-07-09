@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { Search, Folder, Users } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search, Folder, Users, Power } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceScanLibrary,
+  useAdminSystemServiceRestartServer,
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
@@ -25,6 +26,36 @@ export function QuickActions() {
     },
   });
   const [scanningAll, setScanningAll] = useState(false);
+
+  // Restart is a confirm-to-act button: one click arms it, a second click within
+  // a few seconds triggers the restart. Avoids a modal for a rare-but-heavy op.
+  const [restartArmed, setRestartArmed] = useState(false);
+  useEffect(() => {
+    if (!restartArmed) return;
+    const id = setTimeout(() => setRestartArmed(false), 4000);
+    return () => clearTimeout(id);
+  }, [restartArmed]);
+  const restart = useAdminSystemServiceRestartServer({
+    mutation: {
+      onSuccess: () => toast.success(t("admin.dashboardStats.restartTriggered")),
+      onError: (err: { code?: number; message?: string }) => {
+        // gRPC UNAVAILABLE (14) => not supervised in this deployment.
+        toast.error(
+          err?.code === 14
+            ? t("admin.dashboardStats.restartUnavailable")
+            : err?.message || t("admin.dashboardStats.restartFailed"),
+        );
+      },
+    },
+  });
+  function onRestartClick() {
+    if (!restartArmed) {
+      setRestartArmed(true);
+      return;
+    }
+    setRestartArmed(false);
+    restart.mutate({ data: {} });
+  }
 
   async function scanAll() {
     setScanningAll(true);
@@ -69,7 +100,23 @@ export function QuickActions() {
             {t("admin.dashboardStats.manageUsers")}
           </Button>
         </Link>
+        <Button
+          variant={restartArmed ? "danger" : "secondary"}
+          loading={restart.isPending}
+          onClick={onRestartClick}
+          title={t("admin.dashboardStats.restartHint")}
+        >
+          <Power size={16} />
+          {restartArmed
+            ? t("admin.dashboardStats.restartConfirm")
+            : t("admin.dashboardStats.restartServer")}
+        </Button>
       </div>
+      {restartArmed && (
+        <p className="mt-2 text-xs text-[var(--text-muted)] max-w-md">
+          {t("admin.dashboardStats.restartHint")}
+        </p>
+      )}
     </div>
   );
 }

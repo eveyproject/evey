@@ -2,6 +2,7 @@ nav:
   dashboardSystem: Dashboard & System
   dashboard: Dashboard
   nowPlaying: Now Playing
+  online: Online
   remoteAccess: Remote Access
   serverConfig: Server Config
   transcodingConfig: Transcoding
@@ -25,6 +26,21 @@ nav:
   qoe: Streaming Quality
   maintenance: Maintenance
   backupRestore: Database Backup
+
+online:
+  title: Who's Online
+  subtitle: Users connected right now (live)
+  countOne: "{{count}} user online"
+  countOther: "{{count}} users online"
+  empty: No one is connected right now.
+  colUser: User
+  colDevice: Device
+  colIp: IP address
+  colLastSeen: Last seen
+  adminBadge: Admin
+  justNow: just now
+  secondsAgo: "{{count}}s ago"
+  minutesAgo: "{{count}}m ago"
 
 logs:
   title: Logs & Debug
@@ -711,6 +727,13 @@ dashboardStats:
   scanAllLibraries: Scan All Libraries
   manageLibraries: Manage Libraries
   manageUsers: Manage Users
+  restartServer: Restart Server
+  restartConfirm: Confirm restart?
+  restartCancel: Cancel
+  restartHint: All active streams will be briefly interrupted. The server comes back automatically when supervised (Docker / systemd).
+  restartTriggered: Server is restarting…
+  restartUnavailable: Restart is not available in this deployment.
+  restartFailed: Failed to restart the server.
   recentActivity: Recent Activity
   viewAll: View all
   popularMedia: Popular Media

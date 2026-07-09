@@ -25,6 +25,7 @@ import (
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	apppresence "github.com/evey-project/evey/internal/app/presence"
 	apprating "github.com/evey-project/evey/internal/app/rating"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -112,6 +113,12 @@ type GRPCServerDeps struct {
 	// negotiate the copy rung instead of waiting on the paced background
 	// backfill. Optional: nil skips the attempt.
 	KeyframeOnDemand *apptranscoding.KeyframeOnDemand
+	// Presence is the in-memory real-time online-users registry. Optional: nil
+	// disables the heartbeat + online-users admin panel.
+	Presence *apppresence.Tracker
+	// RestartFn triggers a graceful shutdown so a supervisor restarts the
+	// process. Optional: nil makes the admin RestartServer RPC return Unavailable.
+	RestartFn func()
 }
 
 type GRPCServer struct {
@@ -168,7 +175,11 @@ func (s *GRPCServer) RegisterServices() {
 		translator:     d.Translator,
 		smtpConfigured: d.SMTPConfigured,
 		serverCfgSvc:   d.ServerCfgSvc,
+		restartFn:      d.RestartFn,
 	})
+	if d.Presence != nil {
+		eveyv1.RegisterPresenceServiceServer(s.server, &presenceHandler{tracker: d.Presence})
+	}
 	var pluginCfgRepo shared.ServerConfigRepository
 	if d.ServerCfgSvc != nil { // keep a true-nil interface when the store is absent
 		pluginCfgRepo = d.ServerCfgSvc

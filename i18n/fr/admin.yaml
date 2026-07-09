@@ -2,6 +2,7 @@ nav:
   dashboardSystem: Tableau de bord et système
   dashboard: Tableau de bord
   nowPlaying: En cours de lecture
+  online: En ligne
   remoteAccess: Accès distant
   serverConfig: Configuration du serveur
   transcodingConfig: Configuration transcodage
@@ -25,6 +26,21 @@ nav:
   qoe: "Qualité streaming"
   maintenance: Maintenance
   backupRestore: Sauvegarde BDD et restauration
+
+online:
+  title: Qui est en ligne
+  subtitle: Utilisateurs connectés en ce moment (live)
+  countOne: "{{count}} utilisateur en ligne"
+  countOther: "{{count}} utilisateurs en ligne"
+  empty: Personne n'est connecté pour le moment.
+  colUser: Utilisateur
+  colDevice: Appareil
+  colIp: Adresse IP
+  colLastSeen: Vu
+  adminBadge: Admin
+  justNow: à l'instant
+  secondsAgo: "il y a {{count}} s"
+  minutesAgo: "il y a {{count}} min"
 
 logs:
   title: Logs & Debug
@@ -710,6 +726,13 @@ dashboardStats:
   scanAllLibraries: "Scanner toutes les bibliothèques"
   manageLibraries: "Gérer les bibliothèques"
   manageUsers: "Gérer les utilisateurs"
+  restartServer: "Redémarrer le serveur"
+  restartConfirm: "Confirmer le redémarrage ?"
+  restartCancel: "Annuler"
+  restartHint: "Tous les flux en cours seront brièvement interrompus. Le serveur redémarre tout seul s'il est supervisé (Docker / systemd)."
+  restartTriggered: "Le serveur redémarre…"
+  restartUnavailable: "Le redémarrage n'est pas disponible dans ce déploiement."
+  restartFailed: "Échec du redémarrage du serveur."
   recentActivity: "Activité récente"
   viewAll: "Tout voir"
   popularMedia: "Médias populaires"

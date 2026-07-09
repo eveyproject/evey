@@ -45,6 +45,23 @@ service AdminSystemService {
       get: "/api/v1/admin/dashboard"
     };
   }
+
+  // RestartServer triggers a graceful shutdown; a process supervisor (Docker
+  // `restart: unless-stopped`, systemd) then brings the server back up. Admin
+  // only. Has no effect when the process is not supervised (bare run / dev).
+  rpc RestartServer(RestartServerRequest) returns (RestartServerResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/system/restart"
+      body: "*"
+    };
+  }
+}
+
+message RestartServerRequest {}
+
+message RestartServerResponse {
+  bool restarting = 1;
+  string message = 2;
 }
 
 message SystemInfo {

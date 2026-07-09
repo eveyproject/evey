@@ -10,6 +10,7 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -19,6 +20,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type adminSystemHandler struct {
@@ -29,7 +31,7 @@ type adminSystemHandler struct {
 	activitySvc    *appactivity.QueryService
 	// hlsManager reports the live HLS session count for the dashboard. Wired to
 	// the fan-out selector so the count spans software + hardware producers.
-	hlsManager hlsSessionManager
+	hlsManager     hlsSessionManager
 	libLister      adminLibraryLister
 	streamMeter    appactivity.BytesTotaler // optional: nil = no measured bandwidth
 	version        string
@@ -38,6 +40,9 @@ type adminSystemHandler struct {
 	translator     *eveyi18n.Translator
 	smtpConfigured bool
 	serverCfgSvc   *appconfig.Service // optional: nil = server.language/region can't be persisted via setup
+	// restartFn triggers a graceful shutdown so a supervisor restarts the
+	// process. nil disables the restart RPC (unsupervised / not wired).
+	restartFn func()
 
 	// last meter sample, to derive the served rate between dashboard polls.
 	meterMu        sync.Mutex
@@ -255,4 +260,29 @@ func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDash
 	}
 
 	return resp, nil
+}
+
+// restartGraceDelay is how long RestartServer waits before triggering the drain,
+// so the RPC response flushes to the client first. A var so tests can shrink it.
+var restartGraceDelay = 700 * time.Millisecond
+
+// RestartServer triggers a graceful shutdown after briefly delaying so this
+// response can flush; a process supervisor (Docker `restart: unless-stopped`,
+// systemd) then brings the server back up. Returns Unavailable when no restart
+// hook is wired (the process is not supervised, so exiting would just stop it).
+func (d *adminSystemHandler) RestartServer(ctx context.Context, _ *eveyv1.RestartServerRequest) (*eveyv1.RestartServerResponse, error) {
+	if d.restartFn == nil {
+		return nil, status.Error(codes.Unavailable, "server restart is not available in this deployment")
+	}
+	who := "admin"
+	if c := interceptors.ClaimsFromContext(ctx); c != nil && c.Username != "" {
+		who = c.Username
+	}
+	slog.Warn("admin-requested server restart", slog.String("requested_by", who))
+	// Delay so the RPC response reaches the client before the drain starts.
+	time.AfterFunc(restartGraceDelay, d.restartFn)
+	return &eveyv1.RestartServerResponse{
+		Restarting: true,
+		Message:    "Server is restarting; it will be back shortly.",
+	}, nil
 }

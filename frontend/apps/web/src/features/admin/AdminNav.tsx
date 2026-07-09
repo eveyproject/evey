@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   LayoutDashboard,
   PlayCircle,
+  Radio,
   Globe,
   Library,
   HardDrive,
@@ -43,6 +44,7 @@ const sectionsDef: NavSection[] = [
     links: [
       { href: "/admin", labelKey: "admin.nav.dashboard", icon: LayoutDashboard },
       { href: "/admin/sessions", labelKey: "admin.nav.nowPlaying", icon: PlayCircle },
+      { href: "/admin/online", labelKey: "admin.nav.online", icon: Radio },
       { href: "/admin/remote-access", labelKey: "admin.nav.remoteAccess", icon: Globe },
       { href: "/admin/server-config", labelKey: "admin.nav.serverConfig", icon: SlidersHorizontal },
       { href: "/admin/transcoding", labelKey: "admin.nav.transcodingConfig", icon: Film },

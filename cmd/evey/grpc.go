@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"log/slog"
+	"os"
+	"syscall"
 
 	"google.golang.org/grpc"
 
@@ -11,11 +13,29 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
+	apppresence "github.com/evey-project/evey/internal/app/presence"
 	"github.com/evey-project/evey/internal/config"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
+
+// selfRestartFn returns a graceful-restart trigger, or nil when the process is
+// not supervised. Restart = send SIGTERM to self so the existing shutdown drain
+// runs and a supervisor brings us back. We only wire it when running as PID 1
+// (Docker `exec /evey` / `restart: unless-stopped`); under dev (Air is PID 1)
+// or a bare run, exiting would just stop the server, so the RPC stays disabled.
+func selfRestartFn() func() {
+	if os.Getpid() != 1 {
+		return nil
+	}
+	return func() {
+		slog.Warn("admin restart: sending SIGTERM to self for graceful shutdown")
+		if p, err := os.FindProcess(os.Getpid()); err == nil {
+			_ = p.Signal(syscall.SIGTERM)
+		}
+	}
+}
 
 func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, logDir string, serverCtx context.Context, qcHub *quickconnecthub.Hub) *grpcapi.GRPCServer {
 	authInterceptor := interceptors.NewAuthInterceptor(deps.auth.userTokenGen).WithAPIKeys(deps.repos.apiKeyRepo, deps.repos.userRepo).WithTranslator(deps.translator)
@@ -95,6 +115,8 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		SeekIndex:              seekIndexSvc,
 		KeyframeOnDemand:       deps.keyframeOnDemand,
 		StreamMeter:            deps.engagement.streamMeter,
+		Presence:               apppresence.NewTracker(),
+		RestartFn:              selfRestartFn(),
 	}
 
 	if deps.repos.pushSubRepo != nil {
