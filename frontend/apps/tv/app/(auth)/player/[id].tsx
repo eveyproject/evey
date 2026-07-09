@@ -19,6 +19,8 @@ import { SubtitlePicker, type SubtitleStream } from "../../../src/components/Sub
 import { TrackOptionsMenu } from "../../../src/components/TrackOptionsMenu";
 import { SkipIntroButton } from "../../../src/components/SkipIntroButton";
 import { NextEpisodeOverlay } from "../../../src/components/NextEpisodeOverlay";
+import { useParentalGate } from "../../../src/hooks/useParentalGate";
+import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 
 const IMAGE_SUBTITLE_CODECS = new Set([
   "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
@@ -264,12 +266,52 @@ export default function PlayerScreen() {
     [stopSession],
   );
 
+  // The next-episode auto-advance (and its "play now" button) jump straight
+  // into another player instance, bypassing the media detail screen where
+  // the parental PIN gate normally lives. useNextEpisode calls onNavigate
+  // both on its own countdown and from playNow, so gating that single
+  // callback covers both paths. onNavigate is wired through a ref so the
+  // gate (which needs nextEp.nextEpisode's rating, only known once
+  // useNextEpisode itself has resolved it) can be defined after the hook
+  // call without creating a circular dependency.
+  const nextEpNavigateRef = useRef<(episodeId: string) => void>(() => {});
+  const forwardNextEpNavigate = useCallback((episodeId: string) => {
+    nextEpNavigateRef.current(episodeId);
+  }, []);
+
   const nextEp = useNextEpisode({
     media,
     currentTime,
     duration,
-    onNavigate: handleNavigateEpisode,
+    onNavigate: forwardNextEpNavigate,
   });
+
+  const { needsPin: nextEpNeedsPin, profileId: nextEpGateProfileId } = useParentalGate(
+    nextEp.nextEpisode?.officialRating,
+  );
+  const [showNextEpPinModal, setShowNextEpPinModal] = useState(false);
+  const [pendingNextEpisodeId, setPendingNextEpisodeId] = useState<string | null>(null);
+
+  const gatedNavigateEpisode = useCallback(
+    (episodeId: string) => {
+      if (nextEpNeedsPin()) {
+        setPendingNextEpisodeId(episodeId);
+        setShowNextEpPinModal(true);
+        return;
+      }
+      handleNavigateEpisode(episodeId);
+    },
+    [nextEpNeedsPin, handleNavigateEpisode],
+  );
+  nextEpNavigateRef.current = gatedNavigateEpisode;
+
+  const handleNextEpPinVerified = useCallback(() => {
+    setShowNextEpPinModal(false);
+    if (pendingNextEpisodeId) {
+      handleNavigateEpisode(pendingNextEpisodeId);
+      setPendingNextEpisodeId(null);
+    }
+  }, [pendingNextEpisodeId, handleNavigateEpisode]);
 
   const anyOverlayOpen =
     showQualityPicker || showTrackMenu || showAudioPicker || showSubtitlePicker || nextEp.visible;
@@ -424,6 +466,15 @@ export default function PlayerScreen() {
         onPlayNow={nextEp.playNow}
         onCancel={nextEp.cancel}
       />
+
+      {nextEpGateProfileId ? (
+        <ParentalPINModal
+          visible={showNextEpPinModal}
+          onClose={() => { setShowNextEpPinModal(false); setPendingNextEpisodeId(null); }}
+          onVerified={handleNextEpPinVerified}
+          profileId={nextEpGateProfileId}
+        />
+      ) : null}
 
       {showControls && (
         <View style={styles.overlay} pointerEvents="box-none">

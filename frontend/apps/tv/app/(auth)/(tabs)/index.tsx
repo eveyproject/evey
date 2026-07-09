@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, FlatList, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
@@ -16,6 +16,8 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
+import { useParentalGate } from "../../../src/hooks/useParentalGate";
+import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 
 const CARD_WIDTH = 220;
 const CARD_HEIGHT = 330;
@@ -176,6 +178,31 @@ function HeroBanner({
     .join("   ·   ");
   const backdropBlurhash = (active?.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_BACKDROP")?.blurhash;
 
+  // The hero's Play button jumps straight into the player, bypassing the
+  // media detail screen where the parental PIN gate normally lives - so it
+  // needs its own gate, keyed on whichever title is currently on screen.
+  const { needsPin, profileId: gateProfileId } = useParentalGate(active?.officialRating);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
+
+  const handlePlay = useCallback(() => {
+    if (!id) return;
+    if (needsPin()) {
+      setPendingPlayId(id);
+      setShowPinModal(true);
+      return;
+    }
+    router.push(`/player/${id}`);
+  }, [id, needsPin]);
+
+  const handlePinVerified = useCallback(() => {
+    setShowPinModal(false);
+    if (pendingPlayId) {
+      router.push(`/player/${pendingPlayId}`);
+      setPendingPlayId(null);
+    }
+  }, [pendingPlayId]);
+
   return (
     <View style={[styles.heroContainer, { height: HERO_HEIGHT, backgroundColor: theme.colors.surface }]}>
       {id ? (
@@ -211,7 +238,7 @@ function HeroBanner({
         ) : null}
         <View style={styles.heroButtons}>
           <FocusableCard
-            onPress={() => id && router.push(`/player/${id}`)}
+            onPress={handlePlay}
             hasTVPreferredFocus
             style={[styles.heroPlayBtn, { backgroundColor: theme.colors.accent }]}
             accessibilityLabel={t("media.detail.play")}
@@ -240,6 +267,14 @@ function HeroBanner({
           </View>
         )}
       </View>
+      {gateProfileId ? (
+        <ParentalPINModal
+          visible={showPinModal}
+          onClose={() => { setShowPinModal(false); setPendingPlayId(null); }}
+          onVerified={handlePinVerified}
+          profileId={gateProfileId}
+        />
+      ) : null}
     </View>
   );
 }
