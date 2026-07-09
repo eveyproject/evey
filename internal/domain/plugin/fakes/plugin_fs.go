@@ -3,19 +3,22 @@ package fakes
 import "sync"
 
 type FakePluginFileSystem struct {
-	mu          sync.Mutex
-	RemoveErr   error
+	mu        sync.Mutex
+	RemoveErr error
 	// RemoveErrTimes, when > 0, causes RemoveAll to return RemoveErr for the
 	// first RemoveErrTimes calls, then succeed. 0 means always use RemoveErr
 	// (original behaviour: fail forever if RemoveErr != nil).
-	RemoveErrTimes int
+	RemoveErrTimes  int
 	removeCallCount int
-	Removed        []string
-	TmpDirs        int
-	TmpDirErr      error
-	CopyErr        error
-	CopiedStubs []string
-	ChownedDirs []string
+	Removed         []string
+	TmpDirs         int
+	TmpDirErr       error
+	CopyErr         error
+	CopiedStubs     []string
+	ChownedDirs     []string
+	// RenameErr, when set, makes Rename fail (to exercise the swap-failure path).
+	RenameErr error
+	Renamed   [][2]string
 }
 
 func NewFakePluginFileSystem() *FakePluginFileSystem {
@@ -51,6 +54,16 @@ func (f *FakePluginFileSystem) MkdirTemp(_, _ string) (string, error) {
 	}
 	f.TmpDirs++
 	return "/tmp/fake-plugin-tmpdir", nil
+}
+
+func (f *FakePluginFileSystem) Rename(oldPath, newPath string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.RenameErr != nil {
+		return f.RenameErr
+	}
+	f.Renamed = append(f.Renamed, [2]string{oldPath, newPath})
+	return nil
 }
 
 func (f *FakePluginFileSystem) CopySDKStubs(language, installDir string) error {

@@ -324,6 +324,89 @@ func TestInstallPlugin_UpgradePreservesServerConfigAndDisabledState(t *testing.T
 	assert.Equal(t, plugindomain.Stopped, got.Status, "a disabled plugin must not be re-started on update")
 }
 
+// A FAILED upgrade must be atomic: the live version's dir, DB row and config
+// all stay intact and only the staging dir is touched. Here the new version is
+// extracted to staging and then rejected by the analyzer - the live plugin dir
+// must not be renamed away or removed.
+func TestInstallPlugin_FailedUpgradeIsAtomic(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	installer := plgfakes.NewFakePluginInstaller()
+	analyzer := plgfakes.NewFakePluginAnalyzer()
+	pluginFS := plgfakes.NewFakePluginFileSystem()
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
+		appplugin.InstallerWithInstaller(installer),
+		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
+		appplugin.InstallerWithFileSystem(pluginFS),
+		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+	)
+	ctx := context.Background()
+
+	parser.Result = goManifestVersioned("atomic", "1.0.0")
+	v1, err := svc.InstallPlugin(ctx, tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	// Admin config on the live version that must survive a failed update.
+	stored, err := pluginRepo.GetByID(ctx, v1.ID)
+	require.NoError(t, err)
+	stored.Config = map[string]any{"apiKey": "secret"}
+	require.NoError(t, pluginRepo.Update(ctx, stored))
+
+	finalDir := "/tmp/test-plugins/" + v1.ID
+	staging := finalDir + ".upgrade"
+
+	// The new version is rejected by the analyzer, after extraction to staging.
+	analyzer.Report = &plugindomain.AnalysisReport{Safe: false, Issues: []string{"malware"}}
+	parser.Result = goManifestVersioned("atomic", "2.0.0")
+	_, err = svc.InstallPlugin(ctx, tmpZip(t, "v2"))
+	require.Error(t, err)
+
+	// Live version fully intact: old version + config, never swapped/removed.
+	got, err := pluginRepo.GetByID(ctx, v1.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "1.0.0", got.Version, "failed upgrade must not bump the version")
+	assert.Equal(t, map[string]any{"apiKey": "secret"}, got.Config, "config must survive a failed upgrade")
+	assert.Empty(t, pluginFS.Renamed, "no swap on a failed upgrade")
+	assert.NotContains(t, pluginFS.Removed, finalDir, "the live plugin dir must not be removed")
+	assert.Contains(t, pluginFS.Removed, staging, "the staging dir must be cleaned up")
+}
+
+// A SUCCESSFUL upgrade swaps the validated staging dir over the live dir.
+func TestInstallPlugin_SuccessfulUpgradeSwapsStaging(t *testing.T) {
+	pluginRepo := plgfakes.NewFakePluginRepository()
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	installer := plgfakes.NewFakePluginInstaller()
+	analyzer := plgfakes.NewFakePluginAnalyzer()
+	pluginFS := plgfakes.NewFakePluginFileSystem()
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
+		appplugin.InstallerWithInstaller(installer),
+		appplugin.InstallerWithAnalyzer(analyzer),
+		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
+		appplugin.InstallerWithFileSystem(pluginFS),
+		appplugin.InstallerWithHTTPClient(http.DefaultClient),
+	)
+	ctx := context.Background()
+
+	parser.Result = goManifestVersioned("swap", "1.0.0")
+	v1, err := svc.InstallPlugin(ctx, tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	finalDir := "/tmp/test-plugins/" + v1.ID
+	staging := finalDir + ".upgrade"
+
+	parser.Result = goManifestVersioned("swap", "2.0.0")
+	_, err = svc.InstallPlugin(ctx, tmpZip(t, "v2"))
+	require.NoError(t, err)
+
+	assert.Contains(t, pluginFS.Renamed, [2]string{staging, finalDir}, "staging must be renamed into the live dir")
+	assert.Contains(t, pluginFS.Removed, finalDir, "the old dir must be removed before the swap")
+}
+
 func TestInstallPlugin_UpgradeLowerVersionRejected(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
 	parser.Result = goManifestVersioned("downgrade-me", "2.0.0")

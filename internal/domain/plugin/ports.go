@@ -98,6 +98,10 @@ type CSSSanitizer interface {
 type PluginFileSystem interface {
 	RemoveAll(path string) error
 	MkdirTemp(dir, pattern string) (string, error)
+	// Rename moves oldPath to newPath. Used to atomically swap a validated,
+	// staged upgrade into the plugin's canonical dir - must be within the same
+	// filesystem (both live under the plugin dir) so the rename is atomic.
+	Rename(oldPath, newPath string) error
 	CopySDKStubs(language, installDir string) error
 	ChownPluginDir(dir string)
 }

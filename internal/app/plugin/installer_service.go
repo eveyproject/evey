@@ -364,13 +364,11 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		// In-place upgrade: reuse the existing id and Update the row (below)
 		// instead of delete+recreate. plugin_data (per-user/profile config)
 		// FK-cascades on plugins(id) ON DELETE, so deleting the row would
-		// silently wipe every user's/profile's settings on every update. Tear
-		// down only the old runtime + files here; the DB row (and its config)
-		// stays and is overwritten in place, so config survives an update whose
-		// settings schema is unchanged.
-		if err := s.teardownForUpgrade(ctx, existing); err != nil {
-			return nil, fmt.Errorf("prepare in-place upgrade: %w", err)
-		}
+		// silently wipe every user's/profile's settings on every update. The new
+		// version is staged in a sibling dir and validated there; only once it
+		// passes every check do we tear down the old runtime and swap it in (see
+		// the swap below), so a FAILED upgrade rolls back to the old version with
+		// its files, row and config fully intact.
 		slog.Info("upgrading plugin in place", slog.String("name", manifest.Name),
 			slog.String("id", existing.ID), slog.String("from", existing.Version), slog.String("to", manifest.Version))
 	}
@@ -422,20 +420,35 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		p.Enabled = existing.Enabled
 	}
 
+	// The plugin's canonical dir. On upgrade we extract + validate into a sibling
+	// staging dir and only swap it here on success, so a failed upgrade never
+	// touches the live version. On a fresh install the staging dir IS the final
+	// dir (nothing to protect).
+	finalDir := filepath.Join(s.pluginDir, p.ID)
+	stagingDir := finalDir
+	if existing != nil {
+		stagingDir = finalDir + ".upgrade"
+	}
 	if s.installer != nil {
-		installDir := filepath.Join(s.pluginDir, p.ID)
-		if err := s.installer.Extract(zipPath, installDir); err != nil {
+		// Clear any leftover staging dir from a previously-interrupted upgrade.
+		if stagingDir != finalDir && s.fs != nil {
+			s.fs.RemoveAll(stagingDir) //nolint:errcheck
+		}
+		if err := s.installer.Extract(zipPath, stagingDir); err != nil {
 			return nil, fmt.Errorf("extract plugin: %w", err)
 		}
-		p.InstallDir = installDir
+		p.InstallDir = stagingDir
 	}
 
 	// installOK gates the deferred cleanup: any error return after this point
-	// will cause the deferred func to remove the install directory, ensuring no
-	// orphaned dirs accumulate from failed installs.
+	// removes the STAGING dir, ensuring no orphaned dirs accumulate from failed
+	// installs. Once the validated staging dir has been swapped into finalDir
+	// (swapped=true) the deferred cleanup must not touch it - that would delete
+	// the just-installed plugin.
 	installOK := false
+	swapped := false
 	defer func() {
-		if !installOK && p.InstallDir != "" && s.fs != nil {
+		if !installOK && !swapped && p.InstallDir != "" && s.fs != nil {
 			s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
 		}
 	}()
@@ -532,6 +545,17 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		// post-install (compiled binaries, symlinks, base64 blobs,
 		// suspicious URLs). UI exposes these on plugin detail.
 		p.AnalysisReport = report
+	}
+
+	// All validation on the staging dir passed: swap it over the live version
+	// (upgrade only). Any failure before this point left the live version fully
+	// intact - files, DB row and config all untouched.
+	if existing != nil {
+		if err := s.swapUpgradeIntoPlace(ctx, existing, stagingDir, finalDir); err != nil {
+			return nil, fmt.Errorf("in-place upgrade: %w", err)
+		}
+		p.InstallDir = finalDir
+		swapped = true
 	}
 
 	// Update the existing row in place on upgrade (id reused above) so the
@@ -743,12 +767,14 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 // permissions/event hooks fire. It always returns nil except when the plugin
 // id is unknown — the admin must never see "uninstall failed" because the
 // runner refused to die or a file was momentarily locked.
-// teardownForUpgrade releases the OLD version's runtime and files ahead of an
-// in-place upgrade: it stops the runner, drops cached permissions and wipes the
-// install dir, but deliberately leaves the DB row (and its plugin_data, which
-// FK-cascades on plugins.id ON DELETE) intact. The caller reuses the same id and
-// Updates the row, so the plugin's per-user/profile config survives the update.
-func (s *InstallerService) teardownForUpgrade(ctx context.Context, existing *plugin.Plugin) error {
+// swapUpgradeIntoPlace atomically promotes a validated, staged upgrade over the
+// live version: it stops the old runner, drops cached permissions, removes the
+// old install dir and renames the staging dir into finalDir. It deliberately
+// leaves the DB row (and its plugin_data, which FK-cascades on plugins.id ON
+// DELETE) intact - the caller reuses the same id and Updates the row, so config
+// survives. Called only after every validation on the staging dir has passed, so
+// a failed upgrade never reaches here and the live version stays untouched.
+func (s *InstallerService) swapUpgradeIntoPlace(ctx context.Context, existing *plugin.Plugin, stagingDir, finalDir string) error {
 	if existing.Status == plugin.Running {
 		stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		stopErr := s.runner.Stop(stopCtx, existing.ID)
@@ -766,22 +792,21 @@ func (s *InstallerService) teardownForUpgrade(ctx context.Context, existing *plu
 	if s.permChecker != nil {
 		s.permChecker.InvalidatePermissions(existing.ID)
 	}
-	if existing.InstallDir != "" && s.fs != nil {
-		if rmErr := s.fs.RemoveAll(existing.InstallDir); rmErr != nil {
-			// Retry the transient busy-file window (bwrap unmount) a couple of
-			// times, then give up: the new version re-extracts into the same
-			// path (overwriting), and any stuck dir is reaped by CleanupOrphans.
-			for _, wait := range uninstallRetryDelays {
-				time.Sleep(wait)
-				if rmErr = s.fs.RemoveAll(existing.InstallDir); rmErr == nil {
-					break
-				}
-			}
-			if rmErr != nil {
-				slog.Warn("remove old plugin dir before upgrade (will overwrite)",
-					slog.String("pluginID", existing.ID), slog.String("dir", existing.InstallDir), slog.Any("err", rmErr))
-			}
-		}
+	if s.fs == nil {
+		return nil
+	}
+	// Remove the old dir, retrying the transient busy-file window (bwrap
+	// unmount), then rename staging into place.
+	rmErr := s.fs.RemoveAll(finalDir)
+	for i := 0; rmErr != nil && i < len(uninstallRetryDelays); i++ {
+		time.Sleep(uninstallRetryDelays[i])
+		rmErr = s.fs.RemoveAll(finalDir)
+	}
+	if rmErr != nil {
+		return fmt.Errorf("remove old plugin dir: %w", rmErr)
+	}
+	if err := s.fs.Rename(stagingDir, finalDir); err != nil {
+		return fmt.Errorf("swap upgraded plugin into place: %w", err)
 	}
 	return nil
 }

@@ -27,6 +27,10 @@ func (fs *PluginFileSystem) MkdirTemp(dir, pattern string) (string, error) {
 	return os.MkdirTemp(dir, pattern)
 }
 
+func (fs *PluginFileSystem) Rename(oldPath, newPath string) error {
+	return os.Rename(oldPath, newPath)
+}
+
 func (fs *PluginFileSystem) CopySDKStubs(language, installDir string) error {
 	lang := strings.ToLower(language)
 	switch lang {
