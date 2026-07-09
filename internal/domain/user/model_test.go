@@ -789,7 +789,7 @@ func TestProfile_EffectiveParental(t *testing.T) {
 		p := &user.Profile{
 			ID:       "p1",
 			IsKids:   false,
-			Parental: &user.ParentalSettings{Enabled: true, MaxAge: intPtr(15), BlockedTags: []string{"gore"}, PINHash: "h"},
+			Parental: &user.ParentalSettings{Enabled: true, MaxAge: new(15), BlockedTags: []string{"gore"}, PINHash: "h"},
 		}
 		got := p.EffectiveParental()
 		if got == nil {
