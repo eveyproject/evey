@@ -4,23 +4,41 @@
 // the plugin's OWN per-profile preference store via the host bridge
 // (window.evey.prefs) — nothing leaves the plugin's namespace, and the widget
 // reads the same prefs. Zero runtime deps: vanilla DOM.
+//
+// The city input is DISAMBIGUATED: as the user types we geocode and show the
+// matching places with their region + country ("Brest, Bretagne, France" vs
+// "Brest, Brest Region, Belarus"). The user picks one and we store its
+// COORDINATES — the widget never re-geocodes a bare name and lands on the wrong
+// homonym (Open-Meteo ranks by population, so a bare "Brest" resolved to Belarus).
 
 import type { HostBridge, HostInit } from "../domain/ports/HostBridge";
-import type { Units } from "../domain/model/weather";
+import type { WeatherProvider } from "../domain/ports/WeatherProvider";
+import type { GeoCandidate, Units } from "../domain/model/weather";
 import { translate } from "../i18n/labels";
 
 export const CITY_KEY = "residence.city";
 export const UNITS_KEY = "residence.units";
+export const LAT_KEY = "residence.lat";
+export const LON_KEY = "residence.lon";
+
+const SEARCH_DEBOUNCE_MS = 400;
 
 export class SettingsApp {
   private locale = "en";
   private saving = false;
-  // Guards against a host calling onInit more than once (see the same guard
-  // in WeatherApp): without it, a second call re-appended a whole duplicate
-  // form (style + inputs + button) into document.body on top of the first.
   private booted = false;
 
-  constructor(private bridge: HostBridge) {}
+  private candidates: GeoCandidate[] = [];
+  private searchTimer = 0;
+  private searchSeq = 0;
+
+  private cityEl: HTMLInputElement | null = null;
+  private pickBlock: HTMLDivElement | null = null;
+  private resultsEl: HTMLSelectElement | null = null;
+  private statusEl: HTMLParagraphElement | null = null;
+  private unitsEl: HTMLSelectElement | null = null;
+
+  constructor(private bridge: HostBridge, private provider: WeatherProvider) {}
 
   start(): void {
     this.bridge.onReady((init) => void this.boot(init));
@@ -46,6 +64,8 @@ export class SettingsApp {
     const city = (c && c.trim()) || init.city;
     const units: Units = u === "fahrenheit" ? "fahrenheit" : "celsius";
     this.render(init.theme !== "light", city, units);
+    // Pre-populate the picker with the saved city so the current choice shows.
+    if (city.trim()) void this.runSearch(city.trim());
   }
 
   private render(dark: boolean, city: string, units: Units): void {
@@ -69,6 +89,7 @@ export class SettingsApp {
       .wxs input:focus, .wxs select:focus { border-color: ${accent}; }
       .wxs option { color: #1b1c1f; }
       .wxs .row { max-width: 420px; }
+      .wxs .hint { margin-top: 4px; font-size: 11px; color: ${muted}; }
       .wxs button {
         align-self: flex-start; padding: 8px 16px; font-size: 14px; font-weight: 600;
         color: #1b1c1f; background: ${accent}; border: none; border-radius: 8px; cursor: pointer;
@@ -86,6 +107,12 @@ export class SettingsApp {
         <label for="wxs-city">${esc(this.t("set_city"))}</label>
         <input id="wxs-city" type="text" autocomplete="off" placeholder="${esc(this.t("set_city_ph"))}">
       </div>
+      <div class="row" id="wxs-pick" style="display:none">
+        <label for="wxs-results">${esc(this.t("set_pick"))}</label>
+        <select id="wxs-results"></select>
+        <p class="hint">${esc(this.t("set_pick_hint"))}</p>
+      </div>
+      <p class="hint" id="wxs-status" style="display:none"></p>
       <div class="row">
         <label for="wxs-units">${esc(this.t("set_units"))}</label>
         <select id="wxs-units">
@@ -97,26 +124,103 @@ export class SettingsApp {
     `;
     document.body.appendChild(root);
 
-    const cityEl = root.querySelector<HTMLInputElement>("#wxs-city")!;
-    const unitsEl = root.querySelector<HTMLSelectElement>("#wxs-units")!;
+    this.cityEl = root.querySelector<HTMLInputElement>("#wxs-city")!;
+    this.pickBlock = root.querySelector<HTMLDivElement>("#wxs-pick")!;
+    this.resultsEl = root.querySelector<HTMLSelectElement>("#wxs-results")!;
+    this.statusEl = root.querySelector<HTMLParagraphElement>("#wxs-status")!;
+    this.unitsEl = root.querySelector<HTMLSelectElement>("#wxs-units")!;
     const saveEl = root.querySelector<HTMLButtonElement>("#wxs-save")!;
-    cityEl.value = city;
-    unitsEl.value = units;
-    saveEl.addEventListener("click", () => void this.save(cityEl.value, unitsEl.value, saveEl));
+
+    this.cityEl.value = city;
+    this.unitsEl.value = units;
+    this.cityEl.addEventListener("input", () => this.onCityInput());
+    this.resultsEl.addEventListener("change", () => this.fitHeight());
+    saveEl.addEventListener("click", () => void this.save(saveEl));
 
     this.fitHeight();
   }
 
-  private async save(city: string, units: string, btn: HTMLButtonElement): Promise<void> {
+  private onCityInput(): void {
+    const value = this.cityEl?.value.trim() ?? "";
+    clearTimeout(this.searchTimer);
+    if (!value) {
+      this.setCandidates([]);
+      return;
+    }
+    this.searchTimer = window.setTimeout(() => void this.runSearch(value), SEARCH_DEBOUNCE_MS);
+  }
+
+  private async runSearch(value: string): Promise<void> {
+    const seq = ++this.searchSeq;
+    this.setStatus(this.t("set_searching"));
+    try {
+      const results = await this.provider.geocodeSearch(value, this.locale);
+      if (seq !== this.searchSeq) return; // a newer search superseded this one
+      this.setCandidates(results);
+    } catch {
+      if (seq !== this.searchSeq) return;
+      this.setCandidates([]);
+    }
+  }
+
+  private setCandidates(list: GeoCandidate[]): void {
+    this.candidates = list;
+    const results = this.resultsEl;
+    const pick = this.pickBlock;
+    if (!results || !pick) return;
+    results.innerHTML = "";
+    if (list.length === 0) {
+      pick.style.display = "none";
+      const typed = this.cityEl?.value.trim() ?? "";
+      this.setStatus(typed ? this.t("set_no_match") : null);
+      this.fitHeight();
+      return;
+    }
+    this.setStatus(null);
+    for (let i = 0; i < list.length; i++) {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = candidateLabel(list[i]);
+      results.appendChild(opt);
+    }
+    results.value = "0";
+    pick.style.display = "";
+    this.fitHeight();
+  }
+
+  private setStatus(msg: string | null): void {
+    if (!this.statusEl) return;
+    this.statusEl.textContent = msg ?? "";
+    this.statusEl.style.display = msg ? "" : "none";
+  }
+
+  private async save(btn: HTMLButtonElement): Promise<void> {
     if (this.saving) return;
     this.saving = true;
     btn.disabled = true;
     try {
-      const u: Units = units === "fahrenheit" ? "fahrenheit" : "celsius";
-      await Promise.all([
-        this.bridge.setPref(CITY_KEY, city.trim()),
-        this.bridge.setPref(UNITS_KEY, u),
-      ]);
+      const units: Units = this.unitsEl?.value === "fahrenheit" ? "fahrenheit" : "celsius";
+      const idx = this.resultsEl ? parseInt(this.resultsEl.value, 10) : NaN;
+      const picked = Number.isInteger(idx) ? this.candidates[idx] : undefined;
+      const writes: Array<Promise<void>> = [this.bridge.setPref(UNITS_KEY, units)];
+      if (picked) {
+        // Store the exact coordinates so the widget never re-geocodes the name.
+        writes.push(
+          this.bridge.setPref(CITY_KEY, picked.name),
+          this.bridge.setPref(LAT_KEY, String(picked.lat)),
+          this.bridge.setPref(LON_KEY, String(picked.lon)),
+        );
+      } else {
+        // No candidate (search failed / empty): fall back to the bare name and
+        // clear any stale coordinates so the widget geocodes the name itself.
+        const typed = this.cityEl?.value.trim() ?? "";
+        writes.push(
+          this.bridge.setPref(CITY_KEY, typed),
+          this.bridge.setPref(LAT_KEY, ""),
+          this.bridge.setPref(LON_KEY, ""),
+        );
+      }
+      await Promise.all(writes);
       this.bridge.toast("success", this.t("set_saved"));
     } catch {
       this.bridge.toast("error", this.t("set_error"));
@@ -130,6 +234,11 @@ export class SettingsApp {
     const h = Math.max(120, Math.ceil(document.body.scrollHeight) + 8);
     this.bridge.resize(h);
   }
+}
+
+// "Brest, Bretagne, France" — name plus whatever region/country we have.
+function candidateLabel(c: GeoCandidate): string {
+  return [c.name, c.admin1, c.country].filter((v) => v && v.trim()).join(", ");
 }
 
 // Minimal HTML-escape for the small set of interpolated i18n strings.

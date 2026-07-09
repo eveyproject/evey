@@ -9,7 +9,7 @@
 //   - request timeout via AbortController (a hung fetch left v1 on the
 //     loading screen forever).
 
-import type { GeoCoord, SunTimes, Units } from "../../domain/model/weather";
+import type { GeoCandidate, GeoCoord, SunTimes, Units } from "../../domain/model/weather";
 import type { CurrentWeatherResult, WeatherProvider } from "../../domain/ports/WeatherProvider";
 import type { Precipitation } from "../../domain/model/weather";
 
@@ -17,8 +17,17 @@ const GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 const FETCH_TIMEOUT_MS = 10_000;
 
+interface GeocodeRow {
+  latitude: number;
+  longitude: number;
+  name: string;
+  admin1?: string;
+  country?: string;
+  country_code?: string;
+}
+
 interface GeocodeResult {
-  results?: Array<{ latitude: number; longitude: number; name: string }>;
+  results?: GeocodeRow[];
 }
 
 interface ForecastResult {
@@ -83,6 +92,23 @@ export class OpenMeteoProvider implements WeatherProvider {
     if (!data.results || data.results.length === 0) throw new Error(`city not found: ${city}`);
     const r0 = data.results[0];
     return { lat: r0.latitude, lon: r0.longitude, name: r0.name };
+  }
+
+  async geocodeSearch(city: string, lang = "en"): Promise<GeoCandidate[]> {
+    const q = city.trim();
+    if (!q) return [];
+    const safeLang = lang.slice(0, 2).toLowerCase();
+    const url = `${GEOCODE_URL}?count=8&language=${safeLang}&name=${encodeURIComponent(q)}`;
+    const data = await fetchJson<GeocodeResult>(url);
+    if (!data.results) return [];
+    return data.results.map((r) => ({
+      lat: r.latitude,
+      lon: r.longitude,
+      name: r.name,
+      admin1: r.admin1,
+      country: r.country,
+      countryCode: r.country_code,
+    }));
   }
 
   async getCurrent(coord: GeoCoord, units: Units): Promise<CurrentWeatherResult> {

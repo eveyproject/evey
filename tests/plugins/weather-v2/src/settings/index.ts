@@ -2,5 +2,6 @@
 // from the home widget, sharing the same plugin per-profile pref namespace).
 import { SettingsApp } from "./SettingsApp";
 import { EveyBridge } from "../adapters/evey/EveyBridge";
+import { OpenMeteoProvider } from "../adapters/openmeteo/OpenMeteoProvider";
 
-new SettingsApp(new EveyBridge()).start();
+new SettingsApp(new EveyBridge(), new OpenMeteoProvider()).start();

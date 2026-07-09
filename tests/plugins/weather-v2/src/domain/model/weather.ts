@@ -10,6 +10,19 @@ export interface GeoCoord {
   name: string;
 }
 
+// One geocoding match, carrying enough to DISAMBIGUATE homonyms (e.g. Brest,
+// France vs Brest, Belarus): the region and country are shown in the settings
+// picker so the user resolves the ambiguity once, and the coordinates are then
+// stored - the widget never re-geocodes a bare name and lands on the wrong city.
+export interface GeoCandidate {
+  lat: number;
+  lon: number;
+  name: string;
+  admin1?: string; // region / state / département
+  country?: string;
+  countryCode?: string;
+}
+
 // Sunrise/sunset events as epoch milliseconds, spanning yesterday..tomorrow
 // so the day/night cycle can always find the bracketing events regardless of
 // the local hour. Provided by the weather adapter (Open-Meteo daily API);

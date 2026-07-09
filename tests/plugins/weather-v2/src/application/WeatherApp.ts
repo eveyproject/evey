@@ -162,16 +162,28 @@ export class WeatherApp {
     const init = this.init;
     if (!init) return;
     try {
-      const [c, u] = await Promise.all([
+      const [c, u, latS, lonS] = await Promise.all([
         this.deps.bridge.getPref("residence.city"),
         this.deps.bridge.getPref("residence.units"),
+        this.deps.bridge.getPref("residence.lat"),
+        this.deps.bridge.getPref("residence.lon"),
       ]);
       const nextCity = (c && c.trim()) || init.city;
       const nextUnits: Units = u === "fahrenheit" ? "fahrenheit" : u === "celsius" ? "celsius" : init.units;
-      if (nextCity !== this.city) {
-        this.city = nextCity;
-        this.coord = null; // re-geocode the new city
+
+      // A disambiguated pick stores exact coordinates: use them directly and
+      // never geocode the bare name (which Open-Meteo resolves by population and
+      // would land on the wrong homonym, e.g. Brest, Belarus over Brest, France).
+      const lat = latS && latS.trim() ? Number(latS) : NaN;
+      const lon = lonS && lonS.trim() ? Number(lonS) : NaN;
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        if (!this.coord || this.coord.lat !== lat || this.coord.lon !== lon || this.coord.name !== nextCity) {
+          this.coord = { lat, lon, name: nextCity };
+        }
+      } else if (nextCity !== this.city || !this.coord) {
+        this.coord = null; // legacy name-only pref: (re-)geocode the name
       }
+      this.city = nextCity;
       this.units = nextUnits;
     } catch {
       /* keep current city/units */
