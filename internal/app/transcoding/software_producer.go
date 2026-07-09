@@ -163,6 +163,24 @@ type SoftwareProducerOptions struct {
 	// (including several positions of ONE rung); this bounds distinct rungs.
 	MaxConcurrentVariantsPerHash int
 
+	// KillPausedAfter, when > 0, kills (not just SIGSTOPs) a session that has
+	// been continuously paused for at least this long - reclaiming its ffmpeg
+	// RSS (~1 GB) on a memory-constrained box. Disk segments are PRESERVED (no
+	// CleanupHash): a resume replays them instantly from disk while a fresh
+	// `-ss` ffmpeg cold-starts in the background, so the kill is invisible to
+	// the player as long as ResumeCushionSegs already covers the gap. The idle
+	// GC (InactivityTimeout) and the disk LRU evictor reclaim the segments
+	// later on their own schedule. Default 0: disabled, matching the pre-feature
+	// behaviour (a paused session only ever dies via sweepIdle).
+	KillPausedAfter time.Duration
+
+	// ResumeCushionSegs is the anti-latency guarantee gating KillPausedAfter: a
+	// paused session is only actually killed once the segment cache already
+	// holds this many segments beyond its frontier. Below the cushion the
+	// session is SIGCONTed instead (it is paced fast - 1.5x/8x - so it builds
+	// the missing cushion quickly) and revisited on a later sweep. Default 8.
+	ResumeCushionSegs int
+
 	// SeekReachWindowSegs is how many segments AHEAD of a session's production
 	// frontier a request may be and still reuse that (paced) encoder rather than
 	// seek a fresh one. Within the window the player waits a beat for the
@@ -204,6 +222,10 @@ func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
 	if out.SeekReachWindowSegs <= 0 {
 		out.SeekReachWindowSegs = 16
 	}
+	if out.ResumeCushionSegs <= 0 {
+		out.ResumeCushionSegs = 8
+	}
+	// KillPausedAfter has no fallback - 0 means disabled, and stays disabled.
 	return out
 }
 
@@ -238,7 +260,16 @@ type swSession struct {
 	frontier   int
 	lastAccess time.Time
 	paused     bool
-	teardown   func()
+	// pausedSince is when this session was most recently SIGSTOPped (zero when
+	// running). Set by sweepPause/pauseEach, cleared by resumeIfPaused. Drives
+	// the KillPausedAfter sweep: a session paused continuously past that
+	// threshold is a kill candidate (see sweepKillPaused).
+	pausedSince time.Time
+	// useFMP4 mirrors the fingerprint's UseFMP4 at session start - needed by
+	// sweepKillPaused to probe the segment cache (SegmentCache.IsReady takes
+	// useFMP4 explicitly; the session has no other handle to the fingerprint).
+	useFMP4  bool
+	teardown func()
 	cancelCtx  context.CancelFunc
 	done       chan struct{}
 	// metricDecOnce guarantees the HLSVODSessions gauge is decremented EXACTLY
@@ -678,6 +709,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		startSeg:   startSeg,
 		frontier:   startSeg,
 		lastAccess: time.Now(),
+		useFMP4:    fp.UseFMP4,
 		teardown:   teardown,
 		cancelCtx:  cancel,
 		done:       make(chan struct{}),
@@ -914,6 +946,7 @@ func (p *SoftwareProducer) resumeIfPaused(s *swSession) {
 		return
 	}
 	s.paused = false
+	s.pausedSince = time.Time{}
 }
 
 // pauseEach SIGSTOPs each of the given sessions (skipping already-paused or
@@ -936,6 +969,7 @@ func (p *SoftwareProducer) pauseEach(sessions []*swSession) {
 			continue
 		}
 		s.paused = true
+		s.pausedSince = time.Now()
 		s.mu.Unlock()
 	}
 }
@@ -1200,6 +1234,7 @@ func (p *SoftwareProducer) gcLoop() {
 			return
 		case <-gcTicker.C:
 			p.sweepIdle()
+			p.sweepKillPaused()
 		case <-pauseTicker.C:
 			p.sweepPause()
 		}
@@ -1285,8 +1320,85 @@ func (p *SoftwareProducer) sweepPause() {
 			continue
 		}
 		s.paused = true
+		s.pausedSince = time.Now()
 		s.mu.Unlock()
 		p.logger.Debug("software: ffmpeg suspended — client idle", slog.String("hash", hash))
+	}
+}
+
+// hasResumeCushion reports whether the segment cache already holds at least
+// opts.ResumeCushionSegs CONTIGUOUS segments beyond frontier - the buffer that
+// hides a killed session's cold-start ffmpeg from the player. Contiguous from
+// frontier+1: a gap would mean the player hits an uncached segment before the
+// fresh `-ss` encoder lands, which is exactly the latency this guard exists to
+// prevent.
+func (p *SoftwareProducer) hasResumeCushion(hash string, variantIdx, frontier int, useFMP4 bool) bool {
+	for i := 1; i <= p.opts.ResumeCushionSegs; i++ {
+		k := SegmentKey{DecisionHash: hash, VariantIdx: variantIdx, SegmentIdx: frontier + i}
+		if !p.cache.IsReady(k, useFMP4) {
+			return false
+		}
+	}
+	return true
+}
+
+// sweepKillPaused reclaims the ffmpeg RSS (~1 GB) of sessions that have sat
+// SIGSTOPped past KillPausedAfter - a memory-constrained box cannot afford to
+// keep paying for a suspended encoder's resident memory just because a viewer
+// might resume. It does NOT touch disk: killSession never deletes segments,
+// and this sweep deliberately never calls CleanupHash, so a resumed player
+// replays the cache instantly while a fresh `-ss` ffmpeg cold-starts behind
+// it - the sweepIdle GC and the disk LRU evictor reclaim the segments later,
+// on their own unrelated schedule.
+//
+// The anti-latency guarantee: a paused session is only killed once
+// hasResumeCushion confirms the cache already holds ResumeCushionSegs
+// segments beyond its frontier (enough to mask the fresh encoder's cold
+// start). Below the cushion the session is SIGCONTed instead - it is paced
+// fast (1.5x transcode / 8x copy) so it builds the missing cushion quickly -
+// and lastAccess is bumped so the very next idle-pause tick doesn't
+// immediately re-suspend it before the cushion has a chance to land; a later
+// sweep revisits it once actually paused again.
+//
+// No-op when KillPausedAfter <= 0 (the default) - current behaviour is
+// unchanged: a paused session then only ever dies via sweepIdle.
+func (p *SoftwareProducer) sweepKillPaused() {
+	if p.opts.KillPausedAfter <= 0 {
+		return
+	}
+	cutoff := time.Now().Add(-p.opts.KillPausedAfter)
+
+	p.mu.Lock()
+	var toKill, toBuild []*swSession
+	for _, list := range p.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			eligible := s.paused && !s.pausedSince.IsZero() && s.pausedSince.Before(cutoff)
+			hash, variantIdx, frontier, useFMP4 := s.hash, s.variantIdx, s.frontier, s.useFMP4
+			s.mu.Unlock()
+			if !eligible {
+				continue
+			}
+			if p.hasResumeCushion(hash, variantIdx, frontier, useFMP4) {
+				toKill = append(toKill, s)
+			} else {
+				toBuild = append(toBuild, s)
+			}
+		}
+	}
+	p.mu.Unlock()
+
+	for _, s := range toKill {
+		p.logger.Info("software: killing long-paused session, disk cache preserved for instant resume",
+			slog.String("hash", s.hash), slog.Duration("paused_after", p.opts.KillPausedAfter),
+			slog.Int("cushion_segs", p.opts.ResumeCushionSegs))
+		p.killSession(s, "paused_ram_reclaim")
+	}
+	for _, s := range toBuild {
+		s.mu.Lock()
+		s.lastAccess = time.Now()
+		s.mu.Unlock()
+		p.resumeIfPaused(s)
 	}
 }
 

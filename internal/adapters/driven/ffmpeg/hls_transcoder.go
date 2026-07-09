@@ -18,6 +18,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/pkg/hdr"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
 var _ transcoding.HLSProcess = (*HLSTranscoder)(nil)
@@ -1184,6 +1185,23 @@ func startNumberFor(opts transcoding.HLSProcessOpts) int {
 	return int(opts.StartSec / segSec)
 }
 
+// cpuBudgetThreadsArgs bounds a SOFTWARE encoder's thread count to what this
+// process may actually use: the operator's explicit
+// EVEY_TRANSCODING_SOFTWARE_THREADS override when set (softwareTranscodeThreads,
+// unchanged), else sysinfo.CPUBudget() - the cgroup CPU quota when the container
+// runs under one, else NumCPU. Without this, libx264/libx265/libsvtav1 leave
+// -threads unset and grab every HOST core even when a cgroup quota caps this
+// process to a fraction of them, starving every other job (scanning, metadata,
+// serving the UI) on a weak NAS. Hardware encoders (nvenc/vaapi/qsv) never reach
+// this - they are routed to their own HW arg builders before either call site
+// below, and -threads has a different (non-CPU-bounding) meaning for them.
+func cpuBudgetThreadsArgs(streamSpec string) []string {
+	if args := softwareThreadsArgs(streamSpec); args != nil {
+		return args // explicit operator override (EVEY_TRANSCODING_SOFTWARE_THREADS)
+	}
+	return softwareThreadsArgsN(sysinfo.CPUBudget(), streamSpec)
+}
+
 func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	burnIn := opts.SubtitleTrackIndex >= 0 && IsImageSubtitle(opts.SubtitleCodec) && !opts.ForceSidecarSubs
 	p := opts.Profiles[len(opts.Profiles)-1]
@@ -1244,7 +1262,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 
 	enc := resolveVideoEncoder(opts.VideoCodec)
 	args = append(args, "-c:v", enc)
-	args = append(args, softwareThreadsArgs("")...) // optional weak-NAS per-encoder cap (no-op when unset)
+	args = append(args, cpuBudgetThreadsArgs("")...) // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
 	args = append(args, softwareProfileLevelArgs(enc, -1)...) // h264-only; x265/av1 pick their own
 	args = append(args,
 		// Capped CRF (see softwareCRF): quality-targeted with the rung bitrate as a
@@ -1350,7 +1368,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 			"-map", fmt.Sprintf("[o%d]", i),
 			fmt.Sprintf("-c:v:%d", i), vcodec,
 		)
-		args = append(args, softwareThreadsArgs(fmt.Sprintf(":v:%d", i))...) // optional weak-NAS per-rung cap (no-op when unset)
+		args = append(args, cpuBudgetThreadsArgs(fmt.Sprintf(":v:%d", i))...) // bound to the CPU budget per rung; operator override wins if set
 		args = append(args, softwareProfileLevelArgs(vcodec, i)...) // h264-only; x265/av1 pick their own
 		args = append(args,
 			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate

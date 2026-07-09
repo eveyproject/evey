@@ -1,10 +1,12 @@
 package ffmpeg
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
 func TestParseSoftwareThreads(t *testing.T) {
@@ -47,13 +49,17 @@ func TestSoftwareThreadsArgsN(t *testing.T) {
 	}
 }
 
-// By default (env unset → cap 0) the software arg builders must be byte-for-byte
-// unchanged: no -threads flag leaks in, so the historic ffmpeg auto-threading is
-// preserved on every host that doesn't opt in.
-func TestBuildFFmpegArgs_NoThreadsCapByDefault(t *testing.T) {
+// By default (env unset → no operator override) the software arg builders must
+// still bound the encoder to the process's actual CPU budget (the cgroup quota
+// when set, else NumCPU) - a software encode must never grab every HOST core
+// under a container quota, which starves every other job (scanning, metadata,
+// serving the UI) on a weak NAS. Hardware paths are untouched: -threads has a
+// different meaning there and this test only exercises the software builders.
+func TestBuildFFmpegArgs_ThreadsCapDefaultsToCPUBudget(t *testing.T) {
 	if softwareTranscodeThreads() != 0 {
-		t.Skip("EVEY_TRANSCODING_SOFTWARE_THREADS is set in this environment; default-absence assertion is moot")
+		t.Skip("EVEY_TRANSCODING_SOFTWARE_THREADS is set in this environment; default-CPU-budget assertion is moot")
 	}
+	budget := sysinfo.CPUBudget()
 	base := transcoding.HLSProcessOpts{
 		OutputDir:     "/tmp/test",
 		FilePath:      "/f.mkv",
@@ -64,14 +70,16 @@ func TestBuildFFmpegArgs_NoThreadsCapByDefault(t *testing.T) {
 
 	single := base
 	single.Profiles = transcoding.DefaultHLSProfiles[:1]
-	if joined := strings.Join(BuildFFmpegArgs(single), " "); strings.Contains(joined, "-threads") {
-		t.Errorf("single transcode must not emit -threads by default:\n%s", joined)
+	wantSingle := fmt.Sprintf("-threads %d", budget)
+	if joined := strings.Join(BuildFFmpegArgs(single), " "); !strings.Contains(joined, wantSingle) {
+		t.Errorf("single transcode must default -threads to the CPU budget (%s):\n%s", wantSingle, joined)
 	}
 
 	multi := base
 	multi.Profiles = transcoding.DefaultHLSProfiles[:3]
-	if joined := strings.Join(BuildFFmpegArgs(multi), " "); strings.Contains(joined, "-threads") {
-		t.Errorf("multi-variant transcode must not emit -threads by default:\n%s", joined)
+	wantMulti := fmt.Sprintf("-threads:v:0 %d", budget)
+	if joined := strings.Join(BuildFFmpegArgs(multi), " "); !strings.Contains(joined, wantMulti) {
+		t.Errorf("multi-variant transcode must default -threads:v:i to the CPU budget (%s):\n%s", wantMulti, joined)
 	}
 }
 

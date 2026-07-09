@@ -734,6 +734,33 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		SingleVariant:         cfg.Transcoding.SingleVariant,
 	}, slog.Default())
 
+	// Software producer lifecycle knobs. The low-memory profile trims them hard:
+	// a short inactivity timeout, a single session/rung per hash, and
+	// KillPausedAfter reclaims a long-suspended encoder's ~1 GB RSS - a weak NAS
+	// cannot afford to keep a paused ffmpeg resident on the off-chance a viewer
+	// resumes. ResumeCushionSegs is what keeps that kill latency-invisible: the
+	// player drains the disk cache instantly while a fresh -ss ffmpeg cold-starts
+	// behind it. Unlike the plugin idle manager (re-evaluated live via
+	// pluginIdleMgr.SetEnabled above), these knobs are read once here at boot -
+	// the software producer's GC loop is not re-wired on a live profile change,
+	// so switching the memory profile only takes effect for HLS after a restart.
+	swProducerOpts := apptranscoding.SoftwareProducerOptions{}
+	if memProfile == appplugin.MemoryProfileLow {
+		swProducerOpts = apptranscoding.SoftwareProducerOptions{
+			InactivityTimeout:            5 * time.Minute,
+			MaxSessionsPerHash:           1,
+			MaxConcurrentVariantsPerHash: 1,
+			KillPausedAfter:              3 * time.Minute,
+			ResumeCushionSegs:            8,
+		}
+		rootLog.Info("low-memory profile: software HLS producer knobs armed (requires a restart to take effect)",
+			slog.Duration("inactivity_timeout", swProducerOpts.InactivityTimeout),
+			slog.Int("max_sessions_per_hash", swProducerOpts.MaxSessionsPerHash),
+			slog.Int("max_concurrent_variants_per_hash", swProducerOpts.MaxConcurrentVariantsPerHash),
+			slog.Duration("kill_paused_after", swProducerOpts.KillPausedAfter),
+			slog.Int("resume_cushion_segs", swProducerOpts.ResumeCushionSegs))
+	}
+
 	// The software StreamProducer is built HERE (not in the HTTP route
 	// registration) so it is a SINGLE instance shared between two consumers: the
 	// HTTP VOD handler's routing selector (which creates its sessions) and the
@@ -743,7 +770,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// HW resolve the source identically.
 	hlsVODSoftware := apptranscoding.NewSoftwareProducer(
 		hlsVODCache, hlsTranscoder, sourceResolver,
-		apptranscoding.SoftwareProducerOptions{}, slog.Default(),
+		swProducerOpts, slog.Default(),
 	)
 	// Fan-out remover for explicit StopStream / admin force-kill: RemoveSession
 	// reaches BOTH producers, and ActiveSessionCount sums them. For()/routing is

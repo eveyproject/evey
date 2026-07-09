@@ -804,3 +804,118 @@ func TestSoftwareProducer_HonorsAudioCopy(t *testing.T) {
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp2, 0, 0))
 	assert.Equal(t, "transcode", proc.lastOpts().AudioDecision, "default stays the historical re-encode")
 }
+
+// ============================================================================
+// KillPausedAfter: reclaim ffmpeg RSS of long-paused sessions with a
+// resume-cushion guard, so the player never feels the kill on resume.
+// ============================================================================
+
+// pauseAndBackdate pauses s (via the producer's real pause path, so
+// s.pausedSince is set the same way production code sets it) then rewinds
+// pausedSince into the past so a KillPausedAfter cutoff test doesn't need to
+// sleep in real time.
+func pauseAndBackdate(t *testing.T, p *SoftwareProducer, s *swSession, age time.Duration) {
+	t.Helper()
+	p.pauseEach([]*swSession{s})
+	s.mu.Lock()
+	require.True(t, s.paused, "pauseEach must have suspended the session")
+	s.pausedSince = time.Now().Add(-age)
+	s.mu.Unlock()
+}
+
+func TestSoftwareProducer_KillPausedAfter_CushionSufficient_KillsAndPreservesSegments(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := swTestOpts()
+	opts.KillPausedAfter = time.Minute
+	opts.ResumeCushionSegs = 2
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, opts, discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	hash := fp.Hash()
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+
+	p.mu.Lock()
+	s := p.sessions[hash][0]
+	p.mu.Unlock()
+	handle := s.handle.(*fakeHandle)
+
+	// The cushion: ResumeCushionSegs (2) segments already sitting on disk beyond
+	// the session's frontier (0) - segments 1 and 2.
+	writeReadySegment(t, cache, SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 1}, fp.UseFMP4)
+	writeReadySegment(t, cache, SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 2}, fp.UseFMP4)
+
+	pauseAndBackdate(t, p, s, 2*time.Minute) // paused well past KillPausedAfter
+
+	p.sweepKillPaused()
+
+	assert.True(t, handle.isStopped(), "a paused session past KillPausedAfter with a full cushion must be killed to free its ffmpeg RSS")
+	assert.Equal(t, 0, p.ActiveSessionCount())
+	assert.True(t, cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 1}, fp.UseFMP4),
+		"killing a cushioned paused session must NOT wipe its disk segments (CleanupHash must not run here)")
+	assert.True(t, cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 2}, fp.UseFMP4),
+		"the whole cushion must survive the kill for an instant-feeling resume")
+}
+
+func TestSoftwareProducer_KillPausedAfter_CushionInsufficient_ResumesInstead(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := swTestOpts()
+	opts.KillPausedAfter = time.Minute
+	opts.ResumeCushionSegs = 2
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, opts, discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	hash := fp.Hash()
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+
+	p.mu.Lock()
+	s := p.sessions[hash][0]
+	p.mu.Unlock()
+	handle := s.handle.(*fakeHandle)
+
+	// Only 1 of the 2 required cushion segments is on disk.
+	writeReadySegment(t, cache, SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 1}, fp.UseFMP4)
+
+	pauseAndBackdate(t, p, s, 2*time.Minute)
+
+	p.sweepKillPaused()
+
+	assert.False(t, handle.isStopped(), "an insufficient cushion must NOT kill the session - the resume would be cold")
+	_, resumeN, paused := handle.counts()
+	assert.False(t, paused, "the session must be SIGCONTed to build the missing cushion quickly")
+	assert.GreaterOrEqual(t, resumeN, 1)
+	assert.Equal(t, 1, p.ActiveSessionCount())
+}
+
+func TestSoftwareProducer_KillPausedAfterZero_NeverKillsPaused(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := swTestOpts()
+	// KillPausedAfter left at its zero value: disabled, current behaviour intact.
+	require.Zero(t, opts.KillPausedAfter)
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, opts, discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	hash := fp.Hash()
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+
+	p.mu.Lock()
+	s := p.sessions[hash][0]
+	p.mu.Unlock()
+	handle := s.handle.(*fakeHandle)
+
+	// A huge cushion, paused for a very long time - would qualify for a kill
+	// under any nonzero KillPausedAfter.
+	writeReadySegment(t, cache, SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 1}, fp.UseFMP4)
+	writeReadySegment(t, cache, SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: 2}, fp.UseFMP4)
+	pauseAndBackdate(t, p, s, 24*time.Hour)
+
+	p.sweepKillPaused()
+
+	assert.False(t, handle.isStopped(), "KillPausedAfter=0 must disable the paused-kill sweep entirely")
+	assert.Equal(t, 1, p.ActiveSessionCount())
+}
