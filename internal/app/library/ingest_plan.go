@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
@@ -123,5 +124,19 @@ func (s *ScanService) applyIngestPlan(ctx context.Context, mediaItemID shared.Me
 	if err := s.servingPlans.Upsert(ctx, plan); err != nil {
 		slog.WarnContext(ctx, "ingest plan: store failed",
 			slog.String("media_item.id", string(mediaItemID)), slog.Any("err", err))
+	}
+
+	// Consume the plan right away for the first-play fast path: a strategy
+	// that serves without a transcode (direct-play, remux-hls) needs the
+	// keyframe index - without it the copy rung stays disabled until the
+	// debounced backfill sweep (~10 min) or an inline budgeted on-demand walk
+	// at first request. Warming it here rides the same paced per-file loop,
+	// so a brand-new file is copy-eligible the moment the scan finishes.
+	// Best-effort like everything else in this hook.
+	if s.keyframeWarmer != nil && plan.Strategy != library.ServingStrategyTranscode {
+		if !s.keyframeWarmer(ctx, string(mediaItemID), path) {
+			slog.DebugContext(ctx, "ingest plan: keyframe warm-up declined or failed (backfill will catch up)",
+				slog.String("media_item.id", string(mediaItemID)))
+		}
 	}
 }

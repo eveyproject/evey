@@ -984,6 +984,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// worker) because its budget context caps the attempt at the fast-path cost
 	// — a file the fast-path can't index stays on the worker's slow path.
 	keyframeOnDemand := apptranscoding.NewKeyframeOnDemand(r.MediaStream, kfProber, slog.Default())
+	// First-play fast path (Phase 2 consumption): a fresh file whose serving
+	// plan says direct-play/remux gets its keyframe index warmed right at scan
+	// time through the bounded on-demand walker, so the copy rung is live on
+	// the very first request instead of after the debounced backfill.
+	libCmdSvc.WithIngestKeyframeWarmer(keyframeOnDemand.TryIndex)
 
 	if resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") != "off" {
 		kfOpts := apptranscoding.KeyframeBackfillOpts{}

@@ -79,6 +79,7 @@ type ScanService struct {
 	servingPlans         library.ServingPlanRepository
 	reindexer            mkv.Reindexer
 	ingestActivePlayback func() int
+	keyframeWarmer       func(ctx context.Context, mediaItemID, path string) bool
 
 	scanMu   sync.Mutex
 	scanning map[string]bool
@@ -150,6 +151,16 @@ func (s *ScanService) WithIngestPlanning(cfgRepo shared.ServerConfigRepository, 
 // nil (the default) keeps the fixed ingestItemPause gap. Chainable.
 func (s *ScanService) WithIngestActivePlayback(count func() int) *ScanService {
 	s.ingestActivePlayback = count
+	return s
+}
+
+// WithKeyframeWarmer arms the first-play fast path: right after a serving
+// plan is stored for a fresh file whose strategy serves without a transcode,
+// warm its keyframe index (the copy rung's prerequisite) instead of leaving
+// it to the debounced backfill or the first request's inline walk. The
+// warmer is expected to be cheap-bounded (KeyframeOnDemand.TryIndex).
+func (s *ScanService) WithKeyframeWarmer(warm func(ctx context.Context, mediaItemID, path string) bool) *ScanService {
+	s.keyframeWarmer = warm
 	return s
 }
 

@@ -430,3 +430,60 @@ func TestScanLibrary_UnchangedFile_NoIngestPlanCall(t *testing.T) {
 type assertError string
 
 func (e assertError) Error() string { return string(e) }
+
+// --- keyframe warmer (first-play fast path) ---
+
+func TestApplyIngestPlan_WarmsKeyframesForNonTranscodeStrategies(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		strategy library.ServingStrategy
+		want     bool
+	}{
+		{library.ServingStrategyDirectPlay, true},
+		{library.ServingStrategyRemuxHLS, true},
+		{library.ServingStrategyTranscode, false},
+	} {
+		svc, _, _, _ := newIngestTestScanService()
+		planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", tc.strategy, false)}}
+		store := newFakeServingPlanStore()
+		cfg := sharedfakes.NewFakeServerConfigRepository()
+		if err := cfg.Set(ctx, IngestServingPlanConfigKey, IngestServingPlanPlan); err != nil {
+			t.Fatal(err)
+		}
+		svc.WithIngestPlanning(cfg, planner, store, nil)
+
+		var warmedID, warmedPath string
+		svc.WithKeyframeWarmer(func(_ context.Context, id, path string) bool {
+			warmedID, warmedPath = id, path
+			return true
+		})
+
+		svc.applyIngestPlan(ctx, "mi-warm", "/movies/warm.mkv")
+
+		if tc.want {
+			if warmedID != "mi-warm" || warmedPath != "/movies/warm.mkv" {
+				t.Errorf("strategy %q: warmer not called with item/path (got %q %q)", tc.strategy, warmedID, warmedPath)
+			}
+		} else if warmedID != "" {
+			t.Errorf("strategy %q: warmer must NOT be called for a transcode plan", tc.strategy)
+		}
+	}
+}
+
+func TestApplyIngestPlan_NilWarmerIsSafe(t *testing.T) {
+	ctx := context.Background()
+	svc, _, _, _ := newIngestTestScanService()
+	planner := &fakeIngestPlanner{plans: []*library.ServingPlan{mkPlan("mse-generic", library.ServingStrategyDirectPlay, false)}}
+	store := newFakeServingPlanStore()
+	cfg := sharedfakes.NewFakeServerConfigRepository()
+	if err := cfg.Set(ctx, IngestServingPlanConfigKey, IngestServingPlanPlan); err != nil {
+		t.Fatal(err)
+	}
+	svc.WithIngestPlanning(cfg, planner, store, nil)
+
+	svc.applyIngestPlan(ctx, "mi-1", "/movies/a.mkv") // must not panic
+
+	if _, err := store.GetByMediaItemID(ctx, "mi-1"); err != nil {
+		t.Errorf("plan should still be stored without a warmer: %v", err)
+	}
+}

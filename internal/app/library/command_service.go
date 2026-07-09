@@ -126,6 +126,12 @@ func (s *CommandService) WithIngestActivePlayback(count func() int) {
 	s.scan.WithIngestActivePlayback(count)
 }
 
+// WithIngestKeyframeWarmer arms the scan-time keyframe warm-up consuming the
+// freshly stored serving plan (first-play fast path).
+func (s *CommandService) WithIngestKeyframeWarmer(warm func(ctx context.Context, mediaItemID, path string) bool) {
+	s.scan.WithKeyframeWarmer(warm)
+}
+
 func (s *CommandService) WithMusicScanner(sc TypedDirectoryScanner) {
 	s.scan.WithMusicScanner(sc)
 }
