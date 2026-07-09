@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
 	"log/slog"
 	"net"
 	"net/http"
@@ -1054,6 +1055,39 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// the very first request instead of after the debounced backfill.
 	libCmdSvc.WithIngestKeyframeWarmer(keyframeOnDemand.TryIndex)
 
+	// Built-in load test: synthetic viewers against this server's OWN stack,
+	// through the loopback (real routing, auth, middleware - not a shortcut).
+	// The gate reuses the same live-session counter as the calibration bench:
+	// it never runs over real viewers.
+	// cfg.Server.Port is the gRPC listener; the HTTP gateway the viewers must
+	// hit lives on Port+1 (the same derivation main.go uses for httpSrv).
+	loadTestBaseURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.Server.Port+1)
+	loadTestRunner := apploadtest.New(
+		&http.Client{Timeout: 30 * time.Second},
+		loadTestMediaListerFunc(func(ctx context.Context, limit int) ([]apploadtest.MediaCandidate, error) {
+			items, err := libQuerySvc.ListMediaItems(ctx, library.ListMediaItemsFilter{Limit: limit * 3})
+			if err != nil {
+				return nil, err
+			}
+			out := make([]apploadtest.MediaCandidate, 0, limit)
+			for _, it := range items {
+				if it == nil || it.File == nil || it.File.Duration.Milliseconds() < 120_000 {
+					continue // a viewer needs at least ~2 minutes to pace against
+				}
+				out = append(out, apploadtest.MediaCandidate{
+					ID:          string(it.ID),
+					DurationSec: int(it.File.Duration.Milliseconds() / 1000),
+				})
+				if len(out) >= limit {
+					break
+				}
+			}
+			return out, nil
+		}),
+		hlsVODRemover.ActiveSessionCount,
+		slog.Default(),
+	)
+
 	if resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") != "off" {
 		kfOpts := apptranscoding.KeyframeBackfillOpts{}
 		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill_batch", "EVEY_KEYFRAME_BACKFILL_BATCH"); v != "" {
@@ -1220,6 +1254,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// next scan. r.MediaItem satisfies appmaintenance.FileStateRefresher.
 		seekIndexFileState: r.MediaItem,
 		keyframeOnDemand:   keyframeOnDemand,
+		loadTestRunner:     loadTestRunner,
+		loadTestBaseURL:    loadTestBaseURL,
 		library: libraryDeps{
 			cmdSvc:            libCmdSvc,
 			querySvc:          libQuerySvc,
@@ -1718,4 +1754,11 @@ func (c *compositeTokenRevoker) Revoke(ctx context.Context, userID string) error
 		c.purgeStreams(userID)
 	}
 	return nil
+}
+
+// loadTestMediaListerFunc adapts a closure to apploadtest.MediaLister.
+type loadTestMediaListerFunc func(ctx context.Context, limit int) ([]apploadtest.MediaCandidate, error)
+
+func (f loadTestMediaListerFunc) ListLoadTestCandidates(ctx context.Context, limit int) ([]apploadtest.MediaCandidate, error) {
+	return f(ctx, limit)
 }

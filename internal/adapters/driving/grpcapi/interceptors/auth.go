@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	authpkg "github.com/evey-project/evey/internal/pkg/auth"
 	"github.com/evey-project/evey/internal/domain/user"
+	authpkg "github.com/evey-project/evey/internal/pkg/auth"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -31,7 +31,6 @@ type AuthInterceptor struct {
 func NewAuthInterceptor(tokenGen user.TokenGenerator) *AuthInterceptor {
 	return &AuthInterceptor{tokenGen: tokenGen, rbac: DefaultRBACConfig()}
 }
-
 
 func (i *AuthInterceptor) WithTranslator(t *eveyi18n.Translator) *AuthInterceptor {
 	i.translator = t

@@ -14,6 +14,7 @@ import (
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	appfeed "github.com/evey-project/evey/internal/app/feed"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmedia "github.com/evey-project/evey/internal/app/media"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
@@ -195,4 +196,8 @@ type appDeps struct {
 	// keyframeOnDemand fills a missing keyframe index inline at playback
 	// negotiation (bounded fast-path probe shared with the backfill worker).
 	keyframeOnDemand *apptranscoding.KeyframeOnDemand
+	// loadTestRunner drives the built-in capacity measurement (admin RPC);
+	// loadTestBaseURL is the loopback origin its synthetic viewers hit.
+	loadTestRunner  *apploadtest.Runner
+	loadTestBaseURL string
 }

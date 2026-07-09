@@ -21,12 +21,12 @@ func (s *fakeStartTranscodeStream) Send(p *eveyv1.TranscodeProgress) error {
 	s.sent = append(s.sent, p)
 	return nil
 }
-func (s *fakeStartTranscodeStream) Context() context.Context         { return s.ctx }
-func (s *fakeStartTranscodeStream) SetHeader(metadata.MD) error      { return nil }
-func (s *fakeStartTranscodeStream) SendHeader(metadata.MD) error     { return nil }
-func (s *fakeStartTranscodeStream) SetTrailer(metadata.MD)           {}
-func (s *fakeStartTranscodeStream) SendMsg(any) error                { return nil }
-func (s *fakeStartTranscodeStream) RecvMsg(any) error                { return nil }
+func (s *fakeStartTranscodeStream) Context() context.Context     { return s.ctx }
+func (s *fakeStartTranscodeStream) SetHeader(metadata.MD) error  { return nil }
+func (s *fakeStartTranscodeStream) SendHeader(metadata.MD) error { return nil }
+func (s *fakeStartTranscodeStream) SetTrailer(metadata.MD)       {}
+func (s *fakeStartTranscodeStream) SendMsg(any) error            { return nil }
+func (s *fakeStartTranscodeStream) RecvMsg(any) error            { return nil }
 
 func TestTranscodingStartTranscode_EmptyMediaID_InvalidArgument(t *testing.T) {
 	h, _, _, _ := newTestTranscodingHandler()

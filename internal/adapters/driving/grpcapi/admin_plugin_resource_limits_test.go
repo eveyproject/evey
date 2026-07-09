@@ -29,9 +29,11 @@ func (f *fakePluginResourceController) SetResourceLimits(memBytes int64, pidsMax
 	f.mem = int(memBytes / 1024 / 1024)
 	f.pids = pidsMax
 }
-func (f *fakePluginResourceController) SetDiskQuota(maxBytes int64) { f.disk = int(maxBytes / 1024 / 1024) }
-func (f *fakePluginResourceController) SetCPUNice(nice int)         { f.nice = nice }
-func (f *fakePluginResourceController) SetSandboxMode(mode string)  { f.sandbox = mode }
+func (f *fakePluginResourceController) SetDiskQuota(maxBytes int64) {
+	f.disk = int(maxBytes / 1024 / 1024)
+}
+func (f *fakePluginResourceController) SetCPUNice(nice int)        { f.nice = nice }
+func (f *fakePluginResourceController) SetSandboxMode(mode string) { f.sandbox = mode }
 
 // newResourceLimitsHandler returns a handler wired with a live fakePluginResourceController
 // and a fresh FakeServerConfigRepository.

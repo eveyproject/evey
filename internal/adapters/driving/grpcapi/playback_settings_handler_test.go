@@ -122,7 +122,7 @@ func TestPlaybackSettingsHandler_UpdatePersistsToRepo(t *testing.T) {
 	bwd := int32(5)
 
 	_, err := h.UpdatePlaybackSettings(context.Background(), &eveyv1.UpdatePlaybackSettingsRequest{
-		SkipForwardSeconds: &fwd,
+		SkipForwardSeconds:  &fwd,
 		SkipBackwardSeconds: &bwd,
 	})
 	require.NoError(t, err)

@@ -61,4 +61,3 @@ func TestTranscodeJobToProto_FullFieldsWithEnd(t *testing.T) {
 	require.NotNil(t, pb.CompletedAt)
 	assert.Equal(t, end.Unix(), pb.CompletedAt.AsTime().Unix())
 }
-

@@ -531,6 +531,11 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	}
 
 	setCORSHeaders(w, r, "")
+	// The ffmpeg pipeline family serves this master (its ladder may mix copy
+	// and transcode rungs - segments carry the precise value). Counterpart of
+	// the mkvgo tag in servePlanResourceData; lets the load test and a curl
+	// tell the serving machinery at a glance.
+	w.Header().Set("X-Evey-Served-By", "ffmpeg")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write([]byte(out))
@@ -630,6 +635,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	}
 
 	setCORSHeaders(w, r, "")
+	w.Header().Set("X-Evey-Served-By", "ffmpeg")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write([]byte(out))
@@ -891,6 +897,13 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	}
 
 	setCORSHeaders(w, r, "")
+	// Precise serving path per rung: the fingerprint knows whether this
+	// variant's bytes are a video copy (remux) or an encode.
+	servedBy := "transcode"
+	if variantIdx >= 0 && variantIdx < len(fp.Profiles) && fp.Profiles[variantIdx].Copy {
+		servedBy = "ffmpeg-copy"
+	}
+	w.Header().Set("X-Evey-Served-By", servedBy)
 	switch filepath.Ext(path) {
 	case ".ts":
 		w.Header().Set("Content-Type", "video/mp2t")

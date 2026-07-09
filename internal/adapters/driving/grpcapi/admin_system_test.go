@@ -108,6 +108,8 @@ type fakeVideoActiveReporter struct {
 	classes    []apptranscoding.LadderClass
 }
 
+func (f fakeCalibrationSnapshot) IsBenchmarking() bool { return false }
+
 func (f fakeVideoActiveReporter) Active() int                     { return f.active }
 func (f fakeVideoActiveReporter) Used() float64                   { return f.used }
 func (f fakeVideoActiveReporter) Budget() float64                 { return f.budget }

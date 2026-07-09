@@ -18,9 +18,9 @@ import (
 
 type shareHandler struct {
 	eveyv1.UnimplementedShareServiceServer
-	svc           *appmedia.ShareService
-	libQuery      *applibrary.QueryService
-	userAccess    *appuser.AccessService
+	svc        *appmedia.ShareService
+	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
 }
 
 func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateShareLinkRequest) (*eveyv1.CreateShareLinkResponse, error) {
@@ -170,7 +170,7 @@ func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.Valida
 		DurationMs: durationMs,
 		// Share links resolve to a public download (no auth), not a stream:
 		// the old /media/{id}/stream URL required a login the recipient lacks.
-		StreamUrl:  shareDownloadURL(req.Token),
+		StreamUrl: shareDownloadURL(req.Token),
 	}, nil
 }
 

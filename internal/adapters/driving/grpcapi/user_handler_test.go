@@ -84,7 +84,6 @@ func setupUserHandler() *testUserEnv {
 	}
 }
 
-
 func seedUser(t *testing.T, env *testUserEnv, u *user.User, password string) {
 	t.Helper()
 	hash, _ := env.hasher.Hash(password)

@@ -27,9 +27,9 @@ type IntroBackfiller interface {
 
 type adminIntroHandler struct {
 	eveyv1.UnimplementedAdminIntroServiceServer
-	cache     IntroCacheInvalidator
-	backfill  IntroBackfiller
-	backfillMu sync.Mutex
+	cache           IntroCacheInvalidator
+	backfill        IntroBackfiller
+	backfillMu      sync.Mutex
 	backfillRunning bool
 }
 

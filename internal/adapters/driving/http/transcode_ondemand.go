@@ -172,6 +172,11 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	setCORSHeaders(w, r, "")
+	// Observable serving path: this response came straight from mkvgo's
+	// on-demand packager - no ffmpeg, no encode slot. The built-in load test
+	// keys its "mkvgo" scenario on this header, and an operator (or a curl)
+	// can verify at a glance which machinery served any playback.
+	w.Header().Set("X-Evey-Served-By", "mkvgo")
 	w.Header().Set("Content-Type", contentType)
 	if strings.HasSuffix(name, ".m3u8") || strings.HasSuffix(name, ".mpd") {
 		w.Header().Set("Cache-Control", "no-cache")

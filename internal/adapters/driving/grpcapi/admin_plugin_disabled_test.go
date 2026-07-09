@@ -28,10 +28,22 @@ func TestAdminPlugin_DisabledFlag_BlocksMutations(t *testing.T) {
 		{"UninstallPlugin", func() error { _, err := h.UninstallPlugin(ctx, &eveyv1.UninstallPluginRequest{Id: "x"}); return err }},
 		{"EnablePlugin", func() error { _, err := h.EnablePlugin(ctx, &eveyv1.EnablePluginRequest{Id: "x"}); return err }},
 		{"DisablePlugin", func() error { _, err := h.DisablePlugin(ctx, &eveyv1.DisablePluginRequest{Id: "x"}); return err }},
-		{"AddPluginRuntime", func() error { _, err := h.AddPluginRuntime(ctx, &eveyv1.AddPluginRuntimeRequest{Name: "x"}); return err }},
-		{"RemovePluginRuntime", func() error { _, err := h.RemovePluginRuntime(ctx, &eveyv1.RemovePluginRuntimeRequest{Id: "x"}); return err }},
-		{"UpdatePluginConfig", func() error { _, err := h.UpdatePluginConfig(ctx, &eveyv1.UpdatePluginConfigRequest{PluginId: "x"}); return err }},
-		{"IssuePluginToken", func() error { _, err := h.IssuePluginToken(ctx, &eveyv1.IssuePluginTokenRequest{PluginId: "x"}); return err }},
+		{"AddPluginRuntime", func() error {
+			_, err := h.AddPluginRuntime(ctx, &eveyv1.AddPluginRuntimeRequest{Name: "x"})
+			return err
+		}},
+		{"RemovePluginRuntime", func() error {
+			_, err := h.RemovePluginRuntime(ctx, &eveyv1.RemovePluginRuntimeRequest{Id: "x"})
+			return err
+		}},
+		{"UpdatePluginConfig", func() error {
+			_, err := h.UpdatePluginConfig(ctx, &eveyv1.UpdatePluginConfigRequest{PluginId: "x"})
+			return err
+		}},
+		{"IssuePluginToken", func() error {
+			_, err := h.IssuePluginToken(ctx, &eveyv1.IssuePluginTokenRequest{PluginId: "x"})
+			return err
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

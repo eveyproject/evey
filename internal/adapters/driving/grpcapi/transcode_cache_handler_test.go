@@ -8,8 +8,8 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/transcoding"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	tcfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

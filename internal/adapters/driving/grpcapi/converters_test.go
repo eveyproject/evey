@@ -96,9 +96,9 @@ func TestTrailerToProto(t *testing.T) {
 func TestRatingToProto(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		source   string
-		value    float64
-		wantMax  float64
+		source  string
+		value   float64
+		wantMax float64
 	}{
 		{"imdb", 7.5, 10},
 		{"tmdb", 8.0, 10},

@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )

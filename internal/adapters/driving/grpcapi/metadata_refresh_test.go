@@ -39,12 +39,12 @@ func (s *refreshStream) Send(m *eveyv1.RefreshMetadataProgress) error {
 }
 
 // grpc.ServerStream methods — no-op stubs sufficient for handler tests.
-func (s *refreshStream) Context() context.Context          { return s.ctx }
-func (s *refreshStream) SetHeader(grpcmeta.MD) error       { return nil }
-func (s *refreshStream) SendHeader(grpcmeta.MD) error      { return nil }
-func (s *refreshStream) SetTrailer(grpcmeta.MD)            {}
-func (s *refreshStream) SendMsg(any) error                 { return nil }
-func (s *refreshStream) RecvMsg(any) error                 { return nil }
+func (s *refreshStream) Context() context.Context     { return s.ctx }
+func (s *refreshStream) SetHeader(grpcmeta.MD) error  { return nil }
+func (s *refreshStream) SendHeader(grpcmeta.MD) error { return nil }
+func (s *refreshStream) SetTrailer(grpcmeta.MD)       {}
+func (s *refreshStream) SendMsg(any) error            { return nil }
+func (s *refreshStream) RecvMsg(any) error            { return nil }
 
 // compile-time check: refreshStream satisfies the stream interface.
 var _ grpc.ServerStreamingServer[eveyv1.RefreshMetadataProgress] = (*refreshStream)(nil)

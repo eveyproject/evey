@@ -54,4 +54,3 @@ func TestPluginToProto_FullFields(t *testing.T) {
 	assert.Equal(t, "abc", pb.SourceHash)
 	assert.Equal(t, installed.Unix(), pb.InstalledAt.AsTime().Unix())
 }
-

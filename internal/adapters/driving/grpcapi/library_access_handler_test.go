@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appuser "github.com/evey-project/evey/internal/app/user"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"

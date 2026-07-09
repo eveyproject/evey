@@ -20,7 +20,7 @@ func (s *fakeExtractTrackStream) Send(c *eveyv1.ExtractDataChunk) error {
 	s.sent = append(s.sent, c)
 	return nil
 }
-func (s *fakeExtractTrackStream) Context() context.Context { return s.ctx }
+func (s *fakeExtractTrackStream) Context() context.Context     { return s.ctx }
 func (s *fakeExtractTrackStream) SetHeader(metadata.MD) error  { return nil }
 func (s *fakeExtractTrackStream) SendHeader(metadata.MD) error { return nil }
 func (s *fakeExtractTrackStream) SetTrailer(metadata.MD)       {}
@@ -37,12 +37,12 @@ func (s *fakeMuxStream) Send(p *eveyv1.MuxProgress) error {
 	s.sent = append(s.sent, p)
 	return nil
 }
-func (s *fakeMuxStream) Context() context.Context         { return s.ctx }
-func (s *fakeMuxStream) SetHeader(metadata.MD) error      { return nil }
-func (s *fakeMuxStream) SendHeader(metadata.MD) error     { return nil }
-func (s *fakeMuxStream) SetTrailer(metadata.MD)           {}
-func (s *fakeMuxStream) SendMsg(any) error                { return nil }
-func (s *fakeMuxStream) RecvMsg(any) error                { return nil }
+func (s *fakeMuxStream) Context() context.Context     { return s.ctx }
+func (s *fakeMuxStream) SetHeader(metadata.MD) error  { return nil }
+func (s *fakeMuxStream) SendHeader(metadata.MD) error { return nil }
+func (s *fakeMuxStream) SetTrailer(metadata.MD)       {}
+func (s *fakeMuxStream) SendMsg(any) error            { return nil }
+func (s *fakeMuxStream) RecvMsg(any) error            { return nil }
 
 type fakeDemuxStream struct {
 	grpc.ServerStream
@@ -54,12 +54,12 @@ func (s *fakeDemuxStream) Send(p *eveyv1.DemuxProgress) error {
 	s.sent = append(s.sent, p)
 	return nil
 }
-func (s *fakeDemuxStream) Context() context.Context         { return s.ctx }
-func (s *fakeDemuxStream) SetHeader(metadata.MD) error      { return nil }
-func (s *fakeDemuxStream) SendHeader(metadata.MD) error     { return nil }
-func (s *fakeDemuxStream) SetTrailer(metadata.MD)           {}
-func (s *fakeDemuxStream) SendMsg(any) error                { return nil }
-func (s *fakeDemuxStream) RecvMsg(any) error                { return nil }
+func (s *fakeDemuxStream) Context() context.Context     { return s.ctx }
+func (s *fakeDemuxStream) SetHeader(metadata.MD) error  { return nil }
+func (s *fakeDemuxStream) SendHeader(metadata.MD) error { return nil }
+func (s *fakeDemuxStream) SetTrailer(metadata.MD)       {}
+func (s *fakeDemuxStream) SendMsg(any) error            { return nil }
+func (s *fakeDemuxStream) RecvMsg(any) error            { return nil }
 
 func TestMKVExtractTrackStreamSuccess(t *testing.T) {
 	h, _, _ := newTestMKVHandler()

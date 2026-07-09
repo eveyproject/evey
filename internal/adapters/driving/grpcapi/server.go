@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"fmt"
+	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
 	"log/slog"
 	"net"
 	"time"
@@ -111,6 +112,10 @@ type GRPCServerDeps struct {
 	CalibrationSvc *apptranscoding.CalibrationService
 	// VideoLimiter reports live video-encode session usage. Optional.
 	VideoLimiter *apptranscoding.VideoSessionLimiter
+	// LoadTest runs the built-in capacity measurement. Optional (nil =
+	// Unimplemented). LoadTestBaseURL is the loopback origin viewers hit.
+	LoadTest        *apploadtest.Runner
+	LoadTestBaseURL string
 
 	// StreamMeter exposes the cumulative streaming bytes served (HLS/direct/
 	// download) for the dashboard's measured bandwidth. Optional.
@@ -169,22 +174,24 @@ func (s *GRPCServer) RegisterServices() {
 		srvCtx = context.Background()
 	}
 	eveyv1.RegisterAdminSystemServiceServer(s.server, &adminSystemHandler{
-		userCmd:        d.UserAuth,
-		userQuery:      d.UserQuery,
-		transcodingSvc: d.Transcoding,
-		activitySvc:    d.ActivityQuery,
-		hlsManager:     hlsMgr,
-		libLister:      d.LibQuery,
-		streamMeter:    d.StreamMeter,
-		version:        d.Version,
-		calibrationSvc: calibrationProviderOrNil(d.CalibrationSvc),
-		videoLimiter:   videoLimiterOrNil(d.VideoLimiter),
-		startTime:      s.startTime,
-		ffmpegPath:     s.ffmpegPath,
-		translator:     d.Translator,
-		smtpConfigured: d.SMTPConfigured,
-		serverCfgSvc:   d.ServerCfgSvc,
-		restartFn:      d.RestartFn,
+		userCmd:         d.UserAuth,
+		userQuery:       d.UserQuery,
+		transcodingSvc:  d.Transcoding,
+		activitySvc:     d.ActivityQuery,
+		hlsManager:      hlsMgr,
+		libLister:       d.LibQuery,
+		streamMeter:     d.StreamMeter,
+		version:         d.Version,
+		calibrationSvc:  calibrationProviderOrNil(d.CalibrationSvc),
+		videoLimiter:    videoLimiterOrNil(d.VideoLimiter),
+		startTime:       s.startTime,
+		ffmpegPath:      s.ffmpegPath,
+		translator:      d.Translator,
+		smtpConfigured:  d.SMTPConfigured,
+		serverCfgSvc:    d.ServerCfgSvc,
+		restartFn:       d.RestartFn,
+		loadTest:        loadTestOrNil(d.LoadTest),
+		loadTestBaseURL: d.LoadTestBaseURL,
 	})
 	if d.Presence != nil {
 		eveyv1.RegisterPresenceServiceServer(s.server, &presenceHandler{tracker: d.Presence})
@@ -302,4 +309,13 @@ func videoLimiterOrNil(l *apptranscoding.VideoSessionLimiter) videoSessionActive
 		return nil
 	}
 	return l
+}
+
+// loadTestOrNil keeps a TRUE-nil interface when no runner is wired, so the
+// handler's nil-check answers Unimplemented instead of panicking.
+func loadTestOrNil(r *apploadtest.Runner) loadTestRunner {
+	if r == nil {
+		return nil
+	}
+	return r
 }

@@ -214,9 +214,9 @@ func (h *metadataHandler) GetMetadataProviders(ctx context.Context, _ *eveyv1.Ge
 	resp := &eveyv1.GetMetadataProvidersResponse{}
 	for i, name := range h.query.ListProviders() {
 		resp.Providers = append(resp.Providers, &eveyv1.MetadataProvider{
-			Id:      name,
-			Name:    name,
-			Enabled: true,
+			Id:       name,
+			Name:     name,
+			Enabled:  true,
 			Priority: int32(i + 1),
 		})
 	}

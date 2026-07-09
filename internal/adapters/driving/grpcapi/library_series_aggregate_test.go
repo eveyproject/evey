@@ -27,8 +27,10 @@ import (
 // from library_public_test.go.
 
 // seedSeries seeds a show hierarchy:
-//   series "si-show" (lib-1) → season "si-s1" → episode "si-ep1" (30 min)
-//                                               → episode "si-ep2" (30 min)
+//
+//	series "si-show" (lib-1) → season "si-s1" → episode "si-ep1" (30 min)
+//	                                            → episode "si-ep2" (30 min)
+//
 // so EpisodeCount=2, SeasonCount=1, TotalDurationMs=3_600_000.
 func seedSeries(mediaQuery interface {
 	Seed(*library.MediaItem)
@@ -265,4 +267,3 @@ func TestGetSeriesAggregate_EmptySeries(t *testing.T) {
 	assert.Zero(t, resp.SeasonCount)
 	assert.Zero(t, resp.TotalDurationMs)
 }
-

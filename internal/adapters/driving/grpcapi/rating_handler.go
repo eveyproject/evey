@@ -105,7 +105,6 @@ func (h *ratingHandler) GetMyThumbRating(ctx context.Context, req *eveyv1.GetMyT
 	return &eveyv1.GetMyThumbRatingResponse{Value: int32(thumbRating.Value)}, nil
 }
 
-
 func (h *ratingHandler) GetRatingAggregate(ctx context.Context, req *eveyv1.GetRatingAggregateRequest) (*eveyv1.GetRatingAggregateResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.rating.GetRatingAggregate")
 	defer span.End()

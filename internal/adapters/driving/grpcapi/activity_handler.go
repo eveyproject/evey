@@ -379,10 +379,10 @@ func (h *activityHandler) GetAnalytics(ctx context.Context, _ *eveyv1.GetAnalyti
 	}
 	for _, entry := range data.RecentActivity {
 		resp.RecentActivity = append(resp.RecentActivity, &eveyv1.AnalyticsRecentActivity{
-			UserId:    string(entry.UserID),
-			Username:  entry.Username,
+			UserId:     string(entry.UserID),
+			Username:   entry.Username,
 			MediaTitle: entry.MediaTitle,
-			PlayedAt:  timestamppb.New(entry.PlayedAt),
+			PlayedAt:   timestamppb.New(entry.PlayedAt),
 		})
 	}
 	for _, d := range data.DailyPlays {

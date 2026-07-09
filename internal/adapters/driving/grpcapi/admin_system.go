@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
 	"log/slog"
 	"math"
 	"runtime"
@@ -31,6 +32,9 @@ import (
 // CalibrationService type. Satisfied by *apptranscoding.CalibrationService.
 type calibrationSnapshotProvider interface {
 	Current() domaintranscoding.EncodeCapability
+	// IsBenchmarking gates the load test: a calibration bench and a load test
+	// running together would measure each other's contention, not the host.
+	IsBenchmarking() bool
 }
 
 // videoSessionActiveReporter is the narrow port GetSystemInfo needs to report
@@ -86,10 +90,23 @@ type adminSystemHandler struct {
 	// active=0.
 	videoLimiter videoSessionActiveReporter
 
+	// loadTest runs the built-in capacity measurement (nil = RPC answers
+	// Unimplemented). loadTestBaseURL is the server's own loopback origin the
+	// synthetic viewers hit.
+	loadTest        loadTestRunner
+	loadTestBaseURL string
+
 	// last meter sample, to derive the served rate between dashboard polls.
 	meterMu        sync.Mutex
 	meterLastTotal int64
 	meterLastAt    time.Time
+}
+
+// loadTestRunner is the narrow port the three load-test RPCs need.
+type loadTestRunner interface {
+	Start(ctx context.Context, cfg apploadtest.Config) error
+	Status() apploadtest.Status
+	Cancel()
 }
 
 // streamingRate derives the measured streaming bits/s since the previous
