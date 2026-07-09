@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -133,108 +134,253 @@ func ResolveVideoSessionLimit(ctx context.Context, cfgRepo shared.ServerConfigRe
 	return n
 }
 
+// LadderClass identifies which bench "Ladder" family (see
+// transcoding.BenchRungSample.Ladder) a session's video encode belongs to.
+// It is the unit both the cost model prices and the session limiter bills:
+// each class maps to exactly one ResourcePool (see LadderClass.Pool), and a
+// session's cost is looked up in ITS class's own table - a hw session is
+// never priced (or billed) against the software table and vice versa.
+type LadderClass string
+
+const (
+	LadderClassSoftware    LadderClass = "software"
+	LadderClassSoftwareHDR LadderClass = "software-hdr"
+	LadderClassSoftwareAV1 LadderClass = "software-av1"
+	LadderClassHW          LadderClass = "hw"
+)
+
+// ResourcePool is the physical resource a LadderClass's encode consumes.
+// Software ladders (plain, HDR-tonemap, AV1) all burn a CPU core running
+// libx264/libsvtav1 and share PoolCPU; the "hw" ladder runs on the
+// accelerator (NVENC/QSV/VAAPI) instead and gets its own PoolGPU - the two
+// are independent budgets because a GPU encode costs almost no CPU, and a
+// box with a GPU sitting idle while software streams queue up is exactly
+// the under-utilisation this pooling fixes.
+type ResourcePool string
+
+const (
+	PoolCPU ResourcePool = "cpu"
+	PoolGPU ResourcePool = "gpu"
+)
+
+// Pool returns the resource pool c's encodes are billed against.
+func (c LadderClass) Pool() ResourcePool {
+	if c == LadderClassHW {
+		return PoolGPU
+	}
+	return PoolCPU
+}
+
+// LadderClassOf derives the ladder class a DecisionFingerprint's encode will
+// run as - a pure function of the fingerprint, no I/O or lookup. HWAccel set
+// wins unconditionally: a HW-routed decision never runs a software encoder
+// for its video, whatever VideoCodec/HDRTonemap say. Otherwise the decision
+// follows the same precedence the boot benchmark uses to pick a ladder: AV1
+// output first (it gets its own, far heavier, software ceiling), then HDR
+// tonemap, then plain software.
+func LadderClassOf(fp DecisionFingerprint) LadderClass {
+	if fp.HWAccel != "" {
+		return LadderClassHW
+	}
+	if strings.EqualFold(strings.TrimSpace(fp.VideoCodec), "av1") {
+		return LadderClassSoftwareAV1
+	}
+	if fp.HDRTonemap {
+		return LadderClassSoftwareHDR
+	}
+	return LadderClassSoftware
+}
+
 // RungFit is one resolution rung's admission cost, exposed for the admin
-// capacity panel: the fraction of the host's realtime software-encode budget
-// a stream topping out at Height consumes, and how many such streams the
-// budget fits.
+// capacity panel: the fraction of the host's realtime encode budget (within
+// its ladder class's resource pool) a stream topping out at Height consumes,
+// and how many such streams the budget fits.
 type RungFit struct {
 	Height     int
 	Cost       float64
 	MaxStreams int
 }
 
-// costRung is a single usable software bench rung, sorted ascending by
-// Height inside VideoCostModel.rungs.
+// costRung is a single usable bench rung, sorted ascending by Height inside
+// VideoCostModel.tables[class].
 type costRung struct {
 	Height int
 	Cost   float64
 }
 
 // VideoCostModel translates the resolution a session tops out at into the
-// fraction of the host's realtime software-encode capacity it costs, derived
-// from the boot benchmark's "software" rungs. A rung's cost is
-// RequiredFPS/FPS - the same ratio AutoVideoSessionCapacity uses, but kept
-// PER RUNG instead of collapsed to the single tallest passing one, so two
-// sessions at cheaper rungs (e.g. 1440p + 1080p, cost 0.530 + 0.431 = 0.961)
-// can share the machine instead of each being billed as "a full stream" the
-// old single-counter model charged. See VideoSessionLimiter, which spends
-// this cost against a budget (default 1.0 = one whole host) instead of just
-// counting streams.
+// fraction of its ladder class's resource-pool budget it costs, derived from
+// the boot benchmark's rungs. A rung's cost is RequiredFPS/FPS - the same
+// ratio AutoVideoSessionCapacity uses, but kept PER RUNG instead of
+// collapsed to the single tallest passing one, so two sessions at cheaper
+// rungs (e.g. 1440p + 1080p, cost 0.530 + 0.431 = 0.961) can share the
+// machine instead of each being billed as "a full stream" the old
+// single-counter model charged.
+//
+// Unlike the software ladder, a HW rung's cost is NOT monotonic in height -
+// a measured box can show 720p hw more expensive than 1080p hw (VPP/decode
+// overhead does not scale the way software encode time does) - so nothing
+// here assumes taller = pricier within a class; CheapestRung exists
+// specifically because "shortest rung" would be the wrong answer for hw.
+//
+// See VideoSessionLimiter, which spends this cost against a PER-POOL budget
+// (default 1.0 = one whole pool) instead of just counting streams.
 type VideoCostModel struct {
-	// rungs holds only "software"-ladder, Passing rungs with FPS > 0, sorted
-	// ascending by Height. Never empty on a non-nil *VideoCostModel -
-	// NewVideoCostModel returns nil instead of an empty model.
-	rungs []costRung
+	// tables holds, per ladder class, only that class's Passing rungs with
+	// FPS > 0, sorted ascending by Height. A class absent from tables has no
+	// usable evidence at all (never an empty slice - see NewVideoCostModel).
+	tables map[LadderClass][]costRung
 }
 
 // NewVideoCostModel builds a VideoCostModel from the boot benchmark's rungs,
-// keeping only Ladder=="software" AND Passing==true samples with FPS > 0 (a
-// non-positive FPS is bogus evidence, not a real measurement, and would
-// divide-by-zero or invert the cost). Returns nil when no rung qualifies -
-// callers must treat a nil model as "no cost evidence", not "zero cost" (see
-// CostForHeight's fail-safe).
+// keeping every Passing==true sample with FPS > 0 (a non-positive FPS is
+// bogus evidence, not a real measurement, and would divide-by-zero or invert
+// the cost), grouped into one table per LadderClass(sample.Ladder). Returns
+// nil when NO sample of ANY class qualifies - callers must treat a nil model
+// as "no cost evidence anywhere", not "zero cost" (see CostFor's fail-safe).
+//
+// A server with no hw bench samples simply never gets a LadderClassHW table
+// - CostFor(LadderClassHW, h) then falls back to the software table exactly
+// as it would have priced a "hw" session before this type existed, so a
+// software-only box's behaviour is byte-identical to today.
 func NewVideoCostModel(samples []transcoding.BenchRungSample) *VideoCostModel {
-	var rungs []costRung
+	tables := make(map[LadderClass][]costRung)
 	for _, s := range samples {
-		if s.Ladder != "software" || !s.Passing || s.FPS <= 0 {
+		if !s.Passing || s.FPS <= 0 {
 			continue
 		}
-		rungs = append(rungs, costRung{Height: s.Height, Cost: s.RequiredFPS / s.FPS})
+		class := LadderClass(s.Ladder)
+		tables[class] = append(tables[class], costRung{Height: s.Height, Cost: s.RequiredFPS / s.FPS})
 	}
-	if len(rungs) == 0 {
+	if len(tables) == 0 {
 		return nil
 	}
-	sort.Slice(rungs, func(i, j int) bool { return rungs[i].Height < rungs[j].Height })
-	return &VideoCostModel{rungs: rungs}
+	for class, rungs := range tables {
+		sort.Slice(rungs, func(i, j int) bool { return rungs[i].Height < rungs[j].Height })
+		tables[class] = rungs
+	}
+	return &VideoCostModel{tables: tables}
 }
 
-// CostForHeight returns the fraction of the host's realtime software-encode
-// capacity a session topping out at height h costs: the cost of the
-// SMALLEST calibrated rung whose Height >= h (the rung that actually bounds
-// what ffmpeg has to sustain for this output), or the tallest rung's cost
-// when h exceeds every calibrated rung (extrapolating past what was benched
-// would be a guess - the tallest measured cost is the honest answer).
+// CostFor returns the fraction of class's resource-pool budget a session in
+// that class, topping out at height h, costs: the cost of the SMALLEST
+// calibrated rung in class's table whose Height >= h (the rung that
+// actually bounds what ffmpeg has to sustain for this output), or the
+// tallest rung's cost when h exceeds every calibrated rung in the table
+// (extrapolating past what was benched would be a guess - the tallest
+// measured cost is the honest answer).
 //
-// A nil receiver or an empty model returns 1.0 - the fail-safe "this stream
-// fills the whole machine" answer used when there is no evidence to size
-// anything smaller, matching VideoCostModel's role as an optional refinement
-// layered on top of the always-safe per-stream counter.
-func (m *VideoCostModel) CostForHeight(h int) float64 {
-	if m == nil || len(m.rungs) == 0 {
+// class absent from the model (no usable bench evidence for it, e.g. a
+// software-only box asked to price LadderClassHW) falls back to the
+// software table; if software itself has no table either, returns 1.0 - the
+// fail-safe "this stream fills the whole pool" answer used when there is no
+// evidence to size anything smaller. A nil receiver also returns 1.0.
+func (m *VideoCostModel) CostFor(class LadderClass, h int) float64 {
+	if m == nil {
 		return 1.0
 	}
-	for _, r := range m.rungs {
+	rungs, ok := m.tables[class]
+	if !ok || len(rungs) == 0 {
+		if class != LadderClassSoftware {
+			return m.CostFor(LadderClassSoftware, h)
+		}
+		return 1.0
+	}
+	for _, r := range rungs {
 		if r.Height >= h {
 			return r.Cost
 		}
 	}
-	return m.rungs[len(m.rungs)-1].Cost
+	return rungs[len(rungs)-1].Cost
 }
 
-// MaxStreamsAt returns floor(1/CostForHeight(h)), never less than 1 - how
-// many concurrent streams topping out at height h fit inside one whole host
-// budget. Purely informational (the admin panel's "N streams at this
-// resolution" estimate); the limiter itself sums fractional cost rather than
-// pre-computing this per admission.
-func (m *VideoCostModel) MaxStreamsAt(h int) int {
-	cost := m.CostForHeight(h)
+// CostForHeight is CostFor(LadderClassSoftware, h) - kept for callers that
+// only ever dealt with the software ladder before ladder classes existed.
+func (m *VideoCostModel) CostForHeight(h int) float64 {
+	return m.CostFor(LadderClassSoftware, h)
+}
+
+// CheapestRung returns the rung of class with the LOWEST cost - not the
+// shortest rung, deliberately: hw costs are not monotonic in height (see the
+// VideoCostModel doc), so "steer to the smallest resolution" can recommend a
+// MORE expensive rung than a taller one. This is the answer a demotion path
+// should use to pick where to land a session that no longer fits at its
+// requested height. ok=false when class has no usable table in this model -
+// no fallback to software here (a caller demoting within a specific class,
+// e.g. hw, wants that class's own cheapest rung or nothing).
+func (m *VideoCostModel) CheapestRung(class LadderClass) (height int, cost float64, ok bool) {
+	if m == nil {
+		return 0, 0, false
+	}
+	rungs, exists := m.tables[class]
+	if !exists || len(rungs) == 0 {
+		return 0, 0, false
+	}
+	best := rungs[0]
+	for _, r := range rungs[1:] {
+		if r.Cost < best.Cost {
+			best = r
+		}
+	}
+	return best.Height, best.Cost, true
+}
+
+// maxStreamsForCost returns floor(1/cost), never less than 1 - how many
+// concurrent streams at that cost fit inside one whole pool budget.
+func maxStreamsForCost(cost float64) int {
 	if cost <= 0 {
 		return 1
 	}
 	return max(int(math.Floor(1.0/cost)), 1)
 }
 
-// Rungs returns every calibrated rung's cost + derived MaxStreamsAt, sorted
-// ascending by Height, for the admin capacity panel. Empty (never nil) on a
-// nil receiver.
-func (m *VideoCostModel) Rungs() []RungFit {
+// MaxStreamsAt returns floor(1/CostForHeight(h)), never less than 1 - how
+// many concurrent software-ladder streams topping out at height h fit inside
+// one whole host budget. Purely informational (the admin panel's "N streams
+// at this resolution" estimate); the limiter itself sums fractional cost
+// rather than pre-computing this per admission.
+func (m *VideoCostModel) MaxStreamsAt(h int) int {
+	return maxStreamsForCost(m.CostForHeight(h))
+}
+
+// RungsFor returns every calibrated rung's cost + derived MaxStreamsAt for
+// class, sorted ascending by Height, for the admin capacity panel. Empty
+// (never nil) on a nil receiver or a class with no table.
+func (m *VideoCostModel) RungsFor(class LadderClass) []RungFit {
 	if m == nil {
 		return []RungFit{}
 	}
-	out := make([]RungFit, 0, len(m.rungs))
-	for _, r := range m.rungs {
-		out = append(out, RungFit{Height: r.Height, Cost: r.Cost, MaxStreams: m.MaxStreamsAt(r.Height)})
+	rungs, ok := m.tables[class]
+	if !ok {
+		return []RungFit{}
 	}
+	out := make([]RungFit, 0, len(rungs))
+	for _, r := range rungs {
+		out = append(out, RungFit{Height: r.Height, Cost: r.Cost, MaxStreams: maxStreamsForCost(r.Cost)})
+	}
+	return out
+}
+
+// Rungs is RungsFor(LadderClassSoftware) - kept for callers (and the admin
+// panel) that only ever dealt with the software ladder before ladder classes
+// existed.
+func (m *VideoCostModel) Rungs() []RungFit {
+	return m.RungsFor(LadderClassSoftware)
+}
+
+// Classes returns every ladder class with a usable cost table, for the admin
+// panel to discover which resource pools have evidence at all. A box with no
+// hw bench samples reports only LadderClassSoftware (plus software-hdr/av1 if
+// benched) - never LadderClassHW.
+func (m *VideoCostModel) Classes() []LadderClass {
+	if m == nil {
+		return nil
+	}
+	out := make([]LadderClass, 0, len(m.tables))
+	for class := range m.tables {
+		out = append(out, class)
+	}
+	slices.Sort(out)
 	return out
 }
 

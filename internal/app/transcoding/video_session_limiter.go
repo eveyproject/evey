@@ -41,49 +41,63 @@ var ErrVideoCapacityExhausted = errors.New("transcoding: max video transcode ses
 // capacity" contract.
 //
 // Optionally, WithCostModel wires a VideoCostModel: admission then ALSO
-// spends the new stream's fractional cost (see VideoCostModel.CostForHeight)
-// against a budget (default 1.0 = one whole host), on top of the SetLimit
-// counter cap - both gates must pass. Two cheap-enough streams (e.g. 1440p +
-// 1080p, cost 0.961 combined) can then share the machine instead of each
-// being billed as a full stream, the gap the plain counter cannot express.
-// With no cost model wired (the default), admission is purely by counter -
-// byte-identical to the pre-cost-model behaviour.
+// spends the new stream's fractional cost (see VideoCostModel.CostFor)
+// against a PER-POOL budget (default 1.0 = one whole pool), on top of the
+// SetLimit counter cap - both gates must pass. A stream's pool is derived
+// from its LadderClass (LadderClass.Pool): every software ladder
+// (plain/HDR/AV1) shares PoolCPU, "hw" gets its own PoolGPU, so a GPU encode
+// (NVENC/QSV/VAAPI - negligible CPU cost) never competes with software
+// encoders for the same budget and vice versa. Two cheap-enough streams in
+// the SAME pool (e.g. 1440p + 1080p software, cost 0.961 combined) can share
+// it instead of each being billed as a full stream, the gap the plain
+// counter cannot express. With no cost model wired (the default), admission
+// is purely by counter - byte-identical to the pre-cost-model behaviour, and
+// to the pre-pool single-budget behaviour on a box with no hw bench samples
+// (CostFor falls back to the software table for any class it has no
+// evidence for).
 type VideoSessionLimiter struct {
 	mu    sync.Mutex
 	limit int
 	// refs counts live encoders per decision hash. len(refs) is the number of
 	// distinct encoded STREAMS, which is what the limit caps.
 	refs map[string]int
+	// classes holds the LadderClass reserved by each key's FIRST TryAcquire -
+	// read back by Release to know which pool to credit. Only meaningful for
+	// keys present in costs (i.e. a cost model was wired at reservation time).
+	classes map[string]LadderClass
 	// costs holds the fractional cost reserved per decision hash by the
 	// stream's FIRST TryAcquire (0 when no cost model is wired, or the key's
 	// stream never reserved one). Read back by Release to give the exact
-	// amount back to used, regardless of what CostForHeight would return NOW
-	// (a live calibration change must never corrupt an in-flight reservation).
+	// amount back to used, regardless of what CostFor would return NOW (a
+	// live calibration change must never corrupt an in-flight reservation).
 	costs map[string]float64
-	// used is the sum of costs currently reserved - the running total spent
-	// against budget.
-	used float64
-	// budget is the fraction of "one whole host" new streams may spend,
-	// enforced only when costModel is non-nil. Defaults to 1.0 in
-	// NewVideoSessionLimiter; SetBudget clamps non-positive input back to 1.0.
-	budget float64
+	// used is the sum of costs currently reserved, PER POOL - the running
+	// total spent against each pool's budget.
+	used map[ResourcePool]float64
+	// budgets is the fraction of "one whole pool" new streams may spend in
+	// each pool, enforced only when costModel is non-nil. Defaults to 1.0 for
+	// both PoolCPU and PoolGPU in NewVideoSessionLimiter; SetBudget clamps
+	// non-positive input back to 1.0 for the pool it targets.
+	budgets map[ResourcePool]float64
 	// costModel is nil until WithCostModel wires one - admission is then
 	// purely counter-based, matching pre-cost-model behaviour exactly.
 	costModel *VideoCostModel
 }
 
 // NewVideoSessionLimiter creates a limiter with the given initial limit (0 =
-// unlimited) and the default budget (1.0 = one whole host, only enforced
-// once a cost model is wired via WithCostModel).
+// unlimited) and the default budget (1.0 = one whole pool, for both PoolCPU
+// and PoolGPU, only enforced once a cost model is wired via WithCostModel).
 func NewVideoSessionLimiter(limit int) *VideoSessionLimiter {
 	if limit < 0 {
 		limit = 0
 	}
 	return &VideoSessionLimiter{
-		limit:  limit,
-		refs:   make(map[string]int),
-		costs:  make(map[string]float64),
-		budget: 1.0,
+		limit:   limit,
+		refs:    make(map[string]int),
+		classes: make(map[string]LadderClass),
+		costs:   make(map[string]float64),
+		used:    make(map[ResourcePool]float64),
+		budgets: map[ResourcePool]float64{PoolCPU: 1.0, PoolGPU: 1.0},
 	}
 }
 
@@ -97,37 +111,101 @@ func (l *VideoSessionLimiter) WithCostModel(m *VideoCostModel) *VideoSessionLimi
 	return l
 }
 
-// SetBudget sets the fraction of "one whole host" new streams may spend once
-// a cost model is wired. Non-positive input clamps to the default 1.0 rather
-// than disabling the budget (a 0 or negative budget would refuse every new
-// stream, which is never the intent of a misconfigured value).
-func (l *VideoSessionLimiter) SetBudget(b float64) {
+// SetBudget sets the fraction of "one whole pool" new streams may spend in
+// pool once a cost model is wired. Non-positive input clamps to the default
+// 1.0 rather than disabling the budget (a 0 or negative budget would refuse
+// every new stream in that pool, which is never the intent of a
+// misconfigured value).
+func (l *VideoSessionLimiter) SetBudget(pool ResourcePool, b float64) {
 	if b <= 0 {
 		b = 1.0
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.budget = b
+	if l.budgets == nil {
+		l.budgets = make(map[ResourcePool]float64)
+	}
+	l.budgets[pool] = b
 }
 
-// Budget reports the current admission budget (1.0 default).
+// budgetFor returns pool's budget (1.0 when never explicitly set). Must be
+// called with l.mu held.
+func (l *VideoSessionLimiter) budgetFor(pool ResourcePool) float64 {
+	if l.budgets == nil {
+		return 1.0
+	}
+	if b, ok := l.budgets[pool]; ok {
+		return b
+	}
+	return 1.0
+}
+
+// usedFor returns pool's currently reserved cost. Must be called with l.mu
+// held.
+func (l *VideoSessionLimiter) usedFor(pool ResourcePool) float64 {
+	if l.used == nil {
+		return 0
+	}
+	return l.used[pool]
+}
+
+// addUsed adjusts pool's reserved cost by delta (positive on reservation,
+// negative on release), clamped so it never goes negative. Must be called
+// with l.mu held.
+func (l *VideoSessionLimiter) addUsed(pool ResourcePool, delta float64) {
+	if l.used == nil {
+		l.used = make(map[ResourcePool]float64)
+	}
+	l.used[pool] += delta
+	if l.used[pool] < 0 {
+		l.used[pool] = 0
+	}
+}
+
+// Budget reports the sum of every pool's admission budget (PoolCPU +
+// PoolGPU). Kept exact-signature zero-arg for back-compat with callers
+// written before pools existed - e.g. the admin panel's aggregate "budget
+// used/total" view (grpcapi.videoSessionActiveReporter) - which observe the
+// same number they would have on a single-pool limiter, and which cannot be
+// widened to take a pool argument without breaking that interface. See
+// BudgetFor for the per-pool figure.
 func (l *VideoSessionLimiter) Budget() float64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.budget
+	return l.budgetFor(PoolCPU) + l.budgetFor(PoolGPU)
 }
 
-// Used reports the fractional cost currently reserved across all live
-// streams. Always 0 when no cost model is wired.
+// Used reports the sum of every pool's currently reserved cost. Kept
+// exact-signature zero-arg for the same back-compat reason as Budget. See
+// UsedFor for the per-pool figure. Always 0 when no cost model is wired.
 func (l *VideoSessionLimiter) Used() float64 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.used
+	var sum float64
+	for _, v := range l.used {
+		sum += v
+	}
+	return sum
 }
 
-// Rungs proxies the wired cost model's Rungs() - every calibrated rung's
-// cost + derived max-concurrent-streams, for the admin capacity panel.
-// Empty (never nil) when no cost model is wired.
+// BudgetFor reports pool's admission budget alone (1.0 by default).
+func (l *VideoSessionLimiter) BudgetFor(pool ResourcePool) float64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.budgetFor(pool)
+}
+
+// UsedFor reports pool's currently reserved cost alone. Always 0 when no
+// cost model is wired.
+func (l *VideoSessionLimiter) UsedFor(pool ResourcePool) float64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.usedFor(pool)
+}
+
+// Rungs proxies the wired cost model's Rungs() (the software ladder) - every
+// calibrated software rung's cost + derived max-concurrent-streams, for the
+// admin capacity panel. Empty (never nil) when no cost model is wired.
 func (l *VideoSessionLimiter) Rungs() []RungFit {
 	l.mu.Lock()
 	m := l.costModel
@@ -141,15 +219,16 @@ func (l *VideoSessionLimiter) Rungs() []RungFit {
 const budgetEpsilon = 1e-9
 
 // TryAcquire reserves a video-encode slot for the stream identified by key
-// (the decision hash), non-blocking, for a session whose tallest encoded
-// rendition is topHeight. An encoder joining a stream that already holds a
-// slot always succeeds (ref-count only, no additional cost) - the caps
-// govern distinct streams. A NEW stream is refused when either gate fails:
-// the SetLimit counter cap, or - only when a cost model is wired - the
-// stream's CostForHeight(topHeight) would push Used() past Budget(). The
-// caller must then refuse the spawn with ErrVideoCapacityExhausted. Every
-// successful TryAcquire must be matched by exactly one Release(key).
-func (l *VideoSessionLimiter) TryAcquire(key string, topHeight int) bool {
+// (the decision hash), non-blocking, for a session in ladder class class
+// whose tallest encoded rendition is topHeight. An encoder joining a stream
+// that already holds a slot always succeeds (ref-count only, no additional
+// cost) - the caps govern distinct streams. A NEW stream is refused when
+// either gate fails: the SetLimit counter cap (GLOBAL, across every class),
+// or - only when a cost model is wired - class.Pool()'s budget: the stream's
+// CostFor(class, topHeight) would push that pool's Used() past its Budget().
+// The caller must then refuse the spawn with ErrVideoCapacityExhausted.
+// Every successful TryAcquire must be matched by exactly one Release(key).
+func (l *VideoSessionLimiter) TryAcquire(key string, class LadderClass, topHeight int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.refs == nil {
@@ -157,6 +236,9 @@ func (l *VideoSessionLimiter) TryAcquire(key string, topHeight int) bool {
 	}
 	if l.costs == nil {
 		l.costs = make(map[string]float64)
+	}
+	if l.classes == nil {
+		l.classes = make(map[string]LadderClass)
 	}
 	if _, joining := l.refs[key]; joining {
 		l.refs[key]++
@@ -167,29 +249,31 @@ func (l *VideoSessionLimiter) TryAcquire(key string, topHeight int) bool {
 		return false
 	}
 
+	pool := class.Pool()
 	cost := 0.0
 	if l.costModel != nil {
-		cost = l.costModel.CostForHeight(topHeight)
-		if l.used+cost > l.budget+budgetEpsilon {
+		cost = l.costModel.CostFor(class, topHeight)
+		if l.usedFor(pool)+cost > l.budgetFor(pool)+budgetEpsilon {
 			return false
 		}
 	}
 
 	l.refs[key] = 1
+	l.classes[key] = class
 	l.costs[key] = cost
-	l.used += cost
+	l.addUsed(pool, cost)
 	return true
 }
 
 // CanAdmit answers TryAcquire's question WITHOUT reserving anything: would a
-// stream identified by key, whose top rung is topHeight, be admitted right
-// now? Advisory by nature - the answer can go stale the instant it returns -
-// so it is only ever used to shed EARLY (at manifest time, before a player
-// commits to a stream), never to authorise. The authoritative decision stays
-// in TryAcquire, at spawn.
+// stream in ladder class class, identified by key, whose top rung is
+// topHeight, be admitted right now? Advisory by nature - the answer can go
+// stale the instant it returns - so it is only ever used to shed EARLY (at
+// manifest time, before a player commits to a stream), never to authorise.
+// The authoritative decision stays in TryAcquire, at spawn.
 //
 // A key that already holds a slot always can: its sibling encoders join it.
-func (l *VideoSessionLimiter) CanAdmit(key string, topHeight int) bool {
+func (l *VideoSessionLimiter) CanAdmit(key string, class LadderClass, topHeight int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if _, joining := l.refs[key]; joining {
@@ -201,14 +285,16 @@ func (l *VideoSessionLimiter) CanAdmit(key string, topHeight int) bool {
 	if l.costModel == nil {
 		return true
 	}
-	return l.used+l.costModel.CostForHeight(topHeight) <= l.budget+budgetEpsilon
+	pool := class.Pool()
+	return l.usedFor(pool)+l.costModel.CostFor(class, topHeight) <= l.budgetFor(pool)+budgetEpsilon
 }
 
 // Release gives back the reference key took in TryAcquire; the stream's slot
-// (and its reserved cost, if any) frees when its last encoder is gone. A
-// stray Release for an unknown key is a no-op rather than a corrupting
-// decrement, so a bookkeeping bug degrades to "reports slightly more
-// headroom than exists" instead of poisoning the count.
+// (and its reserved cost, if any, credited back to the POOL it was reserved
+// from) frees when its last encoder is gone. A stray Release for an unknown
+// key is a no-op rather than a corrupting decrement, so a bookkeeping bug
+// degrades to "reports slightly more headroom than exists" instead of
+// poisoning the count.
 func (l *VideoSessionLimiter) Release(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -218,13 +304,12 @@ func (l *VideoSessionLimiter) Release(key string) {
 	}
 	if n <= 1 {
 		delete(l.refs, key)
+		class := l.classes[key]
 		if cost, ok := l.costs[key]; ok {
-			l.used -= cost
-			if l.used < 0 {
-				l.used = 0
-			}
+			l.addUsed(class.Pool(), -cost)
 			delete(l.costs, key)
 		}
+		delete(l.classes, key)
 		return
 	}
 	l.refs[key] = n - 1

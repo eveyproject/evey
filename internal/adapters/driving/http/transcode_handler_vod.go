@@ -2309,7 +2309,14 @@ func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, int) b
 	if l == nil {
 		return nil
 	}
-	return l.CanAdmit
+	return func(key string, topHeight int) bool {
+		// P2 threads the real class here: the handler does not yet resolve a
+		// DecisionFingerprint before this probe runs, so every stream is
+		// priced as software (byte-identical to pre-pool behaviour on a box
+		// with no hw sessions; a hw session shed here just falls back to the
+		// software table, same as CostFor's own fallback).
+		return l.CanAdmit(key, apptranscoding.LadderClassSoftware, topHeight)
+	}
 }
 
 // admissionCeilingOf / admissionBindOf adapt the shaper the same way: TRUE-nil
@@ -2318,7 +2325,10 @@ func admissionCeilingOf(s *apptranscoding.VideoAdmissionShaper) func(string, []i
 	if s == nil {
 		return nil
 	}
-	return s.CeilingFor
+	return func(key string, heights []int) (int, bool) {
+		// P2 threads the real class here (see videoAdmissionOf).
+		return s.CeilingFor(key, apptranscoding.LadderClassSoftware, heights)
+	}
 }
 
 func admissionBindOf(s *apptranscoding.VideoAdmissionShaper) func(string, string) {

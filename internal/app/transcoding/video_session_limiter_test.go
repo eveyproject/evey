@@ -14,7 +14,7 @@ func TestVideoSessionLimiter_UnlimitedByDefault(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(0)
 	for i := range 50 {
-		require.True(t, l.TryAcquire(fmt.Sprintf("stream-%d", i), 1080))
+		require.True(t, l.TryAcquire(fmt.Sprintf("stream-%d", i), LadderClassSoftware, 1080))
 	}
 	assert.Equal(t, 50, l.Active(), "unlimited admits every distinct stream")
 	assert.Equal(t, 0, l.Limit())
@@ -23,50 +23,50 @@ func TestVideoSessionLimiter_UnlimitedByDefault(t *testing.T) {
 func TestVideoSessionLimiter_AcquireUntilLimitThenRefuse(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(2)
-	require.True(t, l.TryAcquire("stream-1", 1080))
-	require.True(t, l.TryAcquire("stream-2", 1080))
-	assert.False(t, l.TryAcquire("stream-3", 1080), "a third distinct stream must be refused at limit=2")
+	require.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 1080))
+	require.True(t, l.TryAcquire("stream-2", LadderClassSoftware, 1080))
+	assert.False(t, l.TryAcquire("stream-3", LadderClassSoftware, 1080), "a third distinct stream must be refused at limit=2")
 	assert.Equal(t, 2, l.Active())
 }
 
 func TestVideoSessionLimiter_ReleaseFreesASlot(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(1)
-	require.True(t, l.TryAcquire("stream-1", 1080))
-	require.False(t, l.TryAcquire("stream-2", 1080), "a second distinct stream is refused at limit=1")
+	require.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 1080))
+	require.False(t, l.TryAcquire("stream-2", LadderClassSoftware, 1080), "a second distinct stream is refused at limit=1")
 	l.Release("stream-1")
 	assert.Equal(t, 0, l.Active())
-	require.True(t, l.TryAcquire("stream-2", 1080))
+	require.True(t, l.TryAcquire("stream-2", LadderClassSoftware, 1080))
 }
 
 func TestVideoSessionLimiter_DoubleReleaseNeverGoesNegative(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(1)
-	require.True(t, l.TryAcquire("h1", 1080))
+	require.True(t, l.TryAcquire("h1", LadderClassSoftware, 1080))
 	l.Release("h1")
 	l.Release("h1") // stray extra release
 	assert.Equal(t, 0, l.Active())
 	// still usable, not corrupted into a negative-active state that would
 	// let unbounded acquires through.
-	require.True(t, l.TryAcquire("h1", 1080))
+	require.True(t, l.TryAcquire("h1", LadderClassSoftware, 1080))
 	assert.Equal(t, 1, l.Active())
 }
 
 func TestVideoSessionLimiter_SetLimitAppliesLiveWithoutKillingActive(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(5)
-	require.True(t, l.TryAcquire("stream-1", 1080))
-	require.True(t, l.TryAcquire("stream-2", 1080))
+	require.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 1080))
+	require.True(t, l.TryAcquire("stream-2", LadderClassSoftware, 1080))
 	assert.Equal(t, 2, l.Active())
 
 	l.SetLimit(2)
 	assert.Equal(t, 2, l.Active(), "SetLimit never kills already-acquired slots")
-	assert.False(t, l.TryAcquire("stream-3", 1080), "at the new lower limit, a NEW stream is refused")
-	assert.True(t, l.TryAcquire("stream-1", 1080), "an existing stream's sibling encoder still joins its own slot")
+	assert.False(t, l.TryAcquire("stream-3", LadderClassSoftware, 1080), "at the new lower limit, a NEW stream is refused")
+	assert.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 1080), "an existing stream's sibling encoder still joins its own slot")
 	l.Release("stream-1")
 
 	l.Release("stream-1")
-	require.True(t, l.TryAcquire("stream-3", 1080), "a freed slot is usable again under the new limit")
+	require.True(t, l.TryAcquire("stream-3", LadderClassSoftware, 1080), "a freed slot is usable again under the new limit")
 }
 
 func TestVideoSessionLimiter_SetLimitNegativeClampsToUnlimited(t *testing.T) {
@@ -75,7 +75,7 @@ func TestVideoSessionLimiter_SetLimitNegativeClampsToUnlimited(t *testing.T) {
 	l.SetLimit(-3)
 	assert.Equal(t, 0, l.Limit())
 	for range 10 {
-		require.True(t, l.TryAcquire("h1", 1080))
+		require.True(t, l.TryAcquire("h1", LadderClassSoftware, 1080))
 	}
 }
 
@@ -84,7 +84,7 @@ func TestVideoSessionLimiter_ConcurrentAcquireRelease_Race(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 100 {
 		wg.Go(func() {
-			if l.TryAcquire("h1", 1080) {
+			if l.TryAcquire("h1", LadderClassSoftware, 1080) {
 				l.Release("h1")
 			}
 		})
@@ -100,16 +100,16 @@ func TestVideoSessionLimiter_ConcurrentAcquireRelease_Race(t *testing.T) {
 func TestVideoSessionLimiter_SameStreamJoinsItsOwnSlot(t *testing.T) {
 	l := NewVideoSessionLimiter(1)
 
-	if !l.TryAcquire("stream-A", 1080) {
+	if !l.TryAcquire("stream-A", LadderClassSoftware, 1080) {
 		t.Fatal("first encoder of the only allowed stream must be admitted")
 	}
-	if !l.TryAcquire("stream-A", 1080) {
+	if !l.TryAcquire("stream-A", LadderClassSoftware, 1080) {
 		t.Fatal("an ABR sibling of the SAME stream must never be refused by its own slot")
 	}
 	if l.Active() != 1 {
 		t.Errorf("two encoders of one stream = 1 slot, got %d", l.Active())
 	}
-	if l.TryAcquire("stream-B", 1080) {
+	if l.TryAcquire("stream-B", LadderClassSoftware, 1080) {
 		t.Error("a DIFFERENT stream must still be refused at capacity")
 	}
 
@@ -118,14 +118,14 @@ func TestVideoSessionLimiter_SameStreamJoinsItsOwnSlot(t *testing.T) {
 	if l.Active() != 1 {
 		t.Errorf("slot must survive while one sibling encoder remains, got %d", l.Active())
 	}
-	if l.TryAcquire("stream-B", 1080) {
+	if l.TryAcquire("stream-B", LadderClassSoftware, 1080) {
 		t.Error("still at capacity: the stream has not fully released")
 	}
 	l.Release("stream-A")
 	if l.Active() != 0 {
 		t.Errorf("last encoder gone = slot freed, got %d", l.Active())
 	}
-	if !l.TryAcquire("stream-B", 1080) {
+	if !l.TryAcquire("stream-B", LadderClassSoftware, 1080) {
 		t.Error("a new stream must be admitted once the slot freed")
 	}
 }
@@ -136,7 +136,7 @@ func TestVideoSessionLimiter_ReleaseOfUnknownStreamIsNoop(t *testing.T) {
 	if l.Active() != 0 {
 		t.Fatalf("stray release must not corrupt the count, got %d", l.Active())
 	}
-	if !l.TryAcquire("a", 1080) || !l.TryAcquire("b", 1080) || l.TryAcquire("c", 1080) {
+	if !l.TryAcquire("a", LadderClassSoftware, 1080) || !l.TryAcquire("b", LadderClassSoftware, 1080) || l.TryAcquire("c", LadderClassSoftware, 1080) {
 		t.Fatal("capacity must still be exactly 2 after a stray release")
 	}
 }
@@ -162,8 +162,8 @@ func TestVideoSessionLimiter_CostModel_1440pPlus1080p_BothAdmitted(t *testing.T)
 	t.Parallel()
 	l := NewVideoSessionLimiter(0).WithCostModel(costModelFixture(t))
 
-	require.True(t, l.TryAcquire("stream-1440", 1440), "1440p alone must fit under budget 1.0")
-	require.True(t, l.TryAcquire("stream-1080", 1080), "1440p (0.530) + 1080p (0.431) = 0.961 <= 1.0 must both fit")
+	require.True(t, l.TryAcquire("stream-1440", LadderClassSoftware, 1440), "1440p alone must fit under budget 1.0")
+	require.True(t, l.TryAcquire("stream-1080", LadderClassSoftware, 1080), "1440p (0.530) + 1080p (0.431) = 0.961 <= 1.0 must both fit")
 	assert.Equal(t, 2, l.Active())
 	assert.InDelta(t, 0.961, l.Used(), 0.01)
 }
@@ -172,8 +172,8 @@ func TestVideoSessionLimiter_CostModel_Two1440p_SecondRefused(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(0).WithCostModel(costModelFixture(t))
 
-	require.True(t, l.TryAcquire("stream-1", 1440))
-	assert.False(t, l.TryAcquire("stream-2", 1440), "2x 1440p = 1.060 > budget 1.0, the second must be refused")
+	require.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 1440))
+	assert.False(t, l.TryAcquire("stream-2", LadderClassSoftware, 1440), "2x 1440p = 1.060 > budget 1.0, the second must be refused")
 	assert.Equal(t, 1, l.Active())
 }
 
@@ -181,12 +181,12 @@ func TestVideoSessionLimiter_CostModel_SiblingOfSameStreamAlwaysAdmittedEvenAtFu
 	t.Parallel()
 	l := NewVideoSessionLimiter(0).WithCostModel(costModelFixture(t))
 
-	require.True(t, l.TryAcquire("stream-1", 1440))
-	require.True(t, l.TryAcquire("stream-2", 1080))
+	require.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 1440))
+	require.True(t, l.TryAcquire("stream-2", LadderClassSoftware, 1080))
 	// budget is full (0.961 used, another 1440p or 1080p would overflow it)
-	assert.False(t, l.TryAcquire("stream-3", 1080))
+	assert.False(t, l.TryAcquire("stream-3", LadderClassSoftware, 1080))
 	// but a sibling encoder of an EXISTING stream must still join for free
-	assert.True(t, l.TryAcquire("stream-1", 1440), "ABR sibling of an admitted stream must join regardless of budget")
+	assert.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 1440), "ABR sibling of an admitted stream must join regardless of budget")
 	assert.Equal(t, 2, l.Active())
 }
 
@@ -194,28 +194,28 @@ func TestVideoSessionLimiter_CostModel_ReleaseGivesBackBudget(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(0).WithCostModel(costModelFixture(t))
 
-	require.True(t, l.TryAcquire("stream-1", 1440))
-	require.False(t, l.TryAcquire("stream-2", 1440))
+	require.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 1440))
+	require.False(t, l.TryAcquire("stream-2", LadderClassSoftware, 1440))
 	l.Release("stream-1")
 	assert.InDelta(t, 0.0, l.Used(), budgetEpsilon)
-	assert.True(t, l.TryAcquire("stream-2", 1440), "released budget must be reusable")
+	assert.True(t, l.TryAcquire("stream-2", LadderClassSoftware, 1440), "released budget must be reusable")
 }
 
 func TestVideoSessionLimiter_CostModel_SetLimitStillEnforcedAlongsideBudget(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(1).WithCostModel(costModelFixture(t))
 
-	require.True(t, l.TryAcquire("stream-1", 720), "720p alone (cost 0.366) easily fits the budget")
-	assert.False(t, l.TryAcquire("stream-2", 720), "the counter cap (SetLimit 1) must still refuse a second stream even though the budget has room")
+	require.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 720), "720p alone (cost 0.366) easily fits the budget")
+	assert.False(t, l.TryAcquire("stream-2", LadderClassSoftware, 720), "the counter cap (SetLimit 1) must still refuse a second stream even though the budget has room")
 }
 
 func TestVideoSessionLimiter_NilCostModel_MatchesOldCounterBehaviour(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(2) // no WithCostModel call at all
 
-	require.True(t, l.TryAcquire("stream-1", 2160))
-	require.True(t, l.TryAcquire("stream-2", 2160))
-	assert.False(t, l.TryAcquire("stream-3", 2160), "with no cost model, admission is purely by counter regardless of height")
+	require.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 2160))
+	require.True(t, l.TryAcquire("stream-2", LadderClassSoftware, 2160))
+	assert.False(t, l.TryAcquire("stream-3", LadderClassSoftware, 2160), "with no cost model, admission is purely by counter regardless of height")
 	assert.InDelta(t, 0.0, l.Used(), budgetEpsilon, "Used stays 0 with no cost model wired")
 }
 
@@ -223,12 +223,12 @@ func TestVideoSessionLimiter_CostModel_DoubleReleaseDoesNotUnderflowBudget(t *te
 	t.Parallel()
 	l := NewVideoSessionLimiter(0).WithCostModel(costModelFixture(t))
 
-	require.True(t, l.TryAcquire("stream-1", 1440))
+	require.True(t, l.TryAcquire("stream-1", LadderClassSoftware, 1440))
 	l.Release("stream-1")
 	l.Release("stream-1") // stray extra release
 	assert.InDelta(t, 0.0, l.Used(), budgetEpsilon)
-	require.True(t, l.TryAcquire("stream-2", 1440))
-	require.True(t, l.TryAcquire("stream-3", 1080))
+	require.True(t, l.TryAcquire("stream-2", LadderClassSoftware, 1440))
+	require.True(t, l.TryAcquire("stream-3", LadderClassSoftware, 1080))
 }
 
 func TestVideoSessionLimiter_CostModel_ConcurrentAcquireRelease_Race(t *testing.T) {
@@ -237,7 +237,7 @@ func TestVideoSessionLimiter_CostModel_ConcurrentAcquireRelease_Race(t *testing.
 	for i := range 20 {
 		wg.Go(func() {
 			key := fmt.Sprintf("stream-%d", i)
-			if l.TryAcquire(key, 1080) {
+			if l.TryAcquire(key, LadderClassSoftware, 1080) {
 				l.Release(key)
 			}
 		})
@@ -250,11 +250,125 @@ func TestVideoSessionLimiter_CostModel_ConcurrentAcquireRelease_Race(t *testing.
 func TestVideoSessionLimiter_SetBudget_ClampsNonPositiveToDefault(t *testing.T) {
 	t.Parallel()
 	l := NewVideoSessionLimiter(0)
-	assert.InDelta(t, 1.0, l.Budget(), budgetEpsilon)
-	l.SetBudget(-1)
-	assert.InDelta(t, 1.0, l.Budget(), budgetEpsilon)
-	l.SetBudget(0)
-	assert.InDelta(t, 1.0, l.Budget(), budgetEpsilon)
-	l.SetBudget(2.0)
-	assert.InDelta(t, 2.0, l.Budget(), budgetEpsilon)
+	assert.InDelta(t, 1.0, l.BudgetFor(PoolCPU), budgetEpsilon)
+	l.SetBudget(PoolCPU, -1)
+	assert.InDelta(t, 1.0, l.BudgetFor(PoolCPU), budgetEpsilon)
+	l.SetBudget(PoolCPU, 0)
+	assert.InDelta(t, 1.0, l.BudgetFor(PoolCPU), budgetEpsilon)
+	l.SetBudget(PoolCPU, 2.0)
+	assert.InDelta(t, 2.0, l.BudgetFor(PoolCPU), budgetEpsilon)
+	// The other pool is untouched by SetBudget(PoolCPU, ...).
+	assert.InDelta(t, 1.0, l.BudgetFor(PoolGPU), budgetEpsilon)
+}
+
+// ============================================================================
+// Pool separation (CPU vs GPU) - Phase 2, hw ladder class
+// ============================================================================
+
+// devBoxCostModel wires the same measured dev-box table as devBoxSamples
+// (see video_capacity_test.go): software 720=0.366/1080=0.431/1440=0.530,
+// hw 720=0.663/1080=0.245/1440=0.300/2160=0.465.
+func devBoxCostModel(t *testing.T) *VideoCostModel {
+	t.Helper()
+	m := NewVideoCostModel(devBoxSamples())
+	require.NotNil(t, m)
+	return m
+}
+
+// The headline scenario this phase exists for: 4 hw streams and 2 software
+// streams run AT THE SAME TIME without stealing budget from each other,
+// because they bill two independent pools.
+func TestVideoSessionLimiter_PoolSeparation_HWAndCPUDoNotShareBudget(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(0).WithCostModel(devBoxCostModel(t))
+
+	// 4x hw @ 1080p = 4 * 0.245 = 0.98, fits under PoolGPU's 1.0 budget.
+	for i := range 4 {
+		key := fmt.Sprintf("hw-%d", i)
+		require.True(t, l.TryAcquire(key, LadderClassHW, 1080), "hw stream %d must be admitted", i)
+	}
+	// 2x software @ 1080p = 2 * 0.431 = 0.862, fits under PoolCPU's 1.0
+	// budget, concurrently with the 4 hw streams above.
+	for i := range 2 {
+		key := fmt.Sprintf("sw-%d", i)
+		require.True(t, l.TryAcquire(key, LadderClassSoftware, 1080), "software stream %d must be admitted", i)
+	}
+	assert.Equal(t, 6, l.Active())
+	assert.InDelta(t, 0.98, l.UsedFor(PoolGPU), 0.01)
+	assert.InDelta(t, 0.862, l.UsedFor(PoolCPU), 0.01)
+
+	// A 5th hw stream overflows PoolGPU's budget (0.98 + 0.245 > 1.0) and is
+	// refused, even though PoolCPU still has room.
+	assert.False(t, l.TryAcquire("hw-4", LadderClassHW, 1080), "5th hw stream must overflow the GPU pool's budget")
+	assert.Equal(t, 6, l.Active())
+}
+
+func TestVideoSessionLimiter_GlobalCounterCap_AppliesAcrossClasses(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(3).WithCostModel(devBoxCostModel(t))
+
+	require.True(t, l.TryAcquire("hw-0", LadderClassHW, 1080))
+	require.True(t, l.TryAcquire("hw-1", LadderClassHW, 1080))
+	require.True(t, l.TryAcquire("sw-0", LadderClassSoftware, 720))
+	// Both pools have plenty of budget left, but the counter cap (3) is
+	// global across every class.
+	assert.False(t, l.TryAcquire("sw-1", LadderClassSoftware, 720), "the counter cap is global, not per-pool")
+	assert.Equal(t, 3, l.Active())
+}
+
+func TestVideoSessionLimiter_Release_CreditsTheCorrectPool(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(0).WithCostModel(devBoxCostModel(t))
+
+	require.True(t, l.TryAcquire("hw-0", LadderClassHW, 1080))
+	require.True(t, l.TryAcquire("sw-0", LadderClassSoftware, 1080))
+	assert.InDelta(t, 0.245, l.UsedFor(PoolGPU), 0.001)
+	assert.InDelta(t, 0.431, l.UsedFor(PoolCPU), 0.001)
+
+	l.Release("hw-0")
+	assert.InDelta(t, 0.0, l.UsedFor(PoolGPU), budgetEpsilon, "releasing the hw stream must not touch the CPU pool")
+	assert.InDelta(t, 0.431, l.UsedFor(PoolCPU), 0.001, "the software stream's reservation is untouched")
+
+	l.Release("sw-0")
+	assert.InDelta(t, 0.0, l.UsedFor(PoolCPU), budgetEpsilon)
+}
+
+func TestVideoSessionLimiter_DoubleRelease_DoesNotUnderflowEitherPool(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(0).WithCostModel(devBoxCostModel(t))
+
+	require.True(t, l.TryAcquire("hw-0", LadderClassHW, 1080))
+	require.True(t, l.TryAcquire("sw-0", LadderClassSoftware, 1080))
+	l.Release("hw-0")
+	l.Release("hw-0") // stray extra release
+	l.Release("sw-0")
+	l.Release("sw-0") // stray extra release
+
+	assert.InDelta(t, 0.0, l.UsedFor(PoolGPU), budgetEpsilon)
+	assert.InDelta(t, 0.0, l.UsedFor(PoolCPU), budgetEpsilon)
+	// Still usable: budgets were not corrupted into a negative state that
+	// would let unbounded acquires through.
+	require.True(t, l.TryAcquire("hw-1", LadderClassHW, 1080))
+	require.True(t, l.TryAcquire("sw-1", LadderClassSoftware, 1080))
+}
+
+func TestVideoSessionLimiter_PoolSeparation_ConcurrentMixed_Race(t *testing.T) {
+	l := NewVideoSessionLimiter(0).WithCostModel(devBoxCostModel(t))
+	var wg sync.WaitGroup
+	for i := range 20 {
+		wg.Go(func() {
+			class := LadderClassSoftware
+			if i%2 == 0 {
+				class = LadderClassHW
+			}
+			key := fmt.Sprintf("stream-%d", i)
+			if l.TryAcquire(key, class, 1080) {
+				l.Release(key)
+			}
+		})
+	}
+	wg.Wait()
+	assert.Equal(t, 0, l.Active())
+	assert.InDelta(t, 0.0, l.UsedFor(PoolCPU), budgetEpsilon)
+	assert.InDelta(t, 0.0, l.UsedFor(PoolGPU), budgetEpsilon)
 }

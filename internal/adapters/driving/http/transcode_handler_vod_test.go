@@ -305,7 +305,7 @@ func TestHLSVOD_Segment_VideoCapacityExhausted_503WithRetryAfter5(t *testing.T) 
 	h.segmentWaitTimeout = 50 * time.Millisecond
 
 	limiter := apptranscoding.NewVideoSessionLimiter(1)
-	require.True(t, limiter.TryAcquire("some-other-stream", 1080), "pre-occupy the single video-encode slot with a DIFFERENT stream")
+	require.True(t, limiter.TryAcquire("some-other-stream", apptranscoding.LadderClassSoftware, 1080), "pre-occupy the single video-encode slot with a DIFFERENT stream")
 	h.orchestrator.WithVideoSessionLimiter(limiter)
 
 	w := doVODRequest(h, "m1", "stream_0_005.ts")
@@ -361,7 +361,7 @@ func TestHLSVOD_Segment_CopyEligibleSourceNeverBlamesOtherViewers(t *testing.T) 
 	}
 
 	limiter := apptranscoding.NewVideoSessionLimiter(1)
-	require.True(t, limiter.TryAcquire("some-other-stream", 1080), "someone else holds the only slot")
+	require.True(t, limiter.TryAcquire("some-other-stream", apptranscoding.LadderClassSoftware, 1080), "someone else holds the only slot")
 	h.orchestrator.WithVideoSessionLimiter(limiter)
 
 	resp := doVODRequest(h, "m1", "stream_0_005.ts")

@@ -44,7 +44,13 @@ type VideoAdmissionShaper struct {
 }
 
 type ceilingPin struct {
-	height   int
+	height int
+	// class is the ladder class the pin was granted under. A fresh or held
+	// pin always answers with ITS OWN class and height regardless of what
+	// class a later CeilingFor call asks about (stability - see the type
+	// doc); only a pin that goes cold AND unheld re-evaluates, and then
+	// against the newly-requested class.
+	class    LadderClass
 	lastSeen time.Time
 	// boundHashes are the decision-fingerprint hashes built under this pin
 	// (several can share one: subtitle burn-in variants of the same title).
@@ -69,11 +75,19 @@ func NewVideoAdmissionShaper(limiter *VideoSessionLimiter) *VideoAdmissionShaper
 }
 
 // CeilingFor returns the ladder ceiling granted to the stream identified by
-// key, given the distinct heights its shaped ladder offers. The second return
-// is true when the ceiling actually trims the ladder (forced below its top).
-// A (0, false) return means nothing fits right now: the caller keeps the full
-// ladder and the shed paths answer the viewer.
-func (s *VideoAdmissionShaper) CeilingFor(key string, heights []int) (int, bool) {
+// key, whose encode would run in ladder class class, given the distinct
+// heights its shaped ladder offers. The second return is true when the
+// ceiling actually trims the ladder (forced below its top). A (0, false)
+// return means nothing fits right now: the caller keeps the full ladder and
+// the shed paths answer the viewer.
+//
+// A fresh or still-held pin returns unconditionally, in ITS OWN class and
+// height, ignoring class - a stream re-routed after this call was first made
+// (e.g. hw demoted to software on retry with a different fingerprint) must
+// not have its already-addressed cache hash moved out from under it. Only a
+// cold, unheld pin re-evaluates, and does so against the newly-requested
+// class.
+func (s *VideoAdmissionShaper) CeilingFor(key string, class LadderClass, heights []int) (int, bool) {
 	if s == nil || s.limiter == nil || len(heights) == 0 {
 		return 0, false
 	}
@@ -100,14 +114,14 @@ func (s *VideoAdmissionShaper) CeilingFor(key string, heights []int) (int, bool)
 		delete(s.pins, key)
 	}
 
-	granted, ok := s.tallestAdmittable(key, heights)
+	granted, ok := s.tallestAdmittable(key, class, heights)
 	if !ok {
 		// Nothing fits. Deliberately NOT pinned: the next attempt must see the
 		// budget of ITS moment, not this one's.
 		return 0, false
 	}
 	s.evictIfFull(now)
-	s.pins[key] = &ceilingPin{height: granted, lastSeen: now}
+	s.pins[key] = &ceilingPin{height: granted, class: class, lastSeen: now}
 	if granted < top {
 		slog.Info("video admission: ladder ceiling forced by load",
 			slog.String("stream", key), slog.Int("requested_top", top), slog.Int("granted", granted))
@@ -136,11 +150,12 @@ func (s *VideoAdmissionShaper) Bind(key, fingerprintHash string) {
 }
 
 // tallestAdmittable walks the offered heights from tallest to shortest and
-// returns the first the limiter would admit as a NEW stream right now.
-// Advisory exactly like the shed probes: the authoritative reservation stays
-// TryAcquire at spawn - a lost race is shed at the segment, and the retry
-// re-evaluates because a shed stream's pin goes cold holding nothing.
-func (s *VideoAdmissionShaper) tallestAdmittable(key string, heights []int) (int, bool) {
+// returns the first the limiter would admit as a NEW stream right now, in
+// ladder class class. Advisory exactly like the shed probes: the
+// authoritative reservation stays TryAcquire at spawn - a lost race is shed
+// at the segment, and the retry re-evaluates because a shed stream's pin
+// goes cold holding nothing.
+func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, heights []int) (int, bool) {
 	sorted := make([]int, 0, len(heights))
 	seen := make(map[int]bool, len(heights))
 	for _, h := range heights {
@@ -157,7 +172,7 @@ func (s *VideoAdmissionShaper) tallestAdmittable(key string, heights []int) (int
 		}
 	}
 	for _, h := range sorted {
-		if s.limiter.CanAdmit(key, h) {
+		if s.limiter.CanAdmit(key, class, h) {
 			return h, true
 		}
 	}
