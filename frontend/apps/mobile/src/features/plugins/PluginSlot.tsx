@@ -64,6 +64,10 @@ interface ListPluginsResponse {
   plugins?: PluginInfo[];
 }
 
+// Plugin frontends may request client-side navigation via postMessage. Only
+// non-sensitive paths are allowed: an attacker plugin must not be able to push
+// the user to /admin/* (overlay + forced nav = phishing/clickjacking vector).
+// Kept in lockstep with the web PluginIframe allow-list.
 const ALLOWED_NAV_PREFIXES = [
   "/home",
   "/library",
@@ -71,10 +75,9 @@ const ALLOWED_NAV_PREFIXES = [
   "/player",
   "/settings",
   "/search",
-  "/admin",
 ];
 
-function isAllowedNavPath(path: string): boolean {
+export function isAllowedNavPath(path: string): boolean {
   if (!path.startsWith("/")) return false;
   if (path.startsWith("//")) return false;
   if (path.length > 2048) return false;

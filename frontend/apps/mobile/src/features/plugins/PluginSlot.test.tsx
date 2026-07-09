@@ -98,7 +98,7 @@ vi.mock("@evey/api", () => ({
 }));
 
 // -------------------------------------------------------------------------------------------
-import { PluginSlot } from "./PluginSlot";
+import { PluginSlot, isAllowedNavPath } from "./PluginSlot";
 
 function dispatchToWebView(payload: unknown) {
   act(() => {
@@ -178,5 +178,19 @@ describe("PluginSlot assets.read bridge", () => {
 
     const traversalCall = eveyFetchRawMock.mock.calls.find(([r]) => (r as { url: string }).url.includes("etc/passwd"));
     expect(traversalCall).toBeFalsy();
+  });
+});
+
+describe("isAllowedNavPath", () => {
+  it("allows non-sensitive app paths", () => {
+    for (const p of ["/home", "/library/lib-1", "/media/mi-1", "/player/mi-1", "/settings", "/search?q=x"]) {
+      expect(isAllowedNavPath(p)).toBe(true);
+    }
+  });
+
+  it("rejects /admin and other sensitive or off-origin destinations (parity with web, anti-phishing)", () => {
+    for (const p of ["/admin", "/admin/api-keys", "/auth/login", "/setup", "//evil.com", "https://evil.com", "relative"]) {
+      expect(isAllowedNavPath(p)).toBe(false);
+    }
   });
 });
