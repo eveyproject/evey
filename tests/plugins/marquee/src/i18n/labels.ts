@@ -14,6 +14,9 @@ export const LABELS: LabelDict = {
   spinning: { en: "Picking something…", fr: "Sélection en cours…", es: "Eligiendo algo…", de: "Wähle etwas aus…" },
   play_hint: { en: "Tap to watch", fr: "Toucher pour regarder", es: "Toca para ver", de: "Zum Ansehen tippen" },
   retry: { en: "Spin again", fr: "Relancer", es: "Girar de nuevo", de: "Nochmal drehen" },
+  watch_now: { en: "Watch now", fr: "Regarder maintenant", es: "Ver ahora", de: "Jetzt ansehen" },
+  // {s} is substituted with the live remaining whole seconds.
+  opening_in: { en: "Opening in {s}s", fr: "Ouverture dans {s} s", es: "Abriendo en {s} s", de: "Öffnet in {s} s" },
   empty: {
     en: "Add movies or shows to your library to light up the wall.",
     fr: "Ajoute des films ou séries à ta bibliothèque pour allumer le mur.",

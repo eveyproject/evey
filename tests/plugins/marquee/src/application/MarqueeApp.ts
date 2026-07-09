@@ -18,6 +18,10 @@ import { createOverlay, type OverlayHandle } from "../ui/overlay";
 // Long-open dashboard tabs still occasionally pick up newly added titles.
 const LIBRARY_REFRESH_MS = 30 * 60 * 1000;
 
+// How long the elected winner is held (hero card + live countdown) before we
+// auto-open its detail page - long enough to decide "watch it, or reroll".
+const WINNER_HOLD_MS = 8000;
+
 interface Deps {
   renderer: SceneRenderer;
   bridge: HostBridge;
@@ -27,8 +31,12 @@ export class MarqueeApp {
   private overlay: OverlayHandle | null = null;
   private init: HostInit | null = null;
   private posters: MediaSummary[] = [];
+  private posterUrls: string[] = [];
   private spinning = false;
-  private landTimer = 0;
+  private picking = false;
+  private pickedId = "";
+  private countdownTimer = 0;
+  private landDeadline = 0;
 
   private refreshTimer = 0;
   private disposed = false;
@@ -50,7 +58,7 @@ export class MarqueeApp {
     if (this.disposed) return;
     this.disposed = true;
     clearInterval(this.refreshTimer);
-    clearTimeout(this.landTimer);
+    clearInterval(this.countdownTimer);
     window.removeEventListener("pagehide", this.onPageHide);
     window.removeEventListener("resize", this.onResize);
     document.removeEventListener("visibilitychange", this.onVisible);
@@ -75,6 +83,8 @@ export class MarqueeApp {
     this.deps.renderer.mount(this.overlay.canvasHost);
     this.overlay.setCtaLabel(translate("cta", init.locale));
     this.overlay.onCtaClick(() => this.spin());
+    this.overlay.setHeroWatchLabel(translate("watch_now", init.locale));
+    this.overlay.onHeroWatch(() => this.watchPicked());
     this.deps.renderer.onActivate((index) => this.activate(index));
     this.deps.renderer.onHover((index) => this.hover(index));
 
@@ -127,6 +137,9 @@ export class MarqueeApp {
       this.posters.map((p) => this.deps.bridge.readPoster(p.id).catch(() => "")),
     );
     if (this.disposed) return;
+    // Kept for the DOM hero card, which blows up the same host-relayed poster
+    // the wall texture uses (no second fetch).
+    this.posterUrls = dataUrls;
 
     this.deps.renderer.setWall({
       layout,
@@ -138,7 +151,9 @@ export class MarqueeApp {
   // callback shows the elected poster's title as a "tap to watch" hint.
   private spin(): void {
     if (this.spinning || this.posters.length === 0 || !this.overlay) return;
-    clearTimeout(this.landTimer);
+    this.stopCountdown();
+    this.picking = false;
+    this.overlay.hideHero();
     const plan = planRouletteSpin(this.posters.length, Date.now());
     if (plan.winnerIndex < 0) return;
     this.spinning = true;
@@ -156,31 +171,66 @@ export class MarqueeApp {
       this.overlay.setCtaLabel(translate("cta", this.init?.locale));
       return;
     }
-    // The wheel picked one: highlight it (the renderer locks the spotlight),
-    // name it, and offer a retry. We then "enchaine" onto it after a short
-    // window so the user can hit Spin again first, or tap the poster to go now.
-    this.overlay.setTitle(`${poster.title} · ${translate("play_hint", this.init?.locale)}`);
+    // The wheel picked one: blow it up in the hero card (poster + title), let
+    // the CTA become "reroll", and run a LIVE countdown so the user can decide
+    // to watch it, tap "watch now", or reroll before it auto-opens.
+    this.picking = true;
+    this.pickedId = poster.id;
+    this.overlay.showHero("pick", this.posterUrls[index] || "", poster.title);
     this.overlay.setCtaLabel(translate("retry", this.init?.locale));
-    clearTimeout(this.landTimer);
-    this.landTimer = window.setTimeout(() => {
-      if (!this.disposed) this.deps.bridge.navigate(`/media/${poster.id}`);
-    }, 7000);
+    this.landDeadline = Date.now() + WINNER_HOLD_MS;
+    this.tickCountdown(poster.id);
+    this.stopCountdown();
+    this.countdownTimer = window.setInterval(() => this.tickCountdown(poster.id), 200);
+  }
+
+  private tickCountdown(posterId: string): void {
+    if (this.disposed || !this.overlay) return;
+    const remainingMs = this.landDeadline - Date.now();
+    if (remainingMs <= 0) {
+      this.stopCountdown();
+      this.goToMedia(posterId);
+      return;
+    }
+    const secs = Math.ceil(remainingMs / 1000);
+    this.overlay.setHeroCountdown(
+      translate("opening_in", this.init?.locale).replace("{s}", String(secs)),
+    );
+  }
+
+  private stopCountdown(): void {
+    clearInterval(this.countdownTimer);
+    this.countdownTimer = 0;
+  }
+
+  // The "watch now" button on the pick card: skip the rest of the countdown.
+  private watchPicked(): void {
+    if (this.picking && this.pickedId) this.goToMedia(this.pickedId);
   }
 
   private hover(index: number | null): void {
-    if (!this.overlay) return;
+    if (!this.overlay || this.picking) return; // never override the pick card
     if (index === null) {
-      this.overlay.setTitle(null);
+      this.overlay.hideHero();
       return;
     }
     const poster = this.posters[index];
-    this.overlay.setTitle(poster ? poster.title : null);
+    if (!poster) {
+      this.overlay.hideHero();
+      return;
+    }
+    this.overlay.showHero("preview", this.posterUrls[index] || "", poster.title);
   }
 
   private activate(index: number): void {
     const poster = this.posters[index];
     if (!poster) return;
-    clearTimeout(this.landTimer);
-    this.deps.bridge.navigate(`/media/${poster.id}`);
+    this.goToMedia(poster.id);
+  }
+
+  private goToMedia(id: string): void {
+    this.stopCountdown();
+    this.picking = false;
+    if (!this.disposed) this.deps.bridge.navigate(`/media/${id}`);
   }
 }
