@@ -109,3 +109,23 @@ func TestDemoteCapability_ConcurrentFailures_Debounce(t *testing.T) {
 	assert.Len(t, svc.RecentFallbacks(), 1)
 	assert.Empty(t, svc.Current().HWFeatures)
 }
+
+// The video admission cost model prices streams on bench data; a capability
+// change that does not re-arm it leaves admission running on a dead snapshot
+// (seen live: an NVENC init failure demoted hw and nothing repriced). Every
+// runtime mutation - bench completion and demotion alike - must notify.
+func TestCalibration_OnCapabilityChange_FiresOnBenchAndDemote(t *testing.T) {
+	svc, _ := seedHWService(t)
+	var fired int
+	svc.OnCapabilityChange(func() { fired++ })
+
+	require.NoError(t, svc.Recalibrate(context.Background()))
+	assert.Equal(t, 1, fired, "bench completion must notify")
+
+	require.True(t, svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWUnsupportedOption, "h264"))
+	assert.Equal(t, 2, fired, "a runtime demotion must notify")
+
+	// A demote that changes nothing must not re-fire (no notify churn).
+	svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWUnsupportedOption, "h264")
+	assert.Equal(t, 2, fired)
+}

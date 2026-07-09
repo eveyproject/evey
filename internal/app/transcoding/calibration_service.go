@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -99,6 +100,14 @@ type CalibrationService struct {
 	// the admin (QoE dashboard) so a degraded host is visible without log diving.
 	fallbacksMu sync.Mutex
 	fallbacks   []HWFallbackEvent
+
+	// changeCallbacks fire after every capability mutation that outlives boot
+	// (persisted load, bench completion, runtime demotion) so dependents priced
+	// on bench data - the video admission cost model above all - re-arm instead
+	// of running on a dead snapshot. Callbacks run synchronously on the mutating
+	// goroutine and MUST NOT call back into Recalibrate/DemoteCapability.
+	changeMu        sync.Mutex
+	changeCallbacks []func()
 }
 
 // HWFallbackEvent records one runtime HW-encode demotion for the admin alert.
@@ -106,6 +115,29 @@ type HWFallbackEvent struct {
 	Class string    `json:"class"`
 	Codec string    `json:"codec"`
 	At    time.Time `json:"at"`
+}
+
+// OnCapabilityChange registers fn to run after every capability change that
+// matters at runtime: persisted-capability load, benchmark completion and HW
+// demotion. Registration normally happens once during wire, but is safe any
+// time. fn must be fast and must not re-enter the calibration service's
+// mutating paths.
+func (s *CalibrationService) OnCapabilityChange(fn func()) {
+	if fn == nil {
+		return
+	}
+	s.changeMu.Lock()
+	defer s.changeMu.Unlock()
+	s.changeCallbacks = append(s.changeCallbacks, fn)
+}
+
+func (s *CalibrationService) notifyCapabilityChange() {
+	s.changeMu.Lock()
+	cbs := slices.Clone(s.changeCallbacks)
+	s.changeMu.Unlock()
+	for _, fn := range cbs {
+		fn()
+	}
 }
 
 const maxFallbackEvents = 20
@@ -302,6 +334,7 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 				slog.String("hw_backend", persisted.HWBackend),
 				slog.Time("benchmarked_at", persisted.BenchmarkedAt))
 			s.current.Store(&persisted)
+			s.notifyCapabilityChange()
 			return nil
 		}
 		s.logger.Info("calibration: persisted capability stale, re-benching",
@@ -397,6 +430,7 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 		// even if the DB write failed. Next boot will re-bench.
 	}
 	s.current.Store(&cap)
+	s.notifyCapabilityChange()
 	return nil
 }
 
@@ -440,6 +474,7 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 		}
 	}
 	s.current.Store(&d.Capability)
+	s.notifyCapabilityChange()
 	s.logger.Warn("calibration: HW capability demoted after encode failure",
 		slog.String("class", string(class)),
 		slog.String("codec", codec),
