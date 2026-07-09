@@ -2,13 +2,27 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useLibraryServiceGetMediaItem, usePlaybackServiceMarkAsWatched, usePlaybackServiceGetWatchProgress } from "@evey/api";
+import {
+  useLibraryServiceGetMediaItem,
+  usePlaybackServiceMarkAsWatched,
+  usePlaybackServiceGetWatchProgress,
+} from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
+import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { QualityPicker } from "../../../src/components/QualityPicker";
+import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
+import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
+import { TrackOptionsMenu } from "../../../src/components/TrackOptionsMenu";
+import { SkipIntroButton } from "../../../src/components/SkipIntroButton";
+import { NextEpisodeOverlay } from "../../../src/components/NextEpisodeOverlay";
+
+const IMAGE_SUBTITLE_CODECS = new Set([
+  "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
+]);
 
 const CONTROLS_TIMEOUT = 4000;
 
@@ -33,12 +47,56 @@ export default function PlayerScreen() {
 
   const [showControls, setShowControls] = useState(true);
   const [showQualityPicker, setShowQualityPicker] = useState(false);
+  const [showTrackMenu, setShowTrackMenu] = useState(false);
+  const [showAudioPicker, setShowAudioPicker] = useState(false);
+  const [showSubtitlePicker, setShowSubtitlePicker] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState(0);
+  const [selectedAudioIndex, setSelectedAudioIndex] = useState<number>(0);
+  const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const audioStreams: AudioStream[] = useMemo(
+    () =>
+      streamInfo?.mediaStreams
+        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO")
+        .map((s, i) => ({
+          index: s.index ?? 0,
+          trackIndex: i,
+          language: s.language,
+          title: s.title,
+          isDefault: s.isDefault,
+          channels: s.channels,
+        })) ?? [],
+    [streamInfo],
+  );
+
+  const subtitleStreams: SubtitleStream[] = useMemo(
+    () =>
+      streamInfo?.mediaStreams
+        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
+        .map((s, i) => ({
+          index: s.index ?? 0,
+          trackIndex: i,
+          language: s.language,
+          title: s.title,
+          isDefault: s.isDefault,
+          isForced: s.isForced,
+          codec: s.codec,
+          burnIn: IMAGE_SUBTITLE_CODECS.has(s.codec?.toLowerCase() ?? ""),
+        })) ?? [],
+    [streamInfo],
+  );
+
+  // Set initial selected audio index from the default stream.
+  useEffect(() => {
+    const def = audioStreams.find((s) => s.isDefault);
+    if (def) setSelectedAudioIndex(def.index);
+    else if (audioStreams.length > 0) setSelectedAudioIndex(audioStreams[0].index);
+  }, [audioStreams]);
 
   const videoSource = useMemo(() => {
     if (!streamUrl) return null;
@@ -165,15 +223,56 @@ export default function PlayerScreen() {
   const handleQualitySelect = useCallback(
     (quality: number) => {
       setSelectedQuality(quality);
-      restartWithTracks(undefined, undefined, quality || undefined);
+      restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, quality || undefined);
     },
-    [restartWithTracks],
+    [restartWithTracks, selectedAudioIndex, selectedSubtitleIndex],
+  );
+
+  const handleAudioSelect = useCallback(
+    (index: number) => {
+      setSelectedAudioIndex(index);
+      restartWithTracks(index, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+    },
+    [restartWithTracks, selectedSubtitleIndex, selectedQuality],
+  );
+
+  const handleSubtitleSelect = useCallback(
+    (index: number | null) => {
+      setSelectedSubtitleIndex(index);
+      restartWithTracks(selectedAudioIndex, index ?? undefined, selectedQuality || undefined);
+    },
+    [restartWithTracks, selectedAudioIndex, selectedQuality],
+  );
+
+  const handleSkipIntro = useCallback(
+    (toSec: number) => {
+      if (player) player.currentTime = toSec;
+    },
+    [player],
   );
 
   const handleBack = useCallback(() => {
     stopSession();
     router.back();
   }, [stopSession]);
+
+  const handleNavigateEpisode = useCallback(
+    (episodeId: string) => {
+      stopSession();
+      router.replace(`/(auth)/player/${episodeId}` as never);
+    },
+    [stopSession],
+  );
+
+  const nextEp = useNextEpisode({
+    media,
+    currentTime,
+    duration,
+    onNavigate: handleNavigateEpisode,
+  });
+
+  const anyOverlayOpen =
+    showQualityPicker || showTrackMenu || showAudioPicker || showSubtitlePicker || nextEp.visible;
 
   // D-pad remote handler. The callback param is annotated explicitly: the
   // react-native-tvos alias resolves per-app, and the hoisted classic RN
@@ -183,9 +282,17 @@ export default function PlayerScreen() {
     if (!evt) return;
     const type = evt.eventType;
 
-    if (showQualityPicker) return;
+    // While any overlay (picker/menu/next-episode card) is showing, its own
+    // FocusableCard rows own the D-pad via the native TV focus engine - if we
+    // kept interpreting the same key here (e.g. "select") it would double-fire
+    // (native onPress AND togglePlayPause()).
+    if (anyOverlayOpen) return;
     if (type === "select" || type === "playPause") {
       togglePlayPause();
+    } else if (type === "longSelect") {
+      if (showControls && (audioStreams.length > 1 || subtitleStreams.length > 0)) {
+        setShowTrackMenu(true);
+      }
     } else if (type === "left") {
       seekBy(-skipBwd);
     } else if (type === "right") {
@@ -274,6 +381,48 @@ export default function PlayerScreen() {
         currentQuality={selectedQuality}
         onSelect={handleQualitySelect}
         onClose={() => setShowQualityPicker(false)}
+      />
+
+      <TrackOptionsMenu
+        visible={showTrackMenu}
+        onClose={() => setShowTrackMenu(false)}
+        hasAudioOptions={audioStreams.length > 1}
+        hasSubtitleOptions={subtitleStreams.length > 0}
+        onOpenAudio={() => {
+          setShowTrackMenu(false);
+          setShowAudioPicker(true);
+        }}
+        onOpenSubtitles={() => {
+          setShowTrackMenu(false);
+          setShowSubtitlePicker(true);
+        }}
+      />
+
+      <AudioTrackPicker
+        visible={showAudioPicker}
+        streams={audioStreams}
+        currentIndex={selectedAudioIndex}
+        onSelect={handleAudioSelect}
+        onClose={() => setShowAudioPicker(false)}
+      />
+
+      <SubtitlePicker
+        visible={showSubtitlePicker}
+        streams={subtitleStreams}
+        currentIndex={selectedSubtitleIndex}
+        onSelect={handleSubtitleSelect}
+        onClose={() => setShowSubtitlePicker(false)}
+      />
+
+      <SkipIntroButton mediaId={mediaId} currentTime={currentTime} onSkip={handleSkipIntro} />
+
+      <NextEpisodeOverlay
+        visible={nextEp.visible}
+        ended={nextEp.ended}
+        countdown={nextEp.countdown}
+        nextEpisode={nextEp.nextEpisode}
+        onPlayNow={nextEp.playNow}
+        onCancel={nextEp.cancel}
       />
 
       {showControls && (

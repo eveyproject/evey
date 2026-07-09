@@ -1,0 +1,102 @@
+import { View, Text, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
+import type { V1MediaItem } from "@evey/api";
+import { useTheme } from "../providers/ThemeProvider";
+import { FocusableCard } from "./FocusableCard";
+
+interface NextEpisodeOverlayProps {
+  visible: boolean;
+  ended: boolean;
+  countdown: number;
+  nextEpisode: V1MediaItem | null | undefined;
+  onPlayNow: () => void;
+  onCancel: () => void;
+}
+
+export function NextEpisodeOverlay({ visible, ended, countdown, nextEpisode, onPlayNow, onCancel }: NextEpisodeOverlayProps) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+
+  if (!visible || !nextEpisode) return null;
+
+  const episodeLabel =
+    nextEpisode.indexNumber != null
+      ? t("player.nextEpisodeOverlay.episode", { number: nextEpisode.indexNumber })
+      : t("player.nextEpisodeOverlay.nextEpisode", "Next episode");
+  const episodeLine = [episodeLabel, nextEpisode.title].filter(Boolean).join(" - ");
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+      <Text style={[styles.heading, { color: theme.colors.textMuted }]}>
+        {ended
+          ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) })
+          : t("player.nextEpisodeOverlay.upNext", "Up next")}
+      </Text>
+      {episodeLine ? (
+        <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>
+          {episodeLine}
+        </Text>
+      ) : null}
+      <View style={styles.actions}>
+        <FocusableCard
+          hasTVPreferredFocus={true}
+          onPress={onPlayNow}
+          accessibilityLabel={t("player.nextEpisodeOverlay.playNow", "Play now")}
+          style={[styles.button, { backgroundColor: theme.colors.accent }]}
+        >
+          <Text style={styles.playText}>{t("player.nextEpisodeOverlay.playNow", "Play now")}</Text>
+        </FocusableCard>
+        <FocusableCard
+          onPress={onCancel}
+          accessibilityLabel={t("common.cancel", "Cancel")}
+          style={[styles.button, { backgroundColor: theme.colors.bg }]}
+        >
+          <Text style={[styles.cancelText, { color: theme.colors.text }]}>{t("common.cancel", "Cancel")}</Text>
+        </FocusableCard>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    bottom: 60,
+    right: 40,
+    width: 420,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 24,
+  },
+  heading: {
+    fontSize: 14,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginTop: 4,
+    marginBottom: 16,
+  },
+  actions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  cancelText: {
+    fontWeight: "600",
+    fontSize: 16,
+  },
+});

@@ -1,0 +1,104 @@
+import { View, Text, Modal, Pressable, StyleSheet } from "react-native";
+import { useTranslation } from "react-i18next";
+import { useTheme } from "../providers/ThemeProvider";
+import { FocusableCard } from "./FocusableCard";
+
+export interface AudioStream {
+  index: number;
+  trackIndex: number;
+  language?: string;
+  title?: string;
+  isDefault?: boolean;
+  channels?: number;
+}
+
+interface AudioTrackPickerProps {
+  visible: boolean;
+  onClose: () => void;
+  streams: AudioStream[];
+  currentIndex: number;
+  onSelect: (index: number) => void;
+}
+
+function formatLabel(s: AudioStream): string {
+  const lang = s.language ?? "Unknown";
+  const detail = s.title ?? (s.channels ? `${s.channels}ch` : "");
+  return detail ? `${lang} - ${detail}` : lang;
+}
+
+export function AudioTrackPicker({ visible, onClose, streams, currentIndex, onSelect }: AudioTrackPickerProps) {
+  const { t } = useTranslation();
+  const theme = useTheme();
+
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose}>
+        <Pressable style={[styles.sheet, { backgroundColor: theme.colors.surface }]} onPress={(e) => e.stopPropagation()}>
+          <Text style={[styles.title, { color: theme.colors.text }]}>{t("player.settings.audio")}</Text>
+          <View style={styles.list}>
+            {streams.map((s, i) => {
+              const active = s.index === currentIndex;
+              const label = formatLabel(s);
+              return (
+                <FocusableCard
+                  key={s.index}
+                  hasTVPreferredFocus={i === 0}
+                  onPress={() => {
+                    onSelect(s.index);
+                    onClose();
+                  }}
+                  accessibilityLabel={active ? `${label}, ${t("common.selected", "selected")}` : label}
+                  style={[styles.row, { borderBottomColor: theme.colors.border }]}
+                >
+                  <Text style={[styles.label, { color: active ? theme.colors.accent : theme.colors.text }]}>{label}</Text>
+                  {active && <Text style={[styles.check, { color: theme.colors.accent }]}>{"✓"}</Text>}
+                </FocusableCard>
+              );
+            })}
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.7)",
+  },
+  sheet: {
+    borderRadius: 16,
+    padding: 24,
+    minWidth: 400,
+    maxWidth: 560,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  list: {
+    gap: 4,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  label: {
+    fontSize: 16,
+    flex: 1,
+  },
+  check: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginLeft: 12,
+  },
+});
