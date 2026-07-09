@@ -268,10 +268,12 @@ export function NowPlaying() {
           title={t("admin.dashboardStats.noActivePlayback")}
         />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-          {sessions.map((s) => (
-            <NowPlayingCard key={s.sessionId} session={s} />
-          ))}
+        <div className="@container">
+          <div className="grid grid-cols-1 @min-[600px]:grid-cols-2 gap-3">
+            {sessions.map((s) => (
+              <NowPlayingCard key={s.sessionId} session={s} />
+            ))}
+          </div>
         </div>
       )}
     </div>
