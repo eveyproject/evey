@@ -87,8 +87,21 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			SegmentSloMs:       int32(r.SegmentSLOMs),
 			Samples:            int32(r.Samples),
 			SharedCacheViewers: int32(r.SharedCacheViewers),
+			SkippedCandidates:  int32(r.SkippedCandidates),
 			StartedAt:          timestamppb.New(r.StartedAt),
 			EndedAt:            timestamppb.New(r.EndedAt),
+		}
+		if len(r.ViewerMix) > 0 {
+			out.LastReport.ViewerMix = make(map[string]int32, len(r.ViewerMix))
+			for k, v := range r.ViewerMix {
+				out.LastReport.ViewerMix[k] = int32(v)
+			}
+		}
+		if len(r.SegmentMsP95ByType) > 0 {
+			out.LastReport.SegmentMsP95ByType = make(map[string]int32, len(r.SegmentMsP95ByType))
+			for k, v := range r.SegmentMsP95ByType {
+				out.LastReport.SegmentMsP95ByType[k] = int32(v)
+			}
 		}
 	}
 	return out

@@ -294,4 +294,14 @@ message LoadTestReport {
   int32 shared_cache_viewers = 11;
   google.protobuf.Timestamp started_at = 12;
   google.protobuf.Timestamp ended_at = 13;
+  // skipped_candidates counts titles the mkvgo scenario had to pass over
+  // (not eligible for the on-demand packager).
+  int32 skipped_candidates = 14;
+  // viewer_mix is the composition at the sustained tier, per viewer type
+  // ("mkvgo", "transcode", "natural") - the answer to "how many DIFFERENT
+  // kinds of users at once".
+  map<string, int32> viewer_mix = 15;
+  // segment_ms_p95_by_type breaks the p95 down per viewer type, so a slow
+  // mkvgo path cannot hide behind slow transcodes (or vice versa).
+  map<string, int32> segment_ms_p95_by_type = 16;
 }

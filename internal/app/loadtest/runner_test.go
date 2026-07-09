@@ -753,3 +753,20 @@ func TestRunner_HeavyMixAdmissionFullOnTranscodePool(t *testing.T) {
 		t.Fatalf("viewer mix = %v, want mkvgo=1 transcode=2", report.ViewerMix)
 	}
 }
+
+// A direct-play user has a capable client by definition. If mkvgo viewers
+// negotiated with the default web profile (AAC-only audio), every AC3/DTS
+// title would need an audio transcode and the packager would never be
+// eligible: the scenario would measure the library's audio codecs instead of
+// the packager. The capability params are the viewer's identity card.
+func TestBuildMasterURL_MkvgoViewerAdvertisesACapableClient(t *testing.T) {
+	u := buildMasterURL(Config{BaseURL: "http://x"}, viewerTypeMkvgo, MediaCandidate{ID: "m1"}, false, 0)
+	for _, want := range []string{"videoCodecs=", "audioCodecs=", "hdr=1", "ac3"} {
+		if !strings.Contains(u, want) {
+			t.Errorf("mkvgo master URL missing %q: %s", want, u)
+		}
+	}
+	if strings.Contains(u, "vd=transcode") {
+		t.Errorf("mkvgo viewer must not force the transcode path: %s", u)
+	}
+}

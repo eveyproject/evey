@@ -191,9 +191,20 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 func buildMasterURL(cfg Config, vt viewerType, media MediaCandidate, forked bool, forkTag int) string {
 	u := strings.TrimRight(cfg.BaseURL, "/") + "/api/v1/media/" + media.ID + "/hls/master.m3u8"
 	q := url.Values{}
-	if vt == viewerTypeTranscode {
+	switch vt {
+	case viewerTypeTranscode:
 		q.Set("vd", "transcode")
 		q.Set("ad", "transcode")
+	case viewerTypeMkvgo:
+		// A direct-play user has a CAPABLE client by definition - that is what
+		// makes them direct-play. Without these the negotiation assumes the
+		// default web profile (AAC-only audio), an AC3/DTS title needs an
+		// audio transcode, and the full mkvgo packager is never eligible: the
+		// scenario would measure the library's audio codecs, not the packager.
+		q.Set("videoCodecs", "h264,hevc,av1")
+		q.Set("audioCodecs", "aac,ac3,eac3,dts,truehd,opus,flac,mp3")
+		q.Set("containers", "mp4,mkv,webm")
+		q.Set("hdr", "1")
 	}
 	if forked {
 		q.Set("audioOffsetMs", strconv.Itoa(forkTag))
