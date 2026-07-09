@@ -201,4 +201,78 @@ describe("ServerConfigPage", () => {
       expect.objectContaining({ onSuccess: expect.any(Function) }),
     );
   });
+
+  it("renders mkvgo card with Ingest serving plan and Playability shadow selects", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    expect(screen.getByText(/^mkvgo\b/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^mkvgo\b/i }));
+
+    const ingestSelect = await screen.findByLabelText(/^Ingest serving plan$/i);
+    const ingestOptions = Array.from(ingestSelect.querySelectorAll("option")).map((o) => o.textContent);
+    expect(ingestOptions).toEqual(["Off", "Plan", "Plan + repair"]);
+
+    const shadowSelect = await screen.findByLabelText(/^Playability shadow$/i);
+    const shadowOptions = Array.from(shadowSelect.querySelectorAll("option")).map((o) => o.textContent);
+    expect(shadowOptions).toEqual(["Off", "On"]);
+  });
+
+  it("defaults the mkvgo selects to Off when no entry is stored", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /^mkvgo\b/i }));
+    const ingestSelect = (await screen.findByLabelText(/^Ingest serving plan$/i)) as HTMLSelectElement;
+    expect(ingestSelect.value).toBe("");
+    const shadowSelect = (await screen.findByLabelText(/^Playability shadow$/i)) as HTMLSelectElement;
+    expect(shadowSelect.value).toBe("");
+  });
+
+  it("reflects stored library.ingest_serving_plan and transcoding.playability_shadow values", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [
+        { key: "library.ingest_serving_plan", value: "plan+repair", updatedAt: "2024-01-15T10:00:00Z" },
+        { key: "transcoding.playability_shadow", value: "on", updatedAt: "2024-01-15T10:00:00Z" },
+      ],
+      isLoading: false,
+    });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /^mkvgo\b/i }));
+    const ingestSelect = (await screen.findByLabelText(/^Ingest serving plan$/i)) as HTMLSelectElement;
+    expect(ingestSelect.value).toBe("plan+repair");
+    const shadowSelect = (await screen.findByLabelText(/^Playability shadow$/i)) as HTMLSelectElement;
+    expect(shadowSelect.value).toBe("on");
+  });
+
+  it("saves the selected ingest serving plan value", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const mutate = vi.fn();
+    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /^mkvgo\b/i }));
+    const select = await screen.findByLabelText(/^Ingest serving plan$/i);
+    fireEvent.change(select, { target: { value: "plan+repair" } });
+    expect(mutate).toHaveBeenCalledWith(
+      { key: "library.ingest_serving_plan", value: "plan+repair" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it("saves the selected playability shadow value", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const mutate = vi.fn();
+    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /^mkvgo\b/i }));
+    const select = await screen.findByLabelText(/^Playability shadow$/i);
+    fireEvent.change(select, { target: { value: "on" } });
+    expect(mutate).toHaveBeenCalledWith(
+      { key: "transcoding.playability_shadow", value: "on" },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
 });
