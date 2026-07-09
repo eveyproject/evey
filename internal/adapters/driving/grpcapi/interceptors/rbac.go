@@ -39,6 +39,9 @@ func DefaultRBACConfig() RBACConfig {
 		},
 		MethodRoles: map[string]Role{
 			"/evey.v1.AdminSystemService/GetSystemInfo":              RoleAdmin,
+			"/evey.v1.AdminSystemService/StartLoadTest":              RoleAdmin,
+			"/evey.v1.AdminSystemService/GetLoadTestStatus":          RoleAdmin,
+			"/evey.v1.AdminSystemService/CancelLoadTest":             RoleAdmin,
 			"/evey.v1.AdminSystemService/RestartServer":              RoleAdmin,
 			"/evey.v1.PresenceService/ListOnline":                    RoleAdmin,
 			"/evey.v1.AdminSystemService/GetServerConfig":            RoleAdmin,

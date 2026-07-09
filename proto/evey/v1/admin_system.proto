@@ -3,6 +3,7 @@ syntax = "proto3";
 package evey.v1;
 
 import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
 import "evey/v1/transcoding.proto";
 
 option go_package = "github.com/evey-project/evey/gen/evey/v1;eveyv1";
@@ -11,6 +12,26 @@ service AdminSystemService {
   rpc GetSystemInfo(GetSystemInfoRequest) returns (SystemInfo) {
     option (google.api.http) = {
       get: "/api/v1/admin/system"
+    };
+  }
+
+  // Built-in load test: the server plays synthetic viewers against its own
+  // HTTP stack and reports measured capacity. Admin-only; refuses to start
+  // while real streams are active.
+  rpc StartLoadTest(StartLoadTestRequest) returns (LoadTestStatus) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/load-test"
+      body: "*"
+    };
+  }
+  rpc GetLoadTestStatus(GetLoadTestStatusRequest) returns (LoadTestStatus) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/load-test"
+    };
+  }
+  rpc CancelLoadTest(CancelLoadTestRequest) returns (LoadTestStatus) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/load-test"
     };
   }
 
@@ -237,3 +258,40 @@ message UpdateServerConfigRequest {
 }
 
 message GetDashboardRequest {}
+
+message StartLoadTestRequest {
+  // scenario is "transcode" (forces the encode path - the capacity question)
+  // or "natural" (normal negotiation: copy/on-demand when eligible).
+  string scenario = 1;
+  // max_viewers caps the ramp; 0 = server default (12, sized for a weak NAS).
+  int32 max_viewers = 2;
+}
+
+message GetLoadTestStatusRequest {}
+message CancelLoadTestRequest {}
+
+message LoadTestStatus {
+  bool running = 1;
+  string phase = 2;
+  int32 viewers = 3;
+  int64 elapsed_ms = 4;
+  LoadTestReport last_report = 5;
+}
+
+// LoadTestReport is what the box MEASURED, next to what the admission model
+// predicted - the panel shows both so the operator sees promises kept.
+message LoadTestReport {
+  string scenario = 1;
+  int32 sustained_viewers = 2;
+  string stop_reason = 3;
+  string stop_detail = 4;
+  int32 ttff_ms_p50 = 5;
+  int32 ttff_ms_p95 = 6;
+  int32 segment_ms_p50 = 7;
+  int32 segment_ms_p95 = 8;
+  int32 segment_slo_ms = 9;
+  int32 samples = 10;
+  int32 shared_cache_viewers = 11;
+  google.protobuf.Timestamp started_at = 12;
+  google.protobuf.Timestamp ended_at = 13;
+}
