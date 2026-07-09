@@ -88,6 +88,7 @@ type mediaDeps struct {
 	qoeQuerySvc      *appqoe.QueryService
 	complexityRepo   domaintranscoding.ComplexityRepo
 	calibrationSvc   *apptranscoding.CalibrationService
+	videoLimiter     *apptranscoding.VideoSessionLimiter
 	capsOverrideSvc  *apptranscoding.CapOverrideService
 	mkvSvc           *appmkv.Service
 	mkvAdapter       *mkvgoadapter.Adapter // also drives the /remux.mp4 fast-start MP4 repackage

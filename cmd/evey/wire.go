@@ -776,6 +776,15 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// reaches BOTH producers, and ActiveSessionCount sums them. For()/routing is
 	// unused on this instance (the HTTP handler owns the routing selector with
 	// the real resolveHW predicate), so the predicate is nil.
+	// Global bound on CONCURRENT VIDEO-ENCODE sessions. Shared by both producers
+	// (software + hardware orchestrator); the copy rung, which merely remuxes
+	// video and may transcode audio, runs on its own SoftwareProducer instance
+	// and never consumes a slot. Starts unlimited (0) and is armed below, once
+	// the benchmark has measured what this box can actually sustain.
+	videoLimiter := apptranscoding.NewVideoSessionLimiter(0)
+	hlsVODSoftware.WithVideoSessionLimiter(videoLimiter)
+	hlsVODOrch.WithVideoSessionLimiter(videoLimiter)
+
 	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch, nil)
 
 	// mkvgo Playability shadow (Phase 3, log-only): compares every playback
@@ -893,6 +902,27 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	if err := calibrationSvc.EnsureCalibrated(ctx); err != nil {
 		slog.Warn("calibration: EnsureCalibrated returned error, falling back to 720p", slog.Any("err", err))
 	}
+
+	// Arm the video-session cap from the benchmark: the tallest software rung
+	// that sustained realtime tells us how much headroom one encode leaves, so
+	// FPS/RequiredFPS is how many realtime sessions this box can serve. The
+	// admin may only REDUCE it (transcoding.max_video_sessions).
+	applyVideoSessionLimit := func(ctx context.Context) {
+		auto, ev := apptranscoding.AutoVideoSessionCapacity(calibrationSvc.Current().BenchSamples, sysinfo.CPUBudget())
+		effective := apptranscoding.ResolveVideoSessionLimit(ctx, r.ServerCfg, auto)
+		videoLimiter.SetLimit(effective)
+		slog.Info("video transcode capacity armed",
+			slog.Int("auto", auto), slog.Int("effective", effective),
+			slog.Int("rung_height", ev.Height), slog.Float64("fps", ev.FPS),
+			slog.Float64("required_fps", ev.RequiredFPS), slog.Int("cpu_budget", ev.CPUBudget),
+			slog.Bool("derived_from_benchmark", ev.Derived))
+	}
+	applyVideoSessionLimit(ctx)
+	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(evtCtx context.Context, evt shared.Event) {
+		if c, ok := evt.(shared.ServerConfigChanged); ok && c.Key == apptranscoding.MaxVideoSessionsConfigKey {
+			applyVideoSessionLimit(evtCtx)
+		}
+	})
 	// Level-2 HW safety net: a hardware-encode failure demotes the calibrated
 	// capability so the client's retry re-resolves a lower tier (encoder-agnostic
 	// cache ⇒ transparent). DemoteCapability returns whether it changed; the
@@ -1183,6 +1213,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			qoeQuerySvc:      qoeQuerySvc,
 			complexityRepo:   complexityRepo,
 			calibrationSvc:   calibrationSvc,
+			videoLimiter:     videoLimiter,
 			capsOverrideSvc:  capsOverrideSvc,
 			mkvSvc:           mkvSvc,
 			mkvAdapter:       infra.mkvAdapter,

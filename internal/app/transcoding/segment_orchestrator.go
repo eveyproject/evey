@@ -352,7 +352,7 @@ func (o *SegmentOrchestrator) releaseVideoSlot(s *orchestratorSession) {
 	if !s.videoSlotAcquired || o.videoLimiter == nil {
 		return
 	}
-	s.videoSlotReleaseOnce.Do(o.videoLimiter.Release)
+	s.videoSlotReleaseOnce.Do(func() { o.videoLimiter.Release(s.hash) })
 }
 
 // NewSegmentOrchestrator wires the cache and the ffmpeg adapter together. The
@@ -807,7 +807,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	// path below exactly once (see videoSlotAcquired / releaseVideoSlot).
 	videoSlotAcquired := false
 	if o.videoLimiter != nil {
-		if !o.videoLimiter.TryAcquire() {
+		if !o.videoLimiter.TryAcquire(hash) {
 			teardown()
 			releaseSlot()
 			metrics.HLSVODSessionsRejected.Inc()
@@ -825,7 +825,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		teardown()
 		releaseSlot()
 		if videoSlotAcquired {
-			o.videoLimiter.Release()
+			o.videoLimiter.Release(hash)
 		}
 		return fmt.Errorf("spawnSession: ffmpeg start: %w", err)
 	}

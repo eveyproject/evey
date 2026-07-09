@@ -305,7 +305,7 @@ func (p *SoftwareProducer) releaseVideoSlot(s *swSession) {
 	if !s.videoSlotAcquired || p.videoLimiter == nil {
 		return
 	}
-	s.videoSlotReleaseOnce.Do(p.videoLimiter.Release)
+	s.videoSlotReleaseOnce.Do(func() { p.videoLimiter.Release(s.hash) })
 }
 
 // NewSoftwareProducer wires the cache + ffmpeg adapter + source resolver into a
@@ -742,7 +742,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// releaseVideoSlot).
 	videoSlotAcquired := false
 	if p.copyPlanner == nil && p.videoLimiter != nil {
-		if !p.videoLimiter.TryAcquire() {
+		if !p.videoLimiter.TryAcquire(hash) {
 			teardown()
 			return ErrVideoCapacityExhausted
 		}
@@ -755,7 +755,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		cancel()
 		teardown()
 		if videoSlotAcquired {
-			p.videoLimiter.Release()
+			p.videoLimiter.Release(hash)
 		}
 		return fmt.Errorf("software: startSession: ffmpeg start: %w", err)
 	}

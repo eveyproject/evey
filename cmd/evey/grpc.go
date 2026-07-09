@@ -117,6 +117,8 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		SeekIndex:              seekIndexSvc,
 		KeyframeOnDemand:       deps.keyframeOnDemand,
 		StreamMeter:            deps.engagement.streamMeter,
+		CalibrationSvc:         deps.media.calibrationSvc,
+		VideoLimiter:           deps.media.videoLimiter,
 		Presence:               apppresence.NewTracker(),
 		RestartFn:              selfRestartFn(),
 	}

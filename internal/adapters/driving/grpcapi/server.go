@@ -105,6 +105,13 @@ type GRPCServerDeps struct {
 	// SeekIndex backs the admin MKV/WebM seek-index scan/reindex/rollback RPCs.
 	// Optional: nil → those RPCs return Unimplemented ("service not configured").
 	SeekIndex *appmaintenance.SeekIndexService
+	// CalibrationSvc supplies the boot benchmark evidence behind the video
+	// transcode capacity reported by GetSystemInfo. Optional (nil = the
+	// video_sessions block is omitted).
+	CalibrationSvc *apptranscoding.CalibrationService
+	// VideoLimiter reports live video-encode session usage. Optional.
+	VideoLimiter *apptranscoding.VideoSessionLimiter
+
 	// StreamMeter exposes the cumulative streaming bytes served (HLS/direct/
 	// download) for the dashboard's measured bandwidth. Optional.
 	StreamMeter appactivity.BytesTotaler
@@ -170,6 +177,8 @@ func (s *GRPCServer) RegisterServices() {
 		libLister:      d.LibQuery,
 		streamMeter:    d.StreamMeter,
 		version:        d.Version,
+		calibrationSvc: calibrationProviderOrNil(d.CalibrationSvc),
+		videoLimiter:   videoLimiterOrNil(d.VideoLimiter),
 		startTime:      s.startTime,
 		ffmpegPath:     s.ffmpegPath,
 		translator:     d.Translator,
@@ -275,4 +284,22 @@ func (s *GRPCServer) Start(addr string) error {
 
 func (s *GRPCServer) Stop() {
 	s.server.GracefulStop()
+}
+
+// calibrationProviderOrNil / videoLimiterOrNil keep a TRUE-nil interface when
+// the concrete pointer is absent: assigning a typed nil pointer to an
+// interface yields a non-nil interface holding a nil value, and the handler's
+// `if h.calibrationSvc != nil` guard would then dereference it.
+func calibrationProviderOrNil(s *apptranscoding.CalibrationService) calibrationSnapshotProvider {
+	if s == nil {
+		return nil
+	}
+	return s
+}
+
+func videoLimiterOrNil(l *apptranscoding.VideoSessionLimiter) videoSessionActiveReporter {
+	if l == nil {
+		return nil
+	}
+	return l
 }

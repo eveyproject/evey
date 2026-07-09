@@ -20,6 +20,15 @@ var ErrVideoCapacityExhausted = errors.New("transcoding: max video transcode ses
 // instance, which copies the video stream and must never be gated here (see
 // SoftwareProducer.copyPlanner).
 //
+// The unit of capacity is the STREAM, not the ffmpeg process: slots are keyed
+// by decision hash and ref-counted. One viewer whose player probes a second
+// ABR rung spawns a second encoder for the SAME hash and must NOT be refused
+// by its own stream's slot (verified live: with capacity 1 and per-process
+// counting, a single viewer 503'd itself on an ABR switch). Those sibling
+// encoders are SIGSTOPped by pauseOtherVariants anyway, so they cost no CPU.
+// Distinct viewers at the same position share a hash - and share the same
+// encoder and cache - so they legitimately count as one.
+//
 // Limit()==0 (the zero value) means UNLIMITED: TryAcquire always succeeds.
 // This is the default, so a caller that never wires a limiter (or wires one
 // with limit 0) observes byte-identical behaviour to before this feature
@@ -31,9 +40,11 @@ var ErrVideoCapacityExhausted = errors.New("transcoding: max video transcode ses
 // already-running session, matching the "admin can only reduce future
 // capacity" contract.
 type VideoSessionLimiter struct {
-	mu     sync.Mutex
-	limit  int
-	active int
+	mu    sync.Mutex
+	limit int
+	// refs counts live encoders per decision hash. len(refs) is the number of
+	// distinct encoded STREAMS, which is what the limit caps.
+	refs map[string]int
 }
 
 // NewVideoSessionLimiter creates a limiter with the given initial limit (0 =
@@ -42,42 +53,53 @@ func NewVideoSessionLimiter(limit int) *VideoSessionLimiter {
 	if limit < 0 {
 		limit = 0
 	}
-	return &VideoSessionLimiter{limit: limit}
+	return &VideoSessionLimiter{limit: limit, refs: make(map[string]int)}
 }
 
-// TryAcquire reserves one video-encode slot, non-blocking. Returns true when
-// a slot was taken (or the limiter is unlimited); false when the limiter is
-// at capacity and the caller must refuse the spawn with
-// ErrVideoCapacityExhausted. Every successful TryAcquire must be matched by
-// exactly one Release.
-func (l *VideoSessionLimiter) TryAcquire() bool {
+// TryAcquire reserves a video-encode slot for the stream identified by key
+// (the decision hash), non-blocking. An encoder joining a stream that already
+// holds a slot always succeeds (ref-count only) - the cap governs distinct
+// streams. Returns false only when a NEW stream would exceed the limit; the
+// caller must then refuse the spawn with ErrVideoCapacityExhausted. Every
+// successful TryAcquire must be matched by exactly one Release(key).
+func (l *VideoSessionLimiter) TryAcquire(key string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.limit > 0 && l.active >= l.limit {
-		return false
+	if l.refs == nil {
+		l.refs = make(map[string]int)
 	}
-	l.active++
+	if _, joining := l.refs[key]; !joining {
+		if l.limit > 0 && len(l.refs) >= l.limit {
+			return false
+		}
+	}
+	l.refs[key]++
 	return true
 }
 
-// Release frees one video-encode slot taken by a successful TryAcquire.
-// Never goes negative - a stray extra Release is a no-op rather than a
-// corrupting decrement, so a bug in caller bookkeeping degrades to "reports
-// slightly more headroom than actually exists" rather than a poisoned
-// negative count.
-func (l *VideoSessionLimiter) Release() {
+// Release gives back the reference key took in TryAcquire; the stream's slot
+// frees when its last encoder is gone. A stray Release for an unknown key is a
+// no-op rather than a corrupting decrement, so a bookkeeping bug degrades to
+// "reports slightly more headroom than exists" instead of poisoning the count.
+func (l *VideoSessionLimiter) Release(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.active > 0 {
-		l.active--
+	n, held := l.refs[key]
+	if !held {
+		return
 	}
+	if n <= 1 {
+		delete(l.refs, key)
+		return
+	}
+	l.refs[key] = n - 1
 }
 
-// Active reports how many video-encode slots are currently held.
+// Active reports how many distinct encoded streams currently hold a slot.
 func (l *VideoSessionLimiter) Active() int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.active
+	return len(l.refs)
 }
 
 // Limit reports the current cap (0 = unlimited).
@@ -88,8 +110,8 @@ func (l *VideoSessionLimiter) Limit() int {
 }
 
 // SetLimit changes the cap live. Negative values clamp to 0 (unlimited). Only
-// affects future TryAcquire calls - never kills a session already counted in
-// Active().
+// affects future TryAcquire calls for NEW streams - never kills a stream
+// already counted in Active().
 func (l *VideoSessionLimiter) SetLimit(n int) {
 	if n < 0 {
 		n = 0
