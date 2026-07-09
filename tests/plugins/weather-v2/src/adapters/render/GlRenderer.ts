@@ -150,6 +150,7 @@ export class GlRenderer implements SceneRenderer {
   private onRestored = () => { this.lost = false; this.initGL(); };
 
   mount(host: HTMLElement): void {
+    console.warn("weather-v2 v2.9.3 mount (diagnostics on)");
     this.host = host;
     const canvas = document.createElement("canvas");
     canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block;";
@@ -200,7 +201,7 @@ export class GlRenderer implements SceneRenderer {
     tg.sunI = cycle.sunIntensity * (1 - params.cloudCover * 0.12) * veil;
     if (!this.loggedSun) {
       this.loggedSun = true;
-      console.info(`weather-v2 sun-state: isDay=${cycle.isDay} sunProgress=${cycle.sunProgress.toFixed(3)} sunX=${tg.sunX.toFixed(3)} sunY=${tg.sunY.toFixed(3)} sunI=${tg.sunI.toFixed(3)} cover=${params.cloudCover.toFixed(2)}`);
+      console.warn(`weather-v2 sun-state: isDay=${cycle.isDay} sunProgress=${cycle.sunProgress.toFixed(3)} sunX=${tg.sunX.toFixed(3)} sunY=${tg.sunY.toFixed(3)} sunI=${tg.sunI.toFixed(3)} cover=${params.cloudCover.toFixed(2)}`);
     }
     tg.golden = cycle.golden;
     tg.moonX = cycle.moonX;
@@ -277,7 +278,7 @@ export class GlRenderer implements SceneRenderer {
         g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 1);
         g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img);
         g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 0);
-        console.info(`weather-v2: ${label} uploaded ${img.naturalWidth}x${img.naturalHeight}`);
+        console.warn(`weather-v2: ${label} uploaded ${img.naturalWidth}x${img.naturalHeight}`);
       } catch (e) {
         // Diagnostic: in some sandboxed-iframe/browser combos WebGL taints an
         // <img>-decoded texture even from a data: URL and texImage2D throws.

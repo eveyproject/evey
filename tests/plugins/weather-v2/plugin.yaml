@@ -1,7 +1,7 @@
 name: weather-v2
 kind: plugin
-version: 2.9.2
-description: Animated weather widget v2 - dependency-free WebGL scene, responsive, DDD architecture. 2.9.2 - polar-latitude day/night fix, lightning/aurora/shooting-star effects.
+version: 2.9.3
+description: Animated weather widget v2 - dependency-free WebGL scene, responsive, DDD architecture. 2.9.3 - polar-latitude day/night fix, lightning/aurora/shooting-star effects.
 author: evey-examples
 language: nodejs
 entrypoint: node main.js
