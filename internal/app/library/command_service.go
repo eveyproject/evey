@@ -113,6 +113,19 @@ func (s *CommandService) WithSubtitleScanner(sc library.ExternalSubtitleScanner)
 	}
 }
 
+// WithIngestPlanning arms the scan-time serving-plan precomputation (mkvgo
+// ops.Ingest) on the underlying scan service; gated by the
+// library.ingest_serving_plan server_config setting.
+func (s *CommandService) WithIngestPlanning(cfg shared.ServerConfigRepository, planner library.IngestPlanner, store library.ServingPlanRepository, reindexer mkv.Reindexer) {
+	s.scan.WithIngestPlanning(cfg, planner, store, reindexer)
+}
+
+// WithIngestActivePlayback lets the ingest pacer stretch its inter-file pause
+// while streams are being served (weak-NAS politeness).
+func (s *CommandService) WithIngestActivePlayback(count func() int) {
+	s.scan.WithIngestActivePlayback(count)
+}
+
 func (s *CommandService) WithMusicScanner(sc TypedDirectoryScanner) {
 	s.scan.WithMusicScanner(sc)
 }

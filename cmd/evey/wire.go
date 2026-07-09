@@ -777,6 +777,17 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// unused on this instance (the HTTP handler owns the routing selector with
 	// the real resolveHW predicate), so the predicate is nil.
 	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch, nil)
+
+	// mkvgo Playability shadow (Phase 3, log-only): compares every playback
+	// decision against ops.Playability when transcoding.playability_shadow=on
+	// (server_config, default off). Divergences are throttled WARNs - the
+	// decision engine itself is never influenced.
+	apptranscoding.SetPlayabilityShadow(apptranscoding.NewPlayabilityShadow(infra.mkvAdapter, r.ServerCfg, slog.Default()))
+
+	// Scan-time serving-plan precomputation (Phase 2, mkvgo ops.Ingest),
+	// gated by library.ingest_serving_plan (off | plan | plan+repair).
+	libCmdSvc.WithIngestPlanning(r.ServerCfg, infra.mkvAdapter, r.ServingPlan, infra.mkvAdapter)
+	libCmdSvc.WithIngestActivePlayback(hlsVODRemover.ActiveSessionCount)
 	// Trickplay generation throttles while any stream is live — feed it the
 	// fan-out selector so SOFTWARE streams also hold it off, not just HW ones (a
 	// weak NAS must not burn CPU on trickplay during an SW transcode).

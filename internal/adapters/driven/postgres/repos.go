@@ -17,6 +17,7 @@ type Repos struct {
 	MediaItem             *MediaItemRepository
 	MediaItemQuery        *MediaItemQueryRepoAdapter
 	MediaStream           *MediaStreamRepository
+	ServingPlan           *ServingPlanRepository
 	Person                *PersonRepository
 	MediaPerson           *MediaPersonRepository
 	Trickplay             *TrickplayRepository
@@ -83,6 +84,7 @@ func NewRepos(db *sql.DB) *Repos {
 		MediaItem:             NewMediaItemRepository(db),
 		MediaItemQuery:        NewMediaItemQueryRepoAdapter(db),
 		MediaStream:           NewMediaStreamRepository(db),
+		ServingPlan:           NewServingPlanRepository(db),
 		Person:                NewPersonRepository(db),
 		MediaPerson:           NewMediaPersonRepository(db),
 		Trickplay:             NewTrickplayRepository(db),

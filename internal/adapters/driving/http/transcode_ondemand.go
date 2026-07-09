@@ -66,7 +66,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 	}
 	// One decision per master request: both the video gate and the audio gate
 	// read it, and makeDecision re-derives client caps + content class each call.
-	decision := h.makeDecision(r.Context(), streams, containerOf(item), r)
+	decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
 	if !h.planHLSVideoEligible(decision, item, streams) {
 		return false
 	}

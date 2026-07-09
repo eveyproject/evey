@@ -193,20 +193,20 @@ func TestMakeDecision_HDRClientStillTonemapsWhenCopyUnavailable(t *testing.T) {
 
 	// Copy rung AVAILABLE: the raw HDR serve needs no tonemap.
 	h := newCopyTestHandler(t)
-	d := h.makeDecision(context.Background(), hevcHDR([]int64{0, 6000, 12000}), "mp4", newReq())
+	d := h.makeDecision(context.Background(), hevcHDR([]int64{0, 6000, 12000}), "mp4", "", newReq())
 	assert.Equal(t, "copy", d.VideoDecision)
 	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed",
 		"raw HDR copy to an HDR client must not tonemap")
 
 	// Copy rung UNAVAILABLE (no keyframe index yet): the re-encode must tonemap.
-	d = h.makeDecision(context.Background(), hevcHDR(nil), "mp4", newReq())
+	d = h.makeDecision(context.Background(), hevcHDR(nil), "mp4", "", newReq())
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed",
 		"an HDR source that will be transcoded must tonemap even for an hdr=1 client")
 
 	// Copy producer OFF entirely: same forced tonemap.
 	hOff := &hlsVODServe{cache: h.cache}
-	d = hOff.makeDecision(context.Background(), hevcHDR([]int64{0, 6000}), "mp4", newReq())
+	d = hOff.makeDecision(context.Background(), hevcHDR([]int64{0, 6000}), "mp4", "", newReq())
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
 
@@ -216,7 +216,7 @@ func TestMakeDecision_HDRClientStillTonemapsWhenCopyUnavailable(t *testing.T) {
 		StreamType: domainlibrary.StreamTypeVideo, Codec: "hevc", Profile: "Main",
 		Width: &w, Height: &hgt, Level: &level, ColorTransfer: &bt709,
 	}}
-	d = hOff.makeDecision(context.Background(), sdr, "mp4", newReq())
+	d = hOff.makeDecision(context.Background(), sdr, "mp4", "", newReq())
 	assert.NotContains(t, d.TranscodeReasons, "hdr_tonemapping_needed")
 }
 
@@ -288,22 +288,22 @@ func TestMakeDecision_PinnedVideoDecision(t *testing.T) {
 	}
 
 	// Precondition: with keyframes backfilled the fresh decision is COPY.
-	d := h.makeDecision(context.Background(), streams, "matroska", newReq(""))
+	d := h.makeDecision(context.Background(), streams, "matroska", "", newReq(""))
 	require.Equal(t, "copy", d.VideoDecision)
 
 	// The session started BEFORE the backfill (its URLs carry vd=transcode):
 	// the pin holds even though the fresh decision would now say copy.
-	d = h.makeDecision(context.Background(), streams, "matroska", newReq("transcode"))
+	d = h.makeDecision(context.Background(), streams, "matroska", "", newReq("transcode"))
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Contains(t, d.TranscodeReasons, "decision_pinned")
 	assert.NotEmpty(t, d.VideoCodec, "a pinned re-encode still needs an encoder")
 
 	// vd=copy on a still-copy decision: plain no-op.
-	d = h.makeDecision(context.Background(), streams, "matroska", newReq("copy"))
+	d = h.makeDecision(context.Background(), streams, "matroska", "", newReq("copy"))
 	assert.Equal(t, "copy", d.VideoDecision)
 
 	// Garbage vd values are ignored.
-	d = h.makeDecision(context.Background(), streams, "matroska", newReq("banana"))
+	d = h.makeDecision(context.Background(), streams, "matroska", "", newReq("banana"))
 	assert.Equal(t, "copy", d.VideoDecision)
 }
 
@@ -325,7 +325,7 @@ func TestMakeDecision_PinnedTranscodeStillTonemapsHDR(t *testing.T) {
 		&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
 
 	h := newCopyTestHandler(t)
-	d := h.makeDecision(context.Background(), streams, "matroska", req)
+	d := h.makeDecision(context.Background(), streams, "matroska", "", req)
 	assert.Equal(t, "transcode", d.VideoDecision)
 	assert.Contains(t, d.TranscodeReasons, "hdr_tonemapping_needed",
 		"a pinned transcode of a PQ source must tonemap like any other re-encode")
@@ -365,11 +365,11 @@ func TestMakeDecision_AudioOffsetForcesAudioTranscode(t *testing.T) {
 			&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
 	}
 
-	d := h.makeDecision(context.Background(), streams, "matroska", newReq("&audioOffsetMs=300"))
+	d := h.makeDecision(context.Background(), streams, "matroska", "", newReq("&audioOffsetMs=300"))
 	assert.Equal(t, "transcode", d.AudioDecision)
 	assert.Contains(t, d.TranscodeReasons, "audio_resync_requested")
 
-	d = h.makeDecision(context.Background(), streams, "matroska", newReq(""))
+	d = h.makeDecision(context.Background(), streams, "matroska", "", newReq(""))
 	assert.NotContains(t, d.TranscodeReasons, "audio_resync_requested")
 
 	// Clamp: an absurd crafted offset is bounded, not honored.
@@ -406,22 +406,22 @@ func TestMakeDecision_AudioDecisionPin(t *testing.T) {
 	}
 
 	// Precondition: aac stereo against aac caps = audio passthrough.
-	d := h.makeDecision(context.Background(), streams, "matroska", newReq(""))
+	d := h.makeDecision(context.Background(), streams, "matroska", "", newReq(""))
 	require.Equal(t, "copy", d.AudioDecision)
 
 	// A session whose URLs were stamped ad=transcode holds transcode even
 	// though the fresh decision would now say copy.
-	d = h.makeDecision(context.Background(), streams, "matroska", newReq("transcode"))
+	d = h.makeDecision(context.Background(), streams, "matroska", "", newReq("transcode"))
 	assert.Equal(t, "transcode", d.AudioDecision)
 	assert.Contains(t, d.TranscodeReasons, "decision_pinned")
 	assert.NotEmpty(t, d.AudioCodec, "a pinned audio re-encode still needs an encoder")
 
 	// ad=copy on a still-copy decision: no-op.
-	d = h.makeDecision(context.Background(), streams, "matroska", newReq("copy"))
+	d = h.makeDecision(context.Background(), streams, "matroska", "", newReq("copy"))
 	assert.Equal(t, "copy", d.AudioDecision)
 
 	// Garbage values are ignored.
-	d = h.makeDecision(context.Background(), streams, "matroska", newReq("banana"))
+	d = h.makeDecision(context.Background(), streams, "matroska", "", newReq("banana"))
 	assert.Equal(t, "copy", d.AudioDecision)
 
 	// The pin composes with the user resync force: offset wins over a copy pin
@@ -430,7 +430,7 @@ func TestMakeDecision_AudioDecisionPin(t *testing.T) {
 	q := req.URL.Query()
 	q.Set("audioOffsetMs", "300")
 	req.URL.RawQuery = q.Encode()
-	d = h.makeDecision(context.Background(), streams, "matroska", req)
+	d = h.makeDecision(context.Background(), streams, "matroska", "", req)
 	assert.Equal(t, "transcode", d.AudioDecision)
 }
 
@@ -477,7 +477,7 @@ func TestBuildFingerprint_BitmapBurnIn_ThreadsCodecAndForcesTranscode(t *testing
 
 	// The decision layer must have forced a video transcode to burn the bitmap
 	// subtitle in (a copy rung cannot overlay).
-	d := h.makeDecision(req.Context(), streams, "matroska", req)
+	d := h.makeDecision(req.Context(), streams, "matroska", "", req)
 	assert.Equal(t, "transcode", d.VideoDecision, "a bitmap burn-in must force a video transcode")
 	assert.Equal(t, "burn", d.SubtitleDecision)
 

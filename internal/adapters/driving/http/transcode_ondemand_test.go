@@ -94,7 +94,7 @@ func onDemandReq() *http.Request {
 // decisionFor mirrors tryServePlanMaster: one decision per request, handed to
 // both eligibility gates.
 func decisionFor(h *hlsVODServe, r *http.Request, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) domaintranscoding.PlaybackDecision {
-	return h.makeDecision(r.Context(), streams, containerOf(item), r)
+	return h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
 }
 
 func TestPlanHLSVideoEligible(t *testing.T) {

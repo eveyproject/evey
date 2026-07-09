@@ -415,7 +415,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// serveVariant would call it on the transcode path where copyPlanner is nil
 	// and 500. Gating on the copy decision makes transcode fall through to the
 	// precalculated manifest, unchanged.
-	if h.isCopyRequest(h.makeDecision(r.Context(), streams, containerOf(item), r), streams, sourceBytesOf(item)) {
+	if h.isCopyRequest(h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r), streams, sourceBytesOf(item)) {
 		if producer := h.producerForRequest(r.Context(), r, streams, item); producer != nil {
 			if mp, ok := producer.(apptranscoding.ManifestProvider); ok {
 				fp, fpErr := h.buildFingerprint(r, mediaID, item, streams)
@@ -552,7 +552,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// needs no pre-bound here.
 	if !isInit && item.File != nil {
 		if durMs := item.File.Duration.Milliseconds(); durMs > 0 &&
-			!h.isCopyRequest(h.makeDecision(r.Context(), streams, containerOf(item), r), streams, sourceBytesOf(item)) {
+			!h.isCopyRequest(h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r), streams, sourceBytesOf(item)) {
 			const segMs = int64(apptranscoding.ManifestSegmentSeconds * 1000)
 			maxSeg := int((durMs + segMs - 1) / segMs) // ceil = exact transcode segment count
 			if segmentIdx >= maxSeg {
@@ -734,7 +734,7 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		return apptranscoding.ManifestInput{}, &durationMissingError{mediaID: mediaID}
 	}
 
-	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, r)
+	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, item.File.Path, r)
 	profiles := h.profilesForDecision(r.Context(), item, streams, decision)
 
 	audioTrack := h.resolveAudioTrack(r, streams)
@@ -1002,7 +1002,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	if item == nil || item.File == nil {
 		return apptranscoding.DecisionFingerprint{}, errors.New("buildFingerprint: nil item")
 	}
-	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, r)
+	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, item.File.Path, r)
 	profiles := h.profilesForDecision(r.Context(), item, streams, decision)
 
 	audioTrack := h.resolveAudioTrack(r, streams)
@@ -1082,7 +1082,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	}, nil
 }
 
-func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary.MediaStream, container string, r *http.Request) domaintranscoding.PlaybackDecision {
+func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, r *http.Request) domaintranscoding.PlaybackDecision {
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := loadProfilePrefs(ctx, h.profilePrefs, claims.ProfileID)
 	// Inject the selected subtitle track so the decision only burns (and so only
@@ -1097,7 +1097,7 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	prefs.AudioTrack = h.resolveAudioTrack(r, streams)
 	hdrCapable := r.URL.Query().Get("hdr") == "1"
 	client := parseClientCapabilities(r, hdrCapable)
-	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, container, client, 0, prefs)
+	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, container, client, 0, prefs, sourcePath)
 	if d == nil {
 		return domaintranscoding.PlaybackDecision{}
 	}
@@ -1474,7 +1474,7 @@ func sourceDimsOf(streams []*domainlibrary.MediaStream) apptranscoding.SourceDim
 // returns nil only when neither is set.
 func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, streams []*domainlibrary.MediaStream, item *domainlibrary.MediaItem) apptranscoding.StreamProducer {
 	if h.selector != nil {
-		decision := h.makeDecision(ctx, streams, containerOf(item), r)
+		decision := h.makeDecision(ctx, streams, containerOf(item), sourcePathOf(item), r)
 		if h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
 			return h.copyProducer
 		}
@@ -1501,6 +1501,15 @@ func containerOf(item *domainlibrary.MediaItem) string {
 		return ""
 	}
 	return item.File.ContainerFormat
+}
+
+// sourcePathOf mirrors containerOf: the media file path when known, "" when
+// the item has no file (the Playability shadow is inert on "").
+func sourcePathOf(item *domainlibrary.MediaItem) string {
+	if item == nil || item.File == nil {
+		return ""
+	}
+	return item.File.Path
 }
 
 // isCopyRequest reports whether this request should be served as a video-COPY
