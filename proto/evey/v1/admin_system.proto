@@ -93,6 +93,25 @@ message VideoSessionCapacity {
   int32 effective_limit = 2;
   int32 active = 3;
   VideoCapacityEvidence evidence = 4;
+  // budget_used / budget_total are the cost-model view of capacity: the
+  // fraction of "one whole host" currently reserved by live streams, and the
+  // budget new streams may spend (default 1.0). Both stay 0 / 0 when no cost
+  // model is wired to the limiter - the panel then falls back to the
+  // auto_capacity/active counter view above.
+  double budget_used = 5;
+  double budget_total = 6;
+  // rung_fits is the per-resolution cost breakdown the budget above is
+  // derived from - empty when no cost model is wired.
+  repeated VideoRungFit rung_fits = 7;
+}
+
+// VideoRungFit is one calibrated resolution rung's admission cost and how
+// many concurrent streams topping out at that height the host's budget
+// fits. See apptranscoding.VideoCostModel.Rungs.
+message VideoRungFit {
+  int32 height = 1;
+  double cost = 2;
+  int32 max_streams = 3;
 }
 
 // VideoCapacityEvidence is the "why" behind auto_capacity: the tallest

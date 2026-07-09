@@ -94,9 +94,17 @@ type fakeCalibrationSnapshot struct {
 func (f fakeCalibrationSnapshot) Current() domaintranscoding.EncodeCapability { return f.capability }
 
 // fakeVideoActiveReporter satisfies videoSessionActiveReporter for tests.
-type fakeVideoActiveReporter struct{ active int }
+type fakeVideoActiveReporter struct {
+	active int
+	used   float64
+	budget float64
+	rungs  []apptranscoding.RungFit
+}
 
-func (f fakeVideoActiveReporter) Active() int { return f.active }
+func (f fakeVideoActiveReporter) Active() int                     { return f.active }
+func (f fakeVideoActiveReporter) Used() float64                   { return f.used }
+func (f fakeVideoActiveReporter) Budget() float64                 { return f.budget }
+func (f fakeVideoActiveReporter) Rungs() []apptranscoding.RungFit { return f.rungs }
 
 func TestAdminGetSystemInfo_NoCalibrationSvc_VideoSessionsUnset(t *testing.T) {
 	d := newTestSystemHandler()
@@ -142,6 +150,47 @@ func TestAdminGetSystemInfo_VideoSessions_AutoOnly(t *testing.T) {
 	}
 	if resp.VideoSessions.Evidence.Height != 1080 {
 		t.Errorf("Evidence.Height = %d, want 1080", resp.VideoSessions.Evidence.Height)
+	}
+}
+
+func TestAdminGetSystemInfo_VideoSessions_BudgetAndRungFits(t *testing.T) {
+	d := newTestSystemHandler()
+	d.calibrationSvc = fakeCalibrationSnapshot{capability: domaintranscoding.EncodeCapability{
+		BenchSamples: []domaintranscoding.BenchRungSample{
+			{Ladder: "software", Height: 1080, FPS: 60, RequiredFPS: 30, Passing: true}, // auto=2
+		},
+	}}
+	d.videoLimiter = fakeVideoActiveReporter{
+		active: 2,
+		used:   0.961,
+		budget: 1.0,
+		rungs: []apptranscoding.RungFit{
+			{Height: 1080, Cost: 0.431, MaxStreams: 2},
+			{Height: 1440, Cost: 0.530, MaxStreams: 1},
+		},
+	}
+
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if resp.VideoSessions == nil {
+		t.Fatal("expected VideoSessions to be populated")
+	}
+	if resp.VideoSessions.BudgetUsed != 0.961 {
+		t.Errorf("BudgetUsed = %v, want 0.961", resp.VideoSessions.BudgetUsed)
+	}
+	if resp.VideoSessions.BudgetTotal != 1.0 {
+		t.Errorf("BudgetTotal = %v, want 1.0", resp.VideoSessions.BudgetTotal)
+	}
+	if len(resp.VideoSessions.RungFits) != 2 {
+		t.Fatalf("RungFits len = %d, want 2", len(resp.VideoSessions.RungFits))
+	}
+	if resp.VideoSessions.RungFits[0].Height != 1080 || resp.VideoSessions.RungFits[0].MaxStreams != 2 {
+		t.Errorf("RungFits[0] = %+v, want height=1080 maxStreams=2", resp.VideoSessions.RungFits[0])
+	}
+	if resp.VideoSessions.RungFits[1].Height != 1440 || resp.VideoSessions.RungFits[1].MaxStreams != 1 {
+		t.Errorf("RungFits[1] = %+v, want height=1440 maxStreams=1", resp.VideoSessions.RungFits[1])
 	}
 }
 

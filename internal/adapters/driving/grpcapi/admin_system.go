@@ -34,10 +34,16 @@ type calibrationSnapshotProvider interface {
 }
 
 // videoSessionActiveReporter is the narrow port GetSystemInfo needs to report
-// how many video-encode sessions are live right now. Satisfied by
-// *apptranscoding.VideoSessionLimiter.
+// video-encode session usage: the plain per-stream counter (Active()) and,
+// when a cost model is wired to the limiter, the budget view (Used/Budget/
+// Rungs). Satisfied by *apptranscoding.VideoSessionLimiter - Used/Budget/
+// Rungs all report the zero value (0 / 0 / empty) when no cost model is
+// wired, so the admin panel harmlessly falls back to the counter-only view.
 type videoSessionActiveReporter interface {
 	Active() int
+	Used() float64
+	Budget() float64
+	Rungs() []apptranscoding.RungFit
 }
 
 type adminSystemHandler struct {
@@ -170,8 +176,19 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 		}
 		effective := apptranscoding.ResolveVideoSessionLimit(ctx, cfgRepo, auto)
 		var active int
+		var budgetUsed, budgetTotal float64
+		var rungFits []*eveyv1.VideoRungFit
 		if d.videoLimiter != nil {
 			active = d.videoLimiter.Active()
+			budgetUsed = d.videoLimiter.Used()
+			budgetTotal = d.videoLimiter.Budget()
+			for _, r := range d.videoLimiter.Rungs() {
+				rungFits = append(rungFits, &eveyv1.VideoRungFit{
+					Height:     int32(r.Height),
+					Cost:       r.Cost,
+					MaxStreams: int32(r.MaxStreams),
+				})
+			}
 		}
 		info.VideoSessions = &eveyv1.VideoSessionCapacity{
 			AutoCapacity:   int32(auto),
@@ -185,6 +202,9 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 				CpuBudget:   int32(evidence.CPUBudget),
 				Derived:     evidence.Derived,
 			},
+			BudgetUsed:  budgetUsed,
+			BudgetTotal: budgetTotal,
+			RungFits:    rungFits,
 		}
 	}
 

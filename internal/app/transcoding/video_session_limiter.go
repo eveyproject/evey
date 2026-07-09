@@ -39,48 +39,153 @@ var ErrVideoCapacityExhausted = errors.New("transcoding: max video transcode ses
 // SetLimit takes effect on the NEXT TryAcquire only - it never kills an
 // already-running session, matching the "admin can only reduce future
 // capacity" contract.
+//
+// Optionally, WithCostModel wires a VideoCostModel: admission then ALSO
+// spends the new stream's fractional cost (see VideoCostModel.CostForHeight)
+// against a budget (default 1.0 = one whole host), on top of the SetLimit
+// counter cap - both gates must pass. Two cheap-enough streams (e.g. 1440p +
+// 1080p, cost 0.961 combined) can then share the machine instead of each
+// being billed as a full stream, the gap the plain counter cannot express.
+// With no cost model wired (the default), admission is purely by counter -
+// byte-identical to the pre-cost-model behaviour.
 type VideoSessionLimiter struct {
 	mu    sync.Mutex
 	limit int
 	// refs counts live encoders per decision hash. len(refs) is the number of
 	// distinct encoded STREAMS, which is what the limit caps.
 	refs map[string]int
+	// costs holds the fractional cost reserved per decision hash by the
+	// stream's FIRST TryAcquire (0 when no cost model is wired, or the key's
+	// stream never reserved one). Read back by Release to give the exact
+	// amount back to used, regardless of what CostForHeight would return NOW
+	// (a live calibration change must never corrupt an in-flight reservation).
+	costs map[string]float64
+	// used is the sum of costs currently reserved - the running total spent
+	// against budget.
+	used float64
+	// budget is the fraction of "one whole host" new streams may spend,
+	// enforced only when costModel is non-nil. Defaults to 1.0 in
+	// NewVideoSessionLimiter; SetBudget clamps non-positive input back to 1.0.
+	budget float64
+	// costModel is nil until WithCostModel wires one - admission is then
+	// purely counter-based, matching pre-cost-model behaviour exactly.
+	costModel *VideoCostModel
 }
 
 // NewVideoSessionLimiter creates a limiter with the given initial limit (0 =
-// unlimited).
+// unlimited) and the default budget (1.0 = one whole host, only enforced
+// once a cost model is wired via WithCostModel).
 func NewVideoSessionLimiter(limit int) *VideoSessionLimiter {
 	if limit < 0 {
 		limit = 0
 	}
-	return &VideoSessionLimiter{limit: limit, refs: make(map[string]int)}
+	return &VideoSessionLimiter{
+		limit:  limit,
+		refs:   make(map[string]int),
+		costs:  make(map[string]float64),
+		budget: 1.0,
+	}
 }
 
+// WithCostModel wires m as the limiter's cost model, chainable - call before
+// the first TryAcquire. A nil m explicitly reverts to pure counter-based
+// admission (byte-identical to never having called WithCostModel).
+func (l *VideoSessionLimiter) WithCostModel(m *VideoCostModel) *VideoSessionLimiter {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.costModel = m
+	return l
+}
+
+// SetBudget sets the fraction of "one whole host" new streams may spend once
+// a cost model is wired. Non-positive input clamps to the default 1.0 rather
+// than disabling the budget (a 0 or negative budget would refuse every new
+// stream, which is never the intent of a misconfigured value).
+func (l *VideoSessionLimiter) SetBudget(b float64) {
+	if b <= 0 {
+		b = 1.0
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.budget = b
+}
+
+// Budget reports the current admission budget (1.0 default).
+func (l *VideoSessionLimiter) Budget() float64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.budget
+}
+
+// Used reports the fractional cost currently reserved across all live
+// streams. Always 0 when no cost model is wired.
+func (l *VideoSessionLimiter) Used() float64 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.used
+}
+
+// Rungs proxies the wired cost model's Rungs() - every calibrated rung's
+// cost + derived max-concurrent-streams, for the admin capacity panel.
+// Empty (never nil) when no cost model is wired.
+func (l *VideoSessionLimiter) Rungs() []RungFit {
+	l.mu.Lock()
+	m := l.costModel
+	l.mu.Unlock()
+	return m.Rungs()
+}
+
+// budgetEpsilon absorbs float64 accumulation error across several rungs'
+// costs so a combination that mathematically fits (e.g. 0.530 + 0.431 =
+// 0.961) is never refused by a last-bit rounding artifact.
+const budgetEpsilon = 1e-9
+
 // TryAcquire reserves a video-encode slot for the stream identified by key
-// (the decision hash), non-blocking. An encoder joining a stream that already
-// holds a slot always succeeds (ref-count only) - the cap governs distinct
-// streams. Returns false only when a NEW stream would exceed the limit; the
+// (the decision hash), non-blocking, for a session whose tallest encoded
+// rendition is topHeight. An encoder joining a stream that already holds a
+// slot always succeeds (ref-count only, no additional cost) - the caps
+// govern distinct streams. A NEW stream is refused when either gate fails:
+// the SetLimit counter cap, or - only when a cost model is wired - the
+// stream's CostForHeight(topHeight) would push Used() past Budget(). The
 // caller must then refuse the spawn with ErrVideoCapacityExhausted. Every
 // successful TryAcquire must be matched by exactly one Release(key).
-func (l *VideoSessionLimiter) TryAcquire(key string) bool {
+func (l *VideoSessionLimiter) TryAcquire(key string, topHeight int) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.refs == nil {
 		l.refs = make(map[string]int)
 	}
-	if _, joining := l.refs[key]; !joining {
-		if l.limit > 0 && len(l.refs) >= l.limit {
+	if l.costs == nil {
+		l.costs = make(map[string]float64)
+	}
+	if _, joining := l.refs[key]; joining {
+		l.refs[key]++
+		return true
+	}
+
+	if l.limit > 0 && len(l.refs) >= l.limit {
+		return false
+	}
+
+	cost := 0.0
+	if l.costModel != nil {
+		cost = l.costModel.CostForHeight(topHeight)
+		if l.used+cost > l.budget+budgetEpsilon {
 			return false
 		}
 	}
-	l.refs[key]++
+
+	l.refs[key] = 1
+	l.costs[key] = cost
+	l.used += cost
 	return true
 }
 
 // Release gives back the reference key took in TryAcquire; the stream's slot
-// frees when its last encoder is gone. A stray Release for an unknown key is a
-// no-op rather than a corrupting decrement, so a bookkeeping bug degrades to
-// "reports slightly more headroom than exists" instead of poisoning the count.
+// (and its reserved cost, if any) frees when its last encoder is gone. A
+// stray Release for an unknown key is a no-op rather than a corrupting
+// decrement, so a bookkeeping bug degrades to "reports slightly more
+// headroom than exists" instead of poisoning the count.
 func (l *VideoSessionLimiter) Release(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -90,6 +195,13 @@ func (l *VideoSessionLimiter) Release(key string) {
 	}
 	if n <= 1 {
 		delete(l.refs, key)
+		if cost, ok := l.costs[key]; ok {
+			l.used -= cost
+			if l.used < 0 {
+				l.used = 0
+			}
+			delete(l.costs, key)
+		}
 		return
 	}
 	l.refs[key] = n - 1
