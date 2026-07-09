@@ -304,7 +304,7 @@ func TestHLSVOD_Segment_VideoCapacityExhausted_503WithRetryAfter5(t *testing.T) 
 	h.segmentWaitTimeout = 50 * time.Millisecond
 
 	limiter := apptranscoding.NewVideoSessionLimiter(1)
-	require.True(t, limiter.TryAcquire(), "pre-occupy the single video-encode slot")
+	require.True(t, limiter.TryAcquire("some-other-stream"), "pre-occupy the single video-encode slot with a DIFFERENT stream")
 	h.orchestrator.WithVideoSessionLimiter(limiter)
 
 	w := doVODRequest(h, "m1", "stream_0_005.ts")
