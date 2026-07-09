@@ -372,3 +372,24 @@ func TestVideoSessionLimiter_PoolSeparation_ConcurrentMixed_Race(t *testing.T) {
 	assert.InDelta(t, 0.0, l.UsedFor(PoolCPU), budgetEpsilon)
 	assert.InDelta(t, 0.0, l.UsedFor(PoolGPU), budgetEpsilon)
 }
+
+func TestVideoSessionLimiter_ClassesAndRungsFor_NoCostModel_Empty(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(0)
+	assert.Nil(t, l.Classes())
+	assert.Empty(t, l.RungsFor(LadderClassSoftware))
+}
+
+func TestVideoSessionLimiter_ClassesAndRungsFor_ProxyTheWiredCostModel(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(0).WithCostModel(devBoxCostModel(t))
+
+	classes := l.Classes()
+	assert.Contains(t, classes, LadderClassSoftware)
+	assert.Contains(t, classes, LadderClassHW)
+
+	rungs := l.RungsFor(LadderClassHW)
+	assert.NotEmpty(t, rungs, "hw table exists on the dev box fixture")
+
+	assert.Empty(t, l.RungsFor(LadderClassSoftwareAV1), "no av1 table on the dev box fixture")
+}

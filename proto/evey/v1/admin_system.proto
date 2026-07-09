@@ -103,6 +103,36 @@ message VideoSessionCapacity {
   // rung_fits is the per-resolution cost breakdown the budget above is
   // derived from - empty when no cost model is wired.
   repeated VideoRungFit rung_fits = 7;
+  // pools is the per-resource-pool view of the SAME budget: CPU (every
+  // software ladder class) and, only when the host has a hw bench table
+  // (see apptranscoding.VideoCostModel.Classes), a separate GPU pool. The
+  // aggregate budget_used/budget_total above are the SUM across pools and
+  // are misleading once two independent pools exist (e.g. a GPU-heavy box
+  // shows "0.7/2" instead of "0.5/1 cpu, 0.2/1 gpu") - pools is the
+  // authoritative breakdown; the fields above stay for older clients.
+  repeated VideoPool pools = 8;
+}
+
+// VideoPool is one resource pool's (cpu or gpu) admission budget and the
+// calibrated rung costs of the ladder class(es) billed against it. See
+// apptranscoding.ResourcePool / LadderClass.Pool.
+message VideoPool {
+  // pool is "cpu" or "gpu".
+  string pool = 1;
+  double budget_used = 2;
+  double budget_total = 3;
+  // classes is every ladder class billed against this pool that has usable
+  // calibration evidence - "software" (+ "software-hdr"/"software-av1" when
+  // benched) for the cpu pool, "hw" for the gpu pool.
+  repeated VideoClassRungs classes = 4;
+}
+
+// VideoClassRungs is one ladder class's calibrated rung costs, for the admin
+// panel's per-pool breakdown. See apptranscoding.VideoCostModel.RungsFor.
+message VideoClassRungs {
+  // ladder_class is "software" | "software-hdr" | "software-av1" | "hw".
+  string ladder_class = 1;
+  repeated VideoRungFit rung_fits = 2;
 }
 
 // VideoRungFit is one calibrated resolution rung's admission cost and how

@@ -44,6 +44,16 @@ type videoSessionActiveReporter interface {
 	Used() float64
 	Budget() float64
 	Rungs() []apptranscoding.RungFit
+	// UsedFor/BudgetFor report a single pool's slice of the aggregate
+	// Used()/Budget() above - the CPU (software ladders) and GPU (hw ladder)
+	// budgets are independent, so the aggregate view is misleading once both
+	// are in play (see VideoSessionCapacity.pools). Classes/RungsFor let the
+	// panel discover which ladder classes have evidence and their per-rung
+	// cost, to build the per-pool breakdown.
+	UsedFor(pool apptranscoding.ResourcePool) float64
+	BudgetFor(pool apptranscoding.ResourcePool) float64
+	RungsFor(class apptranscoding.LadderClass) []apptranscoding.RungFit
+	Classes() []apptranscoding.LadderClass
 }
 
 type adminSystemHandler struct {
@@ -178,17 +188,15 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 		var active int
 		var budgetUsed, budgetTotal float64
 		var rungFits []*eveyv1.VideoRungFit
+		var pools []*eveyv1.VideoPool
 		if d.videoLimiter != nil {
 			active = d.videoLimiter.Active()
 			budgetUsed = d.videoLimiter.Used()
 			budgetTotal = d.videoLimiter.Budget()
 			for _, r := range d.videoLimiter.Rungs() {
-				rungFits = append(rungFits, &eveyv1.VideoRungFit{
-					Height:     int32(r.Height),
-					Cost:       r.Cost,
-					MaxStreams: int32(r.MaxStreams),
-				})
+				rungFits = append(rungFits, videoRungFitToProto(r))
 			}
+			pools = d.videoSessionPools()
 		}
 		info.VideoSessions = &eveyv1.VideoSessionCapacity{
 			AutoCapacity:   int32(auto),
@@ -205,10 +213,66 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 			BudgetUsed:  budgetUsed,
 			BudgetTotal: budgetTotal,
 			RungFits:    rungFits,
+			Pools:       pools,
 		}
 	}
 
 	return info, nil
+}
+
+// videoRungFitToProto converts one calibrated rung's cost/max-streams to its
+// proto projection.
+func videoRungFitToProto(r apptranscoding.RungFit) *eveyv1.VideoRungFit {
+	return &eveyv1.VideoRungFit{
+		Height:     int32(r.Height),
+		Cost:       r.Cost,
+		MaxStreams: int32(r.MaxStreams),
+	}
+}
+
+// videoSessionPools builds the per-resource-pool breakdown (see
+// VideoSessionCapacity.pools): a "cpu" pool for every software ladder class
+// with calibration evidence, and a "gpu" pool ONLY when the host also has a
+// LadderClassHW table (d.videoLimiter.Classes() reports it) - a software-only
+// box never gets a hollow gpu row. nil when the limiter has no cost model
+// wired at all (Classes() then reports none).
+func (d *adminSystemHandler) videoSessionPools() []*eveyv1.VideoPool {
+	classes := d.videoLimiter.Classes()
+	if len(classes) == 0 {
+		return nil
+	}
+
+	var cpuClasses, gpuClasses []*eveyv1.VideoClassRungs
+	for _, class := range classes {
+		rungs := &eveyv1.VideoClassRungs{LadderClass: string(class)}
+		for _, r := range d.videoLimiter.RungsFor(class) {
+			rungs.RungFits = append(rungs.RungFits, videoRungFitToProto(r))
+		}
+		if class == apptranscoding.LadderClassHW {
+			gpuClasses = append(gpuClasses, rungs)
+		} else {
+			cpuClasses = append(cpuClasses, rungs)
+		}
+	}
+
+	var pools []*eveyv1.VideoPool
+	if len(cpuClasses) > 0 {
+		pools = append(pools, &eveyv1.VideoPool{
+			Pool:        string(apptranscoding.PoolCPU),
+			BudgetUsed:  d.videoLimiter.UsedFor(apptranscoding.PoolCPU),
+			BudgetTotal: d.videoLimiter.BudgetFor(apptranscoding.PoolCPU),
+			Classes:     cpuClasses,
+		})
+	}
+	if len(gpuClasses) > 0 {
+		pools = append(pools, &eveyv1.VideoPool{
+			Pool:        string(apptranscoding.PoolGPU),
+			BudgetUsed:  d.videoLimiter.UsedFor(apptranscoding.PoolGPU),
+			BudgetTotal: d.videoLimiter.BudgetFor(apptranscoding.PoolGPU),
+			Classes:     gpuClasses,
+		})
+	}
+	return pools
 }
 
 func (d *adminSystemHandler) GetServerConfig(ctx context.Context, _ *eveyv1.GetServerConfigRequest) (*eveyv1.ServerConfig, error) {

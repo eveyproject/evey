@@ -213,6 +213,27 @@ func (l *VideoSessionLimiter) Rungs() []RungFit {
 	return m.Rungs()
 }
 
+// RungsFor proxies the wired cost model's RungsFor(class) - class's
+// calibrated rungs, for the admin panel's per-pool breakdown (see
+// VideoCostModel.RungsFor). Empty (never nil) when no cost model is wired or
+// class has no table.
+func (l *VideoSessionLimiter) RungsFor(class LadderClass) []RungFit {
+	l.mu.Lock()
+	m := l.costModel
+	l.mu.Unlock()
+	return m.RungsFor(class)
+}
+
+// Classes proxies the wired cost model's Classes() - which ladder classes
+// have usable calibration evidence, so the admin panel knows which pools to
+// render (see VideoCostModel.Classes). nil when no cost model is wired.
+func (l *VideoSessionLimiter) Classes() []LadderClass {
+	l.mu.Lock()
+	m := l.costModel
+	l.mu.Unlock()
+	return m.Classes()
+}
+
 // budgetEpsilon absorbs float64 accumulation error across several rungs'
 // costs so a combination that mathematically fits (e.g. 0.530 + 0.431 =
 // 0.961) is never refused by a last-bit rounding artifact.

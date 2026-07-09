@@ -106,6 +106,69 @@ describe("TranscodingConfigPage capacity", () => {
     expect(screen.queryByTestId("video-sessions-measured")).toBeNull();
   });
 
+  it("shows a pool per resource (cpu + gpu) with their own budgets and rung fits when the server reports pools", async () => {
+    mockGetSystemInfo.mockReturnValue({
+      data: {
+        videoSessions: {
+          ...measured.videoSessions,
+          pools: [
+            {
+              pool: "cpu",
+              budgetUsed: 0.431,
+              budgetTotal: 1,
+              classes: [
+                {
+                  ladderClass: "software",
+                  rungFits: [{ height: 1080, cost: 0.431, maxStreams: 2 }],
+                },
+              ],
+            },
+            {
+              pool: "gpu",
+              budgetUsed: 0.98,
+              budgetTotal: 1,
+              classes: [
+                {
+                  ladderClass: "hw",
+                  rungFits: [{ height: 1080, cost: 0.245, maxStreams: 4 }],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    expect(screen.getByTestId("video-pool-cpu")).toBeTruthy();
+    expect(screen.getByTestId("video-pool-gpu")).toBeTruthy();
+    // No stale single-pool view once pools are present.
+    expect(screen.queryByTestId("video-sessions-measured")).toBeNull();
+    expect(screen.getByText(/processor \(cpu\)/i)).toBeTruthy();
+    expect(screen.getByText(/graphics card \(gpu\)/i)).toBeTruthy();
+    expect(screen.getByText(/~4 streams? at 1080p/i)).toBeTruthy();
+    expect(screen.getByText(/~2 streams? at 1080p/i)).toBeTruthy();
+  });
+
+  it("falls back to the aggregate view when the server reports no pools (older server)", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    expect(screen.queryByTestId("video-pools")).toBeNull();
+    expect(screen.getByTestId("video-sessions-measured")).toBeTruthy();
+  });
+
+  it("keeps the admin reduction control present but visually secondary to the measured facts", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    // The auto-adjusts statement and the input both render - the control
+    // itself must never be removed, just de-emphasised.
+    expect(screen.getByText(/adjusts automatically/i)).toBeTruthy();
+    expect(screen.getByLabelText(/limit simultaneous video streams/i)).toBeTruthy();
+  });
+
   it("reflects a stored reduction and saves it under the right key", async () => {
     mockListConfigEntries.mockReturnValue({ data: [{ key: "transcoding.max_video_sessions", value: "2" }] });
     const Page = await getPage();

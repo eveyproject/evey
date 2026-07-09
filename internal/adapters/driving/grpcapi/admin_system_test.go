@@ -99,12 +99,35 @@ type fakeVideoActiveReporter struct {
 	used   float64
 	budget float64
 	rungs  []apptranscoding.RungFit
+	// poolUsed/poolBudget/poolRungs/classes let tests simulate the per-pool
+	// breakdown (UsedFor/BudgetFor/RungsFor/Classes) independently of the
+	// aggregate Used()/Budget()/Rungs() above.
+	poolUsed   map[apptranscoding.ResourcePool]float64
+	poolBudget map[apptranscoding.ResourcePool]float64
+	poolRungs  map[apptranscoding.LadderClass][]apptranscoding.RungFit
+	classes    []apptranscoding.LadderClass
 }
 
 func (f fakeVideoActiveReporter) Active() int                     { return f.active }
 func (f fakeVideoActiveReporter) Used() float64                   { return f.used }
 func (f fakeVideoActiveReporter) Budget() float64                 { return f.budget }
 func (f fakeVideoActiveReporter) Rungs() []apptranscoding.RungFit { return f.rungs }
+
+func (f fakeVideoActiveReporter) UsedFor(pool apptranscoding.ResourcePool) float64 {
+	return f.poolUsed[pool]
+}
+
+func (f fakeVideoActiveReporter) BudgetFor(pool apptranscoding.ResourcePool) float64 {
+	return f.poolBudget[pool]
+}
+
+func (f fakeVideoActiveReporter) RungsFor(class apptranscoding.LadderClass) []apptranscoding.RungFit {
+	return f.poolRungs[class]
+}
+
+func (f fakeVideoActiveReporter) Classes() []apptranscoding.LadderClass {
+	return f.classes
+}
 
 func TestAdminGetSystemInfo_NoCalibrationSvc_VideoSessionsUnset(t *testing.T) {
 	d := newTestSystemHandler()
@@ -191,6 +214,107 @@ func TestAdminGetSystemInfo_VideoSessions_BudgetAndRungFits(t *testing.T) {
 	}
 	if resp.VideoSessions.RungFits[1].Height != 1440 || resp.VideoSessions.RungFits[1].MaxStreams != 1 {
 		t.Errorf("RungFits[1] = %+v, want height=1440 maxStreams=1", resp.VideoSessions.RungFits[1])
+	}
+}
+
+// A box with no hw bench table (Classes() reports only software) must never
+// surface a hollow "gpu" pool row - the panel would otherwise show a GPU
+// budget on a host that has none.
+func TestAdminGetSystemInfo_VideoSessions_Pools_NoHWTable_NoGPUPool(t *testing.T) {
+	d := newTestSystemHandler()
+	d.calibrationSvc = fakeCalibrationSnapshot{capability: domaintranscoding.EncodeCapability{
+		BenchSamples: []domaintranscoding.BenchRungSample{
+			{Ladder: "software", Height: 1080, FPS: 60, RequiredFPS: 30, Passing: true},
+		},
+	}}
+	d.videoLimiter = fakeVideoActiveReporter{
+		classes:    []apptranscoding.LadderClass{apptranscoding.LadderClassSoftware},
+		poolUsed:   map[apptranscoding.ResourcePool]float64{apptranscoding.PoolCPU: 0.431},
+		poolBudget: map[apptranscoding.ResourcePool]float64{apptranscoding.PoolCPU: 1.0},
+		poolRungs: map[apptranscoding.LadderClass][]apptranscoding.RungFit{
+			apptranscoding.LadderClassSoftware: {{Height: 1080, Cost: 0.431, MaxStreams: 2}},
+		},
+	}
+
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if len(resp.VideoSessions.Pools) != 1 {
+		t.Fatalf("Pools len = %d, want 1 (cpu only)", len(resp.VideoSessions.Pools))
+	}
+	cpu := resp.VideoSessions.Pools[0]
+	if cpu.Pool != "cpu" {
+		t.Errorf("Pools[0].Pool = %q, want cpu", cpu.Pool)
+	}
+	if cpu.BudgetUsed != 0.431 || cpu.BudgetTotal != 1.0 {
+		t.Errorf("cpu pool budgets = %v/%v, want 0.431/1.0", cpu.BudgetUsed, cpu.BudgetTotal)
+	}
+	if len(cpu.Classes) != 1 || cpu.Classes[0].LadderClass != "software" {
+		t.Fatalf("cpu pool classes = %+v, want one software class", cpu.Classes)
+	}
+	if len(cpu.Classes[0].RungFits) != 1 || cpu.Classes[0].RungFits[0].Height != 1080 {
+		t.Errorf("cpu software rung_fits = %+v, want [height=1080]", cpu.Classes[0].RungFits)
+	}
+}
+
+// A box WITH a hw bench table gets both pools, each with its own independent
+// budget - the whole point of pools existing instead of the misleading
+// aggregate budget_used/budget_total sum.
+func TestAdminGetSystemInfo_VideoSessions_Pools_WithHWTable_BothPools(t *testing.T) {
+	d := newTestSystemHandler()
+	d.calibrationSvc = fakeCalibrationSnapshot{capability: domaintranscoding.EncodeCapability{
+		BenchSamples: []domaintranscoding.BenchRungSample{
+			{Ladder: "software", Height: 1080, FPS: 60, RequiredFPS: 30, Passing: true},
+		},
+	}}
+	d.videoLimiter = fakeVideoActiveReporter{
+		classes: []apptranscoding.LadderClass{apptranscoding.LadderClassHW, apptranscoding.LadderClassSoftware},
+		poolUsed: map[apptranscoding.ResourcePool]float64{
+			apptranscoding.PoolCPU: 0.431,
+			apptranscoding.PoolGPU: 0.980,
+		},
+		poolBudget: map[apptranscoding.ResourcePool]float64{
+			apptranscoding.PoolCPU: 1.0,
+			apptranscoding.PoolGPU: 1.0,
+		},
+		poolRungs: map[apptranscoding.LadderClass][]apptranscoding.RungFit{
+			apptranscoding.LadderClassSoftware: {{Height: 1080, Cost: 0.431, MaxStreams: 2}},
+			apptranscoding.LadderClassHW:       {{Height: 1080, Cost: 0.245, MaxStreams: 4}},
+		},
+	}
+
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if len(resp.VideoSessions.Pools) != 2 {
+		t.Fatalf("Pools len = %d, want 2 (cpu + gpu)", len(resp.VideoSessions.Pools))
+	}
+
+	var cpu, gpu *eveyv1.VideoPool
+	for _, p := range resp.VideoSessions.Pools {
+		switch p.Pool {
+		case "cpu":
+			cpu = p
+		case "gpu":
+			gpu = p
+		}
+	}
+	if cpu == nil || gpu == nil {
+		t.Fatalf("expected both cpu and gpu pools, got %+v", resp.VideoSessions.Pools)
+	}
+	if cpu.BudgetUsed != 0.431 || cpu.BudgetTotal != 1.0 {
+		t.Errorf("cpu pool budgets = %v/%v, want 0.431/1.0", cpu.BudgetUsed, cpu.BudgetTotal)
+	}
+	if gpu.BudgetUsed != 0.980 || gpu.BudgetTotal != 1.0 {
+		t.Errorf("gpu pool budgets = %v/%v, want 0.980/1.0", gpu.BudgetUsed, gpu.BudgetTotal)
+	}
+	if len(gpu.Classes) != 1 || gpu.Classes[0].LadderClass != "hw" {
+		t.Fatalf("gpu pool classes = %+v, want one hw class", gpu.Classes)
+	}
+	if len(gpu.Classes[0].RungFits) != 1 || gpu.Classes[0].RungFits[0].MaxStreams != 4 {
+		t.Errorf("gpu hw rung_fits = %+v, want [maxStreams=4]", gpu.Classes[0].RungFits)
 	}
 }
 
