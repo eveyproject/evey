@@ -2,7 +2,6 @@ package mkvgo
 
 import (
 	"context"
-	"errors"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -36,8 +35,8 @@ func TestReindexModes_PreBump(t *testing.T) {
 
 	_, err := a.ReindexInPlace(context.Background(), p, mkv.ReindexOptions{Mode: mkv.ModeInPlace})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, mkv.ErrInPlaceUnsupported),
-		"ModeInPlace pre-bump must surface ErrInPlaceUnsupported, got: %v", err)
+	require.ErrorIs(t, err, mkv.ErrInPlaceUnsupported,
+		"ModeInPlace pre-bump must surface ErrInPlaceUnsupported")
 
 	// ModeRewrite repairs the file for real (backup kept), reporting its method.
 	res, errRewrite := a.ReindexInPlace(context.Background(), p, mkv.ReindexOptions{Mode: mkv.ModeRewrite, KeepBackup: true})
