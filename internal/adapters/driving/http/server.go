@@ -219,6 +219,11 @@ type HTTPServer struct {
 	PluginSecurityDashboardSvc pluginSecurityDashboardProvider
 	PluginWakener              PluginWakener
 
+	// KeyframeWarmer nudges the bounded on-demand keyframe walk. Optional: it
+	// lets the HLS shed path tell a copy-eligible-but-unindexed source apart
+	// from a genuinely full host (see copyBlockedOnlyByMissingIndex).
+	KeyframeWarmer func(ctx context.Context, mediaID, path string) bool
+
 	// DLNA
 	DLNASvc *appdlna.Service
 

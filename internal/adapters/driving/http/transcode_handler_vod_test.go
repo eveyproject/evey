@@ -311,7 +311,72 @@ func TestHLSVOD_Segment_VideoCapacityExhausted_503WithRetryAfter5(t *testing.T) 
 
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 	assert.Equal(t, "5", w.Header().Get("Retry-After"))
-	assert.Contains(t, w.Body.String(), "video transcoding capacity")
+	// The clients key their plain-language wording on this code, never on the
+	// English message: a viewer must read "too many things playing at once",
+	// not "transcoding capacity".
+	assert.Equal(t, ErrCodeTooManyStreams, w.Header().Get("X-Evey-Error"))
+	assert.Contains(t, w.Body.String(), `"code":"too_many_streams"`)
+	assert.Contains(t, w.Body.String(), `"retryAfterSec":5`)
+}
+
+// The precision the shed path owes its users: a source that only lacks its
+// keyframe index would be served by the ZERO-COST copy rung (no encode slot at
+// all) as soon as the index lands. Such a viewer is competing with nobody, so
+// telling them "too many streams" is simply false. They get file_not_ready,
+// and the index walk is nudged so their retry succeeds.
+func TestHLSVOD_Segment_CopyEligibleSourceNeverBlamesOtherViewers(t *testing.T) {
+	w, hgt, level := 1920, 1080, 40
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur, ContainerFormat: "matroska"},
+	}
+	// H.264 High@L4.0, copy-eligible in every respect EXCEPT the missing index.
+	streams := []*domainlibrary.MediaStream{{
+		StreamType: domainlibrary.StreamTypeVideo,
+		Codec:      "h264",
+		Profile:    "High",
+		Width:      &w,
+		Height:     &hgt,
+		Level:      &level,
+		Keyframes:  nil,
+	}}
+
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item, streams: streams},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.segmentWaitTimeout = 50 * time.Millisecond
+
+	warmed := make(chan string, 1)
+	h.keyframeWarmer = func(_ context.Context, mediaID, _ string) bool {
+		select {
+		case warmed <- mediaID:
+		default:
+		}
+		return false
+	}
+
+	limiter := apptranscoding.NewVideoSessionLimiter(1)
+	require.True(t, limiter.TryAcquire("some-other-stream"), "someone else holds the only slot")
+	h.orchestrator.WithVideoSessionLimiter(limiter)
+
+	resp := doVODRequest(h, "m1", "stream_0_005.ts")
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.Code)
+	assert.Equal(t, ErrCodeFileNotReady, resp.Header().Get("X-Evey-Error"),
+		"a copy-eligible source must never be told the host is full")
+	assert.NotContains(t, resp.Body.String(), ErrCodeTooManyStreams)
+	assert.Equal(t, "10", resp.Header().Get("Retry-After"))
+
+	select {
+	case id := <-warmed:
+		assert.Equal(t, "m1", id, "the index walk must be nudged so the retry succeeds")
+	case <-time.After(2 * time.Second):
+		t.Fatal("the shed path must nudge the keyframe index walk")
+	}
 }
 
 func TestHLSVOD_Routing_InitSegment(t *testing.T) {

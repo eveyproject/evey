@@ -35,6 +35,76 @@ import (
 // across sessions with the same DecisionHash, and an orchestrator that spawns
 // ffmpeg rafales on cache miss. Replaces hlsMasterServe / hlsSegmentHandler
 // once the runtime validation step lands.
+// ErrCodeFileNotReady is the stable reason a request is shed because the
+// SOURCE is not ready to be served cheaply yet - its keyframe index is still
+// being built, which is the one and only thing standing between it and a
+// zero-cost copy/remux. Telling such a viewer "too many people are watching"
+// would be a lie: nobody else is in their way, their file is.
+const ErrCodeFileNotReady = "file_not_ready"
+
+// ErrCodeTooManyStreams is the stable, machine-readable reason a playback
+// request is shed when the host cannot prepare one more video stream. Clients
+// key their user-facing wording on this code and never on the English message
+// below - a viewer must read "too many things playing at once", not
+// "transcoding capacity".
+const ErrCodeTooManyStreams = "too_many_streams"
+
+// writeShed sheds a request with everything a client needs to react well: a
+// machine-readable code (in a header AND the body, since a media element only
+// exposes the status line and headers), a Retry-After, and a technical message
+// meant for logs and operators, never for the screen.
+func writeShed(w http.ResponseWriter, code string, retryAfterSec int, technicalMsg string) {
+	w.Header().Set("Retry-After", strconv.Itoa(retryAfterSec))
+	w.Header().Set("X-Evey-Error", code)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	_, _ = w.Write([]byte(fmt.Sprintf(`{"code":%q,"retryAfterSec":%d,"message":%q}`,
+		code, retryAfterSec, technicalMsg)))
+}
+
+// copyBlockedOnlyByMissingIndex reports whether this source WOULD be served by
+// the zero-cost copy rung (no video encode, no capacity slot) if only its
+// keyframe index existed. Everything else about it - codec, profile, level,
+// bit depth, HDR/DoVi, frame-rate mode - already passes the copy gate.
+//
+// This is the difference between an honest "the host is full" and a wrong one:
+// such a viewer is not competing with anybody, their file simply has not been
+// indexed yet. The index lands on its own (on-demand walk at negotiation, or
+// the paced backfill worker), so the right answer is "try again shortly", not
+// "too many streams".
+func copyBlockedOnlyByMissingIndex(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
+	if decision.VideoDecision != "copy" {
+		return false // the client genuinely cannot take this video as-is
+	}
+	for _, s := range streams {
+		if s == nil || s.StreamType != "video" {
+			continue
+		}
+		if len(s.Keyframes) > 0 {
+			return false // indexed already; copy was declined for another reason
+		}
+		return apptranscoding.CopyVideoCodecString(apptranscoding.CopySource{
+			Codec:         s.Codec,
+			Profile:       s.Profile,
+			Level:         s.Level,
+			TenBit:        streamIsTenBit(s),
+			ColorTransfer: s.ColorTransfer,
+			DoViProfile:   s.DoViProfile,
+			DoViBLCompat:  s.DoViBLCompat,
+			FrameRateMode: s.FrameRateMode,
+		}) != ""
+	}
+	return false
+}
+
+// writeTooManyStreams sheds a request with everything a client needs to react
+// well: the code (in a header AND the body, since a media element only exposes
+// the status line and headers), a Retry-After, and a technical message meant
+// for logs and operators, not for the screen.
+func writeTooManyStreams(w http.ResponseWriter, retryAfterSec int, technicalMsg string) {
+	writeShed(w, ErrCodeTooManyStreams, retryAfterSec, technicalMsg)
+}
+
 type hlsVODServe struct {
 	tokens               TokenVerifier
 	libSvc               MediaStreamsGetter
@@ -70,6 +140,9 @@ type hlsVODServe struct {
 	// (transcode) exactly as before. Interface-typed because both producers
 	// satisfy it; only copy requests (isCopyRequest) are routed here.
 	copyProducer apptranscoding.StreamProducer
+	// keyframeWarmer nudges the bounded on-demand index walk. Optional (nil =
+	// no nudge); see copyBlockedOnlyByMissingIndex for why it matters here.
+	keyframeWarmer func(ctx context.Context, mediaID, path string) bool
 
 	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS —
 	// zero-storage, stateless, byte-identical HLS + DASH — when wired (behind
@@ -625,11 +698,26 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 			slog.Warn("hls-vod: at capacity, shedding segment",
 				slog.String("media_id", mediaID),
 				slog.Int("seg", segmentIdx))
-			w.Header().Set("Retry-After", "2")
-			http.Error(w, `{"message":"server at transcode capacity, retry"}`, http.StatusServiceUnavailable)
+			writeTooManyStreams(w, 2, "server at transcode session capacity")
 			return
 		}
 		if errors.Is(err, apptranscoding.ErrVideoCapacityExhausted) {
+			// Before blaming other viewers, be certain this request truly needs a
+			// video encode. A source that only lacks its keyframe index would be
+			// served by the zero-cost copy rung (never a capacity slot) the moment
+			// the index lands: nudge the on-demand walk and say so, instead of
+			// telling this viewer the host is full because of everyone else.
+			// Recomputed only on this rare shed path (the decision is a pure
+			// function of the same inputs the segment route already resolved).
+			if copyBlockedOnlyByMissingIndex(h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r), streams) {
+				if h.keyframeWarmer != nil {
+					go h.keyframeWarmer(context.WithoutCancel(r.Context()), mediaID, sourcePathOf(item))
+				}
+				slog.Info("hls-vod: shedding a copy-eligible source whose index is still building",
+					slog.String("media_id", mediaID), slog.Int("seg", segmentIdx))
+				writeShed(w, ErrCodeFileNotReady, 10, "source keyframe index still being built; the copy rung needs no encode slot")
+				return
+			}
 			// Host at its calibrated/admin-capped video-encode session limit -
 			// shed load gracefully rather than starting a session that would
 			// starve the ones already running on a weak NAS. A longer
@@ -638,8 +726,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 			slog.Warn("hls-vod: at video transcoding capacity, shedding segment",
 				slog.String("media_id", mediaID),
 				slog.Int("seg", segmentIdx))
-			w.Header().Set("Retry-After", "5")
-			http.Error(w, `{"message":"server at video transcoding capacity"}`, http.StatusServiceUnavailable)
+			writeTooManyStreams(w, 5, "server at video transcoding capacity")
 			return
 		}
 		slog.Warn("hls-vod: ensure failed",
@@ -1682,6 +1769,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	mediaLookup, _ := pkgcache.NewWithMaxSize[cachedMediaLookup](0, mediaLookupMax)
 	classLookup, _ := pkgcache.NewWithMaxSize[domaintranscoding.ContentClass](0, mediaLookupMax)
 	h := &hlsVODServe{
+		keyframeWarmer:       s.KeyframeWarmer,
 		mediaLookup:          mediaLookup,
 		classLookup:          classLookup,
 		tokens:               s.TokenGen,
