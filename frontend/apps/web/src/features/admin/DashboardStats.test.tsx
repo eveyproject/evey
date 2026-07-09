@@ -28,6 +28,10 @@ vi.mock("@evey/api", () => ({
     return { data: undefined };
   },
   useAdminSessionServiceGetAuditLog: () => ({ data: { entries: [] }, isLoading: false }),
+  // The OnlineNow presence widget and the restart button mount inside the
+  // dashboard tree.
+  usePresenceServiceListOnline: () => ({ data: { online: [] }, isLoading: false }),
+  useAdminSystemServiceRestartServer: () => ({ mutate: () => {}, isPending: false }),
   useAdminSessionServiceListActiveSessions: () => ({ data: { sessions: [] }, isLoading: false }),
   useAdminSessionServiceKillSession: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminSessionServiceSendSessionCommand: () => ({ mutate: vi.fn(), isPending: false }),
