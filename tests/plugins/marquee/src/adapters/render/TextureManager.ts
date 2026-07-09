@@ -70,7 +70,7 @@ export class TextureManager {
         const gl = this.gl;
         try {
           gl.bindTexture(gl.TEXTURE_2D, current.tex);
-          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
           gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
           gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
           current.loaded = true;

@@ -121,7 +121,6 @@ export class GlRenderer implements SceneRenderer {
   private current = emptyState();
   private target = emptyState();
   private hasTarget = false;
-  private loggedSun = false;
 
   private cloudSpeed = 0.15;
   private thunderRate = 0;
@@ -150,7 +149,6 @@ export class GlRenderer implements SceneRenderer {
   private onRestored = () => { this.lost = false; this.initGL(); };
 
   mount(host: HTMLElement): void {
-    console.warn("weather-v2 v2.9.3 mount (diagnostics on)");
     this.host = host;
     const canvas = document.createElement("canvas");
     canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block;";
@@ -181,7 +179,7 @@ export class GlRenderer implements SceneRenderer {
     // (initial paint + UTC-midnight rollover while the widget stays open).
     if (t.sunModelId && t.sunModelId !== this.sunModelId && SUN_TEXTURES[t.sunModelId]) {
       this.sunModelId = t.sunModelId;
-      if (this.sunTex) this.loadImageInto(this.sunTex, SUN_TEXTURES[t.sunModelId], "sun-skin");
+      if (this.sunTex) this.loadImageInto(this.sunTex, SUN_TEXTURES[t.sunModelId]);
     }
 
     const tg = this.target;
@@ -199,10 +197,6 @@ export class GlRenderer implements SceneRenderer {
     tg.sunX = cycle.sunX;
     tg.sunY = 1 - cycle.sunY; // domain y=0 top -> shader y up
     tg.sunI = cycle.sunIntensity * (1 - params.cloudCover * 0.12) * veil;
-    if (!this.loggedSun) {
-      this.loggedSun = true;
-      console.warn(`weather-v2 sun-state: isDay=${cycle.isDay} sunProgress=${cycle.sunProgress.toFixed(3)} sunX=${tg.sunX.toFixed(3)} sunY=${tg.sunY.toFixed(3)} sunI=${tg.sunI.toFixed(3)} cover=${params.cloudCover.toFixed(2)}`);
-    }
     tg.golden = cycle.golden;
     tg.moonX = cycle.moonX;
     tg.moonY = 1 - cycle.moonY;
@@ -231,7 +225,7 @@ export class GlRenderer implements SceneRenderer {
     // stays as the placeholder until this resolves, so there's never a blank
     // sun. A later daily model change reloads the bundled default, and the app
     // fetches that day's live image again.
-    if (this.sunTex) this.loadImageInto(this.sunTex, dataUrl, "sun-live");
+    if (this.sunTex) this.loadImageInto(this.sunTex, dataUrl);
   }
 
   dispose(): void {
@@ -267,25 +261,17 @@ export class GlRenderer implements SceneRenderer {
 
   // Decode a bundled data-url image and upload it into an existing texture.
   // No CORS concern: the images are inlined as data: urls at build time.
-  private loadImageInto(tex: WebGLTexture | null, url: string, label = "texture"): void {
+  private loadImageInto(tex: WebGLTexture | null, url: string): void {
     if (!tex) return;
     const img = new Image();
     img.onload = () => {
       const g = this.gl;
       if (!g || !tex) return;
-      try {
-        g.bindTexture(g.TEXTURE_2D, tex);
-        g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 1);
-        g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img);
-        g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 0);
-        console.warn(`weather-v2: ${label} uploaded ${img.naturalWidth}x${img.naturalHeight}`);
-      } catch (e) {
-        // Diagnostic: in some sandboxed-iframe/browser combos WebGL taints an
-        // <img>-decoded texture even from a data: URL and texImage2D throws.
-        console.warn(`weather-v2: ${label} texImage2D threw (tainted?)`, e);
-      }
+      g.bindTexture(g.TEXTURE_2D, tex);
+      g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 1);
+      g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img);
+      g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 0);
     };
-    img.onerror = (e) => console.warn(`weather-v2: ${label} image load failed`, e);
     img.src = url;
   }
 
@@ -364,8 +350,8 @@ export class GlRenderer implements SceneRenderer {
     };
     this.moonTex = newTex([90, 90, 100]);
     this.sunTex = newTex([255, 160, 40]);
-    this.loadImageInto(this.moonTex, moonUrl, "moon");
-    this.loadImageInto(this.sunTex, SUN_TEXTURES[this.sunModelId] ?? SUN_TEXTURES[DEFAULT_SUN_ID], "sun");
+    this.loadImageInto(this.moonTex, moonUrl);
+    this.loadImageInto(this.sunTex, SUN_TEXTURES[this.sunModelId] ?? SUN_TEXTURES[DEFAULT_SUN_ID]);
 
     gl.disable(gl.BLEND);
     gl.disable(gl.DEPTH_TEST);

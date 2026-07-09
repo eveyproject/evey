@@ -28,6 +28,7 @@ export class MarqueeApp {
   private init: HostInit | null = null;
   private posters: MediaSummary[] = [];
   private spinning = false;
+  private landTimer = 0;
 
   private refreshTimer = 0;
   private disposed = false;
@@ -49,6 +50,7 @@ export class MarqueeApp {
     if (this.disposed) return;
     this.disposed = true;
     clearInterval(this.refreshTimer);
+    clearTimeout(this.landTimer);
     window.removeEventListener("pagehide", this.onPageHide);
     window.removeEventListener("resize", this.onResize);
     document.removeEventListener("visibilitychange", this.onVisible);
@@ -136,6 +138,7 @@ export class MarqueeApp {
   // callback shows the elected poster's title as a "tap to watch" hint.
   private spin(): void {
     if (this.spinning || this.posters.length === 0 || !this.overlay) return;
+    clearTimeout(this.landTimer);
     const plan = planRouletteSpin(this.posters.length, Date.now());
     if (plan.winnerIndex < 0) return;
     this.spinning = true;
@@ -148,13 +151,20 @@ export class MarqueeApp {
     this.spinning = false;
     if (this.disposed || !this.overlay) return;
     this.overlay.setCtaBusy(false);
-    this.overlay.setCtaLabel(translate("cta", this.init?.locale));
     const poster = this.posters[index];
-    if (poster) {
-      this.overlay.setTitle(`${poster.title} · ${translate("play_hint", this.init?.locale)}`);
-      // The signature moment: take the user to the film the wheel elected.
-      this.deps.bridge.navigate(`/media/${poster.id}`);
+    if (!poster) {
+      this.overlay.setCtaLabel(translate("cta", this.init?.locale));
+      return;
     }
+    // The wheel picked one: highlight it (the renderer locks the spotlight),
+    // name it, and offer a retry. We then "enchaine" onto it after a short
+    // window so the user can hit Spin again first, or tap the poster to go now.
+    this.overlay.setTitle(`${poster.title} · ${translate("play_hint", this.init?.locale)}`);
+    this.overlay.setCtaLabel(translate("retry", this.init?.locale));
+    clearTimeout(this.landTimer);
+    this.landTimer = window.setTimeout(() => {
+      if (!this.disposed) this.deps.bridge.navigate(`/media/${poster.id}`);
+    }, 2600);
   }
 
   private hover(index: number | null): void {
@@ -169,6 +179,8 @@ export class MarqueeApp {
 
   private activate(index: number): void {
     const poster = this.posters[index];
-    if (poster) this.deps.bridge.navigate(`/media/${poster.id}`);
+    if (!poster) return;
+    clearTimeout(this.landTimer);
+    this.deps.bridge.navigate(`/media/${poster.id}`);
   }
 }
