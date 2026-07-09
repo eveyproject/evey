@@ -640,9 +640,14 @@ func TestOrchestrator_PreWarm_SingleVariant_TargetsRequestedVariant(t *testing.T
 	fp := multiProfileFingerprint(t) // 3-rung ladder: indices 0, 1, 2
 	const wantVariant = 2
 	o.PreWarm(fp, wantVariant, 0)
+	// Wait for the spawn BEFORE Close: the prewarm goroutine legitimately
+	// bails when it observes shutdownCtx already canceled, so closing right
+	// away races the scheduler and intermittently sees zero spawns.
+	require.Eventually(t, func() bool { return proc.startCount() == 1 },
+		2*time.Second, 5*time.Millisecond, "PreWarm must spawn one ffmpeg")
 	o.Close() // drains prewarmWG before returning
 
-	require.Equal(t, 1, proc.startCount(), "PreWarm must spawn exactly one ffmpeg")
+	require.Equal(t, 1, proc.startCount(), "PreWarm must spawn exactly one ffmpeg, and Close must not spawn more")
 	got := proc.lastOpts()
 	assert.Equal(t, wantVariant, got.VariantIndex,
 		"PreWarm must target the requested variant, not hard-coded rung 0")
