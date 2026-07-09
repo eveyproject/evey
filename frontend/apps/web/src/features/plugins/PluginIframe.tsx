@@ -258,6 +258,11 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
         return eveyFetchRaw({ url: `/api/v1/public/media/${enc(String(args.id ?? ""))}`, method: "GET", authToken: token });
       case "media.list":
         return eveyFetchRaw({ url: `/api/v1/public/media${args.libraryId ? `?libraryId=${enc(String(args.libraryId))}` : ""}`, method: "GET", authToken: token });
+      case "media.poster":
+        // The user's own session (no plugin token): the artwork handler applies
+        // this user's library ACL + parental filter, so a plugin can only reach
+        // posters the user can already see (same exposure as media.list).
+        return eveyFetchRaw({ url: `/api/v1/media/${enc(String(args.id ?? ""))}/artwork/poster`, method: "GET" });
       case "assets.read": {
         // Reads one of the plugin's OWN web_root assets. Strict path guard
         // (the server also rejects traversal, this is defense in depth); the
@@ -302,6 +307,25 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
         fr.onerror = () => reject(new Error("asset read failed"));
         fr.readAsDataURL(blob);
       });
+    }
+    if (method === "media.poster") {
+      // Downscale to a thumbnail in the parent (unsandboxed, same-origin as the
+      // fetched artwork -> no canvas taint) so the postMessage payload stays
+      // small: a full poster is ~1.3 MB, a wall of them would freeze the UI.
+      const blob = await res.blob();
+      const bmp = await createImageBitmap(blob);
+      const targetW = 320;
+      const scale = Math.min(1, targetW / bmp.width);
+      const cw = Math.max(1, Math.round(bmp.width * scale));
+      const ch = Math.max(1, Math.round(bmp.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { bmp.close?.(); throw new Error("poster resize failed"); }
+      ctx.drawImage(bmp, 0, 0, cw, ch);
+      bmp.close?.();
+      return canvas.toDataURL("image/jpeg", 0.82);
     }
     const text = await res.text();
     return text ? JSON.parse(text) : {};

@@ -58,7 +58,12 @@ export const BRIDGE_SCRIPT = `
     },
     media: {
       get: function(id) { return rpc("media.get", { id: id }); },
-      list: function(opts) { return rpc("media.list", opts || {}); }
+      list: function(opts) { return rpc("media.list", opts || {}); },
+      // Returns the media's poster as a compact JPEG data: URL (downscaled by
+      // the host), usable directly as a WebGL/img source - the sandbox CSP
+      // forbids external CDN images and its opaque origin taints cross-origin
+      // textures, so a plugin cannot load library posters any other way.
+      poster: function(id) { return rpc("media.poster", { id: id }); }
     },
     assets: {
       read: function(path) { return rpc("assets.read", { path: path }); }

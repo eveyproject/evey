@@ -37,7 +37,8 @@ export class TextureManager {
     if (!entry) {
       entry = { tex: this.createPlaceholderTexture(placeholder), loaded: false };
       this.textures.set(id, entry);
-      this.queue.push({ id, url });
+      // Empty url (poster relay failed) -> keep the placeholder, never queue.
+      if (url) this.queue.push({ id, url });
     }
     return entry.tex;
   }
@@ -56,24 +57,29 @@ export class TextureManager {
       if (!entry) continue; // evicted before its turn came up
 
       this.activeLoads++;
-      const img = new Image();
-      img.onload = () => {
-        this.activeLoads--;
-        if (this.disposed) return;
-        const current = this.textures.get(job.id);
-        if (!current) return; // evicted while loading
-        const gl = this.gl;
-        gl.bindTexture(gl.TEXTURE_2D, current.tex);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
-        current.loaded = true;
-      };
-      img.onerror = () => {
-        this.activeLoads--;
-        // Left as the placeholder texture; never retried this session.
-      };
-      img.src = job.url;
+      // createImageBitmap yields an origin-clean source that WebGL accepts even
+      // in the sandboxed iframe's opaque origin, where an <img>-decoded texture
+      // (even from a data: URL) throws SecurityError on texImage2D.
+      fetch(job.url)
+        .then((r) => r.blob())
+        .then((b) => createImageBitmap(b))
+        .then((bmp) => {
+          this.activeLoads--;
+          if (this.disposed) { bmp.close?.(); return; }
+          const current = this.textures.get(job.id);
+          if (!current) { bmp.close?.(); return; } // evicted while loading
+          const gl = this.gl;
+          gl.bindTexture(gl.TEXTURE_2D, current.tex);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, bmp);
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+          current.loaded = true;
+          bmp.close?.();
+        })
+        .catch(() => {
+          this.activeLoads--;
+          // Left as the placeholder texture; never retried this session.
+        });
     }
   }
 

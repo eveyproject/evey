@@ -22,6 +22,7 @@ interface EveyGlobal {
   media?: {
     list(opts?: { libraryId?: string }): Promise<unknown>;
     get(id: string): Promise<unknown>;
+    poster?(id: string): Promise<unknown>;
   };
 }
 
@@ -62,6 +63,17 @@ export class EveyBridge implements HostBridge {
 
   navigate(path: string): void {
     window.evey?.navigate(path);
+  }
+
+  async readPoster(id: string): Promise<string> {
+    const api = window.evey?.media;
+    if (!api?.poster || !id) return "";
+    try {
+      const url = await api.poster(id);
+      return typeof url === "string" ? url : "";
+    } catch {
+      return "";
+    }
   }
 
   async listMedia(): Promise<MediaSummary[]> {

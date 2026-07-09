@@ -170,6 +170,7 @@ function installDomStubs() {
       media: {
         list: async () => ({ items: CANNED_LIBRARY }),
         get: async () => ({}),
+        poster: async () => "data:image/jpeg;base64,/9j/AAA=",
       },
     },
   };

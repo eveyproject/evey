@@ -118,9 +118,17 @@ export class MarqueeApp {
       rowStaggerFraction: WALL_GEOMETRY.rowStaggerFraction,
     });
 
+    // The sandbox CSP blocks the external CDN poster URL and its opaque origin
+    // taints cross-origin textures - so resolve each poster to a host-relayed
+    // data: URL. Parallel + best-effort: a failed one keeps its placeholder.
+    const dataUrls = await Promise.all(
+      this.posters.map((p) => this.deps.bridge.readPoster(p.id).catch(() => "")),
+    );
+    if (this.disposed) return;
+
     this.deps.renderer.setWall({
       layout,
-      posters: this.posters.map((p) => ({ id: p.id, title: p.title, posterUrl: p.posterUrl })),
+      posters: this.posters.map((p, i) => ({ id: p.id, title: p.title, posterUrl: dataUrls[i] || "" })),
     });
   }
 
@@ -142,7 +150,11 @@ export class MarqueeApp {
     this.overlay.setCtaBusy(false);
     this.overlay.setCtaLabel(translate("cta", this.init?.locale));
     const poster = this.posters[index];
-    if (poster) this.overlay.setTitle(`${poster.title} · ${translate("play_hint", this.init?.locale)}`);
+    if (poster) {
+      this.overlay.setTitle(`${poster.title} · ${translate("play_hint", this.init?.locale)}`);
+      // The signature moment: take the user to the film the wheel elected.
+      this.deps.bridge.navigate(`/media/${poster.id}`);
+    }
   }
 
   private hover(index: number | null): void {
