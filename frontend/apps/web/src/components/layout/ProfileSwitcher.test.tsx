@@ -9,6 +9,7 @@ const mockRefreshToken = vi.fn().mockResolvedValue({ accessToken: "new-token" })
 const mockSetProfile = vi.fn();
 const mockSetTokens = vi.fn();
 const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
+const mockClear = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -39,6 +40,7 @@ import { ProfileSwitcher } from "./ProfileSwitcher";
 function renderSwitcher(activeId: string = "p1") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   qc.invalidateQueries = mockInvalidateQueries as unknown as typeof qc.invalidateQueries;
+  qc.clear = mockClear as unknown as typeof qc.clear;
   const profiles = [
     { id: "p1", userId: "u1", name: "Alice", isDefault: true },
     { id: "p2", userId: "u1", name: "Bob", isDefault: false },
@@ -59,6 +61,7 @@ describe("ProfileSwitcher", () => {
     mockSetProfile.mockReset();
     mockSetTokens.mockReset();
     mockInvalidateQueries.mockClear();
+    mockClear.mockClear();
     localStorage.clear();
   });
 
@@ -89,7 +92,7 @@ describe("ProfileSwitcher", () => {
     expect(screen.queryByTestId("profile-switcher-menu")).not.toBeInTheDocument();
   });
 
-  it("switches profile via the modal: refreshToken + setTokens + localStorage + invalidate", async () => {
+  it("switches profile via the modal: refreshToken + setTokens + localStorage + cache clear", async () => {
     const user = userEvent.setup();
     renderSwitcher();
     await user.click(screen.getByTestId("profile-switcher-btn"));
@@ -99,8 +102,8 @@ describe("ProfileSwitcher", () => {
     expect(mockRefreshToken).toHaveBeenCalledWith({ profileId: "p2" });
     expect(localStorage.getItem("evey:last_profile_id")).toBe("p2");
     expect(mockSetTokens).toHaveBeenCalledWith("new-token");
-    expect(mockInvalidateQueries).toHaveBeenCalledTimes(1);
-    expect(mockInvalidateQueries).toHaveBeenCalledWith();
+    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(mockInvalidateQueries).not.toHaveBeenCalled();
   });
 
   it("does not call setTokens if no accessToken returned", async () => {

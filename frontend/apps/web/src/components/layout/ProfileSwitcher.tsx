@@ -90,7 +90,14 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
       try {
         localStorage.setItem("evey:last_profile_id", target.id);
       } catch { /* ignore storage errors */ }
-      await qc.invalidateQueries();
+      // Drop the whole cache, like logout: NONE of the previous profile's
+      // cached data is valid for the new one. invalidateQueries (refetchType
+      // "active") only refreshed the mounted page and left every other page's
+      // data stale, so navigating right after a switch briefly showed the
+      // PREVIOUS profile's content - including, when switching into a kids
+      // profile, titles the parental filter should hide. clear() guarantees
+      // the new profile never sees the old one's cached content.
+      qc.clear();
       setOpen(false);
       setSwitchOpen(false);
     } catch (err) {
