@@ -740,6 +740,24 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		}
 	}
 
+	// CMCD ingest (CTA-5004). Parsed and shipped to the QoE sink before we
+	// do anything that can 5xx — we want telemetry even on failure paths.
+	// Sink is non-blocking; an absent payload is the no-op common case.
+	h.ingestCMCD(r, mediaID, variantIdx, segmentIdx, isInit, false, false)
+
+	// Build the fingerprint BEFORE resolving the producer: the fingerprint's
+	// shaping creates/refreshes the admission pin (route + ceiling), and the
+	// producer choice must read that same pin. Resolving the producer first
+	// left a hole on a cold-pin segment request (a player arriving without a
+	// prior master, or right after a restart): the producer was picked on the
+	// natural route while the fingerprint spilled to software - correct bytes
+	// and billing, but the wrong machine ran the session.
+	fp, err := h.buildFingerprint(r, mediaID, item, streams)
+	if err != nil {
+		h.writeManifestErr(w, span, err, mediaID)
+		return
+	}
+
 	// Resolve the producer for this request (software vs hardware) ONCE so the
 	// EnsureSegmentRange calls, the client-hint, and the wait budget all target
 	// the same machine — and the same one the ladder was shaped for. Falls back
@@ -750,22 +768,11 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
 		return
 	}
-
-	// CMCD ingest (CTA-5004). Parsed and shipped to the QoE sink before we
-	// do anything that can 5xx — we want telemetry even on failure paths.
-	// Sink is non-blocking; an absent payload is the no-op common case.
-	h.ingestCMCD(r, mediaID, variantIdx, segmentIdx, isInit, false, false)
 	// Phase 3 feedback loop: forward the CMCD signal to the producer so it can
 	// wake up a paused ffmpeg on starvation and stretch the prefetch window when
 	// the client has a fat buffer. NEVER changes which variant is served — that's
 	// the player's call.
 	h.notifyProducerHint(producer, r, mediaID, segmentIdx)
-
-	fp, err := h.buildFingerprint(r, mediaID, item, streams)
-	if err != nil {
-		h.writeManifestErr(w, span, err, mediaID)
-		return
-	}
 
 	// Bound variantIdx against the actual rung count: a forged stream_99_000.m4s
 	// would otherwise reach EnsureSegmentRange. The software producer range-checks

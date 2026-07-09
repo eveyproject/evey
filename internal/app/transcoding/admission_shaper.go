@@ -53,9 +53,16 @@ type ceilingPin struct {
 	class    LadderClass
 	lastSeen time.Time
 	// boundHashes are the decision-fingerprint hashes built under this pin
-	// (several can share one: subtitle burn-in variants of the same title).
-	// If any still holds a limiter slot, the pin must not move.
+	// (several can share one: audio tracks x subtitle burn-ins x offsets of
+	// the same title). If any still holds a limiter slot, the pin must not
+	// move. Bounded: Bind compacts DEAD hashes out of a full set before
+	// recording a newcomer, so a live 9th variant is never silently dropped.
 	boundHashes []string
+	// bindOverflow marks the pathological case where maxBoundHashes variants
+	// were SIMULTANEOUSLY live and one more arrived: the set cannot name every
+	// live session anymore, so the pin fails SAFE as held until Bind manages
+	// to compact a slot free again.
+	bindOverflow bool
 }
 
 const (
@@ -222,6 +229,19 @@ func (s *VideoAdmissionShaper) Bind(key, fingerprintHash string) {
 	if slices.Contains(pin.boundHashes, fingerprintHash) {
 		return
 	}
+	if len(pin.boundHashes) >= maxBoundHashes {
+		// Compact the dead out before dropping anything: variants come and go
+		// (a viewer cycling audio tracks), and a stale entry must never cost a
+		// LIVE one its protection.
+		kept := pin.boundHashes[:0]
+		for _, h := range pin.boundHashes {
+			if s.limiter != nil && s.limiter.Holds(h) {
+				kept = append(kept, h)
+			}
+		}
+		pin.boundHashes = kept
+		pin.bindOverflow = len(pin.boundHashes) >= maxBoundHashes
+	}
 	if len(pin.boundHashes) < maxBoundHashes {
 		pin.boundHashes = append(pin.boundHashes, fingerprintHash)
 	}
@@ -258,7 +278,8 @@ func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, 
 }
 
 func (s *VideoAdmissionShaper) anyBoundHeld(pin *ceilingPin) bool {
-	return slices.ContainsFunc(pin.boundHashes, s.limiter.Holds)
+	// An overflowed set cannot name every live session: fail SAFE as held.
+	return pin.bindOverflow || slices.ContainsFunc(pin.boundHashes, s.limiter.Holds)
 }
 
 // evictIfFull bounds the pin map: expired unheld pins first, then the coldest

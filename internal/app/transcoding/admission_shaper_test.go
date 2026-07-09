@@ -113,12 +113,15 @@ func TestAdmissionShaper_AbandonedPinReEvaluatesOnRetry(t *testing.T) {
 }
 
 func TestAdmissionShaper_BindIsIdempotentAndBounded(t *testing.T) {
-	shaper, _, _ := shaperFixture(t)
+	shaper, limiter, _ := shaperFixture(t)
 	shaper.CeilingFor("s1", LadderClassSoftware, ladder)
 
+	// "same-hash" is LIVE: it must survive any compaction the churn causes.
+	require.True(t, limiter.TryAcquire("same-hash", LadderClassSoftware, 720))
 	for range 3 {
 		shaper.Bind("s1", "same-hash")
 	}
+	// Twenty dead variants churn through; compaction may drop them freely.
 	for i := range 20 {
 		shaper.Bind("s1", fmt.Sprintf("hash-%d", i))
 	}
@@ -126,7 +129,19 @@ func TestAdmissionShaper_BindIsIdempotentAndBounded(t *testing.T) {
 	shaper.mu.Lock()
 	defer shaper.mu.Unlock()
 	assert.LessOrEqual(t, len(shaper.pins["s1"].boundHashes), maxBoundHashes)
-	assert.Equal(t, "same-hash", shaper.pins["s1"].boundHashes[0])
+	assert.Contains(t, shaper.pins["s1"].boundHashes, "same-hash",
+		"a live hash must never be compacted away by dead churn")
+	assert.Equal(t, 1, countOf(shaper.pins["s1"].boundHashes, "same-hash"), "idempotent")
+}
+
+func countOf(xs []string, want string) int {
+	n := 0
+	for _, x := range xs {
+		if x == want {
+			n++
+		}
+	}
+	return n
 }
 
 func TestAdmissionShaper_NilReceiverAndNilLimiter_AreInert(t *testing.T) {
@@ -433,4 +448,66 @@ func TestAdmission_StressLifecycle_PoolsNeverOverflowAndDrainToZero(t *testing.T
 	assert.Zero(t, limiter.Active(), "every stream must have drained")
 	assert.InDelta(t, 0, limiter.UsedFor(PoolCPU), 1e-9, "CPU pool must drain to zero")
 	assert.InDelta(t, 0, limiter.UsedFor(PoolGPU), 1e-9, "GPU pool must drain to zero")
+}
+
+// The 9th fingerprint variant of one title (audio tracks x burn-ins x
+// offsets) used to be silently dropped from the pin's bound set: a pin held
+// ONLY by that 9th live session looked unheld - evictable, re-evaluable, its
+// ceiling mobile under a live stream. Bind now compacts dead hashes out of
+// the full set before recording the newcomer.
+func TestAdmissionShaper_NinthBoundVariant_StillProtectsThePin(t *testing.T) {
+	t.Parallel()
+	limiter := NewVideoSessionLimiter(0)
+	shaper := NewVideoAdmissionShaper(limiter)
+	clock := time.Unix(1_700_000_000, 0)
+	shaper.now = func() time.Time { return clock }
+
+	g := shaper.GrantRoute("title", LadderClassSoftware, []int{1080}, nil)
+	require.True(t, g.OK)
+
+	// Eight variants come and go: their sessions are all DEAD by now.
+	for i := range 8 {
+		shaper.Bind("title", fmt.Sprintf("dead-%d", i))
+	}
+	// The 9th variant is the one actually playing.
+	require.True(t, limiter.TryAcquire("live-9th", LadderClassSoftware, 1080))
+	shaper.Bind("title", "live-9th")
+
+	clock = clock.Add(defaultPinFreshFor * 2) // cold: only held-ness protects it
+
+	g2 := shaper.GrantRoute("title", LadderClassSoftware, []int{1080}, nil)
+	require.True(t, g2.OK)
+	assert.Equal(t, 1080, g2.Ceiling, "the pin must survive: its 9th variant is live")
+
+	// And eviction pressure must not kill it either.
+	shaper.maxPins = 1
+	shaper.mu.Lock()
+	evictable := !shaper.anyBoundHeld(shaper.pins["title"])
+	shaper.mu.Unlock()
+	assert.False(t, evictable, "a pin whose 9th variant is live is held, full set or not")
+}
+
+// Pathological ceiling: 8 variants of one title SIMULTANEOUSLY live plus a
+// 9th - the set cannot compact. The pin must fail SAFE: treated as held
+// (immortal) rather than silently unprotected.
+func TestAdmissionShaper_NineLiveVariants_PinFailsSafeAsHeld(t *testing.T) {
+	t.Parallel()
+	limiter := NewVideoSessionLimiter(0)
+	shaper := NewVideoAdmissionShaper(limiter)
+	clock := time.Unix(1_700_000_000, 0)
+	shaper.now = func() time.Time { return clock }
+
+	g := shaper.GrantRoute("title", LadderClassSoftware, []int{1080}, nil)
+	require.True(t, g.OK)
+	for i := range 9 {
+		h := fmt.Sprintf("live-%d", i)
+		require.True(t, limiter.TryAcquire(h, LadderClassSoftware, 1080))
+		shaper.Bind("title", h)
+	}
+
+	clock = clock.Add(defaultPinFreshFor * 2)
+	shaper.mu.Lock()
+	held := shaper.anyBoundHeld(shaper.pins["title"])
+	shaper.mu.Unlock()
+	assert.True(t, held, "an over-capacity pin with live sessions fails safe as held")
 }
