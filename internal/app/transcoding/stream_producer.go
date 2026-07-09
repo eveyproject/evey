@@ -147,6 +147,14 @@ func (s *ProducerSelector) For(decision transcoding.PlaybackDecision, src Source
 	return s.software
 }
 
+// Software returns the software producer, for callers that must FORCE the
+// software route regardless of the hw gate - the admission spill (GPU pool
+// full, CPU has room) pins a stream to software and needs the producer the
+// pinned fingerprint describes.
+func (s *ProducerSelector) Software() StreamProducer {
+	return s.software
+}
+
 // Close tears down both producers. Safe to call once at shutdown.
 func (s *ProducerSelector) Close() {
 	if s.software != nil {

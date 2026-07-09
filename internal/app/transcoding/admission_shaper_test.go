@@ -215,3 +215,107 @@ func TestAdmissionShaper_FreshPin_KeepsItsOwnClassIgnoringLaterRequests(t *testi
 	assert.Equal(t, 1440, h2, "a fresh pin ignores a later request's class and returns its OWN grant")
 	assert.False(t, forced)
 }
+
+// P5: a hardware stream arriving on a full GPU pool spills to the software
+// route instead of being refused - the machine says no only when EVERYTHING
+// is really full.
+func TestAdmissionShaper_GPUFull_SpillsToSoftwareRoute(t *testing.T) {
+	t.Parallel()
+	limiter := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
+	shaper := NewVideoAdmissionShaper(limiter)
+	clock := time.Unix(1_700_000_000, 0)
+	shaper.now = func() time.Time { return clock }
+
+	// Fill the GPU pool so no hw rung fits: 4 x 0.245 = 0.98 leaves 0.02,
+	// below the cheapest hw rung (0.245).
+	for _, k := range []string{"gpu-1", "gpu-2", "gpu-3", "gpu-4"} {
+		require.True(t, limiter.TryAcquire(k, LadderClassHW, 1080))
+	}
+
+	swHeights := []int{1440, 1080, 720}
+	g := shaper.GrantRoute("newcomer", LadderClassHW, []int{2160, 1440, 1080, 720}, func() []int { return swHeights })
+
+	require.True(t, g.OK, "CPU pool is empty: the stream must be served, not refused")
+	assert.Equal(t, LadderClassSoftware, g.Class, "spilled to the software route")
+	assert.True(t, g.Forced)
+	assert.Equal(t, 1440, g.Ceiling, "granted the tallest SOFTWARE rung that fits an empty CPU pool")
+
+	// The spill is pinned: manifest and segments must keep seeing it.
+	cls, ok := shaper.PinnedClass("newcomer")
+	require.True(t, ok)
+	assert.Equal(t, LadderClassSoftware, cls)
+}
+
+func TestAdmissionShaper_BothPoolsFull_RefusesWithoutPinning(t *testing.T) {
+	t.Parallel()
+	limiter := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
+	shaper := NewVideoAdmissionShaper(limiter)
+	clock := time.Unix(1_700_000_000, 0)
+	shaper.now = func() time.Time { return clock }
+
+	for i, k := range []string{"g1", "g2", "g3", "g4"} {
+		require.True(t, limiter.TryAcquire(k, LadderClassHW, 1080), "gpu %d", i)
+	}
+	require.True(t, limiter.TryAcquire("c1", LadderClassSoftware, 1440))
+	require.True(t, limiter.TryAcquire("c2", LadderClassSoftware, 1080), "cpu at 0.961")
+
+	g := shaper.GrantRoute("newcomer", LadderClassHW, []int{1080}, func() []int { return []int{1080, 720} })
+	assert.False(t, g.OK, "everything is genuinely full: refuse")
+	_, pinned := shaper.PinnedClass("newcomer")
+	assert.False(t, pinned, "a refusal must not poison the retry")
+}
+
+// The spill pin obeys the same stability rules as a plain ceiling: while
+// fresh, it stays software even after the GPU pool frees (the player's URLs
+// address software-shaped bytes); once cold and unheld, it re-evaluates and
+// the stream goes back to hardware.
+func TestAdmissionShaper_SpillPin_StableWhileFresh_BackToHWWhenCold(t *testing.T) {
+	t.Parallel()
+	limiter := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
+	shaper := NewVideoAdmissionShaper(limiter)
+	clock := time.Unix(1_700_000_000, 0)
+	shaper.now = func() time.Time { return clock }
+
+	for _, k := range []string{"g1", "g2", "g3", "g4"} {
+		require.True(t, limiter.TryAcquire(k, LadderClassHW, 1080))
+	}
+	natural := []int{2160, 1440, 1080, 720}
+	sw := func() []int { return []int{1440, 1080, 720} }
+
+	g := shaper.GrantRoute("s", LadderClassHW, natural, sw)
+	require.Equal(t, LadderClassSoftware, g.Class)
+
+	for _, k := range []string{"g1", "g2", "g3", "g4"} {
+		limiter.Release(k) // the GPU empties entirely
+	}
+
+	g2 := shaper.GrantRoute("s", LadderClassHW, natural, sw)
+	assert.Equal(t, LadderClassSoftware, g2.Class, "fresh pin: the route must not move mid-play")
+
+	clock2 := clock.Add(defaultPinFreshFor)
+	shaper.now = func() time.Time { return clock2 }
+
+	g3 := shaper.GrantRoute("s", LadderClassHW, natural, sw)
+	assert.Equal(t, LadderClassHW, g3.Class, "cold and unheld: back to the hardware route")
+	assert.Equal(t, 2160, g3.Ceiling)
+	assert.False(t, g3.Forced)
+}
+
+// A software-natural stream never spills anywhere: the fallback is a
+// hw-only affordance (there is no 'spill software to gpu').
+func TestAdmissionShaper_SoftwareNatural_NeverSpills(t *testing.T) {
+	t.Parallel()
+	limiter := NewVideoSessionLimiter(0).WithCostModel(NewVideoCostModel(devBoxSamples()))
+	shaper := NewVideoAdmissionShaper(limiter)
+	clock := time.Unix(1_700_000_000, 0)
+	shaper.now = func() time.Time { return clock }
+
+	require.True(t, limiter.TryAcquire("c1", LadderClassSoftware, 1440))
+	require.True(t, limiter.TryAcquire("c2", LadderClassSoftware, 1080))
+
+	g := shaper.GrantRoute("s", LadderClassSoftware, []int{1440, 1080, 720}, func() []int {
+		t.Fatal("fallbackHeights must never be consulted for a software-natural stream")
+		return nil
+	})
+	assert.False(t, g.OK)
+}

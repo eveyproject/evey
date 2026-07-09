@@ -89,7 +89,10 @@ func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, med
 	// a single "cheapest" one: hw costs are not monotonic in height (a 720p
 	// NVENC rung can cost more than 1080p), so no single height is safely the
 	// cheapest a priori - the limiter prices each and one admit suffices.
-	class := h.ladderClassFor(decision, streams)
+	// The class is read from the fingerprint itself: its hw fields already
+	// follow the pinned route (a spilled stream is tagged software), so this
+	// is exactly what the spawn's TryAcquire will charge.
+	class := apptranscoding.LadderClassOf(fp)
 	for _, ph := range probeHeights(fp) {
 		if h.videoAdmission(fp.Hash(), class, ph) {
 			return false
@@ -205,11 +208,15 @@ type hlsVODServe struct {
 	// playlist before a player commits to a stream. Optional (nil = no early
 	// shed; the segment route still gates authoritatively).
 	videoAdmission func(key string, class apptranscoding.LadderClass, topHeight int) bool
-	// admissionCeiling asks the admission shaper for this stream's pinned
-	// ladder ceiling (see profilesForDecision's third cap). Optional: nil
-	// keeps the ladder whole and viewers over budget are shed instead of
-	// downgraded.
-	admissionCeiling func(key string, class apptranscoding.LadderClass, heights []int) (int, bool)
+	// admissionRoute asks the admission shaper for this stream's pinned route
+	// and ladder ceiling (see profilesForDecision's third cap): a hw stream on
+	// a full GPU pool spills to the software route when the CPU pool has room.
+	// Optional: nil keeps the natural shape and viewers over budget are shed.
+	admissionRoute func(key string, natural apptranscoding.LadderClass, heights []int, fallback func() []int) apptranscoding.RouteGrant
+	// admissionPinnedClass reads the class a live pin was granted under, so
+	// the fingerprint's hw fields and the spawn's producer follow the pinned
+	// route rather than the natural one. Optional.
+	admissionPinnedClass func(key string) (apptranscoding.LadderClass, bool)
 	// admissionBind reports the fingerprint hash built under a pin so the
 	// shaper can freeze the ceiling while that session holds a slot. Optional.
 	admissionBind func(key, fingerprintHash string)
@@ -1230,6 +1237,19 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	// HW AV1, no calibrated AV1 software ceiling). videoCodec is what the segments
 	// actually carry — the cache key MUST use it, not the raw decision codec.
 	videoCodec, hwAccel, hwDevice, hwFeatures, hwUsable := h.effectiveVideoCodec(decision, streams)
+	// Admission spill: a hw stream pinned to the software route (GPU pool was
+	// full) must be FINGERPRINTED as software - the fingerprint describes the
+	// bytes the software producer will make, and LadderClassOf(fp) is what the
+	// spawn bills (CPU pool, not GPU). AV1 rides hardware only, so a spilled
+	// AV1 stream carries the H.264 the software encoder will actually produce.
+	if hwUsable && h.admissionPinnedClass != nil {
+		if cls, ok := h.admissionPinnedClass(h.admissionPinKey(item, streams, decision)); ok && cls != apptranscoding.LadderClassHW {
+			hwAccel, hwDevice, hwFeatures, hwUsable = "", "", nil, false
+			if strings.EqualFold(videoCodec, "av1") {
+				videoCodec = "h264"
+			}
+		}
+	}
 	srcAudio := sourceAudioCodec(streams, audioTrack)
 	audioCopy := audioCopyEligible(decision,
 		h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
@@ -1664,24 +1684,54 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 		}
 	}
 
-	// Load-forced ceiling (the third cap, same shared-head discipline as the
-	// two above): when the host cannot afford this stream's top rung but CAN
-	// afford a lower one, serve that one instead of refusing the viewer. The
-	// granted ceiling is PINNED per stream by the admission shaper, so the
-	// manifest a player holds and every segment it fetches shape the same
-	// ladder - the cache-hash invariant that rules this whole function. Copy
-	// requests are exempt: they never take a capacity slot.
-	if h.admissionCeiling != nil && len(laddered) > 0 &&
+	// Load-forced route and ceiling (the third cap, same shared-head
+	// discipline as the two above): when the host cannot afford this stream's
+	// top rung but CAN afford a lower one, serve that one instead of refusing
+	// the viewer - and when a HARDWARE stream finds its whole GPU pool full
+	// while the CPU pool has room, spill it to the software route entirely.
+	// Both the route and the ceiling are PINNED per stream by the admission
+	// shaper, so the manifest a player holds and every segment it fetches
+	// shape the same ladder - the cache-hash invariant that rules this whole
+	// function. Copy requests are exempt: they never take a capacity slot.
+	if h.admissionRoute != nil && len(laddered) > 0 &&
 		!h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
-		heights := make([]int, 0, len(laddered))
-		for _, p := range laddered {
-			heights = append(heights, p.Height)
+		natural := h.ladderClassFor(decision, streams)
+		softwareShape := func() []domaintranscoding.HLSProfile {
+			if h.selector == nil {
+				return nil
+			}
+			sw := h.selector.Software()
+			if sw == nil {
+				return nil
+			}
+			return sw.Profiles(base, src, decision, capability)
 		}
-		if ceiling, forced := h.admissionCeiling(h.admissionPinKey(item, streams, decision), h.ladderClassFor(decision, streams), heights); forced && ceiling > 0 {
-			laddered = domaintranscoding.CapLadderToHeight(laddered, ceiling)
+		var fallback func() []int
+		if natural == apptranscoding.LadderClassHW && h.selector != nil {
+			fallback = func() []int { return profileHeights(softwareShape()) }
+		}
+		g := h.admissionRoute(h.admissionPinKey(item, streams, decision), natural, profileHeights(laddered), fallback)
+		if g.OK {
+			if g.Class != natural && g.Class == apptranscoding.LadderClassSoftware {
+				if swLadder := softwareShape(); len(swLadder) > 0 {
+					laddered = swLadder
+				}
+			}
+			if g.Ceiling > 0 {
+				laddered = domaintranscoding.CapLadderToHeight(laddered, g.Ceiling)
+			}
 		}
 	}
 	return laddered
+}
+
+// profileHeights lists the heights of a shaped ladder, in order.
+func profileHeights(profiles []domaintranscoding.HLSProfile) []int {
+	out := make([]int, 0, len(profiles))
+	for _, p := range profiles {
+		out = append(out, p.Height)
+	}
+	return out
 }
 
 // ladderClassFor derives, from the request alone, the LadderClass this
@@ -1747,6 +1797,16 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 		decision := h.makeDecision(ctx, streams, containerOf(item), sourcePathOf(item), r)
 		if h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
 			return h.copyProducer
+		}
+		// Admission spill: a stream pinned to the software route spawns on the
+		// software producer regardless of the hw gate - the producer must be
+		// the one the ladder was shaped for (see profilesForDecision).
+		if h.admissionPinnedClass != nil {
+			if cls, ok := h.admissionPinnedClass(h.admissionPinKey(item, streams, decision)); ok && cls != apptranscoding.LadderClassHW {
+				if sw := h.selector.Software(); sw != nil {
+					return sw
+				}
+			}
 		}
 		return h.selector.For(decision, sourceDimsOf(streams))
 	}
@@ -1940,7 +2000,8 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	h := &hlsVODServe{
 		keyframeWarmer:       s.KeyframeWarmer,
 		videoAdmission:       videoAdmissionOf(s.VideoLimiter),
-		admissionCeiling:     admissionCeilingOf(s.VideoAdmissionShaper),
+		admissionRoute:       admissionRouteOf(s.VideoAdmissionShaper),
+		admissionPinnedClass: pinnedClassOf(s.VideoAdmissionShaper),
 		admissionBind:        admissionBindOf(s.VideoAdmissionShaper),
 		mediaLookup:          mediaLookup,
 		classLookup:          classLookup,
@@ -2344,11 +2405,18 @@ func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, apptra
 
 // admissionCeilingOf / admissionBindOf adapt the shaper the same way: TRUE-nil
 // funcs when it is not wired, so the handler's nil-checks stay meaningful.
-func admissionCeilingOf(s *apptranscoding.VideoAdmissionShaper) func(string, apptranscoding.LadderClass, []int) (int, bool) {
+func admissionRouteOf(s *apptranscoding.VideoAdmissionShaper) func(string, apptranscoding.LadderClass, []int, func() []int) apptranscoding.RouteGrant {
 	if s == nil {
 		return nil
 	}
-	return s.CeilingFor
+	return s.GrantRoute
+}
+
+func pinnedClassOf(s *apptranscoding.VideoAdmissionShaper) func(string) (apptranscoding.LadderClass, bool) {
+	if s == nil {
+		return nil
+	}
+	return s.PinnedClass
 }
 
 func admissionBindOf(s *apptranscoding.VideoAdmissionShaper) func(string, string) {

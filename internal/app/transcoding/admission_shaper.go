@@ -88,8 +88,47 @@ func NewVideoAdmissionShaper(limiter *VideoSessionLimiter) *VideoAdmissionShaper
 // cold, unheld pin re-evaluates, and does so against the newly-requested
 // class.
 func (s *VideoAdmissionShaper) CeilingFor(key string, class LadderClass, heights []int) (int, bool) {
-	if s == nil || s.limiter == nil || len(heights) == 0 {
+	g := s.GrantRoute(key, class, heights, nil)
+	if !g.OK {
 		return 0, false
+	}
+	// Height semantics only: this legacy surface reports whether the ladder is
+	// TRIMMED. A granted class differing from the asked one is GrantRoute's
+	// richer contract, not this one's.
+	top := 0
+	for _, h := range heights {
+		if h > top {
+			top = h
+		}
+	}
+	return g.Ceiling, g.Ceiling < top
+}
+
+// RouteGrant is the shaper's full answer for one stream: which ladder class
+// (and therefore which producer route and resource pool) it may spawn under,
+// and up to which rung. Forced is true when the grant trims anything the
+// viewer naturally had - a lower ceiling, or the software route instead of the
+// hardware one. OK=false means nothing fits anywhere right now: the caller
+// keeps the natural shape and the shed paths answer the viewer.
+type RouteGrant struct {
+	Class   LadderClass
+	Ceiling int
+	Forced  bool
+	OK      bool
+}
+
+// GrantRoute grants a route and ceiling for the stream identified by key,
+// whose NATURAL class is natural and whose natural ladder offers heights.
+// When natural is hw and the GPU pool cannot admit ANY rung, the shaper
+// spills the stream to the software route instead of letting it be refused:
+// fallbackHeights (lazily evaluated, may be nil to disable the spill) must
+// return the heights the SOFTWARE-shaped ladder would offer, since the two
+// routes shape different ladders. The grant is pinned like a plain ceiling -
+// the route shapes the ladder shapes the fingerprint hash, so it must not
+// move for the stream's life (same freshness + bound-session rules).
+func (s *VideoAdmissionShaper) GrantRoute(key string, natural LadderClass, heights []int, fallbackHeights func() []int) RouteGrant {
+	if s == nil || s.limiter == nil || len(heights) == 0 {
+		return RouteGrant{}
 	}
 	top := heights[0]
 	for _, h := range heights[1:] {
@@ -106,7 +145,12 @@ func (s *VideoAdmissionShaper) CeilingFor(key string, class LadderClass, heights
 		fresh := now.Sub(pin.lastSeen) < s.pinFreshFor
 		if fresh || s.anyBoundHeld(pin) {
 			pin.lastSeen = now
-			return pin.height, pin.height < top
+			return RouteGrant{
+				Class:   pin.class,
+				Ceiling: pin.height,
+				Forced:  pin.class != natural || pin.height < top,
+				OK:      true,
+			}
 		}
 		// Cold and holding nothing: this pin belongs to a playback attempt
 		// that ended (or never started). Fall through and re-evaluate against
@@ -114,19 +158,53 @@ func (s *VideoAdmissionShaper) CeilingFor(key string, class LadderClass, heights
 		delete(s.pins, key)
 	}
 
-	granted, ok := s.tallestAdmittable(key, class, heights)
+	if granted, ok := s.tallestAdmittable(key, natural, heights); ok {
+		s.evictIfFull(now)
+		s.pins[key] = &ceilingPin{height: granted, class: natural, lastSeen: now}
+		if granted < top {
+			slog.Info("video admission: ladder ceiling forced by load",
+				slog.String("stream", key), slog.Int("requested_top", top), slog.Int("granted", granted))
+		}
+		return RouteGrant{Class: natural, Ceiling: granted, Forced: granted < top, OK: true}
+	}
+
+	// The natural pool is full at every rung. A hardware stream may spill to
+	// the software route - a different pool AND a different ladder shape, so
+	// the fallback heights come from the caller (the software producer's
+	// shaping), never guessed from the hw ladder.
+	if natural == LadderClassHW && fallbackHeights != nil {
+		if fh := fallbackHeights(); len(fh) > 0 {
+			if granted, ok := s.tallestAdmittable(key, LadderClassSoftware, fh); ok {
+				s.evictIfFull(now)
+				s.pins[key] = &ceilingPin{height: granted, class: LadderClassSoftware, lastSeen: now}
+				slog.Info("video admission: gpu pool full, stream spilled to the software route",
+					slog.String("stream", key), slog.Int("granted", granted))
+				return RouteGrant{Class: LadderClassSoftware, Ceiling: granted, Forced: true, OK: true}
+			}
+		}
+	}
+
+	// Nothing fits anywhere. Deliberately NOT pinned: the next attempt must
+	// see the budget of ITS moment, not this one's.
+	return RouteGrant{}
+}
+
+// PinnedClass reports the class key's live pin was granted under, refreshing
+// it. Callers that assemble a fingerprint AFTER the grant (hw fields must
+// match the granted route, not the natural one) read it here instead of
+// re-running the whole grant.
+func (s *VideoAdmissionShaper) PinnedClass(key string) (LadderClass, bool) {
+	if s == nil {
+		return "", false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pin, ok := s.pins[key]
 	if !ok {
-		// Nothing fits. Deliberately NOT pinned: the next attempt must see the
-		// budget of ITS moment, not this one's.
-		return 0, false
+		return "", false
 	}
-	s.evictIfFull(now)
-	s.pins[key] = &ceilingPin{height: granted, class: class, lastSeen: now}
-	if granted < top {
-		slog.Info("video admission: ladder ceiling forced by load",
-			slog.String("stream", key), slog.Int("requested_top", top), slog.Int("granted", granted))
-	}
-	return granted, granted < top
+	pin.lastSeen = s.now()
+	return pin.class, true
 }
 
 // Bind records the decision-fingerprint hash a caller built under key's pin,

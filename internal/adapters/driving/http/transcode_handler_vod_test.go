@@ -453,9 +453,10 @@ func TestHLSVOD_ForcedCeiling_ShapesManifestAndFingerprintAlike(t *testing.T) {
 
 	var pinKeys []string
 	var boundHashes []string
-	h.admissionCeiling = func(key string, _ apptranscoding.LadderClass, heights []int) (int, bool) {
+	h.admissionRoute = func(key string, natural apptranscoding.LadderClass, _ []int, _ func() []int) apptranscoding.RouteGrant {
 		pinKeys = append(pinKeys, key)
-		return 720, true // the host can only afford the short rung
+		// the host can only afford the short rung
+		return apptranscoding.RouteGrant{Class: natural, Ceiling: 720, Forced: true, OK: true}
 	}
 	h.admissionBind = func(_ string, fpHash string) { boundHashes = append(boundHashes, fpHash) }
 
@@ -501,9 +502,9 @@ func TestHLSVOD_ForcedCeiling_NeverTouchesACopyRequest(t *testing.T) {
 	copyProd := apptranscoding.NewSoftwareProducer(h.cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
 	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
 	h.copyProducer = copyProd
-	h.admissionCeiling = func(string, apptranscoding.LadderClass, []int) (int, bool) {
+	h.admissionRoute = func(string, apptranscoding.LadderClass, []int, func() []int) apptranscoding.RouteGrant {
 		t.Fatal("the shaper must not be consulted for a copy request")
-		return 0, false
+		return apptranscoding.RouteGrant{}
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0_000.ts", nil)
@@ -592,6 +593,80 @@ func TestLadderClassFor_AgreesWithFingerprint(t *testing.T) {
 				"admission must price the pool the spawn will charge")
 		})
 	}
+}
+
+// P5, end to end at the handler level: a hardware-natural stream whose GPU
+// pool is full spills to the software route - the fingerprint says software
+// (so the spawn bills the CPU pool), the ladder is the software producer's
+// shape, and the spawn picks the software producer. All three must move
+// together or the cache hash lies.
+func TestHLSVOD_SpilledStream_FingerprintAndSpawnFollowTheSoftwareRoute(t *testing.T) {
+	w, hgt := 3840, 2160
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	streams := []*domainlibrary.MediaStream{{
+		StreamType: domainlibrary.StreamTypeVideo,
+		Codec:      "h264",
+		Width:      &w,
+		Height:     &hgt,
+	}}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
+	h.capability = func() domaintranscoding.EncodeCapability {
+		return domaintranscoding.EncodeCapability{
+			HWBackend:      "nvenc",
+			HWCodecs:       []string{"h264", "hevc"},
+			HWDecodeCodecs: []string{"h264", "hevc"},
+			HWMaxHeight:    2160,
+		}
+	}
+	h.hwAccelEnabled = func() bool { return true }
+	// A real selector with sentinel producers, gated by the handler's real
+	// resolveHW (same wiring as production): this stream routes hw naturally.
+	swProd := &sentinelProducer{tag: "software"}
+	hwProd := &sentinelProducer{tag: "hardware"}
+	h.selector = apptranscoding.NewProducerSelector(swProd, hwProd, h.hwRouteUsable)
+
+	// The shaper says: GPU full, spilled to software, capped at 1080.
+	h.admissionRoute = func(_ string, natural apptranscoding.LadderClass, _ []int, fallback func() []int) apptranscoding.RouteGrant {
+		require.Equal(t, apptranscoding.LadderClassHW, natural, "this stream is hardware-natural")
+		require.NotNil(t, fallback, "a hw-natural stream must offer the software fallback")
+		require.NotEmpty(t, fallback(), "the software ladder must be shapeable")
+		return apptranscoding.RouteGrant{Class: apptranscoding.LadderClassSoftware, Ceiling: 1080, Forced: true, OK: true}
+	}
+	h.admissionPinnedClass = func(string) (apptranscoding.LadderClass, bool) {
+		return apptranscoding.LadderClassSoftware, true
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0_000.ts", nil)
+	req = withHTTPClaims(req, testClaims(false))
+
+	fp, err := h.buildFingerprint(req, "m1", item, streams)
+	require.NoError(t, err)
+
+	assert.Equal(t, apptranscoding.LadderClassSoftware, apptranscoding.LadderClassOf(fp),
+		"the spilled fingerprint bills the CPU pool")
+	assert.Empty(t, fp.HWAccel)
+	for _, p := range fp.Profiles {
+		assert.LessOrEqual(t, p.Height, 1080, "the granted ceiling caps the spilled ladder")
+	}
+
+	// Deterministic: same request, same hash.
+	fp2, err := h.buildFingerprint(req, "m1", item, streams)
+	require.NoError(t, err)
+	assert.Equal(t, fp.Hash(), fp2.Hash())
+
+	// The natural route would have been hardware - prove the gate agrees...
+	assert.True(t, h.hwRouteUsable(domaintranscoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}, apptranscoding.SourceDims{Codec: "h264"}),
+		"precondition: without the spill, this stream rides the GPU")
+
+	// ...and that the spawn nevertheless goes to the software producer.
+	prod := h.producerForRequest(req.Context(), req, streams, item)
+	require.NotNil(t, prod)
+	assert.Same(t, apptranscoding.StreamProducer(swProd), prod, "the spawn must ride the software route the fp describes")
 }
 
 func TestHLSVOD_Master_ServedWhenAdmitted(t *testing.T) {
