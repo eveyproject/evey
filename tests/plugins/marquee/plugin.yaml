@@ -1,0 +1,13 @@
+name: marquee
+kind: plugin
+version: 1.0.0
+description: A living cinema poster wall built from your own library - hover, spin the roulette, and pick tonight's watch.
+author: evey-examples
+language: nodejs
+entrypoint: node main.js
+permissions:
+  - public
+web_root: dist
+frontend:
+  - slot: home.section
+    src: dist/index.js
