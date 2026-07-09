@@ -79,6 +79,32 @@ if [ "$EVEY_EMBEDDED_MEILI" = "true" ]; then
     MEILI_DATA_DIR="${MEILI_DATA_DIR:-/data/meili}"
     mkdir -p "$MEILI_DATA_DIR"
 
+    # ── Indexing memory budget (cgroup-aware) ──────────────────────────────
+    # Meilisearch sizes its indexing arena from the MACHINE's RAM (defaults to
+    # 2/3 of total), blind to the container limit — on a 2 GB NAS with a 1 GB
+    # limit a library scan would aim for ~1.3 GB and OOM the container. Derive
+    # the real budget (cgroup v2, then v1, then /proc/meminfo) and cap indexing
+    # at ~20% of it, floor 128 MiB. Operators keep the last word: an explicit
+    # MEILI_MAX_INDEXING_MEMORY in the environment is passed through untouched.
+    if [ -z "${MEILI_MAX_INDEXING_MEMORY:-}" ]; then
+        host_total=$(awk '/^MemTotal:/{print $2 * 1024}' /proc/meminfo)
+        limit=""
+        if [ -r /sys/fs/cgroup/memory.max ]; then
+            limit=$(cat /sys/fs/cgroup/memory.max)
+        elif [ -r /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
+            limit=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+        fi
+        case "$limit" in
+            ''|max|*[!0-9]*) limit="$host_total" ;;
+        esac
+        # cgroup v1 reports "unlimited" as a huge sentinel; clamp to the host.
+        [ "$limit" -gt "$host_total" ] && limit="$host_total"
+        budget_mib=$((limit / 5 / 1048576))
+        [ "$budget_mib" -lt 128 ] && budget_mib=128
+        export MEILI_MAX_INDEXING_MEMORY="${budget_mib} MiB"
+        echo "evey: memory budget $((limit / 1048576)) MiB detected — capping Meilisearch indexing memory at ${budget_mib} MiB"
+    fi
+
     /usr/local/bin/meilisearch \
         --db-path "$MEILI_DATA_DIR" \
         --http-addr "127.0.0.1:7700" \
