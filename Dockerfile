@@ -202,13 +202,17 @@ COPY --from=builder /src/gen/evey/v1 /app/gen/evey/v1
 COPY --from=builder /src/docker/seccomp-evey.json /etc/evey/seccomp.json
 COPY --from=frontend /app/apps/web/dist /srv
 
-# mkvgo CLI + its bash completion + a one-time admin greeting (Evey banner +
-# mkvgo examples) shown on an interactive shell — `docker exec -it evey-server
-# bash`. Both are sourced from the system bashrc; neither touches the server.
+# Admin shell polish shown on `docker exec -it evey-server bash`: tab-completion
+# for the `evey` maintenance CLI and the `mkvgo` media tool, plus a one-time
+# greeting (banner + both command groups). The `evey` binary is already at /evey;
+# symlink it onto PATH so `evey admin …` works from any cwd. All sourced from the
+# system bashrc — nothing here touches the running server.
+RUN ln -sf /evey /usr/local/bin/evey
 COPY --from=builder /mkvgo /usr/local/bin/mkvgo
+COPY docker/evey-completion.bash /etc/bash_completion.d/evey
 COPY docker/mkvgo-completion.bash /etc/bash_completion.d/mkvgo
 COPY docker/evey-motd.sh /etc/evey/motd.sh
-RUN printf '\n# Evey admin shell: mkvgo completion + one-time greeting\n[ -r /etc/bash_completion.d/mkvgo ] && . /etc/bash_completion.d/mkvgo\n[ -r /etc/evey/motd.sh ] && . /etc/evey/motd.sh\n' >> /etc/bash.bashrc
+RUN printf '\n# Evey admin shell: CLI completion + one-time greeting\nfor _f in /etc/bash_completion.d/evey /etc/bash_completion.d/mkvgo; do [ -r "$_f" ] && . "$_f"; done\n[ -r /etc/evey/motd.sh ] && . /etc/evey/motd.sh\n' >> /etc/bash.bashrc
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
