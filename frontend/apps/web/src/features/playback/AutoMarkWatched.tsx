@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceGetWatchProgress } from "@evey/api";
 import { useAuthStore } from "@evey/store";
@@ -44,15 +45,7 @@ export function AutoMarkWatched({ mediaId, videoRef, knownDurationSec, transcode
       // finished episode lingered as unwatched / in "Continue Watching" until
       // staleTime (5min) elapsed.
       onSuccess: () => {
-        if (mediaId) void queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
-        void queryClient.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
-        void queryClient.invalidateQueries({
-          predicate: (q) => {
-            const k = q.queryKey?.[0];
-            if (typeof k !== "string") return false;
-            return k.startsWith("/api/v1/feeds/") || k === "/api/v1/popular";
-          },
-        });
+        invalidateWatchedState(queryClient, mediaId);
       },
     },
   });

@@ -1,4 +1,5 @@
 import { memo, useRef, useState, useEffect, useCallback } from "react";
+import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -33,15 +34,7 @@ export const CardContextMenu = memo(function CardContextMenu({
   // home feeds that filter watched items — the context-menu path must do the
   // same, else the badge stays grey and the item lingers in "Continue Watching".
   const invalidateWatched = () => {
-    queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaId}`] });
-    queryClient.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
-    queryClient.invalidateQueries({
-      predicate: (q) => {
-        const k = q.queryKey?.[0];
-        if (typeof k !== "string") return false;
-        return k.startsWith("/api/v1/feeds/") || k === "/api/v1/popular";
-      },
-    });
+    invalidateWatchedState(queryClient, mediaId);
   };
   const markWatched = usePlaybackServiceMarkAsWatched({
     mutation: {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { Play, EyeOff, Eye, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -73,9 +74,7 @@ export function MediaDetailActions({
   const watched = watchedOverride ?? (progress?.played === true);
 
   const invalidateWatched = () => {
-    if (item.id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${item.id}/progress`] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
-    void qc.invalidateQueries({ queryKey: ["/api/v1/feeds/resume-playback"] });
+    invalidateWatchedState(qc, item.id);
   };
 
   const markWatched = usePlaybackServiceMarkAsWatched({
