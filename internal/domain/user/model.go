@@ -80,6 +80,22 @@ type Profile struct {
 
 // HasPIN returns true when the profile has a PIN set (used by kids-profile
 // invariant: every non-kids profile needs one when a kids profile exists).
+// IsParentalRestricted reports whether the profile is subject to a parental
+// content restriction: a kids profile always, and a non-kids profile whose
+// owner explicitly enabled parental controls AND set a PIN. Leaving such a
+// profile for an unrestricted one is PIN-gated (see the RefreshToken switch
+// gate), otherwise the server-side content filter is bypassable by a plain
+// profile switch.
+func (p *Profile) IsParentalRestricted() bool {
+	if p == nil {
+		return false
+	}
+	if p.IsKids {
+		return true
+	}
+	return p.EffectiveParental() != nil && p.HasPIN()
+}
+
 func (p *Profile) HasPIN() bool {
 	return p != nil && p.Parental != nil && p.Parental.PINHash != ""
 }

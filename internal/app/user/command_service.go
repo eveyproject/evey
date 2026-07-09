@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -451,7 +452,7 @@ func (s *CommandService) Impersonate(ctx context.Context, adminUserID, targetUse
 func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfileID, pinToken string, ttlOverride ...time.Duration) (string, string, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.RefreshToken")
 	defer span.End()
-	rt, err := s.claimRefreshToken(ctx, token)
+	rt, err := s.validateRefreshToken(ctx, token)
 	if err != nil {
 		return "", "", err
 	}
@@ -488,18 +489,44 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		activeProfileID, _ = resolveActiveProfileID(profs, "")
 	}
 
-	// Parental PIN gate: switching OUT of a kids profile INTO a non-kids one
-	// requires a server-verified PIN proof for the target profile. Enforced here
-	// (not just in the UI) so a direct API call can't bypass parental control.
+	// Parental PIN gate: switching OUT of a parental-restricted profile (a kids
+	// profile, or a non-kids one whose owner explicitly enabled parental
+	// controls with a PIN) INTO an unrestricted non-kids one requires a
+	// server-verified PIN proof for the target profile. Enforced here (not just
+	// in the UI) so a direct API call can't bypass parental control: without it
+	// the content filter such a profile carries is defeated by one refresh call.
 	if rt.ProfileID != nil && string(*rt.ProfileID) != activeProfileID {
 		old := findProfileByID(profs, string(*rt.ProfileID))
 		target := findProfileByID(profs, activeProfileID)
-		if old != nil && old.IsKids && target != nil && !target.IsKids && target.HasPIN() {
-			provenID, perr := s.tokens.ParsePINToken(pinToken)
-			if perr != nil || provenID != activeProfileID {
-				return "", "", ErrPINRequired
+		if old != nil && target != nil && old.IsParentalRestricted() {
+			// Which PINs authorise this exit. The target's PIN is the historical
+			// proof (a kid cannot know the adult profile's PIN). A gated non-kids
+			// profile additionally accepts its OWN PIN: its target may legitimately
+			// have no PIN at all, and without this the whole gate would be a no-op
+			// for exactly the setups it protects.
+			var authorisers []string
+			if !target.IsKids && target.HasPIN() {
+				authorisers = append(authorisers, string(target.ID))
+			}
+			if !old.IsKids && old.HasPIN() && !target.IsParentalRestricted() {
+				authorisers = append(authorisers, string(old.ID))
+			}
+			if len(authorisers) > 0 {
+				provenID, perr := s.tokens.ParsePINToken(pinToken)
+				if perr != nil || !slices.Contains(authorisers, provenID) {
+					// Deliberately BEFORE the token is consumed: the client
+					// fetches a PIN proof and retries with this same refresh
+					// token.
+					return "", "", ErrPINRequired
+				}
 			}
 		}
+	}
+
+	// Every rejection above leaves the refresh token usable; from here the
+	// rotation is committed.
+	if err := s.markRefreshTokenUsed(ctx, rt); err != nil {
+		return "", "", err
 	}
 
 	accessToken, err := s.tokens.GenerateAccessToken(user.Claims{
@@ -531,14 +558,15 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 	return accessToken, newRefresh, nil
 }
 
-// claimRefreshToken performs the full hash-lookup + reuse/expiry gating +
+// validateRefreshToken performs the hash-lookup + reuse/expiry gating (it does
+// NOT consume the token; see markRefreshTokenUsed) +
 // atomic claim (MarkUsedIfNotUsed). Any failure path returns
 // ErrInvalidCredentials. Replay (token already Used) still purges every
 // token of the owning user — that's the only path that legitimately points
 // at a compromised credential. Concurrent-claim races are NOT replays; the
 // loser just lost the optimistic race against the winner and rejecting it
 // is enough.
-func (s *CommandService) claimRefreshToken(ctx context.Context, token string) (*user.RefreshToken, error) {
+func (s *CommandService) validateRefreshToken(ctx context.Context, token string) (*user.RefreshToken, error) {
 	h := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(h[:])
 
@@ -569,9 +597,18 @@ func (s *CommandService) claimRefreshToken(ctx context.Context, token string) (*
 		return nil, ErrInvalidCredentials
 	}
 
+	return rt, nil
+}
+
+// markRefreshTokenUsed consumes the (already validated) refresh token. Split
+// from validateRefreshToken so a rejected parental PIN gate does NOT burn the
+// token: the client must be able to fetch a PIN proof and retry with the SAME
+// refresh token. Burning it would log the user out - and the retry would look
+// like a replay, purging every session of that user.
+func (s *CommandService) markRefreshTokenUsed(ctx context.Context, rt *user.RefreshToken) error {
 	claimed, markErr := s.refreshTkns.MarkUsedIfNotUsed(ctx, rt.ID)
 	if markErr != nil {
-		return nil, fmt.Errorf("CommandService.RefreshToken: %w", markErr)
+		return fmt.Errorf("CommandService.RefreshToken: %w", markErr)
 	}
 	if !claimed {
 		// Two devices (e.g. web + mobile) both fired /auth/refresh with the
@@ -584,9 +621,9 @@ func (s *CommandService) claimRefreshToken(ctx context.Context, token string) (*
 		slog.Info("refresh rejected: concurrent claim race",
 			slog.String("userID", string(rt.UserID)),
 			slog.String("tokenID", rt.ID))
-		return nil, ErrInvalidCredentials
+		return ErrInvalidCredentials
 	}
-	return rt, nil
+	return nil
 }
 
 // collectPermissions flattens all role permissions for the user. Errors

@@ -552,6 +552,149 @@ func TestRefreshToken_SwitchOutOfKids_RequiresPIN(t *testing.T) {
 	require.ErrorIs(t, err, ErrPINRequired)
 }
 
+// A non-kids profile whose owner explicitly enabled parental controls with a
+// PIN is restricted too: leaving it for an unrestricted PIN-protected profile
+// must demand the same proof as leaving a kids profile. Without this, the
+// server-side content filter on such a profile (see Profile.EffectiveParental)
+// is trivially bypassed by switching profile - verified live against dev.
+func TestRefreshToken_SwitchOutOfGatedNonKids_RequiresPIN(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-adult", UserID: "u1", Name: "Adult", IsDefault: true, Parental: &user.ParentalSettings{PINHash: "h"}})
+	maxAge := 12
+	_ = d.profiles.Create(ctx, &user.Profile{
+		ID: "p-family", UserID: "u1", Name: "Family",
+		Parental: &user.ParentalSettings{Enabled: true, MaxAge: &maxAge, PINHash: "h2"},
+	})
+
+	raw := "family-token"
+	h := sha256.Sum256([]byte(raw))
+	fam := shared.ProfileID("p-family")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &fam, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-adult", "") // no PIN proof
+	require.ErrorIs(t, err, ErrPINRequired)
+}
+
+// An UNGATED non-kids profile (parental off, or on but with nothing configured)
+// keeps switching freely: the gate must not appear for ordinary users.
+func TestRefreshToken_SwitchOutOfUngatedNonKids_NoPIN(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-adult", UserID: "u1", Name: "Adult", IsDefault: true, Parental: &user.ParentalSettings{PINHash: "h"}})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-other", UserID: "u1", Name: "Other"})
+
+	raw := "other-token"
+	h := sha256.Sum256([]byte(raw))
+	other := shared.ProfileID("p-other")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &other, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-adult", "")
+	require.NoError(t, err, "an unrestricted profile must switch without a PIN")
+}
+
+// The real-world bypass: the escape profile has NO PIN of its own, so the
+// legacy "prove the target's PIN" rule could demand nothing. Leaving a gated
+// profile must still be refused - its OWN PIN authorises the exit.
+func TestRefreshToken_SwitchOutOfGatedNonKids_TargetWithoutPIN_StillRequiresPIN(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-free", UserID: "u1", Name: "Free", IsDefault: true})
+	maxAge := 12
+	_ = d.profiles.Create(ctx, &user.Profile{
+		ID: "p-family", UserID: "u1", Name: "Family",
+		Parental: &user.ParentalSettings{Enabled: true, MaxAge: &maxAge, PINHash: "h2"},
+	})
+
+	raw := "family-token"
+	h := sha256.Sum256([]byte(raw))
+	fam := shared.ProfileID("p-family")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &fam, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-free", "")
+	require.ErrorIs(t, err, ErrPINRequired, "a PIN-less target must not be a free exit from a gated profile")
+
+	// The gated profile's own PIN proof authorises the exit. A fresh refresh
+	// token: the failed attempt above may have consumed the first one.
+	raw2 := "family-token-2"
+	h2 := sha256.Sum256([]byte(raw2))
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt2", UserID: "u1", TokenHash: hex.EncodeToString(h2[:]),
+		ProfileID: &fam, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+	proof, perr := d.tokens.GeneratePINToken("p-family", time.Minute)
+	require.NoError(t, perr)
+	_, _, err = d.svc.RefreshToken(ctx, raw2, "p-free", proof)
+	require.NoError(t, err, "the gated profile's own PIN must authorise leaving it")
+}
+
+// A refused PIN gate must NOT consume the refresh token: the client fetches a
+// PIN proof and retries with the same token. Burning it would log the user out,
+// and the retry would trip the replay detector, purging every session they have.
+func TestRefreshToken_PINRefusal_DoesNotBurnTheRefreshToken(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-adult", UserID: "u1", Name: "Adult", IsDefault: true, Parental: &user.ParentalSettings{PINHash: "h"}})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-kid", UserID: "u1", Name: "Kid", IsKids: true})
+
+	raw := "kid-token"
+	h := sha256.Sum256([]byte(raw))
+	kid := shared.ProfileID("p-kid")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt1", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &kid, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-adult", "")
+	require.ErrorIs(t, err, ErrPINRequired)
+
+	// Same token, now with the proof the user just fetched: must succeed.
+	pinTok, gerr := d.tokens.GeneratePINToken("p-adult", time.Minute)
+	require.NoError(t, gerr)
+	access, _, err := d.svc.RefreshToken(ctx, raw, "p-adult", pinTok)
+	require.NoError(t, err, "the refused attempt must have left the refresh token usable")
+	claims, verr := d.tokens.ValidateAccessToken(access)
+	require.NoError(t, verr)
+	require.Equal(t, "p-adult", claims.ProfileID)
+}
+
+// Switching INTO a more restrictive profile is always free.
+func TestRefreshToken_SwitchIntoKids_NoPIN(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+	maxAge := 12
+	_ = d.profiles.Create(ctx, &user.Profile{
+		ID: "p-family", UserID: "u1", Name: "Family", IsDefault: true,
+		Parental: &user.ParentalSettings{Enabled: true, MaxAge: &maxAge, PINHash: "h2"},
+	})
+	_ = d.profiles.Create(ctx, &user.Profile{ID: "p-kid", UserID: "u1", Name: "Kid", IsKids: true})
+
+	raw := "family-token2"
+	h := sha256.Sum256([]byte(raw))
+	fam := shared.ProfileID("p-family")
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt2", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ProfileID: &fam, ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, raw, "p-kid", "")
+	require.NoError(t, err, "entering a stricter profile needs no proof")
+}
+
 func TestRefreshToken_SwitchOutOfKids_WithValidPIN_OK(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()
