@@ -44,6 +44,12 @@ describe("artworkUrl", () => {
     );
   });
 
+  it("percent-encodes a traversal/redirect id so the fetch cannot pivot to another API path", () => {
+    expect(artworkUrl("https://evey.test", "../admin/api-keys")).toBe(
+      "https://evey.test/api/v1/media/..%2Fadmin%2Fapi-keys/artwork/poster",
+    );
+  });
+
   it("ignores width <= 0", () => {
     expect(artworkUrl("https://evey.test", "m6", "poster", 0)).toBe(
       "https://evey.test/api/v1/media/m6/artwork/poster",
