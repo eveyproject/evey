@@ -20,6 +20,8 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
+import { useParentalGate } from "../../../src/hooks/useParentalGate";
+import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 
 const HERO_HEIGHT = 420;
 const POSTER_WIDTH = 220;
@@ -72,6 +74,10 @@ export default function MediaDetailScreen() {
   const [watchedOverride, setWatchedOverride] = useState<boolean | null>(null);
   const watched = watchedOverride ?? (watchProgress?.played === true);
 
+  const { needsPin, profileId: gateProfileId } = useParentalGate(media?.officialRating);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pendingPlayTarget, setPendingPlayTarget] = useState<string | null>(null);
+
   const invalidateWatched = useCallback(() => {
     if (id) void qc.invalidateQueries({ queryKey: [`/api/v1/playback/${id}/progress`] });
     void qc.invalidateQueries({ queryKey: ["/api/v1/playback/history"] });
@@ -116,16 +122,31 @@ export default function MediaDetailScreen() {
   const episodes = isSeason ? children : (episodesData?.items ?? []);
   const seasons = isSeries ? children : [];
 
-  const handlePlay = useCallback(() => {
-    if (!id) return;
-    if (isSeries && episodes.length > 0) {
-      router.push(`/(auth)/player/${episodes[0]!.id}`);
-    } else if (isSeason && episodes.length > 0) {
-      router.push(`/(auth)/player/${episodes[0]!.id}`);
-    } else {
-      router.push(`/(auth)/player/${id}`);
-    }
+  const getPlayTarget = useCallback((): string | null => {
+    if (!id) return null;
+    if (isSeries && episodes.length > 0) return episodes[0]!.id!;
+    if (isSeason && episodes.length > 0) return episodes[0]!.id!;
+    return id;
   }, [id, isSeries, isSeason, episodes]);
+
+  const handlePlay = useCallback(() => {
+    const target = getPlayTarget();
+    if (!target) return;
+    if (needsPin()) {
+      setPendingPlayTarget(target);
+      setShowPinModal(true);
+      return;
+    }
+    router.push(`/(auth)/player/${target}`);
+  }, [getPlayTarget, needsPin]);
+
+  const handlePinVerified = useCallback(() => {
+    setShowPinModal(false);
+    if (pendingPlayTarget) {
+      router.push(`/(auth)/player/${pendingPlayTarget}`);
+      setPendingPlayTarget(null);
+    }
+  }, [pendingPlayTarget]);
 
   if (isLoading || !media) {
     return (
@@ -397,6 +418,15 @@ export default function MediaDetailScreen() {
           visible={playlistSheetOpen}
           mediaItemId={id}
           onClose={() => setPlaylistSheetOpen(false)}
+        />
+      ) : null}
+
+      {gateProfileId ? (
+        <ParentalPINModal
+          visible={showPinModal}
+          onClose={() => { setShowPinModal(false); setPendingPlayTarget(null); }}
+          onVerified={handlePinVerified}
+          profileId={gateProfileId}
         />
       ) : null}
     </ScrollView>
