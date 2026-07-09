@@ -50,6 +50,8 @@ func runAdmin(args []string) error {
 		return adminValidateStreaming(args[1:])
 	case "artwork-gc":
 		return adminArtworkGC(args[1:])
+	case "load-test":
+		return adminLoadTest(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
@@ -92,6 +94,18 @@ Media maintenance subcommands:
                                     references (orphans from the old UUID-named
                                     scheme). Dry-run by default; --apply deletes.
                                     --root defaults to /data/artworks.
+
+Capacity subcommands (need a LIVE server — HTTP client of the local gateway):
+  load-test [--scenario <s>] [--max-viewers N]
+                                    Ramp simulated viewers until the box hits its
+                                    ceiling and report the sustained count + TTFF/
+                                    segment latencies. --scenario is one of
+                                    transcode|natural|mkvgo|light|balanced|heavy
+                                    (default balanced); --max-viewers caps the ramp
+                                    (0 = server default 12). Short sanity run:
+                                    load-test --scenario balanced --max-viewers 4.
+                                    Ctrl-C offers to cancel; admission_full is the
+                                    ceiling verdict (exit 0), not an error.
 
 Configuration is read from EVEY_* env vars (same as the server).
 See docs/runbooks/recovery.md and docs/runbooks/cli.md for full procedures.

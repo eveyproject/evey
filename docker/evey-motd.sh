@@ -31,13 +31,14 @@ evey_menu() {
     local -a lbl pre desc
     lbl=(  'evey admin reset-password' 'evey admin migrate' 'evey admin reindex-search' \
            'evey admin validate-streaming' 'evey admin reindex-no-cue' 'evey admin artwork-gc' \
-           'mkvgo <cmd>' 'type your own' 'leave' )
+           'evey admin load-test' 'mkvgo <cmd>' 'type your own' 'leave' )
     pre=(  'evey admin reset-password --user ' 'evey admin migrate ' 'evey admin reindex-search' \
            'evey admin validate-streaming --root ' 'evey admin reindex-no-cue --root ' 'evey admin artwork-gc' \
-           'mkvgo ' '' '' )
+           'evey admin load-test --scenario balanced --max-viewers ' 'mkvgo ' '' '' )
     desc=( "reset a user's password" "up | down | version" "rebuild the search index" \
            "report seek / HLS readiness" "repair MKV seek indexes" "delete orphaned artwork" \
-           "inspect / repair a media file  ($mkv)" "empty prompt — evey / mkvgo + Tab Tab" "drop to a plain shell" )
+           "ramp viewers, find the capacity ceiling" "inspect / repair a media file  ($mkv)" \
+           "empty prompt — evey / mkvgo + Tab Tab" "drop to a plain shell" )
     local n=${#lbl[@]} typ=$(( ${#lbl[@]} - 2 )) leave=$(( ${#lbl[@]} - 1 ))
 
     if [ ! -t 0 ] || [ ! -t 1 ]; then
