@@ -35,6 +35,12 @@ beforeEach(() => {
 });
 
 describe("buildStreamUrl", () => {
+  it("percent-encodes a deep-link traversal id so the stream URL cannot pivot to another API path", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "../admin/api-keys", { playMethod: "PLAY_METHOD_DIRECT_PLAY" }, "tok");
+    expect(url).toBe("http://srv/api/v1/media/..%2Fadmin%2Fapi-keys/stream?token=tok");
+  });
+
   it("returns direct stream URL for PLAY_METHOD_DIRECT_PLAY (no codec params)", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_DIRECT_PLAY" }, "tok");

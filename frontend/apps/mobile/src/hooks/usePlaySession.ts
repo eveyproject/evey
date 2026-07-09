@@ -57,13 +57,17 @@ export interface PlaySessionResult {
   progress: V1WatchProgress | null;
 }
 
+// mediaId reaches these builders straight from the route params
+// (useLocalSearchParams), which a deep link controls. Every id is
+// percent-encoded so a crafted "..%2Fadmin" id cannot pivot the authenticated
+// request onto another API path.
 export async function fetchStreamToken(mediaId: string): Promise<string> {
   // Native player (expo-video/ExoPlayer/AVPlayer): like a Chromecast or a web
   // native <video>, it fetches segments itself and can't re-mint the short
   // sliding token mid-stream, so a pause would 401 on the 5-minute default.
   // purpose=native returns the long-lived (12h) window instead.
   const res = await eveyFetch<StreamTokenResponse>({
-    url: `/api/v1/media/${mediaId}/stream-token?purpose=native`,
+    url: `/api/v1/media/${encodeURIComponent(mediaId)}/stream-token?purpose=native`,
     method: "POST",
   });
   return res.token;
@@ -89,18 +93,18 @@ export function buildStreamUrl(
   startSec?: number,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
-    return `${serverUrl}/api/v1/media/${mediaId}/stream?token=${token}`;
+    return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/stream?token=${token}`;
   }
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_STREAM") {
     const p = new URLSearchParams({ token, remux: "1" });
     appendCodecParams(p);
-    return `${serverUrl}/api/v1/media/${mediaId}/transcode?${p.toString()}`;
+    return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/transcode?${p.toString()}`;
   }
   const params = new URLSearchParams({ token });
   if (startSec && startSec > 0) params.set("startSec", String(Math.floor(startSec)));
   appendCodecParams(params);
   // Server publishes a complete VOD manifest from t=0 (no live-edge snap).
-  return `${serverUrl}/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
+  return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/hls/master.m3u8?${params.toString()}`;
 }
 
 export function usePlaySession(mediaId: string): PlaySessionResult {
@@ -150,7 +154,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
             networkType,
           }),
           eveyFetch<V1WatchProgress>({
-            url: `/api/v1/playback/${mediaId}/progress`,
+            url: `/api/v1/playback/${encodeURIComponent(mediaId)}/progress`,
             method: "GET",
           }).catch(() => null),
         ]);
