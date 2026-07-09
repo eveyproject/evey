@@ -54,31 +54,24 @@ func (a *Adapter) DeleteBackup(ctx context.Context, path string) error {
 	return nil
 }
 
-// errInPlaceUnavailable marks the surgical in-place strategy as not yet
-// reachable: it activates when the mkvgo pin reaches the release shipping
-// matroska.ReindexInPlace/RecoverInPlace (crash-safe in-file journal, no
-// directory write, no on-disk duplicate). PRE-WIRED on purpose — the call
-// site, fallback routing and result plumbing below are final; the bump only
-// swaps this stub for the real call.
+// errInPlaceUnavailable is kept for the ModeAuto fall-through routing below:
+// since the v0.17.0 bump the surgical strategy is live, so this sentinel only
+// fires if a future build ever re-stubs reindexSurgical.
 var errInPlaceUnavailable = errors.New("in-place reindex not available at this mkvgo pin")
 
-// reindexSurgical patches path's seek index in place. Stubbed until the mkvgo
-// bump; then:
-//
-//	func reindexSurgical(ctx context.Context, path string) error {
-//	    return matroska.ReindexInPlace(ctx, path)
-//	}
-//
-// mkvgo runs its own crash-recovery (journal rollback) before patching, so no
-// extra RecoverInPlace call is needed here.
-func reindexSurgical(_ context.Context, _ string) error {
-	return errInPlaceUnavailable
+// reindexSurgical patches path's seek index in place (mkvgo v0.17.0+):
+// appends a fresh Cues element, repoints the head SeekHead, voids the stale
+// index - cluster bytes never move, no on-disk duplicate. mkvgo runs its own
+// crash-recovery (journal rollback) before patching, so no extra
+// RecoverInPlace call is needed here.
+func reindexSurgical(ctx context.Context, path string) error {
+	return ops.ReindexInPlace(ctx, path)
 }
 
-// surgicalAvailable mirrors the stub above: flip to true with the bump. The
-// admin UI reads it (via SupportsInPlace) to offer the in-place mode only
-// when it can actually run.
-const surgicalAvailable = false
+// surgicalAvailable: the pin carries ops.ReindexInPlace. The admin UI reads
+// it (via SupportsInPlace) to offer the in-place mode only when it can
+// actually run.
+const surgicalAvailable = true
 
 // SupportsInPlace reports whether this build carries the surgical strategy.
 func (a *Adapter) SupportsInPlace() bool { return surgicalAvailable }
@@ -208,7 +201,14 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 			// The operator demanded the patch: no silent rewrite.
 			return mkv.ReindexResult{}, fmt.Errorf("reindex: %w: %w", mkv.ErrInPlaceUnsupported, inErr)
 		case errors.Is(inErr, errInPlaceUnavailable):
-			// Pre-bump ModeAuto: the rewrite below is today's only strategy.
+			// Re-stubbed build (defensive): the rewrite below is the only strategy.
+		case errors.Is(inErr, ops.ErrIndexNotHeadDiscoverable):
+			// This file's layout defeats the head-only patch (no SeekHead slot,
+			// streamed clusters, ...). The journal guarantees the original is
+			// untouched, so fall through to the full rewrite - it keeps Evey's
+			// backup semantics (.mkvgobak + Validate) unlike ops.ReindexReplace.
+			slog.Info("mkvgo: in-place reindex not applicable to this layout, using the full rewrite",
+				slog.String("path", path))
 		default:
 			slog.Info("mkvgo: in-place reindex refused, falling back to the full rewrite",
 				slog.String("path", path), slog.Any("err", inErr))
