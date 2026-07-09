@@ -46,19 +46,19 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, field_order, idet_interlaced,
 		sample_aspect_ratio, channels, channel_layout, sample_rate,
 		bitrate, is_external, external_path, level,
-		commentary, hearing_impaired, visual_impaired, text_descriptions, original) VALUES `)
+		commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode) VALUES `)
 
-	args := make([]any, 0, len(streams)*35)
+	args := make([]any, 0, len(streams)*36)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 35
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 36
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
 			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27, base+28, base+29, base+30,
-			base+31, base+32, base+33, base+34, base+35)
+			base+31, base+32, base+33, base+34, base+35, base+36)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
@@ -66,7 +66,7 @@ func (r *MediaStreamRepository) CreateBatch(ctx context.Context, streams []*libr
 			s.DoViProfile, s.DoViBLCompat, s.FieldOrder, s.IdetInterlaced,
 			s.SampleAspectRatio, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
-			s.Commentary, s.HearingImpaired, s.VisualImpaired, s.TextDescriptions, s.Original,
+			s.Commentary, s.HearingImpaired, s.VisualImpaired, s.TextDescriptions, s.Original, s.FrameRateMode,
 		)
 	}
 
@@ -122,19 +122,19 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID sh
 		color_transfer, hdr_type, dovi_profile, dovi_bl_compat, field_order, idet_interlaced,
 		sample_aspect_ratio, channels, channel_layout, sample_rate,
 		bitrate, is_external, external_path, level,
-		commentary, hearing_impaired, visual_impaired, text_descriptions, original) VALUES `)
+		commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode) VALUES `)
 
-	args := make([]any, 0, len(streams)*35)
+	args := make([]any, 0, len(streams)*36)
 	for i, s := range streams {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i * 35
-		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
+		base := i * 36
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d,$%d)",
 			base+1, base+2, base+3, base+4, base+5, base+6, base+7, base+8, base+9, base+10,
 			base+11, base+12, base+13, base+14, base+15, base+16, base+17, base+18, base+19,
 			base+20, base+21, base+22, base+23, base+24, base+25, base+26, base+27, base+28, base+29, base+30,
-			base+31, base+32, base+33, base+34, base+35)
+			base+31, base+32, base+33, base+34, base+35, base+36)
 		args = append(args,
 			s.ID, s.MediaItemID, s.StreamIndex, s.StreamType, s.Codec, s.CodecLongName,
 			s.Profile, s.Language, s.Title, s.IsDefault, s.IsForced, s.Width, s.Height,
@@ -142,7 +142,7 @@ func (r *MediaStreamRepository) ReplaceBatch(ctx context.Context, mediaItemID sh
 			s.DoViProfile, s.DoViBLCompat, s.FieldOrder, s.IdetInterlaced,
 			s.SampleAspectRatio, s.Channels, s.ChannelLayout,
 			s.SampleRate, s.Bitrate, s.IsExternal, s.ExternalPath, s.Level,
-			s.Commentary, s.HearingImpaired, s.VisualImpaired, s.TextDescriptions, s.Original,
+			s.Commentary, s.HearingImpaired, s.VisualImpaired, s.TextDescriptions, s.Original, s.FrameRateMode,
 		)
 	}
 
@@ -170,7 +170,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 		 is_default, is_forced, width, height, framerate, bit_depth, color_space, color_transfer, hdr_type,
 		 dovi_profile, dovi_bl_compat, field_order, idet_interlaced, sample_aspect_ratio, channels,
 		 channel_layout, sample_rate, bitrate, is_external, external_path, level, keyframes_ms,
-		 commentary, hearing_impaired, visual_impaired, text_descriptions, original
+		 commentary, hearing_impaired, visual_impaired, text_descriptions, original, frame_rate_mode
 		 FROM media_streams WHERE media_item_id = $1 ORDER BY stream_index`, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
@@ -189,7 +189,7 @@ func (r *MediaStreamRepository) GetByMediaItemID(ctx context.Context, mediaItemI
 			&s.DoViProfile, &s.DoViBLCompat, &s.FieldOrder, &s.IdetInterlaced,
 			&s.SampleAspectRatio, &s.Channels, &s.ChannelLayout,
 			&s.SampleRate, &s.Bitrate, &s.IsExternal, &s.ExternalPath, &s.Level, pq.Array(&s.Keyframes),
-			&s.Commentary, &s.HearingImpaired, &s.VisualImpaired, &s.TextDescriptions, &s.Original,
+			&s.Commentary, &s.HearingImpaired, &s.VisualImpaired, &s.TextDescriptions, &s.Original, &s.FrameRateMode,
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -224,7 +224,7 @@ func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaIt
 // stream is missing copy-rung metadata, skipping the `exclude` IDs:
 //   - h264: codec level never resolved (level IS NULL);
 //   - hevc/av1/vp9 (the HDR-capable codecs): level IS NULL, OR color_transfer
-//     IS NULL — the HDR ground-truth sentinel. color_transfer only fills
+//     IS NULL - the HDR ground-truth sentinel. color_transfer only fills
 //     post-migration-000110, so a NULL means "never probed for DoVi": such a
 //     stream is gated off the copy rung (a Dolby Vision profile-5 title
 //     recorded as plain HDR10 would raw-serve with broken colours) until this
@@ -233,7 +233,7 @@ func (r *MediaStreamRepository) DeleteByMediaItemID(ctx context.Context, mediaIt
 // Scope stays h264+hevc because the metadata only feeds the video-copy rung;
 // other codecs are left alone. The query is itself the backfill worker's
 // resumability mechanism: as the columns fill in, items drop out, so a restart
-// re-queries only the remainder — no cursor, no full re-scan. `exclude` is the
+// re-queries only the remainder - no cursor, no full re-scan. `exclude` is the
 // worker's in-run skip-set (failed / nothing-resolved items) so a stuck file
 // isn't re-returned in a tight loop.
 func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit int, exclude []string) ([]string, error) {
@@ -243,7 +243,7 @@ func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	// A nil slice would make pq.Array render SQL NULL, and `x = ANY(NULL)` is NULL
-	// (not false), which would filter out EVERY row — so an empty skip-set must be
+	// (not false), which would filter out EVERY row - so an empty skip-set must be
 	// an empty array, never NULL.
 	if exclude == nil {
 		exclude = []string{}
@@ -285,7 +285,7 @@ func (r *MediaStreamRepository) ListVideoLevelMissing(ctx context.Context, limit
 // dovi_profile, dovi_bl_compat) for the video streams of one media item from a
 // fresh probe, matched by stream_index. Each column is written only where it
 // IS NULL (COALESCE keeps existing values; idempotent) and the row is touched
-// only when the probe actually resolves something new — so unlike a full
+// only when the probe actually resolves something new - so unlike a full
 // ReplaceBatch a degraded/empty probe cannot wipe the existing stream
 // metadata. Returns the number of rows updated (0 ⇒ probe resolved nothing
 // new, the caller marks the item to avoid a re-probe loop).
@@ -365,7 +365,7 @@ func (r *MediaStreamRepository) SetIdetInterlaced(ctx context.Context, mediaItem
 //   - h264: level IS NOT NULL (CopyRungEligible needs the level);
 //   - hevc/av1/vp9: level + color_transfer known (HDR ground truth probed),
 //     and not Dolby Vision unless profile 8 with a compatible base layer
-//     (1=HDR10, 2=SDR, 4=HLG) — a profile-5 title is never served as copy,
+//     (1=HDR10, 2=SDR, 4=HLG) - a profile-5 title is never served as copy,
 //     so indexing its keyframes would be pure waste.
 //
 // Like ListVideoLevelMissing, the query is the keyframe backfill worker's
@@ -415,12 +415,12 @@ func (r *MediaStreamRepository) ListVideoKeyframesMissing(ctx context.Context, l
 }
 
 // SetKeyframes stores the keyframe index (ms) on the video stream(s) of one
-// media item. The probe reads the first video stream (ffmpeg v:0) — the only one
-// the copy rung serves — so it targets stream_type='video'; on the rare
+// media item. The probe reads the first video stream (ffmpeg v:0) - the only one
+// the copy rung serves - so it targets stream_type='video'; on the rare
 // multi-video file every video row gets v:0's index, harmless since secondary
 // video streams are never served as copy. Writes only where keyframes_ms IS NULL
 // (idempotent, never overwrites) and NEVER deletes. An empty slice is skipped (a
-// probe that resolved none must NOT write an empty array — it would read back as
+// probe that resolved none must NOT write an empty array - it would read back as
 // "indexed, zero keyframes" and wrongly satisfy the not-null candidate query).
 // Returns the number of rows updated.
 func (r *MediaStreamRepository) SetKeyframes(ctx context.Context, mediaItemID shared.MediaItemID, keyframesMS []int64) (int, error) {
@@ -436,6 +436,33 @@ func (r *MediaStreamRepository) SetKeyframes(ctx context.Context, mediaItemID sh
 		`UPDATE media_streams SET keyframes_ms = $1
 		 WHERE media_item_id = $2 AND stream_type = 'video' AND keyframes_ms IS NULL`,
 		pq.Array(keyframesMS), string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// SetFrameRateMode stores the cfr/vfr classification on one media item's
+// video stream(s), gathered in the SAME per-file mkvgo pass the keyframe
+// backfill already pays for (see the keyframe backfill worker). Unlike
+// SetKeyframes, "" is a legitimate write (the classification came back
+// unknown) - the guard is on the COLUMN's default rather than on the value:
+// writes only where frame_rate_mode is still '' (never overwrites a prior
+// classification), mirroring SetKeyframes' NULL-guard idempotency. Returns
+// the number of rows updated.
+func (r *MediaStreamRepository) SetFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.SetFrameRateMode")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)), attribute.String("frame_rate_mode", mode))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE media_streams SET frame_rate_mode = $1
+		 WHERE media_item_id = $2 AND stream_type = 'video' AND frame_rate_mode = ''`,
+		mode, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

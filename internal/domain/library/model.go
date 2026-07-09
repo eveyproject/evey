@@ -137,7 +137,7 @@ type MediaItem struct {
 	ParentID  string
 	Type      MediaItemType
 	Title     string
-	// ScanTitle is the title extracted from the filesystem at scan time —
+	// ScanTitle is the title extracted from the filesystem at scan time -
 	// the stable source of truth for metadata lookups. Set once at
 	// creation and never overwritten by enrichment, so a wrong TMDB match
 	// doesn't self-reinforce on re-enrichment.
@@ -306,7 +306,7 @@ type MediaStream struct {
 	ColorSpace *string
 	// ColorTransfer is the ffprobe color_transfer (smpte2084 = PQ, arib-std-b67
 	// = HLG, bt709 = SDR…), nil when the probe didn't report it. The only field
-	// that tells PQ from HLG, and — with DoViProfile — the HDR ground truth the
+	// that tells PQ from HLG, and - with DoViProfile - the HDR ground truth the
 	// copy/direct-play decision needs. A nil value on an HEVC stream gates the
 	// HEVC copy rung off until a re-probe backfills it (same pattern as Level).
 	ColorTransfer *string
@@ -328,7 +328,7 @@ type MediaStream struct {
 	IdetInterlaced *bool
 	// SampleAspectRatio is ffprobe's sample_aspect_ratio (e.g. "64:45" on an
 	// anamorphic DVD source), nil when unreported. Anything other than 1:1
-	// makes the builder compute the scale height from the DISPLAY aspect —
+	// makes the builder compute the scale height from the DISPLAY aspect -
 	// the historical storage-ratio scale+setsar=1 distorted such sources.
 	SampleAspectRatio *string
 	Channels          *int
@@ -339,10 +339,18 @@ type MediaStream struct {
 	ExternalPath      *string
 	// Keyframes holds the video stream's keyframe presentation times in
 	// milliseconds (sorted ascending), or nil when not yet indexed. These are the
-	// only valid segment-start boundaries for a -c:v copy (remux) rung — a copied
+	// only valid segment-start boundaries for a -c:v copy (remux) rung - a copied
 	// segment cannot begin mid-GOP. Populated by a background backfill, not the
 	// scan (the keyframe probe is too costly for the hot scan path). Video only.
 	Keyframes []int64
+	// FrameRateMode classifies a video stream as "cfr" (constant) or "vfr"
+	// (variable), "" when unknown (never analyzed, or a non-EBML container -
+	// MP4 does not get this classification). Populated by the same backfill
+	// pass as Keyframes (mkvgo ops.Analyze, head-only). A vfr source gates
+	// the copy/remux rung off (CopyRungEligible): the HLS copy segmenter
+	// assumes a constant frame period when it cuts segments at keyframe
+	// boundaries, and a variable rate drifts audio/video sync.
+	FrameRateMode string
 }
 
 func (s *MediaStream) GetStreamType() string     { return string(s.StreamType) }

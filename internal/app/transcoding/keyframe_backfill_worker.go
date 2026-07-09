@@ -28,8 +28,28 @@ type KeyframeProber interface {
 	ProbeKeyframes(ctx context.Context, filePath string) ([]int64, error)
 }
 
+// FrameRateAnalyzer classifies a video file's frame-rate mode ("cfr" / "vfr"),
+// or "" for unknown (a non-EBML container, or too few frames to classify) -
+// never an error for that case. Implemented by the mkvgo adapter's
+// AnalyzeFrameRateMode, a structural head-only pass over block headers.
+type FrameRateAnalyzer interface {
+	AnalyzeFrameRateMode(ctx context.Context, filePath string) (string, error)
+}
+
+// FrameRateStore is the persistence slice the cfr/vfr classification needs.
+// Kept separate from KeyframeBackfillStore (rather than adding a method to
+// it) so the on-demand keyframe path (keyframe_ondemand.go), which shares
+// KeyframeBackfillStore but never analyzes frame rate, is unaffected by this
+// worker-only need.
+type FrameRateStore interface {
+	// SetFrameRateMode stores the item's video stream(s) cfr/vfr classification
+	// ("" for unknown is a legitimate write, unlike SetKeyframes). Returns rows
+	// updated.
+	SetFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string) (int, error)
+}
+
 // KeyframeBackfillWorker re-probes copy-eligible existing media to fill the
-// keyframe index (media_streams.keyframes_ms) the scan never extracts — the
+// keyframe index (media_streams.keyframes_ms) the scan never extracts - the
 // keyframe probe is far too costly for the hot scan path. The keyframe index is
 // what lets the copy/remux rung cut deterministic, keyframe-aligned segments
 // addressable by absolute index (it cannot re-key a -c:v copy stream).
@@ -45,8 +65,8 @@ type KeyframeProber interface {
 // (Cues for mkv, stss for mp4) in milliseconds, and covers even cue-less MKVs
 // with an in-process structural scan (0.5-16s, ~1.5% of a real corpus); the
 // ffprobe fork only remains for exotic containers (avi/mpegts) and parse
-// failures. The defaults are therefore assertive — a multi-thousand-file
-// library sweeps in minutes — and back off to politeItemPause whenever
+// failures. The defaults are therefore assertive - a multi-thousand-file
+// library sweeps in minutes - and back off to politeItemPause whenever
 // playback sessions are active (WithActivePlayback), so a weak NAS serving a
 // stream never competes with the sweep. The historical ffprobe-era pacing
 // (5 / 2s / 1h) remains reachable via the server_config keys.
@@ -55,6 +75,11 @@ type KeyframeBackfillWorker struct {
 	items  MediaItemReader
 	prober KeyframeProber
 	logger *slog.Logger
+
+	// frameRate / frameRateStore are optional (nil = frame-rate classification
+	// is skipped, the pre-v0.17.0 mkvgo behaviour). Set via WithFrameRateAnalyzer.
+	frameRate      FrameRateAnalyzer
+	frameRateStore FrameRateStore
 
 	batchSize    int
 	idleInterval time.Duration
@@ -76,7 +101,7 @@ type KeyframeBackfillWorker struct {
 	stopOnce  sync.Once // Stop closes the stop channel at most once.
 }
 
-// politeItemPause is the per-item gap while playback sessions are active —
+// politeItemPause is the per-item gap while playback sessions are active -
 // the ffprobe-era pacing, kept as the "someone is watching" mode.
 const politeItemPause = 2 * time.Second
 
@@ -130,7 +155,17 @@ func (w *KeyframeBackfillWorker) WithActivePlayback(count func() int) *KeyframeB
 	return w
 }
 
-// Nudge wakes an idle worker immediately (no-op when it is already working —
+// WithFrameRateAnalyzer wires the mkvgo cfr/vfr classifier: each file this
+// worker indexes keyframes for is also, in the SAME per-item iteration (no
+// extra library sweep), classified and persisted via store.SetFrameRateMode.
+// Chainable; leaving it unset skips frame-rate classification entirely.
+func (w *KeyframeBackfillWorker) WithFrameRateAnalyzer(a FrameRateAnalyzer, store FrameRateStore) *KeyframeBackfillWorker {
+	w.frameRate = a
+	w.frameRateStore = store
+	return w
+}
+
+// Nudge wakes an idle worker immediately (no-op when it is already working -
 // the buffered channel coalesces bursts). Safe from any goroutine.
 func (w *KeyframeBackfillWorker) Nudge() {
 	select {
@@ -276,7 +311,31 @@ func (w *KeyframeBackfillWorker) backfillOne(ctx context.Context, mediaItemID st
 		slog.String("media_id", mediaItemID),
 		slog.String("title", item.Title),
 		slog.Int("keyframes", len(kf)))
+
+	w.backfillFrameRateMode(ctx, mediaItemID, item.File.Path)
 	return true
+}
+
+// backfillFrameRateMode classifies item.File.Path's cfr/vfr mode and persists
+// it, piggybacking on the SAME per-item pass backfillOne already pays for
+// (no extra library sweep). Best-effort: a failure here does not fail the
+// keyframe write it rides along with, and is not marked into the skip-set -
+// the next sweep over this file (should the item resurface for any other
+// reason) simply retries it.
+func (w *KeyframeBackfillWorker) backfillFrameRateMode(ctx context.Context, mediaItemID, filePath string) {
+	if w.frameRate == nil || w.frameRateStore == nil {
+		return
+	}
+	mode, err := w.frameRate.AnalyzeFrameRateMode(ctx, filePath)
+	if err != nil {
+		w.logger.Warn("keyframe backfill: frame-rate analysis failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+		return
+	}
+	if _, err := w.frameRateStore.SetFrameRateMode(ctx, shared.MediaItemID(mediaItemID), mode); err != nil {
+		w.logger.Warn("keyframe backfill: frame-rate persist failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+	}
 }
 
 func (w *KeyframeBackfillWorker) excluded() []string {

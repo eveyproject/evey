@@ -17,12 +17,15 @@ import (
 )
 
 type fakeKeyframeStore struct {
-	mu        sync.Mutex
-	queue     [][]string // successive ListVideoKeyframesMissing returns
-	setReturn int
-	setErr    error
-	listCalls []fakeListCall // reuse the level worker test's type
-	setCalls  []string
+	mu             sync.Mutex
+	queue          [][]string // successive ListVideoKeyframesMissing returns
+	setReturn      int
+	setErr         error
+	listCalls      []fakeListCall // reuse the level worker test's type
+	setCalls       []string
+	frameRateCalls []string // media IDs SetFrameRateMode was called for
+	frameRateModes []string // the mode arg on each call, index-aligned
+	frameRateErr   error
 }
 
 func (s *fakeKeyframeStore) ListVideoKeyframesMissing(_ context.Context, limit int, exclude []string) ([]string, error) {
@@ -44,10 +47,24 @@ func (s *fakeKeyframeStore) SetKeyframes(_ context.Context, id shared.MediaItemI
 	return s.setReturn, s.setErr
 }
 
+func (s *fakeKeyframeStore) SetFrameRateMode(_ context.Context, id shared.MediaItemID, mode string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.frameRateCalls = append(s.frameRateCalls, string(id))
+	s.frameRateModes = append(s.frameRateModes, mode)
+	return 1, s.frameRateErr
+}
+
 func (s *fakeKeyframeStore) setTargets() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.setCalls...)
+}
+
+func (s *fakeKeyframeStore) frameRateTargets() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.frameRateCalls...)
 }
 
 func (s *fakeKeyframeStore) excludeOnCall(n int) []string {
@@ -68,6 +85,15 @@ func (p *fakeKeyframeProber) ProbeKeyframes(_ context.Context, _ string) ([]int6
 	return p.kf, p.err
 }
 
+type fakeFrameRateAnalyzer struct {
+	mode string
+	err  error
+}
+
+func (a *fakeFrameRateAnalyzer) AnalyzeFrameRateMode(_ context.Context, _ string) (string, error) {
+	return a.mode, a.err
+}
+
 func newKeyframeWorker(store KeyframeBackfillStore, reader MediaItemReader, prober KeyframeProber) *KeyframeBackfillWorker {
 	return NewKeyframeBackfillWorker(store, reader, prober, KeyframeBackfillOpts{
 		BatchSize: 5, ItemPause: time.Millisecond, IdleInterval: 10 * time.Millisecond,
@@ -85,6 +111,32 @@ func TestKeyframeBackfill_IndexesAndDoesNotMark(t *testing.T) {
 	assert.Equal(t, 1, w.processBatch(context.Background()))
 	assert.Equal(t, []string{"m1"}, store.setTargets())
 	assert.False(t, w.attemptedHas("m1"), "a success drops out of the query naturally, not marked")
+}
+
+func TestKeyframeBackfill_NoFrameRateAnalyzerSkipsClassification(t *testing.T) {
+	store := &fakeKeyframeStore{queue: [][]string{{"m1"}}, setReturn: 1}
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{kf: []int64{0, 3253}})
+	assert.Equal(t, 1, w.processBatch(context.Background()))
+	assert.Empty(t, store.frameRateTargets(), "no WithFrameRateAnalyzer wired ⇒ no frame-rate call, unchanged pre-v0.17.0 behaviour")
+}
+
+func TestKeyframeBackfill_FrameRateAnalyzerPersistsAlongsideKeyframes(t *testing.T) {
+	store := &fakeKeyframeStore{queue: [][]string{{"m1"}}, setReturn: 1}
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{kf: []int64{0, 3253}}).
+		WithFrameRateAnalyzer(&fakeFrameRateAnalyzer{mode: "vfr"}, store)
+	assert.Equal(t, 1, w.processBatch(context.Background()))
+	assert.Equal(t, []string{"m1"}, store.frameRateTargets(), "the SAME per-item pass persists the frame-rate mode")
+	assert.Equal(t, []string{"vfr"}, store.frameRateModes)
+}
+
+func TestKeyframeBackfill_FrameRateAnalyzerErrorDoesNotFailKeyframeWrite(t *testing.T) {
+	store := &fakeKeyframeStore{queue: [][]string{{"m1"}}, setReturn: 1}
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{kf: []int64{0, 3253}}).
+		WithFrameRateAnalyzer(&fakeFrameRateAnalyzer{err: errors.New("analyze boom")}, store)
+	assert.Equal(t, 1, w.processBatch(context.Background()))
+	assert.Equal(t, []string{"m1"}, store.setTargets(), "the keyframe write is unaffected by a frame-rate analysis failure")
+	assert.Empty(t, store.frameRateTargets(), "a failed analysis is never persisted")
+	assert.False(t, w.attemptedHas("m1"), "the keyframe backfill itself still succeeded")
 }
 
 func TestKeyframeBackfill_ProbeErrorSkipsAndMarks(t *testing.T) {

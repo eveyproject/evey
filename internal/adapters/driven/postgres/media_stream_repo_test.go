@@ -413,6 +413,53 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 	assert.Equal(t, 0, n3, "empty keyframes write nothing")
 }
 
+// TestMediaStreamRepo_FrameRateMode_RoundTrip verifies frame_rate_mode
+// defaults to '' (unknown) for existing rows, persists a cfr/vfr
+// classification, and never overwrites a value already set - mirroring
+// SetKeyframes' idempotency but keyed on the column's default rather than SQL
+// NULL (frame_rate_mode is NOT NULL DEFAULT '').
+func TestMediaStreamRepo_FrameRateMode_RoundTrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("frmlib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("frmmi1", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "frm-v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Level: new(40)},
+	}))
+
+	got, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Empty(t, got[0].FrameRateMode, "unanalyzed rows default to '' (unknown)")
+
+	n, err := streamRepo.SetFrameRateMode(ctx, item.ID, "vfr")
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	got, err = streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "vfr", got[0].FrameRateMode, "the classification round-trips through the TEXT column")
+
+	// Never overwrite: a later probe (e.g. a race with a background re-run)
+	// must not clobber the persisted classification.
+	n2, err := streamRepo.SetFrameRateMode(ctx, item.ID, "cfr")
+	require.NoError(t, err)
+	assert.Equal(t, 0, n2, "an already-classified stream is not overwritten")
+
+	got, err = streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "vfr", got[0].FrameRateMode, "the original classification is preserved")
+}
+
 func TestMediaStreamRepo_DeleteByMediaItemID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
@@ -460,7 +507,7 @@ func TestMediaStreamRepo_ExtendedDispositions_RoundTrip(t *testing.T) {
 		{
 			ID: "disp-v", MediaItemID: item.ID, StreamIndex: 0,
 			StreamType: "video", Codec: "h264",
-			// No flags set — zero values for the extended booleans.
+			// No flags set - zero values for the extended booleans.
 		},
 		{
 			ID: "disp-a1", MediaItemID: item.ID, StreamIndex: 1,

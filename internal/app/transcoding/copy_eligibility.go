@@ -18,7 +18,7 @@ type CopySource struct {
 	// copy rung.
 	TenBit bool
 	// ColorTransfer is the HDR ground-truth sentinel: the column only fills
-	// when the stream was probed by a post-migration-000110 ffprobe — the same
+	// when the stream was probed by a post-migration-000110 ffprobe - the same
 	// probe that reads the Dolby Vision configuration record. nil on an HEVC
 	// stream means "DoVi status unknown" and gates copy off (a DoVi profile-5
 	// title raw-served as HDR10 renders green/purple).
@@ -28,12 +28,17 @@ type CopySource struct {
 	// copy-eligible: the base renders correctly, the RPU is ignored.
 	DoViProfile  *int
 	DoViBLCompat *int
+	// FrameRateMode is "cfr" / "vfr" / "" (unknown), from mkvgo's structural
+	// ops.Analyze (see the mkvgo adapter's AnalyzeFrameRateMode). A vfr source
+	// gates copy off: the HLS copy segmenter cuts at keyframe boundaries
+	// assuming a constant frame period, and a variable rate drifts A/V sync.
+	FrameRateMode string
 }
 
 // CopyRungEligible reports whether a source video stream may be served as a
 // video-COPY (remux) rung.
 //
-//   - H.264: 8-bit with a KNOWN level — without it the master cannot advertise
+//   - H.264: 8-bit with a KNOWN level - without it the master cannot advertise
 //     an accurate avc1.PPCCLL, and a wrong CODECS makes Safari/hls.js reject
 //     the rendition. So an unknown level gates copy OFF; the title falls back
 //     to transcode until a re-probe backfills the level.
@@ -41,8 +46,12 @@ type CopySource struct {
 //     ground truth (ColorTransfer non-nil, see CopySource) AND a profile with
 //     a wired CODECS string AND not Dolby Vision unless profile 8 with a
 //     compatible base layer (DoVi rides HEVC profiles 4-8 and AV1 profile 10;
-//     the nil check is a no-op for VP9). 10-bit is allowed — 4K HDR served
+//     the nil check is a no-op for VP9). 10-bit is allowed - 4K HDR served
 //     raw to capable clients with no tonemap and no encode is the point.
+//   - Any codec: FrameRateMode != "vfr" - the HLS copy segmenter cuts
+//     -c:v copy segments at keyframe boundaries assuming a constant frame
+//     period; a variable-rate source drifts audio/video sync over the
+//     segment. "" (never analyzed) does not gate, only a confirmed "vfr" does.
 //
 // The decision layer has already verified the CLIENT side (client.VideoCodecs
 // contains the codec, SupportsHDR for HDR sources) before VideoDecision lands
@@ -50,6 +59,9 @@ type CopySource struct {
 func CopyRungEligible(src CopySource) bool {
 	if src.Level == nil {
 		return false // unknown level → no accurate CODECS → no copy
+	}
+	if strings.EqualFold(src.FrameRateMode, "vfr") {
+		return false // variable frame rate → keyframe-cut copy segments drift A/V
 	}
 	codec := strings.ToLower(strings.TrimSpace(src.Codec))
 	if codec == "h264" {

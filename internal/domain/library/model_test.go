@@ -361,6 +361,20 @@ func TestMediaStream_Getters(t *testing.T) {
 	}
 }
 
+func TestMediaStream_FrameRateMode(t *testing.T) {
+	t.Parallel()
+
+	unset := &library.MediaStream{StreamType: "video"}
+	if unset.FrameRateMode != "" {
+		t.Errorf("FrameRateMode = %q, want \"\" (unknown) by default", unset.FrameRateMode)
+	}
+
+	vfr := &library.MediaStream{StreamType: "video", FrameRateMode: "vfr"}
+	if vfr.FrameRateMode != "vfr" {
+		t.Errorf("FrameRateMode = %q, want %q", vfr.FrameRateMode, "vfr")
+	}
+}
+
 func TestMediaItem_Validate(t *testing.T) {
 	t.Parallel()
 

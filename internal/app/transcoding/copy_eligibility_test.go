@@ -98,6 +98,26 @@ func TestCopyRungEligible_AV1VP9(t *testing.T) {
 		"unknown level gates VP9 copy off")
 }
 
+func TestCopyRungEligible_VFR(t *testing.T) {
+	l40 := 40
+	l153 := 153
+	pq := "smpte2084"
+
+	// A VFR source must never reach the copy rung: the HLS copy segmenter
+	// cuts segments at keyframe boundaries assuming a constant frame period,
+	// and a variable rate drifts audio/video sync.
+	assert.False(t, CopyRungEligible(CopySource{Codec: "h264", Level: &l40, FrameRateMode: "vfr"}),
+		"a VFR H.264 source must gate the copy rung off")
+	assert.False(t, CopyRungEligible(CopySource{Codec: "hevc", Profile: "Main 10", Level: &l153, TenBit: true, ColorTransfer: &pq, FrameRateMode: "VFR"}),
+		"the FrameRateMode check is case-insensitive")
+
+	// "" (never analyzed) and "cfr" must not change today's behaviour.
+	assert.True(t, CopyRungEligible(CopySource{Codec: "h264", Level: &l40, FrameRateMode: ""}),
+		"unknown frame-rate mode leaves copy eligibility unchanged")
+	assert.True(t, CopyRungEligible(CopySource{Codec: "h264", Level: &l40, FrameRateMode: "cfr"}),
+		"a CFR source stays copy-eligible")
+}
+
 func TestCopyVideoCodecString(t *testing.T) {
 	l40 := 40
 	l153 := 153
