@@ -30,11 +30,6 @@ import { TextureManager } from "./TextureManager";
 
 const BASE_HALF_WIDTH = WALL_GEOMETRY.colSpacing * 0.47;
 const BASE_HALF_HEIGHT = BASE_HALF_WIDTH / WALL_GEOMETRY.posterAspect;
-// Click/hover picking fills the whole cell (half a colSpacing) rather than the
-// drawn poster half-width, so the thin gaps between posters are not dead zones -
-// every point on the wall maps to its nearest poster (frontmost row wins ties).
-const HIT_HALF_WIDTH = WALL_GEOMETRY.colSpacing * 0.5;
-const HIT_HALF_HEIGHT = HIT_HALF_WIDTH / WALL_GEOMETRY.posterAspect;
 const BASELINE_Y = -0.25;
 const HOVER_LIFT = 0.09;
 const HOVER_SCALE_BOOST = 1.16;
@@ -391,8 +386,8 @@ export class GlRenderer implements SceneRenderer {
     const wallY = ndcY - BASELINE_Y;
 
     const index = hitTestWall(this.slots, this.scrollOffset, this.period, { x: wallX, y: wallY }, {
-      halfWidth: HIT_HALF_WIDTH,
-      halfHeight: HIT_HALF_HEIGHT,
+      halfWidth: BASE_HALF_WIDTH,
+      halfHeight: BASE_HALF_HEIGHT,
     });
 
     if (isActivate) {

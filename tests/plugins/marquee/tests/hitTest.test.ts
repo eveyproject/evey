@@ -41,9 +41,13 @@ describe("hitTestWall", () => {
     expect(hitTestWall(slots, 0, 4, { x: 0.3, y: 0 }, BOX)).toBeNull();
   });
 
-  it("prefers the frontmost (lowest z) slot when boxes overlap", () => {
-    const slots = [slot({ index: 0, x: 0, y: 0, z: 1 }), slot({ index: 1, x: 0, y: 0, z: 0 })];
-    expect(hitTestWall(slots, 0, 4, { x: 0, y: 0 }, BOX)).toBe(1);
+  it("prefers the poster drawn last (painted on top) when boxes overlap", () => {
+    // slots are supplied in the renderer's draw order (back-to-front, no depth
+    // test), so the later slot is painted on top and is the one the user sees
+    // and clicks - even though it is a higher (further) row than the one below.
+    const frontRow = slot({ index: 0, row: 0, x: 0, y: 0, z: 0 }); // drawn first
+    const middleRow = slot({ index: 1, row: 1, x: 0, y: 0, z: 0.5 }); // drawn later, on top
+    expect(hitTestWall([frontRow, middleRow], 0, 4, { x: 0, y: 0 }, BOX)).toBe(1);
   });
 
   it("handles an empty slot list", () => {
