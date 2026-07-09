@@ -603,9 +603,10 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// Ensure ffmpeg is producing the right rafale. Async — we then block on
 	// SegmentCache.Wait below for the specific file. Init segments piggyback
 	// on the first rafale (they are produced alongside segment 0 by fMP4 hls
-	// muxer). The software producer never returns ErrCapacityExceeded; only the
-	// hardware orchestrator does (its global concurrency cap), so the 503 branch
-	// is hardware-only by construction.
+	// muxer). ErrCapacityExceeded is hardware-only (the orchestrator's global
+	// rafale cap); ErrVideoCapacityExhausted can come from EITHER producer (the
+	// shared VideoSessionLimiter, gating only sessions that actually encode
+	// video - never a video-copy/remux session).
 	ensureSeg := segmentIdx
 	if isInit {
 		// Init segments are emitted alongside the first rafale for this rung.
@@ -626,6 +627,19 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 				slog.Int("seg", segmentIdx))
 			w.Header().Set("Retry-After", "2")
 			http.Error(w, `{"message":"server at transcode capacity, retry"}`, http.StatusServiceUnavailable)
+			return
+		}
+		if errors.Is(err, apptranscoding.ErrVideoCapacityExhausted) {
+			// Host at its calibrated/admin-capped video-encode session limit -
+			// shed load gracefully rather than starting a session that would
+			// starve the ones already running on a weak NAS. A longer
+			// Retry-After than the raw capacity cap above: a video encode slot
+			// frees far less often than a rafale slot.
+			slog.Warn("hls-vod: at video transcoding capacity, shedding segment",
+				slog.String("media_id", mediaID),
+				slog.Int("seg", segmentIdx))
+			w.Header().Set("Retry-After", "5")
+			http.Error(w, `{"message":"server at video transcoding capacity"}`, http.StatusServiceUnavailable)
 			return
 		}
 		slog.Warn("hls-vod: ensure failed",
@@ -1970,8 +1984,16 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	if err := producer.EnsureSegmentRange(r.Context(), fp, 0, 0); err != nil {
 		// Don't fail the response — the player will reach a cold cache
 		// on switch, just no faster than before.
-		slog.Warn("prewarm: producer EnsureSegmentRange failed",
-			slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
+		if errors.Is(err, apptranscoding.ErrVideoCapacityExhausted) {
+			// Expected graceful degradation under load, not a bug: the host is at
+			// its video-encode session cap, so the best-effort prewarm backs off
+			// instead of starving an in-flight viewer's encoder.
+			slog.Info("prewarm: skipped, host at video transcoding capacity",
+				slog.String("next_id", string(nextItem.ID)))
+		} else {
+			slog.Warn("prewarm: producer EnsureSegmentRange failed",
+				slog.String("next_id", string(nextItem.ID)), slog.Any("err", err))
+		}
 	} else {
 		slog.Info("prewarm: rafale spawned for next episode",
 			slog.String("current_id", currentID),

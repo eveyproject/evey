@@ -2,8 +2,10 @@ package transcoding
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -888,6 +890,137 @@ func TestSoftwareProducer_KillPausedAfter_CushionInsufficient_ResumesInstead(t *
 	assert.False(t, paused, "the session must be SIGCONTed to build the missing cushion quickly")
 	assert.GreaterOrEqual(t, resumeN, 1)
 	assert.Equal(t, 1, p.ActiveSessionCount())
+}
+
+// ============================================================================
+// Shared video-session capacity limiter (VideoSessionLimiter)
+// ============================================================================
+
+func TestSoftwareProducer_VideoLimiter_TranscodeGatedAtCapacity(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	limiter := NewVideoSessionLimiter(1)
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	p.WithVideoSessionLimiter(limiter)
+	defer p.Close()
+
+	fp1 := minimalFingerprint(t)
+	fp2 := minimalFingerprint(t)
+	fp2.MediaID = "media-other" // distinct hash => distinct encoder
+
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp1, 0, 0))
+	assert.Equal(t, 1, limiter.Active())
+
+	err := p.EnsureSegmentRange(context.Background(), fp2, 0, 0)
+	require.ErrorIs(t, err, ErrVideoCapacityExhausted)
+	assert.Equal(t, 1, p.ActiveSessionCount(), "the refused spawn must not leave a live session")
+	assert.Equal(t, 1, limiter.Active())
+}
+
+func TestSoftwareProducer_VideoLimiter_ReleasedOnNaturalExit(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	limiter := NewVideoSessionLimiter(1)
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	p.WithVideoSessionLimiter(limiter)
+	defer p.Close()
+
+	fp1 := minimalFingerprint(t)
+	hash := fp1.Hash()
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp1, 0, 0))
+	require.Equal(t, 1, limiter.Active())
+
+	p.mu.Lock()
+	handle := p.sessions[hash][0].handle.(*fakeHandle)
+	p.mu.Unlock()
+	require.NoError(t, handle.Stop()) // simulate the ffmpeg process exiting on its own
+
+	require.Eventually(t, func() bool {
+		return limiter.Active() == 0
+	}, time.Second, 10*time.Millisecond, "the reap goroutine must free the video slot on natural exit")
+
+	fp2 := minimalFingerprint(t)
+	fp2.MediaID = "media-other"
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp2, 0, 0),
+		"the freed slot must admit a fresh transcode session")
+}
+
+func TestSoftwareProducer_VideoLimiter_ReleasedOnKill(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	limiter := NewVideoSessionLimiter(1)
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	p.WithVideoSessionLimiter(limiter)
+	defer p.Close()
+
+	fp1 := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp1, 0, 0))
+	require.Equal(t, 1, limiter.Active())
+
+	p.RemoveSession(fp1.MediaID)
+	assert.Equal(t, 0, limiter.Active(), "an explicit kill must free the video slot")
+	assert.Equal(t, 0, p.ActiveSessionCount())
+}
+
+func TestSoftwareProducer_VideoLimiter_CopyInstanceNeverAcquires(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	limiter := NewVideoSessionLimiter(1)
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/media/test.mkv"}, swTestOpts(), discardLogger())
+	// Defensively wired with the SAME limiter a real deployment would share
+	// with the transcode instance - a copy session must still never acquire.
+	p.WithVideoSessionLimiter(limiter)
+	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 10000})}
+	items := &fakeCopyItems{item: itemWithDurationMs(20000)}
+	p.SetCopyMode(NewCopyPlanner(streams, items), nil)
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	assert.Equal(t, 1, p.ActiveSessionCount(), "the copy session did start")
+	assert.Equal(t, 0, limiter.Active(), "a video-COPY session never encodes video and must never gate on the limiter")
+}
+
+func TestSoftwareProducer_VideoLimiter_Unwired_Unlimited(t *testing.T) {
+	// No WithVideoSessionLimiter call at all - byte-identical to pre-feature
+	// behaviour: never ErrVideoCapacityExhausted, no matter how many distinct
+	// hashes spawn.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	for i := range 5 {
+		fp := minimalFingerprint(t)
+		fp.MediaID = fmt.Sprintf("media-%d", i)
+		require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	}
+	assert.Equal(t, 5, p.ActiveSessionCount())
+}
+
+func TestSoftwareProducer_VideoLimiter_SpawnRaceLoserReleasesExactlyOnce(t *testing.T) {
+	// -race: many goroutines racing to spawn a session for the exact same
+	// (hash, variant, segment). Exactly one wins; every loser must release its
+	// acquired slot via the "spawn race lost" early-return path, never via the
+	// reap goroutine (it never gets that far), and never double-release.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	limiter := NewVideoSessionLimiter(0) // unlimited - isolates the release bookkeeping from acquire refusals
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, swTestOpts(), discardLogger())
+	p.WithVideoSessionLimiter(limiter)
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Go(func() {
+			_ = p.EnsureSegmentRange(context.Background(), fp, 0, 0)
+		})
+	}
+	wg.Wait()
+
+	assert.Equal(t, 1, p.ActiveSessionCount(), "exactly one session wins the spawn race")
+	assert.Equal(t, 1, limiter.Active(), "every loser released its slot; only the winner still holds one")
 }
 
 func TestSoftwareProducer_KillPausedAfterZero_NeverKillsPaused(t *testing.T) {

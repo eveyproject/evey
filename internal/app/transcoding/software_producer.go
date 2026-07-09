@@ -79,6 +79,14 @@ type SoftwareProducer struct {
 	// point, possibly GOPs early). nil = no correction. Set via SetCopyMode.
 	seekProber SeekLandingProber
 
+	// videoLimiter caps the number of concurrently-ENCODING video sessions this
+	// producer instance may run, shared with the hardware SegmentOrchestrator via
+	// the same *VideoSessionLimiter. nil = unwired = unlimited (byte-identical to
+	// the pre-feature behaviour). Only consulted when copyPlanner == nil - a copy
+	// (remux) session never encodes video and must never be gated here. Set via
+	// WithVideoSessionLimiter before first use.
+	videoLimiter *VideoSessionLimiter
+
 	// shutdownCtx is the long-lived parent for every ffmpeg this producer
 	// spawns — never the HTTP request context (that one dies when the segment
 	// is served, which would tear down the long-lived encoder). Cancelled only
@@ -268,10 +276,10 @@ type swSession struct {
 	// useFMP4 mirrors the fingerprint's UseFMP4 at session start - needed by
 	// sweepKillPaused to probe the segment cache (SegmentCache.IsReady takes
 	// useFMP4 explicitly; the session has no other handle to the fingerprint).
-	useFMP4  bool
-	teardown func()
-	cancelCtx  context.CancelFunc
-	done       chan struct{}
+	useFMP4   bool
+	teardown  func()
+	cancelCtx context.CancelFunc
+	done      chan struct{}
 	// metricDecOnce guarantees the HLSVODSessions gauge is decremented EXACTLY
 	// once per session, whether it ends by natural ffmpeg EOF (the reap goroutine
 	// runs, killSession does not) or by eviction/kill (killSession runs). Without
@@ -279,6 +287,25 @@ type swSession struct {
 	// case — would Inc but never Dec, leaking the gauge upward. Mirrors the
 	// orchestrator's same-named guard.
 	metricDecOnce sync.Once
+	// videoSlotAcquired records whether startSession successfully took a
+	// videoLimiter slot for THIS session (always false for a copy-mode
+	// session, and false when videoLimiter is unwired). Read-only after
+	// construction - safe without a lock.
+	videoSlotAcquired bool
+	// videoSlotReleaseOnce guarantees the videoLimiter slot this session holds
+	// is released EXACTLY once, whichever of the two exit paths runs first: the
+	// natural-EOF reap goroutine or an explicit killSession. Mirrors
+	// metricDecOnce's same exactly-once contract for the metrics gauge.
+	videoSlotReleaseOnce sync.Once
+}
+
+// releaseVideoSlot frees s's videoLimiter slot exactly once. No-op when the
+// session never held one (copy mode, or videoLimiter unwired).
+func (p *SoftwareProducer) releaseVideoSlot(s *swSession) {
+	if !s.videoSlotAcquired || p.videoLimiter == nil {
+		return
+	}
+	s.videoSlotReleaseOnce.Do(p.videoLimiter.Release)
 }
 
 // NewSoftwareProducer wires the cache + ffmpeg adapter + source resolver into a
@@ -341,6 +368,19 @@ func NewSoftwareProducer(
 func (p *SoftwareProducer) SetCopyMode(planner *CopyPlanner, seekProber SeekLandingProber) {
 	p.copyPlanner = planner
 	p.seekProber = seekProber
+}
+
+// WithVideoSessionLimiter wires the shared cap on concurrently-ENCODING video
+// sessions. Pass the SAME *VideoSessionLimiter instance given to the hardware
+// SegmentOrchestrator so the two producers draw from one pool. Call before
+// first use (not concurrency-safe with EnsureSegmentRange). nil (the zero
+// value if never called) means unlimited - byte-identical to the pre-feature
+// behaviour. Never call this on a copy-mode instance (SetCopyMode-wired): a
+// copy session never encodes video, so gating it here would wrongly starve
+// remux-only playback under the video encode cap.
+func (p *SoftwareProducer) WithVideoSessionLimiter(limiter *VideoSessionLimiter) *SoftwareProducer {
+	p.videoLimiter = limiter
+	return p
 }
 
 // planIndexForLanding maps the demuxer's REAL seek landing (seconds) onto the
@@ -693,26 +733,46 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// routes here when HW is unusable), we never run the GPU pipeline here.
 	}
 
+	// Video-encode capacity gate: only the TRANSCODE instance (copyPlanner ==
+	// nil) burns a full CPU core encoding video, so only it draws from the
+	// shared limiter. A copy (remux) instance's `-c:v copy` costs negligible
+	// CPU and must never be gated here - copyPlanner != nil skips this whole
+	// block. Acquired BEFORE ffmpeg spawns (the actual CPU-consuming action) and
+	// released on every exit path below exactly once (see videoSlotAcquired /
+	// releaseVideoSlot).
+	videoSlotAcquired := false
+	if p.copyPlanner == nil && p.videoLimiter != nil {
+		if !p.videoLimiter.TryAcquire() {
+			teardown()
+			return ErrVideoCapacityExhausted
+		}
+		videoSlotAcquired = true
+	}
+
 	sessionCtx, cancel := context.WithCancel(p.shutdownCtx)
 	handle, err := p.process.Start(sessionCtx, procOpts)
 	if err != nil {
 		cancel()
 		teardown()
+		if videoSlotAcquired {
+			p.videoLimiter.Release()
+		}
 		return fmt.Errorf("software: startSession: ffmpeg start: %w", err)
 	}
 
 	session := &swSession{
-		hash:       hash,
-		mediaID:    fp.MediaID,
-		handle:     handle,
-		variantIdx: variantIdx,
-		startSeg:   startSeg,
-		frontier:   startSeg,
-		lastAccess: time.Now(),
-		useFMP4:    fp.UseFMP4,
-		teardown:   teardown,
-		cancelCtx:  cancel,
-		done:       make(chan struct{}),
+		hash:              hash,
+		mediaID:           fp.MediaID,
+		handle:            handle,
+		variantIdx:        variantIdx,
+		videoSlotAcquired: videoSlotAcquired,
+		startSeg:          startSeg,
+		frontier:          startSeg,
+		lastAccess:        time.Now(),
+		useFMP4:           fp.UseFMP4,
+		teardown:          teardown,
+		cancelCtx:         cancel,
+		done:              make(chan struct{}),
 	}
 
 	p.mu.Lock()
@@ -730,6 +790,10 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 			p.logger.Debug("software: stop on start race lost (ignored)", slog.Any("err", stopErr))
 		}
 		teardown()
+		// This session never reaches the reap goroutine or killSession (it was
+		// discarded before either could take ownership), so release its video
+		// slot here - the only place that will ever do so for it.
+		p.releaseVideoSlot(session)
 		return nil
 	}
 	p.sessions[hash] = append(p.sessions[hash], session)
@@ -801,6 +865,10 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 				metrics.HLSVODSessionsCompleted.Inc()
 			}
 		})
+		// Natural exit: killSession never ran for this session, so free its video
+		// slot here. Once-guarded (see releaseVideoSlot) so a concurrent kill that
+		// raced this reap can't double-release.
+		p.releaseVideoSlot(session)
 	}()
 
 	p.logger.Info("software: session started",
@@ -1109,6 +1177,10 @@ func (p *SoftwareProducer) killSession(s *swSession, reason string) {
 	// kill-path Dec must not double-count. Whichever runs first wins; the other
 	// is a no-op.
 	s.metricDecOnce.Do(func() { metrics.HLSVODSessions.Dec() })
+	// Same exactly-once race against the reap goroutine (cancel() above wakes
+	// it via sessionCtx.Done()) - releaseVideoSlot's Once ensures only the
+	// first of the two frees the slot.
+	p.releaseVideoSlot(s)
 }
 
 // removeFromMap drops a specific session from the hash's slice (a no-op if it

@@ -76,6 +76,36 @@ message SystemInfo {
   bool setup_complete = 9;
   bool password_recovery_enabled = 10;
   bool smtp_configured = 11;
+  // VideoSessions surfaces the AUTO-derived cap on concurrent VIDEO transcode
+  // (encode, never copy/remux) sessions, the admin-overridden effective limit,
+  // and how many are live right now - so the admin panel can show "why" a
+  // number was chosen instead of a bare integer. Unset when no calibration
+  // service is wired (e.g. a hand-built test server).
+  VideoSessionCapacity video_sessions = 12;
+}
+
+// VideoSessionCapacity is the admin-facing view of the AUTO video-session cap
+// (derived from the boot benchmark), the effective limit actually enforced
+// (auto, possibly reduced by transcoding.max_video_sessions), and the live
+// count. See apptranscoding.AutoVideoSessionCapacity / ResolveVideoSessionLimit.
+message VideoSessionCapacity {
+  int32 auto_capacity = 1;
+  int32 effective_limit = 2;
+  int32 active = 3;
+  VideoCapacityEvidence evidence = 4;
+}
+
+// VideoCapacityEvidence is the "why" behind auto_capacity: the tallest
+// PASSING software bench rung the number was derived from.
+message VideoCapacityEvidence {
+  int32 height = 1;
+  double fps = 2;
+  double required_fps = 3;
+  double ratio = 4;
+  int32 cpu_budget = 5;
+  // derived is false when no usable calibration evidence existed and
+  // auto_capacity fell back to the conservative default of 1.
+  bool derived = 6;
 }
 
 message ServerConfig {

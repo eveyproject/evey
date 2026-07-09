@@ -6,10 +6,12 @@ import (
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	appconfig "github.com/evey-project/evey/internal/app/config"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	transcodingfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc/codes"
@@ -82,6 +84,106 @@ func TestAdminGetSystemInfo_WithTranscoding(t *testing.T) {
 		t.Fatalf("GetSystemInfo: %v", err)
 	}
 	_ = resp
+}
+
+// fakeCalibrationSnapshot satisfies calibrationSnapshotProvider for tests.
+type fakeCalibrationSnapshot struct {
+	capability domaintranscoding.EncodeCapability
+}
+
+func (f fakeCalibrationSnapshot) Current() domaintranscoding.EncodeCapability { return f.capability }
+
+// fakeVideoActiveReporter satisfies videoSessionActiveReporter for tests.
+type fakeVideoActiveReporter struct{ active int }
+
+func (f fakeVideoActiveReporter) Active() int { return f.active }
+
+func TestAdminGetSystemInfo_NoCalibrationSvc_VideoSessionsUnset(t *testing.T) {
+	d := newTestSystemHandler()
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if resp.VideoSessions != nil {
+		t.Error("expected VideoSessions unset when no calibration service is wired")
+	}
+}
+
+func TestAdminGetSystemInfo_VideoSessions_AutoOnly(t *testing.T) {
+	d := newTestSystemHandler()
+	d.calibrationSvc = fakeCalibrationSnapshot{capability: domaintranscoding.EncodeCapability{
+		BenchSamples: []domaintranscoding.BenchRungSample{
+			{Ladder: "software", Height: 1080, FPS: 60, RequiredFPS: 30, Passing: true},
+		},
+	}}
+	d.videoLimiter = fakeVideoActiveReporter{active: 1}
+
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if resp.VideoSessions == nil {
+		t.Fatal("expected VideoSessions to be populated")
+	}
+	if resp.VideoSessions.AutoCapacity != 2 {
+		t.Errorf("AutoCapacity = %d, want 2 (ratio 60/30)", resp.VideoSessions.AutoCapacity)
+	}
+	if resp.VideoSessions.EffectiveLimit != 2 {
+		t.Errorf("EffectiveLimit = %d, want 2 (no admin override configured)", resp.VideoSessions.EffectiveLimit)
+	}
+	if resp.VideoSessions.Active != 1 {
+		t.Errorf("Active = %d, want 1", resp.VideoSessions.Active)
+	}
+	if resp.VideoSessions.Evidence == nil {
+		t.Fatal("expected Evidence to be populated")
+	}
+	if !resp.VideoSessions.Evidence.Derived {
+		t.Error("expected Evidence.Derived=true with a passing bench sample")
+	}
+	if resp.VideoSessions.Evidence.Height != 1080 {
+		t.Errorf("Evidence.Height = %d, want 1080", resp.VideoSessions.Evidence.Height)
+	}
+}
+
+func TestAdminGetSystemInfo_VideoSessions_AdminOverrideReduces(t *testing.T) {
+	d := newTestSystemHandler()
+	d.calibrationSvc = fakeCalibrationSnapshot{capability: domaintranscoding.EncodeCapability{
+		BenchSamples: []domaintranscoding.BenchRungSample{
+			{Ladder: "software", Height: 1080, FPS: 90, RequiredFPS: 30, Passing: true}, // auto=3
+		},
+	}}
+	cfg := sharedfakes.NewFakeServerConfigRepository()
+	if err := cfg.Set(context.Background(), apptranscoding.MaxVideoSessionsConfigKey, "1"); err != nil {
+		t.Fatalf("seed config: %v", err)
+	}
+	d.serverCfgSvc = appconfig.NewService(cfg)
+
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if resp.VideoSessions.AutoCapacity != 3 {
+		t.Errorf("AutoCapacity = %d, want 3", resp.VideoSessions.AutoCapacity)
+	}
+	if resp.VideoSessions.EffectiveLimit != 1 {
+		t.Errorf("EffectiveLimit = %d, want 1 (admin-reduced)", resp.VideoSessions.EffectiveLimit)
+	}
+}
+
+func TestAdminGetSystemInfo_VideoSessions_NoPassingSample_FailSafe(t *testing.T) {
+	d := newTestSystemHandler()
+	d.calibrationSvc = fakeCalibrationSnapshot{capability: domaintranscoding.EncodeCapability{}}
+
+	resp, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if resp.VideoSessions.AutoCapacity != 1 {
+		t.Errorf("AutoCapacity = %d, want 1 (fail-safe)", resp.VideoSessions.AutoCapacity)
+	}
+	if resp.VideoSessions.Evidence.Derived {
+		t.Error("expected Evidence.Derived=false with no bench samples")
+	}
 }
 
 func TestAdminGetServerConfig(t *testing.T) {
@@ -186,7 +288,6 @@ func TestAdminGetDashboard(t *testing.T) {
 		t.Errorf("Memory%% out of range: %.2f", resp.MemoryPercent)
 	}
 }
-
 
 func TestAdminGetDashboard_WithLibLister(t *testing.T) {
 	d := newTestSystemHandler()

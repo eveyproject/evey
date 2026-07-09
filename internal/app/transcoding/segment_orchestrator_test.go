@@ -150,6 +150,126 @@ func TestOrchestrator_MaxActiveSessions_ZeroIsUnlimited(t *testing.T) {
 }
 
 // ============================================================================
+// Shared video-session capacity limiter (VideoSessionLimiter)
+// ============================================================================
+
+func TestOrchestrator_VideoLimiter_GatedAtCapacity(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	limiter := NewVideoSessionLimiter(1)
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
+	o.WithVideoSessionLimiter(limiter)
+	defer o.Close()
+
+	fpFor := func(id string) DecisionFingerprint {
+		f := minimalFingerprint(t)
+		f.MediaID = id
+		return f
+	}
+
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fpFor("media-1"), 0, 0))
+	assert.Equal(t, 1, limiter.Active())
+
+	err := o.EnsureSegmentRange(context.Background(), fpFor("media-2"), 0, 0)
+	require.ErrorIs(t, err, ErrVideoCapacityExhausted)
+	assert.Equal(t, 1, o.ActiveCount(), "the refused spawn must not leak a session")
+	assert.Equal(t, 1, limiter.Active())
+}
+
+func TestOrchestrator_VideoLimiter_ReleasedOnNaturalExit(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	limiter := NewVideoSessionLimiter(1)
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
+	o.WithVideoSessionLimiter(limiter)
+	defer o.Close()
+
+	first := minimalFingerprint(t)
+	first.MediaID = "media-1"
+	hash := first.Hash()
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), first, 0, 0))
+	require.Equal(t, 1, limiter.Active())
+
+	o.mu.Lock()
+	handle := o.sessions[hash][0].handle.(*fakeHandle)
+	o.mu.Unlock()
+	require.NoError(t, handle.Stop()) // simulate the ffmpeg process exiting on its own
+
+	require.Eventually(t, func() bool {
+		return limiter.Active() == 0
+	}, time.Second, 10*time.Millisecond, "the reap goroutine must free the video slot on natural exit")
+
+	second := minimalFingerprint(t)
+	second.MediaID = "media-2"
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), second, 0, 0),
+		"the freed slot must admit a fresh rafale")
+}
+
+func TestOrchestrator_VideoLimiter_ReleasedOnKill(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	limiter := NewVideoSessionLimiter(1)
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
+	o.WithVideoSessionLimiter(limiter)
+	defer o.Close()
+
+	first := minimalFingerprint(t)
+	first.MediaID = "media-1"
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), first, 0, 0))
+	require.Equal(t, 1, limiter.Active())
+
+	o.RemoveSession("media-1")
+	assert.Equal(t, 0, limiter.Active(), "an explicit kill must free the video slot")
+	assert.Equal(t, 0, o.ActiveCount())
+}
+
+func TestOrchestrator_VideoLimiter_Unwired_Unlimited(t *testing.T) {
+	// No WithVideoSessionLimiter call at all - byte-identical to pre-feature
+	// behaviour: never ErrVideoCapacityExhausted.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
+	defer o.Close()
+
+	for _, id := range []string{"m1", "m2", "m3", "m4", "m5"} {
+		f := minimalFingerprint(t)
+		f.MediaID = id
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), f, 0, 0))
+	}
+	assert.Equal(t, 5, o.ActiveCount())
+}
+
+func TestOrchestrator_VideoLimiter_SpawnRaceLoserReleasesExactlyOnce(t *testing.T) {
+	// -race: many goroutines racing to spawn a rafale for the exact same
+	// (hash, variant, segment). Exactly one wins; every loser must release its
+	// acquired slot via the "spawn race lost" early-return path, never via the
+	// reap goroutine (it never gets that far), and never double-release.
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	limiter := NewVideoSessionLimiter(0) // unlimited - isolates release bookkeeping from acquire refusals
+	o := NewSegmentOrchestrator(cache, proc, src, testOpts(), discardLogger())
+	o.WithVideoSessionLimiter(limiter)
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	var wg sync.WaitGroup
+	for range 20 {
+		wg.Go(func() {
+			_ = o.EnsureSegmentRange(context.Background(), fp, 0, 0)
+		})
+	}
+	wg.Wait()
+
+	assert.Equal(t, 1, o.ActiveCount(), "exactly one rafale wins the spawn race")
+	assert.Equal(t, 1, limiter.Active(), "every loser released its slot; only the winner still holds one")
+}
+
+// ============================================================================
 // EnsureSegmentRange: cancel-on-seek
 // ============================================================================
 

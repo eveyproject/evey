@@ -249,6 +249,14 @@ type SegmentOrchestrator struct {
 	// exits, or by an early-return / spawn-race-lost path before the reap
 	// goroutine takes ownership.
 	sessionSem chan struct{}
+
+	// videoLimiter caps the number of concurrently-ENCODING video sessions this
+	// orchestrator may run, shared with the software producer's transcode
+	// instance via the same *VideoSessionLimiter (every session this
+	// orchestrator spawns encodes video - there is no copy/remux mode here).
+	// nil = unwired = unlimited (byte-identical to the pre-feature behaviour).
+	// Set via WithVideoSessionLimiter before first use.
+	videoLimiter *VideoSessionLimiter
 }
 
 // SourceResolver bridges the orchestrator (which works with DecisionFingerprint)
@@ -326,6 +334,25 @@ type orchestratorSession struct {
 	// killSession (GC / seek-cancel / watchdog). Without it the reap path never
 	// decremented and the gauge climbed monotonically.
 	metricDecOnce sync.Once
+
+	// videoSlotAcquired records whether spawnSession successfully took a
+	// videoLimiter slot for THIS session (false when videoLimiter is unwired).
+	// Read-only after construction - safe without a lock.
+	videoSlotAcquired bool
+	// videoSlotReleaseOnce guarantees the videoLimiter slot this session holds
+	// is released EXACTLY once, whichever of the two exit paths runs first: the
+	// natural-EOF reap goroutine or an explicit killSession. Mirrors
+	// metricDecOnce's same exactly-once contract for the metrics gauge.
+	videoSlotReleaseOnce sync.Once
+}
+
+// releaseVideoSlot frees s's videoLimiter slot exactly once. No-op when the
+// session never held one (videoLimiter unwired).
+func (o *SegmentOrchestrator) releaseVideoSlot(s *orchestratorSession) {
+	if !s.videoSlotAcquired || o.videoLimiter == nil {
+		return
+	}
+	s.videoSlotReleaseOnce.Do(o.videoLimiter.Release)
 }
 
 // NewSegmentOrchestrator wires the cache and the ffmpeg adapter together. The
@@ -375,6 +402,18 @@ func NewSegmentOrchestrator(
 // session's ffmpeg exits with a hardware-capability failure (classified via the
 // handle's Failure()), so the capability can be demoted for subsequent requests.
 // Optional — left unset in tests / when no calibration service is present.
+// WithVideoSessionLimiter wires the shared cap on concurrently-ENCODING video
+// sessions. Pass the SAME *VideoSessionLimiter instance given to the software
+// producer's transcode instance so the two draw from one pool - every session
+// this orchestrator spawns encodes video (there is no copy/remux mode here),
+// so it is unconditionally gated. Call before first use (not
+// concurrency-safe with EnsureSegmentRange). nil (the zero value if never
+// called) means unlimited - byte-identical to the pre-feature behaviour.
+func (o *SegmentOrchestrator) WithVideoSessionLimiter(limiter *VideoSessionLimiter) *SegmentOrchestrator {
+	o.videoLimiter = limiter
+	return o
+}
+
 func (o *SegmentOrchestrator) SetHWDemoteSink(sink func(ctx context.Context, class transcoding.FailureClass, codec string)) {
 	o.hwDemote = sink
 }
@@ -761,28 +800,50 @@ func (o *SegmentOrchestrator) spawnSession(
 		PerVariantHW: o.opts.HWPerVariant,
 	}
 
+	// Video-encode capacity gate: every session this orchestrator spawns
+	// encodes video (there is no copy/remux mode on the HW path), so it is
+	// unconditionally gated when a limiter is wired. Acquired BEFORE ffmpeg
+	// spawns (the actual CPU/GPU-consuming action) and released on every exit
+	// path below exactly once (see videoSlotAcquired / releaseVideoSlot).
+	videoSlotAcquired := false
+	if o.videoLimiter != nil {
+		if !o.videoLimiter.TryAcquire() {
+			teardown()
+			releaseSlot()
+			metrics.HLSVODSessionsRejected.Inc()
+			o.logger.Warn("orchestrator: max video encode sessions reached, refusing spawn",
+				slog.String("hash", hash))
+			return ErrVideoCapacityExhausted
+		}
+		videoSlotAcquired = true
+	}
+
 	sessionCtx, cancel := context.WithCancel(o.shutdownCtx)
 	handle, err := o.process.Start(sessionCtx, procOpts)
 	if err != nil {
 		cancel()
 		teardown()
 		releaseSlot()
+		if videoSlotAcquired {
+			o.videoLimiter.Release()
+		}
 		return fmt.Errorf("spawnSession: ffmpeg start: %w", err)
 	}
 
 	session := &orchestratorSession{
-		hash:            hash,
-		mediaID:         fp.MediaID,
-		handle:          handle,
-		startSeg:        startSegIdx,
-		endSeg:          endSegIdx,
-		lastAccess:      time.Now(),
-		teardown:        teardown,
-		cancelCtx:       cancel,
-		done:            make(chan struct{}),
-		clientHighWater: startSegIdx,
-		useFMP4:         fp.UseFMP4,
-		variantIdx:      variantIdx,
+		hash:              hash,
+		mediaID:           fp.MediaID,
+		handle:            handle,
+		startSeg:          startSegIdx,
+		endSeg:            endSegIdx,
+		lastAccess:        time.Now(),
+		teardown:          teardown,
+		cancelCtx:         cancel,
+		done:              make(chan struct{}),
+		clientHighWater:   startSegIdx,
+		useFMP4:           fp.UseFMP4,
+		variantIdx:        variantIdx,
+		videoSlotAcquired: videoSlotAcquired,
 	}
 
 	o.mu.Lock()
@@ -805,6 +866,10 @@ func (o *SegmentOrchestrator) spawnSession(
 		}
 		teardown()
 		releaseSlot()
+		// This session never reaches the reap goroutine or killSession (it was
+		// discarded before either could take ownership), so release its video
+		// slot here - the only place that will ever do so for it.
+		o.releaseVideoSlot(session)
 		return nil
 	}
 	o.sessions[hash] = append(o.sessions[hash], session)
@@ -909,6 +974,10 @@ func (o *SegmentOrchestrator) spawnSession(
 		// Free the global concurrency slot: this session has fully exited and is
 		// off the live list, so a queued spawn may now proceed.
 		o.releaseSessionSlot()
+		// Natural exit: killSession never ran for this session, so free its video
+		// slot here. Once-guarded (see releaseVideoSlot) so a concurrent kill that
+		// raced this reap can't double-release.
+		o.releaseVideoSlot(session)
 	}()
 
 	// HW fast-fail watchdog: a hardware rafale that hasn't written its init
@@ -1037,6 +1106,10 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 	// Exactly-once with the reap goroutine: a watchdog kill cancels sessionCtx,
 	// which also wakes the reap — only the first of the two decrements the gauge.
 	s.metricDecOnce.Do(func() { metrics.HLSVODSessions.Dec() })
+	// Same exactly-once race against the reap goroutine (cancel() above wakes
+	// it via sessionCtx.Done()) - releaseVideoSlot's Once ensures only the
+	// first of the two frees the slot.
+	o.releaseVideoSlot(s)
 }
 
 // removeSessionFromList drops `target` from o.sessions[hash], leaving

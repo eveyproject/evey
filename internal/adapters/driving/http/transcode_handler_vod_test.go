@@ -286,6 +286,34 @@ func TestHLSVOD_Segment_VariantOutOfRange_404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code, "out-of-range variant must 404, not spawn+503")
 }
 
+// At the shared video-encode session cap, EnsureSegmentRange returns
+// ErrVideoCapacityExhausted and the handler must shed load with 503 +
+// Retry-After: 5 + a distinct body, not the generic capacity/500 branch.
+func TestHLSVOD_Segment_VideoCapacityExhausted_503WithRetryAfter5(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: item},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.segmentWaitTimeout = 50 * time.Millisecond
+
+	limiter := apptranscoding.NewVideoSessionLimiter(1)
+	require.True(t, limiter.TryAcquire(), "pre-occupy the single video-encode slot")
+	h.orchestrator.WithVideoSessionLimiter(limiter)
+
+	w := doVODRequest(h, "m1", "stream_0_005.ts")
+
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
+	assert.Equal(t, "5", w.Header().Get("Retry-After"))
+	assert.Contains(t, w.Body.String(), "video transcoding capacity")
+}
+
 func TestHLSVOD_Routing_InitSegment(t *testing.T) {
 	dur, _ := shared.NewDurationMs(60_000)
 	item := &domainlibrary.MediaItem{

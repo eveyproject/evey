@@ -15,6 +15,8 @@ import (
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/shared"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/sysinfo"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -22,6 +24,21 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+// calibrationSnapshotProvider is the narrow port GetSystemInfo needs to derive
+// the auto video-session capacity from the boot benchmark's evidence
+// (EncodeCapability.BenchSamples), without depending on the whole
+// CalibrationService type. Satisfied by *apptranscoding.CalibrationService.
+type calibrationSnapshotProvider interface {
+	Current() domaintranscoding.EncodeCapability
+}
+
+// videoSessionActiveReporter is the narrow port GetSystemInfo needs to report
+// how many video-encode sessions are live right now. Satisfied by
+// *apptranscoding.VideoSessionLimiter.
+type videoSessionActiveReporter interface {
+	Active() int
+}
 
 type adminSystemHandler struct {
 	eveyv1.UnimplementedAdminSystemServiceServer
@@ -43,6 +60,15 @@ type adminSystemHandler struct {
 	// restartFn triggers a graceful shutdown so a supervisor restarts the
 	// process. nil disables the restart RPC (unsupervised / not wired).
 	restartFn func()
+	// calibrationSvc supplies the boot benchmark's evidence for the
+	// video-session auto-capacity block on GetSystemInfo. Optional: nil skips
+	// populating SystemInfo.VideoSessions entirely.
+	calibrationSvc calibrationSnapshotProvider
+	// videoLimiter reports live video-encode session usage (Active()) for the
+	// same block, and is the SAME *apptranscoding.VideoSessionLimiter instance
+	// shared between the software and hardware producers. Optional: nil reports
+	// active=0.
+	videoLimiter videoSessionActiveReporter
 
 	// last meter sample, to derive the served rate between dashboard polls.
 	meterMu        sync.Mutex
@@ -129,6 +155,36 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 			for _, dev := range devices {
 				info.HwDevices = append(info.HwDevices, hwDeviceToProto(dev))
 			}
+		}
+	}
+
+	if d.calibrationSvc != nil {
+		capability := d.calibrationSvc.Current()
+		auto, evidence := apptranscoding.AutoVideoSessionCapacity(capability.BenchSamples, sysinfo.CPUBudget())
+		// A true-nil interface (not a nil-pointer-wrapped one) when the store is
+		// absent, so ResolveVideoSessionLimit's own nil check is honest - see the
+		// same pattern for pluginCfgRepo in server.go.
+		var cfgRepo shared.ServerConfigRepository
+		if d.serverCfgSvc != nil {
+			cfgRepo = d.serverCfgSvc
+		}
+		effective := apptranscoding.ResolveVideoSessionLimit(ctx, cfgRepo, auto)
+		var active int
+		if d.videoLimiter != nil {
+			active = d.videoLimiter.Active()
+		}
+		info.VideoSessions = &eveyv1.VideoSessionCapacity{
+			AutoCapacity:   int32(auto),
+			EffectiveLimit: int32(effective),
+			Active:         int32(active),
+			Evidence: &eveyv1.VideoCapacityEvidence{
+				Height:      int32(evidence.Height),
+				Fps:         evidence.FPS,
+				RequiredFps: evidence.RequiredFPS,
+				Ratio:       evidence.Ratio,
+				CpuBudget:   int32(evidence.CPUBudget),
+				Derived:     evidence.Derived,
+			},
 		}
 	}
 
