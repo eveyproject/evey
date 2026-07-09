@@ -28,11 +28,15 @@ import { TextureManager } from "./TextureManager";
 // ---- wall geometry constants (kept in sync with the layout the application
 // builds via WALL_GEOMETRY - see that module's docstring) ------------------
 
-const BASE_HALF_WIDTH = WALL_GEOMETRY.colSpacing * 0.42;
+const BASE_HALF_WIDTH = WALL_GEOMETRY.colSpacing * 0.47;
 const BASE_HALF_HEIGHT = BASE_HALF_WIDTH / WALL_GEOMETRY.posterAspect;
 const BASELINE_Y = -0.25;
-const HOVER_LIFT = 0.05;
-const HOVER_SCALE_BOOST = 1.06;
+const HOVER_LIFT = 0.09;
+const HOVER_SCALE_BOOST = 1.16;
+// The roulette winner pops harder than a hover and stays put (its own lift,
+// not gated on the pointer) so it reads as "this is your pick".
+const WINNER_LIFT = 0.15;
+const WINNER_SCALE_BOOST = 1.3;
 
 const SCROLL_SPEED_UNITS_PER_SEC = 0.032; // very slow, ambient drift
 const SWEEP_PERIOD_MS = 14_000;
@@ -117,6 +121,7 @@ export class GlRenderer implements SceneRenderer {
   private scrollOffset = 0;
   private hoverIndex: number | null = null;
   private hoverLift = 0; // smoothed 0..1
+  private lockLift = 0;  // smoothed 0..1 emphasis for the elected winner
 
   private spin: RouletteSpin | null = null;
   private spinStartMs = 0;
@@ -403,6 +408,7 @@ export class GlRenderer implements SceneRenderer {
     }
 
     this.hoverLift += ((this.hoverIndex !== null ? 1 : 0) - this.hoverLift) * (1 - Math.exp(-8 * step));
+    this.lockLift += ((this.lockedIndex !== null ? 1 : 0) - this.lockLift) * (1 - Math.exp(-6 * step));
 
     this.textures?.pump();
     this.draw();
@@ -497,15 +503,24 @@ export class GlRenderer implements SceneRenderer {
       if (!slot || !poster) continue;
       const tex = poster.tex;
       const loaded = this.textures?.isLoaded(poster.id) ?? false;
-      const highlighted = i === this.hoverIndex || i === this.lockedIndex;
-      const boost = highlighted ? 1 + (HOVER_SCALE_BOOST - 1) * this.hoverLift : 1;
+      // A poster is emphasized when hovered OR when it is the elected winner.
+      // The winner uses its own (stronger, pointer-independent) lift/scale so it
+      // stands out even when the mouse is elsewhere.
+      const isHover = i === this.hoverIndex;
+      const isLock = i === this.lockedIndex;
+      const hoverEmph = isHover ? this.hoverLift : 0;
+      const lockEmph = isLock ? this.lockLift : 0;
+      const emph = Math.max(hoverEmph, lockEmph);
+      const scaleBoost = lockEmph >= hoverEmph ? WINNER_SCALE_BOOST : HOVER_SCALE_BOOST;
+      const liftAmt = lockEmph >= hoverEmph ? WINNER_LIFT : HOVER_LIFT;
+      const boost = 1 + (scaleBoost - 1) * emph;
 
       for (const tile of this.tileOffsets) {
         const cx = slot.x - this.scrollOffset + tile;
         if (Math.abs(cx) > visibleHalfWidth) continue;
         // +y is up in clip space, so a positive offset here visually lifts
         // the poster.
-        const cy = slot.y + BASELINE_Y + (highlighted ? HOVER_LIFT * this.hoverLift : 0);
+        const cy = slot.y + BASELINE_Y + liftAmt * emph;
         const hw = BASE_HALF_WIDTH * slot.scale * boost;
         const hh = BASE_HALF_HEIGHT * slot.scale * boost;
         const clipCx = clamp(cx / aspect, -1, 1);
@@ -517,7 +532,7 @@ export class GlRenderer implements SceneRenderer {
         gl.uniform3f(this.posterLoc.uPlaceholder, poster.placeholder[0], poster.placeholder[1], poster.placeholder[2]);
         gl.uniform1f(this.posterLoc.uLoaded, loaded ? 1 : 0);
         gl.uniform1f(this.posterLoc.uDepthFade, slot.z);
-        gl.uniform1f(this.posterLoc.uHighlight, highlighted ? this.hoverLift : 0);
+        gl.uniform1f(this.posterLoc.uHighlight, emph);
         gl.uniform1f(this.posterLoc.uSpotLight, spotLight);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       }

@@ -164,7 +164,7 @@ export class MarqueeApp {
     clearTimeout(this.landTimer);
     this.landTimer = window.setTimeout(() => {
       if (!this.disposed) this.deps.bridge.navigate(`/media/${poster.id}`);
-    }, 2600);
+    }, 7000);
   }
 
   private hover(index: number | null): void {
