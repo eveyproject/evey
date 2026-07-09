@@ -198,7 +198,7 @@ export default function ServerConnect() {
       </Text>
       {!hasServers && (
         <Text style={[s.hint, { color: theme.colors.textMuted }]}>
-          Enter the URL of your self-hosted Evey instance
+          {t("mobile.serverConnect.hint", "Enter the URL of your self-hosted Evey instance")}
         </Text>
       )}
       <TextInput
@@ -239,7 +239,9 @@ export default function ServerConnect() {
           <Ionicons name="wifi-outline" size={16} color={theme.colors.accent} />
         )}
         <Text style={[s.scanText, { color: theme.colors.accent }]}>
-          {scanning ? "Scanning..." : "Scan local network"}
+          {scanning
+            ? t("admin.scanning", "Scanning...")
+            : t("mobile.serverConnect.scanLocalNetwork", "Scan local network")}
         </Text>
       </Pressable>
 
