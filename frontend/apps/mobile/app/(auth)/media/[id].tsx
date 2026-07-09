@@ -47,6 +47,7 @@ import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 
 const POSTER_WIDTH = 100;
 const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
+const EPISODE_PAGE_SIZE = 20;
 
 function formatRuntime(ms?: string): string {
   if (!ms) return "";
@@ -404,6 +405,13 @@ export default function MediaDetailScreen() {
   const isLandscape = screenW > screenH;
   const heroHeight = isLandscape ? screenH * 0.55 : screenH * 0.4;
   const [selectedSeason, setSelectedSeason] = useState<string | null>(null);
+  // Episodes render inside the screen's single outer ScrollView (see below), so a
+  // nested FlatList would trip "VirtualizedLists should never be nested inside
+  // plain ScrollViews" and gain nothing since it can't own its own scroll. Instead
+  // cap the initial render and let the user page in more with a button, which keeps
+  // a 100-episode season from mounting 100 rows (with progress queries each) at once.
+  const [visibleEpisodeCount, setVisibleEpisodeCount] = useState(EPISODE_PAGE_SIZE);
+  useEffect(() => { setVisibleEpisodeCount(EPISODE_PAGE_SIZE); }, [selectedSeason]);
 
   const { data: media, isLoading } = useLibraryServiceGetMediaItem(id ?? "");
 
@@ -1039,9 +1047,22 @@ export default function MediaDetailScreen() {
             <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600", marginBottom: theme.spacing.sm }}>
               {t("media.detail.episodes")}
             </Text>
-            {episodes.map((ep) => (
+            {episodes.slice(0, visibleEpisodeCount).map((ep) => (
               <EpisodeRow key={ep.id} item={ep} serverUrl={serverUrl} theme={theme} authHeaders={authHeaders} />
             ))}
+            {episodes.length > visibleEpisodeCount ? (
+              <Pressable
+                onPress={() => setVisibleEpisodeCount((c) => c + EPISODE_PAGE_SIZE)}
+                style={{ paddingVertical: theme.spacing.md, alignItems: "center" }}
+                accessible={true}
+                accessibilityLabel={t("media.detail.showMoreEpisodes", "Show more")}
+                accessibilityRole="button"
+              >
+                <Text style={{ color: theme.colors.accent, fontSize: 14, fontWeight: "600" }}>
+                  {t("media.detail.showMoreEpisodes", "Show more")}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
