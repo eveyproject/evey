@@ -58,8 +58,8 @@ func writeShed(w http.ResponseWriter, code string, retryAfterSec int, technicalM
 	w.Header().Set("X-Evey-Error", code)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusServiceUnavailable)
-	_, _ = w.Write([]byte(fmt.Sprintf(`{"code":%q,"retryAfterSec":%d,"message":%q}`,
-		code, retryAfterSec, technicalMsg)))
+	_, _ = w.Write(fmt.Appendf(nil, `{"code":%q,"retryAfterSec":%d,"message":%q}`,
+		code, retryAfterSec, technicalMsg))
 }
 
 // copyBlockedOnlyByMissingIndex reports whether this source WOULD be served by
