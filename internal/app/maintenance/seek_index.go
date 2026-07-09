@@ -301,12 +301,19 @@ func (s *SeekIndexService) recoverJob() {
 
 // reindexOptionsFor maps the operator's mode onto the port options. The
 // standard mode keeps a rollback backup; the surgical in-place mode cannot
-// produce one by design (the file is patched, never duplicated).
+// produce one by design (the file is patched, never duplicated). "auto"
+// tries the patch first and falls back to the rewrite when the layout
+// defeats it (streamed clusters, no head-discoverable index slot) - the
+// fallback keeps the rewrite's backup semantics.
 func reindexOptionsFor(mode string) mkv.ReindexOptions {
-	if mode == mkv.ModeInPlace {
+	switch mode {
+	case mkv.ModeInPlace:
 		return mkv.ReindexOptions{Mode: mkv.ModeInPlace}
+	case "auto":
+		return mkv.ReindexOptions{Mode: mkv.ModeAuto, KeepBackup: true}
+	default:
+		return mkv.ReindexOptions{Mode: mkv.ModeRewrite, KeepBackup: true}
 	}
-	return mkv.ReindexOptions{Mode: mkv.ModeRewrite, KeepBackup: true}
 }
 
 // SupportsInPlace mirrors the reindexer's capability for the scan/UI layer.

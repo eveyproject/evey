@@ -80,6 +80,7 @@ service AdminMediaService {
   rpc ReindexMediaSeekIndex(ReindexMediaSeekIndexRequest) returns (ReindexMediaSeekIndexResponse) {
     option (google.api.http) = {
       post: "/api/v1/admin/media/{media_id}/seek-index/reindex"
+      body: "*"
     };
   }
 
@@ -229,8 +230,10 @@ message GetSeekIndexJobResponse {
 
 message ReindexMediaSeekIndexRequest {
   string media_id = 1;
-  // Repair strategy: "inplace" (surgical patch, file-write only, no backup)
-  // or "rewrite" (full rebuild + .mkvgobak rollback backup). Empty = rewrite.
+  // Repair strategy: "inplace" (surgical patch, file-write only, no backup),
+  // "auto" (try the patch, fall back to the rewrite when the file layout
+  // defeats it - backup kept on the fallback), or "rewrite" (full rebuild +
+  // .mkvgobak rollback backup). Empty = rewrite.
   string mode = 2;
 }
 
