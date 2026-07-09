@@ -76,7 +76,7 @@ export const PLUGIN_BRIDGE_SCRIPT = `
     window.addEventListener("DOMContentLoaded", function() { send({ type: "ready" }); });
   }
   // Android WebView often computes a 0-width viewport on first layout when
-  // the bundle inlines a heavy framework — three.js / react-three-fiber
+  // the bundle inlines a heavy framework - three.js / react-three-fiber
   // measure their parent on mount and never re-measure on a non-bounding-
   // box change. Dispatch a "resize" once after the plugin had a tick to
   // mount so R3F recomputes against the now-real WebView width.

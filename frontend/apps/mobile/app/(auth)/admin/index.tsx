@@ -21,7 +21,7 @@ function StatCard({ label, value, icon, theme }: { label: string; value: string 
 }
 
 function formatUptime(seconds?: string): string {
-  if (!seconds) return "—";
+  if (!seconds) return "-";
   const s = parseInt(seconds, 10);
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
@@ -101,7 +101,7 @@ export default function AdminDashboard() {
         ].map((row) => (
           <View key={row.label} style={[styles.infoRow, { borderBottomColor: theme.colors.border }]}>
             <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{row.label}</Text>
-            <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1, textAlign: "right" }} numberOfLines={1}>{row.value ?? "—"}</Text>
+            <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1, textAlign: "right" }} numberOfLines={1}>{row.value ?? "-"}</Text>
           </View>
         ))}
       </View>
@@ -137,7 +137,7 @@ export default function AdminDashboard() {
             <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
           </Pressable>
         ))}
-        {/* Plugin-contributed admin entries (slot admin.nav) — each granted
+        {/* Plugin-contributed admin entries (slot admin.nav) - each granted
             plugin gets a menu row linking to its own dedicated screen
             (/admin/extensions/<id>), mobile parity with web. */}
         {pluginEntries.map((entry) => (

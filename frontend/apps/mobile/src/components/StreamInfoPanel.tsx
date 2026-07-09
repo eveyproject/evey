@@ -11,7 +11,7 @@ interface StreamInfoPanelProps {
 }
 
 function formatBitrate(bitrate?: string): string {
-  if (!bitrate) return "—";
+  if (!bitrate) return "-";
   const bps = Number(bitrate);
   if (isNaN(bps) || bps <= 0) return bitrate;
   if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
@@ -24,7 +24,7 @@ function formatPlayMethod(method?: string): string {
     case "PLAY_METHOD_DIRECT_PLAY": return "Direct Play";
     case "PLAY_METHOD_DIRECT_STREAM": return "Direct Stream";
     case "PLAY_METHOD_TRANSCODE": return "Transcode";
-    default: return method ?? "—";
+    default: return method ?? "-";
   }
 }
 
@@ -81,7 +81,7 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
       {videoStream && (
         <>
           <SectionHeader title={t("player.streamInfo.video", "Video")} />
-          <InfoRow label={t("player.streamInfo.codec", "Codec")} value={(videoStream.codec ?? "—").toUpperCase()} />
+          <InfoRow label={t("player.streamInfo.codec", "Codec")} value={(videoStream.codec ?? "-").toUpperCase()} />
           {videoStream.width && videoStream.height && (
             <InfoRow label={t("player.streamInfo.resolution", "Resolution")} value={`${videoStream.width}×${videoStream.height}`} />
           )}
@@ -106,7 +106,7 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
       {audioStream && (
         <>
           <SectionHeader title={t("player.streamInfo.audio", "Audio")} />
-          <InfoRow label={t("player.streamInfo.codec", "Codec")} value={(audioStream.codec ?? "—").toUpperCase()} />
+          <InfoRow label={t("player.streamInfo.codec", "Codec")} value={(audioStream.codec ?? "-").toUpperCase()} />
           {audioStream.channels && (
             <InfoRow label={t("player.streamInfo.channels", "Channels")} value={formatChannels(audioStream.channels)} />
           )}

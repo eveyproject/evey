@@ -93,7 +93,7 @@ function ToastContainerImpl() {
 }
 
 // memo: no props; reacts to toast store via selector. Mounted in the
-// root layout — keeps the toast overlay free from every parent re-render.
+// root layout - keeps the toast overlay free from every parent re-render.
 export const ToastContainer = memo(ToastContainerImpl);
 
 const styles = StyleSheet.create({

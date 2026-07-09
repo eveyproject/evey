@@ -23,6 +23,6 @@ export async function configureAudioSession() {
     });
     configured = true;
   } catch {
-    // expo-audio not installed or native module missing — skip silently.
+    // expo-audio not installed or native module missing - skip silently.
   }
 }

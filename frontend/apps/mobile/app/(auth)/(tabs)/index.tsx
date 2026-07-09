@@ -140,7 +140,7 @@ function PhotoLibraryRow({ libraryId, name }: { libraryId: string; name: string 
 }
 
 function LibraryFeedRow({ libraryId, name, libraryType, onItemPress }: { libraryId: string; name: string; libraryType?: string; onItemPress: (item: V1MediaItem) => void }) {
-  // Music + photo libraries don't live in the media_items table — they have
+  // Music + photo libraries don't live in the media_items table - they have
   // their own tables hit via /music/albums and /photos/albums. Fall back to
   // /library/list otherwise (movies/shows).
   if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicLibraryRow libraryId={libraryId} name={name} />;
@@ -214,7 +214,7 @@ function FeedCustomizeModal({
 
   useEffect(() => {
     if (visible) {
-      // Drop orphan rows the user can no longer act on — without this filter
+      // Drop orphan rows the user can no longer act on - without this filter
       // the customize panel surfaces stale feed types as raw UUIDs/IDs with
       // no way to dismiss them. Mirrors the web fix in 928a9b9d6.
       const knownTypes = new Set<string>(FEED_TYPES);

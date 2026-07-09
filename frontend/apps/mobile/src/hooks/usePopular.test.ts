@@ -58,7 +58,7 @@ describe("useMostPopular", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     eveyFetchMock.mockResolvedValue({ items: [] });
 
-    // Mount two hooks with different limits — they must be independent queries.
+    // Mount two hooks with different limits - they must be independent queries.
     const { result: r5 } = renderHook(() => useMostPopular(5), {
       wrapper: ({ children }: { children: React.ReactNode }) =>
         React.createElement(QueryClientProvider, { client }, children),

@@ -10,7 +10,7 @@ import { useMediaSegments } from "../hooks/useMediaSegments";
 // same button reads "Skip Intro" / "Skip Recap" / "Skip Credits".
 // "preview" (next-episode preview reel) is admin-gated server-side: it is
 // only present in the API response when the admin enables it, so listing it
-// here is safe — no button appears unless the server actually returns one.
+// here is safe - no button appears unless the server actually returns one.
 const SKIPPABLE = ["intro", "recap", "end_credits", "preview"] as const;
 type SkippableType = (typeof SKIPPABLE)[number];
 

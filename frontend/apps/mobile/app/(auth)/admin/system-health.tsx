@@ -13,7 +13,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 const HISTORY_SIZE = 30;
 
 function formatUptime(seconds?: string): string {
-  if (!seconds) return "—";
+  if (!seconds) return "-";
   const s = parseInt(seconds, 10);
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);

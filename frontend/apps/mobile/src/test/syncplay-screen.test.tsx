@@ -104,7 +104,7 @@ describe("SyncPlayScreen", () => {
     // No input → button is disabled (disabled attribute present)
     expect(joinBtn.hasAttribute("disabled")).toBe(true);
 
-    // Type 4 chars — still disabled
+    // Type 4 chars - still disabled
     fireEvent.change(screen.getByPlaceholderText("12345"), {
       target: { value: "1234" },
     });

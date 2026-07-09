@@ -129,7 +129,7 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: P
               />
             </View>
 
-            {/* MaxAge — kids only */}
+            {/* MaxAge - kids only */}
             {isKids && (
               <View>
                 <Text style={[s.label, { color: theme.colors.textMuted }]}>
@@ -167,7 +167,7 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: P
               </View>
             )}
 
-            {/* PIN — required when there is already a kids profile and we're creating non-kids */}
+            {/* PIN - required when there is already a kids profile and we're creating non-kids */}
             {pinRequired && (
               <View>
                 <Text style={[s.label, { color: theme.colors.textMuted }]}>

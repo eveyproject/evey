@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
-// useWatchedMap is a pure useMemo over a generated query hook — mock the
+// useWatchedMap is a pure useMemo over a generated query hook - mock the
 // generated hook directly so there is no QueryClient dependency.
 vi.mock("@evey/api", () => ({
   usePlaybackServiceGetWatchHistory: vi.fn(),

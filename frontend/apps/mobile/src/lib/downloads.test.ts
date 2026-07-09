@@ -134,7 +134,7 @@ describe("startDownload", () => {
       destination: expect.stringContaining("evey-m3.mp4"),
       metadata: { title: "Movie 3" },
     }));
-    // task.start() must be invoked after handlers are chained — without it
+    // task.start() must be invoked after handlers are chained - without it
     // createDownloadTask only registers the task, it doesn't kick the OS
     // download (see DownloadTask.ts `start()` in the lib).
     const taskMock = createDownloadTaskMock.mock.results.at(-1)?.value;

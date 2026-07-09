@@ -64,7 +64,7 @@ describe("buildStreamUrl", () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
     // Without mkv here the server flags container_incompatible and transcodes
-    // every .mkv — the root cause of broken seeking + shifted colors.
+    // every .mkv - the root cause of broken seeking + shifted colors.
     expect(decodeURIComponent(url)).toContain("containers=mp4,mkv,webm,hls");
   });
 

@@ -12,16 +12,16 @@ import { useTheme } from "../src/providers/ThemeProvider";
 import { scanLocalNetwork } from "../src/lib/network-scan";
 
 // describeConnectError turns the near-useless "Network request failed" that
-// React Native's fetch throws into an actionable, cause-specific hint — the
+// React Native's fetch throws into an actionable, cause-specific hint - the
 // difference between a self-hoster giving up and fixing their URL/port/scheme.
 function describeConnectError(e: unknown, target: string): string {
   const raw = e instanceof Error ? e.message : String(e);
   if (e instanceof Error && e.name === "AbortError") {
-    return `No response from ${target} within 8s.\n\nThe server is probably down or not reachable — check it's running and that your phone is on the same network (or the server is exposed to the internet).`;
+    return `No response from ${target} within 8s.\n\nThe server is probably down or not reachable - check it's running and that your phone is on the same network (or the server is exposed to the internet).`;
   }
   if (/network request failed|failed to fetch|typeerror/i.test(raw)) {
     const hint = /^https:/i.test(target)
-      ? "This is an HTTPS address — for a LAN/self-signed server, try http:// instead."
+      ? "This is an HTTPS address - for a LAN/self-signed server, try http:// instead."
       : "If your server uses HTTPS, switch the address to https://.";
     return `Couldn't reach ${target}.\n\n• Double-check the host and port.\n• ${hint}\n• Make sure the phone is on the same Wi-Fi as the server (or the server is reachable from outside).`;
   }
@@ -29,7 +29,7 @@ function describeConnectError(e: unknown, target: string): string {
     return `TLS/certificate problem reaching ${target}.\n\nFor a self-signed or local server, connect over http:// instead of https://.`;
   }
   if (/^HTTP \d/.test(raw)) {
-    return `${target} answered "${raw}" instead of a healthy Evey server.\n\nCheck the URL points to your Evey instance (right host, port and path — no trailing /api).`;
+    return `${target} answered "${raw}" instead of a healthy Evey server.\n\nCheck the URL points to your Evey instance (right host, port and path - no trailing /api).`;
   }
   return `${raw}\n\n(${target})`;
 }
@@ -103,7 +103,7 @@ export default function ServerConnect() {
     }
 
     setLoading(true);
-    // fetch() has no default timeout — abort after 8s so an unreachable host
+    // fetch() has no default timeout - abort after 8s so an unreachable host
     // reports a clear timeout instead of hanging on the spinner forever.
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 8000);

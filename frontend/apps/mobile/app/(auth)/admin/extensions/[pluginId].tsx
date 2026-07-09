@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../../src/providers/ThemeProvider";
 import { PluginSlot, usePluginSlotEntries } from "../../../../src/features/plugins/PluginSlot";
 
-// Dedicated full-screen route for a plugin's admin.nav module — mobile parity
+// Dedicated full-screen route for a plugin's admin.nav module - mobile parity
 // with web's /admin/extensions/<id>. The dashboard menu row navigates here
 // instead of embedding the WebView inline, so each plugin gets a real screen.
 export default function PluginExtensionScreen() {

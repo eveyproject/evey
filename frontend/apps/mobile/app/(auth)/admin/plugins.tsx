@@ -163,7 +163,7 @@ export default function AdminPluginsScreen() {
             {t("admin.plugins.installFromUrl", "Install from URL")}
           </Text>
           <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>
-            {t("admin.plugins.installFromUrlHint", "Paste a plugin .zip URL — optionally append #sha256:<hash> to verify the download.")}
+            {t("admin.plugins.installFromUrlHint", "Paste a plugin .zip URL - optionally append #sha256:<hash> to verify the download.")}
           </Text>
           <TextInput
             value={installSource}

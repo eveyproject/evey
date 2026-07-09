@@ -58,7 +58,7 @@ function MiniPlayerImpl() {
 
 // memo: no props; reacts only to the player store + theme + auth headers.
 // Sits in the root layout so every screen navigation re-renders the parent
-// — without memo each navigation re-rendered the mini-player and its
+// - without memo each navigation re-rendered the mini-player and its
 // expo-image source needlessly.
 export const MiniPlayer = memo(MiniPlayerImpl);
 

@@ -8,7 +8,7 @@ import {
   useActivityServiceGetServerStats,
   useAdminSessionServiceGetAuditLog,
 } from "@evey/api";
-// Types from generated schemas — not re-exported from @evey/api index
+// Types from generated schemas - not re-exported from @evey/api index
 interface PlayEntry {
   id?: string;
   mediaTitle?: string;
@@ -48,7 +48,7 @@ function formatMs(ms?: string): string {
 }
 
 function timeAgo(d?: string): string {
-  if (!d) return "—";
+  if (!d) return "-";
   const diff = Date.now() - new Date(d).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return "just now";
@@ -82,10 +82,10 @@ function PlayHistoryTab() {
       <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}>
         <View style={{ flex: 1, gap: 4 }}>
           <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
-            {item.mediaTitle ?? "—"}
+            {item.mediaTitle ?? "-"}
           </Text>
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-            {item.deviceName ?? item.clientName ?? "—"} · {timeAgo(item.startedAt)}
+            {item.deviceName ?? item.clientName ?? "-"} · {timeAgo(item.startedAt)}
           </Text>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
             <View style={[styles.progressBar, { backgroundColor: theme.colors.border }]}>
@@ -145,7 +145,7 @@ function AuditLogTab() {
       <View style={{ flex: 1, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <View style={[styles.badge, { backgroundColor: theme.colors.accent + "20" }]}>
-            <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>{item.action ?? "—"}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 11, fontWeight: "600" }}>{item.action ?? "-"}</Text>
           </View>
           <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{timeAgo(item.createdAt)}</Text>
         </View>
@@ -231,7 +231,7 @@ function StatsTab() {
               </Text>
               {data.popularMedia.map((m) => (
                 <View key={m.mediaItemId} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
-                  <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>{m.title ?? "—"}</Text>
+                  <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>{m.title ?? "-"}</Text>
                   <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
                     {t("admin.activity.plays", { count: m.playCount ?? 0, defaultValue: "{{count}} plays" })}
                   </Text>

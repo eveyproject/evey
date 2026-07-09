@@ -30,7 +30,7 @@ function formatDuration(seconds?: string): string {
 }
 
 function formatDate(d?: string): string {
-  if (!d) return "—";
+  if (!d) return "-";
   return new Date(d).toLocaleString();
 }
 
@@ -62,7 +62,7 @@ function TopMediaList({ items, theme }: { items: TopMedia[]; theme: ReturnType<t
         <View key={item.mediaItemId ?? i} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "500" }} numberOfLines={1}>
-              {item.title ?? "—"}
+              {item.title ?? "-"}
             </Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <View style={[styles.barBg, { backgroundColor: theme.colors.border }]}>
@@ -100,10 +100,10 @@ function RecentActivityList({ entries, theme }: { entries: RecentActivity[]; the
           <Ionicons name="person-outline" size={16} color={theme.colors.textMuted} />
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "500" }} numberOfLines={1}>
-              {entry.username ?? "—"}
+              {entry.username ?? "-"}
             </Text>
             <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>
-              {entry.mediaTitle ?? "—"}
+              {entry.mediaTitle ?? "-"}
             </Text>
           </View>
           <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>

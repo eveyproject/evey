@@ -62,7 +62,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}) {
 
   const connect = useCallback((roomId: string) => {
     // Cancel any reconnect already scheduled by a previous connection's onclose,
-    // and detach the old socket's onclose before the deliberate close — otherwise
+    // and detach the old socket's onclose before the deliberate close - otherwise
     // switching rooms fires a stale reconnect to the OLD room (the guards reset
     // just below would let the old socket's onclose re-arm it). Mirrors the web fix.
     if (reconnectTimerRef.current) {

@@ -147,7 +147,7 @@ export default function NotificationsScreen() {
   const qc = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Notification types hidden from the user-facing list — average user
+  // Notification types hidden from the user-facing list - average user
   // doesn't care about plugin failures (admins see them in the dedicated
   // plugin security dashboard). Mirror web fix `ebe634946`.
   const HIDDEN_TYPES = new Set(["plugin_error"]);

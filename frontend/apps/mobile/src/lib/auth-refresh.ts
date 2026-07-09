@@ -19,7 +19,7 @@ function isAccessExpired(token: string | null): boolean {
 }
 
 // Single in-flight refresh. The server rotates and single-uses refresh
-// tokens — two concurrent calls on the same token trigger reuse detection
+// tokens - two concurrent calls on the same token trigger reuse detection
 // (the second one finds the row gone after the first claim+delete) and the
 // caller is logged out. Coalesce all refresh callers (bootstrap, AppState
 // resume, 401 fetch retry) onto the same promise so only one /auth/refresh
@@ -58,7 +58,7 @@ async function doRefresh(): Promise<boolean> {
 }
 
 // Returns true if a usable access token is present after the call. Non-throwing.
-// Safe to invoke from any number of call sites — concurrent invocations
+// Safe to invoke from any number of call sites - concurrent invocations
 // share the same in-flight refresh.
 export async function refreshAccessTokenIfNeeded(): Promise<boolean> {
   if (!isAccessExpired(useAuthStore.getState().accessToken)) return true;
@@ -72,7 +72,7 @@ export async function refreshAccessTokenIfNeeded(): Promise<boolean> {
 }
 
 // Force a refresh regardless of whether the cached token *looks* valid.
-// Used by the fetcher 401 handler — a 401 means the server already rejected
+// Used by the fetcher 401 handler - a 401 means the server already rejected
 // our access token, so we must refresh even if its `exp` claim is in the
 // future (e.g. signing-key rotation, server clock drift, server restart).
 export async function forceRefresh(): Promise<{ accessToken: string } | null> {

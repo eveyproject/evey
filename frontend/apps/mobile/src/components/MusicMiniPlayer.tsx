@@ -55,7 +55,7 @@ function MusicMiniPlayerImpl() {
       player.replace(streamUri);
       if (isPlayingState) player.play();
     } catch {
-      // Player not ready yet — the next render will retry.
+      // Player not ready yet - the next render will retry.
     }
   }, [streamUri, player, isPlayingState]);
 
@@ -112,9 +112,9 @@ function MusicMiniPlayerImpl() {
           )}
         </View>
         <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{track.title || "—"}</Text>
+          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{track.title || "-"}</Text>
           <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-            {[track.artist, track.album].filter(Boolean).join(" · ") || "—"}
+            {[track.artist, track.album].filter(Boolean).join(" · ") || "-"}
           </Text>
         </View>
         <Pressable onPress={previous} hitSlop={8} accessibilityLabel="Previous track" accessibilityRole="button">

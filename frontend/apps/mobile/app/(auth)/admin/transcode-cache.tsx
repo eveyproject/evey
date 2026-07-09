@@ -153,7 +153,7 @@ export default function AdminTranscodeCacheScreen() {
                     <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: i > 0 ? 6 : 0 }}>
                       <Ionicons name="hardware-chip-outline" size={16} color={theme.colors.accent} />
                       <Text style={{ color: theme.colors.text, fontSize: 13 }}>
-                        {d.type?.replace("HW_ACCEL_TYPE_", "")} — {d.name ?? "unknown"}
+                        {d.type?.replace("HW_ACCEL_TYPE_", "")} - {d.name ?? "unknown"}
                       </Text>
                     </View>
                   ))}

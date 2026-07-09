@@ -17,7 +17,7 @@ export const audioBoostSupported = native != null;
 
 /**
  * Apply a VLC-style amplification: 1.0 = 100% (off), 2.0 = 200%. Returns whether
- * the boost is actually active — false where unsupported (iOS for now, or a device
+ * the boost is actually active - false where unsupported (iOS for now, or a device
  * whose global audio session has no effect support), so callers can fall back to
  * the native 0-100% volume without amplification.
  */

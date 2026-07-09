@@ -63,7 +63,7 @@ export function SideDrawer() {
           <Text style={[styles.logo, { color: theme.colors.accent }]}>Evey</Text>
         </Pressable>
 
-        {/* Nav items — scrollable so they survive landscape's compressed
+        {/* Nav items - scrollable so they survive landscape's compressed
             height. The user/logout entries live in the topbar UserMenu now. */}
         <ScrollView style={styles.nav} contentContainerStyle={styles.navContent} showsVerticalScrollIndicator={false}>
           {NAV_ITEMS.map((item) => {
@@ -93,7 +93,7 @@ export function SideDrawer() {
             );
           })}
 
-          {/* Admin link — only if admin */}
+          {/* Admin link - only if admin */}
           {isAdmin && (
             <Pressable
               onPress={() => navigate("/admin")}

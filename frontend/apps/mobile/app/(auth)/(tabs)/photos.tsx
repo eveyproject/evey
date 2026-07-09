@@ -28,7 +28,7 @@ interface LibraryItem {
 
 // Field names are lowerCamelCase because /api/v1/photos* is served by the
 // grpc-gateway (protojson), not a custom PascalCase HTTP handler. Reading
-// PascalCase here previously yielded `undefined` for every field — the
+// PascalCase here previously yielded `undefined` for every field - the
 // grid 404'd on /photos/undefined/serve and albums showed blank.
 interface Album {
   name: string;

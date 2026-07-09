@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor, act } from "@testing-library/react";
 
-// expo-local-authentication mock — mirroring useOnlineStatus.test.ts pattern
+// expo-local-authentication mock - mirroring useOnlineStatus.test.ts pattern
 vi.mock("expo-local-authentication", () => ({
   AuthenticationType: {
     FINGERPRINT: 1,
@@ -134,7 +134,7 @@ describe("useBiometricEnabled", () => {
 
     const { result } = renderHook(() => useBiometricEnabled());
     await waitFor(() => {
-      // getItemAsync will have been called — enabled stays false
+      // getItemAsync will have been called - enabled stays false
       expect(mockGetItem).toHaveBeenCalled();
     });
     expect(result.current.enabled).toBe(false);

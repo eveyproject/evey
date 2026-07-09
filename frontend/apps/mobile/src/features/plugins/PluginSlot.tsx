@@ -42,7 +42,7 @@ async function writeBundleCache(pluginId: string, entryPath: string, code: strin
   try {
     await FileSystem.writeAsStringAsync(path, code);
   } catch {
-    // disk full / cache evicted — non-fatal, just means slower next launch
+    // disk full / cache evicted - non-fatal, just means slower next launch
   }
 }
 
@@ -99,7 +99,7 @@ export interface SlotEntry {
  * Lists the enabled+running plugins that mount a frontend module in `slot`,
  * with their display name + resolved entry path. Used by the admin dashboard
  * to render a menu row per admin.nav plugin (each linking to its own dedicated
- * screen) — mobile parity with web's usePluginSlotEntries.
+ * screen) - mobile parity with web's usePluginSlotEntries.
  */
 export function usePluginSlotEntries(slot: string): SlotEntry[] {
   const isAuthenticated = useAuthStore((s) => !!s.accessToken);
@@ -212,12 +212,12 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   const [error, setError] = useState(false);
   // Three-stage gate before we mount the WebView and download a bundle that
   // can run into 1+ MB on plugins that ship a 3D engine:
-  //   1. `interactionsDone` — wait for any in-flight RN animation/transition
+  //   1. `interactionsDone` - wait for any in-flight RN animation/transition
   //      to settle (InteractionManager).
-  //   2. `inViewport` — wait until the host laid out our container (height>0
+  //   2. `inViewport` - wait until the host laid out our container (height>0
   //      means the parent scroll/list resolved our position). Keeps a plugin
   //      below the fold from running until the user scrolls there.
-  //   3. `cacheHit` — if a cached bundle is on disk, skip the network
+  //   3. `cacheHit` - if a cached bundle is on disk, skip the network
   //      altogether and feed it straight to the WebView.
   const [interactionsDone, setInteractionsDone] = useState(false);
   const [inViewport, setInViewport] = useState(false);
@@ -338,14 +338,14 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
     let cancelled = false;
     const controller = new AbortController();
     (async () => {
-      // 1. Try cache — instant on warm starts.
+      // 1. Try cache - instant on warm starts.
       const cached = await readBundleCache(pluginId, entryPath);
       if (cancelled) return;
       if (cached) {
         setBundleCode(cached);
         return;
       }
-      // 2. Cache miss — download and persist for next time.
+      // 2. Cache miss - download and persist for next time.
       try {
         const url = `${serverUrl}/api/v1/plugins/${encodeURIComponent(pluginId)}/assets/${entryPath}`;
         const res = await fetch(url, {
@@ -356,7 +356,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         const text = await res.text();
         if (cancelled) return;
         setBundleCode(text);
-        // Best-effort write — don't await, don't fail the render path.
+        // Best-effort write - don't await, don't fail the render path.
         void writeBundleCache(pluginId, entryPath, text);
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") return;
@@ -403,7 +403,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
     /* Force the document and body to fill the WebView. Without explicit
      * width:100%, the body collapses to the natural width of its largest
      * child, and a plugin's "width:100%" container then resolves against
-     * that collapsed body — Three.js canvases ended up at ~80px wide. */
+     * that collapsed body - Three.js canvases ended up at ~80px wide. */
     html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;color:${theme.colors.text};font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;}
   </style>
   <script>${PLUGIN_BRIDGE_SCRIPT}<\/script>
@@ -509,7 +509,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         // Hardware layer + GPU process so WebGL contexts (three.js / Babylon
         // / canvas 3D) actually have a backing renderer. Without these
         // Android falls back to software rendering and the canvas is silently
-        // empty — the weather plugin's 3D background was a black void.
+        // empty - the weather plugin's 3D background was a black void.
         androidLayerType="hardware"
         // Required so https://api.open-meteo.com fetches resolve over the
         // app's https origin (mixed-content default = NEVER_ALLOW).
@@ -519,7 +519,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
         allowsInlineMediaPlayback
         style={{ backgroundColor: "transparent", flex: 1 }}
         // Prevent the WebView from navigating away if a plugin link is clicked
-        // — host-side router.push is the only allowed navigation surface.
+        // - host-side router.push is the only allowed navigation surface.
         onShouldStartLoadWithRequest={(req) => {
           if (req.url === "about:blank" || req.url.startsWith("about:")) return true;
           if (req.url.startsWith(`${serverUrl ?? ""}/api/v1/plugins/`)) return true;

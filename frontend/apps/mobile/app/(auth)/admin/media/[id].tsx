@@ -109,7 +109,7 @@ export default function AdminMediaSegmentsScreen() {
       setLocalSegments((prev) =>
         prev.map((s) => (s.type === seg.type ? { ...s, isDirty: false } : s)),
       );
-      toast.success(t("admin.segments.save", "Saved") + " — OK");
+      toast.success(t("admin.segments.save", "Saved") + " - OK");
     } catch {
       toast.error(t("common.error", "An error occurred"));
     }
@@ -128,7 +128,7 @@ export default function AdminMediaSegmentsScreen() {
             try {
               await deleteSegment.mutateAsync(seg.type);
               setLocalSegments((prev) => prev.filter((s) => s.type !== seg.type));
-              toast.success(t("admin.segments.delete", "Deleted") + " — OK");
+              toast.success(t("admin.segments.delete", "Deleted") + " - OK");
             } catch {
               toast.error(t("common.error", "An error occurred"));
             }
@@ -259,7 +259,7 @@ export default function AdminMediaSegmentsScreen() {
   );
 }
 
-// Segment row sub-component — owns the local mm:ss state
+// Segment row sub-component - owns the local mm:ss state
 function SegmentRow({
   seg,
   isEpisode,

@@ -387,7 +387,7 @@ export default function AdminUsersScreen() {
             </View>
           )}
         </View>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{item.email || "—"}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{item.email || "-"}</Text>
       </View>
       <Pressable
         onPress={() => item.id && router.push(`/admin/users/${item.id}` as never)}

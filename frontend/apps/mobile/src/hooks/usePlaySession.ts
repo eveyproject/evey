@@ -17,14 +17,14 @@ const DEVICE_NAME = "Evey Mobile";
 const VIDEO_CODECS = ["h264", "hevc", "vp9"];
 // Android's player (ExoPlayer/AndroidXMedia3) demuxes Matroska/WebM natively, so
 // a compatible-codec .mkv (the bulk of a self-hosted library) can DIRECT-PLAY
-// instead of being needlessly transcoded — which is what breaks in-timeline
+// instead of being needlessly transcoded - which is what breaks in-timeline
 // seeking (transcode serves a sliding window) and shifts colors (ffmpeg). iOS's
 // AVPlayer can't demux MKV, so it stays on mp4/hls and lets the server remux it.
 const CONTAINERS = Platform.OS === "android" ? ["mp4", "mkv", "webm", "hls"] : ["mp4", "hls"];
 
 // Probe the connection state via expo-network so the server can apply the
 // per-profile max_bitrate_cellular_kbps cap when relevant. Anything that
-// isn't explicitly cellular is reported as "wifi" — wired/ethernet/unknown
+// isn't explicitly cellular is reported as "wifi" - wired/ethernet/unknown
 // don't deserve the cap, and the API only has those two values.
 async function detectNetworkType(): Promise<"wifi" | "cellular"> {
   try {
@@ -44,7 +44,7 @@ export interface PlaySessionResult {
   streamUrl: string | null;
   // The opaque stream token, exposed so the native player can also send it as an
   // Authorization: Bearer header on the source (segment auth without the token
-  // riding in every URL) — the server accepts cookie/Bearer/query alike.
+  // riding in every URL) - the server accepts cookie/Bearer/query alike.
   streamToken: string | null;
   sessionId: string | null;
   streamInfo: V1StreamInfo | null;
@@ -132,7 +132,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
         // Screen size is NOT a decode capability: the display downscales high-res
         // content for free. Sending the screen dims made the server flag
         // resolution_exceeded and transcode/downscale a 1080p/4K title the device
-        // plays natively — killing direct-play (and with it native seek + correct
+        // plays natively - killing direct-play (and with it native seek + correct
         // colors). Cap resolution ONLY when the user explicitly picks a lower
         // quality via restartWithTracks(maxHeight). (Mirrors the web player.)
         const explicitMaxHeight = maxHeight && maxHeight > 0 ? maxHeight : undefined;

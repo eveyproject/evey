@@ -47,7 +47,7 @@ export default function RootLayout() {
         await refreshAccessTokenIfNeeded();
       }
       // Re-attach JS callbacks to any background downloads that survived an
-      // app kill — the native foreground service kept them alive, but JS
+      // app kill - the native foreground service kept them alive, but JS
       // has no memory of them after a fresh process start. Without this,
       // the index never gets updated when those downloads finish.
       //

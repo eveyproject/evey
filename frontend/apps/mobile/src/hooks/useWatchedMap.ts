@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { usePlaybackServiceGetWatchHistory } from "@evey/api";
 
 /**
- * Mirror of web's useWatchedMap — fetches the last N watch-history entries
+ * Mirror of web's useWatchedMap - fetches the last N watch-history entries
  * once and exposes a map<mediaItemId, boolean>. Used by media cards across
  * the home and library to render a "watched" badge.
  *

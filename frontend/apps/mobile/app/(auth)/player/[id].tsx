@@ -123,7 +123,7 @@ export default function PlayerScreen() {
     return null;
   }, [isEpisode, parentItem?.indexNumber, media?.indexNumber]);
   const playerTitle = episodeLabel ? `${episodeLabel} - ${media?.title ?? ""}` : (media?.title ?? "");
-  // Don't open a play session for a series/season — the redirect above will
+  // Don't open a play session for a series/season - the redirect above will
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
@@ -271,7 +271,7 @@ export default function PlayerScreen() {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
       if (!mountedRef.current) return;
-      if (seekingRef.current) return; // frozen while scrubbing — see seekingRef
+      if (seekingRef.current) return; // frozen while scrubbing - see seekingRef
       setCurrentTime(ev.currentTime + transcodeOffset);
       try { setDuration(player.duration); } catch (err) { console.warn("released", err); }
     });
@@ -289,7 +289,7 @@ export default function PlayerScreen() {
       playSub.remove();
     };
     // transcodeOffset MUST be a dep: after a transcode seek it changes, and a
-    // stale closure here would keep adding the old offset (0) — the position
+    // stale closure here would keep adding the old offset (0) - the position
     // snaps back to the start even though the server restarted at the seek point.
   }, [player, transcodeOffset]);
 
@@ -439,7 +439,7 @@ export default function PlayerScreen() {
 
   // Mirror Jellyfin's behaviour: mark the item as watched once playback
   // crosses the MaxResumePct threshold (90%). The server only marks
-  // Completed=true on explicit MarkAsWatched calls — without this the user
+  // Completed=true on explicit MarkAsWatched calls - without this the user
   // had to manually toggle "watched" after every episode.
   const profileId = useAuthStore((s) => s.profileId) ?? "";
   const markAsWatchedMut = usePlaybackServiceMarkAsWatched();
@@ -480,7 +480,7 @@ export default function PlayerScreen() {
       // Optimistic: show the target immediately so the release doesn't flash the
       // pre-seek position before the first post-seek timeUpdate lands.
       setCurrentTime(targetSec);
-      // Native seek on the absolute HLS timeline — works for direct-play AND
+      // Native seek on the absolute HLS timeline - works for direct-play AND
       // transcode (the event playlist is 0-based; the server rafales any not-yet-
       // produced segment). Reloading the stream instead replayed it from the start.
       if (player) {
@@ -902,7 +902,7 @@ export default function PlayerScreen() {
                   seekPreview(seekPctRef.current);
                 }}
                 onResponderRelease={() => {
-                  // Commit the fraction tracked during move — NOT the release
+                  // Commit the fraction tracked during move - NOT the release
                   // event's locationX, which is unreliable on Android.
                   seekTo(seekPctRef.current);
                   setSeekTouchX(null);
@@ -930,7 +930,7 @@ export default function PlayerScreen() {
                 })}
               </View>
 
-              {/* Controls row — playback transport on the left, settings/track
+              {/* Controls row - playback transport on the left, settings/track
                   pickers/cast on the right (matches the web player layout). */}
               <View style={[styles.controlsRow, { marginTop: 4 }]}>
                 <Pressable onPress={() => seekBy(-skipBwd)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })} accessibilityRole="button">

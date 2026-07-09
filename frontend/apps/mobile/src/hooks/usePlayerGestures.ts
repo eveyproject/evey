@@ -54,7 +54,7 @@ export function usePlayerGestures({
   // Latest callbacks/params in a ref so the PanResponder can be built ONCE with
   // stable panHandlers. Recreating it mid-swipe (which happened whenever one of
   // these changed identity on a setState re-render) re-granted the gesture and
-  // reset gestureState.dy to ~0 — so volume/brightness barely moved ("stuck at
+  // reset gestureState.dy to ~0 - so volume/brightness barely moved ("stuck at
   // ~97% then snaps back").
   const cb = useRef({
     onSeekBy, onTogglePlayPause, onToggleControls, onVolumeChange,
@@ -170,7 +170,7 @@ export function usePlayerGestures({
           }
         },
       }),
-    // Built ONCE — all callbacks/params are read through the `cb` ref (see above),
+    // Built ONCE - all callbacks/params are read through the `cb` ref (see above),
     // so the panHandlers stay stable and a swipe is never re-granted mid-gesture.
     [flashSeek],
   );

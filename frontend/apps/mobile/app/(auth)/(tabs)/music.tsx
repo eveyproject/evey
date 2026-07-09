@@ -30,7 +30,7 @@ interface LibraryItem {
   type: string;
 }
 
-// Field names match the JSON the gRPC gateway emits — protojson serializes
+// Field names match the JSON the gRPC gateway emits - protojson serializes
 // proto field `track_number` as `trackNumber`, `id` as `id`, etc. The web app
 // maps these to its own PascalCase domain types in a select(); we just read
 // the wire shape directly here.
@@ -173,9 +173,9 @@ export default function MusicScreen() {
           <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{item.trackNumber || index + 1}</Text>
         </View>
         <View style={styles.trackInfo}>
-          <Text style={[styles.trackTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.title || "—"}</Text>
+          <Text style={[styles.trackTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.title || "-"}</Text>
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={1}>
-            {[item.artist, item.album].filter(Boolean).join(" · ") || "—"}
+            {[item.artist, item.album].filter(Boolean).join(" · ") || "-"}
           </Text>
         </View>
         {item.duration > 0 && (
@@ -225,8 +225,8 @@ export default function MusicScreen() {
             </View>
           )}
           <View style={{ padding: 8 }}>
-            <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.title || "—"}</Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{item.artist || "—"}</Text>
+            <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.title || "-"}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>{item.artist || "-"}</Text>
             {item.year > 0 && (
               <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.year} · {item.trackCount} track{item.trackCount !== 1 ? "s" : ""}</Text>
             )}
@@ -237,7 +237,7 @@ export default function MusicScreen() {
     [albumArtUri, authHeaders, theme, serverUrl],
   );
 
-  // Hooks must run on every render in the same order — keep all useCallback
+  // Hooks must run on every render in the same order - keep all useCallback
   // calls above the loading / empty early returns below. A previous version
   // declared renderArtist after the early returns, which crashed the screen
   // with "Rendered more hooks than during the previous render" once the
@@ -253,7 +253,7 @@ export default function MusicScreen() {
             {item.name?.[0]?.toUpperCase() ?? "?"}
           </Text>
         </View>
-        <Text style={[styles.artistName, { color: theme.colors.text }]} numberOfLines={2}>{item.name || "—"}</Text>
+        <Text style={[styles.artistName, { color: theme.colors.text }]} numberOfLines={2}>{item.name || "-"}</Text>
         <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
           {item.albumCount} album{item.albumCount !== 1 ? "s" : ""} · {item.trackCount} track{item.trackCount !== 1 ? "s" : ""}
         </Text>
@@ -393,7 +393,7 @@ export default function MusicScreen() {
         </View>
       ) : tab === "tracks" ? (
         <FlatList
-          // Force a fresh FlatList per tab — RN's reconciler keeps the same
+          // Force a fresh FlatList per tab - RN's reconciler keeps the same
           // instance across the ternary branches and crashes on the
           // numColumns difference (1 ↔ NUM_ALBUM_COLS) otherwise.
           key="tracks"

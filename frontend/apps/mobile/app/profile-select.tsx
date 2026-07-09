@@ -90,7 +90,7 @@ export default function ProfileSelect() {
       if (resp.accessToken) {
         useAuthStore.getState().setTokens(resp.accessToken);
       } else {
-        // No new token returned — at least pin the local profileId so AuthLayout
+        // No new token returned - at least pin the local profileId so AuthLayout
         // doesn't bounce back to /profile-select.
         setProfile(target.id);
       }

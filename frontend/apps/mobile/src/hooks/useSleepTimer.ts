@@ -16,7 +16,7 @@ interface UseSleepTimerArgs {
  * Two modes:
  *   - "minutes": tick every minute, fire `onMinutesFire` when the countdown
  *     reaches zero (caller pauses the player).
- *   - "endOfEpisode": no countdown — the host watches the player's "ended"
+ *   - "endOfEpisode": no countdown - the host watches the player's "ended"
  *     event and reads `state.kind === "endOfEpisode"` to decide whether to
  *     stop after the current item.
  */

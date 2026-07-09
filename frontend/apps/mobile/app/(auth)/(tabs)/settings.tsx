@@ -236,7 +236,7 @@ export default function SettingsScreen() {
                 </View>
               )}
             </View>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{user?.email || "—"}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{user?.email || "-"}</Text>
             {memberSince && <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 2 }}>{memberSince}</Text>}
           </View>
           <Pressable onPress={editingAccount ? () => setEditingAccount(false) : startEditAccount} hitSlop={8} accessible={true} accessibilityLabel={editingAccount ? t("common.cancel") : t("common.edit") || "Edit"} accessibilityRole="button">

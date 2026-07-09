@@ -60,7 +60,7 @@ export default function QuickConnectScreen() {
 
   // Poll for authorization. Web uses Server-Sent Events here, but
   // EventSource isn't a React Native global and Expo Go ships no SSE
-  // polyfill — polling on the existing CheckQuickConnect REST endpoint
+  // polyfill - polling on the existing CheckQuickConnect REST endpoint
   // is good enough for a 2-minute code (avg ~1.5s extra latency over SSE).
   useEffect(() => {
     if (!code) return;
@@ -76,11 +76,11 @@ export default function QuickConnectScreen() {
           router.replace("/(auth)/(tabs)");
         }
       } catch {
-        // Network blip — keep polling, the next tick retries.
+        // Network blip - keep polling, the next tick retries.
       }
     }
 
-    // 3s matches Jellyfin's mobile clients — short enough for snappy
+    // 3s matches Jellyfin's mobile clients - short enough for snappy
     // authorize→tab handoff, long enough not to hammer the server when 50
     // devices are sitting on the screen. Web uses SSE so it's instant; we
     // can't on mobile.

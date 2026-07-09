@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
-// Mock WebSocket with a controllable fake — seam is globalThis.WebSocket
+// Mock WebSocket with a controllable fake - seam is globalThis.WebSocket
 // ---------------------------------------------------------------------------
 
 interface FakeWS {
@@ -112,7 +112,7 @@ function ws(): MockWebSocket {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("useSyncPlay — message dispatch", () => {
+describe("useSyncPlay - message dispatch", () => {
   it("calls onPlay callback for 'play' message", async () => {
     const onPlay = vi.fn();
     const { result } = renderHook(() => useSyncPlay({ onPlay }));
@@ -224,7 +224,7 @@ describe("useSyncPlay — message dispatch", () => {
   });
 });
 
-describe("useSyncPlay — state transitions", () => {
+describe("useSyncPlay - state transitions", () => {
   it("sets connected=true after onopen fires", async () => {
     const { result } = renderHook(() => useSyncPlay({}));
 
@@ -300,7 +300,7 @@ describe("useSyncPlay — state transitions", () => {
   });
 });
 
-describe("useSyncPlay — send helpers", () => {
+describe("useSyncPlay - send helpers", () => {
   async function setupConnectedRoom() {
     const { result } = renderHook(() => useSyncPlay({}));
     mockFetch.mockResolvedValueOnce({ id: "room-s", code: "SEND0" });
@@ -334,7 +334,7 @@ describe("useSyncPlay — send helpers", () => {
   });
 });
 
-describe("useSyncPlay — reconnect", () => {
+describe("useSyncPlay - reconnect", () => {
   it("does not reconnect to the old room after switching rooms", async () => {
     vi.useFakeTimers();
     mockFetch

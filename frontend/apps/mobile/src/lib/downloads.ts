@@ -121,7 +121,7 @@ export async function startDownload(
   const destPath = destPathFor(mediaItemId);
 
   // Keep the unsubscribe so the progress listener is removed when the download
-  // settles — otherwise every download permanently leaks its callback into the
+  // settles - otherwise every download permanently leaks its callback into the
   // global progressListeners map (and keeps firing setState on a screen the user
   // has since left).
   const unsubscribeProgress = onProgress ? subscribeToProgress(mediaItemId, onProgress) : undefined;
@@ -169,7 +169,7 @@ export async function startDownload(
         reject(new Error(error || "Download failed"));
       });
 
-    // createDownloadTask only registers the task with the native module —
+    // createDownloadTask only registers the task with the native module -
     // start() is what actually triggers the OS download (see DownloadTask.ts
     // `start()`: dispatches `download()` to native). Without this call the
     // task sits in PENDING forever and none of the handlers fire.
