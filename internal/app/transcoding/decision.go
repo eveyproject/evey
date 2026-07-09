@@ -214,11 +214,26 @@ func MakePlaybackDecision(
 	containerFormat string,
 	client transcoding.ClientProfile,
 	maxBitrateKbps int,
+	sourcePath ...string,
 ) *transcoding.PlaybackDecision {
 	ctx, span := tracing.StartSpan(ctx, "app.transcoding.MakePlaybackDecision")
 	defer span.End()
 	span.SetAttributes(attribute.String("container.format", containerFormat))
-	return MakePlaybackDecisionWithPrefs(ctx, streams, containerFormat, client, maxBitrateKbps, DefaultTranscodingPreferences())
+	return MakePlaybackDecisionWithPrefs(ctx, streams, containerFormat, client, maxBitrateKbps, DefaultTranscodingPreferences(), sourcePath...)
+}
+
+// playabilityShadow is the optional mkvgo ops.Playability shadow comparer
+// wired by SetPlayabilityShadow. nil (the default) makes the hook at the end
+// of MakePlaybackDecisionWithPrefs an inert no-op - the decision engine above
+// it is identical either way. See playability_shadow.go.
+var playabilityShadow *PlayabilityShadow
+
+// SetPlayabilityShadow wires (or, with nil, disables) the shadow comparison
+// that runs after every MakePlaybackDecisionWithPrefs call for which a
+// sourcePath was supplied. Call sites that don't pass sourcePath are
+// unaffected either way - Observe no-ops on an empty path.
+func SetPlayabilityShadow(s *PlayabilityShadow) {
+	playabilityShadow = s
 }
 
 // MakePlaybackDecisionWithPrefs is the full entry point that also honors user prefs.
@@ -229,6 +244,11 @@ func MakePlaybackDecision(
 // convert once to []StreamSpec via toStreamSpecs and every evaluator below
 // works on that lean VO — keeping the algorithm decoupled from the library
 // entity it used to depend on field-by-field.
+//
+// sourcePath is variadic and OPTIONAL so every existing call site keeps
+// compiling unmodified: passing the media file's path as the trailing
+// argument opts that call site into the playability shadow comparison (see
+// SetPlayabilityShadow); an absent or empty path leaves it a no-op.
 func MakePlaybackDecisionWithPrefs(
 	ctx context.Context,
 	streams []*library.MediaStream,
@@ -236,6 +256,7 @@ func MakePlaybackDecisionWithPrefs(
 	client transcoding.ClientProfile,
 	maxBitrateKbps int,
 	prefs TranscodingPreferences,
+	sourcePath ...string,
 ) *transcoding.PlaybackDecision {
 	_, span := tracing.StartSpan(ctx, "app.transcoding.MakePlaybackDecisionWithPrefs")
 	defer span.End()
@@ -297,6 +318,13 @@ func MakePlaybackDecisionWithPrefs(
 		attribute.String("decision.video", d.VideoDecision),
 		attribute.String("decision.audio", d.AudioDecision),
 	)
+
+	// SHADOW MODE ONLY: observes mkvgo's independent ops.Playability verdict
+	// against d, off this call's path (nil-safe, and Observe itself spawns a
+	// detached goroutine) - never mutates d. See playability_shadow.go.
+	if len(sourcePath) > 0 {
+		playabilityShadow.Observe(ctx, sourcePath[0], d, client)
+	}
 	return d
 }
 
