@@ -1,0 +1,20 @@
+{
+  "name": "evey-plugin-cinephile",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --format=iife --target=es2019 --minify --outfile=dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.8.1"
+  },
+  "comment": "The front module has ZERO runtime dependencies: raw Canvas2D + vanilla DOM, bundled by esbuild. Every stat is computed client-side from the host's own `public` media projection - no external calls. Only the nodejs backend stub (main.js) needs runtime deps, so only @grpc ships in node_modules.",
+  "devDependencies": {
+    "esbuild": "0.25.0",
+    "typescript": "5.7.3",
+    "vitest": "2.1.9"
+  }
+}
