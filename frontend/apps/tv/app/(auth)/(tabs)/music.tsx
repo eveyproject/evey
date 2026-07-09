@@ -207,6 +207,7 @@ function LibraryChip({
   return (
     <FocusableCard
       onPress={onPress}
+      accessibilityLabel={library.name ?? ""}
       style={[
         styles.chip,
         { backgroundColor: active ? theme.colors.accent : theme.colors.surface, borderRadius: theme.radii.sm },

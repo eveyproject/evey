@@ -123,10 +123,23 @@ func TestPlaySessionRepo_GetActiveByProfile(t *testing.T) {
 	session := newTestPlaySession("ps3", string(p.ID), string(item.ID))
 	require.NoError(t, sessionRepo.Create(ctx, session))
 
+	// The list reads must carry the SAME columns as GetByID: the StartStream
+	// dedup path copies a GetActiveByProfile row verbatim into the response,
+	// so a partial SELECT silently blanks decisions/pause/cast on retries.
+	session.VideoDecision = "copy"
+	session.AudioDecision = "transcode"
+	session.IsPaused = true
+	session.CastDeviceName = "Living room TV"
+	require.NoError(t, sessionRepo.Update(ctx, session))
+
 	active, err := sessionRepo.GetActiveByProfile(ctx, string(p.ID))
 	require.NoError(t, err)
 	assert.Len(t, active, 1)
 	assert.Equal(t, session.ID, active[0].ID)
+	assert.Equal(t, "copy", active[0].VideoDecision)
+	assert.Equal(t, "transcode", active[0].AudioDecision)
+	assert.True(t, active[0].IsPaused)
+	assert.Equal(t, "Living room TV", active[0].CastDeviceName)
 }
 
 func TestPlaySessionRepo_GetHistory(t *testing.T) {

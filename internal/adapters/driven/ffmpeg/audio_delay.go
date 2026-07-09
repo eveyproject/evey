@@ -15,6 +15,8 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
@@ -26,6 +28,13 @@ const audioDelayProbeBinary = "ffprobe"
 // small entry per (file, track) ever played this process lifetime; a rewritten
 // file (new size/mtime) gets a fresh key and the stale entry just idles.
 var audioDelayCache sync.Map
+
+// audioDelayCacheLen approximates the entry count so the cache stays bounded:
+// past the cap the whole map is dropped (entries re-derive lazily) - simpler
+// and safer than LRU bookkeeping for values this cheap to recompute.
+var audioDelayCacheLen atomic.Int64
+
+const audioDelayCacheCap = 8192
 
 // audioStartDelayFor returns the delay BuildFFmpegArgs should cancel for this
 // session, or 0 (strict no-op) when it does not apply: no audio, copied audio
@@ -62,6 +71,10 @@ func audioStartDelayFor(ctx context.Context, opts transcoding.HLSProcessOpts) fl
 			slog.String("media_path", opts.FilePath),
 			slog.Int("audio_track", opts.AudioTrackIndex),
 			slog.Float64("delay_sec", d))
+	}
+	if audioDelayCacheLen.Add(1) > audioDelayCacheCap {
+		audioDelayCache.Clear()
+		audioDelayCacheLen.Store(1)
 	}
 	audioDelayCache.Store(key, d)
 	return d
@@ -103,7 +116,15 @@ func (p *Prober) ProbeMaxAudioStartDelaySec(ctx context.Context, filePath string
 	return parseMaxAudioStartDelay(out)
 }
 
+// audioDelayProbeTimeout bounds the ffprobe run: the library can sit on a
+// network mount, and a probe hung on a dead share must not wedge the caller -
+// the seek-index scan holds the job-subsystem lock for its whole run, so an
+// unbounded probe would block every future maintenance job until restart.
+const audioDelayProbeTimeout = 15 * time.Second
+
 func runAudioDelayProbe(ctx context.Context, binary, filePath string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, audioDelayProbeTimeout)
+	defer cancel()
 	out, err := exec.CommandContext(ctx, binary,
 		"-v", "error",
 		"-show_entries", "stream=codec_type,start_time:stream_disposition=attached_pic",

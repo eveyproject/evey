@@ -145,7 +145,12 @@ function OffsetStepper({ label, valueMs, onChange, disabled, hint, testId }: {
     <div className="px-4 py-2" data-testid={testId}>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">{label}</span>
-        <span className={`text-xs ${valueMs !== 0 ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}>{formatOffset(valueMs)}</span>
+        <span
+          aria-live="polite"
+          className={`text-xs ${valueMs !== 0 ? "text-[var(--accent)]" : "text-[var(--text-muted)]"}`}
+        >
+          {formatOffset(valueMs)}
+        </span>
       </div>
       <div className="flex items-center gap-2">
         <button
@@ -160,6 +165,7 @@ function OffsetStepper({ label, valueMs, onChange, disabled, hint, testId }: {
         <button
           onClick={() => onChange(0)}
           disabled={disabled || valueMs === 0}
+          aria-label={`${label} 0`}
           className="px-2 py-1 rounded text-xs text-[var(--text-muted)] hover:bg-[var(--surface-raised)] disabled:opacity-40 transition-colors-fast"
           data-testid={`${testId}-reset`}
         >

@@ -213,7 +213,7 @@ func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileI
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms
+		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name
 		 FROM play_sessions WHERE profile_id = $1 AND ended_at IS NULL
 		 ORDER BY started_at DESC`, profileID)
 	if err != nil {
@@ -256,7 +256,7 @@ func (r *PlaySessionRepository) GetHistory(ctx context.Context, f playback.PlayS
 	}
 
 	query := `SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, bandwidth_bps, started_at, ended_at, duration_ms, position_ms
+		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name
 		 FROM play_sessions`
 	if len(conditions) > 0 {
 		query += " WHERE " + strings.Join(conditions, " AND ")
@@ -369,8 +369,8 @@ func (r *PlaySessionRepository) scanPlaySessionRows(rows *sql.Rows) ([]*playback
 		var positionMs *int64
 		var durationMs *int64
 		if err := rows.Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
-			&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.BandwidthBps,
-			&s.StartedAt, &s.EndedAt, &durationMs, &positionMs); err != nil {
+			&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
+			&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused, &s.CastDeviceName); err != nil {
 			return nil, fmt.Errorf("PlaySessionRepo.scanRows: %w", err)
 		}
 		s.Duration = scanDurationMs(s.ID, durationMs)
