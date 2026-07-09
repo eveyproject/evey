@@ -198,6 +198,7 @@ function installDomStubs() {
   vi.stubGlobal("ResizeObserver", FakeResizeObserver);
   vi.stubGlobal("IntersectionObserver", FakeIntersectionObserver);
   vi.stubGlobal("Image", FakeImage);
+  vi.stubGlobal("createImageBitmap", async () => ({ width: 2, height: 3, close() {} }));
   vi.stubGlobal("requestAnimationFrame", win.requestAnimationFrame);
   vi.stubGlobal("cancelAnimationFrame", win.cancelAnimationFrame);
 
