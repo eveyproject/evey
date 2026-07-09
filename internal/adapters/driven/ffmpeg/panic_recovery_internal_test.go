@@ -2,6 +2,7 @@ package ffmpeg
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -91,5 +92,59 @@ func TestCompositeHandleReap_PanicRecovered(t *testing.T) {
 	case <-c.Done():
 	case <-time.After(2 * time.Second):
 		t.Fatal("c.done never closed after a panic in reap()")
+	}
+}
+
+// The audio-only handle carries the same contract as its video sibling: a
+// panic in its run loop must not crash the server, and must not strand the
+// waiters either. Same class of bug, same guarantee.
+func TestAudioHandleRun_PanicRecovered(t *testing.T) {
+	h := &audioHandle{
+		outputDir:    t.TempDir(),
+		playlistName: "audio.m3u8",
+		cmd:          nil, // nil deref inside run() once the wait path is reached
+		ready:        make(chan struct{}),
+		done:         make(chan struct{}),
+		stderr:       newRingBuffer(1024),
+	}
+	h.cancel = func() {}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // already-cancelled: waitForFile returns immediately, then cmd.Wait() derefs nil
+
+	waitErrCh := make(chan error, 1)
+	go func() { waitErrCh <- h.WaitReady(context.Background()) }()
+
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Fatalf("audioHandle.run() must recover internally, but panic escaped: %v", r)
+			}
+		}()
+		h.run(ctx)
+	}()
+
+	select {
+	case err := <-waitErrCh:
+		if err == nil {
+			t.Fatal("WaitReady must report the failed session, not success")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("WaitReady hung after a panic: the recovery must close ready")
+	}
+
+	select {
+	case <-h.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("Done() must close even when run() panicked")
+	}
+
+	// Guard against a trivially-passing test: the recovery path must actually
+	// have fired (nil cmd.Wait() derefs), not merely an early clean return.
+	if h.err == nil || !strings.Contains(h.err.Error(), "panic") {
+		t.Fatalf("expected the recovered panic to be recorded on the handle, got %v", h.err)
+	}
+	if h.Failure() == transcoding.FailureNone {
+		t.Error("a panicked session must not classify as FailureNone")
 	}
 }

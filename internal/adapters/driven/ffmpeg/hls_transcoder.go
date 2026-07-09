@@ -1871,6 +1871,7 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 type audioHandle struct {
 	outputDir    string
 	playlistName string
+	readyOnce    sync.Once // guards ready: run()'s error paths AND its panic recovery can both race to close it
 	mu           sync.Mutex
 	cmd          *exec.Cmd
 	cancel       context.CancelFunc
@@ -1882,6 +1883,12 @@ type audioHandle struct {
 	paused       bool
 }
 
+// closeReady closes the ready channel exactly once, mirroring hlsHandle: the
+// normal paths and the panic recovery below both reach it.
+func (h *audioHandle) closeReady() {
+	h.readyOnce.Do(func() { close(h.ready) })
+}
+
 func (h *audioHandle) setExitErr(err error) {
 	h.mu.Lock()
 	h.exitErr = err
@@ -1890,6 +1897,19 @@ func (h *audioHandle) setExitErr(err error) {
 
 func (h *audioHandle) run(ctx context.Context) {
 	defer close(h.done)
+	// Same contract as hlsHandle.run: an unrecovered panic here would crash the
+	// server AND strand every WaitReady()/cache.Wait() caller until its budget
+	// expires. Recover, mark the session failed, unblock the waiters.
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic in hls audio ffmpeg run loop",
+				slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
+			h.err = fmt.Errorf("panic in hls audio transcoder run loop: %v", r)
+			h.setExitErr(h.err)
+			h.cancel()
+			h.closeReady()
+		}
+	}()
 
 	playlistPath := filepath.Join(h.outputDir, h.playlistName)
 	if err := waitForFile(ctx, playlistPath, 30*time.Second, 100*time.Millisecond); err != nil {
@@ -1900,11 +1920,11 @@ func (h *audioHandle) run(ctx context.Context) {
 		if we != nil {
 			slog.Debug("ffmpeg audio wait after cancel", slog.Any("err", we))
 		}
-		close(h.ready)
+		h.closeReady()
 		return
 	}
 
-	close(h.ready)
+	h.closeReady()
 
 	we := h.cmd.Wait()
 	h.setExitErr(we)
