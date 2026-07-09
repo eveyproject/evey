@@ -45,10 +45,21 @@ type fakeKfProber struct {
 	block bool          // when true, blocks until the ctx dies (simulates the ffprobe fallback)
 	delay time.Duration // sleeps before answering (simulates the mkvgo cluster walk)
 	calls atomic.Int32
+	// concurrency gauge: tracks the peak number of probes running at once.
+	active    atomic.Int32
+	maxActive atomic.Int32
 }
 
 func (f *fakeKfProber) ProbeKeyframes(ctx context.Context, _ string) ([]int64, error) {
 	f.calls.Add(1)
+	cur := f.active.Add(1)
+	for {
+		prev := f.maxActive.Load()
+		if cur <= prev || f.maxActive.CompareAndSwap(prev, cur) {
+			break
+		}
+	}
+	defer f.active.Add(-1)
 	if f.block {
 		<-ctx.Done()
 		return nil, ctx.Err()
@@ -123,4 +134,37 @@ func TestKeyframeOnDemand_NilAndEmptyPathSafe(t *testing.T) {
 
 	k2 := apptranscoding.NewKeyframeOnDemand(&fakeKfStore{}, &fakeKfProber{}, nil)
 	assert.False(t, k2.TryIndex(context.Background(), "m1", ""))
+}
+
+// A burst of first-plays on distinct freshly-added files must not spawn one
+// concurrent cluster walk per file: the global slot cap bounds how many
+// detached probes run at once, so the weak-NAS I/O the project targets is
+// never saturated. Files that miss a slot transcode this playback and are
+// left to the paced background worker.
+func TestKeyframeOnDemand_GlobalConcurrencyCap(t *testing.T) {
+	store := &fakeKfStore{rows: 1}
+	prober := &fakeKfProber{block: true} // every probe blocks until its hard cap
+	const cap = 2
+	k := apptranscoding.NewKeyframeOnDemand(store, prober, nil).
+		WithInlineBudget(20 * time.Millisecond).
+		WithMaxConcurrent(cap)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			k.TryIndex(context.Background(), "mi-"+string(rune('a'+n)), "/f.mkv")
+		}(i)
+	}
+	wg.Wait()
+	// Give the detached goroutines that DID get a slot a moment to enter the probe.
+	time.Sleep(50 * time.Millisecond)
+
+	if got := prober.maxActive.Load(); got > cap {
+		t.Fatalf("peak concurrent probes = %d, must not exceed the cap %d", got, cap)
+	}
+	if prober.calls.Load() == 0 {
+		t.Fatal("expected at least one probe to run")
+	}
 }

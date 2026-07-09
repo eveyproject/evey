@@ -44,11 +44,21 @@ const keyframeOnDemandHardCap = 3 * time.Minute
 // worker owns the slow path).
 const keyframeOnDemandRetryAfter = time.Hour
 
+// keyframeOnDemandMaxConcurrent bounds how many detached probes run at once
+// ACROSS all media. The inflight set only dedups the SAME id; without a global
+// cap a burst of first-plays on freshly added files (each a multi-second mkvgo
+// cluster walk on a cue-less MKV) would spawn one detached walk per file and
+// saturate the I/O of the weak NAS the project targets. When the slots are
+// full the negotiation returns false immediately (this playback transcodes,
+// pinned as usual) and the paced background worker indexes the file later.
+const keyframeOnDemandMaxConcurrent = 2
+
 type KeyframeOnDemand struct {
 	store  KeyframeBackfillStore
 	prober KeyframeProber
 	logger *slog.Logger
 	budget time.Duration
+	sem    chan struct{}
 
 	mu       sync.Mutex
 	inflight map[string]struct{}  // media IDs probed right now (skip duplicates)
@@ -64,6 +74,7 @@ func NewKeyframeOnDemand(store KeyframeBackfillStore, prober KeyframeProber, log
 		prober:   prober,
 		logger:   logger.With("component", "keyframe_ondemand"),
 		budget:   keyframeOnDemandBudget,
+		sem:      make(chan struct{}, keyframeOnDemandMaxConcurrent),
 		inflight: make(map[string]struct{}),
 		failed:   make(map[string]time.Time),
 	}
@@ -74,6 +85,15 @@ func NewKeyframeOnDemand(store KeyframeBackfillStore, prober KeyframeProber, log
 func (k *KeyframeOnDemand) WithInlineBudget(d time.Duration) *KeyframeOnDemand {
 	if d > 0 {
 		k.budget = d
+	}
+	return k
+}
+
+// WithMaxConcurrent overrides the global detached-probe cap (tests; production
+// keeps the default). Chainable.
+func (k *KeyframeOnDemand) WithMaxConcurrent(n int) *KeyframeOnDemand {
+	if n > 0 {
+		k.sem = make(chan struct{}, n)
 	}
 	return k
 }
@@ -103,9 +123,25 @@ func (k *KeyframeOnDemand) TryIndex(ctx context.Context, mediaID, filePath strin
 	k.inflight[mediaID] = struct{}{}
 	k.mu.Unlock()
 
+	// Claim a global probe slot without blocking: when every slot is taken the
+	// negotiation must not queue (that would stall the player) nor spawn an
+	// unbounded walk - it releases its inflight claim and lets the background
+	// worker own this file.
+	select {
+	case k.sem <- struct{}{}:
+	default:
+		k.mu.Lock()
+		delete(k.inflight, mediaID)
+		k.mu.Unlock()
+		k.logger.Info("keyframe on-demand: probe slots full, leaving to the background worker",
+			slog.String("media_id", mediaID))
+		return false
+	}
+
 	done := make(chan bool, 1)
 	go func() {
 		defer func() {
+			<-k.sem
 			k.mu.Lock()
 			delete(k.inflight, mediaID)
 			k.mu.Unlock()
