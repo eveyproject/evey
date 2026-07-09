@@ -467,7 +467,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// so Close() cancels every in-flight pre-warm (clean test teardown).
 	if fp, fpErr := h.buildFingerprint(r, mediaID, item, streams); fpErr == nil {
 		if producer := h.producerForRequest(r.Context(), r, streams, item); producer != nil {
-			producer.PreWarm(fp, 0)
+			producer.PreWarm(fp, profileIdx, 0)
 		}
 	}
 }

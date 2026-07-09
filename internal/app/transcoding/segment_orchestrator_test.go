@@ -622,6 +622,36 @@ func TestOrchestrator_SingleVariant_FlagOn_PerRungIsolation(t *testing.T) {
 		"SingleVariant=true: three sessions live (one per rung)")
 }
 
+// TestOrchestrator_PreWarm_SingleVariant_TargetsRequestedVariant asserts that
+// PreWarm forwards the requested variantIdx instead of hard-coding rung 0.
+// Under SingleVariant=true each rung gets its own ffmpeg, so pre-warming the
+// variant the player actually asked for (not rung 0, which nobody will ever
+// watch) is the whole point of the fix: pre-warming the wrong rung wastes a
+// full ffmpeg process (~720MB RSS + a core, measured) that is never consumed.
+func TestOrchestrator_PreWarm_SingleVariant_TargetsRequestedVariant(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+
+	opts := testOpts()
+	opts.SingleVariant = true
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+
+	fp := multiProfileFingerprint(t) // 3-rung ladder: indices 0, 1, 2
+	const wantVariant = 2
+	o.PreWarm(fp, wantVariant, 0)
+	o.Close() // drains prewarmWG before returning
+
+	require.Equal(t, 1, proc.startCount(), "PreWarm must spawn exactly one ffmpeg")
+	got := proc.lastOpts()
+	assert.Equal(t, wantVariant, got.VariantIndex,
+		"PreWarm must target the requested variant, not hard-coded rung 0")
+	require.Len(t, got.Profiles, 1,
+		"SingleVariant=true: PreWarm must warm only the requested rung's profile")
+	assert.Equal(t, fp.Profiles[wantVariant].Name, got.Profiles[0].Name,
+		"PreWarm must warm the requested rung's profile, not rung 0's")
+}
+
 // multiProfileFingerprint returns a fingerprint with a 3-rung ABR ladder for
 // tests that need to exercise multi-profile behaviour.
 func multiProfileFingerprint(t *testing.T) DecisionFingerprint {

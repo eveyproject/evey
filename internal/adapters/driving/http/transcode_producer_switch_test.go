@@ -33,12 +33,12 @@ func (s *sentinelProducer) Profiles(base []domaintranscoding.HLSProfile, _ apptr
 func (s *sentinelProducer) EnsureSegmentRange(_ context.Context, _ apptranscoding.DecisionFingerprint, _, _ int) error {
 	return nil
 }
-func (s *sentinelProducer) PreWarm(_ apptranscoding.DecisionFingerprint, _ int) {}
-func (s *sentinelProducer) WaitBudget() time.Duration                           { return 0 }
-func (s *sentinelProducer) NotifyClientHint(_ string, _ int, _ bool, _ int)     {}
-func (s *sentinelProducer) ActiveSessionCount() int                             { return 0 }
-func (s *sentinelProducer) RemoveSession(_ string)                              {}
-func (s *sentinelProducer) Close()                                              {}
+func (s *sentinelProducer) PreWarm(_ apptranscoding.DecisionFingerprint, _, _ int) {}
+func (s *sentinelProducer) WaitBudget() time.Duration                              { return 0 }
+func (s *sentinelProducer) NotifyClientHint(_ string, _ int, _ bool, _ int)        {}
+func (s *sentinelProducer) ActiveSessionCount() int                                { return 0 }
+func (s *sentinelProducer) RemoveSession(_ string)                                 {}
+func (s *sentinelProducer) Close()                                                 {}
 
 // sentinelManifestProducer is a sentinelProducer that ALSO implements
 // ManifestProvider (its Manifest errors) — exactly like the software TRANSCODE

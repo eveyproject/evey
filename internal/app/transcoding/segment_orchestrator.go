@@ -509,7 +509,7 @@ func (o *SegmentOrchestrator) evictLRUIfFullLocked(hash string) *orchestratorSes
 // parallel with the player parsing the playlist. Saves a 200 ms RTT in
 // the cold-start path AND gives ffmpeg an extra head start when its first
 // segment is slow (4K HEVC software decode).
-func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, startSegIdx int) {
+func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, variantIdx, startSegIdx int) {
 	// Skip cleanly if Close already ran. shutdownCtx.Err() is non-nil after
 	// shutdownCancel — spawning a goroutine then would race the cache wipe.
 	if o.shutdownCtx.Err() != nil {
@@ -526,10 +526,13 @@ func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 		}
 		ctx, cancel := context.WithTimeout(o.shutdownCtx, 30*time.Second)
 		defer cancel()
-		// Pre-warm always targets variant 0 (the base rung). In single-variant
-		// mode only that rung is warmed; the player will fetch other rungs on
-		// demand. In multi-variant mode this warms the whole ladder as before.
-		if err := o.EnsureSegmentRange(ctx, fp, 0, startSegIdx); err != nil {
+		// Pre-warm targets the caller's requested variantIdx. In single-variant
+		// mode that's the ONLY rung warmed - warming rung 0 unconditionally would
+		// spawn a whole ffmpeg the player never asked for. In multi-variant mode
+		// variantIdx is forwarded but ignored for session-matching (same as
+		// EnsureSegmentRange everywhere else), so this is byte-for-byte identical
+		// to before.
+		if err := o.EnsureSegmentRange(ctx, fp, variantIdx, startSegIdx); err != nil {
 			o.logger.Debug("orchestrator: prewarm failed (non-fatal)",
 				slog.String("media_id", fp.MediaID),
 				slog.Any("err", err))

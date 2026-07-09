@@ -787,7 +787,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 // PreWarm starts the one software ffmpeg for fp in the background (cold-start
 // optimisation: kick the slow software decode off before the player asks for
 // segment 0). Bounded by shutdownCtx so Close cancels in-flight pre-warms.
-func (p *SoftwareProducer) PreWarm(fp DecisionFingerprint, startSegIdx int) {
+func (p *SoftwareProducer) PreWarm(fp DecisionFingerprint, variantIdx, startSegIdx int) {
 	if p.shutdownCtx.Err() != nil {
 		return
 	}
@@ -800,7 +800,7 @@ func (p *SoftwareProducer) PreWarm(fp DecisionFingerprint, startSegIdx int) {
 		}
 		ctx, cancel := context.WithTimeout(p.shutdownCtx, 30*time.Second)
 		defer cancel()
-		if err := p.EnsureSegmentRange(ctx, fp, 0, startSegIdx); err != nil {
+		if err := p.EnsureSegmentRange(ctx, fp, variantIdx, startSegIdx); err != nil {
 			p.logger.Debug("software: prewarm failed (non-fatal)",
 				slog.String("media_id", fp.MediaID), slog.Any("err", err))
 		}

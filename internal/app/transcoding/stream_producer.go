@@ -58,7 +58,12 @@ type StreamProducer interface {
 
 	// PreWarm starts producing segments for fp in the background (cold-start
 	// optimisation). Fire-and-forget, bounded by the producer's own lifecycle.
-	PreWarm(fp DecisionFingerprint, startSegIdx int)
+	// variantIdx is the rung the caller is about to serve: in SingleVariant mode
+	// each rung has its own ffmpeg, so pre-warming the wrong one wastes a whole
+	// process the player will never consume. In multi-variant mode variantIdx is
+	// forwarded to EnsureSegmentRange but ignored for session-matching, same as
+	// everywhere else in that path.
+	PreWarm(fp DecisionFingerprint, variantIdx, startSegIdx int)
 
 	// WaitBudget is how long the segment handler should block on cache.Wait for
 	// a segment from this producer. HW: ~25s. Software: long (the single paced
