@@ -79,7 +79,7 @@ describe("applySubtitleOffset", () => {
   it("shifts loaded cues in place, preserving duration", async () => {
     const { applySubtitleOffset } = await import("./useSubtitleManager");
     const { video, cue } = videoWithCue(10, 12.5);
-    applySubtitleOffset(video, 0.3);
+    applySubtitleOffset(video, 0.3, new WeakMap());
     expect(cue.startTime).toBeCloseTo(10.3);
     expect(cue.endTime).toBeCloseTo(12.8);
   });
@@ -87,8 +87,22 @@ describe("applySubtitleOffset", () => {
   it("clamps a cue at zero without collapsing it", async () => {
     const { applySubtitleOffset } = await import("./useSubtitleManager");
     const { video, cue } = videoWithCue(0.2, 2.2);
-    applySubtitleOffset(video, -1);
+    applySubtitleOffset(video, -1, new WeakMap());
     expect(cue.startTime).toBe(0);
-    expect(cue.endTime).toBeCloseTo(2);
+    expect(cue.endTime).toBeCloseTo(1.2);
+  });
+
+  // Clamping must not LOSE the original timing: shifting a head cue past zero
+  // and then resetting the offset has to land back on the source times
+  // exactly (the naive delta approach drifted by the clamped amount).
+  it("is exactly reversible across a zero clamp", async () => {
+    const { applySubtitleOffset } = await import("./useSubtitleManager");
+    const { video, cue } = videoWithCue(0.2, 2.2);
+    const base = new WeakMap();
+    applySubtitleOffset(video, -1, base);
+    expect(cue.startTime).toBe(0);
+    applySubtitleOffset(video, 0, base);
+    expect(cue.startTime).toBeCloseTo(0.2);
+    expect(cue.endTime).toBeCloseTo(2.2);
   });
 });

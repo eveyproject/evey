@@ -39,21 +39,34 @@ export function cueFontSizePx(videoHeightPx: number, fontSizePct: number): numbe
   return Math.max(MIN_CUE_FONT_PX, videoHeightPx * NATIVE_CUE_HEIGHT_RATIO * (fontSizePct / 100));
 }
 
-// applySubtitleOffset shifts every cue of the showing tracks by deltaSec.
-// Cue times are mutated IN PLACE (the browser re-schedules them live), so a
-// slider change lands on the very next cue without reloading the track.
-// Negative results clamp at 0 (a cue cannot start before the media).
-// Exported for tests.
-export function applySubtitleOffset(video: HTMLVideoElement, deltaSec: number) {
-  if (deltaSec === 0) return;
+// CueBaseTimes remembers each cue's SOURCE timing the first time an offset
+// touches it, so every application computes absolute source+offset instead of
+// chaining deltas - a head cue clamped at zero would otherwise lose the
+// clamped amount and drift on the way back.
+export type CueBaseTimes = WeakMap<TextTrackCue, { start: number; end: number }>;
+
+// applySubtitleOffset sets every cue of the loaded tracks to its SOURCE time
+// plus totalOffsetSec. Cue times are mutated IN PLACE (the browser
+// re-schedules them live), so a stepper change lands on the very next cue
+// without reloading the track. Times clamp at 0 for display, but the stored
+// base keeps the operation exactly reversible. Exported for tests.
+export function applySubtitleOffset(
+  video: HTMLVideoElement,
+  totalOffsetSec: number,
+  base: CueBaseTimes,
+) {
   for (let i = 0; i < video.textTracks.length; i++) {
     const cues = video.textTracks[i].cues;
     if (!cues) continue;
     for (let j = 0; j < cues.length; j++) {
       const cue = cues[j];
-      const dur = cue.endTime - cue.startTime;
-      cue.startTime = Math.max(0, cue.startTime + deltaSec);
-      cue.endTime = cue.startTime + dur;
+      let src = base.get(cue);
+      if (!src) {
+        src = { start: cue.startTime, end: cue.endTime };
+        base.set(cue, src);
+      }
+      cue.startTime = Math.max(0, src.start + totalOffsetSec);
+      cue.endTime = Math.max(cue.startTime, src.end + totalOffsetSec);
     }
   }
 }
@@ -91,9 +104,11 @@ export function useSubtitleManager({
   subtitleOffsetMs = 0,
 }: UseSubtitleManagerArgs) {
   const externalSubUrlRef = useRef<string | null>(null);
-  // Offset already applied to the cues currently loaded: a change applies the
-  // DELTA; a fresh track load re-applies the full offset (ref reset below).
-  const appliedOffsetMsRef = useRef(0);
+  // Source timings of the cues currently loaded - lets every offset change
+  // apply the ABSOLUTE value (exactly reversible across the zero clamp). A
+  // fresh track load brings fresh cue objects, so stale entries just fall out
+  // of the WeakMap.
+  const cueBaseTimesRef = useRef<CueBaseTimes>(new WeakMap());
   const styleElRef = useRef<HTMLStyleElement | null>(null);
   // The track effect must see the current position without re-creating the
   // <track> element on a position toggle.
@@ -102,14 +117,11 @@ export function useSubtitleManager({
   const offsetRef = useRef(subtitleOffsetMs);
   offsetRef.current = subtitleOffsetMs;
 
-  // Live resync: apply only the delta vs what the loaded cues already carry.
+  // Live resync: re-anchor every loaded cue to source time + offset.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const deltaMs = subtitleOffsetMs - appliedOffsetMsRef.current;
-    if (deltaMs === 0) return;
-    applySubtitleOffset(video, deltaMs / 1000);
-    appliedOffsetMsRef.current = subtitleOffsetMs;
+    applySubtitleOffset(video, subtitleOffsetMs / 1000, cueBaseTimesRef.current);
   }, [subtitleOffsetMs, videoRef]);
 
   // Dynamic <track> element management
@@ -145,14 +157,13 @@ export function useSubtitleManager({
     // Re-anchor the cues once the VTT is parsed — without this, a freshly
     // loaded track keeps the browser default (glued to the bottom edge) until
     // the user happens to toggle the position setting.
-    appliedOffsetMsRef.current = 0;
+    cueBaseTimesRef.current = new WeakMap();
     track.addEventListener("load", () => {
       applyCuePosition(video, positionRef.current);
       // A freshly parsed track carries the source timings: bring it to the
       // user's current resync setting.
       if (offsetRef.current !== 0) {
-        applySubtitleOffset(video, offsetRef.current / 1000);
-        appliedOffsetMsRef.current = offsetRef.current;
+        applySubtitleOffset(video, offsetRef.current / 1000, cueBaseTimesRef.current);
       }
     });
     video.appendChild(track);
