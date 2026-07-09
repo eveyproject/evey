@@ -269,6 +269,61 @@ func TestInstallPlugin_UpgradeHigherVersion(t *testing.T) {
 	assert.Equal(t, "2.0.0", all[0].Version)
 }
 
+// An upgrade must keep the SAME plugin id and Update the row in place, never
+// delete+recreate it. plugin_data (per-user/profile config) FK-cascades on
+// plugins(id) ON DELETE, so a fresh id + row delete silently wipes every user's
+// settings on every update. A stable id + in-place Update is what lets config
+// survive an update whose settings schema is unchanged.
+func TestInstallPlugin_UpgradePreservesPluginID(t *testing.T) {
+	svc, pluginRepo, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifestVersioned("keep-id", "1.0.0")
+
+	v1, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	parser.Result = goManifestVersioned("keep-id", "2.0.0")
+	v2, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v2"))
+	require.NoError(t, err)
+
+	assert.Equal(t, v1.ID, v2.ID, "upgrade must reuse the plugin id, not mint a new one")
+
+	// The original row still lives under the same id, updated in place - the id
+	// was never deleted (which would cascade-wipe plugin_data).
+	got, err := pluginRepo.GetByID(context.Background(), v1.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0", got.Version)
+}
+
+// The server-level config the admin set and the enabled state must survive an
+// update (the manifest resets Config to empty / Enabled to true). Together with
+// the stable id preserving plugin_data, an update keeps both user and server
+// config when the settings schema is unchanged.
+func TestInstallPlugin_UpgradePreservesServerConfigAndDisabledState(t *testing.T) {
+	svc, pluginRepo, _, parser, _, _ := newTestInstallerService()
+	parser.Result = goManifestVersioned("keep-cfg", "1.0.0")
+
+	v1, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
+	require.NoError(t, err)
+
+	// Admin sets a global config value and disables the plugin.
+	stored, err := pluginRepo.GetByID(context.Background(), v1.ID)
+	require.NoError(t, err)
+	stored.Config = map[string]any{"apiKey": "secret"}
+	stored.Enabled = false
+	require.NoError(t, pluginRepo.Update(context.Background(), stored))
+
+	parser.Result = goManifestVersioned("keep-cfg", "2.0.0")
+	_, err = svc.InstallPlugin(context.Background(), tmpZip(t, "v2"))
+	require.NoError(t, err)
+
+	got, err := pluginRepo.GetByID(context.Background(), v1.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "2.0.0", got.Version)
+	assert.Equal(t, map[string]any{"apiKey": "secret"}, got.Config, "server config must survive the update")
+	assert.False(t, got.Enabled, "disabled state must survive the update")
+	assert.Equal(t, plugindomain.Stopped, got.Status, "a disabled plugin must not be re-started on update")
+}
+
 func TestInstallPlugin_UpgradeLowerVersionRejected(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
 	parser.Result = goManifestVersioned("downgrade-me", "2.0.0")

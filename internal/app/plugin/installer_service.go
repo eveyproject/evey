@@ -361,11 +361,18 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 				return nil, err
 			}
 		}
-		if err := s.UninstallPlugin(ctx, existing.ID); err != nil {
-			return nil, fmt.Errorf("uninstall old version: %w", err)
+		// In-place upgrade: reuse the existing id and Update the row (below)
+		// instead of delete+recreate. plugin_data (per-user/profile config)
+		// FK-cascades on plugins(id) ON DELETE, so deleting the row would
+		// silently wipe every user's/profile's settings on every update. Tear
+		// down only the old runtime + files here; the DB row (and its config)
+		// stays and is overwritten in place, so config survives an update whose
+		// settings schema is unchanged.
+		if err := s.teardownForUpgrade(ctx, existing); err != nil {
+			return nil, fmt.Errorf("prepare in-place upgrade: %w", err)
 		}
-		slog.Info("upgrading plugin", slog.String("name", manifest.Name),
-			slog.String("from", existing.Version), slog.String("to", manifest.Version))
+		slog.Info("upgrading plugin in place", slog.String("name", manifest.Name),
+			slog.String("id", existing.ID), slog.String("from", existing.Version), slog.String("to", manifest.Version))
 	}
 
 	sourceHash, hashErr := hashFile(zipPath)
@@ -386,7 +393,13 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		}
 	}
 
-	p, err := plugin.NewPluginFromManifest(id.New("plg-"), sourceHash, manifest)
+	// Reuse the id on upgrade so the row can be Updated in place (keeping
+	// plugin_data); mint a fresh one only for a genuinely new install.
+	pluginID := id.New("plg-")
+	if existing != nil {
+		pluginID = existing.ID
+	}
+	p, err := plugin.NewPluginFromManifest(pluginID, sourceHash, manifest)
 	if err != nil {
 		return nil, fmt.Errorf("build plugin: %w", err)
 	}
@@ -398,6 +411,16 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	}
 
 	p.Signature = sigStatus
+
+	if existing != nil {
+		// Carry the server-level config the admin set and the enabled state
+		// across the update - the manifest resets Config to empty and Enabled to
+		// true. (Per-user/profile config lives in plugin_data and is preserved by
+		// the reused id.) The new ConfigSchema still comes from the manifest, so
+		// added fields appear; unchanged fields keep their stored values.
+		p.Config = existing.Config
+		p.Enabled = existing.Enabled
+	}
 
 	if s.installer != nil {
 		installDir := filepath.Join(s.pluginDir, p.ID)
@@ -511,11 +534,18 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		p.AnalysisReport = report
 	}
 
-	if err := s.plugins.Create(ctx, p); err != nil {
+	// Update the existing row in place on upgrade (id reused above) so the
+	// FK-referenced id is stable and plugin_data is not cascade-deleted; Create
+	// a fresh row only for a new install.
+	if existing != nil {
+		if err := s.plugins.Update(ctx, p); err != nil {
+			return nil, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
+		}
+	} else if err := s.plugins.Create(ctx, p); err != nil {
 		return nil, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 	}
 
-	if !p.IsTheme() {
+	if !p.IsTheme() && p.Enabled {
 		if err := s.runner.Start(ctx, p); err != nil {
 			p.Status = plugin.Error
 			p.ErrorMessage = err.Error()
@@ -529,6 +559,10 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			s.permChecker.LoadPermissions(p.ID, p.Permissions)
 		}
 		p.Status = plugin.Initializing
+	} else if !p.IsTheme() {
+		// Upgrading a plugin the admin had disabled: keep it stopped rather than
+		// silently re-starting it on update.
+		p.Status = plugin.Stopped
 	} else {
 		p.Status = plugin.Running
 	}
@@ -709,6 +743,49 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 // permissions/event hooks fire. It always returns nil except when the plugin
 // id is unknown — the admin must never see "uninstall failed" because the
 // runner refused to die or a file was momentarily locked.
+// teardownForUpgrade releases the OLD version's runtime and files ahead of an
+// in-place upgrade: it stops the runner, drops cached permissions and wipes the
+// install dir, but deliberately leaves the DB row (and its plugin_data, which
+// FK-cascades on plugins.id ON DELETE) intact. The caller reuses the same id and
+// Updates the row, so the plugin's per-user/profile config survives the update.
+func (s *InstallerService) teardownForUpgrade(ctx context.Context, existing *plugin.Plugin) error {
+	if existing.Status == plugin.Running {
+		stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		stopErr := s.runner.Stop(stopCtx, existing.ID)
+		cancel()
+		if stopErr != nil {
+			slog.Warn("stop old plugin before upgrade failed, killing",
+				slog.String("pluginID", existing.ID), slog.Any("err", stopErr))
+			if killErr := s.runner.Kill(existing.ID); killErr != nil {
+				slog.Warn("kill old plugin before upgrade failed",
+					slog.String("pluginID", existing.ID), slog.Any("err", killErr))
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	if s.permChecker != nil {
+		s.permChecker.InvalidatePermissions(existing.ID)
+	}
+	if existing.InstallDir != "" && s.fs != nil {
+		if rmErr := s.fs.RemoveAll(existing.InstallDir); rmErr != nil {
+			// Retry the transient busy-file window (bwrap unmount) a couple of
+			// times, then give up: the new version re-extracts into the same
+			// path (overwriting), and any stuck dir is reaped by CleanupOrphans.
+			for _, wait := range uninstallRetryDelays {
+				time.Sleep(wait)
+				if rmErr = s.fs.RemoveAll(existing.InstallDir); rmErr == nil {
+					break
+				}
+			}
+			if rmErr != nil {
+				slog.Warn("remove old plugin dir before upgrade (will overwrite)",
+					slog.String("pluginID", existing.ID), slog.String("dir", existing.InstallDir), slog.Any("err", rmErr))
+			}
+		}
+	}
+	return nil
+}
+
 func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.plugin.UninstallPlugin")
 	defer span.End()
