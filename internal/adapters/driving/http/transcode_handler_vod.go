@@ -49,20 +49,19 @@ const ErrCodeFileNotReady = "file_not_ready"
 // "transcoding capacity".
 const ErrCodeTooManyStreams = "too_many_streams"
 
-// cheapestFingerprintHeight is the SHORTEST rung this stream could fall back
-// to. Probing with it answers "can this viewer be served at all?", never "can
-// they have the rung they asked for" - so an early shed only ever refuses
-// someone the host genuinely cannot serve at any quality. Being wrong the
-// other way (admitting here, shedding at the segment) merely delays the same
-// answer; being wrong this way would deny a playable stream.
-func cheapestFingerprintHeight(fp apptranscoding.DecisionFingerprint) int {
-	best := 0
+// fingerprintHeights lists the distinct positive heights this fingerprint's
+// ladder offers, unordered. The shed probe tries each: a request is refused
+// only when NO height admits - never because one particular rung does not.
+func fingerprintHeights(fp apptranscoding.DecisionFingerprint) []int {
+	seen := make(map[int]bool, len(fp.Profiles))
+	out := make([]int, 0, len(fp.Profiles))
 	for _, p := range fp.Profiles {
-		if p.Height > 0 && (best == 0 || p.Height < best) {
-			best = p.Height
+		if p.Height > 0 && !seen[p.Height] {
+			seen[p.Height] = true
+			out = append(out, p.Height)
 		}
 	}
-	return best
+	return out
 }
 
 // shedIfHostFull probes the limiter and, when this stream cannot be admitted,
@@ -73,7 +72,7 @@ func cheapestFingerprintHeight(fp apptranscoding.DecisionFingerprint) int {
 // Advisory by construction: two viewers can both pass the probe and race at
 // spawn. That is fine - the loser is shed at the segment, which remains the
 // authoritative gate.
-func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, probeHeight func(apptranscoding.DecisionFingerprint) int) bool {
+func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, probeHeights func(apptranscoding.DecisionFingerprint) []int) bool {
 	if h.videoAdmission == nil {
 		return false
 	}
@@ -82,8 +81,19 @@ func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, med
 		return false // remuxed, never encoded: no capacity slot is taken
 	}
 	fp, fpErr := h.buildFingerprint(r, mediaID, item, streams)
-	if fpErr != nil || h.videoAdmission(fp.Hash(), probeHeight(fp)) {
+	if fpErr != nil {
 		return false
+	}
+	// Price in the class this session will actually be billed as (GPU vs CPU
+	// pool, HDR/AV1 software tables). Probe EVERY candidate height rather than
+	// a single "cheapest" one: hw costs are not monotonic in height (a 720p
+	// NVENC rung can cost more than 1080p), so no single height is safely the
+	// cheapest a priori - the limiter prices each and one admit suffices.
+	class := h.ladderClassFor(decision, streams)
+	for _, ph := range probeHeights(fp) {
+		if h.videoAdmission(fp.Hash(), class, ph) {
+			return false
+		}
 	}
 	if copyBlockedOnlyByMissingIndex(decision, streams) {
 		if h.keyframeWarmer != nil {
@@ -194,12 +204,12 @@ type hlsVODServe struct {
 	// videoAdmission is the limiter's read-only probe, used to shed a variant
 	// playlist before a player commits to a stream. Optional (nil = no early
 	// shed; the segment route still gates authoritatively).
-	videoAdmission func(key string, topHeight int) bool
+	videoAdmission func(key string, class apptranscoding.LadderClass, topHeight int) bool
 	// admissionCeiling asks the admission shaper for this stream's pinned
 	// ladder ceiling (see profilesForDecision's third cap). Optional: nil
 	// keeps the ladder whole and viewers over budget are shed instead of
 	// downgraded.
-	admissionCeiling func(key string, heights []int) (int, bool)
+	admissionCeiling func(key string, class apptranscoding.LadderClass, heights []int) (int, bool)
 	// admissionBind reports the fingerprint hash built under a pin so the
 	// shaper can freeze the ceiling while that session holds a slot. Optional.
 	admissionBind func(key, fingerprintHash string)
@@ -495,7 +505,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// never fetch - the only signal a native mobile/TV player ever sees. Probed
 	// against the CHEAPEST rung: a master is refused only when no quality at
 	// all fits, never merely because the tallest one does not.
-	if h.shedIfHostFull(w, r, mediaID, item, streams, cheapestFingerprintHeight) {
+	if h.shedIfHostFull(w, r, mediaID, item, streams, fingerprintHeights) {
 		return
 	}
 
@@ -603,11 +613,11 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// at spawn. That is fine; the loser is shed at the segment, as before.
 	// Probe with the rung actually requested: that is what the session about to
 	// spawn will encode.
-	if h.shedIfHostFull(w, r, mediaID, item, streams, func(fp apptranscoding.DecisionFingerprint) int {
+	if h.shedIfHostFull(w, r, mediaID, item, streams, func(fp apptranscoding.DecisionFingerprint) []int {
 		if profileIdx >= 0 && profileIdx < len(fp.Profiles) {
-			return fp.Profiles[profileIdx].Height
+			return []int{fp.Profiles[profileIdx].Height}
 		}
-		return cheapestFingerprintHeight(fp)
+		return fingerprintHeights(fp)
 	}) {
 		return
 	}
@@ -1667,11 +1677,31 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 		for _, p := range laddered {
 			heights = append(heights, p.Height)
 		}
-		if ceiling, forced := h.admissionCeiling(h.admissionPinKey(item, streams, decision), heights); forced && ceiling > 0 {
+		if ceiling, forced := h.admissionCeiling(h.admissionPinKey(item, streams, decision), h.ladderClassFor(decision, streams), heights); forced && ceiling > 0 {
 			laddered = domaintranscoding.CapLadderToHeight(laddered, ceiling)
 		}
 	}
 	return laddered
+}
+
+// ladderClassFor derives, from the request alone, the LadderClass this
+// stream's session will be billed as. It MUST agree with
+// apptranscoding.LadderClassOf on the fingerprint the same request builds -
+// the producers charge LadderClassOf(fp) at spawn, so a disagreement here
+// makes admission price one resource pool while the spawn consumes another.
+// TestLadderClassFor_AgreesWithFingerprint locks the equivalence.
+func (h *hlsVODServe) ladderClassFor(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) apptranscoding.LadderClass {
+	ec, accel, _, _, usable := h.effectiveVideoCodec(decision, streams)
+	switch {
+	case usable && accel != "":
+		return apptranscoding.LadderClassHW
+	case strings.EqualFold(ec, "av1"):
+		return apptranscoding.LadderClassSoftwareAV1
+	case slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"):
+		return apptranscoding.LadderClassSoftwareHDR
+	default:
+		return apptranscoding.LadderClassSoftware
+	}
 }
 
 // admissionPinKey identifies a stream for the admission shaper. Coarser than
@@ -2305,30 +2335,20 @@ func (h *hlsVODServe) notifyProducerHint(producer apptranscoding.StreamProducer,
 
 // videoAdmissionOf adapts the limiter to the handler's narrow probe, keeping a
 // TRUE-nil func when no limiter is wired (tests, hand-built servers).
-func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, int) bool {
+func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, apptranscoding.LadderClass, int) bool {
 	if l == nil {
 		return nil
 	}
-	return func(key string, topHeight int) bool {
-		// P2 threads the real class here: the handler does not yet resolve a
-		// DecisionFingerprint before this probe runs, so every stream is
-		// priced as software (byte-identical to pre-pool behaviour on a box
-		// with no hw sessions; a hw session shed here just falls back to the
-		// software table, same as CostFor's own fallback).
-		return l.CanAdmit(key, apptranscoding.LadderClassSoftware, topHeight)
-	}
+	return l.CanAdmit
 }
 
 // admissionCeilingOf / admissionBindOf adapt the shaper the same way: TRUE-nil
 // funcs when it is not wired, so the handler's nil-checks stay meaningful.
-func admissionCeilingOf(s *apptranscoding.VideoAdmissionShaper) func(string, []int) (int, bool) {
+func admissionCeilingOf(s *apptranscoding.VideoAdmissionShaper) func(string, apptranscoding.LadderClass, []int) (int, bool) {
 	if s == nil {
 		return nil
 	}
-	return func(key string, heights []int) (int, bool) {
-		// P2 threads the real class here (see videoAdmissionOf).
-		return s.CeilingFor(key, apptranscoding.LadderClassSoftware, heights)
-	}
+	return s.CeilingFor
 }
 
 func admissionBindOf(s *apptranscoding.VideoAdmissionShaper) func(string, string) {

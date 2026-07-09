@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -398,7 +397,7 @@ func TestHLSVOD_VariantPlaylist_ShedsEarlyWhenHostIsFull(t *testing.T) {
 	)
 
 	// The probe refuses everything: stand in for a host with no budget left.
-	h.videoAdmission = func(string, int) bool { return false }
+	h.videoAdmission = func(string, apptranscoding.LadderClass, int) bool { return false }
 
 	w := doVODRequest(h, "m1", "stream_0.m3u8")
 
@@ -420,7 +419,7 @@ func TestHLSVOD_VariantPlaylist_ServedNormallyWhenAdmitted(t *testing.T) {
 		allowAll(),
 		testFakeParentalChecker{},
 	)
-	h.videoAdmission = func(string, int) bool { return true }
+	h.videoAdmission = func(string, apptranscoding.LadderClass, int) bool { return true }
 
 	w := doVODRequest(h, "m1", "stream_0.m3u8")
 
@@ -454,7 +453,7 @@ func TestHLSVOD_ForcedCeiling_ShapesManifestAndFingerprintAlike(t *testing.T) {
 
 	var pinKeys []string
 	var boundHashes []string
-	h.admissionCeiling = func(key string, heights []int) (int, bool) {
+	h.admissionCeiling = func(key string, _ apptranscoding.LadderClass, heights []int) (int, bool) {
 		pinKeys = append(pinKeys, key)
 		return 720, true // the host can only afford the short rung
 	}
@@ -502,7 +501,7 @@ func TestHLSVOD_ForcedCeiling_NeverTouchesACopyRequest(t *testing.T) {
 	copyProd := apptranscoding.NewSoftwareProducer(h.cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
 	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
 	h.copyProducer = copyProd
-	h.admissionCeiling = func(string, []int) (int, bool) {
+	h.admissionCeiling = func(string, apptranscoding.LadderClass, []int) (int, bool) {
 		t.Fatal("the shaper must not be consulted for a copy request")
 		return 0, false
 	}
@@ -523,7 +522,7 @@ func TestHLSVOD_Master_ShedsWhenHostIsFull(t *testing.T) {
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
 
 	var probedHeights []int
-	h.videoAdmission = func(_ string, topHeight int) bool {
+	h.videoAdmission = func(_ string, _ apptranscoding.LadderClass, topHeight int) bool {
 		probedHeights = append(probedHeights, topHeight)
 		return false
 	}
@@ -534,10 +533,65 @@ func TestHLSVOD_Master_ShedsWhenHostIsFull(t *testing.T) {
 	assert.Equal(t, ErrCodeTooManyStreams, w.Header().Get("X-Evey-Error"))
 	assert.NotContains(t, w.Body.String(), "#EXTM3U")
 	require.NotEmpty(t, probedHeights)
-	// The master is probed against the CHEAPEST rung it advertises: refusing on
-	// the tallest would deny a viewer a stream the host could still serve lower.
-	assert.Equal(t, slices.Min(probedHeights), probedHeights[0],
-		"the master probe must use the cheapest rung, not the tallest")
+	// The master probes EVERY rung it advertises and sheds only when none
+	// admits: with per-class cost tables (hw is not monotonic in height), no
+	// single rung is safely "the cheapest" a priori.
+	assert.Greater(t, len(probedHeights), 1,
+		"a full host must have been probed at every advertised rung, not one")
+}
+
+// ladderClassFor (what admission prices) and LadderClassOf (what the spawn
+// charges) must agree for every request shape, or one resource pool is billed
+// while another is consumed. This locks the equivalence across the matrix.
+func TestLadderClassFor_AgreesWithFingerprint(t *testing.T) {
+	w, hgt := 3840, 2160
+	dur, _ := shared.NewDurationMs(60_000)
+	nvenc := domaintranscoding.EncodeCapability{
+		HWBackend:      "nvenc",
+		HWCodecs:       []string{"h264", "hevc"},
+		HWDecodeCodecs: []string{"h264", "hevc"},
+	}
+	cases := []struct {
+		name      string
+		srcCodec  string
+		hwEnabled bool
+		query     string
+	}{
+		{"software h264", "h264", false, "?vd=transcode&ad=transcode"},
+		{"hw h264", "h264", true, "?vd=transcode&ad=transcode"},
+		{"hw hevc source", "hevc", true, "?vd=transcode&ad=transcode"},
+		{"software hevc hdr-ish", "hevc", false, "?vd=transcode&ad=transcode"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			item := &domainlibrary.MediaItem{
+				ID:        "m1",
+				LibraryID: "lib1",
+				File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+			}
+			streams := []*domainlibrary.MediaStream{{
+				StreamType: domainlibrary.StreamTypeVideo,
+				Codec:      tc.srcCodec,
+				Width:      &w,
+				Height:     &hgt,
+			}}
+			h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
+			if tc.hwEnabled {
+				h.capability = func() domaintranscoding.EncodeCapability { return nvenc }
+				h.hwAccelEnabled = func() bool { return true }
+			}
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0_000.ts"+tc.query, nil)
+			req = withHTTPClaims(req, testClaims(false))
+
+			decision := h.makeDecision(req.Context(), streams, containerOf(item), sourcePathOf(item), req)
+			fp, err := h.buildFingerprint(req, "m1", item, streams)
+			require.NoError(t, err)
+
+			assert.Equal(t, apptranscoding.LadderClassOf(fp), h.ladderClassFor(decision, streams),
+				"admission must price the pool the spawn will charge")
+		})
+	}
 }
 
 func TestHLSVOD_Master_ServedWhenAdmitted(t *testing.T) {
@@ -548,7 +602,7 @@ func TestHLSVOD_Master_ServedWhenAdmitted(t *testing.T) {
 		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
 	}
 	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
-	h.videoAdmission = func(string, int) bool { return true }
+	h.videoAdmission = func(string, apptranscoding.LadderClass, int) bool { return true }
 
 	w := doVODRequest(h, "m1", "master.m3u8")
 
