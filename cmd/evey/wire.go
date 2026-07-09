@@ -908,11 +908,27 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// FPS/RequiredFPS is how many realtime sessions this box can serve. The
 	// admin may only REDUCE it (transcoding.max_video_sessions).
 	applyVideoSessionLimit := func(ctx context.Context) {
-		auto, ev := apptranscoding.AutoVideoSessionCapacity(calibrationSvc.Current().BenchSamples, sysinfo.CPUBudget())
-		effective := apptranscoding.ResolveVideoSessionLimit(ctx, r.ServerCfg, auto)
+		samples := calibrationSvc.Current().BenchSamples
+		costs := apptranscoding.NewVideoCostModel(samples)
+		videoLimiter.WithCostModel(costs)
+
+		// Admission is governed by the COST budget: each stream reserves the
+		// fraction of the box its top rung needs to stay realtime, so a 1440p
+		// (0.53) and a 1080p (0.43) coexist where a flat "1 session" cap would
+		// have refused the second. The count cap below is a belt on top: it can
+		// never exceed what the cheapest rung physically allows, and the admin
+		// may only lower it.
+		maxStreams := 0 // 0 = no count cap, the budget rules
+		if rungs := costs.Rungs(); len(rungs) > 0 {
+			maxStreams = rungs[0].MaxStreams // cheapest (shortest) rung
+		}
+		effective := apptranscoding.ResolveVideoSessionLimit(ctx, r.ServerCfg, maxStreams)
 		videoLimiter.SetLimit(effective)
+
+		auto, ev := apptranscoding.AutoVideoSessionCapacity(samples, sysinfo.CPUBudget())
 		slog.Info("video transcode capacity armed",
-			slog.Int("auto", auto), slog.Int("effective", effective),
+			slog.Int("streams_at_top_rung", auto), slog.Int("count_cap", effective),
+			slog.Float64("budget", videoLimiter.Budget()),
 			slog.Int("rung_height", ev.Height), slog.Float64("fps", ev.FPS),
 			slog.Float64("required_fps", ev.RequiredFPS), slog.Int("cpu_budget", ev.CPUBudget),
 			slog.Bool("derived_from_benchmark", ev.Derived))
