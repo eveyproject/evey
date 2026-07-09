@@ -54,6 +54,14 @@ type VideoCapacityEvidence struct {
 // hard-zero cap would wedge every viewer) and never more sessions than the
 // host has cores for (a software encode is ~1 full core).
 //
+// The TALLEST passing rung is the reference on purpose: it is the most
+// expensive thing this host is willing to serve, so sizing on it never
+// promises more sessions than the worst realistic case. A box that sustains
+// 1.9x realtime at 1440p reports capacity 1, even though it would fit two
+// 1080p encodes - a deliberate under-promise. Sizing on a mid rung instead
+// would over-promise the moment one viewer asks for the top rung, which is
+// exactly the situation a weak NAS cannot absorb. Operator decision, 2026-07.
+//
 // Fail-safe: no samples, no passing "software" rung, or a non-positive
 // RequiredFPS all fall back to capacity=1 with Derived=false - the most
 // conservative answer available when the evidence doesn't support anything

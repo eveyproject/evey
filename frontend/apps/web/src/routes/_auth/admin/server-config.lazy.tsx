@@ -257,59 +257,6 @@ function MemoryProfileCard({ entries }: { entries: ConfigEntry[] | undefined }) 
   );
 }
 
-const MAX_VIDEO_SESSIONS_KEY = "transcoding.max_video_sessions";
-
-// VideoSessionsCard lets the admin REDUCE the auto-detected cap on
-// simultaneous transcoded VIDEO streams. Empty = auto (server derives the cap
-// from its boot benchmark and always bounds any override to it, it can never
-// be raised past that measured capacity here).
-function VideoSessionsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
-  const { t } = useTranslation();
-  const setEntry = useSetConfigEntry();
-
-  const stored = entries?.find((e) => e.key === MAX_VIDEO_SESSIONS_KEY)?.value ?? "";
-  const [value, setValue] = useState(stored);
-  const [dirty, setDirty] = useState(false);
-
-  useEffect(() => {
-    if (!dirty) setValue(stored);
-  }, [stored, dirty]);
-
-  function handleSave() {
-    setEntry.mutate(
-      { key: MAX_VIDEO_SESSIONS_KEY, value: value.trim() },
-      { onSuccess: () => { toast.success(t("admin.serverConfig.configUpdated")); setDirty(false); } },
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-1">
-      <Input
-        id="max-video-sessions"
-        label={t("admin.serverConfig.maxVideoSessionsLabel")}
-        type="number"
-        min={1}
-        placeholder={t("admin.serverConfig.maxVideoSessionsAuto")}
-        value={value}
-        onChange={(e) => { setValue(e.target.value); setDirty(true); }}
-      />
-      <p className="text-xs text-[var(--text-muted)]">
-        {t("admin.serverConfig.maxVideoSessionsDesc")}
-      </p>
-      <div className="flex justify-end pt-1">
-        <Button
-          onClick={handleSave}
-          loading={setEntry.isPending}
-          disabled={!dirty}
-          data-testid="max-video-sessions-save-btn"
-        >
-          {t("common.save")}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 const INGEST_SERVING_PLAN_KEY = "library.ingest_serving_plan";
 const PLAYABILITY_SHADOW_KEY = "transcoding.playability_shadow";
 
@@ -1103,13 +1050,6 @@ function ServerConfigPage() {
         subtitle={t("admin.serverConfig.mkvgoSubtitle")}
       >
         <MkvgoCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.videoSessionsTitle")}
-        subtitle={t("admin.serverConfig.videoSessionsSubtitle")}
-      >
-        <VideoSessionsCard entries={entries} />
       </CollapsibleCard>
 
       <CollapsibleCard
