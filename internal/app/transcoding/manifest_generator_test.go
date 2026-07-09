@@ -633,3 +633,18 @@ func TestQuerySuffix_PinnedVideoDecision(t *testing.T) {
 	in.PinnedVideoDecision = ""
 	assert.NotContains(t, QuerySuffixFor(in), "vd=")
 }
+
+// Same contract for the audio-side pin (ad=) and the user resync offset:
+// both are decision inputs, so both must ride every baked URL.
+func TestQuerySuffix_PinnedAudioDecisionAndOffset(t *testing.T) {
+	in := ManifestInput{StreamToken: "tok", PinnedAudioDecision: "copy", AudioOffsetMs: 300}
+	suffix := QuerySuffixFor(in)
+	assert.Contains(t, suffix, "ad=copy")
+	assert.Contains(t, suffix, "audioOffsetMs=300")
+
+	in.PinnedAudioDecision = ""
+	in.AudioOffsetMs = 0
+	suffix = QuerySuffixFor(in)
+	assert.NotContains(t, suffix, "ad=")
+	assert.NotContains(t, suffix, "audioOffsetMs=")
+}

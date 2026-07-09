@@ -806,6 +806,7 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		// the stamp verbatim so the whole session stays on one plan even if
 		// background enrichment flips copy-eligibility mid-play.
 		PinnedVideoDecision: pinnedVideoDecision(r, decision),
+		PinnedAudioDecision: pinnedAudioDecision(r, decision),
 	}, nil
 }
 
@@ -825,6 +826,19 @@ func audioOffsetMsQuery(r *http.Request) int {
 		return -capMs
 	}
 	return v
+}
+
+// pinnedAudioDecision mirrors pinnedVideoDecision for the audio side.
+func pinnedAudioDecision(r *http.Request, decision domaintranscoding.PlaybackDecision) string {
+	if r != nil {
+		if v := r.URL.Query().Get("ad"); v == "copy" || v == "transcode" {
+			return v
+		}
+	}
+	if decision.AudioDecision == "copy" {
+		return "copy"
+	}
+	return "transcode"
 }
 
 // pinnedVideoDecision returns the vd value to bake into this playback's URLs:
@@ -1091,6 +1105,25 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	case "copy":
 		if d.VideoDecision != "copy" {
 			slog.Warn("hls-vod: pinned copy decision no longer serveable, session flips to transcode mid-play (player may need a restart)",
+				slog.String("reasons", strings.Join(d.TranscodeReasons, ",")))
+		}
+	}
+	// Audio-side pin, same contract as vd: "transcode" always holds; a broken
+	// "copy" pin (loudnorm toggled on, codec no longer passthrough-eligible)
+	// flips WITH a warning - the session's audio codec changes mid-play and
+	// the player may need a restart, but a re-encode is always serveable.
+	switch r.URL.Query().Get("ad") {
+	case "transcode":
+		if d.AudioDecision != "transcode" {
+			d.AudioDecision = "transcode"
+			d.TranscodeReasons = append(d.TranscodeReasons, "decision_pinned")
+			if d.AudioCodec == "" {
+				d.AudioCodec = "aac"
+			}
+		}
+	case "copy":
+		if d.AudioDecision != "copy" {
+			slog.Warn("hls-vod: pinned audio copy decision no longer serveable, session flips to transcoded audio mid-play",
 				slog.String("reasons", strings.Join(d.TranscodeReasons, ",")))
 		}
 	}

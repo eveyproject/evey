@@ -348,3 +348,54 @@ func TestMakeDecision_AudioOffsetForcesAudioTranscode(t *testing.T) {
 	assert.Equal(t, 30_000, audioOffsetMsQuery(newReq("&audioOffsetMs=999999999")))
 	assert.Equal(t, -30_000, audioOffsetMsQuery(newReq("&audioOffsetMs=-999999999")))
 }
+
+// Audio-side decision pin (ad=), same class as the vd pin: an admin loudnorm
+// toggle or enrichment can flip audio passthrough-eligibility between two
+// polls of a live playlist, switching the served audio codec under the
+// player. ad=transcode must hold; ad=copy on a no-longer-copy decision flips
+// with a warning (re-encode is always serveable).
+func TestMakeDecision_AudioDecisionPin(t *testing.T) {
+	h := newCopyTestHandler(t)
+	streams := copyEligibleStreams()
+	streams = append(streams, &domainlibrary.MediaStream{
+		StreamType: domainlibrary.StreamTypeAudio, Codec: "aac",
+		Channels: func() *int { c := 2; return &c }(), IsDefault: true,
+	})
+	newReq := func(ad string) *http.Request {
+		url := "/api/v1/media/m1/hls/stream_0.m3u8?videoCodecs=h264&audioCodecs=aac&containers=mp4"
+		if ad != "" {
+			url += "&ad=" + ad
+		}
+		req := httptest.NewRequest(http.MethodGet, url, nil)
+		return req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{},
+			&domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	}
+
+	// Precondition: aac stereo against aac caps = audio passthrough.
+	d := h.makeDecision(context.Background(), streams, "matroska", newReq(""))
+	require.Equal(t, "copy", d.AudioDecision)
+
+	// A session whose URLs were stamped ad=transcode holds transcode even
+	// though the fresh decision would now say copy.
+	d = h.makeDecision(context.Background(), streams, "matroska", newReq("transcode"))
+	assert.Equal(t, "transcode", d.AudioDecision)
+	assert.Contains(t, d.TranscodeReasons, "decision_pinned")
+	assert.NotEmpty(t, d.AudioCodec, "a pinned audio re-encode still needs an encoder")
+
+	// ad=copy on a still-copy decision: no-op.
+	d = h.makeDecision(context.Background(), streams, "matroska", newReq("copy"))
+	assert.Equal(t, "copy", d.AudioDecision)
+
+	// Garbage values are ignored.
+	d = h.makeDecision(context.Background(), streams, "matroska", newReq("banana"))
+	assert.Equal(t, "copy", d.AudioDecision)
+
+	// The pin composes with the user resync force: offset wins over a copy pin
+	// (shifted audio can only be served re-encoded).
+	req := newReq("copy")
+	q := req.URL.Query()
+	q.Set("audioOffsetMs", "300")
+	req.URL.RawQuery = q.Encode()
+	d = h.makeDecision(context.Background(), streams, "matroska", req)
+	assert.Equal(t, "transcode", d.AudioDecision)
+}

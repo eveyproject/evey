@@ -123,6 +123,12 @@ type ManifestInput struct {
 	// EVENT playlist. Empty = legacy request, nothing stamped.
 	PinnedVideoDecision string
 
+	// PinnedAudioDecision ("copy"|"transcode") - same contract as
+	// PinnedVideoDecision, for the AUDIO side: an admin toggle (loudnorm) or
+	// background enrichment can flip audio copy-eligibility between two polls
+	// of a live playlist, switching the served audio codec under the player.
+	PinnedAudioDecision string
+
 	// VideoPlaylistURI, when set, overrides the video variant's playlist URI
 	// (the default is stream_<idx>.m3u8). It is honoured ONLY for a
 	// single-variant input — the on-demand copy rung uses it to point the one
@@ -669,6 +675,9 @@ func querySuffix(in ManifestInput) string {
 		// doc) — the fix for the mid-play transcode→copy flip the keyframe
 		// backfill caused on a live session (green frames on HW decoders).
 		q.Set("vd", in.PinnedVideoDecision)
+	}
+	if in.PinnedAudioDecision != "" {
+		q.Set("ad", in.PinnedAudioDecision)
 	}
 	if encoded := q.Encode(); encoded != "" {
 		return "?" + encoded
