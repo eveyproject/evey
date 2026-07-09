@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -172,10 +173,16 @@ type compositeHandle struct {
 }
 
 func (c *compositeHandle) reap() {
+	defer close(c.done)
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic in hls composite reap",
+				slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
+		}
+	}()
 	for _, s := range c.subs {
 		<-s.Done()
 	}
-	close(c.done)
 }
 
 func (c *compositeHandle) WaitReady(ctx context.Context) error {
@@ -248,16 +255,17 @@ func (c *compositeHandle) Resume() error {
 }
 
 type hlsHandle struct {
-	opts    transcoding.HLSProcessOpts
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	cancel  context.CancelFunc
-	ready   chan struct{}
-	done    chan struct{}
-	err     error
-	exitErr error // raw ffmpeg exit error, for failure classification (guarded by mu)
-	stderr  *ringBuffer
-	paused  bool // ffmpeg currently SIGSTOPped (client idle)
+	opts      transcoding.HLSProcessOpts
+	mu        sync.Mutex
+	cmd       *exec.Cmd
+	cancel    context.CancelFunc
+	ready     chan struct{}
+	readyOnce sync.Once // guards ready: run()'s error paths AND its panic recovery can both race to close it
+	done      chan struct{}
+	err       error
+	exitErr   error // raw ffmpeg exit error, for failure classification (guarded by mu)
+	stderr    *ringBuffer
+	paused    bool // ffmpeg currently SIGSTOPped (client idle)
 	// noMaster suppresses the synthesised single-rung master.m3u8. Set on the
 	// sub-processes of a per-variant composite handle (the VOD pipeline serves a
 	// precomputed master, and N siblings must not each clobber master.m3u8 with
@@ -271,8 +279,31 @@ func (h *hlsHandle) setExitErr(err error) {
 	h.mu.Unlock()
 }
 
+// closeReady closes h.ready at most once. run() closes it on several distinct
+// return paths (including the panic-recovery path below), so a plain
+// close(h.ready) would double-close and panic if two of those paths were ever
+// reached for the same handle.
+func (h *hlsHandle) closeReady() {
+	h.readyOnce.Do(func() { close(h.ready) })
+}
+
 func (h *hlsHandle) run(ctx context.Context) {
 	defer close(h.done)
+	// A panic here (e.g. a bug in the file/segment polling below, or in a
+	// future change) would otherwise crash the whole server: this goroutine
+	// has no caller to propagate to. Recover, classify it as a failed
+	// session, and unblock anyone in WaitReady()/cache.Wait() so the request
+	// fails fast instead of hanging until its budget/timeout expires.
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("panic in hls ffmpeg run loop",
+				slog.Any("recover", r), slog.String("stack", string(debug.Stack())))
+			h.err = fmt.Errorf("panic in hls transcoder run loop: %v", r)
+			h.setExitErr(h.err)
+			h.cancel()
+			h.closeReady()
+		}
+	}()
 
 	// Single-variant outputs (copy + single-profile transcode) write only
 	// stream_0.m3u8; we synthesise master.m3u8 manually. Multi-variant
@@ -290,7 +321,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			if we != nil {
 				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
 			}
-			close(h.ready)
+			h.closeReady()
 			return
 		}
 		// Standalone single-variant handles synthesise the one-rung master; a
@@ -306,7 +337,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 				if we != nil {
 					slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
 				}
-				close(h.ready)
+				h.closeReady()
 				return
 			}
 		}
@@ -323,7 +354,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			if we != nil {
 				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
 			}
-			close(h.ready)
+			h.closeReady()
 			return
 		}
 		if err := waitForSegment(ctx, h.opts.OutputDir, "stream_0", 10*time.Second, 100*time.Millisecond); err != nil {
@@ -331,7 +362,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 		}
 	}
 
-	close(h.ready)
+	h.closeReady()
 
 	we := h.cmd.Wait()
 	h.setExitErr(we)

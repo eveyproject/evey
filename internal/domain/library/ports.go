@@ -104,6 +104,12 @@ type ChapterRepository interface {
 // MediaSegmentQueryRepo is the read-only subset used by query services.
 type MediaSegmentQueryRepo interface {
 	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) ([]*MediaSegment, error)
+	// GetByMediaItemIDs batches GetByMediaItemID for many items into one
+	// query, keyed by media item id. An id with no segments is simply absent
+	// from the returned map (not a nil-slice entry). Drives the intro
+	// detection season sweep, which otherwise issued one query per episode
+	// just to check for an existing covering segment.
+	GetByMediaItemIDs(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]*MediaSegment, error)
 }
 
 // IntroMetadataProvider is the port for an external source of intro/recap/

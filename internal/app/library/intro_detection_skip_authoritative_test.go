@@ -32,7 +32,7 @@ func TestDetectSeason_PaginatesAllEpisodes(t *testing.T) {
 			File:        &domainlibrary.MediaFile{Path: "/tmp/x.mkv"},
 		}
 		// Pre-cover each episode so detectSeason skips DetectIntro (no pipeline)
-		// yet still queries it — queriedIDs then proves pagination reached all.
+		// yet still queries it: batchQueriedIDs then proves pagination reached all.
 		segmentRepo.seeded = append(segmentRepo.seeded, &domainlibrary.MediaSegment{
 			MediaItemID: shared.MediaItemID(id), Type: "intro", StartMs: 0, EndMs: 60_000, Source: "tidb",
 		})
@@ -41,8 +41,10 @@ func TestDetectSeason_PaginatesAllEpisodes(t *testing.T) {
 
 	svc.detectSeason(context.Background(), "season-id")
 
-	require.Len(t, segmentRepo.queriedIDs, total,
+	require.Len(t, segmentRepo.batchQueriedIDs, total,
 		"detectSeason must page through every episode, not stop at the first page")
+	require.Equal(t, 2, segmentRepo.batchCalls,
+		"250 episodes at pageSize 200 must batch into 2 calls (200 + 50), not one GetByMediaItemID per episode")
 }
 
 // detectSeason runs DetectIntro on each episode that doesn't already have a

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -48,6 +49,52 @@ func (r *MediaSegmentRepository) GetByMediaItemID(ctx context.Context, mediaItem
 			return nil, err
 		}
 		result = append(result, seg)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
+}
+
+// GetByMediaItemIDs batches GetByMediaItemID for many items into a single
+// query, keyed by media item id. An id with no rows is simply absent from the
+// returned map. Used by the intro detection season sweep to replace a
+// per-episode GetByMediaItemID call with one query for the whole page.
+func (r *MediaSegmentRepository) GetByMediaItemIDs(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]*library.MediaSegment, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.GetByMediaItemIDs")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if len(mediaItemIDs) == 0 {
+		return map[shared.MediaItemID][]*library.MediaSegment{}, nil
+	}
+	ids := make([]string, len(mediaItemIDs))
+	for i, id := range mediaItemIDs {
+		ids[i] = string(id)
+	}
+
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT id, media_item_id, type, start_ms, end_ms, confidence, source, created_at
+		 FROM media_segments WHERE media_item_id = ANY($1) ORDER BY media_item_id, start_ms`, pq.Array(ids))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[shared.MediaItemID][]*library.MediaSegment, len(mediaItemIDs))
+	for rows.Next() {
+		seg := &library.MediaSegment{}
+		if err := rows.Scan(&seg.ID, &seg.MediaItemID, &seg.Type, &seg.StartMs, &seg.EndMs, &seg.Confidence, &seg.Source, &seg.CreatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		result[seg.MediaItemID] = append(result[seg.MediaItemID], seg)
 	}
 	if err := rows.Err(); err != nil {
 		span.RecordError(err)

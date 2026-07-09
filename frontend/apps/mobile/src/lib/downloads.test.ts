@@ -269,8 +269,16 @@ describe("getTotalDownloadSize", () => {
 
 describe("startDownload media-id validation", () => {
   it("rejects a media id that could escape the sandbox path or redirect the API request", async () => {
-    for (const bad of ["mi-1/../../etc", "mi-1/../admin", "../secret", "mi-1?x=y", "mi 1"]) {
+    for (const bad of ["mi-1/../../etc", "mi-1/../admin", "../secret", "mi-1?x=y", "mi 1", ""]) {
       await expect(startDownload(bad, "x")).rejects.toThrow(/invalid media id/);
     }
+  });
+
+  it("accepts a legitimate media id (Evey ids are opaque UUID/slug strings, not a fixed grammar)", async () => {
+    const pending = startDownload("550e8400-e29b-41d4-a716-446655440000", "Legit");
+    const handlers = await waitForTask("550e8400-e29b-41d4-a716-446655440000");
+    handlers.begin?.({ expectedBytes: 100, headers: {} });
+    handlers.done?.({ id: "550e8400-e29b-41d4-a716-446655440000" });
+    await expect(pending).resolves.toContain("550e8400-e29b-41d4-a716-446655440000");
   });
 });

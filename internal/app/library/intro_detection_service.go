@@ -462,16 +462,26 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 		if len(siblings) == 0 {
 			break
 		}
+		// Batch the existing-segments lookup for the whole page in one query
+		// instead of one GetByMediaItemID call per episode (N+1: a single-
+		// season sweep of 200 episodes was issuing 200 round trips just to
+		// check which ones already have a covering segment).
+		pageIDs := make([]shared.MediaItemID, len(siblings))
+		for i, ep := range siblings {
+			pageIDs[i] = ep.ID
+		}
+		existingByID, batchErr := s.segmentRepo.GetByMediaItemIDs(ctx, pageIDs)
+		if batchErr != nil {
+			// Couldn't read existing segments; treat the whole page as
+			// uncovered and let detection re-run rather than skip it silently.
+			slog.Warn("intro detection: batch get existing segments", slog.String("parent_id", parentID), slog.Any("err", batchErr))
+			existingByID = nil
+		}
 		for _, ep := range siblings {
 			if ctx.Err() != nil {
 				return
 			}
-			existing, getErr := s.segmentRepo.GetByMediaItemID(ctx, ep.ID)
-			if getErr != nil {
-				// Couldn't read existing segments; treat as uncovered and let
-				// detection re-run rather than skip the episode silently.
-				slog.Warn("intro detection: get existing segments", slog.String("media_id", string(ep.ID)), slog.Any("err", getErr))
-			}
+			existing := existingByID[ep.ID]
 			hasGoodIntro := false
 			manualLocked := false
 			for _, sg := range existing {

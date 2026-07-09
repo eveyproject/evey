@@ -295,10 +295,20 @@ type fakeSegmentRepo struct {
 	// queriedIDs records every id passed to GetByMediaItemID (one per episode
 	// detectSeason reaches) so a test can prove it paged through them all.
 	queriedIDs []string
+	// batchCalls counts calls to GetByMediaItemIDs, proving detectSeason
+	// issues one batched call per page instead of one GetByMediaItemID call
+	// per episode.
+	batchCalls int
+	// batchQueriedIDs accumulates every id passed to GetByMediaItemIDs across
+	// ALL calls, so a test can prove every episode was covered (batched
+	// per-page, not per-episode).
+	batchQueriedIDs []string
 	// getErr makes every GetByMediaItemID call fail with this error.
 	getErr error
 	// getErrForID makes GetByMediaItemID fail for specific IDs only.
 	getErrForID map[string]error
+	// batchErr makes every GetByMediaItemIDs call fail with this error.
+	batchErr error
 	// upsertErr makes every UpsertUnlessManual call fail with this error.
 	upsertErr error
 	// attempts tracks the intro-detection attempt counter per media id, mirroring
@@ -370,6 +380,34 @@ func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaIte
 	}
 	return out, nil
 }
+// GetByMediaItemIDs mirrors the postgres batch query: one call covering every
+// requested id, grouped into a map. Missing ids are absent from the map.
+func (r *fakeSegmentRepo) GetByMediaItemIDs(_ context.Context, ids []shared.MediaItemID) (map[shared.MediaItemID][]*domainlibrary.MediaSegment, error) {
+	r.batchCalls++
+	for _, id := range ids {
+		r.batchQueriedIDs = append(r.batchQueriedIDs, string(id))
+	}
+	if r.batchErr != nil {
+		return nil, r.batchErr
+	}
+	out := make(map[shared.MediaItemID][]*domainlibrary.MediaSegment, len(ids))
+	want := make(map[shared.MediaItemID]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	for _, s := range r.seeded {
+		if want[s.MediaItemID] {
+			out[s.MediaItemID] = append(out[s.MediaItemID], s)
+		}
+	}
+	for _, s := range r.upserted {
+		if want[s.MediaItemID] {
+			out[s.MediaItemID] = append(out[s.MediaItemID], s)
+		}
+	}
+	return out, nil
+}
+
 func (r *fakeSegmentRepo) DeleteByMediaItemID(_ context.Context, _ shared.MediaItemID) error {
 	return nil
 }
@@ -562,6 +600,39 @@ func newTestServiceFull(det IntroDetector, segRepo domainlibrary.MediaSegmentRep
 		det,
 		"/tmp/trickplay",
 	)
+}
+
+// TestDetectSeason_BatchesExistingSegmentsLookup proves detectSeason fetches
+// the whole page's existing segments in one GetByMediaItemIDs call instead of
+// one GetByMediaItemID call per episode (the N+1 this test guards against).
+// Every sibling is seeded with an already-good intro segment so the loop
+// skips straight to "continue" for each one: the batch lookup is the only
+// segment-repo read this path should perform.
+func TestDetectSeason_BatchesExistingSegmentsLookup(t *testing.T) {
+	t.Parallel()
+
+	const episodeCount = 5
+	parentID := "season-1"
+	segRepo := &fakeSegmentRepo{}
+	siblings := make([]*domainlibrary.MediaItem, episodeCount)
+	for i := range episodeCount {
+		id := shared.MediaItemID(fmt.Sprintf("ep-%d", i))
+		siblings[i] = &domainlibrary.MediaItem{ID: id, Type: domainlibrary.Episode, ParentID: parentID}
+		segRepo.seeded = append(segRepo.seeded, &domainlibrary.MediaSegment{
+			MediaItemID: id, Type: "intro", Source: "phash", StartMs: 0, EndMs: 8_000,
+		})
+	}
+	itemRepo := &fakeMediaItemRepo{siblings: siblings}
+	svc := newTestServiceFull(&fakeDetector{}, segRepo, itemRepo, &fakeTrickplayRepo{})
+
+	svc.detectSeason(context.Background(), parentID)
+
+	require.Equal(t, 1, segRepo.batchCalls,
+		"detectSeason must fetch the page's existing segments in exactly one batched call, not one per episode")
+	require.Len(t, segRepo.batchQueriedIDs, episodeCount,
+		"the single batched call must cover every episode in the page")
+	require.Empty(t, segRepo.queriedIDs,
+		"detectSeason must not fall back to per-episode GetByMediaItemID calls")
 }
 
 // TestDetectIntro_AppendsEndCreditsWhenDetected verifies that when DetectEndCredits
