@@ -69,6 +69,11 @@ func StartShared() func() {
 	req := testcontainers.ContainerRequest{
 		Image:        "postgres:16-alpine",
 		ExposedPorts: []string{"5432/tcp"},
+		// Durability off: the database is disposable, and the per-test
+		// truncateAll (TRUNCATE of ~130 tables = that many fsyncs) dominated
+		// the suite's runtime - 403 tests × ~0.75s ≈ the whole 300s budget,
+		// which is what actually "hung" CI on 2026-07-10/11.
+		Cmd: []string{"-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"},
 		Env: map[string]string{
 			"POSTGRES_USER":     "evey_test",
 			"POSTGRES_PASSWORD": "evey_test",
@@ -270,6 +275,8 @@ func startDedicated(t *testing.T) (*sql.DB, func()) {
 	req := testcontainers.ContainerRequest{
 		Image:        "postgres:16-alpine",
 		ExposedPorts: []string{"5432/tcp"},
+		// Same durability-off flags as the shared container (see StartShared).
+		Cmd: []string{"-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"},
 		Env: map[string]string{
 			"POSTGRES_USER":     "evey_test",
 			"POSTGRES_PASSWORD": "evey_test",

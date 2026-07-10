@@ -151,8 +151,14 @@ jobs:
       # 2-3× overhead with little signal here (the postgres repo layer
       # has no concurrent goroutines on its hot path), so it runs without
       # -race in CI and is re-run with -race nightly (cf nightly-race.yml).
+      # 600s: the suite grew past the old 300s budget (403 tests × one
+      # multi-table TRUNCATE each), so the alarm expired MID-RUN and blamed
+      # whichever test happened to be executing - three different "victims"
+      # across three runs on 2026-07-10/11. fsync=off on the test containers
+      # brought the suite back to a fraction of that; the budget doubles so
+      # organic growth doesn't recreate the false-hang for a long while.
       - name: test (postgres — testcontainers)
-        run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=300s
+        run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=600s
 
   frontend:
     name: Frontend — typecheck & build

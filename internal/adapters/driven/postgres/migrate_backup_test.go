@@ -35,6 +35,8 @@ func TestRunMigrations_WritesBackup(t *testing.T) {
 	req := testcontainers.ContainerRequest{
 		Image:        "postgres:16-alpine",
 		ExposedPorts: []string{"5432/tcp"},
+		// Durability off: disposable test database (see testhelpers.StartShared).
+		Cmd: []string{"-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"},
 		Env: map[string]string{
 			"POSTGRES_USER":     "evey_test",
 			"POSTGRES_PASSWORD": "evey_test",
