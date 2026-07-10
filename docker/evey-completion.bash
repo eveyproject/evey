@@ -9,7 +9,8 @@ _evey() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     local subs="reset-password rotate-jwt-key restore-backup reindex-search migrate \
-reclassify reindex-no-cue validate-streaming artwork-gc load-test help"
+reclassify reindex-no-cue validate-streaming artwork-gc load-test doctor rollback \
+list-users help"
 
     # `evey <TAB>` -> the admin group (the server itself takes no subcommand).
     if [ "$COMP_CWORD" -eq 1 ]; then
@@ -37,7 +38,8 @@ reclassify reindex-no-cue validate-streaming artwork-gc load-test help"
     case "$prev" in
         --root) COMPREPLY=( $(compgen -d -- "$cur") ); return 0 ;;
         --scenario) COMPREPLY=( $(compgen -W "transcode natural mkvgo light balanced heavy" -- "$cur") ); return 0 ;;
-        --user|--library|--limit|--max-viewers) return 0 ;;
+        --user) COMPREPLY=( $(compgen -W "$(evey admin list-users 2>/dev/null)" -- "$cur") ); return 0 ;;
+        --library|--limit|--max-viewers) return 0 ;;
     esac
 
     case "$sub" in
@@ -49,6 +51,7 @@ reclassify reindex-no-cue validate-streaming artwork-gc load-test help"
         validate-streaming) opts="--root --errors-only" ;;
         artwork-gc)         opts="--root --apply" ;;
         load-test)          opts="--scenario --max-viewers" ;;
+        doctor)             opts="--repair" ;;
         restore-backup)     COMPREPLY=( $(compgen -f -- "$cur") ); return 0 ;;
         *)                  opts="" ;;
     esac

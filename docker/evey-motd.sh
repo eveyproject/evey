@@ -14,7 +14,7 @@
 #    all of it -- no branding, no launcher, no verbs. e.g.
 #      docker exec -it -e EVEY_SHELL=plain evey-server bash
 
-_EVEY_VERBS='reset-password reindex-search migrate validate-streaming reindex-no-cue artwork-gc load-test'
+_EVEY_VERBS='reset-password reindex-search migrate validate-streaming reindex-no-cue artwork-gc load-test doctor rollback'
 
 # _evey_palette sets colour vars (empty when not a tty / NO_COLOR).
 _evey_palette() {
@@ -43,14 +43,15 @@ _evey_banner() {
 _evey_rows() {
     local mkv; mkv=$(mkvgo --version 2>/dev/null | awk '{print $2}'); [ -n "$mkv" ] || mkv='?'
     lbl=(  'reset-password' 'reindex-search' 'migrate' 'validate-streaming' \
-           'reindex-no-cue' 'artwork-gc' 'load-test' 'mkvgo <cmd>' 'close' )
+           'reindex-no-cue' 'artwork-gc' 'load-test' 'doctor' 'mkvgo <cmd>' 'close' )
     pre=(  'reset-password --user ' 'reindex-search' 'migrate ' 'validate-streaming --root ' \
            'reindex-no-cue --root ' 'artwork-gc' 'load-test --scenario balanced --max-viewers ' \
-           'mkvgo ' '' )
+           'doctor' 'mkvgo ' '' )
     desc=( "reset a password (needs --user <email>)" "rebuild the search index" "up | down | version" \
            "report seek / HLS readiness (needs --root <dir>)" "repair MKV seek indexes (needs --root <dir>; --apply writes)" \
            "delete orphaned artwork (dry-run; --apply deletes)" \
-           "ramp viewers, find the capacity ceiling" "inspect / repair a media file  ($mkv)" \
+           "ramp viewers, find the capacity ceiling" "health-check everything (--repair fixes safe stuff)" \
+           "inspect / repair a media file  ($mkv)" \
            "type at the prompt (Tab completes)" )
 }
 
