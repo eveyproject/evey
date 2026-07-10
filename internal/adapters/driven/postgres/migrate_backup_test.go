@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
+	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -25,6 +26,7 @@ import (
 // a fresh dump (the snapshot is taken before Up regardless of pending
 // migrations, so the operator always has a current rollback artefact).
 func TestRunMigrations_WritesBackup(t *testing.T) {
+	testhelpers.SkipIfNoDocker(t)
 	if _, err := exec.LookPath("pg_dump"); err != nil {
 		t.Skipf("pg_dump not in PATH: %v", err)
 	}

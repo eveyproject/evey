@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/golang-migrate/migrate/v4"
 	mpostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
@@ -26,6 +27,7 @@ import (
 // migration (missing DROP, partial rollback, typo) that would otherwise
 // hide until an operator actually rolled back in prod.
 func TestMigrate_UpDownUp_Roundtrip(t *testing.T) {
+	testhelpers.SkipIfNoDocker(t)
 	if testing.Short() {
 		t.Skip("skipping integration test under -short")
 	}

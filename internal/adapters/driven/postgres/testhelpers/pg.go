@@ -46,6 +46,17 @@ func dockerAvailable() bool {
 	return dockerReachable
 }
 
+// SkipIfNoDocker skips the calling test when no Docker daemon is reachable, for
+// integration tests that spin up their OWN testcontainer inline rather than
+// going through StartPostgres. Same rationale: green everywhere, real container
+// wherever Docker exists (host, CI).
+func SkipIfNoDocker(t *testing.T) {
+	t.Helper()
+	if !dockerAvailable() {
+		t.Skip("integration test: Docker not available (run on a host with Docker, or via CI)")
+	}
+}
+
 // StartShared starts a single postgres container for the whole test package.
 // Call once from TestMain and defer the returned cleanup.
 func StartShared() func() {
