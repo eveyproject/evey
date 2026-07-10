@@ -12,8 +12,9 @@ _mkvgo() {
 remove-track add-track edit edit-title edit-track extract-attachment add-attachment \
 set-chapters extract-chapters remove-attachment extract-subtitle split join validate \
 hash verify compare reindex reindex-inplace salvage serve serve-growing merge \
-merge-subtitle edit-inplace to-webm to-hls hls-segment to-abr abr-segment concat-hls \
-concat-segment extract-frame analyze fingerprint playability ladder ingest"
+merge-subtitle edit-inplace to-mp4 from-mp4 to-webm to-hls hls-segment to-abr abr-segment \
+watermark-segment concat-hls concat-segment extract-frame analyze fingerprint playability \
+ladder ingest"
 
     # First token after `mkvgo` -> a sub-command (or the top-level flags).
     if [ "$COMP_CWORD" -eq 1 ]; then
@@ -33,7 +34,8 @@ brave opera vivaldi samsung-internet chromecast-gen3 mse-generic" -- "$cur") )
     # Option names.
     if [[ "$cur" == -* ]]; then
         COMPREPLY=( $(compgen -W "-json -f --force -analyze -reindex -deep-verify \
--replace -keep-backup -rollback -direct -auto -chapter-markers -sub-offset -target" \
+-replace -keep-backup -rollback -direct -auto -chapter-markers -sub-offset -target \
+--aes-key --aes-key-uri --aes-rotate-segments --cenc-key --cenc-key-uri --variant --pattern" \
             -- "$cur") )
         return 0
     fi
