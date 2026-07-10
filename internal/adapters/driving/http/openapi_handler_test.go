@@ -99,3 +99,60 @@ func TestBuildPublicOpenAPISpec_FiltersToAPIKeySurface(t *testing.T) {
 		t.Error("expected a top-level security requirement")
 	}
 }
+
+// The merged spec must only carry the models actually reachable from the kept
+// (API-key) operations: buf generates definitions for EVERY proto message, so
+// merging them all shipped hundreds of internal-API schemas next to a handful
+// of endpoints - noise for the reader, and a map of the internal surface the
+// page explicitly says is not exposed.
+func TestBuildPublicOpenAPISpec_PrunesUnreachableDefinitions(t *testing.T) {
+	dir := t.TempDir()
+	// Kept op -> v1Library -> v1Artwork (transitive). v1Internal is referenced
+	// only by the DROPPED op; v1Orphan by nothing at all.
+	fixture := `{
+      "swagger": "2.0",
+      "paths": {
+        "/api/v1/libraries": {
+          "get": {
+            "operationId": "LibraryService_ListLibraries",
+            "responses": {"200": {"schema": {"$ref": "#/definitions/v1Library"}}}
+          },
+          "post": {
+            "operationId": "LibraryService_CreateLibrary",
+            "responses": {"200": {"schema": {"$ref": "#/definitions/v1Internal"}}}
+          }
+        }
+      },
+      "definitions": {
+        "v1Library":  {"type": "object", "properties": {"art": {"$ref": "#/definitions/v1Artwork"}}},
+        "v1Artwork":  {"type": "object"},
+        "v1Internal": {"type": "object"},
+        "v1Orphan":   {"type": "object"}
+      }
+    }`
+	if err := os.WriteFile(filepath.Join(dir, "library.swagger.json"), []byte(fixture), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := buildPublicOpenAPISpec(dir)
+	if err != nil {
+		t.Fatalf("buildPublicOpenAPISpec: %v", err)
+	}
+	var spec struct {
+		Definitions map[string]json.RawMessage `json:"definitions"`
+	}
+	if err := json.Unmarshal(raw, &spec); err != nil {
+		t.Fatalf("unmarshal result: %v", err)
+	}
+
+	for _, want := range []string{"v1Library", "v1Artwork"} {
+		if _, ok := spec.Definitions[want]; !ok {
+			t.Errorf("definition %s is reachable from a kept operation and must be present", want)
+		}
+	}
+	for _, dropped := range []string{"v1Internal", "v1Orphan"} {
+		if _, ok := spec.Definitions[dropped]; ok {
+			t.Errorf("definition %s is unreachable from the kept operations and must be pruned", dropped)
+		}
+	}
+}

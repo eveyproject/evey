@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 
@@ -62,8 +63,10 @@ func buildPublicOpenAPISpec(dir string) ([]byte, error) {
 		if err := json.Unmarshal(raw, &doc); err != nil {
 			return nil, fmt.Errorf("%s: %w", e.Name(), err)
 		}
-		// Keep every definition: refs (#/definitions/X) stay resolvable and a
-		// few unreferenced schemas are harmless.
+		// Collect every definition for now; only those reachable from the kept
+		// operations survive below - buf generates one schema per proto message
+		// across the WHOLE API, which is hundreds of internal models this page
+		// must neither drown the reader in nor disclose.
 		for k, v := range doc.Definitions {
 			mergedDefs[k] = v
 		}
@@ -103,6 +106,11 @@ func buildPublicOpenAPISpec(dir string) ([]byte, error) {
 		}
 	}
 
+	defs, err := reachableDefinitions(mergedPaths, mergedDefs)
+	if err != nil {
+		return nil, err
+	}
+
 	spec := map[string]any{
 		"swagger": "2.0",
 		"info": map[string]any{
@@ -113,7 +121,7 @@ func buildPublicOpenAPISpec(dir string) ([]byte, error) {
 		"consumes":    []string{"application/json"},
 		"produces":    []string{"application/json"},
 		"paths":       mergedPaths,
-		"definitions": mergedDefs,
+		"definitions": defs,
 		"securityDefinitions": map[string]any{
 			"ApiKeyAuth": map[string]any{
 				"type":        "apiKey",
@@ -125,6 +133,44 @@ func buildPublicOpenAPISpec(dir string) ([]byte, error) {
 		"security": []map[string]any{{"ApiKeyAuth": []string{}}},
 	}
 	return json.Marshal(spec)
+}
+
+// defRefRe matches "#/definitions/<name>" references inside raw OpenAPI v2
+// JSON - resilient to where the $ref sits (response schema, body parameter,
+// nested property, array items).
+var defRefRe = regexp.MustCompile(`#/definitions/([A-Za-z0-9_.]+)`)
+
+// reachableDefinitions keeps only the transitive closure of the definitions
+// referenced by the kept operations: seed with the $refs found in the
+// operations themselves, then follow refs between definitions.
+func reachableDefinitions(paths map[string]map[string]any, defs map[string]json.RawMessage) (map[string]json.RawMessage, error) {
+	opsRaw, err := json.Marshal(paths)
+	if err != nil {
+		return nil, fmt.Errorf("marshal kept operations: %w", err)
+	}
+	seen := map[string]bool{}
+	var queue []string
+	push := func(raw []byte) {
+		for _, m := range defRefRe.FindAllSubmatch(raw, -1) {
+			if name := string(m[1]); !seen[name] {
+				seen[name] = true
+				queue = append(queue, name)
+			}
+		}
+	}
+	push(opsRaw)
+	out := map[string]json.RawMessage{}
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		def, ok := defs[name]
+		if !ok {
+			continue // dangling ref: leave it dangling rather than fail the page
+		}
+		out[name] = def
+		push(def)
+	}
+	return out, nil
 }
 
 // openAPIPublicHandler serves the filtered public API spec as JSON. The spec is
