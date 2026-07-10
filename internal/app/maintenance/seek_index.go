@@ -299,20 +299,36 @@ func (s *SeekIndexService) recoverJob() {
 	}
 }
 
-// reindexOptionsFor maps the operator's mode onto the port options. The
-// standard mode keeps a rollback backup; the surgical in-place mode cannot
-// produce one by design (the file is patched, never duplicated). "auto"
-// tries the patch first and falls back to the rewrite when the layout
-// defeats it (streamed clusters, no head-discoverable index slot) - the
-// fallback keeps the rewrite's backup semantics.
-func reindexOptionsFor(mode string, deepVerify bool) mkv.ReindexOptions {
-	switch mode {
+// ReindexRunOptions carries the operator's repair choices from the API layer.
+type ReindexRunOptions struct {
+	// Mode: "auto" (patch when the layout allows, rewrite otherwise),
+	// mkv.ModeInPlace (surgical patch ONLY), anything else = full rewrite.
+	Mode string
+	// DeepVerify proves every rebuilt cue lands on a real video keyframe
+	// before committing (a full read per file).
+	DeepVerify bool
+	// SkipBackup drops the rewrite's .mkvgobak after a successful swap so a
+	// batch never accumulates one persistent copy per repaired file - the
+	// option for a nearly-full volume. Deep-verify is forced on in exchange.
+	SkipBackup bool
+}
+
+// reindexOptionsFor maps the operator's choices onto the port options. The
+// standard rewrite keeps a rollback backup unless SkipBackup trades it for a
+// forced deep-verify; the surgical in-place mode cannot produce a backup by
+// design (the file is patched, never duplicated). "auto" tries the patch
+// first and falls back to the rewrite when the layout defeats it (streamed
+// clusters, no head-discoverable index slot) - the fallback keeps the
+// rewrite's backup semantics.
+func reindexOptionsFor(run ReindexRunOptions) mkv.ReindexOptions {
+	deepVerify := run.DeepVerify || run.SkipBackup
+	switch run.Mode {
 	case mkv.ModeInPlace:
 		return mkv.ReindexOptions{Mode: mkv.ModeInPlace, DeepVerify: deepVerify}
 	case "auto":
-		return mkv.ReindexOptions{Mode: mkv.ModeAuto, KeepBackup: true, DeepVerify: deepVerify}
+		return mkv.ReindexOptions{Mode: mkv.ModeAuto, KeepBackup: !run.SkipBackup, DeepVerify: deepVerify}
 	default:
-		return mkv.ReindexOptions{Mode: mkv.ModeRewrite, KeepBackup: true, DeepVerify: deepVerify}
+		return mkv.ReindexOptions{Mode: mkv.ModeRewrite, KeepBackup: !run.SkipBackup, DeepVerify: deepVerify}
 	}
 }
 
@@ -320,11 +336,10 @@ func reindexOptionsFor(mode string, deepVerify bool) mkv.ReindexOptions {
 func (s *SeekIndexService) SupportsInPlace() bool { return s.reindexer.SupportsInPlace() }
 
 // StartReindexLibrary kicks a background job that re-scans the library then
-// rebuilds the seek index of every un-indexed file. mode picks the strategy:
-// mkv.ModeInPlace (surgical patch, no backup) or anything else = the standard
-// rewrite that keeps a .mkvgobak rollback backup.
-func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID, mode string, deepVerify bool) error {
-	opts := reindexOptionsFor(mode, deepVerify)
+// rebuilds the seek index of every un-indexed file. See ReindexRunOptions for
+// the strategy/backup semantics.
+func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID string, run ReindexRunOptions) error {
+	opts := reindexOptionsFor(run)
 	return s.startBatch(JobReindex, libraryID,
 		func(it SeekStatus) bool { return !it.HasIndex },
 		func(bg context.Context, path string) (bool, error) {
@@ -360,8 +375,8 @@ func (s *SeekIndexService) StartRollbackLibrary(_ context.Context, libraryID str
 // StartReindexMedia rebuilds one media file's seek index in the background.
 // The media lookup happens synchronously so unknown IDs fail fast. See
 // StartReindexLibrary for the mode semantics.
-func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID, mode string, deepVerify bool) error {
-	opts := reindexOptionsFor(mode, deepVerify)
+func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID string, run ReindexRunOptions) error {
+	opts := reindexOptionsFor(run)
 	return s.startSingle(ctx, JobReindex, mediaID, func(bg context.Context, path string) (bool, error) {
 		res, err := s.reindexer.ReindexInPlace(bg, path, opts)
 		if err != nil {

@@ -241,6 +241,11 @@ message ReindexMediaSeekIndexRequest {
   // aborts the rewrite before its swap. Recommended with "inplace", which
   // keeps no backup.
   bool deep_verify = 3;
+  // skip_backup drops the .mkvgobak of a rewrite once the swap has succeeded,
+  // so the volume never accumulates one extra copy per repaired file - the
+  // option for repairing a nearly-full disk. The server compensates by
+  // forcing deep_verify on. No effect on "inplace" (never keeps a backup).
+  bool skip_backup = 4;
 }
 
 message ReindexMediaSeekIndexResponse {
@@ -274,6 +279,10 @@ message ReindexLibrarySeekIndexRequest {
   // See ReindexMediaSeekIndexRequest.deep_verify. Costs a full read PER FILE,
   // so a whole-library sweep with it on is a long job.
   bool deep_verify = 3;
+  // See ReindexMediaSeekIndexRequest.skip_backup. For a whole-library sweep
+  // this is the difference between one temporary copy at a time and one
+  // PERSISTENT copy per repaired file on the volume.
+  bool skip_backup = 4;
 }
 
 message ReindexLibrarySeekIndexResponse {

@@ -265,7 +265,12 @@ func (d *adminMediaHandler) ReindexMediaSeekIndex(ctx context.Context, req *evey
 	if err := d.seekIndexConfigured(ctx, span); err != nil {
 		return nil, err
 	}
-	if err := d.seekIndex.StartReindexMedia(ctx, req.GetMediaId(), req.GetMode(), req.GetDeepVerify()); err != nil {
+	run := appmaintenance.ReindexRunOptions{
+		Mode:       req.GetMode(),
+		DeepVerify: req.GetDeepVerify(),
+		SkipBackup: req.GetSkipBackup(),
+	}
+	if err := d.seekIndex.StartReindexMedia(ctx, req.GetMediaId(), run); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "reindex media seek index", err)
@@ -293,7 +298,12 @@ func (d *adminMediaHandler) ReindexLibrarySeekIndex(ctx context.Context, req *ev
 	if err := d.seekIndexConfigured(ctx, span); err != nil {
 		return nil, err
 	}
-	if err := d.seekIndex.StartReindexLibrary(ctx, req.GetLibraryId(), req.GetMode(), req.GetDeepVerify()); err != nil {
+	run := appmaintenance.ReindexRunOptions{
+		Mode:       req.GetMode(),
+		DeepVerify: req.GetDeepVerify(),
+		SkipBackup: req.GetSkipBackup(),
+	}
+	if err := d.seekIndex.StartReindexLibrary(ctx, req.GetLibraryId(), run); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "reindex library seek index", err)
