@@ -369,8 +369,8 @@ func adminReindexSearch(args []string) error {
 	}
 	if *purge {
 		fmt.Println("Purging the index first (clearing stale docs) ...")
-		if err := search.Clear(context.Background()); err != nil {
-			return fmt.Errorf("purge index: %w", err)
+		if clearErr := search.Clear(context.Background()); clearErr != nil {
+			return fmt.Errorf("purge index: %w", clearErr)
 		}
 	}
 	items := postgres.NewMediaItemQueryRepoAdapter(db)

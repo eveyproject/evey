@@ -11,13 +11,26 @@ import (
 	"github.com/evey-project/evey/internal/config"
 )
 
-func openDB(cfg *config.Config) (*sql.DB, error) {
+// openDBReadOnly opens the database WITHOUT running migrations. For admin
+// subcommands that only read (the load-test token forge): they may run while
+// the server is LIVE, and racing RunMigrations against a serving process -
+// plus writing a pre-migration backup as a side effect of a load test - is
+// exactly what a read never needs.
+func openDBReadOnly(cfg *config.Config) (*sql.DB, error) {
 	db, err := sql.Open("postgres", cfg.DB.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 	if err2 := db.Ping(); err2 != nil {
 		return nil, fmt.Errorf("ping db: %w", err2)
+	}
+	return db, nil
+}
+
+func openDB(cfg *config.Config) (*sql.DB, error) {
+	db, err := openDBReadOnly(cfg)
+	if err != nil {
+		return nil, err
 	}
 	db.SetMaxOpenConns(cfg.DB.MaxOpenConns)
 	db.SetMaxIdleConns(cfg.DB.MaxIdleConns)

@@ -257,7 +257,7 @@ func checkMeili(cfg *config.Config, db *sql.DB) []checkResult {
 		return out
 	}
 	var dbCount int
-	if err := db.QueryRow(`SELECT count(*) FROM media_items`).Scan(&dbCount); err != nil {
+	if scanErr := db.QueryRow(`SELECT count(*) FROM media_items`).Scan(&dbCount); scanErr != nil {
 		return out
 	}
 	code, body, err := httpGet(url+"/indexes/media_items/stats", cfg.Meilisearch.APIKey, 3*time.Second)
@@ -327,6 +327,9 @@ func libraryPaths(db *sql.DB) []string {
 			all = append(all, paths...)
 		}
 	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		return all // best-effort listing: whatever iterated cleanly still helps the doctor
+	}
 	return all
 }
 
@@ -336,7 +339,11 @@ func checkWritableDir(name, path string, uid, gid int, repair bool) checkResult 
 		if err := os.WriteFile(f, []byte("x"), 0o644); err != nil {
 			return err
 		}
-		_ = os.Remove(f)
+		if rmErr := os.Remove(f); rmErr != nil {
+			// The dir accepted the write: report it writable. A probe file we
+			// cannot delete back is odd enough to surface, not enough to fail.
+			fmt.Fprintf(os.Stderr, "note: could not clean up %s: %v\n", f, rmErr)
+		}
 		return nil
 	}
 	_, statErr := os.Stat(path)
@@ -344,10 +351,17 @@ func checkWritableDir(name, path string, uid, gid int, repair bool) checkResult 
 		return checkResult{name, "ok", path, ""}
 	}
 	if repair {
-		_ = os.MkdirAll(path, 0o755)
-		_ = os.Chown(path, uid, gid)
+		mkErr := os.MkdirAll(path, 0o755)
+		chownErr := os.Chown(path, uid, gid)
 		if tryWrite() == nil {
 			return checkResult{name, "ok", path, "repaired (created + chowned)"}
+		}
+		// The repair did not take: say WHY instead of a bare FAIL below.
+		if mkErr != nil {
+			return checkResult{name, "FAIL", path, "repair failed: " + mkErr.Error()}
+		}
+		if chownErr != nil {
+			return checkResult{name, "FAIL", path, "repair failed: " + chownErr.Error()}
 		}
 	}
 	detail := path + " not writable"
@@ -469,7 +483,10 @@ func httpGet(url, bearer string, timeout time.Duration) (int, []byte, error) {
 		return 0, nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	body, _ := io.ReadAll(resp.Body)
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		body = nil // callers key on the status code; an unreadable body reads as empty
+	}
 	return resp.StatusCode, body, nil
 }
 

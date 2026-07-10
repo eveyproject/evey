@@ -93,16 +93,48 @@ func adminLoadTest(args []string) error {
 				if errors.Is(err, context.Canceled) {
 					continue
 				}
-				return fmt.Errorf("poll: %w", err)
+				// One failed poll must not lose the run: the gateway drops for
+				// ~5s on a dev rebuild (Air) and hiccups happen. Keep trying
+				// for a bounded window and only then conclude.
+				st, err = repollUntilBack(ctx, client, base, token)
+				if err != nil {
+					return err
+				}
+				if st == nil {
+					continue // interrupted while waiting; the ctx.Done case handles it
+				}
+				if !st.GetRunning() && st.GetLastReport() == nil {
+					return errors.New("the server restarted during the run (dev rebuild?) - the load test died with it, its state was in memory. Start it again")
+				}
 			}
 			last = st
 			printRamp(st)
 		}
 	}
 
-	fmt.Fprint(os.Stderr, "\r\033[K") // clear the live ramp line
+	fmt.Fprint(os.Stderr, "\r\x1b[K") // clear the live ramp line
 	printReport(last.GetLastReport())
 	return nil
+}
+
+// repollUntilBack retries the status poll for up to 30s after a transport
+// failure (the gateway drops ~5s on a dev rebuild). Returns the first status
+// it gets, nil if the ctx was interrupted, or an error once the window is
+// exhausted with the server still unreachable.
+func repollUntilBack(ctx context.Context, client *http.Client, base, token string) (*eveyv1.LoadTestStatus, error) {
+	fmt.Fprint(os.Stderr, "\r\x1b[K  server unreachable, retrying...")
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return nil, nil
+		case <-time.After(2 * time.Second):
+		}
+		if st, err := loadTestReq(ctx, client, http.MethodGet, base, token, nil); err == nil {
+			return st, nil
+		}
+	}
+	return nil, errors.New("server unreachable for 30s - it went down during the run; check `docker logs` and start the test again")
 }
 
 // forgeAdminToken reads the JWT private key and mints a 15-minute admin token.
@@ -123,7 +155,7 @@ func forgeAdminToken(cfg *config.Config) (string, error) {
 		return "", fmt.Errorf("load JWT key: %w", err)
 	}
 
-	db, err := openDB(cfg)
+	db, err := openDBReadOnly(cfg)
 	if err != nil {
 		return "", fmt.Errorf("open db: %w", err)
 	}
