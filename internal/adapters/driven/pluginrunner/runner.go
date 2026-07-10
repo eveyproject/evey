@@ -770,16 +770,8 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 	if pluginDir == "" {
 		pluginDir = defaultPluginDir
 	}
-	hasNet := slices.Contains(p.Permissions, networkPerm)
-
-	hostsFile, hostsCleanup, hostsErr := buildHostsFile(p.ID, p.ExternalFetch)
-	if hostsErr != nil {
-		slog.Warn("build /etc/hosts file failed; running without DNS whitelist",
-			slog.String("plugin_id", p.ID), slog.Any("err", hostsErr))
-	}
-
 	pluginSockDir := filepath.Join(sockDir, p.ID)
-	prefix := buildBwrapCmd(pluginDir, pluginSockDir, hasNet, mode, hostsFile)
+	prefix := buildBwrapCmd(pluginDir, pluginSockDir, mode)
 
 	// cmd.Args[0] is the program name; the original full argv is cmd.Args.
 	originalArgv := cmd.Args // e.g. ["/data/plugins/foo/plugin", "--arg"]
@@ -800,9 +792,6 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 				slog.String("plugin_id", p.ID),
 				slog.String("sandbox_lib", sandboxLibPath))
 			r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start (strict)")
-			if hostsCleanup != nil {
-				hostsCleanup()
-			}
 			return nil, fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
 		} else {
 			slog.Warn("strict mode without seccomp lib (dev override)",
@@ -813,9 +802,11 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 	slog.Info("plugin sandbox applied",
 		slog.String("plugin_id", p.ID),
 		slog.String("sandbox_mode", mode),
-		slog.String("plugin_dir", pluginDir),
-		slog.Bool("has_network_perm", hasNet))
-	return hostsCleanup, nil
+		slog.String("plugin_dir", pluginDir))
+	// No per-plugin sandbox temp state to reclaim (the /etc/hosts DNS whitelist
+	// was retired when direct plugin egress was cut in favour of the broker);
+	// the cleanup contract is kept nil-safe for callers and future use.
+	return nil, nil
 }
 
 func pluginSysProcAttr() *syscall.SysProcAttr {

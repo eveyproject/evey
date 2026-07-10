@@ -1,19 +1,17 @@
 package pluginrunner
 
-// networkPerm is the permission that grants a plugin outbound network access.
-const networkPerm = "network"
-
 // buildBwrapCmd returns the bwrap argv prefix to wrap a plugin command.
 // pluginDir is the writable bind mount for the plugin's own directory.
 // pluginSockDir is the per-plugin sock dir on the host; it is bind-mounted
 // (read-write) into the sandbox at the same path so the plugin can bind
 // EVEY_PLUGIN_SOCK and the host (outside the sandbox) sees the socket.
-// hasNetworkPerm controls whether --unshare-net is omitted (true = plugin
-// may reach the network; false = network namespace is isolated).
-// hostsFile, when non-empty and hasNetworkPerm is true, is bind-mounted
-// read-only as /etc/hosts so only whitelisted hosts are resolvable.
+// The network namespace is ALWAYS unshared: plugins have no direct egress.
+// A plugin that needs the network reaches it only through the host Fetch
+// broker over its Unix host socket (AF_UNIX is unaffected by --unshare-net),
+// which enforces the external_fetch allow-list and an SSRF-safe dialer. This
+// is why no /etc/hosts whitelist is bind-mounted here anymore.
 // Returns nil when mode == "basic" so callers can short-circuit.
-func buildBwrapCmd(pluginDir, pluginSockDir string, hasNetworkPerm bool, mode string, hostsFile string) []string {
+func buildBwrapCmd(pluginDir, pluginSockDir, mode string) []string {
 	if mode == sandboxModeBasic {
 		return nil
 	}
@@ -25,10 +23,7 @@ func buildBwrapCmd(pluginDir, pluginSockDir string, hasNetworkPerm bool, mode st
 		"--unshare-uts",
 		"--unshare-ipc",
 		"--unshare-cgroup",
-	}
-
-	if !hasNetworkPerm {
-		args = append(args, "--unshare-net")
+		"--unshare-net",
 	}
 
 	// Selective read-only mounts: cover all supported plugin runtimes
@@ -62,10 +57,6 @@ func buildBwrapCmd(pluginDir, pluginSockDir string, hasNetworkPerm bool, mode st
 	// path visible to the plugin process.
 	if pluginSockDir != "" {
 		args = append(args, "--bind", pluginSockDir, pluginSockDir)
-	}
-
-	if hostsFile != "" && hasNetworkPerm {
-		args = append(args, "--ro-bind", hostsFile, "/etc/hosts")
 	}
 
 	args = append(args,

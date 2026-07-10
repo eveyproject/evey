@@ -51,11 +51,12 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 	assert.Contains(t, cmd.Args, "-require-landlock")
 	assert.Contains(t, cmd.Args, "--")
 
-	// network permission → TCP egress restricted but HTTP(S) ports allowed.
+	// Direct TCP egress is cut even WITH the network permission: -restrict-net
+	// with no -net-connect grants, plus -deny-inet. The network permission
+	// unlocks the host Fetch broker (AF_UNIX), not a direct socket.
 	assert.Contains(t, cmd.Args, "-restrict-net")
-	assert.Contains(t, cmd.Args, "-net-connect")
-	assert.Contains(t, cmd.Args, "80")
-	assert.Contains(t, cmd.Args, "443")
+	assert.NotContains(t, cmd.Args, "-net-connect", "no plugin gets a direct TCP grant anymore")
+	assert.Contains(t, cmd.Args, "-deny-inet", "AF_INET/AF_INET6 sockets denied for every plugin")
 
 	// The original command is preserved at the tail, after the "--".
 	assert.Equal(t, "/usr/bin/node", cmd.Args[len(cmd.Args)-2])
@@ -126,10 +127,11 @@ func TestApplyLandlockSandbox_NoNetworkPerm_CutsOffTCP(t *testing.T) {
 	_, err := r.applyLandlockSandbox(context.Background(), p, cmd)
 	require.NoError(t, err)
 
-	// restrict-net is always set; with no network permission there must be no
-	// -net-connect, so the launcher denies all TCP.
+	// restrict-net is always set, there is never a -net-connect grant, and
+	// -deny-inet blocks AF_INET sockets outright.
 	assert.Contains(t, cmd.Args, "-restrict-net")
 	assert.NotContains(t, cmd.Args, "-net-connect")
+	assert.Contains(t, cmd.Args, "-deny-inet")
 }
 
 func TestApplyLandlockSandbox_NoSubprocessPerm_RequiresSeccompLib(t *testing.T) {
@@ -159,15 +161,6 @@ func TestApplyLandlockSandbox_SubprocessPerm_SkipsSeccompLib(t *testing.T) {
 	for _, e := range cmd.Env {
 		assert.NotContains(t, e, "LD_PRELOAD", "subprocess plugins must not get the execve-blocking filter")
 	}
-}
-
-func TestLandlockConnectPorts(t *testing.T) {
-	// Defaults: HTTP + HTTPS only.
-	assert.Equal(t, []int{80, 443}, landlockConnectPorts(nil))
-	assert.Equal(t, []int{80, 443}, landlockConnectPorts([]string{"api.open-meteo.com", "example.com"}))
-	// Explicit ":port" entries are added (deduped, 80/443 kept first).
-	got := landlockConnectPorts([]string{"api.example.com:8443", "other.com:443", " host.io:9000 "})
-	assert.Equal(t, []int{80, 443, 8443, 9000}, got)
 }
 
 func TestApplyLandlockSandbox_MissingLauncherFailsClosed(t *testing.T) {

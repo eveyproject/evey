@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -88,25 +87,19 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 		}
 	}
 
-	// TCP egress: deny by default (-restrict-net, Landlock ABI v4+). A plugin
-	// with the network permission may connect to standard HTTP(S) ports plus any
-	// explicit external_fetch port; one without it is cut off from TCP.
+	// TCP egress: denied for ALL plugins (-restrict-net with no -net-connect
+	// grants, Landlock ABI v4+). No plugin gets direct network egress; the
+	// network permission instead unlocks the host Fetch broker, reached over the
+	// AF_UNIX host socket (unaffected by these network restrictions).
 	args = append(args, "-restrict-net")
-	if slices.Contains(p.Permissions, networkPerm) {
-		for _, port := range landlockConnectPorts(p.ExternalFetch) {
-			args = append(args, "-net-connect", strconv.Itoa(port))
-		}
-	}
 
 	// Kernel seccomp denylist installed right before exec, so it also constrains
 	// static/compiled plugin binaries (which never load the LD_PRELOAD
-	// libevey-sandbox.so and would otherwise bypass that layer). -deny-inet adds
-	// socket(AF_INET/AF_INET6) denial for non-network plugins — kernel
-	// no-IP-egress that holds even on Landlock ABI <4 where -restrict-net is a no-op.
-	args = append(args, "-seccomp")
-	if !slices.Contains(p.Permissions, networkPerm) {
-		args = append(args, "-deny-inet")
-	}
+	// libevey-sandbox.so and would otherwise bypass that layer). -deny-inet
+	// denies socket(AF_INET/AF_INET6) for EVERY plugin — a kernel-enforced
+	// no-IP-egress that holds even on Landlock ABI <4 where -restrict-net is a
+	// no-op. AF_UNIX (the host broker socket) is untouched.
+	args = append(args, "-seccomp", "-deny-inet")
 
 	// Drop to the dedicated plugin uid (distinct from the server) when uid
 	// separation is on and the server is non-root; the launcher carries
@@ -178,25 +171,6 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 		slog.String("sandbox_mode", sandboxModeLandlock),
 		slog.String("plugin_dir", pluginDir))
 	return nil, nil
-}
-
-// landlockConnectPorts returns the TCP ports a network-permitted plugin may
-// connect to: the standard HTTP/HTTPS ports plus any explicit ":port" declared
-// in its external_fetch list. Landlock filters by port, not host, so the
-// per-host DNS whitelist (external_fetch) remains enforced elsewhere; this only
-// narrows which TCP ports are reachable at all.
-func landlockConnectPorts(externalFetch []string) []int {
-	ports := []int{80, 443}
-	seen := map[int]bool{80: true, 443: true}
-	for _, entry := range externalFetch {
-		if _, portStr, err := net.SplitHostPort(strings.TrimSpace(entry)); err == nil {
-			if n, perr := strconv.Atoi(portStr); perr == nil && n > 0 && n <= 65535 && !seen[n] {
-				ports = append(ports, n)
-				seen[n] = true
-			}
-		}
-	}
-	return ports
 }
 
 // resolveAutoMode picks the sandbox best suited to the host, preferring

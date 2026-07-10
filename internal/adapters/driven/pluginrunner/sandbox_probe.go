@@ -46,9 +46,9 @@ func ProbeSandbox(mode string) error {
 	defer os.RemoveAll(tmp)
 
 	// Reuse the real sandbox arg builder so the probe exercises the same
-	// unshare + mount setup a plugin would. hasNetworkPerm=false → the
-	// strictest form (also unshares the network namespace).
-	prefix := buildBwrapCmd(tmp, "", false, mode, "")
+	// unshare + mount setup a plugin would (the network namespace is always
+	// unshared now).
+	prefix := buildBwrapCmd(tmp, "", mode)
 	if prefix == nil { // mode resolved to basic
 		return nil
 	}
