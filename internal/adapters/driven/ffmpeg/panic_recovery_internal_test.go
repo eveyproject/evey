@@ -15,21 +15,32 @@ import (
 // expires: the recover path must mark the handle failed and close h.ready
 // itself.
 //
-// The panic is injected by leaving h.cmd nil and cancelling ctx up front, so
-// waitForFile returns immediately via ctx.Done() and the error branch's
-// h.cmd.Wait() call dereferences a nil *exec.Cmd.
+// The panic is injected through h.cancel: with ctx already cancelled, waitForFile
+// returns at once and run()'s error branch calls h.cancel() before anything
+// else, so a cancel that panics on its first call fires a real panic inside
+// run(). The recover path's own h.cancel() call is the harmless second one.
+// procExited is closed so awaitProcExit can never strand the goroutine even if
+// the flow ever reaches it (the old test left it nil and hung on <-nil forever).
 func TestHLSHandleRun_PanicRecovered(t *testing.T) {
 	h := &hlsHandle{
 		opts: transcoding.HLSProcessOpts{
 			OutputDir:     t.TempDir(),
 			VideoDecision: "copy",
 		},
-		cmd:    nil,
-		ready:  make(chan struct{}),
-		done:   make(chan struct{}),
-		stderr: newRingBuffer(1024),
+		cmd:        nil,
+		ready:      make(chan struct{}),
+		done:       make(chan struct{}),
+		procExited: make(chan struct{}),
+		stderr:     newRingBuffer(1024),
 	}
-	h.cancel = func() {} // no-op: nothing to cancel, but run() calls it unconditionally
+	close(h.procExited) // no process to wait on; keep awaitProcExit non-blocking
+	var cancelled bool
+	h.cancel = func() {
+		if !cancelled {
+			cancelled = true
+			panic("injected panic in run() error branch")
+		}
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // already-cancelled: waitForFile returns ctx.Err() without waiting
@@ -102,15 +113,23 @@ func TestAudioHandleRun_PanicRecovered(t *testing.T) {
 	h := &audioHandle{
 		outputDir:    t.TempDir(),
 		playlistName: "audio.m3u8",
-		cmd:          nil, // nil deref inside run() once the wait path is reached
+		cmd:          nil,
 		ready:        make(chan struct{}),
 		done:         make(chan struct{}),
+		procExited:   make(chan struct{}),
 		stderr:       newRingBuffer(1024),
 	}
-	h.cancel = func() {}
+	close(h.procExited) // no process to wait on; keep awaitProcExit non-blocking
+	var cancelled bool
+	h.cancel = func() {
+		if !cancelled {
+			cancelled = true
+			panic("injected panic in run() error branch")
+		}
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // already-cancelled: waitForFile returns immediately, then cmd.Wait() derefs nil
+	cancel() // already-cancelled: waitForFile returns at once, then h.cancel() panics
 
 	waitErrCh := make(chan error, 1)
 	go func() { waitErrCh <- h.WaitReady(context.Background()) }()
