@@ -85,11 +85,12 @@ EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT=5s
 EVEY_TRANSCODING_HW_PER_VARIANT=false
 # Encode only the one ABR rung the client is actually requesting (on-demand,
 # the Jellyfin/Plex model) instead of transcoding the whole ladder in parallel.
-# ON by default — the parallel ladder multiplies CPU and is the main cause of
-# the real-time-budget collapse (360p fallback) on weak hosts. Set to 0 to
-# restore the legacy multi-variant ladder on hosts powerful enough to pre-encode
-# every rung for seamless ABR switching. Cache-compatible either way.
-EVEY_TRANSCODING_SINGLE_VARIANT=1
+# OFF by default (the multi-variant ladder runs). The parallel ladder multiplies
+# CPU and is the main cause of the real-time-budget collapse (360p fallback) on
+# weak hosts, so set this to 1 on a weak NAS to encode only the requested rung.
+# Leave at 0 on hosts powerful enough to pre-encode every rung for seamless ABR
+# switching. Cache-compatible either way.
+EVEY_TRANSCODING_SINGLE_VARIANT=0
 ```
 
 ### Encode calibration sample

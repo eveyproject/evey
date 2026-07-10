@@ -6,7 +6,7 @@ How Evey runs schema migrations and how to operate on them safely.
 
 Migrations are **embedded** (`go:embed`) and executed automatically on server startup from `internal/adapters/driven/postgres/migrate.go` using `golang-migrate/migrate/v4`. Source: `internal/adapters/driven/postgres/migrations/NNNNNN_<name>.{up,down}.sql`.
 
-There is **no standalone migrate CLI**. The `Makefile` has `migrate-up` / `migrate-down` targets but they point at `./cmd/migrate` which does not exist — do not rely on them. All migrations apply when `evey-server` boots.
+Migrations apply automatically when `evey-server` boots. There is **also** a CLI for manual control: `evey admin migrate up | down | version` (implemented in `cmd/evey/admin.go`; `version` prints the current schema version and exits 1 if the DB is dirty). The `Makefile` `migrate-up` / `migrate-down` targets wrap it via `./cmd/evey admin migrate`. A pre-migration `pg_dump` is taken automatically when `EVEY_BACKUP_DIR` is set (pass `--no-backup` to skip).
 
 State is tracked in the `schema_migrations` table (managed by golang-migrate): `{version, dirty}`.
 
