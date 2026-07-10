@@ -86,7 +86,7 @@ func TestBuildDIDLMetadata(t *testing.T) {
 }
 
 func TestBuildSOAPBody_SetAVTransportURI_ArgOrder(t *testing.T) {
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		body := buildSOAPBody("SetAVTransportURI", []soapArg{
 			{"InstanceID", "0"},
 			{"CurrentURI", "http://example.com/video.mp4"},
@@ -100,7 +100,7 @@ func TestBuildSOAPBody_SetAVTransportURI_ArgOrder(t *testing.T) {
 		if idxInstanceID < 0 || idxCurrentURI < 0 || idxCurrentURIMetaData < 0 {
 			t.Fatalf("expected all three args present in body: %s", body)
 		}
-		if !(idxInstanceID < idxCurrentURI && idxCurrentURI < idxCurrentURIMetaData) {
+		if idxInstanceID >= idxCurrentURI || idxCurrentURI >= idxCurrentURIMetaData {
 			t.Fatalf("expected InstanceID < CurrentURI < CurrentURIMetaData order, got body: %s", body)
 		}
 	}
