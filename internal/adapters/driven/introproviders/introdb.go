@@ -31,12 +31,6 @@ type IntroDBClient struct {
 // IntroDBOption is the option pattern.
 type IntroDBOption func(*IntroDBClient)
 
-// WithIntroDBHTTPClient swaps the *http.Client; tests use it to point at
-// a httptest.Server.
-func WithIntroDBHTTPClient(c *http.Client) IntroDBOption {
-	return func(t *IntroDBClient) { t.httpClient = c }
-}
-
 // WithIntroDBBaseURL overrides the API base URL.
 func WithIntroDBBaseURL(u string) IntroDBOption {
 	return func(t *IntroDBClient) { t.baseURL = strings.TrimRight(u, "/") }

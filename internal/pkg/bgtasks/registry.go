@@ -23,8 +23,8 @@ const (
 type Task struct {
 	Name         string    `json:"name"`
 	State        State     `json:"state"`
-	Detail       string    `json:"detail,omitempty"`         // what it's working on right now (e.g. a media id)
-	Processed    int64     `json:"processed"`                // items completed this process lifetime
+	Detail       string    `json:"detail,omitempty"`      // what it's working on right now (e.g. a media id)
+	Processed    int64     `json:"processed"`             // items completed this process lifetime
 	LastActiveAt time.Time `json:"lastActiveAt,omitzero"` // when it last did work
 }
 
@@ -103,10 +103,7 @@ func (r *Registry) Snapshot() []Task {
 
 var std = New()
 
-// Default exposes the process-wide registry the admin handler reads.
-func Default() *Registry { return std }
-
 // Register / Begin / Snapshot delegate to the default registry.
-func Register(name string)            { std.Register(name) }
+func Register(name string)             { std.Register(name) }
 func Begin(name, detail string) func() { return std.Begin(name, detail) }
-func Snapshot() []Task               { return std.Snapshot() }
+func Snapshot() []Task                 { return std.Snapshot() }

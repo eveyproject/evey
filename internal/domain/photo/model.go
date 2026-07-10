@@ -28,9 +28,9 @@ type Photo struct {
 	// Empty when the file pre-dates migration 000096 or the encoder
 	// couldn't decode it. Clients show a coloured preview while the full
 	// image loads (Wolt blurhash spec).
-	Blurhash    string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Blurhash  string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // NewPhoto is the canonical constructor: mints the ID, stamps
@@ -63,18 +63,14 @@ func NewPhoto(libraryID shared.LibraryID, filePath string, size int64, modTime t
 // (dimensions, EXIF, geoloc, …) evolves.
 type Option func(*Photo)
 
-func WithTitle(title string) Option            { return func(p *Photo) { p.Title = title } }
-func WithHash(hash string) Option              { return func(p *Photo) { p.FileHash = hash } }
-func WithMimeType(mime string) Option          { return func(p *Photo) { p.MimeType = mime } }
-func WithDimensions(w, h int) Option           { return func(p *Photo) { p.Width, p.Height = w, h } }
-func WithTakenAt(t *time.Time) Option          { return func(p *Photo) { p.TakenAt = t } }
-func WithCameraModel(model string) Option      { return func(p *Photo) { p.CameraModel = model } }
-func WithAlbum(album string) Option            { return func(p *Photo) { p.Album = album } }
-func WithGeo(lat, lng *float64) Option {
-	return func(p *Photo) { p.Latitude, p.Longitude = lat, lng }
-}
-
-func WithBlurhash(hash string) Option { return func(p *Photo) { p.Blurhash = hash } }
+func WithTitle(title string) Option       { return func(p *Photo) { p.Title = title } }
+func WithHash(hash string) Option         { return func(p *Photo) { p.FileHash = hash } }
+func WithMimeType(mime string) Option     { return func(p *Photo) { p.MimeType = mime } }
+func WithDimensions(w, h int) Option      { return func(p *Photo) { p.Width, p.Height = w, h } }
+func WithTakenAt(t *time.Time) Option     { return func(p *Photo) { p.TakenAt = t } }
+func WithCameraModel(model string) Option { return func(p *Photo) { p.CameraModel = model } }
+func WithAlbum(album string) Option       { return func(p *Photo) { p.Album = album } }
+func WithBlurhash(hash string) Option     { return func(p *Photo) { p.Blurhash = hash } }
 
 func (p *Photo) Validate() error {
 	if p.LibraryID == "" {

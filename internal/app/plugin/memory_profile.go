@@ -26,11 +26,6 @@ const (
 // afford always-on comfort processes.
 const autoLowThresholdBytes int64 = 3 << 30
 
-// IsValidMemoryProfile reports whether v is an accepted profile value.
-func IsValidMemoryProfile(v string) bool {
-	return v == MemoryProfileAuto || v == MemoryProfileNormal || v == MemoryProfileLow
-}
-
 // memoryBudget is a test seam over sysinfo.MemoryBudgetBytes.
 var memoryBudget = sysinfo.MemoryBudgetBytes
 

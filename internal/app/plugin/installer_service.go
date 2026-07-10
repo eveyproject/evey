@@ -218,12 +218,6 @@ func InstallerWithRuntimeChecker(c plugin.RuntimeAvailabilityChecker) InstallerO
 	return func(s *InstallerService) { s.runtimes = c }
 }
 
-// InstallerWithListDirsFn replaces the default os.ReadDir-based directory
-// enumerator. Intended for tests only — production code never needs this.
-func InstallerWithListDirsFn(fn func(baseDir string) ([]string, error)) InstallerOption {
-	return func(s *InstallerService) { s.listDirsFn = fn }
-}
-
 // InstallerWithHTTPClient replaces the default ssrf-safe HTTP client used
 // to fetch remote plugin ZIPs. Intended for tests that need to download
 // from a loopback httptest server — production should not bypass SSRF.

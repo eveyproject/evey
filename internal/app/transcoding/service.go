@@ -46,13 +46,6 @@ func WithCacheStore(cs transcoding.CacheStore) Option {
 	return func(s *Service) { s.cache = cs }
 }
 
-// WithPlaybackPreemption wires the live-playback gauge that pauses background
-// transcodes while viewers are watching. Call SuperviseBackgroundPreemption to
-// run the loop.
-func WithPlaybackPreemption(g PlaybackGauge) Option {
-	return func(s *Service) { s.playback = g }
-}
-
 // SetPlaybackGauge wires the live-playback gauge after construction — wire.go
 // builds the session limiter after this service. Pair with
 // SuperviseBackgroundPreemption.

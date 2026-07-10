@@ -394,10 +394,6 @@ func WithAPIKeyPermissions(perms []string) APIKeyOption {
 	return func(k *APIKeyModel) { k.Permissions = perms }
 }
 
-func WithAPIKeyExpiresAt(t *time.Time) APIKeyOption {
-	return func(k *APIKeyModel) { k.ExpiresAt = t }
-}
-
 // NewAPIKey is the canonical constructor. Callers mint the id
 // (`ak-*`) and hash the raw key outside the domain (hashing depends
 // on the crypto policy owned by the handler). Stamps CreatedAt and

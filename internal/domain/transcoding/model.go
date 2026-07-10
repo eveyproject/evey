@@ -113,14 +113,6 @@ func WithJobResolution(in, out string) TranscodeJobOption {
 	return func(j *TranscodeJob) { j.ResolutionIn, j.ResolutionOut = in, out }
 }
 
-func WithJobInputCodec(codec string) TranscodeJobOption {
-	return func(j *TranscodeJob) { j.InputCodec = codec }
-}
-
-func WithJobPreset(preset string) TranscodeJobOption {
-	return func(j *TranscodeJob) { j.Preset = preset }
-}
-
 // NewTranscodeJob is the canonical constructor. Validates. Required
 // identity fields (id, mediaItem, inputPath, outputCodec) are surfaced
 // as params so construction never succeeds with them missing. Status

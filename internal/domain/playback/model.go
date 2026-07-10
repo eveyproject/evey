@@ -87,20 +87,8 @@ func WithPlaySessionDevice(name, deviceType string) PlaySessionOption {
 	return func(s *PlaySession) { s.DeviceName, s.DeviceType = name, deviceType }
 }
 
-func WithPlaySessionClientIP(ip string) PlaySessionOption {
-	return func(s *PlaySession) { s.ClientIP = ip }
-}
-
 func WithPlaySessionMethod(m PlayMethod) PlaySessionOption {
 	return func(s *PlaySession) { s.PlayMethod = string(m) }
-}
-
-func WithPlaySessionCodecs(video, audio string) PlaySessionOption {
-	return func(s *PlaySession) { s.VideoCodec, s.AudioCodec = video, audio }
-}
-
-func WithPlaySessionResolution(r string) PlaySessionOption {
-	return func(s *PlaySession) { s.Resolution = r }
 }
 
 func WithPlaySessionBandwidth(bps int64) PlaySessionOption {

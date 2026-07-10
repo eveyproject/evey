@@ -52,12 +52,6 @@ type TIDBClient struct {
 // TIDBOption configures the client at construction time.
 type TIDBOption func(*TIDBClient)
 
-// WithTIDBHTTPClient swaps the default *http.Client. Tests use this to
-// inject a httptest.Server-backed transport.
-func WithTIDBHTTPClient(c *http.Client) TIDBOption {
-	return func(t *TIDBClient) { t.httpClient = c }
-}
-
 // WithTIDBBaseURL overrides the API base, e.g. a httptest server.
 func WithTIDBBaseURL(u string) TIDBOption {
 	return func(t *TIDBClient) { t.baseURL = strings.TrimRight(u, "/") }
