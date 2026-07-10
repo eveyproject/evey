@@ -108,6 +108,25 @@ func (s *serverState) record(r *http.Request) {
 	s.mu.Unlock()
 }
 
+// segIndexFromPath extracts the segment index from a recorded fetch path
+// (mirrors serveSegment's own parsing), so a test can assert on the exact
+// sequence of segments a viewer requested.
+func segIndexFromPath(path string) (int, bool) {
+	if !strings.Contains(path, "-seg") {
+		return 0, false
+	}
+	base := path[strings.LastIndex(path, "/")+1:]
+	idx := strings.LastIndex(base, "seg")
+	if idx < 0 {
+		return 0, false
+	}
+	v, err := strconv.Atoi(strings.TrimSuffix(base[idx+3:], ".ts"))
+	if err != nil {
+		return 0, false
+	}
+	return v, true
+}
+
 func mediaIDFromPath(path string) string {
 	parts := strings.Split(path, "/")
 	for i, p := range parts {
@@ -819,5 +838,384 @@ func TestRunner_PinnedScenario_OneTranscodeThenMkvgo(t *testing.T) {
 	}
 	if report.ViewerMix["transcode"] != 1 || report.ViewerMix["mkvgo"] != 3 {
 		t.Fatalf("viewer mix = %v, want transcode:1 mkvgo:3", report.ViewerMix)
+	}
+}
+
+// --- Mode: withDefaults ------------------------------------------------
+
+func TestConfig_WithDefaults_UnknownModeErrors(t *testing.T) {
+	_, err := Config{Mode: "bogus"}.withDefaults()
+	if !errors.Is(err, ErrUnknownMode) {
+		t.Fatalf("withDefaults error = %v, want ErrUnknownMode", err)
+	}
+}
+
+func TestConfig_WithDefaults_EnduranceDefaultsToLongerMaxDuration(t *testing.T) {
+	cfg, err := Config{Mode: ModeEndurance}.withDefaults()
+	if err != nil {
+		t.Fatalf("withDefaults: %v", err)
+	}
+	if cfg.MaxDuration != DefaultEnduranceMaxDuration {
+		t.Fatalf("max duration = %v, want %v", cfg.MaxDuration, DefaultEnduranceMaxDuration)
+	}
+
+	cfg2, err := Config{Mode: ModeEndurance, MaxDuration: 90 * time.Second}.withDefaults()
+	if err != nil {
+		t.Fatalf("withDefaults: %v", err)
+	}
+	if cfg2.MaxDuration != 90*time.Second {
+		t.Fatalf("explicit max duration overridden: got %v, want 90s", cfg2.MaxDuration)
+	}
+
+	cfg3, err := Config{}.withDefaults()
+	if err != nil {
+		t.Fatalf("withDefaults: %v", err)
+	}
+	if cfg3.MaxDuration != DefaultMaxDuration {
+		t.Fatalf("ramp mode default max duration = %v, want %v", cfg3.MaxDuration, DefaultMaxDuration)
+	}
+}
+
+func TestRunner_StartRefusesUnknownMode(t *testing.T) {
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
+	err := r.Start(context.Background(), Config{BaseURL: "http://127.0.0.1:1", Token: "t", Mode: "bogus"})
+	if !errors.Is(err, ErrUnknownMode) {
+		t.Fatalf("Start error = %v, want ErrUnknownMode", err)
+	}
+	if r.Status().Running {
+		t.Fatalf("must not start with an unknown mode")
+	}
+}
+
+// --- Mode: flash ------------------------------------------------------
+
+func TestRunner_FlashDoesNotStopOnAdmissionRefusalsAndCountsSurvivors(t *testing.T) {
+	st := newServerState()
+	st.masterHook = func(_ int, mediaID, _ string) (int, map[string]string) {
+		if mediaID == "m1" || mediaID == "m3" {
+			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
+		}
+		return 0, nil
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
+		MaxViewers: 5, RampEvery: 100 * time.Millisecond, MaxDuration: 5 * time.Second,
+	}
+	start := time.Now()
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 5*time.Second)
+	elapsed := time.Since(start)
+
+	if report.StopReason != StopCompleted {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopCompleted, report.StopDetail)
+	}
+	if report.SustainedViewers != 3 {
+		t.Fatalf("sustained viewers = %d, want 3 (detail=%q)", report.SustainedViewers, report.StopDetail)
+	}
+	if !strings.Contains(report.StopDetail, "5") {
+		t.Fatalf("stop detail = %q, want it to mention the 5 launched viewers", report.StopDetail)
+	}
+	// The run must have observed the full 3xRampEvery window (300ms), not
+	// stopped the instant the first refusal arrived - proof that admission
+	// refusal doesn't abort a flash run.
+	if elapsed < 250*time.Millisecond {
+		t.Fatalf("run ended after only %v, want it to have run the full observation window (~300ms)", elapsed)
+	}
+	if report.Mode != ModeFlash {
+		t.Fatalf("report mode = %q, want %q", report.Mode, ModeFlash)
+	}
+}
+
+func TestRunner_FlashLaunchesAllViewersInSameWindow(t *testing.T) {
+	st := newServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
+		MaxViewers: 5, RampEvery: 300 * time.Millisecond, MaxDuration: 5 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	report := waitForReport(t, r, 5*time.Second)
+	if report.StopReason != StopCompleted {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopCompleted, report.StopDetail)
+	}
+	if report.SustainedViewers != 5 {
+		t.Fatalf("sustained viewers = %d, want 5", report.SustainedViewers)
+	}
+
+	st.mu.Lock()
+	var masterTimes []time.Time
+	for _, f := range st.fetches {
+		if strings.HasSuffix(f.path, "master.m3u8") {
+			masterTimes = append(masterTimes, f.at)
+		}
+	}
+	st.mu.Unlock()
+
+	if len(masterTimes) != 5 {
+		t.Fatalf("master fetches = %d, want 5", len(masterTimes))
+	}
+	earliest, latest := masterTimes[0], masterTimes[0]
+	for _, at := range masterTimes[1:] {
+		if at.Before(earliest) {
+			earliest = at
+		}
+		if at.After(latest) {
+			latest = at
+		}
+	}
+	spread := latest.Sub(earliest)
+	if spread >= cfg.RampEvery/2 {
+		t.Fatalf("master fetches spread over %v, want << RampEvery (%v): flash must launch all at once, not ramp", spread, cfg.RampEvery)
+	}
+}
+
+// A flash viewer whose candidate isn't actually mkvgo-served must still be
+// skipped, exactly like the ramp does today - flash changes WHEN viewers
+// launch, never the eligibility rule itself. Because flash launches
+// min(MaxViewers, available candidates) all at once, it always spends its
+// entire candidate budget up front (unlike the ramp, which spends one
+// candidate per tick and so still has slack left when an early tier gets
+// skipped); the ineligible candidate here has nothing left to retry into,
+// so the run ends as StopLibraryLimit - the point of this test is that it
+// is never silently counted as served.
+func TestRunner_FlashPlusMkvgoStillRequiresTheHeader(t *testing.T) {
+	st := newServerState()
+	st.servedByFn = func(mediaID, resource string, _ int) bool {
+		return resource != "master" || mediaID != "m0" // m0 isn't actually mkvgo-served.
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo, Mode: ModeFlash,
+		MaxViewers: 1, RampEvery: 30 * time.Millisecond, MaxDuration: 3 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	report := waitForReport(t, r, 3*time.Second)
+	if report.SkippedCandidates != 1 {
+		t.Fatalf("skipped candidates = %d, want 1 (m0 must be skipped for lacking the mkvgo header)", report.SkippedCandidates)
+	}
+	if report.SustainedViewers != 0 {
+		t.Fatalf("sustained viewers = %d, want 0: an ineligible candidate must never count as served", report.SustainedViewers)
+	}
+	if report.StopReason != StopLibraryLimit {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopLibraryLimit, report.StopDetail)
+	}
+}
+
+// --- Mode: seek ---------------------------------------------------------
+
+func TestRunner_SeekModeJumpsNonSequentiallyAndRecordsTTFF(t *testing.T) {
+	st := newServerState()
+	st.targetDurRaw = "0.05" // 50ms
+	st.segCount = 30
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
+	cfg := Config{BaseURL: srv.URL, Token: "tkn", Mode: ModeSeek}
+	events := make(chan viewerEvent, 1024)
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	wg.Add(1)
+	go r.runViewer(ctx, cfg, 1, viewerTypeNatural, MediaCandidate{ID: "m0"}, false, events, &wg)
+
+	time.Sleep(2200 * time.Millisecond)
+	cancel()
+	wg.Wait()
+	close(events)
+
+	ttffCount := 0
+	for ev := range events {
+		if ev.kind == evTTFF {
+			ttffCount++
+		}
+	}
+	// 1 TTFF sample from the initial burst + at least 2 from seeks in ~2s
+	// (a jump every 10x50ms=500ms).
+	if ttffCount < 3 {
+		t.Fatalf("ttff samples = %d, want >= 3 (1 initial + >= 2 seeks)", ttffCount)
+	}
+
+	st.mu.Lock()
+	var segIdxs []int
+	for _, f := range st.fetches {
+		if idx, ok := segIndexFromPath(f.path); ok {
+			segIdxs = append(segIdxs, idx)
+		}
+	}
+	st.mu.Unlock()
+
+	nonSequential := 0
+	for i := 1; i < len(segIdxs); i++ {
+		if segIdxs[i] != (segIdxs[i-1]+1)%st.segCount {
+			nonSequential++
+		}
+	}
+	if nonSequential < 2 {
+		t.Fatalf("non-sequential segment fetches = %d, want >= 2 (the seeks): %v", nonSequential, segIdxs)
+	}
+}
+
+func TestRunner_SeekModeIsDeterministicAcrossRuns(t *testing.T) {
+	runOnce := func() []int {
+		st := newServerState()
+		st.targetDurRaw = "0.05"
+		st.segCount = 30
+		srv := httptest.NewServer(st.handler())
+		defer srv.Close()
+
+		r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
+		cfg := Config{BaseURL: srv.URL, Token: "tkn", Mode: ModeSeek}
+		events := make(chan viewerEvent, 1024)
+		var wg sync.WaitGroup
+		ctx, cancel := context.WithCancel(context.Background())
+		wg.Add(1)
+		go r.runViewer(ctx, cfg, 3, viewerTypeNatural, MediaCandidate{ID: "m0"}, false, events, &wg)
+
+		time.Sleep(1500 * time.Millisecond)
+		cancel()
+		wg.Wait()
+		close(events)
+
+		st.mu.Lock()
+		defer st.mu.Unlock()
+		var jumps []int
+		prev := -1
+		for _, f := range st.fetches {
+			idx, ok := segIndexFromPath(f.path)
+			if !ok {
+				continue
+			}
+			if prev >= 0 && idx != (prev+1)%st.segCount {
+				jumps = append(jumps, idx)
+			}
+			prev = idx
+		}
+		return jumps
+	}
+
+	seqA := runOnce()
+	seqB := runOnce()
+	if len(seqA) < 2 || len(seqB) < 2 {
+		t.Fatalf("not enough jumps recorded to compare determinism: A=%v B=%v", seqA, seqB)
+	}
+	n := min(len(seqA), len(seqB))
+	for i := range n {
+		if seqA[i] != seqB[i] {
+			t.Fatalf("seek position %d diverged between runs: A=%d B=%d (full: A=%v B=%v)", i, seqA[i], seqB[i], seqA, seqB)
+		}
+	}
+}
+
+func TestRunner_SeekModeVerdictsUnchanged(t *testing.T) {
+	st := newServerState()
+	st.masterHook = func(hitNum int, _, _ string) (int, map[string]string) {
+		if hitNum == 4 {
+			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
+		}
+		return 0, nil
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeSeek,
+		MaxViewers: 6, RampEvery: 40 * time.Millisecond, MaxDuration: 5 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Seek mode keeps the normal ramp's verdicts: an admission refusal still
+	// stops the run at the prior sustained tier, exactly like ScenarioNatural
+	// without a mode.
+	report := waitForReport(t, r, 3*time.Second)
+	if report.StopReason != StopAdmissionFull {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopAdmissionFull, report.StopDetail)
+	}
+	if report.SustainedViewers != 3 {
+		t.Fatalf("sustained viewers = %d, want 3", report.SustainedViewers)
+	}
+}
+
+// --- Mode: endurance ------------------------------------------------------
+
+func TestRunner_EnduranceHoldsPlateauThenCompletes(t *testing.T) {
+	st := newServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeEndurance,
+		MaxViewers: 2, RampEvery: 100 * time.Millisecond, MaxDuration: 1500 * time.Millisecond,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 3*time.Second)
+	if report.StopReason != StopCompleted {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopCompleted, report.StopDetail)
+	}
+	if report.SustainedViewers != 2 {
+		t.Fatalf("sustained viewers = %d, want 2", report.SustainedViewers)
+	}
+	if !strings.Contains(report.StopDetail, "held 2 viewers") {
+		t.Fatalf("stop detail = %q, want it to mention 'held 2 viewers'", report.StopDetail)
+	}
+	if report.Mode != ModeEndurance {
+		t.Fatalf("report mode = %q, want %q", report.Mode, ModeEndurance)
+	}
+}
+
+func TestRunner_EnduranceSLOBreachDuringHoldStillStops(t *testing.T) {
+	st := newServerState()
+	st.targetDurRaw = "0.1" // 100ms auto SLO
+	var breaching atomic.Bool
+	st.segmentHook = func(_ string, _ int) (int, map[string]string, time.Duration) {
+		if breaching.Load() {
+			return 0, nil, 200 * time.Millisecond // comfortably beyond the 100ms SLO
+		}
+		return 0, nil, 0
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeEndurance,
+		MaxViewers: 2, RampEvery: 80 * time.Millisecond, MaxDuration: 5 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	// Let the ramp reach its 2-viewer plateau cleanly, then start degrading
+	// segment latency so the breach happens DURING the held plateau, not the
+	// ramp-up.
+	time.Sleep(400 * time.Millisecond)
+	breaching.Store(true)
+
+	report := waitForReport(t, r, 5*time.Second)
+	if report.StopReason != StopSLOBreach {
+		t.Fatalf("stop reason = %s, want %s (detail=%q): endurance must keep SLO verdicts active during the hold", report.StopReason, StopSLOBreach, report.StopDetail)
 	}
 }

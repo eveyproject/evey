@@ -9,6 +9,7 @@ package loadtest
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -20,6 +21,14 @@ var ErrAlreadyRunning = errors.New("loadtest: already running")
 // streaming. Load testing on top of real traffic would both skew the
 // measurement and steal capacity from real users, so it is refused outright.
 var ErrStreamsActive = errors.New("loadtest: real streams are active")
+
+// ErrUnknownMode is returned by Start when Config.Mode is set to something
+// other than "" (ramp) or one of the Mode* constants. Unlike an unrecognised
+// Scenario (which falls back to "natural" - a household never crashes just
+// because an admin fat-fingered a scenario name), an unknown Mode fails fast:
+// the three modes drive fundamentally different stop/verdict logic, and
+// silently falling back to ramp would misreport what was actually measured.
+var ErrUnknownMode = errors.New("loadtest: unknown mode")
 
 // MediaCandidate is one piece of media the runner may point simulated
 // viewers at.
@@ -61,6 +70,26 @@ const (
 	ScenarioHeavy    = "heavy"    // 20% mkvgo / 80% transcode
 )
 
+// Mode selects HOW the ramp behaves; it is orthogonal to Scenario (WHO the
+// simulated viewers are). The zero value is the classic ramp: one viewer
+// joins every RampEvery until a verdict stops the run.
+const (
+	// ModeFlash is the 9pm-thunder mode: no ramp, min(MaxViewers, available
+	// candidates) viewers all start at once, and the run measures how many
+	// survive a 3xRampEvery observation window rather than how far a gradual
+	// ramp climbs.
+	ModeFlash = "flash"
+	// ModeSeek is the seek-storm mode: a normal ramp, but every viewer jumps
+	// to a pseudo-random position in its playlist every 10 segment-durations,
+	// measuring the churn a real "everyone scrubs the timeline" pattern
+	// causes on the server.
+	ModeSeek = "seek"
+	// ModeEndurance is the marathon mode: a normal ramp up to MaxViewers,
+	// then holds that plateau (SLO/admission verdicts still active) until
+	// MaxDuration, to catch a slow drift a short run would miss.
+	ModeEndurance = "endurance"
+)
+
 // Config configures one load test run.
 type Config struct {
 	// BaseURL is the server's own loopback origin (e.g. http://127.0.0.1:8080),
@@ -84,19 +113,30 @@ type Config struct {
 	// duration means a real player would stall).
 	SegmentSLOMs int
 	// MaxDuration is a hard wall on the whole run, regardless of ramp
-	// progress. Defaults to 4 minutes.
+	// progress. Defaults to 4 minutes, except in ModeEndurance, which
+	// defaults to 30 minutes - the whole point of that mode is to hold a
+	// plateau long enough to catch a slow drift.
 	MaxDuration time.Duration
+	// Mode is "" (ramp, the default), ModeFlash, ModeSeek or ModeEndurance.
+	// It is the HOW; Scenario stays the WHO.
+	Mode string
 }
 
 // Defaults applied when the corresponding Config field is left at its zero
 // value.
 const (
-	DefaultMaxViewers  = 12
-	DefaultRampEvery   = 8 * time.Second
-	DefaultMaxDuration = 4 * time.Minute
+	DefaultMaxViewers           = 12
+	DefaultRampEvery            = 8 * time.Second
+	DefaultMaxDuration          = 4 * time.Minute
+	DefaultEnduranceMaxDuration = 30 * time.Minute
 )
 
-func (c Config) withDefaults() Config {
+func (c Config) withDefaults() (Config, error) {
+	switch c.Mode {
+	case "", ModeFlash, ModeSeek, ModeEndurance:
+	default:
+		return c, fmt.Errorf("%w: %q", ErrUnknownMode, c.Mode)
+	}
 	if c.MaxViewers <= 0 {
 		c.MaxViewers = DefaultMaxViewers
 	}
@@ -104,12 +144,16 @@ func (c Config) withDefaults() Config {
 		c.RampEvery = DefaultRampEvery
 	}
 	if c.MaxDuration <= 0 {
-		c.MaxDuration = DefaultMaxDuration
+		if c.Mode == ModeEndurance {
+			c.MaxDuration = DefaultEnduranceMaxDuration
+		} else {
+			c.MaxDuration = DefaultMaxDuration
+		}
 	}
 	if c.Scenario == "" {
 		c.Scenario = ScenarioNatural
 	}
-	return c
+	return c, nil
 }
 
 // StopReason names why a run ended.
@@ -138,11 +182,17 @@ const (
 	// StopError: a viewer failed repeatedly (3 consecutive non-admission
 	// failures) or another unrecoverable error occurred.
 	StopError StopReason = "error"
+	// StopCompleted: a bounded mode (ModeFlash's observation window, or
+	// ModeEndurance's held plateau) ran its full fixed duration cleanly, as
+	// opposed to the ramp's StopMaxViewers (which means "climbed as high as
+	// configured") or any of the failure verdicts above.
+	StopCompleted StopReason = "completed"
 )
 
 // Report is the outcome of a completed (or cancelled) run.
 type Report struct {
 	Scenario         string
+	Mode             string
 	SustainedViewers int
 	StopReason       StopReason
 	StopDetail       string

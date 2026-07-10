@@ -56,27 +56,27 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	defer func() {
 		if rec := recover(); rec != nil {
 			r.logger.Warn("loadtest viewer recovered from panic", "panic", fmt.Sprint(rec))
-			sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: "viewer panic"})
+			sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: "viewer panic"})
 		}
 	}()
 
 	masterURL := buildMasterURL(cfg, vt, media, forked, tierAtSpawn)
 	masterBase, parseErr := url.Parse(masterURL)
 	if parseErr != nil {
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: "invalid master url"})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: "invalid master url"})
 		return
 	}
 
 	status, header, body, _, err := r.fetchWithRetry(ctx, masterURL, cfg.Token)
 	switch classify(status, header, err) {
 	case outcomeTokenExpired:
-		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, detail: "401 on master playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, slot: tierAtSpawn, detail: "401 on master playlist"})
 		return
 	case outcomeAdmissionFull:
-		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, detail: "too_many_streams on master playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "too_many_streams on master playlist"})
 		return
 	case outcomeOtherFail:
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: fmt.Sprintf("master playlist fetch failed (status=%d, err=%v)", status, err)})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: fmt.Sprintf("master playlist fetch failed (status=%d, err=%v)", status, err)})
 		return
 	}
 
@@ -85,13 +85,13 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	// alone" measurement - abandon it cleanly, no error, no data point; the
 	// run loop retries the same slot against the next distinct candidate.
 	if vt == viewerTypeMkvgo && header.Get(headerServedBy) != servedByMkvgo {
-		sendEvent(ctx, events, viewerEvent{kind: evCandidateSkipped, vt: vt, detail: "master not served by mkvgo"})
+		sendEvent(ctx, events, viewerEvent{kind: evCandidateSkipped, vt: vt, slot: tierAtSpawn, detail: "master not served by mkvgo"})
 		return
 	}
 
 	variants, err := parseMasterPlaylist(body, masterBase)
 	if err != nil {
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: "unparsable master playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: "unparsable master playlist"})
 		return
 	}
 	chosen := pickMedianVariant(variants)
@@ -99,22 +99,22 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	status, header, body, _, err = r.fetchWithRetry(ctx, chosen.uri.String(), cfg.Token)
 	switch classify(status, header, err) {
 	case outcomeTokenExpired:
-		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, detail: "401 on variant playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, slot: tierAtSpawn, detail: "401 on variant playlist"})
 		return
 	case outcomeAdmissionFull:
-		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, detail: "too_many_streams on variant playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "too_many_streams on variant playlist"})
 		return
 	case outcomeOtherFail:
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: fmt.Sprintf("variant playlist fetch failed (status=%d, err=%v)", status, err)})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: fmt.Sprintf("variant playlist fetch failed (status=%d, err=%v)", status, err)})
 		return
 	}
 
 	targetMs, segments, err := parseVariantPlaylist(body, chosen.uri)
 	if err != nil {
-		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: "unparsable variant playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: "unparsable variant playlist"})
 		return
 	}
-	sendEvent(ctx, events, viewerEvent{kind: evTargetDuration, vt: vt, ms: targetMs})
+	sendEvent(ctx, events, viewerEvent{kind: evTargetDuration, vt: vt, slot: tierAtSpawn, ms: targetMs})
 
 	idx := 0
 	consecutiveFail := 0
@@ -134,21 +134,21 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		case outcomeOK:
 			consecutiveFail = 0
 			if isFirst {
-				sendEvent(ctx, events, viewerEvent{kind: evTTFF, vt: vt, ms: elapsedMs})
+				sendEvent(ctx, events, viewerEvent{kind: evTTFF, vt: vt, slot: tierAtSpawn, ms: elapsedMs})
 			} else {
-				sendEvent(ctx, events, viewerEvent{kind: evSegment, vt: vt, ms: elapsedMs})
+				sendEvent(ctx, events, viewerEvent{kind: evSegment, vt: vt, slot: tierAtSpawn, ms: elapsedMs})
 			}
 			return false
 		case outcomeTokenExpired:
-			sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, detail: "401 on segment fetch"})
+			sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, slot: tierAtSpawn, detail: "401 on segment fetch"})
 			return true
 		case outcomeAdmissionFull:
-			sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, detail: "too_many_streams on segment fetch"})
+			sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "too_many_streams on segment fetch"})
 			return true
 		default:
 			consecutiveFail++
 			if consecutiveFail >= maxConsecutiveViewerFailures {
-				sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, detail: fmt.Sprintf("%d consecutive segment fetch failures", consecutiveFail)})
+				sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: fmt.Sprintf("%d consecutive segment fetch failures", consecutiveFail)})
 				return true
 			}
 			return false
@@ -171,17 +171,41 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	}
 	ticker := time.NewTicker(pace)
 	defer ticker.Stop()
+
+	// seekState is an LCG (next = (state*1103515245+12345) & 0x7fffffff)
+	// seeded by this viewer's own ramp slot, never math/rand or time-based,
+	// so two runs of the same config always jump to the same sequence of
+	// positions - the load test's own output must be reproducible even
+	// though it is simulating "everyone scrubs the timeline" chaos.
+	seekState := int64(tierAtSpawn)
+	ticks := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			ticks++
+			if cfg.Mode == ModeSeek && ticks%seekEveryTicks == 0 {
+				seekState = (seekState*1103515245 + 12345) & 0x7fffffff
+				idx = int(seekState % int64(len(segments)))
+				// The first fetch after a jump is the seek latency itself -
+				// recorded as a TTFF sample, exactly like a fresh player
+				// would report "time to first frame" after a scrub.
+				if fetchNext(true) {
+					return
+				}
+				continue
+			}
 			if fetchNext(false) {
 				return
 			}
 		}
 	}
 }
+
+// seekEveryTicks is how many regular pace ticks (i.e. segment-durations)
+// elapse between two seeks in ModeSeek: "every 10x segment-duration".
+const seekEveryTicks = 10
 
 // buildMasterURL constructs the master playlist request a real player would
 // issue. forked viewers (a transcode-typed viewer reusing a media item
