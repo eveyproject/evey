@@ -175,7 +175,10 @@ func loadTestReq(ctx context.Context, c *http.Client, method, url, token string,
 		return nil, err
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		raw = nil // status line still tells the story below
+	}
 	if resp.StatusCode/100 != 2 {
 		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, bytes.TrimSpace(raw))
 	}
@@ -233,7 +236,9 @@ func printReport(r *eveyv1.LoadTestReport) {
 
 func readYes() bool {
 	var s string
-	_, _ = fmt.Fscanln(os.Stdin, &s)
+	if _, err := fmt.Fscanln(os.Stdin, &s); err != nil {
+		return false // EOF or unreadable stdin reads as "no"
+	}
 	return s == "y" || s == "Y" || s == "yes"
 }
 

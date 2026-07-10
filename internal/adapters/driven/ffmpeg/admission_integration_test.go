@@ -86,8 +86,8 @@ func TestVideoAdmissionIntegration(t *testing.T) {
 	startStream := func(mediaID string) error {
 		t.Helper()
 		fp := fpFor(mediaID)
-		if err := producer.EnsureSegmentRange(ctx, fp, 0, 0); err != nil {
-			return err
+		if ensureErr := producer.EnsureSegmentRange(ctx, fp, 0, 0); ensureErr != nil {
+			return ensureErr
 		}
 		key := apptranscoding.SegmentKey{DecisionHash: fp.Hash(), VariantIdx: 0, SegmentIdx: 0}
 		if waitErr := cache.Wait(ctx, key, true, 60*time.Second); waitErr != nil {
@@ -97,11 +97,11 @@ func TestVideoAdmissionIntegration(t *testing.T) {
 	}
 
 	// Two real sessions: each must hold exactly its rung cost in the CPU pool.
-	if err := startStream("admission-a"); err != nil {
-		t.Fatalf("first stream must be admitted: %v", err)
+	if startErr := startStream("admission-a"); startErr != nil {
+		t.Fatalf("first stream must be admitted: %v", startErr)
 	}
-	if err := startStream("admission-b"); err != nil {
-		t.Fatalf("second stream must be admitted (0.8 <= 1.0): %v", err)
+	if startErr := startStream("admission-b"); startErr != nil {
+		t.Fatalf("second stream must be admitted (0.8 <= 1.0): %v", startErr)
 	}
 	if used := limiter.UsedFor(apptranscoding.PoolCPU); used < 0.79 || used > 0.81 {
 		t.Fatalf("CPU pool must hold exactly 2 x 0.4 while both sessions encode, got %.3f", used)
@@ -129,10 +129,7 @@ func TestVideoAdmissionIntegration(t *testing.T) {
 	// reap goroutines may lag a beat, hence the bounded poll.
 	producer.Close()
 	deadline := time.Now().Add(20 * time.Second)
-	for {
-		if limiter.Active() == 0 && limiter.UsedFor(apptranscoding.PoolCPU) == 0 {
-			break
-		}
+	for limiter.Active() != 0 || limiter.UsedFor(apptranscoding.PoolCPU) != 0 {
 		if time.Now().After(deadline) {
 			t.Fatalf("pools must drain to zero after Close: active=%d used=%.3f",
 				limiter.Active(), limiter.UsedFor(apptranscoding.PoolCPU))
@@ -160,10 +157,7 @@ func TestVideoAdmissionIntegration(t *testing.T) {
 	// Whatever error shape the failed spawn takes, the accounting must be
 	// untouched once the dust settles.
 	deadline = time.Now().Add(20 * time.Second)
-	for {
-		if limiter.Active() == 0 && limiter.UsedFor(apptranscoding.PoolCPU) == 0 {
-			break
-		}
+	for limiter.Active() != 0 || limiter.UsedFor(apptranscoding.PoolCPU) != 0 {
 		if time.Now().After(deadline) {
 			t.Fatalf("a failed spawn must leak nothing: active=%d used=%.3f",
 				limiter.Active(), limiter.UsedFor(apptranscoding.PoolCPU))
