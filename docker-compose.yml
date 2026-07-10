@@ -17,15 +17,16 @@ services:
       - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
     environment:
       EVEY_DB_HOST: postgres
-      # PUID/PGID: the user the server runs as (default 1000:1000). Set them
-      # to the OWNER of your media files so write-features (seek-index repair)
-      # work without chown-ing your library — e.g. the output of `id -u` /
-      # `id -g` on the host. The container starts as root only long enough to
-      # apply the mapping, then drops privileges; the server never runs as
-      # root. If you refuse even that transient root, use `user: "UID:GID"`
-      # below instead (and manage ./evey-data ownership yourself).
-      PUID: ${PUID:-1000}
-      PGID: ${PGID:-1000}
+      # PUID/PGID: the user the server runs as. Leave UNSET (the default) and
+      # the entrypoint adopts the owner of your /media* mounts automatically,
+      # so write-features (seek-index repair) work out of the box. Set them
+      # explicitly to override - e.g. the output of `id -u` / `id -g` on the
+      # host. The container starts as root only long enough to apply the
+      # mapping, then drops privileges; the server never runs as root. If you
+      # refuse even that transient root, use `user: "UID:GID"` below instead
+      # (and manage ./evey-data ownership yourself).
+      PUID: ${PUID:-}
+      PGID: ${PGID:-}
       # Meilisearch runs embedded inside the evey container — the entrypoint
       # spawns it before exec'ing the server. Set EVEY_EMBEDDED_MEILI=false
       # AND point EVEY_MEILI_URL at an external instance to opt out (useful
@@ -44,7 +45,11 @@ services:
       - ./evey-data:/data          # keys, logs, backups, avatars, meili index
       - ./evey-data/plugins:/data/plugins # plugin files
       - evey-cache:/cache           # transcode + trickplay cache (expendable)
-      - ${MEDIA_DIR:-/media}:/media:ro
+      # Media is mounted read-write so the repair features (seek-index reindex
+      # rebuilds files in place) work natively; the server only ever writes
+      # media through those operator-triggered repairs. Append `:ro` if you
+      # prefer a read-only library and accept that repairs will fail.
+      - ${MEDIA_DIR:-/media}:/media
     # No security_opt overrides: the plugin sandbox uses Landlock (sandbox_mode
     # auto/landlock), which self-confines the plugin's filesystem access from
     # *inside* the process and needs no mount/unshare. It therefore runs under

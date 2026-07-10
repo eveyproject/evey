@@ -33,6 +33,36 @@ set -eu
 # by RBAC tokens + the resource monitor — none of that reads the server's
 # numeric uid. PUID=1001 is refused so the two identities can never collide.
 if [ "$(id -u)" = "0" ]; then
+    # Zero-config default: when the operator sets NEITHER PUID nor PGID, adopt
+    # the owner of the /media* mounts so the write features work out of the
+    # box - running as the media owner is exactly what an operator would
+    # configure by hand. Explicit PUID/PGID always wins; root-owned or
+    # mixed-owner media falls back to 1000:1000 with a loud warning (we never
+    # run as root and we never chown the operator's media).
+    if [ -z "${PUID:-}" ] && [ -z "${PGID:-}" ]; then
+        det_uid="" det_gid="" det_src="" det_mixed=""
+        for m in /media*; do
+            [ -d "$m" ] || continue
+            u="$(stat -c %u "$m")"
+            g="$(stat -c %g "$m")"
+            if [ -z "$det_uid" ]; then
+                det_uid="$u" det_gid="$g" det_src="$m"
+            elif [ "$det_uid" != "$u" ]; then
+                det_mixed="$det_mixed $m=$u:$g"
+            fi
+        done
+        if [ -n "$det_mixed" ]; then
+            echo "evey: media mounts have mixed owners ($det_src=$det_uid:$det_gid vs$det_mixed) - keeping uid 1000; unify ownership or set PUID/PGID explicitly, write features (seek-index repair) will fail on media the server does not own" >&2
+        elif [ "$det_uid" = "0" ]; then
+            echo "evey: media mounts are owned by root and the server never runs as root - keeping uid 1000; chown your media to a regular user (or set PUID/PGID), write features (seek-index repair) will fail until then" >&2
+        elif [ "$det_uid" = "1001" ]; then
+            echo "evey: media mounts are owned by uid 1001, reserved for the evey-plugin user - keeping uid 1000; chown your media or set PUID/PGID, write features (seek-index repair) will fail until then" >&2
+        elif [ -n "$det_uid" ]; then
+            PUID="$det_uid"
+            PGID="$det_gid"
+            echo "evey: media mounts owned by ${PUID}:${PGID} (detected on $det_src) - running the server as that user so write features (seek-index repair) work out of the box; set PUID/PGID to override"
+        fi
+    fi
     PUID="${PUID:-1000}"
     PGID="${PGID:-1000}"
     case "${PUID}${PGID}" in
@@ -57,8 +87,19 @@ if [ "$(id -u)" = "0" ]; then
         chown -R evey:evey /data /cache /home/evey
         chown evey-plugin:evey /data/plugins
     fi
-    echo "evey: dropping privileges — server runs as uid=${PUID} gid=${PGID}"
-    exec setpriv --reuid evey --regid evey --init-groups "$0" "$@"
+    # Supplementary groups after the drop: evey's own /etc/group memberships
+    # (what --init-groups would grant) PLUS the groups the container runtime
+    # injected into this root process (compose `group_add:`, typically the
+    # host's render/video group for /dev/dri). --init-groups alone would reset
+    # to the group database and silently cut hardware transcode off from the
+    # render nodes. Root's group 0 is never carried over.
+    supp=""
+    for g in $(id -G evey) $(id -G); do
+        [ "$g" = "0" ] && continue
+        case ",$supp," in *",$g,"*) ;; *) supp="${supp:+$supp,}$g" ;; esac
+    done
+    echo "evey: dropping privileges - server runs as uid=${PUID} gid=${PGID} groups=${supp}"
+    exec setpriv --reuid evey --regid evey --groups "$supp" "$0" "$@"
 fi
 
 # From here on we are the unprivileged evey user (re-exec'd above, or the

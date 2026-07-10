@@ -12,33 +12,47 @@ MEDIA_DIR=/path/to/your/media
 
 ## File ownership (PUID/PGID)
 
-```env
-PUID=1000   # run the server as this user id  (host: `id -u`)
-PGID=1000   # ...and this group id             (host: `id -g`)
+**Default: automatic.** When `PUID`/`PGID` are not set, the entrypoint looks
+at the owner of your `/media*` mounts at startup and runs the server as that
+user, so the features that *write into* your library (the seek-index repair
+rebuilds files in place) work out of the box - no `chown`, no configuration.
+The startup log tells you what was picked:
+
+```
+evey: media mounts owned by 1026:100 (detected on /media) - running the
+server as that user so write features (seek-index repair) work out of the box
 ```
 
-Set these to the **owner of your media files**. Reading works either way;
-they matter for the features that *write into* your library (the seek-index
-repair rebuilds files in place): the server can only write where its user
-may, and PUID/PGID lets you align the container on your files instead of
-`chown`-ing your library for Evey.
+Auto-detection steps aside (falls back to `1000:1000` with a warning) when
+the media mounts are owned by root, by the reserved uid `1001`, or by
+different users per mount - unify ownership or set `PUID`/`PGID` explicitly:
+
+```env
+PUID=1026   # run the server as this user id  (host: `id -u <media-owner>`)
+PGID=100    # ...and this group id
+```
+
+Explicit values always win over detection.
 
 How it works: the container starts as root just long enough to re-map its
-internal user to your PUID/PGID and re-own Evey's own state directories
-(`/data`, `/cache` — **never** your media mounts), then drops privileges.
-The server process itself never runs as root.
+internal user (and re-own Evey's own state directories `/data`, `/cache` -
+**never** your media mounts), then drops privileges. Supplementary groups
+granted via compose `group_add:` (e.g. your host's render group for
+`/dev/dri` hardware transcoding) are preserved across the drop. The server
+process itself never runs as root.
 
 Zero-root alternative: if even that transient root is unacceptable to you,
 set `user: "UID:GID"` on the service in your compose file instead. The
-entrypoint detects the non-root start and skips the re-map — you then own
-keeping `./evey-data` writable by that UID yourself.
+entrypoint detects the non-root start and skips the re-map (including the
+media-owner detection) - you then own keeping `./evey-data` writable by that
+UID yourself.
 
 Notes:
 - `PUID=1001` is refused: it is the internal `evey-plugin` user, kept
   distinct so plugins can never share the server's identity.
-- Media stays read-only (`:ro` in the compose file) until you decide
-  otherwise; PUID only determines *who* the server is when you do grant
-  write access.
+- Media is mounted read-write by default so repairs work natively; append
+  `:ro` to the media volume if you prefer a read-only library (repairs will
+  then fail with a clear error).
 
 ## Recommended
 
