@@ -1,7 +1,7 @@
 name: weather-v2
 kind: plugin
-version: 2.10.0
-description: Animated weather widget v2 - dependency-free WebGL scene, responsive, DDD architecture. 2.10.0 - disambiguated city picker (region + country, stores coordinates) so homonyms like Brest FR/BY resolve correctly.
+version: 2.11.0
+description: Animated weather widget v2 - dependency-free WebGL scene, responsive, DDD architecture. 2.11.0 - the sun-image fetch now goes through the host Fetch broker (no direct plugin network access). 2.10.0 - disambiguated city picker (region + country, stores coordinates) so homonyms like Brest FR/BY resolve correctly.
 author: evey-examples
 language: nodejs
 entrypoint: node main.js
