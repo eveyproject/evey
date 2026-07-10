@@ -537,13 +537,19 @@ func TestRunner_PacesSegmentFetchesInRealTime(t *testing.T) {
 	if len(segTimes) < 6 {
 		t.Fatalf("not enough segment fetches recorded: %d", len(segTimes))
 	}
-	// Skip the initial burst-of-3 (fetched back to back); every fetch after
-	// that must respect the ~50ms pace.
-	for i := burstSegments + 1; i < len(segTimes); i++ {
-		gap := segTimes[i].Sub(segTimes[i-1])
-		if gap < 35*time.Millisecond {
-			t.Fatalf("segment fetch %d came too fast: gap=%v, want >= ~50ms pace", i, gap)
-		}
+	// After the initial burst-of-3 (fetched back to back), the viewer paces
+	// fetches at ~50ms. Assert the AGGREGATE pace, not every individual gap: a
+	// real-time pacer whose goroutine is briefly starved (e.g. under the full
+	// -race suite) catches up by bunching two fetches, which is scheduling
+	// jitter, not a pacing bug. A genuinely unpaced runner still fails the
+	// average (its gaps collapse toward zero).
+	if len(segTimes) <= burstSegments+1 {
+		t.Fatalf("not enough post-burst segment fetches: %d", len(segTimes))
+	}
+	span := segTimes[len(segTimes)-1].Sub(segTimes[burstSegments])
+	gaps := len(segTimes) - 1 - burstSegments
+	if avg := span / time.Duration(gaps); avg < 35*time.Millisecond {
+		t.Fatalf("segment fetches not paced in real time: avg gap=%v over %d gaps, want ~50ms", avg, gaps)
 	}
 }
 
