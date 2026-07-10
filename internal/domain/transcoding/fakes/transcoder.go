@@ -16,6 +16,9 @@ type FakeTranscoder struct {
 	progress map[string]*transcoding.TranscodeProgress
 	nextID   int
 	Err      error
+	// PauseCalls / ResumeCalls record jobIDs in call order for assertions.
+	PauseCalls  []string
+	ResumeCalls []string
 }
 
 func NewFakeTranscoder() *FakeTranscoder {
@@ -47,6 +50,26 @@ func (t *FakeTranscoder) Stop(_ context.Context, jobID string) error {
 	if _, ok := t.jobs[jobID]; !ok {
 		return ErrNotFound
 	}
+	return nil
+}
+
+func (t *FakeTranscoder) Pause(_ context.Context, jobID string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if _, ok := t.jobs[jobID]; !ok {
+		return ErrNotFound
+	}
+	t.PauseCalls = append(t.PauseCalls, jobID)
+	return nil
+}
+
+func (t *FakeTranscoder) Resume(_ context.Context, jobID string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if _, ok := t.jobs[jobID]; !ok {
+		return ErrNotFound
+	}
+	t.ResumeCalls = append(t.ResumeCalls, jobID)
 	return nil
 }
 

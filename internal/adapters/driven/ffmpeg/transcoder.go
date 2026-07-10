@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
@@ -109,6 +110,33 @@ func (t *Transcoder) Stop(_ context.Context, jobID string) error {
 	rj.cancel()
 	t.jobs.Delete(jobID)
 	return nil
+}
+
+// Pause suspends the job's ffmpeg process (SIGSTOP) so it releases the CPU while
+// keeping its progress; Resume (SIGCONT) continues it. ffmpeg is a single
+// process here (threads, not child processes), so signalling its PID stops the
+// whole encode.
+func (t *Transcoder) Pause(_ context.Context, jobID string) error {
+	return t.signal(jobID, syscall.SIGSTOP)
+}
+
+func (t *Transcoder) Resume(_ context.Context, jobID string) error {
+	return t.signal(jobID, syscall.SIGCONT)
+}
+
+func (t *Transcoder) signal(jobID string, sig syscall.Signal) error {
+	v, ok := t.jobs.Load(jobID)
+	if !ok {
+		return fmt.Errorf("job %s not found", jobID)
+	}
+	rj, ok2 := v.(*runningJob)
+	if !ok2 {
+		return fmt.Errorf("job %s: invalid type", jobID)
+	}
+	if rj.cmd == nil || rj.cmd.Process == nil {
+		return fmt.Errorf("job %s: no live process", jobID)
+	}
+	return rj.cmd.Process.Signal(sig)
 }
 
 func (t *Transcoder) Progress(_ context.Context, jobID string) (*transcoding.TranscodeProgress, error) {

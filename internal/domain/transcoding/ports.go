@@ -13,6 +13,11 @@ type Transcoder interface {
 	Start(ctx context.Context, job *TranscodeJob) (string, error)
 	Stop(ctx context.Context, jobID string) error
 	Progress(ctx context.Context, jobID string) (*TranscodeProgress, error)
+	// Pause suspends the job's encoder (SIGSTOP): it yields the CPU without
+	// losing progress. Resume (SIGCONT) continues it. Used to let live playback
+	// pre-empt background transcode jobs so watching never competes for cores.
+	Pause(ctx context.Context, jobID string) error
+	Resume(ctx context.Context, jobID string) error
 }
 
 type HWDetector interface {

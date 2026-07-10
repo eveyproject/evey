@@ -798,6 +798,16 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	hlsVODOrch.WithVideoSessionLimiter(videoLimiter)
 	videoShaper := apptranscoding.NewVideoAdmissionShaper(videoLimiter)
 
+	// Background transcodes yield to live playback: while a viewer's transcode is
+	// encoding (videoLimiter.Active() > 0), running background jobs are SIGSTOPped
+	// and resumed once playback goes idle. The live capacity is measured on an
+	// idle box, so background work must step aside rather than eat into it. On by
+	// default; server_config transcoding.pause_bg_on_playback=off disables it.
+	if resolveFlag(ctx, r.ServerCfg, "transcoding.pause_bg_on_playback", "EVEY_TRANSCODING_PAUSE_BG_ON_PLAYBACK") != "off" {
+		transcodingSvc.SetPlaybackGauge(videoLimiter)
+		go transcodingSvc.SuperviseBackgroundPreemption(ctx)
+	}
+
 	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch, nil)
 
 	// mkvgo Playability shadow (Phase 3, log-only): compares every playback

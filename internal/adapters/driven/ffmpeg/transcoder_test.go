@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"context"
 	"testing"
 
 	"github.com/evey-project/evey/internal/domain/transcoding"
@@ -10,6 +11,14 @@ import (
 
 func newTestTranscoder() *Transcoder {
 	return NewTranscoder("ffmpeg", "/tmp/evey/transcode")
+}
+
+// Pause/Resume on a job the transcoder never started must error (no process to
+// signal) rather than panic on a nil handle.
+func TestTranscoder_PauseResume_UnknownJob(t *testing.T) {
+	tr := newTestTranscoder()
+	assert.Error(t, tr.Pause(context.Background(), "nope"))
+	assert.Error(t, tr.Resume(context.Background(), "nope"))
 }
 
 func TestBuildTranscodeArgs_Basic(t *testing.T) {

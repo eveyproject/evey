@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -17,6 +18,12 @@ import (
 
 var ErrMaxConcurrent = errors.New("max concurrent transcodes reached")
 
+// PlaybackGauge reports how many live sessions are currently ENCODING video --
+// the CPU-contended playback (a direct-play/copy stream never counts). Satisfied
+// by the VideoSessionLimiter. >0 means a viewer's transcode is running, so
+// background jobs should yield.
+type PlaybackGauge interface{ Active() int }
+
 type Service struct {
 	transcoder    transcoding.Transcoder
 	hwDetector    transcoding.HWDetector
@@ -25,6 +32,12 @@ type Service struct {
 	events        shared.EventBus
 	cache         transcoding.CacheStore
 	maxConcurrent int
+
+	// playback, when wired, drives background pre-emption: running jobs are
+	// SIGSTOPped while live playback encodes and resumed once it goes idle.
+	playback   PlaybackGauge
+	pauseMu    sync.Mutex
+	pausedJobs map[string]bool // jobIDs WE paused, so we only resume ours
 }
 
 type Option func(*Service)
@@ -32,6 +45,18 @@ type Option func(*Service)
 func WithCacheStore(cs transcoding.CacheStore) Option {
 	return func(s *Service) { s.cache = cs }
 }
+
+// WithPlaybackPreemption wires the live-playback gauge that pauses background
+// transcodes while viewers are watching. Call SuperviseBackgroundPreemption to
+// run the loop.
+func WithPlaybackPreemption(g PlaybackGauge) Option {
+	return func(s *Service) { s.playback = g }
+}
+
+// SetPlaybackGauge wires the live-playback gauge after construction — wire.go
+// builds the session limiter after this service. Pair with
+// SuperviseBackgroundPreemption.
+func (s *Service) SetPlaybackGauge(g PlaybackGauge) { s.playback = g }
 
 func NewService(
 	transcoder transcoding.Transcoder,
@@ -49,6 +74,7 @@ func NewService(
 		profiles:      profiles,
 		events:        events,
 		maxConcurrent: maxConcurrent,
+		pausedJobs:    make(map[string]bool),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -275,6 +301,78 @@ func (s *Service) DeleteProfile(ctx context.Context, id string) error {
 func (s *Service) SetMaxConcurrent(n int) {
 	s.maxConcurrent = n
 	slog.Info("transcoding: updated max concurrent", slog.Int("max", n))
+}
+
+// SuperviseBackgroundPreemption blocks until ctx is cancelled. While live
+// playback is encoding video (playback.Active() > 0) it SIGSTOPs every running
+// background transcode so watching never competes for CPU; once playback has
+// been idle for a short grace period (so a quick seek doesn't thrash) it SIGCONTs
+// them. Background jobs are transient, so pausing them is invisible except that
+// they finish a little later. No-op when no gauge was wired.
+func (s *Service) SuperviseBackgroundPreemption(ctx context.Context) {
+	if s.playback == nil {
+		return
+	}
+	const tick = 2 * time.Second
+	const resumeGrace = 12 * time.Second
+	t := time.NewTicker(tick)
+	defer t.Stop()
+
+	var idleSince time.Time
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if s.playback.Active() > 0 {
+				idleSince = time.Time{}
+				s.pauseRunning(ctx)
+				continue
+			}
+			if idleSince.IsZero() {
+				idleSince = time.Now()
+			}
+			if time.Since(idleSince) >= resumeGrace {
+				s.resumePaused(ctx)
+			}
+		}
+	}
+}
+
+// pauseRunning SIGSTOPs every Running job we haven't already paused.
+func (s *Service) pauseRunning(ctx context.Context) {
+	active, err := s.jobs.ListActive(ctx)
+	if err != nil {
+		return
+	}
+	s.pauseMu.Lock()
+	defer s.pauseMu.Unlock()
+	for _, j := range active {
+		if j.Status != transcoding.Running || s.pausedJobs[j.ID] {
+			continue
+		}
+		if err := s.transcoder.Pause(ctx, j.ID); err != nil {
+			slog.Warn("bg-preempt: pause failed", slog.String("jobID", j.ID), slog.Any("err", err))
+			continue
+		}
+		s.pausedJobs[j.ID] = true
+		slog.Info("bg-preempt: paused background transcode for live playback", slog.String("jobID", j.ID))
+	}
+}
+
+// resumePaused SIGCONTs every job we paused. A resume error means the job is
+// gone (stopped/completed) — drop it from the set either way.
+func (s *Service) resumePaused(ctx context.Context) {
+	s.pauseMu.Lock()
+	defer s.pauseMu.Unlock()
+	for id := range s.pausedJobs {
+		if err := s.transcoder.Resume(ctx, id); err != nil {
+			slog.Warn("bg-preempt: resume failed (job gone?)", slog.String("jobID", id), slog.Any("err", err))
+		} else {
+			slog.Info("bg-preempt: resumed background transcode", slog.String("jobID", id))
+		}
+		delete(s.pausedJobs, id)
+	}
 }
 
 func (s *Service) DetectHardware(ctx context.Context) ([]transcoding.HWDevice, error) {
