@@ -17,8 +17,8 @@ func newTestTranscoder() *Transcoder {
 // signal) rather than panic on a nil handle.
 func TestTranscoder_PauseResume_UnknownJob(t *testing.T) {
 	tr := newTestTranscoder()
-	assert.Error(t, tr.Pause(context.Background(), "nope"))
-	assert.Error(t, tr.Resume(context.Background(), "nope"))
+	require.Error(t, tr.Pause(context.Background(), "nope"))
+	require.Error(t, tr.Resume(context.Background(), "nope"))
 }
 
 func TestBuildTranscodeArgs_Basic(t *testing.T) {
