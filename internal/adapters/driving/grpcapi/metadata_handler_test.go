@@ -5,12 +5,15 @@ import (
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
+	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/metadata"
 	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -252,6 +255,89 @@ func (noopEnricher) EnrichItem(_ context.Context, _ *library.MediaItem, _ *metad
 	return nil
 }
 func (noopEnricher) EnrichTranslationsForItem(_ context.Context, _ *library.MediaItem, _, _ string) {
+}
+
+// newTestMetadataHandlerWithAccess builds a metadataHandler wired with the
+// item->library access check (userAccess + libQuery), mirroring the production
+// wiring in server.go:171. Seeds one media item "mi-1" belonging to lib-1.
+func newTestMetadataHandlerWithAccess() (*metadataHandler, *userfakes.FakeLibraryAccessRepository) {
+	h, _, _, _ := newTestMetadataHandler()
+
+	mediaQuery := libfakes.NewFakeMediaItemQueryRepo()
+	mediaQuery.Seed(&library.MediaItem{
+		ID:        "mi-1",
+		LibraryID: "lib-1",
+		Title:     "Movie",
+		Type:      library.MovieItem,
+	})
+	h.libQuery = applibrary.NewQueryService(
+		libfakes.NewFakeLibraryQueryRepo(),
+		mediaQuery,
+		libfakes.NewFakeMediaStreamRepository(),
+		libfakes.NewFakeSearchIndex(),
+	)
+
+	libAccessRepo := userfakes.NewFakeLibraryAccessRepository()
+	h.userAccess = appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(libAccessRepo),
+	)
+	return h, libAccessRepo
+}
+
+// IDOR: a non-admin without access to the media item's library must be denied
+// with NotFound (anti-enumeration: same code as "item doesn't exist").
+func TestMetadataCheckMediaItemAccess_IDOR_DeniesUnauthorizedLibrary(t *testing.T) {
+	h, libAccessRepo := newTestMetadataHandlerWithAccess()
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-2") // not lib-1
+
+	err := h.checkMediaItemAccess(nonAdminCtx("user-1"), "mi-1")
+	if err == nil {
+		t.Fatal("expected NotFound for an unauthorized library")
+	}
+	if got := status.Code(err); got != codes.NotFound {
+		t.Errorf("expected NotFound, got %v", got)
+	}
+}
+
+// A non-admin WITH access to the item's library is allowed through.
+func TestMetadataCheckMediaItemAccess_IDOR_AllowsAuthorizedLibrary(t *testing.T) {
+	h, libAccessRepo := newTestMetadataHandlerWithAccess()
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-1")
+
+	if err := h.checkMediaItemAccess(nonAdminCtx("user-1"), "mi-1"); err != nil {
+		t.Fatalf("expected nil error for authorized library, got %v", err)
+	}
+}
+
+// Admins bypass the access check entirely (no library grants needed).
+func TestMetadataCheckMediaItemAccess_AdminBypassesAccessCheck(t *testing.T) {
+	h, _ := newTestMetadataHandlerWithAccess()
+
+	if err := h.checkMediaItemAccess(adminCtx(), "mi-1"); err != nil {
+		t.Fatalf("expected nil error for admin, got %v", err)
+	}
+}
+
+// A media item id that doesn't resolve is denied for non-admins with the same
+// NotFound code as "no access", keeping item existence opaque to unauthorized
+// callers.
+func TestMetadataCheckMediaItemAccess_IDOR_DeniesUnknownItem(t *testing.T) {
+	h, libAccessRepo := newTestMetadataHandlerWithAccess()
+	libAccessRepo.Grant(context.Background(), "user-1", "lib-1")
+
+	err := h.checkMediaItemAccess(nonAdminCtx("user-1"), "nonexistent")
+	if err == nil {
+		t.Fatal("expected NotFound for an unknown media item id")
+	}
+	if got := status.Code(err); got != codes.NotFound {
+		t.Errorf("expected NotFound, got %v", got)
+	}
 }
 
 func TestMetadataListMetadataOverrides(t *testing.T) {
