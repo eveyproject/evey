@@ -1172,6 +1172,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		cfg.Transcoding.TrickplayCacheDir,
 	)
 	introDetectionSvc.WithShutdownCtx(ctx)
+	introDetectionSvc.WithActivePlayback(hlsVODRemover.ActiveSessionCount)
 	introDetectionSvc.WithFingerprintCache(r.IntroFingerprintCache)
 	introDetectionSvc.WithAudioFingerprintCache(r.IntroAudioFingerprintCache)
 	introDetectionSvc.WithChapterRepo(r.Chapter)

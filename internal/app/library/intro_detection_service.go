@@ -66,6 +66,12 @@ type IntroDetectionService struct {
 	// /api/v1/admin/media/{id}/detect-segments endpoint allowed before — pegs
 	// the box and triggers context deadline exceeded on individual queries.
 	concurrencyLimiter chan struct{}
+
+	// activePlayback, when set, reports live playback sessions. The worker defers
+	// heavy detection (pHash + trickplay decode) while anyone is watching so it
+	// can't starve an active transcode on a weak NAS — the trigger is re-armed
+	// until playback goes idle rather than dropped (no periodic catch-up exists).
+	activePlayback func() int
 }
 
 // currentPHashAlgoVersion identifies the hash function used to populate the
@@ -109,6 +115,11 @@ const introDetectionAlgoVersion = 3
 // keeps yielding no usable intro at the same algo version (one retry for the
 // detector's sampling variance, then park until introDetectionAlgoVersion bumps).
 const maxIntroDetectionAttempts = 2
+
+// introDeferPoll is how often a detection trigger re-checks for idle while
+// playback is active — it defers (re-arms) rather than decoding on top of a
+// live transcode on a weak NAS.
+const introDeferPoll = 30 * time.Second
 
 // minHeuristicIntroMs is the shortest intro any in-house heuristic (silence,
 // audio, pHash, cluster) is allowed to emit. Below this the result is almost
@@ -169,6 +180,14 @@ func (s *IntroDetectionService) WithMaxParallelDetections(n int) *IntroDetection
 		return s
 	}
 	s.concurrencyLimiter = make(chan struct{}, n)
+	return s
+}
+
+// WithActivePlayback wires the live playback-session counter. While any session
+// is running, StartWorker defers detection (re-arming the trigger) instead of
+// decoding on top of the active stream.
+func (s *IntroDetectionService) WithActivePlayback(count func() int) *IntroDetectionService {
+	s.activePlayback = count
 	return s
 }
 
@@ -259,26 +278,41 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 	var mu sync.Mutex
 	timers := make(map[string]*time.Timer)
 
-	scheduleSeason := func(parentID string) {
-		if parentID == "" {
-			return
-		}
+	// runDeferred fires run after delay, de-duped by key. When the timer fires
+	// WHILE playback is active it re-arms (introDeferPoll) instead of running:
+	// heavy detection (pHash + trickplay decode) waits until nobody is watching
+	// rather than decoding on top of a live transcode on a weak NAS. Deferring,
+	// not dropping — there is no periodic catch-up, so a skipped trigger would be
+	// lost until the next scan/regeneration.
+	var runDeferred func(key string, delay time.Duration, run func())
+	runDeferred = func(key string, delay time.Duration, run func()) {
 		mu.Lock()
-		if t, exists := timers[parentID]; exists {
+		if t, exists := timers[key]; exists {
 			t.Stop()
 		}
-		timers[parentID] = time.AfterFunc(30*time.Second, func() {
+		timers[key] = time.AfterFunc(delay, func() {
+			if s.activePlayback != nil && s.activePlayback() > 0 {
+				runDeferred(key, introDeferPoll, run) // still watching — try again later
+				return
+			}
 			mu.Lock()
-			delete(timers, parentID)
+			delete(timers, key)
 			mu.Unlock()
 			defer func() {
 				if r := recover(); r != nil {
 					slog.Error("recovered panic in intro detection worker", slog.Any("error", r))
 				}
 			}()
-			s.detectSeason(ctx, parentID)
+			run()
 		})
 		mu.Unlock()
+	}
+
+	scheduleSeason := func(parentID string) {
+		if parentID == "" {
+			return
+		}
+		runDeferred("season:"+parentID, 30*time.Second, func() { s.detectSeason(ctx, parentID) })
 	}
 
 	s.events.Subscribe("media.item.added", func(_ context.Context, ev shared.Event) {
@@ -314,18 +348,13 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 		case string(domainlibrary.Episode):
 			scheduleSeason(string(e.ParentID))
 		case string(domainlibrary.MovieItem):
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						slog.Error("recovered panic in intro detection (movie)", slog.Any("error", r))
-					}
-				}()
-				if err := s.DetectIntro(ctx, string(e.MediaItemID)); err != nil {
+			id := string(e.MediaItemID)
+			runDeferred("movie:"+id, 0, func() {
+				if err := s.DetectIntro(ctx, id); err != nil {
 					slog.Warn("intro detection on trickplay.generated movie failed",
-						slog.String("media_id", string(e.MediaItemID)),
-						slog.Any("err", err))
+						slog.String("media_id", id), slog.Any("err", err))
 				}
-			}()
+			})
 		}
 	})
 
