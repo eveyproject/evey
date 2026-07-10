@@ -141,6 +141,38 @@ func TestOnDemandPackagerIntegration(t *testing.T) {
 	if encPlan.HasDASH() {
 		t.Error("HasDASH = true for an encrypted plan, want false (HLS only)")
 	}
+
+	// mkvgo v0.18.0 fix: EXT-X-MAP (the clear init segment) must precede
+	// EXT-X-KEY, else a player tries to decrypt the clear init and retry-loops
+	// (hls.js fragDecryptError). Lock the ordering from Evey's side.
+	if mapIdx, keyIdx := bytes.Index(pl, []byte("EXT-X-MAP")), bytes.Index(pl, []byte("EXT-X-KEY")); mapIdx < 0 || keyIdx < 0 || mapIdx > keyIdx {
+		t.Errorf("EXT-X-MAP must appear before EXT-X-KEY (map=%d key=%d):\n%s", mapIdx, keyIdx, pl)
+	}
+
+	// Rotated plan (forward secrecy): a fresh EXT-X-KEY per period, each at its
+	// own key?i=<n> URI. Rotate every segment so even a short clip exercises it.
+	rotPlan, err := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{
+		SegmentMs: 6000, URLPrefix: "od_",
+		AESRotateSegments: 1,
+		AESKeys: []apptranscoding.OnDemandAESKey{
+			{Key: []byte("0000000000000000"), URI: "key?i=0"},
+			{Key: []byte("1111111111111111"), URI: "key?i=1"},
+			{Key: []byte("2222222222222222"), URI: "key?i=2"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("rotated Plan: %v", err)
+	}
+	rpl, _, err := rotPlan.Resource(ctx, "playlist.m3u8")
+	if err != nil {
+		t.Fatalf("Resource(playlist.m3u8) rotated: %v", err)
+	}
+	if !bytes.Contains(rpl, []byte(`URI="key?i=0"`)) {
+		t.Errorf("rotated playlist missing the per-period key URI scheme:\n%s", rpl)
+	}
+	if nKeys := bytes.Count(rpl, []byte("EXT-X-KEY:METHOD=AES-128")); rotPlan.NumSegments() >= 2 && nKeys < 2 {
+		t.Errorf("rotated playlist has %d EXT-X-KEY for %d segments, want >= 2:\n%s", nKeys, rotPlan.NumSegments(), rpl)
+	}
 }
 
 // TestOnDemandPackagerIntegration_ChapterMarkers proves the mkvgo v0.17.0

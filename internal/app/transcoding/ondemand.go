@@ -46,6 +46,20 @@ type OnDemandOptions struct {
 	// manifest is emitted for an encrypted presentation.
 	AESKey    []byte
 	AESKeyURI string
+	// AESRotateSegments, when > 0 with at least two AESKeys, rotates the segment
+	// key every N segments (forward secrecy: a captured key decrypts only its
+	// period). It supersedes the single AESKey/AESKeyURI. The playlist then
+	// carries a fresh EXT-X-KEY at each period boundary, each pointing at its
+	// key's URI, which the key endpoint must serve.
+	AESRotateSegments int
+	AESKeys           []OnDemandAESKey
+}
+
+// OnDemandAESKey is one rotation key: its 16 bytes plus the URI the EXT-X-KEY
+// line advertises for it (the server serves that URI back to the derived key).
+type OnDemandAESKey struct {
+	Key []byte
+	URI string
 }
 
 // OnDemandPackager builds an OnDemandPlan for a source file — the copy rung, no

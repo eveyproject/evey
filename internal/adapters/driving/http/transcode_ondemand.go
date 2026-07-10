@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/otel/codes"
@@ -43,6 +45,10 @@ const (
 	// Must be stable: master and sub-requests build the same plan (cached on
 	// srcPath+segMs), so a drift here would desync the playlist from segments.
 	onDemandSegmentMs = int64(6000)
+	// maxRotationKeys bounds the AES-128 key pool for a single presentation, so a
+	// pathological rotate-every-1 setting can't derive keys without limit. Past
+	// the cap mkvgo cycles keys (still per-period, just reused at the tail).
+	maxRotationKeys = 512
 )
 
 // tryServePlanMaster serves the presentation from the on-demand packager when
@@ -214,10 +220,51 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 		URLPrefix: onDemandPrefix,
 	}
 	if h.onDemandEncrypt && len(h.hlsAESSecret) > 0 {
-		opts.AESKey = h.deriveHLSKey(mediaID)
-		opts.AESKeyURI = "key" // relative to /hls/{id}/ — served by serveHLSKey; not URL-prefixed by mkvgo
+		if h.hlsKeyRotateSegments > 0 {
+			// Forward secrecy: one derived key per rotation period, advertised as
+			// key?i=<n> and served back by serveHLSKey. Sized to the duration so
+			// the pool covers the whole video without cycling (bounded).
+			n := h.rotationKeyCount(item)
+			keys := make([]apptranscoding.OnDemandAESKey, n)
+			for i := range keys {
+				keys[i] = apptranscoding.OnDemandAESKey{
+					Key: h.deriveHLSKeyN(mediaID, i),
+					URI: fmt.Sprintf("key?i=%d", i), // relative to /hls/{id}/
+				}
+			}
+			opts.AESRotateSegments = h.hlsKeyRotateSegments
+			opts.AESKeys = keys
+		} else {
+			opts.AESKey = h.deriveHLSKey(mediaID)
+			opts.AESKeyURI = "key" // relative to /hls/{id}/ — served by serveHLSKey; not URL-prefixed by mkvgo
+		}
 	}
 	return h.onDemand.Plan(r.Context(), item.File.Path, opts)
+}
+
+// rotationKeyCount sizes the key pool to cover the whole presentation without
+// cycling (true forward secrecy: one key per rotation period), derived from the
+// media duration. Bounded by maxRotationKeys; an unknown duration falls back to
+// the minimum valid rotation (2 keys).
+func (h *hlsVODServe) rotationKeyCount(item *domainlibrary.MediaItem) int {
+	if item.File == nil {
+		return 2
+	}
+	durMs := item.File.Duration.Milliseconds()
+	if durMs <= 0 || onDemandSegmentMs <= 0 {
+		return 2
+	}
+	nSeg := (durMs + onDemandSegmentMs - 1) / onDemandSegmentMs
+	rot := int64(h.hlsKeyRotateSegments)
+	periods := (nSeg + rot - 1) / rot
+	n := int(periods) + 1 // +1 margin for keyframe-alignment slack in the real cut
+	if n < 2 {
+		n = 2
+	}
+	if n > maxRotationKeys {
+		n = maxRotationKeys
+	}
+	return n
 }
 
 // deriveHLSKey derives this media's 16-byte AES-128 key from the server secret,
@@ -226,6 +273,17 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 func (h *hlsVODServe) deriveHLSKey(mediaID string) []byte {
 	mac := hmac.New(sha256.New, h.hlsAESSecret)
 	mac.Write([]byte(mediaID))
+	return mac.Sum(nil)[:16]
+}
+
+// deriveHLSKeyN derives the i-th rotation key for this media, HMAC(secret,
+// mediaID\x00i). The \x00 index suffix makes each period's key independent and
+// distinct from the single-key derivation (deriveHLSKey has no suffix).
+func (h *hlsVODServe) deriveHLSKeyN(mediaID string, i int) []byte {
+	mac := hmac.New(sha256.New, h.hlsAESSecret)
+	mac.Write([]byte(mediaID))
+	mac.Write([]byte{0})
+	mac.Write([]byte(strconv.Itoa(i)))
 	return mac.Sum(nil)[:16]
 }
 
@@ -239,10 +297,22 @@ func (h *hlsVODServe) serveHLSKey(w http.ResponseWriter, r *http.Request, mediaI
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
+	// A rotated presentation asks for a specific period's key via ?i=<n>; a
+	// single-key one omits it. Bound the index so derivation stays finite.
+	key := h.deriveHLSKey(mediaID)
+	if is := r.URL.Query().Get("i"); is != "" {
+		i, err := strconv.Atoi(is)
+		if err != nil || i < 0 || i >= maxRotationKeys {
+			span.SetStatus(codes.Error, "bad hls key index")
+			http.Error(w, `{"message":"bad key index"}`, http.StatusBadRequest)
+			return
+		}
+		key = h.deriveHLSKeyN(mediaID, i)
+	}
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Cache-Control", "no-store")
-	_, _ = w.Write(h.deriveHLSKey(mediaID))
+	_, _ = w.Write(key)
 }
 
 // planHLSVideoEligible reports whether this request's VIDEO can be served by

@@ -236,6 +236,11 @@ type hlsVODServe struct {
 	// hlsAESSecret derives per-media AES-128 keys (HMAC(secret, mediaID)); the
 	// /hls/{id}/key endpoint serves the derived key to authorised clients.
 	hlsAESSecret []byte
+	// hlsKeyRotateSegments, when > 0 (transcoding.hls_key_rotation_segments),
+	// rotates the AES-128 key every N segments for forward secrecy. Each period
+	// gets its own derived key, advertised as key?i=<n> and served by the key
+	// endpoint. 0 = single key per media (the default).
+	hlsKeyRotateSegments int
 
 	// qoeSink ingests CMCD telemetry from segment requests. Nil when QoE is
 	// disabled (tests, dev without postgres). Record is non-blocking.
@@ -2169,6 +2174,13 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			h.onDemandEncrypt = true
 			h.hlsAESSecret = s.HLSAESSecret
 			slog.Default().Info("hls vod: on-demand AES-128 encryption enabled (HLS only; no DASH manifest)")
+
+			// Optional AES-128 key rotation (forward secrecy). Only meaningful
+			// with encryption on, hence nested. 0/absent = single key per media.
+			if n, err := strconv.Atoi(resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_key_rotation_segments", "EVEY_HLS_KEY_ROTATION_SEGMENTS")); err == nil && n > 0 {
+				h.hlsKeyRotateSegments = n
+				slog.Default().Info("hls vod: on-demand AES-128 key rotation enabled", slog.Int("every_segments", n))
+			}
 		}
 	}
 

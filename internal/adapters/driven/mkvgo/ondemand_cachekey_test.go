@@ -29,3 +29,29 @@ func TestOnDemandCacheKey_DistinguishesAESKeys(t *testing.T) {
 		SegmentMs: 6000, URLPrefix: "od_", AESKey: []byte("aaaaaaaaaaaaaaaa"), AESKeyURI: "key",
 	}), "same options → same cache key")
 }
+
+// A rotated presentation encrypts each period with a different key, so its plan
+// must not alias onto the single-key plan or onto a different rotation schedule.
+func TestOnDemandCacheKey_DistinguishesRotation(t *testing.T) {
+	src := "/media/movie.mkv"
+	single := onDemandCacheKey(src, apptranscoding.OnDemandOptions{
+		SegmentMs: 6000, URLPrefix: "od_", AESKey: []byte("aaaaaaaaaaaaaaaa"), AESKeyURI: "key",
+	})
+	rot := func(every int, keys ...string) string {
+		ks := make([]apptranscoding.OnDemandAESKey, len(keys))
+		for i, k := range keys {
+			ks[i] = apptranscoding.OnDemandAESKey{Key: []byte(k), URI: "key?i=" + string(rune('0'+i))}
+		}
+		return onDemandCacheKey(src, apptranscoding.OnDemandOptions{
+			SegmentMs: 6000, URLPrefix: "od_", AESRotateSegments: every, AESKeys: ks,
+		})
+	}
+	rotA := rot(10, "aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb")
+	rotDiffN := rot(20, "aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb")
+	rotDiffKeys := rot(10, "aaaaaaaaaaaaaaaa", "cccccccccccccccc")
+
+	assert.NotEqual(t, single, rotA, "rotated plan must not alias the single-key plan")
+	assert.NotEqual(t, rotA, rotDiffN, "different rotation period must not alias")
+	assert.NotEqual(t, rotA, rotDiffKeys, "different key set must not alias")
+	assert.Equal(t, rotA, rot(10, "aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"), "same rotation → same cache key")
+}

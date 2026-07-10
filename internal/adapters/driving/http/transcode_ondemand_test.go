@@ -243,6 +243,59 @@ func TestServeHLSKey_ServesKeyBytes(t *testing.T) {
 	assert.Equal(t, h.deriveHLSKey("mi-1"), w.Body.Bytes(), "serves this media's derived key")
 }
 
+// --- AES-128 key rotation (forward secrecy) ---
+
+func TestDeriveHLSKeyN(t *testing.T) {
+	h := &hlsVODServe{hlsAESSecret: []byte("0123456789abcdef0123456789abcdef")}
+	k0 := h.deriveHLSKeyN("mi-1", 0)
+	assert.Len(t, k0, 16)
+	assert.Equal(t, k0, h.deriveHLSKeyN("mi-1", 0), "deterministic per (media, index)")
+	assert.NotEqual(t, k0, h.deriveHLSKeyN("mi-1", 1), "different period → different key")
+	assert.NotEqual(t, k0, h.deriveHLSKey("mi-1"), "rotated key differs from the single-key derivation")
+}
+
+func TestServeHLSKey_RotationIndex(t *testing.T) {
+	secret := []byte("0123456789abcdef0123456789abcdef")
+	h := &hlsVODServe{onDemandEncrypt: true, hlsAESSecret: secret, hlsKeyRotateSegments: 10}
+	keyReq := func(q string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/hls/mi-1/key"+q, nil)
+		w := httptest.NewRecorder()
+		h.serveHLSKey(w, req, "mi-1", noopSpan())
+		return w
+	}
+
+	w2 := keyReq("?i=2")
+	assert.Equal(t, http.StatusOK, w2.Code)
+	assert.Equal(t, h.deriveHLSKeyN("mi-1", 2), w2.Body.Bytes(), "serves the requested period's key")
+	assert.NotEqual(t, h.deriveHLSKeyN("mi-1", 3), w2.Body.Bytes(), "period 2 != period 3")
+
+	// No index → the single-key derivation (backward compatible).
+	assert.Equal(t, h.deriveHLSKey("mi-1"), keyReq("").Body.Bytes())
+
+	// Malformed / out-of-range indices are rejected, not silently derived.
+	for _, bad := range []string{"?i=abc", "?i=-1", "?i=99999"} {
+		assert.Equal(t, http.StatusBadRequest, keyReq(bad).Code, bad)
+	}
+}
+
+func TestBuildPlan_RotationPassesKeys(t *testing.T) {
+	dur, err := shared.NewDurationMs(600000) // 10 min → ~100 segments at 6s
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Path: "/media/movie.mkv", Duration: dur}}
+
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h := &hlsVODServe{onDemand: pkg, onDemandEncrypt: true, hlsAESSecret: []byte("0123456789abcdef0123456789abcdef"), hlsKeyRotateSegments: 10}
+	_, err = h.buildPlan(onDemandReq(), "mi-1", item)
+	require.NoError(t, err)
+
+	assert.Empty(t, pkg.lastOpts.AESKey, "rotation supersedes the single key")
+	assert.Equal(t, 10, pkg.lastOpts.AESRotateSegments)
+	assert.GreaterOrEqual(t, len(pkg.lastOpts.AESKeys), 2, "at least two rotation keys")
+	assert.Equal(t, "key?i=0", pkg.lastOpts.AESKeys[0].URI)
+	assert.Equal(t, h.deriveHLSKeyN("mi-1", 0), pkg.lastOpts.AESKeys[0].Key)
+	assert.Equal(t, "key?i=1", pkg.lastOpts.AESKeys[1].URI)
+}
+
 func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h := &hlsVODServe{onDemand: pkg, onDemandEncrypt: true, hlsAESSecret: []byte("0123456789abcdef0123456789abcdef")}

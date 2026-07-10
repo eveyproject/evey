@@ -68,7 +68,13 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 		prefix := opts.URLPrefix
 		o.RewriteURL = func(name string) string { return prefix + name }
 	}
-	if len(opts.AESKey) > 0 {
+	if opts.AESRotateSegments > 0 && len(opts.AESKeys) >= 2 {
+		keys := make([]mp4.HLSKey, len(opts.AESKeys))
+		for i, k := range opts.AESKeys {
+			keys[i] = mp4.HLSKey{Key: k.Key, KeyURI: k.URI}
+		}
+		o.Encrypt = &mp4.HLSEncryption{RotateEverySegments: opts.AESRotateSegments, Keys: keys}
+	} else if len(opts.AESKey) > 0 {
 		o.Encrypt = &mp4.HLSEncryption{Key: opts.AESKey, KeyURI: opts.AESKeyURI}
 	}
 
@@ -105,7 +111,19 @@ func onDemandCacheKey(srcPath string, opts apptranscoding.OnDemandOptions) strin
 		size = fi.Size()
 	}
 	keyTag := ""
-	if len(opts.AESKey) > 0 {
+	if opts.AESRotateSegments > 0 && len(opts.AESKeys) >= 2 {
+		// Rotation: hash every key + URI and the period so a rotated presentation
+		// never aliases onto the single-key plan (or a different rotation).
+		h := sha256.New()
+		fmt.Fprintf(h, "rot:%d:", opts.AESRotateSegments)
+		for _, k := range opts.AESKeys {
+			h.Write(k.Key)
+			h.Write([]byte{0})
+			h.Write([]byte(k.URI))
+			h.Write([]byte{0})
+		}
+		keyTag = "rot" + hex.EncodeToString(h.Sum(nil)[:8])
+	} else if len(opts.AESKey) > 0 {
 		sum := sha256.Sum256(opts.AESKey)
 		keyTag = hex.EncodeToString(sum[:8]) + ":" + opts.AESKeyURI
 	}
