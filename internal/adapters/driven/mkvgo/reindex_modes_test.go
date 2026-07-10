@@ -2,6 +2,7 @@ package mkvgo
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -65,6 +66,48 @@ func TestReindexModes_RewriteKeepsBackupSemantics(t *testing.T) {
 	has, err := a.HasSeekIndex(context.Background(), p)
 	require.NoError(t, err)
 	assert.True(t, has, "the rewritten file must now carry a real Cues index")
+}
+
+// A media file the server user cannot write must surface an ACTIONABLE
+// permission error - not masquerade as "in-place reindex not supported for
+// this file or build" (prod incident 2026-07-10: 261 identical cryptic
+// failures on a PUID/media-owner mismatch).
+func TestReindexModes_PermissionDeniedIsActionable(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("permission bits do not apply to root")
+	}
+	a := New()
+
+	t.Run("inplace mode names the real cause", func(t *testing.T) {
+		p := genCuelessMKV(t)
+		require.NoError(t, os.Chmod(p, 0o444))
+		_, err := a.ReindexInPlace(context.Background(), p, mkv.ReindexOptions{Mode: mkv.ModeInPlace})
+		require.Error(t, err)
+		require.ErrorIs(t, err, mkv.ErrMediaNotWritable)
+		require.NotErrorIs(t, err, mkv.ErrInPlaceUnsupported,
+			"EACCES is an ownership problem, not a layout/build refusal")
+		assert.Contains(t, err.Error(), "PUID", "the error must tell the operator the remedy")
+	})
+
+	t.Run("auto mode still rescues via the swap rewrite when the directory allows it", func(t *testing.T) {
+		p := genCuelessMKV(t)
+		require.NoError(t, os.Chmod(p, 0o444))
+		res, err := a.ReindexInPlace(context.Background(), p, mkv.ReindexOptions{})
+		require.NoError(t, err, "the temp+rename rewrite only needs directory write, not file write")
+		assert.Equal(t, mkv.ReindexMethodRewrite, res.Method)
+	})
+
+	t.Run("auto mode names the real cause when nothing is writable", func(t *testing.T) {
+		p := genCuelessMKV(t)
+		dir := filepath.Dir(p)
+		require.NoError(t, os.Chmod(p, 0o444))
+		require.NoError(t, os.Chmod(dir, 0o555))
+		t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+		_, err := a.ReindexInPlace(context.Background(), p, mkv.ReindexOptions{})
+		require.Error(t, err)
+		require.ErrorIs(t, err, mkv.ErrMediaNotWritable)
+		assert.Contains(t, err.Error(), "PUID")
+	})
 }
 
 func TestReindexModes_AutoPrefersInPlace(t *testing.T) {

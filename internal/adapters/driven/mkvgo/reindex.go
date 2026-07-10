@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 
@@ -139,6 +140,15 @@ func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 // removeQuiet deletes path best-effort. A missing file is fine (the temp may
 // never have been created); any other failure is logged but never fatal — these
 // are cleanup paths where the caller already holds its real result.
+// permissionRemedy converts a raw EACCES from the repair machinery into the
+// operator-actionable diagnosis: the server user does not own the media file
+// (or its directory). Without this, a whole batch fails as N copies of a
+// cryptic "permission denied" buried in strategy errors.
+func permissionRemedy(err error) error {
+	return fmt.Errorf("reindex: %w (server uid %d): set the container's PUID/PGID to the owner of your media files (docs/configuration.md, \"File ownership\") and retry: %w",
+		mkv.ErrMediaNotWritable, os.Getuid(), err)
+}
+
 func removeQuiet(path string) {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		slog.Warn("mkvgo: temp cleanup failed", slog.String("path", path), slog.Any("err", err))
@@ -197,6 +207,12 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 				SrcBytes: srcInfo.Size(),
 				DstBytes: dstBytes,
 			}, nil
+		case errors.Is(inErr, fs.ErrPermission) && opts.Mode == mkv.ModeInPlace:
+			// Not a layout/build refusal: the server user may not write the
+			// file. Name the ownership problem instead of ErrInPlaceUnsupported.
+			// (ModeAuto still falls through below - the temp+rename rewrite
+			// only needs DIRECTORY write and can rescue a read-only file.)
+			return mkv.ReindexResult{}, permissionRemedy(inErr)
 		case opts.Mode == mkv.ModeInPlace:
 			// The operator demanded the patch: no silent rewrite.
 			return mkv.ReindexResult{}, fmt.Errorf("reindex: %w: %w", mkv.ErrInPlaceUnsupported, inErr)
@@ -233,6 +249,11 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	removeQuiet(tmp) // clear any stale temp from a previous aborted run
 	if err = ops.Reindex(ctx, path, tmp, extmkv.Options{DeepVerify: opts.DeepVerify}); err != nil {
 		removeQuiet(tmp)
+		if errors.Is(err, fs.ErrPermission) {
+			// Neither the file (in-place above) nor its directory (this temp)
+			// is writable by the server user: pure ownership problem.
+			return mkv.ReindexResult{}, permissionRemedy(err)
+		}
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: rebuild: %w", err)
 	}
 	committed := false

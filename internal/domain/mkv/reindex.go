@@ -64,6 +64,13 @@ type Reindexer interface {
 // operator can retry with ModeRewrite.
 var ErrInPlaceUnsupported = errors.New("in-place reindex not supported for this file or build")
 
+// ErrMediaNotWritable is returned when a repair fails because the server's
+// user may not write the media file (or its directory) - an ownership problem
+// the operator fixes by aligning the container's PUID/PGID with the media
+// owner, not a defect of the file or the build. Kept distinct so callers can
+// aggregate a whole batch of these into one actionable message.
+var ErrMediaNotWritable = errors.New("media not writable by the server user")
+
 // Reindex modes the operator can demand (ReindexOptions.Mode).
 const (
 	// ModeAuto (empty string): surgical in-place when available, otherwise the
