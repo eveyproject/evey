@@ -67,6 +67,14 @@ type KeyframeOnDemand struct {
 	frAnalyzer FrameRateAnalyzer
 	frStore    FrameRateStore
 
+	// activePlayback, when set, reports live playback sessions. While any is
+	// running, TryIndex skips the detached probe entirely: a cue-less MKV's
+	// keyframe walk is a multi-second CPU/I/O burst that mkvgo can't cancel
+	// mid-read, so on a weak NAS it would starve the very playback that
+	// triggered it. The paced background backfill worker (which also yields to
+	// playback) indexes the file once nobody is watching.
+	activePlayback func() int
+
 	mu       sync.Mutex
 	inflight map[string]struct{}  // media IDs probed right now (skip duplicates)
 	failed   map[string]time.Time // media ID → last failed attempt
@@ -93,6 +101,14 @@ func NewKeyframeOnDemand(store KeyframeBackfillStore, prober KeyframeProber, log
 func (k *KeyframeOnDemand) WithFrameRateAnalyzer(a FrameRateAnalyzer, store FrameRateStore) *KeyframeOnDemand {
 	k.frAnalyzer = a
 	k.frStore = store
+	return k
+}
+
+// WithActivePlayback wires the live playback-session counter: while any session
+// is running, TryIndex defers to the paced background worker instead of
+// spawning a probe that would compete with the active stream for the CPU.
+func (k *KeyframeOnDemand) WithActivePlayback(count func() int) *KeyframeOnDemand {
+	k.activePlayback = count
 	return k
 }
 
@@ -125,6 +141,14 @@ func (k *KeyframeOnDemand) WithMaxConcurrent(n int) *KeyframeOnDemand {
 // background worker is harmless.
 func (k *KeyframeOnDemand) TryIndex(ctx context.Context, mediaID, filePath string) bool {
 	if k == nil || filePath == "" {
+		return false
+	}
+	// Someone is watching: don't add a keyframe walk on top of a live transcode
+	// on a weak NAS. Leave it to the paced background worker (it yields to
+	// playback too); this playback transcodes, pinned as usual.
+	if k.activePlayback != nil && k.activePlayback() > 0 {
+		k.logger.Info("keyframe on-demand: playback active, leaving to the background worker",
+			slog.String("media_id", mediaID))
 		return false
 	}
 	k.mu.Lock()

@@ -79,6 +79,26 @@ func TestKeyframeOnDemand_IndexesFastPath(t *testing.T) {
 	assert.Equal(t, []int64{0, 6000, 12000}, store.saved["m1"])
 }
 
+func TestKeyframeOnDemand_SkipsWhilePlaybackActive(t *testing.T) {
+	store := &fakeKfStore{rows: 1}
+	prober := &fakeKfProber{kf: []int64{0, 6000, 12000}}
+	active := 1
+	k := apptranscoding.NewKeyframeOnDemand(store, prober, nil).
+		WithActivePlayback(func() int { return active })
+
+	// A viewer is watching: the on-demand probe must not run — a cue-less walk
+	// on top of a live transcode is exactly what starves it.
+	assert.False(t, k.TryIndex(context.Background(), "m1", "/f.mkv"),
+		"must skip while playback is active")
+	assert.Equal(t, int32(0), prober.calls.Load(),
+		"the prober must not be touched while playback is active")
+
+	// Nobody watching: it indexes as usual.
+	active = 0
+	assert.True(t, k.TryIndex(context.Background(), "m2", "/g.mkv"))
+	assert.Equal(t, int32(1), prober.calls.Load())
+}
+
 func TestKeyframeOnDemand_FailureIsNegativeCached(t *testing.T) {
 	store := &fakeKfStore{rows: 1}
 	prober := &fakeKfProber{err: errors.New("no cues")}
