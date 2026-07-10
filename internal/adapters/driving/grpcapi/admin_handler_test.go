@@ -47,6 +47,10 @@ func newTestSystemHandler() *adminSystemHandler {
 		userQuery:   userQuery,
 		activitySvc: activitySvc,
 		version:     "1.0.0-test",
+		// Fixed CPU budget so the auto-capacity assertions (derived from the
+		// bench ratio) are deterministic regardless of the host/CI core count —
+		// a real cgroup quota of 2 would cap a ratio-3 sample to 2 and flake.
+		cpuBudgetFn: func() int { return 8 },
 	}
 }
 

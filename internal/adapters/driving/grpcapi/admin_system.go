@@ -89,6 +89,11 @@ type adminSystemHandler struct {
 	// shared between the software and hardware producers. Optional: nil reports
 	// active=0.
 	videoLimiter videoSessionActiveReporter
+	// cpuBudgetFn reports the host's usable core count for the auto-capacity
+	// calc. nil = sysinfo.CPUBudget (the real cgroup quota); tests inject a
+	// fixed value so the auto-capacity is deterministic regardless of the CI
+	// runner's core count.
+	cpuBudgetFn func() int
 
 	// loadTest runs the built-in capacity measurement (nil = RPC answers
 	// Unimplemented). loadTestBaseURL is the server's own loopback origin the
@@ -193,7 +198,11 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 
 	if d.calibrationSvc != nil {
 		capability := d.calibrationSvc.Current()
-		auto, evidence := apptranscoding.AutoVideoSessionCapacity(capability.BenchSamples, sysinfo.CPUBudget())
+		cpuBudget := sysinfo.CPUBudget()
+		if d.cpuBudgetFn != nil {
+			cpuBudget = d.cpuBudgetFn()
+		}
+		auto, evidence := apptranscoding.AutoVideoSessionCapacity(capability.BenchSamples, cpuBudget)
 		// A true-nil interface (not a nil-pointer-wrapped one) when the store is
 		// absent, so ResolveVideoSessionLimit's own nil check is honest - see the
 		// same pattern for pluginCfgRepo in server.go.
