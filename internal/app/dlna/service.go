@@ -243,16 +243,16 @@ func (s *Service) Play(ctx context.Context, rendererID, mediaURL, title string) 
 		return err
 	}
 	metadata := buildDIDLMetadata(title, mediaURL)
-	if err := sendSOAPAction(ctx, r.ControlURL, "SetAVTransportURI", map[string]string{
-		"InstanceID":         "0",
-		"CurrentURI":         mediaURL,
-		"CurrentURIMetaData": metadata,
+	if err := sendSOAPAction(ctx, r.ControlURL, "SetAVTransportURI", []soapArg{
+		{"InstanceID", "0"},
+		{"CurrentURI", mediaURL},
+		{"CurrentURIMetaData", metadata},
 	}); err != nil {
 		return fmt.Errorf("SetAVTransportURI: %w", err)
 	}
-	if err := sendSOAPAction(ctx, r.ControlURL, "Play", map[string]string{
-		"InstanceID": "0",
-		"Speed":      "1",
+	if err := sendSOAPAction(ctx, r.ControlURL, "Play", []soapArg{
+		{"InstanceID", "0"},
+		{"Speed", "1"},
 	}); err != nil {
 		return fmt.Errorf("Play: %w", err)
 	}
@@ -268,8 +268,8 @@ func (s *Service) Stop(ctx context.Context, rendererID string) error {
 	if err != nil {
 		return err
 	}
-	if err := sendSOAPAction(ctx, r.ControlURL, "Stop", map[string]string{
-		"InstanceID": "0",
+	if err := sendSOAPAction(ctx, r.ControlURL, "Stop", []soapArg{
+		{"InstanceID", "0"},
 	}); err != nil {
 		return fmt.Errorf("Stop: %w", err)
 	}
@@ -284,8 +284,8 @@ func (s *Service) Pause(ctx context.Context, rendererID string) error {
 	if err != nil {
 		return err
 	}
-	if err := sendSOAPAction(ctx, r.ControlURL, "Pause", map[string]string{
-		"InstanceID": "0",
+	if err := sendSOAPAction(ctx, r.ControlURL, "Pause", []soapArg{
+		{"InstanceID", "0"},
 	}); err != nil {
 		return fmt.Errorf("Pause: %w", err)
 	}
@@ -302,13 +302,24 @@ func buildDIDLMetadata(title, mediaURL string) string {
 		`</DIDL-Lite>`
 }
 
-func sendSOAPAction(ctx context.Context, controlURL, action string, args map[string]string) error {
+// soapArg is a single ordered SOAP argument. UPnP AVTransport control
+// points expect action arguments in the exact order defined by the
+// service WSDL (not alphabetical), so callers must pass args in a slice
+// rather than a map to preserve insertion order.
+type soapArg struct {
+	Name  string
+	Value string
+}
+
+// buildSOAPBody renders the SOAP envelope for the given AVTransport
+// action, writing args in the order supplied by the caller.
+func buildSOAPBody(action string, args []soapArg) string {
 	var argXML strings.Builder
-	for k, v := range args {
-		argXML.WriteString("<" + k + ">" + html.EscapeString(v) + "</" + k + ">")
+	for _, a := range args {
+		argXML.WriteString("<" + a.Name + ">" + html.EscapeString(a.Value) + "</" + a.Name + ">")
 	}
 
-	body := `<?xml version="1.0" encoding="utf-8"?>` +
+	return `<?xml version="1.0" encoding="utf-8"?>` +
 		`<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" s:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">` +
 		`<s:Body>` +
 		`<u:` + action + ` xmlns:u="urn:schemas-upnp-org:service:AVTransport:1">` +
@@ -316,6 +327,10 @@ func sendSOAPAction(ctx context.Context, controlURL, action string, args map[str
 		`</u:` + action + `>` +
 		`</s:Body>` +
 		`</s:Envelope>`
+}
+
+func sendSOAPAction(ctx context.Context, controlURL, action string, args []soapArg) error {
+	body := buildSOAPBody(action, args)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, controlURL, bytes.NewReader([]byte(body)))
 	if err != nil {

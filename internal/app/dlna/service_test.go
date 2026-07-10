@@ -85,6 +85,36 @@ func TestBuildDIDLMetadata(t *testing.T) {
 	}
 }
 
+func TestBuildSOAPBody_SetAVTransportURI_ArgOrder(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		body := buildSOAPBody("SetAVTransportURI", []soapArg{
+			{"InstanceID", "0"},
+			{"CurrentURI", "http://example.com/video.mp4"},
+			{"CurrentURIMetaData", "<DIDL-Lite/>"},
+		})
+
+		idxInstanceID := indexOf(body, "<InstanceID>")
+		idxCurrentURI := indexOf(body, "<CurrentURI>")
+		idxCurrentURIMetaData := indexOf(body, "<CurrentURIMetaData>")
+
+		if idxInstanceID < 0 || idxCurrentURI < 0 || idxCurrentURIMetaData < 0 {
+			t.Fatalf("expected all three args present in body: %s", body)
+		}
+		if !(idxInstanceID < idxCurrentURI && idxCurrentURI < idxCurrentURIMetaData) {
+			t.Fatalf("expected InstanceID < CurrentURI < CurrentURIMetaData order, got body: %s", body)
+		}
+	}
+}
+
+func indexOf(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && searchString(s, substr)
 }
