@@ -109,13 +109,14 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 	cmd.Stderr = stderr
 
 	h := &hlsHandle{
-		opts:     opts,
-		cmd:      cmd,
-		cancel:   cancel,
-		ready:    make(chan struct{}),
-		done:     make(chan struct{}),
-		stderr:   stderr,
-		noMaster: noMaster,
+		opts:       opts,
+		cmd:        cmd,
+		cancel:     cancel,
+		ready:      make(chan struct{}),
+		done:       make(chan struct{}),
+		procExited: make(chan struct{}),
+		stderr:     stderr,
+		noMaster:   noMaster,
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -125,6 +126,11 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 		}
 		return nil, fmt.Errorf("ffmpeg start: %w", err)
 	}
+	// Single owner of cmd.Wait: everyone else reads awaitProcExit().
+	go func() {
+		h.procWaitErr = cmd.Wait()
+		close(h.procExited)
+	}()
 
 	go h.run(processCtx)
 	if rebase {
@@ -262,15 +268,30 @@ type hlsHandle struct {
 	ready     chan struct{}
 	readyOnce sync.Once // guards ready: run()'s error paths AND its panic recovery can both race to close it
 	done      chan struct{}
-	err       error
-	exitErr   error // raw ffmpeg exit error, for failure classification (guarded by mu)
-	stderr    *ringBuffer
-	paused    bool // ffmpeg currently SIGSTOPped (client idle)
+	// procExited closes the instant the ffmpeg process itself exits (single
+	// owner of cmd.Wait; procWaitErr holds its result). The file/segment
+	// waits select on it so a dead-on-arrival ffmpeg fails the session in
+	// milliseconds instead of burning the full 30s playlist timeout while
+	// holding a video admission slot and a viewer's request.
+	procExited  chan struct{}
+	procWaitErr error
+	err         error
+	exitErr     error // raw ffmpeg exit error, for failure classification (guarded by mu)
+	stderr      *ringBuffer
+	paused      bool // ffmpeg currently SIGSTOPped (client idle)
 	// noMaster suppresses the synthesised single-rung master.m3u8. Set on the
 	// sub-processes of a per-variant composite handle (the VOD pipeline serves a
 	// precomputed master, and N siblings must not each clobber master.m3u8 with
 	// a one-rung playlist).
 	noMaster bool
+}
+
+// awaitProcExit blocks until the ffmpeg process has exited and returns its
+// exit error. Replaces direct h.awaitProcExit() calls: Wait may only be called
+// once per process, and the exit watcher above owns that call.
+func (h *hlsHandle) awaitProcExit() error {
+	<-h.procExited
+	return h.procWaitErr
 }
 
 func (h *hlsHandle) setExitErr(err error) {
@@ -313,10 +334,10 @@ func (h *hlsHandle) run(ctx context.Context) {
 	if isSingle {
 		streamName := fmt.Sprintf("stream_%d", h.opts.VariantIndex)
 		streamPath := filepath.Join(h.opts.OutputDir, streamName+".m3u8")
-		if err := waitForFile(ctx, streamPath, 30*time.Second, 100*time.Millisecond); err != nil {
+		if err := waitForFile(ctx, h.procExited, streamPath, 30*time.Second, 100*time.Millisecond); err != nil {
 			h.err = fmt.Errorf("waiting for %s.m3u8: %w", streamName, err)
 			h.cancel()
-			we := h.cmd.Wait()
+			we := h.awaitProcExit()
 			h.setExitErr(we)
 			if we != nil {
 				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
@@ -332,7 +353,7 @@ func (h *hlsHandle) run(ctx context.Context) {
 			if err := os.WriteFile(filepath.Join(h.opts.OutputDir, "master.m3u8"), []byte(master), 0644); err != nil {
 				h.err = fmt.Errorf("write master.m3u8: %w", err)
 				h.cancel()
-				we := h.cmd.Wait()
+				we := h.awaitProcExit()
 				h.setExitErr(we)
 				if we != nil {
 					slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
@@ -341,15 +362,15 @@ func (h *hlsHandle) run(ctx context.Context) {
 				return
 			}
 		}
-		if err := waitForSegment(ctx, h.opts.OutputDir, streamName, 10*time.Second, 100*time.Millisecond); err != nil {
+		if err := waitForSegment(ctx, h.procExited, h.opts.OutputDir, streamName, 10*time.Second, 100*time.Millisecond); err != nil {
 			slog.Warn("hls: first segment not yet ready, proceeding anyway", slog.Any("err", err))
 		}
 	} else {
 		masterPath := filepath.Join(h.opts.OutputDir, "master.m3u8")
-		if err := waitForFile(ctx, masterPath, 30*time.Second, 100*time.Millisecond); err != nil {
+		if err := waitForFile(ctx, h.procExited, masterPath, 30*time.Second, 100*time.Millisecond); err != nil {
 			h.err = fmt.Errorf("waiting for master.m3u8: %w", err)
 			h.cancel()
-			we := h.cmd.Wait()
+			we := h.awaitProcExit()
 			h.setExitErr(we)
 			if we != nil {
 				slog.Debug("ffmpeg wait after cancel", slog.Any("err", we))
@@ -357,14 +378,14 @@ func (h *hlsHandle) run(ctx context.Context) {
 			h.closeReady()
 			return
 		}
-		if err := waitForSegment(ctx, h.opts.OutputDir, "stream_0", 10*time.Second, 100*time.Millisecond); err != nil {
+		if err := waitForSegment(ctx, h.procExited, h.opts.OutputDir, "stream_0", 10*time.Second, 100*time.Millisecond); err != nil {
 			slog.Warn("hls: first segment not yet ready, proceeding anyway", slog.Any("err", err))
 		}
 	}
 
 	h.closeReady()
 
-	we := h.cmd.Wait()
+	we := h.awaitProcExit()
 	h.setExitErr(we)
 	if we != nil && ctx.Err() == nil {
 		slog.Warn("hls: ffmpeg exited with error",
@@ -1293,7 +1314,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 
 	enc := resolveVideoEncoder(opts.VideoCodec)
 	args = append(args, "-c:v", enc)
-	args = append(args, cpuBudgetThreadsArgs("")...) // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
+	args = append(args, cpuBudgetThreadsArgs("")...)          // bound to the CPU budget (cgroup quota or NumCPU); operator override wins if set
 	args = append(args, softwareProfileLevelArgs(enc, -1)...) // h264-only; x265/av1 pick their own
 	args = append(args,
 		// Capped CRF (see softwareCRF): quality-targeted with the rung bitrate as a
@@ -1400,7 +1421,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 			fmt.Sprintf("-c:v:%d", i), vcodec,
 		)
 		args = append(args, cpuBudgetThreadsArgs(fmt.Sprintf(":v:%d", i))...) // bound to the CPU budget per rung; operator override wins if set
-		args = append(args, softwareProfileLevelArgs(vcodec, i)...) // h264-only; x265/av1 pick their own
+		args = append(args, softwareProfileLevelArgs(vcodec, i)...)           // h264-only; x265/av1 pick their own
 		args = append(args,
 			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate
 			// as the hard ceiling, instead of a plain -b:v average.
@@ -1853,6 +1874,7 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 		cancel:       cancel,
 		ready:        make(chan struct{}),
 		done:         make(chan struct{}),
+		procExited:   make(chan struct{}),
 		stderr:       stderr,
 	}
 
@@ -1860,6 +1882,11 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 		cancel()
 		return nil, fmt.Errorf("ffmpeg audio-only start: %w", err)
 	}
+	// Single owner of cmd.Wait, same contract as hlsHandle.
+	go func() {
+		h.procWaitErr = cmd.Wait()
+		close(h.procExited)
+	}()
 
 	go h.run(processCtx)
 	return h, nil
@@ -1874,6 +1901,8 @@ type audioHandle struct {
 	readyOnce    sync.Once // guards ready: run()'s error paths AND its panic recovery can both race to close it
 	mu           sync.Mutex
 	cmd          *exec.Cmd
+	procExited   chan struct{}
+	procWaitErr  error
 	cancel       context.CancelFunc
 	ready        chan struct{}
 	done         chan struct{}
@@ -1895,6 +1924,11 @@ func (h *audioHandle) setExitErr(err error) {
 	h.mu.Unlock()
 }
 
+func (h *audioHandle) awaitProcExit() error {
+	<-h.procExited
+	return h.procWaitErr
+}
+
 func (h *audioHandle) run(ctx context.Context) {
 	defer close(h.done)
 	// Same contract as hlsHandle.run: an unrecovered panic here would crash the
@@ -1912,10 +1946,10 @@ func (h *audioHandle) run(ctx context.Context) {
 	}()
 
 	playlistPath := filepath.Join(h.outputDir, h.playlistName)
-	if err := waitForFile(ctx, playlistPath, 30*time.Second, 100*time.Millisecond); err != nil {
+	if err := waitForFile(ctx, h.procExited, playlistPath, 30*time.Second, 100*time.Millisecond); err != nil {
 		h.err = fmt.Errorf("waiting for %s: %w", h.playlistName, err)
 		h.cancel()
-		we := h.cmd.Wait()
+		we := h.awaitProcExit()
 		h.setExitErr(we)
 		if we != nil {
 			slog.Debug("ffmpeg audio wait after cancel", slog.Any("err", we))
@@ -1926,7 +1960,7 @@ func (h *audioHandle) run(ctx context.Context) {
 
 	h.closeReady()
 
-	we := h.cmd.Wait()
+	we := h.awaitProcExit()
 	h.setExitErr(we)
 	if we != nil && ctx.Err() == nil {
 		slog.Warn("hls: ffmpeg audio-only exited with error",
@@ -2011,7 +2045,7 @@ func (h *audioHandle) Resume() error {
 // compile-time assertion: HLSTranscoder satisfies AudioProcess.
 var _ transcoding.AudioProcess = (*HLSTranscoder)(nil)
 
-func waitForFile(ctx context.Context, path string, timeout, interval time.Duration) error {
+func waitForFile(ctx context.Context, exited <-chan struct{}, path string, timeout, interval time.Duration) error {
 	deadline := time.After(timeout)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -2019,6 +2053,17 @@ func waitForFile(ctx context.Context, path string, timeout, interval time.Durati
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-exited:
+			// The process is gone: one final look (it may have written the
+			// file in its last breath), then fail fast instead of burning the
+			// remaining timeout on a file that can no longer appear. A
+			// dead-on-arrival ffmpeg (vanished source, bad args) otherwise
+			// held its video admission slot and its viewer's request for the
+			// full 30s.
+			if _, err := os.Stat(path); err == nil {
+				return nil
+			}
+			return fmt.Errorf("ffmpeg exited before producing %s", path)
 		case <-deadline:
 			return fmt.Errorf("timeout waiting for %s", path)
 		case <-ticker.C:
@@ -2029,23 +2074,34 @@ func waitForFile(ctx context.Context, path string, timeout, interval time.Durati
 	}
 }
 
-func waitForSegment(ctx context.Context, dir, streamPrefix string, timeout, interval time.Duration) error {
+func waitForSegment(ctx context.Context, exited <-chan struct{}, dir, streamPrefix string, timeout, interval time.Duration) error {
 	deadline := time.After(timeout)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	scan := func() bool {
+		entries, _ := os.ReadDir(dir)
+		for _, e := range entries {
+			name := e.Name()
+			if len(name) > len(streamPrefix) && name[:len(streamPrefix)] == streamPrefix && (strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".m4s")) {
+				return true
+			}
+		}
+		return false
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-exited:
+			if scan() {
+				return nil
+			}
+			return fmt.Errorf("ffmpeg exited before the first segment of %s", streamPrefix)
 		case <-deadline:
 			return fmt.Errorf("timeout waiting for first segment of %s", streamPrefix)
 		case <-ticker.C:
-			entries, _ := os.ReadDir(dir)
-			for _, e := range entries {
-				name := e.Name()
-				if len(name) > len(streamPrefix) && name[:len(streamPrefix)] == streamPrefix && (strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".m4s")) {
-					return nil
-				}
+			if scan() {
+				return nil
 			}
 		}
 	}

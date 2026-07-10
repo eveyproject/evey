@@ -10,6 +10,9 @@
 #    REPL afterwards -- no auto-reopen. `menu` reopens it, `?` prints a static
 #    cheat-sheet, `exit` leaves.
 #  - No tty (piped / logs / non-interactive): a plain list, no key capture.
+#  - Want a vanilla bash instead? `EVEY_SHELL=plain` (or `EVEY_MENU=off`) skips
+#    all of it -- no branding, no launcher, no verbs. e.g.
+#      docker exec -it -e EVEY_SHELL=plain evey-server bash
 
 _EVEY_VERBS='reset-password reindex-search migrate validate-streaming reindex-no-cue artwork-gc load-test'
 
@@ -123,6 +126,11 @@ menu() { evey_menu; }
 
 case $- in
     *i*)
+        # Opt-out: a plain, unbranded bash (no launcher, no verbs, default prompt).
+        if [ "${EVEY_SHELL:-}" = plain ] || [ "${EVEY_MENU:-}" = off ]; then
+            return 0 2>/dev/null || true
+        fi
+
         # Short admin verbs as shell functions (`command` avoids any name clash).
         for __v in $_EVEY_VERBS; do
             eval "${__v}() { command evey admin ${__v} \"\$@\"; }"
