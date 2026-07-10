@@ -26,8 +26,20 @@ Default the sandbox to **Landlock**, applied by a tiny pre-exec launcher shim, a
 - **Works in a non-privileged container with zero operator setup** — the only environment we can guarantee. No `security_opt` relaxation, no `--privileged`, no bind-mounts, no two-step install.
 - **Fail-closed where it matters.** `sandbox_mode=landlock` (and `auto` once it has resolved to landlock) refuses to start a plugin if Landlock can't be enforced; for an interpreted plugin without `subprocess`, a missing `libevey-sandbox.so` also refuses the start.
 - **Graceful degradation on kernels < 5.13** (e.g. Synology/QNAP): `auto` falls back to `basic`, where secrets stay protected by UID separation + `PR_SET_DUMPABLE=0` + the kernel seccomp denylist (incl. `-deny-inet`), but there is no per-path FS confinement. The resolved mode is logged at first plugin start and surfaced in the admin security dashboard.
-- **Network is filtered per-port, not per-host, at the kernel.** The Landlock v4 TCP filter narrows a network plugin to its declared egress ports; per-host enforcement remains the `external_fetch` DNS allowlist at the HTTP layer (a separate, documented V1 limitation re: IP-literal egress).
+- **Direct network egress is cut for ALL plugins; egress is brokered** (see the 2026-07-11 update below). This supersedes the earlier per-port TCP filter + `external_fetch` DNS allowlist, which could not stop IP-literal egress to link-local (`169.254.169.254`) or LAN addresses.
 - **Defense in depth, not a hostile-multi-tenant jail.** This is a trust-but-verify boundary for community/third-party plugin code on a self-hoster's own box, layered with the resource monitor ([ADR-0013](0013-userspace-plugin-resource-monitor.md)) and token authz ([ADR-0012](0012-plugin-token-deny-by-default.md)). It is not a guarantee against a determined attacker exploiting a kernel LSM/seccomp 0-day.
+
+## Update (2026-07-11): direct egress cut, host `Fetch` broker
+
+The per-port TCP filter + `external_fetch` DNS allowlist left an SSRF hole: a plugin with the `network` permission could connect to a **literal IP** (cloud metadata `169.254.169.254`, or any LAN host), which `/etc/hosts` (host-based) and Landlock (port-based) do not stop. Kernel LSM primitives cannot filter egress by resolved IP without privilege the target container lacks, and an `LD_PRELOAD` `connect()` hook is bypassable by static binaries.
+
+Decision: **remove direct plugin egress entirely and broker it host-side.**
+
+- Every sandboxed plugin now runs with `--unshare-net` (bwrap) and `-deny-inet` + `-restrict-net` with no `-net-connect` grant (landlock), **regardless of the `network` permission**. The plugin process can open no IP socket at all — which also covers static/compiled plugins, since there is no network namespace to abuse.
+- A plugin that needs the network calls the new `HostService.Fetch` RPC over its **AF_UNIX** host socket (unaffected by the net-namespace unshare). The host (`internal/adapters/driving/pluginhost/fetch.go`) enforces, in Go: the plugin's `external_fetch` allow-list (now a real per-host contract, not DNS theatre), http/https + GET/HEAD only, the SSRF-safe dialer (`internal/pkg/ssrf`, rejects private/reserved IPs after DNS resolution at connect time, so redirects are re-checked), no ambient credentials, and a response-size cap. The RPC is gated on the `network` permission (fail-closed) in `methodPermissions`.
+- The obsolete DNS-whitelist plumbing (`buildHostsFile`, `landlockConnectPorts`, `runner_dns.go`) was removed.
+
+**Residual + operator layer.** The broker relocates the SSRF surface to the host, so its Go validation is the security-critical chokepoint. Because a code bypass should not reach internal infrastructure, operators SHOULD add an independent egress layer on the `evey-server` container that does not trust the code: drop `169.254.0.0/16` (metadata/link-local) outright and restrict the internal subnet to the DB + Meili endpoints. A code bug then still hits a network wall, and the two layers fail orthogonally. The worst-case failure of the egress cut itself is benign — a `network` plugin that cannot reach the broker degrades gracefully (e.g. weather-v2 falls back to its cached image).
 
 ## References
 
@@ -35,6 +47,8 @@ Default the sandbox to **Landlock**, applied by a tiny pre-exec launcher shim, a
 - `sandbox/sandbox.c` — the `LD_PRELOAD` seccomp shim (`libevey-sandbox.so`)
 - `internal/adapters/driven/pluginrunner/runner_landlock.go` — `buildLauncherArgv`, `applyLandlockSandbox`, `resolveAutoMode`
 - `internal/adapters/driven/pluginrunner/runner_bwrap.go` — the retained bubblewrap backend
+- `internal/adapters/driving/pluginhost/fetch.go` — the host `Fetch` broker (allow-list + SSRF-safe egress)
+- `internal/pkg/ssrf/dialer.go` — the SSRF-safe HTTP client the broker dials through
 - `cmd/evey/hardening_linux.go` — server `PR_SET_DUMPABLE=0`
 - `docs/SECURITY.md` (Sandbox modes), `docs/plugins/security-model.md`
 - Regression: `internal/adapters/driven/pluginrunner/runner_redteam_test.go`, `tests/plugins/sandbox-escape/`
