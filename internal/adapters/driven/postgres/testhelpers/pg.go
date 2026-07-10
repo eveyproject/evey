@@ -153,6 +153,14 @@ INSERT INTO feed_admin_config (feed_type, enabled, display_order, max_items) VAL
 INSERT INTO notification_settings_global (id) VALUES (1);
 `
 
+// LockTimeout bounds how long truncateAll waits for the ACCESS EXCLUSIVE
+// locks a TRUNCATE needs. One transaction leaked anywhere in the suite (even
+// a stray SELECT's ACCESS SHARE) otherwise turns the NEXT test's setup into
+// an unbounded hang - CI 2026-07-11 sat five minutes in netpoll and the
+// package-timeout dump named the victim, not the culprit. Exported so the
+// harness's own test can shrink it.
+var LockTimeout = 15 * time.Second
+
 func truncateAll(t *testing.T, db *sql.DB) {
 	t.Helper()
 	rows, err := db.QueryContext(context.Background(),
@@ -175,13 +183,83 @@ func truncateAll(t *testing.T, db *sql.DB) {
 	if len(tables) == 0 {
 		return
 	}
-	if _, execErr := db.ExecContext(context.Background(),
-		fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", strings.Join(tables, ", "))); execErr != nil {
-		t.Fatalf("truncate tables: %v", execErr)
+	trunc := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", strings.Join(tables, ", "))
+	if execErr := execWithLockTimeout(db, trunc); execErr != nil {
+		// Bounded instead of hung: name the open transactions (the culprit
+		// is among them), terminate them, retry once. The loud log turns a
+		// once-in-a-blue-moon CI hang into an actionable failure report.
+		blockers := describeOpenTransactions(db)
+		t.Logf("truncateAll: TRUNCATE blocked (%v); open transactions in the test database:\n%s", execErr, blockers)
+		killOpenTransactions(db)
+		if retryErr := execWithLockTimeout(db, trunc); retryErr != nil {
+			t.Fatalf("truncate tables (even after terminating leaked transactions): %v\nblockers were:\n%s", retryErr, blockers)
+		}
+		t.Logf("truncateAll: recovered by terminating the leaked transaction(s) above - fix the test that keeps a transaction open")
 	}
 	if _, execErr := db.ExecContext(context.Background(), seedSQL); execErr != nil {
 		t.Fatalf("re-seed defaults: %v", execErr)
 	}
+}
+
+// execWithLockTimeout runs stmt on a pinned connection with lock_timeout set,
+// so a lock conflict surfaces as an error after LockTimeout instead of
+// blocking until the package timeout. The setting is reset before the
+// connection returns to the pool.
+func execWithLockTimeout(db *sql.DB, stmt string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), LockTimeout+30*time.Second)
+	defer cancel()
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, fmt.Sprintf("SET lock_timeout = %d", LockTimeout.Milliseconds())); err != nil {
+		return fmt.Errorf("set lock_timeout: %w", err)
+	}
+	_, execErr := conn.ExecContext(ctx, stmt)
+	if _, resetErr := conn.ExecContext(ctx, "SET lock_timeout = 0"); resetErr != nil && execErr == nil {
+		execErr = fmt.Errorf("reset lock_timeout: %w", resetErr)
+	}
+	return execErr
+}
+
+// describeOpenTransactions returns one line per backend holding an open
+// transaction in the test database (excluding the caller): pid, state, age
+// and last query - everything needed to identify the leaking test.
+func describeOpenTransactions(db *sql.DB) string {
+	rows, err := db.QueryContext(context.Background(), `
+		SELECT pid, state, COALESCE(now() - xact_start, '0'::interval)::text, COALESCE(query, '')
+		FROM pg_stat_activity
+		WHERE datname = current_database() AND pid <> pg_backend_pid() AND xact_start IS NOT NULL`)
+	if err != nil {
+		return fmt.Sprintf("(pg_stat_activity unreadable: %v)", err)
+	}
+	defer rows.Close()
+	var b strings.Builder
+	for rows.Next() {
+		var pid int
+		var state, age, query string
+		if rows.Scan(&pid, &state, &age, &query) == nil {
+			fmt.Fprintf(&b, "  pid=%d state=%s xact_age=%s query=%q\n", pid, state, age, query)
+		}
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		fmt.Fprintf(&b, "  (pg_stat_activity iteration stopped early: %v)\n", rowsErr)
+	}
+	if b.Len() == 0 {
+		return "  (none visible - the blocker may have ended between the timeout and this query)"
+	}
+	return b.String()
+}
+
+// killOpenTransactions terminates every backend with an open transaction in
+// the test database except the caller's own. Test-harness only: leaked
+// transactions have no legitimate owner here.
+func killOpenTransactions(db *sql.DB) {
+	_, _ = db.ExecContext(context.Background(), `
+		SELECT pg_terminate_backend(pid)
+		FROM pg_stat_activity
+		WHERE datname = current_database() AND pid <> pg_backend_pid() AND xact_start IS NOT NULL`)
 }
 
 // startDedicated spins up an individual container (fallback for standalone test runs).
