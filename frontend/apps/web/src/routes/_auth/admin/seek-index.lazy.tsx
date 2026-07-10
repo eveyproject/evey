@@ -16,7 +16,12 @@ import {
   useAdminMediaServiceDeleteSeekIndexBackup,
   useAdminMediaServicePurgeSeekIndexBackups,
 } from "@evey/api";
-import type { V1SeekIndexItem, V1GetSeekIndexJobResponse, V1SeekIndexJobFailure } from "@evey/api";
+import type {
+  V1SeekIndexItem,
+  V1GetSeekIndexJobResponse,
+  V1SeekIndexJobFailure,
+  V1SeekIndexVolume,
+} from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -55,6 +60,20 @@ function formatSize(bytes: number): string {
   const units = ["B", "KB", "MB", "GB", "TB"];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return `${(bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
+// Mirror of the server's rewrite space-preflight margin: the numbers shown to
+// the operator should predict what the repair itself will accept.
+const VOLUME_HEADROOM_BYTES = 256 * 1024 * 1024;
+
+// Keeping backups persists the SUM of the candidates on the volume.
+function volumeBackupsRisky(v: V1SeekIndexVolume): boolean {
+  return Number(v.missingBytes ?? 0) + VOLUME_HEADROOM_BYTES > Number(v.freeBytes ?? 0);
+}
+
+// One rewrite needs the largest candidate free as a temporary copy.
+function volumeTempRisky(v: V1SeekIndexVolume): boolean {
+  return Number(v.largestMissingBytes ?? 0) + VOLUME_HEADROOM_BYTES > Number(v.freeBytes ?? 0);
 }
 
 function errText(err: { message?: string } | null | undefined, fallback: string): string {
@@ -221,6 +240,11 @@ function SeekIndexPage() {
   const missing = result?.missingIndex ?? 0;
   const withBackup = result?.withBackup ?? 0;
   const delayedAudio = result?.audioDelayed ?? 0;
+  // Per-filesystem numbers for the candidates: Evey pre-sets the safe backup
+  // choice itself (a nearly-full volume must not accumulate one copy per
+  // repaired file) and flags files whose rewrite temp copy will not fit.
+  const repairVolumes = (result?.volumes ?? []).filter((v) => (v.missingFiles ?? 0) > 0);
+  const backupsRisky = repairVolumes.some(volumeBackupsRisky);
 
   // When the running job finishes, refresh the cached scans and report the
   // outcome — completion happens server-side, not in a mutation callback.
@@ -345,7 +369,12 @@ function SeekIndexPage() {
             <Button
               variant="secondary"
               disabled={missing === 0 || busy}
-              onClick={() => setConfirmBatch("repair")}
+              onClick={() => {
+                // Pre-set the safe choice from the live volume numbers; the
+                // operator can still override it in the dialog.
+                setKeepBackup(!backupsRisky);
+                setConfirmBatch("repair");
+              }}
               data-testid="seek-index-repair-all-btn"
             >
               {t("admin.seekIndex.repairAll", { count: missing })}
@@ -565,6 +594,34 @@ function SeekIndexPage() {
               ? t("admin.seekIndex.purgeAllConfirm", { count: withBackup })
               : t("admin.seekIndex.repairAllConfirm", { count: missing })}
         </p>
+        {confirmBatch === "repair" && repairVolumes.length > 0 && (
+          <ul className="mb-4 flex flex-col gap-1" data-testid="seek-index-volumes">
+            {repairVolumes.map((v) => (
+              <li key={v.root} className="text-xs text-[var(--text-muted)]">
+                {t("admin.seekIndex.volumeLine", {
+                  root: v.root,
+                  free: formatSize(Number(v.freeBytes ?? 0)),
+                  missing: formatSize(Number(v.missingBytes ?? 0)),
+                  count: v.missingFiles ?? 0,
+                })}
+                {volumeBackupsRisky(v) && (
+                  <span className="text-[var(--color-warning)]">
+                    {" "}
+                    - {t("admin.seekIndex.volumeBackupsRisky")}
+                  </span>
+                )}
+                {volumeTempRisky(v) && (
+                  <span className="text-[var(--color-danger)]">
+                    {" "}
+                    - {t("admin.seekIndex.volumeTempRisky", {
+                      largest: formatSize(Number(v.largestMissingBytes ?? 0)),
+                    })}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
         {confirmBatch === "repair" && (
           <div className="mb-4">
             <Select

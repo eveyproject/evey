@@ -49,6 +49,7 @@ export { V1PluginState } from "./generated/admin_plugin.schemas";
 export type { V1ActiveSession, V1AuditLogEntry } from "./generated/admin_session.schemas";
 export type {
   V1SeekIndexItem,
+  V1SeekIndexVolume,
   V1ScanSeekIndexResponse,
   V1GetSeekIndexJobResponse,
   V1SeekIndexJobSummary,

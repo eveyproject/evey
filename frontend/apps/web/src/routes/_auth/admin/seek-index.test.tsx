@@ -188,6 +188,38 @@ describe("SeekIndexPage", () => {
     expect(rollbackLibMutate).not.toHaveBeenCalled();
   });
 
+  it("a nearly-full volume pre-declines backups and shows the advice", async () => {
+    mockScan.mockReturnValue({
+      ...scanned,
+      data: {
+        ...scanned.data,
+        volumes: [
+          {
+            root: "/media2/series",
+            // 1 GiB free vs 500 GiB of candidates: backups would overflow,
+            // and even the largest single temp copy (2 GiB) does not fit.
+            freeBytes: String(1 * 1024 ** 3),
+            missingBytes: String(500 * 1024 ** 3),
+            largestMissingBytes: String(2 * 1024 ** 3),
+            missingFiles: 200,
+          },
+        ],
+      },
+    });
+    const Page = await getPage();
+    render(React.createElement(Page));
+    fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    // Evey pre-set the safe choice itself: no backups, deep-verify enforced.
+    expect(screen.getByTestId("seek-index-keep-backup")).not.toBeChecked();
+    expect(screen.getByTestId("seek-index-volumes")).toHaveTextContent("backups discouraged");
+    expect(screen.getByTestId("seek-index-volumes")).toHaveTextContent("too full for the largest file");
+    fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
+    expect(repairLibMutate).toHaveBeenCalledWith({
+      data: { mode: "auto", deepVerify: true, skipBackup: true },
+    });
+  });
+
   it("declining the backup forces deep-verify and lands in the batch request", async () => {
     mockScan.mockReturnValue(scanned);
     const Page = await getPage();

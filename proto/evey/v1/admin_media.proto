@@ -180,6 +180,19 @@ message ScanSeekIndexResponse {
   int32 audio_delayed = 6;
   // Whether the surgical in-place repair mode is available in this build.
   bool inplace_available = 7;
+  // Live per-filesystem numbers for the un-indexed candidates, so the client
+  // can advise for/against backups (their accumulation persists the SUM of
+  // the candidates) and flag files whose rewrite temp copy will not fit.
+  repeated SeekIndexVolume volumes = 8;
+}
+
+// SeekIndexVolume aggregates the repair candidates of one filesystem.
+message SeekIndexVolume {
+  string root = 1;                    // shortest observed directory (label)
+  int64 free_bytes = 2;               // available right now
+  int64 missing_bytes = 3;            // sum of un-indexed candidate sizes
+  int64 largest_missing_bytes = 4;    // floor for one rewrite temp copy
+  int32 missing_files = 5;
 }
 
 message StartSeekIndexScanRequest {

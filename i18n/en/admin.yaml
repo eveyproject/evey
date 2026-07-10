@@ -1052,6 +1052,9 @@ seekIndex:
   keepBackup: "Keep a .mkvgobak backup per repaired file"
   keepBackupHint: "Every rebuild keeps the original as .mkvgobak: safe, but doubles the space used per repaired file until purged."
   keepBackupOffHint: "Without backups, deep verification is enforced: a file is only swapped in after a full re-read. The disk never holds more than one temporary copy at a time."
+  volumeLine: "{{root}} - {{free}} free for {{missing}} to repair ({{count}} files)"
+  volumeBackupsRisky: "backups discouraged: keeping one copy per repaired file would overflow this volume"
+  volumeTempRisky: "too full for the largest file ({{largest}}): its rewrite will be refused"
   deepVerify: "Deep verification (full read)"
   deepVerifyHint: "Proves every rebuilt cue lands on a real video keyframe before the change is committed. Slower (reads the whole file); recommended with the surgical mode, which keeps no backup."
   rollback: Roll back

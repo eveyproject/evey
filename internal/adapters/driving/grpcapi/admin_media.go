@@ -197,6 +197,18 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 			AudioDelaySec: it.AudioDelaySec,
 		})
 	}
+	// Live per-volume numbers (free space vs candidate sizes) so the client
+	// advises for/against backups itself - computed fresh on every read, the
+	// free space moves under a cached scan.
+	for _, v := range appmaintenance.VolumeSummary(res.Items) {
+		out.Volumes = append(out.Volumes, &eveyv1.SeekIndexVolume{
+			Root:                v.Root,
+			FreeBytes:           v.FreeBytes,
+			MissingBytes:        v.MissingBytes,
+			LargestMissingBytes: v.LargestMissingBytes,
+			MissingFiles:        int32(v.MissingFiles), //nolint:gosec // bounded by the library size
+		})
+	}
 	return out, nil
 }
 
