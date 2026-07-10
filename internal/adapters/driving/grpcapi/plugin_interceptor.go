@@ -35,6 +35,10 @@ var methodPermissions = map[string][]string{
 	"/plugin.v1.HostService/SetData":      nil,
 	"/plugin.v1.HostService/DeleteData":   nil,
 	"/plugin.v1.HostService/ListDataKeys": nil,
+	// Brokered outbound fetch: only plugins that declared (and were granted)
+	// the "network" permission may reach the network, and only through the
+	// host's SSRF-safe, allow-list-checked broker.
+	"/plugin.v1.HostService/Fetch": {"network"},
 }
 
 // PluginPermissionInterceptor returns a gRPC UnaryServerInterceptor that

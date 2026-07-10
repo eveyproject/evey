@@ -90,6 +90,31 @@ func TestPluginInterceptor_AlwaysAllowedRPC(t *testing.T) {
 	}
 }
 
+func TestPluginInterceptor_FetchRequiresNetworkPermission(t *testing.T) {
+	interceptor := grpcapi.PluginPermissionInterceptor(nil)
+	info := &grpclib.UnaryServerInfo{FullMethod: "/plugin.v1.HostService/Fetch"}
+	handler := func(_ context.Context, _ any) (any, error) { return "ok", nil }
+
+	// Plugin WITH the network permission → broker reachable.
+	repo := plgfakes.NewFakePluginRepository()
+	checker := appplugin.NewPermissionChecker(repo)
+	checker.LoadPermissions("plg-net", []string{"network"})
+	interceptor = grpcapi.PluginPermissionInterceptor(checker)
+	ctx := pluginhost.CtxWithPluginID(context.Background(), "plg-net")
+	called := false
+	_, err := interceptor(ctx, nil, info, func(_ context.Context, _ any) (any, error) { called = true; return "ok", nil })
+	require.NoError(t, err)
+	assert.True(t, called)
+
+	// Plugin WITHOUT network → denied (media-only perms don't grant egress).
+	checker.LoadPermissions("plg-nonet", []string{"api.library", "media.read"})
+	ctxNo := pluginhost.CtxWithPluginID(context.Background(), "plg-nonet")
+	_, err = interceptor(ctxNo, nil, info, handler)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, st.Code())
+}
+
 func TestPluginInterceptor_MissingPluginID(t *testing.T) {
 	repo := plgfakes.NewFakePluginRepository()
 	checker := appplugin.NewPermissionChecker(repo)
