@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"syscall"
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/ops"
@@ -125,6 +127,54 @@ func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 	return len(c.Cues) > 0, nil
 }
 
+// rewriteHeadroomBytes is the safety margin demanded on top of the source
+// size by the rewrite's space preflight - room for the container overhead of
+// the rebuilt copy and for the rest of the system to keep breathing.
+const rewriteHeadroomBytes = 256 << 20 // 256 MiB
+
+// diskAvail reports the bytes available to an unprivileged user on the
+// filesystem holding dir. Package-level so tests can simulate a full disk.
+var diskAvail = func(dir string) (uint64, error) {
+	var st syscall.Statfs_t
+	if err := syscall.Statfs(dir, &st); err != nil {
+		return 0, err
+	}
+	return st.Bavail * uint64(st.Bsize), nil //nolint:gosec // Bsize is a positive block size
+}
+
+// fmtBytes renders a byte count for operator-facing errors (GiB precision
+// matters here, not exact bytes).
+func fmtBytes(n uint64) string {
+	const unit = 1024
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := uint64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}
+
+// permissionRemedy converts a raw EACCES from the repair machinery into the
+// operator-actionable diagnosis: the server user does not own the media file
+// (or its directory). Without this, a whole batch fails as N copies of a
+// cryptic "permission denied" buried in strategy errors.
+func permissionRemedy(err error) error {
+	return fmt.Errorf("reindex: %w (server uid %d): set the container's PUID/PGID to the owner of your media files (docs/configuration.md, \"File ownership\") and retry: %w",
+		mkv.ErrMediaNotWritable, os.Getuid(), err)
+}
+
+// removeQuiet deletes path best-effort. A missing file is fine (the temp may
+// never have been created); any other failure is logged but never fatal - these
+// are cleanup paths where the caller already holds its real result.
+func removeQuiet(path string) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		slog.Warn("mkvgo: temp cleanup failed", slog.String("path", path), slog.Any("err", err))
+	}
+}
+
 // ReindexInPlace rebuilds path's seek index without ever risking the original.
 // See the mkv.Reindexer port for the contract. The ordering is deliberate:
 //
@@ -137,24 +187,6 @@ func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 //  5. rename the original to "<path>.mkvgobak", then rename the temp into place;
 //     if the second rename fails the backup is renamed back, so the original is
 //     always recoverable.
-// removeQuiet deletes path best-effort. A missing file is fine (the temp may
-// never have been created); any other failure is logged but never fatal — these
-// are cleanup paths where the caller already holds its real result.
-// permissionRemedy converts a raw EACCES from the repair machinery into the
-// operator-actionable diagnosis: the server user does not own the media file
-// (or its directory). Without this, a whole batch fails as N copies of a
-// cryptic "permission denied" buried in strategy errors.
-func permissionRemedy(err error) error {
-	return fmt.Errorf("reindex: %w (server uid %d): set the container's PUID/PGID to the owner of your media files (docs/configuration.md, \"File ownership\") and retry: %w",
-		mkv.ErrMediaNotWritable, os.Getuid(), err)
-}
-
-func removeQuiet(path string) {
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-		slog.Warn("mkvgo: temp cleanup failed", slog.String("path", path), slog.Any("err", err))
-	}
-}
-
 func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.ReindexOptions) (mkv.ReindexResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.ReindexInPlace")
 	defer span.End()
@@ -241,6 +273,24 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	srcInfo, err := os.Stat(path)
 	if err != nil {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: stat source: %w", err)
+	}
+
+	// Space preflight: the rewrite writes a full sibling copy before the swap
+	// (and with KeepBackup that extra copy PERSISTS as the .mkvgobak). Refuse
+	// upfront with the numbers when the volume cannot hold it, instead of
+	// filling a nearly-full disk mid-copy. Probe failures never block - the
+	// guard is advisory, the copy itself remains the authority.
+	if avail, aerr := diskAvail(filepath.Dir(path)); aerr == nil {
+		need := uint64(srcInfo.Size()) + rewriteHeadroomBytes
+		if avail < need {
+			detail := "temporary copy of the file"
+			if opts.KeepBackup {
+				detail = "temporary copy of the file, kept as the backup afterwards"
+			}
+			return mkv.ReindexResult{}, fmt.Errorf(
+				"reindex: %w: the rewrite needs ~%s free on this volume (%s), %s available - free up space, repair without backups, or use the in-place mode",
+				mkv.ErrInsufficientSpace, fmtBytes(need), detail, fmtBytes(avail))
+		}
 	}
 
 	// (2) Reindex to a sibling temp. Same directory → same filesystem, so the

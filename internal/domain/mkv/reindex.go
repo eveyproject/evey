@@ -71,6 +71,12 @@ var ErrInPlaceUnsupported = errors.New("in-place reindex not supported for this 
 // aggregate a whole batch of these into one actionable message.
 var ErrMediaNotWritable = errors.New("media not writable by the server user")
 
+// ErrInsufficientSpace is returned when a rewrite repair is refused upfront
+// because the media volume cannot hold the temporary sibling copy the rewrite
+// swaps in. Preflighting keeps a batch from filling a nearly-full disk and
+// starving playback/neighbors mid-copy.
+var ErrInsufficientSpace = errors.New("not enough free disk space on the media volume for a rewrite")
+
 // Reindex modes the operator can demand (ReindexOptions.Mode).
 const (
 	// ModeAuto (empty string): surgical in-place when available, otherwise the
