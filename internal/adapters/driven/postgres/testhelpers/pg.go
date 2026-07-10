@@ -6,20 +6,54 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	_ "github.com/lib/pq"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
+	_ "github.com/lib/pq"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 var sharedDB *sql.DB
 
+var (
+	dockerProbeOnce sync.Once
+	dockerReachable bool
+)
+
+// dockerAvailable reports whether a Docker daemon is reachable for
+// testcontainers. It lets the postgres-integration tests SKIP (rather than fail)
+// where Docker is absent — e.g. inside the app container, which has no socket by
+// design — while still running wherever Docker exists (host, CI). The probe is
+// cached: it costs one provider handshake per test binary, not one per test.
+func dockerAvailable() bool {
+	dockerProbeOnce.Do(func() {
+		provider, err := testcontainers.ProviderDocker.GetProvider()
+		if err != nil {
+			return
+		}
+		defer func() { _ = provider.Close() }()
+		if dp, ok := provider.(*testcontainers.DockerProvider); ok {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			dockerReachable = dp.Health(ctx) == nil
+			return
+		}
+		dockerReachable = true
+	})
+	return dockerReachable
+}
+
 // StartShared starts a single postgres container for the whole test package.
 // Call once from TestMain and defer the returned cleanup.
 func StartShared() func() {
+	// Docker absent (e.g. inside the app container): leave sharedDB nil and let
+	// each StartPostgres(t) skip. TestMain must not panic here.
+	if !dockerAvailable() {
+		return func() {}
+	}
 	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
 		Image:        "postgres:16-alpine",
@@ -90,6 +124,9 @@ func StartShared() func() {
 func StartPostgres(t *testing.T) (*sql.DB, func()) {
 	t.Helper()
 	if sharedDB == nil {
+		if !dockerAvailable() {
+			t.Skip("postgres integration test: Docker not available (run on a host with Docker, or via CI)")
+		}
 		return startDedicated(t)
 	}
 	truncateAll(t, sharedDB)
