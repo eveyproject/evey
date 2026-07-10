@@ -19,7 +19,6 @@ const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
 const path = require("path");
 const fs = require("fs");
-const https = require("https");
 
 // ---- Sun image updater ----------------------------------------------------
 
@@ -31,7 +30,6 @@ const SUN_MODELS = [
 ];
 
 const SDO_HOST = "sdo.gsfc.nasa.gov";
-const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // sanity cap; latest_1024 is ~200 KB
 const REFRESH_MS = 3 * 60 * 60 * 1000;   // re-fetch every 3h (catches the day flip + fresher "latest")
 const DIST_DIR = path.join(__dirname, "dist");
 
@@ -41,42 +39,31 @@ function modelForToday() {
   return SUN_MODELS[i];
 }
 
-// GET an https URL into a Buffer, following one redirect, capped in size.
-function fetchBuffer(url, redirectsLeft = 1) {
+// GET an https URL into a Buffer through the host Fetch broker. The plugin has
+// no direct network access (the sandbox unshares the net namespace); the host
+// enforces the external_fetch allow-list, an SSRF-safe dialer, redirect
+// re-validation and a size cap, then hands back the body. `host` is assigned
+// below once the proto is loaded, before any RPC (updateSunImage) fires.
+function fetchBuffer(url) {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { timeout: 15_000 }, (res) => {
-      const { statusCode, headers } = res;
-      if (statusCode >= 300 && statusCode < 400 && headers.location && redirectsLeft > 0) {
-        res.resume();
-        const next = new URL(headers.location, url).toString();
-        // Only follow redirects that stay on the whitelisted host.
-        if (new URL(next).hostname !== SDO_HOST) {
-          reject(new Error("redirect off whitelisted host"));
-          return;
-        }
-        resolve(fetchBuffer(next, redirectsLeft - 1));
+    host.Fetch({ url, method: "GET" }, (err, res) => {
+      if (err) {
+        reject(err);
         return;
       }
-      if (statusCode !== 200) {
-        res.resume();
-        reject(new Error("HTTP " + statusCode));
+      const status = Number(res.status_code);
+      if (status !== 200) {
+        reject(new Error("HTTP " + status));
         return;
       }
-      const chunks = [];
-      let total = 0;
-      res.on("data", (c) => {
-        total += c.length;
-        if (total > MAX_IMAGE_BYTES) {
-          req.destroy();
-          reject(new Error("image too large"));
-          return;
-        }
-        chunks.push(c);
-      });
-      res.on("end", () => resolve(Buffer.concat(chunks)));
+      // res.body is a Buffer (proto bytes). The host already caps size; treat a
+      // truncated body as a failure so a half-image never gets written.
+      if (res.truncated) {
+        reject(new Error("image too large"));
+        return;
+      }
+      resolve(Buffer.isBuffer(res.body) ? res.body : Buffer.from(res.body || []));
     });
-    req.on("timeout", () => req.destroy(new Error("timeout")));
-    req.on("error", reject);
   });
 }
 
@@ -117,6 +104,11 @@ function startSunUpdater() {
 const PROTO_PATH = path.join(__dirname, "plugin_api.proto");
 const pkgDef = protoLoader.loadSync(PROTO_PATH, { keepCase: true });
 const proto = grpc.loadPackageDefinition(pkgDef).plugin.v1;
+
+// HostService client (plugin -> host) for the brokered Fetch. SO_PEERCRED on the
+// unix socket authenticates the plugin process; no token needed.
+const HOST_SOCK = process.env.EVEY_HOST_SOCK || "/tmp/evey/plugins/evey-host.sock";
+const host = new proto.HostService(`unix://${HOST_SOCK}`, grpc.credentials.createInsecure());
 
 const PLUGIN_SOCK = process.env.EVEY_PLUGIN_SOCK;
 if (!PLUGIN_SOCK) {
