@@ -23,9 +23,14 @@ evey: media mounts owned by 1026:100 (detected on /media) - running the
 server as that user so write features (seek-index repair) work out of the box
 ```
 
-Auto-detection steps aside (falls back to `1000:1000` with a warning) when
-the media mounts are owned by root, by the reserved uid `1001`, or by
-different users per mount - unify ownership or set `PUID`/`PGID` explicitly:
+Media mounts owned by **different users** are handled best-effort: the
+server adopts the user owning the most mounts and joins the other mounts'
+groups as supplementary groups, so repairs on those mounts work when their
+files are group-writable (the startup warning lists which mounts may still
+refuse writes). Auto-detection only steps aside entirely (falls back to
+`1000:1000` with a warning) when every media mount is owned by root or by
+the reserved uid `1001` - chown your media to a regular user, or set
+`PUID`/`PGID` explicitly:
 
 ```env
 PUID=1026   # run the server as this user id  (host: `id -u <media-owner>`)

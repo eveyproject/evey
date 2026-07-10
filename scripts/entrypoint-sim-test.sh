@@ -11,7 +11,8 @@
 #   D. no PUID/PGID env -> the media mounts' owner is auto-adopted
 #   E. explicit PUID/PGID beats media-owner auto-detection
 #   F. root-owned media -> no adoption, fall back to 1000
-#   G. mixed-owner media mounts -> no adoption, fall back to 1000
+#   G. mixed-owner media -> majority owner adopted, other mounts' groups joined
+#   H. root + regular mixed -> the regular owner is adopted (root never is)
 #
 # Usage: scripts/entrypoint-sim-test.sh   (needs docker)
 set -eu
@@ -100,10 +101,18 @@ outF=$(run_case -e MEDIA_SPEC="/media=0:0")
 echo "$outF"
 assert_uid "$outF" 1000 F
 
-echo "--- case G: mixed-owner media -> no adoption, fallback 1000"
-outG=$(run_case -e MEDIA_SPEC="/media=4242:4242 /media2=5555:5555")
+echo "--- case G: mixed owners -> majority adopted, other mounts' groups joined"
+outG=$(run_case -e MEDIA_SPEC="/media=4242:4242 /media2=4242:4242 /media3=5555:5556")
 echo "$outG"
-assert_uid "$outG" 1000 G
+assert_uid "$outG" 4242 G
+assert_group "$outG" 5556 G
+refute_group "$outG" 0 G
+
+echo "--- case H: root + regular mixed -> the regular owner is adopted"
+outH=$(run_case -e MEDIA_SPEC="/media=0:0 /media2=4242:4242")
+echo "$outH"
+assert_uid "$outH" 4242 H
+refute_group "$outH" 0 H
 
 if [ "$fail" -ne 0 ]; then
     echo "entrypoint sim-test: FAILED"

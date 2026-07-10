@@ -36,31 +36,55 @@ if [ "$(id -u)" = "0" ]; then
     # Zero-config default: when the operator sets NEITHER PUID nor PGID, adopt
     # the owner of the /media* mounts so the write features work out of the
     # box - running as the media owner is exactly what an operator would
-    # configure by hand. Explicit PUID/PGID always wins; root-owned or
-    # mixed-owner media falls back to 1000:1000 with a loud warning (we never
-    # run as root and we never chown the operator's media).
+    # configure by hand. Explicit PUID/PGID always wins; we never run as root
+    # and we never chown the operator's media. With mixed owners across
+    # mounts, adopt the uid owning the MOST mounts and join the other mounts'
+    # groups as supplementary groups (best effort: those need group-writable
+    # files for repairs). Only root/1001-owned everything falls back to
+    # 1000:1000 with a loud warning.
+    media_extra_gids=""
     if [ -z "${PUID:-}" ] && [ -z "${PGID:-}" ]; then
-        det_uid="" det_gid="" det_src="" det_mixed=""
+        det_uid="" det_gid="" det_src="" det_count=0 det_seen=""
         for m in /media*; do
             [ -d "$m" ] || continue
+            det_seen="$det_seen $m=$(stat -c '%u:%g' "$m")"
             u="$(stat -c %u "$m")"
-            g="$(stat -c %g "$m")"
-            if [ -z "$det_uid" ]; then
-                det_uid="$u" det_gid="$g" det_src="$m"
-            elif [ "$det_uid" != "$u" ]; then
-                det_mixed="$det_mixed $m=$u:$g"
+            # root cannot be adopted (we never run as root) and 1001 is the
+            # reserved evey-plugin uid.
+            if [ "$u" = "0" ] || [ "$u" = "1001" ]; then continue; fi
+            count=0
+            for n in /media*; do
+                [ -d "$n" ] || continue
+                [ "$(stat -c %u "$n")" = "$u" ] && count=$((count + 1))
+            done
+            if [ "$count" -gt "$det_count" ]; then
+                det_uid="$u" det_gid="$(stat -c %g "$m")" det_src="$m" det_count="$count"
             fi
         done
-        if [ -n "$det_mixed" ]; then
-            echo "evey: media mounts have mixed owners ($det_src=$det_uid:$det_gid vs$det_mixed) - keeping uid 1000; unify ownership or set PUID/PGID explicitly, write features (seek-index repair) will fail on media the server does not own" >&2
-        elif [ "$det_uid" = "0" ]; then
-            echo "evey: media mounts are owned by root and the server never runs as root - keeping uid 1000; chown your media to a regular user (or set PUID/PGID), write features (seek-index repair) will fail until then" >&2
-        elif [ "$det_uid" = "1001" ]; then
-            echo "evey: media mounts are owned by uid 1001, reserved for the evey-plugin user - keeping uid 1000; chown your media or set PUID/PGID, write features (seek-index repair) will fail until then" >&2
-        elif [ -n "$det_uid" ]; then
+        if [ -n "$det_uid" ]; then
             PUID="$det_uid"
             PGID="$det_gid"
-            echo "evey: media mounts owned by ${PUID}:${PGID} (detected on $det_src) - running the server as that user so write features (seek-index repair) work out of the box; set PUID/PGID to override"
+            leftover=""
+            for m in /media*; do
+                [ -d "$m" ] || continue
+                [ "$(stat -c %u "$m")" = "$det_uid" ] && continue
+                leftover="$leftover $m=$(stat -c '%u:%g' "$m")"
+                g="$(stat -c %g "$m")"
+                if [ "$g" = "0" ] || [ "$g" = "$PGID" ]; then continue; fi
+                case " $media_extra_gids " in
+                    *" $g "*) ;;
+                    *) media_extra_gids="$media_extra_gids $g" ;;
+                esac
+            done
+            if [ -n "$leftover" ]; then
+                join_msg=""
+                [ -n "$media_extra_gids" ] && join_msg=" and joining the other mounts' groups (${media_extra_gids# })"
+                echo "evey: media mounts have several owners - running as ${PUID}:${PGID} (owns $det_count, detected on $det_src)$join_msg; repairs on$leftover need group-writable files - unify ownership or set PUID/PGID to silence this" >&2
+            else
+                echo "evey: media mounts owned by ${PUID}:${PGID} (detected on $det_src) - running the server as that user so write features (seek-index repair) work out of the box; set PUID/PGID to override"
+            fi
+        elif [ -n "$det_seen" ]; then
+            echo "evey: no adoptable media owner (root and uid 1001 are reserved:$det_seen) - keeping uid 1000; chown your media to a regular user or set PUID/PGID, write features (seek-index repair) will fail until then" >&2
         fi
     fi
     PUID="${PUID:-1000}"
@@ -90,11 +114,13 @@ if [ "$(id -u)" = "0" ]; then
     # Supplementary groups after the drop: evey's own /etc/group memberships
     # (what --init-groups would grant) PLUS the groups the container runtime
     # injected into this root process (compose `group_add:`, typically the
-    # host's render/video group for /dev/dri). --init-groups alone would reset
-    # to the group database and silently cut hardware transcode off from the
-    # render nodes. Root's group 0 is never carried over.
+    # host's render/video group for /dev/dri) PLUS the groups of media mounts
+    # the adopted uid does not own (mixed-owner best effort above).
+    # --init-groups alone would reset to the group database and silently cut
+    # hardware transcode off from the render nodes. Root's group 0 is never
+    # carried over.
     supp=""
-    for g in $(id -G evey) $(id -G); do
+    for g in $(id -G evey) $(id -G) $media_extra_gids; do
         [ "$g" = "0" ] && continue
         case ",$supp," in *",$g,"*) ;; *) supp="${supp:+$supp,}$g" ;; esac
     done
