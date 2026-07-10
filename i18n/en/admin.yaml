@@ -1043,10 +1043,15 @@ seekIndex:
   audioDelayBadge: "Audio +{{sec}}s"
   repair: Repair
   repairMode: "Repair method"
-  repairModeInplace: "Surgical (in-place, no duplicate, recommended)"
+  repairModeInplace: "Surgical (in-place, no duplicate)"
   repairModeStandard: "Standard (rebuilt copy + rollback backup)"
   repairModeInplaceHint: "Patches the index into the file. No duplicate on disk, no backup: mkvgo verifies the result and rolls the patch back automatically if it does not check out."
   repairModeStandardHint: "Rebuilds the file next to the original, validates it, then swaps it in and keeps the original as a .mkvgobak backup."
+  repairModeAuto: "Auto (surgical when possible, rebuild otherwise) - recommended"
+  repairModeAutoHint: "Tries the surgical patch (fast, no copy) and falls back to the full rebuild automatically when the file layout requires it."
+  keepBackup: "Keep a .mkvgobak backup per repaired file"
+  keepBackupHint: "Every rebuild keeps the original as .mkvgobak: safe, but doubles the space used per repaired file until purged."
+  keepBackupOffHint: "Without backups, deep verification is enforced: a file is only swapped in after a full re-read. The disk never holds more than one temporary copy at a time."
   deepVerify: "Deep verification (full read)"
   deepVerifyHint: "Proves every rebuilt cue lands on a real video keyframe before the change is committed. Slower (reads the whole file); recommended with the surgical mode, which keeps no backup."
   rollback: Roll back

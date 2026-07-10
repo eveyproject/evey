@@ -158,9 +158,13 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     fireEvent.click(screen.getByTestId("seek-index-repair-btn"));
-    // The repair now carries the deep-verify choice in the request body (it was
-    // a query param before, which the RPC silently ignored).
-    expect(repairOneMutate).toHaveBeenCalledWith({ mediaId: "mi-1", data: { mode: "", deepVerify: true } });
+    // The repair carries the operator choices in the request body; "auto"
+    // (patch when possible, rewrite otherwise) is the default strategy and
+    // backups are kept unless explicitly declined.
+    expect(repairOneMutate).toHaveBeenCalledWith({
+      mediaId: "mi-1",
+      data: { mode: "auto", deepVerify: true, skipBackup: false },
+    });
   });
 
   it("row rollback button calls the single-file rollback mutation", async () => {
@@ -178,8 +182,26 @@ describe("SeekIndexPage", () => {
     fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
-    expect(repairLibMutate).toHaveBeenCalledWith({ data: { mode: "", deepVerify: true } });
+    expect(repairLibMutate).toHaveBeenCalledWith({
+      data: { mode: "auto", deepVerify: true, skipBackup: false },
+    });
     expect(rollbackLibMutate).not.toHaveBeenCalled();
+  });
+
+  it("declining the backup forces deep-verify and lands in the batch request", async () => {
+    mockScan.mockReturnValue(scanned);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("seek-index-keep-backup"));
+    // The rollback copy is gone, so the full-read proof is not optional.
+    expect(screen.getByTestId("seek-index-deep-verify")).toBeChecked();
+    expect(screen.getByTestId("seek-index-deep-verify")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
+    expect(repairLibMutate).toHaveBeenCalledWith({
+      data: { mode: "auto", deepVerify: true, skipBackup: true },
+    });
   });
 
   it("rollback-all confirm queues the rollback batch", async () => {

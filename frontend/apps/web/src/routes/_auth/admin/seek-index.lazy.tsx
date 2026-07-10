@@ -179,14 +179,22 @@ function SeekIndexPage() {
   const [libraryId, setLibraryId] = useState("");
   const [onlyAttention, setOnlyAttention] = useState(true);
   const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | "purge" | null>(null);
-  // Repair strategy: surgical in-place (no backup, file-write only) vs the
-  // standard rewrite (+ .mkvgobak rollback). Only offered when the build
-  // actually ships the surgical strategy.
-  const [repairMode, setRepairMode] = useState<"inplace" | "rewrite">("rewrite");
+  // Repair strategy: "auto" (surgical patch when the file layout allows it,
+  // full rewrite otherwise) is the recommended default; "inplace" restricts
+  // to the patch (no rewrite ever), "rewrite" always rebuilds. The surgical
+  // choices are only offered when the build ships the strategy.
+  const [repairMode, setRepairMode] = useState<"auto" | "inplace" | "rewrite">("auto");
   // Deep verify proves every rebuilt cue lands on a real video keyframe before
   // the change is committed (a full read of the file); a failure rolls the
   // in-place patch back. Default ON with "inplace", which keeps no backup.
   const [deepVerify, setDeepVerify] = useState(true);
+  // Rewrites keep a .mkvgobak per repaired file by default. Turning it off
+  // trades the rollback copy for an enforced deep-verify - the option for a
+  // nearly-full volume, where one PERSISTENT copy per repaired file would
+  // not fit. Irrelevant to "inplace" (never duplicates the file).
+  const [keepBackup, setKeepBackup] = useState(true);
+  const skipBackup = repairMode !== "inplace" && !keepBackup;
+  const effectiveDeepVerify = deepVerify || skipBackup;
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -213,10 +221,6 @@ function SeekIndexPage() {
   const missing = result?.missingIndex ?? 0;
   const withBackup = result?.withBackup ?? 0;
   const delayedAudio = result?.audioDelayed ?? 0;
-
-  useEffect(() => {
-    if (inplaceAvailable) setRepairMode("inplace");
-  }, [inplaceAvailable]);
 
   // When the running job finishes, refresh the cached scans and report the
   // outcome — completion happens server-side, not in a mutation callback.
@@ -502,7 +506,7 @@ function SeekIndexPage() {
                               className="text-xs"
                               disabled={busy}
                               loading={repairOne.isPending && repairOne.variables?.mediaId === it.mediaId}
-                              onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { mode: inplaceAvailable ? repairMode : "", deepVerify } })}
+                              onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { mode: repairMode, deepVerify: effectiveDeepVerify, skipBackup } })}
                               data-testid="seek-index-repair-btn"
                             >
                               {t("admin.seekIndex.repair")}
@@ -561,27 +565,48 @@ function SeekIndexPage() {
               ? t("admin.seekIndex.purgeAllConfirm", { count: withBackup })
               : t("admin.seekIndex.repairAllConfirm", { count: missing })}
         </p>
-        {confirmBatch === "repair" && inplaceAvailable && (
+        {confirmBatch === "repair" && (
           <div className="mb-4">
             <Select
               label={t("admin.seekIndex.repairMode")}
               value={repairMode}
-              onChange={(v) => setRepairMode(v === "inplace" ? "inplace" : "rewrite")}
+              onChange={(v) => setRepairMode(v === "inplace" ? "inplace" : v === "rewrite" ? "rewrite" : "auto")}
               options={[
-                { value: "inplace", label: t("admin.seekIndex.repairModeInplace") },
+                { value: "auto", label: t("admin.seekIndex.repairModeAuto") },
+                ...(inplaceAvailable
+                  ? [{ value: "inplace", label: t("admin.seekIndex.repairModeInplace") }]
+                  : []),
                 { value: "rewrite", label: t("admin.seekIndex.repairModeStandard") },
               ]}
               data-testid="seek-index-repair-mode"
             />
             <p className="mt-1 text-xs text-muted-foreground">
-              {repairMode === "inplace"
-                ? t("admin.seekIndex.repairModeInplaceHint")
-                : t("admin.seekIndex.repairModeStandardHint")}
+              {repairMode === "auto"
+                ? t("admin.seekIndex.repairModeAutoHint")
+                : repairMode === "inplace"
+                  ? t("admin.seekIndex.repairModeInplaceHint")
+                  : t("admin.seekIndex.repairModeStandardHint")}
             </p>
+            {repairMode !== "inplace" && (
+              <div className="mt-3">
+                <Checkbox
+                  label={t("admin.seekIndex.keepBackup")}
+                  checked={keepBackup}
+                  onChange={setKeepBackup}
+                  data-testid="seek-index-keep-backup"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {keepBackup
+                    ? t("admin.seekIndex.keepBackupHint")
+                    : t("admin.seekIndex.keepBackupOffHint")}
+                </p>
+              </div>
+            )}
             <div className="mt-3">
               <Checkbox
                 label={t("admin.seekIndex.deepVerify")}
-                checked={deepVerify}
+                checked={effectiveDeepVerify}
+                disabled={skipBackup}
                 onChange={setDeepVerify}
                 data-testid="seek-index-deep-verify"
               />
@@ -598,7 +623,7 @@ function SeekIndexPage() {
             onClick={() => {
               if (confirmBatch === "rollback") rollbackLib.mutate({ data: libraryId ? { libraryId } : {} });
               else if (confirmBatch === "purge") purgeLib.mutate({ data: libraryId ? { libraryId } : {} });
-              else repairLib.mutate({ data: { ...(libraryId ? { libraryId } : {}), mode: inplaceAvailable ? repairMode : "", deepVerify } });
+              else repairLib.mutate({ data: { ...(libraryId ? { libraryId } : {}), mode: repairMode, deepVerify: effectiveDeepVerify, skipBackup } });
               setConfirmBatch(null);
             }}
             data-testid="seek-index-confirm-batch-btn"
