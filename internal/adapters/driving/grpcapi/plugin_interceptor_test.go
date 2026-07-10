@@ -91,7 +91,6 @@ func TestPluginInterceptor_AlwaysAllowedRPC(t *testing.T) {
 }
 
 func TestPluginInterceptor_FetchRequiresNetworkPermission(t *testing.T) {
-	interceptor := grpcapi.PluginPermissionInterceptor(nil)
 	info := &grpclib.UnaryServerInfo{FullMethod: "/plugin.v1.HostService/Fetch"}
 	handler := func(_ context.Context, _ any) (any, error) { return "ok", nil }
 
@@ -99,7 +98,7 @@ func TestPluginInterceptor_FetchRequiresNetworkPermission(t *testing.T) {
 	repo := plgfakes.NewFakePluginRepository()
 	checker := appplugin.NewPermissionChecker(repo)
 	checker.LoadPermissions("plg-net", []string{"network"})
-	interceptor = grpcapi.PluginPermissionInterceptor(checker)
+	interceptor := grpcapi.PluginPermissionInterceptor(checker)
 	ctx := pluginhost.CtxWithPluginID(context.Background(), "plg-net")
 	called := false
 	_, err := interceptor(ctx, nil, info, func(_ context.Context, _ any) (any, error) { called = true; return "ok", nil })

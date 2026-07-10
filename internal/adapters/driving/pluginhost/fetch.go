@@ -162,7 +162,7 @@ func (h *HostServer) Fetch(ctx context.Context, req *pluginv1.FetchRequest) (*pl
 		}
 		return nil, status.Errorf(codes.Unavailable, "fetch failed: %v", err)
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer resp.Body.Close()
 
 	limited := io.LimitReader(resp.Body, maxFetchBytes+1)
 	body, err := io.ReadAll(limited)
