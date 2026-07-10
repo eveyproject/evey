@@ -58,6 +58,9 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminSystemService/GetServerConfig",
 		"/evey.v1.AdminSystemService/UpdateServerConfig",
 		"/evey.v1.AdminSystemService/GetDashboard",
+		"/evey.v1.AdminSystemService/StartLoadTest",
+		"/evey.v1.AdminSystemService/GetLoadTestStatus",
+		"/evey.v1.AdminSystemService/CancelLoadTest",
 		// PresenceService
 		"/evey.v1.PresenceService/ListOnline",
 		// AdminTaskService
