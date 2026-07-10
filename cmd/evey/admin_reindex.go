@@ -19,18 +19,24 @@ import (
 // It is filesystem-only (no DB): point it at a library root, review the
 // dry-run, then re-run with --apply.
 //
-// Safety (locked by design): dry-run by default; each file is reindexed to a
-// temp, then fully re-parsed + validated (header, tracks AND every cluster
-// block) and cross-checked against the original (track count, matching
-// duration, a freshly-present index) before an atomic swap. The original is
-// kept as "<file>.mkvgobak" unless --keep-backup=false. A file that fails any
-// check is left byte-for-byte untouched.
+// Safety (locked by design): dry-run by default. --mode auto (default) takes
+// the surgical in-place patch when the file layout allows it (journaled,
+// rolled back on any failed check) and otherwise rewrites to a temp that is
+// fully re-parsed + validated (header, tracks AND every cluster block) and
+// cross-checked against the original (track count, matching duration, a
+// freshly-present index) before an atomic swap. A rewrite keeps the original
+// as "<file>.mkvgobak" unless --keep-backup=false, which enforces
+// --deep-verify instead. A file that fails any check is left byte-for-byte
+// untouched. The rewrite also refuses upfront when the volume lacks the room
+// for its temporary copy.
 func adminReindexNoCue(args []string) error {
 	flags := flag.NewFlagSet("reindex-no-cue", flag.ExitOnError)
 	root := flags.String("root", "", "directory tree to scan (required)")
 	apply := flags.Bool("apply", false, "actually rewrite files (default: dry-run, report only)")
-	keepBackup := flags.Bool("keep-backup", true, "keep the .mkvgobak copy of each rewritten original")
+	keepBackup := flags.Bool("keep-backup", true, "keep the .mkvgobak copy of each rewritten original (rewrites only; ignored by --mode inplace)")
 	limit := flags.Int("limit", 0, "stop after rewriting N files (0 = no limit; for a cautious first run)")
+	modeFlag := flags.String("mode", "auto", "repair strategy: auto (surgical patch when the layout allows, rewrite otherwise), inplace (patch ONLY, no backup, refuses defeated layouts), rewrite (always rebuild + swap)")
+	deepVerify := flags.Bool("deep-verify", false, "prove every rebuilt cue lands on a real video keyframe before committing (full read per file); forced on when --keep-backup=false")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -38,6 +44,17 @@ func adminReindexNoCue(args []string) error {
 		flags.Usage()
 		return fmt.Errorf("--root is required")
 	}
+	var reindexMode string
+	switch *modeFlag {
+	case "auto":
+		reindexMode = mkv.ModeAuto
+	case mkv.ModeInPlace, mkv.ModeRewrite:
+		reindexMode = *modeFlag
+	default:
+		return fmt.Errorf("--mode must be auto, inplace or rewrite (got %q)", *modeFlag)
+	}
+	// Without a rollback copy, the full-read proof is the safety net.
+	verify := *deepVerify || (!*keepBackup && reindexMode != mkv.ModeInPlace)
 	info, err := os.Stat(*root)
 	if err != nil {
 		return fmt.Errorf("stat root: %w", err)
@@ -49,14 +66,18 @@ func adminReindexNoCue(args []string) error {
 	adapter := mkvgoadapter.New()
 	ctx := context.Background()
 
-	mode := "DRY-RUN (no files modified — re-run with --apply to rewrite)"
+	runLabel := "DRY-RUN (no files modified — re-run with --apply to rewrite)"
 	if *apply {
-		mode = "APPLY (files rewritten; originals kept as .mkvgobak)"
-		if !*keepBackup {
-			mode = "APPLY (files rewritten; NO backup kept)"
+		switch {
+		case reindexMode == mkv.ModeInPlace:
+			runLabel = "APPLY (surgical in-place patch only; no duplicate, no backup)"
+		case *keepBackup:
+			runLabel = "APPLY (files repaired; rewrite originals kept as .mkvgobak)"
+		default:
+			runLabel = "APPLY (files repaired; NO backup kept, deep-verify enforced)"
 		}
 	}
-	fmt.Printf("reindex-no-cue\n  root: %s\n  mode: %s\n\n", *root, mode)
+	fmt.Printf("reindex-no-cue\n  root: %s\n  strategy: %s\n  mode: %s\n\n", *root, *modeFlag, runLabel)
 
 	var scanned, alreadyIndexed, noIndex, reindexed, failed int
 	stop := false
@@ -87,7 +108,11 @@ func adminReindexNoCue(args []string) error {
 			fmt.Printf("  would reindex: %s\n", path)
 			return nil
 		}
-		res, err := adapter.ReindexInPlace(ctx, path, mkv.ReindexOptions{KeepBackup: *keepBackup})
+		res, err := adapter.ReindexInPlace(ctx, path, mkv.ReindexOptions{
+			Mode:       reindexMode,
+			KeepBackup: *keepBackup,
+			DeepVerify: verify,
+		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  ! reindex %s: %v (original untouched)\n", path, err)
 			failed++
