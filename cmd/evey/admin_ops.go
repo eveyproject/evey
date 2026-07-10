@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -195,9 +196,9 @@ func adminDoctor(args []string) error {
 	// Meilisearch reachability + index drift.
 	res = append(res, checkMeili(cfg, db)...)
 
-	// Media library roots: existence + owned by the server's UID (the known
+	// Media library roots: existence + writable by the server identity (the known
 	// prod foot-gun where reindex/repair fails with "permission denied").
-	res = append(res, checkLibraryPaths(db, uid)...)
+	res = append(res, checkLibraryPaths(db)...)
 
 	// Writable service dirs (create + chown on --repair).
 	for _, d := range []struct{ name, path string }{
@@ -286,8 +287,12 @@ func checkMeili(cfg *config.Config, db *sql.DB) []checkResult {
 	return out
 }
 
-// checkLibraryPaths reports each library root's existence and ownership.
-func checkLibraryPaths(db *sql.DB, uid int) []checkResult {
+// checkLibraryPaths reports each library root's existence and whether the
+// SERVER can write it - the kernel's owner/group/other semantics against PID
+// 1's identity, not a naive owner-uid comparison: a gravity:users library
+// with g+rw is perfectly repairable by a server running as 1000:100.
+func checkLibraryPaths(db *sql.DB) []checkResult {
+	uid, gid, groups := serverIdentity()
 	var out []checkResult
 	for _, p := range libraryPaths(db) {
 		fi, err := os.Stat(p)
@@ -295,15 +300,78 @@ func checkLibraryPaths(db *sql.DB, uid int) []checkResult {
 			out = append(out, checkResult{"media " + p, "WARN", "unreadable: " + err.Error(), "check the mount"})
 			continue
 		}
-		if st, ok := fi.Sys().(*syscall.Stat_t); ok && int(st.Uid) != uid {
-			out = append(out, checkResult{"media " + p, "WARN",
-				fmt.Sprintf("owned by uid %d, not %d", st.Uid, uid),
-				fmt.Sprintf("reindex/repair may fail; on the host: chown -R %d:%d %s", uid, uid, p)})
+		st, ok := fi.Sys().(*syscall.Stat_t)
+		if !ok {
+			out = append(out, checkResult{"media " + p, "ok", "readable", ""})
 			continue
 		}
-		out = append(out, checkResult{"media " + p, "ok", "readable, owned by " + strconv.Itoa(uid), ""})
+		if writableByServer(st, fi.Mode(), uid, gid, groups) {
+			out = append(out, checkResult{"media " + p, "ok",
+				fmt.Sprintf("writable by the server (uid %d, gid %d)", uid, gid), ""})
+			continue
+		}
+		out = append(out, checkResult{"media " + p, "WARN",
+			fmt.Sprintf("not writable by the server (uid %d, groups %v): owner %d:%d mode %o", uid, append([]int{gid}, groups...), st.Uid, st.Gid, fi.Mode().Perm()),
+			"repairs will fail; give the server's group write access (chgrp + chmod g+w) or align PUID/PGID with the media owner (docs/configuration.md, \"File ownership\"); ignore if an ACL already grants it"})
 	}
 	return out
+}
+
+// serverIdentity returns the uid/gid/supplementary groups the SERVER runs as.
+// `docker exec` shells run as the image's default user (root since the PUID
+// entrypoint), so the doctor reads PID 1 - the server itself - and only falls
+// back to the PUID/PGID env defaults when /proc/1/status is not readable.
+func serverIdentity() (int, int, []int) {
+	uid, gid := targetIDs()
+	b, err := os.ReadFile("/proc/1/status")
+	if err != nil {
+		return uid, gid, nil
+	}
+	return parseProcStatusIDs(string(b), uid, gid)
+}
+
+// parseProcStatusIDs extracts the real Uid/Gid and the supplementary Groups
+// from a /proc/<pid>/status payload, keeping the fallbacks on parse failure.
+func parseProcStatusIDs(s string, fallbackUID, fallbackGID int) (int, int, []int) {
+	uid, gid, groups := fallbackUID, fallbackGID, []int(nil)
+	for line := range strings.SplitSeq(s, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+		switch fields[0] {
+		case "Uid:":
+			if n, err := strconv.Atoi(fields[1]); err == nil {
+				uid = n
+			}
+		case "Gid:":
+			if n, err := strconv.Atoi(fields[1]); err == nil {
+				gid = n
+			}
+		case "Groups:":
+			for _, f := range fields[1:] {
+				if n, err := strconv.Atoi(f); err == nil {
+					groups = append(groups, n)
+				}
+			}
+		}
+	}
+	return uid, gid, groups
+}
+
+// writableByServer applies the kernel's classic permission walk (owner, then
+// group, then other) for the server identity on a stat result. ACL grants
+// beyond the owning group are invisible here - the check errs on the warning
+// side and says so.
+func writableByServer(st *syscall.Stat_t, mode os.FileMode, uid, gid int, groups []int) bool {
+	perm := mode.Perm()
+	if int(st.Uid) == uid {
+		return perm&0o200 != 0
+	}
+	if int(st.Gid) == gid || slices.Contains(groups, int(st.Gid)) {
+		return perm&0o020 != 0
+	}
+	return perm&0o002 != 0
 }
 
 // libraryPaths flattens every library's jsonb paths array into a []string.
