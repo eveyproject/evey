@@ -52,6 +52,12 @@ func runAdmin(args []string) error {
 		return adminArtworkGC(args[1:])
 	case "load-test":
 		return adminLoadTest(args[1:])
+	case "doctor":
+		return adminDoctor(args[1:])
+	case "rollback":
+		return adminRollback(args[1:])
+	case "list-users":
+		return adminListUsers(args[1:])
 	case "-h", "--help", "help":
 		_ = adminUsage()
 		return nil
@@ -106,6 +112,19 @@ Capacity subcommands (need a LIVE server — HTTP client of the local gateway):
                                     load-test --scenario balanced --max-viewers 4.
                                     Ctrl-C offers to cancel; admission_full is the
                                     ceiling verdict (exit 0), not an error.
+
+Diagnostics:
+  doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch
+                                    (+ index drift), media mounts (owned by the
+                                    server UID?), cache dirs, ffmpeg/mkvgo and
+                                    disk. --repair applies only the safe fixes
+                                    (create + chown missing writable dirs).
+  rollback                          Read-only advisor: print the running version,
+                                    schema, newest pre-migration backup and the
+                                    exact HOST commands to roll back (the
+                                    container has no Docker access, by design).
+  list-users                        Print user emails, one per line (drives
+                                    reset-password --user Tab-completion).
 
 Configuration is read from EVEY_* env vars (same as the server).
 See docs/runbooks/recovery.md and docs/runbooks/cli.md for full procedures.
