@@ -106,7 +106,7 @@ Media maintenance subcommands:
                                     --root defaults to /data/artworks.
 
 Capacity subcommands (need a LIVE server — HTTP client of the local gateway):
-  load-test [--scenario <s>] [--max-viewers N]
+  load-test [minimal|normal|full] [--scenario <s>] [--max-viewers N]
                                     Ramp simulated viewers until the box hits its
                                     ceiling and report the sustained count + TTFF/
                                     segment latencies. --scenario is one of

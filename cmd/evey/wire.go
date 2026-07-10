@@ -746,7 +746,17 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// pluginIdleMgr.SetEnabled above), these knobs are read once here at boot -
 	// the software producer's GC loop is not re-wired on a live profile change,
 	// so switching the memory profile only takes effect for HLS after a restart.
-	swProducerOpts := apptranscoding.SoftwareProducerOptions{}
+	// KillPausedAfter is armed in EVERY profile since admission slots exist: a
+	// SIGSTOPped abandoned encoder consumes no CPU but HOLDS its video
+	// admission slot, and the normal profile's 30min inactivity reap meant up
+	// to half an hour of "server full" after a viewer rush (seen live after a
+	// load test: two paused ffmpeg pinned 2 slots for 13+ minutes). The resume
+	// cushion keeps the kill latency-invisible for a genuine returnee; low
+	// tightens it further for RAM, not just slots.
+	swProducerOpts := apptranscoding.SoftwareProducerOptions{
+		KillPausedAfter:   5 * time.Minute,
+		ResumeCushionSegs: 8,
+	}
 	if memProfile == appplugin.MemoryProfileLow {
 		swProducerOpts = apptranscoding.SoftwareProducerOptions{
 			InactivityTimeout:            5 * time.Minute,

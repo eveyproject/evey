@@ -40,6 +40,21 @@ func adminLoadTest(args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	// Optional positional preset sizes the run without flag gymnastics:
+	//   minimal  smoke test, ~40s (4 viewers)
+	//   normal   the server default ramp (12)
+	//   full     past any plausible ceiling, stops on the box's own verdict (32)
+	// An explicit --max-viewers always wins over the preset.
+	if preset := fs.Arg(0); preset != "" {
+		presetMax := map[string]int{"minimal": 4, "normal": 0, "full": 32}
+		m, ok := presetMax[preset]
+		if !ok {
+			return fmt.Errorf("unknown preset %q (minimal | normal | full)", preset)
+		}
+		if *maxViewers == 0 {
+			*maxViewers = m
+		}
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
