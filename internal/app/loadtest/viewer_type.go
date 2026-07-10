@@ -1,5 +1,10 @@
 package loadtest
 
+import (
+	"strconv"
+	"strings"
+)
+
 // viewerType is a simulated viewer's per-request behavior: whether it
 // negotiates naturally and demands mkvgo-served responses, forces a
 // transcode, or (ScenarioNatural) just negotiates naturally with no
@@ -40,6 +45,33 @@ func scenarioViewerType(scenario string, slot int) viewerType {
 	case ScenarioHeavy:
 		return heavyPattern[(slot-1)%len(heavyPattern)]
 	default:
+		if pinned, ok := parsePinnedScenario(scenario); ok {
+			if slot <= pinned {
+				return viewerTypeTranscode
+			}
+			return viewerTypeMkvgo
+		}
 		return viewerTypeNatural
 	}
+}
+
+// parsePinnedScenario recognises the "mkvgo+N" family: N transcode viewers
+// PINNED at the bottom of the ramp (the household's fixed tax - the one old
+// TV that cannot direct-play), then a pure-mkvgo ramp on top. Unlike the
+// ratio mixes (light/balanced/heavy) the transcode share does not grow with
+// the ramp, so the ceiling answers "how many direct-play viewers fit ON TOP
+// of K incompressible encodes". N is clamped to [1, 32].
+func parsePinnedScenario(scenario string) (pinned int, ok bool) {
+	rest, found := strings.CutPrefix(scenario, ScenarioMkvgo+"+")
+	if !found {
+		return 0, false
+	}
+	n, err := strconv.Atoi(rest)
+	if err != nil || n < 1 {
+		return 0, false
+	}
+	if n > 32 {
+		n = 32
+	}
+	return n, true
 }

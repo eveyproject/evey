@@ -106,7 +106,10 @@ Media maintenance subcommands:
                                     --root defaults to /data/artworks.
 
 Capacity subcommands (need a LIVE server — HTTP client of the local gateway):
-  load-test [minimal|normal|full] [--scenario <s>] [--max-viewers N]
+  load-test [minimal|standard|max] [--scenario <s>] [--max-viewers N]
+                                    scenarios: transcode, natural, mkvgo, light (80/20),
+                                    balanced (50/50), heavy (20/80), mkvgo+N (N pinned
+                                    transcodes then pure direct-play)
                                     Ramp simulated viewers until the box hits its
                                     ceiling and report the sustained count + TTFF/
                                     segment latencies. --scenario is one of

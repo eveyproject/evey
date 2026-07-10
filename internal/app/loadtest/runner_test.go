@@ -770,3 +770,54 @@ func TestBuildMasterURL_MkvgoViewerAdvertisesACapableClient(t *testing.T) {
 		t.Errorf("mkvgo viewer must not force the transcode path: %s", u)
 	}
 }
+
+// The "mkvgo+N" family pins N transcode viewers at the BOTTOM of the ramp -
+// the household's fixed tax - then ramps pure mkvgo on top. Unlike the ratio
+// mixes, the transcode share must not grow with the ramp.
+func TestScenarioViewerType_PinnedFamily(t *testing.T) {
+	for slot, want := range map[int]viewerType{
+		1: viewerTypeTranscode,
+		2: viewerTypeTranscode,
+		3: viewerTypeMkvgo,
+		9: viewerTypeMkvgo,
+	} {
+		if got := scenarioViewerType("mkvgo+2", slot); got != want {
+			t.Errorf("mkvgo+2 slot %d = %s, want %s", slot, got, want)
+		}
+	}
+	if got := scenarioViewerType("mkvgo+1", 1); got != viewerTypeTranscode {
+		t.Errorf("mkvgo+1 slot 1 = %s, want transcode", got)
+	}
+	if got := scenarioViewerType("mkvgo+1", 2); got != viewerTypeMkvgo {
+		t.Errorf("mkvgo+1 slot 2 = %s, want mkvgo", got)
+	}
+	// Degenerate spellings fall back to natural, like any unknown scenario.
+	for _, bad := range []string{"mkvgo+0", "mkvgo+", "mkvgo+x", "mkvgo-1"} {
+		if got := scenarioViewerType(bad, 1); got != viewerTypeNatural {
+			t.Errorf("%q slot 1 = %s, want natural fallback", bad, got)
+		}
+	}
+}
+
+// End to end: one pinned transcode then mkvgo-only, mix reported accordingly.
+func TestRunner_PinnedScenario_OneTranscodeThenMkvgo(t *testing.T) {
+	st := newServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: "mkvgo+1",
+		MaxViewers: 4, RampEvery: 40 * time.Millisecond, MaxDuration: 3 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	report := waitForReport(t, r, 3*time.Second)
+	if report.StopReason != StopMaxViewers {
+		t.Fatalf("stop reason = %s (detail=%q)", report.StopReason, report.StopDetail)
+	}
+	if report.ViewerMix["transcode"] != 1 || report.ViewerMix["mkvgo"] != 3 {
+		t.Fatalf("viewer mix = %v, want transcode:1 mkvgo:3", report.ViewerMix)
+	}
+}
