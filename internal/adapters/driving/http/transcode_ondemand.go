@@ -257,13 +257,9 @@ func (h *hlsVODServe) rotationKeyCount(item *domainlibrary.MediaItem) int {
 	nSeg := (durMs + onDemandSegmentMs - 1) / onDemandSegmentMs
 	rot := int64(h.hlsKeyRotateSegments)
 	periods := (nSeg + rot - 1) / rot
-	n := int(periods) + 1 // +1 margin for keyframe-alignment slack in the real cut
-	if n < 2 {
-		n = 2
-	}
-	if n > maxRotationKeys {
-		n = maxRotationKeys
-	}
+	// +1 margin for keyframe-alignment slack in the real cut.
+	n := max(int(periods)+1, 2)
+	n = min(n, maxRotationKeys)
 	return n
 }
 
