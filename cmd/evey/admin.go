@@ -74,7 +74,11 @@ Recovery subcommands:
   reset-password --user <email>     Generate a new password for the user, print it once.
   rotate-jwt-key                    Regenerate the JWT signing key. Invalidates ALL active sessions.
   restore-backup <path>             Restore the database from a pg_dump.gz file.
-  reindex-search [--library <id>]   Rebuild the Meilisearch index from the database (no metadata fetch).
+  reindex-search [--library <id>] [--purge]
+                                    Rebuild the Meilisearch index from the database (no metadata
+                                    fetch). --purge clears the index first to drop orphan docs an
+                                    upsert can't. If Meili is down, reports the Postgres fallback
+                                    and does nothing.
 
 Schema subcommands:
   migrate up [--no-backup]          Apply all pending migrations.
@@ -335,6 +339,7 @@ func generateRandomPassword(byteLen int) (string, error) {
 func adminReindexSearch(args []string) error {
 	fs := flag.NewFlagSet("reindex-search", flag.ExitOnError)
 	libraryID := fs.String("library", "", "library ID to reindex (default: all libraries)")
+	purge := fs.Bool("purge", false, "clear the index first, then rebuild — removes stale/orphan docs an upsert can't (brief empty-search window)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -345,9 +350,28 @@ func adminReindexSearch(args []string) error {
 	}
 	defer cleanup()
 
+	// Meili-aware: with the engine down, search is served by the Postgres ILIKE
+	// fallback (a live query, no index to rebuild), so report and stop cleanly
+	// rather than erroring on a missing engine.
+	url := strings.TrimRight(cfg.Meilisearch.URL, "/")
+	if url == "" {
+		fmt.Println("Meilisearch not configured — search uses the Postgres fallback (ILIKE). Nothing to rebuild.")
+		return nil
+	}
+	if code, _, herr := httpGet(url+"/health", "", 3*time.Second); herr != nil || code != 200 {
+		fmt.Printf("Meilisearch unavailable at %s — search is served by the Postgres fallback (ILIKE), which needs no index. Nothing to rebuild.\n", url)
+		return nil
+	}
+
 	search, err := meilisearch.NewSearchAdapter(cfg.Meilisearch.URL, cfg.Meilisearch.APIKey)
 	if err != nil {
 		return fmt.Errorf("connect meilisearch (%s): %w", cfg.Meilisearch.URL, err)
+	}
+	if *purge {
+		fmt.Println("Purging the index first (clearing stale docs) ...")
+		if err := search.Clear(context.Background()); err != nil {
+			return fmt.Errorf("purge index: %w", err)
+		}
 	}
 	items := postgres.NewMediaItemQueryRepoAdapter(db)
 	translations := postgres.NewMediaItemTranslationRepository(db)

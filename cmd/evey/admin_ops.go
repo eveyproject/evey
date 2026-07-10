@@ -271,9 +271,15 @@ func checkMeili(cfg *config.Config, db *sql.DB) []checkResult {
 		return out
 	}
 	if stats.NumberOfDocuments != dbCount {
+		hint := "run `evey admin reindex-search`"
+		if stats.NumberOfDocuments > dbCount {
+			// The index holds MORE than the DB: stale/orphan docs an upsert
+			// reindex can't remove. Only a purge-first rebuild shrinks it.
+			hint = "run `evey admin reindex-search --purge` (index has stale docs)"
+		}
 		out = append(out, checkResult{"search index", "WARN",
 			fmt.Sprintf("drift: DB has %d, index has %d", dbCount, stats.NumberOfDocuments),
-			"run `evey admin reindex-search`"})
+			hint})
 	} else {
 		out = append(out, checkResult{"search index", "ok", fmt.Sprintf("in sync (%d docs)", dbCount), ""})
 	}

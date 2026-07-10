@@ -44,7 +44,7 @@ list-users help"
 
     case "$sub" in
         reset-password)     opts="--user" ;;
-        reindex-search)     opts="--library" ;;
+        reindex-search)     opts="--library --purge" ;;
         migrate)            opts="--no-backup" ;;
         reclassify)         opts="--all" ;;
         reindex-no-cue)     opts="--root --apply --limit --keep-backup" ;;
