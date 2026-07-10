@@ -260,11 +260,20 @@ message UpdateServerConfigRequest {
 message GetDashboardRequest {}
 
 message StartLoadTestRequest {
-  // scenario is "transcode" (forces the encode path - the capacity question)
-  // or "natural" (normal negotiation: copy/on-demand when eligible).
+  // scenario is WHO the simulated viewers are: "transcode", "natural",
+  // "mkvgo", the ratio mixes "light"/"balanced"/"heavy", or "mkvgo+N"
+  // (N pinned transcodes then pure direct-play).
   string scenario = 1;
   // max_viewers caps the ramp; 0 = server default (12, sized for a weak NAS).
   int32 max_viewers = 2;
+  // mode is HOW they behave: "" (ramp, default), "flash" (everyone arrives at
+  // once - the sunday-evening stampede), "seek" (viewers jump around the
+  // timeline - session churn), "endurance" (hold the tier for the duration -
+  // slow-drift hunting).
+  string mode = 3;
+  // duration_sec bounds the run; 0 = mode default (4min ramp/flash/seek,
+  // 30min endurance).
+  int32 duration_sec = 4;
 }
 
 message GetLoadTestStatusRequest {}
@@ -304,4 +313,6 @@ message LoadTestReport {
   // segment_ms_p95_by_type breaks the p95 down per viewer type, so a slow
   // mkvgo path cannot hide behind slow transcodes (or vice versa).
   map<string, int32> segment_ms_p95_by_type = 16;
+  // mode is the behavior axis this run used (see StartLoadTestRequest.mode).
+  string mode = 17;
 }

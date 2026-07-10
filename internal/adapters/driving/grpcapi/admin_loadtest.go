@@ -1,6 +1,7 @@
 package grpcapi
 
 import (
+	"time"
 	"context"
 	"errors"
 	"strings"
@@ -36,6 +37,10 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 		Token:      token,
 		Scenario:   req.GetScenario(),
 		MaxViewers: int(req.GetMaxViewers()),
+		Mode:       req.GetMode(),
+	}
+	if secs := req.GetDurationSec(); secs > 0 {
+		cfg.MaxDuration = time.Duration(secs) * time.Second
 	}
 	// The run outlives this RPC by design: bind it to the server's lifetime,
 	// not the HTTP request's (the runner's MaxDuration walls it regardless).
@@ -77,6 +82,7 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 	if r := s.LastReport; r != nil {
 		out.LastReport = &eveyv1.LoadTestReport{
 			Scenario:           r.Scenario,
+			Mode:               r.Mode,
 			SustainedViewers:   int32(r.SustainedViewers),
 			StopReason:         string(r.StopReason),
 			StopDetail:         r.StopDetail,

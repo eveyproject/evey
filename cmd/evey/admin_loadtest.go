@@ -37,6 +37,8 @@ func adminLoadTest(args []string) error {
 	scenario := fs.String("scenario", "balanced",
 		"transcode | natural | mkvgo | light | balanced | heavy | mkvgo+N (N pinned transcodes, then pure direct-play)")
 	maxViewers := fs.Int("max-viewers", 0, "cap the ramp (0 = server default, 12)")
+	mode := fs.String("mode", "", "ramp (default) | flash (everyone at once) | seek (viewers jump around) | endurance (hold the tier, default 30min)")
+	durationSec := fs.Int("duration", 0, "bound the run in seconds (0 = mode default)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -73,7 +75,7 @@ func adminLoadTest(args []string) error {
 	defer stop()
 
 	start, err := loadTestReq(ctx, client, http.MethodPost, base, token,
-		map[string]any{"scenario": *scenario, "max_viewers": *maxViewers})
+		map[string]any{"scenario": *scenario, "max_viewers": *maxViewers, "mode": *mode, "duration_sec": *durationSec})
 	if err != nil {
 		return fmt.Errorf("start load-test (is the server running on :%d?): %w", cfg.Server.Port+1, err)
 	}

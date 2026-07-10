@@ -106,7 +106,7 @@ Media maintenance subcommands:
                                     --root defaults to /data/artworks.
 
 Capacity subcommands (need a LIVE server — HTTP client of the local gateway):
-  load-test [minimal|standard|max] [--scenario <s>] [--max-viewers N]
+  load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S]
                                     scenarios: transcode, natural, mkvgo, light (80/20),
                                     balanced (50/50), heavy (20/80), mkvgo+N (N pinned
                                     transcodes then pure direct-play)
