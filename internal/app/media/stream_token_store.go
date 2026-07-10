@@ -29,15 +29,27 @@ type StreamTokenStore struct {
 	tokens sync.Map
 	ttl    time.Duration
 	done   chan struct{}
+	// now is set once at construction and never mutated afterwards, so the
+	// concurrent reads from the Validate hot path and the cleanupLoop
+	// goroutine are race-free without a mutex.
+	now func() time.Time
 }
 
 func NewStreamTokenStore(ttl time.Duration) *StreamTokenStore {
+	return NewStreamTokenStoreForTest(ttl, time.Now)
+}
+
+// NewStreamTokenStoreForTest builds a StreamTokenStore with an injected clock
+// so expiry, sliding-TTL renewal and cleanup can be tested deterministically
+// without time.Sleep. Production code should use NewStreamTokenStore.
+func NewStreamTokenStoreForTest(ttl time.Duration, now func() time.Time) *StreamTokenStore {
 	if ttl <= 0 {
 		ttl = DefaultStreamTokenTTL
 	}
 	s := &StreamTokenStore{
 		ttl:  ttl,
 		done: make(chan struct{}),
+		now:  now,
 	}
 	go s.cleanupLoop()
 	return s
@@ -62,7 +74,7 @@ func (s *StreamTokenStore) CreateWithTTL(userID, profileID, mediaItemID string, 
 		ProfileID:   shared.ProfileID(profileID),
 		MediaItemID: shared.MediaItemID(mediaItemID),
 		Scope:       shared.ScopeStream,
-		ExpiresAt:   time.Now().Add(ttl),
+		ExpiresAt:   s.now().Add(ttl),
 		TTL:         ttl,
 	})
 	return token
@@ -81,7 +93,7 @@ func (s *StreamTokenStore) CreateGuestToken(mediaItemID string, ttl time.Duratio
 		Token:       token,
 		MediaItemID: shared.MediaItemID(mediaItemID),
 		Scope:       shared.ScopeSyncplayGuest,
-		ExpiresAt:   time.Now().Add(ttl),
+		ExpiresAt:   s.now().Add(ttl),
 		TTL:         ttl,
 	})
 	return token
@@ -95,7 +107,7 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 		return nil, false
 	}
 	st := v.(*shared.StreamToken)
-	if time.Now().After(st.ExpiresAt) {
+	if s.now().After(st.ExpiresAt) {
 		s.tokens.Delete(token)
 		return nil, false
 	}
@@ -117,7 +129,7 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 	// every reader sees an immutable snapshot; the loaded st is never written,
 	// so copying it here is safe too.
 	renewed := *st
-	renewed.ExpiresAt = time.Now().Add(ttl)
+	renewed.ExpiresAt = s.now().Add(ttl)
 	s.tokens.Store(token, &renewed)
 	return &renewed, true
 }
@@ -169,15 +181,28 @@ func (s *StreamTokenStore) cleanupLoop() {
 		case <-s.done:
 			return
 		case <-ticker.C:
-			now := time.Now()
-			s.tokens.Range(func(key, value any) bool {
-				st := value.(*shared.StreamToken)
-				if now.After(st.ExpiresAt) {
-					s.tokens.Delete(key)
-					slog.Debug("stream token expired", slog.String("token", key.(string)))
-				}
-				return true
-			})
+			s.purgeExpired(s.now())
 		}
 	}
+}
+
+// purgeExpired deletes every token whose ExpiresAt is before now. Extracted
+// from cleanupLoop so it can be exercised directly in tests without waiting
+// on the ticker.
+func (s *StreamTokenStore) purgeExpired(now time.Time) {
+	s.tokens.Range(func(key, value any) bool {
+		st := value.(*shared.StreamToken)
+		if now.After(st.ExpiresAt) {
+			s.tokens.Delete(key)
+			slog.Debug("stream token expired", slog.String("token", key.(string)))
+		}
+		return true
+	})
+}
+
+// PurgeExpiredForTest exposes purgeExpired to tests (external package) so the
+// cleanup logic can be verified deterministically at a given instant, without
+// waiting on the cleanupLoop ticker.
+func (s *StreamTokenStore) PurgeExpiredForTest(now time.Time) {
+	s.purgeExpired(now)
 }

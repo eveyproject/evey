@@ -89,32 +89,87 @@ func TestStreamTokenStore_ValidateAny(t *testing.T) {
 	assert.Equal(t, shared.MediaItemID("media-1"), st.MediaItemID)
 }
 
+// TestStreamTokenStore_Expired proves expiry deterministically by advancing a
+// fake clock past the TTL - no time.Sleep, no wall-clock flakiness.
 func TestStreamTokenStore_Expired(t *testing.T) {
-	store := media.NewStreamTokenStore(10 * time.Millisecond)
+	fakeNow := time.Now()
+	store := media.NewStreamTokenStoreForTest(10*time.Millisecond, func() time.Time { return fakeNow })
 	defer store.Stop()
 
 	token := store.Create("user-1", "profile-1", "media-1")
-	time.Sleep(20 * time.Millisecond)
+
+	fakeNow = fakeNow.Add(20 * time.Millisecond)
 
 	_, ok := store.Validate(token, "media-1")
 	assert.False(t, ok, "expired token should fail")
 }
 
+// TestStreamTokenStore_RenewsTTL proves the sliding TTL deterministically: a
+// Validate call before expiry must push ExpiresAt forward by another full TTL,
+// so a subsequent instant past the original expiry is still valid.
 func TestStreamTokenStore_RenewsTTL(t *testing.T) {
-	store := media.NewStreamTokenStore(50 * time.Millisecond)
+	fakeNow := time.Now()
+	store := media.NewStreamTokenStoreForTest(50*time.Millisecond, func() time.Time { return fakeNow })
 	defer store.Stop()
 
 	token := store.Create("user-1", "profile-1", "media-1")
 
 	// Access at 30ms — should renew to 80ms
-	time.Sleep(30 * time.Millisecond)
+	fakeNow = fakeNow.Add(30 * time.Millisecond)
 	_, ok := store.Validate(token, "media-1")
 	require.True(t, ok)
 
 	// At 60ms (past original 50ms) — should still be valid due to renewal
-	time.Sleep(30 * time.Millisecond)
+	fakeNow = fakeNow.Add(30 * time.Millisecond)
 	_, ok = store.Validate(token, "media-1")
 	assert.True(t, ok, "token should be renewed after access")
+}
+
+// TestStreamTokenStore_RenewsBySlideTTLNotStoreDefault proves the sliding
+// window uses the token's own TTL (e.g. the 12h cast window), not the store's
+// default TTL — a regression here would silently downgrade cast tokens to the
+// short default on their first segment fetch.
+func TestStreamTokenStore_RenewsBySlideTTLNotStoreDefault(t *testing.T) {
+	fakeNow := time.Now()
+	store := media.NewStreamTokenStoreForTest(5*time.Minute, func() time.Time { return fakeNow })
+	defer store.Stop()
+
+	token := store.CreateWithTTL("user-1", "profile-1", "media-1", media.CastStreamTokenTTL)
+
+	// Advance past the store default (5m) but well within the 12h cast TTL,
+	// then renew.
+	fakeNow = fakeNow.Add(10 * time.Minute)
+	st, ok := store.Validate(token, "media-1")
+	require.True(t, ok, "cast token must survive past the store default TTL")
+
+	// The renewed ExpiresAt must be fakeNow + 12h, not fakeNow + 5m.
+	assert.Equal(t, fakeNow.Add(media.CastStreamTokenTTL), st.ExpiresAt)
+
+	// Advance another 11h (past 5m*2 but within another 12h window) — still valid.
+	fakeNow = fakeNow.Add(11 * time.Hour)
+	_, ok = store.Validate(token, "media-1")
+	assert.True(t, ok, "cast token slides by its own 12h TTL, not the 5m store default")
+}
+
+// TestStreamTokenStore_PurgeExpired proves the cleanup logic directly at a
+// controlled instant, without waiting on the cleanupLoop ticker.
+func TestStreamTokenStore_PurgeExpired(t *testing.T) {
+	fakeNow := time.Now()
+	store := media.NewStreamTokenStoreForTest(10*time.Minute, func() time.Time { return fakeNow })
+	defer store.Stop()
+
+	expiring := store.Create("user-1", "profile-1", "media-1")
+	longLived := store.CreateWithTTL("user-1", "profile-1", "media-2", time.Hour)
+
+	fakeNow = fakeNow.Add(20 * time.Minute)
+	store.PurgeExpiredForTest(fakeNow)
+
+	if _, ok := store.ValidateAny(expiring); ok {
+		t.Error("token past its TTL must be purged")
+	}
+	if _, ok := store.ValidateAny(longLived); !ok {
+		t.Error("token still within its TTL must survive the purge")
+	}
 }
 
 func TestStreamTokenStore_Revoke(t *testing.T) {
