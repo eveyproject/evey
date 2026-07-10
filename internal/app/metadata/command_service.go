@@ -105,9 +105,12 @@ type CommandService struct {
 	enricher     ItemEnricher
 	workerWg     sync.WaitGroup
 
-	// auto-download settings
-	autoDownloadEnabled bool
-	dataDir             string
+	// auto-download settings. Atomic: SetAutoDownload runs on the server-config
+	// event goroutine while enrichment workers read them concurrently during a
+	// scan (data race, -race-detectable). Lock-free avoids any ordering issue
+	// with the struct's other mutexes.
+	autoDownloadEnabled atomic.Bool
+	dataDir             atomic.Pointer[string]
 
 	// in-memory job registry for background artwork jobs (poll via GetDownloadJob)
 	jobs *downloadJobRegistry
@@ -115,8 +118,8 @@ type CommandService struct {
 
 func WithAutoDownload(dataDir string, enabled bool) CommandServiceOption {
 	return func(s *CommandService) {
-		s.dataDir = dataDir
-		s.autoDownloadEnabled = enabled
+		s.dataDir.Store(&dataDir)
+		s.autoDownloadEnabled.Store(enabled)
 	}
 }
 
@@ -144,8 +147,16 @@ func NewCommandService(
 
 // SetAutoDownload updates the auto-download setting at runtime (e.g. after server-config change).
 func (s *CommandService) SetAutoDownload(dataDir string, enabled bool) {
-	s.dataDir = dataDir
-	s.autoDownloadEnabled = enabled
+	s.dataDir.Store(&dataDir)
+	s.autoDownloadEnabled.Store(enabled)
+}
+
+// getDataDir reads the atomic dataDir ("" if never set).
+func (s *CommandService) getDataDir() string {
+	if p := s.dataDir.Load(); p != nil {
+		return *p
+	}
+	return ""
 }
 
 // artworkDestPath derives the on-disk path for an artwork record.
@@ -176,7 +187,7 @@ func (s *CommandService) artworkDestPath(rec *metadata.ArtworkRecord) string {
 		sum := sha256.Sum256([]byte(u))
 		name = hex.EncodeToString(sum[:16])
 	}
-	return filepath.Join(s.dataDir, "artworks", string(rec.MediaItemID), name+ext)
+	return filepath.Join(s.getDataDir(), "artworks", string(rec.MediaItemID), name+ext)
 }
 
 // ArtworkStats returns aggregate coverage statistics.
@@ -196,10 +207,10 @@ func (s *CommandService) ArtworkStats(ctx context.Context) (metadata.ArtworkStat
 func (s *CommandService) PurgeCorruptVariants(ctx context.Context) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.PurgeCorruptVariants")
 	defer span.End()
-	if s.dataDir == "" {
+	if s.getDataDir() == "" {
 		return 0, errors.New("dataDir not configured")
 	}
-	root := filepath.Join(s.dataDir, "artworks")
+	root := filepath.Join(s.getDataDir(), "artworks")
 	if _, err := os.Stat(root); errors.Is(err, fs.ErrNotExist) {
 		return 0, nil // nothing downloaded yet
 	}
@@ -266,7 +277,7 @@ func isResizedVariant(name string) bool {
 func (s *CommandService) StartBulkDownload(ctx context.Context, serverCtx context.Context) (string, int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.StartBulkDownload")
 	defer span.End()
-	if s.dataDir == "" {
+	if s.getDataDir() == "" {
 		return "", 0, errors.New("dataDir not configured")
 	}
 	records, err := s.artwork.ListMissingLocalPath(ctx)
@@ -365,7 +376,7 @@ func (s *CommandService) GetDownloadJob(jobID string) *DownloadJob {
 func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, failed int) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.RetryMissingArtworks")
 	defer span.End()
-	if s.dataDir == "" {
+	if s.getDataDir() == "" {
 		return 0, 0
 	}
 	records, err := s.artwork.ListMissingLocalPath(ctx)
@@ -383,7 +394,7 @@ func (s *CommandService) RetryMissingArtworks(ctx context.Context) (succeeded, f
 func (s *CommandService) StartRetryMissing(ctx, serverCtx context.Context) (string, int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.StartRetryMissing")
 	defer span.End()
-	if s.dataDir == "" {
+	if s.getDataDir() == "" {
 		return "", 0, errors.New("dataDir not configured")
 	}
 	records, err := s.artwork.ListMissingLocalPath(ctx)
@@ -647,7 +658,7 @@ func (s *CommandService) ArtworkAutoDownloadHook() ArtworkPostSaveHook {
 // maybeAutoDownload triggers an automatic download when auto-download is enabled.
 // It is best-effort: errors are only logged.
 func (s *CommandService) maybeAutoDownload(ctx context.Context, rec *metadata.ArtworkRecord) {
-	if !s.autoDownloadEnabled || s.dataDir == "" || rec.SourceURL == nil {
+	if !s.autoDownloadEnabled.Load() || s.getDataDir() == "" || rec.SourceURL == nil {
 		return
 	}
 	destPath := s.artworkDestPath(rec)
@@ -1078,9 +1089,9 @@ func (s *CommandService) deriveTitleFromChildren(ctx context.Context, seriesID s
 	if fp == "" {
 		return ""
 	}
-	dir := filepath.Dir(fp)     // /media2/It welcome to derry/S01
-	dir = filepath.Dir(dir)     // /media2/It welcome to derry
-	return filepath.Base(dir)   // It welcome to derry
+	dir := filepath.Dir(fp)   // /media2/It welcome to derry/S01
+	dir = filepath.Dir(dir)   // /media2/It welcome to derry
+	return filepath.Base(dir) // It welcome to derry
 }
 
 // ResetItemMetadata clears enriched metadata on an item and all its children

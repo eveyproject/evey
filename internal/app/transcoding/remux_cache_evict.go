@@ -66,7 +66,17 @@ func (j *RemuxCacheJanitor) StartEviction(policy EvictionPolicy, logger *slog.Lo
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				j.sweepOnce(policy, logger)
+				// A panic in one sweep must not crash the whole server (weak-NAS,
+				// multi-user) nor stop future sweeps — recover per iteration, like
+				// every sibling background worker.
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							logger.Error("panic in remux cache sweep", slog.Any("panic", r))
+						}
+					}()
+					j.sweepOnce(policy, logger)
+				}()
 			}
 		}
 	}()

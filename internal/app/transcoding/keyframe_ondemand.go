@@ -181,6 +181,16 @@ func (k *KeyframeOnDemand) TryIndex(ctx context.Context, mediaID, filePath strin
 	done := make(chan bool, 1)
 	go func() {
 		defer func() {
+			// A panic in the prober/store must not crash the whole server (this
+			// runs during live playback negotiation). Recover, unblock the waiter.
+			if r := recover(); r != nil {
+				k.logger.Error("keyframe on-demand: panic in detached probe",
+					slog.Any("panic", r), slog.String("media_id", mediaID))
+				select {
+				case done <- false:
+				default:
+				}
+			}
 			<-k.sem
 			k.mu.Lock()
 			delete(k.inflight, mediaID)
