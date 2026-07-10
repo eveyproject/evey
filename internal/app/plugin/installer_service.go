@@ -759,9 +759,11 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 // UninstallPlugin guarantees a clean removal: any process is stopped (and
 // SIGKILL'd if Stop hangs), the install dir is removed (with retries to ride
 // out busy-file races during sandbox teardown), the DB row is deleted, and
-// permissions/event hooks fire. It always returns nil except when the plugin
-// id is unknown — the admin must never see "uninstall failed" because the
-// runner refused to die or a file was momentarily locked.
+// permissions/event hooks fire. The admin never sees "uninstall failed"
+// because the runner refused to die or a file was momentarily locked -
+// those steps are best-effort. Deleting the DB row is not: if it fails the
+// plugin is still considered installed, so the error is returned and the
+// PluginUninstalled event is not published.
 // swapUpgradeIntoPlace atomically promotes a validated, staged upgrade over the
 // live version: it stops the old runner, drops cached permissions, removes the
 // old install dir and renames the staging dir into finalDir. It deliberately
@@ -867,10 +869,15 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 	}
 
 	// 4) Delete the DB row. If this fails the FS is already gone (or queued
-	//    for cleanup); retrying the uninstall later is safe so we just log.
+	//    for cleanup) but the plugin isn't actually uninstalled yet — the row
+	//    still exists, so we must surface the error instead of reporting
+	//    success, and skip the PluginUninstalled event below (nothing was
+	//    actually uninstalled). The admin can retry; a repeated attempt is
+	//    safe since steps 1-3 are idempotent.
 	if err := s.plugins.Delete(ctx, id); err != nil {
 		slog.Error("plugin DB delete failed (admin can retry)",
 			slog.String("pluginID", id), slog.Any("err", err))
+		return fmt.Errorf("uninstall %s: delete plugin row: %w", id, err)
 	}
 
 	// 5) Fire the event so subscribers (slot registry, theme cache, …) drop

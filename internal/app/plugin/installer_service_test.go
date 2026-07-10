@@ -612,8 +612,23 @@ func TestUninstallPlugin_StoppedNoDir(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// deleteFailingRepo wraps a FakePluginRepository so only Delete fails,
+// leaving GetByID (called first by UninstallPlugin) working — the shared
+// fake's Err field would short-circuit that earlier lookup too.
+type deleteFailingRepo struct {
+	*plgfakes.FakePluginRepository
+	deleteErr error
+}
+
+func (r *deleteFailingRepo) Delete(ctx context.Context, id string) error {
+	if r.deleteErr != nil {
+		return r.deleteErr
+	}
+	return r.FakePluginRepository.Delete(ctx, id)
+}
+
 func TestUninstallPlugin_DeleteFails(t *testing.T) {
-	pluginRepo := plgfakes.NewFakePluginRepository()
+	pluginRepo := &deleteFailingRepo{FakePluginRepository: plgfakes.NewFakePluginRepository()}
 	runner := plgfakes.NewFakePluginRunner()
 	parser := plgfakes.NewFakeManifestParser()
 	bus := sharedfakes.NewFakeEventBus()
@@ -628,10 +643,41 @@ func TestUninstallPlugin_DeleteFails(t *testing.T) {
 		ID: "plg-delfail", Name: "del-fail", Language: "go",
 		Status: plugindomain.Stopped, Enabled: true,
 	}))
-	pluginRepo.Err = errors.New("db error")
+	pluginRepo.deleteErr = errors.New("db error")
 
 	err := svc.UninstallPlugin(ctx, "plg-delfail")
-	require.Error(t, err)
+	require.Error(t, err, "DB delete failure must surface, not be swallowed")
+
+	assert.Empty(t, bus.PublishedEvents(), "PluginUninstalled must not fire when the DB row still exists")
+}
+
+// TestUninstallPlugin_DeleteSucceeds_PublishesEvent is the DeleteFails
+// counterpart's happy path: Delete succeeds → nil error and the
+// PluginUninstalled event fires.
+func TestUninstallPlugin_DeleteSucceeds_PublishesEvent(t *testing.T) {
+	pluginRepo := &deleteFailingRepo{FakePluginRepository: plgfakes.NewFakePluginRepository()}
+	runner := plgfakes.NewFakePluginRunner()
+	parser := plgfakes.NewFakeManifestParser()
+	bus := sharedfakes.NewFakeEventBus()
+	pluginFS := plgfakes.NewFakePluginFileSystem()
+	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
+		appplugin.InstallerWithPluginDir("/tmp/test-plugins"),
+		appplugin.InstallerWithFileSystem(pluginFS),
+	)
+
+	ctx := context.Background()
+	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
+		ID: "plg-delok", Name: "del-ok", Language: "go",
+		Status: plugindomain.Stopped, Enabled: true,
+	}))
+
+	err := svc.UninstallPlugin(ctx, "plg-delok")
+	require.NoError(t, err)
+
+	events := bus.PublishedEvents()
+	require.Len(t, events, 1)
+	_, ok := events[0].(plugindomain.PluginUninstalled)
+	assert.True(t, ok)
 }
 
 // --- Preview ---
