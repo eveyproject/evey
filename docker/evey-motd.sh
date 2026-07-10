@@ -47,8 +47,9 @@ _evey_rows() {
     pre=(  'reset-password --user ' 'reindex-search' 'migrate ' 'validate-streaming --root ' \
            'reindex-no-cue --root ' 'artwork-gc' 'load-test --scenario balanced --max-viewers ' \
            'mkvgo ' '' )
-    desc=( "reset a user's password" "rebuild the search index" "up | down | version" \
-           "report seek / HLS readiness" "repair MKV seek indexes" "delete orphaned artwork" \
+    desc=( "reset a password (needs --user <email>)" "rebuild the search index" "up | down | version" \
+           "report seek / HLS readiness (needs --root <dir>)" "repair MKV seek indexes (needs --root <dir>; --apply writes)" \
+           "delete orphaned artwork (dry-run; --apply deletes)" \
            "ramp viewers, find the capacity ceiling" "inspect / repair a media file  ($mkv)" \
            "type at the prompt (Tab completes)" )
 }
