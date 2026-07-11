@@ -1,0 +1,147 @@
+package ffmpeg
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/evey-project/evey/internal/domain/transcoding"
+)
+
+// hls_encoders.go groups the codec/encoder resolution helpers shared by the
+// software and hardware argument builders.
+
+// resolveVideoEncoder maps a domain codec name ("h264"/"hevc"/"h265"/"av1") to
+// the ffmpeg encoder name. Empty → libx264 (previous hardcoded default).
+func resolveVideoEncoder(codec string) string {
+	switch strings.ToLower(codec) {
+	case "", "h264", "libx264":
+		return "libx264"
+	case "hevc", "h265", "libx265":
+		return "libx265"
+	case "av1", "libaom-av1", "libsvtav1":
+		// SVT-AV1, not libaom-av1: libaom is absent from the shipped
+		// jellyfin-ffmpeg build (only --enable-libsvtav1) AND is far too slow
+		// for streaming. SVT takes a numeric -preset (see svtAV1PresetArgs); it
+		// rejects the named x264/x265 presets outright.
+		return "libsvtav1"
+	}
+	return "libx264"
+}
+
+// svtAV1PresetArgs returns the speed/quality preset for a software video
+// encoder. libx264/libx265 use the named ladder ("veryfast"); libsvtav1 takes a
+// numeric 0-13 preset (higher = faster) and rejects the named values, failing
+// to open. AV1 software encoding is heavy, so on the weak-NAS target we lean
+// fast — 10 is a balanced default and the speed/quality knob if it needs tuning.
+func svtAV1PresetArgs(encoder string) []string {
+	if encoder == "libsvtav1" {
+		return []string{"-preset", svtAV1Preset}
+	}
+	return []string{"-preset", "veryfast"}
+}
+
+// softwareProfileLevelArgs returns the -profile:v / -level:v args for a software
+// encoder. "high"/"4.1" are H.264 (libx264) values: libx265 rejects them outright
+// ("x265 [error]: unknown profile <high>" → the encoder fails to open and the
+// whole session dies) and libaom-av1 uses different profile/level strings, so
+// non-libx264 encoders get nothing and derive the profile from the pixel format.
+// variantIdx < 0 emits the single-output form (-profile:v); else the per-rung
+// -profile:v:N form used by the multi-variant builder. Reachable via a client
+// PreferredVideoCodec=hevc on a software path (no HW HEVC) — found by audit.
+func softwareProfileLevelArgs(encoder string, variantIdx int) []string {
+	if encoder != "libx264" {
+		return nil
+	}
+	if variantIdx < 0 {
+		return []string{"-profile:v", "high", "-level:v", "4.1"}
+	}
+	return []string{
+		fmt.Sprintf("-profile:v:%d", variantIdx), "high",
+		fmt.Sprintf("-level:v:%d", variantIdx), "4.1",
+	}
+}
+
+// normalizeVideoCodec folds the codec through the single canonical alias
+// table (transcoding.CanonicalVideoCodec), then restricts the result to the
+// codecs this package can build a hardware encoder name for ("h264"/"hevc"/
+// "av1"). Empty codec defaults to h264 (matches resolveVideoEncoder's
+// libx264 default). Returns "" for anything unrecognised or not
+// HW-encodable (e.g. vp9) so callers fall back to software.
+func normalizeVideoCodec(codec string) string {
+	if codec == "" {
+		return "h264"
+	}
+	switch canon := transcoding.CanonicalVideoCodec(codec); canon {
+	case "h264", "hevc", "av1":
+		return canon
+	}
+	return ""
+}
+
+// videoEncoderFor maps a domain codec + hardware backend to the ffmpeg
+// encoder name. accel None/empty/invalid → software (resolveVideoEncoder).
+// When a backend is requested but the codec has no hardware encoder for it
+// (unrecognised codec), it falls back to software so the command stays valid
+// — defensive only: the wiring layer already gates HWAccel on per-codec
+// capability probing (HWDetector.SupportsCodec), so a set HWAccel is trusted.
+func videoEncoderFor(codec string, accel transcoding.HWAccelType) string {
+	if accel == "" || accel == transcoding.None || !accel.IsValid() {
+		return resolveVideoEncoder(codec)
+	}
+	base := normalizeVideoCodec(codec)
+	if base == "" {
+		return resolveVideoEncoder(codec)
+	}
+	switch accel {
+	case transcoding.NVENC:
+		return base + "_nvenc"
+	case transcoding.VAAPI:
+		return base + "_vaapi"
+	case transcoding.QSV:
+		return base + "_qsv"
+	}
+	return resolveVideoEncoder(codec)
+}
+
+// resolveAudioEncoder maps a domain audio codec to the ffmpeg encoder name.
+// Empty → aac (previous hardcoded default).
+func resolveAudioEncoder(codec string) string {
+	switch strings.ToLower(codec) {
+	case "", "aac":
+		return "aac"
+	case "ac3":
+		return "ac3"
+	case "eac3":
+		return "eac3"
+	case "opus", "libopus":
+		return "libopus"
+	}
+	return "aac"
+}
+
+// scaledAudioBitrateKbps scales the ladder's per-rung audio bitrate (sized
+// for stereo) to the transcode's channel target: ~64 kbps per channel beyond
+// stereo (5.1 → 384k), capped at 512k. Deterministic in (base, maxChannels) —
+// both hashed — so a given fingerprint always yields the same audio bytes.
+func scaledAudioBitrateKbps(base int64, maxChannels int) int64 {
+	if maxChannels <= 2 {
+		return base
+	}
+	scaled := int64(maxChannels) * 64
+	if scaled < base {
+		return base
+	}
+	if scaled > 512 {
+		return 512
+	}
+	return scaled
+}
+
+// resolveAudioChannels returns the -ac value. Zero MaxAudioChannels preserves
+// the previous default of 2.
+func resolveAudioChannels(maxChannels int) string {
+	if maxChannels > 0 {
+		return fmt.Sprintf("%d", maxChannels)
+	}
+	return "2"
+}

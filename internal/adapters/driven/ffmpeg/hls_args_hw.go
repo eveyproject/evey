@@ -1,0 +1,324 @@
+package ffmpeg
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+
+	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/hdr"
+)
+
+// hls_args_hw.go groups the hardware-accelerated ffmpeg argument builders
+// (tone-mapping, scale/deinterlace filters, HW encoder args and init).
+
+// resolveToneMap returns the HDR->SDR tonemap filter for this transcode, or "".
+// It honours two signals: the explicit ToneMap decision baked into the opts by
+// the orchestrated VOD path (which does not thread real Streams), and the
+// stream-based detection used when real Streams ARE present (legacy/direct path).
+// A client that renders HDR natively (HDRSupported) is never tonemapped.
+// resolveToneMap returns the HDR->SDR tonemap filter, with the downscale to
+// dstWidth folded into the tonemap's linearizing zscale so the heavy float
+// pipeline runs at delivery resolution (see hdr.ToneMapOptions.DstWidth).
+// dstWidth<=0 keeps a full-resolution tonemap (the caller scales separately,
+// e.g. the subtitle burn-in path).
+func resolveToneMap(opts transcoding.HLSProcessOpts, dstWidth int) string {
+	if opts.HDRSupported {
+		return ""
+	}
+	if opts.ToneMap {
+		// Generic HDR10/HLG -> SDR (bt709) tonemap. The filter (zscale linearize
+		// -> tonemap -> bt709) reads the input transfer/primaries from the decoded
+		// frame's colour metadata, so it needs no per-stream params here.
+		tmOpts := hdr.DefaultToneMapOptions()
+		tmOpts.DstWidth = dstWidth
+		tmOpts.UseTonemapx = tonemapxAvailable("ffmpeg")
+		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, tmOpts)
+	}
+	return detectToneMap(opts.HDRSupported, opts.Streams, dstWidth)
+}
+
+func detectToneMap(hdrSupported bool, streams []*library.MediaStream, dstWidth int) string {
+	if hdrSupported {
+		return ""
+	}
+	hdrStreams := make([]hdr.VideoStream, len(streams))
+	for i, st := range streams {
+		hdrStreams[i] = st
+	}
+	hdrInfo := hdr.DetectHDR(hdrStreams)
+	if hdrInfo.IsHDR {
+		tmOpts := hdr.DefaultToneMapOptions()
+		tmOpts.DstWidth = dstWidth
+		tmOpts.UseTonemapx = tonemapxAvailable("ffmpeg")
+		return hdr.BuildToneMapFilter(hdrInfo, tmOpts)
+	}
+	return ""
+}
+
+// --- hardware-accelerated transcode path ---
+//
+// v1 handles the "simple" filtergraph: a zero-copy decode → GPU deinterlace
+// (no-op on progressive, NVENC/VAAPI only) → GPU scale → GPU encode pipeline.
+// HDR tonemapping and bitmap-subtitle burn-in still take the software path
+// (their GPU filtergraphs are backend-specific and depend on optional ffmpeg
+// filters that minimal/NAS builds may lack). The orchestrated VOD path
+// currently always hits this simple case (Streams=nil, SubtitleCodec unset ⇒ no
+// tonemap/burn-in), so v1 covers 100% of live VOD transcodes.
+//
+// The arg shapes here are validated end-to-end on real hardware (NVENC on an
+// RTX 4070 Ti, VAAPI on a Ryzen iGPU): scale_cuda/scale_vaapi both accept a
+// `-2` auto-height, split fans out GPU surfaces, and the *_nvenc/*_vaapi
+// encoders consume them with no hwdownload round-trip.
+
+// hwUsable reports whether the hardware encode path applies to this job. The
+// wiring layer only sets HWAccel to a non-None value after confirming the flag
+// is on and a detected device supports the codec; this gate additionally keeps
+// the complex-filtergraph cases (tonemap, burn-in) on the proven software path.
+func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool {
+	if opts.HWAccel == "" || opts.HWAccel == transcoding.None || !opts.HWAccel.IsValid() || burnIn {
+		return false
+	}
+	// A tone-map normally keeps the software path. The exception: the host probed
+	// GPU tone-mapping AND it's wired into this request (opts.HWTonemap) AND the
+	// backend has a HW tone-map filter — then the GPU folds HDR->SDR in-pipeline.
+	if toneMap != "" {
+		return opts.HWTonemap && hwTonemapFilter(opts.HWAccel) != ""
+	}
+	return true
+}
+
+// hwTonemapFilter returns the GPU HDR->SDR tone-map filter for the backend, or
+// "" when no HW tone-mapper is wired. Inserted before the scaler so the GPU
+// folds HDR (and 10-bit) in one pass. NVENC's HW tone-map path is libplacebo
+// (Vulkan) which is not modelled here, so NVENC tone-maps in software.
+func hwTonemapFilter(accel transcoding.HWAccelType) string {
+	switch accel {
+	case transcoding.VAAPI:
+		return "tonemap_vaapi=format=nv12:matrix=bt709:primaries=bt709:transfer=bt709"
+	case transcoding.QSV:
+		return "vpp_qsv=tonemap=1:format=nv12"
+	}
+	return ""
+}
+
+// hwInitArgs returns the pre-`-i` flags that put decode + filtering on the GPU
+// for a zero-copy transcode. NVENC selects the device through CUDA; VAAPI/QSV
+// take an explicit DRM render node when one is provided (empty → ffmpeg
+// default device).
+func hwInitArgs(accel transcoding.HWAccelType, device string) []string {
+	switch accel {
+	case transcoding.NVENC:
+		return []string{"-hwaccel", "cuda", "-hwaccel_output_format", "cuda"}
+	case transcoding.VAAPI:
+		a := []string{"-hwaccel", "vaapi", "-hwaccel_output_format", "vaapi"}
+		if device != "" {
+			a = append(a, "-hwaccel_device", device)
+		}
+		return a
+	case transcoding.QSV:
+		a := []string{"-hwaccel", "qsv", "-hwaccel_output_format", "qsv"}
+		if device != "" {
+			a = append(a, "-qsv_device", device)
+		}
+		return a
+	}
+	return nil
+}
+
+// hwScaleFilter returns the GPU scaler for the backend. Width pins the output
+// width; `-2` keeps the source aspect ratio rounded to an even height (which
+// every HW encoder requires). format=nv12 forces 8-bit 4:2:0 output: 10-bit
+// sources (HEVC Main10 / yuv420p10le, ubiquitous for 2160p) otherwise reach the
+// 8-bit-only h264 HW encoders as 10-bit and fail with "10 bit encode not
+// supported" → "device doesn't support required NVENC features", producing no
+// segment. This mirrors the software path's `-pix_fmt yuv420p`. (No HDR tonemap
+// here, matching the software path's current behaviour.)
+func hwScaleFilter(accel transcoding.HWAccelType, width int) string {
+	switch accel {
+	case transcoding.NVENC:
+		return fmt.Sprintf("scale_cuda=%d:-2:format=nv12", width)
+	case transcoding.VAAPI:
+		return fmt.Sprintf("scale_vaapi=%d:-2:format=nv12", width)
+	case transcoding.QSV:
+		return fmt.Sprintf("scale_qsv=%d:-2:format=nv12", width)
+	}
+	return fmt.Sprintf("scale=%d:-2", width)
+}
+
+// hwDeinterlaceFilter returns a GPU deinterlacer that, like the software
+// deinterlaceFilter ("bwdif=deint=interlaced"), only touches frames the decoder
+// flags as interlaced and passes progressive content through untouched — so it
+// is always safe to prepend, never doubles the frame rate, and keeps the work
+// on the GPU surfaces (no hwdownload round-trip). Returns "" for backends with
+// no field-flag-respecting HW deinterlacer:
+//   - NVENC/CUDA: yadif_cuda with deint=interlaced (mode 0 ⇒ one frame per frame)
+//   - VAAPI: deinterlace_vaapi (auto=1 default ⇒ progressive passes through),
+//     which covers AMD iGPUs and Intel iGPUs driven through VAAPI
+//   - QSV: empty — vpp_qsv's deinterlace has no "only-if-flagged" mode and would
+//     wrongly deinterlace progressive content; left to the software path / a
+//     follow-up that gates on a probed interlace signal.
+func hwDeinterlaceFilter(accel transcoding.HWAccelType) string {
+	switch accel {
+	case transcoding.NVENC:
+		return "yadif_cuda=deint=interlaced"
+	case transcoding.VAAPI:
+		return "deinterlace_vaapi"
+	}
+	return ""
+}
+
+// hwEncoderQualityArgs returns the encoder-specific quality flags applied to
+// the output stream currently being defined (no stream specifier — ffmpeg
+// binds them to the next `-c:v`). The BASELINE (preset, plus NVENC's required
+// -forced-idr) is always emitted and is byte-for-byte the pre-probe behaviour.
+// The optional streaming tuning (b-frames, rc-lookahead, spatial/temporal AQ,
+// b_ref_mode) is gated on `features` — the per-option set the calibration
+// probe confirmed this host's encoder ACCEPTS (capability.HWFeatures forwarded
+// via HLSProcessOpts.HWFeatures). An option absent from `features` is never
+// passed, so an older NVENC/QSV/VAAPI chip that rejects it is never handed it,
+// and the level-2 safety net catches anything the probe missed. Empty features
+// ⇒ the proven conservative baseline. No `-pix_fmt yuv420p` — GPU surfaces.
+func hwEncoderQualityArgs(accel transcoding.HWAccelType, features []string) []string {
+	has := func(f string) bool {
+		return slices.Contains(features, f)
+	}
+	switch accel {
+	case transcoding.NVENC:
+		// -forced-idr 1 is REQUIRED and unconditional: without it NVENC honours
+		// -force_key_frames with plain (non-IDR) I-frames the HLS segmenter
+		// won't cut on, so segment lengths drift off the precomputed VOD
+		// cadence (validated on an RTX 4070 Ti). It is supported on every NVENC
+		// generation, so it is not a probed option.
+		args := []string{"-preset", "p4", "-forced-idr", "1"}
+		if has("rc_lookahead") {
+			args = append(args, "-rc-lookahead", "20")
+		}
+		if has("spatial_aq") {
+			args = append(args, "-spatial-aq", "1")
+		}
+		if has("temporal_aq") {
+			args = append(args, "-temporal-aq", "1")
+		}
+		if has("b_ref_mode") {
+			args = append(args, "-b_ref_mode", "middle")
+		}
+		if has("bframes") {
+			args = append(args, "-bf", "3")
+		}
+		return args
+	case transcoding.QSV:
+		// QSV baseline: veryfast keeps cold starts low on weak iGPUs. -forced_idr
+		// is gated because an older pre-Skylake/Apollo-Lake QSV rejects unknown
+		// options and would fail the whole encode — only emit it once probed.
+		args := []string{"-preset", "veryfast"}
+		if has("forced_idr") {
+			args = append(args, "-forced_idr", "1")
+		}
+		return args
+	case transcoding.VAAPI:
+		// VAAPI rate control is the driver default; only add probed extras.
+		var args []string
+		if has("bframes") {
+			args = append(args, "-bf", "3")
+		}
+		return args
+	}
+	return nil
+}
+
+// buildSingleTranscodeHWArgs is the GPU single-rung equivalent of
+// buildSingleTranscodeArgs. Mirrors that builder's container choice (.ts) so a
+// SW↔HW fallback never changes on-disk naming for the same job.
+func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
+	p := opts.Profiles[len(opts.Profiles)-1]
+
+	var args []string
+	if opts.StartSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+	}
+	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
+	args = appendInputModifiers(args, opts.ReadRate)
+	args = append(args, "-i", opts.FilePath)
+	// The audio input decodes in software: the hwaccel flags above bind to the
+	// VIDEO input only (they precede its -i).
+	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
+		return appendInputModifiers(a, opts.ReadRate)
+	})
+
+	vf := hwScaleFilter(opts.HWAccel, p.Width)
+	if opts.HWTonemap {
+		if tm := hwTonemapFilter(opts.HWAccel); tm != "" {
+			vf = tm + "," + vf // GPU HDR->SDR fold before the scaler
+		}
+	}
+	if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
+		vf = d + "," + vf
+	}
+	args = append(args, "-map", "0:v:0", "-vf", vf)
+	args = append(args, "-c:v", videoEncoderFor(opts.VideoCodec, opts.HWAccel))
+	args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.HWFeatures)...)
+	args = append(args, "-b:v", fmt.Sprintf("%dk", p.VideoBitrate))
+	args = append(args, hlsForceKeyframesArgs...)
+	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
+
+	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
+}
+
+// buildMultiVariantHWArgs is the GPU equivalent of buildMultiVariantArgs: a
+// single decode fed into a GPU split, one GPU scaler per rung, one HW encoder
+// per rung — zero host-memory round-trip. Audio stays software-encoded.
+func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
+	n := len(opts.Profiles)
+	vcodec := videoEncoderFor(opts.VideoCodec, opts.HWAccel)
+
+	var args []string
+	if opts.StartSec > 0 {
+		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
+	}
+	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
+	args = appendInputModifiers(args, opts.ReadRate)
+	args = append(args, "-i", opts.FilePath)
+	// The audio input decodes in software: the hwaccel flags above bind to the
+	// VIDEO input only (they precede its -i).
+	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
+		return appendInputModifiers(a, opts.ReadRate)
+	})
+	// Same source-PTS preservation as the software multi-variant builder: a
+	// rafale spawned at seg N>0 must emit fMP4 fragments whose tfdt matches the
+	// VOD manifest's EXTINF, or the browser rejects them.
+	args = append(args, "-copyts")
+
+	splitOutputs := make([]string, n)
+	for i := range n {
+		splitOutputs[i] = fmt.Sprintf("[v%d]", i)
+	}
+	// Deinterlace once on the source surface before the GPU split, so every rung
+	// scales from progressive frames (no-op on progressive sources).
+	src := "[0:v]"
+	if d := hwDeinterlaceFilter(opts.HWAccel); d != "" {
+		src += d + ","
+	}
+	// Tone-map once on the source surface before the GPU split (not per-rung).
+	if opts.HWTonemap {
+		if tm := hwTonemapFilter(opts.HWAccel); tm != "" {
+			src += tm + ","
+		}
+	}
+	filterParts := []string{fmt.Sprintf("%ssplit=%d%s", src, n, strings.Join(splitOutputs, ""))}
+	for i, p := range opts.Profiles {
+		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s[o%d]", i, hwScaleFilter(opts.HWAccel, p.Width), i))
+	}
+	args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
+
+	for i, p := range opts.Profiles {
+		args = append(args, "-map", fmt.Sprintf("[o%d]", i), fmt.Sprintf("-c:v:%d", i), vcodec)
+		args = append(args, hwEncoderQualityArgs(opts.HWAccel, opts.HWFeatures)...)
+		args = append(args, fmt.Sprintf("-b:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate))
+		args = append(args, audioVariantArgs(opts, i, p.AudioBitrate)...)
+	}
+	args = append(args, hlsForceKeyframesArgs...)
+
+	return appendHLSMultiVariantTail(args, opts, n)
+}
