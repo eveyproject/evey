@@ -86,6 +86,79 @@ func videoKeyframesMissing(streams []*library.MediaStream) bool {
 	return false
 }
 
+// clientProfileFromRequest layers the client's declared capabilities over the
+// conservative web default. Only an explicit signal lifts a default: a client
+// that omits HDR support keeps tonemapping rather than direct-playing raw HDR
+// to a display that would wash it out.
+func clientProfileFromRequest(req *eveyv1.GetStreamInfoRequest) transcoding.ClientProfile {
+	client := transcoding.DefaultWebProfile
+	if len(req.SupportedCodecs) > 0 {
+		client.VideoCodecs = req.SupportedCodecs
+	}
+	if len(req.SupportedAudioCodecs) > 0 {
+		client.AudioCodecs = req.SupportedAudioCodecs
+	}
+	if len(req.SupportedContainers) > 0 {
+		client.Containers = req.SupportedContainers
+	}
+	if req.MaxWidth > 0 {
+		client.MaxWidth = int(req.MaxWidth)
+	}
+	if req.MaxHeight > 0 {
+		client.MaxHeight = int(req.MaxHeight)
+	}
+	if req.SupportsHdr {
+		client.SupportsHDR = true
+	}
+	return client
+}
+
+// resolvePlaybackPrefs builds the transcoding preferences and the effective max
+// bitrate for this request: the network type comes from the request, everything
+// else from the caller's profile (a tighter profile bitrate wins). It then folds
+// in the tracks the client PRE-SELECTED (absolute probed stream indices, the
+// same numbering MediaStreams exposes; 0 = "not set") so the decision judges the
+// streams that will actually play - a selected bitmap subtitle forces the
+// burn-in transcode instead of advertising a direct_play that would silently
+// drop it, and a selected audio track is judged instead of the container
+// default. Unknown indices are ignored (the historical default-track behaviour).
+func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.GetStreamInfoRequest, streams []*library.MediaStream) (apptranscoding.TranscodingPreferences, int) {
+	var maxBitrateKbps int
+	if req.MaxBitrate > 0 {
+		maxBitrateKbps = int(req.MaxBitrate / 1000)
+	}
+
+	prefs := apptranscoding.DefaultTranscodingPreferences()
+	prefs.NetworkType = normalizeNetworkType(req.NetworkType)
+	if h.userQuery != nil {
+		if claims := interceptors.ClaimsFromContext(ctx); claims != nil && claims.ProfileID != "" {
+			if prof, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID); err == nil && prof != nil {
+				parsed := apptranscoding.ParseTranscodingPreferences(prof.Preferences)
+				// Keep network type from request; everything else from profile.
+				parsed.NetworkType = prefs.NetworkType
+				prefs = parsed
+				if prof.MaxBitrateKbps != nil && *prof.MaxBitrateKbps > 0 {
+					if maxBitrateKbps == 0 || *prof.MaxBitrateKbps < maxBitrateKbps {
+						maxBitrateKbps = *prof.MaxBitrateKbps
+					}
+				}
+			}
+		}
+	}
+
+	if idx := int(req.AudioStreamIndex); idx > 0 {
+		if rel, ok := typeRelativeIndex(streams, library.StreamTypeAudio, idx); ok {
+			prefs.AudioTrack = rel
+		}
+	}
+	if idx := int(req.SubtitleStreamIndex); idx > 0 {
+		if rel, ok := typeRelativeIndex(streams, library.StreamTypeSubtitle, idx); ok {
+			prefs.SubtitleBurnInTrack = rel
+		}
+	}
+	return prefs, maxBitrateKbps
+}
+
 func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStreamInfoRequest) (*eveyv1.StreamInfo, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.playback.GetStreamInfo")
 	defer span.End()
@@ -141,71 +214,8 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		resp.MediaStreams = append(resp.MediaStreams, mediaStreamToProto(s))
 	}
 
-	client := transcoding.DefaultWebProfile
-	if len(req.SupportedCodecs) > 0 {
-		client.VideoCodecs = req.SupportedCodecs
-	}
-	if len(req.SupportedAudioCodecs) > 0 {
-		client.AudioCodecs = req.SupportedAudioCodecs
-	}
-	if len(req.SupportedContainers) > 0 {
-		client.Containers = req.SupportedContainers
-	}
-	if req.MaxWidth > 0 {
-		client.MaxWidth = int(req.MaxWidth)
-	}
-	if req.MaxHeight > 0 {
-		client.MaxHeight = int(req.MaxHeight)
-	}
-	// Conservative: only an explicit client signal lifts the SDR default, so a
-	// client that doesn't send it (or an SDR panel) keeps transcoding/tonemapping
-	// HDR sources rather than direct-playing raw HDR to a display that would
-	// render it washed-out.
-	if req.SupportsHdr {
-		client.SupportsHDR = true
-	}
-
-	var maxBitrateKbps int
-	if req.MaxBitrate > 0 {
-		maxBitrateKbps = int(req.MaxBitrate / 1000)
-	}
-
-	prefs := apptranscoding.DefaultTranscodingPreferences()
-	prefs.NetworkType = normalizeNetworkType(req.NetworkType)
-	if h.userQuery != nil {
-		if claims := interceptors.ClaimsFromContext(ctx); claims != nil && claims.ProfileID != "" {
-			if prof, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID); err == nil && prof != nil {
-				parsed := apptranscoding.ParseTranscodingPreferences(prof.Preferences)
-				// Keep network type from request; everything else from profile.
-				parsed.NetworkType = prefs.NetworkType
-				prefs = parsed
-				if prof.MaxBitrateKbps != nil && *prof.MaxBitrateKbps > 0 {
-					if maxBitrateKbps == 0 || *prof.MaxBitrateKbps < maxBitrateKbps {
-						maxBitrateKbps = *prof.MaxBitrateKbps
-					}
-				}
-			}
-		}
-	}
-
-	// Honor the tracks the client PRE-SELECTED (absolute probed stream indices,
-	// the same numbering MediaStreams exposes; 0 = "not set" — absolute 0 is
-	// the video stream in practice). The decision then judges the streams that
-	// will actually play: a selected bitmap subtitle forces the burn-in
-	// transcode instead of advertising a direct_play that would silently drop
-	// it, and a selected audio track is judged instead of the container
-	// default (the gRPC mirror of the HLS-side audio fix). Unknown indices are
-	// ignored — the historical default-track behaviour.
-	if idx := int(req.AudioStreamIndex); idx > 0 {
-		if rel, ok := typeRelativeIndex(streams, library.StreamTypeAudio, idx); ok {
-			prefs.AudioTrack = rel
-		}
-	}
-	if idx := int(req.SubtitleStreamIndex); idx > 0 {
-		if rel, ok := typeRelativeIndex(streams, library.StreamTypeSubtitle, idx); ok {
-			prefs.SubtitleBurnInTrack = rel
-		}
-	}
+	client := clientProfileFromRequest(req)
+	prefs, maxBitrateKbps := h.resolvePlaybackPrefs(ctx, req, streams)
 
 	sourcePath := ""
 	if item.File != nil {
