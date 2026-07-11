@@ -695,12 +695,19 @@ func TranscodeDisallowed(d *transcoding.PlaybackDecision, prefs TranscodingPrefe
 	return !prefs.AllowTranscoding && d.PlayMethod == "transcode"
 }
 
+// Fallback bitrates (kbps) when a transcode decision carries no explicit
+// target: a mid-quality 1080p video rung and transparent stereo audio.
+const (
+	defaultVideoBitrateKbps = 4000
+	defaultAudioBitrateKbps = 192
+)
+
 func applyDefaultBitrates(d *transcoding.PlaybackDecision) {
 	if d.VideoDecision == "transcode" && d.VideoBitrate == 0 {
-		d.VideoBitrate = 4000
+		d.VideoBitrate = defaultVideoBitrateKbps
 	}
 	if d.AudioDecision == "transcode" && d.AudioBitrate == 0 {
-		d.AudioBitrate = 192
+		d.AudioBitrate = defaultAudioBitrateKbps
 	}
 }
 

@@ -111,6 +111,11 @@ const introDetectionAlgoVersion = 3
 // detector's sampling variance, then park until introDetectionAlgoVersion bumps).
 const maxIntroDetectionAttempts = 2
 
+// backfillAllSeasonsLimit is the list-page size the admin backfill uses to
+// fetch every season of a library in one query - an "unbounded" sentinel far
+// above any real library.
+const backfillAllSeasonsLimit = 10000
+
 // introDeferPoll is how often a detection trigger re-checks for idle while
 // playback is active - it defers (re-arms) rather than decoding on top of a
 // live transcode on a weak NAS.
@@ -419,7 +424,9 @@ func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID s
 		seasons, err := s.mediaItems.List(ctx, domainlibrary.ListMediaItemsFilter{
 			LibraryID: &libID,
 			Type:      &seasonType,
-			Limit:     10000,
+			// Effectively "all seasons": no real library approaches this
+			// many, and the admin backfill must not silently truncate.
+			Limit: backfillAllSeasonsLimit,
 		})
 		if err != nil {
 			return 0, fmt.Errorf("intro detection admin backfill: list library seasons: %w", err)

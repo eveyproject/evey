@@ -18,6 +18,13 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
+// Single-item enrich pipeline sizing: a small worker pool keeps provider
+// rate limits comfortable while the buffered queue absorbs scan bursts.
+const (
+	enrichQueueDepth  = 100
+	enrichWorkerCount = 4
+)
+
 // BulkItemEnricher is an optional extension of ItemEnricher for batch auto-enrichment.
 //
 // Kept separate from ForceBulkItemEnricher (rather than folded into one
@@ -342,8 +349,8 @@ func (s *CommandService) StartEnrichmentWorker(ctx context.Context) {
 		})
 	}
 	if singleOK && s.mediaItems != nil {
-		queue := make(chan string, 100)
-		for range 4 {
+		queue := make(chan string, enrichQueueDepth)
+		for range enrichWorkerCount {
 			s.workerWg.Go(func() {
 				for {
 					select {

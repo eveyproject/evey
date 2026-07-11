@@ -498,14 +498,26 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 // boosts recent titles (post-2015), and uses TMDB popularity as a tiebreaker.
 // Designed to rescue cases like "It" → 2025 "Welcome to Derry" where the
 // 1990 miniseries outranks the remake by raw popularity.
+// Tuning knobs for seriesFallbackScore. epScoreBase dominates when the
+// episode count is close (100 at exact match, halved per episode of
+// distance); recency adds recencyWeightPerYear per year after
+// recencyPivotYear; popularity is capped at maxPopularityScore so a
+// blockbuster can tip a tie but never outvote the episode-count signal.
+const (
+	epScoreBase          = 100.0
+	recencyPivotYear     = 2015
+	recencyWeightPerYear = 2.0
+	maxPopularityScore   = 50.0
+)
+
 func seriesFallbackScore(diskEp, tmdbEp int, year *int, popularity float64) float64 {
 	diff := math.Abs(float64(diskEp - tmdbEp))
-	epScore := 100.0 / (1.0 + diff)
+	epScore := epScoreBase / (1.0 + diff)
 	yearScore := 0.0
-	if year != nil && *year >= 2015 {
-		yearScore = float64(*year-2015) * 2.0
+	if year != nil && *year >= recencyPivotYear {
+		yearScore = float64(*year-recencyPivotYear) * recencyWeightPerYear
 	}
-	popScore := math.Min(popularity, 50.0)
+	popScore := math.Min(popularity, maxPopularityScore)
 	return epScore + yearScore + popScore
 }
 
