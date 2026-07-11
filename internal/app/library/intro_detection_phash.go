@@ -72,7 +72,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	if item.File != nil {
 		durationMs = item.File.Duration.Milliseconds()
 	}
-	cutoffFrame := frameCutoff(manifest, durationMs, cfg.FrameCutoffPercent)
+	maxFrames := frameCutoff(manifest, durationMs, cfg.FrameCutoffPercent)
 
 	// Batch the trickplay manifest read for the whole page instead of one query
 	// per sibling — this loop hits the same N+1 as PropagateSegment's sibling
@@ -116,7 +116,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 		if sib.File != nil {
 			sibFingerprint = sib.File.Fingerprint
 		}
-		hashes, _, hashErr := s.extractEpisodeHashesCached(ctx, string(sib.ID), sibFingerprint, sibManifest, cutoffFrame)
+		hashes, _, hashErr := s.extractEpisodeHashesCached(ctx, string(sib.ID), sibFingerprint, sibManifest, maxFrames)
 		if hashErr != nil || len(hashes) == 0 {
 			continue
 		}
@@ -134,7 +134,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	if item.File != nil {
 		targetFingerprint = item.File.Fingerprint
 	}
-	targetHashes, targetMs, hashErr := s.extractEpisodeHashesCached(ctx, string(item.ID), targetFingerprint, manifest, cutoffFrame)
+	targetHashes, targetMs, hashErr := s.extractEpisodeHashesCached(ctx, string(item.ID), targetFingerprint, manifest, maxFrames)
 	if hashErr != nil || len(targetHashes) == 0 {
 		return nil, nil
 	}
@@ -224,7 +224,7 @@ func allCandidatesGapTolerant(introHashes map[uint64]bool, targetHashes []uint64
 			last.end = r.end
 			last.matchCount += r.matchCount
 		} else {
-			merged = append(merged, span{r.start, r.end, r.matchCount})
+			merged = append(merged, span(r))
 		}
 	}
 
@@ -254,22 +254,22 @@ func allCandidatesGapTolerant(introHashes map[uint64]bool, targetHashes []uint64
 // matches the current MediaFile.Fingerprint and algo_version is current.
 // Falls back to extractEpisodeHashes on cache miss / invalidation, and
 // writes the FULL manifest hash sequence back when the cache is wired.
-// Truncation to cutoffFrame is applied to the returned slice but the cache
+// Truncation to maxFrames is applied to the returned slice but the cache
 // stores the unsliced version, so a later call with a larger cutoff still
 // hits the cache (e.g. PropagateSegment uses manifestTotalFrames while
 // pHashPass uses 25%).
 //
 // fileFingerprint can be empty (pre-fingerprint media files); in that case
 // the cache is skipped (read AND write).
-func (s *IntroDetectionService) extractEpisodeHashesCached(ctx context.Context, mediaItemID, fileFingerprint string, manifest *domainlibrary.TrickplayManifest, cutoffFrame int) ([]uint64, []int64, error) {
+func (s *IntroDetectionService) extractEpisodeHashesCached(ctx context.Context, mediaItemID, fileFingerprint string, manifest *domainlibrary.TrickplayManifest, maxFrames int) ([]uint64, []int64, error) {
 	truncate := func(h []uint64, t []int64) ([]uint64, []int64) {
-		if cutoffFrame > 0 && cutoffFrame < len(h) {
-			return h[:cutoffFrame], t[:cutoffFrame]
+		if maxFrames > 0 && maxFrames < len(h) {
+			return h[:maxFrames], t[:maxFrames]
 		}
 		return h, t
 	}
 	if s.fpCache == nil || fileFingerprint == "" {
-		return s.extractEpisodeHashes(manifest, cutoffFrame)
+		return s.extractEpisodeHashes(manifest, maxFrames)
 	}
 	cached, err := s.fpCache.Get(ctx, mediaItemID)
 	if err == nil && cached.FileFingerprint == fileFingerprint && cached.AlgoVersion == currentPHashAlgoVersion {
@@ -308,7 +308,7 @@ func (s *IntroDetectionService) extractEpisodeHashesCached(ctx context.Context, 
 //
 // Returns an error if the sidecar is missing — there is no fallback to
 // interval-based timing.
-func (s *IntroDetectionService) extractEpisodeHashes(manifest *domainlibrary.TrickplayManifest, cutoffFrame int) ([]uint64, []int64, error) {
+func (s *IntroDetectionService) extractEpisodeHashes(manifest *domainlibrary.TrickplayManifest, maxFrames int) ([]uint64, []int64, error) {
 	tilesPerSprite := manifest.TileWidth * manifest.TileHeight
 	if tilesPerSprite <= 0 {
 		return nil, nil, nil
@@ -334,7 +334,7 @@ func (s *IntroDetectionService) extractEpisodeHashes(manifest *domainlibrary.Tri
 			break
 		}
 		for _, h := range tileHashes {
-			if frameIdx >= cutoffFrame || frameIdx >= len(sidecar.FrameTimestamps) {
+			if frameIdx >= maxFrames || frameIdx >= len(sidecar.FrameTimestamps) {
 				return hashes, ms, nil
 			}
 			hashes = append(hashes, h)

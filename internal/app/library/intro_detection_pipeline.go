@@ -16,16 +16,17 @@ import (
 // pickWindowMatchingDuration returns the window whose duration is closest to ref,
 // within a 50% tolerance, or nil if none qualifies.
 func pickWindowMatchingDuration(windows []matchWindow, refDurationMs int64) *matchWindow {
+	const durationToleranceFactor = 2 // accept a window within [ref/2, ref*2] (the 50% tolerance)
 	var best *matchWindow
 	var bestDelta int64 = -1
 	for i, w := range windows {
 		dur := w.endMs - w.startMs
+		if dur*durationToleranceFactor < refDurationMs || dur > refDurationMs*durationToleranceFactor {
+			continue
+		}
 		delta := dur - refDurationMs
 		if delta < 0 {
 			delta = -delta
-		}
-		if dur*2 < refDurationMs || dur > refDurationMs*2 {
-			continue
 		}
 		if bestDelta < 0 || delta < bestDelta {
 			bestDelta = delta
@@ -256,10 +257,12 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 		endSec := float64(w.endMs) / 1000
 		refStart, refEnd, err := s.detector.PrecisionPass(ctx, filePath, startSec, endSec, padSec)
 
+		// A refined boundary is only plausible within this margin of the pHash anchor.
+		sanityMarginMs := int64(2 * padSec * 1000)
 		usePrecision := err == nil &&
 			refStart > 0 && refEnd > refStart &&
-			refEnd >= w.startMs-int64(2*padSec*1000) &&
-			refStart <= w.endMs+int64(2*padSec*1000) &&
+			refEnd >= w.startMs-sanityMarginMs &&
+			refStart <= w.endMs+sanityMarginMs &&
 			// PrecisionPass returns the *input* (startMs, endMs) when it
 			// finds nothing — detect the no-op to fall through to padding.
 			(refStart != w.startMs || refEnd != w.endMs)
@@ -269,10 +272,7 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 		if usePrecision {
 			newStart, newEnd, source = refStart, refEnd, "silencedetect"
 		} else {
-			newStart = w.startMs - fallbackPadStartMs
-			if newStart < 0 {
-				newStart = 0
-			}
+			newStart = max(w.startMs-fallbackPadStartMs, 0)
 			newEnd = w.endMs + fallbackPadEndMs
 			source = "fixed_pad"
 		}
@@ -342,33 +342,46 @@ func (s *IntroDetectionService) refineEndBySubtitleOnset(ctx context.Context, fi
 // little slack — the recurring-audio run overshoots, so the true resume is at or
 // before it.
 func (s *IntroDetectionService) fuseIntroEnd(ctx context.Context, filePath string, startMs, audioEnd int64) (int64, float64) {
+	// Relative weights of the three end witnesses: the subtitle dialogue-resume
+	// is the most trustworthy, the recurring-audio run end always exists but
+	// overshoots, silence/black sits in between.
+	const (
+		audioVoteWeight      = 0.4
+		subtitleVoteWeight   = 1.0
+		silenceVoteWeight    = 0.6
+		maxSilenceDeltaMs    = 20_000 // reject a silence boundary too far from the audio end
+		fuseAgreeToleranceMs = 4_000
+		sceneCutTailSec      = 6.0 // extra window after the end for the scene-cut scan
+		sceneCutThreshold    = 0.3
+		snapToleranceMs      = 2_500
+	)
 	if s.detector == nil || filePath == "" {
 		return audioEnd, 0.5
 	}
-	votes := []boundaryVote{{ms: audioEnd, weight: 0.4, source: "audio"}}
+	votes := []boundaryVote{{ms: audioEnd, weight: audioVoteWeight, source: "audio"}}
 
 	// Subtitle dialogue-resume (already capped at the audio end inside the helper).
 	if subEnd := s.refineEndBySubtitleOnset(ctx, filePath, startMs, audioEnd); subEnd != audioEnd {
-		votes = append(votes, boundaryVote{ms: subEnd, weight: 1.0, source: "subtitle"})
+		votes = append(votes, boundaryVote{ms: subEnd, weight: subtitleVoteWeight, source: "subtitle"})
 	}
 	// Silence/black boundary near the audio end (PrecisionPass returns the input
 	// unchanged when it finds nothing, so a differing end means a real boundary).
-	if _, refEnd, err := s.detector.PrecisionPass(ctx, filePath, float64(startMs)/1000, float64(audioEnd)/1000, 6); err == nil {
-		if d := refEnd - audioEnd; refEnd > startMs && refEnd != audioEnd && d < 20_000 && d > -20_000 {
-			votes = append(votes, boundaryVote{ms: refEnd, weight: 0.6, source: "silence"})
+	if _, refEnd, err := s.detector.PrecisionPass(ctx, filePath, float64(startMs)/1000, float64(audioEnd)/1000, sceneCutTailSec); err == nil {
+		if d := refEnd - audioEnd; refEnd > startMs && refEnd != audioEnd && d < maxSilenceDeltaMs && d > -maxSilenceDeltaMs {
+			votes = append(votes, boundaryVote{ms: refEnd, weight: silenceVoteWeight, source: "silence"})
 		}
 	}
 
-	fb, ok := fuseBoundary(votes, 4_000)
+	fb, ok := fuseBoundary(votes, fuseAgreeToleranceMs)
 	if !ok {
 		return audioEnd, 0.5
 	}
 	end := fb.ms
 	// Snap the consensus to a frame-accurate content cut so the skip lands on a
 	// scene boundary, not mid-shot. Bounded window → cheap.
-	dur := float64(end-startMs)/1000 + 6
-	if cuts, cErr := s.detector.SceneCutTimestamps(ctx, filePath, float64(startMs)/1000, dur, 0.3); cErr == nil {
-		if snapped, did := snapToNearest(end, cuts, 2_500); did {
+	dur := float64(end-startMs)/1000 + sceneCutTailSec
+	if cuts, cErr := s.detector.SceneCutTimestamps(ctx, filePath, float64(startMs)/1000, dur, sceneCutThreshold); cErr == nil {
+		if snapped, did := snapToNearest(end, cuts, snapToleranceMs); did {
 			end = snapped
 		}
 	}

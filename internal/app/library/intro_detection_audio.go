@@ -48,7 +48,7 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 		// mastering / dub track per episode, so legitimate matches
 		// observed live drop to ~0.55-0.70 even on aligned windows.
 		// 0.65 keeps random-pair noise (~0.50) out while accepting real
-		// recurring intros. Drift coherence + min ratio downstream filter
+		// recurring intros. Drift coherence + min coherenceRatio downstream filter
 		// any false positive that slips through.
 		chromaprintSimThreshold = 0.65
 		framesPerSecond         = 8.0 // fpcalc default rate
@@ -59,13 +59,13 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 		startSec := float64(cand.startMs) / 1000
 		endSec := float64(cand.endMs) / 1000
 
-		tStart := startSec - cfg.PadSec
-		if tStart < 0 {
-			tStart = 0
+		targetStartSec := startSec - cfg.PadSec
+		if targetStartSec < 0 {
+			targetStartSec = 0
 		}
-		tDur := endSec + cfg.PadSec - tStart
+		targetDurSec := endSec + cfg.PadSec - targetStartSec
 
-		targetFp, err := s.chromaprinter.Compute(ctx, item.File.Path, tStart, tDur)
+		targetFp, err := s.chromaprinter.Compute(ctx, item.File.Path, targetStartSec, targetDurSec)
 		if err != nil || len(targetFp) == 0 {
 			slog.Debug("intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
@@ -82,12 +82,12 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 		matched := 0
 		extractFailed := 0
 		for _, sib := range result.siblings {
-			sStart := startSec - cfg.SearchSec
-			if sStart < 0 {
-				sStart = 0
+			sibStartSec := startSec - cfg.SearchSec
+			if sibStartSec < 0 {
+				sibStartSec = 0
 			}
-			sDur := endSec + cfg.SearchSec - sStart
-			sibFp, err := s.chromaprinter.Compute(ctx, sib.File.Path, sStart, sDur)
+			sibDurSec := endSec + cfg.SearchSec - sibStartSec
+			sibFp, err := s.chromaprinter.Compute(ctx, sib.File.Path, sibStartSec, sibDurSec)
 			if err != nil || len(sibFp) == 0 {
 				extractFailed++
 				continue
@@ -98,7 +98,9 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 			}
 			matched++
 			offsetSec := float64(offsetFrames) / framesPerSecond
-			drift := offsetSec - (tStart - sStart)
+			// Remove the window-start offset (target and sibling are extracted on
+			// differently-shifted windows) to get the intro's real drift.
+			drift := offsetSec - (targetStartSec - sibStartSec)
 			drifts = append(drifts, drift)
 		}
 
@@ -122,9 +124,9 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 				coherent++
 			}
 		}
-		ratio := float64(coherent) / float64(len(result.siblings))
+		coherenceRatio := float64(coherent) / float64(len(result.siblings))
 		minRatio := effectiveMinRatio(cfg, len(result.siblings))
-		if ratio < minRatio {
+		if coherenceRatio < minRatio {
 			slog.Debug("intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
@@ -134,7 +136,7 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 				slog.Float64("drift_median", median),
 				slog.Any("drift_values", drifts),
 				slog.Int("coherent_count", coherent),
-				slog.Float64("ratio", ratio),
+				slog.Float64("coherenceRatio", coherenceRatio),
 				slog.String("audio_engine", "chromaprint"),
 				slog.String("decision", "rejected_low_ratio"),
 			)
@@ -150,7 +152,7 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 			slog.Float64("drift_median", median),
 			slog.Any("drift_values", drifts),
 			slog.Int("coherent_count", coherent),
-			slog.Float64("ratio", ratio),
+			slog.Float64("coherenceRatio", coherenceRatio),
 			slog.String("audio_engine", "chromaprint"),
 			slog.String("decision", "accepted"),
 		)
@@ -176,7 +178,8 @@ func slidingChromaprint(target, reference []uint32) (offsetFrames int, similarit
 	if len(target) == 0 || len(reference) < len(target) {
 		return 0, 0
 	}
-	maxBits := 32 * len(target)
+	const bitsPerSubfingerprint = 32 // each Chromaprint frame is a uint32 (bits.OnesCount32 below)
+	maxBits := bitsPerSubfingerprint * len(target)
 	bestOffset, bestBits := 0, maxBits
 	for offset := 0; offset <= len(reference)-len(target); offset++ {
 		var diffBits int
@@ -224,13 +227,13 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 		startSec := float64(cand.startMs) / 1000
 		endSec := float64(cand.endMs) / 1000
 
-		tStart := startSec - cfg.PadSec
-		if tStart < 0 {
-			tStart = 0
+		targetStartSec := startSec - cfg.PadSec
+		if targetStartSec < 0 {
+			targetStartSec = 0
 		}
-		tDur := endSec + cfg.PadSec - tStart
+		targetDurSec := endSec + cfg.PadSec - targetStartSec
 
-		targetFp, err := s.detector.AudioBandedFingerprint(ctx, item.File.Path, tStart, tDur, cfg.BinMs)
+		targetFp, err := s.detector.AudioBandedFingerprint(ctx, item.File.Path, targetStartSec, targetDurSec, cfg.BinMs)
 		if err != nil || len(targetFp) == 0 {
 			slog.Debug("intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
@@ -248,12 +251,12 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 		correlated := 0
 		extractFailed := 0
 		for _, sib := range result.siblings {
-			sStart := startSec - cfg.SearchSec
-			if sStart < 0 {
-				sStart = 0
+			sibStartSec := startSec - cfg.SearchSec
+			if sibStartSec < 0 {
+				sibStartSec = 0
 			}
-			sDur := endSec + cfg.SearchSec - sStart
-			sibFp, err := s.detector.AudioBandedFingerprint(ctx, sib.File.Path, sStart, sDur, cfg.BinMs)
+			sibDurSec := endSec + cfg.SearchSec - sibStartSec
+			sibFp, err := s.detector.AudioBandedFingerprint(ctx, sib.File.Path, sibStartSec, sibDurSec, cfg.BinMs)
 			if err != nil || len(sibFp) == 0 {
 				extractFailed++
 				continue
@@ -264,7 +267,9 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 			}
 			correlated++
 			offSec := float64(offBins*cfg.BinMs) / 1000
-			drift := offSec - (tStart - sStart)
+			// Remove the window-start offset (target and sibling are extracted on
+			// differently-shifted windows) to get the intro's real drift.
+			drift := offSec - (targetStartSec - sibStartSec)
 			drifts = append(drifts, drift)
 		}
 
@@ -288,9 +293,9 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 				coherent++
 			}
 		}
-		ratio := float64(coherent) / float64(len(result.siblings))
+		coherenceRatio := float64(coherent) / float64(len(result.siblings))
 		minRatio := effectiveMinRatio(cfg, len(result.siblings))
-		if ratio < minRatio {
+		if coherenceRatio < minRatio {
 			slog.Debug("intro_detection.candidate_evaluated",
 				slog.String("media_id", mediaID),
 				slog.Int64("candidate_start_ms", cand.startMs),
@@ -302,7 +307,7 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 				slog.Float64("drift_median", median),
 				slog.Any("drift_values", drifts),
 				slog.Int("coherent_count", coherent),
-				slog.Float64("ratio", ratio),
+				slog.Float64("coherenceRatio", coherenceRatio),
 				slog.String("decision", "rejected_low_ratio"),
 			)
 			continue
@@ -319,7 +324,7 @@ func (s *IntroDetectionService) confirmAudioCandidates(ctx context.Context, item
 			slog.Float64("drift_median", median),
 			slog.Any("drift_values", drifts),
 			slog.Int("coherent_count", coherent),
-			slog.Float64("ratio", ratio),
+			slog.Float64("coherenceRatio", coherenceRatio),
 			slog.String("decision", "accepted"),
 		)
 		confirmed = append(confirmed, confirmedWindow{
@@ -360,8 +365,8 @@ func medianFloat(vs []float64) float64 {
 // ffmpegPkgSlidingBestPearsonBanded indirects via the package-level helper so
 // the service tests can stub it via the IntroDetector port. In practice it
 // always resolves to ffmpeg.SlidingBestPearsonBanded.
-var ffmpegPkgSlidingBestPearsonBanded = func(target, ref []float64, vec int) (float64, int) {
-	return slidingBestPearsonBandedImpl(target, ref, vec)
+var ffmpegPkgSlidingBestPearsonBanded = func(target, ref []float64, vectorSize int) (float64, int) {
+	return slidingBestPearsonBandedImpl(target, ref, vectorSize)
 }
 
 // slidingBestPearsonBandedImpl is a copy of the adapter helper kept inline to
@@ -397,14 +402,14 @@ func pearsonImpl(a, b []float64) float64 {
 		return 0
 	}
 	var sumA, sumB float64
-	for i := 0; i < n; i++ {
+	for i := range n {
 		sumA += a[i]
 		sumB += b[i]
 	}
 	meanA := sumA / float64(n)
 	meanB := sumB / float64(n)
 	var num, dA, dB float64
-	for i := 0; i < n; i++ {
+	for i := range n {
 		da := a[i] - meanA
 		db := b[i] - meanB
 		num += da * db
