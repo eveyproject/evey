@@ -661,3 +661,91 @@ func TestSeekIndexService_BatchReusesCachedScan(t *testing.T) {
 	waitIdle(t, svc)
 	assert.EqualValues(t, 2, atomic.LoadInt32(&lists), "no cache for the scope - the batch scans")
 }
+
+// fakeAudioRemuxer records the remuxes it is asked to run.
+type fakeAudioRemuxer struct {
+	mu       sync.Mutex
+	remuxed  []string
+	failWith map[string]error
+}
+
+func (f *fakeAudioRemuxer) RemuxAudioDelay(_ context.Context, p string) (string, bool, error) {
+	if err := f.failWith[p]; err != nil {
+		return "", false, err
+	}
+	f.mu.Lock()
+	f.remuxed = append(f.remuxed, p)
+	f.mu.Unlock()
+	return p + ".mkvgobak", false, nil
+}
+
+// The audio-remux batch targets ONLY the files the scan flagged with a start
+// delay above the defect floor, repairs them through the remuxer port, and
+// folds the fix into the cached scan (delay cleared, backup visible) - the
+// same lifecycle as the reindex batch.
+func TestSeekIndexService_RemuxAudioLibrary(t *testing.T) {
+	dir := t.TempDir()
+	delayed := filepath.Join(dir, "delayed.mkv")
+	aligned := filepath.Join(dir, "aligned.mkv")
+	failing := filepath.Join(dir, "failing.mkv")
+	for _, p := range []string{delayed, aligned, failing} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{delayed: true, aligned: true, failing: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Path: delayed}, {MediaID: "m2", Path: aligned}, {MediaID: "m3", Path: failing},
+	}}
+	remux := &fakeAudioRemuxer{failWith: map[string]error{failing: errors.New("streams disagree")}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{
+			delayed: 0.9, aligned: 0.02, failing: 1.4,
+		}}).
+		WithAudioRemuxer(remux)
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+
+	require.NoError(t, svc.StartRemuxAudioLibrary(context.Background(), ""))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, appmaintenance.JobRemuxAudio, st.Last.Kind)
+	assert.Equal(t, 2, st.Last.Total, "only the two files above the defect floor are candidates")
+	assert.Equal(t, 1, st.Last.Failed)
+	assert.Equal(t, []string{delayed}, remux.remuxed)
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	byPath := map[string]appmaintenance.SeekStatus{}
+	for _, it := range res.Items {
+		byPath[it.Path] = it
+	}
+	assert.Zero(t, byPath[delayed].AudioDelaySec, "the repaired file no longer reports a delay")
+	assert.True(t, byPath[delayed].HasBackup, "the remux backup is visible for rollback/purge")
+	assert.InDelta(t, 1.4, byPath[failing].AudioDelaySec, 1e-9, "a failed remux keeps its diagnosis")
+	assert.Zero(t, res.AudioDelayed-1, "rollup reflects the single remaining defective file")
+}
+
+// Single-media remux: async job, unknown media fails fast, unconfigured
+// remuxer is a clean synchronous error (the UI hides the button, the API
+// still answers something actionable).
+func TestSeekIndexService_RemuxAudioMedia(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}
+	remux := &fakeAudioRemuxer{}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithAudioRemuxer(remux)
+
+	require.NoError(t, svc.StartRemuxAudioMedia(context.Background(), "m1"))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, appmaintenance.JobRemuxAudio, st.Last.Kind)
+	assert.Equal(t, []string{p}, remux.remuxed)
+
+	require.Error(t, svc.StartRemuxAudioMedia(context.Background(), "ghost"), "unknown media fails fast")
+
+	bare := appmaintenance.NewSeekIndexService(reidx, cat, nil)
+	require.Error(t, bare.StartRemuxAudioLibrary(context.Background(), ""), "unconfigured remuxer is a clean error")
+	require.Error(t, bare.StartRemuxAudioMedia(context.Background(), "m1"))
+}

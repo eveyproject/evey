@@ -114,6 +114,27 @@ service AdminMediaService {
     };
   }
 
+  // RemuxAudioMedia repairs one file whose audio content starts late (repack
+  // mux defect diagnosed by the scan's audio_delay_sec): a stream-copy remux
+  // shifts the audio back onto the video, is re-probed to prove the delay is
+  // gone, then atomically swapped in with the original kept as .mkvgobak.
+  // Async like the reindex; outcome via GetSeekIndexJob.
+  rpc RemuxAudioMedia(RemuxAudioMediaRequest) returns (RemuxAudioMediaResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/{media_id}/audio-remux"
+    };
+  }
+
+  // RemuxAudioLibrary kicks a background job repairing every file the scan
+  // flagged with an audio start delay above the defect floor. Progress via
+  // GetSeekIndexJob (kind "remux_audio").
+  rpc RemuxAudioLibrary(RemuxAudioLibraryRequest) returns (RemuxAudioLibraryResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media/audio-remux-library"
+      body: "*"
+    };
+  }
+
   // DeleteSeekIndexBackup removes one media's reindex backup (.mkvgobak),
   // reclaiming the duplicated disk space once the repair is confirmed fine.
   // Synchronous (an unlink) - no job involved.
@@ -133,6 +154,23 @@ service AdminMediaService {
       body: "*"
     };
   }
+}
+
+message RemuxAudioMediaRequest {
+  string media_id = 1;
+}
+
+message RemuxAudioMediaResponse {
+  bool accepted = 1;
+}
+
+message RemuxAudioLibraryRequest {
+  // Optional: when set, only this library is repaired. Empty = every library.
+  string library_id = 1;
+}
+
+message RemuxAudioLibraryResponse {
+  bool accepted = 1;
 }
 
 message DeleteSeekIndexBackupRequest {

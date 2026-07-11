@@ -160,6 +160,8 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 		// locale-neutral, so they ride a translated envelope as one param.
 		return d.translator.TranslatedError(ctx, codes.FailedPrecondition,
 			"errors.admin.seek_index_backup_overcommit", map[string]string{"volumes": spaceErr.Detail()})
+	case errors.Is(err, appmaintenance.ErrRemuxUnavailable):
+		return d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.admin.service_not_configured")
 	case errors.Is(err, appmaintenance.ErrJobRunning):
 		return d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.seek_index_job_running")
 	case errors.Is(err, domainmkv.ErrNoBackup):
@@ -342,6 +344,37 @@ func (d *adminMediaHandler) RollbackLibrarySeekIndex(ctx context.Context, req *e
 		return nil, d.seekIndexError(ctx, "rollback library seek index", err)
 	}
 	return &eveyv1.RollbackLibrarySeekIndexResponse{Queued: -1}, nil
+}
+
+// RemuxAudioMedia repairs one file's audio start delay in the background.
+func (d *adminMediaHandler) RemuxAudioMedia(ctx context.Context, req *eveyv1.RemuxAudioMediaRequest) (*eveyv1.RemuxAudioMediaResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RemuxAudioMedia")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	if err := d.seekIndex.StartRemuxAudioMedia(ctx, req.GetMediaId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "remux audio media", err)
+	}
+	return &eveyv1.RemuxAudioMediaResponse{Accepted: true}, nil
+}
+
+// RemuxAudioLibrary repairs every audio-delayed file of the scope in the
+// background.
+func (d *adminMediaHandler) RemuxAudioLibrary(ctx context.Context, req *eveyv1.RemuxAudioLibraryRequest) (*eveyv1.RemuxAudioLibraryResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RemuxAudioLibrary")
+	defer span.End()
+	if err := d.seekIndexConfigured(ctx, span); err != nil {
+		return nil, err
+	}
+	if err := d.seekIndex.StartRemuxAudioLibrary(ctx, req.GetLibraryId()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, d.seekIndexError(ctx, "remux audio library", err)
+	}
+	return &eveyv1.RemuxAudioLibraryResponse{Accepted: true}, nil
 }
 
 // DeleteSeekIndexBackup removes one media's reindex backup - synchronous, an

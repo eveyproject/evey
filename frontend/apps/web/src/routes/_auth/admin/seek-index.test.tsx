@@ -11,6 +11,8 @@ const repairLibMutate = vi.fn();
 const rollbackLibMutate = vi.fn();
 const deleteBackupMutate = vi.fn();
 const purgeLibMutate = vi.fn();
+const remuxAudioOneMutate = vi.fn();
+const remuxAudioLibMutate = vi.fn();
 const invalidateQueries = vi.fn();
 const mockToast = { success: vi.fn(), error: vi.fn(), info: vi.fn() };
 
@@ -25,6 +27,8 @@ vi.mock("@evey/api", () => ({
   useAdminMediaServiceRollbackLibrarySeekIndex: () => ({ mutate: rollbackLibMutate, isPending: false }),
   useAdminMediaServiceDeleteSeekIndexBackup: () => ({ mutate: deleteBackupMutate, isPending: false, variables: undefined }),
   useAdminMediaServicePurgeSeekIndexBackups: () => ({ mutate: purgeLibMutate, isPending: false }),
+  useAdminMediaServiceRemuxAudioMedia: () => ({ mutate: remuxAudioOneMutate, isPending: false }),
+  useAdminMediaServiceRemuxAudioLibrary: () => ({ mutate: remuxAudioLibMutate, isPending: false }),
 }));
 
 vi.mock("@evey/store", () => ({ toast: mockToast }));

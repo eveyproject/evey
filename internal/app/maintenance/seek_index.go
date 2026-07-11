@@ -37,6 +37,9 @@ const (
 	JobReindex  = "reindex"
 	JobRollback = "rollback"
 	JobPurge    = "purge" // delete every .mkvgobak backup in scope
+	// JobRemuxAudio rewrites files whose audio content starts late (repack
+	// mux defect) so the file itself is fixed, not just the playback.
+	JobRemuxAudio = "remux_audio"
 
 	PhaseScanning   = "scanning"
 	PhaseProcessing = "processing"
@@ -87,6 +90,19 @@ type AudioDelayProber interface {
 // surfaced as a defect. Matches the HLS builders' cancel floor: legitimate
 // codec priming sits at ~20-40ms, the defect class at hundreds of ms.
 const AudioDelayFlagSec = 0.1
+
+// AudioDelayRemuxer repairs the audio start-delay defect AT THE FILE level:
+// a remux that shifts the late audio content back onto the video, with the
+// same fail-safe contract as the reindexer (rewrite to a temp, re-verify,
+// atomic swap, original kept as .mkvgobak; any failure leaves the original
+// byte-for-byte intact). skipped=true means no track sits above the defect
+// floor anymore (nothing to fix); backupPath is the kept original ("" when
+// skipped). Satisfied by the ffmpeg adapter; optional (nil disables the
+// remux jobs). Primitive-typed on purpose - the driven adapter implements it
+// without importing this package.
+type AudioDelayRemuxer interface {
+	RemuxAudioDelay(ctx context.Context, path string) (backupPath string, skipped bool, err error)
+}
 
 // SeekStatus is the per-file diagnosis surfaced by a scan.
 type SeekStatus struct {
@@ -160,6 +176,7 @@ type SeekIndexService struct {
 	catalog    MediaCatalog
 	fileState  FileStateRefresher // optional; see WithFileStateRefresher
 	audioDelay AudioDelayProber   // optional; see WithAudioDelayProber
+	audioRemux AudioDelayRemuxer  // optional; see WithAudioRemuxer
 	logger     *slog.Logger
 
 	stateDir string // "" = no persistence (WithStateDir enables it)
@@ -200,6 +217,54 @@ func (s *SeekIndexService) WithFileStateRefresher(r FileStateRefresher) *SeekInd
 func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexService {
 	s.audioDelay = p
 	return s
+}
+
+// WithAudioRemuxer wires the audio start-delay REPAIR (a validated remux).
+// Optional and chainable; without it the remux entry points fail cleanly.
+func (s *SeekIndexService) WithAudioRemuxer(r AudioDelayRemuxer) *SeekIndexService {
+	s.audioRemux = r
+	return s
+}
+
+// ErrRemuxUnavailable is returned by the remux entry points when no remuxer
+// is wired (e.g. a build without ffmpeg).
+var ErrRemuxUnavailable = errors.New("audio remux is not available in this build")
+
+// remuxAudioFile is the shared per-file step of both remux entry points.
+func (s *SeekIndexService) remuxAudioFile(bg context.Context, path string) (bool, error) {
+	bak, skipped, err := s.audioRemux.RemuxAudioDelay(bg, path)
+	if err != nil {
+		return false, err
+	}
+	if !skipped {
+		// The video stream and its keyframe TIMES are copied untouched;
+		// refresh the fingerprint so the next scan keeps the stream records
+		// instead of re-probing (same rationale as the reindex path).
+		s.refreshFileState(bg, path)
+		hasBak := bak != ""
+		s.updateCachedFile(path, func(st *SeekStatus) { st.AudioDelaySec = 0; st.HasBackup = hasBak })
+	}
+	return skipped, nil
+}
+
+// StartRemuxAudioLibrary kicks a background job that repairs every file the
+// scan flagged with an audio start delay above the defect floor.
+func (s *SeekIndexService) StartRemuxAudioLibrary(_ context.Context, libraryID string) error {
+	if s.audioRemux == nil {
+		return ErrRemuxUnavailable
+	}
+	return s.startBatch(JobRemuxAudio, libraryID, nil,
+		func(it SeekStatus) bool { return it.AudioDelaySec > AudioDelayFlagSec },
+		s.remuxAudioFile, nil)
+}
+
+// StartRemuxAudioMedia repairs one media file's audio start delay in the
+// background. The media lookup happens synchronously so unknown IDs fail fast.
+func (s *SeekIndexService) StartRemuxAudioMedia(ctx context.Context, mediaID string) error {
+	if s.audioRemux == nil {
+		return ErrRemuxUnavailable
+	}
+	return s.startSingle(ctx, JobRemuxAudio, mediaID, s.remuxAudioFile)
 }
 
 // refreshFileState re-stamps the scan fingerprint (size+mtime) on a file a
@@ -700,13 +765,16 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 		if !changed {
 			continue
 		}
-		c.res.MissingIndex, c.res.WithBackup = 0, 0
+		c.res.MissingIndex, c.res.WithBackup, c.res.AudioDelayed = 0, 0, 0
 		for _, it := range c.res.Items {
 			if !it.HasIndex {
 				c.res.MissingIndex++
 			}
 			if it.HasBackup {
 				c.res.WithBackup++
+			}
+			if it.AudioDelaySec > AudioDelayFlagSec {
+				c.res.AudioDelayed++
 			}
 		}
 		s.scans[key] = c

@@ -15,6 +15,8 @@ import {
   useAdminMediaServiceRollbackLibrarySeekIndex,
   useAdminMediaServiceDeleteSeekIndexBackup,
   useAdminMediaServicePurgeSeekIndexBackups,
+  useAdminMediaServiceRemuxAudioMedia,
+  useAdminMediaServiceRemuxAudioLibrary,
 } from "@evey/api";
 import type {
   V1SeekIndexItem,
@@ -45,6 +47,7 @@ const KIND_KEYS: Record<string, string> = {
   reindex: "admin.seekIndex.jobReindex",
   rollback: "admin.seekIndex.jobRollback",
   purge: "admin.seekIndex.jobPurge",
+  remux_audio: "admin.seekIndex.jobRemuxAudio",
 };
 
 // Mirror of the backend's maintenance.AudioDelayFlagSec: above it the file's
@@ -201,7 +204,7 @@ function SeekIndexPage() {
   const queryClient = useQueryClient();
   const [libraryId, setLibraryId] = useState("");
   const [onlyAttention, setOnlyAttention] = useState(true);
-  const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | "purge" | null>(null);
+  const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | "purge" | "remuxAudio" | null>(null);
   // Repair strategy: "auto" (surgical patch when the file layout allows it,
   // full rewrite otherwise) is the recommended default; "inplace" restricts
   // to the patch (no rewrite ever), "rewrite" always rebuilds. The surgical
@@ -319,6 +322,18 @@ function SeekIndexPage() {
       onError: onStartError,
     },
   });
+  const remuxAudioOne = useAdminMediaServiceRemuxAudioMedia({
+    mutation: {
+      onSuccess: onStarted("admin.seekIndex.remuxAudioStarted"),
+      onError: onStartError,
+    },
+  });
+  const remuxAudioLib = useAdminMediaServiceRemuxAudioLibrary({
+    mutation: {
+      onSuccess: onStarted("admin.seekIndex.remuxAudioStarted"),
+      onError: onStartError,
+    },
+  });
   // Synchronous (an unlink server-side): refresh the cached scan directly
   // instead of the job-completion path the batch mutations rely on.
   const deleteBackup = useAdminMediaServiceDeleteSeekIndexBackup({
@@ -395,6 +410,14 @@ function SeekIndexPage() {
               data-testid="seek-index-rollback-all-btn"
             >
               {t("admin.seekIndex.rollbackAll", { count: withBackup })}
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={delayedAudio === 0 || busy}
+              onClick={() => setConfirmBatch("remuxAudio")}
+              data-testid="seek-index-remux-audio-all-btn"
+            >
+              {t("admin.seekIndex.remuxAudioAll", { count: delayedAudio })}
             </Button>
             <Button
               variant="ghost"
@@ -538,6 +561,18 @@ function SeekIndexPage() {
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap" data-label="">
                         <div className="flex items-center justify-end gap-2">
+                          {audioDelayed(it) && (
+                            <Button
+                              variant="secondary"
+                              className="text-xs"
+                              disabled={busy}
+                              loading={remuxAudioOne.isPending && remuxAudioOne.variables?.mediaId === it.mediaId}
+                              onClick={() => it.mediaId && remuxAudioOne.mutate({ mediaId: it.mediaId })}
+                              data-testid="seek-index-remux-audio-btn"
+                            >
+                              {t("admin.seekIndex.remuxAudioBtn")}
+                            </Button>
+                          )}
                           {!it.hasIndex && (
                             <Button
                               variant="secondary"
@@ -593,7 +628,9 @@ function SeekIndexPage() {
             ? t("admin.seekIndex.rollbackAllConfirmTitle")
             : confirmBatch === "purge"
               ? t("admin.seekIndex.purgeAllConfirmTitle")
-              : t("admin.seekIndex.repairAllConfirmTitle")
+              : confirmBatch === "remuxAudio"
+                ? t("admin.seekIndex.remuxAudioAllConfirmTitle")
+                : t("admin.seekIndex.repairAllConfirmTitle")
         }
       >
         <p className="text-sm text-[var(--text-muted)] mb-4">
@@ -601,7 +638,9 @@ function SeekIndexPage() {
             ? t("admin.seekIndex.rollbackAllConfirm", { count: withBackup })
             : confirmBatch === "purge"
               ? t("admin.seekIndex.purgeAllConfirm", { count: withBackup })
-              : t("admin.seekIndex.repairAllConfirm", { count: missing })}
+              : confirmBatch === "remuxAudio"
+                ? t("admin.seekIndex.remuxAudioAllConfirm", { count: delayedAudio })
+                : t("admin.seekIndex.repairAllConfirm", { count: missing })}
         </p>
         {confirmBatch === "repair" && repairVolumes.length > 0 && (
           <ul className="mb-4 flex flex-col gap-1" data-testid="seek-index-volumes">
@@ -700,10 +739,11 @@ function SeekIndexPage() {
             {t("common.cancel")}
           </Button>
           <Button
-            loading={repairLib.isPending || rollbackLib.isPending || purgeLib.isPending}
+            loading={repairLib.isPending || rollbackLib.isPending || purgeLib.isPending || remuxAudioLib.isPending}
             onClick={() => {
               if (confirmBatch === "rollback") rollbackLib.mutate({ data: libraryId ? { libraryId } : {} });
               else if (confirmBatch === "purge") purgeLib.mutate({ data: libraryId ? { libraryId } : {} });
+              else if (confirmBatch === "remuxAudio") remuxAudioLib.mutate({ data: libraryId ? { libraryId } : {} });
               else
                 repairLib.mutate({
                   data: {

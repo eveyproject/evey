@@ -61,6 +61,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		eveylogger.NewWith(rootLog, "seek-index"),
 	).WithFileStateRefresher(deps.seekIndexFileState).
 		WithAudioDelayProber(ffmpeg.NewProber("ffprobe")).
+		WithAudioRemuxer(ffmpeg.NewAudioRemuxer("ffmpeg", "ffprobe")).
 		// Scans survive restarts and batch jobs reuse them as phase 1; a job
 		// killed by a redeploy resurfaces as "interrupted" instead of
 		// vanishing (the operator used to believe the batch had finished).
