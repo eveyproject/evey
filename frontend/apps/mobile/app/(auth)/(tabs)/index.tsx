@@ -502,9 +502,9 @@ export default function HomeScreen() {
     [popular.data],
   );
 
-  function handleItemPress(item: V1MediaItem) {
+  const handleItemPress = useCallback((item: V1MediaItem) => {
     router.push(`/media/${item.id}`);
-  }
+  }, []);
 
   function renderSection(feedType: string) {
     switch (feedType) {

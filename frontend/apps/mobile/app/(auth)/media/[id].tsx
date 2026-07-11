@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, memo } from "react";
 import {
   View,
   Text,
@@ -115,7 +115,7 @@ function StarIcons({ rating }: { rating: number }) {
   );
 }
 
-function CastCard({ person }: { person: V1MediaPerson }) {
+const CastCard = memo(function CastCard({ person }: { person: V1MediaPerson }) {
   const theme = useTheme();
   const personType = person.type?.replace("PERSON_TYPE_", "") ?? "";
   const roleLabel = personType.charAt(0) + personType.slice(1).toLowerCase();
@@ -156,9 +156,9 @@ function CastCard({ person }: { person: V1MediaPerson }) {
       ) : null}
     </Pressable>
   );
-}
+});
 
-function EpisodeRow({ item, serverUrl, theme, authHeaders }: { item: V1MediaItem; serverUrl: string; theme: ReturnType<typeof useTheme>; authHeaders?: { Authorization: string } }) {
+const EpisodeRow = memo(function EpisodeRow({ item, serverUrl, theme, authHeaders }: { item: V1MediaItem; serverUrl: string; theme: ReturnType<typeof useTheme>; authHeaders?: { Authorization: string } }) {
   const episodeUri = item.id ? artworkUrl(serverUrl, item.id, "poster", 240) : undefined;
   const { data: progress } = usePlaybackServiceGetWatchProgress(item.id ?? "", undefined, {
     query: { enabled: !!item.id, retry: false },
@@ -213,9 +213,9 @@ function EpisodeRow({ item, serverUrl, theme, authHeaders }: { item: V1MediaItem
       </View>
     </Pressable>
   );
-}
+});
 
-function TrailerButton({ trailer }: { trailer: V1Trailer }) {
+const TrailerButton = memo(function TrailerButton({ trailer }: { trailer: V1Trailer }) {
   const { t } = useTranslation();
   const theme = useTheme();
 
@@ -257,9 +257,9 @@ function TrailerButton({ trailer }: { trailer: V1Trailer }) {
       </Text>
     </Pressable>
   );
-}
+});
 
-function SimilarSection({ item }: { item: V1MediaItem }) {
+const SimilarSection = memo(function SimilarSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const theme = useTheme();
   const screenW = Dimensions.get("window").width;
@@ -271,15 +271,29 @@ function SimilarSection({ item }: { item: V1MediaItem }) {
     { query: { enabled: !hasSimilar && !!firstGenre } } as never,
   );
 
-  const fromFeed = (similarData?.items ?? [])
-    .filter((fi: any) => !!fi.mediaItemId)
-    .map((fi: any) => ({ id: fi.mediaItemId!, title: fi.title }));
+  const cards: V1MediaItem[] = useMemo(() => {
+    const fromFeed = (similarData?.items ?? [])
+      .filter((fi: any) => !!fi.mediaItemId)
+      .map((fi: any) => ({ id: fi.mediaItemId!, title: fi.title }));
 
-  const fromGenre = (byGenreData?.items ?? [])
-    .filter((m) => m.id && m.id !== item.id)
-    .map((m) => ({ id: m.id!, title: m.title, year: m.year, type: m.type }));
+    const fromGenre = (byGenreData?.items ?? [])
+      .filter((m) => m.id && m.id !== item.id)
+      .map((m) => ({ id: m.id!, title: m.title, year: m.year, type: m.type }));
 
-  const cards: V1MediaItem[] = (fromFeed.length ? fromFeed : fromGenre) as V1MediaItem[];
+    return (fromFeed.length ? fromFeed : fromGenre) as V1MediaItem[];
+  }, [similarData?.items, byGenreData?.items, item.id]);
+
+  const renderCard = useCallback(
+    ({ item: c }: { item: V1MediaItem }) => (
+      <MediaCard
+        item={c}
+        onPress={() => c.id && router.push(`/(auth)/media/${c.id}`)}
+        width={screenW * 0.28}
+      />
+    ),
+    [screenW],
+  );
+
   if (!cards.length) return null;
 
   return (
@@ -290,18 +304,24 @@ function SimilarSection({ item }: { item: V1MediaItem }) {
       <FlatList
         horizontal
         data={cards}
-        keyExtractor={(c) => c.id ?? ""}
-        renderItem={({ item: c }) => (
-          <MediaCard
-            item={c}
-            onPress={() => c.id && router.push(`/(auth)/media/${c.id}`)}
-            width={screenW * 0.28}
-          />
-        )}
+        keyExtractor={similarKeyExtractor}
+        renderItem={renderCard}
         showsHorizontalScrollIndicator={false}
       />
     </View>
   );
+});
+
+function similarKeyExtractor(c: V1MediaItem) {
+  return c.id ?? "";
+}
+
+function personKeyExtractor(p: V1MediaPerson) {
+  return p.id ?? p.name ?? "";
+}
+
+function renderCastItem({ item }: { item: V1MediaPerson }) {
+  return <CastCard person={item} />;
 }
 
 function FileInfoSection({ item }: { item: V1MediaItem }) {
@@ -497,7 +517,7 @@ export default function MediaDetailScreen() {
     { query: { enabled: !!(id && (isSeries || isSeason)) } },
   );
 
-  const children = childrenData?.items ?? [];
+  const children = useMemo(() => childrenData?.items ?? [], [childrenData?.items]);
 
   // Navigating between two series reuses this screen (Expo Router re-renders
   // rather than remounting), so reset the selected season when the media id
@@ -517,19 +537,30 @@ export default function MediaDetailScreen() {
     { query: { enabled: !!(selectedSeason && isSeries) } },
   );
 
-  const episodes = [...(isSeason ? children : (episodesData?.items ?? []))].sort(
-    (a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0),
+  const episodes = useMemo(
+    () =>
+      [...(isSeason ? children : (episodesData?.items ?? []))].sort(
+        (a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0),
+      ),
+    [isSeason, children, episodesData?.items],
   );
-  const seasons = isSeries
-    ? [...children].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
-    : [];
+  const seasons = useMemo(
+    () => (isSeries ? [...children].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0)) : []),
+    [isSeries, children],
+  );
 
   const people = media?.people ?? [];
-  const actors = people.filter((p) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR");
-  const directors = people.filter((p) => p.type === "PERSON_TYPE_DIRECTOR");
-  const writers = people.filter((p) => p.type === "PERSON_TYPE_WRITER");
-  const producers = people.filter((p) => p.type === "PERSON_TYPE_PRODUCER");
-  const crew = [...directors, ...writers, ...producers];
+  const actors = useMemo(
+    () => people.filter((p) => p.type === "PERSON_TYPE_ACTOR" || p.type === "PERSON_TYPE_GUEST_STAR"),
+    [people],
+  );
+  const directors = useMemo(() => people.filter((p) => p.type === "PERSON_TYPE_DIRECTOR"), [people]);
+  const writers = useMemo(() => people.filter((p) => p.type === "PERSON_TYPE_WRITER"), [people]);
+  const producers = useMemo(() => people.filter((p) => p.type === "PERSON_TYPE_PRODUCER"), [people]);
+  const crew = useMemo(
+    () => [...directors, ...writers, ...producers],
+    [directors, writers, producers],
+  );
 
   const getPlayTarget = useCallback((): string | null => {
     if (!id) return null;
@@ -1075,8 +1106,8 @@ export default function MediaDetailScreen() {
             <FlatList
               horizontal
               data={actors}
-              keyExtractor={(p) => p.id ?? p.name ?? ""}
-              renderItem={({ item }) => <CastCard person={item} />}
+              keyExtractor={personKeyExtractor}
+              renderItem={renderCastItem}
               showsHorizontalScrollIndicator={false}
             />
           </View>
@@ -1091,8 +1122,8 @@ export default function MediaDetailScreen() {
             <FlatList
               horizontal
               data={crew}
-              keyExtractor={(p) => p.id ?? p.name ?? ""}
-              renderItem={({ item }) => <CastCard person={item} />}
+              keyExtractor={personKeyExtractor}
+              renderItem={renderCastItem}
               showsHorizontalScrollIndicator={false}
             />
           </View>

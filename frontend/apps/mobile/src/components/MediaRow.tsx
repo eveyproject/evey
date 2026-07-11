@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { View, Text, FlatList, StyleSheet, Dimensions, Pressable } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -24,7 +24,7 @@ const getItemLayout = (_: unknown, index: number) => ({
   index,
 });
 
-export function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents }: MediaRowProps) {
+export const MediaRow = memo(function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents }: MediaRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const watchedMap = useWatchedMap();
@@ -77,7 +77,7 @@ export function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents 
       />
     </View>
   );
-}
+});
 
 function keyExtractor(item: V1MediaItem) {
   return item.id ?? "";
