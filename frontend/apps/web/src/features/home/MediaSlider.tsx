@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useEffect, useCallback, useSyncExternalStore } from "react";
+import { Children, memo, useRef, useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -37,6 +37,9 @@ function getCardWidth() {
   return window.innerWidth < 640 ? 128 : 160;
 }
 
+// Enough to fill the row on a wide desktop; phones show ~3.
+const INITIAL_CARDS = 12;
+
 export const MediaSlider = memo(function MediaSlider({
   title,
   seeAllHref,
@@ -49,6 +52,14 @@ export const MediaSlider = memo(function MediaSlider({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(false);
+  // Cap the initially-mounted cards: a home page stacks 6+ sliders and
+  // mounting 20 cards each (hooks, image decode, DOM) is the single biggest
+  // chunk of its first render. The rest mounts on the first horizontal
+  // scroll / arrow press - before any capped card can enter the viewport.
+  const [expanded, setExpanded] = useState(false);
+  const allChildren = Children.toArray(children);
+  const hasCapped = !expanded && allChildren.length > INITIAL_CARDS;
+  const visibleChildren = hasCapped ? allChildren.slice(0, INITIAL_CARDS) : allChildren;
 
   // Mouse drag state
   const isDragging = useRef(false);
@@ -61,8 +72,10 @@ export const MediaSlider = memo(function MediaSlider({
     const el = scrollRef.current;
     if (!el) return;
     setShowLeft(el.scrollLeft > 0);
-    setShowRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
-  }, []);
+    // Capped rows always advertise the right arrow: the capped tail may not
+    // overflow the container yet (ultra-wide screens) but there IS more.
+    setShowRight(hasCapped || el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, [hasCapped]);
 
   useEffect(() => {
     checkOverflow();
@@ -71,6 +84,7 @@ export const MediaSlider = memo(function MediaSlider({
   const scroll = (dir: "left" | "right") => {
     const el = scrollRef.current;
     if (!el) return;
+    if (dir === "right") setExpanded(true);
     const amount = el.clientWidth - CARD_WIDTH;
     el.scrollBy({ left: dir === "left" ? -amount : amount, behavior: "smooth" });
   };
@@ -138,7 +152,10 @@ export const MediaSlider = memo(function MediaSlider({
 
         <div
           ref={scrollRef}
-          onScroll={checkOverflow}
+          onScroll={() => {
+            setExpanded(true);
+            checkOverflow();
+          }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={stopDrag}
@@ -147,7 +164,7 @@ export const MediaSlider = memo(function MediaSlider({
         >
           {isLoading
             ? Array.from({ length: skeletonCount }).map((_, i) => <SkeletonCard key={i} />)
-            : children}
+            : visibleChildren}
         </div>
 
         {showRight && (

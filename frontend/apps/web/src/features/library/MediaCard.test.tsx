@@ -6,6 +6,7 @@ import { MediaCard } from "./MediaCard";
 
 vi.mock("@/hooks/useWatchedMap", () => ({
   useWatchedMap: () => new Map(),
+  useIsWatched: () => false,
 }));
 
 vi.mock("@tanstack/react-router", () => ({

@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -24,6 +24,23 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   // overlap the bottom of the scrollable content. Reserve its height so the
   // last rows / action buttons stay reachable.
   const musicActive = useMusicPlayerStore((s) => s.playing) !== null;
+
+  // Navigation used to remount <main> wholesale (key={pathname}) just to
+  // reset the scroll and replay the fade. On a heavy page (home = 100+
+  // cards) that unmount/remount burned the main thread right when the user
+  // tapped - the "hard to click" jank. Reproduce both effects without the
+  // remount: scroll to top and replay a cheap opacity animation.
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = mainRef.current;
+    if (!el) return;
+    // Feature-detected: jsdom (tests) implements neither Element.scrollTo
+    // nor the Web Animations API.
+    if (typeof el.scrollTo === "function") el.scrollTo({ top: 0 });
+    if (typeof el.animate !== "function") return;
+    const anim = el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: "ease-out" });
+    return () => anim.cancel();
+  }, [location.pathname]);
 
   if (isPlayer) return <>{children}</>;
 
@@ -80,8 +97,8 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         </div>
         <main
           id="main-content"
-          key={location.pathname}
-          className={`flex-1 min-h-0 overflow-y-auto animate-fade-in${isHome ? "" : " p-4 sm:p-6"}${musicActive ? " pb-24" : ""}`}
+          ref={mainRef}
+          className={`flex-1 min-h-0 overflow-y-auto${isHome ? "" : " p-4 sm:p-6"}${musicActive ? " pb-24" : ""}`}
         >
           {children}
         </main>

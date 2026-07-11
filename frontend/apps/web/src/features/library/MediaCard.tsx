@@ -8,7 +8,7 @@ import type { V1Artwork } from "@evey/api";
 import { Blurhash } from "react-blurhash";
 import { toast, useAuthStore } from "@evey/store";
 import { FavoriteButton } from "./FavoriteButton";
-import { useWatchedMap } from "@/hooks/useWatchedMap";
+import { useIsWatched } from "@/hooks/useWatchedMap";
 import { typeLabel } from "@/utils/typeLabel";
 import { HoverPreview } from "./MediaCardHoverPreview";
 import { CardContextMenu } from "./MediaCardContextMenu";
@@ -132,8 +132,7 @@ export const MediaCard = memo(function MediaCard({
       ? Math.min(100, Math.max(0, Math.round(progressPercent)))
       : undefined;
 
-  const watchedMap = useWatchedMap();
-  const watchedFromData = item.id ? watchedMap.get(item.id) === true : false;
+  const watchedFromData = useIsWatched(item.id);
   const watchedFromProps = isWatched || watchedFromData || (pct !== undefined && pct >= WATCHED_THRESHOLD_PCT);
   const [watchedLocal, setWatchedLocal] = useState<boolean | null>(null);
   const watched = watchedLocal ?? watchedFromProps;

@@ -62,7 +62,7 @@ export type {
   LibraryServiceSearchMediaType, LibraryServiceSearchMediaSortField, LibraryServiceSearchMediaSortOrder,
 } from "./generated/library.schemas";
 export { V1LibraryType } from "./generated/library.schemas";
-export type { V1StreamInfo, V1WatchProgress } from "./generated/playback.schemas";
+export type { V1StreamInfo, V1WatchProgress, V1GetWatchHistoryResponse } from "./generated/playback.schemas";
 export type { V1Notification } from "./generated/notification.schemas";
 export type { V1WebhookConfig } from "./generated/webhook.schemas";
 export type { V1TranscodeProfile } from "./generated/transcoding.schemas";
