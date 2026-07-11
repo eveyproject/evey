@@ -13,6 +13,7 @@ import (
 	favfakes "github.com/evey-project/evey/internal/domain/favorite/fakes"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
@@ -85,6 +86,34 @@ func TestFavoriteHandler_AddFavorite_RepoError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Equal(t, codes.Internal, status.Code(err))
+}
+
+func TestFavoriteHandler_ListFavorites_AccessErrorFailsClosed(t *testing.T) {
+	// A DB error while reading library access must fail CLOSED (return the
+	// error), never fall through to "unrestricted" - else a non-admin would
+	// see the metadata of favorites in libraries they can't access.
+	repo := favfakes.NewFakeRepository()
+	svc := appfavorite.NewService(repo)
+	libAccess := userfakes.NewFakeLibraryAccessRepository()
+	libAccess.Err = errors.New("db down")
+	userAccess := appuser.NewAccessService(
+		userfakes.NewFakeUserRepository(),
+		userfakes.NewFakeAPIKeyRepository(),
+		userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+		userfakes.NewFakePasswordHasher(),
+		sharedfakes.NewFakeEventBus(),
+		appuser.WithLibraryAccess(libAccess),
+	)
+	h := &favoriteHandler{svc: svc, userAccess: userAccess}
+
+	ctx := ctxWithClaims("user-1", "profile-1", false)
+	require.NoError(t, repo.Add(ctx, &favorite.Favorite{ID: "f1", ProfileID: "profile-1", MediaItemID: "m1"}))
+
+	_, err := h.ListFavorites(ctx, &eveyv1.ListFavoritesRequest{})
+	if status.Code(err) != codes.Internal {
+		t.Fatalf("want Internal (fail-closed) on access-read error, got %v", err)
+	}
 }
 
 func TestFavoriteHandler_ListFavorites_WithItems(t *testing.T) {

@@ -71,7 +71,14 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 	}
 	allowed := func(libraryID string) bool { return true }
 	if !claims.IsAdmin && h.userAccess != nil {
-		access, _ := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+		access, aErr := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
+		// Fail closed: swallowing this error left access nil, which the check
+		// below reads as "unrestricted" (nil = opt-out default) → on a DB blip
+		// a non-admin would see the metadata of favorites in libraries they no
+		// longer have access to. Mirror popular-media / activity.
+		if aErr != nil {
+			return nil, internalError("list favorites: library access", aErr)
+		}
 		// Zero grants = unrestricted (opt-out default): only restrict when the
 		// user has an explicit whitelist.
 		if len(access) > 0 {
