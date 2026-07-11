@@ -48,7 +48,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
     <div className="flex h-dvh overflow-hidden">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:fixed focus:z-popover focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded-[var(--radius-md)] focus:bg-[var(--accent)] focus:text-white focus:text-sm focus:font-medium"
+        className="sr-only focus:not-sr-only focus:fixed focus:z-popover focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:rounded-[var(--radius-md)] focus:bg-[var(--accent)] focus:text-[var(--filter-active-text)] focus:text-sm focus:font-medium"
       >
         {t("common.aria.skipToContent")}
       </a>

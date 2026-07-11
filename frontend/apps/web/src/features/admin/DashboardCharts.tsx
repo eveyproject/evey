@@ -48,7 +48,7 @@ export function PlayActivityChart() {
         </h3>
         <div className="flex rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden text-xs shrink-0">
           <button
-            className={`px-2 py-1 transition-colors ${mode === "plays" ? "bg-[var(--accent)] text-white" : "bg-[var(--surface)] text-[var(--text-muted)]"}`}
+            className={`px-2 py-1 transition-colors ${mode === "plays" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface)] text-[var(--text-muted)]"}`}
             onClick={() => setMode("plays")}
             aria-label={t("admin.dashboardStats.plays")}
             aria-pressed={mode === "plays"}
@@ -56,7 +56,7 @@ export function PlayActivityChart() {
             {t("admin.dashboardStats.plays")}
           </button>
           <button
-            className={`px-2 py-1 transition-colors ${mode === "watchTime" ? "bg-[var(--accent)] text-white" : "bg-[var(--surface)] text-[var(--text-muted)]"}`}
+            className={`px-2 py-1 transition-colors ${mode === "watchTime" ? "bg-[var(--accent)] text-[var(--filter-active-text)]" : "bg-[var(--surface)] text-[var(--text-muted)]"}`}
             onClick={() => setMode("watchTime")}
             aria-label={t("admin.dashboardStats.watchTime")}
             aria-pressed={mode === "watchTime"}

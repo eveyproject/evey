@@ -42,7 +42,7 @@ function ProfileAvatar({ profileName, size = 28 }: { profileName?: string; size?
   const initial = (profileName ?? "?").charAt(0).toUpperCase();
   return (
     <div
-      className="rounded-full shrink-0 bg-[var(--accent)] text-white flex items-center justify-center overflow-hidden"
+      className="rounded-full shrink-0 bg-[var(--accent)] text-[var(--filter-active-text)] flex items-center justify-center overflow-hidden"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
       <span className="font-bold">{initial}</span>
@@ -246,7 +246,7 @@ export function NowPlaying() {
             {t("admin.dashboardStats.nowPlaying")}
           </h3>
           {sessions.length > 0 && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--accent)] text-white">
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--accent)] text-[var(--filter-active-text)]">
               {sessions.length}
             </span>
           )}

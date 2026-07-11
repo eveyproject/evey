@@ -104,7 +104,7 @@ function ProfileAvatar({ profileName, size = 40 }: { profileName?: string; size?
   const initial = (profileName ?? "?").charAt(0).toUpperCase();
   return (
     <div
-      className="rounded-full shrink-0 bg-[var(--accent)] text-white flex items-center justify-center overflow-hidden"
+      className="rounded-full shrink-0 bg-[var(--accent)] text-[var(--filter-active-text)] flex items-center justify-center overflow-hidden"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
       <span className="font-bold">{initial}</span>

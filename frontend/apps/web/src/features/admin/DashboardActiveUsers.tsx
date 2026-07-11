@@ -36,7 +36,7 @@ export function ActiveUsersSummary() {
       <div className="flex flex-col gap-2">
         {users.map((u) => (
           <div key={u.userId} className="flex items-center gap-3 text-sm">
-            <div className="flex items-center justify-center w-7 h-7 rounded-full shrink-0 bg-[var(--accent)] text-white text-xs font-bold">
+            <div className="flex items-center justify-center w-7 h-7 rounded-full shrink-0 bg-[var(--accent)] text-[var(--filter-active-text)] text-xs font-bold">
               {(u.username ?? "?").charAt(0).toUpperCase()}
             </div>
             <span className="flex-1 truncate text-[var(--text)]">{u.username}</span>

@@ -213,7 +213,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
               onClick={() => setTab(key)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-sm)] text-sm transition-colors-fast ${
                 tab === key
-                  ? "bg-[var(--accent)] text-[var(--accent-contrast,#fff)]"
+                  ? "bg-[var(--accent)] text-[var(--filter-active-text)]"
                   : "bg-[var(--surface-raised)] text-[var(--text-muted)] hover:text-[var(--text)]"
               }`}
             >
