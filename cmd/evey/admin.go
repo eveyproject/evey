@@ -416,7 +416,7 @@ func adminMigrate(args []string) error {
 	defer func() { _ = db.Close() }()
 	db.SetMaxOpenConns(2)
 	db.SetConnMaxLifetime(5 * time.Minute)
-	if err := db.Ping(); err != nil {
+	if err = db.Ping(); err != nil {
 		return fmt.Errorf("ping db: %w", err)
 	}
 
@@ -497,18 +497,18 @@ func adminReclassify(args []string) error {
 	defer func() { _ = db.Close() }()
 	db.SetMaxOpenConns(2)
 	db.SetConnMaxLifetime(5 * time.Minute)
-	if err := db.Ping(); err != nil {
+	if err = db.Ping(); err != nil {
 		return fmt.Errorf("ping db: %w", err)
 	}
 
 	if args[0] == "--all" {
-		res, err := db.Exec(`UPDATE media_items
+		res, execErr := db.Exec(`UPDATE media_items
 			SET complexity_class = NULL,
 			    complexity_metrics = NULL,
 			    complexity_computed_at = NULL
 			WHERE complexity_class IS NOT NULL`)
-		if err != nil {
-			return fmt.Errorf("reclassify --all: %w", err)
+		if execErr != nil {
+			return fmt.Errorf("reclassify --all: %w", execErr)
 		}
 		n, _ := res.RowsAffected()
 		fmt.Printf("reclassify: %d media items requeued; worker will pick them up\n", n)

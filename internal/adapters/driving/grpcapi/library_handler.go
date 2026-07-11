@@ -1195,10 +1195,10 @@ func (h *libraryHandler) GetPublicMediaItem(ctx context.Context, req *eveyv1.Get
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "media item not found")
 	}
-	if ok, _ := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
+	if ok, _ := h.checkLibraryAccess(ctx, item.LibraryID); !ok { //nolint:errcheck // fail-closed: any error denies
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
-	if blocked, _ := h.isBlockedByParental(ctx, item); blocked {
+	if blocked, _ := h.isBlockedByParental(ctx, item); blocked { //nolint:errcheck // fail-open on probe error, blocked wins
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	poster := ""
@@ -1217,7 +1217,7 @@ func (h *libraryHandler) ListPublicMediaItems(ctx context.Context, req *eveyv1.L
 	if req.LibraryId != "" {
 		libID := shared.LibraryID(req.LibraryId)
 		filter.LibraryID = &libID
-		if ok, _ := h.checkLibraryAccess(ctx, libID); !ok {
+		if ok, _ := h.checkLibraryAccess(ctx, libID); !ok { //nolint:errcheck // fail-closed: any error denies
 			return &eveyv1.ListPublicMediaItemsResponse{}, nil
 		}
 	} else if ids, err := h.getAllowedLibraryIDs(ctx); err == nil && ids != nil {
@@ -1251,7 +1251,7 @@ func (h *libraryHandler) ListPublicMediaItems(ctx context.Context, req *eveyv1.L
 	}
 	var artworkMap map[string][]*domainmetadata.ArtworkRecord
 	if h.metadataSvc != nil {
-		artworkMap, _ = h.metadataSvc.BatchGetArtwork(ctx, ids)
+		artworkMap, _ = h.metadataSvc.BatchGetArtwork(ctx, ids) //nolint:errcheck // artwork is optional enrichment
 	}
 	for _, it := range items {
 		resp.Items = append(resp.Items, publicMediaItemToProto(it, posterURLForRecords(artworkMap[string(it.ID)])))

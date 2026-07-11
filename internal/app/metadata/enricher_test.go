@@ -764,7 +764,7 @@ func TestAutoEnrichItem_OrphanWithTitleOverride_UsesOverrideForSearch(t *testing
 		},
 		detailResult: &domain.MetadataResult{
 			Title:       "Quand l'hôpital retient son souffle",
-			Overview:    "Documentaire santé.",
+			Overview:    "Documentaries santé.",
 			ProviderIDs: map[string]string{"tmdb": "999"},
 		},
 	}
@@ -784,7 +784,7 @@ func TestAutoEnrichItem_OrphanWithTitleOverride_UsesOverrideForSearch(t *testing
 	require.NoError(t, overrideRepo.Set(context.Background(), ov))
 
 	e.AutoEnrichItem(context.Background(), item, slog.Default())
-	assert.Equal(t, "Documentaire santé.", item.Overview, "orphan with title override must still enrich")
+	assert.Equal(t, "Documentaries santé.", item.Overview, "orphan with title override must still enrich")
 }
 
 func TestAutoEnrichAll_OrphanWithOverride_NotSkipped(t *testing.T) {
@@ -798,7 +798,7 @@ func TestAutoEnrichAll_OrphanWithOverride_NotSkipped(t *testing.T) {
 		},
 		detailResult: &domain.MetadataResult{
 			Title:       "Quand l'hôpital retient son souffle",
-			Overview:    "Documentaire santé.",
+			Overview:    "Documentaries santé.",
 			ProviderIDs: map[string]string{"tmdb": "999"},
 		},
 	}
@@ -817,7 +817,7 @@ func TestAutoEnrichAll_OrphanWithOverride_NotSkipped(t *testing.T) {
 	e.AutoEnrichAll(context.Background(), []*domainlib.MediaItem{item}, slog.Default())
 	stored, err := miRepo.GetByID(context.Background(), "orphan-bulk")
 	require.NoError(t, err)
-	assert.Equal(t, "Documentaire santé.", stored.Overview, "bulk path must NOT skip orphan with override")
+	assert.Equal(t, "Documentaries santé.", stored.Overview, "bulk path must NOT skip orphan with override")
 }
 
 func TestAutoEnrichAll_MatchedItemWithOverride_StillSkipped(t *testing.T) {

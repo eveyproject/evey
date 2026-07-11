@@ -75,13 +75,7 @@ func IsValidSandboxMode(mode string) bool { return validSandboxModes[mode] }
 // are ignored (the default wins) and logged — a bad row must never break plugin
 // startup. A nil repo yields the defaults unchanged.
 func ResolveResourceConfig(ctx context.Context, repo shared.ServerConfigRepository, def ResourceDefaults) ResourceValues {
-	v := ResourceValues{
-		MemoryMB:    def.MemoryMB,
-		PIDsMax:     def.PIDsMax,
-		DiskMaxMB:   def.DiskMaxMB,
-		CPUNice:     def.CPUNice,
-		SandboxMode: def.SandboxMode,
-	}
+	v := ResourceValues(def)
 	if repo == nil {
 		return v
 	}

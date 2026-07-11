@@ -33,17 +33,17 @@ import (
 // to Raw for future use.
 type Payload struct {
 	// Request scope — refreshes on every segment.
-	BufferLengthMs  int  // bl: client-side buffer length at request time
-	DeadlineMs      int  // dl: deadline in ms from request to playback need
-	MeasuredKbps    int  // mtp: throughput the client measured on the prev fetch
-	BufferStarved   bool // bs: "buffer was starved since the last request"
-	Startup         bool // su: this is the startup phase (first segment of session)
+	BufferLengthMs int  // bl: client-side buffer length at request time
+	DeadlineMs     int  // dl: deadline in ms from request to playback need
+	MeasuredKbps   int  // mtp: throughput the client measured on the prev fetch
+	BufferStarved  bool // bs: "buffer was starved since the last request"
+	Startup        bool // su: this is the startup phase (first segment of session)
 
 	// Object scope — about the segment being fetched.
-	EncodedKbps     int    // br: bitrate of the rendition being downloaded
-	ObjectType      string // ot: a|v|av|i|m|t|tt (audio, video, muxed, init, manifest, timed-text, trickplay)
-	ObjectDuration  int    // d: segment duration in ms
-	TopBitrateKbps  int    // tb: top rendition bitrate available to the client
+	EncodedKbps    int    // br: bitrate of the rendition being downloaded
+	ObjectType     string // ot: a|v|av|i|m|t|tt (audio, video, muxed, init, manifest, timed-text, trickplay)
+	ObjectDuration int    // d: segment duration in ms
+	TopBitrateKbps int    // tb: top rendition bitrate available to the client
 
 	// Session scope — same across the whole playback session.
 	SessionID       string // sid: UUID-ish, set by the player at session start
@@ -148,13 +148,13 @@ func splitTopLevelCommas(s string) []string {
 }
 
 func splitKV(s string) (key, val string) {
-	eq := strings.IndexByte(s, '=')
-	if eq < 0 {
+	before, after, ok := strings.Cut(s, "=")
+	if !ok {
 		// Boolean-style key (e.g. "bs", "su"): the bare presence means true.
 		return s, ""
 	}
-	key = strings.TrimSpace(s[:eq])
-	val = strings.TrimSpace(s[eq+1:])
+	key = strings.TrimSpace(before)
+	val = strings.TrimSpace(after)
 	// Unquote if the value is a CMCD quoted string.
 	if len(val) >= 2 && val[0] == '"' && val[len(val)-1] == '"' {
 		val = val[1 : len(val)-1]

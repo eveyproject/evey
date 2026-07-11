@@ -62,7 +62,7 @@ var escapeVerdictRe = regexp.MustCompile(`\[(?:ESCAPE|MINER)\] (\S+): (BLOCKED|B
 
 func parseEscapeVerdicts(out string) map[string]string {
 	m := map[string]string{}
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		if mt := escapeVerdictRe.FindStringSubmatch(line); mt != nil {
 			m[mt[1]] = mt[2]
 		}

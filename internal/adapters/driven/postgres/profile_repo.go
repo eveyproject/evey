@@ -87,7 +87,7 @@ func (r *ProfileRepository) CreateWithinCap(ctx context.Context, p *user.Profile
 	committed := false
 	defer func() {
 		if !committed {
-			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
 				slog.Warn("ProfileRepo.CreateWithinCap rollback failed", slog.Any("err", rbErr))
 			}
 		}

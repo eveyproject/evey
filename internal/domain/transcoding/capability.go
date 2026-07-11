@@ -220,12 +220,7 @@ func (c EncodeCapability) HWSupports(codec string) bool {
 	if codec == "" {
 		codec = "h264"
 	}
-	for _, supported := range c.HWCodecs {
-		if supported == codec {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.HWCodecs, codec)
 }
 
 // HWCanDecode reports whether the calibrated HW backend can DECODE the given
@@ -244,12 +239,7 @@ func (c EncodeCapability) HWCanDecode(codec string) bool {
 // encoder tuning option is accepted on this host. The arg builder gates every
 // optional tuning flag on this so an unsupported option is never emitted.
 func (c EncodeCapability) HWHasFeature(feature string) bool {
-	for _, f := range c.HWFeatures {
-		if f == feature {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(c.HWFeatures, feature)
 }
 
 // CapabilityRepo persists EncodeCapability across restarts. Backed by

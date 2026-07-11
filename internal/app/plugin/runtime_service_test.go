@@ -58,7 +58,7 @@ func TestStartPlugin_Initializing_NoDoubleStart(t *testing.T) {
 	}))
 
 	err := svc.StartPlugin(ctx, "plg-init")
-	assert.ErrorIs(t, err, appplugin.ErrAlreadyRunning)
+	require.ErrorIs(t, err, appplugin.ErrAlreadyRunning)
 
 	healthy, _ := runner.Health(ctx, "plg-init")
 	assert.False(t, healthy, "an Initializing plugin must not be re-started (no second spawn)")

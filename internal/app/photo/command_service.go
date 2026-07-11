@@ -173,7 +173,7 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 	// codec (e.g. HEIC without lib support) returns an error and we just
 	// skip the field — the row still ingests, the gallery falls back to
 	// the surface background.
-	blurhash, _ := computePhotoBlurhash(j.path)
+	blurhash, _ := computePhotoBlurhash(j.path) //nolint:errcheck // empty placeholder on failure is acceptable
 
 	p, err := photo.NewPhoto(
 		shared.LibraryID(libraryID), j.path, j.size, j.modTime,

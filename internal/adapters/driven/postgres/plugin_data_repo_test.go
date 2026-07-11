@@ -39,7 +39,7 @@ func TestPluginDataRepo_GlobalSetGetUpsertDelete(t *testing.T) {
 	got, err := repo.Get(ctx, "p1", "", "", "k")
 	require.NoError(t, err)
 	assert.Equal(t, "v1", got.Value)
-	assert.Equal(t, "", got.UserID)
+	assert.Empty(t, got.UserID)
 
 	// upsert
 	require.NoError(t, repo.Set(ctx, "p1", "", "", "k", "v2"))

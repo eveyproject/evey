@@ -326,8 +326,8 @@ func TestScanTVShow_MixedCaseTitle_SingleSeries(t *testing.T) {
 	})
 
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/media2/series/The Boys/S02/The Boys S02E01.mkv", Size: 100, Title: "The Boys", Season: intPtr(2), Episode: intPtr(1), Type: library.Episode},
-		{Path: "/media2/series/The Boys/S05/The boys S05E08.mkv", Size: 200, Title: "The boys", Season: intPtr(5), Episode: intPtr(8), Type: library.Episode},
+		{Path: "/media2/series/The Boys/S02/The Boys S02E01.mkv", Size: 100, Title: "The Boys", Season: new(2), Episode: new(1), Type: library.Episode},
+		{Path: "/media2/series/The Boys/S05/The boys S05E08.mkv", Size: 200, Title: "The boys", Season: new(5), Episode: new(8), Type: library.Episode},
 	}
 
 	_, _, err := svc.ScanLibrary(context.Background(), "lib-tv")

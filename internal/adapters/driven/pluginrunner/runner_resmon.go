@@ -44,7 +44,7 @@ func dirSize(dir string) (int64, error) {
 	var total int64
 	err := filepath.Walk(dir, func(_ string, info os.FileInfo, walkErr error) error {
 		if walkErr != nil {
-			return nil
+			return nil //nolint:nilerr // unreadable entries are skipped by design
 		}
 		if info != nil && info.Mode().IsRegular() {
 			total += info.Size()
@@ -225,7 +225,7 @@ func (r *Runner) checkResources(e *processEntry, pid int, cpu map[int]*cpuSample
 func (r *Runner) killOverLimit(e *processEntry, reason string) {
 	slog.Warn("stopping plugin: "+reason, slog.String("plugin", e.pluginID))
 	r.publishPluginError(context.Background(), e.pluginID, reason+"; plugin stopped")
-	_ = r.Stop(context.Background(), e.pluginID)
+	_ = r.Stop(context.Background(), e.pluginID) //nolint:errcheck // best-effort stop of an over-limit plugin
 }
 
 // applyNice lowers a freshly-started plugin's scheduling priority so it can
@@ -265,12 +265,12 @@ func procThreads(pid int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "Threads:") {
-			return strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "Threads:")))
+	for line := range strings.SplitSeq(string(data), "\n") {
+		if after, ok := strings.CutPrefix(line, "Threads:"); ok {
+			return strconv.Atoi(strings.TrimSpace(after))
 		}
 	}
-	return 0, fmt.Errorf("Threads not found")
+	return 0, fmt.Errorf("threads not found in /proc status")
 }
 
 // procCPUTicks returns utime+stime (clock ticks) of pid from /proc/<pid>/stat.
@@ -320,16 +320,16 @@ func gpuEngineNanos(pid int) (uint64, bool) {
 		if err != nil {
 			continue // fd closed between ReadDir and ReadFile — fine
 		}
-		for _, line := range strings.Split(string(data), "\n") {
+		for line := range strings.SplitSeq(string(data), "\n") {
 			// e.g. "drm-engine-gfx:    123456789 ns"
 			if !strings.HasPrefix(line, "drm-engine-") {
 				continue
 			}
-			colon := strings.IndexByte(line, ':')
-			if colon < 0 {
+			_, after, ok := strings.Cut(line, ":")
+			if !ok {
 				continue
 			}
-			fields := strings.Fields(line[colon+1:])
+			fields := strings.Fields(after)
 			if len(fields) == 0 {
 				continue
 			}

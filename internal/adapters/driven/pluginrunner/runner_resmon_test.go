@@ -43,7 +43,7 @@ func TestDirSize(t *testing.T) {
 // disk cap (the sweep just sees no growth that pass).
 func TestDirSizeMissing(t *testing.T) {
 	total, err := dirSize(filepath.Join(t.TempDir(), "does-not-exist"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Zero(t, total)
 }
 
@@ -71,9 +71,9 @@ func TestProcReadersSelf(t *testing.T) {
 func TestProcReadersDeadPID(t *testing.T) {
 	const deadPID = 1 << 30 // far above any real PID
 	_, err := procRSSBytes(deadPID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = procThreads(deadPID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = procCPUTicks(deadPID)
 	assert.Error(t, err)
 }

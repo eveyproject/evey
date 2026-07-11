@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,10 +49,8 @@ func (f *fakeMediaItemGetter) GetMediaItemsByIDs(_ context.Context, ids []string
 	if f.item == nil {
 		return nil, nil
 	}
-	for _, id := range ids {
-		if string(f.item.ID) == id {
-			return []*domainlibrary.MediaItem{f.item}, nil
-		}
+	if slices.Contains(ids, string(f.item.ID)) {
+		return []*domainlibrary.MediaItem{f.item}, nil
 	}
 	return nil, nil
 }

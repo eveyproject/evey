@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -52,28 +53,26 @@ func buildPublicOpenAPISpec(dir string) ([]byte, error) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".swagger.json") {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err != nil {
-			return nil, err
+		raw, readErr := os.ReadFile(filepath.Join(dir, e.Name()))
+		if readErr != nil {
+			return nil, readErr
 		}
 		var doc struct {
 			Paths       map[string]map[string]json.RawMessage `json:"paths"`
 			Definitions map[string]json.RawMessage            `json:"definitions"`
 		}
-		if err := json.Unmarshal(raw, &doc); err != nil {
-			return nil, fmt.Errorf("%s: %w", e.Name(), err)
+		if uErr := json.Unmarshal(raw, &doc); uErr != nil {
+			return nil, fmt.Errorf("%s: %w", e.Name(), uErr)
 		}
 		// Collect every definition for now; only those reachable from the kept
 		// operations survive below - buf generates one schema per proto message
 		// across the WHOLE API, which is hundreds of internal models this page
 		// must neither drown the reader in nor disclose.
-		for k, v := range doc.Definitions {
-			mergedDefs[k] = v
-		}
+		maps.Copy(mergedDefs, doc.Definitions)
 		for path, verbs := range doc.Paths {
 			for verb, opRaw := range verbs {
 				var op map[string]any
-				if err := json.Unmarshal(opRaw, &op); err != nil {
+				if opErr := json.Unmarshal(opRaw, &op); opErr != nil {
 					continue
 				}
 				opID, _ := op["operationId"].(string)

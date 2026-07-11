@@ -36,7 +36,7 @@ func TestLibraryRepo_Create_GetByID(t *testing.T) {
 	lib := newTestLibrary("lib1")
 	require.NoError(t, repo.Create(ctx, lib))
 
-	got, err := repo.GetByID(ctx, shared.LibraryID(lib.ID))
+	got, err := repo.GetByID(ctx, lib.ID)
 	require.NoError(t, err)
 	assert.Equal(t, lib.Name, got.Name)
 	assert.Equal(t, lib.Paths, got.Paths)
@@ -56,7 +56,7 @@ func TestLibraryRepo_ScanFlags_RoundTrip(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, lib))
 
 	// Create → GetByID must preserve both flags (the bug was they were never persisted).
-	got, err := repo.GetByID(ctx, shared.LibraryID(lib.ID))
+	got, err := repo.GetByID(ctx, lib.ID)
 	require.NoError(t, err)
 	assert.True(t, got.ScanOnStartup, "scan_on_startup must persist")
 	assert.True(t, got.RealtimeMonitoring, "realtime_monitoring must persist")
@@ -78,7 +78,7 @@ func TestLibraryRepo_ScanFlags_RoundTrip(t *testing.T) {
 	got.ScanOnStartup = false
 	got.RealtimeMonitoring = false
 	require.NoError(t, repo.Update(ctx, got))
-	after, err := repo.GetByID(ctx, shared.LibraryID(lib.ID))
+	after, err := repo.GetByID(ctx, lib.ID)
 	require.NoError(t, err)
 	assert.False(t, after.ScanOnStartup)
 	assert.False(t, after.RealtimeMonitoring)

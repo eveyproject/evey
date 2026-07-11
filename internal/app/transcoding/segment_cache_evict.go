@@ -120,16 +120,10 @@ func (c *SegmentCache) sweepOnce(p EvictionPolicy, logger *slog.Logger) {
 	sort.Slice(hashes, func(i, j int) bool {
 		return hashes[i].LastAccess.Before(hashes[j].LastAccess)
 	})
-	protected := p.ProtectRecent
-	if protected > len(hashes) {
-		protected = len(hashes)
-	}
+	protected := min(p.ProtectRecent, len(hashes))
 	candidates := hashes[:len(hashes)-protected]
 
-	target := p.MaxBytes - p.MarginBytes
-	if target < 0 {
-		target = 0
-	}
+	target := max(p.MaxBytes-p.MarginBytes, 0)
 
 	var evicted int
 	var freed int64
@@ -227,7 +221,7 @@ func dirSizeAndMtime(dir string) (int64, time.Time, error) {
 		}
 		info, err := d.Info()
 		if err != nil {
-			return nil
+			return nil //nolint:nilerr // vanished-mid-walk entries are skipped by design
 		}
 		total += info.Size()
 		if mt := info.ModTime(); mt.After(newest) {

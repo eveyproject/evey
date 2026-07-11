@@ -137,12 +137,10 @@ func TestIntroDetectionHandler_GoroutinePanicRecovered(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		// If the panic isn't recovered, this goroutine + test process die.
 		h.ServeHTTP(w, req)
-	}()
+	})
 	wg.Wait()
 
 	if w.Code != http.StatusAccepted {

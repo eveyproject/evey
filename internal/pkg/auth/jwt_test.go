@@ -195,22 +195,22 @@ func TestPINToken_Rejections(t *testing.T) {
 
 	// empty profile / non-positive ttl
 	_, err := g.GeneratePINToken("", time.Minute)
-	assert.Error(t, err)
+	require.Error(t, err)
 	_, err = g.GeneratePINToken("prf-1", 0)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// expired (mint with a 1ns ttl, then let it lapse)
 	expired, err := g.GeneratePINToken("prf-1", time.Nanosecond)
 	require.NoError(t, err)
 	time.Sleep(5 * time.Millisecond)
 	_, err = g.ParsePINToken(expired)
-	assert.Error(t, err, "expired pin token must be rejected")
+	require.Error(t, err, "expired pin token must be rejected")
 
 	// signed by a different key (tampered/forged)
 	other, _ := rsa.GenerateKey(rand.Reader, 2048)
 	forged, _ := auth.NewJWTGenerator(other, time.Minute).GeneratePINToken("prf-1", time.Minute)
 	_, err = g.ParsePINToken(forged)
-	assert.Error(t, err, "pin token signed by another key must be rejected")
+	require.Error(t, err, "pin token signed by another key must be rejected")
 
 	// an access token is not a pin token (token_type guard)
 	access, _ := g.GenerateAccessToken(user.Claims{UserID: "u1", ProfileID: "prf-1"})

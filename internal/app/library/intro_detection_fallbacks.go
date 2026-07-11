@@ -138,10 +138,7 @@ func (s *IntroDetectionService) detectStudioLogo(ctx context.Context, item *doma
 	}
 
 	// Extract only enough frames to cover 90 seconds.
-	maxFrames := 90 / manifest.Interval
-	if maxFrames < 1 {
-		maxFrames = 1
-	}
+	maxFrames := max(90/manifest.Interval, 1)
 	hashes, _, hashErr := s.extractEpisodeHashes(manifest, maxFrames)
 	if hashErr != nil || len(hashes) == 0 {
 		return nil

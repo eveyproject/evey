@@ -50,7 +50,7 @@ func computeBlurhash(path string) (string, error) {
 	if int64(cfg.Width)*int64(cfg.Height) > maxBlurhashPixels {
 		return "", fmt.Errorf("image too large for blurhash: %dx%d", cfg.Width, cfg.Height)
 	}
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
+	if _, err = f.Seek(0, io.SeekStart); err != nil {
 		return "", fmt.Errorf("seek: %w", err)
 	}
 	img, _, err := image.Decode(f)

@@ -45,7 +45,7 @@ func TestCapLadderToSource_LetterboxedSourceUsesLargerSide(t *testing.T) {
 func TestCapLadderToSource_UnknownSourceLeavesLadderIntact(t *testing.T) {
 	// Zero dims = "unknown source" → don't cap.
 	capped := CapLadderToSource(LadderFilmHighMotion, 0, 0)
-	assert.Equal(t, len(LadderFilmHighMotion), len(capped))
+	assert.Len(t, capped, len(LadderFilmHighMotion))
 }
 
 func TestCapLadderToSource_TinySourceKeepsAtLeastOne(t *testing.T) {

@@ -73,7 +73,7 @@ func TestRunnerStartStop(t *testing.T) {
 func TestRunnerStopNotRunning(t *testing.T) {
 	r := NewRunner()
 	err := r.Stop(context.Background(), "nonexistent")
-	assert.ErrorContains(t, err, "not running")
+	require.ErrorContains(t, err, "not running")
 }
 
 // fakeHostRegistry records UnregisterPlugin calls to assert host-socket cleanup.
@@ -336,7 +336,7 @@ func TestWithSandboxMode_StoresBasic(t *testing.T) {
 // else falls through to the raw error string.
 func TestClassifyExitError_OOMHints(t *testing.T) {
 	t.Run("nil error → empty", func(t *testing.T) {
-		assert.Equal(t, "", classifyExitError(nil))
+		assert.Empty(t, classifyExitError(nil))
 	})
 
 	t.Run("non-exit error falls through", func(t *testing.T) {
@@ -530,4 +530,3 @@ func TestSetupSocketDir_UIDSeparationParentTraversable(t *testing.T) {
 			"parent must grant nothing to group/other when uid separation is off")
 	})
 }
-

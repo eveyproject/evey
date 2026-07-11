@@ -48,8 +48,8 @@ func TestDownloadCollection_MixedMovieAndSeries(t *testing.T) {
 	dir := t.TempDir()
 	movie := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", Type: domainlibrary.MovieItem, Title: "Inception", File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "inception.mkv", "movie")}}
 	series := &domainlibrary.MediaItem{ID: "sr1", LibraryID: "lib1", Type: domainlibrary.Series, Title: "My Show"}
-	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: intPtr(1)}
-	ep := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Pilot", IndexNumber: intPtr(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "ep1.mkv", "ep")}}
+	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: new(1)}
+	ep := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Pilot", IndexNumber: new(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "ep1.mkv", "ep")}}
 
 	h := &collectionHandler{
 		collSvc:    &fakeCollectionSource{col: &domainlibrary.Collection{Name: "Faves"}, items: []*domainlibrary.MediaItem{movie, series}},

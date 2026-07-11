@@ -197,7 +197,7 @@ func writeSegments(t *testing.T, c *SegmentCache, hash string, count, size int) 
 	dir, err := c.DirFor(hash)
 	require.NoError(t, err)
 	payload := make([]byte, size)
-	for i := 0; i < count; i++ {
+	for i := range count {
 		name := SegmentKey{DecisionHash: hash, VariantIdx: 0, SegmentIdx: i}.fileName(false)
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), payload, 0o644))
 	}

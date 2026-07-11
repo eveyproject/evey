@@ -365,9 +365,7 @@ func medianFloat(vs []float64) float64 {
 // ffmpegPkgSlidingBestPearsonBanded indirects via the package-level helper so
 // the service tests can stub it via the IntroDetector port. In practice it
 // always resolves to ffmpeg.SlidingBestPearsonBanded.
-var ffmpegPkgSlidingBestPearsonBanded = func(target, ref []float64, vectorSize int) (float64, int) {
-	return slidingBestPearsonBandedImpl(target, ref, vectorSize)
-}
+var ffmpegPkgSlidingBestPearsonBanded = slidingBestPearsonBandedImpl
 
 // slidingBestPearsonBandedImpl is a copy of the adapter helper kept inline to
 // avoid a circular dep between domain/app and the ffmpeg adapter (the service

@@ -279,7 +279,7 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 		slog.Warn("reset: delete overrides", slog.String("id", string(item.ID)), slog.Any("err", err))
 	}
 	if s.mediaPersons != nil {
-		if err := s.mediaPersons.DeleteByMediaItemID(ctx, shared.MediaItemID(item.ID)); err != nil {
+		if err := s.mediaPersons.DeleteByMediaItemID(ctx, item.ID); err != nil {
 			slog.Warn("reset: delete media persons", slog.String("id", string(item.ID)), slog.Any("err", err))
 		}
 	}

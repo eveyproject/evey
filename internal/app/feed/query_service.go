@@ -55,7 +55,7 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 			// has the last word on whether a plugin section appears at
 			// all). DisplayOrder stays profile-controlled even on plugins
 			// — each user keeps their Customize panel order.
-			if o.Enabled != nil && !(isPlugin && !a.Enabled) {
+			if o.Enabled != nil && (!isPlugin || a.Enabled) {
 				m.Enabled = *o.Enabled
 			}
 			if o.DisplayOrder != nil {

@@ -152,8 +152,7 @@ func TestStartRetentionPurge_DisabledIsNoop(t *testing.T) {
 	cmdSvc, querySvc, _, _, auditRepo, _, _ := newTestServices()
 	_ = auditRepo.Create(context.Background(), &activity.AuditLogEntry{ID: "keep", Action: "login", CreatedAt: time.Now().Add(-1000 * time.Hour)})
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	// Both retentions disabled (<= 0) → no goroutine, nothing purged.
 	cmdSvc.StartRetentionPurge(ctx, 0, 0)
 
@@ -246,7 +245,7 @@ func TestGetServerStats(t *testing.T) {
 	statsReader.ServerStatsResult = &activity.ServerStatsResult{
 		ActiveStreams:    3,
 		ActiveTranscodes: 1,
-		TotalUsers:      5,
+		TotalUsers:       5,
 	}
 
 	stats, err := querySvc.GetServerStats(context.Background())
@@ -307,11 +306,11 @@ func TestGetMostPopular(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		popular  []activity.MediaPlayCount
-		limit    int
-		wantLen  int
-		wantErr  bool
+		name    string
+		popular []activity.MediaPlayCount
+		limit   int
+		wantLen int
+		wantErr bool
 	}{
 		{
 			name: "happy path",
@@ -370,10 +369,10 @@ func TestGetAnalytics(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		reader    *actfakes.FakeAnalyticsReader
-		wantLen   int
-		wantErr   bool
+		name    string
+		reader  *actfakes.FakeAnalyticsReader
+		wantLen int
+		wantErr bool
 	}{
 		{
 			name: "happy path",

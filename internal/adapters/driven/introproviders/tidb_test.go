@@ -184,7 +184,7 @@ func TestTIDBClient_ImdbFallback_Queries(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "tt0944947", r.URL.Query().Get("imdb_id"))
-		assert.Equal(t, "", r.URL.Query().Get("tmdb_id"))
+		assert.Empty(t, r.URL.Query().Get("tmdb_id"))
 		assert.Equal(t, "1", r.URL.Query().Get("season"))
 		assert.Equal(t, "1", r.URL.Query().Get("episode"))
 		w.Header().Set("Content-Type", "application/json")
@@ -225,7 +225,7 @@ func TestTIDBClient_RateLimited_PrefersLongestWindow(t *testing.T) {
 	_, err := c.Fetch(context.Background(), Lookup{TmdbID: 1, Season: 1, Episode: 1})
 	require.Error(t, err)
 	var rl ErrRateLimited
-	require.True(t, errors.As(err, &rl))
+	require.ErrorAs(t, err, &rl)
 	assert.Equal(t, 3600, int(rl.RetryAfter.Seconds()))
 }
 

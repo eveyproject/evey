@@ -68,12 +68,12 @@ func TestNormalizeSortTitle_KeysetOrdering(t *testing.T) {
 	// Lexicographic order of the normalized strings must match user
 	// expectation. Pick a small alphabet across diacritics + articles.
 	titles := []string{
-		"The Matrix",        // → matrix
-		"Les Âmes Vagabondes", // → ames vagabondes
-		"Angels and Demons", // → angels and demons
-		"L'Odyssée",         // → odyssee
+		"The Matrix",           // → matrix
+		"Les Âmes Vagabondes",  // → ames vagabondes
+		"Angels and Demons",    // → angels and demons
+		"L'Odyssée",            // → odyssee
 		"2001 A Space Odyssey", // → 002001 a space odyssey
-		"300",               // → 000300
+		"300",                  // → 000300
 	}
 	normalized := make([]string, len(titles))
 	for i, t := range titles {
@@ -91,7 +91,7 @@ func TestNormalizeSortTitle_KeysetOrdering(t *testing.T) {
 		"odyssee",
 	}
 	sorted := append([]string(nil), normalized...)
-	for i := 0; i < len(sorted); i++ {
+	for i := range sorted {
 		for j := i + 1; j < len(sorted); j++ {
 			if sorted[j] < sorted[i] {
 				sorted[i], sorted[j] = sorted[j], sorted[i]
@@ -123,10 +123,10 @@ func TestNormalizeSortTitle_ConcurrentSafe(t *testing.T) {
 	const iters = 200
 	var wg sync.WaitGroup
 	wg.Add(workers)
-	for w := 0; w < workers; w++ {
+	for range workers {
 		go func() {
 			defer wg.Done()
-			for i := 0; i < iters; i++ {
+			for i := range iters {
 				c := cases[i%len(cases)]
 				if got := NormalizeSortTitle(c.in); got != c.want {
 					t.Errorf("NormalizeSortTitle(%q) = %q, want %q", c.in, got, c.want)

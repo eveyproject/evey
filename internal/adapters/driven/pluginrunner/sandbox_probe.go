@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 )
@@ -26,7 +27,7 @@ func ProbeSandbox(mode string) error {
 		return nil
 	case sandboxModeLandlock:
 		if !landlockAvailable() {
-			return fmt.Errorf("Landlock is not enforced on this host (kernel <5.13, or Landlock absent from the active LSM list); " +
+			return fmt.Errorf("landlock is not enforced on this host (kernel <5.13, or Landlock absent from the active LSM list); " +
 				"set EVEY_PLUGINS_SANDBOX_MODE=auto to fall back to the best available isolation")
 		}
 		return nil
@@ -52,11 +53,11 @@ func ProbeSandbox(mode string) error {
 	if prefix == nil { // mode resolved to basic
 		return nil
 	}
-	args := append(prefix[1:], "true") // drop leading "bwrap"; payload exits 0 if it runs
+	args := append(slices.Clone(prefix[1:]), "true") // drop leading "bwrap"; payload exits 0 if it runs
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, "bwrap", args...).CombinedOutput()
+	out, err := exec.CommandContext(ctx, "bwrap", args...).CombinedOutput() //nolint:gosec // fixed binary; args come from our own bwrap builder, no user input
 	if err == nil {
 		return nil
 	}

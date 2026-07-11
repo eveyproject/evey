@@ -45,7 +45,7 @@ func TestProfileRepo_CreateWithinCap_Concurrent(t *testing.T) {
 	const attempts = 12
 	var okCount, capCount int64
 	var wg sync.WaitGroup
-	for i := 0; i < attempts; i++ {
+	for i := range attempts {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -82,7 +82,7 @@ func TestProfileRepo_CreateWithinCap_Unlimited(t *testing.T) {
 	u := newTestUser("uncap")
 	require.NoError(t, userRepo.Create(ctx, u))
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		require.NoError(t, profileRepo.CreateWithinCap(ctx, newTestProfile(fmt.Sprintf("unl-%d", i), u.ID), 0))
 	}
 	got, err := profileRepo.GetByUserID(ctx, u.ID)

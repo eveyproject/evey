@@ -51,7 +51,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.pHashPass")
 	defer span.End()
 
-	mediaID := shared.MediaItemID(item.ID)
+	mediaID := item.ID
 
 	manifest, err := s.waitForManifest(ctx, mediaID)
 	if err != nil {
@@ -331,7 +331,7 @@ func (s *IntroDetectionService) extractEpisodeHashes(manifest *domainlibrary.Tri
 		spritePath := filepath.Join(spriteDir, fmt.Sprintf("trickplay_%03d.webp", spriteN))
 		tileHashes, err := s.detector.ExtractTileHashes(spritePath, manifest.TileWidth, manifest.TileHeight, manifest.Width, tileH)
 		if err != nil {
-			break
+			break // no more sprite files: the collected prefix is the result
 		}
 		for _, h := range tileHashes {
 			if frameIdx >= maxFrames || frameIdx >= len(sidecar.FrameTimestamps) {
@@ -342,7 +342,7 @@ func (s *IntroDetectionService) extractEpisodeHashes(manifest *domainlibrary.Tri
 			frameIdx++
 		}
 	}
-	return hashes, ms, nil
+	return hashes, ms, nil //nolint:nilerr // a missing next sprite ends the walk; the prefix is the result
 }
 
 // frameCutoff returns the number of frames covering the first cutoffPercent of

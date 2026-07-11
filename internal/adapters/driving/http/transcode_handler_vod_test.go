@@ -52,17 +52,6 @@ func (f testFakeParentalChecker) BlockedByParental(_ context.Context, _ string, 
 	return f.block
 }
 
-// testFakeEnsure counts EnsureSegmentRange calls and can optionally fail.
-type testFakeEnsure struct {
-	calls []int
-	err   error
-}
-
-func (f *testFakeEnsure) EnsureSegmentRange(_ context.Context, _ apptranscoding.DecisionFingerprint, segIdx int) error {
-	f.calls = append(f.calls, segIdx)
-	return f.err
-}
-
 // fakeOrchestratorAdapter is a thin SegmentOrchestrator-shaped shim that
 // delegates only EnsureSegmentRange so tests can control it without spawning
 // ffmpeg. We keep a real *SegmentOrchestrator in hlsVODServe but override via

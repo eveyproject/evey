@@ -97,11 +97,9 @@ func TestDemoteCapability_ConcurrentFailures_Debounce(t *testing.T) {
 	svc, _ := seedHWService(t)
 	var wg sync.WaitGroup
 	for range 24 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			svc.DemoteCapability(context.Background(), domaintranscoding.FailureHWUnsupportedOption, "h264")
-		}()
+		})
 	}
 	wg.Wait()
 	// The storm of concurrent failures from one bad option must collapse to a

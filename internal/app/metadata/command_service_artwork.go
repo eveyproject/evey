@@ -221,7 +221,6 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 	var wg sync.WaitGroup
 
 	for _, rec := range records {
-		rec := rec
 		select {
 		case <-ctx.Done():
 			// A bare `break` would only exit the select, then fall through to
@@ -349,7 +348,6 @@ func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJ
 	var wg sync.WaitGroup
 	var sucAtomic, failAtomic atomic.Int64
 	for _, rec := range records {
-		rec := rec
 		select {
 		case <-ctx.Done():
 			wg.Wait()
@@ -485,7 +483,6 @@ func (s *CommandService) backfillBlurhashRecords(ctx context.Context, job *Downl
 	var wg sync.WaitGroup
 	var sucAtomic, failAtomic atomic.Int64
 	for _, rec := range records {
-		rec := rec
 		select {
 		case <-ctx.Done():
 			wg.Wait()

@@ -57,15 +57,6 @@ func (f *fakeAudioProcess) StartAudioOnly(_ context.Context, opts transcoding.Au
 
 func (f *fakeAudioProcess) startCount() int { return int(f.count.Load()) }
 
-func (f *fakeAudioProcess) lastOpts() transcoding.AudioProcessOpts {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if len(f.opts) == 0 {
-		return transcoding.AudioProcessOpts{}
-	}
-	return f.opts[len(f.opts)-1]
-}
-
 // audioFakeHandle controls a simulated ffmpeg audio session.
 type audioFakeHandle struct {
 	mu      sync.Mutex
@@ -77,12 +68,12 @@ func newAudioFakeHandle() *audioFakeHandle {
 	return &audioFakeHandle{done: make(chan struct{})}
 }
 
-func (h *audioFakeHandle) WaitReady(_ context.Context) error            { return nil }
-func (h *audioFakeHandle) Done() <-chan struct{}                        { return h.done }
-func (h *audioFakeHandle) Err() error                                   { return nil }
-func (h *audioFakeHandle) Failure() transcoding.FailureClass            { return transcoding.FailureNone }
-func (h *audioFakeHandle) Pause() error                                 { return nil }
-func (h *audioFakeHandle) Resume() error                                { return nil }
+func (h *audioFakeHandle) WaitReady(_ context.Context) error { return nil }
+func (h *audioFakeHandle) Done() <-chan struct{}             { return h.done }
+func (h *audioFakeHandle) Err() error                        { return nil }
+func (h *audioFakeHandle) Failure() transcoding.FailureClass { return transcoding.FailureNone }
+func (h *audioFakeHandle) Pause() error                      { return nil }
+func (h *audioFakeHandle) Resume() error                     { return nil }
 func (h *audioFakeHandle) Stop() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -114,10 +105,10 @@ func writeAudioSegment(t *testing.T, cache *SegmentCache, fp AudioFingerprint, s
 		Kind:         KindAudio,
 	}
 	path := cache.Path(key, true)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	assert.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 	// Valid fMP4 (styp+moof+mdat) so SegmentCache.IsReady's content-box check
 	// accepts it as a real audio segment (it rejects styp-only/dummy bytes).
-	require.NoError(t, os.WriteFile(path, fmp4Seg(), 0o644))
+	assert.NoError(t, os.WriteFile(path, fmp4Seg(), 0o644))
 }
 
 // minimalAudioFp returns an AudioFingerprint for tests.

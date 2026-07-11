@@ -42,7 +42,7 @@ type CapOverride struct {
 //	SourceClassFor("",     1440) → "any/1440p"
 //	SourceClassFor("hevc", 720)  → ""           (below 1080p floor)
 func SourceClassFor(sourceCodec string, sourceHeight int) string {
-	heightBucket := ""
+	var heightBucket string
 	switch {
 	case sourceHeight >= 2160:
 		heightBucket = "2160p"

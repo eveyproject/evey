@@ -640,6 +640,6 @@ func TestSetExtraParserTokens_NilClears(t *testing.T) {
 	assert.Equal(t, "foo", ParseFilename("Movie.foo.mkv").Quality)
 	SetExtraParserTokens(nil, nil)
 	got := ParseFilename("Movie.foo.mkv")
-	assert.Equal(t, "", got.Quality, "extras must be cleared")
+	assert.Empty(t, got.Quality, "extras must be cleared")
 	assert.Equal(t, "Movie foo", got.Title, "foo leaks back into title once cleared")
 }

@@ -397,33 +397,38 @@ func (r *MediaItemRepository) BackfillEmptySortTitles(ctx context.Context) (int,
 	const batchSize = 500
 	var totalUpdated int
 
-	for {
+	type pair struct{ id, sortTitle string }
+	// One batch per call so rows can be closed by defer (sqlclosecheck) while
+	// the outer loop keeps issuing fresh queries until the table is drained.
+	readBatch := func() ([]pair, error) {
 		rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 			`SELECT id, title FROM media_items WHERE sort_title = '' AND title <> '' LIMIT $1`,
 			batchSize,
 		)
 		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles select: %w", err)
+			return nil, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles select: %w", err)
 		}
-
-		type pair struct{ id, sortTitle string }
+		defer rows.Close()
 		var batch []pair
 		for rows.Next() {
 			var id, title string
 			if err := rows.Scan(&id, &title); err != nil {
-				rows.Close()
-				return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles scan: %w", err)
+				return nil, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles scan: %w", err)
 			}
 			batch = append(batch, pair{id: id, sortTitle: library.NormalizeSortTitle(title)})
 		}
-		if rowsErr := rows.Err(); rowsErr != nil {
-			rows.Close()
-			return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles rows: %w", rowsErr)
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles rows: %w", err)
 		}
-		if err := rows.Close(); err != nil {
-			return totalUpdated, fmt.Errorf("MediaItemRepo.BackfillEmptySortTitles close: %w", err)
+		return batch, nil
+	}
+
+	for {
+		batch, err := readBatch()
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return totalUpdated, err
 		}
 		if len(batch) == 0 {
 			break

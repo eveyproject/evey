@@ -377,7 +377,7 @@ func TestCalibration_Recalibrate_RejectsConcurrent(t *testing.T) {
 	errCh <- svc.Recalibrate(context.Background())
 
 	var got []error
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		got = append(got, <-errCh)
 	}
 	hasBusy := false

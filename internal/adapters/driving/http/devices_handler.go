@@ -132,7 +132,7 @@ func (h *devicesHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request
 
 		// First frame: registration. Reject the connection if it doesn't
 		// arrive promptly or isn't a valid register request.
-		_ = ws.SetReadDeadline(time.Now().Add(10 * time.Second))
+		_ = ws.SetReadDeadline(time.Now().Add(10 * time.Second)) //nolint:errcheck // best-effort deadline refresh
 		var raw string
 		if err := websocket.Message.Receive(ws, &raw); err != nil {
 			slog.Warn("devices ws: no register frame", slog.String("user", userID), slog.Any("err", err))

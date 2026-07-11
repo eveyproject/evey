@@ -116,7 +116,7 @@ func extractZipFile(f *zip.File, destDir string, totalBytes *uint64) error {
 	// UncompressedSize64 cap above) — refuse it rather than writing a silently
 	// truncated file to disk.
 	if n > int64(maxZipFileSize) {
-		_ = os.Remove(target)
+		_ = os.Remove(target) //nolint:errcheck // best-effort cleanup of a partial extract
 		return fmt.Errorf("file %s exceeds max size during extraction (>%d bytes)", f.Name, maxZipFileSize)
 	}
 	*totalBytes += uint64(n)

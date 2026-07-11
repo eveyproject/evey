@@ -1,6 +1,7 @@
 package ffmpeg
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -8,12 +9,7 @@ import (
 )
 
 func argsContain(args []string, want string) bool {
-	for _, a := range args {
-		if a == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(args, want)
 }
 
 // argsContainSeq reports whether want appears as a contiguous subsequence.

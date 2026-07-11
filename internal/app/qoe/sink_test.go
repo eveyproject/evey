@@ -55,7 +55,7 @@ func TestBufferedSink_RecordIsNonBlocking_DrainsToStorage(t *testing.T) {
 	sink := NewBufferedSink(cap, SinkOptions{BufferSize: 16, DropMetric: drops}, nil)
 	defer func() { _ = sink.Close(context.Background()) }()
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		sink.Record(Event{
 			MediaItemID: "media-1",
 			VariantIdx:  i % 3,
@@ -76,7 +76,7 @@ func TestBufferedSink_DropsOnBufferFullWithoutBlocking(t *testing.T) {
 	sink := NewBufferedSink(cap, SinkOptions{BufferSize: 4, DropMetric: drops}, nil)
 
 	// Storage hangs → 1 event in worker mid-insert, 4 fill the channel, the rest drop.
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		sink.Record(Event{MediaItemID: "x", SegmentIdx: i})
 	}
 
@@ -117,7 +117,7 @@ func TestBufferedSink_StorageErrorDoesNotKillWorker(t *testing.T) {
 	sink := NewBufferedSink(cap, SinkOptions{BufferSize: 8}, nil)
 	defer func() { _ = sink.Close(context.Background()) }()
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		sink.Record(Event{MediaItemID: "x", SegmentIdx: i})
 	}
 

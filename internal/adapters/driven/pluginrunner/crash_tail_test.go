@@ -26,5 +26,5 @@ func TestTailBuffer_SingleWriteLargerThanCap(t *testing.T) {
 }
 
 func TestTailBuffer_Empty(t *testing.T) {
-	assert.Equal(t, "", newTailBuffer(16).String())
+	assert.Empty(t, newTailBuffer(16).String())
 }

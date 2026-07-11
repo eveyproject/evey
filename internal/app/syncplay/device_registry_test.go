@@ -108,7 +108,7 @@ func TestDeviceRegistry_SendCommand_NotConnected(t *testing.T) {
 	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
 
 	// Wrong device, wrong user, and a user with no devices at all.
-	assert.ErrorIs(t, r.SendCommand("user-1", "dev-missing", syncplay.DeviceCommand{Type: "play"}), ErrDeviceNotConnected)
+	require.ErrorIs(t, r.SendCommand("user-1", "dev-missing", syncplay.DeviceCommand{Type: "play"}), ErrDeviceNotConnected)
 	assert.ErrorIs(t, r.SendCommand("user-2", "dev-tv", syncplay.DeviceCommand{Type: "play"}), ErrDeviceNotConnected)
 }
 
@@ -125,7 +125,7 @@ func TestDeviceRegistry_SendCommand_SenderError(t *testing.T) {
 
 func TestDeviceRegistry_QuotaRejectsNewDevicePastCap(t *testing.T) {
 	r := NewDeviceRegistry()
-	for i := 0; i < MaxDevicesPerUser; i++ {
+	for i := range MaxDevicesPerUser {
 		dev, err := r.Register("user-1", fmt.Sprintf("dev-%d", i), "D", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
 		require.NoError(t, err)
 		require.Equal(t, fmt.Sprintf("dev-%d", i), dev.ID)
@@ -145,7 +145,7 @@ func TestDeviceRegistry_QuotaRejectsNewDevicePastCap(t *testing.T) {
 func TestDeviceRegistry_QuotaAllowsReconnectAtCap(t *testing.T) {
 	r := NewDeviceRegistry()
 	var lastID string
-	for i := 0; i < MaxDevicesPerUser; i++ {
+	for i := range MaxDevicesPerUser {
 		lastID = fmt.Sprintf("dev-%d", i)
 		_, err := r.Register("user-1", lastID, "D", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
 		require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestDeviceRegistry_QuotaAllowsReconnectAtCap(t *testing.T) {
 
 func TestDeviceRegistry_QuotaFreedAfterUnregister(t *testing.T) {
 	r := NewDeviceRegistry()
-	for i := 0; i < MaxDevicesPerUser; i++ {
+	for i := range MaxDevicesPerUser {
 		_, err := r.Register("user-1", fmt.Sprintf("dev-%d", i), "D", syncplay.DeviceTypeTV, fakes.NewFakeMessageSender())
 		require.NoError(t, err)
 	}
@@ -182,12 +182,12 @@ func TestDeviceRegistry_ConcurrentSafe(t *testing.T) {
 	const iters = 200
 	var wg sync.WaitGroup
 	wg.Add(workers)
-	for w := 0; w < workers; w++ {
+	for w := range workers {
 		go func(w int) {
 			defer wg.Done()
 			uid := "user-1"
 			did := "dev-" + string(rune('A'+w))
-			for i := 0; i < iters; i++ {
+			for range iters {
 				s := fakes.NewFakeMessageSender()
 				_, _ = r.Register(uid, did, "D", syncplay.DeviceTypeTV, s)
 				_ = r.SendCommand(uid, did, syncplay.DeviceCommand{Type: "play"})

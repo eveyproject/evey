@@ -13,8 +13,6 @@ import (
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 )
 
-func intPtr(i int) *int { return &i }
-
 func archiveTempFile(t *testing.T, dir, name, content string) string {
 	t.Helper()
 	p := filepath.Join(dir, name)
@@ -58,9 +56,9 @@ func runArchiveDownload(t *testing.T, getter *fakeMediaItemGetter, id string) *h
 
 func TestDownloadHandler_Season_ZIP(t *testing.T) {
 	dir := t.TempDir()
-	ep1 := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Pilot", IndexNumber: intPtr(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e1.mkv", "one")}}
-	ep2 := &domainlibrary.MediaItem{ID: "ep2", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Second", IndexNumber: intPtr(2), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e2.mkv", "two")}}
-	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: intPtr(1)}
+	ep1 := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Pilot", IndexNumber: new(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e1.mkv", "one")}}
+	ep2 := &domainlibrary.MediaItem{ID: "ep2", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Second", IndexNumber: new(2), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e2.mkv", "two")}}
+	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: new(1)}
 	// children returned unsorted to exercise index-number ordering.
 	getter := &fakeMediaItemGetter{item: season, children: map[string][]*domainlibrary.MediaItem{"s1": {ep2, ep1}}}
 
@@ -83,10 +81,10 @@ func TestDownloadHandler_Season_ZIP(t *testing.T) {
 
 func TestDownloadHandler_Series_ZIP_NestedBySeason(t *testing.T) {
 	dir := t.TempDir()
-	ep1 := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Pilot", IndexNumber: intPtr(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e1.mkv", "one")}}
-	ep2 := &domainlibrary.MediaItem{ID: "ep2", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Finale", IndexNumber: intPtr(2), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e2.mkv", "two")}}
-	s1 := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: intPtr(1)}
-	s2 := &domainlibrary.MediaItem{ID: "s2", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 2", IndexNumber: intPtr(2)}
+	ep1 := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Pilot", IndexNumber: new(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e1.mkv", "one")}}
+	ep2 := &domainlibrary.MediaItem{ID: "ep2", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Finale", IndexNumber: new(2), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e2.mkv", "two")}}
+	s1 := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: new(1)}
+	s2 := &domainlibrary.MediaItem{ID: "s2", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 2", IndexNumber: new(2)}
 	series := &domainlibrary.MediaItem{ID: "sr1", LibraryID: "lib1", Type: domainlibrary.Series, Title: "My Show"}
 	getter := &fakeMediaItemGetter{item: series, children: map[string][]*domainlibrary.MediaItem{
 		"sr1": {s2, s1}, // unsorted
@@ -116,9 +114,9 @@ func TestDownloadHandler_Season_NoFiles_NotFound(t *testing.T) {
 
 func TestDownloadHandler_CrossLibraryEpisode_Skipped(t *testing.T) {
 	dir := t.TempDir()
-	inLib := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Local", IndexNumber: intPtr(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e1.mkv", "one")}}
-	foreign := &domainlibrary.MediaItem{ID: "ep2", LibraryID: "lib2", Type: domainlibrary.Episode, Title: "Foreign", IndexNumber: intPtr(2), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e2.mkv", "two")}}
-	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: intPtr(1)}
+	inLib := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Local", IndexNumber: new(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e1.mkv", "one")}}
+	foreign := &domainlibrary.MediaItem{ID: "ep2", LibraryID: "lib2", Type: domainlibrary.Episode, Title: "Foreign", IndexNumber: new(2), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e2.mkv", "two")}}
+	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: new(1)}
 	getter := &fakeMediaItemGetter{item: season, children: map[string][]*domainlibrary.MediaItem{"s1": {inLib, foreign}}}
 
 	w := runArchiveDownload(t, getter, "s1")
@@ -135,12 +133,12 @@ func TestDownloadHandler_CrossLibraryEpisode_Skipped(t *testing.T) {
 func TestDownloadHandler_Season_PathOutsideLibraryRoot_Skipped(t *testing.T) {
 	root := t.TempDir()
 	elsewhere := t.TempDir() // a path no library is configured to serve
-	legit := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Legit", IndexNumber: intPtr(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, root, "e1.mkv", "ok")}}
+	legit := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Legit", IndexNumber: new(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, root, "e1.mkv", "ok")}}
 	// Simulates a poisoned media_files.path pointing at a real but out-of-root
 	// file (e.g. a secret). It exists on disk and is openable, yet must NOT be
 	// bundled because it sits outside every configured library root.
-	poisoned := &domainlibrary.MediaItem{ID: "ep2", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Secret", IndexNumber: intPtr(2), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, elsewhere, "jwt.key", "secret")}}
-	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: intPtr(1)}
+	poisoned := &domainlibrary.MediaItem{ID: "ep2", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Secret", IndexNumber: new(2), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, elsewhere, "jwt.key", "secret")}}
+	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: new(1)}
 	getter := &fakeMediaItemGetter{
 		item:      season,
 		children:  map[string][]*domainlibrary.MediaItem{"s1": {legit, poisoned}},

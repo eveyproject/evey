@@ -340,8 +340,8 @@ func (s *CapOverrideService) aggregateAndUpsert(ctx context.Context) error {
 // codec is informational for the override row.
 func lowerCapFor(cls string) int {
 	heightPart := cls
-	if i := strings.IndexByte(cls, '/'); i >= 0 {
-		heightPart = cls[i+1:]
+	if _, after, ok := strings.Cut(cls, "/"); ok {
+		heightPart = after
 	}
 	switch heightPart {
 	case "2160p":

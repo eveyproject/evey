@@ -175,14 +175,8 @@ func CapLadderToSource(ladder []HLSProfile, sourceWidth, sourceHeight int) []HLS
 		// Allow the rung when it's strictly smaller OR equal in the tallest
 		// dimension. Some sources are letterboxed (e.g. 1920×800) — cap
 		// against the larger of width/height vs the rung's larger side.
-		srcMax := sourceWidth
-		if sourceHeight > srcMax {
-			srcMax = sourceHeight
-		}
-		rungMax := p.Width
-		if p.Height > rungMax {
-			rungMax = p.Height
-		}
+		srcMax := max(sourceHeight, sourceWidth)
+		rungMax := max(p.Height, p.Width)
 		if rungMax <= srcMax {
 			out = append(out, p)
 		}

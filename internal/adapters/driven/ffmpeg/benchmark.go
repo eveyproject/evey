@@ -1034,16 +1034,17 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 	args = append(args, "-filter_complex", fc)
 	for i := range heights {
 		args = append(args, "-map", fmt.Sprintf("[o%d]", i), fmt.Sprintf("-c:v:%d", i), encoder)
-		if hwScale != "" {
+		switch {
+		case hwScale != "":
 			if hwPreset != "" {
 				args = append(args, "-preset", hwPreset)
 			}
-		} else if encoder == "libsvtav1" {
+		case encoder == "libsvtav1":
 			// libsvtav1 takes the numeric preset (it rejects "veryfast") — bench at
 			// the SAME svtAV1Preset the production builder emits, or the cap is
 			// measured against a speed the runtime never uses.
 			args = append(args, "-preset", svtAV1Preset, "-pix_fmt", "yuv420p")
-		} else {
+		default:
 			// veryfast (NOT ultrafast) to match the production encoders
 			// (hls_transcoder buildSingle/MultiVariantArgs). Benching a faster
 			// preset than the runtime uses overstates the ceiling, so the host

@@ -72,7 +72,6 @@ func TestMediaStream_Validate(t *testing.T) {
 		{"garbage rejected", library.StreamType("data"), true},
 	}
 	for _, c := range cases {
-		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			s := &library.MediaStream{StreamType: c.typ}

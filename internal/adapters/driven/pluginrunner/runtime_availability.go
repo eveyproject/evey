@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"os/exec"
 	"sort"
-	"sync"
 )
 
 // runtimeBinaries maps the manifest language identifier to the binary
@@ -37,7 +36,6 @@ var compiledLanguages = map[string]bool{
 // worth the cache invalidation complexity.
 type RuntimeAvailability struct {
 	available map[string]bool
-	once      sync.Once
 }
 
 // NewRuntimeAvailability scans PATH for each known plugin runtime and

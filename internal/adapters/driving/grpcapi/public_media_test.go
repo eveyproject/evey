@@ -33,12 +33,10 @@ func TestPublicMediaItemToProto_ProjectsSafeFields(t *testing.T) {
 func TestPosterURLForRecords_PicksPoster(t *testing.T) {
 	url := "https://host/p.jpg"
 	recs := []*domainmetadata.ArtworkRecord{
-		{Type: "backdrop", SourceURL: strptr("https://host/b.jpg")},
+		{Type: "backdrop", SourceURL: new("https://host/b.jpg")},
 		{Type: "poster", SourceURL: &url},
 	}
 	assert.NotEmpty(t, posterURLForRecords(recs))
 	assert.Empty(t, posterURLForRecords(nil))
 	assert.Empty(t, posterURLForRecords([]*domainmetadata.ArtworkRecord{{Type: "logo"}}))
 }
-
-func strptr(s string) *string { return &s }

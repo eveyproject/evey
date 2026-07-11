@@ -6,6 +6,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Regression: sort_title is empty on rows whose scan ran before that
@@ -24,7 +25,7 @@ func TestMediaItemSortValue_TitleFallbackBreaksKeysetPagination(t *testing.T) {
 			SortTitle: "",
 		}
 		got := mediaItemSortValue(item, "title")
-		assert.Equal(t, "", got, "must not fall back to Title — that diverges from mi.sort_title")
+		assert.Empty(t, got, "must not fall back to Title — that diverges from mi.sort_title")
 	})
 
 	t.Run("non-empty SortTitle is returned as-is", func(t *testing.T) {
@@ -57,7 +58,7 @@ func TestNextMediaItemsCursor_RoundTrip(t *testing.T) {
 	assert.NotEmpty(t, tok)
 
 	got, err := shared.DecodeCursor(tok)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "title", got.SortField)
 	assert.Equal(t, "zulu", got.SortValue)
 	assert.Equal(t, "last", got.LastID)

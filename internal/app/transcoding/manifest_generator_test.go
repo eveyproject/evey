@@ -111,7 +111,7 @@ func TestManifestGenerator_Master_FourProfiles(t *testing.T) {
 	assert.Len(t, lines, 11)
 
 	// Each profile must have its own stream_N.m3u8 URL
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		url := fmt.Sprintf("stream_%d.m3u8", i)
 		assert.True(t, containsLine(lines, url), "expected URL line for profile %d", i)
 	}
@@ -482,7 +482,7 @@ func TestManifestGenerator_Variant_QuerySuffixOnInitMap(t *testing.T) {
 // nonEmptyLines splits s into non-empty lines.
 func nonEmptyLines(s string) []string {
 	var out []string
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if line != "" {
 			out = append(out, line)
 		}
@@ -503,7 +503,7 @@ func containsLine(lines []string, target string) bool {
 // extractEXTINF returns all #EXTINF lines from a playlist.
 func extractEXTINF(s string) []string {
 	var out []string
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if strings.HasPrefix(line, "#EXTINF:") {
 			out = append(out, line)
 		}

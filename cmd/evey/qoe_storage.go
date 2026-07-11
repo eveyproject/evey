@@ -20,7 +20,7 @@ func (a qoeStorageAdapter) InsertEvent(ctx context.Context, evt appqoe.Event) er
 		MediaItemID:      nilIfEmpty(evt.MediaItemID),
 		SessionID:        evt.Payload.SessionID,
 		ContentID:        evt.Payload.ContentID,
-		VariantIdx:       intPtr(evt.VariantIdx),
+		VariantIdx:       new(evt.VariantIdx),
 		SegmentIdx:       intPtrIf(evt.SegmentIdx, !evt.IsInit && !evt.IsManifest),
 		ObjectType:       evt.Payload.ObjectType,
 		ObjectDurationMs: intPtrIfNonZero(evt.Payload.ObjectDuration),
@@ -48,8 +48,6 @@ func nilIfEmpty(s string) *string {
 	}
 	return &s
 }
-
-func intPtr(v int) *int { return &v }
 
 func intPtrIf(v int, cond bool) *int {
 	if !cond {

@@ -21,7 +21,8 @@ func TestDecisionFingerprint_Hash_IsStable(t *testing.T) {
 	// Same fingerprint twice ⇒ same hash. Trivial but a precondition for
 	// addressing the cache by it.
 	fp := minimalFingerprint(t)
-	assert.Equal(t, fp.Hash(), fp.Hash())
+	first := fp.Hash()
+	assert.Equal(t, first, fp.Hash())
 }
 
 func TestDecisionFingerprint_Hash_ProfileOrderIndependent(t *testing.T) {
@@ -65,7 +66,8 @@ func TestDecisionFingerprint_Hash_DistinguishesContainer(t *testing.T) {
 
 func TestAudioFingerprint_Hash_IsStable(t *testing.T) {
 	a := AudioFingerprint{MediaID: "m1", SourcePath: "/m.mkv", SourceTrackIdx: 0, AudioCodec: "aac"}
-	assert.Equal(t, a.Hash(), a.Hash())
+	first := a.Hash()
+	assert.Equal(t, first, a.Hash())
 }
 
 func TestAudioFingerprint_Hash_DistinguishesTrack(t *testing.T) {
@@ -236,12 +238,10 @@ func TestSegmentCache_Wait_RespectsContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		err := c.Wait(ctx, k, true, time.Second)
-		require.ErrorIs(t, err, context.Canceled)
-	}()
+		assert.ErrorIs(t, err, context.Canceled)
+	})
 	time.Sleep(30 * time.Millisecond)
 	cancel()
 	wg.Wait()
@@ -310,13 +310,12 @@ func TestSegmentCache_Wait_AbortsOnCleanupHash(t *testing.T) {
 	teardown := c.RegisterSession(hash)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		err := c.Wait(context.Background(), k, true, 5*time.Second)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "torn down")
-	}()
+		if assert.Error(t, err) {
+			assert.Contains(t, err.Error(), "torn down")
+		}
+	})
 	time.Sleep(30 * time.Millisecond)
 	teardown()
 	wg.Wait()
@@ -330,12 +329,10 @@ func TestSegmentCache_Wait_DetectsSegmentAfterDelay(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(c.Path(k, true)), 0o755))
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		err := c.Wait(context.Background(), k, true, 2*time.Second)
-		require.NoError(t, err)
-	}()
+		assert.NoError(t, err)
+	})
 
 	time.Sleep(80 * time.Millisecond)
 	require.NoError(t, os.WriteFile(c.Path(k, true), fmp4Seg(), 0o644))

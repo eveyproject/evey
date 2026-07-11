@@ -230,7 +230,7 @@ func launcherPath() (string, error) {
 }
 
 func isExecutableFile(p string) bool {
-	info, err := os.Stat(p)
+	info, err := os.Stat(p) //nolint:gosec // stat-only probe of operator-supplied launcher candidates
 	return err == nil && !info.IsDir() && info.Mode()&0o111 != 0
 }
 
@@ -242,8 +242,8 @@ func overrideEnv(env []string, kv map[string]string) []string {
 	seen := make(map[string]bool, len(kv))
 	for _, e := range env {
 		key := e
-		if i := strings.IndexByte(e, '='); i >= 0 {
-			key = e[:i]
+		if before, _, ok := strings.Cut(e, "="); ok {
+			key = before
 		}
 		if v, ok := kv[key]; ok {
 			out = append(out, key+"="+v)

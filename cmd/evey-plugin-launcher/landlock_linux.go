@@ -169,14 +169,14 @@ func applyLandlock(cfg config) error {
 	if errno != 0 {
 		return fmt.Errorf("landlock_create_ruleset: %w", errno)
 	}
-	defer unix.Close(int(rulesetFD))
+	defer unix.Close(int(rulesetFD)) //nolint:errcheck // best-effort fd cleanup
 
 	addRule := func(path string, access uint64) error {
 		fd, openErr := unix.Open(path, unix.O_PATH|unix.O_CLOEXEC, 0)
 		if openErr != nil {
 			return fmt.Errorf("open %s: %w", path, openErr)
 		}
-		defer unix.Close(fd)
+		defer unix.Close(fd) //nolint:errcheck // best-effort fd cleanup
 		beneath := unix.LandlockPathBeneathAttr{
 			Allowed_access: access & handled,
 			Parent_fd:      int32(fd),

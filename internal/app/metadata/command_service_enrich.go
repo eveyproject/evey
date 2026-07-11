@@ -97,7 +97,7 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 	previousTitle := item.Title
 
 	// 1. Drop every override on the item — they were tied to the bad match.
-	if err := s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
+	if err = s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("delete overrides: %w", err)
@@ -132,7 +132,7 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 	item.Tagline = ""
 	item.UpdatedAt = time.Now()
 
-	if err := s.mediaItems.Update(ctx, item); err != nil {
+	if err = s.mediaItems.Update(ctx, item); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("update media item: %w", err)
@@ -140,7 +140,7 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 
 	// Audit-style event so admin tooling can surface the action.
 	evtRemoved := metadata.MetadataOverrideRemoved{MediaItemID: shared.MediaItemID(mediaItemID), FieldName: "*", OccurredAt: time.Now()}
-	if err := s.events.Publish(ctx, evtRemoved); err != nil {
+	if err = s.events.Publish(ctx, evtRemoved); err != nil {
 		slog.Warn("publish event", slog.String("event", evtRemoved.EventName()), slog.Any("err", err))
 	}
 
@@ -229,7 +229,7 @@ func (s *CommandService) drainOrphans(libraryID string, filter library.ListMedia
 	)
 	log := slog.Default()
 	lastCount := total
-	for i := 0; i < maxIterations; i++ {
+	for i := range maxIterations {
 		f := filter
 		f.Limit = pageSize
 		items, err := s.mediaItems.List(context.Background(), f)
