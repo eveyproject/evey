@@ -159,6 +159,56 @@ func TestFetch_HappyPath_AllowedHost(t *testing.T) {
 	}
 }
 
+func TestFetch_RedirectToOffListHostBlocked(t *testing.T) {
+	// A 302 to a host NOT in external_fetch must be refused: the SSRF dialer
+	// re-checks the IP on each hop but not the HOST, so without a redirect
+	// guard an allow-listed open-redirect (or a host the plugin author
+	// controls) is an arbitrary-egress / exfiltration channel.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Redirect(w, &http.Request{}, "https://evil.attacker.tld/exfil", http.StatusFound)
+	}))
+	defer srv.Close()
+	host := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
+
+	h := newFetchTestServer(t, []string{host}) // only the redirecting host is allowed
+	prev := newFetchClient
+	newFetchClient = func() *http.Client { return srv.Client() }
+	defer func() { newFetchClient = prev }()
+
+	_, err := h.Fetch(authCtx("plg-weather"), &pluginv1.FetchRequest{Url: srv.URL})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("want PermissionDenied on off-list redirect, got %v", err)
+	}
+}
+
+func TestFetch_RedirectToAllowedHostFollowed(t *testing.T) {
+	// A redirect that stays on an allow-listed host is legitimate and must be
+	// followed (the guard must not break same-host redirects).
+	var srv *httptest.Server
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/final" {
+			_, _ = w.Write([]byte("landed"))
+			return
+		}
+		http.Redirect(w, r, srv.URL+"/final", http.StatusFound)
+	}))
+	defer srv.Close()
+	host := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
+
+	h := newFetchTestServer(t, []string{host})
+	prev := newFetchClient
+	newFetchClient = func() *http.Client { return srv.Client() }
+	defer func() { newFetchClient = prev }()
+
+	resp, err := h.Fetch(authCtx("plg-weather"), &pluginv1.FetchRequest{Url: srv.URL})
+	if err != nil {
+		t.Fatalf("same-host redirect should be followed, got %v", err)
+	}
+	if string(resp.Body) != "landed" {
+		t.Fatalf("body = %q, want landed", resp.Body)
+	}
+}
+
 func TestFetch_PluginNotFound(t *testing.T) {
 	h := NewHostServer(noopMediaQuerier{}, &fakePluginStore{err: context.DeadlineExceeded}, nil, nil, nil)
 	_, err := h.Fetch(authCtx("plg-weather"), &pluginv1.FetchRequest{Url: "https://api.open-meteo.com/x"})

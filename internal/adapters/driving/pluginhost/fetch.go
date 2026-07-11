@@ -28,7 +28,16 @@ const (
 	// maxFetchHeaderBytes caps the total size of request headers a plugin may
 	// set, so it can't smuggle a huge payload out via header values.
 	maxFetchHeaderBytes = 8 << 10 // 8 KiB
+	// maxFetchRedirects bounds the redirect chain the broker will follow. Each
+	// hop is re-checked against the plugin's allow-list; the cap stops a
+	// redirect loop from pinning a goroutine even within allow-listed hosts.
+	maxFetchRedirects = 5
 )
+
+// errFetchRedirectOffList is returned by the redirect guard when a hop targets
+// a host outside the plugin's allow-list. Wrapped in a *url.Error by the http
+// client; detected with errors.Is.
+var errFetchRedirectOffList = errors.New("redirect target not in external_fetch allow-list")
 
 // errFetchClient is overridable in tests so the allow-list / validation logic
 // can be exercised without real network I/O. Production leaves it nil, which
@@ -89,9 +98,11 @@ func netSplitPort(entry string) (string, error) {
 // plugin. Direct plugin egress is cut at the sandbox, so this is the ONLY way
 // out: the host validates the target against the plugin's external_fetch
 // allow-list and dials through an SSRF-safe client (private/reserved IPs are
-// rejected after DNS resolution, at connect time, so redirects are re-checked
-// too). The host attaches none of its own credentials (no JWT, cookies, or
-// internal tokens) so the plugin can never borrow the server's authority.
+// rejected after DNS resolution, at connect time). Redirects are re-validated
+// against BOTH the IP (dialer) and the allow-listed HOST (CheckRedirect), so a
+// 302 to an off-list or internal target is refused. The host attaches none of
+// its own credentials (no JWT, cookies, or internal tokens) so the plugin can
+// never borrow the server's authority.
 func (h *HostServer) Fetch(ctx context.Context, req *pluginv1.FetchRequest) (*pluginv1.FetchResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "pluginhost.Fetch")
 	defer span.End()
@@ -153,8 +164,29 @@ func (h *HostServer) Fetch(ctx context.Context, req *pluginv1.FetchRequest) (*pl
 		httpReq.Header.Set(k, v)
 	}
 
-	resp, err := newFetchClient().Do(httpReq)
+	// Re-apply the allow-list on EVERY redirect hop. The SSRF dialer re-checks
+	// the resolved IP on each connect (so the internal network stays out of
+	// reach) but never re-checks the HOST, so without this a 302 from an
+	// allow-listed open-redirect to an arbitrary external host would let a
+	// plugin exfiltrate anywhere - defeating the whole point of the allow-list.
+	client := newFetchClient()
+	guarded := *client
+	allow := p.ExternalFetch
+	guarded.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= maxFetchRedirects {
+			return errors.New("stopped after too many redirects")
+		}
+		if !hostAllowed(strings.ToLower(req.URL.Hostname()), allow) {
+			return errFetchRedirectOffList
+		}
+		return nil
+	}
+
+	resp, err := guarded.Do(httpReq)
 	if err != nil {
+		if errors.Is(err, errFetchRedirectOffList) {
+			return nil, status.Error(codes.PermissionDenied, "redirect target not in external_fetch allow-list")
+		}
 		// The SSRF dialer rejects private/reserved IPs here; surface a clean
 		// error without leaking internal addresses.
 		if errors.Is(err, ssrf.ErrBlockedPrivateIP) {
