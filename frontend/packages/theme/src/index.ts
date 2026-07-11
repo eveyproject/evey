@@ -1,4 +1,5 @@
 export * from "./tokens";
+export * from "./themeVars";
 
 // Web only: apply theme via CSS custom properties
 export function applyThemeToDOM(name: string, customVars?: Record<string, string>) {

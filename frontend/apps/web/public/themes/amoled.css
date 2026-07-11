@@ -1,20 +1,19 @@
-/* Evey — AMOLED theme */
+/* Evey - AMOLED theme (generated from themeVars.ts - do not edit) */
 :root {
-  --bg:            #000000;
-  --surface:       #0a0a0a;
-  --surface-raised:#141414;
+  --bg: #000000;
+  --surface: #0a0a0a;
+  --surface-raised: #141414;
   --surface-hover: #1f1f1f;
-  --accent:        #c4b5fd;
-  --accent-hover:  #a78bfa;
+  --accent: #c4b5fd;
+  --accent-hover: #a78bfa;
   --accent-subtle: rgba(196,181,253,0.12);
-  --text:          #e4e4e7;
-  --text-secondary:#a1a1aa;
-  --text-muted:    #8a8a93;
-  --border:        #1a1a1a;
-  --radius-sm:     6px;
-  --radius-md:     12px;
-  --radius-lg:     20px;
-
+  --text: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #8a8a93;
+  --border: #1a1a1a;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
   --badge-success-bg: rgba(6,78,59,0.5);
   --badge-success-text: #6ee7b7;
   --badge-warning-bg: rgba(113,63,18,0.5);
@@ -29,7 +28,6 @@
   --badge-imdb-text: #000000;
   --badge-tmdb-bg: #01b4e4;
   --badge-tmdb-text: #ffffff;
-
   --toast-success-bg: rgba(6,78,59,0.5);
   --toast-success-border: rgba(21,128,61,0.5);
   --toast-error-bg: rgba(127,29,29,0.5);
@@ -41,19 +39,15 @@
   --toast-success-icon: #16a34a;
   --toast-error-icon: #dc2626;
   --toast-warning-icon: #ca8a04;
-
   --color-success: #22c55e;
   --color-warning: #f97316;
-  --color-danger:  #ef4444;
+  --color-danger: #ef4444;
   --success: var(--color-success);
   --warning: var(--color-warning);
   --danger: var(--color-danger);
-
   --danger-bg: #dc2626;
   --danger-hover: #b91c1c;
-
   --overlay-gradient: rgba(0,0,0,0.6);
-
   --overlay-bg: rgba(0,0,0,0.5);
   --overlay-bg-strong: rgba(0,0,0,0.7);
   --overlay-scrim: rgba(0,0,0,0.85);
@@ -70,26 +64,19 @@
   --log-hover-bg: rgba(255,255,255,0.05);
   --error-bg-subtle: rgba(239,68,68,0.15);
   --filter-active-text: #ffffff;
-
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
   --shadow-glow: 0 0 20px rgba(196,181,253,0.12);
-
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
-
   --glass-bg: rgba(0,0,0,0.8);
   --glass-border: rgba(255,255,255,0.06);
   --glass-blur: 12px;
-
   --scrollbar-thumb: rgba(255,255,255,0.08);
   --scrollbar-track: transparent;
-
   --bg-gradient-mid: #0a0a1e;
-
   --focus-ring: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
-
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
 }
