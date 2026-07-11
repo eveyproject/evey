@@ -243,7 +243,8 @@ describe("PluginCard", () => {
     await userEvent.click(screen.getByTestId("plugin-update-toggle"));
     await userEvent.type(screen.getByPlaceholderText("/path/to/plugin-v2.zip"), "/tmp/plugin-v2.zip");
     await userEvent.click(screen.getByTestId("plugin-update-preview-btn"));
-    // Dialog renders (Modal title visible)
-    expect(screen.getByText(/Mise à jour/)).toBeInTheDocument();
+    // Dialog opens (the plain "Update" text also lives on the toggle button,
+    // so assert the modal itself rather than a text match)
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

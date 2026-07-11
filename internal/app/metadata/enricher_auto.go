@@ -957,7 +957,9 @@ func sharesAnyWord(qw map[string]bool, candidate string) bool {
 func wordSet(s string) map[string]bool {
 	m := make(map[string]bool)
 	for w := range strings.FieldsSeq(strings.ToLower(s)) {
-		t := strings.Trim(w, ".,:;!?'\"()[]{}«»---")
+		// The em/en dashes here are INPUT data to strip from external titles,
+		// not prose - keep them despite the hyphen-only house style.
+		t := strings.Trim(w, ".,:;!?'\"()[]{}«»—–-")
 		if t != "" {
 			m[t] = true
 		}

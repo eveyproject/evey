@@ -19,22 +19,22 @@ import (
 // slot at once.
 type blockingMediaItemRepo struct {
 	release     chan struct{}
-	inflight    int32
-	maxInflight int32
+	inflight    atomic.Int32
+	maxInflight atomic.Int32
 }
 
 func (r *blockingMediaItemRepo) GetByID(ctx context.Context, _ shared.MediaItemID) (*domainlibrary.MediaItem, error) {
-	cur := atomic.AddInt32(&r.inflight, 1)
+	cur := r.inflight.Add(1)
 	for {
-		old := atomic.LoadInt32(&r.maxInflight)
+		old := r.maxInflight.Load()
 		if cur <= old {
 			break
 		}
-		if atomic.CompareAndSwapInt32(&r.maxInflight, old, cur) {
+		if r.maxInflight.CompareAndSwap(old, cur) {
 			break
 		}
 	}
-	defer atomic.AddInt32(&r.inflight, -1)
+	defer r.inflight.Add(-1)
 	select {
 	case <-r.release:
 	case <-ctx.Done():
@@ -96,9 +96,9 @@ func TestDetectIntro_ConcurrencyCap(t *testing.T) {
 	// flaky. maxInflight is a high-water mark the limiter can never push past
 	// `cap`, so once it reaches cap it is safe to read deterministically.
 	assert.Eventually(t, func() bool {
-		return atomic.LoadInt32(&repo.maxInflight) >= int32(cap)
+		return repo.maxInflight.Load() >= int32(cap)
 	}, 2*time.Second, 5*time.Millisecond, "inflight never reached cap %d", cap)
-	peak := atomic.LoadInt32(&repo.maxInflight)
+	peak := repo.maxInflight.Load()
 	close(repo.release)
 	wg.Wait()
 
@@ -127,9 +127,9 @@ func TestDetectIntro_ConcurrencyDisabled(t *testing.T) {
 		}()
 	}
 	assert.Eventually(t, func() bool {
-		return atomic.LoadInt32(&repo.maxInflight) >= int32(callers)
+		return repo.maxInflight.Load() >= int32(callers)
 	}, 2*time.Second, 5*time.Millisecond, "inflight never reached %d", callers)
-	peak := atomic.LoadInt32(&repo.maxInflight)
+	peak := repo.maxInflight.Load()
 	close(repo.release)
 	wg.Wait()
 
@@ -157,10 +157,10 @@ func TestDetectIntro_ConcurrencyCancelDuringWait(t *testing.T) {
 
 	// Wait until the first caller has actually entered the pipeline.
 	deadline := time.Now().Add(time.Second)
-	for atomic.LoadInt32(&repo.inflight) == 0 && time.Now().Before(deadline) {
+	for repo.inflight.Load() == 0 && time.Now().Before(deadline) {
 		time.Sleep(5 * time.Millisecond)
 	}
-	require.Equal(t, int32(1), atomic.LoadInt32(&repo.inflight), "first caller must have entered the pipeline")
+	require.Equal(t, int32(1), repo.inflight.Load(), "first caller must have entered the pipeline")
 
 	// Second caller waits for the slot. Cancelling its context must return
 	// promptly with ctx.Err() instead of hanging until the first caller

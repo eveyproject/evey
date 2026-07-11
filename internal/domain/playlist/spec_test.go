@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-func intPtr(v int) *int           { return &v }
 func floatPtr(v float64) *float64 { return &v }
 
 func TestCompileRules_UnknownField(t *testing.T) {
@@ -57,7 +56,7 @@ func TestYearSpec_Operators(t *testing.T) {
 		if err != nil {
 			t.Fatalf("op=%s: %v", c.op, err)
 		}
-		got := spec.IsSatisfiedBy(Candidate{Year: intPtr(c.year)})
+		got := spec.IsSatisfiedBy(Candidate{Year: new(c.year)})
 		if got != c.want {
 			t.Fatalf("op=%s value=%s year=%d: got %v want %v", c.op, c.value, c.year, got, c.want)
 		}
