@@ -8,19 +8,11 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/evey-project/evey/gen/evey/v1;eveyv1";
 
 service PushService {
-  rpc RegisterDevice(RegisterDeviceRequest) returns (RegisterDeviceResponse) {
-    option (google.api.http) = {
-      post: "/api/v1/push/register"
-      body: "*"
-    };
-  }
-
-  rpc UnregisterDevice(UnregisterDeviceRequest) returns (UnregisterDeviceResponse) {
-    option (google.api.http) = {
-      delete: "/api/v1/push/unregister"
-    };
-  }
-
+  // ListDevices backs the profile "Devices" tab. Native device-token
+  // registration (the FCM-era RegisterDevice/UnregisterDevice pair) was
+  // removed: the fcm_device_tokens table is long gone and no client ever
+  // called them, so the list is always empty until a native push backend
+  // exists.
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {
     option (google.api.http) = {
       get: "/api/v1/push/devices"
@@ -70,23 +62,6 @@ service PushService {
       body: "*"
     };
   }
-}
-
-message RegisterDeviceRequest {
-  string token = 1;
-  string platform = 2; // "ios", "android", "web"
-}
-
-message RegisterDeviceResponse {
-  bool ok = 1;
-}
-
-message UnregisterDeviceRequest {
-  string token = 1;
-}
-
-message UnregisterDeviceResponse {
-  bool ok = 1;
 }
 
 message Device {

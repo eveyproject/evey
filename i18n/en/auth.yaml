@@ -270,10 +270,6 @@ devices:
   token: Token
   registered: Registered
   noDevices: No registered devices
-  revokeTitle: Revoke Device
-  revokeConfirm: Revoke this device? It will no longer receive notifications.
-  deviceRevoked: Device revoked
-  revokeError: Failed to remove device
 notificationSettings:
   pushNotifications: Push Notifications
   pushDesc: Receive push notifications on this device.

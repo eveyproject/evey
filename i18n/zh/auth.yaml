@@ -265,10 +265,6 @@ devices:
   token: "令牌"
   registered: "注册时间"
   noDevices: "没有已注册的设备"
-  revokeTitle: "撤销设备"
-  revokeConfirm: "撤销此设备？它将不再接收通知。"
-  deviceRevoked: "设备已撤销"
-  revokeError: "移除设备失败"
 notificationSettings:
   pushNotifications: "推送通知"
   pushDesc: "在此设备上接收推送通知。"

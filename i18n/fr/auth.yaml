@@ -270,10 +270,6 @@ devices:
   token: "Jeton"
   registered: "Enregistré"
   noDevices: "Aucun appareil enregistré"
-  revokeTitle: "Révoquer l'appareil"
-  revokeConfirm: "Révoquer cet appareil ? Il ne recevra plus de notifications."
-  deviceRevoked: "Appareil révoqué"
-  revokeError: "Échec de la suppression de l'appareil"
 notificationSettings:
   pushNotifications: "Notifications push"
   pushDesc: "Recevoir des notifications push sur cet appareil."

@@ -270,10 +270,6 @@ devices:
   token: Token
   registered: Registriert
   noDevices: Keine registrierten Geräte
-  revokeTitle: Gerät widerrufen
-  revokeConfirm: Dieses Gerät widerrufen? Es wird keine Benachrichtigungen mehr erhalten.
-  deviceRevoked: Gerät widerrufen
-  revokeError: Gerät konnte nicht entfernt werden
 notificationSettings:
   pushNotifications: Push-Benachrichtigungen
   pushDesc: Push-Benachrichtigungen auf diesem Gerät empfangen.

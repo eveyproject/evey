@@ -1,7 +1,7 @@
-import { View, Text, ScrollView, Pressable, Alert, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
@@ -31,10 +31,13 @@ function formatDate(iso: string): string {
 
 const DEVICES_QUERY_KEY = ["push-devices"] as const;
 
+// The list is read-only: native device-token registration (FCM-era) was
+// removed server-side, so this can only ever render the empty state until a
+// native push backend exists. The revoke flow that used to live here called
+// an endpoint that no longer exists.
 export default function DevicesScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const qc = useQueryClient();
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: DEVICES_QUERY_KEY,
@@ -46,35 +49,6 @@ export default function DevicesScreen() {
   });
 
   const devices = data?.devices ?? [];
-
-  const revokeMutation = useMutation({
-    mutationFn: (token: string) =>
-      eveyFetch({
-        url: "/api/v1/push/unregister",
-        method: "DELETE",
-        data: { token },
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: DEVICES_QUERY_KEY });
-      Alert.alert(t("auth.devices.deviceRevoked"));
-    },
-    onError: (err: Error) => Alert.alert(t("auth.devices.revokeError"), err.message),
-  });
-
-  function handleRevoke(device: Device) {
-    Alert.alert(
-      t("auth.devices.revokeTitle"),
-      t("auth.devices.revokeConfirm", { platform: platformLabel(device.platform) }),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.revoke"),
-          style: "destructive",
-          onPress: () => revokeMutation.mutate(device.token),
-        },
-      ],
-    );
-  }
 
   const s = styles(theme);
 
@@ -132,20 +106,6 @@ export default function DevicesScreen() {
                   {formatDate(d.createdAt)}
                 </Text>
               </View>
-              <Pressable
-                onPress={() => handleRevoke(d)}
-                disabled={revokeMutation.isPending}
-                style={{
-                  backgroundColor: theme.colors.error + "20",
-                  borderRadius: theme.radii.sm,
-                  paddingVertical: 6,
-                  paddingHorizontal: 12,
-                }}
-              >
-                <Text style={{ color: theme.colors.error, fontSize: 13, fontWeight: "600" }}>
-                  {t("common.revoke")}
-                </Text>
-              </Pressable>
             </View>
           ))}
         </View>

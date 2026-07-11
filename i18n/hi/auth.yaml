@@ -265,10 +265,6 @@ devices:
   token: "टोकन"
   registered: "पंजीकृत"
   noDevices: "कोई पंजीकृत उपकरण नहीं"
-  revokeTitle: "उपकरण रद्द करें"
-  revokeConfirm: "यह उपकरण रद्द करें? यह अब सूचनाएं प्राप्त नहीं करेगा।"
-  deviceRevoked: "उपकरण रद्द हो गया"
-  revokeError: "उपकरण हटाने में विफल"
 notificationSettings:
   pushNotifications: "पुश सूचनाएं"
   pushDesc: "इस उपकरण पर पुश सूचनाएं प्राप्त करें।"

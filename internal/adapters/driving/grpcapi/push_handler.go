@@ -99,13 +99,13 @@ func (h *webPushHandler) ListWebPushSubscriptions(ctx context.Context, _ *eveyv1
 }
 
 // ListDevices backs the profile "Devices" tab (GET /api/v1/push/devices).
-// Native mobile device-token registration (RegisterDevice/UnregisterDevice) is
-// not yet wired to a backend, so a user never has any registered native
-// devices. Return an empty list instead of leaving the method Unimplemented:
-// the embedded UnimplementedPushServiceServer would otherwise answer the
-// page-load query with codes.Unimplemented → HTTP 501, surfacing a 5xx on a
-// normal settings page. The frontend already renders the empty ("no devices")
-// state for this response.
+// There is no native device-token registration (the FCM-era RPCs are gone),
+// so a user never has any registered native devices. Return an empty list
+// instead of leaving the method Unimplemented: the embedded
+// UnimplementedPushServiceServer would otherwise answer the page-load query
+// with codes.Unimplemented - HTTP 501, surfacing a 5xx on a normal settings
+// page. The frontend already renders the empty ("no devices") state for this
+// response.
 func (h *webPushHandler) ListDevices(ctx context.Context, _ *eveyv1.ListDevicesRequest) (*eveyv1.ListDevicesResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.push.ListDevices")
 	defer span.End()

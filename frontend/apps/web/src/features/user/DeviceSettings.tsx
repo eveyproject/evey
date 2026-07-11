@@ -1,11 +1,8 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { TriangleAlert } from "lucide-react";
 import { eveyFetch } from "@evey/api";
-import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 type Device = {
@@ -42,10 +39,12 @@ function formatDate(iso: string): string {
 
 const DEVICES_QUERY_KEY = ["push-devices"] as const;
 
+// The list is read-only: native device-token registration (FCM-era) was
+// removed server-side, so this can only ever render the empty state until a
+// native push backend exists. The revoke flow that used to live here called
+// an endpoint that no longer exists.
 export function DeviceSettings() {
   const { t } = useTranslation();
-    const qc = useQueryClient();
-  const [revokeTarget, setRevokeTarget] = useState<Device | null>(null);
 
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: DEVICES_QUERY_KEY,
@@ -57,20 +56,6 @@ export function DeviceSettings() {
   });
 
   const devices = data?.devices ?? [];
-
-  const revokeMutation = useMutation({
-    mutationFn: (token: string) =>
-      eveyFetch({
-        url: `/api/v1/push/devices/${encodeURIComponent(token)}`,
-        method: "DELETE",
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: DEVICES_QUERY_KEY });
-      setRevokeTarget(null);
-      toast.success(t("auth.devices.deviceRevoked"));
-    },
-    onError: (err: Error) => toast.error(err.message || t("auth.devices.revokeError")),
-  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -106,7 +91,6 @@ export function DeviceSettings() {
               <th className="pb-2 font-semibold">{t("auth.devices.platform")}</th>
               <th className="pb-2 font-semibold">{t("auth.devices.token")}</th>
               <th className="pb-2 font-semibold">{t("auth.devices.registered")}</th>
-              <th className="pb-2" />
             </tr>
           </thead>
           <tbody>
@@ -117,40 +101,11 @@ export function DeviceSettings() {
                 </td>
                 <td className="py-3 pr-4 font-mono text-xs text-[var(--text-muted)]">{truncateToken(d.token)}</td>
                 <td className="py-3 pr-4 text-[var(--text-muted)]">{formatDate(d.createdAt)}</td>
-                <td className="py-3">
-                  <Button
-                    variant="danger"
-                    className="py-1 px-2 text-xs"
-                    onClick={() => setRevokeTarget(d)}
-                  >
-                    {t("common.revoke")}
-                  </Button>
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
-
-      <Modal open={!!revokeTarget} onClose={() => setRevokeTarget(null)} title={t("auth.devices.revokeTitle")}>
-        <div className="flex flex-col gap-4">
-          <p className="text-sm text-[var(--text)]">
-            {t("auth.devices.revokeConfirm", { platform: revokeTarget ? platformLabel(revokeTarget.platform) : "" })}
-          </p>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setRevokeTarget(null)}>
-              {t("common.cancel")}
-            </Button>
-            <Button
-              variant="danger"
-              loading={revokeMutation.isPending}
-              onClick={() => { if (revokeTarget) revokeMutation.mutate(revokeTarget.token); }}
-            >
-              {t("common.revoke")}
-            </Button>
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

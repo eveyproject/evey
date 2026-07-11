@@ -1,17 +1,10 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const toastSuccess = vi.fn();
-const toastError = vi.fn();
-
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
-}));
-
-vi.mock("@evey/store", () => ({
-  toast: { success: toastSuccess, error: toastError },
 }));
 
 function createWrapper() {
@@ -68,79 +61,16 @@ describe("DeviceSettings", () => {
     expect(screen.getByText("tok_ab…xyz789")).toBeInTheDocument();
   });
 
-  it("renders a Revoke button for each device", async () => {
+  it("offers no revoke action - the list is read-only", async () => {
+    // Native device registration (FCM-era) was removed server-side; the old
+    // revoke button called an endpoint that no longer exists.
     const { eveyFetch } = await import("@evey/api");
     vi.mocked(eveyFetch).mockResolvedValue({ devices: mockDevices });
 
     const { DeviceSettings } = await import("./DeviceSettings");
     render(React.createElement(DeviceSettings), { wrapper: createWrapper() });
 
-    const buttons = await screen.findAllByRole("button", { name: "Revoke" });
-    expect(buttons).toHaveLength(2);
-  });
-
-  it("clicking Revoke opens confirmation modal", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue({ devices: mockDevices });
-
-    const { DeviceSettings } = await import("./DeviceSettings");
-    render(React.createElement(DeviceSettings), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Revoke" })).toHaveLength(2));
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Revoke" })[0]);
-
-    await waitFor(() => {
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-    });
-    expect(screen.getByText(/Revoke Device/i)).toBeInTheDocument();
-  });
-
-  it("confirming revoke calls DELETE and shows success toast", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch)
-      .mockResolvedValueOnce({ devices: mockDevices }) // GET
-      .mockResolvedValueOnce({}) // DELETE
-      .mockResolvedValueOnce({ devices: [mockDevices[1]] }); // re-fetch
-
-    const { DeviceSettings } = await import("./DeviceSettings");
-    render(React.createElement(DeviceSettings), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Revoke" })).toHaveLength(2));
-
-    fireEvent.click(screen.getAllByRole("button", { name: "Revoke" })[0]);
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    // Click the Revoke confirm button inside the modal
-    const modalRevokeButtons = screen.getAllByRole("button", { name: "Revoke" });
-    // The last Revoke button in the dialog is the confirm button
-    fireEvent.click(modalRevokeButtons[modalRevokeButtons.length - 1]);
-
-    await waitFor(() => {
-      expect(vi.mocked(eveyFetch)).toHaveBeenCalledWith(
-        expect.objectContaining({ method: "DELETE", url: expect.stringContaining("/api/v1/push/devices/") }),
-      );
-    });
-    await waitFor(() => {
-      expect(toastSuccess).toHaveBeenCalledWith("Device revoked");
-    });
-  });
-
-  it("Cancel button closes modal without revoking", async () => {
-    const { eveyFetch } = await import("@evey/api");
-    vi.mocked(eveyFetch).mockResolvedValue({ devices: mockDevices });
-
-    const { DeviceSettings } = await import("./DeviceSettings");
-    render(React.createElement(DeviceSettings), { wrapper: createWrapper() });
-
-    await waitFor(() => expect(screen.getAllByRole("button", { name: "Revoke" })).toHaveLength(2));
-    fireEvent.click(screen.getAllByRole("button", { name: "Revoke" })[0]);
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-
-    await waitFor(() => {
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    });
+    await waitFor(() => expect(screen.getByText("iOS")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Revoke" })).not.toBeInTheDocument();
   });
 });

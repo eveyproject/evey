@@ -270,10 +270,6 @@ devices:
   token: "Token"
   registered: "Registrado"
   noDevices: "No hay dispositivos registrados"
-  revokeTitle: "Revocar dispositivo"
-  revokeConfirm: "¿Revocar este dispositivo? Ya no recibirá notificaciones."
-  deviceRevoked: "Dispositivo revocado"
-  revokeError: "Error al eliminar el dispositivo"
 notificationSettings:
   pushNotifications: "Notificaciones push"
   pushDesc: "Recibe notificaciones push en este dispositivo."

@@ -393,8 +393,6 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.PluginUserDataService/DeletePref": "own (plugin,user)-scoped",
 	"/evey.v1.PluginUserDataService/ListPrefs":  "own (plugin,user)-scoped",
 	// PushService — own device/subscription scoped
-	"/evey.v1.PushService/RegisterDevice":            "own",
-	"/evey.v1.PushService/UnregisterDevice":          "own",
 	"/evey.v1.PushService/ListDevices":               "own",
 	"/evey.v1.PushService/GetVAPIDKey":               "public VAPID key read",
 	"/evey.v1.PushService/RegisterWebPush":           "own",
