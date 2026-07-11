@@ -20,17 +20,16 @@ import (
 )
 
 const (
-	sockDir           = "/tmp/evey/plugins"
-	defaultPluginDir  = "/data/plugins"
-	shutdownTimeout   = 5 * time.Second
-	killTimeout       = 3 * time.Second
-	pluginExecTimeout = 30 * time.Minute
-	hostVersion       = "0.1.0"
-	pluginUID         = 1001 // evey-plugin user
-	pluginGID         = 1001
-	sandboxLibPath    = "/app/libevey-sandbox.so"
-	subprocessPerm    = "subprocess"
-	gpuPerm           = "hardware.gpu" // grants the DRM render node (highest-risk; admin-only, first-party tier)
+	sockDir          = "/tmp/evey/plugins"
+	defaultPluginDir = "/data/plugins"
+	shutdownTimeout  = 5 * time.Second
+	killTimeout      = 3 * time.Second
+	hostVersion      = "0.1.0"
+	pluginUID        = 1001 // evey-plugin user
+	pluginGID        = 1001
+	sandboxLibPath   = "/app/libevey-sandbox.so"
+	subprocessPerm   = "subprocess"
+	gpuPerm          = "hardware.gpu" // grants the DRM render node (highest-risk; admin-only, first-party tier)
 
 	// Sandbox modes for WithSandboxMode.
 	sandboxModeBasic      = "basic"      // LD_PRELOAD + UID drop (legacy/weak fallback)
@@ -79,6 +78,15 @@ type EventBus interface {
 	Publish(ctx context.Context, event shared.Event) error
 }
 
+// SDKStubCopier refreshes the server-shipped SDK stubs (plugin_api.proto,
+// generated clients) inside a plugin's install dir. Implemented by
+// filesystem.PluginFileSystem. The stubs are the SERVER's contract: they are
+// re-copied at every Start so installed plugins follow the server's proto
+// across upgrades instead of keeping the copy frozen at install time.
+type SDKStubCopier interface {
+	CopySDKStubs(language, installDir string) error
+}
+
 // HostRegistry is the slice the runner needs to bind a plugin to its
 // dedicated host gRPC socket. Implemented by pluginhost.HostServer. The
 // runner registers the plugin to obtain a per-plugin socket path BEFORE
@@ -104,6 +112,7 @@ type Runner struct {
 	uidSepMode          string // "auto"|"on"|"off": drop plugins to evey-plugin uid via launcher cap_setuid
 	eventBus            EventBus
 	hostRegistry        HostRegistry
+	sdkStubs            SDKStubCopier
 	autoResolveOnce     sync.Once // resolves sandboxModeAuto to a concrete mode once
 	autoResolved        string
 	resMonOnce          sync.Once // starts the resource-monitor sweeper at most once
@@ -182,6 +191,13 @@ func (r *Runner) WithSandboxLibPath(path string) *Runner {
 // and process crash so the notification service can page the admin.
 func (r *Runner) WithEventBus(bus EventBus) *Runner {
 	r.eventBus = bus
+	return r
+}
+
+// WithSDKStubs wires the SDK stub refresh done at every plugin Start.
+// When nil (tests), Start skips the refresh.
+func (r *Runner) WithSDKStubs(c SDKStubCopier) *Runner {
+	r.sdkStubs = c
 	return r
 }
 
@@ -385,6 +401,19 @@ func (r *Runner) containPluginFile(path, installDir string) (string, os.FileInfo
 	return resolved, info, nil
 }
 
+// pluginProcContext builds the context governing a plugin process's lifetime.
+// Detached from the caller's request context: the plugin must outlive the
+// HTTP/gRPC request that triggered Start (without WithoutCancel, the request
+// ctx is canceled as soon as the install handler returns, which cancels the
+// cmd ctx and makes connectIPC's Initialize RPC fail with "code = Canceled"
+// 200ms after the process spawns). No deadline either: plugins are
+// long-running services, stopped only via Stop/Kill or the resource monitor —
+// a deadline here SIGKILLs every plugin mid-flight (préprod: at exactly
+// start+30min under the old pluginExecTimeout) and gets misread as an OOM.
+func pluginProcContext(parentCtx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithCancel(context.WithoutCancel(parentCtx))
+}
+
 func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	pluginSockDir, sock, err := r.setupSocketDir(p.ID)
 	if err != nil {
@@ -396,13 +425,17 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 		return err
 	}
 
-	// Detach from the caller's request context: the plugin must outlive the
-	// HTTP/gRPC request that triggered Start. Without WithoutCancel, the
-	// request ctx is canceled as soon as the install handler returns, which
-	// in turn cancels the cmd ctx — making connectIPC's Initialize RPC fail
-	// with "code = Canceled" 200ms after the process spawns.
-	// We keep parentCtx's deadline (if any) so a true timeout still aborts.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(parentCtx), pluginExecTimeout)
+	// Refresh the server-shipped SDK stubs before spawning: they carry the
+	// host RPC contract, and a plugin installed under an older server would
+	// otherwise run against that older contract forever. Best-effort — a
+	// read-only plugin dir must not block the start.
+	if r.sdkStubs != nil && p.InstallDir != "" {
+		if cpErr := r.sdkStubs.CopySDKStubs(p.Language, p.InstallDir); cpErr != nil {
+			slog.Warn("refresh SDK stubs", slog.String("pluginID", p.ID), slog.Any("err", cpErr))
+		}
+	}
+
+	ctx, cancel := pluginProcContext(parentCtx)
 	cmd := exec.CommandContext(ctx, cmdName, cmdArgs...)
 	if p.InstallDir != "" {
 		cmd.Dir = p.InstallDir
@@ -974,9 +1007,13 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 }
 
 // classifyExitError turns the raw exec.Cmd.Wait error into an admin-readable
-// reason. A SIGKILL is usually either the resource monitor stopping a plugin
-// that breached its memory/PID cap, or the host/container OOM-killer under
-// memory pressure — surface an actionable hint instead of "signal: killed".
+// reason. This path only sees kills the server did NOT initiate: every
+// server-side stop (Stop, Kill, the resource monitor's cap enforcement)
+// removes the tracking entry before signaling, so trackLifecycle never
+// reports it as a crash. A SIGKILL landing here therefore came from outside —
+// in practice the kernel OOM-killer under container/host memory pressure, or
+// a manual kill. Surface that instead of "signal: killed", and point at the
+// resmon's own log line so admins don't chase the per-plugin cap by mistake.
 func classifyExitError(err error) string {
 	if err == nil {
 		return ""
@@ -985,7 +1022,7 @@ func classifyExitError(err error) string {
 	if errors.As(err, &exitErr) {
 		ws, ok := exitErr.Sys().(syscall.WaitStatus)
 		if ok && ws.Signaled() && ws.Signal() == syscall.SIGKILL {
-			return "process SIGKILLed — exceeded its memory cap (EVEY_PLUGINS_MEMORY_MB), or the host/container OOM-killer fired under memory pressure"
+			return "process SIGKILLed from outside the server — likely the host/container OOM-killer under memory pressure, or a manual kill (a breach of the EVEY_PLUGINS_MEMORY_MB cap is logged as 'memory quota exceeded' instead)"
 		}
 	}
 	return "process crashed: " + err.Error()

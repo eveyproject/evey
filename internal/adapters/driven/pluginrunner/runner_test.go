@@ -70,6 +70,34 @@ func TestRunnerStartStop(t *testing.T) {
 	assert.False(t, healthy)
 }
 
+type fakeStubCopier struct{ calls [][2]string }
+
+func (f *fakeStubCopier) CopySDKStubs(lang, dir string) error {
+	f.calls = append(f.calls, [2]string{lang, dir})
+	return nil
+}
+
+// TestRunnerStartRefreshesSDKStubs: the server-shipped SDK stubs must be
+// re-copied into the plugin's install dir at every Start, not only at install.
+// Installed plugins otherwise keep the stubs frozen at install time forever;
+// after a server upgrade that adds a host RPC, every such plugin runs against
+// a stale contract (préprod 2026-07-11: "host.Fetch is not a function" on a
+// plugin whose bundled proto was correct but got clobbered at install by the
+// then-stale sdk/ copy).
+func TestRunnerStartRefreshesSDKStubs(t *testing.T) {
+	bin := buildTestBinary(t)
+	dir := filepath.Dir(bin)
+	fake := &fakeStubCopier{}
+	r := NewRunner(dir).WithAllowMissingSandbox(true).WithSDKStubs(fake)
+
+	p := &plugin.Plugin{ID: "plg-test-stubs", Name: bin, Language: "nodejs", InstallDir: dir}
+	require.NoError(t, r.Start(context.Background(), p))
+	defer func() { _ = r.Stop(context.Background(), p.ID) }()
+
+	require.Len(t, fake.calls, 1, "Start must refresh the SDK stubs")
+	assert.Equal(t, [2]string{"nodejs", dir}, fake.calls[0])
+}
+
 func TestRunnerStopNotRunning(t *testing.T) {
 	r := NewRunner()
 	err := r.Stop(context.Background(), "nonexistent")
@@ -331,8 +359,32 @@ func TestWithSandboxMode_StoresBasic(t *testing.T) {
 	assert.Equal(t, sandboxModeBasic, r.sandboxMode)
 }
 
+// TestPluginProcContext_LongRunning pins the plugin process lifetime contract.
+// Plugins are long-running services (gRPC lifecycle stub, periodic jobs); a
+// deadline on their exec context SIGKILLs them mid-flight and surfaces as a
+// bogus "crashed / OOM" report. Prod proof (préprod 2026-07-05→11): every
+// weather-v2 "crash" landed at start+30:00.000 exactly — the old 30-minute
+// pluginExecTimeout, not memory.
+func TestPluginProcContext_LongRunning(t *testing.T) {
+	parent, cancelParent := context.WithCancel(context.Background())
+	ctx, cancel := pluginProcContext(parent)
+	defer cancel()
+
+	_, hasDeadline := ctx.Deadline()
+	assert.False(t, hasDeadline, "plugin process context must not carry a deadline")
+
+	cancelParent()
+	require.NoError(t, ctx.Err(), "plugin must outlive the request context that started it")
+
+	cancel()
+	assert.Error(t, ctx.Err(), "the returned cancel must still stop the process (Stop/rollback paths)")
+}
+
 // TestClassifyExitError_OOMHints pins the human-readable classification of
-// SIGKILL crashes: hint the per-plugin memory cap / host OOM-killer. Anything
+// SIGKILL crashes. Server-initiated kills (Stop/Kill/resmon) never reach this
+// path — they detrack the entry first — so the hint must blame the outside
+// world (host OOM-killer / manual kill) and redirect the EVEY_PLUGINS_MEMORY_MB
+// suspicion to the resmon's own 'memory quota exceeded' log line. Anything
 // else falls through to the raw error string.
 func TestClassifyExitError_OOMHints(t *testing.T) {
 	t.Run("nil error → empty", func(t *testing.T) {
@@ -345,11 +397,13 @@ func TestClassifyExitError_OOMHints(t *testing.T) {
 		assert.Contains(t, got, "permission denied")
 	})
 
-	t.Run("SIGKILL → memory cap / OOM hint", func(t *testing.T) {
+	t.Run("SIGKILL → external kill / OOM hint", func(t *testing.T) {
 		err := killSelfAndWait(t)
 		got := classifyExitError(err)
-		assert.Contains(t, got, "EVEY_PLUGINS_MEMORY_MB")
+		assert.Contains(t, got, "outside the server")
 		assert.Contains(t, got, "OOM-killer")
+		assert.Contains(t, got, "EVEY_PLUGINS_MEMORY_MB",
+			"must tell the admin where cap breaches are actually logged")
 	})
 }
 

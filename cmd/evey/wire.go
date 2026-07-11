@@ -532,6 +532,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
 	pluginFS := filesystem.NewPluginFileSystem()
+	// Refresh the server-shipped SDK stubs at every plugin start, so installed
+	// plugins pick up host-contract changes (new RPCs) after a server upgrade.
+	// Safe here: AutoStartPlugins only runs after wiring completes (main.go).
+	infra.pluginRunner.WithSDKStubs(pluginFS)
 	cssSanitizer := pluginrunner.NewCSSSanitizer()
 	runtimeChecker := pluginrunner.NewRuntimeAvailability()
 	slog.Info("plugin runtimes detected", slog.Any("available", runtimeChecker.Available()))
