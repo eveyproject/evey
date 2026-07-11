@@ -1,0 +1,544 @@
+package library
+
+import (
+	"context"
+	"log/slog"
+	"sort"
+	"strings"
+
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+)
+
+// Two-pass detection pipeline orchestration: pHash + audio confirmation fusion, chapter pass, refinement.
+
+// pickWindowMatchingDuration returns the window whose duration is closest to ref,
+// within a 50% tolerance, or nil if none qualifies.
+func pickWindowMatchingDuration(windows []matchWindow, refDurationMs int64) *matchWindow {
+	var best *matchWindow
+	var bestDelta int64 = -1
+	for i, w := range windows {
+		dur := w.endMs - w.startMs
+		delta := dur - refDurationMs
+		if delta < 0 {
+			delta = -delta
+		}
+		if dur*2 < refDurationMs || dur > refDurationMs*2 {
+			continue
+		}
+		if bestDelta < 0 || delta < bestDelta {
+			bestDelta = delta
+			best = &windows[i]
+		}
+	}
+	return best
+}
+
+// manifestTotalFrames returns the upper bound on extractable frames for a manifest.
+func manifestTotalFrames(m *domainlibrary.TrickplayManifest) int {
+	return m.ImageCount * m.TileWidth * m.TileHeight
+}
+
+// runPipeline runs the multi-stage intro detection pipeline:
+//
+//  1. pHash trickplay matching produces a list of candidate windows.
+//  2. Audio fingerprint cross-correlation against siblings confirms which
+//     candidate is the real recurring intro and rejects coincidental scene
+//     transitions that share visual hashes (establishing shots, recurring
+//     locations) but not audio content.
+//  3. PrecisionPass tunes the boundaries via silence/black detection.
+//
+// Without sibling audio confirmation the visual-pHash signal alone often picks
+// false positives (e.g. recurring landscape inserts), because runs of matched
+// frames inside an episode can outscore the real intro when intro frames are
+// fragmented by unique transition frames.
+func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlibrary.MediaItem, hint *domainlibrary.MediaSegment) ([]domainlibrary.MediaSegment, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.runPipeline")
+	defer span.End()
+	defer bgtasks.Begin("intro_detection", string(item.ID))()
+
+	mediaItemID := string(item.ID)
+	cfg := loadIntroConfig(ctx, s.configRepo)
+
+	// Accumulate the best segment PER TYPE. Passes run in DESCENDING authority;
+	// the first pass to fill a type wins, and later passes only supply the types
+	// still missing. This replaces the previous early-return design, where a
+	// PARTIAL match (a provider that only knows the recap, chapters that only
+	// mark the intro) suppressed local detection of every OTHER type. The
+	// in-house pipeline must be self-sufficient — external providers are an
+	// additive bonus layered on top, never a precondition for local detection.
+	found := make(map[string]domainlibrary.MediaSegment, 3)
+	add := func(segs []domainlibrary.MediaSegment, decision string) {
+		var addedTypes []string
+		for _, seg := range segs {
+			if seg.Type == "" {
+				continue
+			}
+			if _, ok := found[seg.Type]; ok {
+				continue // a higher-authority pass already filled this type
+			}
+			found[seg.Type] = seg
+			addedTypes = append(addedTypes, seg.Type)
+		}
+		if len(addedTypes) > 0 {
+			slog.Info("intro_detection.pipeline_decision",
+				slog.String("media_id", mediaItemID),
+				slog.String("decision", decision),
+				slog.String("types", strings.Join(addedTypes, ",")),
+			)
+		}
+	}
+	needIntro := func() bool { _, ok := found["intro"]; return !ok }
+
+	// External metadata provider first: most authoritative for any type it
+	// returns. Non-fatal on error — fall through to chapters/heuristics.
+	if s.metadataProvider != nil {
+		if mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item); mdErr != nil {
+			slog.Warn("intro_detection: metadata provider failed, falling back",
+				slog.String("media_id", mediaItemID), slog.Any("err", mdErr))
+		} else {
+			add(mdSegs, "metadata_provider_match")
+		}
+	}
+
+	// MKV chapters next: authoritative when the uploader labelled them
+	// ("Intro" / "Opening" / "Generique" / "Previously" …).
+	add(s.chapterPass(ctx, item), "mkv_chapter_match")
+
+	// ---- intro-only passes: each runs only while the intro is still missing ----
+
+	// Season cluster hint: a season-level audio clustering already located this
+	// episode's recurring intro at its own offset. Refine the raw cluster window
+	// to silence/black boundaries, anchored on the cluster window.
+	if needIntro() && hint != nil {
+		seg := *hint
+		refined := s.refineWithPrecisionPass(ctx, item.File.Path, []confirmedWindow{{startMs: hint.StartMs, endMs: hint.EndMs}})
+		if len(refined) > 0 {
+			seg.StartMs, seg.EndMs = refined[0].startMs, refined[0].endMs
+		}
+		// The audio run length is a poor end on music-bleed shows. Fuse every
+		// available end witness (audio + subtitle + silence) and snap to a scene
+		// cut; raise the confidence when independent signals agree.
+		end, conf := s.fuseIntroEnd(ctx, item.File.Path, seg.StartMs, seg.EndMs)
+		seg.EndMs = end
+		if conf > 0 {
+			seg.Confidence = 0.6 + 0.4*conf
+		}
+		add([]domainlibrary.MediaSegment{seg}, "season_cluster_hint")
+	}
+
+	// Visual pHash + audio confirmation. classifyConfirmed can yield an intro
+	// AND a short preceding recap.
+	if needIntro() && s.isTrickplayEnabled(ctx) {
+		result, phashErr := s.pHashPass(ctx, item, cfg)
+		if phashErr != nil {
+			slog.Warn("intro_detection: phash pass failed, falling back",
+				slog.String("media_id", mediaItemID),
+				slog.Any("err", phashErr),
+			)
+		} else if result != nil && len(result.candidates) > 0 {
+			var confirmed []confirmedWindow
+			if s.chromaprinter != nil {
+				confirmed = s.confirmAudioCandidatesChromaprint(ctx, item, result, cfg)
+			}
+			if len(confirmed) == 0 {
+				confirmed = s.confirmAudioCandidates(ctx, item, result, cfg)
+			}
+			if len(confirmed) > 0 {
+				// pHash boundaries cover only the *matched* frames, which
+				// can be a strict subset of the real intro: title-card
+				// frames stable across episodes match, but the establishing
+				// shots and intertitles around them are unique-per-episode
+				// and don't. Use silencedetect+blackdetect on a wider
+				// window around each pHash window to widen the boundaries
+				// out to the real start/end (silence before/after the
+				// theme music). Anchored at the pHash window, so the
+				// "first silence in the file" failure mode (studio logo
+				// at 0s) doesn't apply.
+				refined := s.refineWithPrecisionPass(ctx, item.File.Path, confirmed)
+				segs := s.refineIntroEndsBySubtitle(ctx, item.File.Path, classifyConfirmed(refined, cfg))
+				add(segs, "phash_confirmed")
+			} else {
+				slog.Info("intro_detection.pipeline_decision",
+					slog.String("media_id", mediaItemID),
+					slog.Int("candidates_evaluated", len(result.candidates)),
+					slog.Int("siblings_total", len(result.siblings)),
+					slog.String("decision", "fallback_no_candidate_confirmed"),
+				)
+			}
+		}
+	}
+
+	// Audio-primary DISCOVERY: the visual pass produced nothing confirmable
+	// (poor SD trickplay, or a cold-open show whose title card isn't visually
+	// stable). Let chromaprint discover a recurring intro directly across
+	// siblings at a free per-episode offset — the variable-teaser case the
+	// visual+confirm path structurally misses.
+	if needIntro() && cfg.AudioDiscoveryEnabled {
+		if seg, ok := s.discoverIntroByAudio(ctx, item); ok {
+			add([]domainlibrary.MediaSegment{seg}, "chromaprint_discovery")
+		}
+	}
+
+	// Last resort: concurrent audio/subtitle silence passes. Its error is only
+	// fatal when nothing else covered the episode — a recap found upstream must
+	// still be returned even if the silence pass fails to find the intro. A
+	// degenerate sub-second result (the studio-logo silence at 0:00) is dropped
+	// downstream by the heuristic-floor guard in detectIntroWithHint.
+	if needIntro() {
+		startMs, endMs, source, confidence, fbErr := s.concurrentFallback(ctx, item)
+		if fbErr != nil {
+			if len(found) == 0 {
+				return nil, fbErr
+			}
+			slog.Warn("intro_detection: silence fallback failed",
+				slog.String("media_id", mediaItemID), slog.Any("err", fbErr))
+		} else if startMs != 0 || endMs != 0 {
+			add([]domainlibrary.MediaSegment{{
+				Type:       "intro",
+				StartMs:    startMs,
+				EndMs:      endMs,
+				Source:     source,
+				Confidence: confidence,
+			}}, "silence_fallback")
+		}
+	}
+
+	out := make([]domainlibrary.MediaSegment, 0, len(found))
+	for _, seg := range found {
+		out = append(out, seg)
+	}
+	return out, nil
+}
+
+// refineWithPrecisionPass widens each pHash window to the actual intro
+// boundaries. The pHash window is the anchor (it survived audio
+// confirmation, so we trust it points at a real intro), but its raw
+// boundaries only cover the matched frames — the actual intro can extend
+// before the first match and after the last (frames unique per episode
+// don't match across siblings).
+//
+// Strategy:
+//  1. Run silencedetect+blackdetect on a +/-padSec window around the pHash
+//     anchor. If a usable transition is found, use it (most accurate).
+//  2. Otherwise apply a fixed +/-fallbackPadSec extension to the pHash
+//     window. Series with continuous music (Robin Hood, action shows)
+//     don't have detectable silence around their intro, so silencedetect
+//     finds nothing — but the actual intro is still wider than the
+//     matched-frame window. The fallback pad gives the user a usable
+//     skip button rather than a too-tight 16s window.
+//
+// PrecisionPass used to be called on the whole episode and would lock onto
+// the first studio-logo silence at 0s — that failure mode doesn't apply
+// here because we anchor on the pHash window position.
+func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, filePath string, windows []confirmedWindow) []confirmedWindow {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.refineWithPrecisionPass")
+	defer span.End()
+
+	if filePath == "" || len(windows) == 0 {
+		return windows
+	}
+	const (
+		padSec = 15.0
+		// Asymmetric fallback pad: pHash matches the visually-stable parts of
+		// an intro (title cards, logos), which typically sit at the END of
+		// the intro. The START is more often a cold-open transition unique
+		// per episode that doesn't match. So expand more on the start side
+		// than the end side to cover the real intro span without
+		// over-shooting into the post-intro content.
+		fallbackPadStartMs = 10_000
+		fallbackPadEndMs   = 2_000
+	)
+	out := make([]confirmedWindow, 0, len(windows))
+	for _, w := range windows {
+		startSec := float64(w.startMs) / 1000
+		endSec := float64(w.endMs) / 1000
+		refStart, refEnd, err := s.detector.PrecisionPass(ctx, filePath, startSec, endSec, padSec)
+
+		usePrecision := err == nil &&
+			refStart > 0 && refEnd > refStart &&
+			refEnd >= w.startMs-int64(2*padSec*1000) &&
+			refStart <= w.endMs+int64(2*padSec*1000) &&
+			// PrecisionPass returns the *input* (startMs, endMs) when it
+			// finds nothing — detect the no-op to fall through to padding.
+			(refStart != w.startMs || refEnd != w.endMs)
+
+		var newStart, newEnd int64
+		var source string
+		if usePrecision {
+			newStart, newEnd, source = refStart, refEnd, "silencedetect"
+		} else {
+			newStart = w.startMs - fallbackPadStartMs
+			if newStart < 0 {
+				newStart = 0
+			}
+			newEnd = w.endMs + fallbackPadEndMs
+			source = "fixed_pad"
+		}
+
+		slog.Debug("intro_detection.refined",
+			slog.Int64("phash_start_ms", w.startMs),
+			slog.Int64("phash_end_ms", w.endMs),
+			slog.Int64("refined_start_ms", newStart),
+			slog.Int64("refined_end_ms", newEnd),
+			slog.String("refine_source", source),
+		)
+		out = append(out, confirmedWindow{
+			startMs:    newStart,
+			endMs:      newEnd,
+			matchCount: w.matchCount,
+			confidence: w.confidence,
+		})
+	}
+	return out
+}
+
+// refineEndBySubtitleOnset pulls an intro END to where dialogue resumes. A
+// title sequence carries no dialogue, so the first subtitle cue after the intro
+// start (past a short guard that skips a cold-open line lingering into the theme)
+// marks content resumption ≈ the visual intro end. This is the one signal that
+// nails the end on "music-bleed" shows, where the recurring AUDIO run overshoots
+// the visual cut (theme music continues under the next scene) — the eval showed
+// audio_cluster ends ~+30s late there. Returns endMs unchanged (a no-op) when
+// the file has no subtitles or no plausible cue is found, so media without subs
+// is unaffected.
+func (s *IntroDetectionService) refineEndBySubtitleOnset(ctx context.Context, filePath string, startMs, endMs int64) int64 {
+	if s.detector == nil || filePath == "" {
+		return endMs
+	}
+	cues, err := s.detector.SubtitleCueStarts(ctx, filePath)
+	if err != nil || len(cues) == 0 {
+		return endMs
+	}
+	const (
+		guardMs = 5_000 // skip a cold-open line lingering into the theme onset
+		slackMs = 8_000 // tolerate a little past the audio end (grid jitter)
+	)
+	// Upper bound = the audio end. The recurring-audio run length OVERSHOOTS the
+	// visual cut (theme bleeds into the next scene), so the true dialogue-resume
+	// sits at or before it. A first cue PAST the audio end means dialogue didn't
+	// resume right after the intro (a silent post-intro action scene) — that cue
+	// is not the intro's end, so we keep the audio end rather than overshoot far.
+	for _, c := range cues {
+		if c <= startMs+guardMs {
+			continue
+		}
+		if c > endMs+slackMs {
+			break // first plausible cue is past the audio end → don't trust it
+		}
+		return c // dialogue resumes within the intro window ≈ the visual end
+	}
+	return endMs
+}
+
+// fuseIntroEnd combines every available END witness into a consensus boundary,
+// then snaps it to a frame-accurate scene cut. No single signal is reliable, so
+// they VOTE: the audio run end (always present), the subtitle dialogue-resume
+// (when subs exist), and a silence/black boundary (when present). Where they
+// AGREE we are confident; stacking them is what keeps the end robust on series
+// with NO subtitles. Returns the fused end and a confidence in [0,1] (the share
+// of evidence weight that agreed). All votes are bounded by the audio end + a
+// little slack — the recurring-audio run overshoots, so the true resume is at or
+// before it.
+func (s *IntroDetectionService) fuseIntroEnd(ctx context.Context, filePath string, startMs, audioEnd int64) (int64, float64) {
+	if s.detector == nil || filePath == "" {
+		return audioEnd, 0.5
+	}
+	votes := []boundaryVote{{ms: audioEnd, weight: 0.4, source: "audio"}}
+
+	// Subtitle dialogue-resume (already capped at the audio end inside the helper).
+	if subEnd := s.refineEndBySubtitleOnset(ctx, filePath, startMs, audioEnd); subEnd != audioEnd {
+		votes = append(votes, boundaryVote{ms: subEnd, weight: 1.0, source: "subtitle"})
+	}
+	// Silence/black boundary near the audio end (PrecisionPass returns the input
+	// unchanged when it finds nothing, so a differing end means a real boundary).
+	if _, refEnd, err := s.detector.PrecisionPass(ctx, filePath, float64(startMs)/1000, float64(audioEnd)/1000, 6); err == nil {
+		if d := refEnd - audioEnd; refEnd > startMs && refEnd != audioEnd && d < 20_000 && d > -20_000 {
+			votes = append(votes, boundaryVote{ms: refEnd, weight: 0.6, source: "silence"})
+		}
+	}
+
+	fb, ok := fuseBoundary(votes, 4_000)
+	if !ok {
+		return audioEnd, 0.5
+	}
+	end := fb.ms
+	// Snap the consensus to a frame-accurate content cut so the skip lands on a
+	// scene boundary, not mid-shot. Bounded window → cheap.
+	dur := float64(end-startMs)/1000 + 6
+	if cuts, cErr := s.detector.SceneCutTimestamps(ctx, filePath, float64(startMs)/1000, dur, 0.3); cErr == nil {
+		if snapped, did := snapToNearest(end, cuts, 2_500); did {
+			end = snapped
+		}
+	}
+	return end, fb.confidence
+}
+
+// refineIntroEndsBySubtitle fuses the END of every intro segment in segs (in
+// place), leaving recap/other types untouched. Used by the heuristic paths
+// (cluster hint, pHash) whose ends overshoot on music-bleed shows; authoritative
+// paths (chapter/provider) are never routed through here.
+func (s *IntroDetectionService) refineIntroEndsBySubtitle(ctx context.Context, filePath string, segs []domainlibrary.MediaSegment) []domainlibrary.MediaSegment {
+	for i := range segs {
+		if segs[i].Type == "intro" {
+			segs[i].EndMs, _ = s.fuseIntroEnd(ctx, filePath, segs[i].StartMs, segs[i].EndMs)
+		}
+	}
+	return segs
+}
+
+// chapterPass looks for Matroska chapters whose title matches a known
+// intro/recap pattern (Intro, Opening, Theme, Generique, Title Sequence,
+// Previously, Recap, ...). Returns one MediaSegment per matched chapter
+// with source="mkv_chapter", confidence 1.0 — chapters are authoritative
+// since they were encoded by the uploader.
+//
+// Special cases:
+//   - "Intro End" alone is not an intro; it's the END marker. Pair with a
+//     preceding chapter (typically the cold open or studio logo) by using
+//     [start_of_episode, intro_end_chapter.start_ms] as the intro window.
+//     Heuristic: if "Intro End" is found and no plain "Intro" chapter
+//     exists, treat the previous chapter's start (or 0) as the intro start.
+func (s *IntroDetectionService) chapterPass(ctx context.Context, item *domainlibrary.MediaItem) []domainlibrary.MediaSegment {
+	ctx, span := tracing.StartSpan(ctx, "app.library.intro.chapterPass")
+	defer span.End()
+
+	if s.chapterRepo == nil {
+		return nil
+	}
+	chapters, err := s.chapterRepo.GetByMediaItemID(ctx, item.ID)
+	if err != nil || len(chapters) == 0 {
+		return nil
+	}
+	// Sort by start in case the repo doesn't guarantee order.
+	sort.Slice(chapters, func(i, j int) bool { return chapters[i].StartTimeMs < chapters[j].StartTimeMs })
+
+	// MKV chapters often record only the start timestamp; end_ms is then 0
+	// (or equal to start). Standard convention: a chapter ends where the
+	// next one begins. Fill missing ends in-place so the segment builders
+	// below can rely on EndTimeMs > StartTimeMs.
+	for i := range chapters {
+		if chapters[i].EndTimeMs > chapters[i].StartTimeMs {
+			continue
+		}
+		if i+1 < len(chapters) && chapters[i+1].StartTimeMs > chapters[i].StartTimeMs {
+			chapters[i].EndTimeMs = chapters[i+1].StartTimeMs
+		}
+	}
+
+	classify := func(title string) string {
+		t := strings.ToLower(strings.TrimSpace(title))
+		switch {
+		case t == "intro end" || t == "end of intro" || t == "intro ends":
+			return "intro_end_marker"
+		case strings.Contains(t, "intro") ||
+			strings.Contains(t, "opening") ||
+			strings.Contains(t, "theme") ||
+			strings.Contains(t, "title sequence") ||
+			strings.Contains(t, "generique") || strings.Contains(t, "générique"):
+			return "intro"
+		case strings.Contains(t, "previously") ||
+			strings.Contains(t, "recap") ||
+			strings.HasPrefix(t, "previously on") ||
+			strings.Contains(t, "résumé") || strings.Contains(t, "resume des"):
+			return "recap"
+		case strings.Contains(t, "end credits") ||
+			strings.Contains(t, "closing credits") ||
+			strings.Contains(t, "ending"):
+			return "end_credits"
+		}
+		return ""
+	}
+
+	var (
+		out         []domainlibrary.MediaSegment
+		hasIntro    bool
+		introEndIdx = -1
+	)
+	for i, ch := range chapters {
+		kind := classify(ch.Title)
+		switch kind {
+		case "intro":
+			out = append(out, domainlibrary.MediaSegment{
+				Type: "intro", Source: "mkv_chapter", Confidence: 1.0,
+				StartMs: ch.StartTimeMs, EndMs: ch.EndTimeMs,
+			})
+			hasIntro = true
+		case "recap":
+			out = append(out, domainlibrary.MediaSegment{
+				Type: "recap", Source: "mkv_chapter", Confidence: 1.0,
+				StartMs: ch.StartTimeMs, EndMs: ch.EndTimeMs,
+			})
+		case "end_credits":
+			out = append(out, domainlibrary.MediaSegment{
+				Type: "end_credits", Source: "mkv_chapter", Confidence: 1.0,
+				StartMs: ch.StartTimeMs, EndMs: ch.EndTimeMs,
+			})
+		case "intro_end_marker":
+			introEndIdx = i
+		}
+	}
+
+	// "Intro End" without a paired "Intro" chapter: synthesise an intro
+	// segment from [previous chapter start, intro_end start]. Skip if a
+	// plain Intro chapter was already added (avoid duplicates).
+	if introEndIdx >= 0 && !hasIntro {
+		var startMs int64
+		if introEndIdx > 0 {
+			startMs = chapters[introEndIdx-1].StartTimeMs
+		}
+		endMs := chapters[introEndIdx].StartTimeMs
+		if endMs > startMs {
+			out = append(out, domainlibrary.MediaSegment{
+				Type: "intro", Source: "mkv_chapter", Confidence: 1.0,
+				StartMs: startMs, EndMs: endMs,
+			})
+		}
+	}
+	return out
+}
+
+// classifyConfirmed converts audio-confirmed windows into typed MediaSegments.
+// At most one intro and one preceding recap (<60s, occurs before intro) are
+// emitted. Source is set to "phash" with confidence inherited from the
+// confirmation stage (typically 0.95 for audio-confirmed, 0.7 for visual-only
+// fallback).
+func classifyConfirmed(windows []confirmedWindow, cfg introConfig) []domainlibrary.MediaSegment {
+	if len(windows) == 0 {
+		return nil
+	}
+	// Pick the longest as intro.
+	intro := windows[0]
+	for _, w := range windows[1:] {
+		if (w.endMs - w.startMs) > (intro.endMs - intro.startMs) {
+			intro = w
+		}
+	}
+	out := []domainlibrary.MediaSegment{{
+		Type:       "intro",
+		StartMs:    intro.startMs,
+		EndMs:      intro.endMs,
+		Source:     "phash",
+		Confidence: intro.confidence,
+	}}
+	// Look for an earlier short window (< RecapMaxMs) ending before intro start:
+	// that's the recap (a brief "previously on…" before the title sequence).
+	for _, w := range windows {
+		if w.endMs > intro.startMs {
+			continue
+		}
+		if (w.endMs - w.startMs) >= cfg.RecapMaxMs {
+			continue
+		}
+		out = append([]domainlibrary.MediaSegment{{
+			Type:       "recap",
+			StartMs:    w.startMs,
+			EndMs:      w.endMs,
+			Source:     "phash",
+			Confidence: 0.7,
+		}}, out...)
+		break
+	}
+	return out
+}

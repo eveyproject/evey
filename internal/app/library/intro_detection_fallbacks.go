@@ -1,0 +1,188 @@
+package library
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"runtime/debug"
+	"time"
+
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
+)
+
+// Fallback intro/credits detection strategies when the main pipeline yields nothing.
+
+// waitForManifest polls for the trickplay manifest, waiting up to 24h.
+func (s *IntroDetectionService) waitForManifest(ctx context.Context, mediaID shared.MediaItemID) (*domainlibrary.TrickplayManifest, error) {
+	manifest, err := s.trickplayRepo.GetByMediaItemID(ctx, mediaID)
+	if err == nil {
+		return manifest, nil
+	}
+	if !errors.Is(err, shared.ErrNotFound) {
+		return nil, fmt.Errorf("get trickplay manifest: %w", err)
+	}
+
+	deadline := time.Now().Add(24 * time.Hour)
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return nil, errors.New("trickplay manifest not available after 24h")
+			}
+			m, e := s.trickplayRepo.GetByMediaItemID(ctx, mediaID)
+			if e == nil {
+				return m, nil
+			}
+			if !errors.Is(e, shared.ErrNotFound) {
+				return nil, fmt.Errorf("get trickplay manifest: %w", e)
+			}
+		}
+	}
+}
+
+// concurrentFallback runs audio and subtitle-gap detection concurrently.
+// First valid result wins; both are cancelled when one succeeds.
+func (s *IntroDetectionService) concurrentFallback(ctx context.Context, item *domainlibrary.MediaItem) (startMs, endMs int64, source string, confidence float64, err error) {
+	type result struct {
+		startMs, endMs int64
+		source         string
+		confidence     float64
+		err            error
+	}
+
+	cancelCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ch := make(chan result, 2)
+
+	// Each child carries its own recover: a parent-level recover does NOT
+	// cover goroutines it spawned, and a panicking child that never sends
+	// would stall the receive loop below until the caller's ctx expires. The
+	// recovered child reports an error result instead, so the other detector
+	// still gets its chance.
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("intro: audio fallback panic recovered",
+					slog.Any("err", r), slog.String("stack", string(debug.Stack())))
+				ch <- result{err: fmt.Errorf("audio fallback panic: %v", r)}
+			}
+		}()
+		s, e, found, ferr := s.detector.AudioFallback(cancelCtx, item.File.Path, 600)
+		if ferr != nil || !found {
+			ch <- result{err: ferr}
+			return
+		}
+		ch <- result{startMs: s, endMs: e, source: "audio", confidence: 0.5}
+	}()
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("intro: subtitle-gap fallback panic recovered",
+					slog.Any("err", r), slog.String("stack", string(debug.Stack())))
+				ch <- result{err: fmt.Errorf("subtitle-gap fallback panic: %v", r)}
+			}
+		}()
+		s, e, found := subtitleGapFallback(item)
+		if !found {
+			ch <- result{}
+			return
+		}
+		ch <- result{startMs: s, endMs: e, source: "subtitle", confidence: 0.4}
+	}()
+
+	received := 0
+	for received < 2 {
+		select {
+		case <-ctx.Done():
+			return 0, 0, "", 0, ctx.Err()
+		case r := <-ch:
+			received++
+			if r.endMs > r.startMs {
+				cancel()
+				return r.startMs, r.endMs, r.source, r.confidence, nil
+			}
+		}
+	}
+	return 0, 0, "", 0, nil
+}
+
+// subtitleGapFallback looks for a gap >30s in external subtitle data.
+// Returns (0,0,false) when no subtitle info is available.
+func subtitleGapFallback(item *domainlibrary.MediaItem) (startMs, endMs int64, found bool) {
+	// Subtitle gap detection requires parsed SRT/ASS cues. Without a subtitle
+	// repo dependency in this service, we return not-found. The audio fallback
+	// path covers this case in practice.
+	_ = item
+	return 0, 0, false
+}
+
+// detectStudioLogo attempts to match the first ~90 seconds of trickplay frames
+// against known studio logo fingerprints. Returns nil when no manifest is available,
+// when no patterns match, or when the catalog has no fingerprints yet.
+// Does NOT wait for a manifest — skips immediately if not present.
+func (s *IntroDetectionService) detectStudioLogo(ctx context.Context, item *domainlibrary.MediaItem) *domainlibrary.MediaSegment {
+	manifest, err := s.trickplayRepo.GetByMediaItemID(ctx, item.ID)
+	if err != nil {
+		return nil
+	}
+	if manifest.Interval <= 0 {
+		return nil
+	}
+
+	// Extract only enough frames to cover 90 seconds.
+	maxFrames := 90 / manifest.Interval
+	if maxFrames < 1 {
+		maxFrames = 1
+	}
+	hashes, _, hashErr := s.extractEpisodeHashes(manifest, maxFrames)
+	if hashErr != nil || len(hashes) == 0 {
+		return nil
+	}
+
+	startMs, endMs, found := s.detector.DetectStudioLogo(hashes, manifest.Interval)
+	if !found {
+		return nil
+	}
+	return &domainlibrary.MediaSegment{
+		Type:       "studio_logo",
+		StartMs:    startMs,
+		EndMs:      endMs,
+		Confidence: 0.7,
+		Source:     "logo_match",
+	}
+}
+
+// detectEndCredits runs the credits detector on the file and returns a
+// MediaSegment if found. Caller is responsible for setting ID and MediaItemID
+// before persisting.
+func (s *IntroDetectionService) detectEndCredits(ctx context.Context, item *domainlibrary.MediaItem) (*domainlibrary.MediaSegment, error) {
+	if item.File == nil || item.File.Path == "" {
+		return nil, nil
+	}
+	durationSec := item.File.Duration.Seconds()
+	if durationSec < 60 {
+		return nil, nil
+	}
+	startMs, endMs, found, err := s.detector.DetectEndCredits(ctx, item.File.Path, durationSec)
+	if err != nil {
+		return nil, fmt.Errorf("detect end credits: %w", err)
+	}
+	if !found {
+		return nil, nil
+	}
+	return &domainlibrary.MediaSegment{
+		Type:       "end_credits",
+		StartMs:    startMs,
+		EndMs:      endMs,
+		Confidence: 0.6,
+		Source:     "blackdetect",
+	}, nil
+}
