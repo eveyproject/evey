@@ -51,7 +51,7 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID st
 	span.SetAttributes(attribute.String("profile.id", profileID))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	q := `SELECT id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at, delivered_at, read_at
+	q := `SELECT id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at, read_at
 	      FROM notifications WHERE profile_id = $1`
 	if unreadOnly {
 		q += ` AND read_at IS NULL`
@@ -91,7 +91,7 @@ func (r *NotificationRepository) FindRecentByProfileTypeAndSeries(ctx context.Co
 		placeholders[i] = fmt.Sprintf("$%d", i+4)
 		args = append(args, string(t))
 	}
-	q := `SELECT id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at, delivered_at, read_at
+	q := `SELECT id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at, read_at
 	      FROM notifications
 	      WHERE profile_id = $1
 	        AND related_media_id = $2
@@ -140,7 +140,7 @@ func scanNotifications(rows *sql.Rows) ([]*notification.Notification, error) {
 		var relatedMediaID sql.NullString
 		if err := rows.Scan(&n.ID, &n.ProfileID, &typ, &n.Title, &n.Message, &n.MediaItemID,
 			&relatedMediaID, &n.EpisodeCount, &lvl,
-			&n.CreatedAt, &n.ExpiresAt, &n.DeliveredAt, &n.ReadAt); err != nil {
+			&n.CreatedAt, &n.ExpiresAt, &n.ReadAt); err != nil {
 			return nil, err
 		}
 		n.Type = notification.Type(typ)

@@ -95,50 +95,25 @@ func TestNotification_ReadState(t *testing.T) {
 		if n.ReadAt != nil {
 			t.Error("ReadAt should be nil for unread notification")
 		}
-		if n.DeliveredAt != nil {
-			t.Error("DeliveredAt should be nil before delivery")
-		}
-	})
-
-	t.Run("delivered not read", func(t *testing.T) {
-		t.Parallel()
-		delivered := now.Add(time.Millisecond)
-		n := &notification.Notification{
-			ID:          "n2",
-			ProfileID:   "p1",
-			Type:        notification.TypeNewEpisode,
-			Title:       "New Episode",
-			Level:       notification.LevelAll,
-			CreatedAt:   now,
-			DeliveredAt: &delivered,
-		}
-		if n.DeliveredAt == nil {
-			t.Error("DeliveredAt should be set after delivery")
-		}
-		if n.ReadAt != nil {
-			t.Error("ReadAt should still be nil before user reads")
-		}
 	})
 
 	t.Run("read", func(t *testing.T) {
 		t.Parallel()
-		delivered := now.Add(time.Millisecond)
 		readAt := now.Add(time.Second)
 		n := &notification.Notification{
-			ID:          "n3",
-			ProfileID:   "p1",
-			Type:        notification.TypeNewSeries,
-			Title:       "New Series",
-			Level:       notification.LevelRelevant,
-			CreatedAt:   now,
-			DeliveredAt: &delivered,
-			ReadAt:      &readAt,
+			ID:        "n3",
+			ProfileID: "p1",
+			Type:      notification.TypeNewSeries,
+			Title:     "New Series",
+			Level:     notification.LevelRelevant,
+			CreatedAt: now,
+			ReadAt:    &readAt,
 		}
 		if n.ReadAt == nil {
 			t.Error("ReadAt should be set after user reads")
 		}
-		if !n.ReadAt.After(*n.DeliveredAt) {
-			t.Error("ReadAt must be after DeliveredAt")
+		if !n.IsRead() {
+			t.Error("IsRead must report true once ReadAt is set")
 		}
 	})
 }
@@ -186,19 +161,6 @@ func TestNotification_IsRead(t *testing.T) {
 	n.ReadAt = &readAt
 	if !n.IsRead() {
 		t.Error("should be read")
-	}
-}
-
-func TestNotification_IsDelivered(t *testing.T) {
-	t.Parallel()
-	n := &notification.Notification{}
-	if n.IsDelivered() {
-		t.Error("should not be delivered")
-	}
-	d := time.Now()
-	n.DeliveredAt = &d
-	if !n.IsDelivered() {
-		t.Error("should be delivered")
 	}
 }
 

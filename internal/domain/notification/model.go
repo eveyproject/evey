@@ -97,7 +97,6 @@ type Notification struct {
 	Level          Level
 	CreatedAt      time.Time
 	ExpiresAt      *time.Time
-	DeliveredAt    *time.Time
 	ReadAt         *time.Time
 }
 
@@ -149,10 +148,6 @@ func (s *Settings) Validate() error {
 
 func (n *Notification) IsRead() bool {
 	return n.ReadAt != nil
-}
-
-func (n *Notification) IsDelivered() bool {
-	return n.DeliveredAt != nil
 }
 
 func (n *Notification) IsExpired() bool {
