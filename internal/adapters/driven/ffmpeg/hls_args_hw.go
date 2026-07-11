@@ -17,12 +17,11 @@ import (
 // It honours two signals: the explicit ToneMap decision baked into the opts by
 // the orchestrated VOD path (which does not thread real Streams), and the
 // stream-based detection used when real Streams ARE present (legacy/direct path).
-// A client that renders HDR natively (HDRSupported) is never tonemapped.
-// resolveToneMap returns the HDR->SDR tonemap filter, with the downscale to
-// dstWidth folded into the tonemap's linearizing zscale so the heavy float
-// pipeline runs at delivery resolution (see hdr.ToneMapOptions.DstWidth).
-// dstWidth<=0 keeps a full-resolution tonemap (the caller scales separately,
-// e.g. the subtitle burn-in path).
+// A client that renders HDR natively (HDRSupported) is never tonemapped. The
+// downscale to dstWidth is folded into the tonemap's linearizing zscale so the
+// heavy float pipeline runs at delivery resolution (see hdr.ToneMapOptions.
+// DstWidth); dstWidth<=0 keeps a full-resolution tonemap (the caller scales
+// separately, e.g. the subtitle burn-in path).
 func resolveToneMap(opts transcoding.HLSProcessOpts, dstWidth int) string {
 	if opts.HDRSupported {
 		return ""
@@ -31,10 +30,7 @@ func resolveToneMap(opts transcoding.HLSProcessOpts, dstWidth int) string {
 		// Generic HDR10/HLG -> SDR (bt709) tonemap. The filter (zscale linearize
 		// -> tonemap -> bt709) reads the input transfer/primaries from the decoded
 		// frame's colour metadata, so it needs no per-stream params here.
-		tmOpts := hdr.DefaultToneMapOptions()
-		tmOpts.DstWidth = dstWidth
-		tmOpts.UseTonemapx = tonemapxAvailable("ffmpeg")
-		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, tmOpts)
+		return buildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, dstWidth)
 	}
 	return detectToneMap(opts.HDRSupported, opts.Streams, dstWidth)
 }
@@ -49,12 +45,18 @@ func detectToneMap(hdrSupported bool, streams []*library.MediaStream, dstWidth i
 	}
 	hdrInfo := hdr.DetectHDR(hdrStreams)
 	if hdrInfo.IsHDR {
-		tmOpts := hdr.DefaultToneMapOptions()
-		tmOpts.DstWidth = dstWidth
-		tmOpts.UseTonemapx = tonemapxAvailable("ffmpeg")
-		return hdr.BuildToneMapFilter(hdrInfo, tmOpts)
+		return buildToneMapFilter(hdrInfo, dstWidth)
 	}
 	return ""
+}
+
+// buildToneMapFilter builds the tonemap filter string for the given HDR info,
+// scaled to dstWidth and using tonemapx when the ffmpeg build provides it.
+func buildToneMapFilter(info *hdr.HDRInfo, dstWidth int) string {
+	tmOpts := hdr.DefaultToneMapOptions()
+	tmOpts.DstWidth = dstWidth
+	tmOpts.UseTonemapx = tonemapxAvailable("ffmpeg")
+	return hdr.BuildToneMapFilter(info, tmOpts)
 }
 
 // --- hardware-accelerated transcode path ---
@@ -228,13 +230,11 @@ func hwEncoderQualityArgs(accel transcoding.HWAccelType, features []string) []st
 	return nil
 }
 
-// buildSingleTranscodeHWArgs is the GPU single-rung equivalent of
-// buildSingleTranscodeArgs. Mirrors that builder's container choice (.ts) so a
-// SW↔HW fallback never changes on-disk naming for the same job.
-func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
-	p := opts.Profiles[len(opts.Profiles)-1]
-
-	var args []string
+// appendHWTranscodeInputArgs emits the GPU-decode input prologue shared by the
+// single- and multi-variant HW builders: the seek, the HW init flags (which
+// bind to the video -i that immediately follows), the video input, and the
+// software-decoded audio-delay input.
+func appendHWTranscodeInputArgs(args []string, opts transcoding.HLSProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
@@ -243,9 +243,18 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, "-i", opts.FilePath)
 	// The audio input decodes in software: the hwaccel flags above bind to the
 	// VIDEO input only (they precede its -i).
-	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
+	return appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
 		return appendInputModifiers(a, opts.ReadRate)
 	})
+}
+
+// buildSingleTranscodeHWArgs is the GPU single-rung equivalent of
+// buildSingleTranscodeArgs. Mirrors that builder's container choice (.ts) so a
+// SW↔HW fallback never changes on-disk naming for the same job.
+func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
+	p := opts.Profiles[len(opts.Profiles)-1]
+
+	args := appendHWTranscodeInputArgs(nil, opts)
 
 	vf := hwScaleFilter(opts.HWAccel, p.Width)
 	if opts.HWTonemap {
@@ -273,18 +282,7 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 	n := len(opts.Profiles)
 	vcodec := videoEncoderFor(opts.VideoCodec, opts.HWAccel)
 
-	var args []string
-	if opts.StartSec > 0 {
-		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
-	}
-	args = append(args, hwInitArgs(opts.HWAccel, opts.HWDevice)...)
-	args = appendInputModifiers(args, opts.ReadRate)
-	args = append(args, "-i", opts.FilePath)
-	// The audio input decodes in software: the hwaccel flags above bind to the
-	// VIDEO input only (they precede its -i).
-	args = appendAudioDelayInput(args, opts, opts.StartSec, func(a []string) []string {
-		return appendInputModifiers(a, opts.ReadRate)
-	})
+	args := appendHWTranscodeInputArgs(nil, opts)
 	// Same source-PTS preservation as the software multi-variant builder: a
 	// rafale spawned at seg N>0 must emit fMP4 fragments whose tfdt matches the
 	// VOD manifest's EXTINF, or the browser rejects them.

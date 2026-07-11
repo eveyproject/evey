@@ -48,16 +48,23 @@ func svtAV1PresetArgs(encoder string) []string {
 // variantIdx < 0 emits the single-output form (-profile:v); else the per-rung
 // -profile:v:N form used by the multi-variant builder. Reachable via a client
 // PreferredVideoCodec=hevc on a software path (no HW HEVC) — found by audit.
+// H.264 profile/level advertised in the manifest CODECS attribute; libx264
+// only (x265/av1 reject a "high" profile), so this stays a named H.264 pair.
+const (
+	h264Profile = "high"
+	h264Level   = "4.1"
+)
+
 func softwareProfileLevelArgs(encoder string, variantIdx int) []string {
 	if encoder != "libx264" {
 		return nil
 	}
 	if variantIdx < 0 {
-		return []string{"-profile:v", "high", "-level:v", "4.1"}
+		return []string{"-profile:v", h264Profile, "-level:v", h264Level}
 	}
 	return []string{
-		fmt.Sprintf("-profile:v:%d", variantIdx), "high",
-		fmt.Sprintf("-level:v:%d", variantIdx), "4.1",
+		fmt.Sprintf("-profile:v:%d", variantIdx), h264Profile,
+		fmt.Sprintf("-level:v:%d", variantIdx), h264Level,
 	}
 }
 
@@ -123,16 +130,22 @@ func resolveAudioEncoder(codec string) string {
 // for stereo) to the transcode's channel target: ~64 kbps per channel beyond
 // stereo (5.1 → 384k), capped at 512k. Deterministic in (base, maxChannels) —
 // both hashed — so a given fingerprint always yields the same audio bytes.
+const (
+	stereoChannels      = 2
+	audioKbpsPerChannel = 64  // ~64 kbps/channel beyond stereo (5.1 -> 384k)
+	maxAudioBitrateKbps = 512 // hard cap on the scaled audio bitrate
+)
+
 func scaledAudioBitrateKbps(base int64, maxChannels int) int64 {
-	if maxChannels <= 2 {
+	if maxChannels <= stereoChannels {
 		return base
 	}
-	scaled := int64(maxChannels) * 64
+	scaled := int64(maxChannels) * audioKbpsPerChannel
 	if scaled < base {
 		return base
 	}
-	if scaled > 512 {
-		return 512
+	if scaled > maxAudioBitrateKbps {
+		return maxAudioBitrateKbps
 	}
 	return scaled
 }
