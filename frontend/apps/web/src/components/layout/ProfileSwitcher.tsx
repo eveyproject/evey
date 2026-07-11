@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/ui/Avatar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type React from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -24,19 +25,7 @@ function profileInitial(p: V1Profile | undefined): string {
 }
 
 function ProfileAvatar({ profile, size = 32 }: { profile: V1Profile; size?: number }) {
-  const url = profileAvatarUrl(profile);
-  return (
-    <span
-      className="rounded-full bg-[var(--accent)] text-[var(--filter-active-text)] flex items-center justify-center overflow-hidden shrink-0"
-      style={{ width: size, height: size, fontSize: size * 0.45 }}
-    >
-      {url ? (
-        <img src={url} alt="" className="w-full h-full object-cover" />
-      ) : (
-        <span className="font-medium">{profileInitial(profile)}</span>
-      )}
-    </span>
-  );
+  return <Avatar initial={profileInitial(profile)} imageUrl={profileAvatarUrl(profile)} size={size} />;
 }
 
 interface Props {

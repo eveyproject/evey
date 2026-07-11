@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/ui/Avatar";
 import { useState } from "react";
 import { Cast, Film, Play, Pause, Square, MessageSquare, Send } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -39,15 +40,7 @@ function usePlayMethodLabel() {
 }
 
 function ProfileAvatar({ profileName, size = 28 }: { profileName?: string; size?: number }) {
-  const initial = (profileName ?? "?").charAt(0).toUpperCase();
-  return (
-    <div
-      className="rounded-full shrink-0 bg-[var(--accent)] text-[var(--filter-active-text)] flex items-center justify-center overflow-hidden"
-      style={{ width: size, height: size, fontSize: size * 0.4 }}
-    >
-      <span className="font-bold">{initial}</span>
-    </div>
-  );
+  return <Avatar initial={(profileName ?? "?").charAt(0).toUpperCase()} size={size} />;
 }
 
 function formatEpisodeLabel(session: V1ActiveSession): string | null {

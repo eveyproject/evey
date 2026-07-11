@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/ui/Avatar";
 import { useTranslation } from "react-i18next";
 import { useActivityServiceGetServerStats } from "@evey/api";
 
@@ -36,9 +37,7 @@ export function ActiveUsersSummary() {
       <div className="flex flex-col gap-2">
         {users.map((u) => (
           <div key={u.userId} className="flex items-center gap-3 text-sm">
-            <div className="flex items-center justify-center w-7 h-7 rounded-full shrink-0 bg-[var(--accent)] text-[var(--filter-active-text)] text-xs font-bold">
-              {(u.username ?? "?").charAt(0).toUpperCase()}
-            </div>
+            <Avatar initial={(u.username ?? "?").charAt(0).toUpperCase()} size={28} />
             <span className="flex-1 truncate text-[var(--text)]">{u.username}</span>
             <span className="text-xs text-[var(--text-muted)]">
               {t("admin.activity.plays", { count: u.playCount ?? 0 })}

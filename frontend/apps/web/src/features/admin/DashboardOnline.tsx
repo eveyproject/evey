@@ -1,3 +1,4 @@
+import { Avatar } from "@/components/ui/Avatar";
 import { Radio, Shield, Monitor, Smartphone, Tv } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePresenceServiceListOnline } from "@evey/api";
@@ -74,9 +75,7 @@ export function OnlineNow() {
                 key={u.userId}
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--surface-raised)] transition-colors"
               >
-                <div className="flex items-center justify-center w-8 h-8 rounded-full shrink-0 bg-[var(--accent)] text-[var(--filter-active-text)] text-xs font-bold">
-                  {(u.username ?? "?").charAt(0).toUpperCase()}
-                </div>
+                <Avatar initial={(u.username ?? "?").charAt(0).toUpperCase()} size={32} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium text-sm text-[var(--text)] truncate">{u.username || u.userId}</span>
