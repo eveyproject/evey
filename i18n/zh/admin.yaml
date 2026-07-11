@@ -923,10 +923,6 @@ qoe:
 
 segments:
   title: "媒体片段"
-  intro: "片头"
-  recap: "前情回顾"
-  end_credits: "片尾字幕"
-  studio_logo: "制片公司 Logo"
   markStart: "在此标记起始点"
   markEnd: "在此标记结束点"
   save: "保存"

@@ -12,8 +12,6 @@ settings:
   themeAmoled: AMOLED
   server: Serveur
   changeServer: Changer de serveur
-  disconnectConfirm: Se deconnecter de ce serveur ?
-  disconnect: Deconnecter
   signOut: Deconnexion
   signOutConfirm: Etes-vous sur ?
   about: A propos
@@ -35,7 +33,6 @@ servers:
   title: Serveurs
   manageTitle: Gerer les serveurs
   manageSubtitle: "{{count}} enregistre(s)"
-  addServer: Ajouter un serveur
   addAnother: Ajouter un autre serveur
   noServers: Aucun serveur enregistre
   current: Actuel

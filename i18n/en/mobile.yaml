@@ -12,8 +12,6 @@ settings:
   themeLight: Light
   themeAmoled: AMOLED
   changeServer: Change server
-  disconnectConfirm: Disconnect from this server?
-  disconnect: Disconnect
   signOut: Sign out
   signOutConfirm: Are you sure?
   about: About
@@ -35,7 +33,6 @@ servers:
   title: Servers
   manageTitle: Manage Servers
   manageSubtitle: "{{count}} saved"
-  addServer: Add server
   addAnother: Add another server
   noServers: No saved servers yet
   current: Current

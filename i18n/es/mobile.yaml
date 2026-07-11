@@ -12,8 +12,6 @@ settings:
   themeAmoled: AMOLED
   server: Servidor
   changeServer: Cambiar servidor
-  disconnectConfirm: Desconectar de este servidor?
-  disconnect: Desconectar
   signOut: Cerrar sesion
   signOutConfirm: Estas seguro?
   about: Acerca de
@@ -35,7 +33,6 @@ servers:
   title: Servidores
   manageTitle: Administrar servidores
   manageSubtitle: "{{count}} guardado(s)"
-  addServer: Agregar servidor
   addAnother: Agregar otro servidor
   noServers: No hay servidores guardados
   current: Actual

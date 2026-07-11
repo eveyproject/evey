@@ -12,8 +12,6 @@ settings:
   themeAmoled: AMOLED
   server: 服务器
   changeServer: 更换服务器
-  disconnectConfirm: 断开与此服务器的连接？
-  disconnect: 断开连接
   signOut: 退出登录
   signOutConfirm: 确定要退出吗？
   about: 关于
@@ -35,7 +33,6 @@ servers:
   title: 服务器
   manageTitle: 管理服务器
   manageSubtitle: "已保存 {{count}} 个"
-  addServer: 添加服务器
   addAnother: 添加其他服务器
   noServers: 尚无已保存的服务器
   current: 当前

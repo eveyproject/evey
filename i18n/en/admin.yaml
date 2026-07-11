@@ -991,10 +991,6 @@ qoe:
 
 segments:
   title: Media segments
-  intro: Intro
-  recap: Recap
-  end_credits: End credits
-  studio_logo: Studio logo
   markStart: Mark start here
   markEnd: Mark end here
   save: Save

@@ -290,7 +290,6 @@ contextMenu:
   addToCollection: Zur Sammlung hinzufügen
   addToFavorites: Zu Favoriten hinzufügen
   removeFromFavorites: Aus Favoriten entfernen
-  download: Herunterladen
   markWatched: Als gesehen markieren
   markUnwatched: Als ungesehen markieren
   noProfileSelected: Kein Profil ausgewählt
@@ -354,7 +353,6 @@ photos:
   noPhotoLibrariesDesc: Fügen Sie im Admin-Panel eine Fotobibliothek hinzu, um zu beginnen.
   photoCount_one: "{{count}} Foto"
   photoCount_other: "{{count}} Fotos"
-added: Hinzugefügt
 created: Erstellt
 updated: Aktualisiert
 syncplay:

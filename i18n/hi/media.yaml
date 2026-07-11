@@ -290,7 +290,6 @@ contextMenu:
   addToCollection: संग्रह में जोड़ें
   addToFavorites: पसंदीदा में जोड़ें
   removeFromFavorites: पसंदीदा से हटाएं
-  download: डाउनलोड
   markWatched: देखा हुआ चिह्नित करें
   markUnwatched: नहीं देखा चिह्नित करें
   noProfileSelected: No profile selected # TODO: translate
@@ -354,7 +353,6 @@ photos:
   noPhotoLibrariesDesc: शुरू करने के लिए एडमिन पैनल में फ़ोटो लाइब्रेरी जोड़ें।
   photoCount_one: "{{count}} फ़ोटो"
   photoCount_other: "{{count}} फ़ोटो"
-added: जोड़ा गया
 created: बनाया गया
 updated: अपडेट किया गया
 syncplay:

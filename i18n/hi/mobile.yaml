@@ -12,8 +12,6 @@ settings:
   themeAmoled: AMOLED
   server: सर्वर
   changeServer: सर्वर बदलें
-  disconnectConfirm: इस सर्वर से डिस्कनेक्ट करें?
-  disconnect: डिस्कनेक्ट
   signOut: साइन आउट
   signOutConfirm: क्या आप सुनिश्चित हैं?
   about: जानकारी
@@ -35,7 +33,6 @@ servers:
   title: सर्वर
   manageTitle: सर्वर प्रबंधित करें
   manageSubtitle: "{{count}} सहेजा गया"
-  addServer: सर्वर जोड़ें
   addAnother: दूसरा सर्वर जोड़ें
   noServers: कोई सहेजा हुआ सर्वर नहीं
   current: वर्तमान

@@ -290,7 +290,6 @@ contextMenu:
   addToCollection: 添加到合集
   addToFavorites: 添加到收藏
   removeFromFavorites: 从收藏中移除
-  download: 下载
   markWatched: 标记为已看
   markUnwatched: 标记为未看
   noProfileSelected: No profile selected # TODO: translate
@@ -354,7 +353,6 @@ photos:
   noPhotoLibrariesDesc: 请在管理面板中添加照片媒体库以开始使用。
   photoCount_one: "{{count}} 张照片"
   photoCount_other: "{{count}} 张照片"
-added: 已添加
 created: 已创建
 updated: 已更新
 syncplay:

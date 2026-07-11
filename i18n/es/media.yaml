@@ -290,7 +290,6 @@ contextMenu:
   addToCollection: Agregar a colección
   addToFavorites: Agregar a favoritos
   removeFromFavorites: Quitar de favoritos
-  download: Descargar
   markWatched: Marcar como visto
   markUnwatched: Marcar como no visto
   noProfileSelected: No profile selected # TODO: translate
@@ -354,7 +353,6 @@ photos:
   noPhotoLibrariesDesc: Añade una biblioteca de fotos en el panel de administración para comenzar.
   photoCount_one: "{{count}} foto"
   photoCount_other: "{{count}} fotos"
-added: Agregado
 created: Creado
 updated: Actualizado
 syncplay:

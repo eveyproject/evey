@@ -923,10 +923,6 @@ qoe:
 
 segments:
   title: "Segmentos de medios"
-  intro: "Intro"
-  recap: "Resumen"
-  end_credits: "Créditos finales"
-  studio_logo: "Logo del estudio"
   markStart: "Marcar inicio aquí"
   markEnd: "Marcar fin aquí"
   save: "Guardar"

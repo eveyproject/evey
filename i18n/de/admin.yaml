@@ -923,10 +923,6 @@ qoe:
 
 segments:
   title: Mediensegmente
-  intro: Intro
-  recap: Rückblick
-  end_credits: Abspann
-  studio_logo: Studio-Logo
   markStart: Startpunkt hier setzen
   markEnd: Endpunkt hier setzen
   save: Speichern

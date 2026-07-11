@@ -923,10 +923,6 @@ qoe:
 
 segments:
   title: "मीडिया सेगमेंट"
-  intro: "इंट्रो"
-  recap: "रिकैप"
-  end_credits: "एंड क्रेडिट"
-  studio_logo: "स्टूडियो लोगो"
   markStart: "यहाँ शुरुआत चिह्नित करें"
   markEnd: "यहाँ अंत चिह्नित करें"
   save: "सहेजें"
