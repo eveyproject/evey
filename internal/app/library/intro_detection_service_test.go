@@ -314,6 +314,13 @@ type fakeSegmentRepo struct {
 	// attempts tracks the intro-detection attempt counter per media id, mirroring
 	// the postgres version-gated upsert.
 	attempts map[string]fakeIntroAttempt
+	// exhaustedBatchCalls counts calls to IntroDetectionExhaustedBatch, proving
+	// detectSeason issues one batched call per page instead of one per candidate
+	// episode.
+	exhaustedBatchCalls int
+	// exhaustedBatchErr makes every IntroDetectionExhaustedBatch call fail with
+	// this error.
+	exhaustedBatchErr error
 }
 
 type fakeIntroAttempt struct {
@@ -434,9 +441,22 @@ func (r *fakeSegmentRepo) RecordIntroDetectionAttempt(_ context.Context, mediaIt
 	return nil
 }
 
-func (r *fakeSegmentRepo) IntroDetectionExhausted(_ context.Context, mediaItemID string, algoVersion, maxAttempts int) (bool, error) {
-	a, ok := r.attempts[mediaItemID]
-	return ok && a.version == algoVersion && a.count >= maxAttempts, nil
+// IntroDetectionExhaustedBatch mirrors the postgres batch query: one call
+// covering every requested id, returning a map where a not-exhausted id is
+// simply absent (not false-valued).
+func (r *fakeSegmentRepo) IntroDetectionExhaustedBatch(_ context.Context, mediaItemIDs []string, algoVersion, maxAttempts int) (map[string]bool, error) {
+	r.exhaustedBatchCalls++
+	if r.exhaustedBatchErr != nil {
+		return nil, r.exhaustedBatchErr
+	}
+	out := make(map[string]bool, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		a, ok := r.attempts[id]
+		if ok && a.version == algoVersion && a.count >= maxAttempts {
+			out[id] = true
+		}
+	}
+	return out, nil
 }
 
 // fakeMediaItemRepo returns the configured item for GetByID calls and optionally
@@ -633,6 +653,83 @@ func TestDetectSeason_BatchesExistingSegmentsLookup(t *testing.T) {
 		"the single batched call must cover every episode in the page")
 	require.Empty(t, segRepo.queriedIDs,
 		"detectSeason must not fall back to per-episode GetByMediaItemID calls")
+}
+
+// TestDetectSeason_BatchesExhaustedCheck proves detectSeason issues exactly one
+// IntroDetectionExhaustedBatch call per page covering every candidate (the N+1
+// this restructure closes), and that an episode already exhausted at the
+// current algo version is skipped (no detection run, no new attempt recorded)
+// while a non-exhausted sibling still runs detection.
+func TestDetectSeason_BatchesExhaustedCheck(t *testing.T) {
+	t.Parallel()
+
+	parentID := "season-exhausted"
+	exhaustedID := shared.MediaItemID("ep-exhausted")
+	freshID := shared.MediaItemID("ep-fresh")
+	siblings := []*domainlibrary.MediaItem{
+		{ID: exhaustedID, Type: domainlibrary.Episode, ParentID: parentID},
+		{ID: freshID, Type: domainlibrary.Episode, ParentID: parentID},
+	}
+	segRepo := &fakeSegmentRepo{
+		attempts: map[string]fakeIntroAttempt{
+			string(exhaustedID): {count: maxIntroDetectionAttempts, version: introDetectionAlgoVersion},
+		},
+	}
+	// GetByID returns this single item for both candidates: since the exhausted
+	// one must never reach detectIntroWithHint (which dereferences item.File),
+	// giving it a real file here would silently pass even with a bug — a nil
+	// item.File would panic instead of just failing the assertion, which is a
+	// stronger guard.
+	dur, _ := shared.NewDurationMs(1_200_000)
+	item := &domainlibrary.MediaItem{
+		File: &domainlibrary.MediaFile{Path: "/tv/ep.mkv", Duration: dur},
+	}
+	itemRepo := &fakeMediaItemRepo{siblings: siblings, item: item}
+	svc := newTestServiceFull(&fakeDetector{}, segRepo, itemRepo, &fakeTrickplayRepo{})
+
+	svc.detectSeason(context.Background(), parentID)
+
+	assert.Equal(t, 1, segRepo.exhaustedBatchCalls,
+		"detectSeason must issue exactly one batched exhausted check per page, not one per candidate episode")
+
+	freshAttempt, freshRan := segRepo.attempts[string(freshID)]
+	assert.True(t, freshRan, "the non-exhausted episode must have gone through detection and recorded an attempt")
+	assert.Equal(t, 1, freshAttempt.count)
+
+	exhaustedAttempt := segRepo.attempts[string(exhaustedID)]
+	assert.Equal(t, maxIntroDetectionAttempts, exhaustedAttempt.count,
+		"the exhausted episode must be skipped entirely: no extra detection run, no extra recorded attempt")
+}
+
+// TestDetectSeason_ExhaustedBatchErrorFailsOpen proves that when the batched
+// exhausted check itself errors, detectSeason does NOT skip anyone — matching
+// the previous per-episode fail-open semantics (an error meant "don't skip").
+func TestDetectSeason_ExhaustedBatchErrorFailsOpen(t *testing.T) {
+	t.Parallel()
+
+	parentID := "season-batch-err"
+	epID := shared.MediaItemID("ep-batch-err")
+	siblings := []*domainlibrary.MediaItem{
+		{ID: epID, Type: domainlibrary.Episode, ParentID: parentID},
+	}
+	segRepo := &fakeSegmentRepo{
+		attempts: map[string]fakeIntroAttempt{
+			string(epID): {count: maxIntroDetectionAttempts, version: introDetectionAlgoVersion},
+		},
+		exhaustedBatchErr: errors.New("db unavailable"),
+	}
+	dur, _ := shared.NewDurationMs(1_200_000)
+	item := &domainlibrary.MediaItem{
+		File: &domainlibrary.MediaFile{Path: "/tv/ep.mkv", Duration: dur},
+	}
+	itemRepo := &fakeMediaItemRepo{siblings: siblings, item: item}
+	svc := newTestServiceFull(&fakeDetector{}, segRepo, itemRepo, &fakeTrickplayRepo{})
+
+	svc.detectSeason(context.Background(), parentID)
+
+	assert.Equal(t, 1, segRepo.exhaustedBatchCalls)
+	assert.Equal(t, maxIntroDetectionAttempts+1, segRepo.attempts[string(epID)].count,
+		"a batch-check error must fail open: the episode still runs detection despite being exhausted per the (unreadable) attempts row")
 }
 
 // TestDetectIntro_AppendsEndCreditsWhenDetected verifies that when DetectEndCredits

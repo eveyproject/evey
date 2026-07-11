@@ -506,6 +506,9 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			slog.Warn("intro detection: batch get existing segments", slog.String("parent_id", parentID), slog.Any("err", batchErr))
 			existingByID = nil
 		}
+		// Pass 1: filter the page down to candidates needing detection (not
+		// manual-locked, no good intro yet already covered above).
+		var candidates []*domainlibrary.MediaItem
 		for _, ep := range siblings {
 			if ctx.Err() != nil {
 				return
@@ -545,11 +548,41 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			if manualLocked || hasGoodIntro {
 				continue
 			}
+			candidates = append(candidates, ep)
+		}
+		if len(candidates) == 0 {
+			if len(siblings) < pageSize {
+				break
+			}
+			continue
+		}
+		// Batch the exhausted-attempts check for every candidate on the page in
+		// one query instead of one IntroDetectionExhausted call per episode (the
+		// N+1 this restructure closes: a single-season sweep of 200 candidates
+		// was issuing 200 round trips just to check the retry cap).
+		candidateIDs := make([]string, len(candidates))
+		for i, ep := range candidates {
+			candidateIDs[i] = string(ep.ID)
+		}
+		exhaustedByID, exErr := s.segmentRepo.IntroDetectionExhaustedBatch(ctx, candidateIDs, introDetectionAlgoVersion, maxIntroDetectionAttempts)
+		if exErr != nil {
+			// Fail open, matching the previous per-episode semantics (exErr != nil
+			// meant "don't skip"): treat nobody as exhausted rather than silently
+			// parking the whole page.
+			slog.Warn("intro detection: batch exhausted check", slog.String("parent_id", parentID), slog.Any("err", exErr))
+			exhaustedByID = nil
+		}
+
+		// Pass 2: run detection on the non-exhausted candidates.
+		for _, ep := range candidates {
+			if ctx.Err() != nil {
+				return
+			}
 			// Already re-decoded to the cap at the current algo version with no
 			// usable intro? Skip — it lands on the same answer and a 4K HEVC decode
 			// is expensive. Bumping introDetectionAlgoVersion re-enables it (the
 			// row's older version no longer matches).
-			if exhausted, exErr := s.segmentRepo.IntroDetectionExhausted(ctx, string(ep.ID), introDetectionAlgoVersion, maxIntroDetectionAttempts); exErr == nil && exhausted {
+			if exhaustedByID[string(ep.ID)] {
 				continue
 			}
 			var hint *domainlibrary.MediaSegment

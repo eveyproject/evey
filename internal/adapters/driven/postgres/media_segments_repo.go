@@ -330,29 +330,50 @@ func (r *MediaSegmentRepository) RecordIntroDetectionAttempt(ctx context.Context
 	return nil
 }
 
-// IntroDetectionExhausted is true when the item has been attempted maxAttempts
-// times at the CURRENT algoVersion with no usable result. A row at an older
-// version (or no row) returns false so a version bump re-enables detection.
-func (r *MediaSegmentRepository) IntroDetectionExhausted(ctx context.Context, mediaItemID string, algoVersion, maxAttempts int) (bool, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.IntroDetectionExhausted")
+// IntroDetectionExhaustedBatch is IntroDetectionExhausted for many items in a
+// single query, keyed by media item id. An id at an older algo_version, with
+// attempts under the cap, or with no row at all is simply absent from the
+// returned map (not exhausted) — mirroring the single-item semantics. Used by
+// the intro detection season sweep to replace a per-candidate-episode query
+// with one query for the whole page.
+func (r *MediaSegmentRepository) IntroDetectionExhaustedBatch(ctx context.Context, mediaItemIDs []string, algoVersion, maxAttempts int) (map[string]bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.IntroDetectionExhaustedBatch")
 	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	if len(mediaItemIDs) == 0 {
+		return map[string]bool{}, nil
+	}
 
-	var exhausted bool
-	err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM intro_detection_attempts
-			WHERE media_item_id = $1 AND algo_version = $2 AND attempts >= $3
-		)`,
-		mediaItemID, algoVersion, maxAttempts,
-	).Scan(&exhausted)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		SELECT media_item_id FROM intro_detection_attempts
+		WHERE media_item_id = ANY($1) AND algo_version = $2 AND attempts >= $3`,
+		pq.Array(mediaItemIDs), algoVersion, maxAttempts,
+	)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return false, err
+		return nil, err
 	}
-	return exhausted, nil
+	defer rows.Close()
+
+	result := make(map[string]bool, len(mediaItemIDs))
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		result[id] = true
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 var _ library.MediaSegmentRepository = (*MediaSegmentRepository)(nil)

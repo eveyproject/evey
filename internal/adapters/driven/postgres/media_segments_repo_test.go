@@ -114,6 +114,8 @@ func TestMediaSegmentRepo_UpsertUnlessOperatorManual(t *testing.T) {
 
 // The bounded, version-gated intro-detection attempt counter: increments at the
 // same algo version, resets on a bump, and exhausts only at the matching version.
+// Exercised through the batch API — ids absent from the returned map are the
+// "not exhausted" case (never attempted, under the cap, or an older version).
 func TestMediaSegmentRepo_IntroDetectionAttempts(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
@@ -130,30 +132,62 @@ func TestMediaSegmentRepo_IntroDetectionAttempts(t *testing.T) {
 	id := string(item.ID)
 
 	// Never attempted → not exhausted.
-	ex, err := segRepo.IntroDetectionExhausted(ctx, id, 1, 2)
+	ex, err := segRepo.IntroDetectionExhaustedBatch(ctx, []string{id}, 1, 2)
 	require.NoError(t, err)
-	assert.False(t, ex, "an item never attempted must be eligible")
+	assert.False(t, ex[id], "an item never attempted must be eligible")
 
 	// One attempt at v1 → under the cap.
 	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, id, 1))
-	ex, err = segRepo.IntroDetectionExhausted(ctx, id, 1, 2)
+	ex, err = segRepo.IntroDetectionExhaustedBatch(ctx, []string{id}, 1, 2)
 	require.NoError(t, err)
-	assert.False(t, ex, "1 attempt < cap 2")
+	assert.False(t, ex[id], "1 attempt < cap 2")
 
 	// Second attempt at v1 → hits the cap.
 	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, id, 1))
-	ex, err = segRepo.IntroDetectionExhausted(ctx, id, 1, 2)
+	ex, err = segRepo.IntroDetectionExhaustedBatch(ctx, []string{id}, 1, 2)
 	require.NoError(t, err)
-	assert.True(t, ex, "2 >= cap 2 at the current version → exhausted")
+	assert.True(t, ex[id], "2 >= cap 2 at the current version → exhausted")
 
 	// A newer algorithm version re-enables detection (a quality improvement).
-	ex, err = segRepo.IntroDetectionExhausted(ctx, id, 2, 2)
+	ex, err = segRepo.IntroDetectionExhaustedBatch(ctx, []string{id}, 2, 2)
 	require.NoError(t, err)
-	assert.False(t, ex, "exhaustion is version-scoped; a bump re-enables the item")
+	assert.False(t, ex[id], "exhaustion is version-scoped; a bump re-enables the item")
 
 	// Recording at the new version resets the count to 1 (fresh retry budget).
 	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, id, 2))
-	ex, err = segRepo.IntroDetectionExhausted(ctx, id, 2, 2)
+	ex, err = segRepo.IntroDetectionExhaustedBatch(ctx, []string{id}, 2, 2)
 	require.NoError(t, err)
-	assert.False(t, ex, "a version bump resets attempts to 1")
+	assert.False(t, ex[id], "a version bump resets attempts to 1")
+}
+
+// TestMediaSegmentRepo_IntroDetectionExhaustedBatch_MultipleIDs proves the
+// batch query covers several items in a single call, correctly distinguishing
+// an exhausted item from an untouched sibling in the same page (the ANY($1)
+// query this batching relies on).
+func TestMediaSegmentRepo_IntroDetectionExhaustedBatch_MultipleIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	segRepo := postgres.NewMediaSegmentRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("introbatchlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	exhaustedItem := newTestMediaItem("introbatch-exhausted", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, exhaustedItem))
+	freshItem := newTestMediaItem("introbatch-fresh", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, freshItem))
+	exhaustedID, freshID := string(exhaustedItem.ID), string(freshItem.ID)
+
+	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, exhaustedID, 1))
+	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, exhaustedID, 1))
+
+	ex, err := segRepo.IntroDetectionExhaustedBatch(ctx, []string{exhaustedID, freshID}, 1, 2)
+	require.NoError(t, err)
+	assert.True(t, ex[exhaustedID], "the item attempted twice at the cap must be exhausted")
+	assert.False(t, ex[freshID], "an id absent from the underlying table must be absent from the map")
+	_, freshPresent := ex[freshID]
+	assert.False(t, freshPresent, "not-exhausted ids must be absent, not false-valued, per the port contract")
 }
