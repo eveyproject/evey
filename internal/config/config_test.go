@@ -79,7 +79,6 @@ func TestLoad_Defaults(t *testing.T) {
 	assert.Equal(t, 2*time.Minute, cfg.Library.PeriodicScanInterval)
 	assert.True(t, cfg.Library.WatcherEnabled)
 
-	assert.Equal(t, 0, cfg.Playback.DefaultMaxStreams)
 	assert.Equal(t, 30, cfg.Playback.SkipForwardSeconds)
 	assert.Equal(t, 30, cfg.Playback.SkipBackwardSeconds)
 

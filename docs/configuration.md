@@ -114,11 +114,6 @@ EVEY_TRANSCODING_HW_ACCEL_ENABLED=false
 
 See [transcoding.md](transcoding.md) for hardware setup.
 
-### Playback
-```env
-EVEY_PLAYBACK_MAX_STREAMS=0            # 0 = unlimited
-```
-
 ### Plugins (sandbox & limits)
 ```env
 EVEY_PLUGINS_SANDBOX_MODE=auto         # auto|landlock|bubblewrap|strict|basic — auto picks the strongest your host supports
