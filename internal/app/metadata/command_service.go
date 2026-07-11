@@ -1247,26 +1247,32 @@ func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.A
 }
 
 // BulkItemEnricher is an optional extension of ItemEnricher for batch auto-enrichment.
+//
+// Kept separate from ForceBulkItemEnricher (rather than folded into one
+// interface with both methods) because MatchOrphansInLibrary only ever needs
+// this narrower, non-force capability and some ItemEnricher test doubles
+// outside this package implement only AutoEnrichAll - widening this
+// interface would break their assertion.
 type BulkItemEnricher interface {
 	AutoEnrichAll(ctx context.Context, items []*library.MediaItem, log *slog.Logger)
 }
 
-// ForceBulkItemEnricher is the admin-triggered refresh variant — it re-runs
+// ForceBulkItemEnricher is the admin-triggered refresh variant - it re-runs
 // the TMDB search even on items that already have an overview. Admin field
 // overrides are still respected. Wired by the RefreshAllMetadata RPC.
 type ForceBulkItemEnricher interface {
 	ForceAutoEnrichAll(ctx context.Context, items []*library.MediaItem, log *slog.Logger)
 }
 
-// SingleItemEnricher is an optional extension of ItemEnricher for per-item auto-enrichment.
+// SingleItemEnricher is an optional extension of ItemEnricher for per-item
+// auto-enrichment. Folds what used to be two separate capability interfaces
+// (plain AutoEnrichItem and a force variant bypassing the "already enriched"
+// short-circuit, used by ResearchMetadata to correct a wrong TMDB match in
+// place) into one: nothing outside this package needs to detect just one
+// half, so a single type assertion covers both. Admin field overrides are
+// still respected by the underlying enricher.
 type SingleItemEnricher interface {
 	AutoEnrichItem(ctx context.Context, item *library.MediaItem, log *slog.Logger)
-}
-
-// ForceSingleItemEnricher bypasses the "already enriched" short-circuit for a
-// single item — used by ResearchMetadata to correct a wrong TMDB match in
-// place. Admin field overrides are still respected by the underlying enricher.
-type ForceSingleItemEnricher interface {
 	ForceAutoEnrichItem(ctx context.Context, item *library.MediaItem, log *slog.Logger)
 }
 
@@ -1376,12 +1382,9 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 
 	// 5. Force-enrich. ForceAutoEnrichItem bypasses the "already has overview"
 	// short-circuit; AutoEnrichItem would refuse to act because we just left
-	// an overview-less item but its enricher chain still walks the same path
-	// — keep the explicit force variant for clarity.
-	if fse, ok := s.enricher.(ForceSingleItemEnricher); ok {
-		fse.ForceAutoEnrichItem(ctx, item, slog.Default())
-	} else if se, ok := s.enricher.(SingleItemEnricher); ok {
-		se.AutoEnrichItem(ctx, item, slog.Default())
+	// an overview-less item but its enricher chain still walks the same path.
+	if se, ok := s.enricher.(SingleItemEnricher); ok {
+		se.ForceAutoEnrichItem(ctx, item, slog.Default())
 	}
 
 	// 6. Reload to pick up enrichment writes, decide whether the title moved.

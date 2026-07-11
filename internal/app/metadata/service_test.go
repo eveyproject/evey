@@ -712,6 +712,12 @@ func (f *fakeBulkSingleEnricher) AutoEnrichItem(_ context.Context, item *library
 	f.autoItems = append(f.autoItems, item)
 }
 
+// ForceAutoEnrichItem is a no-op stub: this fake is only wired for
+// StartEnrichmentWorker's bulk/single (non-force) paths, but the merged
+// SingleItemEnricher interface requires the method to exist.
+func (f *fakeBulkSingleEnricher) ForceAutoEnrichItem(_ context.Context, _ *library.MediaItem, _ *slog.Logger) {
+}
+
 func TestStartEnrichmentWorker_BulkEnrich(t *testing.T) {
 	bus := sharedfakes.NewFakeEventBus()
 	cmdSvc := appmetadata.NewCommandService(

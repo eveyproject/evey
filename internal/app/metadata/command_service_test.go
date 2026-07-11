@@ -70,6 +70,14 @@ func (f *fakeTranslationsEnricher) AutoEnrichItem(_ context.Context, _ *library.
 	f.singleN.Add(1)
 }
 
+// ForceAutoEnrichItem is a no-op: this fake exists to record translation
+// calls and count non-force auto-enrich invocations. Some tests reuse it as
+// the wired enricher for ResearchMetadata, which now always prefers the
+// force variant (merged into SingleItemEnricher) - it must write nothing so
+// those tests' "unmatched" assertions still hold.
+func (f *fakeTranslationsEnricher) ForceAutoEnrichItem(_ context.Context, _ *library.MediaItem, _ *slog.Logger) {
+}
+
 func newCmdSvcNoEnricher() *appmetadata.CommandService {
 	return appmetadata.NewCommandService(
 		metafakes.NewFakeMetadataOverrideRepository(),
@@ -559,8 +567,10 @@ func TestMatchOrphansInLibrary_DetachesFromCallerContext(t *testing.T) {
 
 // --- ResearchMetadata ---
 
-// fakeForceEnricher implements ForceSingleItemEnricher and writes a known
-// post-enrichment state so the test can verify the post-enrich GetByID path.
+// fakeForceEnricher implements the merged SingleItemEnricher and writes a
+// known post-enrichment state so the test can verify the post-enrich GetByID
+// path. Only the force half is exercised (ResearchMetadata always prefers
+// it); AutoEnrichItem is a no-op stub required to satisfy the interface.
 type fakeForceEnricher struct {
 	mediaRepo     *libfakes.FakeMediaItemRepository
 	newTitle      string
@@ -576,6 +586,8 @@ func (f *fakeForceEnricher) EnrichTranslationsForItem(_ context.Context, _ *libr
 }
 func (f *fakeForceEnricher) ClearTranslations(_ context.Context, mediaItemID string) {
 	f.clearedItemID = mediaItemID
+}
+func (f *fakeForceEnricher) AutoEnrichItem(_ context.Context, _ *library.MediaItem, _ *slog.Logger) {
 }
 func (f *fakeForceEnricher) ForceAutoEnrichItem(ctx context.Context, item *library.MediaItem, _ *slog.Logger) {
 	stored, err := f.mediaRepo.GetByID(ctx, item.ID)
