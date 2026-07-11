@@ -285,9 +285,9 @@ func (h *hlsVODServe) ladderClassFor(decision domaintranscoding.PlaybackDecision
 func (h *hlsVODServe) legacyProfileShaping(base []domaintranscoding.HLSProfile, src apptranscoding.SourceDims, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision, capability domaintranscoding.EncodeCapability) []domaintranscoding.HLSProfile {
 	capped := domaintranscoding.CapLadderToSource(base, src.Width, src.Height)
 
-	hwUsable := false
 	maxH := 720
 	if h.capability != nil {
+		var hwUsable bool
 		_, _, _, hwUsable = h.resolveHW(decision.VideoCodec, sourceVideoCodec(streams), src.TenBit, h.hwTonemapWanted(decision))
 		maxH = capability.MaxHeightFor(hwUsable)
 		if !hwUsable && capability.SoftwareHDRMaxHeight > 0 &&

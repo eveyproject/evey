@@ -356,7 +356,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		}
 	}()
 
-	if err := s.validateStagedPlugin(ctx, p); err != nil {
+	if err = s.validateStagedPlugin(ctx, p); err != nil {
 		return nil, err
 	}
 

@@ -134,8 +134,8 @@ func TestPref_PreferredVideoCodec_MatchesSource_NoTranscode(t *testing.T) {
 // needlessly retranscoded just because the two strings differ syntactically.
 func TestApplyCodecPreferences_AliasDoesNotForceTranscode(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "hevc", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	// hevc-capable client, otherwise DefaultWebProfile's lack of hevc support
 	// would force a transcode for an unrelated reason (codec_unsupported).
@@ -154,8 +154,8 @@ func TestApplyCodecPreferences_AliasDoesNotForceTranscode(t *testing.T) {
 // so downstream consumers (encoder selection) see one consistent name.
 func TestApplyCodecPreferences_DifferentCodec_CanonicalisesOutput(t *testing.T) {
 	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
 	prefs.PreferredVideoCodec = "h265" // alias of hevc
