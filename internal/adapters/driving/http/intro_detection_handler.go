@@ -7,12 +7,13 @@ import (
 	"net/http"
 	"runtime/debug"
 
+	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 // introDetectionHandler handles POST /api/v1/admin/media/{id}/detect-segments.
 // Admin-only. Triggers detection asynchronously and returns 202 Accepted immediately.
-func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger) http.HandlerFunc {
+func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	admin := httpAdminMiddleware(tokenGen)
 	return admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.intro.DetectSegments")
@@ -21,6 +22,19 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger) ht
 		mediaID := r.PathValue("id")
 		if mediaID == "" {
 			http.Error(w, `{"message":"missing media id"}`, http.StatusBadRequest)
+			return
+		}
+		// Resolve the item before detaching any work: an unknown id must be a
+		// 404, not a fire-and-forget goroutine that fails later in the logs.
+		// The access check is defense-in-depth (the route is admin-gated, and
+		// checkLibraryAccess short-circuits for admins) so this handler stays
+		// safe if it is ever re-homed on a non-admin route.
+		item, err := libSvc.GetMediaItem(r.Context(), mediaID)
+		if err != nil || item == nil {
+			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if !checkLibraryAccess(r.Context(), w, HTTPClaimsFromContext(r.Context()), item.LibraryID, libraryAccess) {
 			return
 		}
 
@@ -74,7 +88,7 @@ func introDetectionHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger) ht
 // (not just seasons missing segments) asynchronously, returning 202 Accepted.
 // This is the supported way to force a re-detection after a detection quality
 // improvement + an introDetectionAlgoVersion bump.
-func libraryIntroBackfillHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger) http.HandlerFunc {
+func libraryIntroBackfillHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	admin := httpAdminMiddleware(tokenGen)
 	return admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.intro.BackfillLibrary")
@@ -83,6 +97,11 @@ func libraryIntroBackfillHandler(tokenGen TokenVerifier, svc IntroDetectionTrigg
 		libraryID := r.PathValue("id")
 		if libraryID == "" {
 			http.Error(w, `{"message":"missing library id"}`, http.StatusBadRequest)
+			return
+		}
+		// Defense-in-depth: admin short-circuits inside checkLibraryAccess, but
+		// the guard keeps this handler safe if it ever leaves the admin group.
+		if !checkLibraryAccess(r.Context(), w, HTTPClaimsFromContext(r.Context()), shared.LibraryID(libraryID), libraryAccess) {
 			return
 		}
 		detached := context.WithoutCancel(r.Context())

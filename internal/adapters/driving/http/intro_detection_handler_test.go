@@ -10,6 +10,7 @@ import (
 	"time"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 // fakeAsyncDetector signals when DetectIntro is invoked so tests can wait on
@@ -49,11 +50,23 @@ func (f *fakeAsyncDetector) PropagateSegment(_ context.Context, _, _ string) ([]
 	return nil, nil
 }
 
+// newIntroDetectionHandler builds the handler under test with a resolvable
+// media item (mi-1 in lib-1) and a nil access checker: the route is
+// admin-gated and checkLibraryAccess short-circuits for admins, so the
+// checker is only consulted by the (impossible today) non-admin path.
+func newIntroDetectionHandler(gen TokenVerifier, det IntroDetectionTrigger) http.HandlerFunc {
+	libSvc := &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{
+		ID:        shared.MediaItemID("m42"),
+		LibraryID: shared.LibraryID("lib-1"),
+	}}
+	return introDetectionHandler(gen, det, libSvc, nil)
+}
+
 // --- tests ---
 
 func TestIntroDetectionHandler_NoAuth_401(t *testing.T) {
 	gen, _, _ := segAdminTokens(t)
-	h := introDetectionHandler(gen, newFakeAsyncDetector())
+	h := newIntroDetectionHandler(gen, newFakeAsyncDetector())
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/m1/detect-segments", nil)
 	req.SetPathValue("id", "m1")
 	w := httptest.NewRecorder()
@@ -65,7 +78,7 @@ func TestIntroDetectionHandler_NoAuth_401(t *testing.T) {
 
 func TestIntroDetectionHandler_NonAdmin_403(t *testing.T) {
 	gen, _, userTok := segAdminTokens(t)
-	h := introDetectionHandler(gen, newFakeAsyncDetector())
+	h := newIntroDetectionHandler(gen, newFakeAsyncDetector())
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/m1/detect-segments", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer "+userTok)
@@ -78,7 +91,7 @@ func TestIntroDetectionHandler_NonAdmin_403(t *testing.T) {
 
 func TestIntroDetectionHandler_MissingMediaID_400(t *testing.T) {
 	gen, adminTok, _ := segAdminTokens(t)
-	h := introDetectionHandler(gen, newFakeAsyncDetector())
+	h := newIntroDetectionHandler(gen, newFakeAsyncDetector())
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media//detect-segments", nil)
 	// intentionally no SetPathValue
 	req.Header.Set("Authorization", "Bearer "+adminTok)
@@ -92,7 +105,7 @@ func TestIntroDetectionHandler_MissingMediaID_400(t *testing.T) {
 func TestIntroDetectionHandler_Returns202_AndAsyncFires(t *testing.T) {
 	gen, adminTok, _ := segAdminTokens(t)
 	detector := newFakeAsyncDetector()
-	h := introDetectionHandler(gen, detector)
+	h := newIntroDetectionHandler(gen, detector)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/m42/detect-segments", nil)
 	req.SetPathValue("id", "m42")
 	req.Header.Set("Authorization", "Bearer "+adminTok)
@@ -117,7 +130,7 @@ func TestIntroDetectionHandler_GoroutinePanicRecovered(t *testing.T) {
 	// deferred recover and does NOT crash the test process.
 	gen, adminTok, _ := segAdminTokens(t)
 	detector := &fakeAsyncDetector{panic: true, called: make(chan string, 1)}
-	h := introDetectionHandler(gen, detector)
+	h := newIntroDetectionHandler(gen, detector)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/m1/detect-segments", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer "+adminTok)
@@ -141,13 +154,35 @@ func TestIntroDetectionHandler_GoroutinePanicRecovered(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 }
 
+func TestIntroDetectionHandler_UnknownMedia_404(t *testing.T) {
+	// An id that resolves to no media item must be a 404 up front, not a
+	// fire-and-forget goroutine that fails later in the logs.
+	gen, adminTok, _ := segAdminTokens(t)
+	detector := newFakeAsyncDetector()
+	libSvc := &fakeMediaStreamsGetter{itemErr: errors.New("not found")}
+	h := introDetectionHandler(gen, detector, libSvc, nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/mi-ghost/detect-segments", nil)
+	req.SetPathValue("id", "mi-ghost")
+	req.Header.Set("Authorization", "Bearer "+adminTok)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown media, got %d", w.Code)
+	}
+	select {
+	case got := <-detector.called:
+		t.Fatalf("DetectIntro must not fire for an unknown id, got %q", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
 func TestIntroDetectionHandler_DetectErrorLogged(t *testing.T) {
 	// When DetectIntro returns an error, the handler should still return 202
 	// to the client (it's already returned) and log via slog. We can't easily
 	// capture the log, but we verify the call happened and no panic.
 	gen, adminTok, _ := segAdminTokens(t)
 	detector := &fakeAsyncDetector{err: errors.New("synthetic failure"), called: make(chan string, 1)}
-	h := introDetectionHandler(gen, detector)
+	h := newIntroDetectionHandler(gen, detector)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/media/m99/detect-segments", nil)
 	req.SetPathValue("id", "m99")
 	req.Header.Set("Authorization", "Bearer "+adminTok)
