@@ -352,7 +352,7 @@ export const MediaCard = memo(function MediaCard({
           <button
             aria-label={selected ? t("common.aria.deselect") : t("common.aria.select")}
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onSelect?.(item.id!, !selected); }}
-            className={`absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors-fast${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
+            className={`tap-hit absolute top-2 left-2 z-badge flex items-center justify-center w-5 h-5 rounded transition-colors-fast${selectionMode && !selected ? " opacity-0 group-hover:opacity-100 group-focus-within:opacity-100" : ""}`}
             style={{
               backgroundColor: selected ? "var(--accent)" : "var(--overlay-gradient)",
               border: `2px solid ${selected ? "var(--accent)" : "var(--overlay-text-muted)"}`,
@@ -374,7 +374,7 @@ export const MediaCard = memo(function MediaCard({
             aria-label={t("common.options")}
             aria-haspopup="true"
             aria-expanded={ctxMenu !== null}
-            className="absolute top-2 right-2 z-badge opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-[var(--overlay-text)]"
+            className="tap-hit absolute top-2 right-2 z-badge opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 p-1 rounded bg-black/60 text-[var(--overlay-text)]"
             style={{ lineHeight: 1 }}
             onClick={(e) => {
               e.preventDefault();
@@ -403,7 +403,7 @@ export const MediaCard = memo(function MediaCard({
           <div
             role="img"
             aria-label={t("common.play")}
-            className="w-12 h-12 rounded-full flex items-center justify-center backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110 bg-[var(--glass-bg)] border border-[var(--glass-border)]"
+            className="w-12 h-12 rounded-full flex items-center justify-center [@media(hover:hover)]:backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110 bg-[var(--glass-bg)] border border-[var(--glass-border)]"
           >
             <Play size={20} className="text-[var(--overlay-text)] ml-0.5" fill="currentColor" aria-hidden="true" />
           </div>
@@ -447,10 +447,10 @@ export const MediaCard = memo(function MediaCard({
     {item.id && (
       <button
         type="button"
-        className={`absolute z-badge flex items-center justify-center w-6 h-6 rounded-full backdrop-blur-[4px] transition-colors-fast cursor-pointer ${
+        className={`tap-hit absolute z-badge flex items-center justify-center w-6 h-6 rounded-full transition-colors-fast cursor-pointer ${
           watched
             ? "bg-[var(--color-success)] text-white"
-            : "bg-black/40 text-white/60"
+            : "bg-black/60 text-white/60"
         }`}
         style={{ bottom: hasProgressBar ? "4.5rem" : "3.5rem", right: "0.5rem" }}
         data-testid="watched-badge"

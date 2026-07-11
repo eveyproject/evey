@@ -176,17 +176,19 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
     <div ref={menuRef} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-sm font-medium cursor-pointer hover:opacity-90 transition-opacity-fast overflow-hidden"
+        className="tap-target flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity-fast"
         aria-label={t("common.nav.userMenu", "User menu")}
         aria-expanded={open}
         aria-haspopup="true"
         data-testid="profile-switcher-btn"
       >
-        {profileAvatarUrl(active) ? (
-          <img src={profileAvatarUrl(active)!} alt="" className="w-full h-full object-cover" />
-        ) : (
-          profileInitial(active)
-        )}
+        <span className="w-8 h-8 rounded-full bg-[var(--accent)] flex items-center justify-center text-[var(--filter-active-text)] text-sm font-medium overflow-hidden">
+          {profileAvatarUrl(active) ? (
+            <img src={profileAvatarUrl(active)!} alt="" className="w-full h-full object-cover" />
+          ) : (
+            profileInitial(active)
+          )}
+        </span>
       </button>
       {open && (
         <div

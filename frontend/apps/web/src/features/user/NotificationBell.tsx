@@ -42,8 +42,13 @@ export function NotificationBell() {
   const count = countData?.count ?? 0;
 
   // Pull a few extra so filtering doesn't leave the dropdown empty when
-  // the head of the list happens to be plugin_error noise.
-  const { data: listData, isError: listError } = useNotificationServiceListNotifications({ limit: 15 });
+  // the head of the list happens to be plugin_error noise. Only fetched once
+  // the dropdown opens: the bell is mounted on every page, and the unread
+  // badge above needs just the count query.
+  const { data: listData, isError: listError } = useNotificationServiceListNotifications(
+    { limit: 15 },
+    { query: { enabled: open } },
+  );
   const notifications = (listData?.notifications ?? [])
     .filter((n: Notification) => !n.type || !HIDDEN_TYPES.has(n.type))
     .slice(0, 5);

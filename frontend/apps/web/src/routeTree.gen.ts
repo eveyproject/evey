@@ -118,7 +118,9 @@ const WatchMediaIdRoute = WatchMediaIdRouteImport.update({
   id: '/watch/$mediaId',
   path: '/watch/$mediaId',
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any).lazy(() =>
+  import('./routes/watch.$mediaId.lazy').then((d) => d.Route),
+)
 const AuthSyncplayRoute = AuthSyncplayRouteImport.update({
   id: '/syncplay',
   path: '/syncplay',

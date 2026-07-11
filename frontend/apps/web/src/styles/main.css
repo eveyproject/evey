@@ -204,10 +204,41 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   background-color: var(--surface);
   border-color: var(--border);
 }
+/* The glass blur repaints a sticky layer on every scrolled frame, which janks
+   low-end mobile compositors - phones keep the plain (opaque) surface color
+   and only pointer/desktop viewports pay for the translucent glass. */
 .topbar-glass[data-scrolled="true"] {
-  background-color: var(--glass-bg);
   border-color: var(--glass-border);
-  backdrop-filter: blur(var(--glass-blur));
+}
+@media (min-width: 768px) {
+  .topbar-glass[data-scrolled="true"] {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+  }
+}
+
+/* Design system: 44px minimum touch target (WCAG 2.5.5 / Apple HIG).
+   - `tap-target` grows the element itself; use it when layout allows.
+   - `tap-hit` keeps the rendered size and extends the HIT AREA with a
+     centered pseudo-element; use it on small absolute-positioned controls
+     (card badges, checkboxes) where growing the box would shift the design. */
+@utility tap-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+@utility tap-hit {
+  position: relative;
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    min-width: 100%;
+    min-height: 100%;
+    transform: translate(-50%, -50%);
+  }
 }
 
 @utility scrollbar-none {
