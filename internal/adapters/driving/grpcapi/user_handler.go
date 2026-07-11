@@ -29,6 +29,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -507,20 +508,14 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	return profileToProto(p), nil
 }
 
-func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfileRequest) (*eveyv1.Profile, error) {
-	ctx, span := tracing.StartSpan(ctx, "grpc.user.UpdateProfile")
-	defer span.End()
-	claims, err := requireClaims(ctx)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, fmt.Errorf("userHandler.UpdateProfile: %w", err)
-	}
-	// Always load the existing profile — we patch non-nil fields into it so
-	// unset columns (audio/subtitle langs, parental MaxAge/BlockedTags/Enabled,
-	// is_default, …) survive. This also populates UserID for the invariant
-	// check in UpdateProfile.
-	p, gerr := h.query.GetProfileByID(ctx, req.Id)
+// loadProfileForUpdate fetches the profile to update and enforces the
+// owner/admin gate: a non-admin caller may only touch their own profile. A
+// missing profile and a foreign profile both map to the same
+// permission-denied response for a non-admin caller, so a probe can't tell
+// them apart; an admin gets NotFound instead since only they may legitimately
+// look up an arbitrary profile ID.
+func (h *userHandler) loadProfileForUpdate(ctx context.Context, span trace.Span, id string, claims *user.Claims) (*user.Profile, error) {
+	p, gerr := h.query.GetProfileByID(ctx, id)
 	if gerr != nil || p == nil {
 		if gerr != nil {
 			span.RecordError(gerr)
@@ -536,30 +531,44 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		span.SetStatus(otelcodes.Error, "cannot update profile other")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 	}
-	// Parental gate: a caller operating FROM a kids profile may not change any
-	// parental field (kids flag, age cap, PIN) — that would let a kid lift its
-	// own restrictions in place. They must first switch to a non-kids profile,
-	// which already requires the parental PIN (RefreshToken's switch gate). Not
-	// gated on admin: in a single-user server the kid uses the admin account's
-	// kid profile, so admin-status is the wrong signal — the active PROFILE is.
-	if req.IsKids != nil || req.MaxAge != nil || req.Pin != nil {
-		callerIsKids := false
-		switch {
-		case claims.ProfileID == req.Id:
-			callerIsKids = p.IsKids // editing the profile we're on
-		case claims.ProfileID != "":
-			cp, cerr := h.query.GetProfileByID(ctx, claims.ProfileID)
-			if cerr != nil || cp == nil {
-				// Fail closed: can't confirm the caller isn't on a kids profile.
-				return nil, internalError("parental gate: load caller profile", cerr)
-			}
-			callerIsKids = cp.IsKids
-		}
-		if callerIsKids {
-			span.SetStatus(otelcodes.Error, "parental change from kids profile")
-			return nil, status.Error(codes.PermissionDenied, "switch to a non-kids profile to change parental settings")
-		}
+	return p, nil
+}
+
+// enforceParentalUpdateGate blocks changes to any parental field (kids flag,
+// age cap, PIN) when the caller is currently operating FROM a kids profile -
+// that would let a kid lift its own restrictions in place. They must first
+// switch to a non-kids profile, which already requires the parental PIN
+// (RefreshToken's switch gate). Not gated on admin: in a single-user server
+// the kid uses the admin account's kid profile, so admin-status is the wrong
+// signal - the active PROFILE is. No-op when the request touches no parental
+// field.
+func (h *userHandler) enforceParentalUpdateGate(ctx context.Context, span trace.Span, req *eveyv1.UpdateProfileRequest, claims *user.Claims, p *user.Profile) error {
+	if req.IsKids == nil && req.MaxAge == nil && req.Pin == nil {
+		return nil
 	}
+	callerIsKids := false
+	switch {
+	case claims.ProfileID == req.Id:
+		callerIsKids = p.IsKids // editing the profile we're on
+	case claims.ProfileID != "":
+		cp, cerr := h.query.GetProfileByID(ctx, claims.ProfileID)
+		if cerr != nil || cp == nil {
+			// Fail closed: can't confirm the caller isn't on a kids profile.
+			return internalError("parental gate: load caller profile", cerr)
+		}
+		callerIsKids = cp.IsKids
+	}
+	if callerIsKids {
+		span.SetStatus(otelcodes.Error, "parental change from kids profile")
+		return status.Error(codes.PermissionDenied, "switch to a non-kids profile to change parental settings")
+	}
+	return nil
+}
+
+// applyProfileUpdateFields patches every non-nil field of req onto p. Fields
+// left unset in the request leave the existing column untouched, so p must
+// be freshly loaded from storage (see loadProfileForUpdate) before this call.
+func (h *userHandler) applyProfileUpdateFields(span trace.Span, req *eveyv1.UpdateProfileRequest, p *user.Profile) error {
 	if req.Preferences != nil {
 		p.Preferences = req.Preferences
 	}
@@ -569,7 +578,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 	if req.AvatarPath != nil {
 		if strings.Contains(*req.AvatarPath, "..") || !strings.HasPrefix(*req.AvatarPath, "avatars/") {
 			span.SetStatus(otelcodes.Error, "invalid avatar path")
-			return nil, status.Error(codes.InvalidArgument, "invalid avatar path")
+			return status.Error(codes.InvalidArgument, "invalid avatar path")
 		}
 		p.AvatarPath = req.AvatarPath
 	}
@@ -603,7 +612,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		if hErr != nil {
 			span.RecordError(hErr)
 			span.SetStatus(otelcodes.Error, hErr.Error())
-			return nil, status.Errorf(codes.InvalidArgument, "%v", hErr)
+			return status.Errorf(codes.InvalidArgument, "%v", hErr)
 		}
 		if p.Parental == nil {
 			p.Parental = &user.ParentalSettings{}
@@ -621,6 +630,12 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 			p.Parental.MaxAge = &age
 		}
 	}
+	return nil
+}
+
+// persistProfileUpdate saves the patched profile and maps storage errors to
+// gRPC status codes.
+func (h *userHandler) persistProfileUpdate(ctx context.Context, span trace.Span, p *user.Profile) (*eveyv1.Profile, error) {
 	if err := h.userSvc.UpdateProfile(ctx, p); err != nil {
 		span.RecordError(err)
 		if errors.Is(err, appuser.ErrKidsRequiresPIN) {
@@ -632,6 +647,32 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	return profileToProto(p), nil
+}
+
+func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfileRequest) (*eveyv1.Profile, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.UpdateProfile")
+	defer span.End()
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("userHandler.UpdateProfile: %w", err)
+	}
+	// Always load the existing profile — we patch non-nil fields into it so
+	// unset columns (audio/subtitle langs, parental MaxAge/BlockedTags/Enabled,
+	// is_default, …) survive. This also populates UserID for the invariant
+	// check in UpdateProfile.
+	p, err := h.loadProfileForUpdate(ctx, span, req.Id, claims)
+	if err != nil {
+		return nil, err
+	}
+	if err := h.enforceParentalUpdateGate(ctx, span, req, claims, p); err != nil {
+		return nil, err
+	}
+	if err := h.applyProfileUpdateFields(span, req, p); err != nil {
+		return nil, err
+	}
+	return h.persistProfileUpdate(ctx, span, p)
 }
 
 func (h *userHandler) SetDefaultProfile(ctx context.Context, req *eveyv1.SetDefaultProfileRequest) (*eveyv1.Profile, error) {
