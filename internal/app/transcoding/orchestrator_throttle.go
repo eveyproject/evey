@@ -1,0 +1,203 @@
+package transcoding
+
+// orchestrator_throttle.go holds SegmentOrchestrator's pause-when-ahead
+// throttle loop and CMCD hint handling (moved out of segment_orchestrator.go
+// for readability; pure move, no behaviour change).
+
+import (
+	"log/slog"
+	"time"
+
+	"github.com/evey-project/evey/internal/pkg/metrics"
+)
+
+// throttleLoop applies pause-when-ahead to every live session on a ticker.
+// Pattern lifted from Plex's transcode pipeline (audit competitors_big): when
+// ffmpeg has produced ThrottlePauseAhead segments more than the client's
+// high-water, SIGSTOP it — we burn 0 CPU until the client catches up.
+// Hysteresis (ResumeBelow strictly less than PauseAhead) prevents flapping.
+// The loop is a no-op when ThrottleEnabled is false (the goroutine isn't
+// even started in that case).
+func (o *SegmentOrchestrator) throttleLoop() {
+	defer close(o.throttleDone)
+	ticker := time.NewTicker(o.opts.ThrottleTickInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-o.stopThrottle:
+			return
+		case <-ticker.C:
+			o.evaluateThrottle()
+		}
+	}
+}
+
+// evaluateThrottle runs one tick of the pause-when-ahead policy. For each
+// live session, ListReady gives the latest produced segment idx; the buffer
+// (produced - client) decides pause vs resume.
+func (o *SegmentOrchestrator) evaluateThrottle() {
+	o.mu.Lock()
+	var snapshot []*orchestratorSession
+	for _, list := range o.sessions {
+		snapshot = append(snapshot, list...)
+	}
+	o.mu.Unlock()
+
+	for _, s := range snapshot {
+		s.mu.Lock()
+		hash := s.hash
+		client := s.clientHighWater
+		paused := s.paused
+		handle := s.handle
+		useFMP4 := s.useFMP4
+		variantIdx := s.variantIdx
+		s.mu.Unlock()
+
+		if handle == nil {
+			continue
+		}
+
+		// Track this session's own rung: in SingleVariant mode a rung>0 session
+		// writes stream_<variantIdx>_*, so listing variant 0 would always find
+		// nothing and never throttle it (CPU/disk waste). In the default
+		// multi-variant mode stream_0 tracks the shared session, so variantIdx==0.
+		idxs, err := o.cache.ListReady(hash, variantIdx, useFMP4)
+		if err != nil || len(idxs) == 0 {
+			continue
+		}
+		produced := idxs[len(idxs)-1]
+		buffer := produced - client
+
+		switch {
+		case !paused && buffer >= o.opts.ThrottlePauseAhead:
+			if err := handle.Pause(); err != nil {
+				o.logger.Warn("orchestrator: throttle pause failed",
+					slog.String("hash", hash), slog.Any("err", err))
+				continue
+			}
+			s.mu.Lock()
+			s.paused = true
+			s.mu.Unlock()
+			o.logger.Debug("orchestrator: throttle paused",
+				slog.String("hash", hash),
+				slog.Int("client_idx", client),
+				slog.Int("produced_idx", produced),
+				slog.Int("buffer", buffer))
+			metrics.HLSVODThrottlePause.Inc()
+		case paused && buffer <= o.opts.ThrottleResumeBelow:
+			if err := handle.Resume(); err != nil {
+				o.logger.Warn("orchestrator: throttle resume failed",
+					slog.String("hash", hash), slog.Any("err", err))
+				continue
+			}
+			s.mu.Lock()
+			s.paused = false
+			s.mu.Unlock()
+			o.logger.Debug("orchestrator: throttle resumed",
+				slog.String("hash", hash),
+				slog.Int("client_idx", client),
+				slog.Int("produced_idx", produced),
+				slog.Int("buffer", buffer))
+			metrics.HLSVODThrottleResume.Inc()
+		}
+	}
+}
+
+// NotifyClientHint feeds CMCD telemetry from the HTTP layer back into the
+// orchestrator so the throttle / prefetch policy can react to what the
+// client is actually experiencing — buffer length, imminent starvation,
+// real cursor — instead of the coarse "last requested segment" proxy.
+//
+// CRITICAL constraint: this method NEVER changes which variant the client
+// downloads. The HLS protocol gives the player full control over rendition
+// selection (the segment URL carries the variant index). All we can do
+// here is adjust the encoder's pace and lookahead, and wake up a paused
+// ffmpeg — all transparent to the client and to the user's manual quality
+// lock.
+//
+// Effects per session whose mediaID matches:
+//
+//   - clientHighWater bumped forward when the CMCD-derived cursor is
+//     ahead of what touchSession had previously seen. We only ever bump
+//     forward — a stale CMCD packet must not pull the throttle back.
+//
+//   - On bs=1 (buffer starved), SIGCONT a paused session immediately
+//     instead of waiting up to ThrottleTickInterval. The client has
+//     already stopped playback, so resume latency directly hits rebuffer.
+//
+//   - On large bl (client comfortably ahead), stretch endSeg so the next
+//     EnsureSegmentRange call doesn't have to extend the rafale itself.
+//     Pays off on calm networks by reducing respawns later.
+//
+// No-op when no live session matches mediaID. Safe to call from any
+// goroutine.
+func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthMs int, bufferStarved bool, segmentIdx int) {
+	o.mu.Lock()
+	matched := make([]*orchestratorSession, 0, 1)
+	for _, list := range o.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			mid := s.mediaID
+			s.mu.Unlock()
+			if mid == mediaItemID {
+				matched = append(matched, s)
+			}
+		}
+	}
+	o.mu.Unlock()
+	if len(matched) == 0 {
+		return
+	}
+
+	bufferAheadSegs := 0
+	if bufferLengthMs > 0 && o.opts.SegmentSeconds > 0 {
+		bufferAheadSegs = int(float64(bufferLengthMs) / 1000.0 / o.opts.SegmentSeconds)
+	}
+	// CMCD `bl` is client-reported and forgeable: a single hint with
+	// bl=999999999 would otherwise stretch endSeg to encode the whole film below
+	// (the MaxActiveSessions cap bounds the NUMBER of sessions, not their length).
+	// Cap the prefetch reach at 2× the rafale lookahead — combined with the
+	// duration clamp on consumableIdx, endSeg can never run away from the real
+	// playback position.
+	if maxAhead := 2 * o.opts.LookAheadSegments; bufferAheadSegs > maxAhead {
+		bufferAheadSegs = maxAhead
+	}
+	consumableIdx := max(segmentIdx, 0)
+
+	now := time.Now()
+	for _, s := range matched {
+		s.mu.Lock()
+		if consumableIdx > s.clientHighWater {
+			s.clientHighWater = consumableIdx
+		}
+		// Resume throttle: at most one SIGCONT per second per session.
+		// A client spamming `bs=1` (forged or genuinely terrible
+		// network) can't burn through kernel syscalls under us.
+		resumeAllowed := s.lastResumeAt.IsZero() || now.Sub(s.lastResumeAt) >= time.Second
+		needsResume := bufferStarved && s.paused && resumeAllowed
+		handle := s.handle
+
+		target := consumableIdx + bufferAheadSegs + o.opts.LookAheadSegments
+		if bufferAheadSegs >= o.opts.LookAheadSegments && target > s.endSeg {
+			s.endSeg = target
+		}
+		s.mu.Unlock()
+
+		if needsResume && handle != nil {
+			if err := handle.Resume(); err != nil {
+				o.logger.Warn("orchestrator: starvation resume failed",
+					slog.String("media_id", mediaItemID), slog.Any("err", err))
+				continue
+			}
+			s.mu.Lock()
+			s.paused = false
+			s.lastResumeAt = now
+			s.mu.Unlock()
+			o.logger.Info("orchestrator: throttle resumed by CMCD bs=1",
+				slog.String("media_id", mediaItemID),
+				slog.Int("segment_idx", segmentIdx))
+			metrics.HLSVODThrottleResume.Inc()
+			metrics.HLSVODStarvationResumes.Inc()
+		}
+	}
+}
