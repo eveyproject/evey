@@ -22,6 +22,11 @@ import (
 const (
 	loginMaxAttempts   = 5
 	loginAttemptWindow = 15 * time.Minute
+
+	minPasswordLength      = 8
+	loginLimiterMaxEntries = 10000
+	defaultCleanupInterval = 1 * time.Hour
+	resetTokenBytes        = 32
 )
 
 // safeTokenPrefix returns the first 8 chars of a token (safe for logs).
@@ -162,7 +167,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 	if username == "" {
 		return nil, errors.New("username is required")
 	}
-	if len(password) < 8 {
+	if len(password) < minPasswordLength {
 		return nil, ErrPasswordTooShort
 	}
 	admins, err := s.users.CountAdmins(ctx)
@@ -287,14 +292,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		slog.Warn("login attempt Reset", slog.String("username", username), slog.Any("err", resetErr))
 	}
 
-	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
-	if err != nil {
-		slog.Warn("get roles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", err))
-	}
-	var perms []string
-	for _, r := range roles {
-		perms = append(perms, r.Permissions...)
-	}
+	perms := s.collectPermissions(ctx, u.ID)
 
 	var defaultProfileID string
 	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
@@ -353,14 +351,7 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 		return "", "", ErrUserDisabled
 	}
 
-	roles, err := s.userRoles.GetRolesByUserID(ctx, u.ID)
-	if err != nil {
-		slog.Warn("get roles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", err))
-	}
-	var perms []string
-	for _, r := range roles {
-		perms = append(perms, r.Permissions...)
-	}
+	perms := s.collectPermissions(ctx, u.ID)
 
 	var defaultProfileID string
 	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
@@ -642,11 +633,7 @@ func (s *CommandService) collectPermissions(ctx context.Context, userID shared.U
 	return perms
 }
 
-// resolveActiveProfileID picks the profile ID to embed in the access token.
-// Returns ok=false only when the caller asked for a specific profile that
-// does not belong to them (authorization failure). When no profile matches
-// but the caller didn't request one, falls back to the default profile then
-// the first profile; ok remains true in that case.
+// findProfileByID returns the profile with the given ID, or nil.
 func findProfileByID(profs []*user.Profile, id string) *user.Profile {
 	for _, p := range profs {
 		if string(p.ID) == id {
@@ -656,6 +643,11 @@ func findProfileByID(profs []*user.Profile, id string) *user.Profile {
 	return nil
 }
 
+// resolveActiveProfileID picks the profile ID to embed in the access token.
+// Returns ok=false only when the caller asked for a specific profile that
+// does not belong to them (authorization failure). When no profile matches
+// but the caller didn't request one, falls back to the default profile then
+// the first profile; ok remains true in that case.
 func resolveActiveProfileID(profs []*user.Profile, requestedProfileID string) (string, bool) {
 	if requestedProfileID != "" {
 		for _, p := range profs {
@@ -735,7 +727,7 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 }
 
 func (s *CommandService) StartCleanup(ctx context.Context) {
-	s.StartCleanupWithInterval(ctx, 1*time.Hour)
+	s.StartCleanupWithInterval(ctx, defaultCleanupInterval)
 }
 
 func (s *CommandService) StartCleanupWithInterval(ctx context.Context, interval time.Duration) {
@@ -808,7 +800,7 @@ func (s *CommandService) RequestPasswordReset(ctx context.Context, email string)
 		slog.Warn("cleanup old reset tokens", slog.String("userID", string(u.ID)), slog.Any("err", err))
 	}
 
-	rawToken := make([]byte, 32)
+	rawToken := make([]byte, resetTokenBytes)
 	if _, err := rand.Read(rawToken); err != nil {
 		return fmt.Errorf("generate reset token: %w", err)
 	}
@@ -857,7 +849,7 @@ func (s *CommandService) ResetPassword(ctx context.Context, rawToken, newPasswor
 		return ErrResetTokenInvalid
 	}
 
-	if len(newPassword) < 8 {
+	if len(newPassword) < minPasswordLength {
 		return ErrPasswordTooShort
 	}
 
@@ -932,7 +924,7 @@ func newLoginAttemptLimiter(maxFails int, window time.Duration) *loginAttemptLim
 	return &loginAttemptLimiter{
 		attempts: make(map[string]*attemptEntry),
 		maxFails: maxFails,
-		maxSize:  10000,
+		maxSize:  loginLimiterMaxEntries,
 		window:   window,
 	}
 }
