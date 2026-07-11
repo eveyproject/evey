@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 
 	appuser "github.com/evey-project/evey/internal/app/user"
 
@@ -208,110 +209,45 @@ func (h *parentalHandler) getSettings(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// parentalUpdateBody is the PUT /parental payload. It accepts both `pin`
+// (legacy, kept for existing tests) and `newPin` (the field name the
+// proto/orval-generated client actually sends) - the handler is not wired
+// through the gRPC gateway, so without this accommodation the frontend call
+// to save a PIN was a silent no-op.
+type parentalUpdateBody struct {
+	MaxAge          *int     `json:"maxAge"`
+	UnsetMaxAge     bool     `json:"unsetMaxAge"`
+	BlockedTags     []string `json:"blockedTags"`
+	PIN             *string  `json:"pin"`
+	NewPIN          *string  `json:"newPin"`
+	CurrentPIN      string   `json:"currentPin"`
+	CurrentPassword string   `json:"currentPassword"`
+	Enabled         *bool    `json:"enabled"`
+}
+
 func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.parental.UpdateSettings")
 	defer span.End()
 	r = r.WithContext(ctx)
 	claims := HTTPClaimsFromContext(r.Context())
 	profileID := r.PathValue("id")
-	// Accept both `pin` (legacy, kept for existing tests) and `newPin`
-	// (the field name the proto/orval-generated client actually sends).
-	// The handler is not wired through the gRPC gateway, so without this
-	// accommodation the frontend call to save a PIN was a silent no-op.
-	var body struct {
-		MaxAge          *int     `json:"maxAge"`
-		UnsetMaxAge     bool     `json:"unsetMaxAge"`
-		BlockedTags     []string `json:"blockedTags"`
-		PIN             *string  `json:"pin"`
-		NewPIN          *string  `json:"newPin"`
-		CurrentPIN      string   `json:"currentPin"`
-		CurrentPassword string   `json:"currentPassword"`
-		Enabled         *bool    `json:"enabled"`
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "bad request body")
-		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
-		return
-	}
-	// Unify the two field names — prefer `pin` when both are sent.
-	if body.PIN == nil {
-		body.PIN = body.NewPIN
-	}
-	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "profile not found")
-		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
-		return
-	}
-	if !claims.IsAdmin && string(profile.UserID) != claims.UserID {
-		span.SetStatus(codes.Error, "forbidden")
-		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+
+	body, ok := decodeParentalUpdateBody(w, r, span)
+	if !ok {
 		return
 	}
 
-	if body.PIN != nil && *body.PIN != "" {
-		if !isFourDigit(*body.PIN) {
-			span.SetStatus(codes.Error, "PIN not 4 digits")
-			http.Error(w, `{"message":"PIN must be 4 digits"}`, http.StatusBadRequest)
-			return
-		}
+	profile, ok := h.loadOwnedProfileForUpdate(w, r, span, claims, profileID)
+	if !ok {
+		return
 	}
 
-	noExistingPIN := profile.Parental == nil || profile.Parental.PINHash == ""
-	settingNewPIN := body.PIN != nil && *body.PIN != ""
-	mutatingPIN := body.PIN != nil // rotation, clear, or first-time set
-	disablingProtection := body.Enabled != nil && !*body.Enabled
+	if !validateNewPINFormat(w, span, body.PIN) {
+		return
+	}
 
-	switch {
-	case (mutatingPIN || disablingProtection) && !noExistingPIN:
-		// Rotating / clearing an existing PIN, or disabling parental controls
-		// while a PIN is set, requires the current PIN. Other updates (max age,
-		// blocked tags, enabling) are not gated by the PIN — the user already
-		// authenticated to reach this endpoint.
-		if !h.pinRL.Allow(profileID) {
-			span.SetStatus(codes.Error, "rate limited")
-			http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
-			return
-		}
-		valid, err := h.hasher.Verify(body.CurrentPIN, profile.Parental.PINHash)
-		if err != nil || !valid {
-			if err != nil {
-				span.RecordError(err)
-			}
-			span.SetStatus(codes.Error, "invalid current PIN")
-			http.Error(w, `{"message":"invalid current PIN"}`, http.StatusForbidden)
-			return
-		}
-	case settingNewPIN && noExistingPIN && h.userRepo != nil:
-		// First-time PIN set: require the account password. Without this a
-		// stolen JWT could silently lock the owner out by enabling parental
-		// + setting a PIN the attacker picks.
-		if !h.pinRL.Allow(profileID) {
-			span.SetStatus(codes.Error, "rate limited")
-			http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
-			return
-		}
-		u, uerr := h.userRepo.GetByID(r.Context(), profile.UserID)
-		if uerr != nil || u == nil {
-			if uerr != nil {
-				span.RecordError(uerr)
-			}
-			span.SetStatus(codes.Error, "user lookup failed")
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return
-		}
-		valid, verr := h.hasher.Verify(body.CurrentPassword, u.PasswordHash)
-		if verr != nil || !valid {
-			if verr != nil {
-				span.RecordError(verr)
-			}
-			span.SetStatus(codes.Error, "invalid password")
-			http.Error(w, `{"message":"invalid password"}`, http.StatusForbidden)
-			return
-		}
+	if !h.authorizeParentalChange(w, r, span, profile, body, profileID) {
+		return
 	}
 
 	if profile.Parental == nil {
@@ -325,41 +261,181 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	if body.BlockedTags != nil {
 		profile.Parental.BlockedTags = body.BlockedTags
 	}
-	if body.PIN != nil {
-		if *body.PIN == "" {
-			// Clearing PIN is only allowed if this profile is kids OR no sibling is kids.
-			if !profile.IsKids {
-				siblings, sErr := h.profileRepo.GetByUserID(r.Context(), profile.UserID)
-				if sErr != nil {
-					span.RecordError(sErr)
-					span.SetStatus(codes.Error, "siblings lookup failed")
-					http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-					return
-				}
-				for _, s := range siblings {
-					if s != nil && s.ID != profile.ID && s.IsKids {
-						span.SetStatus(codes.Error, "kids sibling requires PIN")
-						http.Error(w, `{"message":"non-kids profile must have a PIN when a kids profile exists"}`, http.StatusConflict)
-						return
-					}
-				}
-			}
-			profile.Parental.PINHash = ""
-		} else {
-			hash, err := h.hasher.Hash(*body.PIN)
-			if err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, "hash failed")
-				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-				return
-			}
-			profile.Parental.PINHash = hash
-		}
+	if !h.applyPINChange(w, r, span, profile, body) {
+		return
 	}
 	if body.Enabled != nil {
 		profile.Parental.Enabled = *body.Enabled
 	}
 
+	h.persistAndRespond(w, r, span, profile)
+}
+
+// decodeParentalUpdateBody parses the request payload and unifies the two
+// PIN field names the frontend may send.
+func decodeParentalUpdateBody(w http.ResponseWriter, r *http.Request, span trace.Span) (parentalUpdateBody, bool) {
+	var body parentalUpdateBody
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "bad request body")
+		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+		return body, false
+	}
+	// Unify the two field names — prefer `pin` when both are sent.
+	if body.PIN == nil {
+		body.PIN = body.NewPIN
+	}
+	return body, true
+}
+
+// loadOwnedProfileForUpdate fetches the target profile and enforces that the
+// caller is either an admin or the account owner before it can be mutated.
+func (h *parentalHandler) loadOwnedProfileForUpdate(w http.ResponseWriter, r *http.Request, span trace.Span, claims *domainuser.Claims, profileID string) (*domainuser.Profile, bool) {
+	profile, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(profileID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "profile not found")
+		http.Error(w, `{"message":"profile not found"}`, http.StatusNotFound)
+		return nil, false
+	}
+	if !claims.IsAdmin && string(profile.UserID) != claims.UserID {
+		span.SetStatus(codes.Error, "forbidden")
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return nil, false
+	}
+	return profile, true
+}
+
+// validateNewPINFormat rejects a proposed PIN that isn't 4 digits. An empty
+// or absent PIN is left to the caller (it means "no PIN change" or "clear
+// the PIN", not "set one").
+func validateNewPINFormat(w http.ResponseWriter, span trace.Span, pin *string) bool {
+	if pin == nil || *pin == "" {
+		return true
+	}
+	if !isFourDigit(*pin) {
+		span.SetStatus(codes.Error, "PIN not 4 digits")
+		http.Error(w, `{"message":"PIN must be 4 digits"}`, http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+// authorizeParentalChange enforces the reauthentication gate for security-
+// sensitive parental mutations: rotating/clearing an existing PIN or
+// disabling protection requires the current PIN, and setting a PIN for the
+// first time requires the account password. Other updates (max age, blocked
+// tags, enabling) are not gated - the user already authenticated to reach
+// this endpoint.
+func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
+	noExistingPIN := profile.Parental == nil || profile.Parental.PINHash == ""
+	settingNewPIN := body.PIN != nil && *body.PIN != ""
+	mutatingPIN := body.PIN != nil // rotation, clear, or first-time set
+	disablingProtection := body.Enabled != nil && !*body.Enabled
+
+	switch {
+	case (mutatingPIN || disablingProtection) && !noExistingPIN:
+		return h.requireCurrentPIN(w, span, profile, body, profileID)
+	case settingNewPIN && noExistingPIN && h.userRepo != nil:
+		// First-time PIN set: require the account password. Without this a
+		// stolen JWT could silently lock the owner out by enabling parental
+		// + setting a PIN the attacker picks.
+		return h.requireAccountPassword(w, r, span, profile, body, profileID)
+	}
+	return true
+}
+
+// requireCurrentPIN gates rotating/clearing an existing PIN (or disabling
+// protection while one is set) behind proof of the current PIN.
+func (h *parentalHandler) requireCurrentPIN(w http.ResponseWriter, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
+	if !h.pinRL.Allow(profileID) {
+		span.SetStatus(codes.Error, "rate limited")
+		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
+		return false
+	}
+	valid, err := h.hasher.Verify(body.CurrentPIN, profile.Parental.PINHash)
+	if err != nil || !valid {
+		if err != nil {
+			span.RecordError(err)
+		}
+		span.SetStatus(codes.Error, "invalid current PIN")
+		http.Error(w, `{"message":"invalid current PIN"}`, http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+// requireAccountPassword gates a first-time PIN set behind proof of the
+// account password.
+func (h *parentalHandler) requireAccountPassword(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
+	if !h.pinRL.Allow(profileID) {
+		span.SetStatus(codes.Error, "rate limited")
+		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
+		return false
+	}
+	u, uerr := h.userRepo.GetByID(r.Context(), profile.UserID)
+	if uerr != nil || u == nil {
+		if uerr != nil {
+			span.RecordError(uerr)
+		}
+		span.SetStatus(codes.Error, "user lookup failed")
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return false
+	}
+	valid, verr := h.hasher.Verify(body.CurrentPassword, u.PasswordHash)
+	if verr != nil || !valid {
+		if verr != nil {
+			span.RecordError(verr)
+		}
+		span.SetStatus(codes.Error, "invalid password")
+		http.Error(w, `{"message":"invalid password"}`, http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
+// applyPINChange handles the PIN mutation itself: clearing an existing PIN
+// (blocked if it would leave a sibling kids profile without a guardian PIN)
+// or hashing and storing a newly chosen one. A nil PIN means no change.
+func (h *parentalHandler) applyPINChange(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody) bool {
+	if body.PIN == nil {
+		return true
+	}
+	if *body.PIN == "" {
+		// Clearing PIN is only allowed if this profile is kids OR no sibling is kids.
+		if !profile.IsKids {
+			siblings, sErr := h.profileRepo.GetByUserID(r.Context(), profile.UserID)
+			if sErr != nil {
+				span.RecordError(sErr)
+				span.SetStatus(codes.Error, "siblings lookup failed")
+				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+				return false
+			}
+			for _, s := range siblings {
+				if s != nil && s.ID != profile.ID && s.IsKids {
+					span.SetStatus(codes.Error, "kids sibling requires PIN")
+					http.Error(w, `{"message":"non-kids profile must have a PIN when a kids profile exists"}`, http.StatusConflict)
+					return false
+				}
+			}
+		}
+		profile.Parental.PINHash = ""
+		return true
+	}
+	hash, err := h.hasher.Hash(*body.PIN)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "hash failed")
+		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+		return false
+	}
+	profile.Parental.PINHash = hash
+	return true
+}
+
+// persistAndRespond saves the mutated profile and writes the success payload.
+func (h *parentalHandler) persistAndRespond(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile) {
 	if err := h.profileRepo.Update(r.Context(), profile); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "profile update failed")
