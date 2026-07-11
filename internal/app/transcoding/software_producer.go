@@ -1347,9 +1347,18 @@ func (p *SoftwareProducer) sweepIdle() {
 		if !empty {
 			continue
 		}
-		if err := p.cache.CleanupHash(hash); err != nil {
+		// Eviction-safe reclaim: a fresh session can RegisterSession on this
+		// hash between the emptiness check above and the disk cleanup. The
+		// cache's pendingRefs guard (checked under the cache lock) closes that
+		// window - an unconditional CleanupHash would delete the directory
+		// under the newcomer and fail its ffmpeg rename into a 404/stall.
+		evicted, err := p.cache.cleanupHashIfIdle(hash)
+		if err != nil {
 			p.logger.Warn("software: idle cleanup failed", slog.String("hash", hash), slog.Any("err", err))
 			continue // keep it in spawnedHashes so Close retries the purge
+		}
+		if !evicted {
+			continue // a just-registered session owns it now; Close still covers the purge
 		}
 		// Sessions AND disk are both reclaimed — drop the hash from the
 		// Close-time purge set. Without this delete the set only ever grew

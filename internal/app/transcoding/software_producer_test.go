@@ -1052,3 +1052,84 @@ func TestSoftwareProducer_KillPausedAfterZero_NeverKillsPaused(t *testing.T) {
 	assert.False(t, handle.isStopped(), "KillPausedAfter=0 must disable the paused-kill sweep entirely")
 	assert.Equal(t, 1, p.ActiveSessionCount())
 }
+
+// ============================================================================
+// Idle sweep vs concurrent session registration (pendingRefs guard)
+// ============================================================================
+
+func TestSoftwareProducer_SweepIdle_SparesHashWithLiveCacheRef(t *testing.T) {
+	// The race sweepIdle used to lose: a fresh session REGISTERS at the cache
+	// (pendingRefs>0) in the window between the sweeper's "no sibling left"
+	// check and its disk cleanup. The reclaim must skip such a hash - deleting
+	// the directory under the newcomer makes its ffmpeg rename fail (404/stall).
+	cache, dir := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	p := NewSoftwareProducer(cache, proc, src, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	hash := fp.Hash()
+
+	hashDir := filepath.Join(dir, "segments", hash)
+	require.NoError(t, os.MkdirAll(hashDir, 0o755))
+	marker := filepath.Join(hashDir, "stream_0_000.m4s")
+	require.NoError(t, os.WriteFile(marker, []byte("seg"), 0o644))
+
+	// Age the producer's session past the inactivity cutoff so the sweep
+	// kills it and finds the hash sibling-free.
+	p.mu.Lock()
+	for _, list := range p.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			s.lastAccess = time.Now().Add(-2 * p.opts.InactivityTimeout)
+			s.mu.Unlock()
+		}
+	}
+	p.mu.Unlock()
+
+	// The concurrent newcomer: registered at the cache, not yet visible in
+	// p.sessions (exactly the sweep window).
+	release := cache.RegisterSession(hash)
+	defer release()
+
+	p.sweepIdle()
+
+	_, err := os.Stat(marker)
+	require.NoError(t, err, "sweepIdle must not reclaim a hash a registered session is about to serve")
+}
+
+func TestSoftwareProducer_SweepIdle_ReclaimsFullyIdleHash(t *testing.T) {
+	// Control arm: with no live cache registration left, the sweep must still
+	// reclaim the directory (the fix must not turn the sweeper into a no-op).
+	cache, dir := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	p := NewSoftwareProducer(cache, proc, src, swTestOpts(), discardLogger())
+	defer p.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	hash := fp.Hash()
+
+	hashDir := filepath.Join(dir, "segments", hash)
+	require.NoError(t, os.MkdirAll(hashDir, 0o755))
+	marker := filepath.Join(hashDir, "stream_0_000.m4s")
+	require.NoError(t, os.WriteFile(marker, []byte("seg"), 0o644))
+
+	p.mu.Lock()
+	for _, list := range p.sessions {
+		for _, s := range list {
+			s.mu.Lock()
+			s.lastAccess = time.Now().Add(-2 * p.opts.InactivityTimeout)
+			s.mu.Unlock()
+		}
+	}
+	p.mu.Unlock()
+
+	p.sweepIdle()
+
+	_, err := os.Stat(hashDir)
+	require.True(t, os.IsNotExist(err), "a fully idle hash must still be reclaimed by the sweep")
+}
