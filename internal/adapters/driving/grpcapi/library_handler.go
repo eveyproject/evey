@@ -324,9 +324,10 @@ func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.Get
 	}, nil
 }
 
-func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMediaItemsRequest) (*eveyv1.ListMediaItemsResponse, error) {
-	ctx, span := tracing.StartSpan(ctx, "grpc.library.ListMediaItems")
-	defer span.End()
+// mediaItemsFilterFromRequest builds the base query filter from the request's
+// scalar criteria (sort, library, type, genre, year, parent, person). Access
+// scoping and pagination are applied separately since they need ctx/span.
+func mediaItemsFilterFromRequest(req *eveyv1.ListMediaItemsRequest) library.ListMediaItemsFilter {
 	filter := library.ListMediaItemsFilter{
 		SortField: mediaSortFieldFromProto[req.SortField],
 		SortOrder: sortOrderFromProto[req.SortOrder],
@@ -352,31 +353,155 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	if req.PersonId != "" {
 		filter.PersonID = &req.PersonId
 	}
+	return filter
+}
+
+// applyMediaItemsLibraryAccess enforces the IDOR gate when a single library is
+// requested (checkLibraryAccess), or otherwise narrows filter.LibraryIDs to
+// the caller's allowed libraries. Returns false when the single-library
+// request must be denied; the caller must short-circuit in that case.
+func (h *libraryHandler) applyMediaItemsLibraryAccess(ctx context.Context, req *eveyv1.ListMediaItemsRequest, filter *library.ListMediaItemsFilter) bool {
 	if req.LibraryId != "" {
 		if ok, accessErr := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); !ok {
 			if accessErr != nil {
 				slog.Warn("check library access", slog.Any("err", accessErr))
 			}
-			return &eveyv1.ListMediaItemsResponse{Pagination: &eveyv1.PaginationResponse{}}, nil
+			return false
 		}
-	} else {
-		if ids, err := h.getAllowedLibraryIDs(ctx); err == nil && ids != nil {
-			filter.LibraryIDs = toLibraryIDs(ids)
+		return true
+	}
+	if ids, err := h.getAllowedLibraryIDs(ctx); err == nil && ids != nil {
+		filter.LibraryIDs = toLibraryIDs(ids)
+	}
+	return true
+}
+
+// applyMediaItemsPagination clamps page size/offset into filter and, when a
+// cursor is present, decodes it and resets Offset (cursor paging takes
+// precedence over offset paging). Returns a formatted gRPC error on an
+// invalid cursor.
+func (h *libraryHandler) applyMediaItemsPagination(span trace.Span, pagination *eveyv1.PaginationRequest, filter *library.ListMediaItemsFilter) error {
+	if pagination == nil {
+		return nil
+	}
+	filter.Limit, filter.Offset = clampPagination(pagination.PageSize, pagination.Page, 50)
+	if pagination.Cursor != "" {
+		cursor, err := shared.DecodeCursor(pagination.Cursor)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "invalid cursor")
+			slog.Warn("grpc ListMediaItems: invalid cursor", slog.Any("err", err))
+			return status.Error(codes.InvalidArgument, "invalid cursor")
+		}
+		filter.Cursor = cursor
+		filter.Offset = 0
+	}
+	return nil
+}
+
+// overlayMediaItemsLocale overlays locale translations (title/overview/tagline)
+// onto items in place, so the grid matches the language the detail page
+// already uses. Best-effort: base values stay when no translation exists; a
+// fetch error is logged, not fatal.
+func (h *libraryHandler) overlayMediaItemsLocale(ctx context.Context, ids []string, items []*library.MediaItem) {
+	locale := eveyi18n.LocaleFromCtx(ctx)
+	if locale == "" || len(ids) == 0 {
+		return
+	}
+	trans, tErr := h.query.GetMediaItemTranslations(ctx, ids, locale)
+	if tErr != nil {
+		slog.Warn("list media items: localize titles", slog.Any("err", tErr))
+		return
+	}
+	for _, item := range items {
+		if t := trans[string(item.ID)]; t != nil {
+			if t.Title != "" {
+				item.Title = t.Title
+			}
+			if t.Overview != "" {
+				item.Overview = t.Overview
+			}
+			if t.Tagline != "" {
+				item.Tagline = t.Tagline
+			}
 		}
 	}
-	if req.Pagination != nil {
-		filter.Limit, filter.Offset = clampPagination(req.Pagination.PageSize, req.Pagination.Page, 50)
-		if req.Pagination.Cursor != "" {
-			cursor, err := shared.DecodeCursor(req.Pagination.Cursor)
-			if err != nil {
-				span.RecordError(err)
-				span.SetStatus(otelcodes.Error, "invalid cursor")
-				slog.Warn("grpc ListMediaItems: invalid cursor", slog.Any("err", err))
-				return nil, status.Error(codes.InvalidArgument, "invalid cursor")
-			}
-			filter.Cursor = cursor
-			filter.Offset = 0
+}
+
+// overlayMediaItemsOverrides applies manual metadata overrides in place. These
+// win over the auto-translation too (same precedence as the detail view) so a
+// corrected title shows in the grid/season list.
+func (h *libraryHandler) overlayMediaItemsOverrides(ctx context.Context, ids []string, items []*library.MediaItem) {
+	if h.metadataSvc == nil || len(ids) == 0 {
+		return
+	}
+	ovMap, oErr := h.metadataSvc.BatchListOverrides(ctx, ids)
+	if oErr != nil {
+		return
+	}
+	for _, item := range items {
+		if ovs := ovMap[string(item.ID)]; len(ovs) > 0 {
+			applyOverridesToItem(item, ovs)
 		}
+	}
+}
+
+// fetchMediaItemsArtwork batch-loads artwork for ids, best-effort (a fetch
+// error is logged and yields a nil map, matching the original inline code).
+func (h *libraryHandler) fetchMediaItemsArtwork(ctx context.Context, ids []string) map[string][]*domainmetadata.ArtworkRecord {
+	if h.metadataSvc == nil {
+		return nil
+	}
+	artworkMap, artErr := h.metadataSvc.BatchGetArtwork(ctx, ids)
+	if artErr != nil {
+		slog.Warn("batch get artwork", slog.Any("err", artErr))
+	}
+	return artworkMap
+}
+
+// fetchMediaItemsCast batch-loads cast info when filtering by person, so the
+// frontend can show roles; best-effort like fetchMediaItemsArtwork.
+func (h *libraryHandler) fetchMediaItemsCast(ctx context.Context, req *eveyv1.ListMediaItemsRequest, ids []string) map[string][]library.CastMember {
+	if req.PersonId == "" || len(ids) == 0 {
+		return nil
+	}
+	castMap, castErr := h.query.GetCastForItems(ctx, ids)
+	if castErr != nil {
+		slog.Warn("batch get cast for person filter", slog.Any("err", castErr))
+	}
+	return castMap
+}
+
+// mediaItemsToProto maps items to wire format, dropping items still blocked
+// by a per-tag parental restriction (the strict in-memory second pass) and
+// attaching artwork/cast from the batch-loaded maps.
+func mediaItemsToProto(ctx context.Context, items []*library.MediaItem, pf parentalFilter, artworkMap map[string][]*domainmetadata.ArtworkRecord, castMap map[string][]library.CastMember) []*eveyv1.MediaItem {
+	out := make([]*eveyv1.MediaItem, 0, len(items))
+	for _, item := range items {
+		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(itemTags(item), pf.blockedTags) {
+			continue
+		}
+		pb := mediaItemToProto(item, ctxIsAdmin(ctx))
+		for _, a := range artworkMap[string(item.ID)] {
+			pb.Artwork = append(pb.Artwork, artworkRecordToProto(a))
+		}
+		for _, cm := range castMap[string(item.ID)] {
+			pb.People = append(pb.People, castMemberToProto(cm))
+		}
+		out = append(out, pb)
+	}
+	return out
+}
+
+func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMediaItemsRequest) (*eveyv1.ListMediaItemsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.ListMediaItems")
+	defer span.End()
+	filter := mediaItemsFilterFromRequest(req)
+	if !h.applyMediaItemsLibraryAccess(ctx, req, &filter) {
+		return &eveyv1.ListMediaItemsResponse{Pagination: &eveyv1.PaginationResponse{}}, nil
+	}
+	if err := h.applyMediaItemsPagination(span, req.Pagination, &filter); err != nil {
+		return nil, err
 	}
 	pf := h.resolveParentalFilter(ctx)
 	filter.AllowedRatings = pf.allowedRatings
@@ -415,71 +540,11 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	for _, item := range items {
 		ids = append(ids, string(item.ID))
 	}
-	// Overlay locale translations (title/overview/tagline) so the grid matches
-	// the language the detail page already uses. Best-effort: base values stay
-	// when no translation exists; a fetch error is logged, not fatal.
-	if locale := eveyi18n.LocaleFromCtx(ctx); locale != "" && len(ids) > 0 {
-		if trans, tErr := h.query.GetMediaItemTranslations(ctx, ids, locale); tErr == nil {
-			for _, item := range items {
-				if t := trans[string(item.ID)]; t != nil {
-					if t.Title != "" {
-						item.Title = t.Title
-					}
-					if t.Overview != "" {
-						item.Overview = t.Overview
-					}
-					if t.Tagline != "" {
-						item.Tagline = t.Tagline
-					}
-				}
-			}
-		} else {
-			slog.Warn("list media items: localize titles", slog.Any("err", tErr))
-		}
-	}
-	// Manual overrides win over the auto-translation here too (same precedence
-	// as the detail view) so a corrected title shows in the grid/season list.
-	if h.metadataSvc != nil && len(ids) > 0 {
-		if ovMap, oErr := h.metadataSvc.BatchListOverrides(ctx, ids); oErr == nil {
-			for _, item := range items {
-				if ovs := ovMap[string(item.ID)]; len(ovs) > 0 {
-					applyOverridesToItem(item, ovs)
-				}
-			}
-		}
-	}
-	var artworkMap map[string][]*domainmetadata.ArtworkRecord
-	if h.metadataSvc != nil {
-		var artErr error
-		artworkMap, artErr = h.metadataSvc.BatchGetArtwork(ctx, ids)
-		if artErr != nil {
-			slog.Warn("batch get artwork", slog.Any("err", artErr))
-		}
-	}
-
-	// When filtering by person, include cast info so the frontend can show roles
-	var castMap map[string][]library.CastMember
-	if req.PersonId != "" && len(ids) > 0 {
-		var castErr error
-		castMap, castErr = h.query.GetCastForItems(ctx, ids)
-		if castErr != nil {
-			slog.Warn("batch get cast for person filter", slog.Any("err", castErr))
-		}
-	}
-
-	for _, item := range items {
-		if len(pf.blockedTags) > 0 && ratings.HasBlockedTag(itemTags(item), pf.blockedTags) {
-			continue
-		}
-		pb := mediaItemToProto(item, ctxIsAdmin(ctx))
-		for _, a := range artworkMap[string(item.ID)] {
-			pb.Artwork = append(pb.Artwork, artworkRecordToProto(a))
-		}
-		for _, cm := range castMap[string(item.ID)] {
-			pb.People = append(pb.People, castMemberToProto(cm))
-		}
-		resp.Items = append(resp.Items, pb)
-	}
+	h.overlayMediaItemsLocale(ctx, ids, items)
+	h.overlayMediaItemsOverrides(ctx, ids, items)
+	artworkMap := h.fetchMediaItemsArtwork(ctx, ids)
+	castMap := h.fetchMediaItemsCast(ctx, req, ids)
+	resp.Items = mediaItemsToProto(ctx, items, pf, artworkMap, castMap)
 	return resp, nil
 }
 
