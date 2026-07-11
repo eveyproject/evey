@@ -590,18 +590,19 @@ func softwareProfileLevelArgs(encoder string, variantIdx int) []string {
 	}
 }
 
-// normalizeVideoCodec collapses the domain codec aliases to the canonical
-// base used to build hardware encoder names ("h264"/"hevc"/"av1"). Empty
-// codec defaults to h264 (matches resolveVideoEncoder's libx264 default).
-// Returns "" for anything unrecognised so callers fall back to software.
+// normalizeVideoCodec folds the codec through the single canonical alias
+// table (transcoding.CanonicalVideoCodec), then restricts the result to the
+// codecs this package can build a hardware encoder name for ("h264"/"hevc"/
+// "av1"). Empty codec defaults to h264 (matches resolveVideoEncoder's
+// libx264 default). Returns "" for anything unrecognised or not
+// HW-encodable (e.g. vp9) so callers fall back to software.
 func normalizeVideoCodec(codec string) string {
-	switch strings.ToLower(codec) {
-	case "", "h264", "libx264":
+	if codec == "" {
 		return "h264"
-	case "hevc", "h265", "libx265":
-		return "hevc"
-	case "av1", "libaom-av1", "libsvtav1":
-		return "av1"
+	}
+	switch canon := transcoding.CanonicalVideoCodec(codec); canon {
+	case "h264", "hevc", "av1":
+		return canon
 	}
 	return ""
 }

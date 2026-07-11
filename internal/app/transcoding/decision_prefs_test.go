@@ -128,6 +128,43 @@ func TestPref_PreferredVideoCodec_MatchesSource_NoTranscode(t *testing.T) {
 	assert.NotContains(t, d.TranscodeReasons, "preferred_video_codec")
 }
 
+// A preferred_video_codec alias ("h265") must be compared against the
+// canonicalised source codec, not the raw ffprobe spelling ("hevc") -
+// otherwise a source already encoded in the codec the user wants gets
+// needlessly retranscoded just because the two strings differ syntactically.
+func TestApplyCodecPreferences_AliasDoesNotForceTranscode(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	}
+	// hevc-capable client, otherwise DefaultWebProfile's lack of hevc support
+	// would force a transcode for an unrelated reason (codec_unsupported).
+	hevcProfile := transcoding.DefaultWebProfile
+	hevcProfile.VideoCodecs = []string{"hevc"}
+	hevcProfile.Containers = []string{"mp4", "mkv"}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.PreferredVideoCodec = "h265" // alias of hevc
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", hevcProfile, 0, prefs)
+	assert.Equal(t, "copy", d.VideoDecision, "h265 pref on an hevc source must NOT force a transcode")
+	assert.NotContains(t, d.TranscodeReasons, "preferred_video_codec")
+}
+
+// When the preferred codec genuinely differs from the source, the resulting
+// VideoCodec must come out canonicalised too (not the raw pref spelling),
+// so downstream consumers (encoder selection) see one consistent name.
+func TestApplyCodecPreferences_DifferentCodec_CanonicalisesOutput(t *testing.T) {
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	}
+	prefs := apptranscode.DefaultTranscodingPreferences()
+	prefs.PreferredVideoCodec = "h265" // alias of hevc
+	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Equal(t, "hevc", d.VideoCodec, "VideoCodec must be canonicalised, not the raw pref spelling")
+	assert.Contains(t, d.TranscodeReasons, "preferred_video_codec")
+}
+
 func TestPref_PreferredVideoCodec_Auto_Noop(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},

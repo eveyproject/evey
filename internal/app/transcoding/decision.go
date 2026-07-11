@@ -608,8 +608,9 @@ func checkContainer(d *transcoding.PlaybackDecision, containerFormat string, cli
 func applyCodecPreferences(d *transcoding.PlaybackDecision, streams []StreamSpec, prefs TranscodingPreferences) {
 	if prefs.PreferredVideoCodec != "" && prefs.PreferredVideoCodec != "auto" {
 		srcVideoCodec := findStreamCodec(streams, "video")
-		if srcVideoCodec != prefs.PreferredVideoCodec {
-			d.VideoCodec = prefs.PreferredVideoCodec
+		wantVideoCodec := normalizeVideoCodec(prefs.PreferredVideoCodec)
+		if normalizeVideoCodec(srcVideoCodec) != wantVideoCodec {
+			d.VideoCodec = wantVideoCodec
 			if d.VideoDecision != "transcode" {
 				d.VideoDecision = "transcode"
 				d.TranscodeReasons = append(d.TranscodeReasons, "preferred_video_codec")
@@ -719,19 +720,15 @@ func contains(list []string, val string) bool {
 }
 
 // normalizeVideoCodec folds the common aliases of a video codec to one canonical
-// name (the ffprobe spelling the prober stores). A client that advertises "h265"
-// or "hvc1" means HEVC; without this fold it would not match a source probed as
-// "hevc" and the stream would be needlessly transcoded.
+// name (the ffprobe spelling the prober stores) via the single canonical table
+// in transcoding.CanonicalVideoCodec. A client that advertises "h265" or "hvc1"
+// means HEVC; without this fold it would not match a source probed as "hevc"
+// and the stream would be needlessly transcoded. Unrecognised codecs fall back
+// to lowercase passthrough so two-sided comparisons still degrade to a plain
+// string match instead of colliding on "".
 func normalizeVideoCodec(c string) string {
-	switch strings.ToLower(c) {
-	case "hevc", "h265", "x265", "libx265", "hvc1", "hev1":
-		return "hevc"
-	case "h264", "avc", "avc1", "x264", "libx264":
-		return "h264"
-	case "av1", "av01", "libaom-av1", "libsvtav1":
-		return "av1"
-	case "vp9", "vp09":
-		return "vp9"
+	if canon := transcoding.CanonicalVideoCodec(c); canon != "" {
+		return canon
 	}
 	return strings.ToLower(c)
 }

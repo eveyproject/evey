@@ -2,7 +2,6 @@ package transcoding
 
 import (
 	"context"
-	"strings"
 	"time"
 )
 
@@ -70,22 +69,14 @@ func SourceClassMatchesLegacy(class string) bool {
 	return false
 }
 
+// normaliseSourceCodec wraps CanonicalVideoCodec (the single canonical alias
+// table) with the "any" fallback the cap-override bucket space needs:
+// empty/unrecognised codecs must not each fork their own bucket.
 func normaliseSourceCodec(codec string) string {
-	c := strings.ToLower(strings.TrimSpace(codec))
-	switch c {
-	case "h264", "avc", "avc1":
-		return "h264"
-	case "hevc", "h265", "hev1", "hvc1":
-		return "hevc"
-	case "av1", "av01":
-		return "av1"
-	case "vp9":
-		return "vp9"
-	case "":
-		return "any"
-	default:
-		return "any" // unrecognised codec → don't pollute the bucket space
+	if c := CanonicalVideoCodec(codec); c != "" {
+		return c
 	}
+	return "any"
 }
 
 // CapOverrideRepo persists CapOverride rows. Phase C uses postgres;
