@@ -13,7 +13,7 @@ import (
 // The fingerprint half of the cache invariant: Hash() MUST derive from every
 // byte-affecting dimension of the decision. Copy was forgotten once (copy and
 // transcode segments at the same WxH aliased in the cache = corrupt stream);
-// these tests close that class — the first concretely, the second structurally.
+// these tests close that class - the first concretely, the second structurally.
 
 func TestDecisionFingerprint_CopyVsTranscodeDiffer(t *testing.T) {
 	transcodeFP := DecisionFingerprint{
@@ -30,7 +30,7 @@ func TestDecisionFingerprint_CopyVsTranscodeDiffer(t *testing.T) {
 		{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 192, Copy: true},
 	}
 	assert.NotEqual(t, transcodeFP.Hash(), copyFP.Hash(),
-		"a copy rung and a transcode rung at the same WxH produce different bytes — they MUST hash differently")
+		"a copy rung and a transcode rung at the same WxH produce different bytes - they MUST hash differently")
 }
 
 // TestProfileFingerprint_EveryFieldAffectsHash mechanically enforces that EVERY
@@ -60,10 +60,10 @@ func TestProfileFingerprint_EveryFieldAffectsHash(t *testing.T) {
 		case reflect.Bool:
 			f.SetBool(!f.Bool())
 		default:
-			t.Fatalf("unhandled ProfileFingerprint field kind %s (%s) — extend this test", f.Kind(), pt.Field(i).Name)
+			t.Fatalf("unhandled ProfileFingerprint field kind %s (%s) - extend this test", f.Kind(), pt.Field(i).Name)
 		}
 		if fp.Hash() == baseHash {
-			t.Errorf("ProfileFingerprint.%s does NOT affect Hash() — a byte-affecting dimension is omitted (the Copy-aliasing class)", pt.Field(i).Name)
+			t.Errorf("ProfileFingerprint.%s does NOT affect Hash() - a byte-affecting dimension is omitted (the Copy-aliasing class)", pt.Field(i).Name)
 		}
 	}
 }
@@ -72,7 +72,7 @@ func TestProfileFingerprint_EveryFieldAffectsHash(t *testing.T) {
 // guards the HLSProfile → ProfileFingerprint projection. Both the source values
 // and the field comparison are reflection-built (no manual list on either side),
 // so a ProfileFingerprint field not copied from its same-named HLSProfile field
-// reddens — closing the omission class end-to-end with the Hash() guard above.
+// reddens - closing the omission class end-to-end with the Hash() guard above.
 func TestProfileFingerprintOf_CopiesEveryField(t *testing.T) {
 	// Set EVERY HLSProfile field to a distinct non-zero value via reflection so a
 	// future field is auto-covered; a forgotten copy leaves the zero value and is
@@ -89,7 +89,7 @@ func TestProfileFingerprintOf_CopiesEveryField(t *testing.T) {
 		case reflect.Bool:
 			f.SetBool(true)
 		default:
-			t.Fatalf("unhandled HLSProfile field kind %s (%s) — extend this test", f.Kind(), sv.Type().Field(i).Name)
+			t.Fatalf("unhandled HLSProfile field kind %s (%s) - extend this test", f.Kind(), sv.Type().Field(i).Name)
 		}
 	}
 
@@ -100,10 +100,10 @@ func TestProfileFingerprintOf_CopiesEveryField(t *testing.T) {
 		name := gt.Field(i).Name
 		srcF := sv.FieldByName(name)
 		if !srcF.IsValid() {
-			t.Fatalf("ProfileFingerprint.%s has no same-named HLSProfile field — reconcile the structs or carry it explicitly in ProfileFingerprintOf", name)
+			t.Fatalf("ProfileFingerprint.%s has no same-named HLSProfile field - reconcile the structs or carry it explicitly in ProfileFingerprintOf", name)
 		}
 		if !reflect.DeepEqual(srcF.Interface(), gv.Field(i).Interface()) {
-			t.Errorf("ProfileFingerprintOf did NOT copy %s (HLSProfile=%v, ProfileFingerprint=%v) — byte-affecting projection omitted",
+			t.Errorf("ProfileFingerprintOf did NOT copy %s (HLSProfile=%v, ProfileFingerprint=%v) - byte-affecting projection omitted",
 				name, srcF.Interface(), gv.Field(i).Interface())
 		}
 	}

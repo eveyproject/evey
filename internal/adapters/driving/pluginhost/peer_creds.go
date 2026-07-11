@@ -11,7 +11,7 @@ import (
 
 // PeerCredsAuthInfo carries the kernel-validated UID/GID/PID of the peer
 // process connecting on a Unix domain socket. The PID is the trust anchor
-// used to authenticate which plugin opened the connection — it cannot be
+// used to authenticate which plugin opened the connection - it cannot be
 // spoofed in user space because SO_PEERCRED is filled in by the kernel
 // at connect() time.
 type PeerCredsAuthInfo struct {
@@ -24,7 +24,7 @@ type PeerCredsAuthInfo struct {
 func (PeerCredsAuthInfo) AuthType() string { return "unix-peer-creds" }
 
 // peerCredsTransport is a server-side TransportCredentials that performs
-// no cryptographic handshake — it simply reads SO_PEERCRED from the
+// no cryptographic handshake - it simply reads SO_PEERCRED from the
 // incoming Unix socket and exposes it as AuthInfo on the connection. The
 // underlying byte stream stays plain HTTP/2, so plugin clients connect
 // with regular insecure credentials.

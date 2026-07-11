@@ -12,12 +12,12 @@ import (
 
 // RefreshFileState re-stamps ONLY the change-detection columns (file_size,
 // mod_time, and the size-mtime-derived file_fingerprint) on the media_files row
-// at path, leaving every probed field — streams, keyframes_ms, duration_ms,
-// container_format — untouched. It exists for the reindex path: rewriting a
+// at path, leaving every probed field - streams, keyframes_ms, duration_ms,
+// container_format - untouched. It exists for the reindex path: rewriting a
 // container in place (to add a Cues seek index) gives the file new bytes but
 // identical logical content, so the next library scan must treat it as
 // UNCHANGED (matching size+mtime) rather than re-probe it and DELETE+re-INSERT
-// its streams — which drops the keyframe index and forces a transcode window
+// its streams - which drops the keyframe index and forces a transcode window
 // (copy rung needs keyframes_ms) until the backfill worker catches up. The
 // fingerprint format mirrors the scanner (filesystem/scanner.go: "<size>-<mtimeNs>")
 // so change-detection agrees. No-op when no row matches the path.

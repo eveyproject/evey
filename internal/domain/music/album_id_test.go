@@ -34,7 +34,7 @@ func TestAlbumID_ShortAndStable(t *testing.T) {
 
 func TestAlbumID_DistinguishesHomonymFolders(t *testing.T) {
 	// Two different folders that share the same (artist, album) display tags
-	// must still get distinct ids — the whole point of folder-based identity.
+	// must still get distinct ids - the whole point of folder-based identity.
 	a := AlbumID("/musicA/Various - Greatest Hits")
 	b := AlbumID("/musicB/Various - Greatest Hits")
 	if a == b {

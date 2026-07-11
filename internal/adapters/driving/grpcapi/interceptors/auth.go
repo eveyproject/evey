@@ -98,7 +98,7 @@ func (i *AuthInterceptor) Stream() grpc.StreamServerInterceptor {
 // public API. It is DENY-BY-DEFAULT: a plugin token may only reach a method
 // explicitly listed in PluginMethodScopes, and only if it carries the required
 // scope. Admin methods are rejected up front as an explicit floor (defense in
-// depth — they must never be in the allowlist either). A plugin token is
+// depth - they must never be in the allowlist either). A plugin token is
 // mintable by any authenticated user, so this is the boundary that makes a
 // granted plugin permission actually enforced rather than cosmetic.
 func (i *AuthInterceptor) authorizePluginToken(ctx context.Context, claims *authpkg.PluginClaims, method string) error {
@@ -127,7 +127,7 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 
 	isAPIKey := IsAPIKeyAuth(ctx)
 
-	// Block API keys from internal methods (infra/ops/auth — browser-only)
+	// Block API keys from internal methods (infra/ops/auth - browser-only)
 	if isAPIKey && authpkg.InternalMethods[method] {
 		slog.Warn("api key blocked on internal method", slog.String("method", method), slog.String("user", claims.UserID))
 		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.internal_method")

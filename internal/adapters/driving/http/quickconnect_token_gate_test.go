@@ -1,6 +1,6 @@
 package httpapi
 
-// Tests for qcCheckerAdapter.checkAndGenerateTokens — the QuickConnect device-
+// Tests for qcCheckerAdapter.checkAndGenerateTokens - the QuickConnect device-
 // pairing token gate. The security-critical invariant is that a non-Authorized
 // or UserID-nil record MUST NOT cause GenerateTokensForUser to be called.
 
@@ -226,7 +226,7 @@ func TestQCGate_Authorized_NonPersistent_MintsTokens(t *testing.T) {
 	assert.NotEmpty(t, access)
 	assert.NotEmpty(t, refresh)
 
-	// GenerateTokensForUser was called — user repo was accessed.
+	// GenerateTokensForUser was called - user repo was accessed.
 	assert.Positive(t, f.userRepo.getByIDCalls.Load())
 
 	// Exactly one refresh token stored.
@@ -276,7 +276,7 @@ func TestQCGate_GenerateTokensError_Propagated(t *testing.T) {
 
 	uid := domainshared.UserID("usr-eve")
 	seedQCRecord(t, f.qcRepo, "code-fail", domainuser.Authorized, &uid)
-	// Seed the user as disabled — CommandService.GenerateTokensForUser returns
+	// Seed the user as disabled - CommandService.GenerateTokensForUser returns
 	// ErrUserDisabled for disabled users, which is then propagated.
 	u := &domainuser.User{
 		ID:       uid,

@@ -267,7 +267,7 @@ func TestUpdateUser_AdminCanSetCaps(t *testing.T) {
 }
 
 // An admin changing another user's password via UpdateUser must actually
-// persist the new hash — the field used to be silently ignored, so the user
+// persist the new hash - the field used to be silently ignored, so the user
 // could never log in with the new password.
 func TestUpdateUser_AdminChangesPassword(t *testing.T) {
 	env := setupUserHandler()
@@ -429,7 +429,7 @@ func TestQuickConnect_Flow(t *testing.T) {
 		t.Fatal("expected non-empty code")
 	}
 
-	// Check before authorize — should not be authorized
+	// Check before authorize - should not be authorized
 	checkResp, err := env.handler.CheckQuickConnect(context.Background(), &eveyv1.CheckQuickConnectRequest{Code: code})
 	if err != nil {
 		t.Fatalf("CheckQuickConnect: %v", err)
@@ -445,7 +445,7 @@ func TestQuickConnect_Flow(t *testing.T) {
 		t.Fatalf("AuthorizeQuickConnect: %v", err)
 	}
 
-	// Check after authorize — should be authorized
+	// Check after authorize - should be authorized
 	checkResp, err = env.handler.CheckQuickConnect(context.Background(), &eveyv1.CheckQuickConnectRequest{Code: code})
 	if err != nil {
 		t.Fatalf("CheckQuickConnect after authorize: %v", err)

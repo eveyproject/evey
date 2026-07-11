@@ -114,12 +114,12 @@ func TestStreamTokenStore_RenewsTTL(t *testing.T) {
 
 	token := store.Create("user-1", "profile-1", "media-1")
 
-	// Access at 30ms — should renew to 80ms
+	// Access at 30ms - should renew to 80ms
 	fakeNow = fakeNow.Add(30 * time.Millisecond)
 	_, ok := store.Validate(token, "media-1")
 	require.True(t, ok)
 
-	// At 60ms (past original 50ms) — should still be valid due to renewal
+	// At 60ms (past original 50ms) - should still be valid due to renewal
 	fakeNow = fakeNow.Add(30 * time.Millisecond)
 	_, ok = store.Validate(token, "media-1")
 	assert.True(t, ok, "token should be renewed after access")
@@ -127,7 +127,7 @@ func TestStreamTokenStore_RenewsTTL(t *testing.T) {
 
 // TestStreamTokenStore_RenewsBySlideTTLNotStoreDefault proves the sliding
 // window uses the token's own TTL (e.g. the 12h cast window), not the store's
-// default TTL — a regression here would silently downgrade cast tokens to the
+// default TTL - a regression here would silently downgrade cast tokens to the
 // short default on their first segment fetch.
 func TestStreamTokenStore_RenewsBySlideTTLNotStoreDefault(t *testing.T) {
 	fakeNow := time.Now()
@@ -145,7 +145,7 @@ func TestStreamTokenStore_RenewsBySlideTTLNotStoreDefault(t *testing.T) {
 	// The renewed ExpiresAt must be fakeNow + 12h, not fakeNow + 5m.
 	assert.Equal(t, fakeNow.Add(media.CastStreamTokenTTL), st.ExpiresAt)
 
-	// Advance another 11h (past 5m*2 but within another 12h window) — still valid.
+	// Advance another 11h (past 5m*2 but within another 12h window) - still valid.
 	fakeNow = fakeNow.Add(11 * time.Hour)
 	_, ok = store.Validate(token, "media-1")
 	assert.True(t, ok, "cast token slides by its own 12h TTL, not the 5m store default")
@@ -201,7 +201,7 @@ func TestStreamTokenStore_UniqueTokens(t *testing.T) {
 	assert.NotEqual(t, t1, t2, "each call should generate a unique token")
 }
 
-// Validate(token, "") must accept any media — middleware path that has no
+// Validate(token, "") must accept any media - middleware path that has no
 // mediaItemID context. Anti-regression for the `mediaItemID != ""` short-
 // circuit: a mutation to `==` would reject every middleware lookup.
 func TestStreamTokenStore_ValidateEmptyMediaAccepts(t *testing.T) {

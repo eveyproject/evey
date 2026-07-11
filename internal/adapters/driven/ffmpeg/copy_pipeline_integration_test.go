@@ -2,13 +2,13 @@ package ffmpeg
 
 // Copy-rung INTEGRATION test: the real SoftwareProducer + real ffmpeg/ffprobe
 // against a synthetic B-frame MKV, asserting the served bytes match the
-// keyframe plan — the end-to-end property no unit test can capture because it
+// keyframe plan - the end-to-end property no unit test can capture because it
 // depends on the actual ffmpeg binary's behavior (session-relative split
 // grids, cue/DTS-heuristic seek landings, accurate-seek audio trimming: each
 // shipped a desync in 2026-06 that the unit suites couldn't see).
 //
 // OPT-IN by design: it must run against the BUNDLED ffmpeg build
-// (jellyfin-ffmpeg), not whatever a CI distro ships — a divergent binary
+// (jellyfin-ffmpeg), not whatever a CI distro ships - a divergent binary
 // makes both false reds and false greens. Run it via `make transcode-itest`
 // (executes inside the evey-server container) or:
 //
@@ -59,7 +59,7 @@ func (s itestItems) GetByID(context.Context, shared.MediaItemID) (*domainlibrary
 
 func TestCopyPipelineIntegration(t *testing.T) {
 	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
-		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest` — needs the bundled ffmpeg)")
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest` - needs the bundled ffmpeg)")
 	}
 	for _, bin := range []string{"ffmpeg", "ffprobe"} {
 		if _, err := exec.LookPath(bin); err != nil {
@@ -72,9 +72,9 @@ func TestCopyPipelineIntegration(t *testing.T) {
 
 	// --- Source: 300 s H.264 WITH B-frames (-bf 3 arms the ffmpeg CLI's
 	// ~130 ms DTS seek heuristic) and irregular keyframes (10 s / 3 s
-	// alternation — the long-GOP pattern that broke the n×hls_time grid).
+	// alternation - the long-GOP pattern that broke the n×hls_time grid).
 	// Audio = seeded pink noise: APERIODIC, so the content correlation has a
-	// single sharp peak (a sine correlates at every period — useless), AC-3
+	// single sharp peak (a sine correlates at every period - useless), AC-3
 	// so the decode + AAC re-encode chain (the trim-labeling victim) runs.
 	// 300 s keeps the deep-seek target beyond the cold session's burst+pacing
 	// reach at request time, forcing a REAL seek session (landing probe and
@@ -163,7 +163,7 @@ func TestCopyPipelineIntegration(t *testing.T) {
 	deep := (len(plan) * 3) / 4
 	segDeep := fetch(deep)
 	if n := producer.ActiveSessionCount(); n < 2 {
-		t.Fatalf("deep seek did not spawn a seek session (%d active) — the landing-probe path was NOT exercised; deepen the target or shorten the burst", n)
+		t.Fatalf("deep seek did not spawn a seek session (%d active) - the landing-probe path was NOT exercised; deepen the target or shorten the burst", n)
 	}
 
 	// --- Timeline assertions: first tfdt of EVERY track == plan position.
@@ -202,7 +202,7 @@ func TestCopyPipelineIntegration(t *testing.T) {
 // shape, scaled down) is served through the copy producer; the test proves
 // what no unit test can:
 //
-//   - the fMP4 sample entry is 'hvc1' (-tag:v hvc1 through the REAL hlsenc —
+//   - the fMP4 sample entry is 'hvc1' (-tag:v hvc1 through the REAL hlsenc -
 //     ffmpeg's default is hev1, which Safari refuses), on the COLD init and
 //     after a deep SEEK session rewrites the shared init;
 //   - the served video packets are BIT-IDENTICAL to the source (true copy:
@@ -237,7 +237,7 @@ func TestHEVCCopyIntegration(t *testing.T) {
 		"-t", fmt.Sprint(srcDurSec),
 		"-c:v", "libx265", "-preset", "ultrafast",
 		// Colour goes into the x265 VUI (colorprim/transfer/colormatrix), like
-		// every real HDR10 rip — bitstream-level signalling is what survives a
+		// every real HDR10 rip - bitstream-level signalling is what survives a
 		// -c:v copy into fMP4 (container-level -color_trc alone does NOT: the
 		// mux drops it and the served stream reads "unknown").
 		"-x265-params", "bframes=3:scenecut=0:keyint=9999:no-open-gop=1:log-level=error:colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
@@ -313,7 +313,7 @@ func TestHEVCCopyIntegration(t *testing.T) {
 	deep := (len(plan) * 3) / 4
 	segDeep := fetch(deep)
 	if n := producer.ActiveSessionCount(); n < 2 {
-		t.Fatalf("deep seek did not spawn a seek session (%d active) — the hvc1 tag on the SEEK branch was not exercised", n)
+		t.Fatalf("deep seek did not spawn a seek session (%d active) - the hvc1 tag on the SEEK branch was not exercised", n)
 	}
 
 	// The shared init was last written by the SEEK session (CopyOnSeek branch):
@@ -341,7 +341,7 @@ func TestHEVCCopyIntegration(t *testing.T) {
 	got := strings.TrimSpace(string(probeOut))
 	for _, want := range []string{"hevc", "hvc1", "yuv420p10le", "smpte2084"} {
 		if !strings.Contains(got, want) {
-			t.Errorf("served stream missing %q (got %q) — codec/tag/10-bit/PQ must survive the copy mux", want, got)
+			t.Errorf("served stream missing %q (got %q) - codec/tag/10-bit/PQ must survive the copy mux", want, got)
 		}
 	}
 
@@ -363,7 +363,7 @@ func TestHEVCCopyIntegration(t *testing.T) {
 		}
 	}
 	if miss > 0 {
-		t.Fatalf("%d/%d served video packets are NOT source bytes — the HEVC rung re-encoded or repacked", miss, len(served))
+		t.Fatalf("%d/%d served video packets are NOT source bytes - the HEVC rung re-encoded or repacked", miss, len(served))
 	}
 
 	// Same plan-timeline contract as the h264 test, on the hevc demux path.
@@ -388,7 +388,7 @@ func TestHEVCCopyIntegration(t *testing.T) {
 }
 
 // TestAV1VP9CopyIntegration: phase B4's AV1/VP9 copy rungs through the real
-// hlsenc. Narrower than the hevc test (no sample-entry tag override needed —
+// hlsenc. Narrower than the hevc test (no sample-entry tag override needed -
 // movenc's av01/vp09 defaults are the right ones), it proves the NEW risk
 // surface: the codec muxes into fMP4 at all, the served packets are
 // bit-identical to the source, and the cold timeline matches the plan on the
@@ -511,7 +511,7 @@ func runRawCopyIntegration(t *testing.T, codec string, encArgs []string) {
 	}
 	for _, h := range served {
 		if !sourceSet[h] {
-			t.Fatalf("served %s packets are NOT source bytes — re-encoded or repacked", codec)
+			t.Fatalf("served %s packets are NOT source bytes - re-encoded or repacked", codec)
 		}
 	}
 
@@ -699,7 +699,7 @@ func decodeAudio(t *testing.T, ctx context.Context, path string, startSec, durSe
 
 // TestAudioCopyIntegration: with AudioCopy set (the decision the handler makes
 // for a client that decodes the source codec), the served audio packets must
-// be BIT-IDENTICAL to the source — `ffprobe -show_packets` data hashes prove a
+// be BIT-IDENTICAL to the source - `ffprobe -show_packets` data hashes prove a
 // true passthrough, where a codec-name assert alone would also pass for a
 // re-encode. Covers AAC (phase A0) and E-AC-3 (phase A2: Safari/TV-class
 // passthrough + eac3-in-fMP4 muxing through the real hlsenc).
@@ -800,7 +800,7 @@ func runAudioCopyIntegration(t *testing.T, encoder, probed string) {
 		t.Fatal(err)
 	}
 	// The served clip must carry the SOURCE codec (also proves the fMP4 muxer
-	// accepts it — the eac3 case exercises hlsenc's E-AC-3-in-fMP4 path).
+	// accepts it - the eac3 case exercises hlsenc's E-AC-3-in-fMP4 path).
 	codecOut, probeErr := exec.CommandContext(ctx, "ffprobe", "-v", "error",
 		"-select_streams", "a:0", "-show_entries", "stream=codec_name",
 		"-of", "csv=p=0", clip).Output()
@@ -829,7 +829,7 @@ func runAudioCopyIntegration(t *testing.T, encoder, probed string) {
 	// Passthrough ⇒ every served packet exists verbatim in the source. A
 	// re-encode produces entirely different packet bytes (≈100% misses).
 	if miss > 0 {
-		t.Fatalf("%d/%d served audio packets are NOT source bytes — audio was re-encoded despite AudioCopy", miss, len(served))
+		t.Fatalf("%d/%d served audio packets are NOT source bytes - audio was re-encoded despite AudioCopy", miss, len(served))
 	}
 	_ = plan
 }
@@ -859,7 +859,7 @@ func audioPacketHashes(t *testing.T, ctx context.Context, path string) []string 
 }
 
 // TestMultichannelAudioIntegration: a 5.1 source that must transcode (the
-// decision's channel target = 6) is served as AAC 5.1 — not the historical
+// decision's channel target = 6) is served as AAC 5.1 - not the historical
 // stereo downmix. Channel COUNT is asserted on the served segment, and channel
 // CONTENT via per-channel sines: FL carries 300 Hz and FR 500 Hz in the
 // source; a downmix-upmix would bleed them together. Guards phase A1.
@@ -987,6 +987,6 @@ func TestMultichannelAudioIntegration(t *testing.T) {
 	// (|Σ e^{-jωn}·sin(ωn)|² = (N/2)², energy = N/2 → 0.5), so ≥0.4 means
 	// "FL is essentially the 300 Hz tone" and ≤0.1 at 500 Hz means no FR bleed.
 	if at300 < 0.4 || at500 > 0.1 {
-		t.Fatalf("FL channel content wrong (proj 300Hz=%.2f, 500Hz=%.2f) — channels were mixed (downmix/upmix regression)", at300, at500)
+		t.Fatalf("FL channel content wrong (proj 300Hz=%.2f, 500Hz=%.2f) - channels were mixed (downmix/upmix regression)", at300, at500)
 	}
 }

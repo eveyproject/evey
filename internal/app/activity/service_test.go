@@ -496,7 +496,7 @@ func TestStartRetentionPurge_RecoversPanicInPass(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("retention purge pass never ran")
 	}
-	// Grace for the deferred recover to unwind — an unrecovered panic would have
+	// Grace for the deferred recover to unwind - an unrecovered panic would have
 	// aborted the process before this returns.
 	time.Sleep(100 * time.Millisecond)
 }

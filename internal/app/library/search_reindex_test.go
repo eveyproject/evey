@@ -139,7 +139,7 @@ func TestReconcileSearchIndex_DriftRebuilds(t *testing.T) {
 	seedItem(repo, "m3", "libB")
 	search := libfakes.NewFakeSearchIndex()
 
-	// Engine holds 1 doc, DB holds 3 — drift (writes dropped during an outage)
+	// Engine holds 1 doc, DB holds 3 - drift (writes dropped during an outage)
 	// → full rebuild.
 	n, err := applibrary.ReconcileSearchIndex(context.Background(), repo, search,
 		fakeDocCounter{count: 1}, nil)

@@ -14,7 +14,7 @@ import (
 //
 // Scope: only the base MetadataProvider surface gets retried. Capability
 // calls (translations, season/episode details) are reached via Unwrap
-// and bypass retry — acceptable because they're one-shot per item and
+// and bypass retry - acceptable because they're one-shot per item and
 // the scan hot path is Search/GetByProviderID.
 type RetryProvider struct {
 	inner       domainmetadata.MetadataProvider
@@ -31,7 +31,7 @@ func NewRetryProvider(inner domainmetadata.MetadataProvider, maxAttempts int, ba
 	return &RetryProvider{inner: inner, maxAttempts: maxAttempts, baseDelay: baseDelay}
 }
 
-func (r *RetryProvider) Name() string                        { return r.inner.Name() }
+func (r *RetryProvider) Name() string                            { return r.inner.Name() }
 func (r *RetryProvider) Unwrap() domainmetadata.MetadataProvider { return r.inner }
 
 func (r *RetryProvider) Search(ctx context.Context, query string, year *int, mediaType string) ([]domainmetadata.MetadataResult, error) {
@@ -86,7 +86,7 @@ func (r *RetryProvider) GetByProviderID(ctx context.Context, providerID, mediaTy
 
 // isRetryable treats context cancellation/deadline as permanent. Other
 // errors are retried because providers surface empty results (not
-// errors) for legitimate "not found" cases — only plumbing failures
+// errors) for legitimate "not found" cases - only plumbing failures
 // (network, 5xx) bubble up as errors here.
 func isRetryable(ctx context.Context, err error) bool {
 	if err == nil {

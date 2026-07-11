@@ -69,7 +69,7 @@ func TestListAdminNotifications_ReturnsAdminOnlyNotifications(t *testing.T) {
 		ID: "n-backup", ProfileID: "profile-admin", Type: notification.TypeBackupFailed,
 		Title: "Backup failed", Message: "disk full", CreatedAt: now,
 	})
-	// Personal notification — must be filtered out.
+	// Personal notification - must be filtered out.
 	_ = repo.Create(context.Background(), &notification.Notification{
 		ID: "n-movie", ProfileID: "profile-admin", Type: notification.TypeNewMovie,
 		Title: "New Movie", Message: "msg", CreatedAt: now,

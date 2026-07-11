@@ -88,7 +88,7 @@ func TestEffectiveResourceLimits_NoRunner(t *testing.T) {
 
 	got := h.effectiveResourceLimits(context.Background())
 
-	// No stored overrides — must equal the defaults.
+	// No stored overrides - must equal the defaults.
 	if got.MemoryMb != 128 {
 		t.Errorf("MemoryMb = %d, want 128", got.MemoryMb)
 	}

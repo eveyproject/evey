@@ -207,7 +207,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
 		default:
 			// Validation already happened above via NewUser; anything left is a
-			// hashing/DB failure — don't mislabel it as PermissionDenied.
+			// hashing/DB failure - don't mislabel it as PermissionDenied.
 			return nil, internalError("create user", err)
 		}
 	}
@@ -361,7 +361,7 @@ func (h *userHandler) ImpersonateUser(ctx context.Context, req *eveyv1.Impersona
 			return nil, internalError("impersonate user", err)
 		}
 	}
-	// Trace WHO acted as WHOM in the admin audit log — impersonation is god-mode
+	// Trace WHO acted as WHOM in the admin audit log - impersonation is god-mode
 	// with multiple admins, so it must never be silent.
 	h.audit(ctx, claims.UserID, "impersonate_user", "user", &req.UserId, map[string]any{
 		"target_user_id":    req.UserId,
@@ -658,7 +658,7 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.UpdateProfile: %w", err)
 	}
-	// Always load the existing profile — we patch non-nil fields into it so
+	// Always load the existing profile - we patch non-nil fields into it so
 	// unset columns (audio/subtitle langs, parental MaxAge/BlockedTags/Enabled,
 	// is_default, …) survive. This also populates UserID for the invariant
 	// check in UpdateProfile.

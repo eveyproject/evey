@@ -4,7 +4,7 @@ package mkvgo
 // mp4.PlanHLS) against a synthetic H.264 + AAC MKV produced by the bundled
 // ffmpeg, asserting the plan serves a coherent HLS + DASH presentation with the
 // URL prefix applied. This is the end-to-end proof that the zero-storage copy
-// rung actually packages a real file — the unit tests only cover the handler
+// rung actually packages a real file - the unit tests only cover the handler
 // routing against a fake packager.
 //
 // OPT-IN (needs a real ffmpeg to synthesize a Cues-indexed source):
@@ -123,7 +123,7 @@ func TestOnDemandPackagerIntegration(t *testing.T) {
 	// manifest is emitted (AES-128 is HLS-only).
 	encPlan, err := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{
 		SegmentMs: 6000, URLPrefix: "od_",
-		AESKey:    []byte("0123456789abcdef"), AESKeyURI: "key",
+		AESKey: []byte("0123456789abcdef"), AESKeyURI: "key",
 	})
 	if err != nil {
 		t.Fatalf("encrypted Plan: %v", err)

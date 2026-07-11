@@ -34,11 +34,11 @@ func TestQuickConnectStatusConstants(t *testing.T) {
 func TestQuickConnectStatus_IsValid(t *testing.T) {
 	t.Parallel()
 	cases := map[user.QuickConnectStatus]bool{
-		user.Pending:                  true,
-		user.Authorized:               true,
-		user.Expired:                  true,
-		user.QuickConnectStatus(""):   false,
-		"garbage":                     false,
+		user.Pending:                true,
+		user.Authorized:             true,
+		user.Expired:                true,
+		user.QuickConnectStatus(""): false,
+		"garbage":                   false,
 	}
 	for s, want := range cases {
 		if s.IsValid() != want {

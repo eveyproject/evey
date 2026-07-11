@@ -127,7 +127,7 @@ func subtitleGapFallback(item *domainlibrary.MediaItem) (startMs, endMs int64, f
 // detectStudioLogo attempts to match the first ~90 seconds of trickplay frames
 // against known studio logo fingerprints. Returns nil when no manifest is available,
 // when no patterns match, or when the catalog has no fingerprints yet.
-// Does NOT wait for a manifest — skips immediately if not present.
+// Does NOT wait for a manifest - skips immediately if not present.
 func (s *IntroDetectionService) detectStudioLogo(ctx context.Context, item *domainlibrary.MediaItem) *domainlibrary.MediaSegment {
 	manifest, err := s.trickplayRepo.GetByMediaItemID(ctx, item.ID)
 	if err != nil {

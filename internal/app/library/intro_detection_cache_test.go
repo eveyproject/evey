@@ -14,7 +14,7 @@ import (
 )
 
 // hashesDetector returns the configured tileHashes from ExtractTileHashes
-// for spritePaths ending in trickplay_001.webp, and an error otherwise — so
+// for spritePaths ending in trickplay_001.webp, and an error otherwise - so
 // extractEpisodeHashes' loop terminates after sprite 1 (mimicking
 // "subsequent sprites don't exist on disk"). When the cache short-circuits
 // the second logical call, no sprite read happens at all and extractCalls

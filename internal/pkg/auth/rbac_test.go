@@ -42,25 +42,25 @@ func TestMethodPermissions_AllValuesNonEmpty(t *testing.T) {
 // Removing or renaming the entry (= RBAC bypass) fails this test.
 func TestMethodPermissions_KnownEndpoints(t *testing.T) {
 	expected := map[string]string{
-		"/evey.v1.LibraryService/CreateLibrary":      auth.PermLibraryCreate,
-		"/evey.v1.LibraryService/DeleteLibrary":      auth.PermLibraryDelete,
-		"/evey.v1.LibraryService/ScanLibrary":        auth.PermLibraryScan,
-		"/evey.v1.LibraryService/GetLibrary":         auth.PermLibraryRead,
-		"/evey.v1.LibraryService/ListLibraries":      auth.PermLibraryRead,
-		"/evey.v1.LibraryService/GetMediaItem":       auth.PermMediaRead,
-		"/evey.v1.LibraryService/SearchMedia":        auth.PermMediaRead,
-		"/evey.v1.UserService/CreateUser":            auth.PermUserCreate,
-		"/evey.v1.UserService/DeleteUser":            auth.PermUserDelete,
-		"/evey.v1.UserService/DisableUser":           auth.PermUserDisable,
-		"/evey.v1.UserService/UpdateUser":            auth.PermUserUpdate,
-		"/evey.v1.UserService/ListUsers":             auth.PermUserRead,
-		"/evey.v1.PlaybackService/StartStream":       auth.PermPlaybackStart,
-		"/evey.v1.PlaybackService/StopStream":        auth.PermPlaybackStop,
-		"/evey.v1.TranscodingService/StartTranscode": auth.PermTranscodeStart,
-		"/evey.v1.TranscodingService/StopTranscode":  auth.PermTranscodeStop,
-		"/evey.v1.AdminPluginService/InstallPlugin":  auth.PermPluginInstall,
+		"/evey.v1.LibraryService/CreateLibrary":       auth.PermLibraryCreate,
+		"/evey.v1.LibraryService/DeleteLibrary":       auth.PermLibraryDelete,
+		"/evey.v1.LibraryService/ScanLibrary":         auth.PermLibraryScan,
+		"/evey.v1.LibraryService/GetLibrary":          auth.PermLibraryRead,
+		"/evey.v1.LibraryService/ListLibraries":       auth.PermLibraryRead,
+		"/evey.v1.LibraryService/GetMediaItem":        auth.PermMediaRead,
+		"/evey.v1.LibraryService/SearchMedia":         auth.PermMediaRead,
+		"/evey.v1.UserService/CreateUser":             auth.PermUserCreate,
+		"/evey.v1.UserService/DeleteUser":             auth.PermUserDelete,
+		"/evey.v1.UserService/DisableUser":            auth.PermUserDisable,
+		"/evey.v1.UserService/UpdateUser":             auth.PermUserUpdate,
+		"/evey.v1.UserService/ListUsers":              auth.PermUserRead,
+		"/evey.v1.PlaybackService/StartStream":        auth.PermPlaybackStart,
+		"/evey.v1.PlaybackService/StopStream":         auth.PermPlaybackStop,
+		"/evey.v1.TranscodingService/StartTranscode":  auth.PermTranscodeStart,
+		"/evey.v1.TranscodingService/StopTranscode":   auth.PermTranscodeStop,
+		"/evey.v1.AdminPluginService/InstallPlugin":   auth.PermPluginInstall,
 		"/evey.v1.AdminPluginService/UninstallPlugin": auth.PermPluginManage,
-		"/evey.v1.ActivityService/GetAuditLog":       auth.PermAuditRead,
+		"/evey.v1.ActivityService/GetAuditLog":        auth.PermAuditRead,
 	}
 	for method, perm := range expected {
 		got, ok := auth.MethodPermissions[method]
@@ -116,7 +116,7 @@ func TestInternalMethods_BlockListForAPIKeys(t *testing.T) {
 	}
 	for _, m := range mustBeInternal {
 		if !auth.InternalMethods[m] {
-			t.Errorf("InternalMethods missing %q — API key would be allowed (privilege escalation risk)", m)
+			t.Errorf("InternalMethods missing %q - API key would be allowed (privilege escalation risk)", m)
 		}
 	}
 }

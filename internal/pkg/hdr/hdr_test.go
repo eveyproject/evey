@@ -92,7 +92,7 @@ func TestDetectHDR_BT2020_8bit_NotHDR(t *testing.T) {
 func TestDetectHDR_BT2020_ProfileMain10_NoBitDepth(t *testing.T) {
 	// Real-world 2160p HDR: bt2020 + HEVC "Main 10" profile, but ffprobe left
 	// bits_per_raw_sample empty (BitDepth nil). The profile is the reliable
-	// 10-bit signal here — must still be detected as HDR.
+	// 10-bit signal here - must still be detected as HDR.
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "hevc", ColorSpace: new("bt2020nc"), Profile: "Main 10"},
 	}
@@ -204,7 +204,7 @@ func TestBuildToneMapFilter_Tonemapx_HDR10(t *testing.T) {
 	filter := BuildToneMapFilter(info, opts)
 
 	// The fast SIMD path: tonemapx (bt2390 EETF), scale-before-tonemap at delivery
-	// resolution, PQ setparams, yuv420p out — and NONE of the slow zscale chain.
+	// resolution, PQ setparams, yuv420p out - and NONE of the slow zscale chain.
 	for _, want := range []string{
 		"setparams=color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc",
 		"scale=1920:-2",
@@ -276,8 +276,8 @@ func TestDetectHDR_TransferSDR(t *testing.T) {
 	}
 }
 
-// DoVi profile 5 (IPTC2 base layer) must always be reported dolby_vision —
-// even though it also carries a PQ transfer — so the playback decision
+// DoVi profile 5 (IPTC2 base layer) must always be reported dolby_vision -
+// even though it also carries a PQ transfer - so the playback decision
 // transcodes it (raw-serving renders green/purple on non-DoVi pipelines).
 func TestDetectHDR_DoViProfile5_AlwaysDolbyVision(t *testing.T) {
 	streams := []*library.MediaStream{

@@ -95,7 +95,7 @@ func (f *fakeRemoteAccessStore) Set(_ context.Context, key, value string) error 
 }
 
 // =====================================
-// media_handler.go — stream, artwork, chapters, playbackInfo, selectArtwork
+// media_handler.go - stream, artwork, chapters, playbackInfo, selectArtwork
 // =====================================
 
 func TestMediaStream_NoAuth_401(t *testing.T) {
@@ -938,7 +938,7 @@ func TestPlaybackSettings_Put_NonAdmin_403(t *testing.T) {
 }
 
 // =====================================
-// auth_handler.go — parental routes, push unregister, listDevices/deleteDevice happy path
+// auth_handler.go - parental routes, push unregister, listDevices/deleteDevice happy path
 // =====================================
 
 func newParentalMux(t *testing.T) (*http.ServeMux, *auth.JWTGenerator) {
@@ -1065,7 +1065,7 @@ func TestParentalVerifyPIN_IDOR_403(t *testing.T) {
 }
 
 // =====================================
-// helpers.go — middleware tests
+// helpers.go - middleware tests
 // =====================================
 
 func TestApiCacheMiddleware_SetsNoStore(t *testing.T) {
@@ -1095,7 +1095,7 @@ func TestApiCacheMiddleware_LibrariesCacheHeader(t *testing.T) {
 }
 
 // =====================================
-// browse_handler.go — listDir coverage
+// browse_handler.go - listDir coverage
 // =====================================
 
 func TestBrowseDirs_ValidMediaPath_OK(t *testing.T) {
@@ -1111,7 +1111,7 @@ func TestBrowseDirs_ValidMediaPath_OK(t *testing.T) {
 }
 
 // =====================================
-// helpers.go — safeJoin, sanitizeFilename, jsonEncodeResponse, setCORSHeaders, serveFileWithCache
+// helpers.go - safeJoin, sanitizeFilename, jsonEncodeResponse, setCORSHeaders, serveFileWithCache
 // =====================================
 
 func TestSafeJoin_PathTraversal(t *testing.T) {
@@ -1264,7 +1264,7 @@ func TestNewServerConfigStore(t *testing.T) {
 }
 
 // =====================================
-// libraryStatsHandler — extra coverage
+// libraryStatsHandler - extra coverage
 // =====================================
 
 func TestLibraryStatsHandler_InvalidToken_401(t *testing.T) {
@@ -1312,7 +1312,7 @@ func TestLibraryStatsHandler_QueryToken(t *testing.T) {
 }
 
 // =====================================
-// helpers.go — exported middleware functions, tokenRedactMiddleware, securityHeaders
+// helpers.go - exported middleware functions, tokenRedactMiddleware, securityHeaders
 // =====================================
 
 func TestTokenRedactMiddleware(t *testing.T) {
@@ -1367,7 +1367,7 @@ func TestSecurityHeadersMiddleware_Coverage(t *testing.T) {
 }
 
 // =====================================
-// media_handler.go — subtitleHandler auth tests
+// media_handler.go - subtitleHandler auth tests
 // =====================================
 
 func TestSubtitleHandler_NoAuth_401(t *testing.T) {
@@ -1468,7 +1468,7 @@ func TestSubtitleHandler_QueryToken(t *testing.T) {
 }
 
 // =====================================
-// server.go coverage — RegisterRoutes not feasible without many deps
+// server.go coverage - RegisterRoutes not feasible without many deps
 // but we can test the exported middleware wrappers
 // =====================================
 
@@ -1499,7 +1499,7 @@ func TestSecurityHeadersMiddleware_Exported(t *testing.T) {
 }
 
 // =====================================
-// media_handler.go — subtitleRoutes auth coverage
+// media_handler.go - subtitleRoutes auth coverage
 // =====================================
 
 func TestSubtitleRoutes_RequireAuth_NoToken_401(t *testing.T) {
@@ -1589,7 +1589,7 @@ func TestSubtitleRoutes_RequireMediaAccess_IDOR(t *testing.T) {
 }
 
 // =====================================
-// auth_handler.go — parental with PIN
+// auth_handler.go - parental with PIN
 // =====================================
 
 func TestParentalUpdateSettings_SetPIN_OK(t *testing.T) {
@@ -1606,7 +1606,7 @@ func TestParentalUpdateSettings_SetPIN_OK(t *testing.T) {
 	}
 }
 
-// Regression: first-time PIN set without the account password must fail —
+// Regression: first-time PIN set without the account password must fail -
 // otherwise a stolen JWT could lock the real owner out of their profile.
 func TestParentalUpdateSettings_SetPIN_NoPassword_Forbidden(t *testing.T) {
 	mux, gen := newParentalMux(t)

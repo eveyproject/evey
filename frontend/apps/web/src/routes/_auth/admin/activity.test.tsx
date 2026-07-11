@@ -71,7 +71,7 @@ describe("ActivityPage", () => {
   it("shows Play History by default with empty state", async () => {
     const ActivityPage = await getActivityPage();
     render(React.createElement(ActivityPage), { wrapper: createWrapper() });
-    // The infinite query resolves asynchronously — wait for the fetch to land.
+    // The infinite query resolves asynchronously - wait for the fetch to land.
     expect(await screen.findByText(/No play history/i)).toBeInTheDocument();
   });
 

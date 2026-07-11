@@ -83,7 +83,7 @@ func TestDispatchAudioPlaylist_ValidRequest_200(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "#EXTM3U")
 }
 
-// track index 1 is forwarded correctly — the playlist mentions audio_1_init.mp4
+// track index 1 is forwarded correctly - the playlist mentions audio_1_init.mp4
 // (not audio_0_init.mp4), proving the parsed index reaches audioServe.
 func TestDispatchAudioPlaylist_TrackIdx1_ForwardedCorrectly(t *testing.T) {
 	item, streams := testMediaItemWithAudioStreams()
@@ -107,7 +107,7 @@ func TestDispatchAudioPlaylist_LibraryAccessDenied_403(t *testing.T) {
 }
 
 // ----------------------------------------------------------------
-// dispatchAudioSegment — init variant
+// dispatchAudioSegment - init variant
 // ----------------------------------------------------------------
 
 // audio_T_init.mp4 with h.audio nil → 404.
@@ -133,7 +133,7 @@ func TestDispatchAudioSegment_Init_OrchestratorError_503(t *testing.T) {
 }
 
 // ----------------------------------------------------------------
-// dispatchAudioSegment — numbered segment variant
+// dispatchAudioSegment - numbered segment variant
 // ----------------------------------------------------------------
 
 // audio_T_NNN.m4s with h.audio nil → 404.
@@ -158,7 +158,7 @@ func TestDispatchAudioSegment_Seg_OrchestratorError_503(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
-// Parental check fires inside commonAuth before dispatch — dispatch path
+// Parental check fires inside commonAuth before dispatch - dispatch path
 // never runs when the item is restricted.
 func TestDispatchAudioSegment_ParentalBlocked_NotFound(t *testing.T) {
 	item, streams := testMediaItemWithAudioStreams()
@@ -170,7 +170,7 @@ func TestDispatchAudioSegment_ParentalBlocked_NotFound(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code) // parental block hides existence (404, not 403)
 }
 
-// Deep segment index (> 999) is parsed correctly — audioSegmentNameRE uses
+// Deep segment index (> 999) is parsed correctly - audioSegmentNameRE uses
 // \d+ (not \d{3}) so segment 1000 must not 404 on routing.
 func TestDispatchAudioSegment_DeepIndex_NotRoutedAs404(t *testing.T) {
 	item, streams := testMediaItemWithAudioStreams()
@@ -178,7 +178,7 @@ func TestDispatchAudioSegment_DeepIndex_NotRoutedAs404(t *testing.T) {
 	h := buildVODHandlerWithAudio(t, libSvc, allowAll(), testFakeParentalChecker{},
 		&fakeAudioEnsurer{err: errTest})
 
-	// audio_0_1000.m4s — index 1000 exceeds the 3-digit minimum.
+	// audio_0_1000.m4s - index 1000 exceeds the 3-digit minimum.
 	// If the RE or parse was broken it would fall through to the default 404.
 	// With the ensurer returning an error we expect 503, proving dispatch worked.
 	w := doAudioDispatchRequest(h, "m1", "audio_0_1000.m4s")

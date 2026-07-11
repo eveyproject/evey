@@ -20,7 +20,7 @@ export function canPlayHevc(): boolean {
   if (!byElement) return (hevcSupport = false);
   // The streaming path is hls.js → Media Source Extensions. Firefox on Windows
   // reports HEVC "probably" on the plain <video> element (via the OS decoder)
-  // while its MSE cannot decode HEVC — advertising hevc then makes the server
+  // while its MSE cannot decode HEVC - advertising hevc then makes the server
   // direct-play a stream MSE chokes on ("no decoder for video/mp4; codecs=hvc1").
   // Gate on isTypeSupported so we only claim HEVC the actual (MSE) path can do.
   // No MSE at all (native/progressive path) → keep the element result.

@@ -19,16 +19,16 @@ import (
 //
 // Lifecycle:
 //
-//  1. NewCalibrationService — wires the repo + runner; capability starts
+//  1. NewCalibrationService - wires the repo + runner; capability starts
 //     at SafeFallback() (720p software, no HW) so requests served BEFORE
 //     EnsureCalibrated finishes still work.
-//  2. EnsureCalibrated(ctx) — called once at boot. Reads the repo,
+//  2. EnsureCalibrated(ctx) - called once at boot. Reads the repo,
 //     re-bench if (a) nothing persisted yet, (b) CPU signature changed
 //     (container migrated), or (c) caller forced refresh via
 //     Recalibrate. Persists the result. Updates the in-memory snapshot.
-//  3. Current() — lock-free read of the latest capability, used by the
+//  3. Current() - lock-free read of the latest capability, used by the
 //     HLS-VOD handler on every request.
-//  4. Recalibrate(ctx) — admin endpoint trigger. Bypasses the cache,
+//  4. Recalibrate(ctx) - admin endpoint trigger. Bypasses the cache,
 //     reruns the benchmark, persists, updates the snapshot.
 //
 // Concurrency: Current/EnsureCalibrated/Recalibrate are safe to call
@@ -51,8 +51,8 @@ type CalibrationService struct {
 	// bypassing what the benchmark measured. 0 = use the calibrated value.
 	// Wired from EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT / _SOFTWARE_HDR_MAX_HEIGHT
 	// so an operator can empirically push a higher (HDR) rung on the real host
-	// when the calibrated cap — which applies a 1.2x realtime margin and may be
-	// decode-bound rather than output-resolution-bound — is more conservative
+	// when the calibrated cap - which applies a 1.2x realtime margin and may be
+	// decode-bound rather than output-resolution-bound - is more conservative
 	// than the host actually sustains. Read-only knob; the runtime throttle and
 	// the input pacing still protect a host that overshoots.
 	swMaxOverride    int
@@ -69,7 +69,7 @@ type CalibrationService struct {
 
 	// benchmarking is true for the duration of a benchmark run. Background work
 	// (intro detection) reads it via IsBenchmarking to SIGSTOP itself and leave the
-	// CPU/memory bandwidth to the calibration — a bench contended by a 4K decode
+	// CPU/memory bandwidth to the calibration - a bench contended by a 4K decode
 	// would under-measure the host's true ceiling.
 	benchmarking atomic.Bool
 
@@ -79,7 +79,7 @@ type CalibrationService struct {
 	// throughput, not the host ceiling, and would pin the cap a rung too low (the
 	// per-rung MEDIAN in the runner rejects a transient blip; this gate handles
 	// SUSTAINED load the median can't). nil (unwired / tests) disables the gate.
-	// First-boot calibration (EnsureCalibrated) is never gated — there are no
+	// First-boot calibration (EnsureCalibrated) is never gated - there are no
 	// streams at boot and the host needs a cap. Wired once at startup, read later,
 	// so no lock is needed (the wire→serve barrier establishes happens-before).
 	activeStreams func() int
@@ -90,7 +90,7 @@ type CalibrationService struct {
 	// computed from a pre-bench snapshot could store back over a fresh bench
 	// result (lost update). Always acquired LAST (inside demoteMu / benchInFlight,
 	// which are disjoint) so no lock cycle. The hot-path Current() read stays
-	// lock-free on the atomic pointer — this only guards the two rare writers.
+	// lock-free on the atomic pointer - this only guards the two rare writers.
 	currentMu sync.Mutex
 
 	// demoteMu serialises runtime capability demotions (level-2 safety net) so
@@ -178,7 +178,7 @@ func WithSoftwareAV1MaxOverride(h int) CalibrationOption {
 
 // SetSoftwareAV1MaxOverride updates the AV1 software ceiling override live (0
 // clears it, restoring the calibrated value). Applied by Current() on the next
-// request — no re-bench needed, the override just overlays the persisted cap.
+// request - no re-bench needed, the override just overlays the persisted cap.
 func (s *CalibrationService) SetSoftwareAV1MaxOverride(h int) {
 	if h < 0 {
 		h = 0
@@ -229,7 +229,7 @@ func (s *CalibrationService) preference() domaintranscoding.HWPreference {
 // takes effect immediately (no restart). The caller is responsible for
 // persisting the mode string (server_settings); this only drives the in-process
 // calibration. The mode is recorded synchronously (so HWMode() reflects it at
-// once) and the re-bench runs under benchInFlight — a concurrent recalibration
+// once) and the re-bench runs under benchInFlight - a concurrent recalibration
 // yields ErrBenchmarkBusy, but the mode stays set so the persisted intent still
 // wins on the next bench/restart.
 func (s *CalibrationService) SetHWMode(ctx context.Context, mode domaintranscoding.HWMode) error {
@@ -247,7 +247,7 @@ func (s *CalibrationService) SetHWMode(ctx context.Context, mode domaintranscodi
 	return s.Recalibrate(ctx)
 }
 
-// Current returns the in-memory capability — never nil, always
+// Current returns the in-memory capability - never nil, always
 // includes at least the safe fallback. Read on every HLS-VOD request
 // so MUST be fast (atomic pointer load).
 func (s *CalibrationService) Current() domaintranscoding.EncodeCapability {
@@ -274,12 +274,12 @@ func (s *CalibrationService) Current() domaintranscoding.EncodeCapability {
 // EnsureCalibrated runs at boot. If a valid persisted capability is
 // found (CPU signature matches the current host), we use it. Otherwise
 // we run the benchmark and persist the result. Blocks until the
-// benchmark completes — callers can wrap it in a goroutine if they
+// benchmark completes - callers can wrap it in a goroutine if they
 // want a non-blocking boot.
 func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 	persisted, found, err := s.repo.Get(ctx)
 	if err != nil {
-		// Repo failure is non-fatal at boot — the safe fallback covers
+		// Repo failure is non-fatal at boot - the safe fallback covers
 		// the period until the next manual recalibration. We just log
 		// loudly so an admin notices the DB isn't reachable.
 		s.logger.Error("calibration: repo read failed at boot, staying on safe fallback",
@@ -402,7 +402,7 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("calibration: benchmark failed: %w", err)
 	}
-	// Run() should always return at least the 720p floor — defensive
+	// Run() should always return at least the 720p floor - defensive
 	// guard against a future runner change that returns 0.
 	if cap.SoftwareMaxHeight <= 0 {
 		cap.SoftwareMaxHeight = 720
@@ -417,7 +417,7 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	// Hold currentMu across BOTH the DB persist and the in-memory store so this
 	// bench can't interleave with a concurrent DemoteCapability (which holds
 	// currentMu over its own load→Set→store): otherwise the two repo.Set calls
-	// race and the DB row can diverge from `current` — e.g. a boot-time HW
+	// race and the DB row can diverge from `current` - e.g. a boot-time HW
 	// demotion gets clobbered by a bench landing its repo.Set afterwards.
 	// DemoteCapability takes demoteMu before currentMu; this path takes only
 	// currentMu, so there is no inverse lock ordering.
@@ -426,7 +426,7 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	if err := s.repo.Set(ctx, cap); err != nil {
 		s.logger.Warn("calibration: persist failed (in-memory still updated)",
 			slog.Any("err", err))
-		// We still publish to in-memory — request handling benefits
+		// We still publish to in-memory - request handling benefits
 		// even if the DB write failed. Next boot will re-bench.
 	}
 	s.current.Store(&cap)
@@ -436,9 +436,9 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 
 // DemoteCapability is the level-2 safety net: after a hardware encode fails,
 // the orchestrator calls this with the classified failure + the output codec.
-// It applies the minimal-blast-radius PlanDemotion to the live capability —
+// It applies the minimal-blast-radius PlanDemotion to the live capability -
 // drop tuning on an unsupported option, remove just the codec on a missing
-// encoder, disable HW only on a real init failure — persists deterministic
+// encoder, disable HW only on a real init failure - persists deterministic
 // demotions, and records the event for the admin alert. The next request's
 // resolveHW then reads the demoted capability and resolves a lower tier, so the
 // client's automatic 503-retry re-encodes at the working tier with no fork of
@@ -463,7 +463,7 @@ func (s *CalibrationService) DemoteCapability(ctx context.Context, class domaint
 	cur := *s.current.Load()
 	d := domaintranscoding.PlanDemotion(cur, class, codec)
 	if !d.Changed {
-		return false // already demoted — debounces concurrent failures
+		return false // already demoted - debounces concurrent failures
 	}
 
 	s.recordFallback(class, codec)

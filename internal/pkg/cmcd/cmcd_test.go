@@ -33,7 +33,7 @@ func TestFromRequest_QueryParam_HlsJsTypical(t *testing.T) {
 }
 
 func TestFromRequest_BooleanKeys(t *testing.T) {
-	// "bs" and "su" are presence-only — bare key means true.
+	// "bs" and "su" are presence-only - bare key means true.
 	raw := url.QueryEscape(`bs,br=2400,su`)
 	r := httpReq("/hls/abc/stream_0_000.m4s?CMCD=" + raw)
 
@@ -45,7 +45,7 @@ func TestFromRequest_BooleanKeys(t *testing.T) {
 }
 
 func TestFromRequest_QuotedStringsAndCommas(t *testing.T) {
-	// CTA-5004 allows commas inside quoted values — splitter must respect them.
+	// CTA-5004 allows commas inside quoted values - splitter must respect them.
 	raw := url.QueryEscape(`sid="abc,def",cid="movie 42, take 2",br=2400`)
 	r := httpReq("/hls/x/y?CMCD=" + raw)
 
@@ -89,7 +89,7 @@ func TestFromRequest_Absent_NoFalsePositive(t *testing.T) {
 }
 
 func TestFromRequest_MalformedValue_DoesNotPanic(t *testing.T) {
-	// Player sends garbage in a numeric field — must not break, just stay zero.
+	// Player sends garbage in a numeric field - must not break, just stay zero.
 	raw := url.QueryEscape(`bl=not-a-number,br=2400,mtp=garbage`)
 	r := httpReq("/hls/x/y?CMCD=" + raw)
 	p, ok := FromRequest(r)
@@ -100,7 +100,7 @@ func TestFromRequest_MalformedValue_DoesNotPanic(t *testing.T) {
 }
 
 func TestFromRequest_UnknownKeys_LandInRaw(t *testing.T) {
-	// CTA-5004 allows custom keys — we keep them in Raw without breaking.
+	// CTA-5004 allows custom keys - we keep them in Raw without breaking.
 	raw := url.QueryEscape(`br=2400,custom-key="foo",x-evey-flag=1`)
 	r := httpReq("/hls/x/y?CMCD=" + raw)
 	p, _ := FromRequest(r)

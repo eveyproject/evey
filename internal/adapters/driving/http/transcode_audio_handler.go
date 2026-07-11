@@ -232,7 +232,7 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 }
 
 // buildAudioFingerprint constructs the AudioFingerprint for an HTTP request.
-// AudioCodec and AudioBitrate are hardcoded to "aac" / 128 kbps for the MVP —
+// AudioCodec and AudioBitrate are hardcoded to "aac" / 128 kbps for the MVP -
 // the decision pipeline doesn't yet expose a per-rendition codec choice on the
 // audio path. A full passthrough / transcode decision mirroring the video
 // pipeline is tracked as a TODO below.
@@ -256,7 +256,7 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 // buildAudioRenditions converts the raw media streams into the
 // AudioRendition slice the ManifestGenerator expects. Only audio streams are
 // included; the SourceTrackIdx is the index AMONG AUDIO streams (not the
-// overall ffmpeg stream index) — this matches `ffmpeg -map 0:a:N` semantics
+// overall ffmpeg stream index) - this matches `ffmpeg -map 0:a:N` semantics
 // so the audio orchestrator hands ffmpeg the right specifier. Name falls
 // back to the language code (upper-cased) when the source track has no
 // title; empty Language is kept empty so the master playlist omits the

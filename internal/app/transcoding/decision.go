@@ -48,7 +48,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 		}
 		// MediaStream.HDRType is never populated by the prober (it stores
 		// color_space only), so derive it from the colour metadata via the same
-		// hdr.DetectHDR the tonemap path uses — one source of truth. Without this
+		// hdr.DetectHDR the tonemap path uses - one source of truth. Without this
 		// the decision's HDR branch never fires and an HDR title is never seen as
 		// HDR (so an HDR-capable client never gets the HDR-aware direct-play/
 		// tonemap path).
@@ -97,14 +97,14 @@ type TranscodingPreferences struct {
 	// SubtitleBurnInTrack is the subtitle-relative index of the track the client
 	// SELECTED for display (the Nth subtitle stream, matching ffmpeg's 0:s:N and
 	// the `subtitleTrack` query param), or -1 when none is selected. The decision
-	// burns — and so forces a video transcode — ONLY for this track when it is a
+	// burns - and so forces a video transcode - ONLY for this track when it is a
 	// bitmap sub. Without it the decision would burn whenever ANY bitmap track
 	// merely EXISTS, needlessly transcoding (and denying the copy/remux rung)
 	// every Blu-ray rip even when the user plays with no subtitle. This is a
 	// request-scoped field injected by the transport layer (like AudioLanguages /
-	// Locale), not a profile pref — ParseTranscodingPreferences leaves it at the
+	// Locale), not a profile pref - ParseTranscodingPreferences leaves it at the
 	// -1 default.
-	SubtitleBurnInTrack    int
+	SubtitleBurnInTrack int
 	// AudioTrack is the audio-relative index of the track the client actually
 	// PLAYS (the Nth audio stream, matching ffmpeg's 0:a:N and the `audioTrack`
 	// query param), or -1 to fall back to the container's default-flag track.
@@ -242,7 +242,7 @@ func SetPlayabilityShadow(s *PlayabilityShadow) {
 // The public signature still accepts []*library.MediaStream so the cascade of
 // call sites (playback_handler.go and friends) stays untouched. Internally we
 // convert once to []StreamSpec via toStreamSpecs and every evaluator below
-// works on that lean VO — keeping the algorithm decoupled from the library
+// works on that lean VO - keeping the algorithm decoupled from the library
 // entity it used to depend on field-by-field.
 //
 // sourcePath is variadic and OPTIONAL so every existing call site keeps
@@ -295,7 +295,7 @@ func MakePlaybackDecisionWithPrefs(
 			subIdx++
 		}
 	}
-	// Judge exactly the audio track the client will actually hear — the same
+	// Judge exactly the audio track the client will actually hear - the same
 	// stream selectedAudioSpec serves (explicit selection, else the default-flag
 	// track, else the first audio stream). Judging per-stream in the loop missed
 	// the codec check entirely for a file with no default-flagged audio track:
@@ -393,7 +393,7 @@ func addReasonOnce(d *transcoding.PlaybackDecision, reason string) {
 // evaluateAudio decides copy-vs-transcode for the audio stream the client will
 // actually hear. The caller passes the already-selected stream (selectedAudioSpec:
 // the explicit prefs.AudioTrack, else the default-flag track, else the first
-// audio stream), so this only judges its codec and channel count — judging any
+// audio stream), so this only judges its codec and channel count - judging any
 // other track would be wrong in both directions (a copyable selected track
 // re-encoded, an unsupported served track copied raw).
 func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
@@ -443,7 +443,7 @@ const aacMaxTargetChannels = 6
 //     channels-exceeded path.
 //
 // A DTS/TrueHD 5.1 film therefore re-encodes to AAC 5.1 instead of being
-// silently downmixed to stereo — the single biggest audible quality loss the
+// silently downmixed to stereo - the single biggest audible quality loss the
 // transcode path had.
 func applyAudioChannelTarget(d *transcoding.PlaybackDecision, specs []StreamSpec, client transcoding.ClientProfile, prefs TranscodingPreferences) {
 	if d.AudioDecision != "transcode" {
@@ -514,7 +514,7 @@ func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *Stream
 		return firstNonCommentary
 	}
 	// All audio tracks are commentary (or no default): fall back to the original
-	// logic (default if flagged, else first) — commentary is better than silence.
+	// logic (default if flagged, else first) - commentary is better than silence.
 	if def != nil {
 		return def
 	}
@@ -522,13 +522,13 @@ func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *Stream
 }
 
 // evaluateSubtitle decides how the subtitle stream s (subtitle-relative index
-// subIdx) is delivered. Burn-in is the only destructive path — it overlays onto
+// subIdx) is delivered. Burn-in is the only destructive path - it overlays onto
 // decoded frames, so it forces a video transcode (forceBurnVideoTranscode) and
 // denies the copy/remux rung. To match Jellyfin (which gates burn on the
 // SELECTED SubtitleStreamIndex, not on existence), burn fires ONLY when this is
 // the selected track (subIdx == prefs.SubtitleBurnInTrack) and it is a bitmap
-// sub. An unselected bitmap track is a no-op — not burnt, and not deliverable as
-// a sidecar — so a Blu-ray rip that merely CARRIES a PGS track still gets its
+// sub. An unselected bitmap track is a no-op - not burnt, and not deliverable as
+// a sidecar - so a Blu-ray rip that merely CARRIES a PGS track still gets its
 // copy rung when played with no subtitle or with a text subtitle. Text subs are
 // always offered as "external" (sidecar) regardless of selection: non-destructive,
 // the player picks.
@@ -545,7 +545,7 @@ func evaluateSubtitle(d *transcoding.PlaybackDecision, s StreamSpec, prefs Trans
 		}
 		return
 	case "always":
-		// User forces burn — but the ffmpeg layer only burns IMAGE subs
+		// User forces burn - but the ffmpeg layer only burns IMAGE subs
 		// (hls_transcoder's burnIn predicate requires IsImageSubtitle); a text sub
 		// cannot be overlaid, so forcing burn would needlessly transcode the video
 		// AND silently drop the subtitle. Burn only a selected image sub; a text
@@ -653,7 +653,7 @@ func applyDirectPlayPrefs(d *transcoding.PlaybackDecision, prefs TranscodingPref
 }
 
 // isDirectStreamEligible reports that the only thing keeping this off direct
-// play is an incompatible container while both streams still copy — i.e. a pure
+// play is an incompatible container while both streams still copy - i.e. a pure
 // remux (direct_stream), no re-encoding.
 func isDirectStreamEligible(d *transcoding.PlaybackDecision) bool {
 	return onlyContainerIssue(d.TranscodeReasons) &&

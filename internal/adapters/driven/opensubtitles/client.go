@@ -116,9 +116,9 @@ func (c *Client) setHeaders(req *http.Request, withAuth bool) {
 type searchResponse struct {
 	Data []struct {
 		Attributes struct {
-			Language     string  `json:"language"`
-			Rating       float64 `json:"ratings"`
-			Files        []struct {
+			Language string  `json:"language"`
+			Rating   float64 `json:"ratings"`
+			Files    []struct {
 				FileID   int    `json:"file_id"`
 				FileName string `json:"file_name"`
 			} `json:"files"`

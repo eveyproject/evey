@@ -621,8 +621,8 @@ function ConcurrencyCard() {
   );
 }
 
-// TranscodingConfigPage groups every transcoding-related admin control —
-// hardware acceleration, encode calibration, AV1 and concurrency — on the
+// TranscodingConfigPage groups every transcoding-related admin control -
+// hardware acceleration, encode calibration, AV1 and concurrency - on the
 // server-config side of the admin (a sibling of "Server configuration"),
 // out of the Media submenu where it used to live.
 function TranscodingConfigPage() {
@@ -639,7 +639,7 @@ function TranscodingConfigPage() {
         title={t("admin.calibration.cardTitle", "Encode calibration")}
         subtitle={t(
           "admin.calibration.cardSubtitle",
-          "Measured at boot — sets the cap on the HLS ladder so the host doesn't overshoot what it can encode in realtime.",
+          "Measured at boot - sets the cap on the HLS ladder so the host doesn't overshoot what it can encode in realtime.",
         )}
         alwaysOpen
       >

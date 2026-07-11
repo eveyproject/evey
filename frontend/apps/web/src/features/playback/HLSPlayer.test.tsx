@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useToastStore } from "@evey/store";
 
-// HLS mock — captures event handlers so tests can fire them
+// HLS mock - captures event handlers so tests can fire them
 type HlsEventHandler = (...args: unknown[]) => void;
 
 const hlsEventListeners: Record<string, HlsEventHandler[]> = {};
@@ -215,7 +215,7 @@ describe("HLSPlayer", () => {
   // direct_stream is a container-only remux: the server's HLS copy rung
   // repackages the original streams with `-c:v copy`. It must run through the
   // HLS pipeline (hls.js loading the master), NOT play the original file
-  // progressively — the original container is exactly what the client can't
+  // progressively - the original container is exactly what the client can't
   // demux. Regression guard for the formerly no-op direct_stream branch.
   it("starts in transcode/HLS mode when playMethod is DIRECT_STREAM", () => {
     renderPlayer({
@@ -323,7 +323,7 @@ describe("HLSPlayer: 401 token refresh after long pause", () => {
       { streamToken: "stale-token", onStreamTokenRefresh: refresh },
     );
 
-    // Fire the 401 — the refresh handler is async, so wait a microtask cycle.
+    // Fire the 401 - the refresh handler is async, so wait a microtask cycle.
     fireFatal401();
     await Promise.resolve();
     await Promise.resolve();
@@ -348,7 +348,7 @@ describe("HLSPlayer: 401 token refresh after long pause", () => {
 
     fireFatal401();
     // Wait for the rejected refresh promise to settle and React to flush the
-    // setFatalError state update — findByText retries with a microtask cycle.
+    // setFatalError state update - findByText retries with a microtask cycle.
     expect(await screen.findByText("Unable to play at any quality level")).toBeInTheDocument();
     expect(refresh).toHaveBeenCalledTimes(1);
   });

@@ -2,7 +2,7 @@ package postgres_test
 
 // Integration proof of EnrichItem's atomicity: real repositories + the real
 // TxUnit against a real Postgres. A failure on the LAST write (cast/crew
-// links) must roll back the item update AND the artwork delete+insert —
+// links) must roll back the item update AND the artwork delete+insert -
 // previously each step auto-committed, so a mid-enrichment blip left the item
 // with a fresh title but no artwork and no cast, unrepairable except by a
 // manual "Refresh metadata" (the re-scan trigger keys on empty Overview).
@@ -24,7 +24,7 @@ import (
 )
 
 // failingMediaPersons delegates everything to the real repository but fails
-// CreateBatch — the last write of the enrichment transaction.
+// CreateBatch - the last write of the enrichment transaction.
 type failingMediaPersons struct {
 	*postgres.MediaPersonRepository
 }
@@ -77,7 +77,7 @@ func TestEnrichItem_RollsBackAllStepsOnFailure(t *testing.T) {
 
 	arts, err := artRepo.GetByMediaItem(ctx, string(item.ID))
 	require.NoError(t, err)
-	require.Len(t, arts, 1, "artwork delete+insert rolled back — the OLD record survives")
+	require.Len(t, arts, 1, "artwork delete+insert rolled back - the OLD record survives")
 	assert.Equal(t, "art-old", arts[0].ID)
 
 	persons, err := personRepo.GetByName(ctx, "Actor A")

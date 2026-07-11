@@ -41,6 +41,6 @@ type MediaItemQueryRepo interface {
 	// next one's transcode so the autoplay handoff is instant.
 	NextEpisodeOf(ctx context.Context, episodeID shared.MediaItemID) (*MediaItem, error)
 	// ListGenres returns the distinct, sorted genres present across a library's
-	// media — the full set, not a sample of loaded items.
+	// media - the full set, not a sample of loaded items.
 	ListGenres(ctx context.Context, libraryID shared.LibraryID) ([]string, error)
 }

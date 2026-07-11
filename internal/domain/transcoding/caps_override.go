@@ -12,12 +12,12 @@ import (
 // request time.
 //
 // SourceClass is the bucket the worker recognises. Format is
-// "<codec>/<height>" — e.g. "hevc/2160p", "h264/1080p", "av1/1440p".
+// "<codec>/<height>" - e.g. "hevc/2160p", "h264/1080p", "av1/1440p".
 // Codec defaults to "any" when the source codec couldn't be
 // determined; legacy rows from Phase C MVP (plain height like "1080p")
 // still parse via the SourceClassParse helper for backward compat
 // during the rolling upgrade window. Heights below 1080p don't get a
-// bucket — we never cap below 720p in the handler.
+// bucket - we never cap below 720p in the handler.
 type CapOverride struct {
 	SourceClass  string    `json:"source_class"`
 	MaxHeight    int       `json:"max_height"`
@@ -30,7 +30,7 @@ type CapOverride struct {
 
 // SourceClassFor maps a (codec, height) pair to the cap-bucket the
 // override system reasons about. Heights below 1080p don't get a
-// bucket — we never cap below 720p in the handler so there's nothing
+// bucket - we never cap below 720p in the handler so there's nothing
 // to override. Codec is normalised to lowercase; empty/unknown
 // codecs use the "any" sentinel so legacy callers and broken probes
 // still produce a stable key.
@@ -85,7 +85,7 @@ type CapOverrideRepo interface {
 	// Upsert writes/refreshes an override row. ExpiresAt determines TTL.
 	Upsert(ctx context.Context, o CapOverride) error
 	// List returns every non-expired override. The handler calls this
-	// on each request — implementations SHOULD cache + invalidate on
+	// on each request - implementations SHOULD cache + invalidate on
 	// Upsert if the table grows.
 	List(ctx context.Context) ([]CapOverride, error)
 	// DeleteExpired removes rows past expires_at. Worker runs this

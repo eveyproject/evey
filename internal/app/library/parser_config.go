@@ -21,7 +21,7 @@ type ParserTokenApplier func(qualities, editionSuffixes []string)
 const ParserConfigKey = "parser.config"
 
 // parserConfig holds the admin-controlled token extensions. Empty slices
-// mean "no extras" — the hardcoded knownQualities map + reEditionSuffix
+// mean "no extras" - the hardcoded knownQualities map + reEditionSuffix
 // regex in the filesystem package stay authoritative. Admins can add new
 // tokens here without redeploying when they hit an unusual release naming
 // pattern (a distributor-specific edition tag, a quality variant the
@@ -34,7 +34,7 @@ type parserConfig struct {
 // loadParserConfig reads the JSON blob (if any) from the server_config
 // store and returns the resulting struct. Missing key / parse error /
 // nil repo all fall back to a zero-value parserConfig (no extras), which
-// is safe — the parser keeps using its baseline maps in that case.
+// is safe - the parser keeps using its baseline maps in that case.
 func loadParserConfig(ctx context.Context, repo shared.ServerConfigRepository) parserConfig {
 	cfg := parserConfig{}
 	if repo == nil {
@@ -58,7 +58,7 @@ func loadParserConfig(ctx context.Context, repo shared.ServerConfigRepository) p
 // edits take effect without a restart).
 //
 // Errors are swallowed at INFO level: a misconfigured parser.config row
-// must never block a scan — the baseline tokens still match every
+// must never block a scan - the baseline tokens still match every
 // canonical release.
 func ApplyParserConfig(ctx context.Context, repo shared.ServerConfigRepository, apply ParserTokenApplier) {
 	cfg := loadParserConfig(ctx, repo)

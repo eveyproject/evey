@@ -91,7 +91,7 @@ func GetStorageStats(paths []string) []StorageStats {
 			continue
 		}
 		if idx, ok := byDevice[st.Dev]; ok {
-			// Same physical disk as an earlier library — record the path but
+			// Same physical disk as an earlier library - record the path but
 			// don't double-count the capacity.
 			result[idx].Paths = append(result[idx].Paths, p)
 			continue
@@ -202,7 +202,7 @@ func FFmpegVersion(ffmpegPath string) string {
 // returns the same hash across restarts.
 //
 // Empty when /proc/cpuinfo is unreadable (non-Linux, locked-down
-// sandbox) — callers should treat empty as "machine identity unknown"
+// sandbox) - callers should treat empty as "machine identity unknown"
 // and skip the auto-invalidation logic accordingly.
 func CPUSignature() string {
 	f, err := os.Open("/proc/cpuinfo")

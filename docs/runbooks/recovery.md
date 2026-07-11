@@ -6,12 +6,12 @@ pre-migration backup.
 
 All commands run as `evey admin <subcommand>` and read configuration
 from the same `EVEY_*` env vars as the server. They do **not** start
-the server — most are safe to run while the server is stopped.
+the server - most are safe to run while the server is stopped.
 
 ## reset-password
 
 Generate a fresh password for an existing user. The new password is
-printed once to stdout — capture it immediately.
+printed once to stdout - capture it immediately.
 
 ```sh
 evey admin reset-password --user admin@example.com
@@ -48,7 +48,7 @@ Behavior:
 - All previously-issued access tokens fail signature verification →
   every user is logged out.
 - Refresh tokens are JWTs signed with the same key, so they're dead
-  too — no separate cleanup needed.
+  too - no separate cleanup needed.
 
 When to use:
 - Suspected key leak.
@@ -65,11 +65,11 @@ evey admin restore-backup /data/backups/pre-migration-15-20260418T220130Z.sql.gz
 ```
 
 Procedure:
-1. The command pauses for 5 seconds before doing anything — Ctrl+C
+1. The command pauses for 5 seconds before doing anything - Ctrl+C
    aborts.
 2. The file is streamed through `gunzip | psql` against the configured
    database, with `--single-transaction` and `ON_ERROR_STOP=1`.
-3. On any error, psql rolls back the transaction — the database is
+3. On any error, psql rolls back the transaction - the database is
    left in its prior state.
 
 Requirements:

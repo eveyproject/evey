@@ -26,8 +26,8 @@ favorites:
   movies: Películas
   series: Series
   recentlyAdded: Añadido recientemente
-  titleAZ: "Título A–Z"
-  titleZA: "Título Z–A"
+  titleAZ: "Título A-Z"
+  titleZA: "Título Z-A"
   yearNewest: Año (más reciente)
   rating: Calificación
   noFavorites: Sin favoritos aún
@@ -360,7 +360,7 @@ syncplay:
   connecting: "Conectando..."
   leave: Salir
   resyncAll: "Sincronizar a todos"
-  joinError: "No se pudo unir — comprueba el código."
+  joinError: "No se pudo unir - comprueba el código."
   shareLink: Compartir enlace
   copyCode: Copiar código
   watchTogetherRoom: Sala Ver juntos
@@ -503,7 +503,7 @@ search:
   toYear: Hasta
   sortBy: Ordenar por
   relevance: Relevancia
-  titleAZ: "Título A–Z"
+  titleAZ: "Título A-Z"
   yearNewest: Año (más reciente)
   dateAdded: Fecha de adición
 streams:

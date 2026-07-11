@@ -61,7 +61,7 @@ func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService
 	// Explicit method+path routes (Go 1.22+ mux): without them, the default
 	// catch-all falls through to the gRPC gateway and every call 404s. A
 	// legacy prefix pattern doesn't help once a sibling {id}/xxx pattern is
-	// registered — the prefix loses the specificity race.
+	// registered - the prefix loses the specificity race.
 	mux.HandleFunc("POST /api/v1/admin/media/{id}/refresh-metadata", admin(func(w http.ResponseWriter, r *http.Request) {
 		h.handleRefreshMetadata(w, r, r.PathValue("id"))
 	}))

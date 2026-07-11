@@ -175,7 +175,7 @@ func TestErrorSanitizer_DeadlineExceeded(t *testing.T) {
 }
 
 // A non-status error escaping a handler (e.g. a repo error wrapped with the
-// handler's name) must not reach the client verbatim — gRPC would surface it
+// handler's name) must not reach the client verbatim - gRPC would surface it
 // as codes.Unknown leaking "activityHandler.GetUserStats: ...".
 func TestErrorSanitizer_WrappedPlainError_Genericised(t *testing.T) {
 	interceptor := interceptors.ErrorSanitizerUnary()

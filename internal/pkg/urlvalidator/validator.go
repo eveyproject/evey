@@ -73,7 +73,7 @@ func ValidateExternalURL(rawURL string) error {
 
 // ValidateRedirectURL checks that a URL is safe for open-redirect responses.
 // Unlike ValidateWebhookURL, it does not resolve DNS because the browser makes
-// the request — no server-side SSRF risk. It still blocks non-http(s) schemes
+// the request - no server-side SSRF risk. It still blocks non-http(s) schemes
 // and literal private-IP hosts to prevent javascript:/file:// injection and
 // redirects to internal infrastructure.
 func ValidateRedirectURL(rawURL string) error {

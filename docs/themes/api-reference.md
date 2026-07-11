@@ -6,8 +6,8 @@ This document targets external developers writing an Evey theme. For the securit
 
 A theme is a `kind: theme` package. It has **no backend process**. It may contain:
 
-- `theme.css` — injected into `<head>` on every page after sanitization
-- `theme.js` — optional JavaScript loaded inside an isolated context with a constrained `evey.theme.*` API
+- `theme.css` - injected into `<head>` on every page after sanitization
+- `theme.js` - optional JavaScript loaded inside an isolated context with a constrained `evey.theme.*` API
 
 Themes cannot declare `language`, `entrypoint`, or `permissions`. Attempting to do so causes install to be refused.
 
@@ -22,14 +22,14 @@ description: "..."         # optional
 author: "..."              # optional
 min_evey_version: "1.0.0"  # optional
 
-# NO language, entrypoint, permissions — these are invalid for themes
+# NO language, entrypoint, permissions - these are invalid for themes
 ```
 
 The ZIP must contain `theme.css` and/or `theme.js` at its root. A manifest with neither is accepted but the theme has no visible effect.
 
 ## theme.css
 
-Served at `/api/v1/themes/<id>/theme.css`. The file is passed through the CSS sanitizer at install time (see [`security-model.md`](security-model.md) for blocked constructs). The sanitized output is what gets stored and served — what you write and what is injected may differ if any rules were triggered.
+Served at `/api/v1/themes/<id>/theme.css`. The file is passed through the CSS sanitizer at install time (see [`security-model.md`](security-model.md) for blocked constructs). The sanitized output is what gets stored and served - what you write and what is injected may differ if any rules were triggered.
 
 The stylesheet is injected as a `<link rel="stylesheet">` in `<head>`. It applies globally to the host document. Standard CSS applies: custom properties, `@keyframes`, `@media`, `@font-face` (with `data:` sources), `@layer`, container queries.
 
@@ -41,7 +41,7 @@ These are a contract: they will not be renamed across refactors.
 
 | Selector | Element | Safe to restyle |
 |---|---|---|
-| `.evey-app-header` | the top bar | colours, height, spacing, blur — **never** hide/move the controls inside it |
+| `.evey-app-header` | the top bar | colours, height, spacing, blur - **never** hide/move the controls inside it |
 | `.evey-media-grid` | the media card grids (library, rows) | columns, `gap`, alignment |
 | `.evey-media-card` | one media card (poster + meta) | width, spacing, hover |
 | `.evey-poster` | the poster/artwork visual (also on detail) | `aspect-ratio`, `border-radius`, shadow, fit |
@@ -80,7 +80,7 @@ the trusted controls (logout, profile, real notifications).
 
 ## theme.js
 
-Served at `/api/v1/themes/<id>/theme.js` (authentication required). Loaded inside an iframe with `sandbox="allow-scripts"` and a locked Content Security Policy — the script has no access to the host page, cannot make network requests, and cannot read storage.
+Served at `/api/v1/themes/<id>/theme.js` (authentication required). Loaded inside an iframe with `sandbox="allow-scripts"` and a locked Content Security Policy - the script has no access to the host page, cannot make network requests, and cannot read storage.
 
 The only surface available is `window.evey.theme`, injected by the host bridge before `theme.js` runs.
 
@@ -113,10 +113,10 @@ The following methods are planned and not yet available in V1:
 
 ### `evey.theme.registerComponent(slot, render)` (V2)
 
-Registers a render function for a named slot. The host calls `render(props, container)` when the slot is mounted. `container` is a DOM node scoped to the theme's shadow context — writes to `container` are visible in the host page inside a ShadowRoot.
+Registers a render function for a named slot. The host calls `render(props, container)` when the slot is mounted. `container` is a DOM node scoped to the theme's shadow context - writes to `container` are visible in the host page inside a ShadowRoot.
 
 ```js
-// V2 — not yet available
+// V2 - not yet available
 evey.theme.registerComponent("home.hero", function(props, container) {
   container.innerHTML = `<div class="my-hero">Welcome, ${props.userName}</div>`;
 });
@@ -127,7 +127,7 @@ evey.theme.registerComponent("home.hero", function(props, container) {
 Subscribes to read-only host state updates. The callback is called whenever the observed key changes.
 
 ```js
-// V2 — not yet available
+// V2 - not yet available
 evey.theme.observe("player.playing", function(isPlaying) {
   evey.theme.css(isPlaying ? ".hero { opacity: 0.3; }" : "");
 });
@@ -139,4 +139,4 @@ Applies a named animation to a host element matched by `selector` via the bridge
 
 ## Examples
 
-The `examples/themes/` directory does not yet exist. Reference examples (`dark-cozy`, `aurora`, `minimal-player`) are planned in Phase 8.5 of the theme/plugin redesign. Until then, use the `theme.css` of any existing plugin with `language: css` in the database as a starting point — those files use the same sanitizer-compatible format.
+The `examples/themes/` directory does not yet exist. Reference examples (`dark-cozy`, `aurora`, `minimal-player`) are planned in Phase 8.5 of the theme/plugin redesign. Until then, use the `theme.css` of any existing plugin with `language: css` in the database as a starting point - those files use the same sanitizer-compatible format.

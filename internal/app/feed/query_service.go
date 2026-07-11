@@ -54,7 +54,7 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 			// Plugin feeds: admin enable/disable is a hard override (admin
 			// has the last word on whether a plugin section appears at
 			// all). DisplayOrder stays profile-controlled even on plugins
-			// — each user keeps their Customize panel order.
+			// - each user keeps their Customize panel order.
 			if o.Enabled != nil && (!isPlugin || a.Enabled) {
 				m.Enabled = *o.Enabled
 			}
@@ -73,7 +73,7 @@ func (s *QueryService) GetMergedConfig(ctx context.Context, profileID string) ([
 	}
 	// Profile overrides without an admin parent (e.g. dynamic feed types
 	// like library:<id> or plugin:<id> that are never explicitly created
-	// admin-side) must still surface in the merged view — otherwise the
+	// admin-side) must still surface in the merged view - otherwise the
 	// CustomizePanel drag/toggle persists then disappears on refetch and
 	// the home page can't honour the user's saved order.
 	//

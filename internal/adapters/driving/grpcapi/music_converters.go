@@ -6,7 +6,7 @@ import (
 )
 
 // trackToProto converts a Track to proto. When includeFilePath is false,
-// `file_path` is omitted — non-admin callers have no business seeing the
+// `file_path` is omitted - non-admin callers have no business seeing the
 // server's absolute on-disk paths.
 func trackToProto(t music.Track, includeFilePath bool) *eveyv1.Track {
 	pb := &eveyv1.Track{

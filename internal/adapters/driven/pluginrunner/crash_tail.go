@@ -4,10 +4,10 @@ import "sync"
 
 // tailBuffer is a thread-safe ring buffer that retains the last maxSize bytes a
 // plugin process wrote to stdout/stderr. On an abnormal exit the runner folds
-// this tail into the admin-facing error, so the real cause is visible — e.g. a
+// this tail into the admin-facing error, so the real cause is visible - e.g. a
 // node "Error: Cannot find module '@grpc/grpc-js'" (plugin shipped without its
 // node_modules) or "bwrap: Failed to make / slave: Permission denied" (seccomp
-// profile not applied) — instead of a bare "exit status 1" / "socket timeout".
+// profile not applied) - instead of a bare "exit status 1" / "socket timeout".
 type tailBuffer struct {
 	mu      sync.Mutex
 	buf     []byte

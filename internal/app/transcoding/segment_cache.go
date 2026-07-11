@@ -34,7 +34,7 @@ const (
 
 // SegmentKey uniquely identifies a single HLS segment on disk. Two playback
 // sessions with the same key MUST share the same segment file (whole point of
-// the cache). The key is content-addressed by the DecisionHash — anything that
+// the cache). The key is content-addressed by the DecisionHash - anything that
 // would make ffmpeg produce different bytes (codec, audio track, sub burn-in,
 // HDR tonemap, …) is hashed in, so cache collisions are impossible.
 type SegmentKey struct {
@@ -42,7 +42,7 @@ type SegmentKey struct {
 	VariantIdx   int    // video: index into ManifestInput.Profiles; audio: source audio track index
 	SegmentIdx   int    // 0-based segment index in the variant playlist
 	// IsInit marks the fMP4 initialization segment (`stream_N_init.mp4`).
-	// Init segments have no segment index — they carry the moov box only.
+	// Init segments have no segment index - they carry the moov box only.
 	IsInit bool
 	// Kind picks the URL/filename pattern. Empty (default) = video,
 	// matches the pre-feature behaviour exactly. KindAudio uses the
@@ -71,10 +71,10 @@ func (k SegmentKey) fileName(useFMP4 bool) string {
 
 // DecisionFingerprint is the canonical input that produces a DecisionHash. Two
 // playback decisions that fingerprint identically MUST yield byte-identical
-// segments — the same ffmpeg invocation against the same source. Any new
+// segments - the same ffmpeg invocation against the same source. Any new
 // parameter that influences the encoded bytes belongs here.
 //
-// Note: stream_token is NOT part of the fingerprint — it changes per session
+// Note: stream_token is NOT part of the fingerprint - it changes per session
 // but doesn't change the bytes ffmpeg emits.
 type DecisionFingerprint struct {
 	MediaID             string
@@ -90,7 +90,7 @@ type DecisionFingerprint struct {
 	UseFMP4             bool
 	// AudioCopy passes the source audio through (`-c:a copy`) instead of
 	// re-encoding to AAC. Copied and transcoded audio are DIFFERENT bytes for
-	// the same media, so this is a Hash() dimension — but emitted CONDITIONALLY
+	// the same media, so this is a Hash() dimension - but emitted CONDITIONALLY
 	// (only when true) so enabling the feature does not orphan every existing
 	// cache entry whose behavior is unchanged. DecisionFingerprint has no
 	// reflexive every-field-affects-hash guard (unlike ProfileFingerprint), so
@@ -106,7 +106,7 @@ type DecisionFingerprint struct {
 
 	// SourceVideoCodec is the codec of the SOURCE video stream ("h264",
 	// "hevc"…), set by the handler from the probed streams. The copy builder
-	// needs it to tag the fMP4 sample entry (`-tag:v hvc1` — Safari refuses
+	// needs it to tag the fMP4 sample entry (`-tag:v hvc1` - Safari refuses
 	// ffmpeg's hev1 default). Deliberately EXCLUDED from Hash(): it is fully
 	// determined by (MediaID, SourcePath) which are already hashed, so it can
 	// never alias two different byte streams.
@@ -124,7 +124,7 @@ type DecisionFingerprint struct {
 	// DeinterlaceAll switches the software builder to bwdif deint=all (vs the
 	// default flag-gated deint=interlaced) for legacy sources the idet content
 	// detection flagged interlaced despite their container flags. Different
-	// deinterlace mode ⇒ different output frames, so it is a Hash() dimension —
+	// deinterlace mode ⇒ different output frames, so it is a Hash() dimension -
 	// emitted CONDITIONALLY (only when true) so enabling it never orphans the
 	// caches of progressive titles whose bytes are unchanged.
 	DeinterlaceAll bool
@@ -138,7 +138,7 @@ type DecisionFingerprint struct {
 	// "qsv" + DRM render node) when the handler resolves one. Deliberately
 	// EXCLUDED from Hash(): a hardware-encoded segment is byte-compatible with
 	// the software one (same codec/bitrate/resolution/container/naming), so the
-	// addressable cache stays encoder-agnostic — toggling HW at runtime must
+	// addressable cache stays encoder-agnostic - toggling HW at runtime must
 	// not fork the cache. Empty = software path.
 	HWAccel  string
 	HWDevice string
@@ -173,7 +173,7 @@ type ProfileFingerprint struct {
 	// Copy marks a remux (video-copy) rung. Copy bytes != transcode bytes at the
 	// same WxH, so it is folded into Hash(). Whenever a byte-affecting field is
 	// added here, TestProfileFingerprint_EveryFieldAffectsHash fails until it is
-	// also added to Hash() — the structural guard against the next omission.
+	// also added to Hash() - the structural guard against the next omission.
 	Copy bool
 }
 
@@ -182,7 +182,7 @@ type ProfileFingerprint struct {
 // can be reflection-guarded in one spot: TestProfileFingerprintOf_CopiesEveryField
 // reddens if a ProfileFingerprint field is not copied from its same-named
 // HLSProfile field. Together with the Hash() reflection guard this closes the
-// HLSProfile → ProfileFingerprint → Hash chain — a forgotten byte-affecting field
+// HLSProfile → ProfileFingerprint → Hash chain - a forgotten byte-affecting field
 // fails a test rather than silently aliasing the cache.
 func ProfileFingerprintOf(p transcoding.HLSProfile) ProfileFingerprint {
 	return ProfileFingerprint{
@@ -201,7 +201,7 @@ func ProfileFingerprintOf(p transcoding.HLSProfile) ProfileFingerprint {
 // independently of the video one. Every parameter that influences the
 // audio bytes ffmpeg emits belongs here.
 //
-// SourceTrackIdx is the 0-indexed audio stream in the source media — the
+// SourceTrackIdx is the 0-indexed audio stream in the source media - the
 // rendition the player picked. AudioCodec is the encoder (aac / ac3 /
 // eac3 / opus). AudioNormalize and MaxAudioChannels mirror the muxed
 // pipeline's existing knobs so audio settings stay consistent across
@@ -237,7 +237,7 @@ func (a AudioFingerprint) Hash() string {
 // AudioDecision returns the HLSProcessOpts.AudioDecision value for this
 // fingerprint: "copy" only when the handler established AudioCopy eligibility
 // (selected source track decodable by the client, no loudnorm, single-rung
-// ladder), else "transcode" — the historical behavior. Both producers derive
+// ladder), else "transcode" - the historical behavior. Both producers derive
 // the ffmpeg audio args from THIS so a given hash always yields the same
 // bytes regardless of which producer lands the segment.
 func (f DecisionFingerprint) AudioDecision() string {
@@ -301,7 +301,7 @@ func (f DecisionFingerprint) Hash() string {
 
 // parseSARRatio parses "N:D" into reduced integer parts (gcd-normalised so
 // equivalent ratios hash identically). ok=false for empty/malformed/zero
-// values — treated as square pixels by the caller.
+// values - treated as square pixels by the caller.
 func parseSARRatio(s string) (num, den int, ok bool) {
 	n, d, found := strings.Cut(strings.TrimSpace(s), ":")
 	if !found {
@@ -327,7 +327,7 @@ func gcdInt(a, b int) int {
 }
 
 // SegmentCache is the on-disk store for transcoded HLS segments, addressed by
-// SegmentKey. Phase 1: mono-session, no eviction — files live until
+// SegmentKey. Phase 1: mono-session, no eviction - files live until
 // CleanupHash is called explicitly. Phase 2 will add LRU eviction sized by
 // total bytes on disk.
 //
@@ -406,8 +406,8 @@ func (c *SegmentCache) IsReady(k SegmentKey, useFMP4 bool) bool {
 		return false
 	}
 	// A 0-byte file is a segment mid-creation, NOT a ready one. ffmpeg writes
-	// the fMP4 init segment (stream_N_init.mp4) DIRECTLY — it does not get the
-	// `.tmp`→rename atomicity that `-hls_flags temp_file` gives media segments —
+	// the fMP4 init segment (stream_N_init.mp4) DIRECTLY - it does not get the
+	// `.tmp`→rename atomicity that `-hls_flags temp_file` gives media segments -
 	// so there is a window where the init exists at 0 bytes. Serving it empty
 	// makes the player's SourceBuffer init fail → endless buffering with no
 	// error. Treat any 0-byte segment as not-ready so Wait blocks until ffmpeg
@@ -418,14 +418,14 @@ func (c *SegmentCache) IsReady(k SegmentKey, useFMP4 bool) bool {
 		return false
 	}
 	// Defence in depth: if a `.tmp` exists alongside, treat as not-ready even
-	// though the rename normally beats the stat — costs one extra syscall.
+	// though the rename normally beats the stat - costs one extra syscall.
 	if _, err := os.Stat(final + ".tmp"); err == nil {
 		return false
 	}
 	// fMP4 segments must carry actual content. A non-empty file holding only a
 	// `styp`/`ftyp` box and no moov/moof/mdat is a malformed segment an aborted
 	// ffmpeg mux left at the FINAL name (observed in prod under load: a 24-byte
-	// styp-only `.m4s` — `size>0` so it passed the check above). Serving it wedges
+	// styp-only `.m4s` - `size>0` so it passed the check above). Serving it wedges
 	// the player's SourceBuffer with no error, which also breaks the ABR fallback
 	// to a lower rung. Treat it as not-ready so Wait re-spawns the rafale. Cheap:
 	// reads only top-level box headers (≤16 bytes each, a handful of boxes).
@@ -436,7 +436,7 @@ func (c *SegmentCache) IsReady(k SegmentKey, useFMP4 bool) bool {
 }
 
 // fmp4HasContentBox reports whether an ISO-BMFF file holds at least one
-// fully-written content box — `moov` (init segment) or `moof`/`mdat` (media
+// fully-written content box - `moov` (init segment) or `moof`/`mdat` (media
 // segment). It walks only top-level box headers and requires the content box to
 // be entirely on disk, so it rejects both an aborted styp-only segment and a
 // content box ffmpeg is still mid-writing (no torn read served). total is the
@@ -474,7 +474,7 @@ func fmp4HasContentBox(path string, total int64) bool {
 			size = total - off
 		}
 		if size < hdrLen {
-			return false // malformed box size — bail rather than loop forever
+			return false // malformed box size - bail rather than loop forever
 		}
 		switch typ {
 		case "moov", "moof", "mdat":
@@ -487,7 +487,7 @@ func fmp4HasContentBox(path string, total int64) bool {
 
 // Wait blocks until the segment is ready, or ctx is cancelled, or the session
 // is torn down via CleanupHash. Returns nil when ready, an error otherwise.
-// Implementation is a poll loop with exponential backoff — inotify would be
+// Implementation is a poll loop with exponential backoff - inotify would be
 // nicer but is Linux-only and adds inotify_init1 to the syscall surface for
 // the seccomp profile, which we deliberately keep narrow.
 func (c *SegmentCache) Wait(ctx context.Context, k SegmentKey, useFMP4 bool, timeout time.Duration) error {
@@ -556,7 +556,7 @@ func (c *SegmentCache) CleanupHash(decisionHash string) error {
 // deletes the hash directory only when no live session is serving it
 // (pendingRefs == 0). The refs check and the in-memory teardown happen under the
 // same lock, so a session streaming an older-cached title (low atime, outside
-// ProtectRecent) is not evicted out from under it — the sweeper used to protect
+// ProtectRecent) is not evicted out from under it - the sweeper used to protect
 // by recency only, so a slow client on an old hash could be cut to a
 // stall/503/re-encode. Returns whether the hash was evicted. A session that
 // registers in the tiny window after the lock is released just re-encodes the
@@ -568,7 +568,7 @@ func (c *SegmentCache) cleanupHashIfIdle(decisionHash string) (bool, error) {
 	c.mu.Lock()
 	if c.pendingRefs[decisionHash] > 0 {
 		c.mu.Unlock()
-		return false, nil // a live session is serving this hash — keep it
+		return false, nil // a live session is serving this hash - keep it
 	}
 	if ch, ok := c.pending[decisionHash]; ok {
 		close(ch)
@@ -587,7 +587,7 @@ func (c *SegmentCache) cleanupHashIfIdle(decisionHash string) (bool, error) {
 // Touch records that hash was just accessed (a segment was served to a player).
 // The LRU sweeper treats a recently-touched hash as recently-used even though
 // reads never update file mtime. Essential for the copy rung whose ReadRate=0
-// mux freezes the dir mtime once it finishes — without Touch an actively-watched
+// mux freezes the dir mtime once it finishes - without Touch an actively-watched
 // title looks cold and is evicted out from under the player. One cheap map write.
 func (c *SegmentCache) Touch(hash string) {
 	if hash == "" {
@@ -623,7 +623,7 @@ func (c *SegmentCache) LastAccess(hash string) (time.Time, bool) {
 }
 
 // RegisterSession marks a hash as live so Wait calls bind to its lifetime.
-// Returns a release function the caller must invoke when the session ends —
+// Returns a release function the caller must invoke when the session ends -
 // that aborts in-flight Waits but does NOT delete files. Disk cleanup happens
 // either via the LRU sweeper or by an explicit CleanupHash on shutdown. This
 // separation lets cancel-on-seek tear down a rafale without throwing away the
@@ -640,7 +640,7 @@ func (c *SegmentCache) RegisterSession(decisionHash string) func() {
 	return func() {
 		c.mu.Lock()
 		defer c.mu.Unlock()
-		// Make the teardown idempotent — the orchestrator's killSession +
+		// Make the teardown idempotent - the orchestrator's killSession +
 		// reap goroutine could both fire on a normal exit. Only the
 		// first call decrements the refcount.
 		if released {
@@ -649,7 +649,7 @@ func (c *SegmentCache) RegisterSession(decisionHash string) func() {
 		released = true
 		c.pendingRefs[decisionHash]--
 		if c.pendingRefs[decisionHash] > 0 {
-			// Other rafales still serving this hash — don't close the
+			// Other rafales still serving this hash - don't close the
 			// shared channel yet, their Wait() callers depend on it.
 			return
 		}
@@ -664,7 +664,7 @@ func (c *SegmentCache) RegisterSession(decisionHash string) func() {
 // ListReady returns the segment indices currently materialised under hash for a
 // given variant. Used by the orchestrator to decide whether a fresh ffmpeg
 // rafale is needed or the requested segment is already on disk. Cheap O(N)
-// directory scan — no in-memory index to keep coherent.
+// directory scan - no in-memory index to keep coherent.
 func (c *SegmentCache) ListReady(decisionHash string, variantIdx int, useFMP4 bool) ([]int, error) {
 	dir := filepath.Join(c.baseDir, decisionHash)
 	entries, err := os.ReadDir(dir)
@@ -689,7 +689,7 @@ func (c *SegmentCache) ListReady(decisionHash string, variantIdx int, useFMP4 bo
 		if strings.Contains(name, "_init.") {
 			continue
 		}
-		// Names look like "stream_0_042.m4s" — extract the 042.
+		// Names look like "stream_0_042.m4s" - extract the 042.
 		body := strings.TrimPrefix(name, prefix)
 		body = strings.TrimSuffix(body, ext)
 		var n int

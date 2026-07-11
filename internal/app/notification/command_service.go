@@ -313,7 +313,7 @@ func (s *CommandService) flushBatch(key string) {
 		return
 	}
 
-	// Season(s) alone — group into ONE notification that names the series,
+	// Season(s) alone - group into ONE notification that names the series,
 	// instead of one bare "Season N" per season.
 	if seasonCount > 0 {
 		season := batch.seasons[0]
@@ -585,7 +585,7 @@ func (s *CommandService) sendPush(ctx context.Context, profileID, title, message
 func (s *CommandService) handleBackupFailed(parentCtx context.Context, ev shared.Event) {
 	// Recover locally (mirror of handlePluginError): the event bus RETRIES a
 	// panicking handler, and this one loops persist+push+email over every
-	// profile — a panic mid-loop (e.g. a malformed push subscription) would
+	// profile - a panic mid-loop (e.g. a malformed push subscription) would
 	// re-run the whole loop and duplicate notifications for the profiles
 	// already served.
 	defer func() {
@@ -737,7 +737,7 @@ func (s *CommandService) CleanupExpired(ctx context.Context) error {
 }
 
 // StartCleanup runs an initial CleanupExpired then enters the periodic loop.
-// The optional initDone channel(s) are closed after the first cleanup pass —
+// The optional initDone channel(s) are closed after the first cleanup pass -
 // tests pass one to wait deterministically instead of sleeping.
 func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- struct{}) {
 	go func() {

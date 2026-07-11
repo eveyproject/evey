@@ -11,7 +11,7 @@ import (
 )
 
 // slowBody yields its bytes with a pause partway through, simulating a client
-// that dribbles its POST body — the shape BodyReadTimeoutMiddleware defends
+// that dribbles its POST body - the shape BodyReadTimeoutMiddleware defends
 // against. It implements io.Reader over an httptest request body.
 type slowBody struct {
 	chunks [][]byte

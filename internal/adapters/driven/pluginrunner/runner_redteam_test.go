@@ -7,7 +7,7 @@ package pluginrunner
 // real escape at runtime, logging "[ESCAPE] <probe>: BLOCKED|BYPASSED". This
 // test runs the filesystem/network/process/exec fixtures through the REAL
 // launcher argv (buildLauncherArgv) + LD_PRELOAD wiring the runner uses, parses
-// the verdicts, and asserts they are BLOCKED — so a regression that re-opens an
+// the verdicts, and asserts they are BLOCKED - so a regression that re-opens an
 // escape fails CI rather than only showing up in prod logs.
 //
 // What is asserted where:
@@ -18,14 +18,14 @@ package pluginrunner
 //     skipped (logged) on a kernel without Landlock so the test never
 //     false-fails on, e.g., a WSL2 dev kernel.
 //
-// Prerequisites: a `node` runtime (the fixtures are Node.js, builtins only — no
+// Prerequisites: a `node` runtime (the fixtures are Node.js, builtins only - no
 // node_modules) and `cc` (for the LD_PRELOAD shim; absent ⇒ execve assertions
 // skipped). Run it where both exist, e.g. the evey-server container:
 //
 //	docker exec evey-server go test ./internal/adapters/driven/pluginrunner/ -run TestRedTeamSandboxEscape -v
 //
 // The resource-monitor probes (probe-miner mem balloon) and the data-store
-// isolation probes (escape-datastore) are NOT covered here — they need the
+// isolation probes (escape-datastore) are NOT covered here - they need the
 // server's userspace monitor and the gRPC HostService respectively, and are
 // covered by runner_resmon_test.go and the plugin-data tests.
 
@@ -122,7 +122,7 @@ func runEscapeFixture(t *testing.T, nodePath, launcher, soPath, root, name strin
 
 	// The runner layers the LD_PRELOAD seccomp shim for plugins without the
 	// subprocess permission. node must be able to open() the lib, and under
-	// Landlock only allowlisted paths are openable — so place it in the plugin's
+	// Landlock only allowlisted paths are openable - so place it in the plugin's
 	// own (read-write, allowlisted) install dir, mirroring prod where the shim
 	// ships under /app (on the read-only allowlist). A copy outside the allowlist
 	// would be silently un-loadable and execve would not be denied.
@@ -221,7 +221,7 @@ func TestRedTeamSandboxEscape(t *testing.T) {
 	}
 
 	// All fixtures declare api.library (a backend RPC perm) and neither network
-	// nor subprocess — so the launcher gets -deny-inet and the LD_PRELOAD shim.
+	// nor subprocess - so the launcher gets -deny-inet and the LD_PRELOAD shim.
 	const noNetNoSub = "api.library"
 
 	t.Run("escape-fs", func(t *testing.T) {
@@ -284,18 +284,18 @@ func TestRedTeamSandboxEscape(t *testing.T) {
 			{"exec_ffmpeg_nvenc", "BLOCKED", gatePreload},
 			// read_nvenc_lib / read_cuda_lib are NOT asserted: the vendor .so
 			// files live under /usr (readable for the interpreter) and a plain
-			// read is inert without a device node — the render-node boundary
+			// read is inert without a device node - the render-node boundary
 			// asserted above is what blocks GPU use. They are logged for context.
 		})
 	})
 
 	// Same fixture, but WITH the hardware.gpu permission granted. The grant is
 	// the render node ALONE: open_drm_render must now succeed (legit GPU use),
-	// while the privileged card node and every other vendor's node stay denied —
+	// while the privileged card node and every other vendor's node stay denied -
 	// proving the grant is minimal and cannot be widened to card0/dxg/nvidia*.
 	// Requires a real render node mapped into the test container (the dev `evey`
 	// service maps /dev/dri); on a host without one, resolveRenderNode returns ""
-	// so no -render-dev is emitted and open_drm_render reports BLOCKED — which is
+	// so no -render-dev is emitted and open_drm_render reports BLOCKED - which is
 	// why open_drm_render is gated on the node existing.
 	t.Run("cryptominer-gpu-granted", func(t *testing.T) {
 		if resolveRenderNode() == "" {

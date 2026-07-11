@@ -27,13 +27,13 @@ func NewCosignVerifier(policy, keyPath string) *CosignVerifier {
 // sigPath is the detached .sig file (empty → zipPath+".sig" is tried).
 //
 // Behaviour by policy:
-//   - "off": returns (nil, nil) — no-op
-//   - empty keyPath under "warn": returns (nil, nil) — best-effort, can't verify
+//   - "off": returns (nil, nil) - no-op
+//   - empty keyPath under "warn": returns (nil, nil) - best-effort, can't verify
 //   - empty keyPath under "enforce": fails closed (config validation already
 //     refuses to start in this state; this is defense-in-depth so a hand-built
 //     enforce verifier without a key can never silently pass a plugin)
-//   - "warn": returns (status, nil) even on failure — caller logs
-//   - "enforce": returns (status, error) when verification fails — caller blocks
+//   - "warn": returns (status, nil) even on failure - caller logs
+//   - "enforce": returns (status, error) when verification fails - caller blocks
 func (v *CosignVerifier) VerifySignature(ctx context.Context, zipPath, sigPath string) (*domainplugin.SignatureStatus, error) {
 	if v.policy == "off" {
 		return nil, nil

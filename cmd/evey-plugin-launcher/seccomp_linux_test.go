@@ -47,7 +47,7 @@ func seccompChild(denyInet bool) {
 		fmt.Fprintf(os.Stderr, "unshare not denied: errno=%v\n", errno)
 		os.Exit(11)
 	}
-	// AF_UNIX must always work — the plugin talks to HostService over it.
+	// AF_UNIX must always work - the plugin talks to HostService over it.
 	if fd, _, errno := unix.Syscall(unix.SYS_SOCKET, uintptr(unix.AF_UNIX), uintptr(unix.SOCK_STREAM), 0); errno != 0 {
 		fmt.Fprintf(os.Stderr, "AF_UNIX socket denied: errno=%v\n", errno)
 		os.Exit(12)

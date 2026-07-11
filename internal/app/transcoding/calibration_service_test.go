@@ -109,7 +109,7 @@ func TestCalibration_EnsureCalibrated_CachedMatch_SkipsBench(t *testing.T) {
 	// Persist a capability whose CPU signature MATCHES the host's,
 	// then check that EnsureCalibrated doesn't re-run the benchmark.
 	// We grab the real host signature from sysinfo so the equality
-	// check passes — the test relies on /proc/cpuinfo being stable.
+	// check passes - the test relies on /proc/cpuinfo being stable.
 	hostSig := hostCPUSig(t)
 	repo := &fakeCapabilityRepo{
 		stored: &domaintranscoding.EncodeCapability{

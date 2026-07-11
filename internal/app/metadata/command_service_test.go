@@ -360,7 +360,7 @@ func TestWaitWorkers_NoWorkersReturnsImmediately(t *testing.T) {
 
 // fakeOrphanBulkEnricher records every batch enrich call without doing the actual
 // TMDB work. Satisfies BulkItemEnricher and the base ItemEnricher contract.
-// finishedCh is closed exactly once, on the first AutoEnrichAll return — the
+// finishedCh is closed exactly once, on the first AutoEnrichAll return - the
 // drainer may call AutoEnrichAll multiple times so a per-call close would
 // panic.
 type fakeOrphanBulkEnricher struct {
@@ -455,12 +455,12 @@ func TestMatchOrphansInLibrary_SelectsOnlyOrphansInLibrary(t *testing.T) {
 		ID: "m2", LibraryID: "lib-1", Type: library.MovieItem, Title: "Orphan 2",
 		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{}},
 	}))
-	// matched item in target library — must be skipped
+	// matched item in target library - must be skipped
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "m3", LibraryID: "lib-1", Type: library.MovieItem, Title: "Matched",
 		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "42"}},
 	}))
-	// orphan in OTHER library — must be skipped
+	// orphan in OTHER library - must be skipped
 	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
 		ID: "m4", LibraryID: "lib-2", Type: library.MovieItem, Title: "Other lib orphan",
 	}))
@@ -469,7 +469,7 @@ func TestMatchOrphansInLibrary_SelectsOnlyOrphansInLibrary(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, total, "should count only lib-1 orphans")
 
-	// Drainer runs in a detached goroutine — wait for completion.
+	// Drainer runs in a detached goroutine - wait for completion.
 	select {
 	case <-enricher.doneCh:
 	case <-time.After(2 * time.Second):
@@ -485,7 +485,7 @@ func TestMatchOrphansInLibrary_SelectsOnlyOrphansInLibrary(t *testing.T) {
 func TestMatchOrphansInLibrary_StopsOnStall(t *testing.T) {
 	cmdSvc := newCmdSvcNoEnricher()
 	mediaRepo := libfakes.NewFakeMediaItemRepository()
-	// Enricher that does NOT write back ProviderIDs — orphan count stays
+	// Enricher that does NOT write back ProviderIDs - orphan count stays
 	// constant → drainer must detect the stall and exit.
 	enricher := &fakeOrphanBulkEnricher{finishedCh: make(chan struct{})}
 	appmetadata.WithEnricher(enricher, mediaRepo)(cmdSvc)
@@ -499,7 +499,7 @@ func TestMatchOrphansInLibrary_StopsOnStall(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 
-	// Wait for the first AutoEnrichAll call — drainer should then detect
+	// Wait for the first AutoEnrichAll call - drainer should then detect
 	// the stall (Count unchanged) and exit instead of looping forever.
 	select {
 	case <-enricher.finishedCh:
@@ -555,13 +555,13 @@ func TestMatchOrphansInLibrary_DetachesFromCallerContext(t *testing.T) {
 
 	cancel() // simulate HTTP client disconnect
 
-	// The detached goroutine must still be alive — release it and confirm it
+	// The detached goroutine must still be alive - release it and confirm it
 	// completes, proving cancellation of the caller ctx did not propagate.
 	close(release)
 	select {
 	case <-enricher.finishedCh:
 	case <-time.After(2 * time.Second):
-		t.Fatal("detached enricher was cancelled by caller ctx — regression")
+		t.Fatal("detached enricher was cancelled by caller ctx - regression")
 	}
 }
 
@@ -670,7 +670,7 @@ func TestResearchMetadata_ResetsAndReEnrichesFromScanTitle(t *testing.T) {
 	require.NotNil(t, final.Catalog)
 	assert.Equal(t, "1419", final.Catalog.ProviderIDs["tmdb"])
 	// non-targeted provider IDs (wikidata) were also dropped because the
-	// enricher overwrote the catalog wholesale — that's fine; what matters
+	// enricher overwrote the catalog wholesale - that's fine; what matters
 	// here is that the bad tmdb/imdb/thetvdb didn't survive.
 }
 
@@ -768,7 +768,7 @@ func TestSetOverride_TitleOnOrphan_PropagatesAndTriggersEnrich(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Quand l'hôpital retient son souffle", updated.Title)
 
-	// Auto-enrich runs in a goroutine — give it a moment to fire.
+	// Auto-enrich runs in a goroutine - give it a moment to fire.
 	assert.Eventually(t, func() bool {
 		return enricher.singleN.Load() == 1
 	}, 2*time.Second, 20*time.Millisecond, "auto-enrich was not triggered")
@@ -988,7 +988,7 @@ func TestArtworkAutoDownloadHook_DownloadsWhenEnabled(t *testing.T) {
 }
 
 // TestArtworkAutoDownloadHook_NoopWhenDisabled: with the toggle off the hook must
-// be a cheap no-op — the enricher fires it for every saved record regardless.
+// be a cheap no-op - the enricher fires it for every saved record regardless.
 func TestArtworkAutoDownloadHook_NoopWhenDisabled(t *testing.T) {
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 	dl := &writingDownloader{}
@@ -1056,7 +1056,7 @@ func TestArtwork_ContentAddressed_NoDuplicateFiles(t *testing.T) {
 // TestArtwork_ZeroByteFile_Refetched guards the data-loss path the review
 // found: a 0-byte file left at the content-addressed path by a killed
 // mid-download must be RE-fetched, not reconciled as valid (which would strand
-// the record forever — non-null local_path excludes it from every retry scan).
+// the record forever - non-null local_path excludes it from every retry scan).
 func TestArtwork_ZeroByteFile_Refetched(t *testing.T) {
 	artworkRepo := metafakes.NewFakeArtworkRepository()
 	dl := &writingDownloader{}

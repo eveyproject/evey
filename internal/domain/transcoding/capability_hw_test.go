@@ -19,7 +19,7 @@ func TestEncodeCapability_HWSupports(t *testing.T) {
 		{"nvenc h264", transcoding.EncodeCapability{HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}}, "h264", true},
 		{"nvenc hevc", transcoding.EncodeCapability{HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}}, "hevc", true},
 		{"nvenc av1", transcoding.EncodeCapability{HWBackend: "nvenc", HWCodecs: []string{"h264", "hevc", "av1"}}, "av1", true},
-		// Old QSV: H.264 only — HEVC/AV1 must fall back to software.
+		// Old QSV: H.264 only - HEVC/AV1 must fall back to software.
 		{"qsv old-igpu h264", transcoding.EncodeCapability{HWBackend: "qsv", HWCodecs: []string{"h264"}}, "h264", true},
 		{"qsv old-igpu hevc", transcoding.EncodeCapability{HWBackend: "qsv", HWCodecs: []string{"h264"}}, "hevc", false},
 		{"qsv old-igpu av1", transcoding.EncodeCapability{HWBackend: "qsv", HWCodecs: []string{"h264"}}, "av1", false},

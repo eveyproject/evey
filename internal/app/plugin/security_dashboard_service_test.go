@@ -191,7 +191,7 @@ func TestGetSecurityDashboard_Findings(t *testing.T) {
 		InstalledAt: time.Now(),
 		AnalysisReport: &plugin.AnalysisReport{
 			Safe:       false,
-			Issues:     []string{"[CRITICAL] eval.py:5 — dynamic code execution (eval/exec) (eval())", "[WARNING] base.py:12 — base64 decoding (atob(x))"},
+			Issues:     []string{"[CRITICAL] eval.py:5 - dynamic code execution (eval/exec) (eval())", "[WARNING] base.py:12 - base64 decoding (atob(x))"},
 			Categories: []string{"obfuscation", "obfuscation"},
 		},
 	}

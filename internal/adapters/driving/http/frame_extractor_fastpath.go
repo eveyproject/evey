@@ -7,16 +7,16 @@ import (
 	"strings"
 )
 
-// frame_extractor_fastpath.go — a FrameExtractor that tries the mkvgo keyframe
+// frame_extractor_fastpath.go - a FrameExtractor that tries the mkvgo keyframe
 // fast path before the ffmpeg -ss extractor. mkvgo seeks the nearest keyframe
 // through the container's Cues (bounded reads, no full-file scan) and ffmpeg
-// decodes just that one frame — far less work on a weak NAS than seeking and
+// decodes just that one frame - far less work on a weak NAS than seeking and
 // decoding the whole GOP up to the exact position.
 //
 // The fast path returns the KEYFRAME, not the exact requested frame, so it is
 // only taken when that keyframe lands within maxSnapshotDriftMs of the request
 // (a scrubbing preview tolerates a small drift; anything further falls back to
-// the exact ffmpeg decode). Matroska/WebM only — the seek-index extractor is
+// the exact ffmpeg decode). Matroska/WebM only - the seek-index extractor is
 // EBML; every other container, a too-distant keyframe, or any error falls
 // straight through to ExtractFrame, so behaviour is never worse than today.
 
@@ -47,7 +47,7 @@ func (e *fastFrameExtractor) ExtractFrame(ctx context.Context, filePath string, 
 		packet, ext, ptsMs, err := e.kf.ExtractKeyframePacket(ctx, filePath, atMs)
 		switch {
 		case err != nil:
-			// Common on exotic files (no Cues, odd lacing) — the exact decoder
+			// Common on exotic files (no Cues, odd lacing) - the exact decoder
 			// covers it, but keep a trace so an mkvgo regression is visible.
 			slog.Debug("snapshot fast path: keyframe extract failed, using exact decoder",
 				slog.String("path", filePath), slog.Any("err", err))

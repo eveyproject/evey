@@ -107,4 +107,3 @@ func (r *FakeLoginHistoryRepository) ListByUserIDCursor(_ context.Context, userI
 	}
 	return result, nil
 }
-

@@ -9,7 +9,7 @@ import (
 
 // startNumberFor must derive the -start_number from StartSec for transcode
 // (uniform segments) but take the absolute index verbatim for copy
-// (keyframe-aligned variable-length segments) — otherwise a forward seek emits
+// (keyframe-aligned variable-length segments) - otherwise a forward seek emits
 // the wrong stream_N_<idx>.m4s and the player loads forever.
 func TestStartNumberFor(t *testing.T) {
 	cases := []struct {
@@ -105,7 +105,7 @@ func TestBuildCopyVideoArgs_CopyOnSeek(t *testing.T) {
 	}
 }
 
-// The copy rung MUST run `-hls_time 0` — split at EVERY keyframe — because that
+// The copy rung MUST run `-hls_time 0` - split at EVERY keyframe - because that
 // is the only ffmpeg split rule that is independent of where the session
 // started. Any hls_time > 0 splits on an absolute n×hls_time grid relative to
 // the SESSION start: on long-GOP sources the grid lags until ffmpeg cuts at

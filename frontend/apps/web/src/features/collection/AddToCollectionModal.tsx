@@ -30,7 +30,7 @@ export function AddToCollectionModal({ open, onClose, mediaItemIds }: Props) {
         )
       );
       // Direct service call bypasses the mutation hook's auto-invalidation, so
-      // refresh the target collection's items — otherwise the collection page
+      // refresh the target collection's items - otherwise the collection page
       // shows stale contents after the add.
       qc.invalidateQueries({ queryKey: getCollectionServiceGetCollectionItemsQueryKey(collectionId) });
       toast.success(

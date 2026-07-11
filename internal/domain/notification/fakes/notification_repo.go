@@ -229,4 +229,3 @@ func (r *FakeNotificationRepository) GetItems() []*notification.Notification {
 	copy(out, r.items)
 	return out
 }
-

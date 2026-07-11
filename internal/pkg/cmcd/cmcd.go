@@ -1,6 +1,6 @@
 // Package cmcd parses Common Media Client Data per CTA-5004 (rev. 2020-09)
 // from incoming segment requests. hls.js, Shaka, ExoPlayer and Safari (17+)
-// all emit this payload natively when they fetch a segment — we just have to
+// all emit this payload natively when they fetch a segment - we just have to
 // read it.
 //
 // Payload format (CTA-5004 §6.1):
@@ -9,11 +9,11 @@
 //
 // The query value is comma-separated key=value pairs (URL-encoded once). The
 // same payload can also arrive as one of four headers (CMCD-Request,
-// CMCD-Object, CMCD-Session, CMCD-Status) split by category — the merged shape
+// CMCD-Object, CMCD-Session, CMCD-Status) split by category - the merged shape
 // is identical so we parse them uniformly.
 //
 // We deliberately keep the parser permissive: an unrecognized key is ignored
-// (CTA-5004 allows custom keys), a malformed value never causes a 5xx — at
+// (CTA-5004 allows custom keys), a malformed value never causes a 5xx - at
 // worst the field stays at its zero value and the rest of the payload is
 // still recorded. The QoE pipeline must never break playback.
 package cmcd
@@ -26,33 +26,33 @@ import (
 
 // Payload is the parsed view of a single segment request's CMCD data. Field
 // names mirror CTA-5004 §5 keys. Pointers (or sentinel zero values) signal
-// "absent" — players omit any key they don't have data for.
+// "absent" - players omit any key they don't have data for.
 //
 // We don't store every CTA-5004 key; only the ones with operational value
 // for a self-hosted media server. The rest (nor, nrr, pr, ...) round-trip
 // to Raw for future use.
 type Payload struct {
-	// Request scope — refreshes on every segment.
+	// Request scope - refreshes on every segment.
 	BufferLengthMs int  // bl: client-side buffer length at request time
 	DeadlineMs     int  // dl: deadline in ms from request to playback need
 	MeasuredKbps   int  // mtp: throughput the client measured on the prev fetch
 	BufferStarved  bool // bs: "buffer was starved since the last request"
 	Startup        bool // su: this is the startup phase (first segment of session)
 
-	// Object scope — about the segment being fetched.
+	// Object scope - about the segment being fetched.
 	EncodedKbps    int    // br: bitrate of the rendition being downloaded
 	ObjectType     string // ot: a|v|av|i|m|t|tt (audio, video, muxed, init, manifest, timed-text, trickplay)
 	ObjectDuration int    // d: segment duration in ms
 	TopBitrateKbps int    // tb: top rendition bitrate available to the client
 
-	// Session scope — same across the whole playback session.
+	// Session scope - same across the whole playback session.
 	SessionID       string // sid: UUID-ish, set by the player at session start
 	ContentID       string // cid: opaque per-content key, set by the player
 	StreamingFormat string // sf: "d" DASH | "h" HLS | "s" Smooth
 	StreamType      string // st: "v" VOD | "l" live
 	Version         int    // v: CMCD version
 
-	// Status scope — operational signals.
+	// Status scope - operational signals.
 	RequestedMaxKbps int     // rtp: cap the client has requested
 	PlaybackRate     float64 // pr: 1.0 normal, 2.0 double speed, 0.5 half
 
@@ -63,7 +63,7 @@ type Payload struct {
 }
 
 // FromRequest extracts CMCD from query (?CMCD=...) first, then falls back to
-// the four CMCD-* headers. Returns (zero, false) when no CMCD is present —
+// the four CMCD-* headers. Returns (zero, false) when no CMCD is present -
 // callers must not treat that as an error (most legacy clients send nothing).
 func FromRequest(r *http.Request) (Payload, bool) {
 	if q := r.URL.Query().Get("CMCD"); q != "" {
@@ -90,7 +90,7 @@ func FromRequest(r *http.Request) (Payload, bool) {
 //
 // Whitespace around keys/values is trimmed. Unknown keys land in Raw only.
 // maxRawKeys bounds the number of distinct CTA-5004 keys we keep per
-// payload. The spec is open — vendors are allowed custom keys — but
+// payload. The spec is open - vendors are allowed custom keys - but
 // a buggy / malicious player blasting thousands of synthetic keys
 // would inflate the JSON we persist in playback_qoe_events.raw with
 // no analytical value. 50 covers the standard keys (~12) plus a
@@ -101,7 +101,7 @@ func parse(s string) Payload {
 	p := Payload{Raw: make(map[string]string, 12)}
 
 	// Split honouring quoted strings: CTA-5004 allows commas inside quotes
-	// (e.g. sid="abc,def" — rare but legal).
+	// (e.g. sid="abc,def" - rare but legal).
 	for _, kv := range splitTopLevelCommas(s) {
 		k, v := splitKV(strings.TrimSpace(kv))
 		if k == "" {

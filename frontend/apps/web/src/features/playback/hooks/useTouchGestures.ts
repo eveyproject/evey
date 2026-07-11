@@ -84,7 +84,7 @@ export function useTouchGestures({
       } else if (relX < 0.4) {
         swipeActiveRef.current = "brightness";
       } else {
-        return; // middle zone — no gesture
+        return; // middle zone - no gesture
       }
     }
 

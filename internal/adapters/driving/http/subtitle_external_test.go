@@ -43,7 +43,7 @@ func TestServeExternalSubtitle_PathTraversal_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/subs/x", nil)
 	rec := httptest.NewRecorder()
-	// base filename stripping + safeJoin — passing absolute path should be normalized
+	// base filename stripping + safeJoin - passing absolute path should be normalized
 	serveExternalSubtitle(rec, req, "../../secret.vtt", tmp, "")
 
 	// File doesn't exist in baseDir, so http.ServeFile returns 404 or .vtt branch

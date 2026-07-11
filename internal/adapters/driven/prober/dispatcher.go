@@ -30,7 +30,7 @@ type metaReader interface {
 // Dispatcher implements library.StreamProber. For a container mkvgo can read
 // head-only (EBML .mkv/.webm, or ISO-BMFF .mp4/.m4v/.mov) it reads metadata
 // in-process via mkvgo OpenMeta and maps it to a ProbeResult; for everything
-// else — and for any file it cannot map field-equivalent — it delegates to
+// else - and for any file it cannot map field-equivalent - it delegates to
 // fallback (the ffprobe prober, the authority). The fast-path is a fork-free,
 // head-only optimization, never a correctness requirement.
 type Dispatcher struct {
@@ -75,7 +75,7 @@ func (d *Dispatcher) ProbeStreams(ctx context.Context, filePath string) (res *li
 	// Defense-in-depth at the untrusted-input boundary: a malformed/adversarial
 	// container must never crash the scan worker. mkvgo is fuzz-tested and
 	// fail-soft, but if an in-process parse ever panics we absorb it here and let
-	// ffprobe (the authority) handle the file — the fast-path is never required.
+	// ffprobe (the authority) handle the file - the fast-path is never required.
 	defer func() {
 		if r := recover(); r != nil {
 			span.AddEvent("meta-panic: ffprobe fallback")
@@ -100,7 +100,7 @@ func (d *Dispatcher) ProbeStreams(ctx context.Context, filePath string) (res *li
 }
 
 // realMetaReader is the production metaReader backed by the mkvgo library: EBML
-// via the Matroska reader, ISO-BMFF via the mp4 package — both head-only.
+// via the Matroska reader, ISO-BMFF via the mp4 package - both head-only.
 type realMetaReader struct{}
 
 func (realMetaReader) IsEBML(path string) bool { return mkvadapter.IsEBMLContainer(path) }
@@ -110,7 +110,7 @@ func (realMetaReader) ReadMeta(ctx context.Context, path string) (*extmkv.Contai
 	if mkvadapter.IsMP4Container(path) {
 		return readMP4Meta(ctx, path)
 	}
-	// WithInBandColourFallback: same bare-hvcC HEVC recovery for Matroska — lets
+	// WithInBandColourFallback: same bare-hvcC HEVC recovery for Matroska - lets
 	// HDR10/HLG/PQ in-band titles fast-path instead of bailing to ffprobe; the
 	// mapper's no-colour gate is the last resort if even this yields nothing.
 	// WithBitrate: follow the head SeekHead to the Tags element for the per-track
@@ -118,7 +118,7 @@ func (realMetaReader) ReadMeta(ctx context.Context, path string) (*extmkv.Contai
 	// the same Bitrate the ffprobe fallback reads from TAG:BPS.
 	c, err := reader.OpenMeta(ctx, path, reader.WithInBandColourFallback(), reader.WithBitrate())
 	if errors.Is(err, reader.ErrNotMatroska) {
-		// A .mkv/.webm extension on an ISO-BMFF (MP4) payload — a mislabeled file.
+		// A .mkv/.webm extension on an ISO-BMFF (MP4) payload - a mislabeled file.
 		// mkvgo typed the input rather than returning a cryptic EBML error, so read
 		// it as the mp4 it actually is instead of forking ffprobe for it.
 		return readMP4Meta(ctx, path)
@@ -140,11 +140,11 @@ func readMP4Meta(ctx context.Context, path string) (*extmkv.Container, error) {
 // gateMP4Drops decides whether an mp4.OpenMeta result is safe to fast-path given
 // the tracks the reader could not surface. A dropped VIDEO or AUDIO track (e.g.
 // an s263/h263 sample entry in an old camera mp4) means the file holds more
-// media than the returned container shows — scanning it would record the file
-// as audio-only and the playback decision would be wrong — so those files go to
+// media than the returned container shows - scanning it would record the file
+// as audio-only and the playback decision would be wrong - so those files go to
 // ffprobe (the authority) instead. Benign drops keep the fast-path: non-media
 // handlers (hint/timecode/metadata, Type == "") and subtitle drops (QuickTime
-// chapter text — surfaced as Chapters, and the subtitle serve path has its own
+// chapter text - surfaced as Chapters, and the subtitle serve path has its own
 // codec guard with ffmpeg fallback).
 func gateMP4Drops(c *extmkv.Container, dropped []mp4.DroppedTrack, err error) (*extmkv.Container, error) {
 	if err != nil {
@@ -152,7 +152,7 @@ func gateMP4Drops(c *extmkv.Container, dropped []mp4.DroppedTrack, err error) (*
 	}
 	for _, d := range dropped {
 		if d.Type == extmkv.VideoTrack || d.Type == extmkv.AudioTrack {
-			return nil, fmt.Errorf("mp4 fast-path: dropped %s track %d (%s): %s — deferring to ffprobe",
+			return nil, fmt.Errorf("mp4 fast-path: dropped %s track %d (%s): %s - deferring to ffprobe",
 				d.Type, d.ID, d.Codec, d.Reason)
 		}
 	}

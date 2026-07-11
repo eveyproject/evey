@@ -6,7 +6,7 @@ import "time"
 // tab) holding a persistent WebSocket to the server and declared as
 // controllable. It is the "receiver" for the Play On feature: the server
 // brokers playback commands to it directly, with no third-party casting
-// protocol (Chromecast/AirPlay) and no LAN dependency — it works for
+// protocol (Chromecast/AirPlay) and no LAN dependency - it works for
 // remote clients exactly as for local ones, because everything is relayed
 // through the server connection each client already holds.
 type Device struct {
@@ -37,7 +37,7 @@ type DeviceRegisterRequest struct {
 
 // DeviceCommand is a server→device push: a playback instruction the
 // target client acts on. Distinct from SyncCommand, which is the
-// room-scoped peer-relay protocol for synchronized watch parties — a
+// room-scoped peer-relay protocol for synchronized watch parties - a
 // DeviceCommand has a single addressed recipient and no room.
 type DeviceCommand struct {
 	Type       string `json:"type"`                 // "loadAndPlay" | "play" | "pause" | "seek"

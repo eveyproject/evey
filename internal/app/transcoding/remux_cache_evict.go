@@ -18,7 +18,7 @@ import (
 // admin panel, not .env). Swept independently of the segment cache.
 const DefaultRemuxCacheBytes = 10 * 1024 * 1024 * 1024
 
-// RemuxCacheJanitor bounds a flat-file cache directory — the fast-start MP4s the
+// RemuxCacheJanitor bounds a flat-file cache directory - the fast-start MP4s the
 // /remux.mp4 handler writes under <CacheDir>/remux, one whole file per entry. It
 // reuses the segment cache's EvictionPolicy knobs and LRU-by-(size, mtime)
 // algorithm, but operates on FILES, not the segment cache's per-decision-hash
@@ -44,7 +44,7 @@ func NewRemuxCacheJanitor(dir string) *RemuxCacheJanitor {
 }
 
 // StartEviction launches the background sweeper. MaxBytes <= 0 disables it and
-// returns a no-op stop (unbounded growth — only sane for tests/POC). The stop
+// returns a no-op stop (unbounded growth - only sane for tests/POC). The stop
 // function is safe to defer.
 func (j *RemuxCacheJanitor) StartEviction(policy EvictionPolicy, logger *slog.Logger) (stop func()) {
 	policy = policy.withDefaults()
@@ -67,7 +67,7 @@ func (j *RemuxCacheJanitor) StartEviction(policy EvictionPolicy, logger *slog.Lo
 				return
 			case <-ticker.C:
 				// A panic in one sweep must not crash the whole server (weak-NAS,
-				// multi-user) nor stop future sweeps — recover per iteration, like
+				// multi-user) nor stop future sweeps - recover per iteration, like
 				// every sibling background worker.
 				func() {
 					defer func() {

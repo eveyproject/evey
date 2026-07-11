@@ -46,9 +46,9 @@ func TestSearchSubtitles_Success(t *testing.T) {
 		resp := searchResponse{
 			Data: []struct {
 				Attributes struct {
-					Language       string  `json:"language"`
-					Rating         float64 `json:"ratings"`
-					Files          []struct {
+					Language string  `json:"language"`
+					Rating   float64 `json:"ratings"`
+					Files    []struct {
 						FileID   int    `json:"file_id"`
 						FileName string `json:"file_name"`
 					} `json:"files"`
@@ -57,9 +57,9 @@ func TestSearchSubtitles_Success(t *testing.T) {
 			}{
 				{
 					Attributes: struct {
-						Language       string  `json:"language"`
-						Rating         float64 `json:"ratings"`
-						Files          []struct {
+						Language string  `json:"language"`
+						Rating   float64 `json:"ratings"`
+						Files    []struct {
 							FileID   int    `json:"file_id"`
 							FileName string `json:"file_name"`
 						} `json:"files"`

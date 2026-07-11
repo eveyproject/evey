@@ -318,7 +318,7 @@ describe("useSyncPlay", () => {
       expect(onPlay).toHaveBeenCalledWith(0);
     });
 
-    it("handles member_joined — adds member and calls callback", async () => {
+    it("handles member_joined - adds member and calls callback", async () => {
       const onMemberJoined = vi.fn();
       eveyFetchFn.mockResolvedValueOnce({ id: "room-1", code: "C" });
       const { result } = await loadHook({ onMemberJoined });
@@ -334,7 +334,7 @@ describe("useSyncPlay", () => {
       expect(onMemberJoined).toHaveBeenCalledWith("u3", "Charlie");
     });
 
-    it("handles member_left — removes member and calls callback", async () => {
+    it("handles member_left - removes member and calls callback", async () => {
       const onMemberLeft = vi.fn();
       eveyFetchFn.mockResolvedValueOnce({ id: "room-1", code: "C" });
       const { result } = await loadHook({ onMemberLeft });

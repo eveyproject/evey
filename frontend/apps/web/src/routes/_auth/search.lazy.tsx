@@ -70,7 +70,7 @@ function SearchPage() {
     setSearchKind(kind === "music" ? "music" : "media");
   }, [kind]);
 
-  // NOTE: recents are committed on an explicit action (blur / Enter), not here —
+  // NOTE: recents are committed on an explicit action (blur / Enter), not here -
   // pushing on every debounced value would save every keystroke prefix ("in",
   // "inc", "ince", …) and evict real past searches (MAX 8).
   useEffect(() => {
@@ -122,7 +122,7 @@ function SearchPage() {
   const items = data?.items ?? [];
   const totalHits = data?.totalHits ?? items.length;
 
-  // Music search (separate index, cross-library) — only when the music scope is
+  // Music search (separate index, cross-library) - only when the music scope is
   // selected.
   const { data: musicData, isLoading: musicLoading, isError: musicIsError } = useQuery({
     queryKey: ["/api/v1/music/search", debouncedQuery],
@@ -155,8 +155,8 @@ function SearchPage() {
             data-testid="search-page-input"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            // Commit to recents on a deliberate action (leaving the field — e.g.
-            // clicking a result — or pressing Enter), not on every keystroke.
+            // Commit to recents on a deliberate action (leaving the field - e.g.
+            // clicking a result - or pressing Enter), not on every keystroke.
             onBlur={() => { const v = inputValue.trim(); if (v.length > 1) pushRecent(v); }}
             onKeyDown={(e) => {
               if (e.key === "Enter") { const v = inputValue.trim(); if (v.length > 1) pushRecent(v); }

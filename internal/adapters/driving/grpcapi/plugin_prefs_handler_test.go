@@ -81,7 +81,7 @@ func TestPluginPrefs_ScopedToTokenPluginAndUser(t *testing.T) {
 	assert.True(t, got.Found)
 	assert.Equal(t, "dark", got.Value)
 
-	// The value was stored under (plg-1, u1) — proving plugin+user come from the
+	// The value was stored under (plg-1, u1) - proving plugin+user come from the
 	// token, not the request (the request only carries key/value).
 	stored, _ := repo.Get(context.Background(), "plg-1", "u1", "", "theme")
 	assert.Equal(t, "dark", stored.Value)

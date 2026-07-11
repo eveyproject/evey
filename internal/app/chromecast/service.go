@@ -30,7 +30,7 @@ type Service struct {
 	discoverer domaincast.Discoverer
 	factory    domaincast.SessionFactory
 
-	// connMu guards conns and connLocks ONLY — it is never held across a
+	// connMu guards conns and connLocks ONLY - it is never held across a
 	// blocking session call (Connect/StopMedia/Close). Per-device serialization
 	// of those calls goes through connLocks instead.
 	connMu    sync.Mutex

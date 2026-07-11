@@ -545,7 +545,7 @@ func TestListTracks_LimitLarge(t *testing.T) {
 		}
 	}
 
-	// pass a very large limit — service passes it through to repo, repo returns all 3
+	// pass a very large limit - service passes it through to repo, repo returns all 3
 	tracks, total, err := svc.ListTracks(ctx, "lib-1", 1000, 0, "")
 	if err != nil {
 		t.Fatal(err)

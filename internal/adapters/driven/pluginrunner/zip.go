@@ -13,7 +13,7 @@ const (
 	maxZipFileSize      = 100 * 1024 * 1024  // 100 MB per file
 	maxZipFiles         = 5000               // entry count cap
 	maxZipTotalBytes    = 500 * 1024 * 1024  // 500 MB cumulated uncompressed
-	maxCompressionRatio = 100                // compressed:uncompressed — detect zip-bombs
+	maxCompressionRatio = 100                // compressed:uncompressed - detect zip-bombs
 	ratioCheckMinBytes  = 1 << 20            // only enforce the ratio above 1 MB uncompressed
 	safeFileModeMask    = os.FileMode(0o755) // strip setuid/setgid/sticky
 )
@@ -74,7 +74,7 @@ func extractZipFile(f *zip.File, destDir string, totalBytes *uint64) error {
 	// be a decompression bomb. A small but highly-compressible file (e.g. a
 	// repetitive text fixture vendored inside a dependency such as
 	// @protobufjs/utf8/tests/...) is harmless, and the per-file (maxZipFileSize)
-	// and cumulative (maxZipTotalBytes) caps already bound the real risk — so we
+	// and cumulative (maxZipTotalBytes) caps already bound the real risk - so we
 	// only enforce the ratio above a meaningful uncompressed size. Without this,
 	// bundling node_modules made Extract abort on innocuous test data and left
 	// the plugin half-extracted ("script not found: main.js").
@@ -113,7 +113,7 @@ func extractZipFile(f *zip.File, destDir string, totalBytes *uint64) error {
 	}
 	// Trust nothing the zip header advertised: if the actual stream is longer
 	// than maxZipFileSize, the entry lied (or was crafted to bypass the
-	// UncompressedSize64 cap above) — refuse it rather than writing a silently
+	// UncompressedSize64 cap above) - refuse it rather than writing a silently
 	// truncated file to disk.
 	if n > int64(maxZipFileSize) {
 		_ = os.Remove(target) //nolint:errcheck // best-effort cleanup of a partial extract

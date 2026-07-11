@@ -60,7 +60,7 @@ describe("ForgotPasswordPage", () => {
   it("hides the form (honest message instead) when recovery is disabled", async () => {
     mockSetupData = { passwordRecoveryEnabled: false };
     const { container } = await renderPage();
-    // No form to submit — the page must not promise a reset email that will
+    // No form to submit - the page must not promise a reset email that will
     // never be sent when SMTP/recovery is off.
     expect(container.querySelector('input[type="email"]')).toBeNull();
     expect(container.querySelector("form")).toBeNull();

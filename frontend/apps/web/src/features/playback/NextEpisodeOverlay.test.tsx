@@ -96,7 +96,7 @@ describe("NextEpisodeOverlay", () => {
       screen.queryByText("Up Next") || screen.queryByText(/Next in/),
     ).not.toBeNull();
 
-    // User scrubs back to mid-episode — neither label should appear now.
+    // User scrubs back to mid-episode - neither label should appear now.
     rerender(<NextEpisodeOverlay {...props} currentTime={1800} duration={3600} />);
     expect(screen.queryByText(/Next in/)).not.toBeInTheDocument();
     expect(screen.queryByText("Up Next")).not.toBeInTheDocument();

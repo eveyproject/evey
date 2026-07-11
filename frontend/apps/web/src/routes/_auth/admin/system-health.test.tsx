@@ -92,7 +92,7 @@ describe("SystemHealthPage", () => {
     mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
     const SystemHealthPage = await getSystemHealthPage();
     render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
-    expect(screen.getByTestId("bandwidth-card")).toHaveTextContent("—");
+    expect(screen.getByTestId("bandwidth-card")).toHaveTextContent("-");
   });
 
   it("renders dashboard activity badges", async () => {
@@ -138,7 +138,7 @@ describe("SystemHealthPage", () => {
     mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
     const SystemHealthPage = await getSystemHealthPage();
     render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
-    // Both libraries appear under the single disk card — no duplicated capacity.
+    // Both libraries appear under the single disk card - no duplicated capacity.
     expect(screen.getByText("/mnt/disk1/movies")).toBeInTheDocument();
     expect(screen.getByText("/mnt/disk1/tv")).toBeInTheDocument();
   });

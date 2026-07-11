@@ -1,7 +1,7 @@
 // Package bgtasks is a tiny, dependency-free registry that background workers
 // report their live status into, so the admin dashboard can show WHAT is
 // running (and why the CPU isn't idle) without each worker growing its own
-// status plumbing. Observability only — never on a hot path, never affects
+// status plumbing. Observability only - never on a hot path, never affects
 // behaviour. Mirrors the log/metrics "package-level default + injectable type"
 // shape so a worker just calls bgtasks.Begin(...) with no wiring.
 package bgtasks

@@ -4,13 +4,13 @@
 // host renders it with its own native components (web here; RN renderers would
 // consume the exact same document). Security comes from four invariants,
 // enforced at the trust boundary `sanitizeSduiDocument`:
-//   1. node `type` is a closed allow-list — an unknown/forged type is dropped;
+//   1. node `type` is a closed allow-list - an unknown/forged type is dropped;
 //   2. all user-visible values are plain strings, rendered as text by React
-//      (auto-escaped) — never as markup, never `dangerouslySetInnerHTML`;
-//   3. `tone` is an enum mapped to fixed classes — the extension cannot inject
+//      (auto-escaped) - never as markup, never `dangerouslySetInnerHTML`;
+//   3. `tone` is an enum mapped to fixed classes - the extension cannot inject
 //      arbitrary colours/CSS; and sizes/depth are capped (anti-DoS);
 //   4. navigation targets (`to`) are clamped by `safePath` to internal app
-//      routes only — no scheme, no protocol-relative, no traversal (so a click
+//      routes only - no scheme, no protocol-relative, no traversal (so a click
 //      can open an app route, never an external site and never code).
 // The sanitizer never throws: untrusted input is coerced/dropped into a safe
 // document.
@@ -61,7 +61,7 @@ function arr(v: unknown): unknown[] {
 
 // safePath is the trust boundary for SDUI navigation. A node may carry a `to`
 // the renderer will follow, but ONLY an internal absolute app path: one leading
-// slash, not protocol-relative (`//`), no scheme (`javascript:`/`http:` — the
+// slash, not protocol-relative (`//`), no scheme (`javascript:`/`http:` - the
 // `:` is outside the allowed charset), no `..` traversal, restricted charset.
 // Anything else collapses to "" → the renderer treats the node as non-navigable.
 function safePath(v: unknown): string {

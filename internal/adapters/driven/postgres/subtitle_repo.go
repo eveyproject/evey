@@ -21,7 +21,7 @@ func NewSubtitleRepository(db *sql.DB) *SubtitleRepository {
 	return &SubtitleRepository{db: db}
 }
 
-// Save upserts on the NATURAL key (media_item_id, file_path) — every call
+// Save upserts on the NATURAL key (media_item_id, file_path) - every call
 // generates a fresh id, so a double-click on "download subtitle" used to
 // insert two identical rows. On conflict the existing row is refreshed and
 // keeps its original id; sub.ID is updated from RETURNING so the caller

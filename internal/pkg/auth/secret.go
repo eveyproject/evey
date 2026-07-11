@@ -11,7 +11,7 @@ import (
 )
 
 // LoadOrGenerateSecret loads a hex-encoded symmetric secret of n bytes from
-// path, generating and persisting one (0600) on first use — the same
+// path, generating and persisting one (0600) on first use - the same
 // bootstrap-on-first-run model as the JWT key. Used for the HLS AES key
 // derivation secret (per-media keys are HMAC(secret, mediaID)). A loose-perm
 // file is tightened to 0600, matching LoadOrGenerateRSAKey.

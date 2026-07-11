@@ -16,7 +16,7 @@ import (
 // sources, or a cold-open show whose title card isn't visually stable), there
 // is no candidate to confirm. These pure helpers let chromaprint DISCOVER a
 // recurring intro directly from episode fingerprints, at a free per-episode
-// offset — the case proven necessary on variable-teaser shows where the intro
+// offset - the case proven necessary on variable-teaser shows where the intro
 // floats across a multi-minute window.
 //
 // Everything here operates on raw Chromaprint fingerprints ([]uint32, ~8
@@ -98,7 +98,7 @@ func discoverRecurringIntro(target []uint32, siblings [][]uint32, p discoverPara
 	bestStart, bestEnd, ok := 0, 0, false
 	for _, sib := range siblings {
 		s, e, f := longestSharedRun(target, sib, p.MaxFrameBits, p.MinRunFrames, p.MinStartFrames)
-		if f && (e-s) > (bestEnd - bestStart) {
+		if f && (e-s) > (bestEnd-bestStart) {
 			bestStart, bestEnd, ok = s, e, true
 		}
 	}
@@ -128,7 +128,7 @@ const (
 	// covers every observed case while keeping fpcalc cost bounded.
 	discoverWindowSec = 480.0
 	// discoverMaxSiblings caps how many other episodes we fingerprint to confirm
-	// recurrence — enough for MinMatches, bounded so the season pass isn't O(n²)
+	// recurrence - enough for MinMatches, bounded so the season pass isn't O(n²)
 	// in fpcalc.
 	discoverMaxSiblings = 4
 	// discoverSiblingScanCap bounds how many episode rows we collect before

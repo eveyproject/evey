@@ -17,7 +17,7 @@ type RBACConfig struct {
 	// allowed for any plugin token). It is enforced DENY-BY-DEFAULT: a plugin
 	// token calling any method NOT in this map is rejected. This is what makes a
 	// granted permission actually enforced (the manifest/consent is otherwise
-	// cosmetic on the public API). Starts empty — plugins reach no public-API
+	// cosmetic on the public API). Starts empty - plugins reach no public-API
 	// method until a grantable capability adds an explicit entry.
 	PluginMethodScopes map[string]string
 }
@@ -70,7 +70,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminPluginService/GetPluginLogs":              RoleAdmin,
 			"/evey.v1.AdminPluginService/GetPluginResourceLimits":    RoleAdmin,
 			"/evey.v1.AdminPluginService/UpdatePluginResourceLimits": RoleAdmin,
-			// Note: IssuePluginToken intentionally absent from MethodRoles —
+			// Note: IssuePluginToken intentionally absent from MethodRoles -
 			// it resolves to the default RoleUser since iframe plugin consumers
 			// (any authenticated user) need to mint tokens. Scopes are filtered
 			// via FilterPluginScopes in the service layer (admin/system stripped).
@@ -145,12 +145,12 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.TranscodingService/StopTranscode":        RoleAdmin,
 			"/evey.v1.TranscodingService/ListActiveTranscodes": RoleAdmin,
 			// DetectHardware probes the host's encoders (CPU spawn + capability
-			// disclosure) and has no client caller — gate it to admin so a regular
+			// disclosure) and has no client caller - gate it to admin so a regular
 			// authenticated user cannot trigger a hardware probe / enumerate GPUs.
 			"/evey.v1.TranscodingService/DetectHardware": RoleAdmin,
 			// Transcode-profile CRUD configures server-wide encode ladders. The
 			// handler does not implement them yet (UnimplementedServer), but they
-			// are reachable at the RBAC layer — gate to admin so they ship gated.
+			// are reachable at the RBAC layer - gate to admin so they ship gated.
 			"/evey.v1.TranscodingService/CreateTranscodeProfile":       RoleAdmin,
 			"/evey.v1.TranscodingService/UpdateTranscodeProfile":       RoleAdmin,
 			"/evey.v1.TranscodingService/DeleteTranscodeProfile":       RoleAdmin,

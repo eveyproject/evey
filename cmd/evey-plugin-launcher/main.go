@@ -11,7 +11,7 @@
 // whole security model is "deny everything, allow the listed directories".
 //
 // UID drop is handled by the parent (exec.Cmd SysProcAttr.Credential), so the
-// launcher already runs as the unprivileged plugin user — Landlock needs no
+// launcher already runs as the unprivileged plugin user - Landlock needs no
 // privilege by design. Landlock applies to the calling thread and is preserved
 // across execve, so we lock the OS thread, restrict it, then exec on it.
 package main
@@ -59,7 +59,7 @@ type config struct {
 	roPaths         []string
 	rwPaths         []string
 	devPaths        []string // individual device nodes (/dev/null…) allowed read+write, skipped if missing
-	renderDevPath   string   // GPU DRM render node (/dev/dri/renderD12N): read+write+IOCTL_DEV — the hardware.gpu grant, never a card node
+	renderDevPath   string   // GPU DRM render node (/dev/dri/renderD12N): read+write+IOCTL_DEV - the hardware.gpu grant, never a card node
 	rlimitAS        uint64   // RLIMIT_AS bytes (virtual mem); risky for node, off by default
 	rlimitNPROC     uint64   // RLIMIT_NPROC; note: per-UID, leaks across plugins sharing the UID
 	rlimitCPU       uint64   // RLIMIT_CPU seconds
@@ -70,7 +70,7 @@ type config struct {
 	netConnectPorts []uint64 // TCP ports the plugin may connect() to; empty = none
 
 	seccomp  bool // install the kernel seccomp denylist before exec
-	denyInet bool // also EPERM socket(AF_INET/AF_INET6) — no TCP/UDP egress
+	denyInet bool // also EPERM socket(AF_INET/AF_INET6) - no TCP/UDP egress
 }
 
 func main() {
@@ -106,7 +106,7 @@ func run(argv []string) int {
 	fs.Var(&ro, "ro", "directory to allow read+execute (repeatable)")
 	fs.Var(&rw, "rw", "directory to allow read+write+create (repeatable)")
 	fs.Var(&dev, "dev", "single device node to allow read+write, e.g. /dev/null (repeatable; skipped if missing). Use instead of -rw /dev so GPU/disk nodes stay denied.")
-	renderDev := fs.String("render-dev", "", "GPU DRM render node (/dev/dri/renderD12N) to allow read+write+IOCTL_DEV — the hardware.gpu grant. Refused unless the path matches a render node; never a card/primary node.")
+	renderDev := fs.String("render-dev", "", "GPU DRM render node (/dev/dri/renderD12N) to allow read+write+IOCTL_DEV - the hardware.gpu grant. Refused unless the path matches a render node; never a card/primary node.")
 	fs.Var(&netConnect, "net-connect", "TCP port the plugin may connect to (repeatable; implies -restrict-net)")
 	restrictNet := fs.Bool("restrict-net", false, "govern TCP access via Landlock v4: deny every bind/connect except the -net-connect ports")
 	asLimit := fs.Uint64("rlimit-as", 0, "RLIMIT_AS bytes (0=unset)")
@@ -140,13 +140,13 @@ func run(argv []string) int {
 	}
 
 	// Privilege drop FIRST: before any OS thread is locked and before seccomp
-	// (which denies setuid) is installed. Fail closed — if a drop was requested
+	// (which denies setuid) is installed. Fail closed - if a drop was requested
 	// but is impossible (missing cap_setuid, no-new-privileges, or an unsafe
 	// uid), refuse to run rather than start the plugin under the wrong identity.
 	if err := dropPrivileges(*uidFlag, *gidFlag); err != nil {
 		// A drop error means no setuid happened, so the process is still at the
 		// server uid (no escalation). In best-effort mode we surface it loudly and
-		// continue — the plugin runs same-uid, confined by the other layers — so a
+		// continue - the plugin runs same-uid, confined by the other layers - so a
 		// host that can't grant the capability (or uses no-new-privileges) keeps
 		// working instead of failing every plugin closed.
 		if *uidBestEffort {
@@ -195,7 +195,7 @@ func run(argv []string) int {
 	// denylist, so this works after the filter is installed; the attribute is
 	// preserved across the execve below (the plugin binary carries no setuid/file
 	// caps). runtime.LockOSThread pins us to the thread the confinement layers
-	// restricted — the same one syscall.Exec replaces.
+	// restricted - the same one syscall.Exec replaces.
 	runtime.LockOSThread()
 	if err := armParentDeathSignal(); err != nil {
 		fmt.Fprintf(os.Stderr, "evey-plugin-launcher: WARNING parent-death signal not armed: %v\n", err)

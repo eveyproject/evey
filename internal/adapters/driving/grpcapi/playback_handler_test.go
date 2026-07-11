@@ -87,7 +87,7 @@ func pbAdminCtx() context.Context {
 	})
 }
 
-// pbUserCtx is a non-admin caller bound to profileID — used to prove the
+// pbUserCtx is a non-admin caller bound to profileID - used to prove the
 // per-session ownership guards (a regular user cannot touch another profile's
 // session). Non-admin is required: the guards are bypassed for admins.
 func pbUserCtx(userID, profileID string) context.Context {
@@ -194,7 +194,7 @@ func TestPlaybackHandler_StopStream_KeepsTranscodeWhileOtherTabActive(t *testing
 
 	// Closing tab2 while tab1 is still active is NOT the last stream → keep the transcode.
 	assert.False(t, h.lastActiveStreamForMedia(ctx, "mi-1", s2.Id),
-		"another tab is still streaming mi-1 — the shared transcode must NOT be removed")
+		"another tab is still streaming mi-1 - the shared transcode must NOT be removed")
 
 	// Stop tab2 (marks it ended); only tab1 remains active.
 	_, err = h.StopStream(ctx, &eveyv1.StopStreamRequest{SessionId: s2.Id})
@@ -202,7 +202,7 @@ func TestPlaybackHandler_StopStream_KeepsTranscodeWhileOtherTabActive(t *testing
 
 	// Closing tab1 now IS the last stream → the transcode may be torn down.
 	assert.True(t, h.lastActiveStreamForMedia(ctx, "mi-1", s1.Id),
-		"the last remaining tab closing IS the last stream — the transcode may be removed")
+		"the last remaining tab closing IS the last stream - the transcode may be removed")
 }
 
 func TestPlaybackHandler_ReportProgress(t *testing.T) {
@@ -671,7 +671,7 @@ func TestGetStreamInfo_AudioCodecsDirectPlay(t *testing.T) {
 
 // A copy-eligible video/audio pair in a browser-incompatible container (MKV)
 // must resolve to direct_stream and be routed to the HLS master so the copy
-// rung can repackage it — NOT to the raw /stream byte-server, which would hand
+// rung can repackage it - NOT to the raw /stream byte-server, which would hand
 // the client an undecodable MKV. Regression guard for the formerly no-op
 // direct_stream branch (it returned DirectPlayUrl=/stream).
 func TestGetStreamInfo_DirectStream_RoutesToHLS(t *testing.T) {
@@ -703,7 +703,7 @@ func TestGetStreamInfo_DirectStream_RoutesToHLS(t *testing.T) {
 }
 
 // B6(b): GetStreamInfo must honor the client's pre-selected tracks (absolute
-// probed indices). A selected PGS subtitle forces the burn-in transcode —
+// probed indices). A selected PGS subtitle forces the burn-in transcode -
 // advertising direct_play would silently drop the subtitle (bitmap subs can't
 // be sidecar'd as text).
 func TestGetStreamInfo_SelectedBitmapSubtitleForcesBurnIn(t *testing.T) {
@@ -748,7 +748,7 @@ func TestGetStreamInfo_SelectedBitmapSubtitleForcesBurnIn(t *testing.T) {
 }
 
 // B6(b) audio side: the decision judges the SELECTED audio track, not the
-// container default — the gRPC mirror of the HLS-side fix (default DTS +
+// container default - the gRPC mirror of the HLS-side fix (default DTS +
 // selected AAC = copy; default AAC + selected DTS = transcode).
 func TestGetStreamInfo_SelectedAudioTrackJudged(t *testing.T) {
 	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
@@ -998,7 +998,7 @@ func TestGetStreamInfo_DecisionFieldsPopulated(t *testing.T) {
 
 // TestGetStreamInfo_ServedBitrate pins resp.Bitrate to the bitrate actually
 // delivered: the source rate for direct play, the capped target for a
-// transcode (far below a fat source) — the value the player and dashboard show.
+// transcode (far below a fat source) - the value the player and dashboard show.
 func TestGetStreamInfo_ServedBitrate(t *testing.T) {
 	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
 	ctx := pbAdminCtx()

@@ -17,9 +17,9 @@ import (
 
 // TestParity_AgainstFFprobe maps every mkvgo-readable container in
 // EVEY_PARITY_DIR (.mkv/.webm via the Matroska reader, .mp4/.m4v via mp4.OpenMeta
-// — both routed by the production realMetaReader) AND via the ffprobe prober,
+// - both routed by the production realMetaReader) AND via the ffprobe prober,
 // then asserts the DECISION-AFFECTING fields agree. PATH-gated: skips unless
-// EVEY_PARITY_DIR is set (no real-file paths are committed — run it locally,
+// EVEY_PARITY_DIR is set (no real-file paths are committed - run it locally,
 // e.g. EVEY_PARITY_DIR=/media go test...). This is the real-file validation gate
 // to pass before flipping the mp4 fast-path toggle on in prod (admin panel →
 // Transcoding), the same way the mkv path was validated. Display-only fields
@@ -34,7 +34,7 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 	var files []string
 	// *.MOV uppercase matters: filepath.Glob is case-sensitive and real
 	// iPhone/camera files ship as IMG_xxxx.MOV (production lowercases the ext,
-	// so those files DO take the fast-path — the gate must see them too).
+	// so those files DO take the fast-path - the gate must see them too).
 	for _, pat := range []string{"*.mkv", "*.webm", "*.mp4", "*.m4v", "*.m4a", "*.mov", "*.MOV"} {
 		matched, _ := filepath.Glob(filepath.Join(dir, pat))
 		files = append(files, matched...)
@@ -104,7 +104,7 @@ func TestParity_AgainstFFprobe(t *testing.T) {
 // normCodec folds container-specific spellings of the same codec so the MP4
 // (mkvgo) and ffprobe vocabularies compare equal: ffprobe reports the MP4
 // timed-text track as "mov_text" while mkvgo (like the decision's text-class
-// handling) treats it as "subrip" — same text-subtitle class either way.
+// handling) treats it as "subrip" - same text-subtitle class either way.
 func normCodec(c string) string {
 	if c == "mov_text" {
 		return "subrip"

@@ -34,8 +34,8 @@ setup:
 signingIn: "Anmeldung läuft…"
 login:
   guestJoinTrigger: "Gemeinsam ansehen"
-  guestJoinDesc: "Zum gemeinsamen Ansehen eingeladen? Code eingeben — kein Konto nötig."
-  guestJoinError: "Beitritt fehlgeschlagen — Code prüfen."
+  guestJoinDesc: "Zum gemeinsamen Ansehen eingeladen? Code eingeben - kein Konto nötig."
+  guestJoinError: "Beitritt fehlgeschlagen - Code prüfen."
   signIn: Anmelden
   signInToAccount: Bei Ihrem Konto anmelden
   username: Benutzername

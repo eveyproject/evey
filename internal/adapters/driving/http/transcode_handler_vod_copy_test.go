@@ -21,7 +21,7 @@ import (
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
-// copyEligibleStreams is one H.264 High@L4.0 8-bit video stream — the source a
+// copyEligibleStreams is one H.264 High@L4.0 8-bit video stream - the source a
 // copy rung accepts (sourceCopyVideoCodec returns a non-empty avc1.640028).
 func copyEligibleStreams() []*domainlibrary.MediaStream {
 	w, hgt, level := 1920, 1080, 40
@@ -45,7 +45,7 @@ func newCopyTestHandler(t *testing.T) *hlsVODServe {
 	require.NoError(t, err)
 	// copyProducer only needs to be non-nil for isCopyRequest's "copy path wired"
 	// gate; the disk guard reads cache.FreeBytes(), never the producer. A copy-mode
-	// SoftwareProducer mirrors production (process/source nil — not exercised here).
+	// SoftwareProducer mirrors production (process/source nil - not exercised here).
 	copyProd := apptranscoding.NewSoftwareProducer(cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
 	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
 	return &hlsVODServe{
@@ -75,7 +75,7 @@ func TestIsCopyRequest_NonCopyDecisionUnaffected(t *testing.T) {
 }
 
 // Safety for the now-on-by-default rung: a copy-eligible codec/level but NO
-// keyframe index (not yet keyframe-backfilled) must NOT route to copy — the plan
+// keyframe index (not yet keyframe-backfilled) must NOT route to copy - the plan
 // would be empty and break playback. It falls back to transcode instead.
 func TestIsCopyRequest_NoKeyframes_FallsBackToTranscode(t *testing.T) {
 	h := newCopyTestHandler(t)
@@ -88,13 +88,13 @@ func TestIsCopyRequest_NoKeyframes_FallsBackToTranscode(t *testing.T) {
 		Width:      &w,
 		Height:     &hgt,
 		Level:      &level,
-		// Keyframes: nil — level is known but keyframes_ms not yet backfilled.
+		// Keyframes: nil - level is known but keyframes_ms not yet backfilled.
 	}}
 	assert.False(t, h.isCopyRequest(dec, unbackfilled, 1<<20),
 		"eligible codec but no keyframe index → transcode, not copy (an empty plan would break)")
 }
 
-// Phase H1: the HEVC copy rung. Eligibility mirrors CopyRungEligible — the
+// Phase H1: the HEVC copy rung. Eligibility mirrors CopyRungEligible - the
 // handler-level wiring (sourceCopyVideoCodec → CopySource projection) must
 // thread the HDR ground-truth fields, or every HEVC title silently falls back
 // to transcode (or worse, a DoVi P5 slips through).
@@ -161,7 +161,7 @@ func TestIsCopyRequest_VFRSourceNeverRoutesToCopy(t *testing.T) {
 
 // Regression lock (caught on prod bytes, SATAVG 3.1): an HDR-capable client
 // (hdr=1) suppresses the decision-level tonemap, but a transcoded rung is SDR
-// by contract — when the request will NOT be served as a raw copy (keyframes
+// by contract - when the request will NOT be served as a raw copy (keyframes
 // not yet backfilled, copy off, non-wired profile), the re-encode MUST
 // tonemap or the PQ source renders washed-out.
 func TestMakeDecision_HDRClientStillTonemapsWhenCopyUnavailable(t *testing.T) {
@@ -229,7 +229,7 @@ func TestIsCopyRequest_ProducerOffNeverCopies(t *testing.T) {
 }
 
 // Phase A2: passthrough eligibility + the codec the master must advertise.
-// The two MUST stay coherent — a master claiming mp4a over ac-3 segments (or
+// The two MUST stay coherent - a master claiming mp4a over ac-3 segments (or
 // the reverse) is refused by Safari.
 func TestAudioCopyEligibilityAndServedCodec(t *testing.T) {
 	copyDec := domaintranscoding.PlaybackDecision{AudioDecision: "copy"}
@@ -265,7 +265,7 @@ func TestAudioCopyEligibilityAndServedCodec(t *testing.T) {
 	}
 }
 
-// Mid-play decision pinning — regression lock for the prod "green frames on
+// Mid-play decision pinning - regression lock for the prod "green frames on
 // Chromecast" incident (2026-07-07, "a beta tester"): a playback started as
 // TRANSCODE; ~22 min in, the keyframe backfill worker indexed the file, the
 // copy rung became eligible, and the next EVENT-playlist poll of the SAME
@@ -308,7 +308,7 @@ func TestMakeDecision_PinnedVideoDecision(t *testing.T) {
 }
 
 // The pinned re-encode of an HDR source must still tonemap (the session's
-// master advertised an SDR rung) — the pin runs BEFORE the tonemap re-add.
+// master advertised an SDR rung) - the pin runs BEFORE the tonemap re-add.
 func TestMakeDecision_PinnedTranscodeStillTonemapsHDR(t *testing.T) {
 	w, hgt, level := 3840, 2160, 153
 	pq := "smpte2084"
@@ -344,7 +344,7 @@ func TestPinnedVideoDecision_MintAndPassthrough(t *testing.T) {
 	assert.Equal(t, "copy", pinnedVideoDecision(reqWith(""), copyDec), "first playlist mints its decision")
 	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith(""), trDec))
 	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith("vd=transcode"), copyDec),
-		"an inherited pin wins over the fresh decision — that IS the fix")
+		"an inherited pin wins over the fresh decision - that IS the fix")
 	assert.Equal(t, "copy", pinnedVideoDecision(reqWith("vd=copy"), trDec))
 	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith("vd=banana"), trDec), "garbage pin is re-minted")
 }

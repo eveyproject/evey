@@ -5,7 +5,7 @@
 
 ## Context
 
-Cross-domain coordination inside Evey is frequent: a library scan emits `MediaItemAdded`, which the notification service turns into push notifications, the trickplay service into a background ffmpeg job, and the meili indexer into an index write. A naive implementation has every domain import every other domain to call their methods directly — and the library domain ends up depending on notifications, trickplay, search, and everything downstream of its write path.
+Cross-domain coordination inside Evey is frequent: a library scan emits `MediaItemAdded`, which the notification service turns into push notifications, the trickplay service into a background ffmpeg job, and the meili indexer into an index write. A naive implementation has every domain import every other domain to call their methods directly - and the library domain ends up depending on notifications, trickplay, search, and everything downstream of its write path.
 
 Two alternatives were considered and rejected:
 
@@ -31,7 +31,7 @@ type Event interface {
 }
 ```
 
-The bus is `internal/adapters/driven/eventbus.InMemoryEventBus` — a simple goroutine-per-subscriber dispatcher. Wired once in `cmd/evey/wire.go`, injected into every service that publishes or subscribes.
+The bus is `internal/adapters/driven/eventbus.InMemoryEventBus` - a simple goroutine-per-subscriber dispatcher. Wired once in `cmd/evey/wire.go`, injected into every service that publishes or subscribes.
 
 ### Events are structs in each domain's `events.go`
 
@@ -62,9 +62,9 @@ func (s *NotificationService) handleMediaItemAdded(ctx context.Context, ev share
 }
 ```
 
-A string-payload bus was tried first and abandoned — every subscriber duplicated JSON-unmarshalling, and a renamed field in the producer silently broke consumers.
+A string-payload bus was tried first and abandoned - every subscriber duplicated JSON-unmarshalling, and a renamed field in the producer silently broke consumers.
 
-### Subscribers are isolated — they must recover panics
+### Subscribers are isolated - they must recover panics
 
 ```go
 func (s *CommandService) handlePluginError(ctx context.Context, ev shared.Event) {
@@ -85,7 +85,7 @@ The ctx passed to a subscriber comes from `shared.EventBus` internals, not from 
 
 ### No cross-domain imports of non-event types
 
-A domain MAY import another domain's events (they're part of the public contract). It MUST NOT import another domain's services, models, or repositories. Example: `notification.CommandService` imports `library.MediaItemAdded` — allowed. It must not import `library.LibraryRepository` — forbidden.
+A domain MAY import another domain's events (they're part of the public contract). It MUST NOT import another domain's services, models, or repositories. Example: `notification.CommandService` imports `library.MediaItemAdded` - allowed. It must not import `library.LibraryRepository` - forbidden.
 
 The test is mechanical: `go doc` on an event struct should work across domain lines; any other cross-domain symbol lookup is a smell.
 
@@ -98,12 +98,12 @@ The test is mechanical: `go doc` on an event struct should work across domain li
 
 ## References
 
-- `internal/domain/shared/event.go` — the `EventBus` + `Event` interfaces
-- `internal/pkg/eventbus/eventbus.go` — the implementation (`eventbus.New`, wired in `cmd/evey/wire.go`)
-- `internal/domain/*/events.go` — domain event structs
-- `internal/app/notification/command_service.go` — subscriber with recover + detached ctx
-- [ADR-0001](0001-hexagonal-architecture.md) — domain boundary rules
-- [ADR-0007](0007-fire-and-forget-context.md) — subscriber context lifecycle
+- `internal/domain/shared/event.go` - the `EventBus` + `Event` interfaces
+- `internal/pkg/eventbus/eventbus.go` - the implementation (`eventbus.New`, wired in `cmd/evey/wire.go`)
+- `internal/domain/*/events.go` - domain event structs
+- `internal/app/notification/command_service.go` - subscriber with recover + detached ctx
+- [ADR-0001](0001-hexagonal-architecture.md) - domain boundary rules
+- [ADR-0007](0007-fire-and-forget-context.md) - subscriber context lifecycle
 
 ## Amendment (2026-05-23)
 

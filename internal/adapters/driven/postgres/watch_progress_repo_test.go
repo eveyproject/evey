@@ -62,7 +62,7 @@ func TestWatchProgressRepo_Upsert_GetByProfileAndMedia(t *testing.T) {
 }
 
 // TestWatchProgressRepo_GetNextUp_OrdersByRecency proves Next Up surfaces the
-// series the profile watched most recently first — and, under a LIMIT, keeps the
+// series the profile watched most recently first - and, under a LIMIT, keeps the
 // most-recent series rather than the alphabetically-first ones. The old query
 // ordered the DISTINCT ON result by parent_id, so it returned series in id order
 // and a LIMIT could drop the series you just watched.

@@ -4,8 +4,8 @@
 
 A **theme** is front-end only. It has no backend process, no language runtime, no IPC socket, and no server-side permissions. It consists of:
 
-- `theme.css` — a stylesheet injected into `<head>` on every page
-- `theme.js` (optional) — JavaScript executed inside an isolated context with a constrained `evey.theme.*` API
+- `theme.css` - a stylesheet injected into `<head>` on every page
+- `theme.js` (optional) - JavaScript executed inside an isolated context with a constrained `evey.theme.*` API
 
 A **plugin** always has a backend process (`kind: plugin`, `language`, `entrypoint` required). Themes that attempt to declare `language`, `entrypoint`, or `permissions` are refused at install.
 
@@ -13,27 +13,27 @@ Both CSS and JS are statically analyzed at install time before the theme is acce
 
 ## CSS sanitizer rules
 
-`theme.css` is passed through `SanitizeCSS` at install. The sanitizer rewrites or removes dangerous constructs and returns a list of warnings. It does **not** reject the entire file — clean CSS passes through unchanged.
+`theme.css` is passed through `SanitizeCSS` at install. The sanitizer rewrites or removes dangerous constructs and returns a list of warnings. It does **not** reject the entire file - clean CSS passes through unchanged.
 
 ### Blocked constructs
 
-**`@import`** — removed entirely.
+**`@import`** - removed entirely.
 
 Any `@import` directive is stripped. Rationale: themes must be self-contained; external stylesheet imports are a network leak vector.
 
-**External `url()`** — replaced with `none`.
+**External `url()`** - replaced with `none`.
 
 `url()` values pointing to `http://`, `https://`, or protocol-relative `//` URLs are replaced. `data:` URIs (`data:image/*`, `data:font/*`) are allowed and pass through unchanged.
 
-**`javascript:` in `url()`** — replaced with `none`.
+**`javascript:` in `url()`** - replaced with `none`.
 
-**`expression()`** (IE legacy) — replaced with `none`.
+**`expression()`** (IE legacy) - replaced with `none`.
 
-**`-moz-binding` and `behavior`** — removed.
+**`-moz-binding` and `behavior`** - removed.
 
 Legacy XBL/HTC execution vectors, removed entirely.
 
-**Sensitive selector rules** — entire rule block removed.
+**Sensitive selector rules** - entire rule block removed.
 
 Rule blocks whose selector matches any of the following are stripped completely:
 
@@ -45,15 +45,15 @@ Rule blocks whose selector matches any of the following are stripped completely:
 
 Rationale: themes must not be able to style password inputs or privileged UI elements in ways that could be used for UI redressing.
 
-**Full-screen overlay rules** — entire rule block removed.
+**Full-screen overlay rules** - entire rule block removed.
 
 A rule block is removed when it contains `position: fixed` or `position: sticky` combined with at least two of: `top: 0`, `left: 0`, `width: 100vw`, `height: 100vh`. This pattern is the canonical CSS phishing overlay.
 
-**`pointer-events: none` on interactive elements** — declaration removed from rule block.
+**`pointer-events: none` on interactive elements** - declaration removed from rule block.
 
 When a rule's selector targets `button`, `[role="button"]`, `a[href*=logout]`, or `[data-critical]`, any `pointer-events: none` declaration in that rule is removed. The rest of the rule is kept. Rationale: hiding clickability on logout or critical action buttons is a UI redress attack.
 
-**z-index above 999** — clamped to 999.
+**z-index above 999** - clamped to 999.
 
 Any `z-index` value greater than 999 is rewritten to 999. A warning is recorded. Themes may not stack themselves above the application's own modal/overlay layer.
 
@@ -69,7 +69,7 @@ Any `z-index` value greater than 999 is rewritten to 999. A warning is recorded.
 
 ## Theme JS scanner rules
 
-`theme.js` is scanned at install by `internal/pkg/themejs/scan.go`. A single match causes install to be refused with a descriptive error. There are no warnings — the scanner is conservative by design (false positives are acceptable because themes have no legitimate reason to reference these APIs).
+`theme.js` is scanned at install by `internal/pkg/themejs/scan.go`. A single match causes install to be refused with a descriptive error. There are no warnings - the scanner is conservative by design (false positives are acceptable because themes have no legitimate reason to reference these APIs).
 
 ### Blocked literal strings
 
@@ -124,7 +124,7 @@ The only communication channel is the `evey.theme.*` API injected by the host br
 
 - Call `evey.theme.css(rules)` to inject CSS into the host's style surface
 - Call `evey.theme.log(level, msg)` to emit debug messages visible in the admin panel
-- Register component render functions via `evey.theme.registerComponent(slot, render)` (V2 — see below)
+- Register component render functions via `evey.theme.registerComponent(slot, render)` (V2 - see below)
 - Observe read-only player/app state via `evey.theme.observe(stateKey, cb)` (V2)
 
 ## What you CANNOT do

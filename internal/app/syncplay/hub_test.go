@@ -116,7 +116,7 @@ func (r *fakeRoomRepo) RemoveMemberAndDeleteIfEmpty(_ context.Context, roomID, u
 		delete(r.rooms, roomID)
 		return true, "", nil
 	}
-	// Elect a new host if the departing member was the host — mirrors the
+	// Elect a new host if the departing member was the host - mirrors the
 	// atomicity guarantee provided by the postgres FOR UPDATE transaction.
 	newHostID := ""
 	if string(room.HostID) == userID {
@@ -1214,7 +1214,7 @@ func TestHub_DisconnectMember_RemovesFromConns(t *testing.T) {
 	otherSender.Messages = nil
 	hostSender.Messages = nil
 
-	// Host sends play — user-2 must NOT receive because they are no longer in conns.
+	// Host sends play - user-2 must NOT receive because they are no longer in conns.
 	_, err := h.HandleCommand(ctx, room.ID, "host-1", "Host", syncplay.SyncCommand{
 		Type: "play", PositionMs: 2000,
 	})
@@ -1395,7 +1395,7 @@ func TestHub_HandleNext_EchoesToHostSender(t *testing.T) {
 		t.Fatalf("HandleCommand next: %v", err)
 	}
 
-	// The host that sent "next" MUST receive the echo — the frontend advances the
+	// The host that sent "next" MUST receive the echo - the frontend advances the
 	// queue only on this broadcast, not locally, so skipping the sender (as
 	// play/pause/seek do) left the host stuck on the same track ("can't skip").
 	assertGotNext := func(name string, s *fakes.FakeMessageSender) {
@@ -1526,7 +1526,7 @@ func TestHub_DisconnectMember_NewHost_CanSendCommands(t *testing.T) {
 		t.Fatalf("DisconnectMember: %v", err)
 	}
 
-	// user-2 (now host) sends play — must be accepted.
+	// user-2 (now host) sends play - must be accepted.
 	if _, err := h.HandleCommand(ctx, room.ID, "user-2", "Alice", syncplay.SyncCommand{
 		Type: "play", PositionMs: 5000,
 	}); err != nil {

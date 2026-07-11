@@ -37,7 +37,7 @@ func methodFromOperationID(opID string) string {
 // buildPublicOpenAPISpec aggregates the per-service OpenAPI v2 specs in dir and
 // keeps only the operations callable with an API key (those mapped in
 // APIKeyScopeFor), tagging each with its required scope. The result is a single
-// Swagger 2.0 document describing exactly the public (API-key) surface — it
+// Swagger 2.0 document describing exactly the public (API-key) surface - it
 // stays in sync with the code because both the specs (buf) and APIKeyScopeFor
 // are generated/maintained alongside the proto.
 func buildPublicOpenAPISpec(dir string) ([]byte, error) {
@@ -81,7 +81,7 @@ func buildPublicOpenAPISpec(dir string) ([]byte, error) {
 					continue // internal method: not part of the API-key surface
 				}
 				// Keep buf's original tag (the service) so Swagger UI groups by
-				// resource — all of a resource's operations together — rather than
+				// resource - all of a resource's operations together - rather than
 				// splitting them across scopes. Surface the scope in the
 				// description and as an extension instead.
 				desc, _ := op["description"].(string)

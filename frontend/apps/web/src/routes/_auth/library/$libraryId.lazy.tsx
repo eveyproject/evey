@@ -65,7 +65,7 @@ const SORT_KEYS: Array<{ labelKey: string; value: LibraryServiceListMediaItemsSo
 const PAGE_SIZE = 48;
 // Fetch-until-filled safety bounds (local-filter path only).
 // Stop auto-fetching once the visible filtered count reaches the target OR the
-// total loaded item count exceeds the hard cap — prevents loading an entire
+// total loaded item count exceeds the hard cap - prevents loading an entire
 // huge library when only a handful of items match the local facet.
 const AUTO_FETCH_FILL_TARGET = 24;
 const AUTO_FETCH_ITEM_CAP = 500;
@@ -148,7 +148,7 @@ function LibraryPage() {
       await Promise.all(ids.map((mediaItemId) => fn({ mediaItemId, params: { profileId } })));
       ids.forEach((id) => queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${id}`] }));
       // The grid cards render watched status from the library LIST queries, not the
-      // per-item detail query, so those must be invalidated too — otherwise the
+      // per-item detail query, so those must be invalidated too - otherwise the
       // watched badges stay stale after a bulk mark until reload.
       queryClient.invalidateQueries({ queryKey: ["lib-infinite"] });
       queryClient.invalidateQueries({ queryKey: ["lib-infinite-filter"] });
@@ -236,7 +236,7 @@ function LibraryPage() {
     getNextPageParam: (last, allPages) => {
       const cursor = last.pagination?.nextCursor;
       if (cursor) return cursor;
-      // Server falls back to offset when cursor isn't available — stop when
+      // Server falls back to offset when cursor isn't available - stop when
       // the last page wasn't a full slice (no more rows beyond it).
       const got = last.items?.length ?? 0;
       if (got < PAGE_SIZE) return undefined;
@@ -296,7 +296,7 @@ function LibraryPage() {
 
   // Server-side title search when the input is non-empty. Replaces the
   // previously cosmetic client-side filter that only matched items already
-  // paginated into memory — typing "Matrix" in a 5k-item library returned
+  // paginated into memory - typing "Matrix" in a 5k-item library returned
   // nothing because Matrix wasn't in the loaded slice. Server search hits
   // Meilisearch (or the SQL fallback) with library_id scoping.
   const trimmedSearch = searchTerm.trim();
@@ -348,7 +348,7 @@ function LibraryPage() {
 
   // Genres come from a dedicated endpoint that returns the library's full
   // distinct set, not just the genres present in the sampled first pages
-  // (metaData) — otherwise the filter chips silently missed genres.
+  // (metaData) - otherwise the filter chips silently missed genres.
   const { data: genresData } = useLibraryServiceListGenres(libraryId, {
     query: { enabled: !!libraryId && filtersOpen },
   });
@@ -360,7 +360,7 @@ function LibraryPage() {
   );
 
   const localFiltered = useMemo(() => {
-    // Title-based search runs server-side via searchQuery now — no client
+    // Title-based search runs server-side via searchQuery now - no client
     // re-filter needed here, and it would actually narrow results since
     // searchQuery's top-N may include items whose title contains the term
     // via the search index's looser matching (synonyms, accent folding).
@@ -395,7 +395,7 @@ function LibraryPage() {
   const displayCount = hasLocalFilters ? localFiltered.length : totalItems;
 
   // Proactive fetch-until-filled: when client-side facets (resolution, codec,
-  // audio/sub lang…) are active the filtered list can be short — not tall
+  // audio/sub lang…) are active the filtered list can be short - not tall
   // enough to reach the scroll bottom and trigger onEndReached. We therefore
   // fetch the next server page proactively until the filtered count reaches
   // AUTO_FETCH_FILL_TARGET or the total loaded items hit AUTO_FETCH_ITEM_CAP.
@@ -430,7 +430,7 @@ function LibraryPage() {
     // With a search or panel filters active, shuffle within what's on screen so
     // the pick honors every facet (multi-genre, resolution, year…). With no
     // such filter, shuffle the WHOLE library via a random page offset (pageSize
-    // 1, page = offset+1) so it isn't limited to the scrolled-in slice — the
+    // 1, page = offset+1) so it isn't limited to the scrolled-in slice - the
     // genre deep-link, if any, is still applied server-side.
     if (hasActiveFilters || searchActive) {
       if (displayItems.length === 0) { toast.info(t("common.shuffleEmpty")); return; }
@@ -616,7 +616,7 @@ function LibraryPage() {
         </>
       )}
 
-      {/* Mobile bottom-sheet overlay — only below md breakpoint */}
+      {/* Mobile bottom-sheet overlay - only below md breakpoint */}
       {filtersOpen && (
         <>
           {/* Backdrop */}
@@ -639,7 +639,7 @@ function LibraryPage() {
       )}
 
       <div className={`flex gap-4 ${filtersOpen ? "items-start" : ""}`}>
-        {/* Desktop inline column — only md and above */}
+        {/* Desktop inline column - only md and above */}
         {filtersOpen && (
           <div className="hidden md:block flex-shrink-0 w-52">
             <LibraryFiltersPanel

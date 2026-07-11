@@ -103,7 +103,7 @@ describe("ProgressReporter", () => {
     expect(mockReportProgress).toHaveBeenCalledTimes(2);
   });
 
-  it("backs off after consecutive errors — only reports every 3rd tick", async () => {
+  it("backs off after consecutive errors - only reports every 3rd tick", async () => {
     const { ProgressReporter } = await import("./ProgressReporter");
     mockReportProgress.mockRejectedValue(new Error("network"));
 

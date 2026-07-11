@@ -13,10 +13,10 @@ import (
 
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/metadata"
 	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -343,7 +343,7 @@ func TestStartEnrichmentWorker_BulkExactPageSize_TwoListCalls(t *testing.T) {
 // Mutation flips condition → goroutine doesn't start when configured, starts when not.
 // When not configured (mediaItems=nil), goroutine would nil-panic in ReEnrichWithoutOverrides
 // on ticker fire; but ticker is 24h so never fires in tests. Instead assert via
-// WaitWorkers completion in under a second — if mutation starts goroutine without
+// WaitWorkers completion in under a second - if mutation starts goroutine without
 // mediaItems, it still sits on ticker waiting for ctx.Done → same behavior.
 // This mutation is behaviorally equivalent and hard to kill without refactor.
 

@@ -11,7 +11,7 @@ import (
 )
 
 // bandwidthCacheTTL bounds how often the dashboard recomputes total served
-// bandwidth — a LAG window over the whole server_metrics history, too heavy to
+// bandwidth - a LAG window over the whole server_metrics history, too heavy to
 // run on every dashboard poll.
 const bandwidthCacheTTL = 5 * time.Minute
 
@@ -100,7 +100,7 @@ func (s *QueryService) GetServerStats(ctx context.Context) (*activity.ServerStat
 		return nil, err
 	}
 	// Consumed bandwidth comes from the metric history (real sampled rate),
-	// not from play sessions — best effort: stats stay useful without it.
+	// not from play sessions - best effort: stats stay useful without it.
 	if s.metrics != nil {
 		if bw, ok := s.cachedTotalBandwidth(ctx); ok {
 			stats.TotalBandwidthBytes = bw
@@ -112,7 +112,7 @@ func (s *QueryService) GetServerStats(ctx context.Context) (*activity.ServerStat
 // cachedTotalBandwidth memoizes TotalBandwidthBytes for bandwidthCacheTTL. That
 // query LAG-scans the entire server_metrics table; the dashboard polls every
 // few seconds, so without this each poll re-ran a full ordered window aggregate.
-// The lock also single-flights the refresh — concurrent dashboard loads after
+// The lock also single-flights the refresh - concurrent dashboard loads after
 // expiry wait for one scan instead of each launching their own.
 func (s *QueryService) cachedTotalBandwidth(ctx context.Context) (int64, bool) {
 	s.bwMu.Lock()
@@ -133,7 +133,7 @@ func (s *QueryService) cachedTotalBandwidth(ctx context.Context) (int64, bool) {
 }
 
 // GetActiveSessionsBitrate is the summed source bitrate of the active play
-// sessions — the dashboard's theoretical outgoing rate.
+// sessions - the dashboard's theoretical outgoing rate.
 func (s *QueryService) GetActiveSessionsBitrate(ctx context.Context) (int64, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.activity.GetActiveSessionsBitrate")
 	defer span.End()

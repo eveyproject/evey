@@ -36,7 +36,7 @@ export const Route = createLazyFileRoute("/_auth/admin/seek-index")({
   component: SeekIndexPage,
 });
 
-// Base path of the cached-scan GET — invalidating it refreshes every scope's
+// Base path of the cached-scan GET - invalidating it refreshes every scope's
 // cached result once a job finishes (the job key has a different base string).
 const SCAN_QUERY_BASE = "/api/v1/admin/media/seek-index";
 
@@ -186,7 +186,7 @@ function LastJobCard({ last }: { last: NonNullable<V1GetSeekIndexJobResponse["la
               <span className="font-mono" title={f.path}>
                 {baseName(f.path ?? "")}
               </span>
-              {" — "}
+              {" - "}
               {f.error}
             </li>
           ))}
@@ -238,7 +238,7 @@ function SeekIndexPage() {
   const job = jobQuery.data;
   const running = job?.running ?? false;
 
-  // Serves the cached result of the last completed scan — instant.
+  // Serves the cached result of the last completed scan - instant.
   const scan = useAdminMediaServiceScanSeekIndex(libraryId ? { libraryId } : undefined, {
     query: { retry: false },
   });
@@ -256,7 +256,7 @@ function SeekIndexPage() {
   const backupsRisky = repairVolumes.some(volumeBackupsRisky);
 
   // When the running job finishes, refresh the cached scans and report the
-  // outcome — completion happens server-side, not in a mutation callback.
+  // outcome - completion happens server-side, not in a mutation callback.
   const prevRunning = useRef(false);
   useEffect(() => {
     if (prevRunning.current && !running) {

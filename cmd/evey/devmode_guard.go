@@ -14,7 +14,7 @@ import (
 func refuseDevModeInProd(eveyEnv string) error {
 	env := strings.ToLower(strings.TrimSpace(eveyEnv))
 	if env == "production" || env == "prod" {
-		return fmt.Errorf("DevMode=true with EVEY_ENV=%s — refusing to start (DevMode disables the plugin sandbox)", env)
+		return fmt.Errorf("DevMode=true with EVEY_ENV=%s - refusing to start (DevMode disables the plugin sandbox)", env)
 	}
 	return nil
 }

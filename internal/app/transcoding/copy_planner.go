@@ -35,7 +35,7 @@ type SeekLandingProber interface {
 // KeyframeSegments (one segment per keyframe gap, mirroring the session's
 // `-hls_time 0`). The plan is the SINGLE source of truth for both the copy
 // manifest (#EXTINF list) and the session StartSec mapping (segment N → its
-// keyframe start), so the two can never drift. Plans are cached per media id —
+// keyframe start), so the two can never drift. Plans are cached per media id -
 // keyframes are immutable for a fixed file.
 //
 // A copy rung is only usable when a plan exists: without a keyframe index there
@@ -50,14 +50,14 @@ type CopyPlanner struct {
 	// lifetime (plafond = library size). Plans are immutable for a fixed file
 	// and cheap to rebuild (two repository reads), so eviction is harmless.
 	// No cleanup goroutine (interval 0): the LRU cap alone bounds memory and
-	// expiry is checked lazily on Get — the planner has no Close lifecycle to
+	// expiry is checked lazily on Get - the planner has no Close lifecycle to
 	// stop a sweeper from.
 	//
 	// Each entry carries the file stamp (size|mtime|fingerprint) it was built
 	// from and Plan revalidates it against the item on every hit: a replaced
 	// file (re-download, repair) re-probes to different keyframes, and serving
 	// the old boundaries would cut -c:v copy segments at offsets that are no
-	// longer keyframes. Self-validation beats a remote invalidation hook — no
+	// longer keyframes. Self-validation beats a remote invalidation hook - no
 	// scan-event wiring to forget, no stale window. The item read it costs on
 	// a hit is a light PK lookup on the paths that call Plan (manifest bake,
 	// session spawn), never the per-segment hot path.
@@ -85,10 +85,10 @@ const (
 
 // Density guard bounds for a usable copy plan. The every-keyframe contract
 // means a pathological source (all-intra, or sub-second GOPs over hours)
-// would explode into tens of thousands of tiny segments — worse for the
+// would explode into tens of thousands of tiny segments - worse for the
 // client than transcoding. Mean gap < 1 s (e.g. all-intra ≈ one frame per
 // segment) or an absurd segment count → Plan errors and the handler falls
-// back to the transcode ladder. Normal film encodes (1–10 s GOPs) pass.
+// back to the transcode ladder. Normal film encodes (1-10 s GOPs) pass.
 const (
 	minCopyMeanGapMs    = 1000
 	maxCopyPlanSegments = 20000
@@ -105,7 +105,7 @@ func NewCopyPlanner(streams CopyStreamReader, items MediaItemReader) *CopyPlanne
 }
 
 // Plan returns the copy segment boundaries for mediaID. Errors when the keyframe
-// index or duration is missing — the caller must then NOT serve a copy rung.
+// index or duration is missing - the caller must then NOT serve a copy rung.
 func (c *CopyPlanner) Plan(ctx context.Context, mediaID string) ([]CopySegment, error) {
 	// The item is read on every call (hit included): its file stamp decides
 	// whether a cached plan is still for the file on disk.

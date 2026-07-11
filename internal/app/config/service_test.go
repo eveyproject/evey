@@ -156,7 +156,7 @@ func TestService_Set_eventReachesSubscriber(t *testing.T) {
 	assert.Equal(t, "fr", received.Value)
 }
 
-// Without WithEventBus, the service stays a pure CRUD facade — no panic,
+// Without WithEventBus, the service stays a pure CRUD facade - no panic,
 // no nil-deref, no surprise. Default for callers that don't need reload.
 func TestService_Set_noEventBus_noop(t *testing.T) {
 	repo := fakes.NewFakeServerConfigRepository()

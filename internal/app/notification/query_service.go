@@ -27,7 +27,7 @@ func NewQueryService(repo notification.Repository, settings notification.Setting
 	return s
 }
 
-// List returns notifications for the personal feed only — admin-only types
+// List returns notifications for the personal feed only - admin-only types
 // (plugin_error, backup_failed) are filtered out so they don't pollute the
 // bell dropdown / profile page. Admins should consume those via the
 // dedicated admin notifications channel.
@@ -69,7 +69,7 @@ func (s *QueryService) List(ctx context.Context, profileID string, unreadOnly bo
 // strategy: callers pass a sane limit; we fetch up to 4× and filter to the
 // admin-only subset, capped at 1000 to bound memory.
 //
-// Caller is responsible for RBAC — this service does no role check; the
+// Caller is responsible for RBAC - this service does no role check; the
 // calling handler must gate by RoleAdmin.
 func (s *QueryService) ListAdminOnly(ctx context.Context, profileID string, unreadOnly bool, limit, offset int) ([]*notification.Notification, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.notification.ListAdminOnly")

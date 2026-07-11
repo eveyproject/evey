@@ -62,6 +62,6 @@ func TestResolveParentalFilter_AdminBypass(t *testing.T) {
 	assert.Equal(t, maxAge, pfKid.maxAge, "non-admin kids profile keeps its parental gate")
 }
 
-// Ensures the bypass keys off claims.IsAdmin, not off the profile owner —
+// Ensures the bypass keys off claims.IsAdmin, not off the profile owner -
 // the function takes a context-derived claim, not the profile.UserID.
 var _ shared.ProfileID = user.Profile{}.ID

@@ -90,7 +90,7 @@ func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status st
 	span.SetAttributes(attribute.String("quick_connect.id", id), attribute.String("quick_connect.status", status))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	// Only transition from 'pending' — authorizing a non-pending request
+	// Only transition from 'pending' - authorizing a non-pending request
 	// (already used, expired, rejected) must be a no-op so a leaked-code
 	// replay can't overwrite user_id on a settled authorization.
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
@@ -103,7 +103,7 @@ func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status st
 	}
 	// 0 rows = the request wasn't pending (already authorized by a concurrent
 	// caller, expired, or a leaked-code replay). Returning nil here let the loser
-	// of a race — and a replayer — believe they had authorized the device. Signal
+	// of a race - and a replayer - believe they had authorized the device. Signal
 	// not-found so the caller surfaces the failure instead of a false success.
 	if n, _ := res.RowsAffected(); n == 0 {
 		return shared.ErrNotFound

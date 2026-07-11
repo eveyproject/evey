@@ -7,12 +7,12 @@ import (
 )
 
 type FakeContainerWriter struct {
-	MuxCalls              []mkv.MuxOptions
-	DemuxCalls            []string
-	AddTrackCalls         []mkv.TrackInput
-	RemoveTrackCalls      []uint64
+	MuxCalls               []mkv.MuxOptions
+	DemuxCalls             []string
+	AddTrackCalls          []mkv.TrackInput
+	RemoveTrackCalls       []uint64
 	ExtractAttachmentCalls []uint64
-	Err                   error
+	Err                    error
 }
 
 func NewFakeContainerWriter() *FakeContainerWriter {

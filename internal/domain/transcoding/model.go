@@ -24,10 +24,10 @@ func (h HWAccelType) IsValid() bool {
 	return false
 }
 
-// DefaultAudioCodec is AAC — the only universally supported audio codec for HLS/web playback
+// DefaultAudioCodec is AAC - the only universally supported audio codec for HLS/web playback
 const DefaultAudioCodec = "aac"
 
-// DefaultVideoCodec is H.264 — the universally decodable fallback for the
+// DefaultVideoCodec is H.264 - the universally decodable fallback for the
 // transcode/HLS path (mirrors DefaultAudioCodec).
 const DefaultVideoCodec = "h264"
 

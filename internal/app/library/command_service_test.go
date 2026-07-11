@@ -9,9 +9,9 @@ import (
 	applib "github.com/evey-project/evey/internal/app/library"
 	"github.com/evey-project/evey/internal/domain/library"
 	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -252,7 +252,7 @@ func (s *blockingFileScanner) Scan(_ context.Context, _ string) ([]library.Scann
 	return nil, nil
 }
 func (s *blockingFileScanner) ParseTitle(_ string) string { return "" }
-func (s *blockingFileScanner) FileExists(_ string) bool    { return false }
+func (s *blockingFileScanner) FileExists(_ string) bool   { return false }
 
 func TestScanLibrary_ScannerError_Propagates(t *testing.T) {
 	t.Parallel()
@@ -558,7 +558,7 @@ func TestScanLibrary_SkipsItemFailingDomainInvariants(t *testing.T) {
 	h.libCmd.Seed(lib)
 	// A degenerate file whose parser yielded no title fails NewMediaItem's
 	// non-empty-title invariant and must be skipped, not persisted as a broken
-	// row — while the valid sibling is still created.
+	// row - while the valid sibling is still created.
 	h.scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/good.mkv", Size: 100, Title: "Good", Type: library.MovieItem},
 		{Path: "/movies/blank.mkv", Size: 100, Title: "", Type: library.MovieItem},
@@ -632,8 +632,8 @@ func TestUpsertMediaFile_NewItem_WithDuration(t *testing.T) {
 	h.libCmd.Seed(lib)
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		Duration:   mustProbeDuration(120000),
-		Streams:    []*library.MediaStream{{ID: "s1", StreamType: "video"}},
+		Duration: mustProbeDuration(120000),
+		Streams:  []*library.MediaStream{{ID: "s1", StreamType: "video"}},
 	}
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -688,7 +688,7 @@ func TestUpsertMediaFile_UnchangedSizeEmptyFingerprint_CountsAsUnchanged(t *test
 	}
 
 	// Size+mtime match + new fingerprint empty (transient read failure) =
-	// fully skipped by detectChanges — no reprocess, counter stays 0.
+	// fully skipped by detectChanges - no reprocess, counter stays 0.
 	added, updated, err := h.svc.ScanLibrary(context.Background(), "lib-1")
 	require.NoError(t, err)
 	assert.Equal(t, 0, added)
@@ -825,8 +825,8 @@ func TestDiscoverExternalSubtitles_VttCodecRenamed(t *testing.T) {
 	}
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		Duration:   mustProbeDuration(5000),
-		Streams:    []*library.MediaStream{{ID: "v1", StreamType: "video", StreamIndex: 0}},
+		Duration: mustProbeDuration(5000),
+		Streams:  []*library.MediaStream{{ID: "v1", StreamType: "video", StreamIndex: 0}},
 	}
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
@@ -865,8 +865,8 @@ func TestDiscoverExternalSubtitles_NonVttCodecKept(t *testing.T) {
 	}
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		Duration:   mustProbeDuration(5000),
-		Streams:    []*library.MediaStream{},
+		Duration: mustProbeDuration(5000),
+		Streams:  []*library.MediaStream{},
 	}
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
@@ -901,7 +901,7 @@ func TestDiscoverExternalSubtitles_MaxIdxContinuesFromExisting(t *testing.T) {
 	}
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		Duration:   mustProbeDuration(5000),
+		Duration: mustProbeDuration(5000),
 		Streams: []*library.MediaStream{
 			{ID: "v1", StreamType: "video", StreamIndex: 0},
 			{ID: "a1", StreamType: "audio", StreamIndex: 1},
@@ -941,8 +941,8 @@ func TestDiscoverExternalSubtitles_ForcedFlag(t *testing.T) {
 	}
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		Duration:   mustProbeDuration(5000),
-		Streams:    []*library.MediaStream{},
+		Duration: mustProbeDuration(5000),
+		Streams:  []*library.MediaStream{},
 	}
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
@@ -965,8 +965,8 @@ func TestDiscoverExternalSubtitles_NilScanner_NoSubs(t *testing.T) {
 	h := newHarness()
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		Duration:   mustProbeDuration(5000),
-		Streams:    []*library.MediaStream{{ID: "v1", StreamType: "video"}},
+		Duration: mustProbeDuration(5000),
+		Streams:  []*library.MediaStream{{ID: "v1", StreamType: "video"}},
 	}
 
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
@@ -992,7 +992,7 @@ func TestProbeAndStoreStreams_StoresStreams(t *testing.T) {
 	h := newHarness()
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		Duration:   mustProbeDuration(7500),
+		Duration: mustProbeDuration(7500),
 		Streams: []*library.MediaStream{
 			{ID: "ps1", StreamType: "video", Codec: "h264"},
 			{ID: "ps2", StreamType: "audio", Codec: "aac"},
@@ -1043,8 +1043,8 @@ func TestProbeAndStoreStreams_DeletesOldStreams(t *testing.T) {
 	})
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		Duration:   mustProbeDuration(1000),
-		Streams:    []*library.MediaStream{{ID: "new-1", StreamType: "audio"}},
+		Duration: mustProbeDuration(1000),
+		Streams:  []*library.MediaStream{{ID: "new-1", StreamType: "audio"}},
 	}
 
 	h.svc.ProbeAndStoreStreams(context.Background(), "item-1", "/movies/film.mkv")
@@ -1556,7 +1556,7 @@ func TestScanLibrary_OrphanEpisodeNotPersisted(t *testing.T) {
 	svc.CreateLibrary(context.Background(), lib)
 	libQueryRepo.Seed(lib)
 	// An episode-typed file scanned flat (no resolvable parent) must NOT be
-	// persisted as an orphan row — the hierarchy invariant rejects it.
+	// persisted as an orphan row - the hierarchy invariant rejects it.
 	scanner.Results["/movies"] = []library.ScannedFile{
 		{Path: "/movies/loose.mkv", Size: 1000, Title: "Loose", Type: library.Episode},
 	}
@@ -1661,8 +1661,8 @@ func TestUpsertMediaFile_Changed_WithDuration_UpdatesDuration(t *testing.T) {
 	})
 
 	h.prober.Results["/movies/film.mkv"] = &library.ProbeResult{
-		Duration:   mustProbeDuration(9999),
-		Streams:    []*library.MediaStream{{ID: "v1", StreamType: "video"}},
+		Duration: mustProbeDuration(9999),
+		Streams:  []*library.MediaStream{{ID: "v1", StreamType: "video"}},
 	}
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{

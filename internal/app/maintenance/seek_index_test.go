@@ -177,7 +177,7 @@ func TestSeekIndexService_ReindexMedia_AsyncAndUpdatesCache(t *testing.T) {
 	assert.True(t, res.Items[0].HasBackup)
 	assert.Zero(t, res.MissingIndex, "rollups recomputed")
 
-	// A media id with no file is a clean, synchronous error — not a job.
+	// A media id with no file is a clean, synchronous error - not a job.
 	require.Error(t, svc.StartReindexMedia(context.Background(), "missing-id", appmaintenance.ReindexRunOptions{}))
 }
 
@@ -202,7 +202,7 @@ func (f *fakeFileState) RefreshFileState(_ context.Context, path string, size in
 
 // After a successful reindex the service re-stamps the file's scan fingerprint
 // (its real on-disk size+mtime) so the next library scan sees it UNCHANGED and
-// keeps the keyframe index instead of re-probing — no transcode window.
+// keeps the keyframe index instead of re-probing - no transcode window.
 func TestSeekIndexService_ReindexMedia_RefreshesFileState(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "f.mkv")
@@ -226,7 +226,7 @@ func TestSeekIndexService_ReindexMedia_RefreshesFileState(t *testing.T) {
 	assert.True(t, fi.ModTime().Equal(fs.calls[0].mt), "stamps the real on-disk mtime")
 }
 
-// A skipped reindex (file already indexed) must NOT refresh — nothing changed
+// A skipped reindex (file already indexed) must NOT refresh - nothing changed
 // on disk, so re-stamping would be a lie that could mask a genuine future edit.
 func TestSeekIndexService_ReindexMedia_SkippedDoesNotRefresh(t *testing.T) {
 	dir := t.TempDir()

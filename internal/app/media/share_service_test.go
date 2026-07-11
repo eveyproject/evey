@@ -175,7 +175,7 @@ func TestShareService_Validate_RaceAfterIncrement_RejectsLoser(t *testing.T) {
 	require.ErrorIs(t, err, media.ErrShareViewLimit)
 }
 
-// Deterministic timestamp via injected clock — proves the share's
+// Deterministic timestamp via injected clock - proves the share's
 // ExpiresAt = now()+duration, not "close to now+duration".
 func TestShareService_Create_UsesInjectedClock(t *testing.T) {
 	repo := &fakeShareLinkRepo{}

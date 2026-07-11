@@ -21,7 +21,7 @@ export function ShareLinkButton({ mediaId }: { mediaId: string }) {
           await navigator.clipboard.writeText(url);
           toast.success(t("media.library.shareLinkCopied"));
         } catch {
-          // Clipboard blocked (no secure context / permission) — surface the URL.
+          // Clipboard blocked (no secure context / permission) - surface the URL.
           toast.info(url);
         }
       },

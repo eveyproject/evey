@@ -19,7 +19,7 @@ interface UseSubtitleManagerArgs {
 
 // Cue anchor as a percentage of the video element height (snapToLines=false).
 // 88% places the cue top in the upper quarter of the bottom letterbox band on
-// scope (2.39:1) content and in the standard subtitle zone on 16:9 — instead
+// scope (2.39:1) content and in the standard subtitle zone on 16:9 - instead
 // of the browser default that glues the text to the very bottom edge.
 const CUE_LINE_BOTTOM_PCT = 88;
 const CUE_LINE_TOP_PCT = 8;
@@ -31,8 +31,8 @@ const MIN_CUE_FONT_PX = 13;
 
 // cueFontSizePx converts the user's percentage preference into an absolute
 // pixel size for ::cue. An absolute size is required: percentage font-size in
-// ::cue resolves against the page default (16px) in Chromium — not against
-// the native 5%-of-video cue size — which rendered subtitles tiny on any
+// ::cue resolves against the page default (16px) in Chromium - not against
+// the native 5%-of-video cue size - which rendered subtitles tiny on any
 // large player. Exported for tests.
 export function cueFontSizePx(videoHeightPx: number, fontSizePct: number): number {
   if (videoHeightPx <= 0) return 0;
@@ -154,7 +154,7 @@ export function useSubtitleManager({
     track.label = externalSubUrl ? externalSubUrl.label : "Selected";
     track.src = src;
     track.default = true;
-    // Re-anchor the cues once the VTT is parsed — without this, a freshly
+    // Re-anchor the cues once the VTT is parsed - without this, a freshly
     // loaded track keeps the browser default (glued to the bottom edge) until
     // the user happens to toggle the position setting.
     cueBaseTimesRef.current = new WeakMap();
@@ -194,7 +194,7 @@ export function useSubtitleManager({
       document.head.appendChild(styleElRef.current);
     }
     const { fontSize, color, fontFamily, bgColor, bgOpacity, shadow } = subtitleStyle;
-    // Only allow alphanumeric, spaces, commas, quotes, hyphens — prevents CSS injection
+    // Only allow alphanumeric, spaces, commas, quotes, hyphens - prevents CSS injection
     const safeFontFamily = fontFamily && /^[a-zA-Z0-9\s,"'-]+$/.test(fontFamily) ? fontFamily : "";
     const fontFamilyRule = safeFontFamily ? `font-family: ${safeFontFamily};` : "";
     const opacity = bgOpacity / 100;

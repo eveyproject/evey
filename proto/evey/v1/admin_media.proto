@@ -17,7 +17,7 @@ service AdminMediaService {
   // never matched them at scan time) and queues an async re-enrichment.
   // Returns immediately with the count of queued items; the enricher
   // pool drains them in the background under its existing concurrency
-  // and rate-limit caps. Idempotent — re-run to pick up the still-
+  // and rate-limit caps. Idempotent - re-run to pick up the still-
   // orphaned remainder once any rate limits clear.
   rpc MatchOrphansInLibrary(MatchOrphansInLibraryRequest) returns (MatchOrphansInLibraryResponse) {
     option (google.api.http) = {
@@ -39,7 +39,7 @@ service AdminMediaService {
   }
 
   // ScanSeekIndex returns the cached result of the last completed scan for the
-  // scope — instant, no disk I/O. scanned_at_ms is 0 when no scan has completed
+  // scope - instant, no disk I/O. scanned_at_ms is 0 when no scan has completed
   // yet; kick one with StartSeekIndexScan and poll GetSeekIndexJob. Files
   // without an index seek/resume slowly because the player has to scan
   // linearly; has_backup reports whether a prior reindex left a restorable
@@ -53,7 +53,7 @@ service AdminMediaService {
   // StartSeekIndexScan kicks a background scan of the library (all libraries
   // when library_id is empty) and returns immediately. Scanning walks every
   // MKV/WebM on disk so it can take minutes on a large/network-mounted library
-  // — a synchronous call would time out behind a reverse proxy. Read-only.
+  // - a synchronous call would time out behind a reverse proxy. Read-only.
   // Fails with RESOURCE_EXHAUSTED if a seek-index job is already running.
   rpc StartSeekIndexScan(StartSeekIndexScanRequest) returns (StartSeekIndexScanResponse) {
     option (google.api.http) = {
@@ -174,7 +174,7 @@ message ScanSeekIndexResponse {
   int32 missing_index = 3; // count with has_index == false
   int32 with_backup = 4;   // count with has_backup == true
   // When the last completed scan for this scope finished (unix ms). 0 = no
-  // scan has completed yet — items/counters are empty, not "all clean".
+  // scan has completed yet - items/counters are empty, not "all clean".
   int64 scanned_at_ms = 5;
   // Count with audio_delay_sec above the defect floor (~0.1s).
   int32 audio_delayed = 6;
@@ -208,7 +208,7 @@ message GetSeekIndexJobRequest {}
 message SeekIndexJobFailure {
   string path = 1;
   string error = 2;
-  // The failure came from a read-only mount (:ro media volume) — the user
+  // The failure came from a read-only mount (:ro media volume) - the user
   // must remount read-write before repairing.
   bool read_only = 3;
 }
@@ -281,7 +281,7 @@ message RollbackMediaSeekIndexRequest {
 
 message RollbackMediaSeekIndexResponse {
   bool accepted = 2;
-  // Deprecated: the restore now runs in the background — poll GetSeekIndexJob.
+  // Deprecated: the restore now runs in the background - poll GetSeekIndexJob.
   bool restored = 1 [deprecated = true];
 }
 
@@ -306,7 +306,7 @@ message ReindexLibrarySeekIndexRequest {
 
 message ReindexLibrarySeekIndexResponse {
   // Deprecated: the candidate count is only known once the background scan
-  // phase completes — always -1 now. Poll GetSeekIndexJob for done/total.
+  // phase completes - always -1 now. Poll GetSeekIndexJob for done/total.
   int32 queued = 1 [deprecated = true];
 }
 
@@ -315,7 +315,7 @@ message RollbackLibrarySeekIndexRequest {
 }
 
 message RollbackLibrarySeekIndexResponse {
-  // Deprecated: always -1 — poll GetSeekIndexJob for done/total.
+  // Deprecated: always -1 - poll GetSeekIndexJob for done/total.
   int32 queued = 1 [deprecated = true];
 }
 

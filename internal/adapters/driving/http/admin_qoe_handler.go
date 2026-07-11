@@ -20,7 +20,7 @@ type qoeDashboardProvider interface {
 // registerQoEDashboardRoute mounts GET /api/v1/admin/qoe/dashboard?window=24h|7d.
 //
 // Admin-only; pure read. Returns {} when the QoE service isn't wired yet
-// (dev without Phase 1 storage), never 5xx — the dashboard UI handles the
+// (dev without Phase 1 storage), never 5xx - the dashboard UI handles the
 // empty state gracefully.
 func registerQoEDashboardRoute(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, svc qoeDashboardProvider) {
 	if svc == nil {
@@ -60,7 +60,7 @@ func registerQoEDashboardRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 	}))
 }
 
-// parseQoEWindow accepts "24h" / "7d" — defaults to 24h on anything else so a
+// parseQoEWindow accepts "24h" / "7d" - defaults to 24h on anything else so a
 // typo'd URL doesn't 400 the dashboard. Keep it minimal until we actually
 // want sliders in the UI.
 func parseQoEWindow(s string) time.Duration {

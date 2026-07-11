@@ -39,7 +39,7 @@ func TestOrchestrator_EnsureSegmentRange_SpawnsFFmpegOnMiss(t *testing.T) {
 
 func TestOrchestrator_EnsureSegmentRange_NoSpawnOnCacheHit(t *testing.T) {
 	// If the segment is already on disk under the right key, the orchestrator
-	// must NOT start a fresh ffmpeg — that's the whole point of the cache.
+	// must NOT start a fresh ffmpeg - that's the whole point of the cache.
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
 	src := stubSource{path: "/media/test.mkv"}
@@ -57,7 +57,7 @@ func TestOrchestrator_EnsureSegmentRange_NoSpawnOnCacheHit(t *testing.T) {
 
 func TestOrchestrator_EnsureSegmentRange_SecondCallSameWindowNoRespawn(t *testing.T) {
 	// A second request inside the live session's [startSeg, endSeg] window
-	// must NOT spawn another ffmpeg — just bump lastAccess.
+	// must NOT spawn another ffmpeg - just bump lastAccess.
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
 	src := stubSource{path: "/media/test.mkv"}
@@ -304,7 +304,7 @@ func TestOrchestrator_EnsureSegmentRange_SeekSpawnsAdditionalRafale(t *testing.T
 func TestOrchestrator_EnsureSegmentRange_LRUEvictsOldestBeyondCap(t *testing.T) {
 	// MaxRafalesPerHash=2: spawn 3 distant rafales, the 1st (oldest)
 	// must be LRU-evicted so we stay at the cap. Validates the
-	// multi-rafale ceiling — a runaway client (10 seeks/min) can't
+	// multi-rafale ceiling - a runaway client (10 seeks/min) can't
 	// pile up ffmpeg processes indefinitely.
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
@@ -368,7 +368,7 @@ func TestOrchestrator_InactivityGC_KeepsLiveSessions(t *testing.T) {
 	fp := minimalFingerprint(t)
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 
-	// Touch it repeatedly under the timeout — must stay alive.
+	// Touch it repeatedly under the timeout - must stay alive.
 	stop := time.After(400 * time.Millisecond)
 	tick := time.NewTicker(50 * time.Millisecond)
 	defer tick.Stop()
@@ -473,7 +473,7 @@ func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 
 	require.Eventually(t, func() bool { _, _, paused := handle.counts(); return paused }, time.Second, 10*time.Millisecond)
 
-	// CMCD bs=1 arrives — we must SIGCONT immediately, not wait the tick.
+	// CMCD bs=1 arrives - we must SIGCONT immediately, not wait the tick.
 	o.NotifyClientHint(fp.MediaID, 0, true, 1)
 
 	_, resumes, paused := handle.counts()
@@ -641,7 +641,7 @@ func TestOrchestrator_Close_KillsAllSessions(t *testing.T) {
 
 func TestOrchestrator_Close_CleansDiskSegments(t *testing.T) {
 	// The auditor's concern: a graceful shutdown must purge the segments of
-	// every live session — cancel-on-seek keeps them warm because rewind
+	// every live session - cancel-on-seek keeps them warm because rewind
 	// might hit them, but Close has no "future" to keep them around for.
 	cache, dir := newTestCache(t)
 	proc := newFakeProcess()
@@ -815,10 +815,10 @@ type fakeProcess struct {
 	started []transcoding.HLSProcessOpts
 	count   atomic.Int32
 	// failOnExit, when set, makes every spawned handle report this failure
-	// class and exit immediately (Done closed) — drives the level-2 safety net.
+	// class and exit immediately (Done closed) - drives the level-2 safety net.
 	failOnExit transcoding.FailureClass
 	// startErr, when set, makes Start itself fail (records the attempt, returns
-	// the error, no handle) — used by the whole-file retry/invariant tests.
+	// the error, no handle) - used by the whole-file retry/invariant tests.
 	startErr error
 }
 

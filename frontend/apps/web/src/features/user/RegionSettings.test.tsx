@@ -59,7 +59,7 @@ describe("RegionSettings", () => {
 
   it("renders region heading", () => {
     renderRegionSettings();
-    // i18n key common.region.title — resolves to "Region" in tests
+    // i18n key common.region.title - resolves to "Region" in tests
     expect(screen.getAllByText(/common\.region\.title|Region/i)[0]).toBeInTheDocument();
   });
 

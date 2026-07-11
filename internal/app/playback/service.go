@@ -7,7 +7,7 @@ import (
 )
 
 // Service bundles the playback CommandService and QueryService so wiring stays
-// terse. The bundle has no behaviour of its own — callers reach the inner
+// terse. The bundle has no behaviour of its own - callers reach the inner
 // services via CommandService()/QueryService(). Earlier delegating methods
 // were dropped after deadcode confirmed they had no callers.
 type Service struct {

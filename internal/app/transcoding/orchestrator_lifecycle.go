@@ -15,7 +15,7 @@ import (
 // disk segments. cancel-on-seek and inactivity-kill intentionally leave the
 // hash on disk so future requests can hit it warm; Close is the explicit
 // shutdown path where we DO want the cache freed (the orchestrator is going
-// away — nothing will hit those segments again). Safe to call once.
+// away - nothing will hit those segments again). Safe to call once.
 func (o *SegmentOrchestrator) Close() {
 	o.closeOnce.Do(o.doClose)
 }
@@ -69,14 +69,14 @@ func (o *SegmentOrchestrator) doClose() {
 // with o.mu held.
 //
 // Returns the evicted session (or nil) so the caller can run killSession
-// outside the lock — killSession itself reacquires o.mu.
+// outside the lock - killSession itself reacquires o.mu.
 func (o *SegmentOrchestrator) evictLRUIfFullLocked(hash string) *orchestratorSession {
 	list := o.sessions[hash]
 	if len(list) <= o.opts.MaxRafalesPerHash {
 		return nil
 	}
 	// Find the LRU among the OLDER entries (skip the newly-appended one
-	// at index len-1 — it has the freshest lastAccess by construction).
+	// at index len-1 - it has the freshest lastAccess by construction).
 	var victim *orchestratorSession
 	var victimIdx int
 	var oldest time.Time
@@ -94,7 +94,7 @@ func (o *SegmentOrchestrator) evictLRUIfFullLocked(hash string) *orchestratorSes
 	if victim == nil {
 		return nil
 	}
-	// Splice the victim out of the list — killSession does the rest
+	// Splice the victim out of the list - killSession does the rest
 	// (close ffmpeg, teardown cache pending channel) without holding
 	// o.mu so we don't deadlock when it reacquires the lock at the
 	// end of its body.
@@ -151,7 +151,7 @@ func (o *SegmentOrchestrator) killSession(s *orchestratorSession, reason string)
 
 	metrics.HLSVODSessionsKilled.WithLabelValues(reason).Inc()
 	// Exactly-once with the reap goroutine: a watchdog kill cancels sessionCtx,
-	// which also wakes the reap — only the first of the two decrements the gauge.
+	// which also wakes the reap - only the first of the two decrements the gauge.
 	s.metricDecOnce.Do(func() { metrics.HLSVODSessions.Dec() })
 	// Same exactly-once race against the reap goroutine (cancel() above wakes
 	// it via sessionCtx.Done()) - releaseVideoSlot's Once ensures only the
@@ -215,7 +215,7 @@ func (o *SegmentOrchestrator) sweepIdle() {
 	}
 }
 
-// CleanupAll mirrors the legacy HLSManager.CleanupAll — deferred from main
+// CleanupAll mirrors the legacy HLSManager.CleanupAll - deferred from main
 // at shutdown. Same observable behaviour as Close (kill every ffmpeg + free
 // every hash on disk) but kept as a distinct method so the wiring side can
 // `defer` it without ambiguity.

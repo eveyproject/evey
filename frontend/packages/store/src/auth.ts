@@ -8,7 +8,7 @@
 //   - `syncFromServer(id)` is called by `useServerListStore.setActiveServer` to update
 //     the shadow fields when the active server changes.
 //
-// Refresh tokens are NOT held in this store — web uses HttpOnly cookies, mobile
+// Refresh tokens are NOT held in this store - web uses HttpOnly cookies, mobile
 // uses expo-secure-store via auth-refresh.ts.
 
 import { create } from "zustand";
@@ -56,7 +56,7 @@ interface AuthState {
   // Internal per-server storage
   tokensByServer: Record<string, ServerTokens>;
 
-  // Backward-compat shadow fields — always reflect the active server's tokens
+  // Backward-compat shadow fields - always reflect the active server's tokens
   accessToken: string | null;
   profileId: string | null;
   isAdmin: boolean;
@@ -68,7 +68,7 @@ interface AuthState {
   impersonatedUsername: string | null;
   impersonationOrigin: string | null;
 
-  // Setters — write to shadow fields AND to tokensByServer[activeServerId]
+  // Setters - write to shadow fields AND to tokensByServer[activeServerId]
   setTokens: (access: string) => void;
   setProfile: (profileId: string) => void;
   impersonate: (access: string) => void;

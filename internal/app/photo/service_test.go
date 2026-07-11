@@ -336,7 +336,6 @@ func TestSearch_LimitClamped(t *testing.T) {
 	}
 }
 
-
 func TestGetAlbums_Empty(t *testing.T) {
 	repo := photofakes.NewFakeRepository()
 	svc := appphoto.NewService(repo, sharedfakes.NewFakeEventBus(), nil, photofakes.NewFakePhotoScanner())
@@ -473,7 +472,7 @@ func TestListPhotos_LimitBoundaries(t *testing.T) {
 
 	// Limit 0/neg/over-max clamp to default 200 (cap 5000). Photos are
 	// lightweight to list, grid uses lazy <img loading>, virtualizer
-	// renders on-screen rows only — higher default is fine.
+	// renders on-screen rows only - higher default is fine.
 	tests := []struct {
 		name      string
 		limit     int
@@ -666,9 +665,9 @@ func TestSearch_LimitBoundaries(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		limit     int
-		wantMax   int
+		name    string
+		limit   int
+		wantMax int
 	}{
 		{"zero clamps to 50", 0, 50},
 		{"negative clamps to 50", -1, 50},

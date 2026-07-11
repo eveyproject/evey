@@ -35,7 +35,7 @@ type TrackReader interface {
 type TrackWriter interface {
 	// Upsert inserts or updates the track (ON CONFLICT by file path) and
 	// returns the PERSISTED id. On conflict the existing row keeps its id, so
-	// the returned id may differ from t.ID — callers that publish events must
+	// the returned id may differ from t.ID - callers that publish events must
 	// use the returned id, not the locally-minted one, or they reference a
 	// row that does not exist.
 	Upsert(ctx context.Context, t Track) (string, error)
@@ -75,8 +75,8 @@ type PlayRepository interface {
 
 // AlbumKey identifies a distinct album within a library. AlbumFolder is
 // the authoritative identity (a track's parent directory). Album and
-// Artist are display-only strings — the most frequent values across the
-// folder — and are used by external art fetchers that still key on
+// Artist are display-only strings - the most frequent values across the
+// folder - and are used by external art fetchers that still key on
 // (artist, album) tuples.
 type AlbumKey struct {
 	AlbumFolder string

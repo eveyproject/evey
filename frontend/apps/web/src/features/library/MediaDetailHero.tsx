@@ -10,7 +10,7 @@ import { Stars } from "./MediaDetailStars";
 import { certInfoForLocale } from "@/utils/certifications";
 
 // Per-source critic scores (from the enricher's provider_ratings). tmdb is
-// excluded — the prominent Stars rating already represents the community score.
+// excluded - the prominent Stars rating already represents the community score.
 const RATING_SOURCE_LABELS: Record<string, string> = {
   imdb: "IMDb",
   rt: "RT",

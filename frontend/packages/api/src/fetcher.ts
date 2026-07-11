@@ -43,7 +43,7 @@ export interface FetcherRequest {
 let refreshPromise: Promise<string> | null = null;
 let refreshFailed = false;
 
-/** Reset module state — for tests only */
+/** Reset module state - for tests only */
 export function _resetFetcherState() { refreshPromise = null; refreshFailed = false; }
 
 // Treat JWTs as expired when within this many seconds of their `exp` claim.
@@ -54,25 +54,25 @@ const EXPIRY_GRACE_SECONDS = 5;
  * Decode a JWT payload (no signature verify) and return whether it's
  * already expired (or close enough that we should refresh now).
  *
- * Returns true on any parse failure — better to attempt a refresh than
+ * Returns true on any parse failure - better to attempt a refresh than
  * to send a malformed token.
  */
 function isJwtExpired(token: string): boolean {
   const parts = token.split(".");
-  if (parts.length !== 3) return false; // not a JWT we recognize — trust caller
+  if (parts.length !== 3) return false; // not a JWT we recognize - trust caller
   try {
     const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
     // atob is available in browsers, RN Hermes, and Node ≥ 18. Buffer is
     // Node-only and missing from TS 6's default lib for browser/RN targets,
-    // so don't reference it — every runtime we ship to has atob.
+    // so don't reference it - every runtime we ship to has atob.
     const json = atob(padded);
     const claims = JSON.parse(json) as { exp?: number };
     if (typeof claims.exp !== "number") return false;
     const nowSeconds = Math.floor(Date.now() / 1000);
     return claims.exp <= nowSeconds + EXPIRY_GRACE_SECONDS;
   } catch {
-    return false; // unparseable JWT — let the server reject with 401
+    return false; // unparseable JWT - let the server reject with 401
   }
 }
 
@@ -89,12 +89,12 @@ export async function _ensureFreshToken(url?: string): Promise<string | undefine
   // Never pre-refresh before hitting the refresh endpoint itself: it
   // authenticates via the HttpOnly cookie, not the Bearer, so triggering
   // attemptRefresh here would rotate the cookie once, then the explicit
-  // /auth/refresh POST rotates it again — a double rotation that needlessly
+  // /auth/refresh POST rotates it again - a double rotation that needlessly
   // doubles the multi-tab reuse-detection surface (which purges all sessions).
   if (url && url.endsWith("/auth/refresh")) return token;
   if (!token) return undefined;
   if (!isJwtExpired(token)) return token;
-  if (refreshFailed) return token;       // give up — caller will get 401 → fireUnauthorized
+  if (refreshFailed) return token;       // give up - caller will get 401 → fireUnauthorized
   try {
     return await attemptRefresh();
   } catch {
@@ -146,7 +146,7 @@ export interface RawFetcherRequest {
   signal?: AbortSignal;
   // authToken overrides the Authorization header with an explicit Bearer token
   // (e.g. a scoped plugin token). When set, the user-token refresh-on-401 path
-  // is skipped — the caller owns this token's lifecycle.
+  // is skipped - the caller owns this token's lifecycle.
   authToken?: string;
   // raw: return the Response even on a non-2xx status instead of throwing, so
   // the caller can branch on res.status/body (e.g. 428 escalation, 403 blocked).
@@ -184,7 +184,7 @@ async function fetchWithRefresh(
 
   // rawOnError: hand the caller the Response even on non-2xx (except 401, which
   // still triggers the refresh/unauthorized flow above) so it can inspect
-  // res.status/body itself — e.g. a 428 permission-escalation or 403 blocked
+  // res.status/body itself - e.g. a 428 permission-escalation or 403 blocked
   // response whose body carries structured fields the caller must act on.
   if (rawOnError) {
     return response;

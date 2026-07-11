@@ -59,7 +59,7 @@ const ENTRY_FAILED_LOGIN = {
   username: null,
   action: "LOGIN",
   resourceType: "USER",
-  // details contains '"failed"' — triggers isFailed=true path
+  // details contains '"failed"' - triggers isFailed=true path
   details: '{"status":"failed","username":"bob"}',
 };
 
@@ -84,7 +84,7 @@ describe("RecentActivity", () => {
   // ── Empty state ───────────────────────────────────────────────────────────────
 
   it("renders the empty message when entries list is empty", () => {
-    // The card deliberately stays visible with a "no entries" line — the
+    // The card deliberately stays visible with a "no entries" line - the
     // dashboard section must not silently vanish on a fresh install.
     mockEntries = [];
     renderRecentActivity();
@@ -229,7 +229,7 @@ describe("RecentActivity", () => {
     mockEntries = [ENTRY_FAILED_LOGIN];
     renderRecentActivity();
     // The Badge for a failed entry should carry an error-variant class.
-    // Badge renders an element containing the action text — the isFailed path
+    // Badge renders an element containing the action text - the isFailed path
     // passes variant="error" which adds a distinct CSS class.
     const badge = screen.getByText("LOGIN").closest("[class]");
     // We just assert the badge is present and in the document

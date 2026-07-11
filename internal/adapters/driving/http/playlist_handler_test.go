@@ -243,7 +243,7 @@ func TestGeneratePlaylist_NilClaims_401(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/playlists/generate", generateBody(t, "lib-1", "Mix", 5))
-	// context carries *no* claims — simulates missing/corrupt middleware
+	// context carries *no* claims - simulates missing/corrupt middleware
 	w := httptest.NewRecorder()
 	h.generatePlaylist(w, req)
 

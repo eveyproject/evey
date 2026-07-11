@@ -100,7 +100,7 @@ func TestCapOverrideService_OverrideForHeight_ExactCodecMatchWins(t *testing.T) 
 
 func TestCapOverrideService_OverrideForHeight_WildcardCodecFallback(t *testing.T) {
 	repo := &fakeCapOverrideRepo{}
-	// "any/2160p" row — wildcard (unknown codec at write time).
+	// "any/2160p" row - wildcard (unknown codec at write time).
 	_ = repo.Upsert(context.Background(), domaintranscoding.CapOverride{
 		SourceClass: "any/2160p", MaxHeight: 1440,
 		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),
@@ -117,7 +117,7 @@ func TestCapOverrideService_OverrideForHeight_WildcardCodecFallback(t *testing.T
 func TestCapOverrideService_OverrideForHeight_LegacyMVPRowMatches(t *testing.T) {
 	repo := &fakeCapOverrideRepo{}
 	// Pre-per-codec MVP row still lingering in the DB during the
-	// rolling-upgrade window — should match height-only.
+	// rolling-upgrade window - should match height-only.
 	_ = repo.Upsert(context.Background(), domaintranscoding.CapOverride{
 		SourceClass: "2160p", MaxHeight: 1080,
 		AppliedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour),

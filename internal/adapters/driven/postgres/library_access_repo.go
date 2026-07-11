@@ -35,7 +35,7 @@ func (r *LibraryAccessRepository) Grant(ctx context.Context, userID shared.UserI
 // when a library-scoped invite spans multiple libraries.
 //
 // Binds to an ambient *sql.Tx via txFromCtx so RegisterWithInvite can roll
-// back grants when the surrounding tx fails — otherwise a partial registration
+// back grants when the surrounding tx fails - otherwise a partial registration
 // could leave orphan grants pointing at a never-created user.
 func (r *LibraryAccessRepository) GrantMany(ctx context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error {
 	if len(libraryIDs) == 0 {

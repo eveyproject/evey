@@ -171,7 +171,7 @@ func TestInviteLinkRepo_DecrementUsedCount(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, got.UsedCount)
 
-	// Floor at 0 — decrement below 0 is a no-op.
+	// Floor at 0 - decrement below 0 is a no-op.
 	link2 := &user.InviteLink{
 		ID:        "inv-dec-0",
 		CreatedBy: shared.UserID(u.ID),

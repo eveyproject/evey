@@ -37,7 +37,7 @@ type TokenVerifier interface {
 }
 
 // PluginTokenParser validates scoped plugin tokens (plugin iframes send them
-// instead of user access tokens). Satisfied by the raw *auth.JWTGenerator —
+// instead of user access tokens). Satisfied by the raw *auth.JWTGenerator -
 // plugin tokens carry no user epoch, so they bypass the epoch guard on purpose.
 type PluginTokenParser interface {
 	ParsePluginToken(raw string) (*auth.PluginClaims, error)
@@ -79,7 +79,7 @@ type MediaArchiveSource interface {
 type MediaStreamsGetter interface {
 	GetMediaItem(ctx context.Context, id string) (*domainlibrary.MediaItem, error)
 	GetMediaStreams(ctx context.Context, mediaItemID string) ([]*domainlibrary.MediaStream, error)
-	// NextEpisodeOf resolves the next episode in the same series — same
+	// NextEpisodeOf resolves the next episode in the same series - same
 	// season's next index, or first ep of the next season. nil + nil err
 	// when current is the series finale. Consumed by the predictive
 	// warm-up endpoint.
@@ -117,7 +117,7 @@ type FrameExtractor interface {
 }
 
 // KeyframeExtractor pulls the encoded video keyframe nearest a timestamp
-// straight from the container's seek index (mkvgo, bounded reads — no full-file
+// straight from the container's seek index (mkvgo, bounded reads - no full-file
 // scan, no decode). Returns the packet bytes, a codec extension
 // (".h264"/".hevc"/".ivf") a decoder needs, and the keyframe's real PTS (so the
 // caller can reject a too-distant keyframe and fall back to an exact decode).

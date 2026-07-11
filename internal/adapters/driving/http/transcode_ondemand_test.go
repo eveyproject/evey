@@ -39,7 +39,7 @@ func (p *fakeOnDemandPlan) Resource(_ context.Context, name string) ([]byte, str
 }
 func (p *fakeOnDemandPlan) Resources() []string { return []string{"master.m3u8"} }
 func (p *fakeOnDemandPlan) NumSegments() int    { return 1 }
-func (p *fakeOnDemandPlan) HasDASH() bool        { return p.dash }
+func (p *fakeOnDemandPlan) HasDASH() bool       { return p.dash }
 
 type fakeOnDemandPackager struct {
 	plan     *fakeOnDemandPlan
@@ -57,7 +57,7 @@ func (p *fakeOnDemandPackager) Plan(_ context.Context, _ string, opts apptransco
 	return p.plan, nil
 }
 
-// copyEligibleAV is one H.264 video + one AAC audio track — the source the
+// copyEligibleAV is one H.264 video + one AAC audio track - the source the
 // on-demand rung packages verbatim (video copy + all-audio-carriable).
 func copyEligibleAV() []*domainlibrary.MediaStream {
 	w, hgt, level := 1920, 1080, 40

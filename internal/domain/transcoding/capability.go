@@ -13,7 +13,7 @@ import (
 // server_settings table so we don't re-bench on every restart.
 //
 // SoftwareMaxHeight / HWMaxHeight default to a safe 720p when the
-// benchmark hasn't run yet or returned no usable result — every modern
+// benchmark hasn't run yet or returned no usable result - every modern
 // CPU tolerates 720p x264 ultrafast in realtime, so the fallback is
 // always playable.
 type EncodeCapability struct {
@@ -25,8 +25,8 @@ type EncodeCapability struct {
 	// SoftwareHDRMaxHeight is the tallest software encode the host sustains for
 	// HDR->SDR content: the SAME multi-variant pipeline PLUS the zscale tonemap on
 	// a real 10-bit HDR sample. It captures the two costs SoftwareMaxHeight (an
-	// 8-bit, no-tonemap bench) is blind to — 10-bit HEVC decode and the heavy
-	// tonemap — so it is the honest ceiling for HDR on a weak NAS (and inherently
+	// 8-bit, no-tonemap bench) is blind to - 10-bit HEVC decode and the heavy
+	// tonemap - so it is the honest ceiling for HDR on a weak NAS (and inherently
 	// reflects decode-bound hosts). 0 until benched; the HDR ladder caps to it.
 	SoftwareHDRMaxHeight int `json:"software_hdr_max_height"`
 
@@ -34,7 +34,7 @@ type EncodeCapability struct {
 	// sustains at >= realtime. AV1 software is several times heavier than libx264,
 	// so it gets its OWN ceiling instead of borrowing SoftwareMaxHeight (which is
 	// the H.264 number and would massively over-state the box for AV1). 0 until an
-	// AV1 bench passes — and 0 is meaningful: it means "AV1 software not viable
+	// AV1 bench passes - and 0 is meaningful: it means "AV1 software not viable
 	// here", so the handler routes AV1 output to hardware only and otherwise falls
 	// back to H.264 rather than starving on libsvtav1 (see effectiveVideoCodec).
 	SoftwareAV1MaxHeight int `json:"software_av1_max_height"`
@@ -46,7 +46,7 @@ type EncodeCapability struct {
 
 	// HWBackend names the accelerator used to compute HWMaxHeight
 	// (`nvenc`, `qsv`, `vaapi`, or empty). The handler reads this to
-	// pick which value to apply per request — software-only requests
+	// pick which value to apply per request - software-only requests
 	// fall back to SoftwareMaxHeight even on a HW-capable box.
 	HWBackend string `json:"hw_backend,omitempty"`
 
@@ -57,7 +57,7 @@ type EncodeCapability struct {
 	HWCodecs []string `json:"hw_codecs,omitempty"`
 
 	// HWDecodeCodecs lists the domain video codecs the HW backend can actually
-	// DECODE (probed separately from encode — a pre-Skylake Intel iGPU encodes
+	// DECODE (probed separately from encode - a pre-Skylake Intel iGPU encodes
 	// H.264 but cannot decode HEVC). The pipeline only puts `-hwaccel` decode on
 	// a source whose codec is here, software-decoding the rest so an undecodable
 	// source (e.g. HEVC on old iGPU) never stalls. Empty when no HW.
@@ -73,7 +73,7 @@ type EncodeCapability struct {
 	// gate route 10-bit sources straight to software instead of crashing first.
 	// NO omitempty: a false bool must still be serialized so the admin calibration
 	// view can show the gate is active (false is the case that matters on a weak
-	// host — omitempty would hide it and the operator couldn't tell "probed, gate
+	// host - omitempty would hide it and the operator couldn't tell "probed, gate
 	// on" from "never benched").
 	HW10BitTranscode bool `json:"hw_10bit_transcode"`
 
@@ -89,7 +89,7 @@ type EncodeCapability struct {
 
 	// GPUClass labels the calibrated accelerator for the admin panel:
 	// "integrated" (Intel iGPU / QSV), "discrete" (NVIDIA NVENC), or "" when it
-	// can't be told (AMD VAAPI — iGPU vs dGPU share a PCI vendor — or a host
+	// can't be told (AMD VAAPI - iGPU vs dGPU share a PCI vendor - or a host
 	// without the sysfs node, e.g. a WSL/d3d12 virtual render node).
 	GPUClass string `json:"gpu_class,omitempty"`
 
@@ -117,7 +117,7 @@ type EncodeCapability struct {
 
 	// CPUSignature is a stable hash of the host CPU identity (model
 	// name + core count from /proc/cpuinfo). If the host migrates to a
-	// different machine — e.g. container restored on another node — the
+	// different machine - e.g. container restored on another node - the
 	// signature changes and the calibration is auto-invalidated on the
 	// next boot.
 	CPUSignature string `json:"cpu_signature"`
@@ -128,7 +128,7 @@ type EncodeCapability struct {
 	BenchmarkedAt time.Time `json:"benchmarked_at"`
 
 	// BenchmarkDurationMs is the wall-clock spent inside the
-	// benchmark — surfaced for diagnostics so an admin re-running the
+	// benchmark - surfaced for diagnostics so an admin re-running the
 	// calibration manually sees "took 22 s" instead of a spinner that
 	// just disappears.
 	BenchmarkDurationMs int64 `json:"benchmark_duration_ms"`
@@ -137,8 +137,8 @@ type EncodeCapability struct {
 	// ladder, with the measured fps vs the realtime threshold it had to clear.
 	// Pure observability: the admin calibration API surfaces it so an operator
 	// (or a remote debugger with only HTTPS access) sees WHY a ceiling landed
-	// where it did — e.g. "720p HDR = 14 fps, needed 28.8 → failed → floored to
-	// 480p" — instead of guessing from a bare cap or grepping WARN-level logs.
+	// where it did - e.g. "720p HDR = 14 fps, needed 28.8 → failed → floored to
+	// 480p" - instead of guessing from a bare cap or grepping WARN-level logs.
 	// Empty when loaded from a calibration persisted before this field existed
 	// (re-bench to populate). omitempty so old rows round-trip unchanged.
 	BenchSamples []BenchRungSample `json:"bench_samples,omitempty"`
@@ -170,13 +170,13 @@ func SafeFallback() EncodeCapability {
 
 // MaxHeightFor returns the effective cap to apply for a given codec +
 // source-side hwAccel preference. When the source can be HW-decoded AND
-// a HW encode backend is calibrated, HWMaxHeight wins — software-only
+// a HW encode backend is calibrated, HWMaxHeight wins - software-only
 // paths always fall back to SoftwareMaxHeight regardless of HW being
 // present (e.g. unsupported source codec, sidecar subtitle burn-in
 // forcing software).
 //
 // hwAccelUsable is the handler's view of "can this request take the HW
-// path end-to-end" — false ⇒ stay software even if HWMaxHeight is set.
+// path end-to-end" - false ⇒ stay software even if HWMaxHeight is set.
 func (c EncodeCapability) MaxHeightFor(hwAccelUsable bool) int {
 	if hwAccelUsable && c.HWMaxHeight > 0 {
 		return c.HWMaxHeight
@@ -189,7 +189,7 @@ func (c EncodeCapability) MaxHeightFor(hwAccelUsable bool) int {
 
 // AV1SoftwareViable reports whether the host has a calibrated AV1 software
 // ceiling. False (the default until an AV1 bench passes) means libsvtav1 is too
-// slow here, so AV1 output must stay hardware-only — see effectiveVideoCodec.
+// slow here, so AV1 output must stay hardware-only - see effectiveVideoCodec.
 func (c EncodeCapability) AV1SoftwareViable() bool {
 	return c.SoftwareAV1MaxHeight > 0
 }
@@ -197,7 +197,7 @@ func (c EncodeCapability) AV1SoftwareViable() bool {
 // SoftwareCeilingFor returns the software height ceiling for an OUTPUT codec.
 // AV1 is far heavier than H.264, so it uses its own SoftwareAV1MaxHeight rather
 // than the H.264 SoftwareMaxHeight; every other codec uses SoftwareMaxHeight.
-// Falls back to the H.264 ceiling if AV1 has no calibrated value (defensive —
+// Falls back to the H.264 ceiling if AV1 has no calibrated value (defensive -
 // the handler should not route AV1 to software in that case).
 func (c EncodeCapability) SoftwareCeilingFor(codec string) int {
 	if strings.EqualFold(strings.TrimSpace(codec), "av1") && c.SoftwareAV1MaxHeight > 0 {
@@ -254,7 +254,7 @@ type CapabilityRepo interface {
 // bundled sample, separately for the software (x264 ultrafast) and
 // hardware (if available) paths. Returns a fully-populated
 // EncodeCapability with CPUSignature, BenchmarkedAt and timing fields
-// already set — callers persist it as-is via CapabilityRepo.
+// already set - callers persist it as-is via CapabilityRepo.
 //
 // Implementations MUST be cancellable: a long benchmark on a weak host
 // can take ~60 s and an admin clicking "recalibrate" twice in a row

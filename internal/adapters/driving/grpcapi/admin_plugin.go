@@ -506,7 +506,7 @@ func (d *adminPluginHandler) GetPluginResourceLimits(ctx context.Context, _ *eve
 
 // UpdatePluginResourceLimits validates the requested caps, persists them to the
 // server-config store (which also publishes a change event), and applies them
-// to the runner synchronously — memory/PID/disk take effect on the next monitor
+// to the runner synchronously - memory/PID/disk take effect on the next monitor
 // sweep, cpu_nice and sandbox_mode on the next plugin start. Returns the new
 // effective caps. Out-of-range values are rejected with InvalidArgument.
 func (d *adminPluginHandler) UpdatePluginResourceLimits(ctx context.Context, req *eveyv1.PluginResourceLimits) (*eveyv1.PluginResourceLimits, error) {

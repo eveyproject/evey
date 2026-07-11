@@ -37,7 +37,7 @@ const (
 
 // GenTrackLister supplies the candidate pool. SampleByLibrary returns up to
 // limit RANDOM tracks so a huge library isn't loaded whole into memory just to
-// pick a few dozen — genre affinity is computed separately (from the profile's
+// pick a few dozen - genre affinity is computed separately (from the profile's
 // full history), so the sample only needs to be a deep-enough reservoir to rank.
 type GenTrackLister interface {
 	SampleByLibrary(ctx context.Context, libraryID shared.LibraryID, limit int) ([]music.Track, error)
@@ -49,7 +49,7 @@ type GenTrackLister interface {
 type GenPlayCountGetter interface {
 	PlayCountsForProfile(ctx context.Context, profileID string) (map[string]int, error)
 	// GenreAffinityForProfile returns per-genre total plays from the full play
-	// history — accurate independent of the (sampled) candidate pool.
+	// history - accurate independent of the (sampled) candidate pool.
 	GenreAffinityForProfile(ctx context.Context, profileID string) (map[string]float64, error)
 }
 

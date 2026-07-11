@@ -18,7 +18,7 @@ import (
 
 // AutoEnrichItem searches providers and enriches a single item.
 // Primary provider first, then supplementary for extra IDs/ratings.
-// Skips items that already have an overview (considered enriched) — admin
+// Skips items that already have an overview (considered enriched) - admin
 // triggers a forced re-search via ForceAutoEnrichItem instead.
 func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.AutoEnrichItem")
@@ -29,7 +29,7 @@ func (e *Enricher) AutoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 
 // ForceAutoEnrichItem bypasses the "already enriched" short-circuits so an
 // explicit admin refresh can correct a past bad TMDB match. Admin field
-// overrides are still respected — they represent manual intent the user
+// overrides are still respected - they represent manual intent the user
 // doesn't want overwritten by an automated search.
 func (e *Enricher) ForceAutoEnrichItem(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.ForceAutoEnrichItem")
@@ -57,7 +57,7 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		return
 	}
 
-	// Respect admin intent: manual field edits win, even under force refresh —
+	// Respect admin intent: manual field edits win, even under force refresh -
 	// EXCEPT for orphan items (no TMDB/IMDB match yet). For orphans, the user
 	// editing the title IS the request to find a match (otherwise their edit
 	// just rots in the override table forever). Matched items continue to be
@@ -75,7 +75,7 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 			}
 			// Orphan: extract title/original_title overrides for the search
 			// query. Field names match what MediaDetailEdit writes (the web
-			// FIELD_MAP uses snake_case for original_title — see
+			// FIELD_MAP uses snake_case for original_title - see
 			// library_handler.go:986 for the matching read side).
 			for _, ov := range overrides {
 				if s, ok := ov.CustomValue.(string); ok && s != "" {
@@ -102,7 +102,7 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 	}
 
 	// Search-title precedence for orphans:
-	//   1. title override (user's manual correction — strongest signal)
+	//   1. title override (user's manual correction - strongest signal)
 	//   2. originalTitle override (fallback if user only edited that)
 	//   3. ScanTitle (stable filesystem-derived, survives bad matches)
 	//   4. Title (last resort, possibly polluted by old parser)
@@ -121,7 +121,7 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 
 	// Year source: item.Catalog.Year is set by prior enrichments. On a
 	// forced refresh (admin "Refresh all metadata"), this year may be the
-	// one a WRONG previous match wrote — passing it back to TMDB filters
+	// one a WRONG previous match wrote - passing it back to TMDB filters
 	// the search down to just that wrong result and the exact-title
 	// shortcut below only sees 1 candidate (the wrong one) and picks it
 	// again. Drop year on force so the search returns the full candidate
@@ -142,7 +142,7 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 
 	// When a supplementary provider (e.g. OMDb via an IMDB id from the
 	// filename/NFO) won the match instead of TMDB, the item ends up with only
-	// an IMDB id and whatever English text OMDb returned — and with no TMDB id
+	// an IMDB id and whatever English text OMDb returned - and with no TMDB id
 	// there are no translations to overlay, so a non-English instance is stuck
 	// showing English metadata forever. Map the IMDB id back to a TMDB record
 	// and swap in the full localized TMDB detail before persisting.
@@ -228,7 +228,7 @@ func lookupSupplement(ctx context.Context, sp domainmetadata.MetadataProvider, i
 // TMDB's /find endpoint maps that IMDB id back to a TMDB record, so we re-fetch
 // the full TMDB detail (localized base fields, proper artwork/cast) and return
 // it as the new canonical result. The IMDB id is the canonical anchor, so this
-// only ever corrects a match — it never trades a good one for a worse guess.
+// only ever corrects a match - it never trades a good one for a worse guess.
 //
 // Returns nil (caller keeps the original result) when the match already has a
 // TMDB id, carries no IMDB id to map, the primary provider can't do an
@@ -401,7 +401,7 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 
 	// Exact-title shortcut BEFORE the series-specific episode-count path.
 	// If the search query matches exactly one TMDB result (case-folded +
-	// diacritic-stripped), that's the intended series — skip the episode-
+	// diacritic-stripped), that's the intended series - skip the episode-
 	// count heuristic that can be fooled by a documentary with a longer
 	// title sharing a word. Fixes e.g. "Billions" (Showtime, 7 seasons)
 	// losing to "The Foods that Make Billions" (single doc, shares word).
@@ -476,7 +476,7 @@ func (e *Enricher) searchAndFetchBest(ctx context.Context, provider domainmetada
 		}
 	}
 
-	// No candidate matched the disk episode count — use the best fallback
+	// No candidate matched the disk episode count - use the best fallback
 	// (closest episode count + most recent + most popular), else simple
 	// pickBestMatch.
 	if bestFallback != nil {
@@ -517,7 +517,7 @@ func seriesFallbackScore(diskEp, tmdbEp int, year *int, popularity float64) floa
 // search fan-out (e.g. "Train to Busan" when TMDB returned "Dernier train
 // pour Busan" as the primary title).
 func (e *Enricher) fetchBestCandidate(ctx context.Context, provider domainmetadata.MetadataProvider, results []domainmetadata.MetadataResult, title string, year *int, mediaType string) *domainmetadata.MetadataResult {
-	// Phase 1: cheap exact-match on Title/OriginalTitle — no extra calls.
+	// Phase 1: cheap exact-match on Title/OriginalTitle - no extra calls.
 	qNorm := normalizeForMatch(title)
 	if qNorm != "" {
 		for _, r := range results {
@@ -525,7 +525,7 @@ func (e *Enricher) fetchBestCandidate(ctx context.Context, provider domainmetada
 				goto pickDone // at least one exact match exists; fall through to pickBestMatch
 			}
 		}
-		// Phase 2: no exact match — lazily fetch alt-titles for top-5 candidates.
+		// Phase 2: no exact match - lazily fetch alt-titles for top-5 candidates.
 		if atp, ok := altTitlesCapability(provider); ok {
 			capped := results
 			if len(capped) > 5 {
@@ -543,7 +543,7 @@ func (e *Enricher) fetchBestCandidate(ctx context.Context, provider domainmetada
 					continue
 				}
 				// Check for an exact hit among the alt titles now, and return
-				// early rather than waiting for pickBestMatch — the caller
+				// early rather than waiting for pickBestMatch - the caller
 				// wants the full details for the matched candidate.
 				for _, alt := range alts {
 					if normalizeForMatch(alt) == qNorm {
@@ -630,7 +630,7 @@ func episodeCountMatches(disk, tmdb int) bool {
 	if diff < 0 {
 		diff = -diff
 	}
-	// Allow 20% tolerance — user may not have all episodes
+	// Allow 20% tolerance - user may not have all episodes
 	tolerance := float64(tmdb) * 0.2
 	if tolerance < 1 {
 		tolerance = 1
@@ -781,7 +781,7 @@ func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 	for _, item := range items {
 		// Mirror the autoEnrichItem split: a matched item's overrides are
 		// display intent (skip), but an orphan's overrides are the admin's
-		// "match-me" signal — let autoEnrichItem run, it will harvest the
+		// "match-me" signal - let autoEnrichItem run, it will harvest the
 		// title/originalTitle overrides into the search query. Without this
 		// split, match-orphans → drainOrphans → AutoEnrichAll dropped every
 		// orphan-with-override at the bulk gate and the drainer's stall
@@ -820,7 +820,7 @@ func (e *Enricher) autoEnrichAll(ctx context.Context, items []*domainlib.MediaIt
 // the first result that shares at least one word with the query (coherence
 // filter). If none do, it falls back to the top TMDB result rather than
 // second-guessing TMDB with a local heuristic. When year is provided and a
-// shared-word candidate matches it exactly, that candidate wins — remakes/
+// shared-word candidate matches it exactly, that candidate wins - remakes/
 // reboots with the same title stay disambiguated.
 //
 // Exact-title shortcut (added because popularity alone mis-ranks generic
@@ -908,7 +908,7 @@ func normalizeForMatch(s string) string {
 				prevSpace = true
 			}
 		default:
-			// Fold common Latin diacritics to ASCII — keeps the equality
+			// Fold common Latin diacritics to ASCII - keeps the equality
 			// robust across TMDB title variants (Shanghaï/Shanghai, Pokémon/
 			// Pokemon, etc.) without pulling in golang.org/x/text/unicode.
 			if folded, ok := diacriticFold[r]; ok {
@@ -945,7 +945,7 @@ func sharesAnyWord(qw map[string]bool, candidate string) bool {
 func wordSet(s string) map[string]bool {
 	m := make(map[string]bool)
 	for w := range strings.FieldsSeq(strings.ToLower(s)) {
-		t := strings.Trim(w, ".,:;!?'\"()[]{}«»—–-")
+		t := strings.Trim(w, ".,:;!?'\"()[]{}«»---")
 		if t != "" {
 			m[t] = true
 		}

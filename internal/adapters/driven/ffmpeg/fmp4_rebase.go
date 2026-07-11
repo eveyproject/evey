@@ -3,13 +3,13 @@ package ffmpeg
 // Copy-seek fMP4 sessions and the shared segment cache disagree on time bases.
 //
 // movenc writes every fragment's tfdt (baseMediaDecodeTime) as
-// `dts − start_dts(session)` — session-relative, always. No CLI flag changes
+// `dts − start_dts(session)` - session-relative, always. No CLI flag changes
 // that: `-copyts`, `-output_ts_offset` and `-avoid_negative_ts disabled` all
 // still produce tfdt=0 on the first fragment (verified empirically on stock
 // ffmpeg 6.1; jellyfin-ffmpeg carries no hlsenc/movenc timestamp patch, so
 // prod behaves identically). A cold session (start 0) therefore emits
 // absolute-looking tfdt while a `-ss`+`-start_number K` session emits 0-based
-// tfdt under the SAME cache filenames — violating the SegmentCache invariant
+// tfdt under the SAME cache filenames - violating the SegmentCache invariant
 // that one key maps to one byte-content, and feeding hls.js fragments whose
 // internal timestamps contradict the playlist position (single initPTS per
 // discontinuity → silent misplacement, A/V holes, stall loop after seeks).
@@ -92,10 +92,10 @@ func childBoxes(buf []byte, start, end int, fn func(typ string, off, size int) b
 // (track_ID → timescale, parsed from the session's init segment) for the
 // hypothetical sidx-less layout. Patches are computed first, written last:
 // any parse error leaves the file untouched. deltaMs == 0 is parse-only
-// (verification pass — nothing written).
+// (verification pass - nothing written).
 //
 // Returns the FIRST traf's post-rebase tfdt in milliseconds (hlsenc writes
-// the video traf first), or -1 when the segment has none — the publish
+// the video traf first), or -1 when the segment has none - the publish
 // pump's drift tripwire compares it against the keyframe plan.
 func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uint32) (int64, error) {
 	f, err := os.OpenFile(path, os.O_RDWR, 0)
@@ -187,7 +187,7 @@ func rebaseFMP4Segment(path string, deltaMs int64, initTimescales map[uint32]uin
 					return true
 				})
 				if tfdtOff < 0 {
-					return true // traf without tfdt (spec-legal) — nothing to shift
+					return true // traf without tfdt (spec-legal) - nothing to shift
 				}
 				ts, ok := tsByTrack[trackID]
 				if !ok {
@@ -295,7 +295,7 @@ func parseInitTimescales(path string) (map[uint32]uint32, error) {
 	return out, nil
 }
 
-// fmp4CompleteMoov reports whether path holds a fully-written moov box —
+// fmp4CompleteMoov reports whether path holds a fully-written moov box -
 // hlsenc writes the init segment directly (no temp_file rename), so a scan
 // can observe it mid-write. A moov whose declared size fits the file proves
 // the write completed (hlsenc writes ftyp+moov sequentially then closes).
@@ -450,7 +450,7 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir s
 			_ = os.RemoveAll(privDir)
 			return
 		case <-done:
-			sweep() // ffmpeg just renamed its last segment — catch it
+			sweep() // ffmpeg just renamed its last segment - catch it
 			_ = os.RemoveAll(privDir)
 			return
 		case <-ticker.C:

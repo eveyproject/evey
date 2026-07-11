@@ -56,7 +56,7 @@ func (r *WatchProgressRepository) Upsert(ctx context.Context, wp *playback.Watch
 	// any other update (mid-stream progress tick that doesn't flip the
 	// flag), it takes max(existing, incoming) so callers passing
 	// PlayCount=0 (the common ReportProgress* path) never regress the
-	// counter. Callers wanting to set an absolute value still can — the
+	// counter. Callers wanting to set an absolute value still can - the
 	// incoming PlayCount wins when it's higher.
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO watch_progress (id, profile_id, media_item_id, position_ms, completed, play_count, last_played_at)

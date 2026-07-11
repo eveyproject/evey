@@ -243,7 +243,7 @@ func (s *CommandService) Setup(ctx context.Context, username, password, email st
 
 // dummyLoginHash is a valid cost-12 bcrypt hash of a throwaway string. It is
 // verified against the submitted password when the username does NOT exist, so
-// a failed login costs the same ~100ms whether or not the account is real —
+// a failed login costs the same ~100ms whether or not the account is real -
 // closing the timing oracle that would otherwise enumerate usernames. It is
 // never a usable credential (no account stores it).
 const dummyLoginHash = "$2a$12$CCENmDmu1fye2Bn2DUS7G.4pIkth0OyzzFCkIQvblCV9aye/etkwO"
@@ -463,7 +463,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 		slog.Warn("get profiles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", pErr))
 	}
 	// A silent refresh (empty requestedProfileID) must PRESERVE the profile this
-	// token was issued for — not silently fall back to the default profile,
+	// token was issued for - not silently fall back to the default profile,
 	// which let a kids profile escape parental control on token expiry. An
 	// explicit requestedProfileID (a profile switch) still wins.
 	effectiveRequested := requestedProfileID
@@ -473,10 +473,10 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 	activeProfileID, ok := resolveActiveProfileID(profs, effectiveRequested)
 	if !ok {
 		if requestedProfileID != "" {
-			// Caller explicitly asked for a profile that doesn't belong to them — reject.
+			// Caller explicitly asked for a profile that doesn't belong to them - reject.
 			return "", "", ErrInvalidCredentials
 		}
-		// The bound profile no longer exists (deleted) — fall back to default.
+		// The bound profile no longer exists (deleted) - fall back to default.
 		activeProfileID, _ = resolveActiveProfileID(profs, "")
 	}
 
@@ -553,7 +553,7 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 // NOT consume the token; see markRefreshTokenUsed) +
 // atomic claim (MarkUsedIfNotUsed). Any failure path returns
 // ErrInvalidCredentials. Replay (token already Used) still purges every
-// token of the owning user — that's the only path that legitimately points
+// token of the owning user - that's the only path that legitimately points
 // at a compromised credential. Concurrent-claim races are NOT replays; the
 // loser just lost the optimistic race against the winner and rejecting it
 // is enough.
@@ -604,7 +604,7 @@ func (s *CommandService) markRefreshTokenUsed(ctx context.Context, rt *user.Refr
 	if !claimed {
 		// Two devices (e.g. web + mobile) both fired /auth/refresh with the
 		// same not-yet-rotated token; one of them won MarkUsedIfNotUsed and
-		// the other landed here. The loser is NOT a replayed attacker — it
+		// the other landed here. The loser is NOT a replayed attacker - it
 		// is one of the user's own clients that simply lost the optimistic
 		// race. Reject it, but DO NOT purge the user's other sessions; the
 		// in-flight refresh on the other client (or the next AppState resume
@@ -618,7 +618,7 @@ func (s *CommandService) markRefreshTokenUsed(ctx context.Context, rt *user.Refr
 }
 
 // collectPermissions flattens all role permissions for the user. Errors
-// are logged and swallowed — the caller gets an access token with an
+// are logged and swallowed - the caller gets an access token with an
 // empty perm set rather than an outright 500.
 func (s *CommandService) collectPermissions(ctx context.Context, userID shared.UserID) []string {
 	roles, err := s.userRoles.GetRolesByUserID(ctx, userID)

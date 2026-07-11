@@ -22,7 +22,7 @@ func NewPlaybackQoERepo(db *sql.DB) *PlaybackQoERepo {
 	return &PlaybackQoERepo{db: db}
 }
 
-// QoEEventRow is the storage projection — exposed so the app-layer sink can
+// QoEEventRow is the storage projection - exposed so the app-layer sink can
 // hand us a fully-formed row without us pulling in the domain CMCD parser.
 // Pointer fields stay null when the player didn't send that key.
 type QoEEventRow struct {
@@ -52,7 +52,7 @@ type QoEEventRow struct {
 }
 
 // Insert appends one CMCD event. Errors propagate; the caller (sink worker)
-// is responsible for swallowing them — a failed write must never bubble up
+// is responsible for swallowing them - a failed write must never bubble up
 // to the segment handler.
 func (r *PlaybackQoERepo) Insert(ctx context.Context, evt QoEEventRow) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.qoe.Insert")

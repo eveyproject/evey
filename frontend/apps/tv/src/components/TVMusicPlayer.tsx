@@ -77,7 +77,7 @@ function TVMusicPlayerImpl() {
       player.replace(streamUri);
       if (isPlayingState) player.play();
     } catch {
-      // Player not ready yet — the next render will retry.
+      // Player not ready yet - the next render will retry.
     }
   }, [streamUri, player, isPlayingState]);
 
@@ -129,9 +129,9 @@ function TVMusicPlayerImpl() {
           )}
         </View>
         <View style={{ flex: 1, marginLeft: 16, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>{track.title || "—"}</Text>
+          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>{track.title || "-"}</Text>
           <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: 14 }}>
-            {[track.artist, track.album].filter(Boolean).join(" · ") || "—"}
+            {[track.artist, track.album].filter(Boolean).join(" · ") || "-"}
           </Text>
         </View>
         <FocusCtrl name="play-skip-back" size={26} onPress={previous} label="Previous track" />

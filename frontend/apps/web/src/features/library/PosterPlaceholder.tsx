@@ -24,7 +24,7 @@ interface PosterPlaceholderProps {
 }
 
 // Soft, intentional stand-in for a missing or failed poster: a faint accent-tinted
-// gradient (.evey-poster-fallback) with the media-kind icon and, optionally, the title —
+// gradient (.evey-poster-fallback) with the media-kind icon and, optionally, the title -
 // so a posterless card reads as designed rather than broken.
 export function PosterPlaceholder({
   title,

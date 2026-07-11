@@ -202,7 +202,7 @@ function YearRangeFilter({
           }}
           className="w-full px-2 py-1.5 rounded-[var(--radius-md)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
         />
-        <span className="flex-shrink-0 text-xs text-[var(--text-muted)]">—</span>
+        <span className="flex-shrink-0 text-xs text-[var(--text-muted)]">-</span>
         <input
           type="number"
           placeholder={t("media.library.yearTo")}

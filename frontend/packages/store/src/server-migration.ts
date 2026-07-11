@@ -1,7 +1,7 @@
 // One-time migration from single-server storage to multi-server store.
 //
 // Accepts the legacy URL reader as a parameter so that mobile (expo-secure-store)
-// and TV can each inject their own storage accessor — no hard dep on expo-secure-store here.
+// and TV can each inject their own storage accessor - no hard dep on expo-secure-store here.
 //
 // Idempotent: if servers is already populated or the migration has run before, it no-ops.
 
@@ -35,7 +35,7 @@ export async function migrateFromSingleServer(
   try {
     legacyUrl = await opts.readLegacyServerUrl();
   } catch {
-    // Storage read failed — not a fatal error
+    // Storage read failed - not a fatal error
     return { migrated: false, serverId: null };
   }
 

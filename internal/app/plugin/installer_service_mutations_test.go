@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// L151: ui.theme + cssSanitizer != nil — sanitizer must be invoked when capability matches.
+// L151: ui.theme + cssSanitizer != nil - sanitizer must be invoked when capability matches.
 func TestInstallPlugin_CSSSanitizer_InvokedOnUITheme(t *testing.T) {
 	pluginRepo := plgfakes.NewFakePluginRepository()
 	runner := plgfakes.NewFakePluginRunner()
@@ -41,11 +41,11 @@ func TestInstallPlugin_CSSSanitizer_InvokedOnUITheme(t *testing.T) {
 
 	// Pre-create installDir+theme.css so installer.Extract no-op + os.ReadFile works.
 	// FakePluginInstaller.Extract creates the destDir for us, but we need theme.css inside.
-	// We achieve this by hooking into how Extract is implemented — write file just before.
+	// We achieve this by hooking into how Extract is implemented - write file just before.
 	zip := tmpZip(t, "x")
 	// Pre-emptively create destDir matching what InstallPlugin will compute (we don't know p.ID).
 	// Instead, override extracted dir by using a wrapping setup: write theme.css in a
-	// known location via a custom PluginInstaller — but the fake just records dest.
+	// known location via a custom PluginInstaller - but the fake just records dest.
 	// So: install first with cssSanitizer nil to know p.ID, then re-install? Too complex.
 	// Better: write theme.css inside pluginDir tree after install but verify sanitizer
 	// was called by direct invocation. Skip if Extract doesn't actually create files.
@@ -98,7 +98,7 @@ func TestInstallPlugin_CSSSanitizer_RewritesThemeFile(t *testing.T) {
 	assert.Equal(t, "/* sanitized */", string(written))
 }
 
-// L164: fs != nil — when fs is nil, CopySDKStubs branch must skip.
+// L164: fs != nil - when fs is nil, CopySDKStubs branch must skip.
 func TestInstallPlugin_NoFS_SkipsSDKStubs(t *testing.T) {
 	pluginRepo := plgfakes.NewFakePluginRepository()
 	runner := plgfakes.NewFakePluginRunner()
@@ -117,7 +117,7 @@ func TestInstallPlugin_NoFS_SkipsSDKStubs(t *testing.T) {
 	assert.NotEmpty(t, p.InstallDir)
 }
 
-// L165: CopySDKStubs error — must not propagate (warn only).
+// L165: CopySDKStubs error - must not propagate (warn only).
 func TestInstallPlugin_CopySDKStubsError_Tolerated(t *testing.T) {
 	pluginRepo := plgfakes.NewFakePluginRepository()
 	runner := plgfakes.NewFakePluginRunner()
@@ -207,7 +207,7 @@ func TestInstallPlugin_PublishesInstalledEvent(t *testing.T) {
 	assert.Equal(t, "evt", inst.Name)
 }
 
-// L265: stop runner failure during uninstall — must not block uninstall.
+// L265: stop runner failure during uninstall - must not block uninstall.
 func TestUninstallPlugin_StopFails_StillUninstalls(t *testing.T) {
 	pluginRepo := plgfakes.NewFakePluginRepository()
 	runner := plgfakes.NewFakePluginRunner()
@@ -256,7 +256,7 @@ func TestUninstallPlugin_RemoveAllError_Tolerated(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// L274: InstallDir != "" guard — empty InstallDir must NOT call RemoveAll.
+// L274: InstallDir != "" guard - empty InstallDir must NOT call RemoveAll.
 func TestUninstallPlugin_EmptyInstallDir_NoRemoveAll(t *testing.T) {
 	pluginRepo := plgfakes.NewFakePluginRepository()
 	runner := plgfakes.NewFakePluginRunner()
@@ -360,7 +360,7 @@ func TestUninstallPlugin_PublishesUninstalledEvent(t *testing.T) {
 	assert.Equal(t, "plg-evt", uni.PluginID)
 }
 
-// L326/332: parseSemverParts boundary — empty / partial versions.
+// L326/332: parseSemverParts boundary - empty / partial versions.
 func TestCompareSemver_BoundaryConditions(t *testing.T) {
 	// Empty string → all zeros.
 	assert.Equal(t, 0, appplugin.CompareSemver("", ""))
@@ -376,7 +376,7 @@ func TestCompareSemver_BoundaryConditions(t *testing.T) {
 	assert.Equal(t, 0, appplugin.CompareSemver("1.0.0", "1.0.0-anything"))
 }
 
-// L244: PreviewPlugin — RemoveAll error in defer must not break preview.
+// L244: PreviewPlugin - RemoveAll error in defer must not break preview.
 func TestPreviewPlugin_TmpdirRemoveError_Tolerated(t *testing.T) {
 	pluginRepo := plgfakes.NewFakePluginRepository()
 	runner := plgfakes.NewFakePluginRunner()

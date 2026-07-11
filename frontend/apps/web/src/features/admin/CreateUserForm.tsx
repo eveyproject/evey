@@ -39,7 +39,7 @@ export function CreateUserForm({ onSuccess }: { onSuccess: (accessOk: boolean) =
       onSuccess: async (data) => {
         const userId = data?.id;
         // The user row is created at this point, but its library grants are a
-        // second call. If that fails we must NOT report success — otherwise the
+        // second call. If that fails we must NOT report success - otherwise the
         // admin gets a "user created" toast for a user left with zero access.
         let accessOk = true;
         if (userId && !isAdmin && selectedLibs.size > 0) {

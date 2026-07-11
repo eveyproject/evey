@@ -10,7 +10,7 @@ import (
 
 // IsImageSubtitle is the single bitmap-detection source of truth for the
 // application layer (the playback decision gates burn-in on it). It must match
-// both the ffprobe canonical codec_name and the ffmpeg encoder aliases — in
+// both the ffprobe canonical codec_name and the ffmpeg encoder aliases - in
 // particular dvb_subtitle (the canonical name the prober stores), whose absence
 // would silently route a DVB bitmap to the sidecar path that can't render it.
 func TestIsImageSubtitle(t *testing.T) {

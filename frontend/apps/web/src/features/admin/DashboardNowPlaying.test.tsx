@@ -67,7 +67,7 @@ vi.mock("@evey/store", () => ({
     fn({ accessToken: "test-token" }),
 }));
 
-// AdminTrickplayThumbnail fetches images via the API — stub it to avoid img errors
+// AdminTrickplayThumbnail fetches images via the API - stub it to avoid img errors
 vi.mock("./AdminTrickplayThumbnail", () => ({
   AdminTrickplayThumbnail: () => null,
 }));
@@ -88,7 +88,7 @@ function renderNowPlaying() {
   return render(<NowPlaying />, { wrapper: createWrapper() });
 }
 
-// A minimal session fixture — string fields mirror proto string scalars
+// A minimal session fixture - string fields mirror proto string scalars
 const SESSION_MOVIE = {
   sessionId: "sess-1",
   mediaItemId: "mi-movie-1",
@@ -142,7 +142,7 @@ describe("NowPlaying", () => {
   it("renders the empty state when no sessions are active", () => {
     mockSessions = [];
     renderNowPlaying();
-    // EmptyState renders its title prop — i18n resolves to "No active playback"
+    // EmptyState renders its title prop - i18n resolves to "No active playback"
     expect(screen.getByText("No active playback")).toBeInTheDocument();
   });
 
@@ -156,7 +156,7 @@ describe("NowPlaying", () => {
     mockIsLoading = true;
     mockSessions = [];
     renderNowPlaying();
-    // Spinner is aria-role="status" by our Spinner component or just a div — check no card content
+    // Spinner is aria-role="status" by our Spinner component or just a div - check no card content
     expect(screen.queryByText("Dune")).toBeNull();
     expect(screen.queryByText("admin.dashboardStats.noActivePlayback")).toBeNull();
   });

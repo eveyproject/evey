@@ -98,7 +98,7 @@ describe("CreatePlaylistModal", () => {
 
   it("resets form state when cancelled so reopening shows a blank form", async () => {
     const user = userEvent.setup();
-    // onClose is a spy — does not actually toggle `open`, so the modal stays
+    // onClose is a spy - does not actually toggle `open`, so the modal stays
     // mounted. This lets us check that the form fields are cleared after cancel.
     const onClose = vi.fn();
     render(<CreatePlaylistModal open={true} onClose={onClose} />, { wrapper: createWrapper() });

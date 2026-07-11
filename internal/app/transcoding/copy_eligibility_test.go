@@ -25,7 +25,7 @@ func TestCopyRungEligible_HEVC(t *testing.T) {
 
 	// The happy paths: probed HDR ground truth + Main/Main 10 profile.
 	assert.True(t, CopyRungEligible(CopySource{Codec: "hevc", Profile: "Main 10", Level: &l153, TenBit: true, ColorTransfer: &pq}),
-		"HEVC Main 10 HDR with probed ground truth is copyable — the whole point of the rung")
+		"HEVC Main 10 HDR with probed ground truth is copyable - the whole point of the rung")
 	assert.True(t, CopyRungEligible(CopySource{Codec: "hevc", Profile: "Main", Level: &l153, ColorTransfer: &bt709}),
 		"HEVC Main 8-bit SDR with probed transfer is copyable")
 
@@ -82,7 +82,7 @@ func TestCopyRungEligible_AV1VP9(t *testing.T) {
 	assert.False(t, CopyRungEligible(CopySource{Codec: "av1", Profile: "Main", Level: new(8)}),
 		"unprobed color_transfer gates AV1 copy off (AV1 is HDR-capable, DoVi P10 exists)")
 	assert.False(t, CopyRungEligible(CopySource{Codec: "av1", Profile: "Professional", Level: new(8), ColorTransfer: &bt709}),
-		"AV1 Professional has no browser decode — not wired")
+		"AV1 Professional has no browser decode - not wired")
 
 	av1DoVi := av1HDR
 	av1DoVi.DoViProfile = new(10)
@@ -93,7 +93,7 @@ func TestCopyRungEligible_AV1VP9(t *testing.T) {
 	vp9p2 := CopySource{Codec: "vp9", Profile: "Profile 2", Level: new(41), TenBit: true, ColorTransfer: &pq}
 	assert.True(t, CopyRungEligible(vp9p2), "VP9 Profile 2 (10-bit) is copyable")
 	assert.False(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 1", Level: new(41), ColorTransfer: &bt709}),
-		"VP9 Profile 1 (4:2:2) has no browser decode — not wired")
+		"VP9 Profile 1 (4:2:2) has no browser decode - not wired")
 	assert.False(t, CopyRungEligible(CopySource{Codec: "vp9", Profile: "Profile 0", ColorTransfer: &bt709}),
 		"unknown level gates VP9 copy off")
 }

@@ -29,7 +29,7 @@ type IntroDetector interface {
 	SceneCutTimestamps(ctx context.Context, filePath string, startSec, durationSec, threshold float64) ([]int64, error)
 }
 
-// Chromaprinter is an optional adapter wrapping fpcalc — when set, the
+// Chromaprinter is an optional adapter wrapping fpcalc - when set, the
 // confirmAudioCandidates pass uses Chromaprint fingerprints (industry
 // standard, robust across mix/codec/language differences) instead of the
 // in-house banded Pearson. Falls back to banded when the adapter is nil
@@ -57,14 +57,14 @@ type IntroDetectionService struct {
 	events            shared.EventBus
 	// concurrencyLimiter caps the number of pipeline runs in flight at once.
 	// Each pipeline run is CPU + IO heavy (sprite decode, ffmpeg audio
-	// extraction across all siblings) so unbounded parallelism — what the
-	// /api/v1/admin/media/{id}/detect-segments endpoint allowed before — pegs
+	// extraction across all siblings) so unbounded parallelism - what the
+	// /api/v1/admin/media/{id}/detect-segments endpoint allowed before - pegs
 	// the box and triggers context deadline exceeded on individual queries.
 	concurrencyLimiter chan struct{}
 
 	// activePlayback, when set, reports live playback sessions. The worker defers
 	// heavy detection (pHash + trickplay decode) while anyone is watching so it
-	// can't starve an active transcode on a weak NAS — the trigger is re-armed
+	// can't starve an active transcode on a weak NAS - the trigger is re-armed
 	// until playback goes idle rather than dropped (no periodic catch-up exists).
 	activePlayback func() int
 }
@@ -90,15 +90,15 @@ const currentAudioAlgoVersion int16 = 1
 // Chromaprint + blackdetect + audio-primary), distinct from currentPHashAlgoVersion
 // (the hash function alone). The backfill records a per-episode attempt counter
 // stamped with this version and skips an episode once it has yielded no usable
-// intro maxIntroDetectionAttempts times AT this version — instead of re-decoding
+// intro maxIntroDetectionAttempts times AT this version - instead of re-decoding
 // the file (a full software 4K HEVC decode) on every restart forever.
 //
 // BUMP THIS whenever any part of detection improves: every episode that
 // previously produced no usable intro becomes eligible again exactly once at the
 // new version. This is the supported way to force a global re-detection after a
-// quality improvement — no DB surgery, no admin action.
+// quality improvement - no DB surgery, no admin action.
 // v2: season-level audio clustering (intro_season_cluster.go) added to the
-// pipeline — every episode that previously had no/weak intro becomes eligible
+// pipeline - every episode that previously had no/weak intro becomes eligible
 // for re-detection once at this version.
 // v3: combine-by-type pipeline (a partial provider/chapter match no longer
 // suppresses local detection of the other types) + heuristic-floor guard
@@ -112,14 +112,14 @@ const introDetectionAlgoVersion = 3
 const maxIntroDetectionAttempts = 2
 
 // introDeferPoll is how often a detection trigger re-checks for idle while
-// playback is active — it defers (re-arms) rather than decoding on top of a
+// playback is active - it defers (re-arms) rather than decoding on top of a
 // live transcode on a weak NAS.
 const introDeferPoll = 30 * time.Second
 
 // minHeuristicIntroMs is the shortest intro any in-house heuristic (silence,
 // audio, pHash, cluster) is allowed to emit. Below this the result is almost
-// always degenerate — the sub-second studio-logo silence at 0:00, or a pHash
-// match that confirmed only a sliver — not a real title sequence. It sits below
+// always degenerate - the sub-second studio-logo silence at 0:00, or a pHash
+// match that confirmed only a sliver - not a real title sequence. It sits below
 // the "good intro" floor used by detectSeason's skip check anyway, so a
 // non-result beats a junk stub the user sees as a broken skip button.
 const minHeuristicIntroMs = 5_000
@@ -128,7 +128,7 @@ const minHeuristicIntroMs = 5_000
 // heuristic (pHash, audio clustering/discovery, silence) rather than an
 // authoritative source (an uploader-labelled MKV chapter, a community DB, or a
 // manual lock). Only heuristic results are subject to the minHeuristicIntroMs
-// floor — an authoritative short intro is intentional (e.g. 9-1-1's ~2s title
+// floor - an authoritative short intro is intentional (e.g. 9-1-1's ~2s title
 // card), not noise.
 func isHeuristicSegmentSource(source string) bool {
 	switch source {
@@ -140,7 +140,7 @@ func isHeuristicSegmentSource(source string) bool {
 }
 
 // defaultMaxParallelDetections caps how many pipeline runs may execute
-// concurrently. 2 is a safe default for shared boxes — pHashPass extracts
+// concurrently. 2 is a safe default for shared boxes - pHashPass extracts
 // audio fingerprints across every sibling via ffmpeg, so each in-flight
 // detection burns ~1 CPU core for several minutes. Override via
 // WithMaxParallelDetections if the host has CPU headroom.
@@ -210,7 +210,7 @@ func (s *IntroDetectionService) WithAudioFingerprintCache(cache domainlibrary.In
 
 // WithChapterRepo enables intro detection via Matroska chapter names.
 // Many MKV containers ship with chapters explicitly labelled "Intro",
-// "Opening Credits", "Generique", etc. — those are authoritative
+// "Opening Credits", "Generique", etc. - those are authoritative
 // (encoded by the uploader) and should win over any heuristic.
 func (s *IntroDetectionService) WithChapterRepo(repo domainlibrary.ChapterQueryRepo) {
 	s.chapterRepo = repo
@@ -228,7 +228,7 @@ func (s *IntroDetectionService) WithChromaprinter(c Chromaprinter) {
 // WithIntroMetadataProvider plugs an external source of intro/recap segments
 // (e.g. AniDB, simkl, a community plugin) ahead of the heuristic pipeline.
 // When the provider returns segments for a given item, those win over MKV
-// chapters and over the pHash/audio fallback chain — that's the contract
+// chapters and over the pHash/audio fallback chain - that's the contract
 // described in domainlibrary.IntroMetadataProvider.
 //
 // nil disables the pass; the rest of the pipeline runs unchanged. There is
@@ -277,7 +277,7 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 	// WHILE playback is active it re-arms (introDeferPoll) instead of running:
 	// heavy detection (pHash + trickplay decode) waits until nobody is watching
 	// rather than decoding on top of a live transcode on a weak NAS. Deferring,
-	// not dropping — there is no periodic catch-up, so a skipped trigger would be
+	// not dropping - there is no periodic catch-up, so a skipped trigger would be
 	// lost until the next scan/regeneration.
 	var runDeferred func(key string, delay time.Duration, run func())
 	runDeferred = func(key string, delay time.Duration, run func()) {
@@ -287,7 +287,7 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 		}
 		timers[key] = time.AfterFunc(delay, func() {
 			if s.activePlayback != nil && s.activePlayback() > 0 {
-				runDeferred(key, introDeferPoll, run) // still watching — try again later
+				runDeferred(key, introDeferPoll, run) // still watching - try again later
 				return
 			}
 			mu.Lock()
@@ -353,7 +353,7 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 		}
 	})
 
-	// Backfill sweep — runs once at startup, 60s after boot, in the background.
+	// Backfill sweep - runs once at startup, 60s after boot, in the background.
 	// Picks up seasons that have episodes without segments (legacy data, or
 	// scans that landed while the worker was offline). Each season is detected
 	// sequentially to keep CPU usage bounded.
@@ -373,7 +373,7 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 }
 
 // backfillMissingSeasons enumerates every season parent that has episodes
-// without any media_segments rows and runs detection. Idempotent — episodes
+// without any media_segments rows and runs detection. Idempotent - episodes
 // already covered are skipped by detectSeason.
 func (s *IntroDetectionService) backfillMissingSeasons(ctx context.Context) {
 	parentIDs, err := s.segmentRepo.ListSeasonsMissingSegments(ctx)
@@ -397,7 +397,7 @@ func (s *IntroDetectionService) backfillMissingSeasons(ctx context.Context) {
 // BackfillLibrary runs the same detection loop as backfillMissingSeasons but
 // scoped to a single library. An empty libraryID is equivalent to calling
 // backfillMissingSeasons (all libraries). This is the entry point for the
-// admin "run backfill" endpoint — it runs synchronously; callers that want
+// admin "run backfill" endpoint - it runs synchronously; callers that want
 // non-blocking behaviour should wrap it in a goroutine.
 //
 // Returns the number of seasons that were scheduled (i.e. passed to
@@ -449,7 +449,7 @@ func (s *IntroDetectionService) BackfillLibrary(ctx context.Context, libraryID s
 
 // detectSeason runs detection on every episode of the given season that
 // doesn't already have an intro segment (presence of end_credits alone is not
-// sufficient — partial detection happens when not all siblings had their
+// sufficient - partial detection happens when not all siblings had their
 // trickplay ready, and we must re-run as more become available).
 //
 // Skips episodes whose existing intro is locked by an operator (manual
@@ -463,13 +463,13 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 
 	// Season-level clustering hint (v2): one pass over the whole season locates
 	// the recurring intro per episode at its own offset (cached fingerprints, no
-	// per-candidate re-extraction). nil when disabled or no cluster is found —
+	// per-candidate re-extraction). nil when disabled or no cluster is found -
 	// episodes then fall through to the per-episode pipeline unchanged.
 	clusterHints := s.clusterSeasonIntro(ctx, parentID)
 
 	// Page through the whole season. A single Limit:100 (or even the repo's 500
 	// cap) would silently skip episodes 101+ of a long single-season (anime,
-	// daily soaps), leaving them without intro markers forever — this is the only
+	// daily soaps), leaving them without intro markers forever - this is the only
 	// detection path (MediaItemAdded schedules the whole SEASON, not per episode).
 	const pageSize = 200
 	for offset := 0; ; offset += pageSize {
@@ -527,7 +527,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 				//
 				// Excluded on purpose: the audio fallback ("audio") and the
 				// blackdetect end-credits source ("blackdetect") are last-
-				// resort heuristics — keep them eligible for re-detection so
+				// resort heuristics - keep them eligible for re-detection so
 				// a future TIDB/IntroDB hit can replace them.
 				switch sg.Source {
 				case "mkv_chapter", "tidb", "introdb", "audio_cluster":
@@ -574,7 +574,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 				return
 			}
 			// Already re-decoded to the cap at the current algo version with no
-			// usable intro? Skip — it lands on the same answer and a 4K HEVC decode
+			// usable intro? Skip - it lands on the same answer and a 4K HEVC decode
 			// is expensive. Bumping introDetectionAlgoVersion re-enables it (the
 			// row's older version no longer matches).
 			if exhaustedByID[string(ep.ID)] {
@@ -589,7 +589,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 			detErr := s.detectIntroWithHint(epCtx, string(ep.ID), hint)
 			cancel()
 			if detErr != nil {
-				// A real failure (ffmpeg crash, I/O) — don't count it toward the cap
+				// A real failure (ffmpeg crash, I/O) - don't count it toward the cap
 				// so a transient problem doesn't park a detectable episode.
 				slog.Warn("intro detection failed", slog.String("media_id", string(ep.ID)), slog.Any("err", detErr))
 				continue
@@ -617,7 +617,7 @@ func (s *IntroDetectionService) DetectIntro(ctx context.Context, mediaItemID str
 
 // DetectIntroDryRun runs the full per-episode pipeline (season-cluster hint
 // included, for parity with the real detectSeason path) and RETURNS the segments
-// it would store — applying the same heuristic-floor guard — WITHOUT persisting
+// it would store - applying the same heuristic-floor guard - WITHOUT persisting
 // anything. It is the read-only path behind the admin ?dry_run tooling: it lets
 // an operator measure the detector against a known ground truth (an authoritative
 // tidb/introdb/chapter intro already stored for the episode) without clobbering
@@ -666,7 +666,7 @@ func (s *IntroDetectionService) DetectIntroDryRun(ctx context.Context, mediaItem
 }
 
 // detectIntroWithHint runs the per-episode pipeline. hint, when non-nil, is the
-// season-cluster intro window for this episode — authoritative over the visual
+// season-cluster intro window for this episode - authoritative over the visual
 // heuristics (applied in runPipeline, below explicit metadata/chapters).
 func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaItemID string, hint *domainlibrary.MediaSegment) error {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.DetectIntro")
@@ -713,7 +713,7 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 
 	for _, seg := range segments {
 		// Heuristic-floor guard: a sub-5s intro from a heuristic source is almost
-		// always a degenerate result — the silence pass locking onto the
+		// always a degenerate result - the silence pass locking onto the
 		// studio-logo silence at 0:00, or a pHash match that confirmed only a
 		// sliver. It surfaces to the user as a broken skip button. Drop it; a
 		// non-result is strictly better. Authoritative sources are exempt: a

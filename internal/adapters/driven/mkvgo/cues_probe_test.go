@@ -12,7 +12,7 @@ import (
 )
 
 // Synthetic EBML fixtures: just enough structure for the head probe. The
-// cluster/cues payloads are garbage on purpose — a full reader.Open would
+// cluster/cues payloads are garbage on purpose - a full reader.Open would
 // choke on them, which is how these tests prove the fast path was taken.
 
 func elem(t *testing.T, id uint32, payload []byte) []byte {
@@ -92,7 +92,7 @@ func TestHasSeekIndex_FastPath_SeekHeadListsCues(t *testing.T) {
 
 func TestHasSeekIndex_FastPath_SeekHeadWithoutCuesEntry(t *testing.T) {
 	// A clean head SeekHead referencing only Info, then a garbage cluster a
-	// full parse would reject — the trusted negative must come from the probe.
+	// full parse would reject - the trusted negative must come from the probe.
 	sh := elem(t, extmkv.IDSeekHead, seekEntry(t, extmkv.IDInfo, 0))
 	cluster := elem(t, extmkv.IDCluster, []byte("garbage blocks a full parse would reject"))
 	path := writeFixture(t, "unindexed.mkv", sh, cluster)
@@ -174,7 +174,7 @@ func TestProbeCuesPresence_Unconfirmed_FallsBackCases(t *testing.T) {
 }
 
 func TestProbeCuesPresence_TwoLevelSeekHead(t *testing.T) {
-	// Head SeekHead lists only a second SeekHead, which lists the Cues —
+	// Head SeekHead lists only a second SeekHead, which lists the Cues -
 	// the mkvmerge two-level meta-seek pattern.
 	void := elem(t, extmkv.IDVoid, make([]byte, 8))
 	cues := elem(t, extmkv.IDCues, []byte("cue data"))

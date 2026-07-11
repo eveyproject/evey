@@ -11,7 +11,7 @@ import (
 )
 
 // MediaItemReader hydrates a list of media item IDs into full MediaItem
-// aggregates. Narrow port by design — the playlist app layer only needs
+// aggregates. Narrow port by design - the playlist app layer only needs
 // batch reads, nothing else.
 type MediaItemReader interface {
 	GetByIDs(ctx context.Context, ids []shared.MediaItemID) ([]*library.MediaItem, error)

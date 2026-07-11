@@ -22,7 +22,7 @@ func TestMiddleware_CountsWrites(t *testing.T) {
 }
 
 // httptest.ResponseRecorder is an io.ReaderFrom via its bytes.Buffer? It is
-// not — so this exercises the fallback copy path; the counting must still be
+// not - so this exercises the fallback copy path; the counting must still be
 // exact.
 func TestCountingWriter_ReadFromFallback(t *testing.T) {
 	var m Meter

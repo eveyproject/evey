@@ -61,7 +61,7 @@ func TestSweepOnce_ProtectRecent(t *testing.T) {
 func TestSweepOnce_SkipsInFlightHash(t *testing.T) {
 	// Two old hashes, both over the cap. The one with a live session
 	// (pendingRefs > 0) must NOT be evicted even though its atime makes it the
-	// oldest candidate — evicting it would stall the player. The idle one goes.
+	// oldest candidate - evicting it would stall the player. The idle one goes.
 	c, _ := newTestCache(t)
 	writeSegments(t, c, "inflight", 5, 100)
 	backdateHash(t, c, "inflight", -2*time.Hour)
@@ -142,8 +142,8 @@ func TestStartEviction_RunsAndStops(t *testing.T) {
 }
 
 func TestSweepOnce_TouchKeepsActivelyReadHashWarm(t *testing.T) {
-	// Two hashes over the cap. "watched" has the OLDER mtime — its ReadRate=0
-	// copy mux finished an hour ago — but a player is still pulling segments, so
+	// Two hashes over the cap. "watched" has the OLDER mtime - its ReadRate=0
+	// copy mux finished an hour ago - but a player is still pulling segments, so
 	// Touch records a fresh access. "fresh" was written more recently but nobody
 	// is reading it. With mtime alone the sweeper would evict "watched" (older);
 	// with the access-time merge it stays warm and "fresh" is the victim instead.
@@ -163,7 +163,7 @@ func TestSweepOnce_TouchKeepsActivelyReadHashWarm(t *testing.T) {
 }
 
 func TestTouch_ClearedOnCleanup(t *testing.T) {
-	// The access-time registry must track the LIVE cache, not history — an entry
+	// The access-time registry must track the LIVE cache, not history - an entry
 	// has to be dropped when its hash is cleaned up, or the map leaks one entry
 	// per ever-served hash for the process lifetime.
 	c, _ := newTestCache(t)
@@ -210,7 +210,7 @@ func quietLogger() *slog.Logger {
 
 // backdateHash backs the mtime of EVERY file under hash to (now+offset). Used
 // to make a freshly-written hash look older than another for LRU-sort tests.
-// Touching just the first file is not enough — dirSizeAndMtime picks the
+// Touching just the first file is not enough - dirSizeAndMtime picks the
 // NEWEST mtime across all files in the dir.
 func backdateHash(t *testing.T, c *SegmentCache, hash string, offset time.Duration) {
 	t.Helper()

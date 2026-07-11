@@ -120,7 +120,7 @@ type TIDBContributor struct {
 
 // NewTIDBContributor wires a submitter and an ancestor resolver into the
 // SegmentContributor port. resolver is the same instance already used by the
-// cache layer — share it to avoid duplicating the repo reference.
+// cache layer - share it to avoid duplicating the repo reference.
 func NewTIDBContributor(submitter *TIDBSubmitter, resolver *AncestorResolver) *TIDBContributor {
 	return &TIDBContributor{submitter: submitter, resolver: resolver}
 }

@@ -98,7 +98,7 @@ function RegisterPage() {
     });
   }
 
-  // Validating the link from the URL — hold the form until we know it's usable.
+  // Validating the link from the URL - hold the form until we know it's usable.
   if (invite && validating && !inviteRejected) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 gradient-auth-page">
@@ -110,7 +110,7 @@ function RegisterPage() {
     );
   }
 
-  // Disabled / expired / already-used invite — no form, just a clear message.
+  // Disabled / expired / already-used invite - no form, just a clear message.
   if (inviteUnusable) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 gradient-auth-page">

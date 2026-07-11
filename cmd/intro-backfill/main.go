@@ -37,15 +37,15 @@ import (
 
 func main() {
 	var (
-		dbURL                   = flag.String("db", envOr("EVEY_DB_URL", "postgres://evey:evey@localhost:5432/evey?sslmode=disable"), "Postgres connection string")
-		apiBase                 = flag.String("api", envOr("EVEY_API", "http://localhost:9091"), "API base URL")
-		token                   = flag.String("token", os.Getenv("EVEY_TOKEN"), "admin JWT (or EVEY_TOKEN env)")
-		filter                  = flag.String("filter", "", "extra SQL WHERE clause, e.g. \"series='9-1-1'\" — joined to media_items via parent series")
+		dbURL                    = flag.String("db", envOr("EVEY_DB_URL", "postgres://evey:evey@localhost:5432/evey?sslmode=disable"), "Postgres connection string")
+		apiBase                  = flag.String("api", envOr("EVEY_API", "http://localhost:9091"), "API base URL")
+		token                    = flag.String("token", os.Getenv("EVEY_TOKEN"), "admin JWT (or EVEY_TOKEN env)")
+		filter                   = flag.String("filter", "", "extra SQL WHERE clause, e.g. \"series='9-1-1'\" - joined to media_items via parent series")
 		onlyWithoutChapterSource = flag.Bool("only-without-chapter-source", false, "limit to media items whose existing intro segment is NOT mkv_chapter (typical use after chapter pass goes live)")
-		onlyWithChapters        = flag.Bool("only-with-chapters", false, "limit to media items that have chapters in DB (a no-op when chapter pass is the only intent)")
-		limit                   = flag.Int("limit", 0, "max number of items to trigger (0 = all)")
-		maxParallel             = flag.Int("max-parallel", 2, "concurrent triggers (must match server's intro detection concurrency cap)")
-		dryRun                  = flag.Bool("dry-run", false, "list matching items without triggering")
+		onlyWithChapters         = flag.Bool("only-with-chapters", false, "limit to media items that have chapters in DB (a no-op when chapter pass is the only intent)")
+		limit                    = flag.Int("limit", 0, "max number of items to trigger (0 = all)")
+		maxParallel              = flag.Int("max-parallel", 2, "concurrent triggers (must match server's intro detection concurrency cap)")
+		dryRun                   = flag.Bool("dry-run", false, "list matching items without triggering")
 	)
 	flag.Parse()
 
@@ -108,10 +108,10 @@ func main() {
 			resp.Body.Close()
 			if resp.StatusCode == http.StatusAccepted {
 				ok.Add(1)
-				fmt.Printf("[%d/%d] %s 202 — %s\n", idx+1, len(ids), id, title)
+				fmt.Printf("[%d/%d] %s 202 - %s\n", idx+1, len(ids), id, title)
 			} else {
 				fail.Add(1)
-				fmt.Printf("[%d/%d] %s HTTP %d — %s\n", idx+1, len(ids), id, resp.StatusCode, title)
+				fmt.Printf("[%d/%d] %s HTTP %d - %s\n", idx+1, len(ids), id, resp.StatusCode, title)
 			}
 		}(i, id, titles[i])
 	}
@@ -175,7 +175,7 @@ func loadMediaIDs(ctx context.Context, db *sql.DB, extraFilter string, onlyWitho
 		ids = append(ids, id)
 		display := title
 		if series != "" {
-			display = series + " — " + title
+			display = series + " - " + title
 		}
 		titles = append(titles, display)
 	}

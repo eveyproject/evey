@@ -26,8 +26,8 @@ favorites:
   movies: Movies
   series: Series
   recentlyAdded: Recently Added
-  titleAZ: "Title A–Z"
-  titleZA: "Title Z–A"
+  titleAZ: "Title A-Z"
+  titleZA: "Title Z-A"
   yearNewest: Year (newest)
   rating: Rating
   noFavorites: No favorites yet
@@ -359,7 +359,7 @@ syncplay:
   connected: Connected
   connecting: "Connecting..."
   leave: Leave
-  joinError: "Could not join — check the code."
+  joinError: "Could not join - check the code."
   resyncAll: Sync everyone
   shareLink: Share link
   copyCode: Copy code
@@ -503,7 +503,7 @@ search:
   toYear: To
   sortBy: Sort by
   relevance: Relevance
-  titleAZ: "Title A–Z"
+  titleAZ: "Title A-Z"
   yearNewest: Year (newest)
   dateAdded: Date added
 streams:

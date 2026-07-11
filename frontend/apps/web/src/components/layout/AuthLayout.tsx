@@ -77,7 +77,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
       )}
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Hamburger + TopBar — chrome level (z-sidebar) so the TopBar's
+        {/* Hamburger + TopBar - chrome level (z-sidebar) so the TopBar's
             absolutely-positioned dropdowns (notification bell, search results)
             paint above <main> content but below modals/popovers. Without a
             stacking position here, <main> (the next DOM sibling, an overflow

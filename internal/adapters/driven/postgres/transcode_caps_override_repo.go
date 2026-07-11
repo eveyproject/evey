@@ -32,7 +32,7 @@ func (r *TranscodeCapsOverrideRepo) AggregateStarvation(ctx context.Context, win
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
-	// $1::interval — pass an "N seconds" literal and let pg parse it.
+	// $1::interval - pass an "N seconds" literal and let pg parse it.
 	winSecs := max(int(window.Seconds()), 1)
 
 	const q = `

@@ -68,7 +68,7 @@ func TestShareDownloadHandler_PathOutsideRoots_404(t *testing.T) {
 	}
 	repo := sharedfakes.NewFakeShareLinkRepo()
 	repo.Seed(&shared.ShareLink{ID: "s1", Token: "tok-conf", MediaItemID: "m1", ExpiresAt: time.Now().Add(time.Hour)})
-	// roots does NOT include dir — confinement should block serving
+	// roots does NOT include dir - confinement should block serving
 	otherDir := t.TempDir()
 	getter := &fakeMediaItemGetter{
 		item: &domainlibrary.MediaItem{

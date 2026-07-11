@@ -12,7 +12,7 @@ import (
 )
 
 // ErrDeviceNotConnected is returned by SendCommand when the target device
-// has no live WebSocket — e.g. the TV app was closed since the web UI
+// has no live WebSocket - e.g. the TV app was closed since the web UI
 // last listed devices.
 var ErrDeviceNotConnected = errors.New("device not connected")
 
@@ -75,7 +75,7 @@ func (r *DeviceRegistry) Register(userID, deviceID, name, deviceType string, sen
 }
 
 // Unregister removes a device. Safe to call for an unknown device. Only
-// removes the entry if the sender matches — protects against a stale
+// removes the entry if the sender matches - protects against a stale
 // disconnect racing a fresh reconnect from clobbering the new connection.
 func (r *DeviceRegistry) Unregister(userID, deviceID string, sender syncplay.MessageSender) {
 	r.mu.Lock()
@@ -113,7 +113,7 @@ func (r *DeviceRegistry) List(userID string) []syncplay.Device {
 
 // SendCommand pushes a playback command to one of the user's devices.
 // Returns ErrDeviceNotConnected if the device isn't currently registered
-// — the caller (HTTP handler) maps that to a 404 so the UI can refresh
+// - the caller (HTTP handler) maps that to a 404 so the UI can refresh
 // its device list.
 func (r *DeviceRegistry) SendCommand(userID, deviceID string, cmd syncplay.DeviceCommand) error {
 	r.mu.RLock()

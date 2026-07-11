@@ -13,7 +13,7 @@ var detectionPausePoll = time.Second
 
 // pauseProcessWhileBusy SIGSTOPs proc while busy() reports real work
 // (playback/transcode or a recalibration) and SIGCONTs it when that clears,
-// until the returned stop() is called — which also guarantees the process is left
+// until the returned stop() is called - which also guarantees the process is left
 // running, never stranded stopped. This is the same throttle the transcode
 // encoder uses; it frees CPU, memory bandwidth and I/O for what matters while
 // keeping the background decode's progress (no kill/re-run). busy==nil or a nil

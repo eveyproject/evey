@@ -16,7 +16,7 @@ push:
   series_with_episodes:
     title: "नई सीरीज़: {series} ({episodes} एपिसोड)"
   season_with_episodes:
-    title: "नया सीज़न: {series} — {season} ({episodes} एपिसोड)"
+    title: "नया सीज़न: {series} - {season} ({episodes} एपिसोड)"
   episodes_batched:
     title: "नए एपिसोड: {series} ({count} एपिसोड)"
   seasons_batched:

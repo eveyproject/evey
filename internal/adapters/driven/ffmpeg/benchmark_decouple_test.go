@@ -24,7 +24,7 @@ func TestHwDecoupledInputArgs(t *testing.T) {
 		if !slices.Equal(got, want) {
 			t.Errorf("hwDecoupledInputArgs(%q) = %v, want %v", backend, got, want)
 		}
-		// The decoupled path MUST software-decode — no -hwaccel, the very flag
+		// The decoupled path MUST software-decode - no -hwaccel, the very flag
 		// that fails on a GPU lacking the sample's decoder.
 		if slices.Contains(got, "-hwaccel") {
 			t.Errorf("hwDecoupledInputArgs(%q) must not contain -hwaccel, got %v", backend, got)
@@ -38,7 +38,7 @@ func TestHwUploadChain(t *testing.T) {
 		"hevc_vaapi": "format=nv12,hwupload",
 		"h264_qsv":   "hwupload=extra_hw_frames=16,format=qsv",
 		"h264_nvenc": "", // zero-copy HW decode handles every codec
-		"libx264":    "", // software encoder — no GPU upload
+		"libx264":    "", // software encoder - no GPU upload
 	}
 	for encoder, want := range cases {
 		if got := hwUploadChain(encoder); got != want {
@@ -60,12 +60,12 @@ func TestHwInputArgs_ZeroCopyStillHWDecodes(t *testing.T) {
 // mirror the runtime orchestrator: single-variant encodes one rung on demand,
 // multi-variant encodes the whole ladder in parallel. Benching the wrong shape
 // pins the HDR cap far below (multi-variant probe) or above (over-optimistic)
-// what the host actually serves — the root cause of the 360p HDR fallback when
+// what the host actually serves - the root cause of the 360p HDR fallback when
 // the runtime ran single-variant but the bench measured the parallel ladder.
 func TestProbeRungs_SingleVariantIsolatesOneRung(t *testing.T) {
 	ladder := []int{720, 1080, 1440}
 
-	// Single-variant: each probe is exactly one rung — the shape an on-demand
+	// Single-variant: each probe is exactly one rung - the shape an on-demand
 	// session runs (decode + 1 encode at h).
 	for i, h := range ladder {
 		got := probeRungs(ladder, i, true)
@@ -75,7 +75,7 @@ func TestProbeRungs_SingleVariantIsolatesOneRung(t *testing.T) {
 	}
 
 	// Multi-variant: each probe is the cumulative ladder up to and including i
-	// (decode + N parallel encodes) — unchanged legacy behaviour.
+	// (decode + N parallel encodes) - unchanged legacy behaviour.
 	wantMulti := [][]int{{720}, {720, 1080}, {720, 1080, 1440}}
 	for i := range ladder {
 		got := probeRungs(ladder, i, false)

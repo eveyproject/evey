@@ -165,7 +165,7 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
         );
         addItems(its);
       } catch {
-        /* ignore — leave the queue unchanged */
+        /* ignore - leave the queue unchanged */
       } finally {
         setBusy(false);
       }
@@ -265,8 +265,8 @@ export function RoomBuilder({ libraryId, creating, onCreate }: RoomBuilderProps)
                         {!a.coverArtUrl && <Disc3 size={28} className="opacity-30 text-[var(--text-muted)]" />}
                       </div>
                       <div className="p-1.5">
-                        <p className="font-medium text-xs truncate text-[var(--text)]">{a.title || "—"}</p>
-                        <p className="text-xs truncate text-[var(--text-muted)]">{a.artist || "—"}</p>
+                        <p className="font-medium text-xs truncate text-[var(--text)]">{a.title || "-"}</p>
+                        <p className="text-xs truncate text-[var(--text-muted)]">{a.artist || "-"}</p>
                       </div>
                     </button>
                     <button

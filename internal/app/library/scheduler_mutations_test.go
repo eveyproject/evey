@@ -55,7 +55,7 @@ func captureLogger(buf *safeBuf) *slog.Logger {
 	return slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 }
 
-// Kills scheduler.go:96 NEGATION — err != nil branch logs Error when scanner fails.
+// Kills scheduler.go:96 NEGATION - err != nil branch logs Error when scanner fails.
 func TestScheduler_RunScan_ScanErrorLogged(t *testing.T) {
 	repo := libfakes.NewFakeScanScheduleRepository()
 	scanner := &fakeScannerForScheduler{returnErr: errors.New("scan boom")}
@@ -78,7 +78,7 @@ func TestScheduler_RunScan_ScanErrorLogged(t *testing.T) {
 	assert.NotContains(t, out, "scan done", "should not log success on error")
 }
 
-// Kills scheduler.go:96 NEGATION (success branch) — logs "scan done" only when err nil.
+// Kills scheduler.go:96 NEGATION (success branch) - logs "scan done" only when err nil.
 func TestScheduler_RunScan_SuccessLogged(t *testing.T) {
 	repo := libfakes.NewFakeScanScheduleRepository()
 	scanner := &fakeScannerForScheduler{}
@@ -100,7 +100,7 @@ func TestScheduler_RunScan_SuccessLogged(t *testing.T) {
 	assert.NotContains(t, out, "scan failed")
 }
 
-// Kills scheduler.go:102 NEGATION — invalid cron expression logs warn.
+// Kills scheduler.go:102 NEGATION - invalid cron expression logs warn.
 func TestScheduler_RunScan_InvalidCronLogged(t *testing.T) {
 	repo := libfakes.NewFakeScanScheduleRepository()
 	scanner := &fakeScannerForScheduler{}
@@ -122,7 +122,7 @@ func TestScheduler_RunScan_InvalidCronLogged(t *testing.T) {
 	assert.Contains(t, out, "invalid cron expression")
 }
 
-// Kills scheduler.go:102 NEGATION (valid cron branch) — no warn logged.
+// Kills scheduler.go:102 NEGATION (valid cron branch) - no warn logged.
 func TestScheduler_RunScan_ValidCronNoWarn(t *testing.T) {
 	repo := libfakes.NewFakeScanScheduleRepository()
 	scanner := &fakeScannerForScheduler{}
@@ -143,7 +143,7 @@ func TestScheduler_RunScan_ValidCronNoWarn(t *testing.T) {
 	assert.NotContains(t, out, "invalid cron expression")
 }
 
-// Kills scheduler.go:105 NEGATION — UpdateAfterRun failure logs Error.
+// Kills scheduler.go:105 NEGATION - UpdateAfterRun failure logs Error.
 func TestScheduler_RunScan_UpdateAfterRunErrorLogged(t *testing.T) {
 	base := libfakes.NewFakeScanScheduleRepository()
 	repo := &erroringScheduleRepo{FakeScanScheduleRepository: base, updateErr: errors.New("update boom")}
@@ -166,7 +166,7 @@ func TestScheduler_RunScan_UpdateAfterRunErrorLogged(t *testing.T) {
 	assert.Contains(t, out, "update boom")
 }
 
-// Kills scheduler.go:105 NEGATION (success) — no update error log when ok.
+// Kills scheduler.go:105 NEGATION (success) - no update error log when ok.
 func TestScheduler_RunScan_UpdateAfterRunSuccessNoError(t *testing.T) {
 	repo := libfakes.NewFakeScanScheduleRepository()
 	scanner := &fakeScannerForScheduler{}
@@ -187,7 +187,7 @@ func TestScheduler_RunScan_UpdateAfterRunSuccessNoError(t *testing.T) {
 	assert.NotContains(t, out, "update after run")
 }
 
-// Kills scheduler.go:143 ARITHMETIC_BASE (t.Month()+1) — month rollover when
+// Kills scheduler.go:143 ARITHMETIC_BASE (t.Month()+1) - month rollover when
 // no valid day in current month. Cron "0 0 30 * *" from Feb 15 2026 -> Mar 30.
 func TestNextCronTime_MonthRollover(t *testing.T) {
 	from := time.Date(2026, 2, 15, 0, 0, 0, 0, time.UTC)
@@ -209,7 +209,7 @@ func TestNextCronTime_SpecificMonthRollover(t *testing.T) {
 	assert.Equal(t, 1, next.Day())
 }
 
-// Kills parseCronField L171 BOUNDARY (i <= max) for "*" expansion — max value included.
+// Kills parseCronField L171 BOUNDARY (i <= max) for "*" expansion - max value included.
 func TestNextCronTime_StarIncludesMaxMinute(t *testing.T) {
 	// Minute 59 must be valid: from 14:58:00 -> 14:59:00 with "* * * * *"
 	from := time.Date(2026, 3, 10, 14, 58, 0, 0, time.UTC)
@@ -218,7 +218,7 @@ func TestNextCronTime_StarIncludesMaxMinute(t *testing.T) {
 	assert.Equal(t, 59, next.Minute())
 }
 
-// Kills parseCronField L171 BOUNDARY — max hour 23 included for "*".
+// Kills parseCronField L171 BOUNDARY - max hour 23 included for "*".
 func TestNextCronTime_StarIncludesMaxHour(t *testing.T) {
 	from := time.Date(2026, 3, 10, 22, 59, 0, 0, time.UTC)
 	next, err := applib.NextCronTime("0 * * * *", from)
@@ -227,7 +227,7 @@ func TestNextCronTime_StarIncludesMaxHour(t *testing.T) {
 	assert.Equal(t, 10, next.Day())
 }
 
-// Kills parseCronField L181 BOUNDARY (i <= max) for "*/N" — reaches max when step hits it.
+// Kills parseCronField L181 BOUNDARY (i <= max) for "*/N" - reaches max when step hits it.
 func TestNextCronTime_StepIncludesMax(t *testing.T) {
 	// "*/59 * * * *" yields minutes {0, 59}. From 14:30 -> 14:59.
 	from := time.Date(2026, 3, 10, 14, 30, 0, 0, time.UTC)
@@ -301,7 +301,7 @@ func TestNextCronTime_ExactValueAboveMax_Month(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid value")
 }
 
-// sanity — ensure capture logger prevents stderr noise
+// sanity - ensure capture logger prevents stderr noise
 func TestScheduler_CaptureLoggerWorks(t *testing.T) {
 	var buf safeBuf
 	lg := captureLogger(&buf)

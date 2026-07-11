@@ -319,7 +319,7 @@ func (h *hlsHandle) Stop() error {
 	if h.paused && h.cmd != nil && h.cmd.Process != nil {
 		// Failure here only matters if the process has already exited,
 		// in which case the Stop path below treats the missing process
-		// as already-stopped — nothing to recover.
+		// as already-stopped - nothing to recover.
 		if err := h.cmd.Process.Signal(syscall.SIGCONT); err != nil {
 			_ = err // best-effort wake before stop
 		}
@@ -353,7 +353,7 @@ func (h *hlsHandle) Err() error {
 // Pause sends SIGSTOP so ffmpeg stops encoding while the client isn't fetching
 // segments. With the event-mode playlist nothing can be evicted underneath the
 // paused user, but -readrate 1.5 still lets ffmpeg keep encoding ~1.5× real-time
-// during a long pause — burning CPU and disk on segments the user may never
+// during a long pause - burning CPU and disk on segments the user may never
 // reach. Suspending while idle keeps the playlist stable and the host quiet.
 // Idempotent; a no-op once the process has exited.
 func (h *hlsHandle) Pause() error {
@@ -363,7 +363,7 @@ func (h *hlsHandle) Pause() error {
 		return nil
 	}
 	if err := h.cmd.Process.Signal(syscall.SIGSTOP); err != nil {
-		// Process likely already exited (finished/killed) — nothing to suspend.
+		// Process likely already exited (finished/killed) - nothing to suspend.
 		return err
 	}
 	h.paused = true

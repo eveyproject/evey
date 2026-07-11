@@ -21,7 +21,7 @@ import (
 // (library_id, scan_title) pair is touched.
 //
 // Strategy: StartPostgres brings the schema to HEAD (migration already ran
-// once on empty data — a no-op). We then seed the pre-dedup mess and
+// once on empty data - a no-op). We then seed the pre-dedup mess and
 // re-execute the real migration SQL so the test always exercises the
 // exact statements shipped to prod.
 func TestMigration000083_DedupeSeriesSeasons(t *testing.T) {
@@ -88,8 +88,8 @@ func TestMigration000083_DedupeSeriesSeasons(t *testing.T) {
 	episodeOldAt := time.Date(2020, 3, 1, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, itemRepo.Create(ctx, &library.MediaItem{
 		ID: "mi-episode-old", LibraryID: "lib-083",
-		ParentID:  "mi-season-old",
-		Type:      library.Episode, Title: "Pilot", ScanTitle: "Pilot",
+		ParentID: "mi-season-old",
+		Type:     library.Episode, Title: "Pilot", ScanTitle: "Pilot",
 		SortTitle: "pilot",
 		AddedAt:   episodeOldAt, UpdatedAt: episodeOldAt,
 	}))
@@ -97,13 +97,13 @@ func TestMigration000083_DedupeSeriesSeasons(t *testing.T) {
 	episodeNewAt := time.Date(2021, 3, 1, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, itemRepo.Create(ctx, &library.MediaItem{
 		ID: "mi-episode-new", LibraryID: "lib-083",
-		ParentID:  "mi-season-new",
-		Type:      library.Episode, Title: "Cat's in the Bag", ScanTitle: "Cat's in the Bag",
+		ParentID: "mi-season-new",
+		Type:     library.Episode, Title: "Cat's in the Bag", ScanTitle: "Cat's in the Bag",
 		SortTitle: "cats in the bag",
 		AddedAt:   episodeNewAt, UpdatedAt: episodeNewAt,
 	}))
 
-	// ── lib-083b: negative guard — same scan_title, different library ─────────
+	// ── lib-083b: negative guard - same scan_title, different library ─────────
 	// Dedup is scoped to (library_id, scan_title), so this series/season/episode
 	// must survive completely unchanged.
 
@@ -127,8 +127,8 @@ func TestMigration000083_DedupeSeriesSeasons(t *testing.T) {
 	episodeKeepAt := time.Date(2019, 3, 1, 0, 0, 0, 0, time.UTC)
 	require.NoError(t, itemRepo.Create(ctx, &library.MediaItem{
 		ID: "mi-episode-keep", LibraryID: "lib-083b",
-		ParentID:  "mi-season-keep",
-		Type:      library.Episode, Title: "Pilot", ScanTitle: "Pilot",
+		ParentID: "mi-season-keep",
+		Type:     library.Episode, Title: "Pilot", ScanTitle: "Pilot",
 		SortTitle: "pilot",
 		AddedAt:   episodeKeepAt, UpdatedAt: episodeKeepAt,
 	}))
@@ -171,7 +171,7 @@ func TestMigration000083_DedupeSeriesSeasons(t *testing.T) {
 	).Scan(&survivingSeasonID))
 	assert.Equal(t, "mi-season-old", survivingSeasonID, "oldest season (added_at 2020-02) must win")
 
-	// 3. Both episodes survive under the winning season — no data lost.
+	// 3. Both episodes survive under the winning season - no data lost.
 	// episode-new must have been reparented from mi-season-new → mi-season-old.
 	var episodeCount int
 	require.NoError(t, db.QueryRowContext(ctx,
@@ -194,7 +194,7 @@ func TestMigration000083_DedupeSeriesSeasons(t *testing.T) {
 		"episode-new must have been reparented to the winning season; neither episode may be lost",
 	)
 
-	// 4. Negative guard: lib-083b untouched — series, season, and episode all survive.
+	// 4. Negative guard: lib-083b untouched - series, season, and episode all survive.
 	var keepSeriesCount int
 	require.NoError(t, db.QueryRowContext(ctx,
 		`SELECT count(*) FROM media_items WHERE library_id='lib-083b' AND type='series'`,

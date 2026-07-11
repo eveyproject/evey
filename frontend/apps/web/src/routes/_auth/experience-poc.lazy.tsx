@@ -8,7 +8,7 @@ export const Route = createLazyFileRoute("/_auth/experience-poc")({
   component: ExperiencePoc,
 });
 
-// Real server data (the subset we render). Everything below is fetched live —
+// Real server data (the subset we render). Everything below is fetched live -
 // no placeholders. The page builds a pure-DATA SDUI document; SduiRenderer draws
 // it natively and the active theme paints it (so the same document is "Open
 // Workshop" under that theme and neutral under another, and would feed a React
@@ -43,7 +43,7 @@ function human(bytes: number): string {
   return `${gb.toFixed(gb >= 10 ? 0 : 1)} GB`;
 }
 function fmtUptime(sec: number): string {
-  if (!Number.isFinite(sec) || sec <= 0) return "—";
+  if (!Number.isFinite(sec) || sec <= 0) return "-";
   const d = Math.floor(sec / 86400);
   const h = Math.floor((sec % 86400) / 3600);
   const m = Math.floor((sec % 3600) / 60);
@@ -70,7 +70,7 @@ async function tryFetch(url: string): Promise<Record<string, unknown> | null> {
 function buildDoc(d: Data) {
   const nodes: unknown[] = [];
 
-  // col 1 — system vitals
+  // col 1 - system vitals
   if (d.dash || d.sys) {
     const children: unknown[] = [];
     if (d.dash) {
@@ -99,7 +99,7 @@ function buildDoc(d: Data) {
     nodes.push({ type: "panel", title: "system", subtitle: "// live", children });
   }
 
-  // col 2 — most played (real popular media + play counts)
+  // col 2 - most played (real popular media + play counts)
   if (d.popular.length) {
     nodes.push({
       type: "panel",
@@ -119,7 +119,7 @@ function buildDoc(d: Data) {
     });
   }
 
-  // col 3 — libraries (real per-library counts), each a clickable link
+  // col 3 - libraries (real per-library counts), each a clickable link
   if (d.libs.length) {
     nodes.push({
       type: "panel",
@@ -134,7 +134,7 @@ function buildDoc(d: Data) {
     });
   }
 
-  // col 1 (row 2) — storage (real disk usage per mount)
+  // col 1 (row 2) - storage (real disk usage per mount)
   if (d.dash?.storage?.length) {
     nodes.push({
       type: "panel",
@@ -161,7 +161,7 @@ function buildDoc(d: Data) {
     });
   }
 
-  // col 2 (row 2) — now playing (real session state)
+  // col 2 (row 2) - now playing (real session state)
   if (d.dash) {
     const live = d.dash.activeStreams > 0;
     nodes.push({
@@ -173,7 +173,7 @@ function buildDoc(d: Data) {
           type: "text",
           value: live
             ? `${d.dash.activeStreams} active stream(s) · ${d.dash.activeTranscodes} transcoding`
-            : "no active streams — system idle",
+            : "no active streams - system idle",
           tone: live ? "ok" : "muted",
         },
       ],
@@ -229,7 +229,7 @@ function ExperiencePoc() {
 
   if (!data) return <div className="p-6 text-sm text-[var(--text-muted)]">Loading experience…</div>;
 
-  // Native SDUI render — no iframe, no dangerouslySetInnerHTML (see
+  // Native SDUI render - no iframe, no dangerouslySetInnerHTML (see
   // features/sdui/SduiRenderer.test.tsx). The active theme paints it.
   return <SduiRenderer doc={buildDoc(data)} />;
 }

@@ -24,7 +24,7 @@ var (
 // MediaItemDurationGetter returns the total duration of a media item in
 // milliseconds. Wired from the library QueryService so the playback
 // command service can auto-mark items as completed once playback crosses
-// 90% without round-tripping client-side state — used by
+// 90% without round-tripping client-side state - used by
 // ReportProgressBySession. Returns (0, nil) when the duration is unknown
 // (parent containers, songs scanned without probe data); the caller skips
 // the auto-complete in that case.
@@ -43,7 +43,7 @@ const (
 // MinAutoResumeDurationMs is the floor below which a mid-stream progress
 // report is not persisted. Items shorter than 5 minutes (trailers, music
 // videos, intros, sound effects) flooding "Continue Watching" with a few
-// seconds of progress is noise, not signal — Jellyfin uses the same
+// seconds of progress is noise, not signal - Jellyfin uses the same
 // threshold (MinResumeDurationSec=300). Completion at 90% still writes
 // through (so the row exists and "watched" counts), only intermediate
 // position updates are dropped for short items.
@@ -79,7 +79,7 @@ func WithWatchProgressBuffer(buf *WatchProgressBuffer) CommandServiceOption {
 
 // WithMediaItemDurationGetter enables auto-completion at 90% inside
 // ReportProgressBySession. Without it, the call falls back to writing
-// Completed=false on every tick (the historical behaviour — completion
+// Completed=false on every tick (the historical behaviour - completion
 // still happens via MarkAsWatched or the sticky-true Upsert semantic
 // once any caller has set it).
 func WithMediaItemDurationGetter(g MediaItemDurationGetter) CommandServiceOption {
@@ -114,7 +114,7 @@ func (s *CommandService) validateProfile(ctx context.Context, profileID shared.P
 		if errors.Is(err, shared.ErrNotFound) {
 			return ErrProfileNotFound
 		}
-		// A transient lookup error must not masquerade as a permanent 404 — the
+		// A transient lookup error must not masquerade as a permanent 404 - the
 		// caller would map it to NotFound, the client would stop retrying, and the
 		// progress/stop/mark write would be silently dropped.
 		return fmt.Errorf("validate profile: %w", err)
@@ -124,7 +124,7 @@ func (s *CommandService) validateProfile(ctx context.Context, profileID shared.P
 
 // progressDecision bundles the per-tick judgments derived from the media
 // duration: whether to flip Completed and whether the mid-stream tick
-// should be persisted at all. Both fields are best-effort — the absence of
+// should be persisted at all. Both fields are best-effort - the absence of
 // a duration source defaults to "no completion, persist always" so the
 // historical behaviour is preserved.
 type progressDecision struct {
@@ -154,7 +154,7 @@ func (s *CommandService) classifyProgress(ctx context.Context, mediaItemID strin
 	}
 	// positionMs is client-controlled and reaches here unvalidated (only > 0 is
 	// guaranteed above). A position at or beyond the real, server-side duration
-	// is trivially complete — short-circuit it. This also prevents the
+	// is trivially complete - short-circuit it. This also prevents the
 	// positionMs*Denominator multiply below from overflowing int64 on a forged
 	// out-of-range positionMs: only an absurd value (≫ any real durMs) could
 	// overflow, and such a value is necessarily >= durMs, so it's caught here.
@@ -329,7 +329,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// back). Skipped when the getter is absent or duration is unknown.
 	decision := s.classifyProgress(ctx, string(session.MediaItemID), positionMs)
 	completed := decision.completed
-	// Short items (< 5 min) skip mid-stream progress writes — Continue
+	// Short items (< 5 min) skip mid-stream progress writes - Continue
 	// Watching should not surface a trailer at 0:15. Session position was
 	// already updated above so the live UI still gets its tick; we just
 	// don't materialise a watch_progress row until completion.
@@ -345,7 +345,7 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 		playCount = 1
 	}
 	// WatchProgress.Position is non-negative by construction; on a corrupt
-	// input we already logged above and pos is zero — keep buffering forward
+	// input we already logged above and pos is zero - keep buffering forward
 	// so the player UI can still record "session is alive" via IsPaused.
 	wp := &playback.WatchProgress{
 		ID:           id.New("wp-"),
@@ -471,15 +471,15 @@ func (s *CommandService) CleanupStaleSessions(ctx context.Context, maxAge time.D
 // StartCleanup runs the stale-session cleanup loop with default parameters.
 // The optional initDone channel(s) are closed after the first cleanup pass.
 //
-// The client stop (POST /playback/stop) is best-effort — a keepalive fetch that
-// browsers can drop on navigation/unload — so the SERVER must be the authority
+// The client stop (POST /playback/stop) is best-effort - a keepalive fetch that
+// browsers can drop on navigation/unload - so the SERVER must be the authority
 // on when an abandoned session ends. The reliable signal is the 3s progress
 // heartbeat, which keeps firing even while paused; a session with no heartbeat
 // for 2 min is genuinely gone (player closed, or the connection died), so reap
 // it then rather than lingering for 5 min as a phantom "now playing". A live or
 // merely-paused session beats every ~3s and is never at risk. Sweep every 30s so
 // the end-to-end teardown lands within ~2-2.5 min of close even when the client
-// beacon never arrives. CloseStale only sets ended_at — the resume position is
+// beacon never arrives. CloseStale only sets ended_at - the resume position is
 // preserved (last heartbeat / final report already persisted it).
 func (s *CommandService) StartCleanup(ctx context.Context, initDone ...chan<- struct{}) {
 	s.StartCleanupWithInterval(ctx, 30*time.Second, 2*time.Minute, initDone...)

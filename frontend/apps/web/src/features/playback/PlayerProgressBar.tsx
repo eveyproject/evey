@@ -45,7 +45,7 @@ export function PlayerProgressBar({
   const [dragValue, setDragValue] = useState<number | null>(null);
   // After committing a seek we keep showing the requested position until the
   // real playhead catches up. A transcode seek restarts the stream (a couple
-  // of seconds) during which absoluteTime still reports the OLD position — so
+  // of seconds) during which absoluteTime still reports the OLD position - so
   // without this the thumb would snap back to where it was and then jump to the
   // target, which reads as a broken seek ("I dragged to 10min, it went back to
   // 30min"). A safety timeout releases the hold if the position never converges.

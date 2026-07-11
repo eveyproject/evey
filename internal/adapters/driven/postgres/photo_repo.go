@@ -240,8 +240,8 @@ func (r *PhotoRepository) Search(ctx context.Context, libraryID shared.LibraryID
 // to build dedup indexes (byPath / byHash). No LIMIT: the scanner needs
 // the full set to detect moves + in-place updates; an arbitrary cap
 // would make libs > cap look like "N new files every tick" and spin
-// upsert. Memory is bounded by row count × row size — a lib with 100k
-// photos holds ~50–100MB here, acceptable compared to the churn cost.
+// upsert. Memory is bounded by row count × row size - a lib with 100k
+// photos holds ~50-100MB here, acceptable compared to the churn cost.
 // Not to be used for UI pagination (see ListByLibrary for that).
 func (r *PhotoRepository) ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]photo.Photo, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.photo.ListAllByLibrary")

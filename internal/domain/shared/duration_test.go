@@ -45,11 +45,11 @@ func TestNewDurationFromTime_Rounding(t *testing.T) {
 	}{
 		{0, 0},
 		{time.Millisecond, 1},
-		{1500 * time.Microsecond, 2},  // 1.5 ms → 2 ms
-		{1400 * time.Microsecond, 1},  // 1.4 ms → 1 ms
-		{1600 * time.Microsecond, 2},  // 1.6 ms → 2 ms
-		{499 * time.Microsecond, 0},   // 0.499 ms → 0 ms
-		{500 * time.Microsecond, 1},   // 0.5 ms → 1 ms (away from zero)
+		{1500 * time.Microsecond, 2}, // 1.5 ms → 2 ms
+		{1400 * time.Microsecond, 1}, // 1.4 ms → 1 ms
+		{1600 * time.Microsecond, 2}, // 1.6 ms → 2 ms
+		{499 * time.Microsecond, 0},  // 0.499 ms → 0 ms
+		{500 * time.Microsecond, 1},  // 0.5 ms → 1 ms (away from zero)
 		{time.Second, 1000},
 	}
 	for _, c := range cases {

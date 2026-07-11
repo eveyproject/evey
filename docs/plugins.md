@@ -42,7 +42,7 @@ for resource caps see [adr/0013-userspace-plugin-resource-monitor.md](adr/0013-u
 +------------------+                              +-------------------+
 ```
 
-A plugin can be written in **any language the `entrypoint:` can launch** — the
+A plugin can be written in **any language the `entrypoint:` can launch** - the
 runner doesn't constrain it. Pre-generated gRPC SDK stubs ship for Python,
 Node.js, Go, PHP, Ruby, Dart, Java, and Swift (`sdk/<lang>/`, auto-copied at
 install); interpreter languages without bundled stubs (Bash, Lua, Perl, …) work
@@ -52,14 +52,14 @@ with the `native-binary` permission. Per-language setup:
 
 The three pillars:
 
-- **Capabilities & scopes** — a plugin declares the capabilities it needs in its
+- **Capabilities & scopes** - a plugin declares the capabilities it needs in its
   manifest; the admin grants them at install. The host enforces them
   deny-by-default on every call. Full catalog in
   [plugins/api-reference.md](plugins/api-reference.md#capabilities).
-- **Sandbox** — backend processes run sandboxed (filesystem/syscall/network
+- **Sandbox** - backend processes run sandboxed (filesystem/syscall/network
   confinement) under a userspace resource monitor; frontend code runs in a
   locked-down iframe. Details in [plugins/security-model.md](plugins/security-model.md).
-- **Trust** — plugins are SHA256-pinned and can be Cosign-signed; the server can
+- **Trust** - plugins are SHA256-pinned and can be Cosign-signed; the server can
   be set to require signatures. See
   [plugins/security-model.md](plugins/security-model.md#update-workflow).
 

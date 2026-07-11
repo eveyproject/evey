@@ -174,7 +174,7 @@ resp = requests.get("https://api.anilist.co/graphql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	// network access is WARNING not CRITICAL — plugin is still "safe"
+	// network access is WARNING not CRITICAL - plugin is still "safe"
 	if !report.Safe {
 		t.Error("expected safe plugin (network is warning, not critical)")
 	}
@@ -219,7 +219,7 @@ func TestAnalyzePlugin_SignalPID1_Obfuscated(t *testing.T) {
 				t.Fatal(err)
 			}
 			if report.Safe {
-				t.Errorf("expected unsafe — %q should be flagged as signalling PID 1", src)
+				t.Errorf("expected unsafe - %q should be flagged as signalling PID 1", src)
 			}
 		})
 	}
@@ -235,7 +235,7 @@ func TestAnalyzePlugin_SkipsNodeModules(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !report.Safe {
-		t.Error("expected safe — node_modules should be skipped")
+		t.Error("expected safe - node_modules should be skipped")
 	}
 	if report.TotalFilesScanned != 1 {
 		t.Errorf("expected 1 file scanned (node_modules skipped), got %d", report.TotalFilesScanned)
@@ -396,15 +396,15 @@ with open("/etc/passwd") as f:
 		t.Fatal(err)
 	}
 	if report.Safe {
-		t.Fatal("expected unsafe — access to /etc/passwd")
+		t.Fatal("expected unsafe - access to /etc/passwd")
 	}
 }
 
-// L2 — obfuscation gaps that the original ruleset missed.
+// L2 - obfuscation gaps that the original ruleset missed.
 
 func TestAnalyzePlugin_PHPChrChain_NoDot(t *testing.T) {
 	dir := t.TempDir()
-	// PHP 8 short concat / array glue without explicit dot — original
+	// PHP 8 short concat / array glue without explicit dot - original
 	// regex required `chr(N).` repeated 3+ times, missing this form.
 	writeFile(t, dir, "shell.php", `<?php
 $x = chr(115) . chr(121) . chr(115);  // dot form (existing rule)
@@ -491,7 +491,7 @@ __import__(mod).system("id")
 
 func TestAnalyzePlugin_FromCharCodeShort_NoFalsePositive(t *testing.T) {
 	dir := t.TempDir()
-	// Single-arg fromCharCode is legitimate (BOM strip etc.) — must not trip.
+	// Single-arg fromCharCode is legitimate (BOM strip etc.) - must not trip.
 	writeFile(t, dir, "ok.js", `
 var bom = String.fromCharCode(0xfeff);
 console.log(bom);
@@ -554,7 +554,7 @@ func TestAnalyze_WarningOnly_StillSafe(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !report.Safe {
-		t.Fatal("expected Safe=true — warnings should not make plugin unsafe")
+		t.Fatal("expected Safe=true - warnings should not make plugin unsafe")
 	}
 	if len(report.Findings) == 0 {
 		t.Fatal("expected at least one warning finding")
@@ -609,7 +609,7 @@ func TestAnalyze_SkipsBinaryExtensions(t *testing.T) {
 		t.Errorf("expected 2 compiled_binary warnings (.so/.dll), got %d", binaryWarnings)
 	}
 	if !report.Safe {
-		t.Fatal("expected safe — compiled_binary is WARNING not CRITICAL")
+		t.Fatal("expected safe - compiled_binary is WARNING not CRITICAL")
 	}
 }
 
@@ -632,7 +632,7 @@ func TestAnalyze_MIMEMismatch(t *testing.T) {
 		t.Error("expected mime_mismatch finding for disguised .png")
 	}
 	if report.Safe {
-		t.Error("expected unsafe — mime_mismatch should mark report as not safe")
+		t.Error("expected unsafe - mime_mismatch should mark report as not safe")
 	}
 }
 
@@ -649,7 +649,7 @@ func TestAnalyze_ScansUnknownExtensions(t *testing.T) {
 		t.Errorf("expected 2 files scanned (.txt and .bak), got %d", report.TotalFilesScanned)
 	}
 	if report.Safe {
-		t.Fatal("expected unsafe — .txt/.bak files should be scanned")
+		t.Fatal("expected unsafe - .txt/.bak files should be scanned")
 	}
 }
 
@@ -781,7 +781,7 @@ func TestAnalyze_SuspiciousScheme_Warning(t *testing.T) {
 
 func TestAnalyze_DepManifest_Warning(t *testing.T) {
 	dir := t.TempDir()
-	// package.json that DECLARES deps but ships none vendored — should warn.
+	// package.json that DECLARES deps but ships none vendored - should warn.
 	writeFile(t, dir, "package.json", `{"name":"t","version":"1.0.0","dependencies":{"left-pad":"1.3.0"}}`)
 	writeFile(t, dir, "main.js", `console.log("ok")`)
 
@@ -802,7 +802,7 @@ func TestAnalyze_DepManifest_Warning(t *testing.T) {
 
 func TestAnalyze_DepManifest_NoDeps_NoWarning(t *testing.T) {
 	dir := t.TempDir()
-	// Metadata-only package.json (no deps declared) — must NOT warn.
+	// Metadata-only package.json (no deps declared) - must NOT warn.
 	writeFile(t, dir, "package.json", `{"name":"t","version":"1.0.0"}`)
 	writeFile(t, dir, "main.js", `console.log("ok")`)
 
@@ -1038,7 +1038,7 @@ func TestAnalyzer_RubyExec(t *testing.T) {
 }
 
 func TestAnalyzer_RubyExec_NotFiredOnNonRuby(t *testing.T) {
-	// Backtick rule is scoped to .rb — should not fire on .py files
+	// Backtick rule is scoped to .rb - should not fire on .py files
 	dir := t.TempDir()
 	writeFile(t, dir, "clean.py", "result = `id`")
 
@@ -1081,9 +1081,9 @@ func TestAnalyzer_GoUnsafe(t *testing.T) {
 			if !found {
 				t.Errorf("expected native_code warning for %q", tt.content)
 			}
-			// unsafe rules are warnings — plugin still safe
+			// unsafe rules are warnings - plugin still safe
 			if !report.Safe {
-				t.Error("expected safe plugin — unsafe.* is WARNING not CRITICAL")
+				t.Error("expected safe plugin - unsafe.* is WARNING not CRITICAL")
 			}
 		})
 	}
@@ -1154,7 +1154,7 @@ func TestAnalyze_SDKStubsSkipped(t *testing.T) {
 		t.Errorf("expected 1 file scanned (stubs skipped), got %d", report.TotalFilesScanned)
 	}
 	if !report.Safe {
-		t.Fatal("expected safe — SDK stubs should be skipped entirely")
+		t.Fatal("expected safe - SDK stubs should be skipped entirely")
 	}
 }
 
@@ -1196,9 +1196,9 @@ func TestAnalyze_Deserialization_YamlLoad_Warning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// yaml.load without Loader is WARNING — plugin stays safe
+	// yaml.load without Loader is WARNING - plugin stays safe
 	if !report.Safe {
-		t.Error("expected safe plugin — yaml.load is warning, not critical")
+		t.Error("expected safe plugin - yaml.load is warning, not critical")
 	}
 	found := false
 	for _, f := range report.Findings {
@@ -1224,7 +1224,7 @@ class Exploit:
 		t.Fatal(err)
 	}
 	if report.Safe {
-		t.Fatal("expected unsafe — __reduce__ hijack")
+		t.Fatal("expected unsafe - __reduce__ hijack")
 	}
 	found := false
 	for _, f := range report.Findings {
@@ -1276,7 +1276,7 @@ func TestAnalyze_PHP_PregReplaceE_Critical(t *testing.T) {
 		t.Fatal(err)
 	}
 	if report.Safe {
-		t.Fatal("expected unsafe — preg_replace /e")
+		t.Fatal("expected unsafe - preg_replace /e")
 	}
 	found := false
 	for _, f := range report.Findings {
@@ -1298,7 +1298,7 @@ func TestAnalyze_PHP_AssertEncoded_Critical(t *testing.T) {
 		t.Fatal(err)
 	}
 	if report.Safe {
-		t.Fatal("expected unsafe — assert with encoded arg")
+		t.Fatal("expected unsafe - assert with encoded arg")
 	}
 	found := false
 	for _, f := range report.Findings {
@@ -1350,7 +1350,7 @@ func TestAnalyze_PHP_ChrChain_Warning(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !report.Safe {
-		t.Error("expected safe — chr() chain is WARNING not CRITICAL")
+		t.Error("expected safe - chr() chain is WARNING not CRITICAL")
 	}
 	found := false
 	for _, f := range report.Findings {
@@ -1422,7 +1422,7 @@ func TestAnalyze_Ruby_IOPopen_Critical(t *testing.T) {
 		t.Fatal(err)
 	}
 	if report.Safe {
-		t.Fatal("expected unsafe — IO.popen in .rb")
+		t.Fatal("expected unsafe - IO.popen in .rb")
 	}
 	found := false
 	for _, f := range report.Findings {
@@ -1444,7 +1444,7 @@ func TestAnalyze_Ruby_OpenPipePrefix_Critical(t *testing.T) {
 		t.Fatal(err)
 	}
 	if report.Safe {
-		t.Fatal("expected unsafe — open('|cmd') in .rb")
+		t.Fatal("expected unsafe - open('|cmd') in .rb")
 	}
 	found := false
 	for _, f := range report.Findings {
@@ -1459,7 +1459,7 @@ func TestAnalyze_Ruby_OpenPipePrefix_Critical(t *testing.T) {
 
 func TestAnalyze_Ruby_RulesOnlyApplyToRbFiles(t *testing.T) {
 	dir := t.TempDir()
-	// Same code in a .py file — should NOT trigger Ruby-scoped rules
+	// Same code in a .py file - should NOT trigger Ruby-scoped rules
 	writeFile(t, dir, "shell.py", `IO.popen("ls")`)
 
 	report, err := AnalyzePlugin(dir)
@@ -1482,7 +1482,7 @@ func TestAnalyze_Go_UnsafePointer_Warning(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !report.Safe {
-		t.Error("expected safe — unsafe.Pointer is WARNING not CRITICAL")
+		t.Error("expected safe - unsafe.Pointer is WARNING not CRITICAL")
 	}
 	found := false
 	for _, f := range report.Findings {
@@ -1497,7 +1497,7 @@ func TestAnalyze_Go_UnsafePointer_Warning(t *testing.T) {
 
 func TestAnalyze_Go_UnsafePointerOnlyInGoFiles(t *testing.T) {
 	dir := t.TempDir()
-	// Same pattern in .py — should NOT trigger Go-scoped rule
+	// Same pattern in .py - should NOT trigger Go-scoped rule
 	writeFile(t, dir, "notes.py", `# unsafe.Pointer`)
 
 	report, err := AnalyzePlugin(dir)
@@ -1619,7 +1619,7 @@ func TestAnalyzerCriticalBypasses(t *testing.T) {
 			content: `getattr(__builtins__, "".join(["e","x","e","c"]))`,
 		},
 		{
-			// Go raw syscall by number — only fires on .go files.
+			// Go raw syscall by number - only fires on .go files.
 			name:    "go_raw_syscall",
 			file:    "syscall.go",
 			content: `syscall.Syscall(59, 0, 0, 0)`,
@@ -1691,7 +1691,7 @@ $f($cmd);
 		t.Fatal(err)
 	}
 	if report.Safe {
-		t.Fatal("expected unsafe — PHP string-concat var-callable should be detected")
+		t.Fatal("expected unsafe - PHP string-concat var-callable should be detected")
 	}
 	hasCritical := false
 	for _, f := range report.Findings {
@@ -1718,7 +1718,7 @@ m.system("id")
 		t.Fatal(err)
 	}
 	if report.Safe {
-		t.Fatal("expected unsafe — multi-line os alias chain should be detected")
+		t.Fatal("expected unsafe - multi-line os alias chain should be detected")
 	}
 	hasCritical := false
 	for _, f := range report.Findings {
@@ -1915,7 +1915,7 @@ fn("print(1)")
 
 // TestAnalyze_BlockComment_EvalStripped verifies that a JS file whose only
 // dangerous payload (eval) is wrapped in a /* … */ block comment produces
-// zero findings — the block comment is stripped before analysis.
+// zero findings - the block comment is stripped before analysis.
 func TestAnalyze_BlockComment_EvalStripped(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "plugin.js", `/* eval("rm -rf /") */ console.log("ok")`)

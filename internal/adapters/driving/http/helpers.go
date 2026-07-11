@@ -79,13 +79,13 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	}
 	allowed := strings.TrimRight(baseURL, "/")
 	// Token-authenticated requests (e.g. Chromecast fetching HLS) are allowed
-	// from any origin — the token itself is the authorization proof.
+	// from any origin - the token itself is the authorization proof.
 	rawTok := RawTokenFromContext(r.Context())
 	originMatches := strings.TrimRight(origin, "/") == allowed
 	if rawTok != "" || originMatches {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		// Credentials (cookies) only when the origin is our own configured
-		// frontend — token-auth requests carry their own bearer and must NOT
+		// frontend - token-auth requests carry their own bearer and must NOT
 		// piggy-back on cookie-based session auth across arbitrary origins.
 		if originMatches {
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -128,7 +128,7 @@ func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *doma
 	if err != nil || !ok {
 		// 404, not 403: returning "forbidden" for a resource the caller can't
 		// access but "not found" for one that doesn't exist is an existence
-		// oracle — a profile could enumerate which media IDs live in libraries
+		// oracle - a profile could enumerate which media IDs live in libraries
 		// it has no grant to. Mirror the not-found response so the two are
 		// indistinguishable. (err is logged but still denied, fail-closed.)
 		if err != nil {
@@ -200,7 +200,7 @@ func tokenRedactMiddleware(store streamTokenValidator, httpsOnly bool, next http
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// The player hits the media routes as raw URLs, so a stream token can
 		// arrive three ways: ?token= (legacy web + cast), the evey_hls httpOnly
-		// cookie (native <video>/hls.js — auto-sent same-origin, and the only
+		// cookie (native <video>/hls.js - auto-sent same-origin, and the only
 		// channel a native HLS element has), or an opaque Bearer token (mobile
 		// expo-video passes it as a request header). Resolve whichever is present
 		// into the Authorization + context shape the downstream stream-auth wants.

@@ -60,7 +60,7 @@ func TestDeviceRegistry_Unregister(t *testing.T) {
 
 	r.Unregister("user-1", "dev-tv", s)
 	assert.Empty(t, r.List("user-1"))
-	// Idempotent — unknown device / already-removed is a no-op.
+	// Idempotent - unknown device / already-removed is a no-op.
 	r.Unregister("user-1", "dev-tv", s)
 	r.Unregister("user-unknown", "whatever", nil)
 }
@@ -75,7 +75,7 @@ func TestDeviceRegistry_UnregisterStaleSenderNoOp(t *testing.T) {
 	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, stale)
 	_, _ = r.Register("user-1", "dev-tv", "TV", syncplay.DeviceTypeTV, fresh) // reconnect
 
-	// The stale connection's defer fires late — it must not remove the
+	// The stale connection's defer fires late - it must not remove the
 	// fresh entry.
 	r.Unregister("user-1", "dev-tv", stale)
 	require.Len(t, r.List("user-1"), 1, "fresh connection survives a stale disconnect")

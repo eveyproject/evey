@@ -151,7 +151,7 @@ function ProfileCard() {
                 <span className="text-xs bg-[var(--accent)] text-[var(--filter-active-text)] px-2 py-0.5 rounded-[var(--radius-sm)]">{t("common.nav.admin")}</span>
               )}
             </div>
-            <p className="text-sm text-[var(--text-muted)] truncate">{user?.email || "—"}</p>
+            <p className="text-sm text-[var(--text-muted)] truncate">{user?.email || "-"}</p>
             {memberSince && <p className="text-xs text-[var(--text-muted)] mt-0.5">{memberSince}</p>}
           </div>
           <button

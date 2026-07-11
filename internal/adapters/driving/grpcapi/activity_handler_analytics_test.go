@@ -64,7 +64,7 @@ func TestActivityHandler_GetPopularMedia_EmptyResults(t *testing.T) {
 	assert.Empty(t, resp.Items)
 }
 
-// GetPopularMedia with limit <= 0 defaults to 20 internally — we can't assert
+// GetPopularMedia with limit <= 0 defaults to 20 internally - we can't assert
 // the default directly, but we can assert the call succeeds.
 func TestActivityHandler_GetPopularMedia_DefaultLimit(t *testing.T) {
 	t.Parallel()

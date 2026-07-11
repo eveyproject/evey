@@ -127,7 +127,7 @@ func (p *TVMazeProvider) GetEpisodeDetails(ctx context.Context, seriesID string,
 		Title:    ep.Name,
 		Overview: stripHTML(ep.Summary),
 	}
-	// Persist the tvmaze episode ID — without it the orphan filter keeps
+	// Persist the tvmaze episode ID - without it the orphan filter keeps
 	// flagging the row even though enrichment ran (provider_ids stays {}).
 	if ep.ID > 0 {
 		result.ProviderIDs = map[string]string{"tvmaze": strconv.Itoa(ep.ID)}
@@ -289,9 +289,9 @@ type tvmazeCastMember struct {
 }
 
 type tvmazePerson struct {
-	ID     int          `json:"id"`
-	Name   string       `json:"name"`
-	Image  *tvmazeImage `json:"image"`
+	ID    int          `json:"id"`
+	Name  string       `json:"name"`
+	Image *tvmazeImage `json:"image"`
 }
 
 type tvmazeCharacter struct {

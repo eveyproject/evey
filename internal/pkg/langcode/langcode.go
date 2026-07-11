@@ -3,7 +3,7 @@
 // tags, and full English names) to a single ISO 639-1 two-letter form.
 //
 // This matters because the same track can surface as "tur" (ffprobe, 639-2) or
-// "tr" (the in-process mkvgo prober, BCP-47) — preferred-language matching must
+// "tr" (the in-process mkvgo prober, BCP-47) - preferred-language matching must
 // fold both to "tr". A naive 3→2 truncation is WRONG for the 639-2/B
 // bibliographic codes whose two-letter form is not the first two letters
 // (tur→tr but dut→nl, gre→el, per→fa, rum→ro, cze→cs, may→ms, …), which is the

@@ -11,7 +11,7 @@ interface KeyboardShortcutsOverlayProps {
 export function KeyboardShortcutsOverlay({ onClose, skipBackwardSeconds = 30, skipForwardSeconds = 30 }: KeyboardShortcutsOverlayProps) {
   const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
-  // Always active — component is only mounted when the overlay is open
+  // Always active - component is only mounted when the overlay is open
   useFocusTrap(dialogRef, true);
   const shortcuts: [string, string][] = useMemo(() => [
     ["Space / K", t("player.shortcuts.playPause")],

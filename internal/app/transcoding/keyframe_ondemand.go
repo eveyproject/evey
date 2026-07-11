@@ -4,7 +4,7 @@ package transcoding
 // the paced background backfill hasn't reached the file yet. Without it, a
 // freshly added film negotiates TRANSCODE (no keyframes → copy rung
 // ineligible), burns CPU re-encoding for the whole viewing, and only the NEXT
-// playback benefits from the index — the prod incident of 2026-07-07 ("green
+// playback benefits from the index - the prod incident of 2026-07-07 ("green
 // frames") additionally showed the backfill landing MID-viewing, which the
 // vd= decision pin made harmless but still leaves the first viewing on the
 // expensive path.
@@ -12,7 +12,7 @@ package transcoding
 // The probe is the mkvgo-fronted KeyframeDispatcher: reading the container's
 // own seek index (Matroska Cues / MP4 stss) head-only takes milliseconds, so
 // doing it inline at negotiation is imperceptible. Files WITHOUT a usable
-// index would fall through to the multi-second ffprobe packet scan — the
+// index would fall through to the multi-second ffprobe packet scan - the
 // budget context kills that instead of blocking the player start, a negative
 // cache remembers the failure so replays don't re-pay the attempt, and the
 // paced background worker remains those files' path to eligibility.
@@ -28,7 +28,7 @@ import (
 
 // keyframeOnDemandBudget is how long the NEGOTIATION waits for the probe:
 // plenty for a head-only seek-index read (ms), never a player-visible stall.
-// The probe itself keeps running past it (see TryIndex) — mkvgo's cue-less
+// The probe itself keeps running past it (see TryIndex) - mkvgo's cue-less
 // cluster walk does not honour context cancellation mid-read, so the wait
 // and the work must be decoupled or a walk measured at ~14s blocks
 // GetStreamInfo for its whole duration.
@@ -226,7 +226,7 @@ func (k *KeyframeOnDemand) index(ctx context.Context, mediaID, filePath string) 
 		k.mu.Unlock()
 		// Expected for files without a readable seek index (the exec'd ffprobe
 		// fallback dies with the hard cap): the paced background worker owns
-		// those. Debug, not warn — fires once per file per TTL.
+		// those. Debug, not warn - fires once per file per TTL.
 		k.logger.Debug("keyframe on-demand: probe failed, leaving to the background worker",
 			slog.String("media_id", mediaID), slog.Duration("took", time.Since(start)), slog.Any("err", err))
 		return false
@@ -241,7 +241,7 @@ func (k *KeyframeOnDemand) index(ctx context.Context, mediaID, filePath string) 
 		return false
 	}
 	if n == 0 {
-		// The background worker beat us to it — the index exists either way.
+		// The background worker beat us to it - the index exists either way.
 		return true
 	}
 	k.classifyFrameRate(ctx, mediaID, filePath)

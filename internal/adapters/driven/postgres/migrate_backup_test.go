@@ -21,8 +21,8 @@ import (
 
 // TestRunMigrations_WritesBackup spins an ephemeral postgres + runs
 // migrations with a tempdir backup target. Verifies a `pre-migration-*`
-// gzip dump lands under the dir and that a second migration call —
-// which is a no-op since all migrations already applied — still writes
+// gzip dump lands under the dir and that a second migration call -
+// which is a no-op since all migrations already applied - still writes
 // a fresh dump (the snapshot is taken before Up regardless of pending
 // migrations, so the operator always has a current rollback artefact).
 func TestRunMigrations_WritesBackup(t *testing.T) {
@@ -83,7 +83,7 @@ func TestRunMigrations_WritesBackup(t *testing.T) {
 	defer db.Close()
 	// Ping retry loop to survive the final "connection reset by peer"
 	// race when the postgres container flips its listen socket during
-	// init — same pattern as testhelpers.StartShared.
+	// init - same pattern as testhelpers.StartShared.
 	var pingErr error
 	for range 30 {
 		if pingErr = db.Ping(); pingErr == nil {

@@ -17,7 +17,7 @@ export function getZustandStorage(): StateStorage {
       removeItem: (name) => localStorage.removeItem(name),
     };
   }
-  // No storage available — return no-op (prevents warnings)
+  // No storage available - return no-op (prevents warnings)
   return {
     getItem: () => null,
     setItem: () => {},

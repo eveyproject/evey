@@ -13,7 +13,7 @@ import (
 )
 
 // watchProgressKey identifies a buffered progress entry. Per the backlog,
-// the player tick (~5s) repeatedly upserts the same (profile, media) pair —
+// the player tick (~5s) repeatedly upserts the same (profile, media) pair -
 // folding writes by this key turns N ticks into one DB upsert per flush.
 type watchProgressKey struct {
 	profileID   shared.ProfileID
@@ -25,7 +25,7 @@ type watchProgressKey struct {
 // map write (no DB round-trip); a goroutine drains the map every Interval.
 //
 // Tradeoff: a server crash drops up to FlushInterval worth of progress for
-// active streams. Acceptable per the backlog — self-hosted, low write rate.
+// active streams. Acceptable per the backlog - self-hosted, low write rate.
 type WatchProgressBuffer struct {
 	repo          playback.ProgressCommandRepo
 	flushInterval time.Duration
@@ -62,7 +62,7 @@ func NewWatchProgressBuffer(repo playback.ProgressCommandRepo, interval time.Dur
 }
 
 // Enqueue records the latest progress for (profileID, mediaItemID), folding
-// any earlier pending entry. Returns immediately — no I/O on the hot path.
+// any earlier pending entry. Returns immediately - no I/O on the hot path.
 func (b *WatchProgressBuffer) Enqueue(wp *playback.WatchProgress) {
 	if wp == nil {
 		return
@@ -135,7 +135,7 @@ func (b *WatchProgressBuffer) Start(ctx context.Context) {
 			if r := recover(); r != nil {
 				slog.Error("panic in watch progress buffer flush", slog.Any("recover", r))
 			}
-			// Final flush on shutdown — uses a fresh context so a cancelled
+			// Final flush on shutdown - uses a fresh context so a cancelled
 			// parent doesn't abort the last write. Bound it tightly to avoid
 			// blocking shutdown indefinitely on a slow DB.
 			flushCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

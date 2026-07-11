@@ -22,7 +22,7 @@ func snapshotHandler(tokenGen TokenVerifier, frameExt FrameExtractor, libraryAcc
 		span.SetAttributes(attribute.String("media_item_id", mediaID))
 		claims := HTTPClaimsFromContext(r.Context())
 
-		// A stream token is scoped to its one media item — reject replay against
+		// A stream token is scoped to its one media item - reject replay against
 		// another id (the other stream-authed handlers all enforce this). Without
 		// it a leaked MOVIE1 token could pull frames of any same-library MOVIE2.
 		if st, ok := StreamTokenFromContext(r.Context()); ok {

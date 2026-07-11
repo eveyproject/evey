@@ -32,7 +32,7 @@ func TestRegistry_BeginDoneAndSnapshot(t *testing.T) {
 	assert.Empty(t, snap[0].Detail)
 	assert.EqualValues(t, 1, snap[0].Processed)
 
-	// done() is idempotent — a double call must not double-count.
+	// done() is idempotent - a double call must not double-count.
 	done()
 	assert.EqualValues(t, 1, r.Snapshot()[0].Processed)
 }

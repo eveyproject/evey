@@ -119,7 +119,7 @@ describe("MusicPage search", () => {
     await waitFor(() => expect(screen.getByText("No tracks match your search.")).toBeInTheDocument());
   });
 
-  it("delete button was removed — never rendered regardless of role", async () => {
+  it("delete button was removed - never rendered regardless of role", async () => {
     mockUseAuthStore.mockImplementation((s: (state: { isAdmin: boolean }) => unknown) => s({ isAdmin: true }));
     setup();
     const mod = await import("./index.lazy");

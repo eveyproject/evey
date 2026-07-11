@@ -25,7 +25,7 @@ func New() *HTTPSender {
 	}
 }
 
-// NewWithClient injects a custom http.Client — intended for tests that
+// NewWithClient injects a custom http.Client - intended for tests that
 // need to hit loopback (httptest.Server) without the SSRF guard firing.
 func NewWithClient(c *http.Client) *HTTPSender {
 	if c == nil {

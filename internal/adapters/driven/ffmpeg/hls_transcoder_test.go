@@ -110,7 +110,7 @@ func TestBuildFFmpegArgs_ModeA_AllCopy(t *testing.T) {
 // An HEVC video-copy must tag the fMP4 sample entry hvc1: ffmpeg's default is
 // hev1, which Safari/AVPlayer refuse even when the master CODECS says hvc1.
 // H.264 copy keeps no tag override (avc1 is the mux default). The tag rides
-// BOTH copy branches — cold start and copy-on-seek — since each writes the
+// BOTH copy branches - cold start and copy-on-seek - since each writes the
 // shared init segment.
 func TestBuildFFmpegArgs_HevcCopyTagsHvc1(t *testing.T) {
 	base := transcoding.HLSProcessOpts{
@@ -146,7 +146,7 @@ func TestBuildFFmpegArgs_HevcCopyTagsHvc1(t *testing.T) {
 // Disk cleanup is guaranteed by HLSSession.stop() → os.RemoveAll(OutputDir).
 //
 // Note: -readrate is now PER-PRODUCER (HLSProcessOpts.ReadRate). The default
-// (0) emits no -readrate — byte-identical to the multi-rafale HW/orchestrator
+// (0) emits no -readrate - byte-identical to the multi-rafale HW/orchestrator
 // path, which relies on its adaptive SIGSTOP/SIGCONT throttle and must NOT be
 // input-paced (it cripples cold start). The single-ffmpeg software producer
 // opts in (ReadRate>0); see TestBuildFFmpegArgs_ReadRatePacing.
@@ -183,11 +183,11 @@ func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			joined := strings.Join(ffmpeg.BuildFFmpegArgs(tc.opts), " ")
-			assert.NotContains(t, joined, "-readrate", "default ReadRate=0 must emit no -readrate — byte-identical to the HW/orchestrator path")
+			assert.NotContains(t, joined, "-readrate", "default ReadRate=0 must emit no -readrate - byte-identical to the HW/orchestrator path")
 			assert.Contains(t, joined, "-hls_list_size 0", "playlist must be unbounded (event-type, growing) to avoid drift-out on long playback")
 			assert.Contains(t, joined, "-hls_playlist_type event", "playlist must be marked event so hls.js doesn't snap to liveSyncPosition")
-			assert.Contains(t, joined, "-hls_flags temp_file", "temp_file flag makes ffmpeg rename segments atomically — eliminates read-while-write races (audit indies: Stash pattern, free with this flag)")
-			assert.NotContains(t, joined, "delete_segments", "delete_segments must not be set — session.stop() cleans up the OutputDir")
+			assert.Contains(t, joined, "-hls_flags temp_file", "temp_file flag makes ffmpeg rename segments atomically - eliminates read-while-write races (audit indies: Stash pattern, free with this flag)")
+			assert.NotContains(t, joined, "delete_segments", "delete_segments must not be set - session.stop() cleans up the OutputDir")
 		})
 	}
 }
@@ -196,7 +196,7 @@ func TestBuildFFmpegArgs_BoundedCacheArgs(t *testing.T) {
 // ReadRate=0 (the HW/orchestrator default) emits no -readrate; ReadRate>0 (the
 // single-ffmpeg software producer) emits `-readrate N` as a pre-`-i` flag so
 // the lone encoder stays near wall-clock. This is the Phase-0 plumbing for the
-// software-flow decoupling — inert until a producer sets ReadRate.
+// software-flow decoupling - inert until a producer sets ReadRate.
 func TestBuildFFmpegArgs_ReadRatePacing(t *testing.T) {
 	base := transcoding.HLSProcessOpts{
 		OutputDir: "/tmp/t", FilePath: "/f.mkv",
@@ -326,7 +326,7 @@ func TestBuildFFmpegArgs_SingleTranscode_ToneMap_FoldsScaleIntoTonemap(t *testin
 	}
 	assert.Contains(t, joined, "tonemap=")
 	assert.NotContains(t, joined, "format=yuv420p,scale=",
-		"no separate scale after the tonemap — it already downscaled")
+		"no separate scale after the tonemap - it already downscaled")
 }
 
 func TestBuildFFmpegArgs_MultiVariant_ToneMap_FoldsScaleAtTopRung(t *testing.T) {
@@ -334,7 +334,7 @@ func TestBuildFFmpegArgs_MultiVariant_ToneMap_FoldsScaleAtTopRung(t *testing.T) 
 	// LARGEST rung width (folded into its zscale), so the heavy float pipeline
 	// runs at the top delivery resolution instead of the 4K source; the per-rung
 	// scalers then only downscale from there. Without this the tonemap pays for
-	// the full 4K frame once, shared across rungs — the exact cost that pushed a
+	// the full 4K frame once, shared across rungs - the exact cost that pushed a
 	// weak host under realtime.
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:     "/tmp/test",
@@ -479,7 +479,7 @@ func TestBuildFFmpegArgs_SingleTranscode_BurnInSubtitle(t *testing.T) {
 }
 
 func TestIsImageSubtitle(t *testing.T) {
-	// Both ffprobe canonical codec_names and ffmpeg encoder aliases — dvb_subtitle
+	// Both ffprobe canonical codec_names and ffmpeg encoder aliases - dvb_subtitle
 	// (canonical) must be matched, not only the dvbsub alias.
 	imageCodecs := []string{
 		"hdmv_pgs_subtitle", "pgssub",
@@ -1139,7 +1139,7 @@ func TestBuildFFmpegAudioOnlyArgs_HLSEventModeFlags(t *testing.T) {
 	assert.NotContains(t, joined, "delete_segments")
 }
 
-// Integration test — requires ffmpeg binary
+// Integration test - requires ffmpeg binary
 func TestHLSTranscoder_Integration_ModeA(t *testing.T) {
 	requireFFmpeg(t)
 	videoPath := generateTestVideo(t)
@@ -1224,7 +1224,7 @@ func TestHLSTranscoder_Stop(t *testing.T) {
 // --- B3: deinterlace mode + anamorphic scale (unit, pure filter strings) ---
 
 func TestDeinterlaceFilterFor(t *testing.T) {
-	// Default (flag-gated) — a no-op on progressive content.
+	// Default (flag-gated) - a no-op on progressive content.
 	assert.Equal(t, "bwdif=mode=send_frame:deint=interlaced",
 		ffmpeg.DeinterlaceFilterForTest(transcoding.HLSProcessOpts{}))
 	// idet flagged the content interlaced despite lying container flags.

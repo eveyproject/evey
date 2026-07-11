@@ -167,7 +167,7 @@ type langAwareFake struct {
 
 func (f *langAwareFake) Language() string { return f.lang }
 
-// A language change must not serve a result fetched under another language —
+// A language change must not serve a result fetched under another language -
 // otherwise a synopsis fetched in one language sticks under another.
 func TestCachedProvider_SearchKeyDiscriminatesLanguage(t *testing.T) {
 	inner := &langAwareFake{

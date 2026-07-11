@@ -36,7 +36,7 @@ func TestCheckPermission_UnknownPlugin(t *testing.T) {
 	assert.ErrorIs(t, err, appplugin.ErrPermissionDenied)
 }
 
-// A plugin loaded with an empty permission list must still deny — distinct
+// A plugin loaded with an empty permission list must still deny - distinct
 // from "unknown plugin". Anti-regression for the cache zero-value mutation:
 // if `perms[requiredPerm]` were flipped to `!perms[requiredPerm]`, an
 // empty cache entry would erroneously allow every permission.

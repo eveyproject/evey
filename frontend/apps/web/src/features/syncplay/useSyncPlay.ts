@@ -100,7 +100,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${proto}//${window.location.host}/api/v1/syncplay/rooms/${roomId}/ws`;
     // Read a fresh token on each connect/reconnect. An unauthenticated
-    // "watch together" guest has no JWT in the store — it passes its media-scoped
+    // "watch together" guest has no JWT in the store - it passes its media-scoped
     // guest stream token instead, which the ws upgrade accepts for this room.
     const freshToken = optsRef.current.guestToken ?? useAuthStore.getState().accessToken;
     const ws = new WebSocket(url, [`Bearer.${freshToken ?? ""}`]);
@@ -250,7 +250,7 @@ export function useSyncPlay(opts: UseSyncPlayOptions = {}): [SyncPlayState, Sync
   }, [connect]);
 
   const joinRoom = useCallback(async (roomId: string): Promise<void> => {
-    // A guest has no JWT — the REST join/get-room RPCs would 401. The ws-guest
+    // A guest has no JWT - the REST join/get-room RPCs would 401. The ws-guest
     // upgrade path adds the guest as a member on connect, so a guest just opens
     // the socket directly; member/state come from the ws broadcasts.
     if (optsRef.current.guestToken) {

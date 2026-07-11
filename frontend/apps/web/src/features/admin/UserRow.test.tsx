@@ -299,7 +299,7 @@ describe("UserRow", () => {
 
   it("confirming delete calls deleteUser.mutate with the user id", () => {
     renderRow(BASE_USER);
-    // Open confirm modal — row-level Delete button
+    // Open confirm modal - row-level Delete button
     fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
     // The confirm dialog now has a Delete button inside
     const deleteButtons = screen.getAllByRole("button", { name: /^delete$/i });

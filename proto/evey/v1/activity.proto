@@ -137,7 +137,7 @@ message ServerStats {
   int32 total_plays = 1;
   // Streaming bytes actually served, integrated from the periodic
   // server-metric samples (real measurement, accumulates from the moment the
-  // sampler first ran — bounded by EVEY_METRICS_RETENTION_DAYS).
+  // sampler first ran - bounded by EVEY_METRICS_RETENTION_DAYS).
   int64 total_bandwidth_bytes = 2;
   // Top played items over the last 90 days.
   repeated PopularMedia popular_media = 3;

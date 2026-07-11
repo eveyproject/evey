@@ -69,7 +69,7 @@ func TestPluginAsset_HappyJS(t *testing.T) {
 	assert.Contains(t, w.Header().Get("Content-Type"), "javascript")
 	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
 	assert.Contains(t, w.Header().Get("Cache-Control"), "immutable")
-	assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"), "JS does not need CORS — only fonts/binary do")
+	assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"), "JS does not need CORS - only fonts/binary do")
 	assert.Contains(t, w.Body.String(), "export default")
 }
 
@@ -115,7 +115,7 @@ func TestPluginAsset_PNGNoCORS(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "image/png", w.Header().Get("Content-Type"))
-	assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"), "<img> loads cross-origin without CORS — no header needed")
+	assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"), "<img> loads cross-origin without CORS - no header needed")
 }
 
 func TestPluginAsset_PathTraversalEncoded(t *testing.T) {
@@ -204,7 +204,7 @@ func TestPluginAsset_Unauthorized(t *testing.T) {
 
 func TestPluginAsset_PluginTokenWrongPlugin(t *testing.T) {
 	mux, _, _, _ := setupPluginAssetTest(t)
-	// Need a tokenGen identical to the one in setupPluginAssetTest — recreate.
+	// Need a tokenGen identical to the one in setupPluginAssetTest - recreate.
 	// Easier: use the stored generator implicitly via the same flow; here we
 	// just verify a clearly-bad token is rejected.
 	req := httptest.NewRequest("GET", "/api/v1/plugins/p1/assets/index.js?token=garbage", nil)

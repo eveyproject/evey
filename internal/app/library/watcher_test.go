@@ -143,7 +143,7 @@ func TestWatcherService_Debounce_MultipleFastEvents(t *testing.T) {
 		return len(scanner.Scanned()) > 0
 	}, 5*time.Second, 100*time.Millisecond)
 
-	// a second scan must never appear (debounce) — fail fast if it does, instead
+	// a second scan must never appear (debounce) - fail fast if it does, instead
 	// of a blind sleep that always pays its full duration.
 	assert.Never(t, func() bool {
 		return len(scanner.Scanned()) > 1

@@ -46,7 +46,7 @@ describe("ChapterMarkers", () => {
   });
 
   it("highlights active chapter segment", () => {
-    // currentTimeSec=90 → inside Act 1 (60s–180s)
+    // currentTimeSec=90 → inside Act 1 (60s-180s)
     render(<ChapterMarkers chapters={chapters} durationSec={300} currentTimeSec={90} onSeek={vi.fn()} />);
     const act1Button = screen.getByRole("button", { name: "Jump to chapter: Act 1" });
     const span = act1Button.querySelector("span");

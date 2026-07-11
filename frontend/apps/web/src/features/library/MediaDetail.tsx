@@ -55,7 +55,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const library = librariesData?.libraries?.find((l) => l.id === item.libraryId);
   const librarySlug = library ? slugify(library.name ?? "") : null;
 
-  // Always route through backend endpoint — see MediaCard for the ORB rationale.
+  // Always route through backend endpoint - see MediaCard for the ORB rationale.
   // The raw item.artwork[].url is the external provider URL (Amazon CDN for
   // OMDb, etc.) which Firefox blocks under Opaque Response Blocking. The ?v=
   // content version busts the immutable cache on a poster change; the token

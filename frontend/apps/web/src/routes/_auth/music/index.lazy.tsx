@@ -116,7 +116,7 @@ function TrackArt({ trackID, coverArtURL, size = 36 }: { trackID: string; coverA
 }
 
 // shuffleTracks returns a new array in random order (Fisher-Yates). Used by the
-// ephemeral "shuffle play" — builds a randomized queue without persisting it.
+// ephemeral "shuffle play" - builds a randomized queue without persisting it.
 function shuffleTracks<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -319,7 +319,7 @@ function AddToPlaylistButton({ trackID }: { trackID: string }) {
               onClick={() => p.id && addToPlaylist(p.id)}
               className="w-full text-left px-3 py-2 text-sm bg-transparent border-none cursor-pointer text-[var(--text)] hover:bg-[var(--surface)]"
             >
-              {p.name || "—"}
+              {p.name || "-"}
             </button>
           ))}
           <button
@@ -371,7 +371,7 @@ function MusicPage() {
     playInStore(t, allTracks, source);
   }
 
-  // Ephemeral shuffle: randomize the loaded tracks and play — no saved playlist.
+  // Ephemeral shuffle: randomize the loaded tracks and play - no saved playlist.
   function playRandom() {
     const pool = tracks ?? [];
     if (pool.length === 0) return;
@@ -682,7 +682,7 @@ function PlaylistsTab({
             onClick={() => p.id && setSelected(p.id)}
             className="flex-1 text-left bg-transparent border-none cursor-pointer p-0"
           >
-            <p className="font-medium text-[var(--text)]">{p.name || "—"}</p>
+            <p className="font-medium text-[var(--text)]">{p.name || "-"}</p>
             {p.description && (
               <p className="text-xs text-[var(--text-muted)] truncate">{p.description}</p>
             )}
@@ -884,18 +884,18 @@ function TracksTab({
                 }}
                 role="button"
                 tabIndex={0}
-                aria-label={`${track.Title || t("media.music.trackCount", { count: 1 })}${track.Artist ? " — " + track.Artist : ""}`}
+                aria-label={`${track.Title || t("media.music.trackCount", { count: 1 })}${track.Artist ? " - " + track.Artist : ""}`}
                 className={`cursor-pointer border-b border-[var(--border)] hover:bg-[var(--surface-raised)] focus:outline focus:outline-2 focus:outline-[var(--accent)] ${isActive ? "bg-[var(--surface-raised)]" : ""}`}
               >
                 <td className="px-3 py-2 text-[var(--text-muted)]">{page * TRACKS_PAGE_SIZE + i + 1}</td>
                 <td className="px-1 py-2">
                   <TrackArt trackID={track.ID} coverArtURL={track.CoverArtURL} size={36} />
                 </td>
-                <td className={`px-3 py-2 font-medium ${isActive ? "text-[var(--accent)]" : "text-[var(--text)]"}`}>{track.Title || "—"}</td>
-                <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Artist || "—"}</td>
-                <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Album || "—"}</td>
+                <td className={`px-3 py-2 font-medium ${isActive ? "text-[var(--accent)]" : "text-[var(--text)]"}`}>{track.Title || "-"}</td>
+                <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Artist || "-"}</td>
+                <td className="px-3 py-2 text-[var(--text-secondary)]">{track.Album || "-"}</td>
                 <td className="px-3 py-2 text-[var(--text-muted)] text-right">
-                  {track.Duration > 0 ? formatDuration(track.Duration) : "—"}
+                  {track.Duration > 0 ? formatDuration(track.Duration) : "-"}
                 </td>
                 <td className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                   <DownloadTrackButton trackID={track.ID} />
@@ -968,8 +968,8 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
               )}
             </div>
             <div className="p-2">
-              <p className="font-medium text-sm truncate text-[var(--text)]">{a.Title || "—"}</p>
-              <p className="text-xs truncate text-[var(--text-muted)]">{a.Artist || "—"}</p>
+              <p className="font-medium text-sm truncate text-[var(--text)]">{a.Title || "-"}</p>
+              <p className="text-xs truncate text-[var(--text-muted)]">{a.Artist || "-"}</p>
               <p className="text-xs text-[var(--text-muted)]">
                 {t("media.music.trackCount", { count: a.TrackCount })}
                 {a.Year > 0 ? ` · ${a.Year}` : ""}

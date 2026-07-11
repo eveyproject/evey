@@ -38,7 +38,7 @@ func (r *MediaSourceResolver) ResolveSource(ctx context.Context, fp apptranscodi
 	if item.File == nil || item.File.Path == "" {
 		return "", nil, errors.New("ResolveSource: media has no file")
 	}
-	// Phase 1: streams not needed at orchestrator level — the ffmpeg adapter's
+	// Phase 1: streams not needed at orchestrator level - the ffmpeg adapter's
 	// defaults cover the video+audio path. Phase 3 will plumb real streams for
 	// burn-in subtitle / HDR tonemap branches.
 	return item.File.Path, nil, nil
@@ -66,7 +66,7 @@ func (a copyItemReaderAdapter) GetByID(ctx context.Context, id shared.MediaItemI
 // resolveServerFlag returns the effective value of an operational (non-secret)
 // flag: a server_config DB row wins, else the process env var, else "". Mirrors
 // cmd/evey.resolveFlag so transcode toggles are flippable from
-// /admin/server-config (a restart is still required — flags are read at boot).
+// /admin/server-config (a restart is still required - flags are read at boot).
 // Both the dotted DB key (canonical) and the raw env-var name are accepted as
 // DB keys. cfgRepo may be nil (pure-env fallback).
 func resolveServerFlag(cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
@@ -142,7 +142,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		hwTonemapEnabled: func() bool {
 			return os.Getenv("EVEY_TRANSCODING_HW_TONEMAP") != "0"
 		},
-		// fMP4 is now the project default — matches the ffmpeg adapter
+		// fMP4 is now the project default - matches the ffmpeg adapter
 		// (needsFMP4Segments returns true unconditionally) and Apple's
 		// post-WWDC-2024 stance on CMAF. Per-rendition behaviour stays
 		// uniform across all codecs (H.264 / HEVC / AV1 / VP9).
@@ -167,7 +167,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	}
 
 	// Build the software producer: ONE long-lived, input-paced (-readrate 1.5),
-	// single-rendition ffmpeg per DecisionHash — the Jellyfin model for a weak
+	// single-rendition ffmpeg per DecisionHash - the Jellyfin model for a weak
 	// NAS with hw_accel off (no multi-session burst-ahead, no global capacity
 	// cap, no per-segment deadline kill). It shares the addressable SegmentCache
 	// with the orchestrator (segments are encoder-agnostic), and resolves the
@@ -188,7 +188,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	}
 
 	// Copy/remux rung = a dedicated SoftwareProducer in copy mode: the Jellyfin
-	// remux model — one paced `-c:v copy` + AAC session, seek = restart at the
+	// remux model - one paced `-c:v copy` + AAC session, seek = restart at the
 	// plan's keyframe. A distinct instance from the transcode `software` above
 	// (copyPlanner is per-instance) sharing the same cache; the Copy flag in the
 	// fingerprint keeps copy and transcode segments from aliasing.
@@ -225,7 +225,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	}
 
 	// On-demand copy rung (mp4.PlanHLS): supersedes the ffmpeg copy producer for
-	// video+audio copy-eligible sources that package verbatim — no ffmpeg, no
+	// video+audio copy-eligible sources that package verbatim - no ffmpeg, no
 	// fMP4 rebase, no session state, DASH included. DEFAULT ON, same opt-out
 	// model as the copy rung above (server_config transcoding.hls_ondemand=off
 	// or EVEY_HLS_ONDEMAND=off, applied on restart). When off, or on a source it
@@ -263,7 +263,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// Shutdown teardown for the producers built HERE: the software producer and
 	// the optional copy producer own long-lived ffmpeg sessions that would
 	// otherwise outlive the process as orphans (their shutdownCtx is detached
-	// from the server ctx by design — a request must never inherit a dying
+	// from the server ctx by design - a request must never inherit a dying
 	// ctx). The hardware orchestrator is excluded: main already defers its
 	// CleanupAll (alias of Close, not idempotent).
 	copyProd := h.copyProducer // may be nil (flag off)

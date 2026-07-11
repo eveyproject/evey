@@ -1,86 +1,86 @@
 package auth
 
 const (
-	PermLibraryCreate  = "library.create"
-	PermLibraryRead    = "library.read"
-	PermLibraryUpdate  = "library.update"
-	PermLibraryDelete  = "library.delete"
-	PermLibraryScan    = "library.scan"
-	PermMediaRead      = "media.read"
-	PermMediaUpdate    = "media.update"
-	PermMediaDelete    = "media.delete"
-	PermUserCreate     = "user.create"
-	PermUserRead       = "user.read"
-	PermUserUpdate     = "user.update"
-	PermUserDelete     = "user.delete"
-	PermUserDisable    = "user.disable"
-	PermProfileCreate  = "profile.create"
-	PermProfileUpdate  = "profile.update"
-	PermProfileDelete  = "profile.delete"
-	PermPlaybackStart  = "playback.start"
-	PermPlaybackStop   = "playback.stop"
-	PermTranscodeStart = "transcode.start"
-	PermTranscodeStop  = "transcode.stop"
-	PermPluginInstall  = "plugin.install"
-	PermPluginManage   = "plugin.manage"
-	PermMetadataRead   = "metadata.read"
-	PermMetadataUpdate = "metadata.update"
+	PermLibraryCreate   = "library.create"
+	PermLibraryRead     = "library.read"
+	PermLibraryUpdate   = "library.update"
+	PermLibraryDelete   = "library.delete"
+	PermLibraryScan     = "library.scan"
+	PermMediaRead       = "media.read"
+	PermMediaUpdate     = "media.update"
+	PermMediaDelete     = "media.delete"
+	PermUserCreate      = "user.create"
+	PermUserRead        = "user.read"
+	PermUserUpdate      = "user.update"
+	PermUserDelete      = "user.delete"
+	PermUserDisable     = "user.disable"
+	PermProfileCreate   = "profile.create"
+	PermProfileUpdate   = "profile.update"
+	PermProfileDelete   = "profile.delete"
+	PermPlaybackStart   = "playback.start"
+	PermPlaybackStop    = "playback.stop"
+	PermTranscodeStart  = "transcode.start"
+	PermTranscodeStop   = "transcode.stop"
+	PermPluginInstall   = "plugin.install"
+	PermPluginManage    = "plugin.manage"
+	PermMetadataRead    = "metadata.read"
+	PermMetadataUpdate  = "metadata.update"
 	PermMetadataRefresh = "metadata.refresh"
-	PermSubtitleWrite  = "subtitle.write"
-	PermActivityRead   = "activity.read"
-	PermAuditRead      = "audit.read"
-	PermServerAdmin    = "server.admin"
+	PermSubtitleWrite   = "subtitle.write"
+	PermActivityRead    = "activity.read"
+	PermAuditRead       = "audit.read"
+	PermServerAdmin     = "server.admin"
 )
 
 // MethodPermissions maps gRPC method full names to required permissions.
 var MethodPermissions = map[string]string{
 	// Library
-	"/evey.v1.LibraryService/CreateLibrary":       PermLibraryCreate,
-	"/evey.v1.LibraryService/GetLibrary":          PermLibraryRead,
-	"/evey.v1.LibraryService/ListLibraries":       PermLibraryRead,
-	"/evey.v1.LibraryService/DeleteLibrary":       PermLibraryDelete,
-	"/evey.v1.LibraryService/ScanLibrary":         PermLibraryScan,
-	"/evey.v1.LibraryService/GetMediaItem":        PermMediaRead,
-	"/evey.v1.LibraryService/GetSeriesAggregate":  PermMediaRead,
-	"/evey.v1.LibraryService/ListMediaItems":      PermMediaRead,
-	"/evey.v1.LibraryService/SearchMedia":         PermMediaRead,
-	"/evey.v1.LibraryService/FilterMediaItems":    PermMediaRead,
-	"/evey.v1.LibraryService/GetPerson":           PermMediaRead,
+	"/evey.v1.LibraryService/CreateLibrary":      PermLibraryCreate,
+	"/evey.v1.LibraryService/GetLibrary":         PermLibraryRead,
+	"/evey.v1.LibraryService/ListLibraries":      PermLibraryRead,
+	"/evey.v1.LibraryService/DeleteLibrary":      PermLibraryDelete,
+	"/evey.v1.LibraryService/ScanLibrary":        PermLibraryScan,
+	"/evey.v1.LibraryService/GetMediaItem":       PermMediaRead,
+	"/evey.v1.LibraryService/GetSeriesAggregate": PermMediaRead,
+	"/evey.v1.LibraryService/ListMediaItems":     PermMediaRead,
+	"/evey.v1.LibraryService/SearchMedia":        PermMediaRead,
+	"/evey.v1.LibraryService/FilterMediaItems":   PermMediaRead,
+	"/evey.v1.LibraryService/GetPerson":          PermMediaRead,
 	// User
-	"/evey.v1.UserService/CreateUser":             PermUserCreate,
-	"/evey.v1.UserService/ListUsers":              PermUserRead,
-	"/evey.v1.UserService/UpdateUser":             PermUserUpdate,
-	"/evey.v1.UserService/DeleteUser":             PermUserDelete,
-	"/evey.v1.UserService/DisableUser":            PermUserDisable,
+	"/evey.v1.UserService/CreateUser":  PermUserCreate,
+	"/evey.v1.UserService/ListUsers":   PermUserRead,
+	"/evey.v1.UserService/UpdateUser":  PermUserUpdate,
+	"/evey.v1.UserService/DeleteUser":  PermUserDelete,
+	"/evey.v1.UserService/DisableUser": PermUserDisable,
 	// Playback
-	"/evey.v1.PlaybackService/StartStream":        PermPlaybackStart,
-	"/evey.v1.PlaybackService/StopStream":         PermPlaybackStop,
-	"/evey.v1.PlaybackService/GetStreamInfo":      PermMediaRead,
-	"/evey.v1.PlaybackService/ReportProgress":     PermPlaybackStart,
-	"/evey.v1.PlaybackService/GetWatchProgress":   PermMediaRead,
-	"/evey.v1.PlaybackService/GetHistory":         PermActivityRead,
-	"/evey.v1.PlaybackService/GetResumeItems":     PermMediaRead,
-	"/evey.v1.PlaybackService/MarkWatched":        PermPlaybackStart,
-	"/evey.v1.PlaybackService/MarkUnwatched":      PermPlaybackStart,
-	"/evey.v1.PlaybackService/GetNextUp":          PermMediaRead,
+	"/evey.v1.PlaybackService/StartStream":      PermPlaybackStart,
+	"/evey.v1.PlaybackService/StopStream":       PermPlaybackStop,
+	"/evey.v1.PlaybackService/GetStreamInfo":    PermMediaRead,
+	"/evey.v1.PlaybackService/ReportProgress":   PermPlaybackStart,
+	"/evey.v1.PlaybackService/GetWatchProgress": PermMediaRead,
+	"/evey.v1.PlaybackService/GetHistory":       PermActivityRead,
+	"/evey.v1.PlaybackService/GetResumeItems":   PermMediaRead,
+	"/evey.v1.PlaybackService/MarkWatched":      PermPlaybackStart,
+	"/evey.v1.PlaybackService/MarkUnwatched":    PermPlaybackStart,
+	"/evey.v1.PlaybackService/GetNextUp":        PermMediaRead,
 	// Transcoding
-	"/evey.v1.TranscodingService/StartTranscode":  PermTranscodeStart,
-	"/evey.v1.TranscodingService/StopTranscode":   PermTranscodeStop,
+	"/evey.v1.TranscodingService/StartTranscode": PermTranscodeStart,
+	"/evey.v1.TranscodingService/StopTranscode":  PermTranscodeStop,
 	// Metadata
-	"/evey.v1.MetadataService/RefreshMetadata":    PermMetadataRefresh,
-	"/evey.v1.MetadataService/SearchMetadata":     PermMetadataRead,
-	"/evey.v1.MetadataService/SetMetadataOverride": PermMetadataUpdate,
+	"/evey.v1.MetadataService/RefreshMetadata":        PermMetadataRefresh,
+	"/evey.v1.MetadataService/SearchMetadata":         PermMetadataRead,
+	"/evey.v1.MetadataService/SetMetadataOverride":    PermMetadataUpdate,
 	"/evey.v1.MetadataService/RemoveMetadataOverride": PermMetadataUpdate,
-	"/evey.v1.MetadataService/GetArtwork":         PermMetadataRead,
-	"/evey.v1.MetadataService/GetOverrides":       PermMetadataRead,
+	"/evey.v1.MetadataService/GetArtwork":             PermMetadataRead,
+	"/evey.v1.MetadataService/GetOverrides":           PermMetadataRead,
 	// Activity
-	"/evey.v1.ActivityService/GetAuditLog":        PermAuditRead,
-	"/evey.v1.ActivityService/GetServerStats":     PermActivityRead,
-	"/evey.v1.ActivityService/GetHistory":         PermActivityRead,
-	"/evey.v1.ActivityService/GetUserStats":       PermActivityRead,
+	"/evey.v1.ActivityService/GetAuditLog":    PermAuditRead,
+	"/evey.v1.ActivityService/GetServerStats": PermActivityRead,
+	"/evey.v1.ActivityService/GetHistory":     PermActivityRead,
+	"/evey.v1.ActivityService/GetUserStats":   PermActivityRead,
 	// Plugin
-	"/evey.v1.AdminPluginService/InstallPlugin":    PermPluginInstall,
-	"/evey.v1.AdminPluginService/UninstallPlugin":  PermPluginManage,
+	"/evey.v1.AdminPluginService/InstallPlugin":   PermPluginInstall,
+	"/evey.v1.AdminPluginService/UninstallPlugin": PermPluginManage,
 }
 
 // API key scopes (coarse-grained, user-facing).
@@ -108,14 +108,14 @@ var AllAPIKeyScopes = []string{
 // are also honored as a compatibility fallback.
 var APIKeyScopeFor = map[string]string{
 	// Media read
-	"/evey.v1.LibraryService/GetLibrary":       ScopeMediaRead,
-	"/evey.v1.LibraryService/ListLibraries":    ScopeMediaRead,
-	"/evey.v1.LibraryService/GetMediaItem":     ScopeMediaRead,
+	"/evey.v1.LibraryService/GetLibrary":         ScopeMediaRead,
+	"/evey.v1.LibraryService/ListLibraries":      ScopeMediaRead,
+	"/evey.v1.LibraryService/GetMediaItem":       ScopeMediaRead,
 	"/evey.v1.LibraryService/GetSeriesAggregate": ScopeMediaRead,
-	"/evey.v1.LibraryService/ListMediaItems":   ScopeMediaRead,
-	"/evey.v1.LibraryService/SearchMedia":      ScopeMediaRead,
-	"/evey.v1.LibraryService/FilterMediaItems": ScopeMediaRead,
-	"/evey.v1.LibraryService/GetPerson":        ScopeMediaRead,
+	"/evey.v1.LibraryService/ListMediaItems":     ScopeMediaRead,
+	"/evey.v1.LibraryService/SearchMedia":        ScopeMediaRead,
+	"/evey.v1.LibraryService/FilterMediaItems":   ScopeMediaRead,
+	"/evey.v1.LibraryService/GetPerson":          ScopeMediaRead,
 	// Media write
 	"/evey.v1.LibraryService/ScanLibrary":             ScopeMediaWrite,
 	"/evey.v1.MetadataService/RefreshMetadata":        ScopeMediaWrite,
@@ -144,7 +144,7 @@ var APIKeyScopeFor = map[string]string{
 }
 
 // InternalMethods lists methods that can ONLY be called via JWT (browser/app).
-// API keys are blocked from calling these — they are infrastructure/ops/auth
+// API keys are blocked from calling these - they are infrastructure/ops/auth
 // concerns, not domain operations.
 var InternalMethods = map[string]bool{
 	// Auth / Session management
@@ -159,13 +159,13 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.UserService/VerifyEmail":          true,
 
 	// User lifecycle (admin infra)
-	"/evey.v1.UserService/CreateUser":               true,
-	"/evey.v1.UserService/DeleteUser":               true,
-	"/evey.v1.UserService/DisableUser":              true,
-	"/evey.v1.UserService/ListUsers":                true,
-	"/evey.v1.UserService/CreateAPIKey":             true,
-	"/evey.v1.UserService/ListAPIKeys":              true,
-	"/evey.v1.UserService/RevokeAPIKey":             true,
+	"/evey.v1.UserService/CreateUser":   true,
+	"/evey.v1.UserService/DeleteUser":   true,
+	"/evey.v1.UserService/DisableUser":  true,
+	"/evey.v1.UserService/ListUsers":    true,
+	"/evey.v1.UserService/CreateAPIKey": true,
+	"/evey.v1.UserService/ListAPIKeys":  true,
+	"/evey.v1.UserService/RevokeAPIKey": true,
 
 	// AdminSystemService
 	"/evey.v1.AdminSystemService/SetupWizard":        true,
@@ -176,12 +176,12 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.AdminSystemService/GetDashboard":       true,
 
 	// AdminTaskService
-	"/evey.v1.AdminTaskService/ListScheduledTasks":   true,
-	"/evey.v1.AdminTaskService/UpdateScheduledTask":  true,
-	"/evey.v1.AdminTaskService/RunScheduledTask":     true,
+	"/evey.v1.AdminTaskService/ListScheduledTasks":  true,
+	"/evey.v1.AdminTaskService/UpdateScheduledTask": true,
+	"/evey.v1.AdminTaskService/RunScheduledTask":    true,
 
 	// AdminSessionService
-	"/evey.v1.AdminSessionService/GetAuditLog":       true,
+	"/evey.v1.AdminSessionService/GetAuditLog": true,
 
 	// AdminMediaService
 	"/evey.v1.AdminMediaService/EnrichPeopleBios":    true,
@@ -202,9 +202,9 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.AdminPluginService/GetPluginLogs":       true,
 
 	// Library infra (create/delete/scan)
-	"/evey.v1.LibraryService/CreateLibrary":         true,
-	"/evey.v1.LibraryService/UpdateLibrary":         true,
-	"/evey.v1.LibraryService/DeleteLibrary":         true,
+	"/evey.v1.LibraryService/CreateLibrary": true,
+	"/evey.v1.LibraryService/UpdateLibrary": true,
+	"/evey.v1.LibraryService/DeleteLibrary": true,
 
 	// Server config store
 	"/evey.v1.ServerConfigService/GetServerConfigEntry":    true,
@@ -213,14 +213,14 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.ServerConfigService/DeleteServerConfigEntry": true,
 
 	// Remote access
-	"/evey.v1.RemoteAccessService/GetRemoteAccess":   true,
+	"/evey.v1.RemoteAccessService/GetRemoteAccess":    true,
 	"/evey.v1.RemoteAccessService/UpdateRemoteAccess": true,
 	"/evey.v1.RemoteAccessService/GetNetworkInfo":     true,
 
 	// Backup/Restore
-	"/evey.v1.BackupService/CreateBackup":  true,
-	"/evey.v1.BackupService/ListBackups":   true,
-	"/evey.v1.BackupService/DeleteBackup":  true,
+	"/evey.v1.BackupService/CreateBackup": true,
+	"/evey.v1.BackupService/ListBackups":  true,
+	"/evey.v1.BackupService/DeleteBackup": true,
 
 	// Transcode cache
 	"/evey.v1.TranscodeCacheService/GetTranscodeCache":        true,
@@ -228,10 +228,10 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.TranscodeCacheService/DeleteTranscodeCacheFile": true,
 
 	// MKV tools
-	"/evey.v1.MKVService/MuxContainer":    true,
-	"/evey.v1.MKVService/DemuxContainer":  true,
-	"/evey.v1.MKVService/AddTrack":        true,
-	"/evey.v1.MKVService/RemoveTrack":     true,
+	"/evey.v1.MKVService/MuxContainer":   true,
+	"/evey.v1.MKVService/DemuxContainer": true,
+	"/evey.v1.MKVService/AddTrack":       true,
+	"/evey.v1.MKVService/RemoveTrack":    true,
 
 	// Playback settings (write)
 	"/evey.v1.PlaybackSettingsService/UpdatePlaybackSettings": true,
@@ -251,6 +251,6 @@ var InternalMethods = map[string]bool{
 	"/evey.v1.NotificationService/UpdateGlobalNotificationSettings": true,
 
 	// Transcoding admin
-	"/evey.v1.TranscodingService/StopTranscode":         true,
-	"/evey.v1.TranscodingService/ListActiveTranscodes":  true,
+	"/evey.v1.TranscodingService/StopTranscode":        true,
+	"/evey.v1.TranscodingService/ListActiveTranscodes": true,
 }

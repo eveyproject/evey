@@ -21,9 +21,9 @@ func TestPHashDCT_HammingDistance_Identical(t *testing.T) {
 }
 
 // TestPHashDCT_HammingDistance_RandomPair: two unrelated random images
-// should be far apart — averaging at ~31.5 bits over many pairs (the
+// should be far apart - averaging at ~31.5 bits over many pairs (the
 // theoretical expectation of a 63-bit signed comparison). We assert the
-// observed mean over 50 pairs is in [25, 38] — wide enough to pass on
+// observed mean over 50 pairs is in [25, 38] - wide enough to pass on
 // every CI run, narrow enough to catch a hash that collapses to all-zeros
 // or all-ones.
 func TestPHashDCT_HammingDistance_RandomPair(t *testing.T) {
@@ -42,7 +42,7 @@ func TestPHashDCT_HammingDistance_RandomPair(t *testing.T) {
 }
 
 // TestPHashDCT_BitZeroAlwaysCleared: bit 0 corresponds to the dropped DC
-// coefficient — must always be 0 regardless of input.
+// coefficient - must always be 0 regardless of input.
 func TestPHashDCT_BitZeroAlwaysCleared(t *testing.T) {
 	t.Parallel()
 	rng := rand.New(rand.NewSource(42))

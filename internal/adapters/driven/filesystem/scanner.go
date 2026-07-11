@@ -46,7 +46,7 @@ type Scanner struct{}
 
 // ParseTitle exposes the filename parser used by the scanner so the app
 // layer can re-derive a title from a known path (e.g. heal an orphan
-// whose title was written by an older parser version). Pure function —
+// whose title was written by an older parser version). Pure function -
 // stat-less, idempotent, no I/O.
 func (s *Scanner) ParseTitle(path string) string {
 	return (&FilenameParser{}).Parse(path).Title

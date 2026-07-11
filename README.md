@@ -6,7 +6,7 @@
 
 Self-hosted media server for movies, TV shows, music, and photos.
 
-Brand assets (logo, favicon, social images) live in [`evey-brand/`](evey-brand/) — see its [README](evey-brand/README.md) for usage rules.
+Brand assets (logo, favicon, social images) live in [`evey-brand/`](evey-brand/) - see its [README](evey-brand/README.md) for usage rules.
 
 ## Install
 
@@ -86,7 +86,7 @@ Then:
 docker compose up -d
 ```
 
-Open `http://<your-ip>:9091`, create your account, add a library. The image serves both the API and the web UI on the same port. Migrations run automatically. A JWT signing key is generated on first start in `./evey-data` — keep that directory safe.
+Open `http://<your-ip>:9091`, create your account, add a library. The image serves both the API and the web UI on the same port. Migrations run automatically. A JWT signing key is generated on first start in `./evey-data` - keep that directory safe.
 
 ## Update
 
@@ -116,16 +116,16 @@ Full reference: [docs/configuration.md](docs/configuration.md)
 
 | Volume | What's inside | Can you delete it? |
 |--------|--------------|-------------------|
-| `postgres-data` | Database | No — you lose all data |
-| `evey-data` | JWT key, logs, backups | No — you lose your signing key |
-| `evey-plugins` | Installed plugins | No — you lose your plugins |
-| `meili-data` | Search index | Yes — rebuilt on next scan |
-| `evey-cache` | Transcode + trickplay cache | Yes — regenerated on demand |
-| `caddy-data` | TLS certificates | Depends — Caddy re-requests them |
+| `postgres-data` | Database | No - you lose all data |
+| `evey-data` | JWT key, logs, backups | No - you lose your signing key |
+| `evey-plugins` | Installed plugins | No - you lose your plugins |
+| `meili-data` | Search index | Yes - rebuilt on next scan |
+| `evey-cache` | Transcode + trickplay cache | Yes - regenerated on demand |
+| `caddy-data` | TLS certificates | Depends - Caddy re-requests them |
 
 ## Apps
 
-Android and Android TV apps connect to your server URL. Use **Quick Connect** to log in on TV — type the code on your phone instead of wrestling with a remote.
+Android and Android TV apps connect to your server URL. Use **Quick Connect** to log in on TV - type the code on your phone instead of wrestling with a remote.
 
 ## Features
 
@@ -133,18 +133,18 @@ Android and Android TV apps connect to your server URL. Use **Quick Connect** to
 - Android & Android TV apps (Expo/React Native)
 - Full-text search powered by Meilisearch
 - Multi-language metadata (TMDB/OMDb) + 6 UI languages (EN, FR, DE, ES, ZH, HI)
-- [SSO/OIDC](docs/oidc.md) — Keycloak, Authentik, Google, anything OIDC-compliant
+- [SSO/OIDC](docs/oidc.md) - Keycloak, Authentik, Google, anything OIDC-compliant
 - [Email notifications](docs/notifications.md) + password recovery
 - [Automatic backups](docs/backups.md)
-- [Plugins & themes](docs/plugins.md) — multi-layer isolation (static analysis, UID drop, seccomp syscall filter, optional LD_PRELOAD)
+- [Plugins & themes](docs/plugins.md) - multi-layer isolation (static analysis, UID drop, seccomp syscall filter, optional LD_PRELOAD)
 - Multi-profile with parental controls
-- SyncPlay — watch together in sync
+- SyncPlay - watch together in sync
 - Webhooks for external integrations
 - Trickplay (seek thumbnails)
 
 ## Plugins & Themes
 
-You can extend Evey with plugins: themes, metadata providers, UI widgets. They run with multi-layer isolation (static analysis at install, UID drop, seccomp syscall filter, optional `LD_PRELOAD` guard). Each layer has known limits — **always review third-party plugins before installing them**. See [docs/plugins.md](docs/plugins.md#security-model) for the full model and caveats.
+You can extend Evey with plugins: themes, metadata providers, UI widgets. They run with multi-layer isolation (static analysis at install, UID drop, seccomp syscall filter, optional `LD_PRELOAD` guard). Each layer has known limits - **always review third-party plugins before installing them**. See [docs/plugins.md](docs/plugins.md#security-model) for the full model and caveats.
 
 Quick CSS theme:
 ```yaml
@@ -167,7 +167,7 @@ ZIP it, upload in Admin > Plugins. Full spec and examples: [docs/plugins.md](doc
 The UI ships in 6 languages (EN, FR, DE, ES, ZH, HI), with English as the source
 and fallback; media metadata language is configured separately. The interface
 honors `prefers-reduced-motion`, labels its controls, and the player is
-keyboard-driven — but Evey has **not** been formally audited for accessibility
+keyboard-driven - but Evey has **not** been formally audited for accessibility
 and isn't screen-reader tested end to end. For the honest details (how i18n
 works, how to add a language, and the a11y gaps that remain), see
 [docs/i18n-accessibility.md](docs/i18n-accessibility.md).

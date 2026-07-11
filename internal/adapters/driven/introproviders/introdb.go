@@ -142,7 +142,7 @@ func convertIntroDBSegment(raw *introDBSegment, segType, source string) *domainl
 	}
 	// Use the upstream confidence directly (already 0..1); fall back to
 	// 0.95 if absent to keep the segment above the in-house heuristic
-	// floor. SubmissionCount=1 alone shouldn't push to 0.97 — TIDB has
+	// floor. SubmissionCount=1 alone shouldn't push to 0.97 - TIDB has
 	// stricter validation, IntroDB is lighter.
 	conf := raw.Confidence
 	if conf <= 0 {

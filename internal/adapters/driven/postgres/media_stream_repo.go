@@ -450,7 +450,7 @@ func (r *MediaStreamRepository) SetKeyframes(ctx context.Context, mediaItemID sh
 // backfill already pays for (see the keyframe backfill worker). Unlike
 // SetKeyframes, "" is a legitimate write (the classification came back
 // unknown) - the guard is on the COLUMN's default rather than on the value:
-// writes only where frame_rate_mode is still '' (never overwrites a prior
+// writes only where frame_rate_mode is still ” (never overwrites a prior
 // classification), mirroring SetKeyframes' NULL-guard idempotency. Returns
 // the number of rows updated.
 func (r *MediaStreamRepository) SetFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string) (int, error) {

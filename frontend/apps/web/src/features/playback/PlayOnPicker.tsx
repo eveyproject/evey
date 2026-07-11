@@ -8,7 +8,7 @@ interface PlayOnPickerProps {
   mediaId: string;
   // Read the current playback position at send time (so the target device
   // resumes here). A getter, not a value, because the parent no longer
-  // re-renders on every position tick — a captured number would be stale.
+  // re-renders on every position tick - a captured number would be stale.
   getPositionMs: () => number;
 }
 
@@ -20,10 +20,10 @@ function iconFor(type: string) {
   }
 }
 
-// PlayOnPicker — the universal, server-brokered "send this to another
+// PlayOnPicker - the universal, server-brokered "send this to another
 // device" affordance. Unlike Chromecast it works for any browser (no
 // Google SDK), unlike DLNA it works for remote users (no LAN dependency)
-// — the only requirement is that the target device runs an evey client
+// - the only requirement is that the target device runs an evey client
 // holding a persistent WebSocket to the server.
 export function PlayOnPicker({ mediaId, getPositionMs }: PlayOnPickerProps) {
   const { t } = useTranslation();
@@ -32,7 +32,7 @@ export function PlayOnPicker({ mediaId, getPositionMs }: PlayOnPickerProps) {
   const { data: devices, isLoading, refetch } = usePlayOnDevices();
   const sendCommand = usePlayOnCommand();
 
-  // Close on outside click — same UX as the other player popovers.
+  // Close on outside click - same UX as the other player popovers.
   useEffect(() => {
     if (!open) return;
     function onDocClick(e: MouseEvent) {
@@ -47,7 +47,7 @@ export function PlayOnPicker({ mediaId, getPositionMs }: PlayOnPickerProps) {
   // working but their TV / phone isn't online.
   const hasDevices = (devices?.length ?? 0) > 0;
   if (!isLoading && !hasDevices && !open) {
-    // Don't even render the button when there are zero devices — it
+    // Don't even render the button when there are zero devices - it
     // would be dead-clickable. Refetch happens on its own poll, so the
     // button reappears when a device comes online.
     return null;
@@ -63,7 +63,7 @@ export function PlayOnPicker({ mediaId, getPositionMs }: PlayOnPickerProps) {
         },
         onError: () => {
           toast.error(t("player.playOn.failed"));
-          // Device may have disconnected — refresh so it drops off the list.
+          // Device may have disconnected - refresh so it drops off the list.
           void refetch();
         },
       },

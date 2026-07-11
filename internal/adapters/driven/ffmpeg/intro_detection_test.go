@@ -19,9 +19,9 @@ func newSolidImage(w, h int, lum uint8) *solidImage {
 	return &solidImage{bounds: image.Rect(0, 0, w, h), c: color.Gray{Y: lum}}
 }
 
-func (s *solidImage) ColorModel() color.Model      { return color.GrayModel }
-func (s *solidImage) Bounds() image.Rectangle      { return s.bounds }
-func (s *solidImage) At(x, y int) color.Color      { return s.c }
+func (s *solidImage) ColorModel() color.Model { return color.GrayModel }
+func (s *solidImage) Bounds() image.Rectangle { return s.bounds }
+func (s *solidImage) At(x, y int) color.Color { return s.c }
 
 // gradientImage produces a horizontal gradient from lum=0 to lum=255.
 type gradientImage struct {
@@ -51,7 +51,7 @@ func TestPHashDCT_DifferentImages(t *testing.T) {
 	t.Parallel()
 	// Left-dark gradient: pixel[x] = x*255/(W-1)
 	grad := &gradientImage{w: 64, h: 64}
-	// Solid mid-grey: uniform — mean = 128, all pixels == 128 → all zero bits
+	// Solid mid-grey: uniform - mean = 128, all pixels == 128 → all zero bits
 	solid := newSolidImage(64, 64, 128)
 
 	hGrad := pHashDCT(grad, 0, 0, 64, 64)
@@ -68,7 +68,7 @@ func TestPHashDCT_HorizontalFlipDiffers(t *testing.T) {
 
 	hNormal := pHashDCT(grad, 0, 0, 64, 64)
 	// Mirror the region: use right half as x0..x1 reversed isn't directly
-	// expressible, so we compare gradient vs solid — guaranteed different.
+	// expressible, so we compare gradient vs solid - guaranteed different.
 	hSolid := pHashDCT(newSolidImage(64, 64, 200), 0, 0, 64, 64)
 	_ = flipped
 
@@ -88,7 +88,7 @@ func TestPHashDCT_SubRegion(t *testing.T) {
 			img.SetGray(x, y, color.Gray{Y: uint8(x * 255 / 63)})
 		}
 		for x := 64; x < 128; x++ {
-			// Right half: vertical stripe pattern — columns alternate 0/255
+			// Right half: vertical stripe pattern - columns alternate 0/255
 			if (x-64)%2 == 0 {
 				img.SetGray(x, y, color.Gray{Y: 0})
 			} else {

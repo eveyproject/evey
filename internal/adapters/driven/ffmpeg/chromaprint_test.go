@@ -28,4 +28,3 @@ func TestParseFpcalcRawOutput_MissingFingerprint(t *testing.T) {
 	_, err := parseFpcalcRawOutput([]byte("DURATION=120\n"))
 	assert.ErrorContains(t, err, "FINGERPRINT line not found")
 }
-

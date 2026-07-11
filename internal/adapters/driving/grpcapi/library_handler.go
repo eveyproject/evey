@@ -247,7 +247,7 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 	if err != nil {
 		return nil, err
 	}
-	// Overlay translated metadata first (always, including fallback locale — the
+	// Overlay translated metadata first (always, including fallback locale - the
 	// base title may be in another language).
 	locale := eveyi18n.LocaleFromCtx(ctx)
 	if locale != "" {
@@ -568,7 +568,7 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	// Meilisearch + SQL fallback both filter on library_id natively, so
 	// this turns the previously cosmetic library search into a real
 	// server-side query. Library access is still re-enforced below via
-	// allowedIDs — passing an unauthorised library_id can't widen
+	// allowedIDs - passing an unauthorised library_id can't widen
 	// results, only narrow them.
 	if req.LibraryId != "" {
 		filters["library_id"] = req.LibraryId
@@ -775,7 +775,7 @@ func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.
 // mediaItemBlockedByParental returns true if the given item violates the
 // resolved parental filter. Conservative for kids: when no rating is
 // resolvable (no certifications anywhere, no official rating mapped),
-// the item is blocked rather than silently allowed — otherwise a movie
+// the item is blocked rather than silently allowed - otherwise a movie
 // like Outbreak with only "AU: MA 15+" / "GB: 15" certifications would
 // slip past a profile region'd to FR because there is no FR cert and
 // the global ratings.IsAllowedByAge defaults to permissive.
@@ -806,7 +806,7 @@ func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool
 		// that an MA 15+ Australian rating existed all along.
 		worstAge := ratings.WorstCaseMinAge(pf.region, officialRating, certByCountry)
 		if worstAge < 0 || worstAge > pf.maxAge {
-			// Unresolvable rating fails closed for kids — admin can expose the
+			// Unresolvable rating fails closed for kids - admin can expose the
 			// item explicitly via a metadata override if it really is suitable.
 			return true
 		}
@@ -1209,7 +1209,7 @@ func applyOverridesToItem(item *library.MediaItem, overrides []*domainmetadata.M
 // --- Public (non-sensitive) media projection ---
 //
 // GetPublicMediaItem/ListPublicMediaItems return only id/title/type/year/
-// overview/poster — never file paths, sizes, provider ids or streams. They
+// overview/poster - never file paths, sizes, provider ids or streams. They
 // honour the same library-access and parental gates as the full handlers, so
 // the `public` permission cannot widen what the caller may see, only narrow the
 // fields. This is the read surface a plugin may be granted.

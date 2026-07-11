@@ -24,7 +24,7 @@ var ErrDurationOverflow = errors.New("duration arithmetic overflow")
 // transcoding, playback and library packages with their own conversion
 // helpers. The struct (rather than a typedef on int64) hides the unit so
 // callers cannot accidentally mix milliseconds and seconds at the type
-// system level — they must go through Milliseconds() / Seconds() / Time().
+// system level - they must go through Milliseconds() / Seconds() / Time().
 //
 // The zero value is a valid 0-duration; IsZero() reports it.
 type Duration struct {

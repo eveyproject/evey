@@ -96,7 +96,7 @@ func TestPickBestMatch_ExactTitleBeatsTMDBOrder(t *testing.T) {
 	// diacritic-stripped), it wins even if TMDB's popularity ranking put
 	// another word-sharing candidate first. Fixes the real-world bug where
 	// "Le flic de shanghai" matched "The Rookie : Le Flic de Los Angeles"
-	// just because TMDB ranked The Rookie higher — the exact-title result
+	// just because TMDB ranked The Rookie higher - the exact-title result
 	// was sitting right there in the list.
 	results := []domain.MetadataResult{
 		{Title: "The Rookie : Le Flic de Los Angeles", OriginalTitle: "The Rookie"},
@@ -130,7 +130,7 @@ func TestPickBestMatch_ExactTitleDiacriticInsensitive(t *testing.T) {
 }
 
 func TestPickBestMatch_SkipsIncoherentCandidates(t *testing.T) {
-	// First TMDB result shares no word with the query — skip it and take
+	// First TMDB result shares no word with the query - skip it and take
 	// the next coherent one.
 	results := []domain.MetadataResult{
 		{Title: "Completely Unrelated"},
@@ -455,7 +455,7 @@ func TestEnrichItem_EmptyArtwork(t *testing.T) {
 
 // TestEnrichItem_EmptyArtwork_KeepsExisting: a re-enrich that returns NO artwork
 // (transient provider miss / match without images) must NOT wipe artwork the
-// item already has — otherwise posters vanish until the next pass re-adds them.
+// item already has - otherwise posters vanish until the next pass re-adds them.
 func TestEnrichItem_EmptyArtwork_KeepsExisting(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb"}
 	e, artRepo, _, _, miRepo, _ := newTestEnricher(primary, nil, nil)
@@ -479,7 +479,7 @@ func TestEnrichItem_EmptyArtwork_KeepsExisting(t *testing.T) {
 
 // TestEnrichItem_EmptyPeople_KeepsExisting: a re-enrich that returns NO people
 // (transient provider miss / a supplementary provider with no cast) must NOT
-// wipe the cast/crew the item already has — same data-loss class as the empty-
+// wipe the cast/crew the item already has - same data-loss class as the empty-
 // artwork no-wipe guard. upsertPeople used to DELETE before building the batch,
 // so an empty result committed the wipe.
 func TestEnrichItem_EmptyPeople_KeepsExisting(t *testing.T) {
@@ -755,7 +755,7 @@ func TestAutoEnrichItem_AlreadyEnriched(t *testing.T) {
 // MediaDetailEdit, expecting the next match-orphans sweep to pick it up.
 // Before the fix, the enricher early-returned on "item has overrides" and
 // the orphan stayed orphan forever. After the fix, an orphan's overrides
-// are NOT a skip signal — they're additional input for the search query.
+// are NOT a skip signal - they're additional input for the search query.
 func TestAutoEnrichItem_OrphanWithTitleOverride_UsesOverrideForSearch(t *testing.T) {
 	primary := &fakeProvider{
 		name: "tmdb",
@@ -777,7 +777,7 @@ func TestAutoEnrichItem_OrphanWithTitleOverride_UsesOverrideForSearch(t *testing
 	item := &domainlib.MediaItem{ID: "item-orphan", Title: "Quand l'hôpital retient son souffle 720", Type: "movie"}
 	require.NoError(t, miRepo.Create(context.Background(), item))
 
-	// Admin cleaned the title via UI — override row exists.
+	// Admin cleaned the title via UI - override row exists.
 	ov, err := domain.NewMetadataOverride("mo-1", "item-orphan", "title",
 		domain.WithOverrideValue("Quand l'hôpital retient son souffle"))
 	require.NoError(t, err)
@@ -847,7 +847,7 @@ func TestAutoEnrichAll_MatchedItemWithOverride_StillSkipped(t *testing.T) {
 }
 
 func TestAutoEnrichItem_MatchedItemWithOverride_StillSkips(t *testing.T) {
-	// Matched item's overrides are display preferences — must not retrigger
+	// Matched item's overrides are display preferences - must not retrigger
 	// a TMDB search that would overwrite them. Asserts the historical
 	// behaviour stays for the non-orphan case.
 	primary := &fakeProvider{
@@ -909,7 +909,7 @@ func TestEnrichItem_ArtworkIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, second, 2, "unchanged artwork must not be duplicated")
 	for _, r := range second {
-		assert.True(t, firstIDs[r.ID], "record %s was recreated — replaceArtwork is not idempotent", r.ID)
+		assert.True(t, firstIDs[r.ID], "record %s was recreated - replaceArtwork is not idempotent", r.ID)
 	}
 
 	// A genuine change (new poster URL) IS applied.
@@ -974,7 +974,7 @@ func TestAutoEnrichItem_RecoversTMDBMatchViaIMDB(t *testing.T) {
 	// TMDB title-search misses, so OMDb wins the match with only an IMDB id and
 	// an English plot. The IMDB id maps back to a TMDB record via /find, so the
 	// enricher must re-fetch the localized TMDB detail and use it as the
-	// canonical result — otherwise the item is stuck in English with no TMDB id
+	// canonical result - otherwise the item is stuck in English with no TMDB id
 	// (hence no translations) forever.
 	primary := &fakeProvider{
 		name:          "tmdb",
@@ -1011,7 +1011,7 @@ func TestAutoEnrichItem_RecoversTMDBMatchViaIMDB(t *testing.T) {
 }
 
 func TestAutoEnrichItem_NoTMDBMappingKeepsSupplementaryMatch(t *testing.T) {
-	// When TMDB's /find has no record for the IMDB id, the OMDb match stands —
+	// When TMDB's /find has no record for the IMDB id, the OMDb match stands -
 	// the upgrade must not blank out a real (if English) result.
 	primary := &fakeProvider{
 		name:          "tmdb",
@@ -1265,10 +1265,10 @@ func TestAutoEnrichAll_ContextCanceled(t *testing.T) {
 // must pick it over a word-sharing wrong candidate that appears first.
 func TestPickBestMatch_AltTitleWins(t *testing.T) {
 	results := []domain.MetadataResult{
-		// Wrong film (first in TMDB popularity order) — shares word "train"
+		// Wrong film (first in TMDB popularity order) - shares word "train"
 		{Title: "The Last Train to New York", OriginalTitle: "The Last Train to New York",
 			ProviderIDs: map[string]string{"tmdb": "550446"}},
-		// Correct film — French title is primary; English alt-title populated
+		// Correct film - French title is primary; English alt-title populated
 		{Title: "Dernier train pour Busan", OriginalTitle: "부산행",
 			AlternativeTitles: []string{"Train to Busan"},
 			ProviderIDs:       map[string]string{"tmdb": "396535"}},
@@ -1403,7 +1403,7 @@ func (u *orderingUOW) Do(ctx context.Context, fn func(ctx context.Context) error
 }
 
 // The artwork post-save hook triggers an auto-DOWNLOAD: it must fire after
-// the enrichment transaction commits, never inside it — a mid-tx hook starts
+// the enrichment transaction commits, never inside it - a mid-tx hook starts
 // a download for rows a later failure rolls back (phantom artwork).
 func TestEnrichItem_ArtworkHookFiresAfterCommit(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb"}

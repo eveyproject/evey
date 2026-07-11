@@ -36,7 +36,7 @@ func (a *Adapter) ExtractSubtitle(ctx context.Context, req mkv.ExtractSubtitleRe
 		format = inferSubtitleFormat(req.OutPath)
 	}
 
-	// Validate track existence and codec before delegating — the error messages
+	// Validate track existence and codec before delegating - the error messages
 	// from the lower-level library don't map to domain sentinel errors, so we
 	// probe up-front and translate ourselves.
 	codec, err := subtitleTrackCodec(ctx, req.SrcPath, req.TrackID)

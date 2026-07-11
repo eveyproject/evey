@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/fsnotify/fsnotify"
 )
 
 type FSWatcher struct {

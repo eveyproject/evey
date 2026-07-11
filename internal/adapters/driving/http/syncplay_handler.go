@@ -46,7 +46,7 @@ func registerSyncPlayRoutes(mux *http.ServeMux, hub *appsyncplay.Hub, tokenGen d
 		libChecker:  libChecker,
 		guestTokens: guestTokens,
 	}
-	// WebSocket uses Sec-WebSocket-Protocol for auth — can't use standard middleware
+	// WebSocket uses Sec-WebSocket-Protocol for auth - can't use standard middleware
 	mux.Handle("/api/v1/syncplay/rooms/{id}/ws", http.HandlerFunc(h.wsUpgradeHandler))
 }
 
@@ -137,7 +137,7 @@ type wsSender struct {
 	// broadcast to the same member from two goroutines at once (e.g. a host
 	// command racing a member_joined fan-out). websocket.Message.Send already
 	// serializes the frame write, but SetWriteDeadline touches the raw net.Conn
-	// outside that lock — without this mutex one goroutine's "clear deadline"
+	// outside that lock - without this mutex one goroutine's "clear deadline"
 	// could land while another's Send is in flight, leaving it to block forever
 	// on a half-open socket and wedge every later write to that member.
 	mu sync.Mutex
@@ -165,7 +165,7 @@ func guestMemberID(token string) string {
 }
 
 func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
-	// Span only covers the upgrade handshake — the long-lived ws loop runs after.
+	// Span only covers the upgrade handshake - the long-lived ws loop runs after.
 	spanCtx, span := tracing.StartSpan(r.Context(), "http.syncplay.WSUpgrade")
 	r = r.WithContext(spanCtx)
 	roomID := r.PathValue("id")
@@ -173,7 +173,7 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 	token := extractWSToken(r)
 	claims, jwtErr := s.tokenGen.ValidateAccessToken(token)
 	// A "watch together" guest holds a stream token, not a JWT. When the JWT is
-	// invalid, only a guest-scoped stream token may proceed — reject anything else
+	// invalid, only a guest-scoped stream token may proceed - reject anything else
 	// here, BEFORE the room lookup, so an unauthenticated caller can't probe room
 	// existence. The token is minted only by /syncplay/join-code (rate limited)
 	// and is refused by the download handler.
@@ -233,7 +233,7 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		}
 	} else {
 		// Guest: the scoped token must belong to THIS room's media. The guest skips
-		// the member and library checks — the room-media-scoped token IS the
+		// the member and library checks - the room-media-scoped token IS the
 		// authorization, and ConnectMember adds the guest as a member.
 		if string(guestTok.MediaItemID) != string(room.MediaID) {
 			span.SetStatus(otelcodes.Error, "guest token media mismatch")

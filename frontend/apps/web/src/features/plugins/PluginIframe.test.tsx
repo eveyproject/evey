@@ -24,7 +24,7 @@ vi.mock("@evey/store", () => ({
 }));
 
 // front-bridge.ts BRIDGE_SCRIPT is inlined into the srcdoc and runs inside
-// the sandboxed iframe — it cannot be exercised from jsdom tests. The source-
+// the sandboxed iframe - it cannot be exercised from jsdom tests. The source-
 // origin guard (`e.source !== window.parent`) added in that script is a
 // static code review and cannot be integration-tested here without a real
 // browser environment.
@@ -75,7 +75,7 @@ describe("PluginIframe", () => {
       const bundleCall = calls.find(([req]) => (req as { url: string }).url === "/api/v1/plugins/plg-test1/assets/index.js");
       expect(bundleCall, "bundle fetch was expected").toBeTruthy();
       expect((bundleCall![0] as { method: string }).method).toBe("GET");
-      // The URL must never carry a ?token= query — eveyFetchRaw attaches the
+      // The URL must never carry a ?token= query - eveyFetchRaw attaches the
       // user access token via the Authorization header automatically.
       expect((bundleCall![0] as { url: string }).url).not.toContain("token=");
     });
@@ -153,7 +153,7 @@ describe("PluginIframe", () => {
 
   it("renders nothing when pluginId has an HTML-special character (defense-in-depth)", async () => {
     // pluginId is server-issued (`plg-<24 hex>`), but a malformed value
-    // — typo, manipulated state, future bug — must never be interpolated
+    // - typo, manipulated state, future bug - must never be interpolated
     // into the srcdoc HTML. The boundary check returns an empty srcdoc;
     // the component renders nothing.
     render(<PluginIframe pluginId={'plg-foo"><script>1</script>'} src="index.js" />);
@@ -319,7 +319,7 @@ describe("isAllowedNavPath", () => {
   });
 
   it("blocks paths that share a prefix but are not whitelisted", () => {
-    // "/homepage" must NOT match "/home" — only exact, "/home/", or "/home?"
+    // "/homepage" must NOT match "/home" - only exact, "/home/", or "/home?"
     expect(isAllowedNavPath("/homepage")).toBe(false);
     expect(isAllowedNavPath("/librarypriv")).toBe(false);
   });

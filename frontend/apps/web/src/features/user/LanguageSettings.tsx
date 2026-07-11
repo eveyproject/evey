@@ -42,7 +42,7 @@ export function LanguageSettings() {
 
   // Mirror the server-truth preferences in a ref so two quick edits (e.g. audio
   // then subtitle) merge onto each other instead of both spreading the same
-  // stale render snapshot — otherwise the second write would drop the first.
+  // stale render snapshot - otherwise the second write would drop the first.
   const prefsRef = useRef<Record<string, string>>({});
   useEffect(() => {
     prefsRef.current = { ...(activeProfile?.preferences ?? {}) };
@@ -65,7 +65,7 @@ export function LanguageSettings() {
   const currentUiLang = supportedLanguages.find((l) => i18n.language.startsWith(l.code))?.code ?? "en";
 
   // Read audio/subtitle prefs from the profile preferences map (CSV for ordered list;
-  // v1 stores a single language code — we take only the first entry for the select).
+  // v1 stores a single language code - we take only the first entry for the select).
   const rawAudioLangs = activeProfile?.preferences?.["audio_languages"] ?? "";
   const rawSubtitleLangs = activeProfile?.preferences?.["subtitle_languages"] ?? "";
   const currentAudioLang = rawAudioLangs.split(",")[0]?.trim() ?? "";

@@ -11,7 +11,7 @@ import (
 )
 
 func TestLoad_Defaults(t *testing.T) {
-	// Can't run in parallel — we mutate the process env. The dev container
+	// Can't run in parallel - we mutate the process env. The dev container
 	// pre-sets EVEY_SMTP_*, EVEY_DB_* etc., which would otherwise leak
 	// into defaults and break the asserts.
 	for _, e := range os.Environ() {
@@ -115,7 +115,7 @@ func TestLoad_Defaults(t *testing.T) {
 	// Plugins defaults: bubblewrap sandbox + cosign warn (non-blocking, surfaces
 	// finding when key is configured). Without a key the verifier degrades to
 	// a no-op so plugin developers see no behaviour change vs the previous
-	// "off" default — only admins who configure a key get verification.
+	// "off" default - only admins who configure a key get verification.
 	assert.Equal(t, "auto", cfg.Plugins.SandboxMode)
 	assert.Equal(t, "warn", cfg.Plugins.CosignPolicy)
 	assert.Empty(t, cfg.Plugins.CosignPublicKey)
@@ -565,7 +565,7 @@ func TestWarnValidate_CosignKey_KMSRefSkipped(t *testing.T) {
 
 func TestWarnValidate_PluginsResourceLimitsZeroAccepted(t *testing.T) {
 	t.Parallel()
-	// Zero means "use default" — must not be rejected.
+	// Zero means "use default" - must not be rejected.
 	cfg := &Config{
 		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
 		Meilisearch: MeilisearchConfig{APIKey: "x9abc123def45678"},

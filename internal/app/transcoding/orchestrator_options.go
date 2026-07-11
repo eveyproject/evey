@@ -27,7 +27,7 @@ type OrchestratorOptions struct {
 	// GCInterval is the period of the inactivity sweeper. Default 15 s.
 	GCInterval time.Duration
 
-	// SegmentSeconds — keep in sync with ManifestSegmentSeconds and the ffmpeg
+	// SegmentSeconds - keep in sync with ManifestSegmentSeconds and the ffmpeg
 	// force_key_frames cadence. Exposed for tests.
 	SegmentSeconds float64
 
@@ -51,7 +51,7 @@ type OrchestratorOptions struct {
 	ThrottleResumeBelow int
 
 	// ThrottleTickInterval is how often the throttle policy is evaluated.
-	// Default 1s — coarse enough to be free, tight enough that a seek-out
+	// Default 1s - coarse enough to be free, tight enough that a seek-out
 	// that lands on a paused session resumes within one tick.
 	ThrottleTickInterval time.Duration
 
@@ -68,8 +68,8 @@ type OrchestratorOptions struct {
 	// orchestrator runs across ALL fingerprints, independent of
 	// MaxRafalesPerHash (which only bounds rafales for a single media). It is the
 	// global CPU backstop: without it an authenticated client can saturate a weak
-	// host by requesting many distinct media — or diversifying one media's
-	// decision hash (audio/sub/hdr query params) — to spawn N software x264
+	// host by requesting many distinct media - or diversifying one media's
+	// decision hash (audio/sub/hdr query params) - to spawn N software x264
 	// sessions. At the cap, spawnSession returns ErrCapacityExceeded (HTTP 503)
 	// instead of starting ffmpeg. Zero = unlimited (no cap), preserving legacy
 	// behaviour for tests and callers that don't set it.
@@ -78,7 +78,7 @@ type OrchestratorOptions struct {
 	// HWFirstSegmentTimeout is the fast-fail watchdog for hardware sessions: if
 	// a HW-encode rafale hasn't written its fMP4 init segment (the first sign the
 	// encoder is actually producing output) within this window, it's treated as
-	// a stuck/dead GPU pipeline — demoted to software and killed — instead of
+	// a stuck/dead GPU pipeline - demoted to software and killed - instead of
 	// letting the client wait out the full ~25 s segment timeout. The init
 	// (vs a full segment) is the signal because a working-but-slow HW pipeline
 	// writes it within ~1-3 s while a TDR-dead one never does, so a tight 5 s
@@ -87,7 +87,7 @@ type OrchestratorOptions struct {
 	HWFirstSegmentTimeout time.Duration
 
 	// WaitBudgetDur is how long the segment handler blocks on cache.Wait for an
-	// orchestrated segment (returned by WaitBudget()). Default 25 s — a generous
+	// orchestrated segment (returned by WaitBudget()). Default 25 s - a generous
 	// HW cold-start window. Configurable so unit tests fail fast instead of summing
 	// 25 s waits, mirroring the software producer's WaitBudgetDur.
 	WaitBudgetDur time.Duration
@@ -104,7 +104,7 @@ type OrchestratorOptions struct {
 	// Jellyfin/Plex's on-demand single-variant model.
 	//
 	// FLAG OFF (default): behaviour is byte-identical to the pre-flag multi-variant
-	// path — the existing tests prove this invariant.
+	// path - the existing tests prove this invariant.
 	// FLAG ON: the per-rung sessions are all keyed under the same DecisionHash;
 	// the client ABR-switches freely and each new rung is produced lazily.
 	SingleVariant bool

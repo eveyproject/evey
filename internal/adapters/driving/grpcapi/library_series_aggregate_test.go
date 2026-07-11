@@ -170,7 +170,7 @@ func TestGetSeriesAggregate_QueryError_Internal(t *testing.T) {
 	// the only reachable error mapping via this fake for the aggregate query
 	// is through the same Err field that would also block GetMediaItem.
 	// Injecting Err therefore exercises the NotFound (GetMediaItem) path, not
-	// the Internal (SeriesAggregate) path — that path is covered implicitly by
+	// the Internal (SeriesAggregate) path - that path is covered implicitly by
 	// the integration layer. We document this here rather than force an
 	// incorrect assertion.
 	_ = errors.New("documented: FakeMediaItemQueryRepo.Err gates all ops uniformly; " +

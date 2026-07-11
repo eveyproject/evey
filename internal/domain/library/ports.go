@@ -8,7 +8,7 @@ import (
 )
 
 // ListLibrariesFilter paginates LibraryQueryRepo.List with offset semantics.
-// Zero values mean "no pagination" — all rows returned, ordered by name.
+// Zero values mean "no pagination" - all rows returned, ordered by name.
 // Limit is capped at MaxListLibrariesLimit (500); higher values are clamped.
 type ListLibrariesFilter struct {
 	Limit  int
@@ -34,13 +34,13 @@ type ListMediaItemsFilter struct {
 	Offset     int
 	// AfterID enables keyset pagination: when set, forces ORDER BY id ASC
 	// and restricts to rows with id > AfterID. Prefer this over Offset for
-	// full-table iteration (Meili reindex) — O(log N) per page vs O(n²)
+	// full-table iteration (Meili reindex) - O(log N) per page vs O(n²)
 	// cumulative with offset.
 	AfterID string
 	// Cursor enables sort-aware keyset pagination: WHERE (sort_value, id) >
 	// (cursor.value, cursor.id) on the SortField. Mutually exclusive with
 	// Offset (cursor wins). The cursor's SortField must match the request's
-	// SortField — repos return shared.ErrCursorMismatch otherwise.
+	// SortField - repos return shared.ErrCursorMismatch otherwise.
 	Cursor         shared.Cursor
 	AllowedRatings []string // parental control: if set, only items with official_rating in this list (or empty rating) are returned
 	PersonID       *string  // filter to items featuring this person
@@ -116,10 +116,10 @@ type MediaSegmentQueryRepo interface {
 // end_credits metadata, queried per-episode by the intro detection pipeline.
 //
 // The pipeline calls this *before* MKV chapter pass and the heuristic
-// passes — when the provider returns a non-empty slice, the rest of the
+// passes - when the provider returns a non-empty slice, the rest of the
 // pipeline is short-circuited. Implementations must:
 //   - return nil, nil (or an empty slice) when no metadata is known for
-//     the item — that's the common case, the pipeline must fall through;
+//     the item - that's the common case, the pipeline must fall through;
 //   - return MediaSegment values with Confidence ≥ 0.95 and Source set
 //     to a stable identifier (e.g. "tmdb", "anidb", "simkl") so the
 //     admin UI / backfill tooling can audit which source produced each
@@ -130,7 +130,7 @@ type MediaSegmentQueryRepo interface {
 //
 // No concrete adapter is wired today; intro metadata is not part of
 // TMDB's public schema and the choice of community DB (AniDB / simkl /
-// custom) is not yet made — see backlog "TMDB intro/outro metadata".
+// custom) is not yet made - see backlog "TMDB intro/outro metadata".
 type IntroMetadataProvider interface {
 	GetSegments(ctx context.Context, item *MediaItem) ([]MediaSegment, error)
 }
@@ -180,7 +180,7 @@ type MediaSegmentRepository interface {
 	RecordIntroDetectionAttempt(ctx context.Context, mediaItemID string, algoVersion int) error
 	// IntroDetectionExhaustedBatch reports, for each of mediaItemIDs, whether the
 	// item has already been attempted maxAttempts times AT the current algoVersion
-	// with no usable result — i.e. it should be skipped until the algorithm version
+	// with no usable result - i.e. it should be skipped until the algorithm version
 	// is bumped. An id at an older version (or with no row) is simply absent from
 	// the returned map (not exhausted), so a detection improvement re-enables it.
 	// Batched so a season sweep issues one query per page instead of one per
@@ -254,7 +254,7 @@ type FileScanner interface {
 	// ParseTitle re-runs the filename parser on a known file path and
 	// returns the title token (without quality/edition/year noise). Used
 	// by the orphan title-heal pass to rebuild media_items.title with the
-	// current parser when an old polluted scan needs cleaning up — the
+	// current parser when an old polluted scan needs cleaning up - the
 	// regular Scan path only emits this for fresh discoveries, but the
 	// heal pass needs it for items already in DB whose files haven't moved
 	// on disk (so detectChanges short-circuits before ever calling Scan
@@ -268,7 +268,7 @@ type ProbeResult struct {
 	// Container is the source container/format (ffprobe vocabulary, e.g.
 	// "matroska", "mp4", "webm"), stored on MediaFile.ContainerFormat. Empty when
 	// the prober couldn't determine it. The playback decision matches it against
-	// the client's supported containers — an empty value reads as "incompatible"
+	// the client's supported containers - an empty value reads as "incompatible"
 	// and forces a needless remux, so probers MUST populate it.
 	Container string
 }
@@ -333,7 +333,7 @@ const (
 )
 
 // PendingSearchWrite is one queued search-index op: the media item to re-index
-// or remove once the engine recovers. Only the ID + op are stored — the drain
+// or remove once the engine recovers. Only the ID + op are stored - the drain
 // worker re-reads the item from the DB (the source of truth), so a value that
 // changed between enqueue and drain is indexed at its current state.
 type PendingSearchWrite struct {
@@ -473,7 +473,7 @@ type PersonTranslationFetcher interface {
 }
 
 // IntroFingerprintCacheEntry is the cached pHash fingerprint for one media
-// item. Audio bands are intentionally not cached in v1 — they are
+// item. Audio bands are intentionally not cached in v1 - they are
 // candidate-window-specific (different padSec/searchSec per call) and the
 // cost of regenerating them per detection run is small compared to the
 // trickplay sprite decode + tile hash cycle that this cache short-circuits.
@@ -482,7 +482,7 @@ type IntroFingerprintCacheEntry struct {
 	FileFingerprint string
 	PhashTiles      []uint64 // one hash per kept tile, in tile order
 	PhashTimestamps []int64  // matching source-video timestamp (ms) for every PhashTiles entry
-	AlgoVersion     int16    // bumped whenever the hash function changes — invalidates the row
+	AlgoVersion     int16    // bumped whenever the hash function changes - invalidates the row
 	ExtractedAt     time.Time
 }
 
@@ -490,7 +490,7 @@ type IntroFingerprintCacheEntry struct {
 // fingerprints keyed by media item id. Invalidation is up to the caller:
 // look up by media id, compare FileFingerprint and AlgoVersion against the
 // current values, recompute and Upsert if either differs. The repository
-// itself does no validation — keep it dumb so changes to the invalidation
+// itself does no validation - keep it dumb so changes to the invalidation
 // policy don't require touching the adapter.
 type IntroFingerprintCacheRepository interface {
 	Get(ctx context.Context, mediaItemID string) (*IntroFingerprintCacheEntry, error)
@@ -501,7 +501,7 @@ type IntroFingerprintCacheRepository interface {
 
 // IntroAudioFingerprintCacheEntry is the cached Chromaprint fingerprint for one
 // media item over [0, WindowSec]. The cache is keyed by (MediaItemID,
-// FileFingerprint, AlgoVersion, WindowSec) — any mismatch triggers recompute.
+// FileFingerprint, AlgoVersion, WindowSec) - any mismatch triggers recompute.
 type IntroAudioFingerprintCacheEntry struct {
 	MediaItemID     string
 	FileFingerprint string
@@ -513,7 +513,7 @@ type IntroAudioFingerprintCacheEntry struct {
 
 // IntroAudioFingerprintCacheRepository persists and retrieves cached Chromaprint
 // fingerprints keyed by media item id. Same invalidation contract as
-// IntroFingerprintCacheRepository — the caller owns invalidation logic, the
+// IntroFingerprintCacheRepository - the caller owns invalidation logic, the
 // repository stays dumb.
 type IntroAudioFingerprintCacheRepository interface {
 	Get(ctx context.Context, mediaItemID string) (*IntroAudioFingerprintCacheEntry, error)

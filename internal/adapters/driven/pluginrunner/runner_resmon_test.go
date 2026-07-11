@@ -120,7 +120,7 @@ func processAlive(pid int) bool {
 
 // TestCheckResources_KillsMemoryOverLimit is the core proof of the userspace
 // approach: with a memory cap set BELOW a live process's real RSS (read from
-// /proc), one monitor pass stops that process. Deterministic — the cap is
+// /proc), one monitor pass stops that process. Deterministic - the cap is
 // derived from the measured RSS, so the breach cannot be flaky.
 func TestCheckResources_KillsMemoryOverLimit(t *testing.T) {
 	r := NewRunner()
@@ -128,7 +128,7 @@ func TestCheckResources_KillsMemoryOverLimit(t *testing.T) {
 
 	// A freshly Start()ed process has no RSS accounted in /proc yet; under load
 	// the gap is wide enough that an immediate read returns 0 (flaky). Wait for
-	// the first positive reading — the cap is still derived from the real RSS.
+	// the first positive reading - the cap is still derived from the real RSS.
 	var rss int64
 	require.Eventually(t, func() bool {
 		var err error
@@ -152,7 +152,7 @@ func TestCheckResources_KillsMemoryOverLimit(t *testing.T) {
 func TestCheckResources_LeavesUnderLimit(t *testing.T) {
 	r := NewRunner()
 	_, pid := spawnSleep(t, r, "calm")
-	r.resLimits = resourceLimits{memBytes: 4 << 30} // 4 GiB — never exceeded by sleep
+	r.resLimits = resourceLimits{memBytes: 4 << 30} // 4 GiB - never exceeded by sleep
 
 	r.checkResources(r.processes["calm"], pid, map[int]*cpuSample{}, false)
 
@@ -176,11 +176,11 @@ func TestResourceMonitorLoop_StopsHog(t *testing.T) {
 
 	select {
 	case <-e.done:
-		// process exited — the sweeper stopped it
+		// process exited - the sweeper stopped it
 	case <-time.After(3*resMonInterval + 15*time.Second):
 		// Generous deadline ON PURPOSE: under a full `make test` (testcontainers
 		// + every suite in parallel) the monitor goroutine is CPU-starved and
-		// the kill can slip past one sweep interval — measured flaking ~1/9
+		// the kill can slip past one sweep interval - measured flaking ~1/9
 		// full-suite runs at interval+4s. The happy path returns on e.done
 		// immediately, so the slack only stretches the FAILURE case.
 		t.Fatal("resource monitor loop did not stop the over-cap process in time")

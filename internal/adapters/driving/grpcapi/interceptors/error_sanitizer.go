@@ -42,7 +42,7 @@ func sanitizeError(err error, method string) error {
 	}
 	st, ok := status.FromError(err)
 	if !ok {
-		// A non-status error escaped a handler — typically a repo/service error
+		// A non-status error escaped a handler - typically a repo/service error
 		// wrapped with a "fooHandler.Bar: %w" prefix. gRPC surfaces these to the
 		// client verbatim as codes.Unknown, leaking handler names and internal
 		// messages, so treat them exactly like an Internal error.
@@ -54,7 +54,7 @@ func sanitizeError(err error, method string) error {
 	}
 	// Internal and Unknown are never deliberately-coded, user-facing errors:
 	// genericise their messages. Every other code (NotFound, InvalidArgument,
-	// PermissionDenied, …) carries an intentional — often i18n-translated —
+	// PermissionDenied, …) carries an intentional - often i18n-translated -
 	// message and is passed through untouched.
 	if st.Code() == codes.Internal || st.Code() == codes.Unknown {
 		if strings.Contains(st.Message(), "context canceled") {

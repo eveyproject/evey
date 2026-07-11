@@ -32,7 +32,7 @@ func requireCosign(t *testing.T) {
 	}
 }
 
-// These two need neither cosign nor fixtures — they pin the no-op contract.
+// These two need neither cosign nor fixtures - they pin the no-op contract.
 func TestCosignVerifier_PolicyOff_IsNoop(t *testing.T) {
 	st, err := NewCosignVerifier("off", "/some/key.pub").VerifySignature(context.Background(), "/x.zip", "")
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestCosignVerifier_Enforce_EmptyKey_FailsClosed(t *testing.T) {
 	assert.False(t, st.Verified)
 }
 
-// Fail-closed when the cosign binary is missing under enforce — no binary needed
+// Fail-closed when the cosign binary is missing under enforce - no binary needed
 // (we force "not found" by emptying PATH), so this always runs.
 func TestCosignVerifier_Enforce_MissingBinary_FailsClosed(t *testing.T) {
 	dir := cosignFixtureDir(t)

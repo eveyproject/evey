@@ -102,7 +102,7 @@ artworks:
   backfillBlurhashesRun: Backfill blurhashes
   backfillBlurhashesRunning: Backfilling...
   backfillBlurhashesDone: "Backfilled {{succeeded}} placeholder(s), {{failed}} failed."
-  backfillBlurhashesStarted: "Blurhash backfill started — runs in the background."
+  backfillBlurhashesStarted: "Blurhash backfill started - runs in the background."
   backfillBlurhashesFailed: Failed to backfill blurhashes
   purgeVariantsSection: Purge corrupt poster variants
   purgeVariantsDesc: "Delete 0-byte resized poster variants left behind by a failed or timed-out resize. They are regenerated automatically on demand, so this just clears them in bulk."
@@ -209,7 +209,7 @@ plugins:
     unsigned: Unsigned
     sandboxHost: "Host sandbox"
     sandboxResolvedFrom: "resolved from {{mode}}"
-    sandboxBasicWarning: "Plugins run with UID-drop + seccomp only — this host offers no per-path filesystem isolation."
+    sandboxBasicWarning: "Plugins run with UID-drop + seccomp only - this host offers no per-path filesystem isolation."
     sandboxBasicHint: "A kernel ≥ 5.13 with Landlock in the active LSM list enables strong isolation with no other host changes."
     probeLandlock: "Landlock kernel"
     probeLauncher: "Sandbox launcher"
@@ -312,12 +312,12 @@ libraries:
   scanStarted: Scan started
   failedScan: Failed to start scan
   refreshMetadata: Re-match all from TMDB
-  refreshMetadataTooltip: Re-runs the TMDB search on every item — slow, but corrects past wrong matches. Use this after large rename batches.
-  refreshAllMetadataStarted: Re-match started — titles and posters will update in the background
+  refreshMetadataTooltip: Re-runs the TMDB search on every item - slow, but corrects past wrong matches. Use this after large rename batches.
+  refreshAllMetadataStarted: Re-match started - titles and posters will update in the background
   matchOrphans: Match orphans only
   matchOrphansTooltip: Targets only items that never matched TMDB at scan time (provider IDs empty). Fast, runs in the background.
-  matchOrphansStarted: "Queued {{count}} orphan(s) for matching — they'll appear with poster/overview as TMDB responds"
-  matchOrphansEmpty: No orphans to match in this library — all items already have provider IDs
+  matchOrphansStarted: "Queued {{count}} orphan(s) for matching - they'll appear with poster/overview as TMDB responds"
+  matchOrphansEmpty: No orphans to match in this library - all items already have provider IDs
   deleteTitle: Delete Library
   deleteConfirm: "Delete library \"{{name}}\"? This cannot be undone."
   noLibraries: No libraries. Add one to get started.
@@ -360,7 +360,7 @@ libraries:
   "off": "Off"
   paths: Paths
   pathsHint: "(enter the full path inside the container, e.g. /media/movies)"
-  selectDirectory: "— select a directory —"
+  selectDirectory: "- select a directory -"
   enterCustomPath: "Enter custom path..."
   addPath: "+ Add Path"
   tvShows: TV Shows
@@ -566,7 +566,7 @@ serverConfig:
   serverLanguage: "Server language"
   serverRegion: "Server region"
   metadataLanguage: Metadata language
-  envDefault: "— env default —"
+  envDefault: "- env default -"
   languageUpdated: "Language updated"
   configUpdated: Config updated
   failedUpdate: Failed to update config
@@ -619,7 +619,7 @@ serverConfig:
   artworkRetryNow: "Retry missing artwork now"
   artworkRetryDesc: "Backfill any artwork rows still missing a local file. Runs hourly in the background too."
   artworkRetryDone: "Retry finished: {{succeeded}} succeeded, {{failed}} failed."
-  artworkRetryStarted: "Artwork retry started — runs in the background."
+  artworkRetryStarted: "Artwork retry started - runs in the background."
   parserTokensTitle: "Parser tokens"
   parserTokensDesc: "Extra release tags the filename parser recognises beyond its baseline list."
   parserTokensInfo: "Add release tags the parser doesn't strip out of the box (HDRIP, custom editions, etc.) so orphan files match TMDB. Changes take effect immediately on the next scan."
@@ -653,7 +653,7 @@ serverConfig:
     usingCustom: Using custom key
   introProvidersTitle: Intro Skip Providers
   introProvidersDesc: "Sources: TheIntroDB (theintrodb.org) primary, IntroDB (introdb.app) fallback."
-  introProvidersInfo: "Two distinct community databases for intro / recap / credits timestamps. Skips the local CPU-heavy detection on items they cover. Primary — TheIntroDB (theintrodb.org): movies + TV, free API key required. Fallback — IntroDB (introdb.app): TV episodes only, no key required."
+  introProvidersInfo: "Two distinct community databases for intro / recap / credits timestamps. Skips the local CPU-heavy detection on items they cover. Primary - TheIntroDB (theintrodb.org): movies + TV, free API key required. Fallback - IntroDB (introdb.app): TV episodes only, no key required."
   introProvidersEnabled: Enable external intro skip providers
   introProvidersRestart: Server restart required after enabling/disabling.
   introProvidersTidbStatus: "TheIntroDB: "
@@ -850,12 +850,12 @@ loadtest:
     error: "An error stopped the test early."
 calibration:
   av1Label: "AV1 output"
-  av1Hint: "Encode to AV1 when a client supports it — better compression. Hardware-only; software AV1 is never used for streaming."
-  av1NoHw: "No AV1 hardware encoder detected — turning this on has no effect (streams stay H.264)."
+  av1Hint: "Encode to AV1 when a client supports it - better compression. Hardware-only; software AV1 is never used for streaming."
+  av1NoHw: "No AV1 hardware encoder detected - turning this on has no effect (streams stay H.264)."
   av1MaxLabel: "AV1 max quality"
   av1MaxAuto: "Auto (up to source)"
   av1Applied: "AV1 setting applied"
-  transcodesActiveToast: "Stop active playback before recalibrating — the benchmark needs an idle host to measure the true ceiling."
+  transcodesActiveToast: "Stop active playback before recalibrating - the benchmark needs an idle host to measure the true ceiling."
   softwareHdrMax: "Software HDR cap"
   hdrTonemap: "HDR→SDR tonemap"
   gpuIntegrated: "iGPU"
@@ -869,7 +869,7 @@ calibration:
   samplesPass: "pass"
   samplesFail: "fail"
   cardTitle: Encode calibration
-  cardSubtitle: "Measured at boot — sets the cap on the HLS ladder so the host doesn't overshoot what it can encode in realtime."
+  cardSubtitle: "Measured at boot - sets the cap on the HLS ladder so the host doesn't overshoot what it can encode in realtime."
   softwareMax: Software encode cap
   hwMax: Hardware encode cap
   hwNone: "no GPU accelerator detected"
@@ -885,7 +885,7 @@ calibration:
   setupTitle: "Calibrating encode capability"
   setupSubtitle: "Measuring how high your host can encode in realtime. This usually takes ~20 seconds and only runs once."
   hwFallbacks: "Hardware fallbacks"
-  hwFallbacksDesc: "Recent hardware encodes that fell back automatically — the host keeps playing via software while the cause is recorded. Recalibrate once the hardware is fixed."
+  hwFallbacksDesc: "Recent hardware encodes that fell back automatically - the host keeps playing via software while the cause is recorded. Recalibrate once the hardware is fixed."
   fallbackUnsupportedOption: "unsupported encoder option"
   fallbackEncoderMissing: "encoder unavailable"
   fallbackInit: "GPU init failed"
@@ -894,17 +894,17 @@ calibration:
   hwModeOff: "Off (software only)"
   detected: "Detected: {{list}}"
   detectedNone: "No GPU accelerator detected"
-  modeApplied: "Mode applied — recalibrating…"
+  modeApplied: "Mode applied - recalibrating…"
   hwEnableLabel: "Hardware acceleration"
   hwEnabledHint: "Encoding on the GPU when possible"
   hwDisabledHint: "Software only (CPU)"
   hwBackendLabel: "Backend"
   wslUnsupported: "not supported on WSL"
-  wslVaapiNote: "VAAPI/QSV go through Mesa's d3d12 driver on WSL and can't sustain transcoding here — use NVENC, or validate VAAPI on a native Linux host."
+  wslVaapiNote: "VAAPI/QSV go through Mesa's d3d12 driver on WSL and can't sustain transcoding here - use NVENC, or validate VAAPI on a native Linux host."
   codecSupportTitle: "Codec support"
   encodeCodecs: "Encode:"
   decodeCodecs: "Decode:"
-  codecSoftwareDecodeNote: "{{codecs}} — decoded in software (GPU encode only)"
+  codecSoftwareDecodeNote: "{{codecs}} - decoded in software (GPU encode only)"
 
 serverSettings:
   transcodeMovedHint: "Transcoding (hardware acceleration, encode calibration, AV1 and concurrency) is configured in Transcoding configuration."
@@ -930,7 +930,7 @@ serverSettings:
 
 qoe:
   title: Streaming Quality
-  subtitle: What viewers actually experience — buffering, stalls, throughput. Read-only.
+  subtitle: What viewers actually experience - buffering, stalls, throughput. Read-only.
   window24h: Last 24h
   window7d: Last 7 days
   loading: Loading telemetry…
@@ -962,8 +962,8 @@ qoe:
   overrides:
     title: Automatic quality limits
     subtitle: Automatic adjustments based on how playback actually goes (buffering, throughput), on top of the calibrated ceiling. Each row temporarily lowers the maximum quality for one kind of source until it expires.
-    help: Players continuously report how playback is going — buffer level, rebuffering and bandwidth (an industry standard called CMCD). When one kind of source keeps starving viewers, Evey lowers its quality limit for a while to stop the rebuffering, then lifts it again automatically.
-    empty: No active automatic limits — the full calibrated quality ceiling applies to every kind of source.
+    help: Players continuously report how playback is going - buffer level, rebuffering and bandwidth (an industry standard called CMCD). When one kind of source keeps starving viewers, Evey lowers its quality limit for a while to stop the rebuffering, then lifts it again automatically.
+    empty: No active automatic limits - the full calibrated quality ceiling applies to every kind of source.
     reset: Reset
     resetHint: Drop this adaptive cap immediately. The worker will re-evaluate on the next tick.
     col:
@@ -983,11 +983,11 @@ qoe:
     poor: Poor
     insufficient: Not enough data
     recoExcellent: Playback starts and runs without any interruptions.
-    recoGood: Healthy — the occasional stall is within the normal range.
+    recoGood: Healthy - the occasional stall is within the normal range.
     recoFair: A few playback stalls. Keep an eye on it if traffic grows.
     recoMarginal: Frequent stalls. Enable hardware transcoding or lower the quality ceiling.
     recoPoor: Lots of stalls. Enable hardware transcoding, lower the quality ceiling, or check server/network bandwidth.
-    recoInsufficient: Collecting measurements — check back once a few sessions have played.
+    recoInsufficient: Collecting measurements - check back once a few sessions have played.
 
 segments:
   title: Media segments
@@ -1003,8 +1003,8 @@ segments:
 
 seekIndex:
   title: Seek Index Repair
-  description: "MKV/WebM files muxed without a seek index (Cues) seek and resume slowly — the player has to read them linearly. Scanning is read-only; repairing rebuilds the index in place and keeps the original as a .mkvgobak backup you can roll back to."
-  readOnlyNote: "Repairing writes to your media folders. If they are mounted read-only (:ro in docker-compose), remount them read-write and restart the containers first — scanning still works."
+  description: "MKV/WebM files muxed without a seek index (Cues) seek and resume slowly - the player has to read them linearly. Scanning is read-only; repairing rebuilds the index in place and keeps the original as a .mkvgobak backup you can roll back to."
+  readOnlyNote: "Repairing writes to your media folders. If they are mounted read-only (:ro in docker-compose), remount them read-write and restart the containers first - scanning still works."
   library: Library
   allLibraries: All libraries
   scan: Scan
@@ -1019,8 +1019,8 @@ seekIndex:
   onlyAttention: Only show files needing attention
   emptyTitle: No scan yet
   emptyDescription: Pick a library and scan to find MKV/WebM files without a seek index.
-  noEbml: No MKV/WebM files in this scope — other containers don't need a seek index.
-  allGood: Nothing needs attention — every scanned file has a seek index.
+  noEbml: No MKV/WebM files in this scope - other containers don't need a seek index.
+  allGood: Nothing needs attention - every scanned file has a seek index.
   tableHeaders:
     file: File
     container: Container
@@ -1058,22 +1058,22 @@ seekIndex:
   deepVerifyHint: "Proves every rebuilt cue lands on a real video keyframe before the change is committed. Slower (reads the whole file); recommended with the surgical mode, which keeps no backup."
   rollback: Roll back
   startFailed: Could not start the operation
-  scanStarted: Scan started — it runs in the background, progress shows below
-  repairStarted: Repair started in the background — progress shows below
-  rollbackStarted: Restore started in the background — progress shows below
+  scanStarted: Scan started - it runs in the background, progress shows below
+  repairStarted: Repair started in the background - progress shows below
+  rollbackStarted: Restore started in the background - progress shows below
   jobScan: Scan
   jobReindex: Repair
   jobRollback: Restore
   phaseScanning: walking the files
   phaseProcessing: rewriting the files
-  jobRunning: "{{kind}} in progress — {{phase}}"
+  jobRunning: "{{kind}} in progress - {{phase}}"
   jobFailedCount: "{{count}} failed"
   lastJob: Last operation
-  lastJobLine: "{{kind}} — {{done}}/{{total}} file(s) processed"
+  lastJobLine: "{{kind}} - {{done}}/{{total}} file(s) processed"
   lastJobOk: Completed
   lastJobError: "The operation failed: {{error}}"
-  jobCompleted: "{{kind}} finished — {{done}} file(s) processed"
-  jobCompletedFailures: "{{kind}} finished — {{done}} file(s) processed, {{failed}} failed"
+  jobCompleted: "{{kind}} finished - {{done}} file(s) processed"
+  jobCompletedFailures: "{{kind}} finished - {{done}} file(s) processed, {{failed}} failed"
   jobReadOnlyHint: "Some files are on a read-only volume. Remount your media folders read-write (remove :ro in docker-compose) and restart the containers, then retry."
   scannedAt: "Scanned {{date}}"
   repairAllConfirmTitle: Repair library seek indexes

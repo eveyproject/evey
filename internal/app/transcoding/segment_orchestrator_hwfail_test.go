@@ -149,7 +149,7 @@ func TestOrchestrator_HWWatchdog_StuckHW_Demotes(t *testing.T) {
 }
 
 // The watchdog is HW-only: a SOFTWARE session that produces nothing (a media
-// problem, slow host) must NOT be killed/demoted by it — there's no HW to strip
+// problem, slow host) must NOT be killed/demoted by it - there's no HW to strip
 // and software is already the floor.
 func TestOrchestrator_HWWatchdog_SoftwareSession_NoDemote(t *testing.T) {
 	cache, _ := newTestCache(t)
@@ -193,7 +193,7 @@ func TestOrchestrator_hwSessionAlive_InitCountsAsAlive(t *testing.T) {
 	assert.True(t, o.hwSessionAlive(hash, 0, true), "a written init segment must count as a live HW session")
 }
 
-// A natural exit with a non-HW class (e.g. cancellation) must NOT demote —
+// A natural exit with a non-HW class (e.g. cancellation) must NOT demote -
 // exercises the IsHWCapability filter on a closed Done() channel.
 func TestOrchestrator_NonHWExit_DoesNotDemote(t *testing.T) {
 	cache, _ := newTestCache(t)

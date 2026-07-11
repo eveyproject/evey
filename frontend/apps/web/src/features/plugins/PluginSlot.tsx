@@ -18,7 +18,7 @@ interface PluginInfo {
   frontend?: FrontModule[];
   capabilities?: string[];
   // grpc-gateway protojson emits camelCase by default (webRoot, externalFetch)
-  // — accept both snake_case and camelCase to stay robust against gateway
+  // - accept both snake_case and camelCase to stay robust against gateway
   // configuration quirks.
   web_root?: string;
   webRoot?: string;
@@ -62,7 +62,7 @@ interface PluginSlotProps {
   pluginId?: string;
   // excludeRegistered: skip plugins whose id is in this set. Used by the
   // home page to render only the "newly-installed" plugins not yet in the
-  // user's feed config — the rest are rendered inline at their configured
+  // user's feed config - the rest are rendered inline at their configured
   // position by other PluginSlot calls with pluginId set.
   excludeRegistered?: Set<string>;
 }
@@ -71,7 +71,7 @@ export function PluginSlot({ name, context, pluginId, excludeRegistered }: Plugi
   const isAuthenticated = useAuthStore((s) => !!s.accessToken);
 
   // Use the same queryKey as the admin Plugins page so install/enable/
-  // uninstall mutations there invalidate this list too — otherwise the
+  // uninstall mutations there invalidate this list too - otherwise the
   // home page keeps rendering iframes for plugin ids that no longer exist.
   const { data } = useQuery<ListPluginsResponse>({
     queryKey: ["/api/v1/plugins"],

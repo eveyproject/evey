@@ -4,9 +4,9 @@ Operational playbooks for running Evey in production (or a serious home lab).
 
 ## Index
 
-- [cli.md](cli.md) — `evey admin` operator CLI reference (migrate, reset-password, rotate-jwt-key, restore-backup, reindex-search) + standalone dev/QA binaries.
-- [migration-runbook.md](migration-runbook.md) — applying, rolling back, and recovering from database migrations.
-- [incident-runbook.md](incident-runbook.md) — first-response diagnostics for common outages (server down, auth broken, transcode fail, DB/Meili issues, cache full, plugin crash, WSL git corruption).
+- [cli.md](cli.md) - `evey admin` operator CLI reference (migrate, reset-password, rotate-jwt-key, restore-backup, reindex-search) + standalone dev/QA binaries.
+- [migration-runbook.md](migration-runbook.md) - applying, rolling back, and recovering from database migrations.
+- [incident-runbook.md](incident-runbook.md) - first-response diagnostics for common outages (server down, auth broken, transcode fail, DB/Meili issues, cache full, plugin crash, WSL git corruption).
 
 ## When to use which
 
@@ -26,14 +26,14 @@ Operational playbooks for running Evey in production (or a serious home lab).
 
 ## Related docs
 
-- `docs/configuration.md` — env vars and defaults.
-- `docs/backups.md` — backup/restore configuration.
-- `docs/transcoding.md` — ffmpeg and cache behaviour.
-- `docs/reverse-proxy.md` — trusted proxies, forwarded headers.
+- `docs/configuration.md` - env vars and defaults.
+- `docs/backups.md` - backup/restore configuration.
+- `docs/transcoding.md` - ffmpeg and cache behaviour.
+- `docs/reverse-proxy.md` - trusted proxies, forwarded headers.
 
 ## Contacts / escalation
 
-TODO — fill in for your deployment:
+TODO - fill in for your deployment:
 
 | Role | Name | Contact | Scope |
 |---|---|---|---|

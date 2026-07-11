@@ -106,7 +106,7 @@ func TestCached_NegativeCaching(t *testing.T) {
 	assert.Empty(t, got)
 	require.Equal(t, 1, cache.puts, "negative result must be persisted")
 
-	// Second call should not re-invoke inner — even empty results were cached.
+	// Second call should not re-invoke inner - even empty results were cached.
 	got, err = cached.GetSegments(context.Background(), episode)
 	require.NoError(t, err)
 	assert.Empty(t, got)
@@ -139,7 +139,7 @@ func TestCached_CorruptCacheRefetches(t *testing.T) {
 }
 
 // A negative cache row older than negativeTTL must be treated as a miss
-// and the upstream retried — TIDB may have new data since the initial scan.
+// and the upstream retried - TIDB may have new data since the initial scan.
 func TestCached_NegativeCacheRespectsTTL(t *testing.T) {
 	t.Parallel()
 	episode, repoBackend := minimalEpisodeFixture(t)
@@ -161,7 +161,7 @@ func TestCached_NegativeCacheRespectsTTL(t *testing.T) {
 }
 
 // A negative cache row younger than negativeTTL must still block the
-// upstream call — within the window, we trust the cached 404.
+// upstream call - within the window, we trust the cached 404.
 func TestCached_NegativeCacheWithinTTL_HitsCache(t *testing.T) {
 	t.Parallel()
 	episode, repoBackend := minimalEpisodeFixture(t)
@@ -194,7 +194,7 @@ func TestCached_NegativeCacheTTLZero_ForeverHit(t *testing.T) {
 	inner := &fakeInner{segs: []domainlibrary.MediaSegment{
 		{Type: "intro", StartMs: 0, EndMs: 60000, Source: "tidb"},
 	}}
-	// TTL=0 is the default — explicit zero disables expiry.
+	// TTL=0 is the default - explicit zero disables expiry.
 	cached := NewCached(inner, resolver, cache).WithNegativeTTL(0)
 
 	got, err := cached.GetSegments(context.Background(), episode)

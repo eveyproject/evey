@@ -88,7 +88,7 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 // is in allowedLibIDs. Returns skip=true when no items survive the filter
 // (collection should be omitted from the listing).
 // When allowedLibIDs is nil (admin or no access-service wired), all items are
-// returned without filtering and skip is always false — matching the original
+// returned without filtering and skip is always false - matching the original
 // per-collection semantics.
 func filterItemsByAccess(items []*library.MediaItem, allowedLibIDs []string) ([]*library.MediaItem, bool) {
 	if allowedLibIDs == nil {
@@ -298,7 +298,7 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 		span.SetStatus(otelcodes.Error, filterErr.Error())
 		return nil, internalError("check access", filterErr)
 	}
-	// Apply the active profile's parental filter per item — without this a kid
+	// Apply the active profile's parental filter per item - without this a kid
 	// profile could enumerate adult titles through GetCollectionItems even
 	// though GetCollection/ListCollections hide the collection.
 	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
@@ -369,7 +369,7 @@ func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectio
 		return internalError("check access", err)
 	}
 	if allowed == nil {
-		// Admin or no access service wired (tests) — defer to RBAC.
+		// Admin or no access service wired (tests) - defer to RBAC.
 		return nil
 	}
 	if _, getErr := h.svc.GetByID(ctx, collectionID); getErr != nil {

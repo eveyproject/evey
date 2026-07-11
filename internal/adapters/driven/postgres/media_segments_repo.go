@@ -179,7 +179,7 @@ func (r *MediaSegmentRepository) UpsertUnlessManual(ctx context.Context, seg *li
 }
 
 // UpsertUnlessOperatorManual is UpsertUnlessManual that locks ONLY against the
-// operator's hard 'manual' mark — 'manual_propagated' rows ARE overwritable. The
+// operator's hard 'manual' mark - 'manual_propagated' rows ARE overwritable. The
 // intro propagation path needs this: it writes 'manual_propagated' and must be
 // able to refresh its own previous propagation on a re-run, while the atomic
 // WHERE still closes the TOCTOU against an operator 'manual' that lands between
@@ -259,7 +259,7 @@ func (r *MediaSegmentRepository) DeleteByMediaItemIDAndType(ctx context.Context,
 
 // ListSeasonsMissingSegments returns the parent_ids of seasons whose
 // episodes (type='episode') have a trickplay manifest but no media_segments
-// rows yet. Drives the startup backfill — only returns seasons that can
+// rows yet. Drives the startup backfill - only returns seasons that can
 // actually be detected (trickplay required by the pHash pass).
 func (r *MediaSegmentRepository) ListSeasonsMissingSegments(ctx context.Context) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.ListSeasonsMissingSegments")
@@ -333,7 +333,7 @@ func (r *MediaSegmentRepository) RecordIntroDetectionAttempt(ctx context.Context
 // IntroDetectionExhaustedBatch is IntroDetectionExhausted for many items in a
 // single query, keyed by media item id. An id at an older algo_version, with
 // attempts under the cap, or with no row at all is simply absent from the
-// returned map (not exhausted) — mirroring the single-item semantics. Used by
+// returned map (not exhausted) - mirroring the single-item semantics. Used by
 // the intro detection season sweep to replace a per-candidate-episode query
 // with one query for the whole page.
 func (r *MediaSegmentRepository) IntroDetectionExhaustedBatch(ctx context.Context, mediaItemIDs []string, algoVersion, maxAttempts int) (map[string]bool, error) {

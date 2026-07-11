@@ -137,4 +137,3 @@ func readExifString(tiff, valueField []byte, dataType uint16, count int, order b
 	s := strings.TrimRight(string(raw), "\x00")
 	return strings.TrimSpace(s)
 }
-

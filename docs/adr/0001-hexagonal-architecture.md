@@ -22,7 +22,7 @@ Adopt hexagonal architecture with strict layering:
 - Every domain port ships with a fake implementation used in unit tests; adapter-level tests cover real infra separately.
 - New bounded contexts follow the same template: `domain/<ctx>` + `app/<ctx>` + adapter additions.
 - Cross-context collaboration goes through app-service interfaces or the shared event bus, never direct domain imports.
-- The cost is boilerplate (interface + fake + wire binding) — accepted for the testability and evolvability gains.
+- The cost is boilerplate (interface + fake + wire binding) - accepted for the testability and evolvability gains.
 
 ## References
 

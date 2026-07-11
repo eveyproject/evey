@@ -44,7 +44,7 @@ func TestMigrate_UpDownUp_Roundtrip(t *testing.T) {
 			"POSTGRES_DB":       "evey_test",
 		},
 		// During initdb, the listen socket briefly opens while postgres
-		// is still bootstrapping — Ping lands on "connection reset by
+		// is still bootstrapping - Ping lands on "connection reset by
 		// peer". The ready-log appears twice (init + final restart),
 		// so ForAll(ForLog occurrence=2, ForListeningPort) is the correct
 		// wait combo used by every other test in this package.
@@ -100,16 +100,16 @@ func TestMigrate_UpDownUp_Roundtrip(t *testing.T) {
 		}
 	})
 
-	// 1) First Up — apply everything.
+	// 1) First Up - apply everything.
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		t.Fatalf("first Up: %v", err)
 	}
 	firstSnap := schemaSnapshot(t, db)
 	if firstSnap == "" {
-		t.Fatal("first snapshot is empty — no tables created")
+		t.Fatal("first snapshot is empty - no tables created")
 	}
 
-	// 2) Down — rollback all. golang-migrate Down() with no args removes
+	// 2) Down - rollback all. golang-migrate Down() with no args removes
 	// every migration currently applied.
 	if err := m.Down(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		t.Fatalf("Down: %v", err)
@@ -119,7 +119,7 @@ func TestMigrate_UpDownUp_Roundtrip(t *testing.T) {
 		t.Fatalf("Down left tables behind:\n%s", postDown)
 	}
 
-	// 3) Second Up — everything must re-apply cleanly on the empty DB.
+	// 3) Second Up - everything must re-apply cleanly on the empty DB.
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		t.Fatalf("second Up: %v", err)
 	}

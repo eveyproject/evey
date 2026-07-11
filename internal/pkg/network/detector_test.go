@@ -10,11 +10,11 @@ import (
 func TestDetector_LAN(t *testing.T) {
 	d := NewDetector([]string{"192.168.0.0/16", "10.0.0.0/8"})
 	tests := []struct {
-		name     string
+		name       string
 		remoteAddr string
-		xff      string
-		realIP   string
-		want     NetworkType
+		xff        string
+		realIP     string
+		want       NetworkType
 	}{
 		{"private 192.168", "192.168.1.100:12345", "", "", LAN},
 		{"private 10.x", "10.0.0.5:9999", "", "", LAN},

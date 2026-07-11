@@ -11,11 +11,11 @@ import (
 )
 
 // sortTitleArticles lists leading words stripped from the sort key. Order
-// matters only for "l'" — it must be checked before "la " to avoid the
+// matters only for "l'" - it must be checked before "la " to avoid the
 // space-anchored prefix scanning past it. Lowercased + already-trimmed
 // before comparison, so "Les " in the title still matches "les ".
 //
-// French, English, German, Spanish, Italian — the languages currently
+// French, English, German, Spanish, Italian - the languages currently
 // supported by the i18n layer. Adding more is harmless as long as each
 // entry ends with a space (or "'" for elided articles) so we never
 // truncate a word like "an" out of "anatomy".
@@ -44,7 +44,7 @@ var whitespaceRe = regexp.MustCompile(`\s+`)
 // newDiacriticsStripper builds a fresh transform chain (NFD → drop
 // combining marks → NFC). The chain holds mutable state across Reset/
 // Transform calls inside transform.String, so a package-level instance
-// would race under concurrent use. Allocate per call — cheap, and only
+// would race under concurrent use. Allocate per call - cheap, and only
 // runs on title insert/update or backfill batches.
 func newDiacriticsStripper() transform.Transformer {
 	return transform.Chain(
@@ -55,7 +55,7 @@ func newDiacriticsStripper() transform.Transformer {
 }
 
 // NormalizeSortTitle derives the sortable key from a display title. Aim:
-// alphabetical browsing matches user expectations — "The Matrix" lands
+// alphabetical browsing matches user expectations - "The Matrix" lands
 // under M, "Les âmes vagabondes" under A, "2001" before "2010".
 //
 // Pipeline:
@@ -67,7 +67,7 @@ func newDiacriticsStripper() transform.Transformer {
 //  5. Zero-pad a leading number run so lexicographic sort matches numeric
 //
 // Returns an empty string for empty input so the SQL column can stay
-// NOT NULL DEFAULT ''.
+// NOT NULL DEFAULT ”.
 func NormalizeSortTitle(title string) string {
 	t := strings.TrimSpace(title)
 	if t == "" {

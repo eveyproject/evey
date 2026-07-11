@@ -34,7 +34,7 @@ export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
     // The datetime-local input yields "YYYY-MM-DDTHH:mm" (local time, no seconds
     // or zone), but expiresAt maps to a protobuf Timestamp whose JSON form is
     // strict RFC3339. Sent raw, protojson rejects it and any expiry-dated invite
-    // fails — so convert to an ISO-8601 UTC string first.
+    // fails - so convert to an ISO-8601 UTC string first.
     let expiresAtISO: string | undefined;
     if (expiresAt) {
       const d = new Date(expiresAt);

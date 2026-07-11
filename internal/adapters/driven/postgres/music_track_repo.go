@@ -326,7 +326,7 @@ func (r *MusicTrackRepository) Search(ctx context.Context, libraryID shared.Libr
 
 // GetAlbums groups tracks by their parent folder (album_folder). Each
 // display field on the returned Album is the most frequent value among
-// the tracks of that folder — ID3 tags within a folder can disagree
+// the tracks of that folder - ID3 tags within a folder can disagree
 // (a featuring changes album_artist on one track, an Apple-Music-style
 // import writes "Apple Essentials" on the album tag, etc). The
 // folder wins as identity; the majority wins for display.
@@ -456,7 +456,7 @@ func (r *MusicTrackRepository) ListAllByLibrary(ctx context.Context, libraryID s
 	return tracks, err
 }
 
-// SampleByLibrary returns up to limit RANDOM tracks of the library — a bounded
+// SampleByLibrary returns up to limit RANDOM tracks of the library - a bounded
 // candidate pool for the playlist generator so a huge library isn't loaded whole
 // into memory just to pick a few dozen tracks. Genre affinity is computed
 // separately from the profile's full history, so the sample only needs to be a

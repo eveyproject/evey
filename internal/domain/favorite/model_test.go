@@ -94,4 +94,3 @@ func TestNewFavorite(t *testing.T) {
 		}
 	})
 }
-

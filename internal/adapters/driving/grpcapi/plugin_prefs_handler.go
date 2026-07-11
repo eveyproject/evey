@@ -28,7 +28,7 @@ func newPluginUserDataHandler(data plugin.PluginDataRepository) *pluginUserDataH
 
 // scope resolves the calling plugin, user and active profile from the token.
 // These methods are only meaningful for a scoped plugin token (the iframe); any
-// other caller is rejected. profileID may be empty (no active profile) — the
+// other caller is rejected. profileID may be empty (no active profile) - the
 // store then falls back to the per-user scope.
 func (h *pluginUserDataHandler) scope(ctx context.Context) (pluginID, userID, profileID string, err error) {
 	c := interceptors.PluginClaimsFromContext(ctx)

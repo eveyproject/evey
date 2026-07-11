@@ -21,7 +21,7 @@ const (
 )
 
 // wordmarkRows is "EVEY" in the ANSI Shadow face, split per letter so the V (col
-// 2) can be brand red while E·E·Y take the text colour — mirroring the app mark.
+// 2) can be brand red while E·E·Y take the text colour - mirroring the app mark.
 var wordmarkRows = [...][4]string{
 	{"███████╗", "██╗   ██╗", "███████╗", "██╗   ██╗"},
 	{"██╔════╝", "██║   ██║", "██╔════╝", "╚██╗ ██╔╝"},

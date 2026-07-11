@@ -185,7 +185,7 @@ func TestMediaItemRepo_Delete(t *testing.T) {
 
 // Regression: Delete on an unknown id must return shared.ErrNotFound.
 // Pre-fix the Scan error was masked with `_ =` so a missing row slipped
-// into the DELETE path and only surfaced via RowsAffected==0 — same
+// into the DELETE path and only surfaced via RowsAffected==0 - same
 // outcome but any other Scan error (transient conn issue, etc.) was
 // also silently swallowed.
 func TestMediaItemRepo_Delete_NotFound(t *testing.T) {

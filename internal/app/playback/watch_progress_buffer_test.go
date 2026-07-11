@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mustDurationMs is a test helper that panics on a negative input — tests
+// mustDurationMs is a test helper that panics on a negative input - tests
 // that pass real (non-negative) literals stay terse without sprinkling
 // error-handling boilerplate at every call site.
 func mustDurationMs(ms int64) shared.Duration {
@@ -63,7 +63,7 @@ func TestWatchProgressBuffer_EnqueueDoesNotHitRepo(t *testing.T) {
 		})
 	}
 
-	// 10 Enqueues, 0 Upserts — the hot path stays off the DB.
+	// 10 Enqueues, 0 Upserts - the hot path stays off the DB.
 	assert.Equal(t, int64(0), repo.Calls())
 	assert.Equal(t, 1, buf.Pending(), "same key should fold to a single entry")
 }

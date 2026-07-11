@@ -58,7 +58,7 @@ func TestQueryService_UnreadCount_ExcludesAdminOnly(t *testing.T) {
 
 	count, err := svc.UnreadCount(context.Background(), "p1")
 	require.NoError(t, err)
-	assert.Equal(t, 2, count, "only n1 and n5 are unread+personal — admin-only excluded")
+	assert.Equal(t, 2, count, "only n1 and n5 are unread+personal - admin-only excluded")
 }
 
 // ListAdminOnly is the inverse of List: it surfaces plugin_error and
@@ -87,7 +87,7 @@ func TestQueryService_ListAdminOnly_KeepsOnlyAdminTypes(t *testing.T) {
 	}
 }
 
-// ListAdminOnly with unreadOnly=true filters by read state too — relied on
+// ListAdminOnly with unreadOnly=true filters by read state too - relied on
 // by the admin badge counter.
 func TestQueryService_ListAdminOnly_UnreadOnly(t *testing.T) {
 	t.Parallel()

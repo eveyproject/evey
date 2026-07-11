@@ -363,7 +363,7 @@ func TestWithSandboxMode_StoresBasic(t *testing.T) {
 // Plugins are long-running services (gRPC lifecycle stub, periodic jobs); a
 // deadline on their exec context SIGKILLs them mid-flight and surfaces as a
 // bogus "crashed / OOM" report. Prod proof (préprod 2026-07-05→11): every
-// weather-v2 "crash" landed at start+30:00.000 exactly — the old 30-minute
+// weather-v2 "crash" landed at start+30:00.000 exactly - the old 30-minute
 // pluginExecTimeout, not memory.
 func TestPluginProcContext_LongRunning(t *testing.T) {
 	parent, cancelParent := context.WithCancel(context.Background())
@@ -382,7 +382,7 @@ func TestPluginProcContext_LongRunning(t *testing.T) {
 
 // TestClassifyExitError_OOMHints pins the human-readable classification of
 // SIGKILL crashes. Server-initiated kills (Stop/Kill/resmon) never reach this
-// path — they detrack the entry first — so the hint must blame the outside
+// path - they detrack the entry first - so the hint must blame the outside
 // world (host OOM-killer / manual kill) and redirect the EVEY_PLUGINS_MEMORY_MB
 // suspicion to the resmon's own 'memory quota exceeded' log line. Anything
 // else falls through to the raw error string.
@@ -408,7 +408,7 @@ func TestClassifyExitError_OOMHints(t *testing.T) {
 }
 
 // killSelfAndWait runs `sleep 60`, sends SIGKILL, and returns the Wait error.
-// The resulting *exec.ExitError carries WaitStatus.Signal()=SIGKILL — exactly
+// The resulting *exec.ExitError carries WaitStatus.Signal()=SIGKILL - exactly
 // the shape produced when the host OOM-killer or cgroup memory.max fires.
 func killSelfAndWait(t *testing.T) error {
 	t.Helper()
@@ -420,7 +420,7 @@ func killSelfAndWait(t *testing.T) error {
 
 // TestWithSandboxMode_InvalidMappedToDefault documents that any unrecognised
 // value (including empty string) is silently mapped to the default sandbox mode
-// (bubblewrap). This prevents accidental escalation from a config typo —
+// (bubblewrap). This prevents accidental escalation from a config typo -
 // the runner stays in the known-safe default rather than refusing to start.
 func TestWithSandboxMode_InvalidMappedToDefault(t *testing.T) {
 	for _, bad := range []string{"", "none", "BUBBLEWRAP", "unknown"} {
@@ -458,7 +458,7 @@ func TestWithSandboxMode_BwrapAbsent(t *testing.T) {
 // TestRunnerAllowsSubprocessPermWithDevOverride documents that a plugin granted
 // the subprocess permission may start WITHOUT launcher confinement only under
 // the dev override (WithAllowMissingSandbox). In production (no override) a
-// missing launcher fail-closes instead — see
+// missing launcher fail-closes instead - see
 // TestApplyBasicSandbox_SubprocessRequiresLauncherWhenAbsent.
 func TestRunnerAllowsSubprocessPermWithDevOverride(t *testing.T) {
 	bin := buildTestBinary(t)
@@ -563,7 +563,7 @@ func TestSetupSocketDir_UIDSeparationParentTraversable(t *testing.T) {
 		assert.NotZero(t, parent.Mode().Perm()&0o010,
 			"parent must be group-traversable (group execute) so the dropped uid can reach its socket")
 		assert.Zero(t, parent.Mode().Perm()&0o044,
-			"parent must NOT be readable by group/other — traverse only, no enumeration")
+			"parent must NOT be readable by group/other - traverse only, no enumeration")
 
 		sub, err := os.Stat(dir)
 		require.NoError(t, err)

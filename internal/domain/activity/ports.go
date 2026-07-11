@@ -56,13 +56,13 @@ type PlaySessionStatsReader interface {
 	GetServerStats(ctx context.Context) (*ServerStatsResult, error)
 	GetMostPopular(ctx context.Context, profileID string, limit int) ([]MediaPlayCount, error)
 	// GetActiveSessionsBitrate sums the source bitrate of every active play
-	// session — the dashboard's "theoretical outgoing rate". Uncached: the
+	// session - the dashboard's "theoretical outgoing rate". Uncached: the
 	// dashboard polls every few seconds and the active set is small.
 	GetActiveSessionsBitrate(ctx context.Context) (int64, error)
 }
 
 // PlayHistoryCursor keysets by (started_at, id) DESC. Same shape as
-// LoginHistoryCursor — history feeds are always time-ordered.
+// LoginHistoryCursor - history feeds are always time-ordered.
 type PlayHistoryCursor struct {
 	StartedAt time.Time
 	SessionID string

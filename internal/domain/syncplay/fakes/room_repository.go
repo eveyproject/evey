@@ -112,7 +112,7 @@ func (r *FakeRoomRepository) RemoveMemberAndDeleteIfEmpty(_ context.Context, roo
 		delete(r.items, roomID)
 		return true, "", nil
 	}
-	// Elect a new host if the departing member was the host — mirrors the
+	// Elect a new host if the departing member was the host - mirrors the
 	// atomicity guarantee provided by the postgres FOR UPDATE transaction.
 	newHostID := ""
 	if string(room.HostID) == userID {

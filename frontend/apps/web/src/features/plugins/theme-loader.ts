@@ -1,4 +1,4 @@
-// Deprecated — CSS/JS theme lifecycle is now owned by ThemeLoader
+// Deprecated - CSS/JS theme lifecycle is now owned by ThemeLoader
 // (frontend/apps/web/src/features/themes/ThemeLoader.tsx).
 // These stubs exist to keep ThemeProvider.tsx compiling without modification.
 // ThemeLoader is mounted in __root.tsx alongside ThemeProvider and handles

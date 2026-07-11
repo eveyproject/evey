@@ -156,7 +156,7 @@ func TestOIDCCallback_ValidState_TokenExchangeFails_RedirectsToError(t *testing.
 		t.Fatal("state param missing from authURL")
 	}
 
-	// Send callback with valid state but a bogus code — provider token exchange will fail,
+	// Send callback with valid state but a bogus code - provider token exchange will fail,
 	// so the handler redirects to /login?oidc_error=1.
 	req := httptest.NewRequest(http.MethodGet,
 		"/api/v1/auth/oidc/callback?code=bogus-code&state="+validState, nil)
@@ -266,7 +266,7 @@ func TestExtractBearerToken_Empty(t *testing.T) {
 }
 
 // =====================================
-// Parental — cross-profile IDOR, nil parental, rate-limit exhaustion
+// Parental - cross-profile IDOR, nil parental, rate-limit exhaustion
 // =====================================
 
 func TestParentalVerifyPIN_CrossProfileIDOR(t *testing.T) {
@@ -300,7 +300,7 @@ func TestParentalVerifyPIN_AdminAllowedCrossProfile(t *testing.T) {
 }
 
 func TestParentalVerifyPIN_NilParental(t *testing.T) {
-	// Profile without Parental config — must not nil-pointer crash; returns valid=true.
+	// Profile without Parental config - must not nil-pointer crash; returns valid=true.
 	mux, gen := newParentalMux(t)
 	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/profiles/prof-1/parental/verify-pin", strings.NewReader(`{"pin":""}`))

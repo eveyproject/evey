@@ -42,7 +42,7 @@ type StarvedTitle struct {
 }
 
 // DeviceBreakdown is the "where is it bad" slice. Pure player-side device
-// class — no IP geo, no fingerprinting.
+// class - no IP geo, no fingerprinting.
 type DeviceBreakdown struct {
 	DeviceClass    string  `json:"device_class"`
 	TotalEvents    int64   `json:"total_events"`
@@ -54,9 +54,9 @@ type DeviceBreakdown struct {
 
 // Dashboard is the bundle the admin endpoint returns in one shot.
 type Dashboard struct {
-	Summary       *Summary          `json:"summary"`
-	TopStarved    []StarvedTitle    `json:"top_starved_titles"`
-	ByDevice      []DeviceBreakdown `json:"by_device"`
+	Summary    *Summary          `json:"summary"`
+	TopStarved []StarvedTitle    `json:"top_starved_titles"`
+	ByDevice   []DeviceBreakdown `json:"by_device"`
 }
 
 // QueryService composes the reader calls into a single dashboard view. All
@@ -91,7 +91,7 @@ func (s *QueryService) GetDashboard(ctx context.Context, window time.Duration) (
 	// process: these run detached (joined by wg.Wait), so an unrecovered panic
 	// isn't caught by the HTTP middleware. On a panic the sub-result stays zero
 	// and its err slot records it, degrading the admin dashboard rather than
-	// crashing. Registered AFTER wg.Done (LIFO) so Done always runs — no hang.
+	// crashing. Registered AFTER wg.Done (LIFO) so Done always runs - no hang.
 	recoverQoEQuery := func(slot int) {
 		if r := recover(); r != nil {
 			errs[slot] = fmt.Errorf("qoe dashboard query panicked: %v", r)

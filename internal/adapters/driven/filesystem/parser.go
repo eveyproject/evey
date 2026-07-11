@@ -74,7 +74,7 @@ func extraEditionRegex() *regexp.Regexp {
 }
 
 // strongLanguageTags maps unambiguous filename tokens to ISO 639-1 codes.
-// These always anchor the title end when they appear in a filename —
+// These always anchor the title end when they appear in a filename -
 // nobody writes a movie called "French" or "VOSTFR".
 var strongLanguageTags = map[string]string{
 	// French
@@ -115,7 +115,7 @@ var strongLanguageTags = map[string]string{
 // "de" = French preposition + German ISO, "fr" = rare but "en"/"es"/"ja"
 // exist as prepositions/interjections in various langs). They only count
 // as language tags when they appear AFTER a strong metadata marker
-// (S0xE0x / year / quality / strong language tag / codec) — otherwise a
+// (S0xE0x / year / quality / strong language tag / codec) - otherwise a
 // title like "It welcome to derry S01E03" would truncate to "It" because
 // idx 0 gets flagged as Italian.
 var weakLanguageTags = map[string]string{
@@ -126,7 +126,7 @@ var weakLanguageTags = map[string]string{
 
 // knownQualities for part-based detection (lowercase).
 // Includes the bare-number resolutions (no `p` suffix) because some upstream
-// renamers omit the `p` — without these entries, a token like `1080` leaks
+// renamers omit the `p` - without these entries, a token like `1080` leaks
 // into the title and TMDB then matches on a polluted query (e.g. "Mr Wolf
 // 1080" → no match, "American Ultra 1080" → no match).
 var knownQualities = map[string]bool{
@@ -144,7 +144,7 @@ var knownQualities = map[string]bool{
 }
 
 // reBogusResolution matches 4-digit + P/p tokens that the standard quality
-// set doesn't cover (e.g. "2016P" — likely a typo for 2160P from some
+// set doesn't cover (e.g. "2016P" - likely a typo for 2160P from some
 // renaming tool). Filtering these out keeps them from polluting the title.
 var reBogusResolution = regexp.MustCompile(`^\d{3,4}[pP]$`)
 
@@ -158,7 +158,7 @@ var (
 	// reSEDelimited collapses `S03 E17`, `S03.E17`, `S03_E17` into a single
 	// token before split. Real-world Dr House rips ship with a space between
 	// the season and episode markers, which made the parser leave the SxxExx
-	// in the title — and the TV scan service then created one orphan SERIES
+	// in the title - and the TV scan service then created one orphan SERIES
 	// per file instead of grouping them under "Dr House".
 	reSEDelimited = regexp.MustCompile(`(?i)([sS]\d{1,2})[ ._-]+([eE]\d{1,3})`)
 	// reEditionSuffix strips editorial cut tags that would otherwise leak
@@ -215,7 +215,7 @@ func ParseFilename(filename string) ParsedInfo {
 	// title shortcut never fires.
 	name = reEditionSuffix.ReplaceAllString(name, " ")
 	// Admin-configured extra edition suffixes (set via the admin server-
-	// config UI / parser.config server_config key) — applied after the
+	// config UI / parser.config server_config key) - applied after the
 	// static regex so admins can add patterns without having to wait for
 	// a release. A common case: distributor-specific edition names not
 	// covered by the baseline list ("dc", "extreme", "imax", …).
@@ -229,7 +229,7 @@ func ParseFilename(filename string) ParsedInfo {
 	// as a separator still classifies. Real-world + synthetic culprits: "+S02E06+",
 	// "[S02E06]", "{1080p}". Without this the marker leaks into the title and the
 	// TV scan creates one SERIES per episode (the Furies-duplicated-6x bug).
-	// Done at the TOKEN level only — `name` stays intact for the codec/audio/
+	// Done at the TOKEN level only - `name` stays intact for the codec/audio/
 	// release-group regexes below, which rely on "." / "-" inside tokens
 	// (x264, h.264, dd5.1, -GROUP).
 	for i := range parts {
@@ -340,7 +340,7 @@ func tryExtractLanguage(info *ParsedInfo, lower string, idx int, firstMeta *int)
 		return true
 	}
 	// Weak 2-letter ISO codes require a strong marker to the left to rule
-	// out natural-language collisions. They never move firstMeta — only
+	// out natural-language collisions. They never move firstMeta - only
 	// strong markers anchor the title/metadata boundary.
 	if iso, ok := weakLanguageTags[lower]; ok && *firstMeta < idx {
 		info.Language = iso
@@ -358,7 +358,7 @@ func tryExtractQuality(info *ParsedInfo, lower string, idx int, firstMeta *int) 
 		}
 		return true
 	}
-	// Catch `2016P`, `2017P`, etc. — these look like resolutions but aren't
+	// Catch `2016P`, `2017P`, etc. - these look like resolutions but aren't
 	// in the canonical set. They show up in misconfigured renamer output;
 	// the safe move is to drop them rather than leak them into the title.
 	// Already-classified years are handled by tryExtractYear before this.

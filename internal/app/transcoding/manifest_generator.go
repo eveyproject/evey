@@ -17,7 +17,7 @@ import (
 const ManifestSegmentSeconds = 3.0
 
 // ManifestInput is the minimal info needed to render an HLS master + variant playlists
-// for a single playback decision. The same input must always produce the same manifest —
+// for a single playback decision. The same input must always produce the same manifest -
 // callers therefore derive `MediaID + Profiles + StreamToken` from the playback decision
 // up front and reuse it for the lifetime of the session.
 type ManifestInput struct {
@@ -25,7 +25,7 @@ type ManifestInput struct {
 	MediaID string
 
 	// DurationSec is the total media duration. The manifest is sliced into
-	// ceil(Duration / ManifestSegmentSeconds) segments. Must be > 0 — callers
+	// ceil(Duration / ManifestSegmentSeconds) segments. Must be > 0 - callers
 	// fall back on a "growing event" manifest path when duration is unknown.
 	DurationSec float64
 
@@ -55,7 +55,7 @@ type ManifestInput struct {
 	Containers  []string
 
 	// UseFMP4 picks the segment container: fMP4 (`.m4s` + `stream_N_init.mp4`)
-	// when true, MPEG-TS (`.ts`) when false. fMP4 is default in production —
+	// when true, MPEG-TS (`.ts`) when false. fMP4 is default in production -
 	// segments are ~30% smaller and CMAF-style aligns with hls.js modern path.
 	UseFMP4 bool
 
@@ -69,7 +69,7 @@ type ManifestInput struct {
 	// CopyVideoRange is the HLS VIDEO-RANGE attribute value ("PQ" or "HLG")
 	// for the copy rung when the SOURCE is HDR and served raw, "" otherwise.
 	// Only the copy rung carries it: transcoded rungs are tonemapped to SDR.
-	// Apple's HLS authoring spec requires VIDEO-RANGE on HDR variants —
+	// Apple's HLS authoring spec requires VIDEO-RANGE on HDR variants -
 	// without it some Safari/tvOS versions render PQ as washed-out SDR or
 	// refuse the rendition; hls.js ignores unknown attributes, so emitting it
 	// is free for web.
@@ -87,7 +87,7 @@ type ManifestInput struct {
 
 	// ResumeOffsetSec, when > 0, emits `#EXT-X-START:TIME-OFFSET=<n>` in
 	// each variant so Safari natif / AirPlay / tvOS resume at the right
-	// position without a JS seek. NOT hashed into the decisionHash —
+	// position without a JS seek. NOT hashed into the decisionHash -
 	// per-user resume must NOT shard the segment cache. Threaded via a
 	// query param outside the cache key.
 	ResumeOffsetSec float64
@@ -100,7 +100,7 @@ type ManifestInput struct {
 	// first entry is marked DEFAULT=YES.
 	//
 	// Empty (the default) preserves the pre-feature muxed-pipeline
-	// behaviour bit-for-bit — every existing client and test keeps
+	// behaviour bit-for-bit - every existing client and test keeps
 	// working without change.
 	AudioRenditions []AudioRendition
 
@@ -108,7 +108,7 @@ type ManifestInput struct {
 	// baked URL. The master decision (copy rung vs tonemap) reads this flag;
 	// without re-baking it, the variant/segment requests re-derive the decision
 	// WITHOUT it and produce tonemapped SDR h264 segments inside a variant the
-	// master advertised as hvc1/PQ copy — codec mismatch, broken playback.
+	// master advertised as hvc1/PQ copy - codec mismatch, broken playback.
 	HDRCapable bool
 
 	// AudioOffsetMs is the user's audio resync (positive = audio later). A
@@ -131,7 +131,7 @@ type ManifestInput struct {
 
 	// VideoPlaylistURI, when set, overrides the video variant's playlist URI
 	// (the default is stream_<idx>.m3u8). It is honoured ONLY for a
-	// single-variant input — the on-demand copy rung uses it to point the one
+	// single-variant input - the on-demand copy rung uses it to point the one
 	// video variant at the mkvgo packager's playlist (od_playlist.m3u8) while
 	// the audio renditions stay Evey's ffmpeg pipeline (the hybrid master:
 	// stateless video from PlanHLS + transcoded AAC audio). Empty preserves the
@@ -180,7 +180,7 @@ func (in *ManifestInput) SegmentCount() int {
 }
 
 // ManifestGenerator renders HLS master + variant playlists from a decision
-// upfront — no ffmpeg involved. The playlists are immutable for the lifetime
+// upfront - no ffmpeg involved. The playlists are immutable for the lifetime
 // of a (mediaID, decision) pair: hls.js fetches them once and trusts them.
 // Segments are encoded on demand by the segment orchestrator when the player
 // fetches them; the manifest's job is just to publish the contract.
@@ -209,7 +209,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	b.WriteString("#EXTM3U\n")
 	b.WriteString("#EXT-X-VERSION:6\n")
 	// Declares to hls.js (and well-behaved players) that every segment starts
-	// at a keyframe — true here because the ffmpeg adapter forces keyframes
+	// at a keyframe - true here because the ffmpeg adapter forces keyframes
 	// at the segment boundary cadence. Lets the player switch renditions
 	// (ABR) and back-seek within the buffer without re-pulling adjacent
 	// segments to find an IDR. Without this tag the player has to assume
@@ -219,7 +219,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 
 	// When audio is served as a SEPARATE rendition it is always transcoded to AAC
 	// (transcode_audio_handler hardcodes mp4a), so the variant CODECS must
-	// advertise mp4a — not the decision's possibly-ac3/eac3 muxed codec. Otherwise
+	// advertise mp4a - not the decision's possibly-ac3/eac3 muxed codec. Otherwise
 	// Safari validates the master against e.g. an "ec-3" claim on an AAC rendition
 	// and refuses it. Muxed path (no renditions) keeps the decision codec.
 	effectiveAudioCodec := in.ChosenAudioCodec
@@ -233,7 +233,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// track and tie every variant to the shared "aud" group. The
 	// variants now carry video-only segments (the audio playlist holds
 	// the audio segments). Pre-feature behaviour stays bit-for-bit
-	// identical when in.AudioRenditions is empty — every existing
+	// identical when in.AudioRenditions is empty - every existing
 	// caller, test and client falls through to the muxed path below.
 	audioGroup := ""
 	if len(in.AudioRenditions) > 0 {
@@ -264,7 +264,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	for i, p := range in.Profiles {
 		// BANDWIDTH is the playlist's peak bitrate in bps. We use video + audio
 		// (both in kbps from the profile, so multiply by 1000). hls.js uses it
-		// to drive ABR switches — if it's wrong the wrong rendition is picked.
+		// to drive ABR switches - if it's wrong the wrong rendition is picked.
 		bps := (p.VideoBitrate + p.AudioBitrate) * 1000
 		// AVERAGE-BANDWIDTH lets the player factor sustained throughput vs
 		// the peak. We estimate it at 85% of peak (typical for VBR encodes
@@ -309,7 +309,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 
 // Variant renders one sub-playlist (one ABR rendition). profileIdx must be a
 // valid index into in.Profiles. The variant is VOD (PLAYLIST-TYPE:VOD +
-// ENDLIST), so hls.js treats it as a complete on-demand stream — no live-edge
+// ENDLIST), so hls.js treats it as a complete on-demand stream - no live-edge
 // snapping, no re-fetch of the playlist while playing.
 //
 // Each segment is listed with #EXTINF duration. All segments are
@@ -384,13 +384,13 @@ func (g *ManifestGenerator) Variant(in ManifestInput, profileIdx int) (string, e
 // AudioPlaylist renders the audio-only sub-playlist for one source
 // audio track. trackIdx is the 0-indexed audio stream in the source
 // media (matches AudioRendition.SourceTrackIdx). The playlist mirrors
-// the Variant() shape — same segment cadence, same VOD framing,
-// EXT-X-MAP init — so the player keeps the audio and video timelines
+// the Variant() shape - same segment cadence, same VOD framing,
+// EXT-X-MAP init - so the player keeps the audio and video timelines
 // aligned through `#EXT-X-INDEPENDENT-SEGMENTS` declared on the master.
 //
 // Only valid when in.AudioRenditions is non-empty AND trackIdx matches
 // one of the registered renditions; otherwise returns an error. Always
-// emits fMP4 segments — the audio rendition path doesn't support TS.
+// emits fMP4 segments - the audio rendition path doesn't support TS.
 func (g *ManifestGenerator) AudioPlaylist(in ManifestInput, trackIdx int) (string, error) {
 	if err := in.Validate(); err != nil {
 		return "", err
@@ -452,7 +452,7 @@ func (g *ManifestGenerator) AudioPlaylist(in ManifestInput, trackIdx int) (strin
 // hlsAttrSafe strips characters RFC 8216 §4.2 forbids inside a quoted-string
 // (", CR, LF) plus other control chars from a value (a track NAME/LANGUAGE comes
 // from file metadata). %q would backslash-escape them, which hls.js's "([^"]*)"
-// attribute parser then mis-reads — corrupting the rest of the EXT-X-MEDIA line
+// attribute parser then mis-reads - corrupting the rest of the EXT-X-MEDIA line
 // and dropping the rendition. Removing them keeps the attribute list parseable.
 func hlsAttrSafe(s string) string {
 	return strings.Map(func(r rune) rune {
@@ -466,11 +466,11 @@ func hlsAttrSafe(s string) string {
 // codecsAttr returns the RFC 6381 codecs string for the master playlist
 // `CODECS=` attribute, given the chosen video + audio codec from the ffmpeg
 // decision. Safari validates this string up front and refuses to fetch
-// segments when it doesn't match its decoder capability — historically we
+// segments when it doesn't match its decoder capability - historically we
 // hardcoded `avc1.640028,mp4a.40.2` which silently locked Safari out of
 // any HEVC / AV1 / VP9 rendition. The strings here are deliberately
 // permissive within each codec family (no profile/level enumeration per
-// rendition) — that's the right tradeoff: we don't yet probe per-rendition
+// rendition) - that's the right tradeoff: we don't yet probe per-rendition
 // profile, and a too-narrow string is what bricks Safari.
 //
 // Audio falls back to AAC-LC when unknown. Empty inputs ⇒ pre-refactor
@@ -484,14 +484,14 @@ func codecsAttr(videoCodec, audioCodec string) string {
 func videoCodecAttr(c string) string {
 	switch c {
 	case "hevc", "h265", "x265":
-		// hvc1.1.6.L93.B0 = HEVC main profile, main tier, level 3.1 — covers
+		// hvc1.1.6.L93.B0 = HEVC main profile, main tier, level 3.1 - covers
 		// up to 1080p30. For 4K + main10 you'd want hvc1.2.4.L150.B0; we keep
 		// the broader string because we don't have per-rendition profile/level
 		// data wired through yet, and Safari accepts the permissive form.
 		return "hvc1.1.6.L93.B0"
 	case "av1", "av01":
 		// av01.0.04M.08 = Main profile, level 3.0, Main tier, 8-bit. The transcode
-		// output is always yuv420p (8-bit) — declaring 10-bit (.10) made MSE create
+		// output is always yuv420p (8-bit) - declaring 10-bit (.10) made MSE create
 		// a 10-bit SourceBuffer the 8-bit segments never matched, so hls.js
 		// downloaded everything and rendered nothing (perpetual buffering). 8-bit
 		// also matches the client capability probe (av01.0.00M.08 in codec.ts).
@@ -510,7 +510,7 @@ func videoCodecAttr(c string) string {
 // avcCodecString builds the EXACT RFC-6381 "avc1.PPCCLL" for an H.264 stream
 // from its ffprobe profile name + level_idc (e.g. High + 40 → "avc1.640028").
 // Used for the video-COPY rung so the master advertises the SOURCE's real
-// profile/level instead of the conservative hardcoded default — a too-low
+// profile/level instead of the conservative hardcoded default - a too-low
 // advertised level makes Safari/hls.js refuse a higher-level copied rendition.
 // PP=profile_idc, CC=constraint flags (00, correct for the High/Main 8-bit SDR
 // copy scope), LL=level_idc (the ffprobe level int, 40 = L4.0 = 0x28).
@@ -528,7 +528,7 @@ func avcProfileIDC(profile string) int {
 	case "baseline", "constrained baseline":
 		return 0x42
 	default:
-		return 0x64 // High — the safe default for the 8-bit SDR copy scope
+		return 0x64 // High - the safe default for the 8-bit SDR copy scope
 	}
 }
 
@@ -538,14 +538,14 @@ func avcProfileIDC(profile string) int {
 // Layout: hvc1.<profile_idc>.<compatibility flags>.L<level_idc>.<constraints>.
 // The compatibility flags are the profile_idc bit reversed-and-hexed: profile
 // 1 (Main) ⇒ 6 (Main 10 decoders also decode Main), profile 2 (Main 10) ⇒ 4.
-// Main tier ("L") is assumed — High-tier consumer files are effectively
+// Main tier ("L") is assumed - High-tier consumer files are effectively
 // nonexistent, and ffprobe doesn't surface the tier. "hvc1" (not "hev1") is
 // the sample-entry Safari requires; the mux side tags the track accordingly
 // (-tag:v hvc1).
 func hevcCodecString(profile string, level int) string {
 	idx := hevcProfileIdx(profile)
 	if idx == 0 {
-		return "" // unknown profile — the eligibility guard already rejected it
+		return "" // unknown profile - the eligibility guard already rejected it
 	}
 	compat := 6 // Main
 	if idx == 2 {
@@ -555,7 +555,7 @@ func hevcCodecString(profile string, level int) string {
 }
 
 // hevcProfileIdx maps an ffprobe HEVC profile name to its profile_idc, or 0
-// when unknown (only Main / Main 10 are wired — the consumer-content pair).
+// when unknown (only Main / Main 10 are wired - the consumer-content pair).
 func hevcProfileIdx(profile string) int {
 	switch strings.ToLower(strings.TrimSpace(profile)) {
 	case "main":
@@ -583,7 +583,7 @@ func av1CodecString(profile string, level int, tenBit bool) string {
 }
 
 // av1ProfileIdx maps an ffprobe AV1 profile name to its profile index, or -1
-// when unknown. Only Main (0) is wired — High (4:4:4) and Professional
+// when unknown. Only Main (0) is wired - High (4:4:4) and Professional
 // (12-bit/4:2:2) have no meaningful browser decode.
 func av1ProfileIdx(profile string) int {
 	if strings.EqualFold(strings.TrimSpace(profile), "main") {
@@ -672,7 +672,7 @@ func querySuffix(in ManifestInput) string {
 	}
 	if in.PinnedVideoDecision != "" {
 		// Pins the playback's video decision across playlist polls (see field
-		// doc) — the fix for the mid-play transcode→copy flip the keyframe
+		// doc) - the fix for the mid-play transcode→copy flip the keyframe
 		// backfill caused on a live session (green frames on HW decoders).
 		q.Set("vd", in.PinnedVideoDecision)
 	}

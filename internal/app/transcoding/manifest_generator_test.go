@@ -179,13 +179,13 @@ func TestManifestGenerator_Master_AudioRendition_CodecAndSanitize(t *testing.T) 
 	require.NoError(t, err)
 
 	// The variant CODECS must advertise the rendition's real codec (the rendition
-	// is always transcoded to AAC → mp4a.40.2), NOT the decision's ac3 — else
+	// is always transcoded to AAC → mp4a.40.2), NOT the decision's ac3 - else
 	// Safari refuses the master on an ec-3/ac-3 claim over an AAC stream.
 	assert.Contains(t, out, "mp4a.40.2")
 	assert.NotContains(t, out, "ac-3", "rendition CODECS must not claim ac-3 over an AAC rendition")
 
 	// A NAME with a literal " must be STRIPPED (RFC 8216 forbids it in a
-	// quoted-string), not backslash-escaped — an escaped quote breaks hls.js's
+	// quoted-string), not backslash-escaped - an escaped quote breaks hls.js's
 	// attribute parser and drops the rendition.
 	assert.Contains(t, out, "#EXT-X-MEDIA:")
 	assert.NotContains(t, out, `\"`, "NAME must not contain a backslash-escaped quote")
@@ -566,7 +566,7 @@ func TestManifestGenerator_Master_AudioRendition_NameFallback(t *testing.T) {
 	g := NewManifestGenerator()
 	in := baseInput(single360p, 10.0)
 	in.AudioRenditions = []AudioRendition{
-		{SourceTrackIdx: 2, Name: ""}, // missing Name — fall back to "Track 3"
+		{SourceTrackIdx: 2, Name: ""}, // missing Name - fall back to "Track 3"
 	}
 	out, err := g.Master(in)
 	require.NoError(t, err)

@@ -116,7 +116,7 @@ type loadTestRunner interface {
 
 // streamingRate derives the measured streaming bits/s since the previous
 // dashboard call. Returns -1 on the very first call (nothing to diff against)
-// — the frontend shows a dash instead of a misleading 0.
+// - the frontend shows a dash instead of a misleading 0.
 func (d *adminSystemHandler) streamingRate(total int64) int64 {
 	d.meterMu.Lock()
 	defer d.meterMu.Unlock()
@@ -316,12 +316,12 @@ func (d *adminSystemHandler) UpdateServerConfig(ctx context.Context, req *eveyv1
 func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardRequest) (*eveyv1.SetupWizardResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.SetupWizard")
 	defer span.End()
-	// IMPORTANT: create the admin FIRST — if setup is already done Setup()
+	// IMPORTANT: create the admin FIRST - if setup is already done Setup()
 	// returns ErrSetupDone and we must not have mutated server.language/region
 	// in the meantime. This endpoint is public (pre-setup) so any side-effect
 	// before the Setup check is an unauthenticated write on a running server.
 	// The chosen language/region are passed through as setup options so the
-	// admin's default profile is created with the picked locale — otherwise
+	// admin's default profile is created with the picked locale - otherwise
 	// the profile falls back to the DB column default ("en") and the JWT
 	// locale claim issued by the Login below would downgrade the UI back to
 	// English on the very next session.
@@ -401,7 +401,7 @@ func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDash
 		resp.StreamingBps = d.streamingRate(total)
 	}
 	// Theoretical outgoing rate: summed source bitrate of active sessions.
-	// Best effort — the dashboard stays useful without it.
+	// Best effort - the dashboard stays useful without it.
 	if bps, err := d.activitySvc.GetActiveSessionsBitrate(ctx); err == nil {
 		resp.ActiveSessionsBps = bps
 	}

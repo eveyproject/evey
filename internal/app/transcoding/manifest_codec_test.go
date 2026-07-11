@@ -15,11 +15,11 @@ func TestAvcCodecString(t *testing.T) {
 		level   int
 		want    string
 	}{
-		{"High", 40, "avc1.640028"},              // == the legacy hardcoded default
-		{"Main", 31, "avc1.4d001f"},              // Main @ L3.1
-		{"Baseline", 30, "avc1.42001e"},          // Baseline @ L3.0
+		{"High", 40, "avc1.640028"},     // == the legacy hardcoded default
+		{"Main", 31, "avc1.4d001f"},     // Main @ L3.1
+		{"Baseline", 30, "avc1.42001e"}, // Baseline @ L3.0
 		{"Constrained Baseline", 30, "avc1.42001e"},
-		{"High", 51, "avc1.640033"},              // High @ L5.1 (4K-capable)
+		{"High", 51, "avc1.640033"},                 // High @ L5.1 (4K-capable)
 		{"weird-future-profile", 40, "avc1.640028"}, // unknown → High default
 	}
 	for _, c := range cases {
@@ -50,7 +50,6 @@ func TestMaster_PerRungCopyCodec(t *testing.T) {
 	assert.Contains(t, out, `CODECS="avc1.640028,mp4a.40.2"`, "transcode rung keeps the codec default")
 }
 
-
 func TestHevcCodecString(t *testing.T) {
 	cases := []struct {
 		profile string
@@ -70,7 +69,7 @@ func TestHevcCodecString(t *testing.T) {
 }
 
 // Phase H1: an HEVC HDR copy rung must advertise the source hvc1 string AND
-// the VIDEO-RANGE attribute — Apple's authoring spec requires it on HDR
+// the VIDEO-RANGE attribute - Apple's authoring spec requires it on HDR
 // variants, and a PQ stream without it renders washed-out on some Safari/tvOS.
 func TestMaster_HevcCopyRung_CodecAndVideoRange(t *testing.T) {
 	g := NewManifestGenerator()
@@ -118,11 +117,11 @@ func TestMaster_NoVideoRangeOnSDROrTranscode(t *testing.T) {
 	}
 	out, err = g.Master(in)
 	require.NoError(t, err)
-	assert.NotContains(t, out, "VIDEO-RANGE", "transcoded rungs are SDR — never VIDEO-RANGE")
+	assert.NotContains(t, out, "VIDEO-RANGE", "transcoded rungs are SDR - never VIDEO-RANGE")
 }
 
 // Phase A2: with audio passthrough the segments carry the SOURCE audio codec,
-// so the master must advertise ac-3/ec-3 — a mp4a claim over ac-3 bytes (or
+// so the master must advertise ac-3/ec-3 - a mp4a claim over ac-3 bytes (or
 // the reverse) is refused by Safari's strict CODECS validation.
 func TestMaster_AudioPassthroughCodec(t *testing.T) {
 	g := NewManifestGenerator()

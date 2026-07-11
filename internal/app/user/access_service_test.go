@@ -586,7 +586,7 @@ func TestRegisterWithInvite_WithProfiles_CreatesDefaultProfile(t *testing.T) {
 // Without a UnitOfWork, profile create still fails the whole flow now: the
 // apply closure short-circuits on profile error so the user is not "left
 // behind" with a missing default profile. (The decrement compensation in the
-// no-uow legacy path only covers the invite slot — user persistence is the
+// no-uow legacy path only covers the invite slot - user persistence is the
 // fake's responsibility, not the service's.)
 func TestRegisterWithInvite_WithProfiles_ProfileCreateError_NoUOW_Fails(t *testing.T) {
 	users := ufakes.NewFakeUserRepository()
@@ -605,7 +605,7 @@ func TestRegisterWithInvite_WithProfiles_ProfileCreateError_NoUOW_Fails(t *testi
 	if _, err := svc.RegisterWithInvite(ctx, "tok", "bob", "longpassword", "bob@b.com"); err == nil {
 		t.Fatal("expected error when profile create fails (atomic flow)")
 	}
-	// No events should have been published — events fire only on commit.
+	// No events should have been published - events fire only on commit.
 	for _, e := range events.PublishedEvents() {
 		if e.EventName() == "user.created" || e.EventName() == "user.profile.created" {
 			t.Fatalf("no creation events expected on failure, got %s", e.EventName())
@@ -646,7 +646,7 @@ func TestRegisterWithInvite_WithProfiles_ProfileCreateError_UOW_RollsBack(t *tes
 	if len(all) != 0 {
 		t.Fatalf("expected user rolled back, got %d users", len(all))
 	}
-	// Invite slot must have been rolled back too — a retry on the MaxUses=1
+	// Invite slot must have been rolled back too - a retry on the MaxUses=1
 	// invite should still succeed once the underlying error is gone.
 	inv, _ := invites.GetByToken(ctx, "rb-tok")
 	if inv.UsedCount != 0 {
@@ -659,7 +659,7 @@ func TestRegisterWithInvite_WithProfiles_ProfileCreateError_UOW_RollsBack(t *tes
 		}
 	}
 
-	// And the retry succeeds — proves slot truly was rolled back.
+	// And the retry succeeds - proves slot truly was rolled back.
 	profiles.Err = nil
 	if u, err := svc.RegisterWithInvite(ctx, "rb-tok", "carol", "longpassword", "c@b.com"); err != nil || u == nil {
 		t.Fatalf("retry on rolled-back invite slot should succeed, got u=%v err=%v", u, err)
@@ -667,7 +667,7 @@ func TestRegisterWithInvite_WithProfiles_ProfileCreateError_UOW_RollsBack(t *tes
 }
 
 // snapshotAccessUOW wraps FakeTransactionalUnit to undo writes the apply
-// closure performed against the in-memory fakes when fn returns an error —
+// closure performed against the in-memory fakes when fn returns an error -
 // the fakes don't know about the ambient tx so we simulate rollback here.
 // Mirrors snapshotUOW used by user_service_test.go for the same purpose.
 type snapshotAccessUOW struct {
@@ -739,7 +739,7 @@ func (r *inviteRepoIncrementFail) IncrementUsedCount(ctx context.Context, id str
 }
 
 // When the atomic claim fails (DB error or no-longer-usable), registration
-// must fail closed — creating a user without successfully claiming a slot
+// must fail closed - creating a user without successfully claiming a slot
 // would reopen the TOCTOU window fixed in the same change.
 func TestRegisterWithInvite_IncrementUsedCountError_FailsClosed(t *testing.T) {
 	base := ufakes.NewFakeInviteLinkRepository()
@@ -796,7 +796,7 @@ func TestRegisterWithInvite_UsersCreateFailure_DecrementsSlot(t *testing.T) {
 	}
 
 	// Slot must have been rolled back. A retry on the same (MaxUses=1) invite
-	// should succeed — fail-closed if the slot were still burned.
+	// should succeed - fail-closed if the slot were still burned.
 	u, err := svc.RegisterWithInvite(context.Background(), "tok-rb", "carol", "longpassword", "c@b.com")
 	if err != nil {
 		t.Fatalf("slot should have been rolled back, got %v", err)
@@ -882,4 +882,3 @@ func TestRevokeAPIKey_PublishError_EmitsWarning(t *testing.T) {
 		t.Fatalf("expected publish warning, got: %q", read())
 	}
 }
-

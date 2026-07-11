@@ -120,7 +120,7 @@ func TestPutThumbRating_MissingMediaWinsOverInvalidValue(t *testing.T) {
 }
 
 // (PostStarRating/GetStarRating RPCs were removed when the star UI was
-// ripped. Tests deleted; only thumbs up/down remain — covered above.)
+// ripped. Tests deleted; only thumbs up/down remain - covered above.)
 
 // --- GetMyThumbRating ---
 

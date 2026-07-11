@@ -15,7 +15,7 @@ import (
 // fsBaseV1 is the set of filesystem access rights known to Landlock ABI v1.
 // Later ABIs add a few more (handled in supportedFSAccess); we must never pass
 // a right the running kernel doesn't know or landlock_create_ruleset returns
-// EINVAL — hence the per-ABI masking.
+// EINVAL - hence the per-ABI masking.
 const fsBaseV1 = uint64(unix.LANDLOCK_ACCESS_FS_EXECUTE |
 	unix.LANDLOCK_ACCESS_FS_WRITE_FILE |
 	unix.LANDLOCK_ACCESS_FS_READ_FILE |
@@ -63,7 +63,7 @@ func readWriteAccess(abi int) uint64 {
 
 // deviceAccess is what we grant on an individual allowed device node (/dev/null,
 // /dev/urandom…): read + write the file, nothing else. Deliberately WITHOUT
-// IOCTL_DEV (ABI v5) — a sandboxed plugin has no business issuing device ioctls,
+// IOCTL_DEV (ABI v5) - a sandboxed plugin has no business issuing device ioctls,
 // which is how GPU/DRM command submission works. Granting per-node like this
 // (instead of the whole /dev directory) keeps GPU render nodes, /dev/dxg and
 // /dev/nvidia* outside the allowlist, so a cryptominer plugin can't open them.
@@ -74,11 +74,11 @@ func deviceAccess(abi int) uint64 {
 
 // renderDeviceAccess is the access mask for the ONE granted GPU render node
 // (the hardware.gpu permission). It adds IOCTL_DEV (ABI v5+) because DRM command
-// submission IS ioctl-based — a render node without it is useless — but it is
+// submission IS ioctl-based - a render node without it is useless - but it is
 // applied ONLY to this node, never to the safe pseudo-devices (deviceAccess),
 // so the GPU ioctl surface is opened for exactly one file. On ABI <5 the kernel
 // does not govern device ioctls, so read+write already permits submission.
-// Note: IOCTL_DEV (like all Landlock) governs only newly-open()ed files — an
+// Note: IOCTL_DEV (like all Landlock) governs only newly-open()ed files - an
 // inherited render fd bypasses it, so the runner must never pre-open one.
 func renderDeviceAccess(abi int) uint64 {
 	a := uint64(unix.LANDLOCK_ACCESS_FS_READ_FILE | unix.LANDLOCK_ACCESS_FS_WRITE_FILE)
@@ -90,7 +90,7 @@ func renderDeviceAccess(abi int) uint64 {
 
 // isRenderNode reports whether p is a DRM render node path (/dev/dri/renderD<n>).
 // The -render-dev grant carries the GPU ioctl surface (IOCTL_DEV), so it is
-// refused for anything else — in particular a card/primary node
+// refused for anything else - in particular a card/primary node
 // (/dev/dri/card*), which controls modeset/DRM-Master and is privileged.
 // Defence in depth: the runner already resolves only renderD*, but the launcher
 // must never grant the GPU command-submission surface to an arbitrary path.
@@ -133,7 +133,7 @@ func supportedNetAccess(abi int) uint64 {
 
 // landlockABI queries the kernel's supported Landlock ABI version. Returns an
 // error when Landlock is absent (ENOSYS) or disabled in the active LSM list
-// (EOPNOTSUPP) — the caller decides whether that is fatal.
+// (EOPNOTSUPP) - the caller decides whether that is fatal.
 func landlockABI() (int, error) {
 	r, _, errno := unix.Syscall(unix.SYS_LANDLOCK_CREATE_RULESET, 0, 0, uintptr(unix.LANDLOCK_CREATE_RULESET_VERSION))
 	if errno != 0 {
@@ -210,7 +210,7 @@ func applyLandlock(cfg config) error {
 	// Individual device nodes (/dev/null, /dev/urandom…): allow read+write but
 	// skip ones absent on this image (a minimal container may lack /dev/full or
 	// /dev/tty) rather than failing the whole ruleset. Everything else under
-	// /dev — GPU render nodes, /dev/dxg, /dev/nvidia* — stays denied.
+	// /dev - GPU render nodes, /dev/dxg, /dev/nvidia* - stays denied.
 	for _, p := range cfg.devPaths {
 		if !pathExists(p) {
 			continue
@@ -219,9 +219,9 @@ func applyLandlock(cfg config) error {
 			return err
 		}
 	}
-	// The single GPU render node (hardware.gpu grant). Validated here too —
+	// The single GPU render node (hardware.gpu grant). Validated here too -
 	// never grant the IOCTL_DEV-bearing render rule to anything but a renderD*
-	// node — and fail closed if it doesn't exist (the runner only ever passes a
+	// node - and fail closed if it doesn't exist (the runner only ever passes a
 	// resolved node, so a missing one is a real misconfiguration).
 	if cfg.renderDevPath != "" {
 		if !isRenderNode(cfg.renderDevPath) {

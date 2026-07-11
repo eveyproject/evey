@@ -134,7 +134,7 @@ function ConfigRow({ entry }: { entry: ConfigEntry }) {
 
 // Kept in sync with backend i18n supported locales + frontend setup wizard.
 // Admin panel must use the same short codes ("fr", "en" ...) that the setup
-// wizard persists to server.language — otherwise the Select can't match the
+// wizard persists to server.language - otherwise the Select can't match the
 // stored value and shows the placeholder ("envDefault") on every render.
 const LOCALE_OPTIONS = supportedLanguages.map((l) => ({ value: l.code, label: l.label }));
 
@@ -619,7 +619,7 @@ const ARTWORK_AUTO_DOWNLOAD_KEY = "artwork.auto_download";
 
 // Surfaces the runtime toggle for fire-and-forget artwork download on scan,
 // plus a one-shot "retry now" button that backfills any rows still missing
-// their local copy. Default ON — without local caching the frontend depends
+// their local copy. Default ON - without local caching the frontend depends
 // on external CDN URLs (Amazon for OMDb), some of which Firefox blocks under
 // Opaque Response Blocking.
 function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
@@ -673,11 +673,11 @@ function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }
 
 // IntroDetectionSettingsCard surfaces the runtime knobs of the external
 // intro/recap/credits providers (TIDB + IntroDB). The TIDB Bearer token
-// itself lives in the API keys card above (api.tidb_key) — it's only
+// itself lives in the API keys card above (api.tidb_key) - it's only
 // useful when this toggle is on.
 //
 // Toggling 'enabled' here writes to server_config but the providers are
-// only constructed once at boot — admins must restart the server for the
+// only constructed once at boot - admins must restart the server for the
 // change to take effect. The note in the description spells that out.
 function IntroDetectionSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const { t } = useTranslation();
@@ -745,7 +745,7 @@ interface ParserConfigShape {
 /**
  * Lets the admin extend the filename parser's quality / edition token
  * lists without redeploying. Baseline tokens stay hardcoded in the
- * filesystem package — this UI only manages the EXTENSIONS, persisted as
+ * filesystem package - this UI only manages the EXTENSIONS, persisted as
  * a single JSON blob under the parser.config server_config key. The
  * backend subscriber re-applies them in-process on every save.
  *

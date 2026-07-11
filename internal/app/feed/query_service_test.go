@@ -229,7 +229,7 @@ func TestQueryService_GetMergedConfig_Empty(t *testing.T) {
 
 // Profile-only entries (no admin parent) must surface in the merged
 // view. Otherwise dynamic feed types like library:<id> or plugin:<id>
-// — which are never registered admin-side — vanish on every refetch
+// - which are never registered admin-side - vanish on every refetch
 // after the user toggles or reorders them in CustomizePanel.
 func TestQueryService_GetMergedConfig_OrphanedProfileOverrides_Surface(t *testing.T) {
 	queryRepo := fakes.NewFakeConfigQueryRepo()

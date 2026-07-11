@@ -56,7 +56,7 @@ func TestPasswordResetTokenRepo_GetByTokenHash_NotFound(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepo_GetExpiredReturnsNotFound(t *testing.T) {
-	// Defense-in-depth: repo SQL filters expired tokens — caller no longer needs IsValid().
+	// Defense-in-depth: repo SQL filters expired tokens - caller no longer needs IsValid().
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
@@ -152,7 +152,7 @@ func TestPasswordResetTokenRepo_DeleteExpired(t *testing.T) {
 	valid := newPRT("prt-de-val", "prt-u4", "hash_de_val", time.Now().Add(2*time.Hour))
 	require.NoError(t, repo.Create(ctx, valid))
 
-	// Also: a used-but-not-yet-expired token — should be deleted per WHERE clause (used = TRUE).
+	// Also: a used-but-not-yet-expired token - should be deleted per WHERE clause (used = TRUE).
 	usedValid := newPRT("prt-de-used", "prt-u4", "hash_de_used", time.Now().Add(2*time.Hour))
 	require.NoError(t, repo.Create(ctx, usedValid))
 	require.NoError(t, repo.MarkUsed(ctx, "prt-de-used"))

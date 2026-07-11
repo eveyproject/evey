@@ -18,8 +18,8 @@ func (f *fakeKeyframeProber) ProbeKeyframes(context.Context, string) ([]int64, e
 	return f.ret, nil
 }
 
-// When mkvgo yields no seek index — gated off, unsupported container, or a file
-// it cannot open — the dispatcher must defer to the ffprobe packet scan and
+// When mkvgo yields no seek index - gated off, unsupported container, or a file
+// it cannot open - the dispatcher must defer to the ffprobe packet scan and
 // return its result unchanged. (The fast-path success is covered by the
 // real-file keyframe parity, which is PATH-gated.)
 func TestKeyframeDispatcher_FallsBackWhenNoIndex(t *testing.T) {
@@ -27,9 +27,9 @@ func TestKeyframeDispatcher_FallsBackWhenNoIndex(t *testing.T) {
 	ctx := context.Background()
 
 	cases := []struct {
-		name             string
-		mkvOn, mp4On     bool
-		path             string
+		name         string
+		mkvOn, mp4On bool
+		path         string
 	}{
 		{"both gates off, mp4 path", false, false, "/nope/movie.mp4"},
 		{"both gates off, mkv path", false, false, "/nope/movie.mkv"},

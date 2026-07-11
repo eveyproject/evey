@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef } from "react";
 // same amplification trick a desktop player uses: an <video>'s `volume` maxes
 // out at 100%, so anything louder has to run through a Web Audio GainNode whose
 // gain can go past 1. A DynamicsCompressor sits after the gain as a soft
-// limiter — raw amplification clips already-loud passages, the compressor
+// limiter - raw amplification clips already-loud passages, the compressor
 // rounds that overshoot off instead of letting it distort.
 //
 //   video → MediaElementAudioSourceNode → Gain(1..2) → Compressor → destination
 //
 // The graph is built lazily on the first boost above 1×, for two reasons:
 //   - createMediaElementSource may be called only ONCE per element and, once
-//     called, *captures* the element's output — users who never touch the boost
+//     called, *captures* the element's output - users who never touch the boost
 //     keep the plain native path (and if Web Audio is unavailable the player
 //     still works, it just can't exceed 100%);
 //   - an AudioContext starts suspended until a user gesture, and the first boost
@@ -23,7 +23,7 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
   const ctxRef = useRef<AudioContext | null>(null);
   const gainRef = useRef<GainNode | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  // The element the source node is bound to — a MediaElementSourceNode lives
+  // The element the source node is bound to - a MediaElementSourceNode lives
   // and dies with one element, so a media swap (new <video>) must rebuild it.
   const elRef = useRef<HTMLVideoElement | null>(null);
 
@@ -40,7 +40,7 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
   const ensureGraph = useCallback((): GainNode | null => {
     const video = videoRef.current;
     if (!video) return null;
-    // Element was swapped under us — drop the stale graph before rebuilding.
+    // Element was swapped under us - drop the stale graph before rebuilding.
     if (sourceRef.current && elRef.current !== video) teardown();
     if (gainRef.current) return gainRef.current;
 

@@ -48,7 +48,7 @@ artworks:
   backfillBlurhashesRun: Blurhashes nachberechnen
   backfillBlurhashesRunning: Berechnung läuft...
   backfillBlurhashesDone: "{{succeeded}} Platzhalter berechnet, {{failed}} fehlgeschlagen."
-  backfillBlurhashesStarted: "Blurhash-Backfill gestartet — läuft im Hintergrund."
+  backfillBlurhashesStarted: "Blurhash-Backfill gestartet - läuft im Hintergrund."
   backfillBlurhashesFailed: Nachberechnung der Blurhashes fehlgeschlagen
   purgeVariantsSection: Beschädigte Poster-Varianten bereinigen
   purgeVariantsDesc: "Löscht 0-Byte-Poster-Varianten, die von einer fehlgeschlagenen oder abgelaufenen Größenänderung übrig geblieben sind. Sie werden bei Bedarf automatisch neu erzeugt; dies bereinigt sie nur in einem Durchgang."
@@ -155,7 +155,7 @@ plugins:
     unsigned: Nicht signiert
     sandboxHost: "Host-Sandbox"
     sandboxResolvedFrom: "aufgelöst aus {{mode}}"
-    sandboxBasicWarning: "Plugins laufen nur mit UID-Drop + seccomp — dieser Host bietet keine pfadbasierte Dateisystem-Isolation."
+    sandboxBasicWarning: "Plugins laufen nur mit UID-Drop + seccomp - dieser Host bietet keine pfadbasierte Dateisystem-Isolation."
     sandboxBasicHint: "Ein Kernel ≥ 5.13 mit Landlock in der aktiven LSM-Liste ermöglicht starke Isolation ohne weitere Host-Änderungen."
     probeLandlock: "Landlock-Kernel"
     probeLauncher: "Sandbox-Launcher"
@@ -258,12 +258,12 @@ libraries:
   scanStarted: Scan gestartet
   failedScan: Scan konnte nicht gestartet werden
   refreshMetadata: Alle erneut mit TMDB abgleichen
-  refreshMetadataTooltip: "Führt die TMDB-Suche für jedes Element neu aus — langsam, korrigiert aber frühere falsche Zuordnungen. Verwenden Sie dies nach großen Umbenennungs-Batches."
-  refreshAllMetadataStarted: "Erneuter Abgleich gestartet — Titel und Poster werden im Hintergrund aktualisiert"
+  refreshMetadataTooltip: "Führt die TMDB-Suche für jedes Element neu aus - langsam, korrigiert aber frühere falsche Zuordnungen. Verwenden Sie dies nach großen Umbenennungs-Batches."
+  refreshAllMetadataStarted: "Erneuter Abgleich gestartet - Titel und Poster werden im Hintergrund aktualisiert"
   matchOrphans: Nur Waisen abgleichen
   matchOrphansTooltip: "Zielt nur auf Elemente ab, die beim Scan nie mit TMDB übereinstimmten (Anbieter-IDs leer). Schnell, läuft im Hintergrund."
-  matchOrphansStarted: "{{count}} Waise(n) für Abgleich eingereiht — sie erscheinen mit Poster/Übersicht, sobald TMDB antwortet"
-  matchOrphansEmpty: "Keine Waisen in dieser Bibliothek zum Abgleichen — alle Elemente haben bereits Anbieter-IDs"
+  matchOrphansStarted: "{{count}} Waise(n) für Abgleich eingereiht - sie erscheinen mit Poster/Übersicht, sobald TMDB antwortet"
+  matchOrphansEmpty: "Keine Waisen in dieser Bibliothek zum Abgleichen - alle Elemente haben bereits Anbieter-IDs"
   deleteTitle: Bibliothek löschen
   deleteConfirm: "Bibliothek \"{{name}}\" löschen? Dies kann nicht rückgängig gemacht werden."
   noLibraries: Keine Bibliotheken. Fügen Sie eine hinzu, um zu beginnen.
@@ -306,7 +306,7 @@ libraries:
   "off": Aus
   paths: Pfade
   pathsHint: "(vollständigen Pfad im Container eingeben, z.B. /media/movies)"
-  selectDirectory: "— Verzeichnis auswählen —"
+  selectDirectory: "- Verzeichnis auswählen -"
   enterCustomPath: "Benutzerdefinierten Pfad eingeben..."
   addPath: "+ Pfad hinzufügen"
   tvShows: TV-Serien
@@ -498,7 +498,7 @@ serverConfig:
     pluginBadge: "Plugin"
     title: "Startseiten-Feeds"
     subtitle: "Wählen Sie, welche Bereiche auf der Startseite erscheinen, in welcher Reihenfolge und wie viele Einträge jeder zeigt."
-  introProvidersInfo: "Zwei separate Community-Datenbanken für Intro-/Recap-/Abspann-Zeitstempel. Überspringt die lokale, CPU-intensive Erkennung bei abgedeckten Titeln. Primär — TheIntroDB (theintrodb.org): Filme + Serien, kostenloser API-Schlüssel erforderlich. Fallback — IntroDB (introdb.app): nur Serienepisoden, kein Schlüssel erforderlich."
+  introProvidersInfo: "Zwei separate Community-Datenbanken für Intro-/Recap-/Abspann-Zeitstempel. Überspringt die lokale, CPU-intensive Erkennung bei abgedeckten Titeln. Primär - TheIntroDB (theintrodb.org): Filme + Serien, kostenloser API-Schlüssel erforderlich. Fallback - IntroDB (introdb.app): nur Serienepisoden, kein Schlüssel erforderlich."
   title: Serverkonfiguration
   subtitle: Schlüssel-Wert-Konfigurationseinträge in der Datenbank gespeichert.
   languageRegion: Sprache & Region
@@ -506,7 +506,7 @@ serverConfig:
   serverLanguage: "Serversprache"
   serverRegion: "Serverregion"
   metadataLanguage: Metadatensprache
-  envDefault: "— Umgebungsstandard —"
+  envDefault: "- Umgebungsstandard -"
   languageUpdated: "Sprache aktualisiert - Server neu starten, um auf Metadaten anzuwenden"
   configUpdated: Konfiguration aktualisiert
   failedUpdate: Konfiguration konnte nicht aktualisiert werden
@@ -600,7 +600,7 @@ serverConfig:
   artworkRetryDesc: Artworks mit TMDB-Quell-URL aber ohne lokale Kopie erneut herunterladen.
   artworkRetryNow: Jetzt erneut herunterladen
   artworkRetryDone: Erneuter Download abgeschlossen
-  artworkRetryStarted: "Artwork-Wiederholung gestartet — läuft im Hintergrund."
+  artworkRetryStarted: "Artwork-Wiederholung gestartet - läuft im Hintergrund."
 
 remoteAccess:
   title: Fernzugriff
@@ -804,12 +804,12 @@ loadtest:
     error: "Ein Fehler hat den Test vorzeitig beendet."
 calibration:
   av1Label: "AV1-Ausgabe"
-  av1Hint: "In AV1 codieren, wenn ein Client es unterstützt — bessere Kompression. Nur Hardware; Software-AV1 wird nie für Streaming verwendet."
-  av1NoHw: "Kein AV1-Hardware-Encoder erkannt — das Aktivieren hat keine Wirkung (Streams bleiben H.264)."
+  av1Hint: "In AV1 codieren, wenn ein Client es unterstützt - bessere Kompression. Nur Hardware; Software-AV1 wird nie für Streaming verwendet."
+  av1NoHw: "Kein AV1-Hardware-Encoder erkannt - das Aktivieren hat keine Wirkung (Streams bleiben H.264)."
   av1MaxLabel: "Maximale AV1-Qualität"
   av1MaxAuto: "Automatisch (bis zur Quelle)"
   av1Applied: "AV1-Einstellung angewendet"
-  transcodesActiveToast: "Stoppen Sie die laufende Wiedergabe vor dem Neukalibrieren — der Benchmark braucht einen unbeschäftigten Host, um das echte Limit zu messen."
+  transcodesActiveToast: "Stoppen Sie die laufende Wiedergabe vor dem Neukalibrieren - der Benchmark braucht einen unbeschäftigten Host, um das echte Limit zu messen."
   softwareHdrMax: "Software-HDR-Limit"
   hdrTonemap: "HDR→SDR-Tonemapping"
   gpuIntegrated: "iGPU"
@@ -823,7 +823,7 @@ calibration:
   samplesPass: "bestanden"
   samplesFail: "fehlgeschlagen"
   cardTitle: "Encode-Kalibrierung"
-  cardSubtitle: "Beim Start gemessen — legt die Obergrenze der HLS-Qualitätsstufen fest, damit der Host nicht mehr ansetzt, als er in Echtzeit kodieren kann."
+  cardSubtitle: "Beim Start gemessen - legt die Obergrenze der HLS-Qualitätsstufen fest, damit der Host nicht mehr ansetzt, als er in Echtzeit kodieren kann."
   softwareMax: "Obergrenze Software-Kodierung"
   hwMax: "Obergrenze Hardware-Kodierung"
   hwNone: "kein GPU-Beschleuniger erkannt"
@@ -839,7 +839,7 @@ calibration:
   setupTitle: "Kodierleistung wird kalibriert"
   setupSubtitle: "Es wird gemessen, wie hoch Ihr Host in Echtzeit kodieren kann. Das dauert in der Regel etwa 20 Sekunden und läuft nur einmal."
   hwFallbacks: "Hardware-Rückfälle"
-  hwFallbacksDesc: "Kürzliche Hardware-Kodierungen, die automatisch zurückgefallen sind — der Host spielt weiter per Software ab, während die Ursache aufgezeichnet wird. Kalibrieren Sie neu, sobald die Hardware behoben ist."
+  hwFallbacksDesc: "Kürzliche Hardware-Kodierungen, die automatisch zurückgefallen sind - der Host spielt weiter per Software ab, während die Ursache aufgezeichnet wird. Kalibrieren Sie neu, sobald die Hardware behoben ist."
   fallbackUnsupportedOption: "nicht unterstützte Encoder-Option"
   fallbackEncoderMissing: "Encoder nicht verfügbar"
   fallbackInit: "GPU-Initialisierung fehlgeschlagen"
@@ -848,21 +848,21 @@ calibration:
   hwModeOff: "Aus (nur Software)"
   detected: "Erkannt: {{list}}"
   detectedNone: "Kein GPU-Beschleuniger erkannt"
-  modeApplied: "Modus angewendet — Neukalibrierung…"
+  modeApplied: "Modus angewendet - Neukalibrierung…"
   hwEnableLabel: "Hardware-Beschleunigung"
   hwEnabledHint: "Kodierung auf der GPU, wenn möglich"
   hwDisabledHint: "Nur Software (CPU)"
   hwBackendLabel: "Backend"
   wslUnsupported: "unter WSL nicht unterstützt"
-  wslVaapiNote: "VAAPI/QSV laufen unter WSL über Mesas d3d12-Treiber und können hier nicht transkodieren — NVENC verwenden oder VAAPI auf einem nativen Linux-Host prüfen."
+  wslVaapiNote: "VAAPI/QSV laufen unter WSL über Mesas d3d12-Treiber und können hier nicht transkodieren - NVENC verwenden oder VAAPI auf einem nativen Linux-Host prüfen."
   codecSupportTitle: "Codec-Unterstützung"
   encodeCodecs: "Enkodierung:"
   decodeCodecs: "Dekodierung:"
-  codecSoftwareDecodeNote: "{{codecs}} — Software-Dekodierung (nur GPU-Enkodierung)"
+  codecSoftwareDecodeNote: "{{codecs}} - Software-Dekodierung (nur GPU-Enkodierung)"
 
 qoe:
   title: "Streaming-Qualität"
-  subtitle: "Was Zuschauer tatsächlich erleben — Pufferung, Aussetzer, Datendurchsatz. Nur lesbar."
+  subtitle: "Was Zuschauer tatsächlich erleben - Pufferung, Aussetzer, Datendurchsatz. Nur lesbar."
   window24h: "Letzte 24 Std."
   window7d: "Letzte 7 Tage"
   loading: "Telemetriedaten werden geladen…"
@@ -894,8 +894,8 @@ qoe:
   overrides:
     title: "Automatische Qualitätsgrenzen"
     subtitle: "Automatische Anpassungen auf Basis des tatsächlichen Wiedergabeverlaufs (Pufferung, Datendurchsatz), zusätzlich zur kalibrierten Obergrenze. Jede Zeile senkt vorübergehend die maximale Qualität für eine bestimmte Art von Quelle, bis sie abläuft."
-    help: "Player melden laufend, wie die Wiedergabe verläuft — Pufferfüllstand, Aussetzer und Bandbreite (ein Branchenstandard namens CMCD). Wenn eine bestimmte Art von Quelle bei den Zuschauern immer wieder zu Aussetzern führt, senkt Evey deren Qualitätsgrenze für eine Weile, um die Aussetzer zu stoppen, und hebt sie danach automatisch wieder an."
-    empty: "Keine aktiven automatischen Grenzen — für jede Art von Quelle gilt die volle kalibrierte Qualitäts-Obergrenze."
+    help: "Player melden laufend, wie die Wiedergabe verläuft - Pufferfüllstand, Aussetzer und Bandbreite (ein Branchenstandard namens CMCD). Wenn eine bestimmte Art von Quelle bei den Zuschauern immer wieder zu Aussetzern führt, senkt Evey deren Qualitätsgrenze für eine Weile, um die Aussetzer zu stoppen, und hebt sie danach automatisch wieder an."
+    empty: "Keine aktiven automatischen Grenzen - für jede Art von Quelle gilt die volle kalibrierte Qualitäts-Obergrenze."
     reset: "Zurücksetzen"
     resetHint: "Diese adaptive Grenze sofort aufheben. Der Worker bewertet sie beim nächsten Durchlauf neu."
     col:
@@ -915,11 +915,11 @@ qoe:
     poor: "Schlecht"
     insufficient: "Nicht genügend Daten"
     recoExcellent: "Die Wiedergabe startet und läuft ohne jede Unterbrechung."
-    recoGood: "Gesund — der gelegentliche Aussetzer liegt im normalen Bereich."
+    recoGood: "Gesund - der gelegentliche Aussetzer liegt im normalen Bereich."
     recoFair: "Einige Wiedergabe-Aussetzer. Im Auge behalten, falls der Datenverkehr zunimmt."
     recoMarginal: "Häufige Aussetzer. Hardware-Transkodierung aktivieren oder die Qualitäts-Obergrenze senken."
     recoPoor: "Viele Aussetzer. Hardware-Transkodierung aktivieren, die Qualitäts-Obergrenze senken oder die Server-/Netzwerkbandbreite prüfen."
-    recoInsufficient: "Messwerte werden gesammelt — schauen Sie wieder vorbei, sobald einige Sitzungen abgespielt wurden."
+    recoInsufficient: "Messwerte werden gesammelt - schauen Sie wieder vorbei, sobald einige Sitzungen abgespielt wurden."
 
 segments:
   title: Mediensegmente
@@ -935,8 +935,8 @@ segments:
 
 seekIndex:
   title: "Seek-Index-Reparatur"
-  description: "MKV/WebM-Dateien ohne Seek-Index (Cues) springen und setzen nur langsam fort — der Player muss sie linear durchlesen. Der Scan ist schreibgeschützt; die Reparatur baut den Index direkt in der Datei neu auf und behält das Original als .mkvgobak-Sicherung, die jederzeit wiederherstellbar ist."
-  readOnlyNote: "Die Reparatur schreibt in deine Medienordner. Sind sie schreibgeschützt eingebunden (:ro in docker-compose), binde sie zuerst beschreibbar ein und starte die Container neu — der Scan funktioniert trotzdem."
+  description: "MKV/WebM-Dateien ohne Seek-Index (Cues) springen und setzen nur langsam fort - der Player muss sie linear durchlesen. Der Scan ist schreibgeschützt; die Reparatur baut den Index direkt in der Datei neu auf und behält das Original als .mkvgobak-Sicherung, die jederzeit wiederherstellbar ist."
+  readOnlyNote: "Die Reparatur schreibt in deine Medienordner. Sind sie schreibgeschützt eingebunden (:ro in docker-compose), binde sie zuerst beschreibbar ein und starte die Container neu - der Scan funktioniert trotzdem."
   library: "Bibliothek"
   allLibraries: "Alle Bibliotheken"
   scan: "Scannen"
@@ -951,8 +951,8 @@ seekIndex:
   onlyAttention: "Nur Dateien mit Handlungsbedarf anzeigen"
   emptyTitle: "Noch kein Scan"
   emptyDescription: "Wähle eine Bibliothek und scanne, um MKV/WebM-Dateien ohne Seek-Index zu finden."
-  noEbml: "Keine MKV/WebM-Dateien in diesem Bereich — andere Container brauchen keinen Seek-Index."
-  allGood: "Kein Handlungsbedarf — jede gescannte Datei hat einen Seek-Index."
+  noEbml: "Keine MKV/WebM-Dateien in diesem Bereich - andere Container brauchen keinen Seek-Index."
+  allGood: "Kein Handlungsbedarf - jede gescannte Datei hat einen Seek-Index."
   tableHeaders:
     file: "Datei"
     container: "Container"
@@ -990,22 +990,22 @@ seekIndex:
   deepVerifyHint: "Beweist, dass jeder neu erstellte Indexpunkt auf ein echtes Video-Keyframe zeigt, bevor die Änderung übernommen wird. Langsamer (liest die ganze Datei); empfohlen im chirurgischen Modus, der kein Backup behält."
   rollback: "Wiederherstellen"
   startFailed: "Vorgang konnte nicht gestartet werden"
-  scanStarted: "Scan gestartet — läuft im Hintergrund, Fortschritt unten"
-  repairStarted: "Reparatur im Hintergrund gestartet — Fortschritt unten"
-  rollbackStarted: "Wiederherstellung im Hintergrund gestartet — Fortschritt unten"
+  scanStarted: "Scan gestartet - läuft im Hintergrund, Fortschritt unten"
+  repairStarted: "Reparatur im Hintergrund gestartet - Fortschritt unten"
+  rollbackStarted: "Wiederherstellung im Hintergrund gestartet - Fortschritt unten"
   jobScan: "Scan"
   jobReindex: "Reparatur"
   jobRollback: "Wiederherstellung"
   phaseScanning: "Dateien werden durchsucht"
   phaseProcessing: "Dateien werden neu geschrieben"
-  jobRunning: "{{kind}} läuft — {{phase}}"
+  jobRunning: "{{kind}} läuft - {{phase}}"
   jobFailedCount: "{{count}} fehlgeschlagen"
   lastJob: "Letzter Vorgang"
-  lastJobLine: "{{kind}} — {{done}}/{{total}} Datei(en) verarbeitet"
+  lastJobLine: "{{kind}} - {{done}}/{{total}} Datei(en) verarbeitet"
   lastJobOk: "Abgeschlossen"
   lastJobError: "Der Vorgang ist fehlgeschlagen: {{error}}"
-  jobCompleted: "{{kind}} abgeschlossen — {{done}} Datei(en) verarbeitet"
-  jobCompletedFailures: "{{kind}} abgeschlossen — {{done}} Datei(en) verarbeitet, {{failed}} fehlgeschlagen"
+  jobCompleted: "{{kind}} abgeschlossen - {{done}} Datei(en) verarbeitet"
+  jobCompletedFailures: "{{kind}} abgeschlossen - {{done}} Datei(en) verarbeitet, {{failed}} fehlgeschlagen"
   jobReadOnlyHint: "Einige Dateien liegen auf einem schreibgeschützten Volume. Binde die Medienordner lese-schreibbar ein (:ro aus docker-compose entfernen), starte die Container neu und versuche es erneut."
   scannedAt: "Gescannt am {{date}}"
   repairAllConfirmTitle: "Seek-Indizes der Bibliothek reparieren"

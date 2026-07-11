@@ -58,7 +58,7 @@ func NewMediaItemRepository(db *sql.DB) *MediaItemRepository {
 
 // withMediaItemTx runs f inside a single transaction so that a partial
 // sub-aggregate write never leaves an item half-persisted. When the caller
-// already carries an ambient transaction (TxUnit.Do — e.g. EnrichItem's
+// already carries an ambient transaction (TxUnit.Do - e.g. EnrichItem's
 // item+artwork+cast unit of work), f JOINS it instead of opening a private
 // one: a private BEGIN here would commit the item independently of its
 // siblings and break the outer rollback. The ambient tx's commit/rollback
@@ -81,7 +81,7 @@ func (r *MediaItemRepository) withMediaItemTx(ctx context.Context, f func(*sql.T
 }
 
 // sanitizeMediaItemText strips bytes that aren't valid UTF-8 from the item's
-// text fields. Postgres TEXT columns reject invalid UTF-8 — e.g. a Latin-1
+// text fields. Postgres TEXT columns reject invalid UTF-8 - e.g. a Latin-1
 // filename byte (0x80) parsed into the title made the insert fail on EVERY
 // scan, so the item never indexed and the log filled with the same error
 // ("invalid byte sequence for encoding UTF8"). Stripping is safe: valid UTF-8
@@ -126,7 +126,7 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 		scanTitle = item.Title
 	}
 	// sort_title drives alphabetical browsing and the keyset cursor.
-	// Derive from Title whenever the caller didn't provide one — most
+	// Derive from Title whenever the caller didn't provide one - most
 	// scan/enrich call sites still leave it empty, which used to make
 	// the whole library sort by UUID order and broke pagination.
 	sortTitle := item.SortTitle
@@ -186,7 +186,7 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	}
 	// Refresh sort_title from Title when the caller didn't override it.
 	// Enrichment renames titles (TMDB FR translation, etc.), so the
-	// sort key must follow — otherwise we lock in the original filename
+	// sort key must follow - otherwise we lock in the original filename
 	// derived title forever.
 	sortTitle := item.SortTitle
 	if sortTitle == "" {
@@ -199,7 +199,7 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	// and previously only Title landed in the DB row. ResearchMetadata
 	// (which resets Title := ScanTitle from the stale DB value) then
 	// silently undid the heal on the next call. Persist whatever the
-	// caller passed — heal updates it, vanilla scan keeps it equal to the
+	// caller passed - heal updates it, vanilla scan keeps it equal to the
 	// freshly-parsed Title so no behavior change.
 	scanTitle := item.ScanTitle
 	if scanTitle == "" {
@@ -254,7 +254,7 @@ func (r *MediaItemRepository) Delete(ctx context.Context, id shared.MediaItemID)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	// SELECT type+parent_id then DELETE then (maybe) recompute the series
-	// latest_child_added_at — all three need to observe the same DB state,
+	// latest_child_added_at - all three need to observe the same DB state,
 	// so bind them to an ambient Tx when one exists (or fall back to the
 	// shared conn). The prior non-tx flow ignored the SELECT Scan error
 	// (masking transient read failures) and the recompute error, so a
@@ -316,11 +316,11 @@ func (r *MediaItemRepository) DeleteByIDs(ctx context.Context, ids []string) err
 
 // bumpSeriesLatestChildAddedAt keeps media_items.latest_child_added_at in
 // sync on the grandparent series when an episode is created or touched.
-// Best-effort — failure is logged but not propagated.
+// Best-effort - failure is logged but not propagated.
 //
 // IMPORTANT: only AddedAt is propagated. Folding in UpdatedAt would let any
 // metadata refresh (cover art, retitle, etc.) move the series to the top of
-// "Recently Added" — a full re-scan in the morning would shuffle the entire
+// "Recently Added" - a full re-scan in the morning would shuffle the entire
 // library to today, masking actual new content.
 func (r *MediaItemRepository) bumpSeriesLatestChildAddedAt(ctx context.Context, item *library.MediaItem) {
 	if item == nil || item.Type != library.Episode || item.ParentID == "" {
@@ -342,7 +342,7 @@ func (r *MediaItemRepository) bumpSeriesLatestChildAddedAt(ctx context.Context, 
 // clearSeriesWatchedOnNewEpisode resets the grandparent series' "fully watched"
 // flag (watch_progress.completed) for EVERY profile when a brand-new episode is
 // created. A series with a new, unwatched episode is no longer fully watched, so
-// it must re-surface in watched-filtered views — notably the home library
+// it must re-surface in watched-filtered views - notably the home library
 // "Séries" slider, which hides any series whose watch_progress.completed is true.
 // The "Recently Added" feed already recomputes this live; the slider relies on
 // the stored flag, so it goes stale without this reset. Episode → season →
@@ -386,7 +386,7 @@ func (r *MediaItemRepository) recomputeSeriesLatestChildAddedAtFromSeason(ctx co
 // it is currently empty, computing the value from the existing title via
 // library.NormalizeSortTitle. Returns the number of rows touched.
 //
-// Existed because pre-fix scans inserted media_items with sort_title=” —
+// Existed because pre-fix scans inserted media_items with sort_title=” -
 // the alphabetical sort and the keyset cursor both rely on this column,
 // so an empty value silently broke pagination on production libraries.
 // Idempotent: once a row has a non-empty sort_title, this is a no-op.

@@ -46,7 +46,7 @@ vi.mock("@tanstack/react-query", async (importActual) => {
         recalibrateOnError = opts.onError;
         return {
           mutate: mockRecalibrateMutate.mockImplementation(() => {
-            // do nothing — tests call recalibrateOnSuccess/Error directly
+            // do nothing - tests call recalibrateOnSuccess/Error directly
           }),
           isPending: mockRecalibrateIsPending,
         };
@@ -201,7 +201,7 @@ describe("EncodeCalibrationCard", () => {
   it("does not render software HDR cap row when software_hdr_max_height is absent", () => {
     mockCalibrationData = { ...SW_ONLY_DATA, software_hdr_max_height: undefined };
     renderCard();
-    // 720p is the HDR cap — should not appear
+    // 720p is the HDR cap - should not appear
     expect(screen.queryByText("720p")).toBeNull();
   });
 
@@ -250,7 +250,7 @@ describe("EncodeCalibrationCard", () => {
   it("renders hw_backend label (nvenc) next to the HW cap", () => {
     mockCalibrationData = HW_NVENC_DATA;
     renderCard();
-    // The backend appears inline: "(nvenc, dedicated GPU)" — multiple elements
+    // The backend appears inline: "(nvenc, dedicated GPU)" - multiple elements
     // may contain "nvenc" (select options, detected label), so assert at least one exists.
     const matches = screen.getAllByText(/nvenc/i);
     expect(matches.length).toBeGreaterThanOrEqual(1);

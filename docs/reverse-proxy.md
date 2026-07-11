@@ -2,7 +2,7 @@
 
 Evey serves **both the API and the web UI** on port **9091** (plain HTTP). A
 reverse proxy only needs to terminate TLS and forward everything to `evey:9091`
-— there is **no separate frontend to build or serve**.
+- there is **no separate frontend to build or serve**.
 
 Wherever you run a proxy, set these so Evey knows its public URL and trusts the
 proxy's forwarded headers:
@@ -13,7 +13,7 @@ EVEY_TRUSTED_PROXIES=127.0.0.1/32        # or 172.16.0.0/12 if the proxy is a co
 EVEY_FORWARDED_PROTO=true
 ```
 
-## Streaming — required for every proxy
+## Streaming - required for every proxy
 
 These endpoints stream and must run with **response buffering off** and **no
 read/write timeout**, or playback and scans stall:
@@ -44,7 +44,7 @@ EVEY_DOMAIN=media.example.com
 
 Use [`examples/nginx/evey.conf`](../examples/nginx/evey.conf) (a ready compose is
 at [`examples/nginx/docker-compose.nginx.yml`](../examples/nginx/docker-compose.nginx.yml)).
-It proxies to `evey:9091` with streaming buffering disabled — no frontend build step.
+It proxies to `evey:9091` with streaming buffering disabled - no frontend build step.
 
 ## Traefik
 

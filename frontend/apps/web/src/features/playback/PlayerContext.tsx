@@ -88,7 +88,7 @@ export function usePlayerContext(): PlayerState {
 
 // High-frequency playback position, split into its OWN context so the ~4×/sec
 // timeupdate tick re-renders only the components that actually display the
-// position (the seek bar, the time label) — not the whole control bar with its
+// position (the seek bar, the time label) - not the whole control bar with its
 // buttons and panels. PlayerState (above) deliberately no longer carries these.
 export interface PlayerTime {
   currentTime: number;
@@ -306,7 +306,7 @@ export function PlayerProvider({
   );
 
   // Publish to the OS Media Session (lock screen / Now Playing). Feature-
-  // detected and additive — a no-op where unsupported.
+  // detected and additive - a no-op where unsupported.
   useMediaSession({
     videoRef,
     title,

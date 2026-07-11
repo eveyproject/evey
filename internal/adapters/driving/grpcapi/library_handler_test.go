@@ -210,7 +210,7 @@ func TestLibraryHandler_DeleteLibrary(t *testing.T) {
 }
 
 // Regression for the prod 500: deleting a library that no longer exists (stale
-// admin list, double-click, already removed elsewhere) must be idempotent —
+// admin list, double-click, already removed elsewhere) must be idempotent -
 // success, not an internal error.
 func TestLibraryHandler_DeleteLibrary_AlreadyAbsentIdempotent(t *testing.T) {
 	h, _, _, _, _, _, _ := newTestLibraryHandler()
@@ -444,7 +444,7 @@ func TestLibraryHandler_GetMediaItem_ParentalFailsClosedOnProfileLookupError(t *
 
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-1", LibraryID: "lib-1", Title: "Movie", Type: "movie"})
 
-	// library access granted, but the claimed profile cannot be resolved —
+	// library access granted, but the claimed profile cannot be resolved -
 	// the parental gate must fail closed, not fall back to "no restriction".
 	libraryAccess.Grant(context.Background(), "user-2", "lib-1")
 	ctx := userCtx("user-2", "profile-missing")
@@ -452,7 +452,7 @@ func TestLibraryHandler_GetMediaItem_ParentalFailsClosedOnProfileLookupError(t *
 	_, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-1"})
 	require.Error(t, err)
 	// Fail-closed still blocks; the client sees NotFound (existence hidden), not
-	// PermissionDenied — same opacity as the library-access path.
+	// PermissionDenied - same opacity as the library-access path.
 	assert.Equal(t, codes.NotFound, status.Code(err))
 }
 
@@ -608,12 +608,12 @@ func TestLibraryHandler_SearchMedia_IDOR_FiltersAccess(t *testing.T) {
 
 // The search index carries no per-country certifications (and often no rating
 // at all), so a kids profile's filter must resolve the full items and apply the
-// fail-closed parental check — not trust the indexed OfficialRating.
+// fail-closed parental check - not trust the indexed OfficialRating.
 func TestLibraryHandler_SearchMedia_ParentalFailClosed(t *testing.T) {
 	h, _, mediaQuery, searchIdx, libraryAccess, profiles, _ := newTestLibraryHandler()
 	ctx := context.Background()
 
-	// Hits returned by the index — note they carry no rating, like the real one.
+	// Hits returned by the index - note they carry no rating, like the real one.
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Searchword R", Type: "movie"}, nil)
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-pg", LibraryID: "lib-1", Title: "Searchword PG", Type: "movie"}, nil)
 	searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: "mi-unrated", LibraryID: "lib-1", Title: "Searchword Unrated", Type: "movie"}, nil)
@@ -703,7 +703,7 @@ func TestLibraryHandler_FilterMediaItems_IDOR_Allowed(t *testing.T) {
 	assert.Len(t, resp.Items, 1)
 }
 
-// FilterMediaItems must apply the same parental gate as ListMediaItems —
+// FilterMediaItems must apply the same parental gate as ListMediaItems -
 // otherwise the filter screen leaks restricted content to a kids profile.
 func TestLibraryHandler_FilterMediaItems_ParentalFailClosed(t *testing.T) {
 	h, _, mediaQuery, _, libraryAccess, profiles, _ := newTestLibraryHandler()

@@ -26,7 +26,9 @@ func (f *fakeClient) Fetch(_ context.Context, _ Lookup) ([]domainlibrary.MediaSe
 	return f.segs, f.err
 }
 
-type fakeRepo struct{ items map[shared.MediaItemID]*domainlibrary.MediaItem }
+type fakeRepo struct {
+	items map[shared.MediaItemID]*domainlibrary.MediaItem
+}
 
 func (f *fakeRepo) GetByID(_ context.Context, id shared.MediaItemID) (*domainlibrary.MediaItem, error) {
 	return f.items[id], nil
@@ -101,7 +103,7 @@ func TestChain_EmptyFirst_FallsThrough(t *testing.T) {
 
 // 429 from first → cooldown set; subsequent calls within the cooldown
 // window skip the rate-limited source. This is the throttling shield
-// — without it a burst of episodes would burn through quotas.
+// - without it a burst of episodes would burn through quotas.
 func TestChain_RateLimited_SetsCooldown(t *testing.T) {
 	t.Parallel()
 	episode, repo := minimalEpisodeFixture(t)
@@ -124,7 +126,7 @@ func TestChain_RateLimited_SetsCooldown(t *testing.T) {
 	assert.Equal(t, 1, limited.calls, "tidb must still be silent during cooldown")
 	assert.Equal(t, 2, other.calls)
 
-	// Wait out the cooldown — tidb retries.
+	// Wait out the cooldown - tidb retries.
 	time.Sleep(80 * time.Millisecond)
 	_, err = provider.GetSegments(context.Background(), episode)
 	require.NoError(t, err)

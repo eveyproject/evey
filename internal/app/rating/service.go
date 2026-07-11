@@ -8,7 +8,7 @@ import (
 
 // Service exposes per-profile thumb ratings (like / dislike / clear, value
 // -1/0/1) backed by the user_ratings table. The legacy 1-10 star-rating system
-// (the domain/rating package + the ratings table + RatingValue) was removed —
+// (the domain/rating package + the ratings table + RatingValue) was removed -
 // thumbs is the single rating model.
 type Service struct {
 	thumb domainlibrary.UserRatingRepository

@@ -4,7 +4,7 @@ package transcoding
 // at scan time from cheap source-side metrics (signalstats YDEV + scenecut
 // rate + source bitrate + resolution). The hint maps to one of four
 // pre-tuned ABR ladders chosen so the bandwidth/quality tradeoff matches
-// the actual content — anime gets a 2-rung ladder peaking at 1.2 Mbps,
+// the actual content - anime gets a 2-rung ladder peaking at 1.2 Mbps,
 // action 4K HDR gets up to 15 Mbps. Mux's "Instant Per-Title Encoding"
 // pattern, the simplified version of Netflix per-title that avoids the
 // VMAF pre-encode pass.
@@ -32,7 +32,7 @@ func (c ContentClass) IsValid() bool {
 	return false
 }
 
-// LadderAnimation — light ladder for high-compressibility content (cell-shaded
+// LadderAnimation - light ladder for high-compressibility content (cell-shaded
 // or flat colour anime, classic 2D). YDEV stays low, scenecuts rare, source
 // bitrate typically <3 Mbps for a 1080p anime. Two rungs are enough because
 // the per-frame bandwidth is so flat that ABR has little to switch between.
@@ -41,7 +41,7 @@ var LadderAnimation = []HLSProfile{
 	{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 1200, AudioBitrate: 128},
 }
 
-// LadderFilmLowMotion — drama, romance, dialogue-driven, fixed cameras.
+// LadderFilmLowMotion - drama, romance, dialogue-driven, fixed cameras.
 // YDEV moderate, scenecuts sparse. Bandwidth comfortable below the project
 // default; ladder keeps the 1080p rung but cuts both lower rungs and the
 // per-rung bitrate.
@@ -51,7 +51,7 @@ var LadderFilmLowMotion = []HLSProfile{
 	{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 2500, AudioBitrate: 192},
 }
 
-// LadderFilmNormal — pre-refactor default. Used as fallback when the
+// LadderFilmNormal - pre-refactor default. Used as fallback when the
 // classifier is undecided, when complexity_class is null (unclassified
 // rows), and when an admin override forces it.
 var LadderFilmNormal = []HLSProfile{
@@ -61,7 +61,7 @@ var LadderFilmNormal = []HLSProfile{
 	{Name: "1080p", Width: 1920, Height: 1080, VideoBitrate: 5000, AudioBitrate: 192},
 }
 
-// LadderFilmHighMotion — sustained action, blockbuster, anything that
+// LadderFilmHighMotion - sustained action, blockbuster, anything that
 // flirts with the 4K HDR territory. The per-rung bitrates climb so the
 // hard cases (sustained explosions, fast pans, grain) don't crater
 // perceptual quality.
@@ -72,10 +72,10 @@ var LadderFilmHighMotion = []HLSProfile{
 	{Name: "2160p", Width: 3840, Height: 2160, VideoBitrate: 15000, AudioBitrate: 256},
 }
 
-// LadderSport — broadcast-style continuous high motion (sports, esports,
+// LadderSport - broadcast-style continuous high motion (sports, esports,
 // live events). Same shape as high-motion but with a slightly heavier
 // 720p rung because sports viewers watching on mobile still want sharp
-// motion. Rare in a self-hosted film/TV library — kept for completeness.
+// motion. Rare in a self-hosted film/TV library - kept for completeness.
 var LadderSport = []HLSProfile{
 	{Name: "480p", Width: 854, Height: 480, VideoBitrate: 1800, AudioBitrate: 128},
 	{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 4500, AudioBitrate: 192},
@@ -103,7 +103,7 @@ func LadderFor(c ContentClass) []HLSProfile {
 
 // CapLadderToHeight trims the ladder so no rung exceeds maxHeight pixels.
 // Designed for the software-only encode path: ffmpeg software encoders
-// can't keep up with a 2160p H.264 rung on a 4K HEVC source — the whole
+// can't keep up with a 2160p H.264 rung on a 4K HEVC source - the whole
 // pipeline (which produces every variant in a single ffmpeg via
 // var_stream_map) gets bottlenecked by the heaviest rung. Capping to
 // 1080p (maxHeight=1080) is what every other OSS player (Jellyfin,
@@ -130,13 +130,13 @@ func CapLadderToHeight(ladder []HLSProfile, maxHeight int) []HLSProfile {
 // BoostCappedTopRung spends the bitrate budget of a capability-dropped rung at
 // the height the encoder CAN sustain. When the height ceiling (software /
 // software-HDR sustainable cap) removed rungs the source could have fed, the
-// client was ready to budget the dropped rung's bandwidth anyway — so the top
+// client was ready to budget the dropped rung's bandwidth anyway - so the top
 // surviving rung adopts the FIRST dropped rung's video bitrate (e.g. a 4K HDR
 // source capped to 720p serves 720p at the 1080p rung's 5000k instead of
 // 2800k: the grain survives the downscale). First dropped, not highest: the
 // next rung up is the budget the viewer actually lost. Raising maxrate at a
-// fixed capped-CRF costs the encoder almost nothing — the cap is a bit budget,
-// not a work order — so this stays inside the calibrated margin.
+// fixed capped-CRF costs the encoder almost nothing - the cap is a bit budget,
+// not a work order - so this stays inside the calibrated margin.
 //
 // heightCapped must be the CapLadderToHeight result of sourceCapped (an
 // ascending prefix, or the single-lowest-rung fallback). Source-resolution
@@ -160,7 +160,7 @@ func BoostCappedTopRung(sourceCapped, heightCapped []HLSProfile) []HLSProfile {
 }
 
 // CapLadderToSource trims the returned ladder so no rung tries to upscale
-// beyond the source resolution — pointless bandwidth and risks visible
+// beyond the source resolution - pointless bandwidth and risks visible
 // blurring. e.g. a 720p source with LadderFilmHighMotion (which has a
 // 2160p rung) gets clipped to 480p/720p only.
 //
@@ -173,7 +173,7 @@ func CapLadderToSource(ladder []HLSProfile, sourceWidth, sourceHeight int) []HLS
 	out := make([]HLSProfile, 0, len(ladder))
 	for _, p := range ladder {
 		// Allow the rung when it's strictly smaller OR equal in the tallest
-		// dimension. Some sources are letterboxed (e.g. 1920×800) — cap
+		// dimension. Some sources are letterboxed (e.g. 1920×800) - cap
 		// against the larger of width/height vs the rung's larger side.
 		srcMax := max(sourceHeight, sourceWidth)
 		rungMax := max(p.Height, p.Width)
@@ -181,7 +181,7 @@ func CapLadderToSource(ladder []HLSProfile, sourceWidth, sourceHeight int) []HLS
 			out = append(out, p)
 		}
 	}
-	// Always keep at least one rung — if the source is tiny (<360p), give
+	// Always keep at least one rung - if the source is tiny (<360p), give
 	// the lowest pre-defined rung anyway so the player has something.
 	if len(out) == 0 {
 		return ladder[:1]

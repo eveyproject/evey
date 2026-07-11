@@ -252,7 +252,7 @@ func TestTrickplay_GenerateTrickplay_DedupsConcurrent(t *testing.T) {
 		return atomic.LoadInt32(&gen.callCount) >= 1
 	}, 2*time.Second, 10*time.Millisecond, "first generation must start")
 
-	// B: a concurrent request for the same item must be skipped — two ffmpeg
+	// B: a concurrent request for the same item must be skipped - two ffmpeg
 	// runs writing the same sprite dir would corrupt each other's output.
 	_ = svc.GenerateTrickplay(context.Background(), "m1")
 	assert.Equal(t, int32(1), atomic.LoadInt32(&gen.callCount), "concurrent generation should be deduped")

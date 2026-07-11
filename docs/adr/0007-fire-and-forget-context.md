@@ -5,7 +5,7 @@
 
 ## Context
 
-Several gRPC handlers return an immediate response and continue the real work in a background goroutine: photo library scan, trickplay generation, audit-log kill-session with grace period, notification dispatch, etc. The choice of `context.Context` passed to that goroutine is not obvious — and each wrong choice failed in production in a different way.
+Several gRPC handlers return an immediate response and continue the real work in a background goroutine: photo library scan, trickplay generation, audit-log kill-session with grace period, notification dispatch, etc. The choice of `context.Context` passed to that goroutine is not obvious - and each wrong choice failed in production in a different way.
 
 Observed failure modes:
 
@@ -17,21 +17,21 @@ The common mistake is thinking of the goroutine as an extension of the request w
 
 ## Decision
 
-Fire-and-forget goroutines must follow all three rules below. No exceptions for "small" or "fast" tasks — all three grew out of production failures, including short-lived ones.
+Fire-and-forget goroutines must follow all three rules below. No exceptions for "small" or "fast" tasks - all three grew out of production failures, including short-lived ones.
 
-### Rule 1 — detach from the request context
+### Rule 1 - detach from the request context
 
 Never pass `ctx` (the gRPC handler context) to a goroutine that outlives the handler. Use one of:
 
-- `serverCtx` injected at wire time — when the operation must be cancelled on server shutdown (scans, periodic workers). Wire via an option like `WithShutdownCtx(ctx)`.
-- `context.Background()` + `WithTimeout(N)` — when the operation is short and self-bounded (admin audit grace period, async notification send).
+- `serverCtx` injected at wire time - when the operation must be cancelled on server shutdown (scans, periodic workers). Wire via an option like `WithShutdownCtx(ctx)`.
+- `context.Background()` + `WithTimeout(N)` - when the operation is short and self-bounded (admin audit grace period, async notification send).
 - Never use the request ctx as a fallback. `if serverCtx == nil { serverCtx = ctx }` is a bug; the correct fallback is `context.Background()`.
 
-### Rule 2 — every timeout is bounded
+### Rule 2 - every timeout is bounded
 
 No naked `context.Background()` reaches I/O. Every detached context is wrapped with `WithTimeout`. 30 s is the default for single-row writes, 5 min for ffprobe/ffmpeg/meili operations, 10 min for background enrichment passes. Duration is justified in a comment when it deviates from those defaults.
 
-### Rule 3 — every goroutine has `defer recover()`
+### Rule 3 - every goroutine has `defer recover()`
 
 ```go
 go func() {
@@ -46,7 +46,7 @@ go func() {
 }()
 ```
 
-Recovery is logged with `slog.Error` and the stack, not swallowed. The message prefix names the operation so the source is identifiable in log search. `recover()` must be inside an anonymous `defer` — `defer recover()` alone does nothing.
+Recovery is logged with `slog.Error` and the stack, not swallowed. The message prefix names the operation so the source is identifiable in log search. `recover()` must be inside an anonymous `defer` - `defer recover()` alone does nothing.
 
 ## Consequences
 
@@ -57,7 +57,7 @@ Recovery is logged with `slog.Error` and the stack, not swallowed. The message p
 
 ## References
 
-- `internal/adapters/driving/grpcapi/photo_handler.go` — serverCtx fallback → `context.Background()`
-- `internal/adapters/driving/grpcapi/admin_audit.go` — `StopStream` now inside `WithTimeout(30s)`
-- `internal/adapters/driven/postgres/backup.go` — `pg_dump` copy goroutine with recover + `pw.CloseWithError`
+- `internal/adapters/driving/grpcapi/photo_handler.go` - serverCtx fallback → `context.Background()`
+- `internal/adapters/driving/grpcapi/admin_audit.go` - `StopStream` now inside `WithTimeout(30s)`
+- `internal/adapters/driven/postgres/backup.go` - `pg_dump` copy goroutine with recover + `pw.CloseWithError`
 - Commit 2026-04-20: `fix(grpc): context lifecycle on fire-and-forget handler goroutines`

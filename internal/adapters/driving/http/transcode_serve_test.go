@@ -13,7 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
-// Edge: URI already carries a query string — must use & not ? a second time.
+// Edge: URI already carries a query string - must use & not ? a second time.
 
 // Edge: CRLF line endings must survive so strict TV clients still parse.
 
@@ -52,7 +52,7 @@ func TestParseClientCapabilities_AllParams(t *testing.T) {
 }
 
 // ============================================================
-// loadProfilePrefs (28.6% — exercise nil/empty/error/success branches)
+// loadProfilePrefs (28.6% - exercise nil/empty/error/success branches)
 // ============================================================
 
 type fakeProfilePrefsGetter struct {
@@ -276,12 +276,12 @@ func TestTranscodeHandler_StreamToken_WrongMediaID_403(t *testing.T) {
 // ============================================================
 
 // Post-fix: segments require a live session. Stale disk cache without a
-// session must return 404 — the client re-fetches master.m3u8 which recreates
+// session must return 404 - the client re-fetches master.m3u8 which recreates
 // the session with the caller's own decisions (closes cross-user leak after
 // server restart).
 
 // ============================================================
-// hlsMasterHandler.serveHTTP — exercise the full happy path with
+// hlsMasterHandler.serveHTTP - exercise the full happy path with
 // fake HLSProcess + UserMaxStreams + bitrate + token injection.
 // This drives serveMaster, GetOrCreate, and parseClientCapabilities.
 // ============================================================

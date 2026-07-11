@@ -32,7 +32,7 @@ func pathUnderAnyRoot(path string, roots []string) bool {
 
 // OrphanPruner finalizes a scan by removing DB rows whose files no
 // longer exist on disk (orphans) and cleaning up empty TV containers
-// (seasons/series with no remaining children). Pure finalization —
+// (seasons/series with no remaining children). Pure finalization -
 // runs after the scan has collected every path it saw this pass.
 type OrphanPruner struct {
 	mediaItems library.MediaItemCommandRepo
@@ -67,7 +67,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 
 	// Safety net against a degraded mount wiping the catalog. A scan that saw
 	// ZERO files while the library still has items is almost never a real "all
-	// media deleted" — it is a dropped NFS/SMB export, a lazy/empty mountpoint,
+	// media deleted" - it is a dropped NFS/SMB export, a lazy/empty mountpoint,
 	// or the media folder renamed under a healthy root (the scanner only errors
 	// when the root itself is inaccessible, so an empty-but-present dir returns
 	// no files and no error). Pruning here would DeleteByIDs every row and
@@ -88,7 +88,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 		}
 		// Per-root extension of the guard above: on a multi-path library, one
 		// healthy root keeps seenPaths non-empty, but an item under a DIFFERENT
-		// root that scanned empty (that mount dropped) must NOT be pruned — same
+		// root that scanned empty (that mount dropped) must NOT be pruned - same
 		// data-loss, narrower trigger. An item whose file genuinely vanished from
 		// a HEALTHY root (one that returned other files) is still a real orphan.
 		if pathUnderAnyRoot(path, emptyRoots) {
@@ -105,7 +105,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 	if len(orphanIDs) > 0 {
 		if delErr := p.mediaItems.DeleteByIDs(ctx, orphanIDs); delErr != nil {
 			slog.Warn("batch delete orphaned media items failed", slog.Any("err", delErr))
-			// Fail closed: rows are still in the DB — do not de-index or emit
+			// Fail closed: rows are still in the DB - do not de-index or emit
 			// removal events for items that were NOT deleted.
 		} else {
 			deleted = len(orphanIDs)

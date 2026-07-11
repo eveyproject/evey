@@ -211,7 +211,7 @@ func findingsFromReport(r *domainplugin.AnalysisReport) []domainplugin.SecurityF
 }
 
 // parseSeverityFromIssue extracts "CRITICAL", "WARNING", or "INFO" from the
-// formatted "[SEVERITY] file:line — description" issue string.
+// formatted "[SEVERITY] file:line - description" issue string.
 func parseSeverityFromIssue(issue string) string {
 	if len(issue) < 2 {
 		return "INFO"

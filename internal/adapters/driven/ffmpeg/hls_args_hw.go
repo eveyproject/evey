@@ -84,7 +84,7 @@ func hwUsable(opts transcoding.HLSProcessOpts, burnIn bool, toneMap string) bool
 	}
 	// A tone-map normally keeps the software path. The exception: the host probed
 	// GPU tone-mapping AND it's wired into this request (opts.HWTonemap) AND the
-	// backend has a HW tone-map filter — then the GPU folds HDR->SDR in-pipeline.
+	// backend has a HW tone-map filter - then the GPU folds HDR->SDR in-pipeline.
 	if toneMap != "" {
 		return opts.HWTonemap && hwTonemapFilter(opts.HWAccel) != ""
 	}
@@ -151,14 +151,14 @@ func hwScaleFilter(accel transcoding.HWAccelType, width int) string {
 
 // hwDeinterlaceFilter returns a GPU deinterlacer that, like the software
 // deinterlaceFilter ("bwdif=deint=interlaced"), only touches frames the decoder
-// flags as interlaced and passes progressive content through untouched — so it
+// flags as interlaced and passes progressive content through untouched - so it
 // is always safe to prepend, never doubles the frame rate, and keeps the work
 // on the GPU surfaces (no hwdownload round-trip). Returns "" for backends with
 // no field-flag-respecting HW deinterlacer:
 //   - NVENC/CUDA: yadif_cuda with deint=interlaced (mode 0 ⇒ one frame per frame)
 //   - VAAPI: deinterlace_vaapi (auto=1 default ⇒ progressive passes through),
 //     which covers AMD iGPUs and Intel iGPUs driven through VAAPI
-//   - QSV: empty — vpp_qsv's deinterlace has no "only-if-flagged" mode and would
+//   - QSV: empty - vpp_qsv's deinterlace has no "only-if-flagged" mode and would
 //     wrongly deinterlace progressive content; left to the software path / a
 //     follow-up that gates on a probed interlace signal.
 func hwDeinterlaceFilter(accel transcoding.HWAccelType) string {
@@ -172,16 +172,16 @@ func hwDeinterlaceFilter(accel transcoding.HWAccelType) string {
 }
 
 // hwEncoderQualityArgs returns the encoder-specific quality flags applied to
-// the output stream currently being defined (no stream specifier — ffmpeg
+// the output stream currently being defined (no stream specifier - ffmpeg
 // binds them to the next `-c:v`). The BASELINE (preset, plus NVENC's required
 // -forced-idr) is always emitted and is byte-for-byte the pre-probe behaviour.
 // The optional streaming tuning (b-frames, rc-lookahead, spatial/temporal AQ,
-// b_ref_mode) is gated on `features` — the per-option set the calibration
+// b_ref_mode) is gated on `features` - the per-option set the calibration
 // probe confirmed this host's encoder ACCEPTS (capability.HWFeatures forwarded
 // via HLSProcessOpts.HWFeatures). An option absent from `features` is never
 // passed, so an older NVENC/QSV/VAAPI chip that rejects it is never handed it,
 // and the level-2 safety net catches anything the probe missed. Empty features
-// ⇒ the proven conservative baseline. No `-pix_fmt yuv420p` — GPU surfaces.
+// ⇒ the proven conservative baseline. No `-pix_fmt yuv420p` - GPU surfaces.
 func hwEncoderQualityArgs(accel transcoding.HWAccelType, features []string) []string {
 	has := func(f string) bool {
 		return slices.Contains(features, f)
@@ -213,7 +213,7 @@ func hwEncoderQualityArgs(accel transcoding.HWAccelType, features []string) []st
 	case transcoding.QSV:
 		// QSV baseline: veryfast keeps cold starts low on weak iGPUs. -forced_idr
 		// is gated because an older pre-Skylake/Apollo-Lake QSV rejects unknown
-		// options and would fail the whole encode — only emit it once probed.
+		// options and would fail the whole encode - only emit it once probed.
 		args := []string{"-preset", "veryfast"}
 		if has("forced_idr") {
 			args = append(args, "-forced_idr", "1")
@@ -277,7 +277,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 
 // buildMultiVariantHWArgs is the GPU equivalent of buildMultiVariantArgs: a
 // single decode fed into a GPU split, one GPU scaler per rung, one HW encoder
-// per rung — zero host-memory round-trip. Audio stays software-encoded.
+// per rung - zero host-memory round-trip. Audio stays software-encoded.
 func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 	n := len(opts.Profiles)
 	vcodec := videoEncoderFor(opts.VideoCodec, opts.HWAccel)

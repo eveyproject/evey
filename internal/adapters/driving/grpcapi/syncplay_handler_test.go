@@ -392,7 +392,7 @@ func TestCreateRoom_FromPlaylist_Success(t *testing.T) {
 	env.grantAccess("u-1", "lib-1")
 	env.seedPlaylist("pl-1", "p-1", []string{"t1", "t2"})
 	// Use a music track service stub: requireMediaAccess hits musicSvc when media_type=music
-	// musicSvc is nil here — so set up. requireMediaAccess for music with nil musicSvc returns NotFound.
+	// musicSvc is nil here - so set up. requireMediaAccess for music with nil musicSvc returns NotFound.
 	// Workaround: admin bypass.
 
 	ctx := ctxWithClaims("u-1", "p-1", true)

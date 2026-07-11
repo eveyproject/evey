@@ -48,7 +48,7 @@ func TestCommandService_StartCleanup_RespectsContextCancel(t *testing.T) {
 	svc.StartCleanup(ctx, initDone)
 	<-initDone
 	cancel()
-	// A second call with an already-cancelled ctx also exits cleanly —
+	// A second call with an already-cancelled ctx also exits cleanly -
 	// the goroutine runs the initial cleanup before checking ctx in the
 	// loop, so initDone fires once even on a pre-cancelled ctx.
 	initDone2 := make(chan struct{})

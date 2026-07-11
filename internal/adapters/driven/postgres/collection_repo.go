@@ -294,16 +294,16 @@ func (r *CollectionRepository) GetItems(ctx context.Context, collectionID string
 }
 
 // GetItemsByCollectionIDs returns, per supplied collection, a VISIBILITY
-// PROJECTION of its items — only what ListCollections needs to decide whether a
+// PROJECTION of its items - only what ListCollections needs to decide whether a
 // collection is visible to the caller: id, library_id and the parental-rating
 // fields (tags, official_rating, certifications_by_country). It deliberately
 // does NOT hydrate file metadata, trailers, genres, overview, etc.: the full
 // hydration ran a per-row trailers subquery plus several JSONB parses just to
-// test visibility. Grouped by collection ID in one query — no per-collection
+// test visibility. Grouped by collection ID in one query - no per-collection
 // N+1. This is the only caller; do NOT use it where a fully populated MediaItem
 // is expected.
 //
-// No per-collection LIMIT is applied: TMDB franchise collections hold O(10–50)
+// No per-collection LIMIT is applied: TMDB franchise collections hold O(10-50)
 // items in practice.
 func (r *CollectionRepository) GetItemsByCollectionIDs(ctx context.Context, collectionIDs []string) (map[string][]*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.collection.GetItemsByCollectionIDs")
@@ -484,7 +484,7 @@ func (q *CollectionSmartQuerier) CountByRules(ctx context.Context, rules []libra
 	span.SetAttributes(attribute.Int("collection.rule.count", len(rules)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	// Same FROM+joins+WHERE as QueryByRules but only counts — DISTINCT mi.id so a
+	// Same FROM+joins+WHERE as QueryByRules but only counts - DISTINCT mi.id so a
 	// 1:many join can't inflate the total.
 	query := "SELECT COUNT(DISTINCT mi.id) " + mediaItemFromJoins
 

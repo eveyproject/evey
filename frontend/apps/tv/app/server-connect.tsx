@@ -216,7 +216,7 @@ export default function ServerConnect() {
         </Pressable>
       )}
 
-      {/* Rename modal — centered, TV-friendly (no swipe) */}
+      {/* Rename modal - centered, TV-friendly (no swipe) */}
       <Modal
         visible={renameId !== null}
         transparent
@@ -328,7 +328,7 @@ function ServerRow({
         )}
       </Pressable>
 
-      {/* Action buttons — individually focusable for D-pad */}
+      {/* Action buttons - individually focusable for D-pad */}
       <View style={s.actions}>
         <Pressable
           onPress={onRename}

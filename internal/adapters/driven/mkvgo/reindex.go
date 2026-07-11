@@ -101,7 +101,7 @@ func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
 }
 
 // HasSeekIndex reports whether the EBML file at path already has a Cues index.
-// It first tries the head-SeekHead probe (a few KB of reads — what makes a
+// It first tries the head-SeekHead probe (a few KB of reads - what makes a
 // whole-library scan feasible); only undecidable files pay the full parse.
 func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.HasSeekIndex")
@@ -204,14 +204,14 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: open source meta: %w", err)
 	}
 	if len(meta.Cues) > 0 {
-		return mkv.ReindexResult{Skipped: true}, nil // already indexed — nothing to do
+		return mkv.ReindexResult{Skipped: true}, nil // already indexed - nothing to do
 	}
 
 	// (2) Surgical in-place first (Mode auto/inplace): needs write access to
 	// the FILE only (no temp in the directory), never duplicates it on disk,
 	// leaves no backup. In ModeAuto it falls back to the full rewrite below
 	// when the strategy is unavailable (pre-bump stub) or refuses this file
-	// (streamed clusters, truncated tail, no SeekHead slot) — the in-place
+	// (streamed clusters, truncated tail, no SeekHead slot) - the in-place
 	// journal guarantees the original is intact after any refusal, so the
 	// rewrite can safely proceed. In ModeInPlace the operator explicitly
 	// refused a rewrite: refusal is surfaced as ErrInPlaceUnsupported.

@@ -17,7 +17,7 @@ import (
 // package and not leak into the postgres adapters' public surface.
 type CacheRepo interface {
 	// Get returns the cached segments and the time they were stored, or
-	// (nil, zero, nil) on a cache miss — the decorator treats that as a
+	// (nil, zero, nil) on a cache miss - the decorator treats that as a
 	// miss and hits the upstream.
 	Get(ctx context.Context, tmdbID, season, episode int) ([]byte, time.Time, error)
 	// Put stores the JSON payload. season/episode = 0 for movies.
@@ -27,7 +27,7 @@ type CacheRepo interface {
 }
 
 // Cached wraps an inner provider with a postgres lookup. On hit, the
-// inner provider is never called — this is the volume-control knob
+// inner provider is never called - this is the volume-control knob
 // that keeps us under the daily TIDB quota for typical scans.
 //
 // Negative caching: a (200 + empty) or 404 response also gets cached as
@@ -69,7 +69,7 @@ func (c *Cached) GetSegments(ctx context.Context, item *domainlibrary.MediaItem)
 		if errors.Is(err, ErrLookupUnresolvable) {
 			return nil, nil
 		}
-		// Don't fail the pipeline on cache resolve errors — let the
+		// Don't fail the pipeline on cache resolve errors - let the
 		// inner provider try (it will resolve again).
 		return c.inner.GetSegments(ctx, item)
 	}
@@ -78,7 +78,7 @@ func (c *Cached) GetSegments(ctx context.Context, item *domainlibrary.MediaItem)
 		if blob, fetchedAt, getErr := c.repo.Get(ctx, lookup.TmdbID, lookup.Season, lookup.Episode); getErr == nil && blob != nil {
 			isNegative := string(blob) == "[]"
 			if isNegative && c.negativeTTL > 0 && c.nowFunc().Sub(fetchedAt) > c.negativeTTL {
-				// Negative cache row is stale — treat as miss so the
+				// Negative cache row is stale - treat as miss so the
 				// upstream is retried (TIDB may have new data now).
 				slog.Debug("intro_metadata_cache: negative row expired, refetching",
 					slog.Int("tmdb_id", lookup.TmdbID),
@@ -97,12 +97,12 @@ func (c *Cached) GetSegments(ctx context.Context, item *domainlibrary.MediaItem)
 
 	segs, err := c.inner.GetSegments(ctx, item)
 	if err != nil {
-		// Don't cache transient errors — the next call should retry.
+		// Don't cache transient errors - the next call should retry.
 		return nil, err
 	}
 
 	if c.repo != nil {
-		// Empty slice serialises to "[]" — also a valid cache row.
+		// Empty slice serialises to "[]" - also a valid cache row.
 		blob, jerr := json.Marshal(segs)
 		if jerr == nil {
 			source := "chain"

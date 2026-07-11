@@ -10,7 +10,7 @@ type VideoStream interface {
 	GetBitDepth() *int
 	GetColorSpace() *string
 	// GetColorTransfer is the ffprobe color_transfer (smpte2084 = PQ,
-	// arib-std-b67 = HLG), nil when unprobed — the only signal that tells PQ
+	// arib-std-b67 = HLG), nil when unprobed - the only signal that tells PQ
 	// from HLG.
 	GetColorTransfer() *string
 	GetHDRType() *string
@@ -48,7 +48,7 @@ type ToneMapOptions struct {
 
 	// UseTonemapx selects jellyfin-ffmpeg's `tonemapx` filter (one AVX2/SIMD pass)
 	// instead of the portable zscale float32 chain. Measured on an old box, same
-	// file/encoder/1080p: 1.56x realtime (tonemapx) vs 0.89x (zscale) — the gap
+	// file/encoder/1080p: 1.56x realtime (tonemapx) vs 0.89x (zscale) - the gap
 	// that flips 4K HDR from buffering to playable. Only set when the active
 	// ffmpeg actually has the filter (vanilla ffmpeg lacks it); the builder falls
 	// back to zscale when false, so the code is portable across both builds.
@@ -85,12 +85,12 @@ func DetectHDR(streams []VideoStream) *HDRInfo {
 		}
 
 		// Dolby Vision FIRST: a DoVi stream also carries a PQ transfer, so the
-		// transfer rule below would misread it as plain HDR10 — and a profile-5
+		// transfer rule below would misread it as plain HDR10 - and a profile-5
 		// stream served as HDR10 renders green/purple (IPTC2 base layer). Only a
 		// profile-8 stream with a compatible base layer (1=HDR10, 2=SDR, 4=HLG)
 		// may be treated as that base; everything else is "dolby_vision", which
 		// the playback decision always transcodes (tonemap reads the base layer,
-		// PQ for every profile but 8.4 — see setParamsFor).
+		// PQ for every profile but 8.4 - see setParamsFor).
 		if dv := s.GetDoViProfile(); dv != nil && *dv > 0 {
 			info.IsHDR = true
 			info.DoViProfile = *dv
@@ -109,7 +109,7 @@ func DetectHDR(streams []VideoStream) *HDRInfo {
 		}
 
 		// Transfer characteristics are the authoritative HDR signal when probed:
-		// PQ (smpte2084) ⇒ HDR10, HLG (arib-std-b67) ⇒ HLG — the only field that
+		// PQ (smpte2084) ⇒ HDR10, HLG (arib-std-b67) ⇒ HLG - the only field that
 		// tells the two apart.
 		if ct := s.GetColorTransfer(); ct != nil {
 			switch strings.ToLower(strings.TrimSpace(*ct)) {
@@ -129,7 +129,7 @@ func DetectHDR(streams []VideoStream) *HDRInfo {
 		// before color_transfer was stored, so we report hdr10 as the
 		// conservative default). ffprobe leaves bits_per_raw_sample empty for
 		// many HEVC streams, so the codec profile ("Main 10" / "High 10") is the
-		// reliable 10-bit signal when bit depth is absent — without this
+		// reliable 10-bit signal when bit depth is absent - without this
 		// fallback, real 2160p HDR (e.g. bt2020nc + Main 10 with no
 		// bits_per_raw_sample) is misread as SDR.
 		if cs := s.GetColorSpace(); cs != nil && strings.Contains(strings.ToLower(*cs), "bt2020") {
@@ -170,7 +170,7 @@ func BuildToneMapFilter(info *HDRInfo, opts ToneMapOptions) string {
 		// same CPU (old box, 1080p, same file/encoder: 1.56x vs 0.89x realtime).
 		// bt2390 is the ITU-R EETF (tonemapx's recommended HDR10 curve). Scale
 		// BEFORE the tonemap so it runs at the delivery resolution, and tag the
-		// frame's colour metadata first (mirrors Jellyfin — some rips under-tag).
+		// frame's colour metadata first (mirrors Jellyfin - some rips under-tag).
 		scale := ""
 		if opts.DstWidth > 0 {
 			scale = fmt.Sprintf("scale=%d:-2,", opts.DstWidth)
@@ -205,7 +205,7 @@ func BuildToneMapFilter(info *HDRInfo, opts ToneMapOptions) string {
 // metadata). HLG uses the arib-std-b67 transfer; everything else (HDR10/HDR10+,
 // and the Dolby Vision base layer) is treated as PQ (smpte2084).
 func setParamsFor(info *HDRInfo) string {
-	trc := "smpte2084" // PQ — HDR10 / HDR10+ / DoVi base layer
+	trc := "smpte2084" // PQ - HDR10 / HDR10+ / DoVi base layer
 	if info != nil && info.Type == "hlg" {
 		trc = "arib-std-b67"
 	}

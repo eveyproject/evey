@@ -74,7 +74,7 @@ func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceTyp
 }
 
 // videoKeyframesMissing reports whether the (first) video stream has no
-// keyframe index yet — the gate for the on-demand inline fill. Audio-only
+// keyframe index yet - the gate for the on-demand inline fill. Audio-only
 // media (no video stream) never probes.
 func videoKeyframesMissing(streams []*library.MediaStream) bool {
 	for _, s := range streams {
@@ -202,7 +202,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	// indexed this file yet, try the bounded fast-path (container seek index,
 	// milliseconds) right here so THIS playback's decision can already take
 	// the copy rung instead of transcoding the whole viewing. Cue-less files
-	// exceed the budget and stay on the worker's slow path — unchanged.
+	// exceed the budget and stay on the worker's slow path - unchanged.
 	if h.keyframeOnDemand != nil && item.File != nil && videoKeyframesMissing(streams) {
 		if h.keyframeOnDemand.TryIndex(ctx, req.MediaItemId, item.File.Path) {
 			if fresh, freshErr := h.librarySvc.GetMediaStreams(ctx, req.MediaItemId); freshErr == nil {
@@ -245,7 +245,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	case "direct_stream":
 		// Container-only mismatch (e.g. h264/aac inside MKV a browser can't
 		// demux): the bytes are copy-eligible but the wrapper isn't. Point the
-		// client at the HLS master, NOT the raw /stream file — the VOD handler's
+		// client at the HLS master, NOT the raw /stream file - the VOD handler's
 		// copy rung repackages to fMP4 segments with `-c:v copy` (no re-encode).
 		// Returning DirectPlayUrl here byte-served the original container, which
 		// the client then couldn't play (the direct_stream branch was a no-op).
@@ -261,14 +261,14 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	// dead (0 is falsy). For a transcode the decision capped the video target
 	// (and a default audio target); for direct play/stream nothing is re-encoded
 	// so the source bitrate is what's served. A transcode that only copies video
-	// (VideoBitrate == 0) also falls back to source — video dominates the total.
+	// (VideoBitrate == 0) also falls back to source - video dominates the total.
 	resp.Bitrate = servedBitrateBps(decision.PlayMethod, decision.VideoBitrate, decision.AudioBitrate, sourceBitrateBps(item))
 
 	return resp, nil
 }
 
 // typeRelativeIndex converts an ABSOLUTE probed stream index (what the proto
-// carries — MediaStream.StreamIndex as exposed to clients) into the
+// carries - MediaStream.StreamIndex as exposed to clients) into the
 // type-relative ordinal the decision prefs consume (ffmpeg's 0:a:N / 0:s:N).
 // Returns ok=false when no stream of that type has this absolute index.
 func typeRelativeIndex(streams []*library.MediaStream, streamType library.StreamType, absIdx int) (int, bool) {
@@ -493,7 +493,7 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 // against in case its ended-at hasn't propagated). It exists so closing one of
 // two tabs on the same film doesn't tear down the shared transcode the other tab
 // is still consuming. On a missing/erroring active-session query it returns
-// false — leaning toward NOT killing, since a spurious teardown interrupts a
+// false - leaning toward NOT killing, since a spurious teardown interrupts a
 // live viewer whereas an orphaned transcode is reclaimed by the producer's idle
 // GC anyway.
 func (h *playbackHandler) lastActiveStreamForMedia(ctx context.Context, mediaItemID, excludeSessionID string) bool {
@@ -655,7 +655,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 // so clients render a real label instead of the bare media_item_id. It also
 // enforces library access: a restricted user only sees items in an allowed
 // library, and an item whose media no longer exists is hidden from them.
-// Best-effort — a failed lookup just leaves the affected fields empty.
+// Best-effort - a failed lookup just leaves the affected fields empty.
 func (h *playbackHandler) enrichWatchHistory(ctx context.Context, items []*playback.WatchProgress, allowedIDs []string) []*eveyv1.WatchProgress {
 	ids := make([]string, 0, len(items))
 	for _, wp := range items {
@@ -1020,7 +1020,7 @@ func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, me
 	item, err := h.librarySvc.GetMediaItem(ctx, mediaItemID)
 	if err != nil {
 		// Parental enforcement is active for this profile and we cannot rate
-		// the item — fail closed rather than play unrated content.
+		// the item - fail closed rather than play unrated content.
 		return true, "parental status unavailable"
 	}
 	age := -1

@@ -67,7 +67,7 @@ const (
 	TierHWFull RetryTier = "hw_full"
 	// TierHWMinimal: hardware encode, no tuning options (the safe HW baseline).
 	TierHWMinimal RetryTier = "hw_minimal"
-	// TierSoftware: libx264 / libx265 — the universal floor that always works.
+	// TierSoftware: libx264 / libx265 - the universal floor that always works.
 	TierSoftware RetryTier = "software"
 )
 
@@ -81,7 +81,7 @@ type Demotion struct {
 	// Persist is true when Capability should be written back to the store
 	// (deterministic failure), false when the change is only for this job.
 	Persist bool
-	// Changed reports whether Capability actually differs from the input — lets
+	// Changed reports whether Capability actually differs from the input - lets
 	// the caller skip a no-op write / alert.
 	Changed bool
 }

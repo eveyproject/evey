@@ -9,10 +9,10 @@ import (
 
 	appnotification "github.com/evey-project/evey/internal/app/notification"
 	"github.com/evey-project/evey/internal/domain/backup"
-	"github.com/evey-project/evey/internal/domain/plugin"
 	libevent "github.com/evey-project/evey/internal/domain/library"
 	notifdom "github.com/evey-project/evey/internal/domain/notification"
 	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
+	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
@@ -199,7 +199,7 @@ func TestNotificationService_EpisodeNotification(t *testing.T) {
 		OccurredAt:  time.Now(),
 	})
 
-	// Episode with SeriesTitle is batched — flush to emit notification
+	// Episode with SeriesTitle is batched - flush to emit notification
 	svc.FlushBatches()
 
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
@@ -1043,7 +1043,7 @@ func TestNotificationService_BackupFailed_WrongEventType(t *testing.T) {
 		OccurredAt:  time.Now(),
 	})
 
-	// backup.failed handler should ignore MediaItemAdded events — this is tested
+	// backup.failed handler should ignore MediaItemAdded events - this is tested
 	// implicitly by the fact that backup handler only processes backup.BackupFailed
 }
 
@@ -1254,7 +1254,7 @@ func TestNotificationService_Batch_SingleSeason_NamesSeries(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
 	assert.Equal(t, notifdom.TypeNewSeason, notifs[0].Type)
-	assert.Equal(t, "new_season:The Sopranos — Season 4", notifs[0].Title)
+	assert.Equal(t, "new_season:The Sopranos - Season 4", notifs[0].Title)
 }
 
 func TestNotificationService_Batch_SingleEpisode_NormalNotification(t *testing.T) {
@@ -1306,7 +1306,7 @@ func TestNotificationService_Batch_MovieNotBatched(t *testing.T) {
 		Title: "Inception", Type: "movie", OccurredAt: time.Now(),
 	})
 
-	// Movie should be immediate — no flush needed
+	// Movie should be immediate - no flush needed
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	require.Len(t, notifs, 1)
@@ -1473,7 +1473,7 @@ func TestNoEpisodeNotificationWhenSeriesNotificationCreatedRecently(t *testing.T
 	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus)
 	svc.Register()
 
-	// First batch: series + season + episodes — produces exactly one new_series notif.
+	// First batch: series + season + episodes - produces exactly one new_series notif.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "sr1", LibraryID: "lib1",
 		Title: "Stranger Things", SeriesTitle: "Stranger Things",
@@ -1589,7 +1589,7 @@ func TestEpisodeNotificationsAreGroupedWithin24h(t *testing.T) {
 	require.Len(t, notifs, 1, "first episode should create one notification")
 	assert.Equal(t, notifdom.TypeNewEpisode, notifs[0].Type)
 
-	// Second episode within 24h — should update the existing notification.
+	// Second episode within 24h - should update the existing notification.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep8", LibraryID: "lib1",
 		Title: "S01E08", SeriesTitle: "The Wire",
@@ -1603,7 +1603,7 @@ func TestEpisodeNotificationsAreGroupedWithin24h(t *testing.T) {
 	assert.Contains(t, notifs[0].Title, "The Wire", "updated title should contain series name")
 	assert.Contains(t, notifs[0].Title, "2 episodes", "updated title should show accumulated count")
 
-	// Third episode within 24h — count should now be 3.
+	// Third episode within 24h - count should now be 3.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep9", LibraryID: "lib1",
 		Title: "S01E09", SeriesTitle: "The Wire",
@@ -1642,7 +1642,7 @@ func TestEpisodeNotificationCreatedAfter24hWindow(t *testing.T) {
 		ID:             "old-ep",
 		ProfileID:      "p1",
 		Type:           notifdom.TypeNewEpisode,
-		Title:          "new_episode:Homeland — S02E05",
+		Title:          "new_episode:Homeland - S02E05",
 		RelatedMediaID: shared.MediaItemID(seriesKey),
 		EpisodeCount:   1,
 		Level:          notifdom.LevelAll,
@@ -1650,7 +1650,7 @@ func TestEpisodeNotificationCreatedAfter24hWindow(t *testing.T) {
 		ExpiresAt:      &expires,
 	})
 
-	// Now a new episode arrives — the old notif is outside the 24h window.
+	// Now a new episode arrives - the old notif is outside the 24h window.
 	bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "ep6", LibraryID: "lib1",
 		Title: "S02E06", SeriesTitle: "Homeland",

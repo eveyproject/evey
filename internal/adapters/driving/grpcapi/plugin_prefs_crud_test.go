@@ -56,7 +56,7 @@ func TestDeletePref_Idempotent(t *testing.T) {
 	h := newPluginUserDataHandler(newMemPrefRepo())
 	ctx := pluginCtx("plg-1", "u1")
 
-	// Delete a key that was never set — must not error.
+	// Delete a key that was never set - must not error.
 	_, err := h.DeletePref(ctx, &eveyv1.DeletePrefRequest{Key: "nonexistent"})
 	require.NoError(t, err)
 
@@ -73,7 +73,7 @@ func TestDeletePref_ScopedToCallerToken(t *testing.T) {
 	_, err := h.SetPref(pluginCtx("plg-1", "u1"), &eveyv1.SetPrefRequest{Key: "col", Value: "red"})
 	require.NoError(t, err)
 
-	// Delete using a DIFFERENT user's token — must not affect u1's key because the
+	// Delete using a DIFFERENT user's token - must not affect u1's key because the
 	// scope (plugin+user) comes from the token, not the request.
 	_, err = h.DeletePref(pluginCtx("plg-1", "u2"), &eveyv1.DeletePrefRequest{Key: "col"})
 	require.NoError(t, err)

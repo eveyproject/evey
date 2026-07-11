@@ -14,7 +14,7 @@ function resetStore() {
     accessToken: null,
     profileId: null,
     isAdmin: false,
-    // Default: no active server — tests that need one override _getActiveServerId.
+    // Default: no active server - tests that need one override _getActiveServerId.
     _getActiveServerId: () => null,
   });
 }
@@ -191,7 +191,7 @@ describe("logout", () => {
     // srv-2 cleared
     expect(s.tokensByServer["srv-2"].accessToken).toBeNull();
     expect(s.tokensByServer["srv-2"].profileId).toBeNull();
-    // srv-1 untouched — multi-server isolation invariant
+    // srv-1 untouched - multi-server isolation invariant
     expect(s.tokensByServer["srv-1"].accessToken).toBe(
       useAuthStore.getState().tokensByServer["srv-1"].accessToken
     );

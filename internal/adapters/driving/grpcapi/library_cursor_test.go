@@ -25,7 +25,7 @@ func TestMediaItemSortValue_TitleFallbackBreaksKeysetPagination(t *testing.T) {
 			SortTitle: "",
 		}
 		got := mediaItemSortValue(item, "title")
-		assert.Empty(t, got, "must not fall back to Title — that diverges from mi.sort_title")
+		assert.Empty(t, got, "must not fall back to Title - that diverges from mi.sort_title")
 	})
 
 	t.Run("non-empty SortTitle is returned as-is", func(t *testing.T) {

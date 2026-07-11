@@ -43,7 +43,7 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 	// Single round-trip: totals + genres + most-played + monthly breakdown
 	// "Temps de visionnage" = content actually viewed, measured as the playhead
 	// position (COALESCE(position_ms, duration_ms, 0): the content offset, with
-	// the session wall-clock as fallback when no position was reported — e.g.
+	// the session wall-clock as fallback when no position was reported - e.g.
 	// sessions closed as stale, which never set duration_ms and previously
 	// counted as 0). For per-(profile,media) totals we take MAX(position) so
 	// resuming a title doesn't double-count the rewatched span. Cross-cutting
@@ -267,7 +267,7 @@ func (r *PlaySessionStatsReader) activeUsersRollup(ctx context.Context) ([]activ
 	return out, rows.Err()
 }
 
-// GetActiveSessionsBitrate sums the source bitrate of the active sessions —
+// GetActiveSessionsBitrate sums the source bitrate of the active sessions -
 // the dashboard's theoretical outgoing rate. Uncached on purpose: the active
 // set is tiny and the dashboard polls every few seconds.
 func (r *PlaySessionStatsReader) GetActiveSessionsBitrate(ctx context.Context) (int64, error) {
@@ -290,7 +290,7 @@ func (r *PlaySessionStatsReader) GetActiveSessionsBitrate(ctx context.Context) (
 // GetMostPopular returns the top-N most-played items in the last 90 days.
 // When profileID is non-empty, items the profile has fully watched are
 // filtered out (movies via wp.completed; series only when EVERY current
-// episode has a completed wp row — a freshly-added unwatched episode
+// episode has a completed wp row - a freshly-added unwatched episode
 // re-surfaces the series). Pass an empty profileID for unfiltered output.
 func (r *PlaySessionStatsReader) GetMostPopular(ctx context.Context, profileID string, limit int) ([]activity.MediaPlayCount, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.play_session_stats.GetMostPopular")

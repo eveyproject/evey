@@ -131,7 +131,7 @@ func TestIndex_Moved_PathAlreadyOccupied(t *testing.T) {
 		{ID: "1", Path: "/old.mp4", Hash: "abc"},
 		{ID: "2", Path: "/new.mp4", Hash: "xyz"},
 	})
-	// A row already lives at /new.mp4 — incoming isn't a move, it's a
+	// A row already lives at /new.mp4 - incoming isn't a move, it's a
 	// new-content-at-same-path situation; Moved must decline.
 	id, ok := idx.Moved("/new.mp4", "abc")
 	if ok || id != "" {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/google/uuid"
 )
 
 // normShowKey is the case-insensitive grouping key for a show/season title.
@@ -157,7 +157,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			if created {
 				// Publish like series/episodes do: the enricher routes a Season
 				// MediaItemAdded to autoEnrichSeason (enricher_auto.go). Without
-				// this a newly scanned season never auto-enriches — it stays with
+				// this a newly scanned season never auto-enriches - it stays with
 				// no season poster/overview/air-date until the daily re-enrich or
 				// a manual "Refresh metadata".
 				s.publish(ctx, library.MediaItemAdded{
@@ -187,7 +187,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		}
 		a, u, episodeErr := s.upsertMediaFile(ctx, libraryID, seasonID, episodeFile, showTitle)
 		if episodeErr != nil {
-			// Skip this episode and keep scanning the rest — a single transient
+			// Skip this episode and keep scanning the rest - a single transient
 			// failure must not abort the whole library scan (the movie path
 			// already logs-and-continues; this kept aborting it).
 			slog.Warn("scan: skipping episode after upsert error",
@@ -199,4 +199,3 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 	}
 	return added, updated, nil
 }
-

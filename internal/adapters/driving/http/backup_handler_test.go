@@ -237,7 +237,7 @@ func TestDeleteBackup_ErrNotFoundSentinel_404(t *testing.T) {
 
 func TestDeleteBackup_StoreError_500(t *testing.T) {
 	// A store failure that is NOT a not-found (e.g. disk full) must produce 500,
-	// not 404 — otherwise the admin can't distinguish a missing backup from a real
+	// not 404 - otherwise the admin can't distinguish a missing backup from a real
 	// failure.
 	mux, token, store := newBackupTestMuxWithStore(t, true)
 	store.Err = errors.New("disk full")

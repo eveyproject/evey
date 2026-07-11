@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// scan_service.go:325 `pruneErr != nil` — prune returns err, log must fire.
+// scan_service.go:325 `pruneErr != nil` - prune returns err, log must fire.
 // Use tvshow flow so pruneEmptyContainers runs with injectable ErrDelete on Season prune.
 func TestScanService_KillMutant_PruneEmptyContainersErrorLogged(t *testing.T) {
 	h := newScanHarness()
@@ -41,7 +41,7 @@ func TestScanService_KillMutant_PruneEmptyContainersErrorLogged(t *testing.T) {
 	assert.Contains(t, logs, "delete empty season")
 }
 
-// scan_service_tvshow.go:39 `updateErr != nil` — update fingerprint log.
+// scan_service_tvshow.go:39 `updateErr != nil` - update fingerprint log.
 func TestScanService_KillMutant_TVShowUpdateFingerprintErrorLogged(t *testing.T) {
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-tv", Type: "tvshow", Paths: []string{"/tv"}})
@@ -84,7 +84,7 @@ func TestScanService_KillMutant_TVShowSeriesPublishErrorLogged(t *testing.T) {
 	assert.Contains(t, logs, "media.item.added")
 }
 
-// scan_service_tvshow.go:177 `svc.search != nil` — series prune branch must skip search when nil.
+// scan_service_tvshow.go:177 `svc.search != nil` - series prune branch must skip search when nil.
 // With nil search AND empty series to prune, non-mutant path skips; mutant path would call
 // RemoveMediaItem on nil interface → panic caught via recover? No, code panics.
 func TestScanService_KillMutant_TVShowPruneSeriesNilSearchSkips(t *testing.T) {
@@ -103,7 +103,7 @@ func TestScanService_KillMutant_TVShowPruneSeriesNilSearchSkips(t *testing.T) {
 
 	libQuery.Seed(&library.Library{ID: "lib-tv", Type: "tvshow", Paths: []string{"/tv"}})
 	libCmd.Seed(&library.Library{ID: "lib-tv", Type: "tvshow", Paths: []string{"/tv"}})
-	// Seed an empty series (no children) — pruneEmptyContainers will delete it and
+	// Seed an empty series (no children) - pruneEmptyContainers will delete it and
 	// reach the `if svc.search != nil` branch. With nil search, must NOT dereference.
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
 		ID: "empty-series", LibraryID: "lib-tv", Type: library.Series, Title: "Gone",
@@ -118,7 +118,7 @@ func TestScanService_KillMutant_TVShowPruneSeriesNilSearchSkips(t *testing.T) {
 	assert.Error(t, getErr)
 }
 
-// scan_service.go:399 unchanged file with different parentID only — force update path,
+// scan_service.go:399 unchanged file with different parentID only - force update path,
 // asserting ParentID is actually rewritten (not just "either"), to kill NEGATION mutant
 // that flips `!=` on ParentID check.
 func TestScanService_KillMutant_UnchangedSamePathNewParentUpdates(t *testing.T) {
@@ -128,8 +128,8 @@ func TestScanService_KillMutant_UnchangedSamePathNewParentUpdates(t *testing.T) 
 	// Pre-seed an episode whose FilePath already matches (same path) but with bogus parent.
 	require.NoError(t, h.media.Create(context.Background(), &library.MediaItem{
 		ID: "ep1", LibraryID: "lib-tv", ParentID: "wrong-parent",
-		File:  &library.MediaFile{Path: "/tv/show/s01e01.mkv", Size: 100, Fingerprint: "ep-fp"},
-		Type:  library.Episode, Title: "S01E01",
+		File: &library.MediaFile{Path: "/tv/show/s01e01.mkv", Size: 100, Fingerprint: "ep-fp"},
+		Type: library.Episode, Title: "S01E01",
 	}))
 	s1, e1 := 1, 1
 	h.scanner.Results["/tv"] = []library.ScannedFile{
@@ -160,7 +160,7 @@ func TestScanService_KillMutant_UnchangedSamePathSameParentSkipsUpdate(t *testin
 	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-tv")
 	require.NoError(t, err)
 
-	// Second scan: unchanged fingerprint, same path, same parent — Update for path/parent
+	// Second scan: unchanged fingerprint, same path, same parent - Update for path/parent
 	// must NOT be called. If ErrUpdate is set, the "update media item failed" log would
 	// fire only if the mutant forced the Update call.
 	h.media.ErrUpdate = errors.New("should not be called on no-op unchanged")
@@ -173,7 +173,7 @@ func TestScanService_KillMutant_UnchangedSamePathSameParentSkipsUpdate(t *testin
 		"unchanged same-path/same-parent must not call Update in upsertMediaFile")
 }
 
-// watcher.go:146 `ws.cancel != nil` — calling Stop without Start must not panic (nil cancel).
+// watcher.go:146 `ws.cancel != nil` - calling Stop without Start must not panic (nil cancel).
 func TestWatcherService_KillMutant_StopBeforeStartNoPanic(t *testing.T) {
 	watcher := libfakes.NewFakeFileWatcher()
 	libRepo := libfakes.NewFakeLibraryRepository()
@@ -269,7 +269,7 @@ func TestWatcherService_KillMutant_ScanFailureLogged(t *testing.T) {
 
 // trickplay_service.go:238 `trickplayRepo == nil || trickplayGen == nil` short-circuit in
 // StartBackgroundGeneration. With nil repo (but non-nil gen), function must return early
-// without launching the goroutine — no panic, no log.
+// without launching the goroutine - no panic, no log.
 func TestTrickplayService_KillMutant_StartBackgroundGenNilRepoShortCircuits(t *testing.T) {
 	gen := libfakes.NewFakeTrickplayGenerator()
 	svc := applib.NewTrickplayService(nil /* repo */, gen, "/tmp/tp", nil, nil, nil)
@@ -286,7 +286,7 @@ func TestTrickplayService_KillMutant_StartBackgroundGenNilGenShortCircuits(t *te
 	require.NotPanics(t, func() { svc.StartBackgroundGeneration(ctx) })
 }
 
-// trickplay_service.go:89 `err != nil` and :92 `entry.Value != "false"` — isAdaptiveCPU.
+// trickplay_service.go:89 `err != nil` and :92 `entry.Value != "false"` - isAdaptiveCPU.
 // With configRepo present and no entry → Get returns err → returns default true.
 // With entry.Value = "false" → returns false. With other value → true.
 // GenerateTrickplay uses this; we observe via LastOutputDir being set regardless, so we
@@ -332,7 +332,7 @@ func TestTrickplayService_KillMutant_AdaptiveCPUConfigDefaultTrue(t *testing.T) 
 	assert.Equal(t, shared.MediaItemID("m2"), m.MediaItemID)
 }
 
-// trickplay_service.go isTrickplayEnabled — entry.Value != "false" boundary at :79.
+// trickplay_service.go isTrickplayEnabled - entry.Value != "false" boundary at :79.
 // When disabled, GenerateAllMissingTrickplays returns (0, nil) without launching goroutine.
 func TestTrickplayService_KillMutant_DisabledReturnsZero(t *testing.T) {
 	cfg := sharedfakes.NewFakeServerConfigRepository()

@@ -49,7 +49,7 @@ func stripAgencyPrefix(rating string) (string, string) {
 }
 
 // MinAgeFor returns the minimum recommended age for a rating in a given country,
-// or -1 if the (country, rating) pair is unknown (caller decides the policy —
+// or -1 if the (country, rating) pair is unknown (caller decides the policy -
 // typically "allow" to avoid blocking legitimate content due to missing data).
 //
 // Country is an ISO 3166-1 alpha-2 code (e.g. "FR", "US", "DE").
@@ -163,10 +163,10 @@ func normalize(s string) string {
 
 // byCountry maps an ISO-2 country to its rating table. Values are the minimum
 // recommended age for the rating. Sources: official classification boards; some
-// systems overlap (FSK/USK in DE, OFLC/ACB in AU) — we collapse onto one table
+// systems overlap (FSK/USK in DE, OFLC/ACB in AU) - we collapse onto one table
 // per country for the most common TMDB values.
 var byCountry = map[string]map[string]int{
-	// France — CSA (ARCOM) for TV + CNC visas for cinema. TMDB returns both.
+	// France - CSA (ARCOM) for TV + CNC visas for cinema. TMDB returns both.
 	"FR": {
 		"TP": 0, "TOUS PUBLICS": 0, "U": 0,
 		"-10": 10, "10": 10,
@@ -174,7 +174,7 @@ var byCountry = map[string]map[string]int{
 		"-16": 16, "16": 16,
 		"-18": 18, "18": 18, "X": 18,
 	},
-	// USA — MPAA (films) + TV Parental Guidelines.
+	// USA - MPAA (films) + TV Parental Guidelines.
 	"US": {
 		"G": 0, "TV-Y": 0, "TV-G": 0, "TV-Y7": 7, "TV-Y7-FV": 7,
 		"PG": 10, "TV-PG": 10,
@@ -182,79 +182,79 @@ var byCountry = map[string]map[string]int{
 		"R": 17, "TV-MA": 17,
 		"NC-17": 17, "NR": -1, "UR": -1,
 	},
-	// UK — BBFC.
+	// UK - BBFC.
 	"GB": {
 		"U": 0, "UC": 0, "PG": 8, "12": 12, "12A": 12, "15": 15, "18": 18, "R18": 18,
 	},
-	// Ireland — IFCO (close to BBFC).
+	// Ireland - IFCO (close to BBFC).
 	"IE": {
 		"G": 0, "PG": 8, "12": 12, "12A": 12, "15": 15, "15A": 15, "16": 16, "18": 18,
 	},
-	// Germany — FSK (films + TV).
+	// Germany - FSK (films + TV).
 	"DE": {
 		"0": 0, "6": 6, "12": 12, "16": 16, "18": 18,
 	},
 	// Austria / Switzerland often use FSK too.
 	"AT": {"0": 0, "6": 6, "12": 12, "16": 16, "18": 18},
 	"CH": {"0": 0, "6": 6, "12": 12, "14": 14, "16": 16, "18": 18},
-	// Spain — ICAA.
+	// Spain - ICAA.
 	"ES": {
 		"APTA": 0, "TP": 0, "A": 0,
 		"7": 7, "12": 12, "13": 13, "16": 16, "18": 18, "X": 18,
 	},
-	// Italy — CNC (no age 0-12, 12-14, 14-18 bands).
+	// Italy - CNC (no age 0-12, 12-14, 14-18 bands).
 	"IT": {
 		"T": 0, "V.M. 6": 6, "V.M.6": 6, "6+": 6,
 		"12": 12, "V.M. 12": 12, "V.M.12": 12,
 		"14": 14, "14+": 14,
 		"V.M. 18": 18, "V.M.18": 18, "18": 18,
 	},
-	// Netherlands — Kijkwijzer.
+	// Netherlands - Kijkwijzer.
 	"NL": {
 		"AL": 0, "6": 6, "9": 9, "12": 12, "14": 14, "16": 16, "18": 18,
 	},
-	// Belgium — NICAM-compatible (uses same labels as NL + national film board).
+	// Belgium - NICAM-compatible (uses same labels as NL + national film board).
 	"BE": {"AL": 0, "KT": 0, "KNT": 0, "6": 6, "9": 9, "12": 12, "14": 14, "16": 16, "18": 18},
-	// Australia — ACB.
+	// Australia - ACB.
 	"AU": {
 		"G": 0, "PG": 8, "M": 15, "MA 15+": 15, "MA15+": 15, "R 18+": 18, "R18+": 18, "X 18+": 18, "X18+": 18,
 	},
-	// New Zealand — OFLC.
+	// New Zealand - OFLC.
 	"NZ": {
 		"G": 0, "PG": 8, "M": 13, "R13": 13, "R15": 15, "R16": 16, "R18": 18, "R": 18,
 	},
-	// Canada — provincial boards converge on similar labels.
+	// Canada - provincial boards converge on similar labels.
 	"CA": {
 		"G": 0, "PG": 10, "14A": 14, "14+": 14, "16+": 16, "18A": 18, "18+": 18, "R": 18,
 	},
-	// Japan — EIRIN.
+	// Japan - EIRIN.
 	"JP": {
 		"G": 0, "PG12": 12, "R15+": 15, "R18+": 18,
 	},
-	// South Korea — KMRB.
+	// South Korea - KMRB.
 	"KR": {"ALL": 0, "12": 12, "15": 15, "18": 18, "19": 18},
-	// India — CBFC.
+	// India - CBFC.
 	"IN": {
 		"U": 0, "U/A": 12, "U/A 7+": 7, "U/A 13+": 13, "U/A 16+": 16, "A": 18, "S": -1,
 	},
-	// Brazil — ClassInd / DJCTQ.
+	// Brazil - ClassInd / DJCTQ.
 	"BR": {
 		"L": 0, "LIVRE": 0, "10": 10, "12": 12, "14": 14, "16": 16, "18": 18,
 	},
-	// Denmark — Medierådet.
+	// Denmark - Medierådet.
 	"DK": {"A": 0, "7": 7, "11": 11, "15": 15},
-	// Finland — KAVI.
+	// Finland - KAVI.
 	"FI": {"S": 0, "7": 7, "12": 12, "16": 16, "18": 18, "K-7": 7, "K-12": 12, "K-16": 16, "K-18": 18},
-	// Sweden — SMRC.
+	// Sweden - SMRC.
 	"SE": {"BTL": 0, "7": 7, "11": 11, "15": 15},
-	// Norway — Medietilsynet.
+	// Norway - Medietilsynet.
 	"NO": {"A": 0, "6": 6, "9": 9, "12": 12, "15": 15, "18": 18},
-	// Poland — films generally labeled by age.
+	// Poland - films generally labeled by age.
 	"PL": {"AL": 0, "7": 7, "12": 12, "15": 15, "16": 16, "18": 18},
-	// Portugal — CCE.
+	// Portugal - CCE.
 	"PT": {"M/3": 0, "M/6": 6, "M/12": 12, "M/14": 14, "M/16": 16, "M/18": 18},
-	// Russia — age-labelled directly.
+	// Russia - age-labelled directly.
 	"RU": {"0+": 0, "6+": 6, "12+": 12, "14+": 14, "16+": 16, "18+": 18},
-	// Mexico — RTC.
+	// Mexico - RTC.
 	"MX": {"AA": 0, "A": 0, "B": 12, "B-15": 15, "B15": 15, "C": 18, "D": 18},
 }

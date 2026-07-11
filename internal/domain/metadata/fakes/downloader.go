@@ -6,9 +6,9 @@ import (
 )
 
 type FakeArtworkDownloader struct {
-	mu          sync.Mutex
-	Downloads   map[string]string
-	Err         error
+	mu        sync.Mutex
+	Downloads map[string]string
+	Err       error
 }
 
 func NewFakeArtworkDownloader() *FakeArtworkDownloader {

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/user"
+	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 )
 
 const dedupeWindow = 5 * time.Minute
@@ -51,7 +51,7 @@ func (p pushSpec) resolveTitle(t *eveyi18n.Translator, locale string) string {
 func typeAndTitle(mediaType, title, seriesTitle string) (notification.Type, string, pushSpec) {
 	label := title
 	if seriesTitle != "" && (mediaType == "episode" || mediaType == "season") {
-		label = seriesTitle + " — " + title
+		label = seriesTitle + " - " + title
 	}
 	switch mediaType {
 	case "movie":
@@ -103,16 +103,16 @@ func seriesKeyFor(libraryID, seriesTitle string) string {
 
 // extractSeriesName recovers the series title from a stored notification title.
 // Stored titles follow patterns:
-//   - "new_episode:SeriesTitle — Episode Title"
+//   - "new_episode:SeriesTitle - Episode Title"
 //   - "new_episode:SeriesTitle (N episodes)"
 //
-// Returns the portion after the "new_episode:" prefix, up to " —" or " (".
+// Returns the portion after the "new_episode:" prefix, up to " -" or " (".
 func extractSeriesName(storedTitle string) string {
 	payload := strings.TrimPrefix(storedTitle, "new_episode:")
 	if idx := strings.Index(payload, " ("); idx > 0 {
 		return payload[:idx]
 	}
-	if idx := strings.Index(payload, " — "); idx > 0 { // " — "
+	if idx := strings.Index(payload, " - "); idx > 0 { // " - "
 		return payload[:idx]
 	}
 	return payload
@@ -143,7 +143,7 @@ func batchedSeriesTitle(seriesTitle string, seasonCount, episodeCount int) (labe
 }
 
 func batchedSeasonTitle(seriesTitle, seasonTitle string, episodeCount int) (label string, push pushSpec) {
-	label = fmt.Sprintf("%s — %s (%d episodes)", seriesTitle, seasonTitle, episodeCount)
+	label = fmt.Sprintf("%s - %s (%d episodes)", seriesTitle, seasonTitle, episodeCount)
 	push = pushSpec{
 		key: "notifications.push.season_with_episodes.title",
 		params: map[string]string{
@@ -158,7 +158,7 @@ func batchedSeasonTitle(seriesTitle, seasonTitle string, episodeCount int) (labe
 
 // batchedSeasonsTitle groups one or more new seasons of the same series (added
 // without a full-series event) into a single label that always names the series
-// — never a bare "Season N". One season → "Series — Season N"; several →
+// - never a bare "Season N". One season → "Series - Season N"; several →
 // "Series (N seasons)".
 func batchedSeasonsTitle(seriesTitle, seasonTitle string, seasonCount int) (label string, push pushSpec) {
 	if seasonCount > 1 {
@@ -175,11 +175,11 @@ func batchedSeasonsTitle(seriesTitle, seasonTitle string, seasonCount int) (labe
 		return label, push
 	}
 	// Single season: name the series unless we don't have one (or it would just
-	// repeat the season title) — then fall back to the bare season title.
+	// repeat the season title) - then fall back to the bare season title.
 	if seriesTitle == "" || seriesTitle == seasonTitle {
 		label = seasonTitle
 	} else {
-		label = fmt.Sprintf("%s — %s", seriesTitle, seasonTitle)
+		label = fmt.Sprintf("%s - %s", seriesTitle, seasonTitle)
 	}
 	push = pushSpec{
 		key:      "notifications.push.new_season.title",

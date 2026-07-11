@@ -1,6 +1,6 @@
 package httpapi
 
-// Tests for the software/hardware producer selector — the seam that keeps the
+// Tests for the software/hardware producer selector - the seam that keeps the
 // software flow (single long-lived paced ffmpeg) off the multi-session
 // orchestrator built for the hardware path. The matrix below locks the routing
 // per (hw_mode × capability × content) so a refactor can't silently send a
@@ -41,7 +41,7 @@ func (s *sentinelProducer) RemoveSession(_ string)                              
 func (s *sentinelProducer) Close()                                                 {}
 
 // sentinelManifestProducer is a sentinelProducer that ALSO implements
-// ManifestProvider (its Manifest errors) — exactly like the software TRANSCODE
+// ManifestProvider (its Manifest errors) - exactly like the software TRANSCODE
 // producer after it gained a Manifest method for the gated copy mode. Used to
 // prove serveVariant does NOT call Manifest on the transcode path.
 type sentinelManifestProducer struct{ sentinelProducer }
@@ -96,7 +96,7 @@ func newSwitchHandler(hwEnabled bool, capFn func() domaintranscoding.EncodeCapab
 }
 
 // vaapiPreSkylakeCap returns a VAAPI capability that encodes H.264 but CANNOT
-// decode HEVC — a pre-Skylake Intel iGPU (the prod NAS).
+// decode HEVC - a pre-Skylake Intel iGPU (the prod NAS).
 func vaapiPreSkylakeCap() domaintranscoding.EncodeCapability {
 	return domaintranscoding.EncodeCapability{
 		SoftwareMaxHeight: 1080,
@@ -183,7 +183,7 @@ func TestProducerSwitch_Matrix(t *testing.T) {
 
 // TestProducerSwitch_SoftwareLadderCappedToHDR asserts case (1)'s downstream
 // effect: the routed SoftwareProducer shapes a ladder capped to the honest HDR
-// ceiling (keeping its floor), NOT a single rung — Auto degrades, the viewer
+// ceiling (keeping its floor), NOT a single rung - Auto degrades, the viewer
 // picks. The switch test above proves the routing; this proves the shaping.
 func TestProducerSwitch_SoftwareLadderCappedToHDR(t *testing.T) {
 	t.Parallel()

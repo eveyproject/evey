@@ -17,7 +17,7 @@ const reindexBatchSize = 500
 
 // reindexTranslationReader batch-fetches every locale's translations for a page
 // of media items, so the reindex can attach translated titles to the search
-// docs (multi-language search). Optional — a nil reader skips the enrichment;
+// docs (multi-language search). Optional - a nil reader skips the enrichment;
 // the per-item enricher path then backfills them on the next re-enrich.
 type reindexTranslationReader interface {
 	GetByMediaItems(ctx context.Context, mediaItemIDs []string) (map[string][]*library.MediaItemTranslation, error)
@@ -26,7 +26,7 @@ type reindexTranslationReader interface {
 // attachTranslations populates each item's Translations from one batched read,
 // so ToDocument can emit their translated_titles. A read error is logged and
 // the page is indexed WITHOUT translations rather than failing the whole
-// reindex — a recovery path must not abort on the translation table.
+// reindex - a recovery path must not abort on the translation table.
 func attachTranslations(ctx context.Context, tr reindexTranslationReader, batch []*library.MediaItem) {
 	if tr == nil || len(batch) == 0 {
 		return
@@ -125,10 +125,10 @@ const reconcilePageSize = 500
 // ReconcileSearchIndex heals search-index drift. The resilient wrapper swallows a
 // write when the engine is down, so an item created/edited during an outage stays
 // out of the index until something rebuilds it. This compares the engine's
-// document count to the DB item count and rebuilds when they diverge — run it at
+// document count to the DB item count and rebuilds when they diverge - run it at
 // boot AND periodically so a mid-session outage self-heals without a restart.
 //
-// LIMITATION (count-based, by design): it cannot see drift that nets to zero —
+// LIMITATION (count-based, by design): it cannot see drift that nets to zero -
 // e.g. an equal number of items added AND deleted during one outage leaves both
 // counts matched while a stale deleted doc lingers in the index. That low-odds
 // case is caught by the next genuine count change or a manual reindex; detecting
@@ -152,7 +152,7 @@ func ReconcileSearchIndex(
 
 	docCount, err := docCounter.DocumentCount(ctx)
 	if err != nil {
-		return 0, nil // engine unreachable — can't compare; retry on the next call
+		return 0, nil // engine unreachable - can't compare; retry on the next call
 	}
 	dbCount, err := items.Count(ctx, library.ListMediaItemsFilter{})
 	if err != nil {
@@ -167,7 +167,7 @@ func ReconcileSearchIndex(
 	// shrink, so we WIPE the index first and then rebuild it from the DB. This is
 	// not a CPU loop: after the wipe+reindex the counts match, so the next tick is
 	// in sync and does nothing. (The trade-off is a brief empty-search window while
-	// the rebuild runs — acceptable for a 15-min reconcile, and far better than
+	// the rebuild runs - acceptable for a 15-min reconcile, and far better than
 	// stale deleted items lingering in search indefinitely.)
 	if docCount > int64(dbCount) {
 		slog.Info("search reconcile: index larger than DB (stale docs from a dropped delete), wiping then rebuilding",

@@ -38,7 +38,7 @@ type introConfig struct {
 
 	// Frame range
 	FrameCutoffPercent float64 `json:"frame_cutoff_percent"` // fraction of the episode searched for the intro (default 0.25)
-	MaxIntroStartMs    int64   `json:"max_intro_start_ms"`   // reject candidates whose start ms is past this point (default 240_000 = 4min) — beyond that it's not an intro, it's a recurring chapter card or in-episode element
+	MaxIntroStartMs    int64   `json:"max_intro_start_ms"`   // reject candidates whose start ms is past this point (default 240_000 = 4min) - beyond that it's not an intro, it's a recurring chapter card or in-episode element
 
 	// Season clustering (v2): fingerprint each episode once and cluster the
 	// recurring intro shared across the season, located at each episode's own
@@ -48,8 +48,8 @@ type introConfig struct {
 	// AudioDiscoveryEnabled gates the per-episode Chromaprint discovery fallback
 	// (discoverIntroByAudio). Demoted to OFF by default: an eval against
 	// community ground truth (tidb/introdb) showed it frequently locks onto the
-	// WRONG recurring segment — a "previously on" recap or a mid-episode musical
-	// sting — landing intros ~65s off on BOTH edges (start +65s, end +69s median).
+	// WRONG recurring segment - a "previously on" recap or a mid-episode musical
+	// sting - landing intros ~65s off on BOTH edges (start +65s, end +69s median).
 	// The season cluster (SeasonClusterEnabled) covers its useful "variable
 	// teaser" cases more robustly, and a wrong skip button is worse than none
 	// (same rationale as the heuristic-floor guard). Re-enable explicitly to
@@ -62,7 +62,7 @@ type introConfig struct {
 // these.
 //
 // FreqMapThreshold = 0.30: a frame is considered intro-candidate if it
-// appears in ≥30% of the season's episodes. Picked empirically — at 0.50
+// appears in ≥30% of the season's episodes. Picked empirically - at 0.50
 // the Robin Hood S1 intro was missed because only 3 of 6 episodes carry it
 // (cold-open variability). The audio confirmation pass (CorrThreshold +
 // MinRatio) downstream still filters false positives, so a permissive
@@ -101,7 +101,7 @@ func defaultIntroConfig() introConfig {
 // loadIntroConfig fetches and parses the override JSON; on any error
 // (missing key, parse failure, nil repo) it returns the defaults so the
 // pipeline never fails because of a config issue. A parse error is logged
-// once at WARN — not at every pipeline run, but the caller invokes this
+// once at WARN - not at every pipeline run, but the caller invokes this
 // once per detect call so the cadence is acceptable.
 func loadIntroConfig(ctx context.Context, repo shared.ServerConfigRepository) introConfig {
 	cfg := defaultIntroConfig()

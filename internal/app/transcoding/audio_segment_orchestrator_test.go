@@ -194,7 +194,7 @@ func TestAudioOrchestrator_EnsureAudioSegment_DifferentFp_TwoSpawns(t *testing.T
 	proc := newFakeAudioProcess()
 	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
 		// Write audio_T_000.m4s directly into the OutputDir that the orchestrator
-		// already created — avoids recomputing a fingerprint hash in the callback.
+		// already created - avoids recomputing a fingerprint hash in the callback.
 		segFile := filepath.Join(opts.OutputDir,
 			SegmentKey{VariantIdx: opts.SourceTrackIdx, SegmentIdx: 0, Kind: KindAudio}.fileName(true))
 		_ = os.WriteFile(segFile, fmp4Seg(), 0o644)

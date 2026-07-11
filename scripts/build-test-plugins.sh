@@ -7,7 +7,7 @@
 # For plugins that ship a package.json with a "build" script (e.g. a
 # Vite/esbuild bundle for the front module), runs `npm install` and
 # `npm run build` before zipping. node_modules/ is excluded from the
-# zip — only dist/ + sources are shipped.
+# zip - only dist/ + sources are shipped.
 #
 # Usage: ./scripts/build-test-plugins.sh
 

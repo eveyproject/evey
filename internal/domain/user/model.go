@@ -74,7 +74,7 @@ type Profile struct {
 	MaxBitrateKbps    *int
 	Parental          *ParentalSettings
 	Locale            string  // UI locale (en, fr, es, zh, hi)
-	Region            *string // ISO 3166-1 alpha-2 (FR, BE, CH, SN, ...) — nil = resolve via server/locale fallback
+	Region            *string // ISO 3166-1 alpha-2 (FR, BE, CH, SN, ...) - nil = resolve via server/locale fallback
 	CreatedAt         time.Time
 }
 
@@ -102,7 +102,7 @@ func (p *Profile) HasPIN() bool {
 
 // DefaultKidsMaxAge is the implicit content-age cap applied to a profile
 // flagged as IsKids when no explicit MaxAge is configured. Conservative
-// fallback so the "kids" flag is never decorative — the alternative would
+// fallback so the "kids" flag is never decorative - the alternative would
 // be that a profile literally labelled as for children sees R-rated
 // content as long as the admin forgot to flip the parental switch.
 const DefaultKidsMaxAge = 12

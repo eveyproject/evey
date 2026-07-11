@@ -45,8 +45,8 @@ admin:
   service_not_configured: "Service non configuré"
   heavy_op_running: "Une opération lourde est déjà en cours"
   scheduled_task_not_found: "Tâche planifiée introuvable"
-  seek_index_read_only: "Le volume média est monté en lecture seule — remonte-le en lecture-écriture (retire :ro), redémarre les conteneurs, puis réessaye"
-  seek_index_job_running: "Une tâche d'index de positionnement est déjà en cours — relance l'analyse pour suivre sa progression"
+  seek_index_read_only: "Le volume média est monté en lecture seule - remonte-le en lecture-écriture (retire :ro), redémarre les conteneurs, puis réessaye"
+  seek_index_job_running: "Une tâche d'index de positionnement est déjà en cours - relance l'analyse pour suivre sa progression"
   seek_index_no_backup: "Aucune sauvegarde n'existe pour ce fichier"
   seek_index_backup_overcommit: "Conserver une sauvegarde par fichier réparé demande plus d'espace libre que disponible ({volumes}) - libère de l'espace ou répare sans sauvegardes"
 

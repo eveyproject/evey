@@ -27,7 +27,7 @@ type LevelBackfillStore interface {
 	// missing values and never deleting. Returns how many rows were updated.
 	SetVideoLevels(ctx context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (int, error)
 	// SetIdetInterlaced stores the idet content-detection verdict (a
-	// DEFINITIVE true/false — the candidate query keys on NULL, so a negative
+	// DEFINITIVE true/false - the candidate query keys on NULL, so a negative
 	// must persist or the decode-heavy probe re-runs forever). Never
 	// overwrites an existing verdict. Returns rows updated.
 	SetIdetInterlaced(ctx context.Context, mediaItemID shared.MediaItemID, interlaced bool) (int, error)
@@ -42,21 +42,21 @@ type InterlaceDetector interface {
 
 // idetSuspectCodecs are the DVD/DivX-era codecs whose rips routinely carry
 // interlaced CONTENT without decoder flags (repacks re-encode the fields as
-// "progressive" frames). Only these pay the idet decode — modern codecs trust
+// "progressive" frames). Only these pay the idet decode - modern codecs trust
 // their flags.
 var idetSuspectCodecs = map[string]bool{"mpeg2video": true, "mpeg4": true, "msmpeg4v3": true}
 
 // LevelBackfillWorker re-probes existing media in the background to fill the
 // copy-rung metadata columns the scanner never back-populates (it skips files
-// whose mtime/fingerprint are unchanged): media_streams.level — what gates the
+// whose mtime/fingerprint are unchanged): media_streams.level - what gates the
 // video-copy (remux) rung, since without it the master manifest can't
-// advertise an accurate RFC-6381 CODECS string — and, for HEVC, the HDR
+// advertise an accurate RFC-6381 CODECS string - and, for HEVC, the HDR
 // ground truth (color_transfer + Dolby Vision profile) without which a DoVi
 // profile-5 title could be raw-served with broken colours.
 //
 // It is the only component that hits the (possibly weak, networked) media store
 // in a sustained background loop, so it is paced conservatively and every knob is
-// tunable — the rate MUST be validated on the real target NAS, not a dev disk.
+// tunable - the rate MUST be validated on the real target NAS, not a dev disk.
 //
 // Three invariants:
 //   - Paced: a small batch per tick, a pause between probes, a long idle sleep.
@@ -164,7 +164,7 @@ func (w *LevelBackfillWorker) run(ctx context.Context) {
 
 		processed := w.processBatch(ctx)
 		if processed == 0 {
-			// Nothing fresh to do — sleep longer.
+			// Nothing fresh to do - sleep longer.
 			select {
 			case <-time.After(w.idleInterval):
 			case <-w.stop:
@@ -194,7 +194,7 @@ func (w *LevelBackfillWorker) processBatch(ctx context.Context) int {
 		default:
 		}
 		if !w.backfillOne(ctx, id) {
-			// Failed, or resolved no new level — mark so it isn't re-queried this
+			// Failed, or resolved no new level - mark so it isn't re-queried this
 			// run (skip + mark, no loop).
 			w.attempted[id] = struct{}{}
 		}
@@ -213,7 +213,7 @@ func (w *LevelBackfillWorker) processBatch(ctx context.Context) int {
 
 // backfillOne probes one item and fills its video level. Returns true only when
 // at least one level was written (progress); false on any skip/failure so the
-// caller marks it. It NEVER replaces streams — a degraded or empty probe can't
+// caller marks it. It NEVER replaces streams - a degraded or empty probe can't
 // wipe existing metadata the way a full replace would.
 func (w *LevelBackfillWorker) backfillOne(ctx context.Context, mediaItemID string) bool {
 	defer bgtasks.Begin("level_backfill", mediaItemID)()
@@ -246,14 +246,14 @@ func (w *LevelBackfillWorker) backfillOne(ctx context.Context, mediaItemID strin
 
 	// idet phase: legacy-codec sources whose flags don't already say
 	// interlaced get a CONTENT detection (the flags routinely lie on repacked
-	// DVD rips). The verdict — true or false — is persisted so the candidate
+	// DVD rips). The verdict - true or false - is persisted so the candidate
 	// query (idet_interlaced IS NULL) converges; a probe failure leaves NULL
 	// and the in-run skip-set prevents a tight loop.
 	updated += w.idetPhase(ctx, mediaItemID, item.File.Path, res.Streams)
 
 	if updated == 0 {
 		// Probe succeeded but resolved nothing new (no level, and for hevc no
-		// colour/DoVi metadata) — leave NULL; mark to avoid a re-probe loop on a
+		// colour/DoVi metadata) - leave NULL; mark to avoid a re-probe loop on a
 		// file whose metadata ffprobe never reports.
 		return false
 	}
@@ -267,7 +267,7 @@ func (w *LevelBackfillWorker) backfillOne(ctx context.Context, mediaItemID strin
 // idetPhase runs the interlace content detection for a legacy-codec video
 // stream and persists the verdict. Returns the rows updated (0 when the
 // stream isn't a suspect, the prober lacks the capability, the flags already
-// say interlaced — bwdif's flag gate handles those — or the probe failed).
+// say interlaced - bwdif's flag gate handles those - or the probe failed).
 func (w *LevelBackfillWorker) idetPhase(ctx context.Context, mediaItemID, path string, streams []*library.MediaStream) int {
 	detector, ok := w.prober.(InterlaceDetector)
 	if !ok {

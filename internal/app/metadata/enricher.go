@@ -70,7 +70,7 @@ func EnricherWithArtworkPostSaveHook(hook ArtworkPostSaveHook) EnricherOption {
 
 // SetArtworkPostSaveHook wires the post-save hook after construction. Needed
 // because the CommandService that owns the hook (maybeAutoDownload) is itself
-// built WITH the enricher — the back-reference can only be set once both exist,
+// built WITH the enricher - the back-reference can only be set once both exist,
 // so it cannot go through the NewEnricher option. Wire-time only (no concurrent
 // enrichment runs yet), so no locking.
 func (e *Enricher) SetArtworkPostSaveHook(hook ArtworkPostSaveHook) {
@@ -80,7 +80,7 @@ func (e *Enricher) SetArtworkPostSaveHook(hook ArtworkPostSaveHook) {
 // EnricherWithUnitOfWork makes EnrichItem's persistence steps atomic: the item
 // update, the artwork delete+insert and the cast/crew delete+insert commit or
 // roll back together. Without it a failure between the steps left the item
-// with a fresh title but NO artwork and NO cast — and since updateMediaFile
+// with a fresh title but NO artwork and NO cast - and since updateMediaFile
 // only republishes MediaItemAdded when Overview is empty (now non-empty), a
 // re-scan never re-enriched it; only a manual "Refresh metadata" repaired it.
 func EnricherWithUnitOfWork(uow shared.TransactionalUnit) EnricherOption {
@@ -127,14 +127,14 @@ func NewEnricher(
 }
 
 // EnrichItem applies a MetadataResult to a media item: updates the item,
-// replaces artwork records, and upserts people/cast — atomically when a unit
+// replaces artwork records, and upserts people/cast - atomically when a unit
 // of work is wired (EnricherWithUnitOfWork). Side effects that must not run
 // inside the transaction are HOISTED after the commit:
 //   - artworkPostSaveHook (auto-download trigger): firing it mid-tx would
-//     start a download for artwork rows a later failure rolls back — a
+//     start a download for artwork rows a later failure rolls back - a
 //     phantom download for records that never existed;
 //   - person bio fetches: each one is a rate-limited TMDB round-trip (250 ms
-//     apart, casts run to 50 people) — holding a row-locking transaction
+//     apart, casts run to 50 people) - holding a row-locking transaction
 //     open across them would stall every concurrent writer of those rows.
 func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, result *domainmetadata.MetadataResult) error {
 	ctx, span := tracing.StartSpan(ctx, "app.metadata.EnrichItem")
@@ -172,7 +172,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 		return fmt.Errorf("Enricher.EnrichItem: %w", txErr)
 	}
 
-	// Post-commit side effects — the rows they reference are now durable.
+	// Post-commit side effects - the rows they reference are now durable.
 	if e.artworkPostSaveHook != nil {
 		for _, rec := range artworkRecords {
 			e.artworkPostSaveHook(ctx, rec)
@@ -185,7 +185,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 	e.linkCollection(ctx, string(item.ID), result.Collection)
 	// Fetch translations for all supported locales. Only for movies and series:
 	// a season/episode's ProviderIDs["tmdb"] is its own object id, which lives in
-	// a different id space than series ids — calling /tv/{id} with it 404s or,
+	// a different id space than series ids - calling /tv/{id} with it 404s or,
 	// worse, collides with an unrelated series and stores its title/overview onto
 	// the season/episode. Per-season/episode translation needs the parent series
 	// id + season/episode numbers (TODO); skip rather than corrupt until then.
@@ -263,19 +263,19 @@ func applyBasicFields(item *domainlib.MediaItem, result *domainmetadata.Metadata
 }
 
 // replaceArtwork swaps the item's artwork rows and returns the freshly
-// persisted records. It does NOT fire artworkPostSaveHook — that is the
+// persisted records. It does NOT fire artworkPostSaveHook - that is the
 // caller's post-commit duty (firing inside the transaction would trigger an
 // auto-download for rows a later failure rolls back).
 func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwork []domainmetadata.ArtworkResult) ([]*domainmetadata.ArtworkRecord, error) {
 	// Idempotency: enrichment re-runs constantly (daily re-enrich, every
 	// "refresh metadata", scan-triggered re-adds). If the provider returned the
-	// SAME artwork set we already store, do nothing — don't delete+recreate the
+	// SAME artwork set we already store, do nothing - don't delete+recreate the
 	// rows (DB churn) and don't return records (which would re-fire the download
 	// hook). Re-downloading artwork we already have was the root cause of the
 	// runaway artwork storage; the right behaviour is to only act on a real
 	// change.
 	if len(artwork) == 0 {
-		// Provider returned no artwork — almost always a transient miss or a
+		// Provider returned no artwork - almost always a transient miss or a
 		// match without images. Don't wipe artwork we already have (posters
 		// would vanish until the next enrich re-adds them = churn + bad UX).
 		// Explicit clearing goes through resetSingleItem / ResearchMetadata,
@@ -287,7 +287,7 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 	}
 	// Build the new records BEFORE deleting the old ones. If the provider gave
 	// artwork but none of it produced a valid record (bad type/URL), bail out
-	// without deleting — otherwise we'd wipe the existing artwork and insert
+	// without deleting - otherwise we'd wipe the existing artwork and insert
 	// nothing, leaving the item with no poster until the next successful enrich.
 	records := make([]*domainmetadata.ArtworkRecord, 0, len(artwork))
 	for i, art := range artwork {
@@ -308,7 +308,7 @@ func (e *Enricher) replaceArtwork(ctx context.Context, mediaItemID string, artwo
 }
 
 // artworkSetUnchanged reports whether the persisted records cover exactly the
-// same (type, source URL) multiset as the incoming provider results — i.e. the
+// same (type, source URL) multiset as the incoming provider results - i.e. the
 // provider returned nothing new and there is nothing to do.
 func artworkSetUnchanged(existing []*domainmetadata.ArtworkRecord, incoming []domainmetadata.ArtworkResult) bool {
 	if len(existing) != len(incoming) {
@@ -409,7 +409,7 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 		sortIdx++
 	}
 	// Build the batch BEFORE deleting the old links. If the provider returned no
-	// people (or none survived dedup), skip the delete entirely — otherwise we'd
+	// people (or none survived dedup), skip the delete entirely - otherwise we'd
 	// wipe the existing cast/crew and insert nothing, leaving the item with no
 	// cast until the next successful enrich. Same data-loss class as the
 	// replaceArtwork no-wipe guard (errors mid-loop already returned above, so a
@@ -434,7 +434,7 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 // findOrCreatePerson takes the preloaded person (may be nil when absent
 // from DB) and either enriches the existing row with new provider IDs/
 // thumbnails, or creates a fresh row. needsBio reports that the row has a
-// TMDB ID but no biography yet — the CALLER fetches it after the enrichment
+// TMDB ID but no biography yet - the CALLER fetches it after the enrichment
 // transaction commits (a TMDB round-trip must not run under row locks).
 func (e *Enricher) findOrCreatePerson(ctx context.Context, p domainmetadata.PersonResult, preloaded *domainlib.Person) (person *domainlib.Person, needsBio bool, err error) {
 	if preloaded != nil {
@@ -527,7 +527,7 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 	if err != nil {
 		return
 	}
-	// FetchPersonTranslations with empty locale returns nothing useful — use the person detail endpoint instead
+	// FetchPersonTranslations with empty locale returns nothing useful - use the person detail endpoint instead
 	// Fall back to fetching via the TMDB person detail
 	if fetcher, ok2 := capabilityFrom[personDetailFetcher](e.chain.Primary()); ok2 {
 		details, detErr := fetcher.GetPersonDetails(ctx, person.Name)
@@ -550,7 +550,7 @@ func (e *Enricher) fetchPersonBio(ctx context.Context, person *domainlib.Person)
 			}
 		}
 	}
-	_ = bios // not used directly — translations fetched separately
+	_ = bios // not used directly - translations fetched separately
 }
 
 // personDetailFetcher is an optional capability for providers that can fetch person details.

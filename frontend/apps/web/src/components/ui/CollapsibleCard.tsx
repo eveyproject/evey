@@ -11,7 +11,7 @@ interface CollapsibleCardProps {
       content shows in a popover on click. Use when the subtitle would be too
       long but the operator still benefits from on-demand detail. */
   info?: ReactNode;
-  /** When true, the header is decoration only — the body is always shown. */
+  /** When true, the header is decoration only - the body is always shown. */
   alwaysOpen?: boolean;
   /** Initial open state. Ignored when alwaysOpen is true. */
   defaultOpen?: boolean;
@@ -19,7 +19,7 @@ interface CollapsibleCardProps {
 }
 
 // CollapsibleCard wraps any settings section in a uniform expandable card.
-// Used in server-config to keep the page short by default — only the
+// Used in server-config to keep the page short by default - only the
 // first card (Paramètres du serveur) stays always-open, the rest collapse.
 export function CollapsibleCard({
   title,

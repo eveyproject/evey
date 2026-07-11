@@ -68,11 +68,11 @@ EVEY_PLUGIN_TOKEN=<jwt>        # short-lived token scoped to this plugin + user 
 
 The gRPC service definitions are in `proto/plugin/v1/plugin_api.proto`. Language-specific SDK stubs are generated from that proto and can be included in the plugin ZIP or vendored alongside. Stubs ship pre-generated for several languages (`sdk/<lang>/`); to target one that isn't bundled, see [dev-setup.md → Generating stubs for another language](dev-setup.md#generating-stubs-for-another-language).
 
-The host enforces permissions at the RPC level — calling an RPC your manifest did not declare results in `PermissionDenied`.
+The host enforces permissions at the RPC level - calling an RPC your manifest did not declare results in `PermissionDenied`.
 
 ### Data store
 
-Every plugin gets its own persistent key/value store, namespaced to the plugin —
+Every plugin gets its own persistent key/value store, namespaced to the plugin -
 **no permission required, a plugin owns its own data**. Use it for cursors,
 caches, last-sync timestamps, anything the plugin needs to remember across
 restarts. Values are opaque strings (encode JSON yourself if you need structure).
@@ -84,13 +84,13 @@ restarts. Values are opaque strings (encode JSON yourself if you need structure)
 | `DeleteData(key)` | Remove a key. |
 | `ListDataKeys() → {keys}` | List the plugin's keys. |
 
-The plugin id is taken from the authenticated socket — a plugin can only ever
+The plugin id is taken from the authenticated socket - a plugin can only ever
 read/write its **own** namespace, never another plugin's. When the plugin is
 uninstalled, its entire store is wiped automatically (`ON DELETE CASCADE`), so
 no stale data survives removal.
 
 This store is plugin-global. To persist data **per user** (e.g. a preference for
-the currently-viewing user), see the `prefs` permission below — that surface is
+the currently-viewing user), see the `prefs` permission below - that surface is
 reached from the plugin's iframe, where a user context exists.
 
 ## Frontend API
@@ -123,7 +123,7 @@ evey.toast("error", "API key missing.");
 
 ### `evey.resize(height)`
 
-Requests that the host resize the iframe slot to `height` pixels. Clamped to 50–800.
+Requests that the host resize the iframe slot to `height` pixels. Clamped to 50-800.
 
 ```js
 evey.resize(300);
@@ -135,9 +135,9 @@ Registers a callback that fires once the host sends the plugin its initializatio
 
 ```js
 evey.onInit(function(data) {
-  // data.context  — plugin config values (from config_schema)
-  // data.locale   — active locale string, e.g. "en-US"
-  // data.theme    — active theme id
+  // data.context  - plugin config values (from config_schema)
+  // data.locale   - active locale string, e.g. "en-US"
+  // data.theme    - active theme id
 });
 ```
 
@@ -157,7 +157,7 @@ The host waits up to 5 seconds for the plugin to signal `ready` (done automatica
 | `admin.nav` | One nav entry in the admin panel opening the plugin's own sandboxed page |
 
 `admin.nav` is the **only** admin-area slot. It does not inject UI into existing
-admin screens — it adds a single menu entry that opens your plugin's own page in
+admin screens - it adds a single menu entry that opens your plugin's own page in
 a sandboxed iframe on a dedicated admin route. Requesting it shows up in the
 install consent diff.
 
@@ -194,7 +194,7 @@ The plugin registers as a webhook endpoint. The host forwards matching inbound H
 
 Grants the plugin's iframe read-only access to non-sensitive server data:
 `GetPublicMediaItem` / `ListPublicMediaItems`, which return a **safe projection**
-(id, title, type, year, overview, poster URL) — never file paths, sizes,
+(id, title, type, year, overview, poster URL) - never file paths, sizes,
 provider ids or streams. Server branding (name) is already public and needs no
 permission. Declare `public` in `permissions` to request it.
 
@@ -203,7 +203,7 @@ permission. Declare `public` in `permissions` to request it.
 Grants the plugin's iframe read/write of the **current user's** preferences in
 the plugin's own namespace, via `PluginUserDataService` (`GetPref` / `SetPref` /
 `DeletePref` / `ListPrefs`). The plugin and user are bound by the iframe token,
-so a plugin can only touch (its-own-plugin, the-current-user) data — never
+so a plugin can only touch (its-own-plugin, the-current-user) data - never
 another plugin's, never another user's, never identity/security fields. Rows
 cascade-delete with the plugin or the user. Declare `prefs` in `permissions`.
 
@@ -211,7 +211,7 @@ cascade-delete with the plugin or the user. Declare `prefs` in `permissions`.
 > `system.*`, and generic `user.write` / `library.write` are hard-locked: they
 > are stripped from any token and rejected at the API boundary even if a
 > manifest tries to declare them. A scoped plugin token is **deny-by-default** on
-> the server API — it can only reach the methods the granted permissions above
+> the server API - it can only reach the methods the granted permissions above
 > explicitly unlock.
 
 ## Examples

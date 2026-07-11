@@ -12,15 +12,15 @@ import (
 var ErrNotFound = shared.ErrNotFound
 
 type FakeMetadataProvider struct {
-	mu                    sync.RWMutex
-	ProviderName          string
-	SearchResults         map[string][]metadata.MetadataResult
-	ByProviderID          map[string]*metadata.MetadataResult
-	EpisodeDetails        map[string]*metadata.MetadataResult // key: "seriesID:season:episode"
-	SeasonDetails         map[string]*metadata.MetadataResult // key: "seriesID:season"
-	ExternalLookups       map[string]*metadata.MetadataResult // key: "provider:id"
-	AltTitlesResults      map[string][]string                 // key: "mediaType:providerID"
-	Err                   error
+	mu               sync.RWMutex
+	ProviderName     string
+	SearchResults    map[string][]metadata.MetadataResult
+	ByProviderID     map[string]*metadata.MetadataResult
+	EpisodeDetails   map[string]*metadata.MetadataResult // key: "seriesID:season:episode"
+	SeasonDetails    map[string]*metadata.MetadataResult // key: "seriesID:season"
+	ExternalLookups  map[string]*metadata.MetadataResult // key: "provider:id"
+	AltTitlesResults map[string][]string                 // key: "mediaType:providerID"
+	Err              error
 }
 
 func NewFakeMetadataProvider(name string) *FakeMetadataProvider {

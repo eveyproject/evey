@@ -18,7 +18,7 @@ type ComplexityRepo interface {
 
 	// Set persists a classification. Overwrites any previous row for the
 	// same media item. `computedAt` is the timestamp the metrics were
-	// observed — typically time.Now() from the worker, but admins
+	// observed - typically time.Now() from the worker, but admins
 	// reclassifying manually may want to backdate.
 	Set(ctx context.Context, mediaItemID string, class ContentClass, metrics ComplexityMetrics, computedAt time.Time) error
 

@@ -17,7 +17,7 @@ func makeNoise(r *rand.Rand, n int) []uint32 {
 }
 
 // withNoisyCopy returns a copy of intro with up to maxFlips random bit flips per
-// frame — simulates the same theme re-encoded at lower quality (SD).
+// frame - simulates the same theme re-encoded at lower quality (SD).
 func withNoisyCopy(r *rand.Rand, intro []uint32, maxFlips int) []uint32 {
 	out := make([]uint32, len(intro))
 	for i, f := range intro {

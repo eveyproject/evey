@@ -29,7 +29,7 @@ export const TheoreticalIcon = () => <Gauge size={20} strokeWidth={1.5} />;
 // an em dash rather than a misleading 0 or negative rate.
 export function formatBps(bps: string | number | undefined): string {
   const n = typeof bps === "string" ? parseInt(bps) : (bps ?? 0);
-  if (!Number.isFinite(n) || n < 0) return "—";
+  if (!Number.isFinite(n) || n < 0) return "-";
   if (n >= 1e9) return `${(n / 1e9).toFixed(2)} Gbps`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)} Mbps`;
   if (n >= 1e3) return `${(n / 1e3).toFixed(0)} kbps`;

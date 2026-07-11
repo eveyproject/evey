@@ -6,7 +6,7 @@ import (
 
 // DeviceClass derives a coarse client class from a User-Agent string at ingest
 // time. Cheap to compute up front, expensive to do at dashboard query time
-// across millions of rows. Kept deliberately coarse — we only need to slice
+// across millions of rows. Kept deliberately coarse - we only need to slice
 // "web vs mobile vs TV" in the admin view, not to fingerprint individual
 // browsers. Takes the raw UA string (not *http.Request) so this application-
 // layer helper stays free of the net/http transport dependency.

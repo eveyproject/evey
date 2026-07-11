@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/google/uuid"
 )
 
 // Sentinel errors exposed for handlers to map with errors.Is instead of
@@ -88,7 +88,7 @@ func (s *ShareService) Validate(ctx context.Context, token string) (*shared.Shar
 	}
 	// Re-check after the increment: two concurrent callers could both pass
 	// the IsViewLimitReached() check above on the same pre-increment row,
-	// then both increment and both get served — silently exceeding maxViews
+	// then both increment and both get served - silently exceeding maxViews
 	// by one. Refetch and reject the loser.
 	updated, err := s.repo.GetByToken(ctx, token)
 	if err != nil {

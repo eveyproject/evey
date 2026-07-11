@@ -16,7 +16,7 @@ push:
   series_with_episodes:
     title: "新剧：{series}（{episodes}集）"
   season_with_episodes:
-    title: "新季:{series} — {season}（{episodes}集）"
+    title: "新季:{series} - {season}（{episodes}集）"
   episodes_batched:
     title: "新剧集：{series}（{count}集）"
   seasons_batched:

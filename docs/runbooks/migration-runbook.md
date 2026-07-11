@@ -84,7 +84,7 @@ There is no one-shot `migrate-down` target wired up. To roll back manually you m
 
 Always restore from the pre-migration backup if data-destructive changes shipped (DROP COLUMN, type changes) and the backup is fresher than the production traffic divergence.
 
-## Recovery — dirty state
+## Recovery - dirty state
 
 If startup logs show `Dirty database version N. Fix and force version.` the last migration crashed halfway. Fix the schema manually to match the state you want, then clear the flag:
 
@@ -103,14 +103,14 @@ Restart `evey-server`. golang-migrate will continue from there.
 
 Recent migrations for reference (see `internal/adapters/driven/postgres/migrations/`):
 
-- **`000066_cascade_and_email_unique.up.sql`** — `ALTER TABLE ... DROP CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`. Takes `ACCESS EXCLUSIVE` on both tables for the duration of the ADD. Cheap on small tables, painful on `media_items` / `watch_progress`. Pattern for large tables: add with `NOT VALID`, then `VALIDATE CONSTRAINT` in a second statement (validate only takes `SHARE UPDATE EXCLUSIVE`).
-- **`000067_sort_title_index.up.sql`, `000068_watch_progress_composite_index.up.sql`, `000069_quick_connect_shortcode_index.up.sql`** — plain `CREATE INDEX`. On large tables this locks writes. Consider `CREATE INDEX CONCURRENTLY` manually during a maintenance window (cannot run inside a migrate transaction — apply out-of-band then record the version).
-- **`000072_syncplay_queue.up.sql`** — `ALTER TABLE ... ADD COLUMN ... NOT NULL DEFAULT '[]'`. On PG 11+ this is metadata-only and fast. Still holds `ACCESS EXCLUSIVE` briefly.
+- **`000066_cascade_and_email_unique.up.sql`** - `ALTER TABLE ... DROP CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`. Takes `ACCESS EXCLUSIVE` on both tables for the duration of the ADD. Cheap on small tables, painful on `media_items` / `watch_progress`. Pattern for large tables: add with `NOT VALID`, then `VALIDATE CONSTRAINT` in a second statement (validate only takes `SHARE UPDATE EXCLUSIVE`).
+- **`000067_sort_title_index.up.sql`, `000068_watch_progress_composite_index.up.sql`, `000069_quick_connect_shortcode_index.up.sql`** - plain `CREATE INDEX`. On large tables this locks writes. Consider `CREATE INDEX CONCURRENTLY` manually during a maintenance window (cannot run inside a migrate transaction - apply out-of-band then record the version).
+- **`000072_syncplay_queue.up.sql`** - `ALTER TABLE ... ADD COLUMN ... NOT NULL DEFAULT '[]'`. On PG 11+ this is metadata-only and fast. Still holds `ACCESS EXCLUSIVE` briefly.
 
 Guidelines:
 
 - **Long ALTER** that rewrites the table (type change, adding a non-constant default on old PG) → pre-lock check mandatory, expect downtime.
-- **DROP COLUMN** → only metadata, but the column cannot be restored without a backup. Never drop the same release a new version of the code is rolled out — prefer a two-step: stop reading the column, deploy, then drop in the next release.
+- **DROP COLUMN** → only metadata, but the column cannot be restored without a backup. Never drop the same release a new version of the code is rolled out - prefer a two-step: stop reading the column, deploy, then drop in the next release.
 - **FK on big tables** → `ADD CONSTRAINT ... NOT VALID` then `VALIDATE CONSTRAINT` in a follow-up migration. Avoid a single blocking `ADD CONSTRAINT ... FOREIGN KEY ...`.
 - **Batch UPDATE / backfill** → never in a single migration on a big table. Ship a no-op schema migration + a background job.
 

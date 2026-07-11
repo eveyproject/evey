@@ -64,7 +64,7 @@ func TestPlanDemotion(t *testing.T) {
 	}
 	cases := []tc{
 		{
-			name: "unsupported option drops tuning, keeps HW+codec",
+			name:  "unsupported option drops tuning, keeps HW+codec",
 			class: FailureHWUnsupportedOption, codec: "h264",
 			wantTier: TierHWMinimal, wantPersist: true, wantChanged: true,
 			check: func(t *testing.T, d EncodeCapability) {
@@ -80,7 +80,7 @@ func TestPlanDemotion(t *testing.T) {
 			},
 		},
 		{
-			name: "encoder missing removes that codec, keeps others + HW",
+			name:  "encoder missing removes that codec, keeps others + HW",
 			class: FailureHWEncoderMissing, codec: "hevc",
 			wantTier: TierSoftware, wantPersist: true, wantChanged: true,
 			check: func(t *testing.T, d EncodeCapability) {
@@ -96,7 +96,7 @@ func TestPlanDemotion(t *testing.T) {
 			},
 		},
 		{
-			name: "encoder missing on the LAST codec disables HW entirely",
+			name:  "encoder missing on the LAST codec disables HW entirely",
 			class: FailureHWEncoderMissing, codec: "h264",
 			wantTier: TierSoftware, wantPersist: true, wantChanged: true,
 			check: func(t *testing.T, d EncodeCapability) {
@@ -108,7 +108,7 @@ func TestPlanDemotion(t *testing.T) {
 			},
 		},
 		{
-			name: "HW init failure disables HW for the whole host",
+			name:  "HW init failure disables HW for the whole host",
 			class: FailureHWInit, codec: "h264",
 			wantTier: TierSoftware, wantPersist: true, wantChanged: true,
 			check: func(t *testing.T, d EncodeCapability) {
@@ -121,7 +121,7 @@ func TestPlanDemotion(t *testing.T) {
 			},
 		},
 		{
-			name: "device OOM falls back for this job only, no persist",
+			name:  "device OOM falls back for this job only, no persist",
 			class: FailureHWDeviceMemory, codec: "h264",
 			wantTier: TierSoftware, wantPersist: false, wantChanged: false,
 			check: func(t *testing.T, d EncodeCapability) {
@@ -131,17 +131,17 @@ func TestPlanDemotion(t *testing.T) {
 			},
 		},
 		{
-			name: "transient retries same tier, no change",
+			name:  "transient retries same tier, no change",
 			class: FailureTransient, codec: "h264",
 			wantTier: TierHWFull, wantPersist: false, wantChanged: false,
 		},
 		{
-			name: "cancelled is a no-op",
+			name:  "cancelled is a no-op",
 			class: FailureCancelled, codec: "h264",
 			wantTier: TierHWFull, wantPersist: false, wantChanged: false,
 		},
 		{
-			name: "unknown falls back to software without persisting",
+			name:  "unknown falls back to software without persisting",
 			class: FailureUnknown, codec: "h264",
 			wantTier: TierSoftware, wantPersist: false, wantChanged: false,
 		},

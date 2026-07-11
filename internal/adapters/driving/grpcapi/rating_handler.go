@@ -121,7 +121,7 @@ func (h *ratingHandler) GetRatingAggregate(ctx context.Context, req *eveyv1.GetR
 	}
 	// The legacy 1-10 star-rating aggregate (the `ratings` table) was removed;
 	// thumbs (like/dislike) are the single rating model and aren't aggregated
-	// here. Returns empty for proto/client compatibility — no frontend caller
+	// here. Returns empty for proto/client compatibility - no frontend caller
 	// today; a deliberate proto cleanup can drop this RPC later.
 	return &eveyv1.GetRatingAggregateResponse{Average: 0, Count: 0}, nil
 }

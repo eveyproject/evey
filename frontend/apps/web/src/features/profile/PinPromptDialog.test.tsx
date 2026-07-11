@@ -169,7 +169,7 @@ describe("PinPromptDialog", () => {
     expect(parentalServiceVerifyPin).toHaveBeenCalledWith("p-1", { pin: "1234" });
   });
 
-  it("calls onVerified with target profile and pinToken when PIN is correct — the gate opens", async () => {
+  it("calls onVerified with target profile and pinToken when PIN is correct - the gate opens", async () => {
     const { parentalServiceVerifyPin } = await import("@evey/api");
     vi.mocked(parentalServiceVerifyPin).mockResolvedValueOnce({ valid: true, pinToken: "tok-abc" });
 
@@ -182,9 +182,9 @@ describe("PinPromptDialog", () => {
     expect(onVerified).toHaveBeenCalledWith(BASE_PROFILE, "tok-abc");
   });
 
-  // ── SECURITY: wrong PIN — gate stays closed ────────────────────────────────
+  // ── SECURITY: wrong PIN - gate stays closed ────────────────────────────────
 
-  it("shows error and does NOT call onVerified when API returns valid=false — gate stays closed", async () => {
+  it("shows error and does NOT call onVerified when API returns valid=false - gate stays closed", async () => {
     const { parentalServiceVerifyPin } = await import("@evey/api");
     vi.mocked(parentalServiceVerifyPin).mockResolvedValueOnce({ valid: false });
 
@@ -199,7 +199,7 @@ describe("PinPromptDialog", () => {
     expect(onVerified).not.toHaveBeenCalled();
   });
 
-  it("does NOT call onVerified when API rejects (network/server error) — gate stays closed", async () => {
+  it("does NOT call onVerified when API rejects (network/server error) - gate stays closed", async () => {
     const { parentalServiceVerifyPin } = await import("@evey/api");
     vi.mocked(parentalServiceVerifyPin).mockRejectedValueOnce(new Error("network error"));
 

@@ -52,7 +52,7 @@ func TestRatingIDOR_AllowedWhenLibraryAccess(t *testing.T) {
 
 // TestRatingAggregateIDOR verifies that the aggregate endpoint enforces library access.
 // The checkMediaAccess closure used by the aggregate handler fetches the media item
-// and calls checkLibraryAccess — this test exercises that same code path directly.
+// and calls checkLibraryAccess - this test exercises that same code path directly.
 func TestRatingAggregateIDOR_Denied(t *testing.T) {
 	ctx := context.Background()
 	w := httptest.NewRecorder()

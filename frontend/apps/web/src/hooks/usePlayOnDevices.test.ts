@@ -68,7 +68,7 @@ describe("usePlayOnDevices", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    // Only one fetch call — the right key means no duplicate queries
+    // Only one fetch call - the right key means no duplicate queries
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -70,30 +70,30 @@ type tmdbCollection struct {
 }
 
 type tmdbDetailResponse struct {
-	ID                   int              `json:"id"`
-	Title                string           `json:"title"`
-	OriginalTitle        string           `json:"original_title"`
-	Name                 string           `json:"name"`
-	OriginalName         string           `json:"original_name"`
-	OriginalLanguage     string           `json:"original_language"`
-	Overview             string           `json:"overview"`
-	Tagline              string           `json:"tagline"`
-	ReleaseDate          string           `json:"release_date"`
-	FirstAirDate         string           `json:"first_air_date"`
-	VoteAverage          float64          `json:"vote_average"`
-	NumberOfSeasons      int              `json:"number_of_seasons"`
-	NumberOfEpisodes     int              `json:"number_of_episodes"`
-	Seasons              []tmdbSeasonInfo `json:"seasons"`
-	Genres               []tmdbGenre      `json:"genres"`
-	ProductionCompanies  []tmdbCompany    `json:"production_companies"`
-	Credits             *tmdbCredits         `json:"credits"`
-	Images              *tmdbImages          `json:"images"`
-	Videos              *tmdbVideos          `json:"videos"`
-	ExternalIDs         *tmdbExternalIDs     `json:"external_ids"`
-	BelongsToCollection *tmdbCollection      `json:"belongs_to_collection"`
-	ReleaseDates        *tmdbReleaseDates    `json:"release_dates"`
-	ContentRatings      *tmdbContentRatings  `json:"content_ratings"`
-	AlternativeTitles   *tmdbAltTitles       `json:"alternative_titles"`
+	ID                  int                 `json:"id"`
+	Title               string              `json:"title"`
+	OriginalTitle       string              `json:"original_title"`
+	Name                string              `json:"name"`
+	OriginalName        string              `json:"original_name"`
+	OriginalLanguage    string              `json:"original_language"`
+	Overview            string              `json:"overview"`
+	Tagline             string              `json:"tagline"`
+	ReleaseDate         string              `json:"release_date"`
+	FirstAirDate        string              `json:"first_air_date"`
+	VoteAverage         float64             `json:"vote_average"`
+	NumberOfSeasons     int                 `json:"number_of_seasons"`
+	NumberOfEpisodes    int                 `json:"number_of_episodes"`
+	Seasons             []tmdbSeasonInfo    `json:"seasons"`
+	Genres              []tmdbGenre         `json:"genres"`
+	ProductionCompanies []tmdbCompany       `json:"production_companies"`
+	Credits             *tmdbCredits        `json:"credits"`
+	Images              *tmdbImages         `json:"images"`
+	Videos              *tmdbVideos         `json:"videos"`
+	ExternalIDs         *tmdbExternalIDs    `json:"external_ids"`
+	BelongsToCollection *tmdbCollection     `json:"belongs_to_collection"`
+	ReleaseDates        *tmdbReleaseDates   `json:"release_dates"`
+	ContentRatings      *tmdbContentRatings `json:"content_ratings"`
+	AlternativeTitles   *tmdbAltTitles      `json:"alternative_titles"`
 }
 
 // tmdbAltTitles holds the regional alternative titles appended to a detail
@@ -150,8 +150,8 @@ type tmdbSeasonInfo struct {
 }
 
 type tmdbExternalIDs struct {
-	IMDBID  string `json:"imdb_id"`
-	TVDBID  int    `json:"tvdb_id"`
+	IMDBID string `json:"imdb_id"`
+	TVDBID int    `json:"tvdb_id"`
 }
 
 type tmdbGenre struct {

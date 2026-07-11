@@ -31,7 +31,7 @@ export const CardContextMenu = memo(function CardContextMenu({
   const toggleFav = useToggleFavorite(mediaId);
   // Mirror MediaCard.invalidateItem: marking watched from the card's dedicated
   // button refreshes the item, the watch-history map (the green badge) and the
-  // home feeds that filter watched items — the context-menu path must do the
+  // home feeds that filter watched items - the context-menu path must do the
   // same, else the badge stays grey and the item lingers in "Continue Watching".
   const invalidateWatched = () => {
     invalidateWatchedState(queryClient, mediaId);

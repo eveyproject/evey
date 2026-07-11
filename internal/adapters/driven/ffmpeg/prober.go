@@ -169,7 +169,7 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 		}
 		// Matroska carries language in the track header (ffprobe lowercases it to
 		// "language") OR, when it only lives in a Tags SimpleTag, ffprobe preserves
-		// the verbatim "LANGUAGE" key — accept either so a Tags-only language is
+		// the verbatim "LANGUAGE" key - accept either so a Tags-only language is
 		// not silently dropped.
 		if lang, ok := s.Tags["language"]; ok {
 			ms.Language = lang
@@ -243,7 +243,7 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 	var duration shared.Duration
 	if dur, err := strconv.ParseFloat(probe.Format.Duration, 64); err == nil && dur > 0 {
 		// Ignore conversion errors here: an invalid duration just means we
-		// can't report one — the streams are still valid and the scan/probe
+		// can't report one - the streams are still valid and the scan/probe
 		// chain treats a zero duration as "unknown" and recovers on the next
 		// pass once the file has the right metadata.
 		if d, derr := shared.NewDurationMs(int64(dur * 1000)); derr == nil {
@@ -260,7 +260,7 @@ func (p *Prober) ProbeStreams(ctx context.Context, filePath string) (*library.Pr
 // segment cannot begin mid-GOP, so a copy rung's segments must align to the
 // source's existing keyframes. Reads packet headers only (no decode).
 //
-// WARNING — cost: on a Matroska source this scans every packet header (~40 s for
+// WARNING - cost: on a Matroska source this scans every packet header (~40 s for
 // a 2 h film, no random access), so it is for a PACED background backfill only,
 // never a request hot path. The fast path is the container's own seek index
 // (MKV Cues / MP4 stss); see the mkvgo OpenCues enhancement note in memory. This
@@ -285,14 +285,14 @@ func (p *Prober) ProbeKeyframes(ctx context.Context, filePath string) ([]int64, 
 // ProbeInterlaceDetect runs ffmpeg's idet filter over a ~300-frame window a
 // minute into the file (past studio logos / black intros) and reports whether
 // the CONTENT is interlaced. This is the fallback for sources whose container
-// flags are absent or lie — repacked DVD rips store interlaced fields inside
+// flags are absent or lie - repacked DVD rips store interlaced fields inside
 // "progressive" frames, so the decoder never tags them and the flag-gated
 // bwdif (deint=interlaced) leaves the combing untouched. Cost: a ~12s decode
-// of SD content (~1-2 s wall) — background backfill only, never a hot path.
+// of SD content (~1-2 s wall) - background backfill only, never a hot path.
 //
 // Verdict: interlaced when the (TFF+BFF) multi-frame counts MAJORITY the
 // determined frames (more interlaced than progressive). A simple majority vote
-// is conservative on purpose — synthetic and lightly-noisy progressive content
+// is conservative on purpose - synthetic and lightly-noisy progressive content
 // scatters a minority of frames into TFF/BFF, so a low percentage threshold
 // would false-positive and softly deinterlace progressive titles; when in
 // doubt, don't. Telecined / genuinely interlaced sources clear the majority
@@ -301,8 +301,8 @@ func (p *Prober) ProbeInterlaceDetect(ctx context.Context, filePath string) (boo
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.prober.ProbeInterlaceDetect")
 	defer span.End()
 	// First attempt skips a minute in (past studio logos / black intros). If it
-	// errors OR determines no frames — a short file where -ss 60 seeks past the
-	// end — retry from the start.
+	// errors OR determines no frames - a short file where -ss 60 seeks past the
+	// end - retry from the start.
 	interlaced, ok, err := p.idetRun(ctx, filePath, true)
 	if err == nil && ok {
 		return interlaced, nil
@@ -374,7 +374,7 @@ const seekLandingBinary = "ffmpeg"
 //   - The ffmpeg CLI's DTS heuristic: when any video stream has B-frames
 //     (video_delay > 0) and the format doesn't seek by PTS, ffmpeg_demux
 //     subtracts 3/23 s (~130 ms) from the seek timestamp before calling
-//     avformat_seek_file — so a target sitting ON a cue point selects the
+//     avformat_seek_file - so a target sitting ON a cue point selects the
 //     PREVIOUS cue. Measured: ffprobe -read_intervals (no heuristic) reported
 //     1351.308 while the real session started at 1350.516 on the same target.
 //

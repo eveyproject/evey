@@ -227,7 +227,7 @@ func createTestRoom(t *testing.T, hub *appsyncplay.Hub, hostID, mediaID string) 
 	return room
 }
 
-// --- JSON routes migrated to gRPC — tests removed ---
+// --- JSON routes migrated to gRPC - tests removed ---
 
 func TestSyncPlayWS_LibraryAccessDenied_403(t *testing.T) {
 	t.Parallel()

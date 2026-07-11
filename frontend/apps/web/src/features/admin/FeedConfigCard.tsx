@@ -72,7 +72,7 @@ export function FeedConfigCard() {
     (librariesData?.libraries ?? []).map((l) => [l.id!, l.name ?? l.id!]),
   );
   // Only plugins that expose a `home.section` frontend slot are eligible
-  // to appear on the home page — others (admin.nav-only, etc.) don't make
+  // to appear on the home page - others (admin.nav-only, etc.) don't make
   // sense to list here.
   const homePlugins = (pluginsData?.plugins ?? []).filter(
     (p) =>
@@ -103,7 +103,7 @@ export function FeedConfigCard() {
         maxItems: c.maxItems ?? 20,
       }));
       // Synthesise rows for plugins that don't have an admin row yet so
-      // they show up immediately after install — default enabled, parked
+      // they show up immediately after install - default enabled, parked
       // at the end of the list.
       const persistedTypes = new Set(persisted.map((r) => r.feedType));
       const baseOrder = persisted.length;
@@ -122,7 +122,7 @@ export function FeedConfigCard() {
         ),
       );
     }
-    // pluginsData is stable enough — re-run only when configs or plugin
+    // pluginsData is stable enough - re-run only when configs or plugin
     // set actually change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, pluginsData, dirty]);
@@ -130,7 +130,7 @@ export function FeedConfigCard() {
   const commitReorder = useCallback((from: number, to: number) => {
     if (from === to) return;
     setRows((prev) => {
-      // Plugin rows: admin can disable but not reorder for users — drop
+      // Plugin rows: admin can disable but not reorder for users - drop
       // a drag attempt rather than persist a bogus admin order that we
       // wouldn't honour at merge time anyway.
       if (isPluginRow(prev[from].feedType) || isPluginRow(prev[to].feedType)) {
@@ -274,7 +274,7 @@ export function FeedConfigCard() {
             />
             {/* The Puzzle icon used to sit here for plugins, but it
                 doubled as a "non-draggable" cue. Now that admin can
-                reorder plugins too, the grip is shown everywhere — the
+                reorder plugins too, the grip is shown everywhere - the
                 Plugin badge in the label column still signals the kind. */}
 
             <span
@@ -301,7 +301,7 @@ export function FeedConfigCard() {
 
             <div className="flex justify-center">
               {plugin ? (
-                <span className="text-xs text-[var(--text-muted)]">—</span>
+                <span className="text-xs text-[var(--text-muted)]">-</span>
               ) : (
                 <input
                   type="number"

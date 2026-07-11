@@ -62,7 +62,7 @@ func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eve
 	h.backfillMu.Lock()
 	if h.backfillRunning {
 		h.backfillMu.Unlock()
-		// Return AlreadyExists so the caller knows the job is already running —
+		// Return AlreadyExists so the caller knows the job is already running -
 		// no need for a second one.
 		return nil, status.Errorf(codes.AlreadyExists, "backfill already in progress")
 	}
@@ -70,7 +70,7 @@ func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eve
 	h.backfillMu.Unlock()
 
 	libraryID := req.LibraryId
-	// ADR-0007: detached ctx + defer recover. No outer timeout — a full library
+	// ADR-0007: detached ctx + defer recover. No outer timeout - a full library
 	// backfill can take hours on a cold catalogue and is bounded by the
 	// service's own concurrency limiter, not by a wall-clock deadline.
 	go func() {
@@ -87,7 +87,7 @@ func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eve
 		_, _ = h.backfill.BackfillLibrary(context.Background(), libraryID)
 	}()
 
-	// seasons_scheduled is not available synchronously in non-blocking mode —
+	// seasons_scheduled is not available synchronously in non-blocking mode -
 	// the job has just been enqueued. The caller should watch server logs for
 	// progress (slog entries from BackfillLibrary).
 	return &eveyv1.BackfillIntroDetectionResponse{SeasonsScheduled: 0}, nil

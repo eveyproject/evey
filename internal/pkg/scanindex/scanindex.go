@@ -17,7 +17,7 @@ import "time"
 // therefore miss pairs that differ by one µs after round-trip, which
 // previously flagged every file as "changed" each scan and pinned CPU
 // at 100%. The ±1µs window absorbs the drift without masking genuine
-// edits — real content changes always move mtime by ≥1 second.
+// edits - real content changes always move mtime by ≥1 second.
 func SameMtime(a, b time.Time) bool {
 	at := a.Truncate(time.Microsecond)
 	bt := b.Truncate(time.Microsecond)
@@ -39,7 +39,7 @@ type Summary struct {
 	ModTime time.Time
 	Hash    string // "" when the row has no stored hash
 	// NeedsReprobe marks a row the scanner must reprocess even when it is
-	// otherwise unchanged — e.g. a video file indexed without streams that is
+	// otherwise unchanged - e.g. a video file indexed without streams that is
 	// owed a bounded re-probe. Callers that don't track this leave it false.
 	NeedsReprobe bool
 }
@@ -68,7 +68,7 @@ func New(summaries []Summary) *Index {
 }
 
 // Unchanged reports whether an incoming file matches an existing row at
-// the same path with identical size and mtime (±1µs). Fast path — no
+// the same path with identical size and mtime (±1µs). Fast path - no
 // hash computation required. Returns the existing ID when a row exists
 // at the path regardless of match, so callers can correlate.
 func (idx *Index) Unchanged(path string, size int64, modTime time.Time) (existingID string, unchanged bool) {
@@ -104,7 +104,7 @@ func (idx *Index) ExistingHash(path string) (hash string, found bool) {
 
 // Moved returns the existing ID of a row whose stored hash matches the
 // incoming hash, provided no row already exists at the incoming path.
-// This flags a rename/relocation — the caller updates the path in
+// This flags a rename/relocation - the caller updates the path in
 // place instead of reprocessing content. Empty hash never matches.
 func (idx *Index) Moved(incomingPath, hash string) (existingID string, moved bool) {
 	if hash == "" {

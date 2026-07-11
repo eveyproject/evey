@@ -46,7 +46,7 @@ type DeviceCommand = LoadAndPlayCommand | PlaybackCommand;
 // `loadAndPlay` command pushed by the server navigates the TV to the
 // player; other commands are forwarded as `evey:cmd` window-style events
 // for the active player screen to consume (kept lightweight here so this
-// hook stays one focused responsibility — register + route loadAndPlay).
+// hook stays one focused responsibility - register + route loadAndPlay).
 //
 // Reconnects with exponential backoff. No-op when not authenticated.
 export function useDeviceRegistration() {
@@ -73,7 +73,7 @@ export function useDeviceRegistration() {
       if (!tok || !url) return;
       // wss:// when the server is https, ws:// otherwise. The backend
       // accepts the token via Sec-WebSocket-Protocol "Bearer.<token>"
-      // (extractWSToken) — same auth mechanism as the syncplay socket.
+      // (extractWSToken) - same auth mechanism as the syncplay socket.
       const wsUrl = url.replace(/^http/, "ws") + "/api/v1/devices/ws";
       try {
         ws = new WebSocket(wsUrl, ["Bearer." + tok]);
@@ -111,7 +111,7 @@ export function useDeviceRegistration() {
             });
           }
           // play / pause / seek for an already-loaded player are
-          // intentionally not handled at this layer yet — the player
+          // intentionally not handled at this layer yet - the player
           // screen will subscribe directly once those commands are wired.
         } catch (err) {
           console.warn("[device] bad command frame:", err);

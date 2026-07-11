@@ -31,7 +31,7 @@ func TestSearchReindexHandler_202AndTriggersAsyncWithLibraryID(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h(rec, httptest.NewRequest("POST", "/api/v1/admin/search/reindex?library_id=lib-42", nil))
 
-	// Returns 202 immediately — the sweep can touch thousands of items.
+	// Returns 202 immediately - the sweep can touch thousands of items.
 	assert.Equal(t, http.StatusAccepted, rec.Code)
 	assert.Contains(t, rec.Body.String(), "search reindex started")
 

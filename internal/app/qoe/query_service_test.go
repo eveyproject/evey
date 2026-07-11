@@ -14,12 +14,12 @@ import (
 // are configurable per call to prove the service surfaces partial-fan-out
 // failures correctly.
 type fakeReader struct {
-	summary       *Summary
-	top           []StarvedTitle
-	dev           []DeviceBreakdown
-	errSummary    error
-	errTop        error
-	errDev        error
+	summary    *Summary
+	top        []StarvedTitle
+	dev        []DeviceBreakdown
+	errSummary error
+	errTop     error
+	errDev     error
 }
 
 func (f *fakeReader) GetSummary(_ context.Context, _ time.Duration) (*Summary, error) {

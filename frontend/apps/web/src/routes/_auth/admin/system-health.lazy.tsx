@@ -134,7 +134,7 @@ function BandwidthCard({ bps, theoreticalBps, totalBytes, history }: BandwidthCa
           {t("admin.systemHealth.bandwidth")}
         </span>
         <span className="text-xl font-bold text-[var(--text)]">
-          {bps >= 0 ? formatBps(bps) : "—"}
+          {bps >= 0 ? formatBps(bps) : "-"}
         </span>
       </div>
       <div className="flex justify-between gap-2 text-xs text-[var(--text-muted)]">

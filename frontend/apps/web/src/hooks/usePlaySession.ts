@@ -13,7 +13,7 @@ import { useStreamToken } from "./useStreamToken";
 // postStopStream tears down the server-side play session with a raw keepalive
 // fetch (not eveyFetch / react-query). It must fire reliably during teardown:
 // page unload (pagehide), route unmount, AND from the mini-player after the
-// player route has already unmounted — a react-query mutation bound to an
+// player route has already unmounted - a react-query mutation bound to an
 // unmounted component is not a dependable transport here, which is exactly why
 // closing the player via the browser back button (player -> mini -> close) used
 // to leave the transcode session running in the admin panel. The active
@@ -195,7 +195,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     return () => {
       window.removeEventListener("pagehide", handleUnload);
       // Leaving the player (back button, route change, tab close) always ends
-      // the session — there is no mini-player handoff that keeps it alive.
+      // the session - there is no mini-player handoff that keeps it alive.
       stopSession();
     };
   }, [stopSession]);

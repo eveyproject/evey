@@ -98,7 +98,7 @@ func TestStreamTokenHandler_MediaNotFound_404(t *testing.T) {
 }
 
 // Plan B P2: ?purpose=native mints the same long-lived (12h) token as cast, so a
-// native <video> HLS element — which can't re-mint the sliding token mid-stream —
+// native <video> HLS element - which can't re-mint the sliding token mid-stream -
 // survives pauses; the default (no purpose) stays on the short 5-minute window.
 func TestStreamTokenHandler_NativePurpose_LongTTL(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)

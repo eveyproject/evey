@@ -18,10 +18,10 @@ import (
 
 func TestHostAllowed(t *testing.T) {
 	tests := []struct {
-		name    string
-		host    string
-		allow   []string
-		want    bool
+		name  string
+		host  string
+		allow []string
+		want  bool
 	}{
 		{"exact match", "api.open-meteo.com", []string{"api.open-meteo.com"}, true},
 		{"case insensitive", "API.Open-Meteo.COM", []string{"api.open-meteo.com"}, true},

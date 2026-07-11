@@ -16,7 +16,7 @@ export const Route = createFileRoute("/")({
       setupComplete = info.setupComplete ?? true;
     } catch (err) {
       console.warn("setup status fetch failed", err);
-      // backend unreachable — fall through to login
+      // backend unreachable - fall through to login
     }
 
     if (!setupComplete) throw redirect({ to: "/setup" });

@@ -12,7 +12,7 @@ import (
 )
 
 // ErrTokenRevoked is returned by EpochGuardedTokens.ValidateAccessToken when a
-// structurally valid JWT carries a stale token_epoch — i.e. the user's access
+// structurally valid JWT carries a stale token_epoch - i.e. the user's access
 // has been revoked (disable, role change, password change, admin kill) since
 // the token was minted.
 var ErrTokenRevoked = errors.New("access token revoked")
@@ -31,7 +31,7 @@ const (
 //     without touching it.
 //   - ValidateAccessToken rejects tokens whose epoch no longer matches,
 //     bounding the revocation window to the cache TTL (~30s) instead of the
-//     access-token expiry (15min) — at the cost of one indexed single-row read
+//     access-token expiry (15min) - at the cost of one indexed single-row read
 //     per user per TTL.
 //   - Revoke bumps the counter and drops the local cache entry, so revocation
 //     is immediate on this instance and ≤TTL on any other replica.

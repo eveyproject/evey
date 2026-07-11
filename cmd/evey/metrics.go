@@ -27,7 +27,7 @@ func startMetricsCollector(ctx context.Context, db *sql.DB, hlsOrch *apptranscod
 		defer ticker.Stop()
 		for {
 			// Keep the legacy gauge name so existing Prometheus dashboards
-			// keep working — the VOD orchestrator's per-event metrics
+			// keep working - the VOD orchestrator's per-event metrics
 			// (evey_hlsvod_*) sit alongside.
 			eveymetrics.HLSSessionsGauge.Set(float64(hlsOrch.ActiveSessionCount()))
 			select {

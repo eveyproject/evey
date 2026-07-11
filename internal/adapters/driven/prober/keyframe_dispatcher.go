@@ -11,14 +11,14 @@ import (
 )
 
 // KeyframeProber is the slow ffprobe packet-scan this dispatcher wraps as its
-// fallback (scans every packet header — tens of seconds to minutes per film).
+// fallback (scans every packet header - tens of seconds to minutes per film).
 type KeyframeProber interface {
 	ProbeKeyframes(ctx context.Context, filePath string) ([]int64, error)
 }
 
 // KeyframeDispatcher returns a video file's keyframe presentation times (ms).
 // When the matching fast path is enabled it reads the container's own seek index
-// head-only via mkvgo — MP4 stss (edit-list-adjusted) / Matroska Cues — turning
+// head-only via mkvgo - MP4 stss (edit-list-adjusted) / Matroska Cues - turning
 // a multi-minute packet scan into a few-millisecond head read. It falls back to
 // the ffprobe packet scan whenever the fast path is gated off, the container is
 // unsupported, the parse fails or panics, or the container carries no seek index
@@ -73,7 +73,7 @@ func (d *KeyframeDispatcher) mkvgoKeyframes(ctx context.Context, filePath string
 	case mkvadapter.IsEBMLContainer(filePath) && gateOpen(d.mkvEnabled):
 		// WithKeyframeIndex: use the Cues table when present (head-only, ~ms), else
 		// fall to a single sequential structural scan that collects every real video
-		// keyframe (SimpleBlock 0x80 / BlockGroup without ReferenceBlock) — complete
+		// keyframe (SimpleBlock 0x80 / BlockGroup without ReferenceBlock) - complete
 		// and equal to ffprobe's list, validated count==ffprobe on real files. No-op
 		// when Cues exist, so indexed files stay instant; Cues-less files get the
 		// in-process complete index instead of forking ffprobe.

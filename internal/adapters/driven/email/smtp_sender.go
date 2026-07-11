@@ -12,7 +12,7 @@ import (
 
 // smtpDefaultTimeout bounds the ENTIRE SMTP conversation (connect through DATA).
 // Email bodies here are tiny (notification/reset text), so a single absolute
-// deadline is ample — and it stops a hung or slow SMTP server from blocking an
+// deadline is ample - and it stops a hung or slow SMTP server from blocking an
 // event-bus worker (NotificationEmailer runs on the shared pool) or the
 // password-reset HTTP handler forever.
 const smtpDefaultTimeout = 30 * time.Second

@@ -196,7 +196,7 @@ func TestZipExtract_ZipBomb_Fails(t *testing.T) {
 	require.NoError(t, err)
 
 	w := zip.NewWriter(f)
-	// 4 MB of zeros — high ratio AND large enough to be a real decompression
+	// 4 MB of zeros - high ratio AND large enough to be a real decompression
 	// bomb (the ratio guard only fires above 1 MB uncompressed).
 	payload := make([]byte, 4*1024*1024)
 	fw, err := w.CreateHeader(&zip.FileHeader{Name: "zeros.bin", Method: zip.Deflate})
@@ -214,7 +214,7 @@ func TestZipExtract_ZipBomb_Fails(t *testing.T) {
 }
 
 // A small but highly-compressible file (a repetitive test fixture vendored
-// inside a dependency) is NOT a decompression bomb and must extract — the ratio
+// inside a dependency) is NOT a decompression bomb and must extract - the ratio
 // guard only applies above 1 MB uncompressed. Regression for the weather plugin
 // install failure ("script not found: main.js").
 func TestZipExtract_SmallHighRatioFile_OK(t *testing.T) {

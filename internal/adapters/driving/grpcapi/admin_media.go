@@ -59,7 +59,7 @@ func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, req *eveyv1.
 		return nil, d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.heavy_op_running")
 	}
 	// Detach: AutoRefreshAllItems pages the WHOLE library, re-enriching each
-	// item via external provider calls (TMDB/OMDb rate-limited) — minutes to
+	// item via external provider calls (TMDB/OMDb rate-limited) - minutes to
 	// hours for a large catalogue. Running it on the request goroutine blocks
 	// until done, so any reverse-proxy read-timeout 504s and cancels the work
 	// mid-pass. Hand it to the background (mirrors the HTTP refresh-all
@@ -171,7 +171,7 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 	}
 }
 
-// ScanSeekIndex serves the cached result of the last completed scan — instant,
+// ScanSeekIndex serves the cached result of the last completed scan - instant,
 // no disk walk (a synchronous scan 504s behind a reverse proxy on big
 // libraries). ScannedAtMs == 0 means no scan has completed for the scope yet.
 func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanSeekIndexRequest) (*eveyv1.ScanSeekIndexResponse, error) {
@@ -344,7 +344,7 @@ func (d *adminMediaHandler) RollbackLibrarySeekIndex(ctx context.Context, req *e
 	return &eveyv1.RollbackLibrarySeekIndexResponse{Queued: -1}, nil
 }
 
-// DeleteSeekIndexBackup removes one media's reindex backup — synchronous, an
+// DeleteSeekIndexBackup removes one media's reindex backup - synchronous, an
 // unlink; the freed space is the point once the repair is confirmed fine.
 func (d *adminMediaHandler) DeleteSeekIndexBackup(ctx context.Context, req *eveyv1.DeleteSeekIndexBackupRequest) (*eveyv1.DeleteSeekIndexBackupResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.DeleteSeekIndexBackup")

@@ -49,7 +49,7 @@ message UpdateParentalSettingsRequest {
   optional string new_pin = 6;
   // Required on the FIRST-TIME PIN set (no existing PIN yet). Protects
   // against a stolen JWT silently locking the legitimate owner out of
-  // their profile. Ignored when rotating an existing PIN — `current_pin`
+  // their profile. Ignored when rotating an existing PIN - `current_pin`
   // covers that path.
   optional string current_password = 8;
 }

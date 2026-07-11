@@ -36,14 +36,14 @@ func registerCollectionRoutes(mux *http.ServeMux, collSvc *appcollection.Service
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &collectionHandler{collSvc: collSvc, libSvc: libSvc, libChecker: libChecker, baseURL: baseURL}
 	// A collection ZIP can fan out to many large files, so it's a heavier
-	// amplification vector than a single-file download — rate-limit it.
+	// amplification vector than a single-file download - rate-limit it.
 	mux.HandleFunc("GET /api/v1/collections/{id}/download", ratelimit.MiddlewareFunc(rl, authMw(h.downloadCollection)))
 }
 
 // downloadCollection streams a ZIP of every accessible media file in a
 // collection. A collection may span libraries, so access is resolved per item
 // (admins see everything); members the caller can't reach are silently
-// dropped. If nothing is accessible/downloadable the response is 404 — same as
+// dropped. If nothing is accessible/downloadable the response is 404 - same as
 // a missing collection, so existence isn't leaked.
 func (h *collectionHandler) downloadCollection(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.collection.Download")

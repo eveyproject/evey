@@ -120,7 +120,7 @@ func (s *Scheduler) tick(ctx context.Context) {
 		}
 		// Advance NextRunAt at trigger time, not after the scan completes. A scan
 		// can run longer than the tick interval (common on a weak NAS); if
-		// NextRunAt only advanced on completion, the next tick would re-fire it —
+		// NextRunAt only advanced on completion, the next tick would re-fire it -
 		// the scan lock rejects the duplicate but logs a spurious "scan failed"
 		// every long scan. Standard cron semantics: the schedule advances when it
 		// fires, independent of the run's outcome.

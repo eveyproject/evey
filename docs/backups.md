@@ -24,8 +24,8 @@ The backup includes all user data:
 ## Backup Format
 
 Each backup is a `.tar.gz` containing:
-- `manifest.json` — metadata, version, SHA256 integrity hash
-- `dump.sql` — full PostgreSQL dump
+- `manifest.json` - metadata, version, SHA256 integrity hash
+- `dump.sql` - full PostgreSQL dump
 
 ## Manual Backup
 

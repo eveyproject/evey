@@ -171,7 +171,7 @@ func (s *CommandService) processOnePhoto(ctx context.Context, libraryID string, 
 	// Compute a blurhash placeholder so the gallery grid renders a coloured
 	// preview before the full image streams in. Best-effort: an unsupported
 	// codec (e.g. HEIC without lib support) returns an error and we just
-	// skip the field — the row still ingests, the gallery falls back to
+	// skip the field - the row still ingests, the gallery falls back to
 	// the surface background.
 	blurhash, _ := computePhotoBlurhash(j.path) //nolint:errcheck // empty placeholder on failure is acceptable
 

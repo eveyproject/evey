@@ -43,7 +43,7 @@ func TestIntroDBClient_OK(t *testing.T) {
 	assert.Equal(t, "end_credits", got[1].Type)
 }
 
-// Movies are unsupported by IntroDB — Fetch must skip without HTTP. Pin
+// Movies are unsupported by IntroDB - Fetch must skip without HTTP. Pin
 // to avoid wasted requests in the chain.
 func TestIntroDBClient_MovieSkipped(t *testing.T) {
 	t.Parallel()
@@ -60,7 +60,7 @@ func TestIntroDBClient_MovieSkipped(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-// IMDb ID required — without it, no upstream call.
+// IMDb ID required - without it, no upstream call.
 func TestIntroDBClient_NoImdbID_Skips(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
@@ -74,7 +74,7 @@ func TestIntroDBClient_NoImdbID_Skips(t *testing.T) {
 	assert.Nil(t, got)
 }
 
-// Confidence outside [0,1] must be clamped — the upstream is community
+// Confidence outside [0,1] must be clamped - the upstream is community
 // and could regress.
 func TestIntroDBClient_ConfidenceClamped(t *testing.T) {
 	t.Parallel()

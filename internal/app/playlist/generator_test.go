@@ -116,7 +116,7 @@ func TestGenerate_AddItemFailure_RollsBack(t *testing.T) {
 }
 
 // With no listening history and size >= pool, every track is a candidate
-// (nothing is excluded) and the playlist gets them all — the random fallback.
+// (nothing is excluded) and the playlist gets them all - the random fallback.
 func TestGenerate_IncludesAllWhenSizeExceedsPool(t *testing.T) {
 	tracks := &genFakeTracks{tracks: []music.Track{track("a", "rock"), track("b", "jazz"), track("c", "pop")}}
 	items := &genFakeItems{byPlist: map[string][]*playlist.PlaylistItem{}}

@@ -36,14 +36,14 @@ func RunMigrations(db *sql.DB, opts BackupOpts) error {
 	}
 
 	// Snapshot current version *before* taking the dump so the filename
-	// names the state we're leaving — that's what the operator will roll
+	// names the state we're leaving - that's what the operator will roll
 	// back to if Up() fails.
 	currentVersion, dirty, vErr := m.Version()
 	if vErr != nil && !errors.Is(vErr, migrate.ErrNilVersion) {
 		return fmt.Errorf("read current migration version: %w", vErr)
 	}
 	if dirty {
-		slog.Warn("migrations: schema is in dirty state — backup taken anyway",
+		slog.Warn("migrations: schema is in dirty state - backup taken anyway",
 			slog.Uint64("version", uint64(currentVersion)))
 	}
 
@@ -61,7 +61,7 @@ func RunMigrations(db *sql.DB, opts BackupOpts) error {
 
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		if dumpPath != "" {
-			slog.Error("migrations: Up failed — restore from backup",
+			slog.Error("migrations: Up failed - restore from backup",
 				slog.String("backup", dumpPath),
 				slog.Any("err", err))
 		}
@@ -80,7 +80,7 @@ func RunMigrations(db *sql.DB, opts BackupOpts) error {
 }
 
 // RollbackLastMigration reverts exactly one migration step. Intended for the
-// `cmd/migrate down` operator path — surgical, not a "tear it all down"
+// `cmd/migrate down` operator path - surgical, not a "tear it all down"
 // button. Pre-rollback backup is taken when opts.Dir is non-empty, same
 // contract as RunMigrations. Returns migrate.ErrNoChange when the schema
 // is already at version 0.
@@ -106,7 +106,7 @@ func RollbackLastMigration(db *sql.DB, opts BackupOpts) error {
 		return fmt.Errorf("read current migration version: %w", vErr)
 	}
 	if dirty {
-		slog.Warn("migrations: schema is in dirty state — rolling back anyway",
+		slog.Warn("migrations: schema is in dirty state - rolling back anyway",
 			slog.Uint64("version", uint64(currentVersion)))
 	}
 

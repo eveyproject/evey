@@ -85,7 +85,7 @@ func TestProbeHWCodecs_QSV_InvalidPath(t *testing.T) {
 	assert.Empty(t, codecs)
 }
 
-// A present encoder whose real-encode probe fails must NOT be reported usable —
+// A present encoder whose real-encode probe fails must NOT be reported usable -
 // this is the broken/absent-GPU guard (encoder compiled in but device dead).
 func TestProbeHWEncode_NonexistentFfmpeg_FailsClosed(t *testing.T) {
 	if probeHWEncode(t.Context(), "/nonexistent/ffmpeg", "h264_nvenc", "nvenc", "") {

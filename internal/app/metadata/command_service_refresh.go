@@ -37,7 +37,7 @@ func (s *CommandService) RefreshMetadata(ctx context.Context, mediaItemID, provi
 			span.SetStatus(otelcodes.Error, err.Error())
 			return nil, fmt.Errorf("get metadata from %s: %w", providerName, err)
 		}
-		// Log-only: notification event — actual metadata fetch already succeeded above
+		// Log-only: notification event - actual metadata fetch already succeeded above
 		evt := metadata.MetadataRefreshed{MediaItemID: shared.MediaItemID(mediaItemID), Provider: providerName, OccurredAt: time.Now()}
 		if err := s.events.Publish(ctx, evt); err != nil {
 			slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))

@@ -350,7 +350,7 @@ func TestCachedLibraryAccessChecker_CacheHit(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("expected access, got ok=%v err=%v", ok, err)
 	}
-	// second call with inner changed to deny — should still return cached true
+	// second call with inner changed to deny - should still return cached true
 	inner.allowed = false
 	ok2, _ := cached.HasAccess(context.Background(), "u1", "lib1")
 	if !ok2 {
@@ -1269,7 +1269,7 @@ func TestSubtitleDelete_OK(t *testing.T) {
 // HLS segment handler auth tests
 // ============================================================
 
-// HLSSegmentHandler_QueryToken skipped — requires non-nil HLSManager to avoid panic after auth
+// HLSSegmentHandler_QueryToken skipped - requires non-nil HLSManager to avoid panic after auth
 
 // ============================================================
 // Transcode handler auth tests
@@ -1632,7 +1632,7 @@ func TestSubtitleFileHandler_QueryToken(t *testing.T) {
 }
 
 // ============================================================
-// buildFFmpegArgs test (transcode_handler.go — pure logic, no I/O)
+// buildFFmpegArgs test (transcode_handler.go - pure logic, no I/O)
 // ============================================================
 
 func TestBuildFFmpegArgs_CopyAll(t *testing.T) {

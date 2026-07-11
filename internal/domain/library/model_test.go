@@ -79,7 +79,7 @@ func TestStreamTypeConstants(t *testing.T) {
 func TestFileOpConstants(t *testing.T) {
 	t.Parallel()
 
-	// order matters — FileOp is iota-based and used in switch statements
+	// order matters - FileOp is iota-based and used in switch statements
 	if library.FileCreated != 0 {
 		t.Errorf("FileCreated = %d, want 0", library.FileCreated)
 	}
@@ -308,7 +308,7 @@ func TestTrickplayManifest_Fields(t *testing.T) {
 func TestCollection_OptionalTmdbID(t *testing.T) {
 	t.Parallel()
 
-	// without TmdbID — valid for manually created collections
+	// without TmdbID - valid for manually created collections
 	col := &library.Collection{
 		ID:   "c1",
 		Name: "My Collection",
@@ -529,7 +529,7 @@ func TestStreamType_IsValid(t *testing.T) {
 func TestUserRating_Values(t *testing.T) {
 	t.Parallel()
 
-	// UserRating values: -1=dislike, 0=neutral, 1=like — documented in ports
+	// UserRating values: -1=dislike, 0=neutral, 1=like - documented in ports
 	cases := []struct {
 		name  string
 		value int

@@ -7,7 +7,7 @@ import (
 	appmedia "github.com/evey-project/evey/internal/app/media"
 )
 
-// shareDownloadHandler serves a media file via a public share token — NO auth.
+// shareDownloadHandler serves a media file via a public share token - NO auth.
 // The token (a uuid) IS the capability: an admin created the link for a media
 // they had access to, and the token entropy is the access control. Validate()
 // enforces expiry + view-limit and increments the view count. This is the only

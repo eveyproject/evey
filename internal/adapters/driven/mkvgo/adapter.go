@@ -23,7 +23,7 @@ type Adapter struct{}
 func New() *Adapter { return &Adapter{} }
 
 // ebmlContainerExts holds the file extensions backed by an EBML container
-// (Matroska / WebM family). The mkvgo reader can only parse these — calling
+// (Matroska / WebM family). The mkvgo reader can only parse these - calling
 // it on a non-EBML file (AVI, MP4, MOV, …) fails with an "expected EBML
 // header" error. Callers should treat non-EBML files as containers with no
 // chapters/attachments rather than surfacing an error.
@@ -175,7 +175,7 @@ func (a *Adapter) ExtractAttachment(ctx context.Context, containerPath string, a
 
 // --- MP4 remux ---
 
-// CanRemux reports whether path is a source mkvgo can repackage into MP4 — an
+// CanRemux reports whether path is a source mkvgo can repackage into MP4 - an
 // EBML container (Matroska / WebM). Any other container must go through a
 // transcode instead.
 func (a *Adapter) CanRemux(path string) bool {
@@ -188,13 +188,13 @@ func (a *Adapter) CanRemux(path string) bool {
 // player can start over progressive HTTP without first reading to EOF.
 //
 // Subtitles: SRT and WebVTT ride along as tx3g timed text; ASS/SSA are flattened
-// to tx3g too (FlattenStyledSubs) — text only, styling/positioning/karaoke is
+// to tx3g too (FlattenStyledSubs) - text only, styling/positioning/karaoke is
 // lost, but that beats dropping subs on the anime/MKV case this path most often
 // serves (cast/download play the standalone file, no sidecar). NativeWebVTT is
 // left off on purpose: native wvtt is lossless but ffmpeg's MP4 demuxer can't
 // read it, and widest playback compat matters more here than cue styling.
 //
-// Genuinely uncarriable tracks — bitmap subtitles (PGS/VobSub), TrueHD audio —
+// Genuinely uncarriable tracks - bitmap subtitles (PGS/VobSub), TrueHD audio -
 // are dropped rather than aborting the whole remux (SkipUnsupported); the output
 // still plays, minus those tracks (each logged via OnDrop).
 func (a *Adapter) RemuxToMP4(ctx context.Context, sourcePath, outputPath string) error {

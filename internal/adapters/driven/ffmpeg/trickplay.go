@@ -71,7 +71,7 @@ func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string)
 // Generate produces a trickplay sprite sheet (tiled webp images) for the
 // given media file. Previous implementation launched one ffmpeg process per
 // thumbnail (N seeks into the same file), which for a 2160p HEVC episode
-// turned ~420 thumbs into ~25 minutes of CPU — the server spent entire
+// turned ~420 thumbs into ~25 minutes of CPU - the server spent entire
 // weekends catching up on a modest library. This single-pass version
 // streams the decoder once with `fps=1/interval,scale,tile` baked into
 // the filter graph: the file is opened once, frames are downsampled on
@@ -115,7 +115,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	// -skip_frame nokey instructs the decoder to drop non-keyframe packets
 	// so HEVC/H.264 4K decode only processes I-frames (typically every
 	// 2-5 seconds). On a 1080p HEVC episode this turns ~9 min of full
-	// decode into ~30s of keyframe-only work — without this flag the
+	// decode into ~30s of keyframe-only work - without this flag the
 	// single-pass version still pegged 1 core at 100% for minutes per item.
 	//
 	// -vsync vfr stops ffmpeg from trying to duplicate frames to match
@@ -124,13 +124,13 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	//
 	// We use the `select` filter (NOT `fps=1/N`): `fps` rewrites every
 	// output frame's PTS to a clean multiple of N, which is a lie when
-	// keyframes are sparse — players that trust the PTS would scrub to
+	// keyframes are sparse - players that trust the PTS would scrub to
 	// frames whose true source position differs by ±2.5s. `select` keeps
 	// each frame's original PTS, so the `showinfo` filter downstream logs
 	// the real source-video time for every kept thumbnail.
 	//
 	// Expression: pick the first frame, then any frame whose time is at
-	// least N seconds after the previously selected — yields one thumb
+	// least N seconds after the previously selected - yields one thumb
 	// per ~N seconds of source while honoring keyframe placement.
 	vf := fmt.Sprintf(
 		"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,%d)',scale=%d:-1,showinfo,tile=%dx%d",
@@ -223,7 +223,7 @@ func (g *TrickplayGenerator) ExtractFrame(ctx context.Context, filePath string, 
 }
 
 // DecodePacketToJPEG decodes a single encoded keyframe packet (from mkvgo's
-// ExtractKeyframeSample — Annex-B or IVF) into a scaled JPEG. It decodes just
+// ExtractKeyframeSample - Annex-B or IVF) into a scaled JPEG. It decodes just
 // that one frame, so on a weak NAS it avoids the seek + GOP decode ExtractFrame
 // pays. ext selects the input demuxer (.h264/.hevc/.ivf); an unknown ext errors
 // so the caller falls back to the exact ffmpeg -ss path.

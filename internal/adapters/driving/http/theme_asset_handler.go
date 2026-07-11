@@ -28,9 +28,9 @@ func registerThemeAssetRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGener
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &themeAssetHandler{pluginDir: pluginDir, repo: repo}
 
-	// theme.css is public — CSS may be applied before authentication (e.g. login page styling)
+	// theme.css is public - CSS may be applied before authentication (e.g. login page styling)
 	mux.HandleFunc("GET /api/v1/themes/{id}/theme.css", h.handleThemeCSS)
-	// theme.js requires auth — JS execution is user-facing, not needed before login
+	// theme.js requires auth - JS execution is user-facing, not needed before login
 	mux.HandleFunc("GET /api/v1/themes/{id}/theme.js", authMw(h.handleThemeJS))
 }
 
@@ -122,7 +122,7 @@ func (h *themeAssetHandler) handleThemeJS(w http.ResponseWriter, r *http.Request
 
 	jsPath := filepath.Join(h.pluginDir, id, "theme.js")
 	// Separator-anchored prefix check (see handleThemeCSS above for the
-	// reasoning — prevents an id like "../plugins-evil/…" from satisfying
+	// reasoning - prevents an id like "../plugins-evil/…" from satisfying
 	// HasPrefix while pointing outside the install root).
 	cleanedRoot := filepath.Clean(h.pluginDir) + string(filepath.Separator)
 	if !strings.HasPrefix(filepath.Clean(jsPath), cleanedRoot) {

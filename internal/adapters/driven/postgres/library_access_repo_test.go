@@ -70,7 +70,7 @@ func TestLibraryAccessRepo_GrantMany(t *testing.T) {
 	}))
 	ids, err = repo.GetByUserID(ctx, shared.UserID(u.ID))
 	require.NoError(t, err)
-	assert.Len(t, ids, 3, "ON CONFLICT DO NOTHING — count unchanged")
+	assert.Len(t, ids, 3, "ON CONFLICT DO NOTHING - count unchanged")
 }
 
 func TestLibraryAccessRepo_HasAccess(t *testing.T) {

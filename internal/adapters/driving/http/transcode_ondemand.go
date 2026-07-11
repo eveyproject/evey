@@ -19,7 +19,7 @@ import (
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-// transcode_ondemand.go — the on-demand HLS/DASH copy rung served straight from
+// transcode_ondemand.go - the on-demand HLS/DASH copy rung served straight from
 // mkvgo's mp4.PlanHLS (apptranscoding.OnDemandPackager). When a request is
 // video+audio copy-eligible AND the source packages verbatim, serveMaster
 // hands the whole presentation to the packager instead of the paced
@@ -34,7 +34,7 @@ import (
 // collide with the transcode pipeline's (stream_N_*, audio_N_*) and serveHTTP
 // routes them by that prefix to servePlanResource. The plan is keyed on the
 // source alone (not the client), so it is cached once and every sub-request is
-// a cache hit — the URL carries no decision state.
+// a cache hit - the URL carries no decision state.
 
 const (
 	// onDemandPrefix decorates every sub-resource URI the plan's manifests
@@ -56,15 +56,15 @@ const (
 // modes, both stateless video from mp4.PlanHLS:
 //
 //   - audio also copy (every track CMAF-carriable, no loudnorm): the whole
-//     presentation is the packager's master — video + demuxed audio + subs.
+//     presentation is the packager's master - video + demuxed audio + subs.
 //   - audio must be re-encoded (DTS/TrueHD, loudnorm, a non-carriable track):
-//     a HYBRID master — the video variant points at the packager (od_playlist),
+//     a HYBRID master - the video variant points at the packager (od_playlist),
 //     the audio group stays Evey's ffmpeg AAC renditions. Requires the
 //     audio-rendition pipeline wired + enabled; otherwise fall through.
 //
 // Returns true when it has written the response (served or a hard error) so
 // serveMaster stops; false to fall through to the ffmpeg master (feature off,
-// video not copy-eligible, plan unbuildable, or hybrid audio unavailable — a
+// video not copy-eligible, plan unbuildable, or hybrid audio unavailable - a
 // clean, logged fallback).
 func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) bool {
 	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
@@ -236,7 +236,7 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 			opts.AESKeys = keys
 		} else {
 			opts.AESKey = h.deriveHLSKey(mediaID)
-			opts.AESKeyURI = "key" // relative to /hls/{id}/ — served by serveHLSKey; not URL-prefixed by mkvgo
+			opts.AESKeyURI = "key" // relative to /hls/{id}/ - served by serveHLSKey; not URL-prefixed by mkvgo
 		}
 	}
 	return h.onDemand.Plan(r.Context(), item.File.Path, opts)
@@ -313,7 +313,7 @@ func (h *hlsVODServe) serveHLSKey(w http.ResponseWriter, r *http.Request, mediaI
 
 // planHLSVideoEligible reports whether this request's VIDEO can be served by
 // the on-demand packager: the feature is wired on and the video was decided as
-// copy (reusing isCopyRequest — same codec/level/HDR/disk gates as today's copy
+// copy (reusing isCopyRequest - same codec/level/HDR/disk gates as today's copy
 // rung). Audio eligibility is decided separately (audioAllCopyEligible) because
 // the packager can serve video-only and let Evey re-encode the audio. The
 // decision is the caller's (computed once per request).
@@ -326,7 +326,7 @@ func (h *hlsVODServe) planHLSVideoEligible(decision domaintranscoding.PlaybackDe
 
 // audioAllCopyEligible reports whether every audio track can be served verbatim
 // by the packager: the decision is copy, no loudnorm, and EVERY audio track is
-// CMAF-carriable — the packager demuxes them all into renditions, so one track
+// CMAF-carriable - the packager demuxes them all into renditions, so one track
 // it can't carry would strand a client that selects it. False routes to the
 // hybrid master (packager video + Evey AAC audio renditions).
 func (h *hlsVODServe) audioAllCopyEligible(ctx context.Context, decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
@@ -334,7 +334,7 @@ func (h *hlsVODServe) audioAllCopyEligible(ctx context.Context, decision domaint
 		return false
 	}
 	if h.audioNormalizeGetter != nil && h.audioNormalizeGetter(ctx) {
-		return false // loudnorm requires a re-encode — hybrid path
+		return false // loudnorm requires a re-encode - hybrid path
 	}
 	for _, s := range streams {
 		if s == nil || s.StreamType != "audio" {

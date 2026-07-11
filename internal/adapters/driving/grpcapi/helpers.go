@@ -37,7 +37,7 @@ func sanitizeLogValue(s string) string {
 		"\r", `\r`,
 		"\n", `\n`,
 		"\t", `\t`,
-		"\x1b", `\x1b`, // ANSI escape — prevents fake colour/control sequences
+		"\x1b", `\x1b`, // ANSI escape - prevents fake colour/control sequences
 		"\x00", `\x00`,
 	)
 	return r.Replace(s)
@@ -108,7 +108,7 @@ func internalError(op string, err error) error {
 	if isClientCanceled(err) {
 		// The client disconnected mid-request, which cancels the context; the DB
 		// driver then surfaces context.Canceled or pg's 57014 "canceling statement
-		// due to user request". That is the caller giving up, not a server fault —
+		// due to user request". That is the caller giving up, not a server fault -
 		// log it at DEBUG so it doesn't pollute the ERROR stream. The return code
 		// is left unchanged (the client is already gone, so it never sees it).
 		slog.Debug(op+": client canceled", slog.Any("err", err))
@@ -136,7 +136,7 @@ func isClientCanceled(err error) bool {
 //
 // Admins are deliberately NOT special-cased here. Cross-profile admin access
 // goes through the explicit, audited ImpersonateUser RPC, which mints a token
-// whose claims.ProfileID IS the target — so by the time a request reaches here,
+// whose claims.ProfileID IS the target - so by the time a request reaches here,
 // an impersonating admin legitimately owns the profile. This keeps every
 // profile-scoped write attributable and forbids a silent profile_id override on
 // a normal admin request.

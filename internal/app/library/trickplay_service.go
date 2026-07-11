@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/google/uuid"
 )
 
 // ActiveStreamChecker reports whether any transcode/playback is active.
@@ -30,7 +30,7 @@ type TrickplayService struct {
 	mediaItems        library.MediaItemCommandRepo
 	events            shared.EventBus
 	configRepo        shared.ServerConfigRepository
-	activeStreams      ActiveStreamChecker
+	activeStreams     ActiveStreamChecker
 	shutdownCtx       context.Context
 
 	// genMu guards inProgress, the set of media item IDs currently being
@@ -201,10 +201,10 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 // index ↔ source video time without assuming uniform interval (which is wrong
 // when ffmpeg snaps to keyframes).
 type trickplaySidecar struct {
-	TileWidth        int     `json:"tile_width"`
-	TileHeight       int     `json:"tile_height"`
-	FramesPerSprite  int     `json:"frames_per_sprite"`
-	FrameTimestamps  []int64 `json:"frame_ms"`
+	TileWidth       int     `json:"tile_width"`
+	TileHeight      int     `json:"tile_height"`
+	FramesPerSprite int     `json:"frames_per_sprite"`
+	FrameTimestamps []int64 `json:"frame_ms"`
 }
 
 func writeTrickplaySidecar(outputDir string, tileWidth, tileHeight int, frameMs []int64) error {
@@ -232,7 +232,7 @@ func writeTrickplaySidecar(outputDir string, tileWidth, tileHeight int, frameMs 
 }
 
 // readTrickplaySidecar reads the sidecar written by writeTrickplaySidecar.
-// Returns an error if absent — there is no fallback to interval-based timing.
+// Returns an error if absent - there is no fallback to interval-based timing.
 func readTrickplaySidecar(outputDir string) (*trickplaySidecar, error) {
 	path := filepath.Join(outputDir, "trickplay.json")
 	buf, err := os.ReadFile(path)

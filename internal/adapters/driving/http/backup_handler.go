@@ -111,7 +111,7 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 			http.Error(w, `{"message":"too many requests"}`, http.StatusTooManyRequests)
 			return
 		}
-		// A 2 GB restore on a slow link legitimately takes minutes — opt out of the
+		// A 2 GB restore on a slow link legitimately takes minutes - opt out of the
 		// body read deadline so BodyReadTimeoutMiddleware does not cut it off.
 		ClearBodyReadDeadline(w)
 		r.Body = http.MaxBytesReader(w, r.Body, 2<<30) // 2GB max

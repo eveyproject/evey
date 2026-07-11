@@ -189,7 +189,7 @@ func TestTrickplayManifestHandler_ParentalAdmin_OK(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	// on manifest error the handler emits an empty WEBVTT — any non-403 is pass
+	// on manifest error the handler emits an empty WEBVTT - any non-403 is pass
 	if w.Code == http.StatusForbidden {
 		t.Errorf("admin must bypass parental, got 403")
 	}

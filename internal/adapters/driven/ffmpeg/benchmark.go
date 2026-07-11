@@ -31,11 +31,11 @@ import (
 // project's bundled sample (or a synthetic testsrc fallback when the
 // sample is missing). For each height we encode ~5 s of video and
 // measure the wall-clock; FPS = frames / wall. A height passes when
-// FPS >= sampleRate × realtimeMargin (1.2 default — 20 % headroom over realtime).
+// FPS >= sampleRate × realtimeMargin (1.2 default - 20 % headroom over realtime).
 // The cap need not be over-conservative: the auto-degrade ABR ladder is the real
 // safety net (Auto starts at the top rung and steps DOWN on a genuine stall), so
 // a small margin is enough and a higher one would needlessly drop a rung the box
-// actually sustains (e.g. 1080p HDR runs ~1.37x realtime here — comfortably).
+// actually sustains (e.g. 1080p HDR runs ~1.37x realtime here - comfortably).
 //
 // Sample mire path is configurable to let tests use a tiny generated
 // file instead of bundling 5 MB into the binary for unit tests.
@@ -57,8 +57,8 @@ type BenchmarkRunner struct {
 	benchSamples int
 	// singleVariant mirrors the runtime orchestrator mode. When true the
 	// software ladder is probed one rung at a time (decode + tonemap + ONE
-	// encode at height h) — the shape a single-variant session actually runs
-	// — instead of the cumulative parallel ladder. The two shapes have very
+	// encode at height h) - the shape a single-variant session actually runs
+	// - instead of the cumulative parallel ladder. The two shapes have very
 	// different CPU pressure: an old box that can't sustain decode + 4 parallel
 	// encodes at 1080p HDR can comfortably sustain decode + ONE 1080p encode.
 	// Benching the wrong shape pins the cap far below what the host serves.
@@ -75,7 +75,7 @@ type BenchmarkRunner struct {
 // resolveBenchSample): an operator-provided file (overridePath), then a
 // previously-cached file, then a SHA256-pinned download (url+sha256), then the
 // on-the-fly synthetic clip. A real-content clip calibrates far more honestly
-// than the synthetic — the synthetic over-states decode+encode cost — so a
+// than the synthetic - the synthetic over-states decode+encode cost - so a
 // pinned reference clip is preferred when configured, with the synthetic as the
 // always-available airgapped fallback.
 type benchSampleSource struct {
@@ -105,9 +105,9 @@ type BenchmarkOpts struct {
 	// the synthetic. Zero values fall back to synthetic generation. Wire from
 	// cfg.Transcoding.Bench* so an operator can calibrate against real content
 	// (their own file, or a pinned license-clean reference clip).
-	//   *SamplePath   EVEY_BENCH_*_SAMPLE        — a real file dropped in
-	//   *SampleURL    EVEY_BENCH_*_SAMPLE_URL    — pinned reference clip (https)
-	//   *SampleSHA256 EVEY_BENCH_*_SAMPLE_SHA256 — required when URL is set
+	//   *SamplePath   EVEY_BENCH_*_SAMPLE        - a real file dropped in
+	//   *SampleURL    EVEY_BENCH_*_SAMPLE_URL    - pinned reference clip (https)
+	//   *SampleSHA256 EVEY_BENCH_*_SAMPLE_SHA256 - required when URL is set
 	SDRSamplePath, SDRSampleURL, SDRSampleSHA256 string
 	HDRSamplePath, HDRSampleURL, HDRSampleSHA256 string
 }
@@ -157,7 +157,7 @@ func NewBenchmarkRunner(opts BenchmarkOpts, logger *slog.Logger) *BenchmarkRunne
 }
 
 // hwBenchLadder is the resolution rungs we probe for hardware-encode
-// capability. Goes all the way to 2160p — NVENC / QSV / VAAPI can
+// capability. Goes all the way to 2160p - NVENC / QSV / VAAPI can
 // reasonably hit it on consumer hardware.
 var hwBenchLadder = []int{720, 1080, 1440, 2160}
 
@@ -200,14 +200,14 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	hdrSample, hdrFallback := r.resolveHDRSample()
 	swHDRMax, hdrSamples := r.benchSoftwareHDR(ctx, hdrSample, hdrFallback)
 
-	// AV1 software (libsvtav1) ceiling — its own number because AV1 is several
+	// AV1 software (libsvtav1) ceiling - its own number because AV1 is several
 	// times heavier than libx264; 0 on hosts that can't sustain it (the common
 	// weak-NAS case), which keeps AV1 output hardware-only via the handler gate.
 	swAV1Max, av1Samples := r.benchSoftwareAV1(ctx, sample, fallback)
 
 	// detected lists every accelerator the host advertises. Skipped entirely
-	// when HW is disabled (mode=off): probing the GPU — including the real-encode
-	// verification probe — wastes CPU and spams "hwdetect: probe failed" on a
+	// when HW is disabled (mode=off): probing the GPU - including the real-encode
+	// verification probe - wastes CPU and spams "hwdetect: probe failed" on a
 	// box whose operator explicitly turned HW off (e.g. an old iGPU that
 	// can't HEVC-decode). No detection, no probe, no noise when off.
 	var detected []string
@@ -236,7 +236,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	var hw10Bit, hwTonemap bool
 	if hwMax > 0 {
 		hwFeatures = r.probeHWFeatures(ctx, hwBackend)
-		// Probe DECODE support separately — encode-capable ≠ decode-capable
+		// Probe DECODE support separately - encode-capable ≠ decode-capable
 		// (old iGPU encodes H.264 but can't decode HEVC). Drives the pipeline's
 		// per-source -hwaccel gating so an undecodable source software-decodes
 		// instead of stalling the player.
@@ -314,7 +314,7 @@ func (r *BenchmarkRunner) detectBackends(ctx context.Context) []string {
 
 // nvencFeatureProbes are the optional NVENC tuning flags we want to use, each
 // tested with a tiny throwaway encode. Names MUST match the has-checks in
-// hwEncoderQualityArgs — a feature is emitted in production iff it is BOTH
+// hwEncoderQualityArgs - a feature is emitted in production iff it is BOTH
 // listed here (probed OK) and gated there. Kept in sync by TestNVENCProbeNames.
 var nvencFeatureProbes = []struct {
 	name string
@@ -343,7 +343,7 @@ func nvencProbeArgs(optionArgs []string) []string {
 }
 
 // probeHWFeatures returns the tuning options the host's HW encoder accepts.
-// v1 probes NVENC only — a device-free encode from a synthetic source the
+// v1 probes NVENC only - a device-free encode from a synthetic source the
 // caller's GPU box can validate directly. VAAPI/QSV option probing needs the
 // real device set up like production and is a hardware-validated follow-up, so
 // it returns nil here (⇒ the safe HW baseline, no tuning).
@@ -394,7 +394,7 @@ func (r *BenchmarkRunner) probeOption(ctx context.Context, args []string) bool {
 //
 // Why a real HEVC sample matters: the original implementation used
 // lavfi testsrc as input. lavfi generates frames in-memory, so the
-// decoder never runs — the bench measured pure encode throughput.
+// decoder never runs - the bench measured pure encode throughput.
 // But the actual production bottleneck on a host without HW is
 // software HEVC *decode* (4K HEVC = ~1× realtime on a CPU), which
 // can plummet the effective realtime budget for the encoder. Pure
@@ -408,7 +408,7 @@ func (r *BenchmarkRunner) probeOption(ctx context.Context, args []string) bool {
 // is self-contained.
 //
 // Returns the path to use; second value (fallback) is always false
-// once generation succeeds — kept as a compatibility seam for
+// once generation succeeds - kept as a compatibility seam for
 // callers that need to know "are we on synthetic" (legacy callers
 // passed true to switch to lavfi). With on-demand generation we
 // never need the lavfi branch anymore unless generation itself
@@ -418,8 +418,8 @@ func (r *BenchmarkRunner) resolveSample() (string, bool) {
 }
 
 // resolveBenchSample produces the path to a bench input, in priority order:
-//  1. src.overridePath — a real file the operator dropped in (used verbatim);
-//  2. defaultPath — a clip cached on a previous run (download or generate);
+//  1. src.overridePath - a real file the operator dropped in (used verbatim);
+//  2. defaultPath - a clip cached on a previous run (download or generate);
 //  3. a SHA256-pinned download from src.url (cached to defaultPath);
 //  4. the synthetic clip produced by generate(defaultPath).
 //
@@ -462,7 +462,7 @@ func (r *BenchmarkRunner) resolveBenchSample(label string, src benchSampleSource
 
 // downloadSample fetches a SHA256-pinned reference clip to dst. The pin is
 // mandatory (callers pass it only when both url and sha are set), so a swapped
-// or corrupted file at the URL is rejected rather than calibrated against — the
+// or corrupted file at the URL is rejected rather than calibrated against - the
 // URL is operator-configured and the content is verified, so this is not an
 // open SSRF/remote-content sink. Streams to a temp file with a size cap and
 // atomically renames on a verified hash.
@@ -490,7 +490,7 @@ func (r *BenchmarkRunner) downloadSample(url, wantSHA, dst string) error {
 	}
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }() //nolint:errcheck // best-effort temp cleanup; rename consumes it on success
-	const maxBytes = 256 << 20                // 256 MiB cap — a calibration clip is tens of MB
+	const maxBytes = 256 << 20                // 256 MiB cap - a calibration clip is tens of MB
 	h := sha256.New()
 	n, err := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(resp.Body, maxBytes+1))
 	_ = tmp.Close()
@@ -507,11 +507,11 @@ func (r *BenchmarkRunner) downloadSample(url, wantSHA, dst string) error {
 }
 
 // synthBenchSource builds the lavfi source for the synthetic clip: testsrc2
-// (gradients + moving geometry — real motion vectors and detail, unlike the near
+// (gradients + moving geometry - real motion vectors and detail, unlike the near
 // static original testsrc) softened by a light gaussian blur (testsrc2's razor
 // edges are unnaturally hard for x264; the blur brings the residual/encode cost
 // toward real film) plus a light film-grain noise (so x265 can't compress it to
-// a trivial size — keeps the decode non-trivial — without the pathological
+// a trivial size - keeps the decode non-trivial - without the pathological
 // incompressibility of the old noise=alls=20, which made x264 re-encode pure
 // noise and pinned the cap far below what real content sustains). pixFmt is
 // yuv420p (SDR) or yuv420p10le (HDR).
@@ -523,7 +523,7 @@ func synthBenchSource(pixFmt string) string {
 // generateSample produces a ~5 s 3840x2160 HEVC clip at dst, used when no real
 // reference clip is configured. Encoded with libx265 `medium` + a B-frame chain
 // so the decoder exercises reordering + multi-reference motion comp (the load
-// profile of a real rip). Bitrate targets ~5 Mbit/s — typical 4K streaming /
+// profile of a real rip). Bitrate targets ~5 Mbit/s - typical 4K streaming /
 // "4KLight" content, NOT a 25 Mbit/s remux: the source bitrate dominates decode
 // cost, so an over-fat sample understates the host. Slow on weak hosts (~30-60 s
 // at 4K) but runs once, reused across reboots/recalibrations.
@@ -564,7 +564,7 @@ func (r *BenchmarkRunner) resolveHDRSample() (string, bool) {
 }
 
 // generateHDRSample produces a ~5 s 3840x2160 HEVC Main10 HDR10 clip (bt2020 /
-// PQ, 10-bit) at dst — the heavy-decode counterpart of generateSample, used to
+// PQ, 10-bit) at dst - the heavy-decode counterpart of generateSample, used to
 // bench the real HDR->SDR transcode cost (10-bit decode + tonemap + encode) when
 // no real HDR reference clip is configured. Same content recipe and ~5 Mbit/s
 // target as the SDR sample; the tonemap compute cost is luminance-independent,
@@ -580,7 +580,7 @@ func (r *BenchmarkRunner) generateHDRSample(dst string) error {
 		"-f", "lavfi", "-i", synthBenchSource("yuv420p10le"),
 		"-c:v", "libx265", "-preset", "medium", "-pix_fmt", "yuv420p10le",
 		// Main10 + HDR10 metadata so the decoder runs the real 10-bit path and
-		// the tonemap filter sees bt2020/PQ — same b-frame chain as the SDR sample.
+		// the tonemap filter sees bt2020/PQ - same b-frame chain as the SDR sample.
 		"-x265-params",
 		"bframes=4:ref=3:b-adapt=2:rc-lookahead=20:hdr10=1:"+
 			"colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc",
@@ -621,7 +621,7 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 // selects the matching shape.
 //
 // Highest passing rung wins. Returns 720 minimum (universal floor) even
-// if every probe fails — guarantees the host can at least serve a 720p
+// if every probe fails - guarantees the host can at least serve a 720p
 // stream.
 func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
 	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software", "libx264", r.margin, 720)
@@ -639,7 +639,7 @@ const av1RealtimeMarginMultiplier = 2.0
 // benchSoftwareAV1 probes the libsvtav1 (AV1 software) ceiling under the same
 // pipeline shape as benchSoftware, at the production svtAV1Preset. AV1 software
 // is several times heavier than libx264, so this almost always pins LOWER (often
-// to nothing on a weak NAS). Floor 0 — NOT 720: a host that can't sustain even
+// to nothing on a weak NAS). Floor 0 - NOT 720: a host that can't sustain even
 // 720p AV1 software has no viable AV1 software path, and 0 is exactly what the
 // handler's effectiveVideoCodec gate reads to keep AV1 hardware-only there.
 func (r *BenchmarkRunner) benchSoftwareAV1(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
@@ -649,8 +649,8 @@ func (r *BenchmarkRunner) benchSoftwareAV1(ctx context.Context, sample string, f
 // benchSoftwareHDR probes the software ceiling for HDR->SDR content: the SAME
 // multi-variant pipeline PLUS the production zscale tonemap (hable), on a real
 // 10-bit HDR sample. It therefore measures the two costs benchSoftware (an
-// 8-bit, no-tonemap bench) is blind to — 10-bit HEVC decode AND the heavy
-// tonemap — i.e. the honest HDR ceiling. It inherently captures decode-bound
+// 8-bit, no-tonemap bench) is blind to - 10-bit HEVC decode AND the heavy
+// tonemap - i.e. the honest HDR ceiling. It inherently captures decode-bound
 // hosts: if 4K HEVC10 decode alone blows realtime, even the lowest rung fails.
 // Floor 480p (HDR is heavier than the SDR 720p floor; a box that can't sustain
 // 480p HDR leans on the runtime throttle rather than being offered nothing).
@@ -658,7 +658,7 @@ func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, f
 	// Tonemap at the ladder-TOP resolution (the downscale folded into the
 	// linearizing zscale), matching the production scale-first runtime
 	// (hls_transcoder buildMultiVariantArgs tonemaps the shared feed at the top
-	// rung, then per-rung scales DOWN). Measuring tonemap@4K — the old geometry —
+	// rung, then per-rung scales DOWN). Measuring tonemap@4K - the old geometry -
 	// understated the box: the runtime now does ~2× the throughput, so the cap
 	// must be re-derived against the same scale-first chain or it pins the host
 	// far below what it can sustain. The synthetic HDR sample is 16:9.
@@ -713,13 +713,13 @@ func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string
 			slog.Float64("required_fps", required),
 			slog.Bool("passing", passing))
 		if !passing {
-			break // ladder is monotone — no point probing 1440p once 1080p fails
+			break // ladder is monotone - no point probing 1440p once 1080p fails
 		}
 		best = h
 	}
 	if best == 0 {
 		// Every rung failed (very weak host, or ffmpeg crashed on every probe).
-		// Stay at the floor so playback still works — the host may overshoot
+		// Stay at the floor so playback still works - the host may overshoot
 		// realtime occasionally but the runtime throttle catches it.
 		r.logger.Warn("benchmark: "+label+" probe failed on every rung, falling back to floor",
 			slog.Int("floor", floor))
@@ -731,7 +731,7 @@ func (r *BenchmarkRunner) benchSoftwareLadder(ctx context.Context, sample string
 // benchHardware picks the HW backend with the most encoders available
 // and probes its ladder under the same multi-variant pipeline as the
 // software path (1 decode + N parallel encodes, matching prod).
-// Returns (0, "") when no HW is usable — software-only operation,
+// Returns (0, "") when no HW is usable - software-only operation,
 // fully supported by the handler.
 func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fallback bool, pinBackend string) (int, string, []string, string, []transcoding.BenchRungSample) {
 	devices, err := r.hwDetector.DetectDevices(ctx)
@@ -799,11 +799,11 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		// First measure the production zero-copy path: HW decode → scale → encode.
 		best, samples := runLadder(hwInputArgs(dev.Type), "")
 		// If nothing passed, the GPU may simply be unable to HW-DECODE the sample
-		// codec while still being able to ENCODE — pre-Skylake Intel iGPUs decode
+		// codec while still being able to ENCODE - pre-Skylake Intel iGPUs decode
 		// H.264 but NOT HEVC, and our sample is HEVC, so `-hwaccel vaapi` fails with
 		// ENOSYS before any encode runs. Retry measuring encode only: software-
 		// decode + hwupload, the exact shape probeHWEncode already validated.
-		// VAAPI/QSV only — NVENC HW-decodes every codec, so it never needs this.
+		// VAAPI/QSV only - NVENC HW-decodes every codec, so it never needs this.
 		if best == 0 {
 			if up := hwUploadChain(encoder); up != "" {
 				best, samples = runLadder(hwDecoupledInputArgs(dev.Type), up)
@@ -846,7 +846,7 @@ func hwDevicePath(backend string) string {
 }
 
 // hwInputArgs prepends the input-level HW init flags for each backend.
-// Empty for NVENC (which works in pure copy-CPU pipeline too) — and the
+// Empty for NVENC (which works in pure copy-CPU pipeline too) - and the
 // software fallback path inside HW encoders is forgiving.
 func hwInputArgs(backend string) []string {
 	switch backend {
@@ -907,7 +907,7 @@ var frameRE = regexp.MustCompile(`frame=\s*([0-9]+)`)
 // necessarily do 1 decode + 4 parallel encodes in realtime.
 //
 // Returns (0, false) on any failure so the caller treats it as
-// "rung failed". Output goes to /dev/null per branch — we measure
+// "rung failed". Output goes to /dev/null per branch - we measure
 // throughput, not segments.
 // medianFloat returns the median of vals (sorted copy, mean of the two middles
 // for an even count). Empty → 0. Pure, so the outlier-rejection logic is
@@ -928,7 +928,7 @@ func medianFloat(vals []float64) float64 {
 
 // medianMultiVariant probes a rung benchSamples times and returns the MEDIAN fps,
 // so a single under-measuring run (a momentarily-busy host) can't pin the cap a
-// rung too low. ok is true when a MAJORITY of probes succeeded — a rung that
+// rung too low. ok is true when a MAJORITY of probes succeeded - a rung that
 // mostly fails to encode is a genuine fail, not noise. Logs min/median/max so a
 // noisy calibration is visible in the admin log rather than silently lowering the
 // ceiling.
@@ -1003,7 +1003,7 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 	// HW encoders need the matching GPU scaler + a valid preset (NVENC has no
 	// x264 'ultrafast') and must NOT pin a host pixel format (frames are GPU
 	// surfaces). hwInputArgs already added -hwaccel_output_format for these, so
-	// decode→scale→encode stays on the GPU — exactly the production zero-copy
+	// decode→scale→encode stays on the GPU - exactly the production zero-copy
 	// path the bench is meant to measure.
 	hwScale, hwPreset := "", ""
 	switch {
@@ -1040,7 +1040,7 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 				args = append(args, "-preset", hwPreset)
 			}
 		case encoder == "libsvtav1":
-			// libsvtav1 takes the numeric preset (it rejects "veryfast") — bench at
+			// libsvtav1 takes the numeric preset (it rejects "veryfast") - bench at
 			// the SAME svtAV1Preset the production builder emits, or the cap is
 			// measured against a speed the runtime never uses.
 			args = append(args, "-preset", svtAV1Preset, "-pix_fmt", "yuv420p")
@@ -1052,7 +1052,7 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 			args = append(args, "-preset", "veryfast", "-pix_fmt", "yuv420p")
 		}
 	}
-	// Single null output for the whole graph — ffmpeg muxes all the
+	// Single null output for the whole graph - ffmpeg muxes all the
 	// mapped streams together (one per rung). We don't care about the
 	// container, just throughput.
 	args = append(args, "-an", "-sn", "-f", "null", "-")
@@ -1090,7 +1090,7 @@ func (r *BenchmarkRunner) runMultiVariant(ctx context.Context, sample string, fa
 }
 
 // sourceRate returns the assumed source frame-rate against which we
-// compare encode FPS. testsrc is 24, the bundled mire is 24 — anything
+// compare encode FPS. testsrc is 24, the bundled mire is 24 - anything
 // else would force us to probe the sample, which adds cost for no
 // material improvement on the cap decision.
 func (r *BenchmarkRunner) sourceRate() int {

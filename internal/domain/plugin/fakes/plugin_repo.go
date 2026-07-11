@@ -14,7 +14,7 @@ type FakePluginRepository struct {
 	mu    sync.RWMutex
 	items map[string]*plugin.Plugin
 	Err   error
-	// CreateErr fails only Create, leaving lookups (GetByName/GetByID) working —
+	// CreateErr fails only Create, leaving lookups (GetByName/GetByID) working -
 	// used to exercise the "DB write fails after extraction" cleanup path without
 	// short-circuiting the earlier existing-plugin lookup.
 	CreateErr error

@@ -42,7 +42,7 @@ lavfi.scd.score=0.012
 	assert.Equal(t, 1, sceneCuts, "only the 0.509 score crosses the 0.3 scenecut threshold")
 }
 
-// Empty input must not panic and must return zeros — the classifier
+// Empty input must not panic and must return zeros - the classifier
 // relies on this to fall back to bitrate/resolution buckets.
 func TestParseSignalStats_EmptyInput_Zero(t *testing.T) {
 	motionSum, frameCount, sceneCuts := parseSignalStats("")

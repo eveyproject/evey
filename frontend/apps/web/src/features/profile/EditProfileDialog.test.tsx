@@ -17,7 +17,7 @@ vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-// Modal uses createPortal — jsdom document.body handles it correctly; no mock needed.
+// Modal uses createPortal - jsdom document.body handles it correctly; no mock needed.
 
 const BASE_PROFILE: V1Profile = {
   id: "p-1",

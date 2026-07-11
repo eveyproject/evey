@@ -32,7 +32,7 @@ function feedLabel(t: (k: string) => string, feedType: string, libraryNames: Map
   if (isPluginFeedType(feedType)) {
     const pid = pluginIdFromFeedType(feedType);
     const raw = pluginNames.get(pid) ?? `Plugin ${pid}`;
-    // Plugin manifests don't yet ship a separate display name — title-case
+    // Plugin manifests don't yet ship a separate display name - title-case
     // the raw `name` field so identifiers like "weather" don't sit next to
     // properly formatted shelf labels.
     return raw.charAt(0).toUpperCase() + raw.slice(1);
@@ -58,7 +58,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   );
 
   // Reuse the same query key as PluginSlot so installing/uninstalling a
-  // plugin invalidates this list too — no stale plugin entries in the
+  // plugin invalidates this list too - no stale plugin entries in the
   // customise menu after the user changes their plugin set.
   const { data: pluginsData } = useQuery<{ plugins?: PluginListEntry[] }>({
     queryKey: ["/api/v1/plugins"],
@@ -103,7 +103,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
 
     // Prepend home-section plugins that aren't in the user's config yet
     // (newly installed). They impact the page layout, so default to the
-    // top — the user can still drag them down later. Negative orders are
+    // top - the user can still drag them down later. Negative orders are
     // safe: setRows then sorts ascending and the save handler renormalises
     // to contiguous integers before persisting.
     const haveAlready = new Set(configured.map((r) => r.feedType));
@@ -118,7 +118,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
 
     setRows([...configured, ...newPlugins].sort((a, b) => a.displayOrder - b.displayOrder));
     // Intentionally exclude homePlugins from deps to avoid the array
-    // identity churn from the useQuery refetch — it only matters when the
+    // identity churn from the useQuery refetch - it only matters when the
     // set actually changes, which we already pick up via pluginsData.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, pluginsData]);

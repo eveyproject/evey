@@ -9,7 +9,7 @@ import (
 // softwareTranscodeThreads caps the thread count of each software video
 // encoder on the HLS transcode path (`-threads N`), bounded by
 // EVEY_TRANSCODING_SOFTWARE_THREADS. Default 0 = unset, which leaves ffmpeg's
-// own auto-detection in place (libx264/libx265 grab every core) — the historic
+// own auto-detection in place (libx264/libx265 grab every core) - the historic
 // behaviour, best when transcoding is the box's only job.
 //
 // The knob exists for the weak-NAS target where one transcode must not starve

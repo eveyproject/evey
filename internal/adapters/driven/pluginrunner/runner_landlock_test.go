@@ -39,7 +39,7 @@ func TestApplyLandlockSandbox_BuildsArgv(t *testing.T) {
 	assert.Contains(t, cmd.Args, "-rw")
 	assert.Contains(t, cmd.Args, "/data/plugins/weather")
 	assert.Contains(t, cmd.Args, "/tmp/evey/plugins/weather")
-	// Only the harmless pseudo-devices are allowlisted, individually via -dev —
+	// Only the harmless pseudo-devices are allowlisted, individually via -dev -
 	// NOT the whole /dev directory, so GPU render nodes (/dev/dri/*), /dev/dxg
 	// and /dev/nvidia* stay denied by Landlock on a hardware-transcode box.
 	assert.Contains(t, cmd.Args, "-dev")

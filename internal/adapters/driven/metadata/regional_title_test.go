@@ -91,7 +91,7 @@ func TestApplyRegionalTitle_TVUsesResultsAndEnRegions(t *testing.T) {
 }
 
 // The exact Avatar case: FR title == original ("Avatar"), and the only FR
-// alternative title is the polluted "Avatar (1)" — it must NOT be applied.
+// alternative title is the polluted "Avatar (1)" - it must NOT be applied.
 func TestApplyRegionalTitle_SkipsPollutedRegionalTitle(t *testing.T) {
 	d := tmdbDetailResponse{
 		ID:               19995,

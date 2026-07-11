@@ -192,7 +192,7 @@ function PlayerControlsInner({
 
   const resetHideTimer = useCallback(() => {
     setVisible(true);
-    // Don't auto-hide while ANY side panel is open — previously only the
+    // Don't auto-hide while ANY side panel is open - previously only the
     // settings panel was guarded, so a hover over the controls with the
     // episodes/chapters panel open would queue a hide that fired 3s
     // later and caused a brief flicker before the panel-open effect
@@ -240,7 +240,7 @@ function PlayerControlsInner({
 
   // onCastSeek returns false when the cast session can't actually seek
   // (dead/stale session). In that case we must fall through to the
-  // local player — otherwise a Chromecast that bugged out leaves every
+  // local player - otherwise a Chromecast that bugged out leaves every
   // seek silently swallowed.
   function seekTo(targetAbsolute: number) {
     if (isCasting && onCastSeek && onCastSeek(targetAbsolute)) return;
@@ -286,7 +286,7 @@ function PlayerControlsInner({
     setBoost(val > 1 ? val : 1);
     // The muted-autoplay fallback leaves video.muted=true even after the user
     // grabs the slider; without this unmute, dragging the bar visibly raises
-    // the slider but produces no sound — they have to also click the volume
+    // the slider but produces no sound - they have to also click the volume
     // icon. Interpret a >0 drag as "I want sound now" and clear the mute.
     if (val > 0 && video.muted) {
       video.muted = false;
@@ -295,8 +295,8 @@ function PlayerControlsInner({
 
   function togglePip() {
     // Prefer Document PiP (Chrome 116+): brings the WHOLE player UI into
-    // the floating window — progress bar, subtitles, chapter skip, next
-    // episode prompt — not just the bare <video>. Falls back to the
+    // the floating window - progress bar, subtitles, chapter skip, next
+    // episode prompt - not just the bare <video>. Falls back to the
     // standard PiP on Safari/Firefox where DocPiP doesn't exist.
     if (docPiP.available) {
       void docPiP.toggle();
@@ -426,7 +426,7 @@ function PlayerControlsInner({
         style={{ background: "linear-gradient(to top, var(--overlay-bg-strong), transparent)", paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))", paddingLeft: "max(1rem, env(safe-area-inset-left, 1rem))", paddingRight: "max(1rem, env(safe-area-inset-right, 1rem))" }}
         data-controls
       >
-        {/* seek bar — subscribes to PlayerTimeContext on its own */}
+        {/* seek bar - subscribes to PlayerTimeContext on its own */}
         <LiveProgressBar
           castTimeSec={castTimeSec}
           effectiveDuration={effectiveDuration}
@@ -537,7 +537,7 @@ function PlayerControlsInner({
             );
           })()}
 
-          {/* time — subscribes to PlayerTimeContext on its own */}
+          {/* time - subscribes to PlayerTimeContext on its own */}
           <LiveTimeLabel castTimeSec={castTimeSec} effectiveDuration={effectiveDuration} />
 
           {/* volume */}
@@ -555,7 +555,7 @@ function PlayerControlsInner({
 
           <div className="flex-1" />
 
-          {/* Overflow toggle — phones only. Taps reveal the secondary controls
+          {/* Overflow toggle - phones only. Taps reveal the secondary controls
               as a floating row above the bar; from sm up they stay inline. */}
           <button
             onClick={() => setOverflowOpen((v) => !v)}
@@ -626,7 +626,7 @@ function PlayerControlsInner({
             availableQualities={availableQualities}
           />
 
-          {/* Stream Info — surfaces the backend's playback decision (method,
+          {/* Stream Info - surfaces the backend's playback decision (method,
               codecs, transcode reasons), parity with the mobile app. */}
           {streamInfo && (
             <StreamInfoPanel
@@ -636,9 +636,9 @@ function PlayerControlsInner({
             />
           )}
 
-          {/* Play On — server-brokered remote control of first-party
+          {/* Play On - server-brokered remote control of first-party
               clients (TV app, mobile). Works for any browser, any
-              network — no Chromecast SDK required. */}
+              network - no Chromecast SDK required. */}
           {mediaId && (
             <PlayOnPicker mediaId={mediaId} getPositionMs={() => Math.floor(currentAbsoluteTime() * 1000)} />
           )}

@@ -133,7 +133,7 @@ func (s *QueryService) GetMediaItemByFilePath(ctx context.Context, path string) 
 }
 
 // NextEpisodeOf returns the next episode after the given one in the same
-// series — same season's next index_number, or first episode of the next
+// series - same season's next index_number, or first episode of the next
 // season if the current is the season finale. Nil + no error when the
 // current episode is the series finale.
 func (s *QueryService) NextEpisodeOf(ctx context.Context, episodeID string) (*library.MediaItem, error) {

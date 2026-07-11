@@ -21,7 +21,7 @@ export function PlayActivityChart() {
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const daily = data?.dailyPlays ?? [];
-  // Hooks must run on every render — keep them above the early return below.
+  // Hooks must run on every render - keep them above the early return below.
   const accent = useCssVar("--accent", "#6366f1");
   const textMuted = useCssVar("--text-muted");
 
@@ -152,7 +152,7 @@ export function PeakHours() {
     query: { refetchInterval: 60_000, refetchIntervalInBackground: false },
   });
   const hourly = data?.hourlyPlays ?? [];
-  // Hooks must run on every render — keep them above the early return below.
+  // Hooks must run on every render - keep them above the early return below.
   const accent = useCssVar("--accent", "#6366f1");
   const textMuted = useCssVar("--text-muted");
 

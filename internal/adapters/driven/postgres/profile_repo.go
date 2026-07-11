@@ -69,7 +69,7 @@ func (r *ProfileRepository) Create(ctx context.Context, p *user.Profile) error {
 // CreateWithinCap enforces the per-user profile cap and the insert atomically.
 // It serialises concurrent creates for the same user with a tx-scoped advisory
 // lock, counts the user's profiles under that lock, and inserts only when the
-// count is below maxProfiles — closing the count-then-create TOCTOU that let
+// count is below maxProfiles - closing the count-then-create TOCTOU that let
 // concurrent requests overshoot the cap. maxProfiles <= 0 means unlimited.
 func (r *ProfileRepository) CreateWithinCap(ctx context.Context, p *user.Profile, maxProfiles int) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.profile.CreateWithinCap")

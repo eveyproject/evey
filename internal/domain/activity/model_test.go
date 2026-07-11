@@ -61,7 +61,7 @@ func TestPlayHistoryEntry_CompletionFlag(t *testing.T) {
 	t.Run("partial play", func(t *testing.T) {
 		t.Parallel()
 		dur, _ := shared.NewDurationMs(2700000) // 45 min
-		pos, _ := shared.NewDurationMs(1350000) // 22.5 min — halfway
+		pos, _ := shared.NewDurationMs(1350000) // 22.5 min - halfway
 		entry := &activity.PlayHistoryEntry{
 			ID:          "h2",
 			ProfileID:   "p1",
@@ -210,9 +210,9 @@ func TestServerStatsResult_Fields(t *testing.T) {
 	r := &activity.ServerStatsResult{
 		ActiveStreams:    2,
 		ActiveTranscodes: 1,
-		TotalUsers:      100,
-		TotalItems:      5000,
-		TotalPlayTimeMs: 36_000_000,
+		TotalUsers:       100,
+		TotalItems:       5000,
+		TotalPlayTimeMs:  36_000_000,
 	}
 
 	if r.ActiveStreams < 0 {

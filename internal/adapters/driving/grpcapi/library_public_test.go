@@ -190,7 +190,7 @@ func TestListPublicMediaItems_ParentalFilter_Applied(t *testing.T) {
 
 	require.NoError(t, accessRepo.Grant(context.Background(), "usr-kid2", "lib-10"))
 
-	// G-rated (age 0) — must be returned to the kids caller.
+	// G-rated (age 0) - must be returned to the kids caller.
 	mediaQuery.Seed(&library.MediaItem{
 		ID:        "mi-g",
 		LibraryID: "lib-10",
@@ -200,7 +200,7 @@ func TestListPublicMediaItems_ParentalFilter_Applied(t *testing.T) {
 			OfficialRating: "G",
 		},
 	})
-	// R-rated (age 17) — must be excluded by the parental filter.
+	// R-rated (age 17) - must be excluded by the parental filter.
 	mediaQuery.Seed(&library.MediaItem{
 		ID:        "mi-r",
 		LibraryID: "lib-10",

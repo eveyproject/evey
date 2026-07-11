@@ -212,7 +212,7 @@ function SyncPlayPage() {
         await controls.leaveRoom();
         return;
       }
-      // Fetch the room to get name etc.; we already have mediaId — build a TrackLite stub
+      // Fetch the room to get name etc.; we already have mediaId - build a TrackLite stub
       setCurrentTrack({ id: info.mediaId, title: "", artist: "", duration: 0, coverArtUrl: "" });
       // Enrich via GetRoom if needed later; music metadata would require separate call
       try {
@@ -358,7 +358,7 @@ function SyncPlayPage() {
                     {meta.title ? (
                       <span className="flex-1 min-w-0 truncate">
                         {meta.title}
-                        {meta.artist && <span className="text-[var(--text-muted)]"> — {meta.artist}</span>}
+                        {meta.artist && <span className="text-[var(--text-muted)]"> - {meta.artist}</span>}
                       </span>
                     ) : (
                       <span className="flex-1 truncate font-mono text-xs">{trackId}</span>

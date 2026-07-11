@@ -47,4 +47,4 @@ Implementation drifted from this 2026-02 record; the decision (short-lived, scop
 - **Scope notation is dot-based**, not colon-based: `media.read`, `library.write`, `notification.sender`, `api.library`, … The forbidden set is the prefixes `admin.` / `auth.` / `system.` plus the exact scopes `user.write` and `library.write` (`pkg/auth.forbiddenPrefix` + the forbidden-exact set in `plugin_jwt.go`).
 - The live allow-list is `pkg/auth.AllowedPluginScopes` (`plugin_jwt.go`), which is broader than this ADR's original read-only list (it includes e.g. `media.write`, `api.*`, `notification.sender`, and the later `public` / `prefs` capabilities).
 - Method names: minting is `TokenService.IssueToken` (not `Mint`); verification is `JWTGenerator.ParsePluginToken` (there is no `PluginJWTVerifier`).
-- Enforcement is no longer "filter at mint and trust thereafter": it is **deny-by-default at the interceptor** — see [ADR-0012](0012-plugin-token-deny-by-default.md).
+- Enforcement is no longer "filter at mint and trust thereafter": it is **deny-by-default at the interceptor** - see [ADR-0012](0012-plugin-token-deny-by-default.md).

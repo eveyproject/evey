@@ -23,7 +23,7 @@ const drainBatchSize = 500
 //
 // This is the primary drift-prevention path (no writes are lost). The count-based
 // ReconcileSearchIndex stays for a DIFFERENT case it handles well: a total index
-// loss (empty engine vs full DB — restore, version change, corruption), where no
+// loss (empty engine vs full DB - restore, version change, corruption), where no
 // writes are in flight to replay.
 func DrainSearchWriteQueue(
 	ctx context.Context,
@@ -59,7 +59,7 @@ func DrainSearchWriteQueue(
 				item, gerr := items.GetByID(ctx, shared.MediaItemID(p.MediaItemID))
 				switch {
 				case errors.Is(gerr, shared.ErrNotFound):
-					// Deleted between enqueue and drain — ensure the index has no stale
+					// Deleted between enqueue and drain - ensure the index has no stale
 					// doc, then drop the pending op.
 					opErr = search.RemoveMediaItem(ctx, p.MediaItemID)
 				case gerr != nil:
@@ -71,7 +71,7 @@ func DrainSearchWriteQueue(
 				}
 			}
 			if opErr != nil {
-				// Engine still down / transient — stop; the rest stays queued for the
+				// Engine still down / transient - stop; the rest stays queued for the
 				// next tick (returning the error surfaces it, unlike a swallowed write).
 				return drained, fmt.Errorf("drain: replay %s %s: %w", p.Op, p.MediaItemID, opErr)
 			}

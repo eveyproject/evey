@@ -142,7 +142,7 @@ func waitJobDone(t *testing.T, d *adminMediaHandler) *eveyv1.GetSeekIndexJobResp
 }
 
 // A read-only media volume must surface in the job summary with the read_only
-// flag so the UI can show the actionable remount message — the repair itself
+// flag so the UI can show the actionable remount message - the repair itself
 // is async (a sync rewrite of a multi-GB file 504s behind a reverse proxy).
 func TestReindexMediaSeekIndex_ReadOnlyVolume_FlagsJobSummary(t *testing.T) {
 	svc := appmaintenance.NewSeekIndexService(

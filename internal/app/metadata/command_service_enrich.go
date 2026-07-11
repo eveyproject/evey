@@ -96,14 +96,14 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 
 	previousTitle := item.Title
 
-	// 1. Drop every override on the item — they were tied to the bad match.
+	// 1. Drop every override on the item - they were tied to the bad match.
 	if err = s.overrides.DeleteByMediaItemID(ctx, mediaItemID); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("delete overrides: %w", err)
 	}
 
-	// 1b. Drop stored locale translations — they belong to the wrong match and
+	// 1b. Drop stored locale translations - they belong to the wrong match and
 	// would otherwise overlay the corrected base title on the read path (this
 	// is what kept a re-matched season showing the foreign show's title).
 	if tc, ok := s.enricher.(TranslationClearer); ok {
@@ -122,7 +122,7 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 	}
 
 	// 3. Reset enriched fields so re-enrichment writes a clean record.
-	// ScanTitle is the filesystem-derived title that survived prior matches —
+	// ScanTitle is the filesystem-derived title that survived prior matches -
 	// it's the source of truth for the search query.
 	if item.ScanTitle != "" {
 		item.Title = item.ScanTitle
@@ -171,7 +171,7 @@ func (s *CommandService) ResearchMetadata(ctx context.Context, mediaItemID strin
 }
 
 // MatchOrphansInLibrary auto-searches and enriches *only* the items in the
-// library whose Catalog.ProviderIDs is effectively empty — i.e. items the
+// library whose Catalog.ProviderIDs is effectively empty - i.e. items the
 // initial scan failed to match against any provider (typically TMDB rate
 // limit or network blip during bulk import). Idempotent: items that get
 // matched leave the orphan set, so re-running the action just picks up
@@ -211,7 +211,7 @@ func (s *CommandService) MatchOrphansInLibrary(ctx context.Context, libraryID st
 	if total == 0 {
 		return 0, nil
 	}
-	// Drain in background — paginated, with stall detection so a downstream
+	// Drain in background - paginated, with stall detection so a downstream
 	// provider outage doesn't burn CPU on the same 500 items forever.
 	go s.drainOrphans(libraryID, filter, total, be)
 	return total, nil
@@ -269,7 +269,7 @@ func (s *CommandService) drainOrphans(libraryID string, filter library.ListMedia
 }
 
 // AutoRefreshAllItems auto-searches and enriches all media items using the
-// enricher. This is the admin-triggered "Refresh all metadata" entry point —
+// enricher. This is the admin-triggered "Refresh all metadata" entry point -
 // it bypasses the "already has overview" short-circuit so past bad TMDB
 // matches get a chance to be corrected. Items with admin field overrides
 // are still skipped (manual intent wins).

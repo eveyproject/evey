@@ -9,7 +9,7 @@ const mockUseSearch = vi.fn(() => ({ q: undefined }));
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (def: { component: React.ComponentType }) => def,
   useNavigate: () => mockNavigate,
-  // Route.useSearch is accessed via the module-level Route object — we'll stub below
+  // Route.useSearch is accessed via the module-level Route object - we'll stub below
 }));
 
 vi.mock("@evey/api", () => ({

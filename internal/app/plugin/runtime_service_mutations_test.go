@@ -103,7 +103,7 @@ func TestDisablePlugin_StopFails_StillDisables(t *testing.T) {
 	assert.Equal(t, plugindomain.Stopped, p.Status, "status set to Stopped even if Stop returned error")
 }
 
-// L177: AutoStart rebuilt → Update persists rebuilt fields (covered) — verify warn-tolerated when Update fails.
+// L177: AutoStart rebuilt → Update persists rebuilt fields (covered) - verify warn-tolerated when Update fails.
 // Also: ParseDir error path keeps Entrypoint empty (no rebuilt for entrypoint).
 func TestAutoStartPlugins_ParseDirError_NoEntrypointRebuild(t *testing.T) {
 	pluginRepo := plgfakes.NewFakePluginRepository()
@@ -154,7 +154,7 @@ func TestAutoStartPlugins_StartFails_PersistsError(t *testing.T) {
 	assert.Equal(t, "crash", p.ErrorMessage)
 }
 
-// L210: HandleIPCResult uses 10s timeout — verify it completes promptly with bg context.
+// L210: HandleIPCResult uses 10s timeout - verify it completes promptly with bg context.
 func TestHandleIPCResult_CompletesWithoutShutdownCtx(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
@@ -171,14 +171,14 @@ func TestHandleIPCResult_CompletesWithoutShutdownCtx(t *testing.T) {
 	assert.Equal(t, plugindomain.Running, p.Status)
 }
 
-// L224: HandleIPCResult Update warn tolerated — verify even when Update fails, no panic.
+// L224: HandleIPCResult Update warn tolerated - verify even when Update fails, no panic.
 func TestHandleIPCResult_UpdateError_NoPanic(t *testing.T) {
 	svc, pluginRepo, _, _ := newTestRuntimeService()
 	ctx := context.Background()
 	require.NoError(t, pluginRepo.Create(ctx, &plugindomain.Plugin{
 		ID: "plg-ipc-ue", Name: "ipc-ue", Status: plugindomain.Initializing,
 	}))
-	// Cause Update to fail by setting Err *after* Get succeeds — but Get also fails then.
+	// Cause Update to fail by setting Err *after* Get succeeds - but Get also fails then.
 	// Instead verify status was set in-memory by Get path before failure.
 	// Actually: GetByID returns early if Err set, so Update never runs.
 	// We can validate the success path Update happens (covered) and the warn path via partial mock.

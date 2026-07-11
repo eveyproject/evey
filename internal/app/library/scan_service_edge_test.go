@@ -132,7 +132,7 @@ func TestScanService_MusicLibrary_NilScannerError(t *testing.T) {
 	assert.Contains(t, err.Error(), "music scanner not configured")
 }
 
-// --- Music scanner: happy path — invoked once per library path ---
+// --- Music scanner: happy path - invoked once per library path ---
 
 func TestScanService_MusicLibrary_InvokesScannerPerPath(t *testing.T) {
 	h := newScanHarness()

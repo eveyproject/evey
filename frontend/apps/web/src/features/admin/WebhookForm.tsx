@@ -42,7 +42,7 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
     !existing || (existing.events?.length === 1 && existing.events[0] === "*"),
   );
 
-  // onError surfaces a toast — without it a rejected save (e.g. the server's
+  // onError surfaces a toast - without it a rejected save (e.g. the server's
   // SSRF URL validation refusing a private-IP webhook) failed silently.
   const createWebhook = useWebhookServiceCreateWebhook({
     mutation: { onSuccess, onError: (err: Error) => toast.error(err?.message || t("admin.webhooks.failedCreate")) },

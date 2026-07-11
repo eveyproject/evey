@@ -12,10 +12,10 @@ export const Route = createLazyFileRoute("/watch/$mediaId")({
 
 // GuestWatch is the PUBLIC (unauthenticated) "watch together" guest player. A
 // guest reaches it after entering a room code on the login page: it plays the
-// shared media with the guest stream token (streaming-only, forced transcode —
+// shared media with the guest stream token (streaming-only, forced transcode -
 // the guest can't run the JWT-gated GetStreamInfo, so we skip the decision and
 // let the server transcode), and joins the sync room via the guest ws path. It
-// is intentionally bare: no back button, no download, no navigation — the guest
+// is intentionally bare: no back button, no download, no navigation - the guest
 // is confined to this one title.
 function GuestWatch() {
   const { mediaId } = Route.useParams();
@@ -55,7 +55,7 @@ function GuestWatch() {
       void navigate({ to: "/login" });
       return;
     }
-    // Join exactly once — guard against React StrictMode's double-invoke, whose
+    // Join exactly once - guard against React StrictMode's double-invoke, whose
     // second connect() would close the first ws before it finished handshaking.
     if (joinedRef.current) return;
     joinedRef.current = true;

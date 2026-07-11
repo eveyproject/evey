@@ -216,7 +216,7 @@ func TestInstallPlugin_LoadsPermissions(t *testing.T) {
 
 func TestInstall_PluginWithoutBackend_Rejected(t *testing.T) {
 	svc, _, _, parser, _, _ := newTestInstallerService()
-	// kind:plugin with an entrypoint but no runtime language — passes manifest
+	// kind:plugin with an entrypoint but no runtime language - passes manifest
 	// validation but must be rejected by the installer before touching the FS.
 	parser.Result = &plugindomain.PluginManifest{
 		Kind:       plugindomain.KindPlugin,
@@ -613,7 +613,7 @@ func TestUninstallPlugin_StoppedNoDir(t *testing.T) {
 }
 
 // deleteFailingRepo wraps a FakePluginRepository so only Delete fails,
-// leaving GetByID (called first by UninstallPlugin) working — the shared
+// leaving GetByID (called first by UninstallPlugin) working - the shared
 // fake's Err field would short-circuit that earlier lookup too.
 type deleteFailingRepo struct {
 	*plgfakes.FakePluginRepository
@@ -939,7 +939,7 @@ func TestInstallPlugin_Update_EscalatesPermissions_Blocked(t *testing.T) {
 	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
 	require.NoError(t, err)
 
-	// v2: adds network + subprocess — should be blocked without explicit allow
+	// v2: adds network + subprocess - should be blocked without explicit allow
 	parser.Result = goManifestVersioned("escalate-me", "2.0.0")
 	parser.Result.Permissions = []string{"api.library", "network", "subprocess"}
 	parser.Result.ExternalFetch = []string{"example.com"}
@@ -958,7 +958,7 @@ func TestInstallPlugin_Update_SamePermissions_Allowed(t *testing.T) {
 	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
 	require.NoError(t, err)
 
-	// v2: same permissions set — must succeed
+	// v2: same permissions set - must succeed
 	parser.Result = goManifestVersioned("stable-perms", "2.0.0")
 	parser.Result.Permissions = []string{"api.library"}
 	p, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v2"))
@@ -975,7 +975,7 @@ func TestInstallPlugin_Update_EscalationAllowedByContext(t *testing.T) {
 	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "v1"))
 	require.NoError(t, err)
 
-	// v2: adds subprocess — allowed because context carries explicit admin ack
+	// v2: adds subprocess - allowed because context carries explicit admin ack
 	parser.Result = goManifestVersioned("ctx-escalate", "2.0.0")
 	parser.Result.Permissions = []string{"api.library", "subprocess"}
 	ctx := appplugin.WithAllowPermissionEscalation(context.Background())
@@ -1131,7 +1131,7 @@ func TestInstallPlugin_RuntimeMissing_Refused(t *testing.T) {
 	installer := plgfakes.NewFakePluginInstaller()
 	analyzer := plgfakes.NewFakePluginAnalyzer()
 	pluginFS := plgfakes.NewFakePluginFileSystem()
-	// Host only has python — installing a node plugin must fail with a hint.
+	// Host only has python - installing a node plugin must fail with a hint.
 	checker := plgfakes.NewRuntimeChecker("python", "go")
 
 	svc := appplugin.NewInstallerService(pluginRepo, runner, parser, bus,
@@ -1155,7 +1155,7 @@ func TestInstallPlugin_RuntimeMissing_Refused(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"nodejs"`)
 	assert.Contains(t, err.Error(), "evey:beta") // hint at image variants
-	// repo must remain empty — install must not have any side effect.
+	// repo must remain empty - install must not have any side effect.
 	all, _ := pluginRepo.List(context.Background())
 	assert.Empty(t, all)
 }

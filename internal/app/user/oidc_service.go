@@ -32,11 +32,11 @@ const oidcStateTTL = 10 * time.Minute
 // oidcHTTPTimeout bounds every outbound call to the IdP (discovery, token
 // exchange, JWKS fetch). Without it those calls ride http.DefaultClient
 // (Timeout=0, no ResponseHeaderTimeout): a hung issuer used to block server
-// BOOT indefinitely (discovery runs at startup — on a NAS that auto-restarts,
+// BOOT indefinitely (discovery runs at startup - on a NAS that auto-restarts,
 // that's a boot-loop while the IdP is down) and stall login-callback handler
 // goroutines. A plain timeout, NOT the ssrf.SafeHTTPClient: the issuer is
 // ADMIN-configured (trusted operator input), and self-hosted IdPs on private
-// LAN addresses are a first-class deployment for a self-hosted media server —
+// LAN addresses are a first-class deployment for a self-hosted media server -
 // the SSRF dialer would block exactly those.
 const oidcHTTPTimeout = 15 * time.Second
 
@@ -88,7 +88,7 @@ func NewOIDCService(
 	if cfg.ClientSecret == "" {
 		return nil, errors.New("OIDC: client secret must not be empty")
 	}
-	// Discovery runs at BOOT (wire.go) on a root ctx with no deadline — the
+	// Discovery runs at BOOT (wire.go) on a root ctx with no deadline - the
 	// bounded client is what keeps a hung issuer from blocking startup.
 	httpClient := &http.Client{Timeout: oidcHTTPTimeout}
 	provider, err := gooidc.NewProvider(gooidc.ClientContext(ctx, httpClient), cfg.Issuer)
@@ -146,7 +146,7 @@ func (s *OIDCService) AuthURL(state string) string {
 	payload := ts + "|" + state
 	sig := s.signState(payload)
 	// Also send `state` as the OpenID Connect nonce. The IdP must echo it in the
-	// id_token's nonce claim, which HandleCallback verifies — defence-in-depth on
+	// id_token's nonce claim, which HandleCallback verifies - defence-in-depth on
 	// top of the signed/TTL'd state that binds the id_token to this exact login
 	// and blocks id_token replay/injection.
 	return s.oauth2Cfg.AuthCodeURL(payload+"."+sig, oauth2.SetAuthURLParam("nonce", state))
@@ -215,7 +215,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 	}
 	// The id_token's nonce must match the one we sent in AuthURL (carried in the
 	// signed state). A mismatch means this id_token was not minted for this login
-	// request — reject it (blocks replay/injection of a token obtained elsewhere).
+	// request - reject it (blocks replay/injection of a token obtained elsewhere).
 	if idToken.Nonce != expectedNonce {
 		return "", "", "", errors.New("id_token nonce mismatch")
 	}
@@ -305,7 +305,7 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		return u, nil
 	}
 
-	// first OIDC login — enforce the email domain allowlist before creating a
+	// first OIDC login - enforce the email domain allowlist before creating a
 	// user. When an allowlist is configured the email is a trust boundary, so
 	// require the IdP to have verified it: a lax provider could otherwise assert
 	// an arbitrary address in an allowed domain to slip past the allowlist.

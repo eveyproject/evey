@@ -94,14 +94,14 @@ var (
 
 	// HLSVODSessions counts ffmpeg rafales currently owned by the
 	// SegmentOrchestrator. Distinct from HLSSessionsGauge which tracks the
-	// legacy HLSManager — both can be >0 simultaneously during the cutover.
+	// legacy HLSManager - both can be >0 simultaneously during the cutover.
 	HLSVODSessions = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "evey_hlsvod_sessions_active",
 		Help: "Current number of active VOD-pipeline ffmpeg rafale sessions.",
 	})
 
 	// HLSVODRafaleSpawned counts every fresh ffmpeg rafale start. Tagged by
-	// reason — "miss" (no covering session) or "seek_out_of_window" (the
+	// reason - "miss" (no covering session) or "seek_out_of_window" (the
 	// previous rafale was killed by cancel-on-seek before this spawn).
 	HLSVODRafaleSpawned = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "evey_hlsvod_rafale_spawned_total",
@@ -122,7 +122,7 @@ var (
 
 	// HLSVODSessionsKilled counts session terminations, tagged by reason
 	// (seek_out_of_window, inactivity, close, error). Useful to spot
-	// pathologies — e.g. inactivity kills > 0 means the inactivity timeout
+	// pathologies - e.g. inactivity kills > 0 means the inactivity timeout
 	// is shorter than the player's natural pause window.
 	HLSVODSessionsKilled = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "evey_hlsvod_sessions_killed_total",
@@ -134,7 +134,7 @@ var (
 	// The two are mutually exclusive, so spawns − (completed + killed) should
 	// equal the live HLSVODSessions gauge; a persistent divergence flags a
 	// teardown/gauge leak (the failure mode the per-session sync.Once was added
-	// to fix — previously natural exits were unmetered and invisible).
+	// to fix - previously natural exits were unmetered and invisible).
 	HLSVODSessionsCompleted = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "evey_hlsvod_sessions_completed_total",
 		Help: "Total VOD-pipeline ffmpeg sessions that ended on natural EOF (not a forced kill).",
@@ -142,7 +142,7 @@ var (
 
 	// HLSVODSessionsRejected counts spawn refusals when the orchestrator is at
 	// its MaxActiveSessions global cap. A sustained nonzero rate means the host
-	// is shedding transcode load (503 + Retry-After to the player) — either
+	// is shedding transcode load (503 + Retry-After to the player) - either
 	// genuine overload on a weak host or an abusive hash-fanout client.
 	HLSVODSessionsRejected = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "evey_hlsvod_sessions_rejected_total",
@@ -178,7 +178,7 @@ var (
 
 	// HLSVODThrottlePause / HLSVODThrottleResume count adaptive throttle
 	// state transitions. Sustained Pause >> Resume means clients are mostly
-	// idle on linear playback (good — CPU saved). The ratio also indicates
+	// idle on linear playback (good - CPU saved). The ratio also indicates
 	// whether the PauseAhead / ResumeBelow thresholds are well-tuned: lots
 	// of pair churn on a single session = flap, widen the hysteresis.
 	HLSVODThrottlePause = prometheus.NewCounter(prometheus.CounterOpts{
@@ -198,7 +198,7 @@ var (
 	})
 
 	// QoEIngestEvents counts every CMCD event received. QoEIngestDrops counts
-	// the ones the sink dropped because its buffer was full — sustained > 0
+	// the ones the sink dropped because its buffer was full - sustained > 0
 	// means we need a bigger buffer or a faster DB.
 	QoEIngestEvents = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "evey_qoe_ingest_events_total",

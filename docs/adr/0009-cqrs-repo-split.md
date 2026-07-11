@@ -26,15 +26,15 @@ Similar problems existed on `MediaItemRepository` (mixed reads/writes) and were 
 
 ## Decision
 
-Split every repository port into two interfaces along the CQRS axis — one for writes (`XCommandRepo`), one for reads (`XQueryRepo`) — and migrate callers progressively.
+Split every repository port into two interfaces along the CQRS axis - one for writes (`XCommandRepo`), one for reads (`XQueryRepo`) - and migrate callers progressively.
 
 ### The three interfaces during migration
 
-1. **`XCommandRepo`** — `Create`, `Update`, `Delete`, and any other mutation.
-2. **`XQueryRepo`** — `Get*`, `List*`, `Count*`, anything that doesn't mutate.
-3. **`XRepository` (legacy, transitional)** — kept as `interface { XCommandRepo; XQueryRepo }` by embedding. Marked `// Deprecated: use XCommandRepo for writes and XQueryRepo for reads.`
+1. **`XCommandRepo`** - `Create`, `Update`, `Delete`, and any other mutation.
+2. **`XQueryRepo`** - `Get*`, `List*`, `Count*`, anything that doesn't mutate.
+3. **`XRepository` (legacy, transitional)** - kept as `interface { XCommandRepo; XQueryRepo }` by embedding. Marked `// Deprecated: use XCommandRepo for writes and XQueryRepo for reads.`
 
-The union interface embeds both so it drifts automatically when either CQRS half gets a new method — no handwritten duplication. The postgres adapter type satisfies all three; fakes satisfy all three.
+The union interface embeds both so it drifts automatically when either CQRS half gets a new method - no handwritten duplication. The postgres adapter type satisfies all three; fakes satisfy all three.
 
 ### Migration order per repository
 
@@ -48,7 +48,7 @@ Rewriting every caller in one commit produced merge conflicts across the pluginr
 
 ## Applied scope
 
-- `library.LibraryRepository` — union of `LibraryCommandRepo` + `LibraryQueryRepo`. Watcher migrated 2026-04-20 to `LibraryQueryRepo`. Only remaining caller is the postgres type assertion — harmless.
+- `library.LibraryRepository` - union of `LibraryCommandRepo` + `LibraryQueryRepo`. Watcher migrated 2026-04-20 to `LibraryQueryRepo`. Only remaining caller is the postgres type assertion - harmless.
 - `library.MediaItemRepository` → `MediaItemCommandRepo` + `MediaItemQueryRepo` split partial. `watcher.go` migrated; `library_repo.go:114` still uses the unified port. Further migration remains in the backlog (gros blast radius, estimated session dédiée).
 
 ## Consequences
@@ -60,11 +60,11 @@ Rewriting every caller in one commit produced merge conflicts across the pluginr
 
 ## References
 
-- `internal/domain/library/queries.go` — `LibraryQueryRepo`
-- `internal/domain/library/commands.go` — `LibraryCommandRepo`
-- `internal/app/library/watcher.go` — first narrow-port caller (read-only)
+- `internal/domain/library/queries.go` - `LibraryQueryRepo`
+- `internal/domain/library/commands.go` - `LibraryCommandRepo`
+- `internal/app/library/watcher.go` - first narrow-port caller (read-only)
 - Commit 2026-04-20: `refactor(library): LibraryRepository is now an embed of Command+Query repos`
 
 ## Amendment (2026-05-23)
 
-For `library`, migration is **complete**: the transitional `LibraryRepository` union interface has been removed from `ports.go` (the postgres adapter and `FakeLibraryRepository` satisfy `LibraryCommandRepo` + `LibraryQueryRepo` directly). The "Applied scope" notes above describe the mid-migration state; the union no longer exists. `MediaItemRepository` is still a god-interface (its split remains in the backlog) — that part stands.
+For `library`, migration is **complete**: the transitional `LibraryRepository` union interface has been removed from `ports.go` (the postgres adapter and `FakeLibraryRepository` satisfy `LibraryCommandRepo` + `LibraryQueryRepo` directly). The "Applied scope" notes above describe the mid-migration state; the union no longer exists. `MediaItemRepository` is still a god-interface (its split remains in the backlog) - that part stands.

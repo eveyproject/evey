@@ -18,7 +18,7 @@ import (
 // resolveRenderNode returns the host's primary DRM render node
 // (/dev/dri/renderD12N), or "" if none exists. Used ONLY to honour the
 // hardware.gpu permission. Returns the lowest-numbered render node and never a
-// card/primary node (/dev/dri/card*) — the launcher re-validates the shape
+// card/primary node (/dev/dri/card*) - the launcher re-validates the shape
 // before granting the ioctl-bearing rule.
 func resolveRenderNode() string {
 	matches, err := filepath.Glob("/dev/dri/renderD[0-9][0-9][0-9]")
@@ -32,8 +32,8 @@ func resolveRenderNode() string {
 const launcherBinaryName = "evey-plugin-launcher"
 
 // systemReadOnlyDirs are the host paths a plugin needs to read/execute its
-// interpreter and shared libraries. Everything else — notably /data (media,
-// JWT key, DB socket) and sibling plugin directories — is denied by Landlock.
+// interpreter and shared libraries. Everything else - notably /data (media,
+// JWT key, DB socket) and sibling plugin directories - is denied by Landlock.
 // /app is included so the dynamic linker can load the LD_PRELOAD seccomp lib
 // (/app/libevey-sandbox.so); /app holds no secrets (just the open-source
 // binaries, the SDK and the seccomp profile).
@@ -45,7 +45,7 @@ var systemReadOnlyDirs = []string{"/usr", "/lib", "/lib64", "/bin", "/sbin", "/e
 // also holds GPU render nodes (/dev/dri/renderD128, card0), the WSL2 GPU
 // paravirt device (/dev/dxg) and NVIDIA nodes (/dev/nvidia*). Allowing all of
 // /dev would put those inside the Landlock allowlist, leaving only DAC between
-// a plugin and the GPU — a cryptominer could then open a render node and submit
+// a plugin and the GPU - a cryptominer could then open a render node and submit
 // work. By listing only the harmless pseudo-devices, the GPU nodes stay denied
 // by Landlock regardless of DAC, on every vendor (AMD iGPU, Intel, NVIDIA).
 // Each is skipped by the launcher if absent. /dev/urandom covers Node/Python
@@ -56,7 +56,7 @@ var safeDevNodes = []string{"/dev/null", "/dev/zero", "/dev/full", "/dev/random"
 // command: a filesystem allowlist (system dirs read-only; the plugin's own dir
 // + socket dir read-write), the TCP egress policy, and the kernel seccomp
 // denylist. requireLandlock=true fails the plugin closed if Landlock can't be
-// enforced (landlock mode); false keeps Landlock best-effort — the basic-mode
+// enforced (landlock mode); false keeps Landlock best-effort - the basic-mode
 // fallback, where the launcher still delivers seccomp (incl. -deny-inet) and
 // Landlock-if-available on top of the LD_PRELOAD shim.
 func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, requireLandlock bool, dropUID, dropGID int) []string {
@@ -76,7 +76,7 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 		args = append(args, "-dev", d)
 	}
 	// hardware.gpu (highest-risk, admin-only, first-party tier): grant the DRM
-	// render node ALONE — with the GPU ioctl surface — via -render-dev. Resolved
+	// render node ALONE - with the GPU ioctl surface - via -render-dev. Resolved
 	// to the real renderD12N here (never a card node, never /dev/dxg or
 	// /dev/nvidia*, never /dev/kfd); skipped if the plugin lacks the permission
 	// or the host exposes no render node. NVIDIA compute would need a separate,
@@ -96,7 +96,7 @@ func buildLauncherArgv(launcher string, p *plugin.Plugin, cmd *exec.Cmd, require
 	// Kernel seccomp denylist installed right before exec, so it also constrains
 	// static/compiled plugin binaries (which never load the LD_PRELOAD
 	// libevey-sandbox.so and would otherwise bypass that layer). -deny-inet
-	// denies socket(AF_INET/AF_INET6) for EVERY plugin — a kernel-enforced
+	// denies socket(AF_INET/AF_INET6) for EVERY plugin - a kernel-enforced
 	// no-IP-egress that holds even on Landlock ABI <4 where -restrict-net is a
 	// no-op. AF_UNIX (the host broker socket) is untouched.
 	args = append(args, "-seccomp", "-deny-inet")
@@ -146,7 +146,7 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 
 	// Layer the LD_PRELOAD seccomp filter (libevey-sandbox.so) on top of
 	// Landlock. Landlock confines the filesystem and network; this denylist
-	// blocks dangerous syscalls — execve/execveat (so a plugin without the
+	// blocks dangerous syscalls - execve/execveat (so a plugin without the
 	// "subprocess" permission cannot spawn children), plus setns, bpf, kexec,
 	// keyctl, finit_module, process_vm_readv/writev, perf_event_open. Plugins
 	// that declare "subprocess" skip the filter (they are allowed to spawn).
@@ -175,7 +175,7 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 
 // resolveAutoMode picks the sandbox best suited to the host, preferring
 // Landlock: it needs no privilege, runs under Docker's default seccomp +
-// AppArmor with zero host changes, and can't be relaxed once applied — the
+// AppArmor with zero host changes, and can't be relaxed once applied - the
 // right default for the primary (containerised) deployment. Bubblewrap is the
 // fallback only where Landlock is absent but a throwaway bwrap sandbox actually
 // builds (bare-metal / privileged container with userns + mount), then basic.
@@ -183,7 +183,7 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 func resolveAutoMode() string {
 	// landlock mode is driven by the evey-plugin-launcher shim, so only pick it
 	// when the kernel enforces Landlock AND the launcher binary is actually
-	// present — otherwise auto would resolve to a mode that can't run (e.g. a
+	// present - otherwise auto would resolve to a mode that can't run (e.g. a
 	// dev tree where only the server binary was built). Bubblewrap is the next
 	// choice where it builds (bare-metal), then basic.
 	if landlockAvailable() && launcherAvailable() {
@@ -200,7 +200,7 @@ func resolveAutoMode() string {
 }
 
 // launcherAvailable reports whether the evey-plugin-launcher binary can be
-// located — used by auto-detection to avoid resolving to landlock mode (which
+// located - used by auto-detection to avoid resolving to landlock mode (which
 // requires the launcher) on a host that doesn't ship it.
 func launcherAvailable() bool {
 	_, err := launcherPath()
@@ -236,7 +236,7 @@ func isExecutableFile(p string) bool {
 
 // overrideEnv returns env with the given KEY=VALUE pairs replaced in place (or
 // appended if absent). glibc getenv returns the first match, so appending a
-// duplicate key would have no effect — existing entries must be rewritten.
+// duplicate key would have no effect - existing entries must be rewritten.
 func overrideEnv(env []string, kv map[string]string) []string {
 	out := make([]string, 0, len(env)+len(kv))
 	seen := make(map[string]bool, len(kv))

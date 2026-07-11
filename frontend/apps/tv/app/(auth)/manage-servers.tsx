@@ -84,7 +84,7 @@ export default function ManageServersScreen() {
   return (
     <View style={s.root}>
       <ScrollView style={s.scroll} contentContainerStyle={s.container}>
-        {/* Back button — always the first focusable element */}
+        {/* Back button - always the first focusable element */}
         <Pressable
           onPress={() => router.back()}
           onFocus={() => setBackFocused(true)}
@@ -125,7 +125,7 @@ export default function ManageServersScreen() {
         )}
       </ScrollView>
 
-      {/* Rename modal — centered focus-trap, TV-friendly */}
+      {/* Rename modal - centered focus-trap, TV-friendly */}
       <Modal
         visible={renameId !== null}
         transparent

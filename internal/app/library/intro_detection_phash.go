@@ -20,7 +20,7 @@ type matchWindow struct {
 }
 
 // pHashCandidate is a candidate intro/recap window in target ms (real frame
-// timestamps from the trickplay sidecar — not interval×index, which lies when
+// timestamps from the trickplay sidecar - not interval×index, which lies when
 // keyframes are sparse). matchCount counts the matched frames inside, used as
 // a tie-breaker; the audio stage filters by signal coherence not by count.
 type pHashCandidate struct {
@@ -75,7 +75,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	maxFrames := frameCutoff(manifest, durationMs, cfg.FrameCutoffPercent)
 
 	// Batch the trickplay manifest read for the whole page instead of one query
-	// per sibling — this loop hits the same N+1 as PropagateSegment's sibling
+	// per sibling - this loop hits the same N+1 as PropagateSegment's sibling
 	// sweep above.
 	candidateIDs := make([]shared.MediaItemID, 0, len(siblings))
 	for _, sib := range siblings {
@@ -151,7 +151,7 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	}
 
 	candidates := allCandidatesGapTolerant(introHashes, targetHashes, targetMs, cfg.MaxHamming)
-	// Drop candidates that start past MaxIntroStartMs — those are not intros
+	// Drop candidates that start past MaxIntroStartMs - those are not intros
 	// but recurring in-episode visual elements (chapter cards, flashbacks,
 	// previously-on segments) that happen to share visual hashes across
 	// episodes. Without this filter we surface false positives like a
@@ -306,7 +306,7 @@ func (s *IntroDetectionService) extractEpisodeHashesCached(ctx context.Context, 
 // sidecar file written at generation time. Both slices are aligned: index i in
 // hashes corresponds to ms[i] in the source video.
 //
-// Returns an error if the sidecar is missing — there is no fallback to
+// Returns an error if the sidecar is missing - there is no fallback to
 // interval-based timing.
 func (s *IntroDetectionService) extractEpisodeHashes(manifest *domainlibrary.TrickplayManifest, maxFrames int) ([]uint64, []int64, error) {
 	tilesPerSprite := manifest.TileWidth * manifest.TileHeight
@@ -346,7 +346,7 @@ func (s *IntroDetectionService) extractEpisodeHashes(manifest *domainlibrary.Tri
 }
 
 // frameCutoff returns the number of frames covering the first cutoffPercent of
-// the episode (0.25 by default — searches the first quarter for the intro).
+// the episode (0.25 by default - searches the first quarter for the intro).
 // If cutoffPercent is ≤ 0 or > 1, falls back to 0.25.
 func frameCutoff(manifest *domainlibrary.TrickplayManifest, durationMs int64, cutoffPercent float64) int {
 	if manifest.Interval <= 0 || durationMs <= 0 {
@@ -393,7 +393,7 @@ func hammingDist(a, b uint64) int {
 // FrequencyMapHamming is like FrequencyMap but counts an episode as containing
 // a candidate hash if any of its hashes is within maxHamming bits.
 // Trickplay aHash at 1 frame/15s rarely has identical bytes across episodes
-// (frame timing drift ±15s), so exact-match misses real intros — Hamming ≤8
+// (frame timing drift ±15s), so exact-match misses real intros - Hamming ≤8
 // catches the same logo/title-card frame even when offset by a few seconds.
 // Candidates come from the first episode's unique hashes.
 func FrequencyMapHamming(episodeHashes [][]uint64, threshold float64, maxHamming int) map[uint64]bool {

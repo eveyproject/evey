@@ -20,13 +20,13 @@ func TestMusicScanner_WalkAudioFiles(t *testing.T) {
 	dir := t.TempDir()
 
 	audioFiles := map[string]string{
-		"song.mp3":  "audio/mpeg",
+		"song.mp3":   "audio/mpeg",
 		"track.flac": "audio/flac",
-		"clip.m4a":  "audio/mp4",
-		"sound.ogg": "audio/ogg",
+		"clip.m4a":   "audio/mp4",
+		"sound.ogg":  "audio/ogg",
 		"voice.opus": "audio/ogg",
-		"raw.wav":   "audio/wav",
-		"tune.aac":  "audio/aac",
+		"raw.wav":    "audio/wav",
+		"tune.aac":   "audio/aac",
 	}
 	for name := range audioFiles {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("audio data"), 0644))

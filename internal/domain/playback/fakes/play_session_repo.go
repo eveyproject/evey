@@ -14,7 +14,7 @@ type FakePlaySessionRepository struct {
 	items map[string]*playback.PlaySession
 	Err   error
 	// LockCalls counts AcquireUserStreamLock invocations so tests can assert the
-	// count-then-create path serializes — e.g. that the device-cap branch takes
+	// count-then-create path serializes - e.g. that the device-cap branch takes
 	// the advisory lock too, not only the stream-cap branch.
 	LockCalls int
 }
@@ -214,7 +214,7 @@ func (r *FakePlaySessionRepository) AcquireUserStreamLock(_ context.Context, _ s
 // CountActiveByUser counts every open session. The fake cannot filter by
 // user because PlaySession only carries a ProfileID and the profile-to-user
 // mapping lives in a separate repo. The real postgres implementation joins
-// on profiles.user_id — tests exercising multi-user quota isolation must
+// on profiles.user_id - tests exercising multi-user quota isolation must
 // wire their own wrapper or use integration tests. Matches single-user
 // tests correctly (profileIDs all belong to the same user).
 func (r *FakePlaySessionRepository) CountActiveByUser(_ context.Context, _ string) (int, error) {

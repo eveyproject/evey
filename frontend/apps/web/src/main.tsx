@@ -29,7 +29,7 @@ useLocaleStore.subscribe((state) => {
 // Logout on 401 and redirect to login (queryClient + router refs filled in below)
 window.addEventListener("evey:unauthorized", () => {
   // Guard against feedback loop on already-logged-out pages: if no token,
-  // a 401 just means the page made an unnecessary auth call — don't clear
+  // a 401 just means the page made an unnecessary auth call - don't clear
   // queries or redirect, that triggers another mount → query → 401 → loop.
   if (!useAuthStore.getState().accessToken) return;
   queryClientRef?.clear();
@@ -46,7 +46,7 @@ window.addEventListener("evey:unauthorized", () => {
 let queryClientRef: QueryClient | null = null;
 let routerRef: ReturnType<typeof createRouter> | null = null;
 
-// Proactive token refresh — refresh a bit before expiry to avoid 401 retries.
+// Proactive token refresh - refresh a bit before expiry to avoid 401 retries.
 // Jitter + Web Locks serialize refreshes across tabs so two timers firing at
 // the same instant don't both hit /auth/refresh with the same (in-flight-
 // rotated) cookie, which the server would treat as reuse and purge all of
@@ -64,7 +64,7 @@ function scheduleTokenRefresh() {
     // While impersonating, the HttpOnly refresh cookie still belongs to the
     // admin (ImpersonateUser issues only an access token, no cookie rotation).
     // A proactive refresh would therefore silently mint a fresh ADMIN token and
-    // revert identity mid-session — the banner vanishes but the UI stays on the
+    // revert identity mid-session - the banner vanishes but the UI stays on the
     // impersonated user's pages, so further actions run as the admin unannounced.
     // Instead of refreshing, end impersonation cleanly when the token expires,
     // which restores the admin's own token and leaves a consistent state.
@@ -83,7 +83,7 @@ function scheduleTokenRefresh() {
     refreshTimer = setTimeout(async () => {
       try {
         await runUnderTabLock(async () => {
-          // Another tab may have refreshed while we waited on the lock — if
+          // Another tab may have refreshed while we waited on the lock - if
           // our access token has been replaced and is not about to expire, skip.
           const current = useAuthStore.getState().accessToken;
           if (current && current !== token && !isNearExpiry(current)) return;
@@ -138,7 +138,7 @@ if (typeof window !== "undefined") {
       if (!persisted) return;
       const newAccess = persisted.accessToken ?? null;
       // Logout in another tab: the persisted blob now has a null token. Clearing
-      // only on token *change* (the old guard) left this tab authenticated —
+      // only on token *change* (the old guard) left this tab authenticated -
       // a residual session on a shared machine. Reuse the canonical logout flow.
       if (!newAccess) {
         if (current) window.dispatchEvent(new Event("evey:unauthorized"));

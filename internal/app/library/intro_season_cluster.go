@@ -44,12 +44,12 @@ func defaultClusterParams(n int) clusterParams {
 		// 12/32 bits, NOT Jellyfin's 6/32: tested 6/32 on this library and it
 		// broke cluster formation (e.g. Billions lost its intro entirely) because
 		// our cross-episode fingerprints are noisier than Jellyfin's clean
-		// same-source library — FRENCH dubs / repacks differ enough that the
+		// same-source library - FRENCH dubs / repacks differ enough that the
 		// theme exceeds 6 bits/frame across episodes. 12/32 is calibrated for that
 		// noise; tightening it didn't sharpen the fused end anyway (the fusion's
 		// scene-cut/silence votes dominate the boundary).
 		MaxFrameBits: 12,
-		MinRunFrames: 110, // ~14.5s @ 7.56fps — longer than discovery's 80 to reject short recaps
+		MinRunFrames: 110, // ~14.5s @ 7.56fps - longer than discovery's 80 to reject short recaps
 		// No 0:00 guard for the cluster: in ripped/remuxed media the intro very
 		// often starts at the very beginning (no broadcast bumper to skip), so a
 		// 25s floor (used by the per-episode discovery fallback) would miss those
@@ -193,7 +193,7 @@ const seasonClusterEpisodeCap = 40
 // clusters the recurring intro shared across the season. It returns a per-
 // episode intro hint (a raw, un-refined window) keyed by media item id, or nil
 // when the feature is off, audio is unavailable, or no signature reaches KMin
-// carriers. It forks no ffmpeg beyond the cached Chromaprint compute — the
+// carriers. It forks no ffmpeg beyond the cached Chromaprint compute - the
 // per-carrier boundary refinement happens later, in the per-episode pipeline.
 func (s *IntroDetectionService) clusterSeasonIntro(ctx context.Context, parentID string) map[string]domainlibrary.MediaSegment {
 	cfg := loadIntroConfig(ctx, s.configRepo)

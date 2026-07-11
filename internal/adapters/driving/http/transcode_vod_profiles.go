@@ -14,7 +14,7 @@ import (
 )
 
 // resolveHW decides the hardware encode backend for a chosen output codec.
-// Returns ("", "", false) — the software path — unless the flag is on, the
+// Returns ("", "", false) - the software path - unless the flag is on, the
 // host calibrated a HW backend, and that backend can encode this codec. The
 // boolean is both the ladder's hwAccelUsable (taller HW ceiling) and the
 // signal that tags the fingerprint so the orchestrator runs the GPU pipeline.
@@ -38,10 +38,10 @@ func (h *hlsVODServe) effectiveVideoCodec(decision domaintranscoding.PlaybackDec
 	codec = decision.VideoCodec
 	accel, device, features, usable = h.resolveHW(codec, srcCodec, src10, hwTonemap)
 	// AV1 output must clear TWO gates, else fall back to H.264:
-	//   1. the admin opt-in (transcoding.av1_enabled) — off by default; and
+	//   1. the admin opt-in (transcoding.av1_enabled) - off by default; and
 	//   2. a usable HW AV1 encoder. AV1 is hardware-only for streaming because
 	//      libsvtav1 (software AV1) is several times heavier than H.264 and the
-	//      weak-NAS target can't sustain it in realtime — it starves and the
+	//      weak-NAS target can't sustain it in realtime - it starves and the
 	//      player rebuffers forever. The software-AV1 calibration stays for
 	//      non-streaming/experimental use but never feeds a live HLS session.
 	if strings.EqualFold(codec, "av1") && ((h.av1Enabled != nil && !h.av1Enabled()) || !usable) {
@@ -60,8 +60,8 @@ func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit, h
 		return "", "", nil, false
 	}
 	// The orchestrated pipeline HW-decodes the source (-hwaccel). If this GPU
-	// can't decode the source codec — a pre-Skylake Intel iGPU decodes H.264 but
-	// not HEVC — that decode fails with ENOSYS and the player stalls on rebuffer.
+	// can't decode the source codec - a pre-Skylake Intel iGPU decodes H.264 but
+	// not HEVC - that decode fails with ENOSYS and the player stalls on rebuffer.
 	// Fall back to full software for such a source rather than risk the stall.
 	// H.264 sources (the common case) keep the full HW path. (A future decoupled
 	// software-decode + hwupload path could keep HW *encode* even here.)
@@ -70,13 +70,13 @@ func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit, h
 	}
 	// A 10-bit source (HEVC Main10, ubiquitous at 2160p HDR) needs the HW VPP to
 	// fold p010 down to the 8-bit nv12 the h264 encoder takes (hwScaleFilter's
-	// format=nv12). Some drivers — Intel i965 VEBOX — abort (SIGABRT)
+	// format=nv12). Some drivers - Intel i965 VEBOX - abort (SIGABRT)
 	// the moment a 10-bit surface reaches scale_vaapi. Unless the calibration
 	// proved the 10-bit VPP works, software-transcode the source instead of
 	// crashing the GPU pipeline and churning through a demotion.
 	// Exception: when this request HW-tone-maps (hwTonemap), the GPU tone-mapper
 	// (tonemap_vaapi / vpp_qsv) folds the 10-bit p010 down to 8-bit nv12 itself,
-	// so the scale_vaapi-on-p010 hazard the gate guards against never arises —
+	// so the scale_vaapi-on-p010 hazard the gate guards against never arises -
 	// the 10-bit source can take the HW path even without HW10BitTranscode.
 	if sourceTenBit && !cap.HW10BitTranscode && !hwTonemap {
 		return "", "", nil, false
@@ -103,7 +103,7 @@ func (h *hlsVODServe) hwRouteUsable(decision domaintranscoding.PlaybackDecision,
 
 // hwTonemapWanted reports whether this request should tone-map HDR->SDR on the
 // GPU: the decision needs tone-mapping, the toggle is on, the host probed
-// HWTonemap, and the backend has a wired HW tone-map filter (vaapi/qsv — NVENC's
+// HWTonemap, and the backend has a wired HW tone-map filter (vaapi/qsv - NVENC's
 // libplacebo path is not modelled, so it tone-maps in software). When false the
 // software tonemap path runs, byte-identical to a host with no GPU tone-mapping.
 func (h *hlsVODServe) hwTonemapWanted(decision domaintranscoding.PlaybackDecision) bool {
@@ -147,8 +147,8 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 		}
 	}
 	// COMMON HEAD (shared by both producers): pick the per-title ladder. The
-	// PRODUCER's pure Profiles() owns the tail — source cap + height ceiling +
-	// (software) single-rendition collapse — so the manifest-time and
+	// PRODUCER's pure Profiles() owns the tail - source cap + height ceiling +
+	// (software) single-rendition collapse - so the manifest-time and
 	// segment-time shaping is identical and routes through the SAME producer
 	// (the cache-hash invariant: drift here = permanent cache miss).
 	base := domaintranscoding.LadderFor(class)
@@ -196,7 +196,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	// hold its ladder below the source/GPU ceiling (transcoding.av1_max_height,
 	// 0 = no cap). `decision` here still carries the raw preferred codec, so
 	// recompute the post-gate codec. Applied here (like the CMCD override) so the
-	// manifest- and segment-time ladders trim identically — the cache-hash
+	// manifest- and segment-time ladders trim identically - the cache-hash
 	// invariant holds because both reach this shared head with the same inputs.
 	if h.av1MaxHeight != nil {
 		if m := h.av1MaxHeight(); m > 0 {
@@ -277,7 +277,7 @@ func (h *hlsVODServe) ladderClassFor(decision domaintranscoding.PlaybackDecision
 }
 
 // legacyProfileShaping reproduces the ladder tail for hand-built test handlers
-// that have no wired selector. Production NEVER takes this path — it routes
+// that have no wired selector. Production NEVER takes this path - it routes
 // through h.selector to the real software/hardware producer (whose pure
 // Profiles owns the shaping). This mirrors SoftwareProducer.Profiles exactly
 // (single-rendition collapses to ONE rung at the sustainable software ceiling,

@@ -111,7 +111,7 @@ func (f *fakeUserGetter) GetByID(_ context.Context, id shared.UserID) (*domainus
 	return u, nil
 }
 
-// wrongEvent satisfies shared.Event but is not NotificationCreated —
+// wrongEvent satisfies shared.Event but is not NotificationCreated -
 // used to assert the handler ignores other event types.
 type wrongEvent struct{}
 
@@ -319,7 +319,7 @@ func TestNotificationEmailer_ProfileNotFound_NoSend(t *testing.T) {
 func TestSMTPSend_HungServer_TimesOut(t *testing.T) {
 	// A server that accepts the TCP connection but never sends the SMTP
 	// greeting. Without a deadline, smtp.NewClient's greeting read blocks
-	// forever — and on the real path that stalls an event-bus worker (or the
+	// forever - and on the real path that stalls an event-bus worker (or the
 	// password-reset HTTP handler) indefinitely. The per-conversation deadline
 	// must turn that into a prompt error instead.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -353,6 +353,6 @@ func TestSMTPSend_HungServer_TimesOut(t *testing.T) {
 			t.Fatal("expected a timeout error against a silent server, got nil")
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("Send did not return within 5s — the SMTP conversation deadline is not enforced")
+		t.Fatal("Send did not return within 5s - the SMTP conversation deadline is not enforced")
 	}
 }

@@ -257,7 +257,7 @@ func TestGetItems_Limit500_NotCapped(t *testing.T) {
 	require.NoError(t, err)
 	colRepo.LinkItem(ctx, col.ID, "m1", 0)
 
-	// limit=500 is exactly the boundary — should NOT be capped further
+	// limit=500 is exactly the boundary - should NOT be capped further
 	items, total, err := svc.GetItems(ctx, col.ID, 500, 0)
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
@@ -344,7 +344,7 @@ func TestGetItems_SmartCollection_PaginatesAndCountsAll(t *testing.T) {
 	colRepo.CommandRepo().Upsert(ctx, col)
 
 	// Page (limit 2, offset 2) of 5 matches: the page holds 2 items but the total
-	// must be the full match count, not the page size — the old version returned
+	// must be the full match count, not the page size - the old version returned
 	// len(page) (and capped at 500).
 	items, total, err := svc.GetItems(ctx, col.ID, 2, 2)
 	require.NoError(t, err)

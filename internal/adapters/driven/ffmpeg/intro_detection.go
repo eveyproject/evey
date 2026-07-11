@@ -54,7 +54,7 @@ func (d *IntroDetector) runPausable(cmd *exec.Cmd) error {
 //
 // The hash function used is pHash DCT 8×8 (kept low-frequency block of a
 // 32×32 DCT). Bumping the hash function changes the value distribution and
-// requires invalidating intro_fingerprint_cache rows en masse — bump
+// requires invalidating intro_fingerprint_cache rows en masse - bump
 // currentPHashAlgoVersion in intro_detection_service.go in lock-step.
 func (d *IntroDetector) ExtractTileHashes(spritePath string, tileWidth, tileHeight, tilePixelWidth, tilePixelHeight int) ([]uint64, error) {
 	f, err := os.Open(spritePath)
@@ -192,7 +192,7 @@ func parseAfterColon(line, key string) float64 {
 		return 0
 	}
 	rest := strings.TrimSpace(line[idx+len(key):])
-	// rest may be "VALUE | other_key: ..." — take first token
+	// rest may be "VALUE | other_key: ..." - take first token
 	fields := strings.Fields(rest)
 	if len(fields) == 0 {
 		return 0
@@ -263,7 +263,7 @@ var (
 // DetectEndCredits scans the last portion of a video file for black regions
 // indicating end credits. Returns (startMs, endMs, true, nil) when a credits
 // roll is detected (sustained black region in the last 10% / max 10min window).
-// Returns (0, 0, false, nil) when nothing useful is found — caller skips.
+// Returns (0, 0, false, nil) when nothing useful is found - caller skips.
 func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (startMs, endMs int64, found bool, err error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.DetectEndCredits")
 	defer span.End()
@@ -394,9 +394,9 @@ func (d *IntroDetector) AudioRMSProfile(ctx context.Context, filePath string, st
 
 // SceneCutTimestamps returns the timestamps (ms, ascending, absolute) of every
 // frame whose scene-change score exceeds threshold within [startSec, +duration].
-// Frame-accurate content cuts — the post-intro content resumes at one of these.
+// Frame-accurate content cuts - the post-intro content resumes at one of these.
 // Used as a witness/snap target for the intro END (always available from video,
-// even when the show has no subtitles). threshold ~0.3–0.4 isolates real cuts.
+// even when the show has no subtitles). threshold ~0.3-0.4 isolates real cuts.
 func (d *IntroDetector) SceneCutTimestamps(ctx context.Context, filePath string, startSec, durationSec, threshold float64) ([]int64, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.SceneCutTimestamps")
 	defer span.End()
@@ -443,7 +443,7 @@ func (d *IntroDetector) SceneCutTimestamps(ctx context.Context, filePath string,
 // in the file's first subtitle stream, read from packet pts_time via ffprobe.
 // Cue TIMING is language-independent, so the first stream suffices regardless of
 // language or codec (text or bitmap). Returns an empty slice with no error when
-// the file has no usable subtitle stream — callers then treat it as a no-op.
+// the file has no usable subtitle stream - callers then treat it as a no-op.
 func (d *IntroDetector) SubtitleCueStarts(ctx context.Context, filePath string) ([]int64, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.SubtitleCueStarts")
 	defer span.End()
@@ -491,7 +491,7 @@ func (d *IntroDetector) SubtitleCueStarts(ctx context.Context, filePath string) 
 // [bin0_b0, bin0_b1,...,bin0_b5, bin1_b0,...].
 //
 // Compared to plain RMS envelope (AudioRMSProfile), this captures *which*
-// frequencies dominate over time — robust against different audio mixes
+// frequencies dominate over time - robust against different audio mixes
 // (FRENCH vs MULTI dub) carrying the same underlying music: the dialogue
 // channel changes RMS but the band ratios still reflect the music's spectral
 // structure.
@@ -620,8 +620,8 @@ func PearsonCorrelation(a, b []float64) float64 {
 // This is the core of cross-episode audio confirmation: target audio
 // profile is the candidate intro window from one episode; reference is a
 // wider candidate region from a sibling episode. A clean peak indicates
-// the two episodes share the same audio signal — a real recurring intro
-// — even if the absolute timestamp drifts across episodes.
+// the two episodes share the same audio signal - a real recurring intro
+// - even if the absolute timestamp drifts across episodes.
 func SlidingBestPearsonBanded(target, reference []float64, vectorSize int) (bestCorr float64, bestOffsetBins int) {
 	if vectorSize <= 0 {
 		return 0, 0

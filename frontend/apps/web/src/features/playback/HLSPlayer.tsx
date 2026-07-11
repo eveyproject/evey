@@ -56,7 +56,7 @@ interface HLSPlayerProps {
   streamToken: string;
   onStreamTokenRefresh: () => Promise<string>;
   // Mints a long-lived token for Chromecast playback (the device can't
-  // re-validate the short sliding token mid-stream). Optional — without
+  // re-validate the short sliding token mid-stream). Optional - without
   // it the cast falls back to the regular session token.
   onCastTokenRequest?: () => Promise<string>;
   startPositionMs?: number;
@@ -130,9 +130,9 @@ export function HLSPlayer({
   const positionRef = useRef(startPositionMs / 1000);
   const knownDurationSecRef = useRef(knownDurationMs ? knownDurationMs / 1000 : 0);
   knownDurationSecRef.current = knownDurationMs ? knownDurationMs / 1000 : 0;
-  // Only direct_play streams the original file progressively. Everything else —
+  // Only direct_play streams the original file progressively. Everything else -
   // transcode AND direct_stream (a container-only remux served by the HLS copy
-  // rung) — runs through the HLS pipeline (useTranscodePlayback), which owns
+  // rung) - runs through the HLS pipeline (useTranscodePlayback), which owns
   // stream-token injection, 401 refresh and CMCD. direct_stream used to be
   // lumped with direct_play and silently played the original (often undecodable)
   // container; routing it through HLS is what makes the remux actually play.
@@ -173,7 +173,7 @@ export function HLSPlayer({
   }, [activeProfile]);
 
   // Initialize audio/subtitle from streams + whatever prefs are available at
-  // first render (profile may not be loaded yet — profileAudioLangs is empty).
+  // first render (profile may not be loaded yet - profileAudioLangs is empty).
   const defaultAudio = resolveDefaultAudio(
     audioStreams,
     seriesId,
@@ -186,7 +186,7 @@ export function HLSPlayer({
   const [currentQuality, setCurrentQuality] = useState(0);
   const [autoQuality, setAutoQuality] = useState(true);
 
-  // Resolved audio language — used for forced subtitle matching.
+  // Resolved audio language - used for forced subtitle matching.
   const defaultAudioLang = defaultAudio?.language ?? defaultAudio?.title;
   const [currentSubtitle, setCurrentSubtitle] = useState<number | null>(() =>
     resolveDefaultSubtitle(
@@ -255,7 +255,7 @@ export function HLSPlayer({
   // Cast button visibility. The native Google Cast SDK (castSdkReady)
   // works for any user on Chrome/Chromium. The server-side DLNA/cast
   // path only discovers devices on the *server's* LAN, so it's only
-  // meaningful for the admin (the operator, guaranteed-local) — exposing
+  // meaningful for the admin (the operator, guaranteed-local) - exposing
   // it to remote users just yields a confusing empty device list.
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const castAvailable = castSdkReady || isAdmin;
@@ -273,16 +273,16 @@ export function HLSPlayer({
     // full file, which it can seek on its own.
     let castStartSec = 0;
     if (streamInfo.directPlayUrl) {
-      // Direct play — append token if not already present
+      // Direct play - append token if not already present
       const hasToken = streamInfo.directPlayUrl.includes("token=");
       url = hasToken ? streamInfo.directPlayUrl : `${streamInfo.directPlayUrl}${streamInfo.directPlayUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(streamTokenRef.current)}`;
     } else {
-      // Transcode — HLS master playlist, started at the current position.
+      // Transcode - HLS master playlist, started at the current position.
       castStartSec = positionRef.current > 0 ? Math.floor(positionRef.current) : 0;
       url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, castStartSec);
     }
     // Swap in a long-lived cast token. The Chromecast fetches segments on
-    // its own and buffers minutes ahead, then goes quiet — the regular
+    // its own and buffers minutes ahead, then goes quiet - the regular
     // 5-minute sliding token expires during those quiet stretches and the
     // cast drops mid-film. The local player dodges this via xhrSetup; the
     // device can't, so it needs a token that outlives the whole session.
@@ -296,10 +296,10 @@ export function HLSPlayer({
         console.warn("[Cast] cast token request failed, using session token:", err);
       }
     }
-    if (import.meta.env.DEV) console.log("[Cast] handleCastToggle — url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
+    if (import.meta.env.DEV) console.log("[Cast] handleCastToggle - url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
     // Remember the exact negotiated URL so handleCastSeek can reload at a
     // new startSec without reconstructing it (the server picks /transcode
-    // vs /hls/master.m3u8 + codec params during negotiation — rebuilding
+    // vs /hls/master.m3u8 + codec params during negotiation - rebuilding
     // by hand would diverge).
     castBaseUrlRef.current = url;
     castTranscodeOffsetRef.current = castStartSec;
@@ -471,7 +471,7 @@ export function HLSPlayer({
     // media duration. SegmentOrchestrator spawns a rafale at the target
     // segment with `-copyts`, so hls.js can seek via video.currentTime
     // and the served fragment's tfdt lines up with the EXTINF position.
-    // No more sliding-window restart branch — that legacy code computed
+    // No more sliding-window restart branch - that legacy code computed
     // currentTime relative to a transcodeOffset the new pipeline doesn't
     // carry, and produced UI/playhead drift on resume.
     video.currentTime = absoluteTimeSec;
@@ -483,7 +483,7 @@ export function HLSPlayer({
   // Cast seek. Direct-play casts stream a complete file the device can
   // seek natively. HLS / remux casts play a progressively-built manifest,
   // so seeking outside its window means reloading the stream at
-  // startSec=target on the device — same idea as setTranscodeStartTime
+  // startSec=target on the device - same idea as setTranscodeStartTime
   // for the local player. We reuse the exact negotiated cast URL and only
   // overwrite startSec, so the endpoint (/transcode vs /hls/master.m3u8)
   // and codec params stay whatever the server picked.
@@ -493,7 +493,7 @@ export function HLSPlayer({
     }
     const base = castBaseUrlRef.current;
     if (!base) {
-      // No captured URL (shouldn't happen once casting) — best effort.
+      // No captured URL (shouldn't happen once casting) - best effort.
       return castSeek(absoluteTimeSec);
     }
     const u = new URL(base, window.location.origin);
@@ -503,7 +503,7 @@ export function HLSPlayer({
     return true;
   }, [isDirectPlay, castSeek, castReload, title]);
 
-  // Canonical subtitle selection — shared by the settings panel picker and the
+  // Canonical subtitle selection - shared by the settings panel picker and the
   // keyboard "c" shortcut. Crucially, when toggling a burn-in track (PGS/VobSub)
   // in transcode mode it restarts the transcode from the current position so the
   // server re-encodes with the subtitle burned in. The raw setCurrentSubtitle
@@ -571,7 +571,7 @@ export function HLSPlayer({
     lastCastPosRef.current = castTranscodeOffsetRef.current + castPlayback.currentTime;
   }
 
-  // Auto-pause local player when casting, resume when cast stops — AT THE
+  // Auto-pause local player when casting, resume when cast stops - AT THE
   // CAST'S POSITION. Without the seek the local player resumes on the frame
   // it paused at during handoff, and its next progress tick would rewind the
   // user's "continue watching" to a position they watched long past on TV.
@@ -647,7 +647,7 @@ export function HLSPlayer({
     // several rungs at once on a transcode box (each = a concurrent decode), they
     // contend, time out, and it collapses to the 360p floor. Setting currentLevel
     // to a fixed index pins one rung (and disables ABR). "Auto" pins the TOP
-    // (calibrated-sustainable) rung — one decode, stable, no switching — and the
+    // (calibrated-sustainable) rung - one decode, stable, no switching - and the
     // viewer drops manually via the picker for a title too heavy to hold it.
     if (autoQuality) {
       hls.currentLevel = hls.levels.length > 0 ? hls.levels.length - 1 : -1;
@@ -661,7 +661,7 @@ export function HLSPlayer({
     // has parsed the manifest (hls.levels is empty → currentLevel=-1, which
     // ENABLES free ABR instead of pinning). Nothing else re-runs the effect
     // afterwards, so on a multi-rung ladder (the hardware path) playback was
-    // left on free ABR — just-in-time segment production wrecks its bandwidth
+    // left on free ABR - just-in-time segment production wrecks its bandwidth
     // estimate (multi-second TTFB on cache misses) and it collapses to the
     // 360p floor: the "Auto downgrades hard on HW transcode" bug. The single-
     // rendition software path masked it (one level = nowhere to fall).

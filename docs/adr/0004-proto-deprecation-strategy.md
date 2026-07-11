@@ -14,7 +14,7 @@ Use protobuf's built-in `deprecated = true` option as the single mechanism for s
 1. **Never remove a field or RPC in-place.** Mark it `deprecated = true` and add a replacement. Old clients continue to work; new clients adopt the replacement.
 2. **Never reuse a field number.** Once a tag is assigned, it is burned forever. If a field is removed, reserve the tag: `reserved 7; reserved "old_name";`.
 3. **Deprecate for at least two server releases** before physically removing. That gives clients a real window to migrate.
-4. **No `v2/` package** until an API-wide redesign. Per-field/per-RPC deprecation is preferred — a full version bump is a major event.
+4. **No `v2/` package** until an API-wide redesign. Per-field/per-RPC deprecation is preferred - a full version bump is a major event.
 5. Document the replacement in the proto comment above the deprecated member:
    ```proto
    // Deprecated: use `max_bitrate_cellular` (added in v0.42). Will be removed
@@ -26,7 +26,7 @@ Use protobuf's built-in `deprecated = true` option as the single mechanism for s
 ## Consequences
 
 - Breaking changes become visible in PR review (the `[deprecated = true]` diff).
-- Removal PRs are trivial diffs — just delete the field and add the `reserved` entry — because the deprecation window already ran.
+- Removal PRs are trivial diffs - just delete the field and add the `reserved` entry - because the deprecation window already ran.
 - The proto file grows over time with reserved entries; acceptable because it is the authoritative changelog of the wire contract.
 - Clients that ignore deprecation warnings still work when the deprecated member is removed, as long as they only read known fields. Unknown fields are ignored by protobuf by design.
 

@@ -78,7 +78,7 @@ type cpuSample struct {
 	at      time.Time // wall clock at last sample
 	pegRuns int       // consecutive samples above resMonCPUPegPct
 
-	// GPU DRM-engine accounting — only populated for plugins holding
+	// GPU DRM-engine accounting - only populated for plugins holding
 	// hardware.gpu that actually opened the render node (have drm-engine fdinfo).
 	gpuNanos   uint64    // summed drm-engine-* cumulative nanoseconds at last sample
 	gpuAt      time.Time // wall clock at last GPU sample (zero = not yet sampled)
@@ -180,7 +180,7 @@ func (r *Runner) checkResources(e *processEntry, pid int, cpu map[int]*cpuSample
 	}
 
 	// GPU: for plugins granted hardware.gpu, DETECT and KILL sustained DRM-engine
-	// pegging — the cryptominer signature. The render node is shared with Evey's
+	// pegging - the cryptominer signature. The render node is shared with Evey's
 	// own transcoder (Linux has no per-process GPU hard cap for VAAPI), so a
 	// userspace kill-on-sustained-peg is the only enforcement layer. This is a
 	// deterrent, NOT containment (a short kernel launch can still leak/exploit
@@ -303,7 +303,7 @@ func procCPUTicks(pid int) (uint64, error) {
 
 // gpuEngineNanos sums the cumulative drm-engine-* nanosecond counters across the
 // process's open DRM fds (/proc/<pid>/fdinfo/*). Returns (total, true) only when
-// at least one drm-engine counter is present — i.e. the process actually holds a
+// at least one drm-engine counter is present - i.e. the process actually holds a
 // GPU render fd and is doing work. amdgpu (5.14+), i915/xe (5.19+) and recent
 // nvidia expose these in fdinfo; dividing the delta by wall-clock gives the
 // engine occupancy. Pure file reads, no privilege.
@@ -318,7 +318,7 @@ func gpuEngineNanos(pid int) (uint64, bool) {
 	for _, ent := range entries {
 		data, err := os.ReadFile(filepath.Join(dir, ent.Name()))
 		if err != nil {
-			continue // fd closed between ReadDir and ReadFile — fine
+			continue // fd closed between ReadDir and ReadFile - fine
 		}
 		for line := range strings.SplitSeq(string(data), "\n") {
 			// e.g. "drm-engine-gfx:    123456789 ns"

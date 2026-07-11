@@ -28,7 +28,7 @@ func TestDefaultRBACConfig_PublicMethods(t *testing.T) {
 		"/evey.v1.UserService/ResetPassword",
 	}
 
-	require.Len(t, cfg.PublicMethods, len(expected), "public methods count mismatch — was a method added or removed?")
+	require.Len(t, cfg.PublicMethods, len(expected), "public methods count mismatch - was a method added or removed?")
 
 	for _, method := range expected {
 		t.Run(method, func(t *testing.T) {
@@ -199,7 +199,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.MusicService/ScanMusicDirectory",
 	}
 
-	require.Len(t, cfg.MethodRoles, len(expectedAdmin), "MethodRoles count mismatch — was a mapping added or removed?")
+	require.Len(t, cfg.MethodRoles, len(expectedAdmin), "MethodRoles count mismatch - was a mapping added or removed?")
 
 	for _, method := range expectedAdmin {
 		t.Run(method, func(t *testing.T) {
@@ -214,7 +214,7 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 // (not a hand-maintained list) and asserts every method of every Admin*-named
 // service is either gated RoleAdmin or explicitly allowlisted as public. This is
 // the guard the hardcoded expectedAdmin list lacked: it fails the build when a
-// new admin RPC ships without a MethodRoles entry — exactly the gap that left
+// new admin RPC ships without a MethodRoles entry - exactly the gap that left
 // ApplyPluginUpdate/PreviewPluginUpdate callable by any authenticated user.
 func TestAllAdminServiceMethodsAreGated(t *testing.T) {
 	cfg := interceptors.DefaultRBACConfig()
@@ -251,7 +251,7 @@ func TestAllAdminServiceMethodsAreGated(t *testing.T) {
 				// one run, not just the first.
 				role, ok := cfg.MethodRoles[full]
 				if !ok {
-					t.Errorf("admin RPC %s has no RBAC entry — any authenticated user can call it; add it to MethodRoles (or to allowedNonAdmin with a justification)", full)
+					t.Errorf("admin RPC %s has no RBAC entry - any authenticated user can call it; add it to MethodRoles (or to allowedNonAdmin with a justification)", full)
 					continue
 				}
 				assert.Equalf(t, interceptors.RoleAdmin, role,
@@ -261,7 +261,7 @@ func TestAllAdminServiceMethodsAreGated(t *testing.T) {
 		return true
 	})
 
-	require.Positive(t, checked, "no Admin* service methods discovered — proto descriptors not registered?")
+	require.Positive(t, checked, "no Admin* service methods discovered - proto descriptors not registered?")
 }
 
 // notGRPCRegisteredServices lists evey.v1 services that exist in the proto
@@ -269,7 +269,7 @@ func TestAllAdminServiceMethodsAreGated(t *testing.T) {
 // hand-written HTTP handlers instead). They are skipped by the classification
 // guard below because the gRPC RBAC interceptor never sees their methods.
 // ⚠️ If you register one of these on the gRPC server, REMOVE it here and classify
-// every one of its methods — e.g. ParentalService/UpdateParentalSettings must be
+// every one of its methods - e.g. ParentalService/UpdateParentalSettings must be
 // gated, not left to default RoleUser.
 var notGRPCRegisteredServices = map[string]bool{
 	"ParentalService": true,
@@ -277,7 +277,7 @@ var notGRPCRegisteredServices = map[string]bool{
 
 // allowedUserCallable is the explicit allowlist of evey.v1 RPCs that resolve to
 // the default RoleUser at the RBAC layer (any authenticated user). Every entry
-// carries the reason it is safe at that layer — almost always "finer access is
+// carries the reason it is safe at that layer - almost always "finer access is
 // enforced inside the handler" (own-only, per-item checkMediaItemAccess /
 // checkLibraryAccess, or an explicit admin/owner check). This is the guard the
 // Admin*-prefix test (TestAllAdminServiceMethodsAreGated) could not provide:
@@ -331,7 +331,7 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.LibraryService/FilterMediaItems":      "lib-access + parental filtered",
 	"/evey.v1.LibraryService/ListGenres":            "read",
 	"/evey.v1.LibraryService/GetSeriesAggregate":    "media-access + parental checked",
-	// MetadataService — not RBAC-gated by design; per-item access via checkMediaItemAccess
+	// MetadataService - not RBAC-gated by design; per-item access via checkMediaItemAccess
 	"/evey.v1.MetadataService/SearchMetadata":         "per-item access in handler",
 	"/evey.v1.MetadataService/RefreshMetadata":        "per-item access in handler",
 	"/evey.v1.MetadataService/GetArtwork":             "per-item access in handler",
@@ -378,7 +378,7 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.PlaybackService/ClearWatchHistory": "own",
 	// PlaybackSettingsService
 	"/evey.v1.PlaybackSettingsService/GetPlaybackSettings": "read",
-	// PlaylistService — all own-scoped in handler
+	// PlaylistService - all own-scoped in handler
 	"/evey.v1.PlaylistService/ListPlaylists":      "own",
 	"/evey.v1.PlaylistService/GetPlaylist":        "own",
 	"/evey.v1.PlaylistService/CreatePlaylist":     "own",
@@ -387,12 +387,12 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.PlaylistService/GetPlaylistItems":   "own",
 	"/evey.v1.PlaylistService/AddPlaylistItem":    "own",
 	"/evey.v1.PlaylistService/RemovePlaylistItem": "own",
-	// PluginUserDataService — (plugin,user)-scoped by token
+	// PluginUserDataService - (plugin,user)-scoped by token
 	"/evey.v1.PluginUserDataService/GetPref":    "own (plugin,user)-scoped",
 	"/evey.v1.PluginUserDataService/SetPref":    "own (plugin,user)-scoped",
 	"/evey.v1.PluginUserDataService/DeletePref": "own (plugin,user)-scoped",
 	"/evey.v1.PluginUserDataService/ListPrefs":  "own (plugin,user)-scoped",
-	// PushService — own device/subscription scoped
+	// PushService - own device/subscription scoped
 	"/evey.v1.PushService/ListDevices":               "own",
 	"/evey.v1.PushService/GetVAPIDKey":               "public VAPID key read",
 	"/evey.v1.PushService/RegisterWebPush":           "own",
@@ -407,7 +407,7 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.RatingService/GetRatingAggregate": "read aggregate",
 	// ShareService
 	"/evey.v1.ShareService/ValidateShareLink": "harmless metadata; public download itself guarded by uuid token",
-	// SyncPlayService — room membership scoped in handler
+	// SyncPlayService - room membership scoped in handler
 	"/evey.v1.SyncPlayService/CreateRoom": "own room",
 	"/evey.v1.SyncPlayService/JoinByCode": "own",
 	"/evey.v1.SyncPlayService/GetRoom":    "member",
@@ -434,7 +434,7 @@ var allowedUserCallable = map[string]string{
 // the proto descriptors and asserts each one is classified into exactly one of:
 // PublicMethods, MethodRoles (admin), or allowedUserCallable (RoleUser, justified).
 // This generalises TestAllAdminServiceMethodsAreGated to non-Admin services: it
-// fails the build when ANY new RPC (on any service) ships unclassified — closing
+// fails the build when ANY new RPC (on any service) ships unclassified - closing
 // the gap where a privileged RPC on, say, LibraryService would silently default
 // to RoleUser. Services served only over HTTP (notGRPCRegisteredServices) are
 // skipped because the gRPC interceptor never governs them.
@@ -471,11 +471,11 @@ func TestAllRegisteredMethodsAreClassified(t *testing.T) {
 				}
 				switch count {
 				case 0:
-					t.Errorf("RPC %s is unclassified — add it to MethodRoles (RoleAdmin) "+
+					t.Errorf("RPC %s is unclassified - add it to MethodRoles (RoleAdmin) "+
 						"or allowedUserCallable (RoleUser, with justification); a new privileged "+
 						"RPC must not silently default to RoleUser", full)
 				case 1:
-					// exactly one classification — correct
+					// exactly one classification - correct
 				default:
 					t.Errorf("RPC %s is classified in more than one of "+
 						"{PublicMethods, MethodRoles, allowedUserCallable}", full)
@@ -485,7 +485,7 @@ func TestAllRegisteredMethodsAreClassified(t *testing.T) {
 		return true
 	})
 
-	require.Positive(t, checked, "no evey.v1 service methods discovered — proto descriptors not registered?")
+	require.Positive(t, checked, "no evey.v1 service methods discovered - proto descriptors not registered?")
 
 	// Reverse check: no stale allowedUserCallable entry for a method that no
 	// longer exists (catches typos and renamed/removed RPCs).

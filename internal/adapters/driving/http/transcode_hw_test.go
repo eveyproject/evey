@@ -96,7 +96,7 @@ func TestResolveHW(t *testing.T) {
 	})
 
 	t.Run("source codec not HW-decodable → software (old iGPU, HEVC)", func(t *testing.T) {
-		// Encodes H.264 + HEVC but DECODES only H.264 — a pre-Skylake Intel iGPU.
+		// Encodes H.264 + HEVC but DECODES only H.264 - a pre-Skylake Intel iGPU.
 		oldIGPU := domaintranscoding.EncodeCapability{
 			HWBackend:      "vaapi",
 			HWCodecs:       []string{"h264", "hevc"},
@@ -146,7 +146,7 @@ func TestResolveHW(t *testing.T) {
 
 	t.Run("10-bit source + VPP can't do 10-bit → software (i965 VEBOX)", func(t *testing.T) {
 		// Decodes hevc AND encodes h264, but the calibration found the VPP aborts
-		// on a 10-bit (p010) surface — the Intel i965 case. A Main10 source
+		// on a 10-bit (p010) surface - the Intel i965 case. A Main10 source
 		// must software-transcode so it never crashes the GPU pipeline.
 		box := domaintranscoding.EncodeCapability{
 			HWBackend:        "vaapi",

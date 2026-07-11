@@ -194,7 +194,7 @@ func TestToDocument_NoTranslations(t *testing.T) {
 
 // The Translations map feeds the profile-language re-rank: keyed by NORMALIZED
 // locale, first non-empty per locale wins, and (unlike translated_titles) it
-// keeps a translation even when it duplicates the primary title — the re-rank
+// keeps a translation even when it duplicates the primary title - the re-rank
 // looks up the viewer's locale title regardless.
 func TestToDocument_TranslationsByLocale(t *testing.T) {
 	item := &library.MediaItem{

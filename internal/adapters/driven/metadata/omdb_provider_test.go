@@ -123,7 +123,7 @@ func TestOMDb_SeriesYearParsing(t *testing.T) {
 	srv, p := newOMDbTestServer(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(omdbDetail{
 			Title:    "Dexter",
-			Year:     "2006–2013",
+			Year:     "2006-2013",
 			ImdbID:   "tt0773262",
 			Response: "True",
 		})

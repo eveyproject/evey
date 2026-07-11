@@ -14,7 +14,7 @@ import (
 // Chromaprint/audio-based confirmation of pHash intro candidates.
 
 // confirmAudioCandidatesChromaprint is the Chromaprint variant of
-// confirmAudioCandidates — anchored on the same pHash trickplay
+// confirmAudioCandidates - anchored on the same pHash trickplay
 // candidates (so we never scan a "big portion" of the file: only the
 // short window around each candidate).
 //
@@ -30,7 +30,7 @@ import (
 //
 // Returns confirmedWindow{} for accepted candidates. Empty result lets
 // the caller fall through to confirmAudioCandidates (banded Pearson)
-// — that guard handles the "fpcalc broken on this episode" edge case
+// - that guard handles the "fpcalc broken on this episode" edge case
 // without losing detection coverage.
 func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Context, item *domainlibrary.MediaItem, result *pHashResult, cfg introConfig) []confirmedWindow {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.confirmAudioCandidatesChromaprint")
@@ -160,7 +160,7 @@ func (s *IntroDetectionService) confirmAudioCandidatesChromaprint(ctx context.Co
 			startMs:    cand.startMs,
 			endMs:      cand.endMs,
 			matchCount: cand.matchCount,
-			confidence: 0.97, // higher than banded Pearson 0.95 — Chromaprint signal is more reliable
+			confidence: 0.97, // higher than banded Pearson 0.95 - Chromaprint signal is more reliable
 		})
 	}
 	return confirmed
@@ -204,7 +204,7 @@ func slidingChromaprint(target, reference []uint32) (offsetFrames int, similarit
 // drift relative to target.
 //
 // A candidate is CONFIRMED when ≥3 siblings show correlation ≥0.5 AND their
-// drifts cluster within ±6s of the median drift — coincidental matches scatter
+// drifts cluster within ±6s of the median drift - coincidental matches scatter
 // drifts uniformly across the search range, while a true recurring intro pins
 // them tightly. This is what distinguishes a real intro from a recurring
 // landscape/transition shot that happens to share visual hashes.

@@ -16,7 +16,7 @@ push:
   series_with_episodes:
     title: "New Series: {series} ({episodes} episodes)"
   season_with_episodes:
-    title: "New Season: {series} — {season} ({episodes} episodes)"
+    title: "New Season: {series} - {season} ({episodes} episodes)"
   episodes_batched:
     title: "New Episodes: {series} ({count} episodes)"
   seasons_batched:

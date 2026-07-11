@@ -154,7 +154,7 @@ func TestHTTPStreamAuthMiddleware_NoToken_401(t *testing.T) {
 // httpScrapeOrAdminMiddleware accepts a static scrape bearer OR an admin JWT.
 
 func TestScrapeOrAdmin_StaticTokenPasses(t *testing.T) {
-	// Verifier refuses every JWT — proves the static path bypasses JWT
+	// Verifier refuses every JWT - proves the static path bypasses JWT
 	// validation entirely when the scrape token matches.
 	v := &fakeTokenVerifier{err: errTest}
 	var ran bool
@@ -230,7 +230,7 @@ func TestScrapeOrAdmin_NonAdminJWTRejected(t *testing.T) {
 }
 
 func TestScrapeOrAdmin_EmptyAuthorizationRejected(t *testing.T) {
-	// No header, no scrape token attempt — must be 401 from admin path.
+	// No header, no scrape token attempt - must be 401 from admin path.
 	v := &fakeTokenVerifier{err: errTest}
 	var ran bool
 	var uid string

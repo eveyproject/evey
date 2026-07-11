@@ -4,8 +4,8 @@ import "sync"
 
 // TranscodeThrottle tracks active direct-transcode streams per user.
 type TranscodeThrottle struct {
-	mu      sync.Mutex
-	active  map[string]int
+	mu     sync.Mutex
+	active map[string]int
 }
 
 func NewTranscodeThrottle() *TranscodeThrottle {

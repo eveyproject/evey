@@ -34,7 +34,7 @@ return s.uow.Do(ctx, func(ctx context.Context) error {
 ## Consequences
 
 - Repositories stay framework-light (still depend only on `context.Context` and `sql.DB`/`sql.Tx` behind the helper).
-- Tests inject a fake `TransactionalUnit` that just calls `fn(ctx)` — no real transaction needed in unit tests.
+- Tests inject a fake `TransactionalUnit` that just calls `fn(ctx)` - no real transaction needed in unit tests.
 - Nested `Do` calls reuse the existing transaction (idempotent).
 - All existing non-atomic services must migrate. `UserService.CreateUser` is the first migration.
 

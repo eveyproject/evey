@@ -11,7 +11,7 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
   const [fileInfoOpen, setFileInfoOpen] = useState(false);
   const duration = formatDuration(item.durationMs);
   // Overall bitrate: use the stored value, but fall back to size×8/duration when
-  // it's 0/absent — MKV containers (and the prober) often don't carry an overall
+  // it's 0/absent - MKV containers (and the prober) often don't carry an overall
   // bitrate, which otherwise renders a useless "0 kbps".
   const bitrateKbps = (() => {
     const stored = item.bitrate ? Number(item.bitrate) : 0;
@@ -23,7 +23,7 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
 
   // A container (series/season) has no file of its own. The API emits proto
   // zero values (EmitUnpopulated), so fileSize/durationMs arrive as the STRING
-  // "0" — which is truthy in JS, so a naive `!item.fileSize` check let the
+  // "0" - which is truthy in JS, so a naive `!item.fileSize` check let the
   // disclosure render with a useless "0 B". Gate on REAL presence instead.
   const hasFile =
     !!item.filePath ||

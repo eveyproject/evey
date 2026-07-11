@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	ipcConnectTimeout   = 10 * time.Second
-	ipcCallTimeout      = 5 * time.Second
-	sockPollInterval    = 100 * time.Millisecond
+	ipcConnectTimeout = 10 * time.Second
+	ipcCallTimeout    = 5 * time.Second
+	sockPollInterval  = 100 * time.Millisecond
 )
 
 type ipcClient struct {

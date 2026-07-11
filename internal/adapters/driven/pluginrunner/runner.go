@@ -72,7 +72,7 @@ func (e *processEntry) getCrashReason() string {
 // OnIPCResult is called after IPC Initialize completes (success or failure).
 type OnIPCResult func(pluginID string, err error)
 
-// EventBus is the minimal slice the runner needs — matches shared.EventBus
+// EventBus is the minimal slice the runner needs - matches shared.EventBus
 // Publish signature (event must satisfy shared.Event, i.e. have EventName()).
 type EventBus interface {
 	Publish(ctx context.Context, event shared.Event) error
@@ -135,7 +135,7 @@ type Runner struct {
 
 // ErrSandboxUnavailable is returned by Start when a plugin without the
 // 'subprocess' permission is about to run but the LD_PRELOAD sandbox
-// library cannot be located or compiled — the previous behaviour
+// library cannot be located or compiled - the previous behaviour
 // silently started the plugin without sandbox. Fail-closed is the
 // expected behaviour when third-party plugins are allowed; tests and
 // dev environments can opt out via WithAllowMissingSandbox.
@@ -170,7 +170,7 @@ func (r *Runner) WithIPCCallback(cb OnIPCResult) *Runner {
 //     when the sandbox lib is missing).
 //   - Pass allow=true ONLY when cfg.Log.DevMode is true (developer laptop) or
 //     inside test binaries.  Passing true in a production environment is a
-//     security misconfiguration — callers in wire.go must emit a visible
+//     security misconfiguration - callers in wire.go must emit a visible
 //     warning so ops can catch it (see cmd/evey/wire.go).
 func (r *Runner) WithAllowMissingSandbox(allow bool) *Runner {
 	r.allowMissingSandbox = allow
@@ -204,7 +204,7 @@ func (r *Runner) WithSDKStubs(c SDKStubCopier) *Runner {
 // WithHostRegistry wires the per-plugin host socket factory. When set,
 // the runner provisions a dedicated host gRPC socket for each plugin and
 // pins authentication to the plugin process PID. When nil (tests), the
-// plugin starts without a host socket bound to it — the EVEY_HOST_SOCK
+// plugin starts without a host socket bound to it - the EVEY_HOST_SOCK
 // env var is left unset.
 func (r *Runner) WithHostRegistry(reg HostRegistry) *Runner {
 	r.hostRegistry = reg
@@ -213,30 +213,30 @@ func (r *Runner) WithHostRegistry(reg HostRegistry) *Runner {
 
 // WithSandboxMode sets the isolation strategy used when launching plugins.
 // Valid values: "auto" (default), "landlock", "bubblewrap", "strict", "basic".
-//   - "auto"       — detect the best available at boot: landlock > bubblewrap
+//   - "auto"       - detect the best available at boot: landlock > bubblewrap
 //     (only where Landlock is absent but bwrap runs under the host security) >
 //     basic. Recommended for the official image: prefers Landlock (no privilege,
 //     runs under Docker's default security), falls back as the host allows.
-//   - "landlock"   — Landlock LSM self-confinement (filesystem allowlist). Needs
+//   - "landlock"   - Landlock LSM self-confinement (filesystem allowlist). Needs
 //     no mount/unshare, so it runs under Docker's default seccomp+AppArmor. Needs
 //     kernel ≥5.13 with Landlock in the active LSM list. Refuses to start a
 //     plugin if Landlock cannot be enforced (fail closed).
-//   - "bubblewrap" — bwrap namespace isolation (user/pid/uts/ipc/net). Requires
+//   - "bubblewrap" - bwrap namespace isolation (user/pid/uts/ipc/net). Requires
 //     the bwrap binary AND the mount syscall, so inside Docker it only works
 //     with relaxed security; effectively bare-metal only.
-//   - "strict"     — bubblewrap namespaces AND LD_PRELOAD seccomp lib.
-//   - "basic"      — LD_PRELOAD seccomp lib + UID drop only (no per-path FS
+//   - "strict"     - bubblewrap namespaces AND LD_PRELOAD seccomp lib.
+//   - "basic"      - LD_PRELOAD seccomp lib + UID drop only (no per-path FS
 //     isolation; last-resort fallback for locked-down old kernels).
 //
 // Any unrecognised value (including empty string) is silently mapped to
-// defaultSandboxMode ("auto") — callers should validate upstream.
+// defaultSandboxMode ("auto") - callers should validate upstream.
 func (r *Runner) WithSandboxMode(mode string) *Runner {
 	r.SetSandboxMode(mode)
 	return r
 }
 
 // WithResourceLimits sets the per-plugin memory and PID caps the resource
-// monitor enforces (it polls /proc and kills a plugin that exceeds them —
+// monitor enforces (it polls /proc and kills a plugin that exceeds them -
 // cgroups are unusable in a non-privileged Docker container). Pass 0 for either
 // value to use the package default (256 MiB / 64 PIDs).
 func (r *Runner) WithResourceLimits(memBytes int64, pidsMax int) *Runner {
@@ -360,7 +360,7 @@ func (r *Runner) validateEntrypoint(entrypoint, installDir string) (string, erro
 // anchored at installDir) and enforces that the resolved target lives under
 // one of the allowed plugin directories. Shared by the binary entrypoint
 // (which additionally requires the exec bit) and the interpreter SCRIPT
-// argument — the script used to be joined unchecked, so "python ../../x.py"
+// argument - the script used to be joined unchecked, so "python ../../x.py"
 // or an absolute path escaped the install dir (bounded by bwrap/Landlock at
 // runtime, but the path must not point outside to begin with).
 func (r *Runner) containPluginFile(path, installDir string) (string, os.FileInfo, error) {
@@ -407,7 +407,7 @@ func (r *Runner) containPluginFile(path, installDir string) (string, os.FileInfo
 // ctx is canceled as soon as the install handler returns, which cancels the
 // cmd ctx and makes connectIPC's Initialize RPC fail with "code = Canceled"
 // 200ms after the process spawns). No deadline either: plugins are
-// long-running services, stopped only via Stop/Kill or the resource monitor —
+// long-running services, stopped only via Stop/Kill or the resource monitor -
 // a deadline here SIGKILLs every plugin mid-flight (préprod: at exactly
 // start+30min under the old pluginExecTimeout) and gets misread as an OOM.
 func pluginProcContext(parentCtx context.Context) (context.Context, context.CancelFunc) {
@@ -427,7 +427,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 
 	// Refresh the server-shipped SDK stubs before spawning: they carry the
 	// host RPC contract, and a plugin installed under an older server would
-	// otherwise run against that older contract forever. Best-effort — a
+	// otherwise run against that older contract forever. Best-effort - a
 	// read-only plugin dir must not block the start.
 	if r.sdkStubs != nil && p.InstallDir != "" {
 		if cpErr := r.sdkStubs.CopySDKStubs(p.Language, p.InstallDir); cpErr != nil {
@@ -493,7 +493,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	r.applyNice(cmd.Process.Pid)
 
 	// Arm PID-based authentication on the host socket. From this point
-	// on, only RPCs originating from cmd.Process.Pid will be accepted —
+	// on, only RPCs originating from cmd.Process.Pid will be accepted -
 	// SO_PEERCRED is filled in by the kernel and cannot be spoofed.
 	if r.hostRegistry != nil {
 		r.hostRegistry.SetExpectedPID(p.ID, int32(cmd.Process.Pid))
@@ -539,7 +539,7 @@ func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
 	if os.Getuid() == 0 {
 		// Root drops the plugin to evey-plugin (1001) via SysProcAttr.Credential.
 		// Own the per-plugin dir to that identity, and make the PARENT traversable
-		// by the plugin group — otherwise the dropped process can't even search
+		// by the plugin group - otherwise the dropped process can't even search
 		// the 0700 parent to reach its own socket ("listen EACCES").
 		if err := os.Chown(pluginSockDir, pluginUID, pluginGID); err != nil {
 			return "", "", fmt.Errorf("chown plugin sock dir: %w", err)
@@ -557,10 +557,10 @@ func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
 			return "", "", fmt.Errorf("chmod plugin sock dir for uid separation: %w", err)
 		}
 		// The per-plugin dir being group-writable is useless if the dropped uid
-		// can't traverse the 0700 parent to reach it — that was a real prod crash
+		// can't traverse the 0700 parent to reach it - that was a real prod crash
 		// ("listen EACCES /tmp/evey/plugins/<id>/plugin.sock"). Grant the group
 		// SEARCH (0710: traverse only, no listing → can't enumerate other plugins)
-		// on the parent. Holds only sockets, no secrets — the server's keys live
+		// on the parent. Holds only sockets, no secrets - the server's keys live
 		// under /data (0600 owned by the server) and stay unreadable to uid 1001.
 		if err := r.makeSockParentTraversable(-1); err != nil {
 			return "", "", err
@@ -612,7 +612,7 @@ func (r *Runner) resolveCommand(p *plugin.Plugin) (string, []string, error) {
 		var cmdArgs []string
 		if len(parts) > 1 {
 			// The script rides the same containment as a binary entrypoint
-			// (minus the exec bit — the interpreter reads it): no "..", no
+			// (minus the exec bit - the interpreter reads it): no "..", no
 			// absolute path outside the allowed plugin directories.
 			scriptPath, _, err := r.containPluginFile(parts[1], p.InstallDir)
 			if err != nil {
@@ -646,7 +646,7 @@ func (r *Runner) registerHostSock(pluginID string) (string, error) {
 
 // rollbackStart undoes partial Start side-effects on failure paths: cancels
 // the ctx, removes the socket dir, and (when the host socket was already
-// registered) unregisters it. Keep the three ops in lock-step — drifting
+// registered) unregisters it. Keep the three ops in lock-step - drifting
 // leaks a socket dir or a dangling gRPC host entry.
 func (r *Runner) rollbackStart(cancel context.CancelFunc, pluginSockDir, pluginID string, hostRegistered bool) {
 	cancel()
@@ -722,7 +722,7 @@ func (r *Runner) effectiveMode() string {
 // to wrap with the launcher when it's available: best-effort Landlock plus the
 // kernel seccomp denylist (incl. -deny-inet). This matters most on kernels
 // without Landlock (e.g. an old NAS) where the LD_PRELOAD shim is the only
-// other syscall layer and a static binary would bypass it — the launcher's
+// other syscall layer and a static binary would bypass it - the launcher's
 // kernel seccomp still applies. If the launcher binary is absent (some dev
 // images) it falls back to LD_PRELOAD-only, preserving prior behaviour.
 func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) error {
@@ -740,7 +740,7 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 	} else {
 		// The launcher carries the only kernel-level layer (Landlock + seccomp)
 		// that survives execve. Losing it is a real degradation, so surface it
-		// instead of swallowing the error — what follows is LD_PRELOAD-only (for
+		// instead of swallowing the error - what follows is LD_PRELOAD-only (for
 		// non-subprocess plugins) or a fail-closed refusal (subprocess, below).
 		slog.Warn("plugin launcher unavailable; basic sandbox degraded",
 			slog.String("plugin_id", p.ID),
@@ -749,7 +749,7 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 
 	// LD_PRELOAD shim: belt-and-suspenders for dynamic plugins, and the only
 	// syscall layer if the launcher is absent. It does NOT survive an exec of a
-	// child, so it is useless for plugins granted the subprocess permission —
+	// child, so it is useless for plugins granted the subprocess permission -
 	// those rely on the launcher's kernel seccomp instead. Skipping the shim for
 	// a subprocess plugin is therefore only safe when the launcher actually
 	// applied; if it didn't, the plugin would run with no confinement at all, so
@@ -847,13 +847,13 @@ func pluginSysProcAttr() *syscall.SysProcAttr {
 		Setpgid:   true,
 		Pdeathsig: syscall.SIGTERM,
 	}
-	// Drop the plugin to a separate uid (evey-plugin) ONLY when we run as root —
+	// Drop the plugin to a separate uid (evey-plugin) ONLY when we run as root -
 	// because we must also chown the plugin's per-process sock dir + install dir
 	// to that uid, which needs CAP_CHOWN, which a non-root server doesn't have.
 	// Doing this non-root via file caps therefore requires CAP_SETUID+CAP_SETGID
 	// *and* CAP_CHOWN plus chowning those dirs; that's a backlog item. Until then
 	// a non-root server keeps the plugin at its own uid (the dir owner) so the
-	// plugin can still bind its socket — see the sock-dir chown above, also
+	// plugin can still bind its socket - see the sock-dir chown above, also
 	// gated on root.
 	if os.Getuid() == 0 {
 		a.Credential = &syscall.Credential{Uid: pluginUID, Gid: pluginGID}
@@ -912,7 +912,7 @@ func (r *Runner) WithUIDSeparation(mode string) *Runner {
 	return r
 }
 
-// EffectiveSandboxMode returns the concrete sandbox mode actually in force —
+// EffectiveSandboxMode returns the concrete sandbox mode actually in force -
 // "auto" resolved to the mode selected for this host (landlock/bubblewrap/basic).
 // Exposed so the admin dashboard can show what's really active, not just "auto".
 func (r *Runner) EffectiveSandboxMode() string {
@@ -993,7 +993,7 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 				if len(out) > maxTail {
 					out = "…" + out[len(out)-maxTail:]
 				}
-				msg += " — plugin output: " + out
+				msg += " - plugin output: " + out
 			}
 		}
 		// Record before publishing so connectIPC (still waiting on the socket)
@@ -1010,7 +1010,7 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 // reason. This path only sees kills the server did NOT initiate: every
 // server-side stop (Stop, Kill, the resource monitor's cap enforcement)
 // removes the tracking entry before signaling, so trackLifecycle never
-// reports it as a crash. A SIGKILL landing here therefore came from outside —
+// reports it as a crash. A SIGKILL landing here therefore came from outside -
 // in practice the kernel OOM-killer under container/host memory pressure, or
 // a manual kill. Surface that instead of "signal: killed", and point at the
 // resmon's own log line so admins don't chase the per-plugin cap by mistake.
@@ -1022,7 +1022,7 @@ func classifyExitError(err error) string {
 	if errors.As(err, &exitErr) {
 		ws, ok := exitErr.Sys().(syscall.WaitStatus)
 		if ok && ws.Signaled() && ws.Signal() == syscall.SIGKILL {
-			return "process SIGKILLed from outside the server — likely the host/container OOM-killer under memory pressure, or a manual kill (a breach of the EVEY_PLUGINS_MEMORY_MB cap is logged as 'memory quota exceeded' instead)"
+			return "process SIGKILLed from outside the server - likely the host/container OOM-killer under memory pressure, or a manual kill (a breach of the EVEY_PLUGINS_MEMORY_MB cap is logged as 'memory quota exceeded' instead)"
 		}
 	}
 	return "process crashed: " + err.Error()
@@ -1037,7 +1037,7 @@ func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *p
 	client, err := newIPCClient(entry.sockPath)
 	if err != nil {
 		// The socket never came up. The process has very likely already
-		// crashed — its exit reason (with captured output) is far more useful
+		// crashed - its exit reason (with captured output) is far more useful
 		// than a bare "socket timeout". Wait briefly for trackLifecycle to
 		// record it, then prefer it.
 		select {
@@ -1078,8 +1078,8 @@ func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *p
 }
 
 func (r *Runner) Stop(ctx context.Context, pluginID string) error {
-	// Always clear the host-socket registry on the way out — including the early
-	// returns below — so a desynced orphan (gone from r.processes but still
+	// Always clear the host-socket registry on the way out - including the early
+	// returns below - so a desynced orphan (gone from r.processes but still
 	// registered, e.g. after a failed restart) can't lock out a later re-enable
 	// with "plugin already registered".
 	if r.hostRegistry != nil {
@@ -1174,7 +1174,7 @@ func (r *Runner) Kill(pluginID string) error {
 		return nil
 	}
 
-	// SIGKILL the entire process group — the plugin may have spawned children
+	// SIGKILL the entire process group - the plugin may have spawned children
 	// (interpreters, worker threads) that need to die along with the leader.
 	// Setpgid:true in SysProcAttr guarantees pgid == pid for the leader.
 	pgid := -entry.cmd.Process.Pid
@@ -1273,7 +1273,7 @@ func (r *Runner) ensureSandboxLib() string {
 			r.sandboxLib = path
 			return
 		}
-		slog.Error("sandbox lib missing — build-time artifact required",
+		slog.Error("sandbox lib missing - build-time artifact required",
 			slog.String("path", path))
 	})
 	return r.sandboxLib

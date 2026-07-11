@@ -15,7 +15,7 @@ import (
 // accepts. Adding a new RPC to plugin.proto WITHOUT adding it here is a
 // build-time omission the interceptor catches at runtime: unknown
 // methods are denied (fail-closed). nil values mean "no permission
-// required" — still authenticated, but any installed plugin can call.
+// required" - still authenticated, but any installed plugin can call.
 var methodPermissions = map[string][]string{
 	"/plugin.v1.HostService/GetMediaItem":       {"api.library", "media.read"},
 	"/plugin.v1.HostService/ListMediaItems":     {"api.library", "media.read"},
@@ -30,7 +30,7 @@ var methodPermissions = map[string][]string{
 	"/plugin.v1.HostService/Log":                nil,
 	"/plugin.v1.HostService/GetConfig":          nil,
 	"/plugin.v1.HostService/SetConfig":          nil,
-	// Data store: a plugin's own namespace — no special permission required.
+	// Data store: a plugin's own namespace - no special permission required.
 	"/plugin.v1.HostService/GetData":      nil,
 	"/plugin.v1.HostService/SetData":      nil,
 	"/plugin.v1.HostService/DeleteData":   nil,
@@ -43,7 +43,7 @@ var methodPermissions = map[string][]string{
 
 // PluginPermissionInterceptor returns a gRPC UnaryServerInterceptor that
 // enforces plugin permissions on HostService RPCs. It MUST be chained
-// after pluginhost's per-plugin SO_PEERCRED auth interceptor — that one
+// after pluginhost's per-plugin SO_PEERCRED auth interceptor - that one
 // injects the authenticated plugin ID into the context. Reading from the
 // wire (e.g. an x-plugin-id header) would be trivially spoofable.
 //

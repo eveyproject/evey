@@ -21,9 +21,18 @@ func TestService_ListTracksByAlbum_FiltersByAlbum(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
 	now := time.Now()
-	{ _, uerr := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Album: "A", Title: "T1", FilePath: "/m/t1.mp3", CreatedAt: now}); require.NoError(t, uerr) }
-	{ _, uerr := repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Album: "A", Title: "T2", FilePath: "/m/t2.mp3", CreatedAt: now}); require.NoError(t, uerr) }
-	{ _, uerr := repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-1", Album: "B", Title: "T3", FilePath: "/m/t3.mp3", CreatedAt: now}); require.NoError(t, uerr) }
+	{
+		_, uerr := repo.Upsert(ctx, music.Track{ID: "t1", LibraryID: "lib-1", Album: "A", Title: "T1", FilePath: "/m/t1.mp3", CreatedAt: now})
+		require.NoError(t, uerr)
+	}
+	{
+		_, uerr := repo.Upsert(ctx, music.Track{ID: "t2", LibraryID: "lib-1", Album: "A", Title: "T2", FilePath: "/m/t2.mp3", CreatedAt: now})
+		require.NoError(t, uerr)
+	}
+	{
+		_, uerr := repo.Upsert(ctx, music.Track{ID: "t3", LibraryID: "lib-1", Album: "B", Title: "T3", FilePath: "/m/t3.mp3", CreatedAt: now})
+		require.NoError(t, uerr)
+	}
 
 	scanner := musicfakes.NewFakeMusicScanner()
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, scanner)
@@ -52,7 +61,7 @@ func TestService_FetchMissingAlbumArtAllLibraries_NoLibRepo_ReturnsZero(t *testi
 
 // Iterates libraries, skips non-music ones, and aggregates successful fetches.
 // With no art fetcher wired, FetchMissingAlbumArt returns 0 per library without
-// error, so the total is 0 — but the iteration is exercised (skip non-music,
+// error, so the total is 0 - but the iteration is exercised (skip non-music,
 // call per music lib).
 func TestService_FetchMissingAlbumArtAllLibraries_IteratesMusicLibraries(t *testing.T) {
 	t.Parallel()

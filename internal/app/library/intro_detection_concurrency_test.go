@@ -18,8 +18,8 @@ import (
 // letting the test observe how many DetectIntro calls hold a semaphore
 // slot at once.
 type blockingMediaItemRepo struct {
-	release    chan struct{}
-	inflight   int32
+	release     chan struct{}
+	inflight    int32
 	maxInflight int32
 }
 
@@ -42,12 +42,16 @@ func (r *blockingMediaItemRepo) GetByID(ctx context.Context, _ shared.MediaItemI
 	}
 	return nil, context.Canceled // short-circuit DetectIntro after the blocking gate
 }
-func (r *blockingMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
+func (r *blockingMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem) error {
+	return nil
+}
 func (r *blockingMediaItemRepo) List(_ context.Context, _ domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
 	return nil, nil
 }
-func (r *blockingMediaItemRepo) Update(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
-func (r *blockingMediaItemRepo) Delete(_ context.Context, _ shared.MediaItemID) error       { return nil }
+func (r *blockingMediaItemRepo) Update(_ context.Context, _ *domainlibrary.MediaItem) error {
+	return nil
+}
+func (r *blockingMediaItemRepo) Delete(_ context.Context, _ shared.MediaItemID) error { return nil }
 func (r *blockingMediaItemRepo) GetByFilePath(_ context.Context, _ string) (*domainlibrary.MediaItem, error) {
 	return nil, nil
 }

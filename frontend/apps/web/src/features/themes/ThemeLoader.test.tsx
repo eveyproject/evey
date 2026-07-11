@@ -196,7 +196,7 @@ describe("ThemeLoader", () => {
       await new Promise((r) => setTimeout(r, 50));
     });
 
-    // CSS link may or may not be there — but no iframe
+    // CSS link may or may not be there - but no iframe
     expect(document.getElementById("evey-theme-iframe-dark")).toBeNull();
     // fetch should not have been called
     expect(eveyFetchRawMock).not.toHaveBeenCalled();
@@ -266,7 +266,7 @@ describe("ThemeLoader postMessage handling", () => {
       expect(document.getElementById("evey-theme-iframe-dark")).not.toBeNull();
     });
 
-    // Simulate a postMessage from the iframe — jsdom doesn't actually run
+    // Simulate a postMessage from the iframe - jsdom doesn't actually run
     // iframe JS so we dispatch the message from "null" source to test the handler.
     // The handler guards on e.source === iframe.contentWindow; in jsdom the
     // iframe contentWindow is available but can't be matched to a MessageEvent

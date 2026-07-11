@@ -255,9 +255,9 @@ func TestServeDownload_EmptyRoots_FailOpen(t *testing.T) {
 	if w.Code == http.StatusNotFound && w.Body.String() == `{"message":"not found"}`+"\n" {
 		t.Error("empty roots should fail open, not block the download")
 	}
-	// 200 or 206 (range) expected — anything but a confinement 404
+	// 200 or 206 (range) expected - anything but a confinement 404
 	if w.Code != http.StatusOK && w.Code != http.StatusPartialContent {
-		// if the stat failed for another reason that's fine — just not our confinement 404
+		// if the stat failed for another reason that's fine - just not our confinement 404
 		t.Logf("got %d (acceptable if not confinement block)", w.Code)
 	}
 }
@@ -271,7 +271,7 @@ func TestServeDownload_PathInsideRoots_Serves(t *testing.T) {
 	if err := os.WriteFile(item.File.Path, []byte("videodata"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// roots includes dir — path is inside
+	// roots includes dir - path is inside
 	roots := []string{dir}
 
 	w := httptest.NewRecorder()
@@ -332,7 +332,7 @@ func streamRequest(h http.HandlerFunc) *httptest.ResponseRecorder {
 }
 
 // A DB path outside every configured library root must 404 instead of being
-// served — otherwise a poisoned media_files row reads arbitrary host files.
+// served - otherwise a poisoned media_files row reads arbitrary host files.
 func TestStream_PathOutsideRoots_404(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "secret.txt")
 	if err := os.WriteFile(outside, []byte("secret"), 0o600); err != nil {
@@ -358,7 +358,7 @@ func TestStream_PathInsideRoots_200(t *testing.T) {
 }
 
 // No roots known (empty library list) keeps the historical fail-open
-// behaviour — confinement is defense-in-depth, not the access gate.
+// behaviour - confinement is defense-in-depth, not the access gate.
 func TestStream_NoRootsKnown_FailsOpen(t *testing.T) {
 	media := filepath.Join(t.TempDir(), "movie.mkv")
 	if err := os.WriteFile(media, []byte("mkv-bytes"), 0o644); err != nil {

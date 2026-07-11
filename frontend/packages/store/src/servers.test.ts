@@ -43,7 +43,7 @@ describe("useServerListStore.addServer", () => {
     expect(typeof s.lastUsedAt).toBe("number");
   });
 
-  it("de-duplicates by normalized URL — returns existing", () => {
+  it("de-duplicates by normalized URL - returns existing", () => {
     const s1 = useServerListStore.getState().addServer("https://evey.example.com/");
     const s2 = useServerListStore.getState().addServer("HTTPS://evey.EXAMPLE.COM");
     expect(s1.id).toBe(s2.id);

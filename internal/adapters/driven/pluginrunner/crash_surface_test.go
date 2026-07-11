@@ -14,7 +14,7 @@ import (
 )
 
 // buildCrashingBinary builds a plugin that writes a marker to stderr then exits
-// 1 immediately — the shape of a node plugin missing a module, or bwrap failing
+// 1 immediately - the shape of a node plugin missing a module, or bwrap failing
 // its sandbox setup.
 func buildCrashingBinary(t *testing.T, stderrMsg string) string {
 	t.Helper()

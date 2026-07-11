@@ -192,7 +192,6 @@ func TestKeyframeBackfill_StartStopClean(t *testing.T) {
 	}
 }
 
-
 func (s *fakeKeyframeStore) listCallCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -200,7 +199,7 @@ func (s *fakeKeyframeStore) listCallCount() int {
 }
 
 // A Nudge wakes an idle worker immediately instead of waiting the idle
-// interval — the library scan-completed trigger relies on it.
+// interval - the library scan-completed trigger relies on it.
 func TestKeyframeBackfill_NudgeWakesIdleWorker(t *testing.T) {
 	store := &fakeKeyframeStore{} // no candidates → the worker goes idle
 	w := NewKeyframeBackfillWorker(store, &fakeMediaReader{}, &fakeKeyframeProber{}, KeyframeBackfillOpts{
@@ -218,7 +217,7 @@ func TestKeyframeBackfill_NudgeWakesIdleWorker(t *testing.T) {
 }
 
 // NudgeAfterQuiet debounces: re-arms reset the window, and only the last one
-// fires — a scan storm produces one drain, not one per event.
+// fires - a scan storm produces one drain, not one per event.
 func TestKeyframeBackfill_NudgeAfterQuietDebounces(t *testing.T) {
 	store := &fakeKeyframeStore{}
 	w := NewKeyframeBackfillWorker(store, &fakeMediaReader{}, &fakeKeyframeProber{}, KeyframeBackfillOpts{

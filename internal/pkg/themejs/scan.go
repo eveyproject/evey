@@ -6,13 +6,13 @@ import (
 )
 
 // Theme JS runs in the user's page (mounted via theme-loader). Themes must
-// only use the evey.theme.* surface — direct DOM/network/storage access is
+// only use the evey.theme.* surface - direct DOM/network/storage access is
 // rejected at install time. Detection is text-based (no AST), so we flag
 // not just literal token forms ("fetch(") but also common bypasses:
 // bracket-notation property access (window["fetch"]), string concatenation
 // at the call site, dynamic globals access (globalThis, Reflect.get), and
 // constructor.constructor escapes. False positives are acceptable at install
-// time — themes have no legitimate reason to mention these tokens at all.
+// time - themes have no legitimate reason to mention these tokens at all.
 
 // blockedLiterals lists exact byte sequences that indicate a forbidden API
 // is referenced. These are scanned as plain regex word/contiguous matches.

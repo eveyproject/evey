@@ -17,7 +17,7 @@ import (
 // it) / Transient / Unknown, so the safety net never permanently demotes the
 // host on a fluke. A nil error classifies as FailureNone.
 //
-// Ordering matters — most specific signatures first, because some substrings
+// Ordering matters - most specific signatures first, because some substrings
 // overlap (an OOM also prints "failed to allocate").
 func ClassifyHWFailure(exitErr error, stderrTail string) transcoding.FailureClass {
 	if exitErr == nil {
@@ -28,7 +28,7 @@ func ClassifyHWFailure(exitErr error, stderrTail string) transcoding.FailureClas
 		return transcoding.FailureCancelled
 	}
 	// A kill-by-signal is, by default, attributed to us (seek-cancel or the
-	// resource monitor's SIGKILL) — we don't demote the host on a kill we
+	// resource monitor's SIGKILL) - we don't demote the host on a kill we
 	// can't confirm came from the GPU.
 	var ee *exec.ExitError
 	if errors.As(exitErr, &ee) {

@@ -9,7 +9,7 @@ vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
 vi.mock("@evey/api", () => ({ eveyFetchRaw: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))) }));
 
 // We're testing that the <audio src> attribute does not rebuild when
-// the Zustand accessToken rotates — the bug that aborted music playback
+// the Zustand accessToken rotates - the bug that aborted music playback
 // every 15 minutes (fix: useMemo keyed on playing.ID, reads via getState).
 
 function makeJwt(expSeconds: number) {
@@ -29,7 +29,7 @@ beforeEach(() => {
     externallyPaused: false,
     source: null,
   });
-  // jsdom doesn't implement HTMLMediaElement.play — stub to avoid unhandled rejections
+  // jsdom doesn't implement HTMLMediaElement.play - stub to avoid unhandled rejections
   window.HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
   window.HTMLMediaElement.prototype.pause = vi.fn();
 });
@@ -97,7 +97,7 @@ describe("GlobalAudioPlayer", () => {
     const before = audio?.getAttribute("src");
     expect(before).toBeTruthy();
 
-    // Simulate a token refresh — subscribers to accessToken would see the change.
+    // Simulate a token refresh - subscribers to accessToken would see the change.
     useAuthStore.setState({ accessToken: makeJwt(1234567890) });
 
     // Crucial: src must NOT change, otherwise the browser would abort the

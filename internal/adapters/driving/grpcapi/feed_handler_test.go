@@ -292,7 +292,7 @@ func newFeedHandlerWithAccess() feedHandlerWithAccessResult {
 //
 // Without this test, removing the userAccess/libQuery nil-check short-circuit
 // (or making the grant check always return true) would not break any existing
-// test — this test closes that gap.
+// test - this test closes that gap.
 func TestFeedHandler_RecentlyAdded_LibraryAccessFilter(t *testing.T) {
 	res := newFeedHandlerWithAccess()
 
@@ -314,7 +314,7 @@ func TestFeedHandler_RecentlyAdded_LibraryAccessFilter(t *testing.T) {
 	})
 
 	// Both items are returned by the querier (simulating a DB query with no
-	// access filter — the handler layer is responsible for filtering).
+	// access filter - the handler layer is responsible for filtering).
 	res.querier.RecentlyAddedItems = []*feed.FeedItem{
 		{MediaItemID: "mi-visible", Title: "Visible Movie", Type: "movie"},
 		{MediaItemID: "mi-hidden", Title: "Hidden Movie", Type: "movie"},

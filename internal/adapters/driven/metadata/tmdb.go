@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/cache"
 	domain "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/pkg/cache"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -192,7 +192,7 @@ func (p *TMDBProvider) GetEpisodeDetails(ctx context.Context, seriesID string, s
 		Overview: ep.Overview,
 	}
 	// Persist the episode's own TMDB ID so the row leaves the orphan set,
-	// plus IMDB/TVDB IDs if TMDB knows them — saves the admin a manual
+	// plus IMDB/TVDB IDs if TMDB knows them - saves the admin a manual
 	// "Identify on IMDB" round-trip later.
 	result.ProviderIDs = map[string]string{}
 	if ep.ID > 0 {
@@ -308,7 +308,7 @@ func (p *TMDBProvider) GetByProviderID(ctx context.Context, providerID string, m
 
 // LookupByExternalID resolves a TMDB record from an external provider ID
 // (IMDB, TVDB, …) via TMDB's /find endpoint. Returns nil when the mapping
-// yields no hit. Only imdb is wired for now — that's the path used by the
+// yields no hit. Only imdb is wired for now - that's the path used by the
 // admin "change IMDB ID" flow, which otherwise leaves the stale TMDB ID
 // on the item and fetches translations for the wrong title.
 func (p *TMDBProvider) LookupByExternalID(ctx context.Context, providerName, externalID string) (*domain.MetadataResult, error) {
@@ -358,7 +358,7 @@ func (p *TMDBProvider) LookupByExternalID(ctx context.Context, providerName, ext
 // overlays media_item_translations for every locale (including the default),
 // so a row must exist for the default locale too. Skipping it left items whose
 // base columns ended up in the wrong language (e.g. an OMDb-origin item later
-// matched to TMDB) with no correct row to serve — permanently stuck in the
+// matched to TMDB) with no correct row to serve - permanently stuck in the
 // wrong language with no re-enrichment able to fix it.
 func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string, mediaType string, locales []string) (map[string]domain.MetadataResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "metadata.tmdb.FetchTranslations")
@@ -396,7 +396,7 @@ func (p *TMDBProvider) FetchTranslations(ctx context.Context, providerID string,
 		}
 		// Same regional fallback as the base enrichment: a foreign-language
 		// work with no localized title in this locale takes its regional
-		// alternative title — otherwise the per-locale translation row would
+		// alternative title - otherwise the per-locale translation row would
 		// hold the original-language title and the read overlay would clobber
 		// the (correct, regional) base title with it.
 		applyRegionalTitle(&r, detail, locale)
@@ -461,8 +461,12 @@ func (p *TMDBProvider) AlternativeTitles(ctx context.Context, providerID string,
 	// Movie response: {"id":…,"titles":[{"iso_3166_1":"US","title":"…"},…]}
 	// TV response:    {"id":…,"results":[{"iso_3166_1":"US","title":"…"},…]}
 	var resp struct {
-		Titles  []struct{ Title string `json:"title"` } `json:"titles"`
-		Results []struct{ Title string `json:"title"` } `json:"results"`
+		Titles []struct {
+			Title string `json:"title"`
+		} `json:"titles"`
+		Results []struct {
+			Title string `json:"title"`
+		} `json:"results"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("tmdb alternative_titles unmarshal: %w", err)

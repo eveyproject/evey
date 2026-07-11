@@ -319,7 +319,7 @@ interface PluginCardProps {
   // True while the parent's enable/disable mutation for THIS plugin is in
   // flight. Drives the toggle button's disabled state to prevent double-submit.
   // Sourced from the mutation's isPending so it clears on settle (success AND
-  // error) — a local "set true on click" flag would stay stuck on a failed
+  // error) - a local "set true on click" flag would stay stuck on a failed
   // toggle, since the plugin prop never changes to release it.
   toggling?: boolean;
 }
@@ -540,7 +540,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
                       <li key={`url-${i}`} className="break-all">
                         <span className="font-mono">{u.url}</span>
                         {u.file && (
-                          <span className="text-[var(--text-muted)]"> — {u.file}:{u.line ?? 0}</span>
+                          <span className="text-[var(--text-muted)]"> - {u.file}:{u.line ?? 0}</span>
                         )}
                       </li>
                     ))}

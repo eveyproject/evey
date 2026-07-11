@@ -14,7 +14,7 @@ import (
 
 // IntroMetadataCacheRepository is the postgres backing for the external
 // intro/recap/credits provider cache (intro_metadata_cache table). The
-// payload is stored as raw JSONB — the introproviders package owns the
+// payload is stored as raw JSONB - the introproviders package owns the
 // shape, so this repo is intentionally schema-agnostic at the
 // application boundary.
 type IntroMetadataCacheRepository struct {
@@ -27,7 +27,7 @@ func NewIntroMetadataCacheRepository(db *sql.DB) *IntroMetadataCacheRepository {
 
 // Get returns the cached payload bytes and the time the row was stored,
 // or (nil, zero, nil) on a cache miss. Any other DB error is propagated.
-// Source filtering is intentional — the chain provider stores under
+// Source filtering is intentional - the chain provider stores under
 // whichever upstream answered, so a single cache row maps to a single
 // source. Reading the most-recent row keeps the API simple at the cost
 // of a tiny scan when multiple sources have answered for the same key
@@ -91,7 +91,7 @@ func (r *IntroMetadataCacheRepository) Put(ctx context.Context, tmdbID, season, 
 }
 
 // Invalidate deletes all cached rows for a given (tmdb_id, season,
-// episode) tuple — useful when an admin notices stale data on a
+// episode) tuple - useful when an admin notices stale data on a
 // specific episode and wants the next detection to refetch upstream.
 // Returns the number of rows deleted.
 func (r *IntroMetadataCacheRepository) Invalidate(ctx context.Context, tmdbID, season, episode int) (int64, error) {

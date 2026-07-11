@@ -3,7 +3,7 @@ package transcoding
 // CopySegment is one segment of a video-COPY (remux) rendition: a half-open
 // presentation-time range [StartMs, EndMs) that begins exactly on a source
 // keyframe. A -c:v copy stream cannot be re-keyed, so every copy segment must
-// start at an existing keyframe — these boundaries are computed from the source
+// start at an existing keyframe - these boundaries are computed from the source
 // keyframe index, never from a fixed segment duration.
 type CopySegment struct {
 	StartMs int64
@@ -14,13 +14,13 @@ type CopySegment struct {
 func (s CopySegment) DurationMs() int64 { return s.EndMs - s.StartMs }
 
 // KeyframeSegments partitions [0, durationMs) into copy-rung segments with a
-// boundary at EVERY source keyframe — one segment per keyframe gap, no
+// boundary at EVERY source keyframe - one segment per keyframe gap, no
 // coalescing. The function is PURE and DETERMINISTIC in (keyframes, durationMs):
 // the addressable cache and the precalculated manifest both derive segment N's
 // boundary from it, so any drift between the two is a permanent cache miss.
 //
 // WHY every keyframe (no minimum-duration merging): the ffmpeg HLS muxer is the
-// other half of this contract — the copy session runs `-hls_time 0` so it also
+// other half of this contract - the copy session runs `-hls_time 0` so it also
 // splits at every keyframe. That is the ONLY split rule ffmpeg can apply that is
 // independent of where the session started. With any hls_time > 0 the muxer
 // splits on an ABSOLUTE n×hls_time grid relative to the session's own start

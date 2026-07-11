@@ -50,7 +50,7 @@ func (p *SoftwareProducer) sweepIdle() {
 		p.killSession(s, "inactivity")
 	}
 	// Reclaim disk ONLY for hashes that are now fully idle (no live sibling
-	// remains). A hash with a surviving session must keep its segments — that
+	// remains). A hash with a surviving session must keep its segments - that
 	// sibling (another tab/device) is still serving from them.
 	affected := make(map[string]struct{}, len(toKill))
 	for _, s := range toKill {
@@ -76,10 +76,10 @@ func (p *SoftwareProducer) sweepIdle() {
 		if !evicted {
 			continue // a just-registered session owns it now; Close still covers the purge
 		}
-		// Sessions AND disk are both reclaimed — drop the hash from the
+		// Sessions AND disk are both reclaimed - drop the hash from the
 		// Close-time purge set. Without this delete the set only ever grew
 		// (one entry per distinct hash, for the process lifetime): a slow
-		// unbounded leak over weeks of uptime. Re-checked under the lock — a
+		// unbounded leak over weeks of uptime. Re-checked under the lock - a
 		// fresh session may have spawned for this hash since the emptiness
 		// check, and that one still wants its Close-time purge.
 		p.mu.Lock()

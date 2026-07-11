@@ -94,8 +94,8 @@ function PersonPage() {
                 <span>
                   {new Date(person.birthday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}
                   {person.deathday
-                    ? ` — ${new Date(person.deathday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
-                    : ` — ${Math.floor((Date.now() - new Date(person.birthday).getTime()) / 31557600000)} ${t("media.person.yearsOld")}`}
+                    ? ` - ${new Date(person.deathday).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
+                    : ` - ${Math.floor((Date.now() - new Date(person.birthday).getTime()) / 31557600000)} ${t("media.person.yearsOld")}`}
                 </span>
               )}
               {person.placeOfBirth && <span>{person.placeOfBirth}</span>}

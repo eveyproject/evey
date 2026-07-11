@@ -52,7 +52,7 @@ func TestSubtitleRepo_Save_ListByMediaItem(t *testing.T) {
 
 // Save upserts on the NATURAL key (media_item_id, file_path): the production
 // flow generates a fresh id per call, so a repeat download of the same file
-// (double-click) must refresh the existing row — not insert a duplicate. The
+// (double-click) must refresh the existing row - not insert a duplicate. The
 // caller's struct gets the SURVIVING row's id back via RETURNING.
 func TestSubtitleRepo_Save_UpsertOnMediaAndPath(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)

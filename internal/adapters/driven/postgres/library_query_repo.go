@@ -160,7 +160,7 @@ func (r *MediaItemQueryRepoAdapter) GetCastByMediaItem(ctx context.Context, medi
 	return result, nil
 }
 
-// GetCastForItems fetches cast for multiple media items in one query — eliminates N+1 in gallery listing.
+// GetCastForItems fetches cast for multiple media items in one query - eliminates N+1 in gallery listing.
 func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]library.CastMember, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.GetCastForItems")
 	defer span.End()
@@ -207,7 +207,7 @@ func (r *MediaItemQueryRepoAdapter) GetCastForItems(ctx context.Context, mediaIt
 
 // ListGenres returns the distinct, sorted genres across every item in a
 // library. genres lives as a JSONB array on media_catalog, so we unnest it
-// with jsonb_array_elements_text and de-dup in SQL — the full set, unlike the
+// with jsonb_array_elements_text and de-dup in SQL - the full set, unlike the
 // client which only ever saw genres from the first loaded page.
 func (r *MediaItemQueryRepoAdapter) ListGenres(ctx context.Context, libraryID shared.LibraryID) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.ListGenres")
@@ -262,7 +262,7 @@ func (r *MediaItemQueryRepoAdapter) SeriesAggregate(ctx context.Context, seriesI
 // of the next season. Nil + no error when the current episode is the
 // series finale.
 //
-// Used by the predictive warm-up path — pre-spawn the next episode's
+// Used by the predictive warm-up path - pre-spawn the next episode's
 // transcode at ~85 % progress so the autoplay handoff is instant.
 func (r *MediaItemQueryRepoAdapter) NextEpisodeOf(ctx context.Context, episodeID shared.MediaItemID) (*library.MediaItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media.NextEpisodeOf")

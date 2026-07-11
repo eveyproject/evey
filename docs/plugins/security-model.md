@@ -60,8 +60,8 @@ Every text file in the ZIP is scanned by a regex-based multi-language analyzer b
 | `sandbox_escape` | CRITICAL | `vm.runInNewContext`, `process.binding`, `new Function(`, Python `__subclasses__()`, `__mro__` |
 | `deserialization` | CRITICAL/WARNING | `pickle.loads`, `marshal.loads`, `__reduce__`; WARNING: `yaml.load()` without Loader |
 | `native_code` | CRITICAL/WARNING | `ctypes.CDLL`, `ffi.Library`; WARNING: Go `unsafe.Pointer` |
-| `compiled_binary` | WARNING → BLOCK | `.so`, `.dll`, `.exe`, `.wasm`, `.jar` — opaque to scanner |
-| `embedded_archive` | WARNING → BLOCK | `.zip`, `.tar.gz` — may contain unanalyzed code |
+| `compiled_binary` | WARNING → BLOCK | `.so`, `.dll`, `.exe`, `.wasm`, `.jar` - opaque to scanner |
+| `embedded_archive` | WARNING → BLOCK | `.zip`, `.tar.gz` - may contain unanalyzed code |
 | `mime_mismatch` | WARNING (treated critical) | file extension claims image/font, content is executable |
 | `suspicious_url` | WARNING | non-HTTP scheme in URL literal (`ftp://`, `wss://`, `ssh://`) |
 | `unvendored_deps` | WARNING | `requirements.txt`/`package.json` with declared deps but no vendored modules |
@@ -85,7 +85,7 @@ The analyzer is regex- and pattern-based. It defuses well-known obfuscation clas
 
 Each bypass class has a permanent regression test in `tests/fixtures/plugins/malicious/`. Adding a new class requires: (1) fixture committed, (2) analyzer rule or normalize-pass extended, (3) `installer_security_test.go` flips `workerANeeded:true → false` once detection is in.
 
-**Out of scope (sandbox enforces):** AST-level dynamic transforms — `strrev("metsys")`, `base64.b64decode(...)`, `eval(open("/encoded").read())`, runtime regex.replace. The regex analyzer cannot resolve these; the runtime sandbox (the Landlock allowlist or the bwrap mount whitelist, plus the kernel seccomp denylist) + userspace resource monitor + IPC peer-cred guarantee the plugin cannot escape, exfiltrate `/data`, or escalate beyond declared permissions.
+**Out of scope (sandbox enforces):** AST-level dynamic transforms - `strrev("metsys")`, `base64.b64decode(...)`, `eval(open("/encoded").read())`, runtime regex.replace. The regex analyzer cannot resolve these; the runtime sandbox (the Landlock allowlist or the bwrap mount whitelist, plus the kernel seccomp denylist) + userspace resource monitor + IPC peer-cred guarantee the plugin cannot escape, exfiltrate `/data`, or escalate beyond declared permissions.
 
 **Known false positives:** the analyzer matches inside source comments and docstrings. A `# pip install foo` line in a comment will trip the `runtime_install` rule. Acceptable: instructing operators to strip such comments before publishing is cheaper than per-language comment stripping in the regex analyzer; the bwrap mount whitelist + userspace resource monitor make the runtime block independent.
 
@@ -104,7 +104,7 @@ STAT_BLOCKED /etc/passwd, /etc/shadow, /data/jwt.key (all ENOENT)
 
 Re-run the canary after any change to `runner_bwrap.go` to confirm the mount layout still blocks.
 
-**Enforcement boundary is the runtime sandbox (Landlock or bubblewrap) + kernel seccomp + userspace resource monitor + IPC peer-cred, not the analyzer.** A plugin that slips a CRITICAL pattern past the analyzer still cannot read `/data` (Landlock denies it / bwrap never mounts it), call a denied syscall, fork-bomb past the PID cap, or invoke gRPC methods it has no permission for. The analyzer is one layer in defense-in-depth, useful to surface obvious malicious code at preview time and reduce the runtime attack surface — not the perimeter.
+**Enforcement boundary is the runtime sandbox (Landlock or bubblewrap) + kernel seccomp + userspace resource monitor + IPC peer-cred, not the analyzer.** A plugin that slips a CRITICAL pattern past the analyzer still cannot read `/data` (Landlock denies it / bwrap never mounts it), call a denied syscall, fork-bomb past the PID cap, or invoke gRPC methods it has no permission for. The analyzer is one layer in defense-in-depth, useful to surface obvious malicious code at preview time and reduce the runtime attack surface - not the perimeter.
 
 ### 4. Cosign signature verification
 
@@ -138,14 +138,14 @@ Applied to `theme.js` at install time. A pattern that matches causes install to 
 The confinement layers that apply across **every** mode (subject to host
 capability):
 
-- **UID separation** (`EVEY_PLUGINS_UID_SEPARATION`, default `auto`) — when
+- **UID separation** (`EVEY_PLUGINS_UID_SEPARATION`, default `auto`) - when
   active, each plugin drops to uid 1001 (`evey-plugin`), distinct from the
   server's uid 1000, via `cap_setuid` on the **launcher** (the server stays
   unprivileged). `auto` enables it only in `basic` mode (no Landlock/bwrap),
   where DAC is the only secret wall; `on` forces it everywhere; `off` disables
   it. When active, `jwt.key` (`0600`) and `/data/{keys,logs,backups}`
   (owner-only) are DAC-unreadable to a uid-1001 plugin even without Landlock.
-- **Kernel seccomp denylist** — installed by `evey-plugin-launcher` per build
+- **Kernel seccomp denylist** - installed by `evey-plugin-launcher` per build
   arch, pre-`execve`, so it constrains **static/compiled plugin binaries too**
   (which never load `libevey-sandbox.so`). Blocks `ptrace`, `mount`, `unshare`,
   `setns`, `bpf`, `kexec`, module load, the setuid family, `capset`, keyring,
@@ -153,20 +153,20 @@ capability):
   children. The `LD_PRELOAD` `libevey-sandbox.so` shim applies the same denylist
   (plus `execve`/`execveat`, so a non-`subprocess` interpreted plugin cannot
   spawn children) to dynamic plugins as belt-and-suspenders.
-- **`-deny-inet`** — for plugins **without** the `network` permission the
+- **`-deny-inet`** - for plugins **without** the `network` permission the
   launcher EPERMs `socket(AF_INET/AF_INET6)` at the kernel: no IP egress, holding
   even on Landlock ABI <4. `AF_UNIX` stays allowed for the HostService gRPC
   socket.
-- **Server `PR_SET_DUMPABLE=0`** — the server marks itself non-dumpable at
+- **Server `PR_SET_DUMPABLE=0`** - the server marks itself non-dumpable at
   startup, so a same-uid plugin cannot read `/proc/<server>/{mem,environ,maps}`
   (the in-memory JWT key, `DB_PASSWORD`, `MEILI_MASTER_KEY`).
-- **Userspace resource monitor** — see below; cgroups are not used.
+- **Userspace resource monitor** - see below; cgroups are not used.
 
 What the **filesystem/network backend** adds depends on the mode:
 
 | Mode | FS confinement | Network | Selected when |
 |---|---|---|---|
-| `landlock` | Landlock LSM allowlist (system dirs ro; plugin dir + sock dir rw; `/data` & siblings denied) | Landlock v4 TCP filter (declared ports only) + `-deny-inet` | `sandbox_mode=landlock` (fails closed if absent); `auto` on a Landlock kernel — the official image's normal case |
+| `landlock` | Landlock LSM allowlist (system dirs ro; plugin dir + sock dir rw; `/data` & siblings denied) | Landlock v4 TCP filter (declared ports only) + `-deny-inet` | `sandbox_mode=landlock` (fails closed if absent); `auto` on a Landlock kernel - the official image's normal case |
 | `bubblewrap` | mount whitelist in unshared namespaces (see below) | `--unshare-net` unless `network` perm | `sandbox_mode=bubblewrap`; `auto` where Landlock is absent but the bwrap probe passes (bare-metal / privileged) |
 | `strict` | same as `bubblewrap` + LD_PRELOAD seccomp | same as `bubblewrap` | `sandbox_mode=strict` |
 | `basic` | none (DAC-only; `auto`'s last resort) | `-deny-inet` only | `sandbox_mode=basic`; `auto` when neither Landlock nor bubblewrap is usable |
@@ -174,7 +174,7 @@ What the **filesystem/network backend** adds depends on the mode:
 `auto` resolves **landlock → bubblewrap → basic** once at first plugin start and
 logs the chosen mode. `basic` is **not** "no isolation": it still applies UID
 separation, the kernel + LD_PRELOAD seccomp, `-deny-inet`, best-effort Landlock,
-and the resource monitor — it only loses *per-path FS confinement* when the
+and the resource monitor - it only loses *per-path FS confinement* when the
 kernel has no Landlock (a plugin can then read non-sensitive world-readable
 files, and `/proc` process *listing* is visible; `/proc/<server>/{mem,environ}`
 stay protected).
@@ -182,12 +182,12 @@ stay protected).
 When `sandbox_mode` is `bubblewrap` or `strict` (opt-in via `evey.yaml`), each plugin process runs inside a bubblewrap namespace with:
 
 **Namespace isolation (5 unshared):**
-- `--unshare-user` — dedicated user namespace, UID mapping
-- `--unshare-pid` — isolated PID namespace
-- `--unshare-uts` — isolated hostname
-- `--unshare-ipc` — isolated IPC
-- `--unshare-cgroup` — isolated cgroup namespace
-- `--unshare-net` — network namespace isolated **unless** the plugin has the `network` permission
+- `--unshare-user` - dedicated user namespace, UID mapping
+- `--unshare-pid` - isolated PID namespace
+- `--unshare-uts` - isolated hostname
+- `--unshare-ipc` - isolated IPC
+- `--unshare-cgroup` - isolated cgroup namespace
+- `--unshare-net` - network namespace isolated **unless** the plugin has the `network` permission
 
 **Mount whitelist:**
 
@@ -201,7 +201,7 @@ The sandbox bind-mounts a **selective allowlist** of read-only system paths need
 | `<plugin_dir>` | Read-write | Plugin's own install directory |
 | `<plugin_sock_dir>` | Read-write | Per-plugin IPC socket directory (re-bound after the `/tmp` tmpfs) |
 | `/proc` | Proc-mount | Required by runtimes |
-| `/dev` | Synthetic (`--dev`) | Minimal device set (null, zero, full, random, urandom, tty, pts) — no physical devices |
+| `/dev` | Synthetic (`--dev`) | Minimal device set (null, zero, full, random, urandom, tty, pts) - no physical devices |
 | `/tmp` | tmpfs | Ephemeral scratch; host `/tmp` is not visible |
 
 Paths **not** mounted: `/data`, `/var`, `/home`, `/root`, `/run`, `/etc/passwd`, `/etc/shadow`, `/etc/ssh`, other plugins' directories.
@@ -212,10 +212,10 @@ Source: `buildBwrapCmd` in `internal/adapters/driven/pluginrunner/runner_bwrap.g
 
 Resource limits are enforced by a userspace sweeper (not cgroups, which are unusable in a non-privileged Docker container). The monitor polls `/proc/<pid>/{statm,status,stat}` every ~2 s and kills the plugin if any cap is exceeded. `nice` is applied at spawn so a plugin never starves the server of CPU.
 
-- Memory cap (RSS, default 256 MiB) — via `/proc/<pid>/statm`
-- PID/thread count cap (default 64) — via `/proc/<pid>/status`
-- CPU priority — via `nice` (default 10)
-- Disk cap (install dir, default 100 MiB) — via recursive `filepath.Walk` every ~30 s
+- Memory cap (RSS, default 256 MiB) - via `/proc/<pid>/statm`
+- PID/thread count cap (default 64) - via `/proc/<pid>/status`
+- CPU priority - via `nice` (default 10)
+- Disk cap (install dir, default 100 MiB) - via recursive `filepath.Walk` every ~30 s
 
 See [ADR-0013](../adr/0013-userspace-plugin-resource-monitor.md) for the rationale behind the cgroups abandonment.
 
@@ -231,17 +231,17 @@ For plugins with the `network` permission, Evey resolves all concrete hostnames 
 
 | Limitation | Impact | V2 plan |
 |---|---|---|
-| Wildcard entries (`*.example.com`) are skipped | Subdomains declared with wildcards are not resolved — plugin effectively has no DNS for them | Enumerate via TLS cert transparency or per-request nftables rules |
-| IP literal bypass | A plugin can `connect()` directly to an IP address — DNS whitelist has no effect | Per-namespace nftables egress filter in V2 |
+| Wildcard entries (`*.example.com`) are skipped | Subdomains declared with wildcards are not resolved - plugin effectively has no DNS for them | Enumerate via TLS cert transparency or per-request nftables rules |
+| IP literal bypass | A plugin can `connect()` directly to an IP address - DNS whitelist has no effect | Per-namespace nftables egress filter in V2 |
 | Custom resolvers | A plugin can call a DNS-over-HTTPS resolver that is itself whitelisted, bypassing `/etc/hosts` | Egress proxy enforcement in V2 |
 | SNI trickery | A plugin can connect to a whitelisted IP and send a different SNI header | TLS inspection or egress proxy in V2 |
-| DNS TTL drift | Hostnames resolved at startup may change IPs — `/etc/hosts` is not refreshed at runtime | Periodic re-resolution or per-request enforcement |
+| DNS TTL drift | Hostnames resolved at startup may change IPs - `/etc/hosts` is not refreshed at runtime | Periodic re-resolution or per-request enforcement |
 
 Source: `internal/adapters/driven/pluginrunner/runner_dns.go`.
 
 ### 9. IPC peer-credential authentication
 
-The host exposes one Unix socket per plugin at `/tmp/evey/plugins/<plugin_id>/host.sock`. Every incoming gRPC call is authenticated by reading the peer's PID via `getsockopt(SO_PEERCRED)` — a value supplied by the kernel that cannot be forged in user space. The PID is compared against the value registered immediately after `cmd.Start`.
+The host exposes one Unix socket per plugin at `/tmp/evey/plugins/<plugin_id>/host.sock`. Every incoming gRPC call is authenticated by reading the peer's PID via `getsockopt(SO_PEERCRED)` - a value supplied by the kernel that cannot be forged in user space. The PID is compared against the value registered immediately after `cmd.Start`.
 
 Effects:
 - A plugin cannot impersonate another plugin: `x-plugin-id` headers are ignored; the identity comes from the socket listener.
@@ -252,20 +252,20 @@ Source: `internal/adapters/driving/pluginhost/`.
 ### 10. Frontend isolation
 
 Plugin frontend modules run inside an `<iframe>` with:
-- `sandbox="allow-scripts"` — no same-origin access, no form submission, no popups
+- `sandbox="allow-scripts"` - no same-origin access, no form submission, no popups
 - CSP `<meta>` tag inside the `srcdoc`: `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src <external_fetch_hosts>; img-src data: blob:; font-src data:`
 - postMessage origin enforced on the host side
 - Bridge rate-limits: `toast` max 3 messages/second, 200 characters, no HTML
 - `navigate` path whitelist: `/admin/*`, `/auth/*`, `/setup/*`, `/profile/security/*` are rejected
-- `resize` clamped: 50–800 px
+- `resize` clamped: 50-800 px
 - Slot whitelist enforced both server-side (install) and client-side (render)
 
 ## Permissions catalog
 
 | Permission | What it grants |
 |---|---|
-| `network` | Plugin may make outbound network connections. **Must** be combined with a non-empty `external_fetch` list — refused at install without it. |
-| `subprocess` | Plugin may spawn child processes. Without it, the LD_PRELOAD seccomp shim blocks `execve`/`execveat` for interpreted plugins. (The launcher's kernel seccomp does not deny `execve` — it must exec the plugin — but any child inherits the kernel filter + the Landlock domain.) |
+| `network` | Plugin may make outbound network connections. **Must** be combined with a non-empty `external_fetch` list - refused at install without it. |
+| `subprocess` | Plugin may spawn child processes. Without it, the LD_PRELOAD seccomp shim blocks `execve`/`execveat` for interpreted plugins. (The launcher's kernel seccomp does not deny `execve` - it must exec the plugin - but any child inherits the kernel filter + the Landlock domain.) |
 | `native-binary` | Plugin may ship `.so`/`.dll`/`.exe`/`.wasm`/`.jar` or embedded archives. Admin sees and must accept the opaque code at install preview. |
 | `filesystem` | Declared intent to access the filesystem beyond the plugin's own directory. Enforced at audit; not yet a hard sandbox rule (see Known limits). |
 | `media.read` | Plugin may call `MediaRead` RPCs: read media file metadata and stream access. |
@@ -313,7 +313,7 @@ Plugins may inject UI only in explicitly allowed slots. Critical paths are inten
 | `settings.user.appearance` | Yes | Appearance section in user settings |
 | `sidebar.bottom` | Yes | Bottom area of the navigation tray |
 
-**Never allowed:** `admin.*`, `login.*`, `setup.*`, `profile.security.*` — these paths are authentication/privilege-critical and plugin injection there is a privilege-escalation or phishing vector.
+**Never allowed:** `admin.*`, `login.*`, `setup.*`, `profile.security.*` - these paths are authentication/privilege-critical and plugin injection there is a privilege-escalation or phishing vector.
 
 Source: `internal/domain/plugin/slots.go`.
 

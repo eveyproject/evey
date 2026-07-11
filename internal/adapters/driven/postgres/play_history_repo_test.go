@@ -211,7 +211,7 @@ func TestPlayHistoryRepo_List_DefaultLimit(t *testing.T) {
 	require.NoError(t, sessionRepo.Create(ctx, newTestPlaySession("phps6a", string(p.ID), string(item.ID))))
 	require.NoError(t, sessionRepo.Create(ctx, newTestPlaySession("phps6b", string(p.ID), string(item.ID))))
 
-	// limit 0 should default to 500 — we just confirm it returns all
+	// limit 0 should default to 500 - we just confirm it returns all
 	entries, err := historyRepo.List(ctx, activity.PlayHistoryFilter{ProfileID: p.ID, Limit: 0})
 	require.NoError(t, err)
 	assert.Len(t, entries, 2)

@@ -215,7 +215,7 @@ message DashboardInfo {
   // Cumulative streaming bytes served since the server started.
   int64 streaming_bytes_total = 9;
   // Theoretical outgoing rate: the summed source bitrate of every active
-  // play session — what the server would push if every client pulled at
+  // play session - what the server would push if every client pulled at
   // full speed.
   int64 active_sessions_bps = 10;
 }

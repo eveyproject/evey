@@ -232,8 +232,8 @@ func TestPref_SubtitleBurnIn_Always(t *testing.T) {
 	assert.Equal(t, "burn", d.SubtitleDecision)
 }
 
-// "always" cannot burn a TEXT subtitle — the ffmpeg overlay only handles image
-// subs — so a selected text sub is delivered as a sidecar (external), NOT burnt
+// "always" cannot burn a TEXT subtitle - the ffmpeg overlay only handles image
+// subs - so a selected text sub is delivered as a sidecar (external), NOT burnt
 // into a needlessly-transcoded video.
 func TestPref_SubtitleBurnIn_Always_SelectedTextIsExternal(t *testing.T) {
 	streams := []*library.MediaStream{

@@ -33,14 +33,14 @@ func TestLoginAttemptRepo_RecordWithoutLock(t *testing.T) {
 	repo := postgres.NewLoginAttemptRepository(db)
 	ctx := context.Background()
 
-	// 4 failures — below maxFails=5, account must not be locked.
+	// 4 failures - below maxFails=5, account must not be locked.
 	for i := 0; i < 4; i++ {
 		require.NoError(t, repo.Record(ctx, "alice", testMaxFails, testWindow))
 	}
 
 	locked, err := repo.IsLocked(ctx, "alice")
 	require.NoError(t, err)
-	assert.False(t, locked, "not locked — threshold not yet reached")
+	assert.False(t, locked, "not locked - threshold not yet reached")
 }
 
 func TestLoginAttemptRepo_RecordLocksAtMaxFails(t *testing.T) {

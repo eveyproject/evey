@@ -168,7 +168,7 @@ func TestSanitizeLogValue_TruncatesLongInputs(t *testing.T) {
 		long[i] = 'x'
 	}
 	got := sanitizeLogValue(string(long))
-	// 256 'x' + ellipsis rune (3 bytes UTF-8) — assert length and suffix.
+	// 256 'x' + ellipsis rune (3 bytes UTF-8) - assert length and suffix.
 	if len(got) > 260 {
 		t.Errorf("expected truncation near 256 bytes, got %d", len(got))
 	}

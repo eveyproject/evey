@@ -27,7 +27,7 @@ function buildContainer(count: number, containerTabIndex?: number) {
 }
 
 describe("useFocusTrap", () => {
-  // Sentinel button placed outside the trap container — used as the
+  // Sentinel button placed outside the trap container - used as the
   // "previously focused" element to verify restore-on-deactivation.
   let sentinel: HTMLButtonElement;
 
@@ -89,7 +89,7 @@ describe("useFocusTrap", () => {
     });
     expect(document.activeElement).toBe(buttons[2]);
 
-    // Dispatch Tab on window — the handler should wrap to first.
+    // Dispatch Tab on window - the handler should wrap to first.
     act(() => {
       const event = new KeyboardEvent("keydown", {
         key: "Tab",
@@ -116,7 +116,7 @@ describe("useFocusTrap", () => {
     // Focus is already on buttons[0] from activation; confirm.
     expect(document.activeElement).toBe(buttons[0]);
 
-    // Dispatch Shift+Tab on window — should wrap to last.
+    // Dispatch Shift+Tab on window - should wrap to last.
     act(() => {
       const event = new KeyboardEvent("keydown", {
         key: "Tab",
@@ -145,10 +145,10 @@ describe("useFocusTrap", () => {
       { initialProps: { active: true } },
     );
 
-    // Trap is now active — focus should have moved into the container.
+    // Trap is now active - focus should have moved into the container.
     expect(document.activeElement).not.toBe(sentinel);
 
-    // Deactivate — should restore focus to sentinel.
+    // Deactivate - should restore focus to sentinel.
     act(() => {
       rerender({ active: false });
     });
@@ -173,7 +173,7 @@ describe("useFocusTrap", () => {
 
     expect(document.activeElement).not.toBe(sentinel);
 
-    // Unmount while still active — cleanup should still restore focus.
+    // Unmount while still active - cleanup should still restore focus.
     act(() => {
       unmount();
     });

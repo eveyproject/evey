@@ -1,6 +1,6 @@
 package transcoding
 
-// Integration tests for aggregateAndUpsert — the SQL feedback loop that
+// Integration tests for aggregateAndUpsert - the SQL feedback loop that
 // writes cap overrides when a source class shows sustained starvation.
 //
 // These tests require a real postgres instance spun up via testcontainers.
@@ -21,7 +21,7 @@ import (
 
 // TestAggregateAndUpsert_EmptyAggregation_NoOverrides confirms that when the
 // repo's aggregation returns no buckets (the fake returns nil), the worker
-// writes no overrides and doesn't error — the unit-level seam reachable without
+// writes no overrides and doesn't error - the unit-level seam reachable without
 // a real database (the SQL itself is integration-tested below).
 func TestAggregateAndUpsert_EmptyAggregation_NoOverrides(t *testing.T) {
 	repo := &fakeCapOverrideRepo{}
@@ -60,7 +60,7 @@ func TestAggregateAndUpsert_StarvedBatch_WritesOverride(t *testing.T) {
 		VALUES ($1, $2, 'movie', '4K HEVC Film', '4k hevc film')`, mediaID, libID)
 	require.NoError(t, err, "insert media_item")
 
-	// A video stream: 4K, HEVC codec — matches the "hevc/2160p" bucket.
+	// A video stream: 4K, HEVC codec - matches the "hevc/2160p" bucket.
 	_, err = db.ExecContext(ctx, `
 		INSERT INTO media_streams (id, media_item_id, stream_index, stream_type, codec, height)
 		VALUES ('ms-caps-vid-1', $1, 0, 'video', 'hevc', 2160)`, mediaID)
@@ -103,7 +103,7 @@ func TestAggregateAndUpsert_StarvedBatch_WritesOverride(t *testing.T) {
 
 // TestAggregateAndUpsert_NonStarvedBatch_NoOverride seeds a 4K H264 source
 // with a batch below the starvation threshold (10 %) and confirms no override
-// row is written — the service must not write caps for healthy source classes.
+// row is written - the service must not write caps for healthy source classes.
 func TestAggregateAndUpsert_NonStarvedBatch_NoOverride(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping postgres integration test under -short")
@@ -228,14 +228,14 @@ func TestAggregateAndUpsert_CodecBuckets_IsolatedPerCodec(t *testing.T) {
 	overrides, err := repo.List(ctx)
 	require.NoError(t, err)
 
-	require.Len(t, overrides, 1, "only one override expected — for hevc/2160p, not h264/2160p")
+	require.Len(t, overrides, 1, "only one override expected - for hevc/2160p, not h264/2160p")
 	assert.Equal(t, "hevc/2160p", overrides[0].SourceClass,
 		"per-codec starvation must not bleed into other codec bucket")
 }
 
 // TestAggregateAndUpsert_BelowMinSamples_NoOverride verifies that a bucket
 // with very high starvation but fewer than MinSamples events is NOT acted
-// upon — too noisy to be reliable.
+// upon - too noisy to be reliable.
 func TestAggregateAndUpsert_BelowMinSamples_NoOverride(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping postgres integration test under -short")
@@ -263,7 +263,7 @@ func TestAggregateAndUpsert_BelowMinSamples_NoOverride(t *testing.T) {
 		VALUES ('ms-noisy-vid', $1, 0, 'video', 'hevc', 2160)`, mediaID)
 	require.NoError(t, err)
 
-	// Only 10 events, all starved (100 % > threshold) — but 10 < MinSamples=50.
+	// Only 10 events, all starved (100 % > threshold) - but 10 < MinSamples=50.
 	for range 10 {
 		_, err = db.ExecContext(ctx, `
 			INSERT INTO playback_qoe_events (media_item_id, buffer_starved, ts)

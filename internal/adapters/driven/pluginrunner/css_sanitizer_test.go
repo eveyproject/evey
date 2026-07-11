@@ -280,7 +280,7 @@ func TestSanitizeCSS_LargeCSS(t *testing.T) {
 }
 
 func TestSanitizeCSS_UnicodeEscapeBypass(t *testing.T) {
-	// \75\72\6c is "url" in CSS unicode escapes — regex-based sanitizer
+	// \75\72\6c is "url" in CSS unicode escapes - regex-based sanitizer
 	// won't catch this; document as known limitation
 	input := []byte(`div { background: \75\72\6c(https://evil.com/img.png); }`)
 	_, _ = SanitizeCSS(input)
@@ -477,7 +477,7 @@ func TestSanitizeCSS_FullScreenOverlay_StickyBlocked(t *testing.T) {
 }
 
 func TestSanitizeCSS_FullScreenOverlay_PartialNotBlocked(t *testing.T) {
-	// position:fixed + only width:100vw, no offset side — only 1 signal, NOT a full overlay
+	// position:fixed + only width:100vw, no offset side - only 1 signal, NOT a full overlay
 	input := []byte(`.banner { position: fixed; width: 100vw; }`)
 	out, warns := SanitizeCSS(input)
 	if !containsString(out, "position: fixed") {
@@ -587,7 +587,7 @@ func TestSanitizeCSS_AllNewRulesPass_SafeCSS(t *testing.T) {
 // ---- M1: broadened overlay filter tests ----
 
 func TestSanitizeCSS_OverlayM1_TopPxBlocked(t *testing.T) {
-	// top:0px (with unit) + position:fixed + full viewport — must be detected
+	// top:0px (with unit) + position:fixed + full viewport - must be detected
 	input := []byte(`.phish { position: fixed; top: 0px; left: 0px; width: 100vw; height: 100vh; }`)
 	out, warns := SanitizeCSS(input)
 	if containsString(out, "position: fixed") {
@@ -599,7 +599,7 @@ func TestSanitizeCSS_OverlayM1_TopPxBlocked(t *testing.T) {
 }
 
 func TestSanitizeCSS_OverlayM1_RightBottomBlocked(t *testing.T) {
-	// right:0 + bottom:0 + position:fixed + full-width — must be detected
+	// right:0 + bottom:0 + position:fixed + full-width - must be detected
 	input := []byte(`.phish { position: fixed; right: 0; bottom: 0; width: 100vw; height: 100vh; }`)
 	out, warns := SanitizeCSS(input)
 	if containsString(out, "position: fixed") {
@@ -611,7 +611,7 @@ func TestSanitizeCSS_OverlayM1_RightBottomBlocked(t *testing.T) {
 }
 
 func TestSanitizeCSS_OverlayM1_InsetShorthandBlocked(t *testing.T) {
-	// inset:0 shorthand + position:fixed — must be detected as overlay
+	// inset:0 shorthand + position:fixed - must be detected as overlay
 	input := []byte(`.phish { position: fixed; inset: 0; width: 100vw; }`)
 	out, warns := SanitizeCSS(input)
 	if containsString(out, "position: fixed") {
@@ -623,7 +623,7 @@ func TestSanitizeCSS_OverlayM1_InsetShorthandBlocked(t *testing.T) {
 }
 
 func TestSanitizeCSS_OverlayM1_InsetMultiValueBlocked(t *testing.T) {
-	// inset: 0 0 0 0 + position:fixed — must be detected as overlay
+	// inset: 0 0 0 0 + position:fixed - must be detected as overlay
 	input := []byte(`.phish { position: fixed; inset: 0 0 0 0; }`)
 	out, warns := SanitizeCSS(input)
 	if containsString(out, "position: fixed") {
@@ -635,7 +635,7 @@ func TestSanitizeCSS_OverlayM1_InsetMultiValueBlocked(t *testing.T) {
 }
 
 func TestSanitizeCSS_OverlayM1_MarginTopNotMisclassified(t *testing.T) {
-	// margin-top:0 must NOT be treated as a zero-offset side — no false positive
+	// margin-top:0 must NOT be treated as a zero-offset side - no false positive
 	input := []byte(`.header { position: fixed; width: 100vw; margin-top: 0; }`)
 	out, warns := SanitizeCSS(input)
 	// Only 1 real overlay signal (width:100vw), no zero-side offset → NOT removed
@@ -645,7 +645,7 @@ func TestSanitizeCSS_OverlayM1_MarginTopNotMisclassified(t *testing.T) {
 }
 
 func TestSanitizeCSS_OverlayM1_ZeroRemBlocked(t *testing.T) {
-	// top:0rem is a zero offset — must be detected
+	// top:0rem is a zero offset - must be detected
 	input := []byte(`.phish { position: fixed; top: 0rem; left: 0rem; width: 100vw; height: 100vh; }`)
 	out, warns := SanitizeCSS(input)
 	if containsString(out, "position: fixed") {
@@ -659,7 +659,7 @@ func TestSanitizeCSS_OverlayM1_ZeroRemBlocked(t *testing.T) {
 // ---- M2: CSS escape decode tests ----
 
 func TestSanitizeCSS_EscapeBypass_ExternalURLColon(t *testing.T) {
-	// \3a is the CSS hex escape for ':' — url(https\3a //evil.com) must be detected
+	// \3a is the CSS hex escape for ':' - url(https\3a //evil.com) must be detected
 	input := []byte(`div { background: url(https\3a //evil.com/beacon); }`)
 	out, warns := SanitizeCSS(input)
 	if containsString(out, "evil.com") {
@@ -671,7 +671,7 @@ func TestSanitizeCSS_EscapeBypass_ExternalURLColon(t *testing.T) {
 }
 
 func TestSanitizeCSS_EscapeBypass_ExpressionKeyword(t *testing.T) {
-	// \65 is 'e' — expr\65 ssion(...) must be detected and stripped
+	// \65 is 'e' - expr\65 ssion(...) must be detected and stripped
 	input := []byte(`div { width: expr\65 ssion(document.body.clientWidth); }`)
 	out, warns := SanitizeCSS(input)
 	if containsString(out, "expr") {
@@ -695,7 +695,7 @@ func TestSanitizeCSS_EscapeBypass_LocalURLPreserved(t *testing.T) {
 }
 
 func TestSanitizeCSS_EscapeBypass_SimpleEscapeInIdentifier(t *testing.T) {
-	// \61 = 'a', so \61 dmin-panel = admin-panel — sensitive selector bypass via escape
+	// \61 = 'a', so \61 dmin-panel = admin-panel - sensitive selector bypass via escape
 	input := []byte(`.\61 dmin-panel { display: none; }`)
 	out, warns := SanitizeCSS(input)
 	if containsString(out, "display: none") {

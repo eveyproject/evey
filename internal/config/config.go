@@ -20,7 +20,7 @@ import (
 // treat as opaque and skip validation for.
 func validateCosignPublicKey(pathOrRef string) error {
 	if strings.Contains(pathOrRef, "://") {
-		// remote KMS reference — cosign resolves at verify time.
+		// remote KMS reference - cosign resolves at verify time.
 		return nil
 	}
 	data, err := os.ReadFile(pathOrRef)
@@ -75,7 +75,7 @@ type PluginsConfig struct {
 	// SandboxMode controls the isolation level applied to plugin processes.
 	// Valid values:
 	//   "auto"       detect the strongest isolation the host supports at boot
-	//                (landlock > bubblewrap > basic) — recommended, works OOTB.
+	//                (landlock > bubblewrap > basic) - recommended, works OOTB.
 	//   "landlock"   Landlock LSM filesystem allowlist; no mount/unshare, so it
 	//                runs under Docker's default seccomp+AppArmor. Fail-closed.
 	//   "bubblewrap" bwrap namespace isolation (needs the mount syscall, so it
@@ -90,15 +90,15 @@ type PluginsConfig struct {
 	// monitor (cgroups are unusable in a non-privileged Docker container, so a
 	// background sweeper polls /proc and stops a plugin that exceeds its caps).
 	// Zero values use the runner package defaults (256 MiB, 64 PIDs).
-	// EVEY_PLUGINS_MEMORY_MB — max RSS in MiB, default 256.
+	// EVEY_PLUGINS_MEMORY_MB - max RSS in MiB, default 256.
 	MemoryMB int64
-	// EVEY_PLUGINS_CPU_NICE — nice value (0-19) applied to each plugin process at
+	// EVEY_PLUGINS_CPU_NICE - nice value (0-19) applied to each plugin process at
 	// spawn so it can never starve the server of CPU under contention, default 10.
 	// 0 leaves the OS-default priority untouched.
 	CPUNice int
-	// EVEY_PLUGINS_PIDS_MAX — max process/thread count per plugin, default 64.
+	// EVEY_PLUGINS_PIDS_MAX - max process/thread count per plugin, default 64.
 	PIDsMax int
-	// EVEY_PLUGINS_DISK_MAX_MB — max install-directory size per plugin in MiB,
+	// EVEY_PLUGINS_DISK_MAX_MB - max install-directory size per plugin in MiB,
 	// default 100. The runner measures the dir and stops a plugin that grows past
 	// this. 0 disables the check.
 	DiskMaxMB int
@@ -107,18 +107,18 @@ type PluginsConfig struct {
 	// uid (1001), distinct from the server's, so plain DAC keeps the server's
 	// 0600 secrets (jwt.key, backups) unreadable to plugins on a host without
 	// Landlock. Values:
-	//   "auto" (default) — enable only when the sandbox resolves to "basic"
+	//   "auto" (default) - enable only when the sandbox resolves to "basic"
 	//                      (neither Landlock nor bubblewrap isolates the FS);
 	//                      skipped under landlock/bubblewrap where it's redundant.
-	//   "on"             — always attempt it.
-	//   "off"            — never.
+	//   "on"             - always attempt it.
+	//   "off"            - never.
 	// Best-effort: where the launcher can't setuid (no cap_setuid file capability,
 	// or no-new-privileges) the plugin runs same-uid with a loud warning instead
 	// of failing closed. EVEY_PLUGINS_UID_SEPARATION
 	UIDSeparation string
 
 	// CosignPolicy controls whether plugin ZIPs must carry a cosign signature.
-	// Values: "off" (no verification), "warn" (default — install proceeds but
+	// Values: "off" (no verification), "warn" (default - install proceeds but
 	// unsigned/invalid plugins surface a finding in the security dashboard),
 	// "enforce" (block install when signature is missing or invalid).
 	// EVEY_PLUGINS_COSIGN_POLICY
@@ -140,7 +140,7 @@ type MetadataConfig struct {
 
 	// IntroProvidersEnabled wires external segment providers (TIDB +
 	// IntroDB) ahead of the in-house intro detection pipeline. Off by
-	// default — outbound HTTP is opt-in, the user must consent.
+	// default - outbound HTTP is opt-in, the user must consent.
 	// EVEY_INTRO_PROVIDERS_ENABLED
 	IntroProvidersEnabled bool
 
@@ -151,7 +151,7 @@ type MetadataConfig struct {
 	TIDBAPIKey string
 
 	// SkipPreviewEnabled controls whether "preview" (next-episode preview
-	// reel) segments are served to the player. Off by default — the admin
+	// reel) segments are served to the player. Off by default - the admin
 	// opts in from the panel. Read live per request by the segments handler,
 	// so a change takes effect without a restart.
 	// EVEY_INTRO_SKIP_PREVIEW_ENABLED
@@ -231,7 +231,7 @@ type DBConfig struct {
 }
 
 func (c DBConfig) DSN() string {
-	// libpq keyword/value format — values containing spaces, quotes or
+	// libpq keyword/value format - values containing spaces, quotes or
 	// backslashes are wrapped in single quotes with ' and \ escaped.
 	// Without this, a password like `p@ss 'foo` silently breaks the DSN.
 	return fmt.Sprintf(
@@ -334,13 +334,13 @@ type TranscodingConfig struct {
 	// value). EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT / _SOFTWARE_HDR_MAX_HEIGHT.
 	// For an operator to empirically push a higher HDR rung on a host where the
 	// calibrated cap (1.2x realtime margin, and decode-bound on 4K HEVC10) pinned
-	// it too low — e.g. set _SOFTWARE_HDR_MAX_HEIGHT=720 to try 720p HDR. The
+	// it too low - e.g. set _SOFTWARE_HDR_MAX_HEIGHT=720 to try 720p HDR. The
 	// runtime throttle + input pacing still protect a host that overshoots.
 	SoftwareMaxHeightOverride    int
 	SoftwareHDRMaxHeightOverride int
 	// SoftwareAV1MaxHeightOverride forces the AV1 software ceiling (0 = use the
 	// calibrated value; AV1 stays hardware-only when the bench found it non-viable).
-	// Unlike the two above this is NOT an env knob — it is admin-settable from the
+	// Unlike the two above this is NOT an env knob - it is admin-settable from the
 	// server-config panel (persisted under transcoding.software_av1_max_height,
 	// loaded at boot via loadOverride and applied live by CalibrationService).
 	SoftwareAV1MaxHeightOverride int
@@ -358,7 +358,7 @@ type TranscodingConfig struct {
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
 	// language without re-fetching the video stream. Off by default
-	// during the rollout — flip to true to opt in. When off, the
+	// during the rollout - flip to true to opt in. When off, the
 	// pipeline stays muxed audio+video as before (backward compatible).
 	AudioRenditionEnabled bool
 
@@ -386,7 +386,7 @@ type OIDCConfig struct {
 	ClientID            string
 	ClientSecret        string
 	RedirectURL         string
-	AllowedEmailDomains []string // EVEY_OIDC_ALLOWED_EMAIL_DOMAINS — comma-separated; empty = allow all
+	AllowedEmailDomains []string // EVEY_OIDC_ALLOWED_EMAIL_DOMAINS - comma-separated; empty = allow all
 }
 
 type MetricsConfig struct {
@@ -395,7 +395,7 @@ type MetricsConfig struct {
 	// ScrapeToken, when set, is an alternate static bearer accepted on the
 	// GET /metrics endpoint in addition to the admin JWT. Lets a Prometheus
 	// or Grafana datasource scrape without refreshing a ~15-min JWT every
-	// scrape interval. Empty (the default) disables this path — only the
+	// scrape interval. Empty (the default) disables this path - only the
 	// admin JWT is then accepted. Rotate by changing the env + restart.
 	ScrapeToken string
 }
@@ -492,27 +492,27 @@ func (c *Config) WarnValidate() error {
 	}
 
 	if c.DB.Password == "evey" {
-		hardFail("EVEY_DB_PASSWORD is the default 'evey' — set a strong database password")
+		hardFail("EVEY_DB_PASSWORD is the default 'evey' - set a strong database password")
 	}
 
 	if c.DB.SSLMode == "prefer" && !isLoopbackHost(c.DB.Host) {
-		slog.Warn("EVEY_DB_SSLMODE=prefer against a non-loopback host — use 'require' or 'verify-full' in production",
+		slog.Warn("EVEY_DB_SSLMODE=prefer against a non-loopback host - use 'require' or 'verify-full' in production",
 			slog.String("host", c.DB.Host))
 	}
 
 	k := c.Meilisearch.APIKey
 	if k == "" || k == "changeme" || k == "change-me-generate-a-random-secret" {
-		hardFail("MEILI_MASTER_KEY is empty or default — set a strong secret (>= 16 chars)")
+		hardFail("MEILI_MASTER_KEY is empty or default - set a strong secret (>= 16 chars)")
 	} else if len(k) < 16 {
-		slog.Warn("meilisearch API key is shorter than 16 chars — use a longer secret")
+		slog.Warn("meilisearch API key is shorter than 16 chars - use a longer secret")
 	}
 
 	if (c.VAPID.PublicKey == "") != (c.VAPID.PrivateKey == "") {
-		slog.Warn("VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must both be set or both empty — web push will be disabled")
+		slog.Warn("VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY must both be set or both empty - web push will be disabled")
 	}
 
 	if c.OIDC.Enabled && c.OIDC.Issuer != "" && c.OIDC.ClientSecret == "" {
-		slog.Warn("OIDC enabled but client secret is empty — set EVEY_OIDC_CLIENT_SECRET")
+		slog.Warn("OIDC enabled but client secret is empty - set EVEY_OIDC_CLIENT_SECRET")
 	}
 
 	switch c.Plugins.SandboxMode {
@@ -523,7 +523,7 @@ func (c *Config) WarnValidate() error {
 	}
 	if c.Plugins.SandboxMode == "bubblewrap" || c.Plugins.SandboxMode == "strict" {
 		if _, err := exec.LookPath("bwrap"); err != nil {
-			slog.Warn("cfg.Plugins.SandboxMode requires bwrap but binary not found in $PATH — plugin runner may fail at runtime",
+			slog.Warn("cfg.Plugins.SandboxMode requires bwrap but binary not found in $PATH - plugin runner may fail at runtime",
 				slog.String("sandbox_mode", c.Plugins.SandboxMode))
 		}
 	}
@@ -546,13 +546,13 @@ func (c *Config) WarnValidate() error {
 				// degrades to a no-op (see CosignVerifier.VerifySignature) and
 				// EVERY plugin install passes unverified while the admin believes
 				// signatures are mandatory. That is strictly worse than policy=off
-				// (which is at least honest). Fail closed — refuse to start rather
+				// (which is at least honest). Fail closed - refuse to start rather
 				// than pretend to enforce.
-				errs = append(errs, "cfg.Plugins.CosignPublicKey: required when CosignPolicy=enforce (enforce without a public key silently disables verification — set the key or use policy=warn/off)")
+				errs = append(errs, "cfg.Plugins.CosignPublicKey: required when CosignPolicy=enforce (enforce without a public key silently disables verification - set the key or use policy=warn/off)")
 			} else {
 				// warn is best-effort by design; without a key the verifier is a
 				// no-op. Flag it so admins know they're not verifying anything.
-				slog.Warn("EVEY_PLUGINS_COSIGN_POLICY is non-off but EVEY_PLUGINS_COSIGN_PUBLIC_KEY is unset — signature verification is disabled. Set the public key to enable, or set policy=off to silence.",
+				slog.Warn("EVEY_PLUGINS_COSIGN_POLICY is non-off but EVEY_PLUGINS_COSIGN_PUBLIC_KEY is unset - signature verification is disabled. Set the public key to enable, or set policy=off to silence.",
 					slog.String("policy", c.Plugins.CosignPolicy))
 			}
 		} else {
@@ -606,12 +606,12 @@ func Load() (*Config, error) {
 			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", true),
 		},
 		DB: DBConfig{
-			Host:         envStr("EVEY_DB_HOST", "localhost"),
-			Port:         envInt("EVEY_DB_PORT", 5432),
-			User:         envStr("EVEY_DB_USER", "evey"),
-			Password:     envStr("EVEY_DB_PASSWORD", "evey"),
-			DBName:       envStr("EVEY_DB_NAME", "evey"),
-			SSLMode:      envStr("EVEY_DB_SSLMODE", "prefer"),
+			Host:     envStr("EVEY_DB_HOST", "localhost"),
+			Port:     envInt("EVEY_DB_PORT", 5432),
+			User:     envStr("EVEY_DB_USER", "evey"),
+			Password: envStr("EVEY_DB_PASSWORD", "evey"),
+			DBName:   envStr("EVEY_DB_NAME", "evey"),
+			SSLMode:  envStr("EVEY_DB_SSLMODE", "prefer"),
 			// Defaults sized for the weak-NAS target (Celeron, 2-4 GB): 50 open
 			// Postgres connections there cost ~250-500 MB of backend RAM for little
 			// gain on a low-concurrency media server. 25/10 halves that footprint

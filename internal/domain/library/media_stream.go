@@ -35,7 +35,7 @@ func (t StreamType) String() string { return string(t) }
 
 // IsValidStrict reports whether t is one of the four recognised stream types
 // (video, audio, subtitle, attachment). Unlike the legacy IsValid (kept in
-// model.go for backward compat), this also accepts "attachment" — the value
+// model.go for backward compat), this also accepts "attachment" - the value
 // the ffmpeg prober assigns to fonts and unknown codec types.
 //
 // Empty string is rejected: the prober never emits it (codecTypeToStreamType
@@ -51,7 +51,7 @@ func (t StreamType) IsValidStrict() bool {
 
 // ErrInvalidStreamType signals a MediaStream whose StreamType is not one of
 // the four valid values. Surfaced from Validate() so the postgres adapter
-// can reject the row before it hits the database — a defense-in-depth net
+// can reject the row before it hits the database - a defense-in-depth net
 // against future call sites bypassing codecTypeToStreamType.
 var ErrInvalidStreamType = fmt.Errorf("media stream: invalid StreamType")
 

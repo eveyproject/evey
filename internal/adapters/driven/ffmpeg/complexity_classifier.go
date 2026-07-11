@@ -16,7 +16,7 @@ import (
 // ComplexityClassifier samples a media file with ffmpeg to extract the
 // metrics the per-title classifier consumes (motion mean, scenecut count,
 // source bitrate / resolution). Runs as 8 small seek-and-decode bursts of
-// ~1 s each — the single-pass select-filter approach OOM-killed on long
+// ~1 s each - the single-pass select-filter approach OOM-killed on long
 // 4K HDR files (commit f69a4a82f). Total wall-clock budget per file is
 // 60 s; per burst is 15 s. Designed for an idle background worker, never
 // on the playback hot path.
@@ -71,7 +71,7 @@ func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, du
 	// and we need this even when the frame sample fails.
 	bitrateKbps, w, h, err := c.probeSource(ctx, filePath)
 	if err != nil {
-		// Don't fail the whole classification on a probe error — the
+		// Don't fail the whole classification on a probe error - the
 		// metrics struct still carries useful YDEV / scenecut info from
 		// the sample pass below, and the worker can store a partial row.
 		// Logging happens at the caller's slog scope.
@@ -83,7 +83,7 @@ func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, du
 
 	// Per-frame YDEV / scenecut signals are nice-to-have but the original
 	// single-pass `select=not(mod(n,X))` pipeline forced ffmpeg to decode
-	// every input frame to compute mod() — 4K HDR sources OOM-killed
+	// every input frame to compute mod() - 4K HDR sources OOM-killed
 	// inside 90s on the dev box. Replace with a small number of seek-and-
 	// sample short bursts: each ffmpeg invocation hits ~1 second of video
 	// at a calibrated position, runs signalstats on the few decoded
@@ -102,7 +102,7 @@ func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, du
 	if sample > 16 {
 		sample = 16
 	}
-	// Don't sample inside the first / last 5 % of the file — opening
+	// Don't sample inside the first / last 5 % of the file - opening
 	// credits and end credits skew the metrics in unhelpful ways.
 	startSec := durationSec * 0.05
 	endSec := durationSec * 0.95
@@ -157,7 +157,7 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 	defer cancel()
 	// Background sampler: throttle like the other off-path ffmpeg probes
 	// (trickplay, intro detection) so a classification burst can't preempt a
-	// live software transcode on a weak NAS — the very starvation the QoE
+	// live software transcode on a weak NAS - the very starvation the QoE
 	// pipeline measures. nice -n 19 + a bounded decode thread count.
 	cmd := exec.CommandContext(ctx, "nice", "-n", "19", c.ffmpegBin,
 		"-hide_banner", "-nostats",
@@ -167,7 +167,7 @@ func (c *ComplexityClassifier) sampleAt(parent context.Context, filePath string,
 		"-t", "1",
 		// signalstats → YDIF (motion proxy), scdet → scd.score (scene-change
 		// score on every frame). Both share the decoded-frame stream so the
-		// added cost is filter-arithmetic only, not extra decoding —
+		// added cost is filter-arithmetic only, not extra decoding -
 		// compatible with the 8-burst OOM budget. The previous filtergraph
 		// used `select='gt(scene,0.3)'` which forced re-decoding scene-only
 		// and was removed for OOM (f69a4a82f), but never updated the regex
@@ -239,8 +239,8 @@ func (c *ComplexityClassifier) probeSource(ctx context.Context, filePath string)
 // 0.3 here to match the typical scdet default).
 //
 // The original implementation grepped YDEV (never emitted by signalstats
-// — only YDIF/YAVG/YMIN/YHIGH/YMAX exist) and lavfi.scd.score without the
-// scdet filter chained in — both regexes silently matched zero, so the
+// - only YDIF/YAVG/YMIN/YHIGH/YMAX exist) and lavfi.scd.score without the
+// scdet filter chained in - both regexes silently matched zero, so the
 // motion mean and scenecut count both stayed at 0 on every classify.
 // Fixed in two passes: regex switch to YDIF, then filtergraph addition
 // of scdet so the scd.score regex actually has input to match.

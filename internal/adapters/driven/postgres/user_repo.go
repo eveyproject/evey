@@ -254,7 +254,7 @@ func (r *UserRepository) withLastAdminGuard(ctx context.Context, span trace.Span
 		}
 	}()
 
-	// Held until commit/rollback — serialises every guarded admin mutation.
+	// Held until commit/rollback - serialises every guarded admin mutation.
 	if _, lockErr := tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, lastAdminGuardKey); lockErr != nil {
 		span.RecordError(lockErr)
 		return fmt.Errorf("last-admin guard: lock: %w", lockErr)

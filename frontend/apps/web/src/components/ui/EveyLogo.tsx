@@ -6,7 +6,7 @@ import { useId } from "react";
 
 const RED = "#DC2626";
 
-/** Full "EVEY" wordmark — letters inherit currentColor, the V is brand red. */
+/** Full "EVEY" wordmark - letters inherit currentColor, the V is brand red. */
 export function EveyWordmark({ height = 26, className }: { height?: number; className?: string }) {
   const cut = useId();
   return (
@@ -33,7 +33,7 @@ export function EveyWordmark({ height = 26, className }: { height?: number; clas
   );
 }
 
-/** Compact mark — the brand red V with the signature horizontal bar cut. */
+/** Compact mark - the brand red V with the signature horizontal bar cut. */
 export function EveyMark({ height = 28, className }: { height?: number; className?: string }) {
   const cut = useId();
   return (

@@ -14,16 +14,16 @@ func TestParseSoftwareThreads(t *testing.T) {
 		raw  string
 		want int
 	}{
-		{"", 0},        // unset → no cap
-		{"0", 0},       // <1 → no cap
-		{"-3", 0},      // negative → no cap
-		{"abc", 0},     // non-numeric → no cap
-		{"2.5", 0},     // non-integer → no cap
-		{"65", 0},      // above ceiling → no cap
-		{"1", 1},       // boundary
-		{"2", 2},       // typical weak-NAS value
-		{"64", 64},     // boundary ceiling
-		{" 4 ", 0},     // surrounding space is not trimmed (Atoi fails) → no cap
+		{"", 0},    // unset → no cap
+		{"0", 0},   // <1 → no cap
+		{"-3", 0},  // negative → no cap
+		{"abc", 0}, // non-numeric → no cap
+		{"2.5", 0}, // non-integer → no cap
+		{"65", 0},  // above ceiling → no cap
+		{"1", 1},   // boundary
+		{"2", 2},   // typical weak-NAS value
+		{"64", 64}, // boundary ceiling
+		{" 4 ", 0}, // surrounding space is not trimmed (Atoi fails) → no cap
 	}
 	for _, c := range cases {
 		if got := parseSoftwareThreads(c.raw); got != c.want {

@@ -19,18 +19,18 @@ type PluginLastError struct {
 
 // SignatureStatus describes the cosign verification result for a plugin.
 type SignatureStatus struct {
-	Verified  bool   `json:"verified"`
+	Verified   bool   `json:"verified"`
 	VerifiedBy string `json:"verifiedBy,omitempty"` // key identifier / issuer
-	Error     string `json:"error,omitempty"`
+	Error      string `json:"error,omitempty"`
 }
 
 // PluginSecuritySnapshot aggregates all security-relevant data for one plugin.
 type PluginSecuritySnapshot struct {
-	ID            string           `json:"id"`
-	Name          string           `json:"name"`
-	Version       string           `json:"version"`
-	SandboxMode   string           `json:"sandboxMode"`
-	Permissions   []string         `json:"permissions"`
+	ID            string            `json:"id"`
+	Name          string            `json:"name"`
+	Version       string            `json:"version"`
+	SandboxMode   string            `json:"sandboxMode"`
+	Permissions   []string          `json:"permissions"`
 	Findings      []SecurityFinding `json:"findings"`
 	LastError     *PluginLastError  `json:"lastError,omitempty"`
 	Signature     *SignatureStatus  `json:"signature,omitempty"`

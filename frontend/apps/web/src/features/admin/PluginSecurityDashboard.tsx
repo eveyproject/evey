@@ -56,7 +56,7 @@ function sandboxBadgeVariant(mode: string): "success" | "warning" | "default" {
 
 // Host-level sandbox summary: which isolation is actually in force (the runner
 // resolves "auto"), with the probe results explaining a degradation to basic.
-// Shown even with zero plugins installed — that's exactly when an admin should
+// Shown even with zero plugins installed - that's exactly when an admin should
 // learn their host can't isolate plugins.
 function SandboxStatusCard({ sandbox }: { sandbox: SandboxStatus }) {
   const { t } = useTranslation();

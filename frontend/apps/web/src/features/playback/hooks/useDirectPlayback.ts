@@ -16,7 +16,7 @@ interface HTMLVideoElementWithAudioTracks extends HTMLVideoElement {
 }
 
 // Progressive direct-play only. The HLS pipeline (transcode AND direct_stream
-// container remux) lives entirely in useTranscodePlayback — this hook just
+// container remux) lives entirely in useTranscodePlayback - this hook just
 // points the <video> element at the original file's URL and handles token
 // refresh / fallback-to-transcode on error.
 interface UseDirectPlaybackArgs {
@@ -64,7 +64,7 @@ export function useDirectPlayback({
       video.currentTime = startPositionMs / 1000;
       video.play().catch((err) => console.warn("video.play failed", err));
     } else {
-      // Server said DIRECT_PLAY but provided no URL — fall back to transcode
+      // Server said DIRECT_PLAY but provided no URL - fall back to transcode
       // rather than leaving the <video> unloaded with no visible error.
       setTranscodeMode(true);
       return;
@@ -89,7 +89,7 @@ export function useDirectPlayback({
       if (import.meta.env.DEV) console.warn("[player] direct play error:", e.code, e.message);
       // The most common error after a long pause is a 401 from the stream token
       // expiring (5-min sliding TTL). The HTML5 video element exposes only a
-      // generic MediaError, so we can't read the HTTP status — but we can try
+      // generic MediaError, so we can't read the HTTP status - but we can try
       // refreshing the token and retrying the same URL once before falling
       // back to a transcode mode switch (which is heavier and re-encodes from
       // the current position).

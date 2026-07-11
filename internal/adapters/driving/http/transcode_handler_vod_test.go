@@ -86,7 +86,7 @@ func testMediaItemNoDuration() *domainlibrary.MediaItem {
 
 // buildVODHandler builds an hlsVODServe with real ManifestGenerator + a
 // real SegmentCache wired to tmpDir. The orchestrator uses fakes.HLSProcess
-// so EnsureSegmentRange really calls through (no ffmpeg spawned — the fake
+// so EnsureSegmentRange really calls through (no ffmpeg spawned - the fake
 // writes .m3u8 files but no segments unless we pre-seed them).
 func buildVODHandler(t *testing.T, libSvc MediaStreamsGetter, libAccess LibraryAccessChecker, parental ParentalChecker) (*hlsVODServe, string) {
 	t.Helper()
@@ -183,14 +183,14 @@ func TestHLSVOD_Routing_SegmentTS_CacheMissSpawnsOrchestrator(t *testing.T) {
 	)
 	h.segmentWaitTimeout = 50 * time.Millisecond // keep test fast
 	// seg=5 is in range for a 60s/20-segment media (a deep out-of-range index is
-	// 404'd by the duration clamp before any spawn — see the OutOfRange test).
+	// 404'd by the duration clamp before any spawn - see the OutOfRange test).
 	w := doVODRequest(h, "m1", "stream_0_005.ts")
-	// seg=5, isInit=false — reaches serveSegment, EnsureSegmentRange, then Wait
+	// seg=5, isInit=false - reaches serveSegment, EnsureSegmentRange, then Wait
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code, "cache miss should 503 after timeout")
 }
 
 // A forged deep segment index (past the media duration) is rejected with 404
-// BEFORE EnsureSegmentRange spawns an ffmpeg -ss far past the end — the duration
+// BEFORE EnsureSegmentRange spawns an ffmpeg -ss far past the end - the duration
 // clamp that guards the transcode path (copy already bounds via the plan).
 func TestHLSVOD_Segment_OutOfRange_404(t *testing.T) {
 	dur, _ := shared.NewDurationMs(60_000) // 60s → ~20 segments
@@ -212,7 +212,7 @@ func TestHLSVOD_Segment_OutOfRange_404(t *testing.T) {
 // Regression (prod: a series episode, user the owner stalled at 46:43): a COPY rung
 // cuts on source keyframes, which are routinely SHORTER than the transcode grid,
 // so it lists MORE segments than ceil(dur/grid). The forged-index guard used a
-// grid bound and false-404'd every copy segment past ceil(dur/grid) — the tail of
+// grid bound and false-404'd every copy segment past ceil(dur/grid) - the tail of
 // the file. The guard must SKIP copy requests; they range-check a forged index
 // cheaply downstream via the plan's len(segs), with no ffmpeg -ss spawn.
 func TestHLSVOD_Segment_CopyRung_DeepIndexNotFalse404(t *testing.T) {
@@ -238,7 +238,7 @@ func TestHLSVOD_Segment_CopyRung_DeepIndexNotFalse404(t *testing.T) {
 	h.copyProducer = copyProd
 	h.segmentWaitTimeout = 50 * time.Millisecond
 
-	// Deep index far past the 20-segment transcode grid — a legitimate copy tail
+	// Deep index far past the 20-segment transcode grid - a legitimate copy tail
 	// segment. Old code: 404 "segment index out of range". Fixed: guard skipped, so
 	// the request reaches the producer and 503s on the (empty) cache instead.
 	req := httptest.NewRequest(http.MethodGet,
@@ -688,7 +688,7 @@ func TestHLSVOD_Routing_InitSegment(t *testing.T) {
 	)
 	h.segmentWaitTimeout = 50 * time.Millisecond
 	w := doVODRequest(h, "m1", "stream_0_init.mp4")
-	// isInit=true — also reaches serveSegment → EnsureSegmentRange(0) → Wait → 503
+	// isInit=true - also reaches serveSegment → EnsureSegmentRange(0) → Wait → 503
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code, "init segment cache miss should 503")
 }
 
@@ -773,7 +773,7 @@ func TestHLSVOD_MasterPlaylist_ContainsEXTM3UAndTwoStreamINF(t *testing.T) {
 	body := w.Body.String()
 	assert.Contains(t, body, "#EXTM3U")
 	// profilesForDecision returns LadderFilmNormal (4 rungs) when the item
-	// has no complexity_class persisted — which is the case for the test
+	// has no complexity_class persisted - which is the case for the test
 	// fixture (no ComplexityRepo wired). CapLadderToSource may further
 	// trim down if the source dimensions are smaller, but the fixture
 	// doesn't expose any video stream so capping is a no-op.
@@ -852,7 +852,7 @@ func TestHLSVOD_Segment_CacheHit_200(t *testing.T) {
 
 	// Compute the DecisionFingerprint the handler will produce for m1 with
 	// default settings so we can pre-place the segment at the right path.
-	// fMP4 is now the project default — the handler requests stream_0_000.m4s,
+	// fMP4 is now the project default - the handler requests stream_0_000.m4s,
 	// not .ts. Match the suffix so the cache lookup hits.
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/stream_0_000.m4s", nil)
 	req.SetPathValue("id", "m1")
@@ -946,12 +946,12 @@ func TestHLSVOD_Segment_WaitTimeout_503(t *testing.T) {
 //  1. start from LadderFilmNormal (no ComplexityRepo wired in tests)
 //  2. CapLadderToSource is a no-op since the fixture has no video stream
 //  3. CapLadderToHeight to 720p (the safe fallback when no
-//     CalibrationService is wired — matches the handler's default)
-//  4. BoostCappedTopRung — the 720p rung inherits the dropped 1080p
+//     CalibrationService is wired - matches the handler's default)
+//  4. BoostCappedTopRung - the 720p rung inherits the dropped 1080p
 //     rung's bitrate budget (part of the cache fingerprint)
 //
 // If a test wires CapabilityService with a different cap, that test
-// should build its own profile slice — this helper is the
+// should build its own profile slice - this helper is the
 // uncalibrated/default-path mirror.
 func profilesForTest() []apptranscoding.ProfileFingerprint {
 	src := domaintranscoding.LadderFor(domaintranscoding.ClassFilmNormal)
@@ -971,7 +971,7 @@ func profilesForTest() []apptranscoding.ProfileFingerprint {
 }
 
 // ----------------------------------------------------------------
-// Prewarm-next handler — security regressions from the audit.
+// Prewarm-next handler - security regressions from the audit.
 // Covers the 3 HIGH findings: cross-library IDOR, parental bypass on
 // nextItem, and the absence of a rate-limit middleware (rate-limit is
 // tested through the registration in server_test, here we cover the
@@ -1010,7 +1010,7 @@ func (c *libIDAccessChecker) HasAccess(_ context.Context, _ shared.UserID, libID
 	return c.allowed[string(libID)], nil
 }
 
-// blockMediaParental blocks the specified media item ids only — used to
+// blockMediaParental blocks the specified media item ids only - used to
 // simulate a kid profile that may see ep N but not ep N+1.
 type blockMediaParental struct{ blocked map[string]bool }
 
@@ -1050,8 +1050,8 @@ func TestPrewarmNext_CrossLibrary_IDOR_Forbidden(t *testing.T) {
 		items: map[string]*domainlibrary.MediaItem{"ep-a": cur, "ep-b": next},
 		next:  next,
 	}
-	// Caller has access ONLY to lib-a — same path the player would take
-	// to start watching ep-a — but lib-b must remain off-limits.
+	// Caller has access ONLY to lib-a - same path the player would take
+	// to start watching ep-a - but lib-b must remain off-limits.
 	access := &libIDAccessChecker{allowed: map[string]bool{"lib-a": true}}
 	h, _ := buildVODHandler(t, libSvc, access, testFakeParentalChecker{})
 
@@ -1071,7 +1071,7 @@ func TestPrewarmNext_NextItemParentalBlocked_Forbidden(t *testing.T) {
 		next:  next,
 	}
 	access := &libIDAccessChecker{allowed: map[string]bool{"lib-a": true}}
-	// Block only the next episode — current ep stays viewable.
+	// Block only the next episode - current ep stays viewable.
 	parental := &blockMediaParental{blocked: map[string]bool{"ep-b": true}}
 	h, _ := buildVODHandler(t, libSvc, access, parental)
 

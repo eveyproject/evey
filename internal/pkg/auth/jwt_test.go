@@ -63,7 +63,7 @@ func TestInvalidSignature(t *testing.T) {
 
 	token, _ := gen1.GenerateAccessToken(user.Claims{UserID: "u1", Username: "test"})
 	_, err := gen2.ValidateAccessToken(token)
-	// Pin the rejection reason to the signature specifically — the previous
+	// Pin the rejection reason to the signature specifically - the previous
 	// assertion ("token") also matched expiry/malformed errors, so it would not
 	// catch a regression where a wrong-key token was rejected for the wrong
 	// reason (or accepted and rejected later on an unrelated check).
@@ -75,7 +75,7 @@ func TestAlgorithmConfusionRejected(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, 15*time.Minute)
 
-	// Craft a token signed with HMAC using the public key bytes — algorithm confusion attack
+	// Craft a token signed with HMAC using the public key bytes - algorithm confusion attack
 	pubBytes := key.N.Bytes()
 	hmacToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":      "attacker",
@@ -154,7 +154,7 @@ func TestValidateAccessToken_RS512Rejected(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = gen.ValidateAccessToken(tokenStr)
-	require.Error(t, err, "RS512 must be rejected — only RS256 is allowed")
+	require.Error(t, err, "RS512 must be rejected - only RS256 is allowed")
 }
 
 func TestValidateAccessToken_MissingRequiredClaims(t *testing.T) {

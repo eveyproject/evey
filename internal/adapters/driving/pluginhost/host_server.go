@@ -130,7 +130,7 @@ func (h *HostServer) makeRateLimitInterceptor(entry *pluginEntry) grpc.UnaryServ
 
 // Start prepares the per-plugin socket base directory and removes any
 // stale socket left behind by a crashed previous run. No long-running
-// listener is created here — listeners are spun up by RegisterPlugin.
+// listener is created here - listeners are spun up by RegisterPlugin.
 func (h *HostServer) Start() error {
 	if err := os.MkdirAll(pluginSockBaseDir, 0o755); err != nil {
 		return fmt.Errorf("create sock base dir: %w", err)
@@ -155,7 +155,7 @@ func (h *HostServer) Stop() {
 
 // RegisterPlugin creates the plugin-scoped Unix socket and starts a gRPC
 // server bound to it. The returned path is what should be set on the
-// plugin's EVEY_HOST_SOCK env var. Authentication is not yet armed — the
+// plugin's EVEY_HOST_SOCK env var. Authentication is not yet armed - the
 // runner MUST call SetExpectedPID after cmd.Start to bind the listener
 // to the actual plugin PID. Until then any RPC is rejected.
 func (h *HostServer) RegisterPlugin(pluginID string) (string, error) {
@@ -298,7 +298,7 @@ func (h *HostServer) makePluginAuthInterceptor(entry *pluginEntry) grpc.UnarySer
 			return nil, status.Error(codes.Unauthenticated, "plugin PID not bound yet")
 		}
 		if creds.PID != expected {
-			slog.Warn("plugin auth: PID mismatch — possible spoofing attempt",
+			slog.Warn("plugin auth: PID mismatch - possible spoofing attempt",
 				slog.String("plugin", entry.pluginID),
 				slog.Int("expected_pid", int(expected)),
 				slog.Int("actual_pid", int(creds.PID)),

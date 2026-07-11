@@ -73,7 +73,7 @@ func (r *PlaySessionRepository) Create(ctx context.Context, s *playback.PlaySess
 // AcquireUserStreamLock takes a tx-scoped Postgres advisory lock keyed by
 // hashtext(userID). Serializes the MaxStreams quota check+Create pair so
 // concurrent StartStream calls can't race past the cap. Outside a tx the
-// lock is released at statement end — so caller MUST run inside TxUnit.
+// lock is released at statement end - so caller MUST run inside TxUnit.
 func (r *PlaySessionRepository) AcquireUserStreamLock(ctx context.Context, userID string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.AcquireUserStreamLock")
 	defer span.End()
@@ -176,8 +176,8 @@ func (r *PlaySessionRepository) ListActiveSessions(ctx context.Context) ([]*play
 	// The client beats every 3s (≥~9s under error backoff), so a 45s window keeps
 	// live sessions shown (including paused, or playing in a background tab) while a
 	// closed player drops off the admin list in ≤45s. The previous 5-min window made
-	// a player whose stop POST never landed — e.g. an access token that expired during
-	// a long film, 401 silently dropped client-side — linger as "playing" for minutes.
+	// a player whose stop POST never landed - e.g. an access token that expired during
+	// a long film, 401 silently dropped client-side - linger as "playing" for minutes.
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT ps.id, ps.profile_id, p.name, ps.media_item_id, mi.title, mi.type,
 		        COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),

@@ -24,7 +24,7 @@ async function loadChromecastMedia(session: cast.framework.CastSession, absolute
   // Evey's HLS is fMP4/CMAF (.m4s + #EXT-X-MAP init) by default (UseFMP4),
   // muxed video+audio. The default Cast receiver needs BOTH format hints:
   // hlsVideoSegmentFormat for the video (it otherwise assumes MPEG2-TS and
-  // can't demux the fMP4 — the receiver loads the manifest but buffers
+  // can't demux the fMP4 - the receiver loads the manifest but buffers
   // forever with no picture), and hlsSegmentFormat for the audio. Omitting
   // the video one is why cast stalled on "loading" despite a valid stream.
   if (isHls) {
@@ -80,7 +80,7 @@ function ensureCastSdk() {
   sdkLoaded = true;
 
   if (isMobileBrowser) {
-    log(TAG, "Mobile browser detected — skipping Cast SDK (unsupported)");
+    log(TAG, "Mobile browser detected - skipping Cast SDK (unsupported)");
     return;
   }
   log(TAG, "Injecting Cast sender SDK script...");
@@ -103,7 +103,7 @@ function ensureCastSdk() {
         receiverApplicationId: CAST_APP_ID,
         autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED,
       });
-      log(TAG, "CastContext initialized — appId:", CAST_APP_ID);
+      log(TAG, "CastContext initialized - appId:", CAST_APP_ID);
     } catch (err) {
       error(TAG, "Failed to initialize CastContext:", err);
       return;
@@ -142,7 +142,7 @@ export function useDLNA() {
   const controllerRef = useRef<any>(null);
   const remotePlayerRef = useRef<any>(null);
   // Whether the Google Cast sender SDK actually initialized. False on
-  // Firefox/Safari/mobile (no SDK) — the UI uses this to hide the cast
+  // Firefox/Safari/mobile (no SDK) - the UI uses this to hide the cast
   // button for users who have no working native-cast path.
   const [castSdkReady, setCastSdkReady] = useState(sdkReady);
 
@@ -271,7 +271,7 @@ export function useDLNA() {
   }, []);
 
   const startCast = useCallback(async (streamUrl: string, title?: string) => {
-    log(TAG, "startCast — url:", streamUrl, "title:", title);
+    log(TAG, "startCast - url:", streamUrl, "title:", title);
 
     const origin = localStorage.getItem("cast_base_url") || window.location.origin;
     const absoluteUrl = streamUrl.startsWith("http")
@@ -290,7 +290,7 @@ export function useDLNA() {
           session = ctx.getCurrentSession();
         }
         if (!session) {
-          warn(TAG, "No session — user cancelled");
+          warn(TAG, "No session - user cancelled");
           return;
         }
 
@@ -303,7 +303,7 @@ export function useDLNA() {
         } catch (loadErr) {
           // A session exists (the user picked a device) but the receiver
           // couldn't load the stream. Falling through to server-side LAN
-          // discovery here is wrong — it just yields a misleading "no devices"
+          // discovery here is wrong - it just yields a misleading "no devices"
           // toast while the film keeps playing locally. Surface the real
           // failure and stop.
           error(TAG, "Chromecast loadMedia failed:", loadErr);
@@ -366,7 +366,7 @@ export function useDLNA() {
       })) ?? [];
       if (renderers.length === 0) {
         // Server-side discovery found nothing on the server's LAN. Tell
-        // the user instead of failing silently — the most common cause
+        // the user instead of failing silently - the most common cause
         // is the evey container being on a Docker bridge network where
         // mDNS/SSDP multicast can't reach the LAN.
         toast.error(i18n.t("player.cast.noDevices"));
@@ -391,7 +391,7 @@ export function useDLNA() {
   }, []);
 
   const stopCast = useCallback(async () => {
-    log(TAG, "stopCast — mode:", state.mode);
+    log(TAG, "stopCast - mode:", state.mode);
     if (state.mode === "chromecast") {
       try {
         const ctx = window.cast?.framework?.CastContext?.getInstance();
@@ -435,7 +435,7 @@ export function useDLNA() {
   // new URL. It's the cast-side equivalent of the local player's
   // setTranscodeStartTime: an HLS cast plays a progressively-generated
   // manifest, so the only way to reach a position outside that window is
-  // to rebuild the URL at startSec=target and reload. Dispatches by mode —
+  // to rebuild the URL at startSec=target and reload. Dispatches by mode -
   // the Chrome path uses the JS Cast SDK (session.loadMedia), the
   // server-side path (Firefox, no JS SDK) re-issues /api/v1/cast/play.
   // Returns false when there's no live session to reload onto.
@@ -480,7 +480,7 @@ export function useDLNA() {
 
   // Returns true only when the seek was actually handed to a live cast
   // session. A false return lets the caller fall back to the local
-  // player — critical when a cast session dies uncleanly (no
+  // player - critical when a cast session dies uncleanly (no
   // SESSION_ENDED event) and leaves `connected`/`isMediaLoaded` stuck
   // true: without the fallback every local seek is silently swallowed
   // by this dead RemotePlayer.
@@ -492,7 +492,7 @@ export function useDLNA() {
       controllerRef.current?.seek();
       return true;
     }
-    warn(TAG, "castSeek: cannot seek — canSeek:", rp?.canSeek);
+    warn(TAG, "castSeek: cannot seek - canSeek:", rp?.canSeek);
     return false;
   }, []);
 

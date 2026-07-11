@@ -39,7 +39,7 @@ func LoggingUnary(log *slog.Logger) grpc.UnaryServerInterceptor {
 			slog.String("status", st.Code().String()),
 		}
 		// ClaimsFromContext is populated by AuthInterceptor (chained earlier);
-		// ctx may not have claims on unauthenticated endpoints — that's fine.
+		// ctx may not have claims on unauthenticated endpoints - that's fine.
 		attrs = identityAttrs(ctx, attrs)
 		if err != nil {
 			attrs = append(attrs, slog.String("error", st.Message()))

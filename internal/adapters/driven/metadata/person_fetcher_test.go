@@ -100,7 +100,7 @@ func TestTMDBPersonFetcher_FetchPersonTranslations_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchPersonTranslations: %v", err)
 	}
-	// Every requested locale is fetched, including the base language (en) —
+	// Every requested locale is fetched, including the base language (en) -
 	// the overlay applies a bio row for the default locale too.
 	if out["fr"] != "bio-fr" {
 		t.Errorf("fr = %q, want bio-fr", out["fr"])

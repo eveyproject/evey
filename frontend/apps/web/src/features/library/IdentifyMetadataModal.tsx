@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/Input";
 interface IdentifyResult {
   tmdb_id?: string;
   imdb_id?: string;
-  /** "tmdb" | "imdb" | "" — populated by the admin handler for clarity */
+  /** "tmdb" | "imdb" | "" - populated by the admin handler for clarity */
   provider?: string;
   title: string;
   year?: number;
@@ -24,7 +24,7 @@ interface Props {
   mediaItemId: string;
   /** Pre-fills the search input. Usually the scan-parsed title. */
   initialQuery: string;
-  /** "movie" or "tv" — passed to the search endpoint to narrow results. */
+  /** "movie" or "tv" - passed to the search endpoint to narrow results. */
   mediaType: "movie" | "tv";
   /** Fires after a successful pick so the parent can refresh its data. */
   onApplied?: () => void;
@@ -71,7 +71,7 @@ export function IdentifyMetadataModal({ open, onClose, mediaItemId, initialQuery
 
   async function handleApply(result: IdentifyResult) {
     // Backend accepts either tmdb_id or imdb_id (RefreshItemMetadataByIMDB
-    // is the fallback path). Prefer tmdb when both are present — it gives
+    // is the fallback path). Prefer tmdb when both are present - it gives
     // a richer enrichment chain (translations, artwork, etc.).
     const applyId = result.tmdb_id || result.imdb_id;
     if (!applyId || !mediaItemId) return;
@@ -166,7 +166,7 @@ export function IdentifyMetadataModal({ open, onClose, mediaItemId, initialQuery
                     className="w-16 h-24 rounded flex-shrink-0 flex items-center justify-center text-xs text-[var(--text-muted)]"
                     style={{ backgroundColor: "var(--surface)" }}
                   >
-                    —
+                    -
                   </div>
                 )}
                 <div className="flex-1 min-w-0">

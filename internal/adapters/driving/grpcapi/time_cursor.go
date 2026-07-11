@@ -17,7 +17,7 @@ type timeCursor struct {
 }
 
 // encodeTimeCursor serializes a (timestamp, id) keyset as an opaque
-// shared.Cursor with SortField="started_at" — the client never needs to
+// shared.Cursor with SortField="started_at" - the client never needs to
 // interpret it.
 func encodeTimeCursor(t time.Time, id string) string {
 	return shared.EncodeCursor(shared.Cursor{
@@ -28,7 +28,7 @@ func encodeTimeCursor(t time.Time, id string) string {
 }
 
 // decodeTimeCursor returns the parsed (timestamp, id) pair. Empty input
-// is an error — callers should branch on req.Cursor != "" before
+// is an error - callers should branch on req.Cursor != "" before
 // calling this.
 func decodeTimeCursor(s string) (timeCursor, error) {
 	c, err := shared.DecodeCursor(s)

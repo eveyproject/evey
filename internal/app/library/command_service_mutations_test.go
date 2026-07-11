@@ -47,7 +47,7 @@ func newCmdSvcForMutations() (*applib.CommandService, *libfakes.FakeLibraryComma
 	return svc, libCmd, libQuery, mediaRepo, bus
 }
 
-// Kills command_service.go CreateLibrary publish error NEGATION —
+// Kills command_service.go CreateLibrary publish error NEGATION -
 // when Publish fails, a Warn log must be emitted. Without it, flipping
 // `err != nil` to `err == nil` stays undetected.
 func TestCreateLibrary_PublishError_LogsWarn(t *testing.T) {
@@ -100,7 +100,7 @@ func TestDeleteLibrary_NoPublishError_NoWarn(t *testing.T) {
 	assert.NotContains(t, logs, "publish event")
 }
 
-// Kills CreateLibrary sets UpdatedAt/CreatedAt — ensure the time is actually written.
+// Kills CreateLibrary sets UpdatedAt/CreatedAt - ensure the time is actually written.
 // NEGATION on `if err := Create; err != nil` would not be killed here, but verifying
 // the event OccurredAt matches lib.CreatedAt catches the `now := time.Now()` reordering.
 func TestCreateLibrary_TimestampsMatchEvent(t *testing.T) {
@@ -120,4 +120,3 @@ func TestCreateLibrary_TimestampsMatchEvent(t *testing.T) {
 	evt := events[0].(library.LibraryCreated)
 	assert.Equal(t, lib.CreatedAt, evt.OccurredAt)
 }
-

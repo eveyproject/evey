@@ -74,7 +74,7 @@ func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {
 	// Scanning every album across all libraries plus external art fetches can far
 	// outlast the proxy timeout on a large library; running it on the request ctx
 	// means a 504 cancels the work mid-flight. Detach it (keeping trace/auth
-	// values via WithoutCancel) and return 202 immediately — same intent as the
+	// values via WithoutCancel) and return 202 immediately - same intent as the
 	// photo/metadata admin maintenance endpoints that run on a server context.
 	bgCtx := context.WithoutCancel(r.Context())
 	go func() {
@@ -190,7 +190,7 @@ func (h *musicHandler) streamTrack(w http.ResponseWriter, r *http.Request) {
 	if mimeType != "" {
 		w.Header().Set("Content-Type", mimeType)
 	}
-	// Disable write deadline for streaming — global WriteTimeout would cut large files.
+	// Disable write deadline for streaming - global WriteTimeout would cut large files.
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
 		slog.Warn("set write deadline", slog.Any("err", err))
 	}
@@ -250,7 +250,7 @@ func (h *musicHandler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 
 // recordPlay registers one listen of a track for the caller's profile, feeding
 // the playlist generator's taste signal. Called by the player when a track
-// finishes. Idempotency isn't a concern — each finished play is a real listen.
+// finishes. Idempotency isn't a concern - each finished play is a real listen.
 func (h *musicHandler) recordPlay(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.music.RecordPlay")
 	defer span.End()
@@ -272,7 +272,7 @@ func (h *musicHandler) recordPlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if claims == nil || claims.ProfileID == "" {
-		// No active profile to attribute the play to — accept as a no-op.
+		// No active profile to attribute the play to - accept as a no-op.
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}

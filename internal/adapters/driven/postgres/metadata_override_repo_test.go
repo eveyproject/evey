@@ -72,7 +72,7 @@ func TestMetadataOverrideRepo_Set_Upsert(t *testing.T) {
 	require.NoError(t, err)
 
 	// Same id, same (media_item_id, field_name), updated value + a LATER created_at
-	// (simulating a re-edit) — upsert updates the value but must PRESERVE the
+	// (simulating a re-edit) - upsert updates the value but must PRESERVE the
 	// original created_at, not clobber it with the edit timestamp.
 	o.CustomValue = "Updated overview"
 	o.CreatedAt = first.CreatedAt.Add(time.Hour)

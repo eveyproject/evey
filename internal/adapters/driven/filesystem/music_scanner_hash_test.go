@@ -8,7 +8,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 )
 
-// MusicScanner.ComputeHash delegates to filehash.Compute — asserts a stable
+// MusicScanner.ComputeHash delegates to filehash.Compute - asserts a stable
 // hash for fixed content and that different content produces different hashes.
 func TestMusicScanner_ComputeHash_StableAndUnique(t *testing.T) {
 	t.Parallel()

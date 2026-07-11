@@ -5,7 +5,7 @@ package ffmpeg
 // video (the repack mux defect measured in prod: "a dubbed title", constant
 // A/V desync). Args-level unit tests prove the -itsoffset second input is
 // EMITTED; only decoding the served segments proves the audio CONTENT lands on
-// the scene the video shows — the seek/trim/zero-point interactions live
+// the scene the video shows - the seek/trim/zero-point interactions live
 // entirely inside the ffmpeg binary.
 //
 // OPT-IN like the other transcode itests: run via `make transcode-itest` or
@@ -26,7 +26,7 @@ import (
 )
 
 // genDelayedAudioSource writes clean.mkv (video and audio aligned at 0) and
-// delayed.mkv (same content, audio track labels shifted +delaySec — the mux
+// delayed.mkv (same content, audio track labels shifted +delaySec - the mux
 // defect). Pink noise audio: aperiodic, so content correlation has one sharp
 // peak. Keyframes every 6s, B-frames on (arms the CLI's DTS seek heuristic).
 func genDelayedAudioSource(t *testing.T, ctx context.Context, dir string, delaySec float64) (clean, delayed string) {
@@ -58,7 +58,7 @@ func genDelayedAudioSource(t *testing.T, ctx context.Context, dir string, delayS
 
 func TestAudioDelayIntegration(t *testing.T) {
 	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
-		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest` — needs the bundled ffmpeg)")
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest` - needs the bundled ffmpeg)")
 	}
 	for _, bin := range []string{"ffmpeg", "ffprobe"} {
 		if _, err := exec.LookPath(bin); err != nil {
@@ -154,7 +154,7 @@ func TestAudioDelayIntegration(t *testing.T) {
 		opts.AudioStartDelaySec = 0
 		outDir, segs := run(t, opts)
 		if d := firstPktDelta(t, outDir); d < 0.6 {
-			t.Errorf("control run should start audio ~0.9s after video, measured %+.3fs — the defect fixture is broken", d)
+			t.Errorf("control run should start audio ~0.9s after video, measured %+.3fs - the defect fixture is broken", d)
 		}
 		if off := correlate(t, outDir, segs[2], 6); off > -0.6 {
 			t.Errorf("control run should show ~-0.9s content offset at t=6, measured %+.3fs", off)

@@ -20,23 +20,23 @@ import (
 
 // remuxCacheFormat versions the on-disk remux cache. Bump it whenever the
 // remuxed MP4 byte layout can change (e.g. a mkvgo mp4 output change across a
-// version bump — the package is flagged experimental) so stale-format files are
+// version bump - the package is flagged experimental) so stale-format files are
 // passed over and re-produced rather than served. Superseded files orphan and
 // are reclaimed by the remux cache janitor.
 //
-// v2 (mkvgo 0.7.2): subtitle tracks now ride along — SRT/WebVTT as tx3g by
-// default, ASS/SSA flattened to tx3g — so a v1 file (no subs) must be
+// v2 (mkvgo 0.7.2): subtitle tracks now ride along - SRT/WebVTT as tx3g by
+// default, ASS/SSA flattened to tx3g - so a v1 file (no subs) must be
 // re-produced rather than served subtitle-less.
 const remuxCacheFormat = "remux-v2"
 
 // remuxCacheName derives a collision-free, traversal-proof cache filename from
 // the item identity, the cache-format version, and the SOURCE FINGERPRINT
-// (size+mtime — the scanner's own change-detection identity, MediaFile.Fingerprint).
+// (size+mtime - the scanner's own change-detection identity, MediaFile.Fingerprint).
 // Keying on the fingerprint is the correctness guarantee: a replaced or
 // re-scanned source yields a NEW filename, so a stale remux is never served
 // (the artwork-freeze class of bug, this time for video bytes). The sha256 hex
 // has no path separators, so filepath.Join can't escape the cache dir whatever
-// the id contains — that is the path-traversal guard, by construction.
+// the id contains - that is the path-traversal guard, by construction.
 func remuxCacheName(itemID, fingerprint string) string {
 	sum := sha256.Sum256([]byte(itemID + "\x00" + remuxCacheFormat + "\x00" + fingerprint))
 	return remuxCacheFormat + "-" + hex.EncodeToString(sum[:]) + ".mp4"
@@ -51,7 +51,7 @@ type Remuxer interface {
 	RemuxToMP4(ctx context.Context, srcPath, dstPath string) error
 }
 
-// remuxServe serves GET /api/v1/media/{id}/remux.mp4 — a progressive, seekable,
+// remuxServe serves GET /api/v1/media/{id}/remux.mp4 - a progressive, seekable,
 // fast-start MP4 repackaged once from a browser-incompatible EBML container
 // (e.g. h264/aac in MKV that a browser can't demux). The companion to the HLS
 // copy rung: same "copy, don't re-encode" idea, but a single self-contained
@@ -170,7 +170,7 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 
 	setCORSHeaders(w, r, h.baseURL)
 	w.Header().Set("Content-Type", "video/mp4")
-	// ServeContent handles Range requests, conditional GETs and seeking — the
+	// ServeContent handles Range requests, conditional GETs and seeking - the
 	// fast-start (moov-first) layout lets a player start without reading to EOF.
 	http.ServeContent(w, r, mediaID+".mp4", fi.ModTime(), f)
 }

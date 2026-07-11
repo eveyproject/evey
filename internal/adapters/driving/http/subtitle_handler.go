@@ -135,7 +135,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 
 		// Fast path: serve the embedded subtitle in-process via mkvgo (no ffmpeg
 		// fork) for EBML (.mkv/.webm) and ISO-BMFF (.mp4/.m4v) containers. Falls
-		// back to ffmpeg transparently on any failure — the guard + buffer-first
+		// back to ffmpeg transparently on any failure - the guard + buffer-first
 		// approach ensures we never write a partial or mismatched subtitle.
 		ext := strings.ToLower(filepath.Ext(filePath))
 		if isMkvgoSubtitleFastPath(ext) {
@@ -179,7 +179,7 @@ func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL 
 // via strings.ToLower) is a container for which mkvgo can extract embedded text
 // subtitle tracks in-process (no ffmpeg fork): EBML (.mkv/.webm) via the
 // reader/ops packages, and ISO-BMFF (.mp4/.m4v/.mov) tx3g/wvtt via the mp4
-// package (.mov since mkvgo v0.12.0's QuickTime support — the codec guard plus
+// package (.mov since mkvgo v0.12.0's QuickTime support - the codec guard plus
 // buffer-first extraction means any parse failure falls back to ffmpeg). .ts is
 // out of mkvgo's scope (MPEG-TS is neither EBML nor ISO-BMFF) and stays on the
 // ffmpeg fork.
@@ -259,7 +259,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	// name. FFprobeCodecName translates the short name to the ffprobe form. A
 	// mismatch means the DB ordinal has drifted from mkvgo's ordinal (e.g. the
 	// file was edited and the library was not re-scanned). Falling back to ffmpeg
-	// is the safe option — never serve a track that doesn't match the DB entry.
+	// is the safe option - never serve a track that doesn't match the DB entry.
 	mkvCodec := extmkv.FFprobeCodecName(mkvTrack.Codec)
 	if mkvCodec != matchedCodec {
 		slog.Warn("subtitle: mkvgo codec mismatch vs DB, falling back to ffmpeg",
@@ -270,7 +270,7 @@ func tryMKVGoSubtitle(ctx context.Context, w http.ResponseWriter, r *http.Reques
 	}
 
 	// Language guard: only enforced when both sides carry a non-empty tag.
-	// Empty language on either side means "unknown" — don't reject.
+	// Empty language on either side means "unknown" - don't reject.
 	if matchedLanguage != "" && mkvTrack.Language != "" && matchedLanguage != mkvTrack.Language {
 		slog.Warn("subtitle: mkvgo language mismatch vs DB, falling back to ffmpeg",
 			slog.String("path", filePath),
@@ -312,7 +312,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 		http.ServeFile(w, r, safePath)
 		return
 	}
-	// .srt, .ass and .ssa convert in-process via mkvgo — no ffmpeg fork per
+	// .srt, .ass and .ssa convert in-process via mkvgo - no ffmpeg fork per
 	// request. Buffer the result first so a parse error can still fall back to
 	// ffmpeg without having already written a partial body.
 	if ext == ".srt" || ext == ".ass" || ext == ".ssa" {

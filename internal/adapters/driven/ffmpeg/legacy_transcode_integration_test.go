@@ -6,7 +6,7 @@ package ffmpeg
 // tests (pure filter strings) can't: that the produced filters actually
 // deinterlace the content and correct the display aspect end to end.
 //
-// OPT-IN like the copy-pipeline test — run via `make transcode-itest` or
+// OPT-IN like the copy-pipeline test - run via `make transcode-itest` or
 // EVEY_TRANSCODE_ITEST=1.
 
 import (
@@ -154,7 +154,7 @@ func TestLegacyTranscodeIntegration(t *testing.T) {
 		t.Errorf("served SAR = %q, want square pixels (1:1)", got)
 	}
 
-	// Deinterlace: idet on the OUTPUT must now read progressive — bwdif
+	// Deinterlace: idet on the OUTPUT must now read progressive - bwdif
 	// deint=all cleared the fields.
 	prober := NewProber("ffprobe")
 	stillInterlaced, err := prober.ProbeInterlaceDetect(ctx, clip)
@@ -164,6 +164,6 @@ func TestLegacyTranscodeIntegration(t *testing.T) {
 		t.Fatalf("idet on output: %v", err)
 	}
 	if stillInterlaced {
-		t.Error("the transcoded output must be progressive — bwdif deint=all should have cleared the combing")
+		t.Error("the transcoded output must be progressive - bwdif deint=all should have cleared the combing")
 	}
 }

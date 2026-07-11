@@ -102,7 +102,7 @@ goBack: Zurück
 shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"
 copyLink: Link kopieren
 copyCode: "Code kopieren"
-codeShareDesc: "Teile diesen Code — jeder kann ihn eingeben, um beizutreten und mit dir zu schauen."
+codeShareDesc: "Teile diesen Code - jeder kann ihn eingeben, um beizutreten und mit dir zu schauen."
 close: Schließen
 shortcuts:
   title: Tastenkürzel
@@ -113,7 +113,7 @@ shortcuts:
   seekForward: "{{seconds}}s vorspulen"
   volumeUp: Lauter
   volumeDown: Leiser
-  seekPercent: "Zu 0%–90% springen"
+  seekPercent: "Zu 0%-90% springen"
   toggleCaptions: Untertitel umschalten
   decreaseSpeed: Geschwindigkeit verringern
   increaseSpeed: Geschwindigkeit erhöhen
@@ -148,5 +148,5 @@ playOn:
   button: Auf einem anderen Gerät abspielen
   title: Abspielen auf
   sent: "An {{name}} gesendet"
-  failed: Senden fehlgeschlagen — das Gerät ist möglicherweise getrennt
+  failed: Senden fehlgeschlagen - das Gerät ist möglicherweise getrennt
   empty: Keine verbundenen Geräte. Öffnen Sie die Evey-App auf Ihrem TV oder Smartphone, um es hier verfügbar zu machen.

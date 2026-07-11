@@ -46,7 +46,7 @@ const SETTINGS_QK = ["/api/v1/admin/server-settings"] as const;
 
 // EncodeCalibrationCard surfaces the host's measured encode ceiling and
 // exposes the "Recalibrate" button that triggers a fresh benchmark.
-// Read-only block above + action button below — kept small because the
+// Read-only block above + action button below - kept small because the
 // data is just a few lines (cap + last-bench timestamp).
 export function EncodeCalibrationCard() {
   const { t, i18n } = useTranslation();
@@ -87,7 +87,7 @@ export function EncodeCalibrationCard() {
       eveyFetch({ url: "/api/v1/admin/server-settings", method: "PUT", data: { hwMode: mode } }),
     onSuccess: (_resp, mode) => {
       setHwMode(mode);
-      toast.success(t("admin.calibration.modeApplied", "Mode applied — recalibrating…"));
+      toast.success(t("admin.calibration.modeApplied", "Mode applied - recalibrating…"));
       // The mode change re-benches detached on the server (~20 s); refetch a few
       // times so the active backend + ceilings update once it lands.
       qc.invalidateQueries({ queryKey: QK_CALIBRATION });
@@ -115,7 +115,7 @@ export function EncodeCalibrationCard() {
         toast.error(
           t(
             "admin.calibration.transcodesActiveToast",
-            "Stop active playback before recalibrating — the benchmark needs an idle host to measure the true ceiling.",
+            "Stop active playback before recalibrating - the benchmark needs an idle host to measure the true ceiling.",
           ),
         );
       } else if (/409|already in progress/i.test(err.message)) {
@@ -213,7 +213,7 @@ export function EncodeCalibrationCard() {
               {forceable.map((b) => (
                 <option key={b} value={b} disabled={wslBlocked(b)}>
                   {b.toUpperCase()}
-                  {wslBlocked(b) ? ` — ${t("admin.calibration.wslUnsupported", "not supported on WSL")}` : ""}
+                  {wslBlocked(b) ? ` - ${t("admin.calibration.wslUnsupported", "not supported on WSL")}` : ""}
                 </option>
               ))}
             </select>
@@ -226,12 +226,12 @@ export function EncodeCalibrationCard() {
               <p className="text-xs text-[var(--color-warning)]">
                 {t(
                   "admin.calibration.wslVaapiNote",
-                  "VAAPI/QSV go through Mesa's d3d12 driver on WSL and can't sustain transcoding here — use NVENC, or validate VAAPI on a native Linux host.",
+                  "VAAPI/QSV go through Mesa's d3d12 driver on WSL and can't sustain transcoding here - use NVENC, or validate VAAPI on a native Linux host.",
                 )}
               </p>
             )}
 
-            {/* AV1 output — hardware-only, opt-in. Shown only with HW on (this
+            {/* AV1 output - hardware-only, opt-in. Shown only with HW on (this
                 block) because software AV1 is never used for streaming. */}
             <div className="mt-2 flex items-center gap-3">
               <label className="text-sm font-medium text-[var(--text)]">
@@ -247,8 +247,8 @@ export function EncodeCalibrationCard() {
             </div>
             <p className="text-xs text-[var(--text-muted)]">
               {(data.hw_codecs ?? []).includes("av1")
-                ? t("admin.calibration.av1Hint", "Encode to AV1 when a client supports it — better compression. Hardware-only; software AV1 is never used for streaming.")
-                : t("admin.calibration.av1NoHw", "No AV1 hardware encoder detected — turning this on has no effect (streams stay H.264).")}
+                ? t("admin.calibration.av1Hint", "Encode to AV1 when a client supports it - better compression. Hardware-only; software AV1 is never used for streaming.")
+                : t("admin.calibration.av1NoHw", "No AV1 hardware encoder detected - turning this on has no effect (streams stay H.264).")}
             </p>
 
             {av1Enabled && (
@@ -362,7 +362,7 @@ export function EncodeCalibrationCard() {
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
             {t(
               "admin.calibration.hwFallbacksDesc",
-              "Recent hardware encodes that fell back automatically — the host keeps playing via software while the cause is recorded. Recalibrate once the hardware is fixed.",
+              "Recent hardware encodes that fell back automatically - the host keeps playing via software while the cause is recorded. Recalibrate once the hardware is fixed.",
             )}
           </p>
           <ul className="mt-2 space-y-1 text-xs">
@@ -434,7 +434,7 @@ function CodecSupportBlock({
       )}
       {softwareDecodeOnly.length > 0 && (
         <p className="text-[var(--color-warning)]">
-          {t("admin.calibration.codecSoftwareDecodeNote", "{{codecs}} — decoded in software (GPU encode only)", {
+          {t("admin.calibration.codecSoftwareDecodeNote", "{{codecs}} - decoded in software (GPU encode only)", {
             codecs: softwareDecodeOnly.map((c) => c.toUpperCase()).join(", "),
           })}
         </p>

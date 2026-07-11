@@ -11,8 +11,8 @@ import (
 
 // PasswordResetEmailer subscribes to user.password.reset_requested and sends reset link emails.
 type PasswordResetEmailer struct {
-	sender     Sender
-	baseURLFn  func() string
+	sender    Sender
+	baseURLFn func() string
 }
 
 func NewPasswordResetEmailer(sender Sender, baseURLFn func() string) *PasswordResetEmailer {
@@ -30,7 +30,7 @@ func (e *PasswordResetEmailer) handle(_ context.Context, ev shared.Event) {
 	}
 
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", e.baseURLFn(), evt.ResetToken)
-	subject := "Evey — Password Reset"
+	subject := "Evey - Password Reset"
 	body := fmt.Sprintf("A password reset was requested for your account.\n\nClick the link below to reset your password:\n%s\n\nThis link expires in 30 minutes.\n\nIf you did not request this, ignore this email.", resetURL)
 
 	if err := e.sender.Send([]string{evt.Email}, subject, body); err != nil {

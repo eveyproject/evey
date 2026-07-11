@@ -1,4 +1,4 @@
-# ADR-0015: Hardware-accelerated transcoding — one full-HW image, runtime-injected drivers, admin-selectable mode
+# ADR-0015: Hardware-accelerated transcoding - one full-HW image, runtime-injected drivers, admin-selectable mode
 
 - Status: Accepted
 - Date: 2026-06-01
@@ -7,9 +7,9 @@
 
 Evey transcodes media to an HLS ABR ladder. The software (libx264) path is the
 portable floor; on capable hosts a GPU encoder (NVENC, VAAPI, QSV) cuts CPU cost
-dramatically. We need this to work across wildly different deployments — a weak
+dramatically. We need this to work across wildly different deployments - a weak
 NAS with an Intel iGPU (QSV/VAAPI), a workstation with an NVIDIA card (NVENC),
-and a software-only Raspberry Pi — without shipping a different artifact per
+and a software-only Raspberry Pi - without shipping a different artifact per
 host, and without an operator having to hand-pick ffmpeg flags.
 
 Earlier we had **per-backend images**: a CUDA-based `runtime-nvidia` and an
@@ -17,7 +17,7 @@ Ubuntu `runtime-vaapi`, run as two sibling dev containers. That was wrong on
 three counts:
 
 1. **Image sprawl.** Two HW images to build, ship, and keep in sync, plus the
-   software base — three artifacts for one product.
+   software base - three artifacts for one product.
 2. **Shared-state bleed.** The two containers shared one DB and stepped on each
    other's persisted encode capability (the calibration cache), causing 30 s
    segment-timeout loops until a per-container backend pin was bolted on.
@@ -26,7 +26,7 @@ three counts:
 
 We also learned (the hard way, on the WSL2 dev box) that VAAPI/QSV through
 Mesa's experimental **d3d12** translation driver **cannot sustain Evey's
-multi-variant encode** — a single `ffmpeg` process running `split=3 → 3×
+multi-variant encode** - a single `ffmpeg` process running `split=3 → 3×
 scale_vaapi → 3× h264_vaapi` segfaults in `d3d12_drv_video.so`, and even three
 separate single-output processes crash. NVENC (a real CUDA passthrough) is
 unaffected. This is a WSL/d3d12 limitation, not an Evey bug, and it is
@@ -42,19 +42,19 @@ compiled in**. The image bakes **no GPU driver**. Drivers come at run time,
 exactly like Jellyfin:
 
 (Debian trixie, rebased from Ubuntu 24.04 on 2026-06-02: trixie ships ffmpeg 7.x
-*and* `postgresql-client-17` — which dumps the PG16 server fine — straight from
+*and* `postgresql-client-17` - which dumps the PG16 server fine - straight from
 the distro, no PGDG repo dance, and lets all three `RUNTIMES` variants
 [lean/nodejs/full] share one full-HW base instead of an Alpine/glibc split. The
 sandbox `.so` is compiled in a throwaway glibc stage so `gcc`+`libc6-dev` never
 reach the final image.)
 
-- **NVENC** — the NVIDIA Container Toolkit injects the driver when a GPU is
+- **NVENC** - the NVIDIA Container Toolkit injects the driver when a GPU is
   reserved (`--gpus all` / a compose `devices: [{driver: nvidia}]`). The image
   sets `NVIDIA_DRIVER_CAPABILITIES=all`; without `video` in that capability set
   the toolkit injects `nvidia-smi`/CUDA but **not** `libnvidia-encode.so`, and
   NVENC fails with "Cannot load libnvidia-encode.so.1" even though `nvidia-smi`
   works. This was the one non-obvious knob.
-- **VAAPI / QSV** — a mapped `/dev/dri` (the host's Mesa/iHD driver). `vainfo`,
+- **VAAPI / QSV** - a mapped `/dev/dri` (the host's Mesa/iHD driver). `vainfo`,
   `mesa-va-drivers`, and `libva` are installed for it. `LIBVA_DRIVER_NAME` is
   **not** baked: a native host auto-selects radeonsi/iHD/i965 from the GPU PCI
   id; only the WSL2 dev box forces `d3d12` from its compose override.
@@ -69,14 +69,14 @@ At boot a benchmark probes the host and persists an `EncodeCapability` (software
 ceiling + the detected HW backend + per-codec support). The operator overrides
 the policy from the admin panel via a single setting, `transcoding.hw_mode`:
 
-- `auto` (default) — calibration picks the best detected backend.
-- `off` — software only, **even if a usable GPU is present** (the escape hatch
+- `auto` (default) - calibration picks the best detected backend.
+- `off` - software only, **even if a usable GPU is present** (the escape hatch
   for a flaky/TDR-prone driver, or a deliberate CPU-only choice).
-- `nvenc` / `vaapi` / `qsv` — force that backend; if it turns out unusable here,
+- `nvenc` / `vaapi` / `qsv` - force that backend; if it turns out unusable here,
   calibration strips it back to software and the panel shows the active backend.
 
 Changing the mode re-benches live (no restart). `resolveHW` and the segment
-cache are untouched — the calibrated capability stays the single source of
+cache are untouched - the calibrated capability stays the single source of
 truth, so the cache stays encoder-agnostic and a software fallback slots into
 the same manifest. The admin UI is a master "Hardware acceleration" toggle
 (off = software) plus, when on, a backend picker.
@@ -87,14 +87,14 @@ HW can fail at play time even after a clean bench (driver regression, TDR,
 thermal). Two nets, both demoting to software transparently (the cache is
 encoder-agnostic, so the client's automatic retry re-resolves the lower tier):
 
-- **Failure classifier + zero-output demotion** — a HW session that exits
+- **Failure classifier + zero-output demotion** - a HW session that exits
   (cleanly or via crash) without producing a segment is treated as a dead
   backend and demoted (`hw_init`, persisted).
-- **Fast-fail watchdog** — a HW session that writes no fMP4 init segment within
+- **Fast-fail watchdog** - a HW session that writes no fMP4 init segment within
   `EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT` (default 5 s) is killed + demoted,
   so a wedged GPU falls back to software in ~5 s instead of the ~25 s segment
   timeout. The init (not a full segment) is the liveness signal: a working-but-
-  slow GPU writes it within ~1–3 s, a dead one never does, so 5 s does not
+  slow GPU writes it within ~1-3 s, a dead one never does, so 5 s does not
   false-fail a slow weak-NAS encoder.
 
 ### 4. WSL2 VAAPI/QSV is detected and greyed, not "fixed"
@@ -103,7 +103,7 @@ encoder-agnostic, so the client's automatic retry re-resolves the lower tier):
 surfaces `is_wsl`, and the UI greys VAAPI/QSV with a "not supported on WSL" note.
 We do not try to work around the d3d12 driver: we tested the documented ffmpeg
 mitigations (enlarged surface pool + `async_depth`, a system-memory
-`hwdownload→split→hwupload` rewrite, and per-variant processes) — all still
+`hwdownload→split→hwupload` rewrite, and per-variant processes) - all still
 segfault. WSL HW = NVENC only; validate VAAPI/QSV on a native Linux host.
 
 ## Consequences
@@ -115,13 +115,13 @@ segfault. WSL HW = NVENC only; validate VAAPI/QSV on a native Linux host.
 - **Dev mirrors prod**: ONE `evey` dev container (Debian + Air hot-reload, the
   same full-HW image model) maps both the NVIDIA GPU and `/dev/dri`, defaulting
   to NVENC. This replaces the old Alpine-software `evey` + glibc-HW `evey-hw`
-  split — so dev and prod share one base and one capability surface (no more
+  split - so dev and prod share one base and one capability surface (no more
   "works on the HW box, not the hot-reload box").
 
 ## Per-variant HW path (implemented, opt-in)
 
 By default Evey transcodes the **whole ABR ladder in one ffmpeg process**
-(`split` → N encoders) — efficient (decode once, encode N) and rock-solid on
+(`split` → N encoders) - efficient (decode once, encode N) and rock-solid on
 software, but HW-fragile: a multi-encode graph stresses even native VAAPI
 drivers under load (intel/media-driver #207, #1342) and hard-crashes the d3d12
 shim. Jellyfin/Plex/Emby instead run **one ffmpeg per variant** (single output).
@@ -130,7 +130,7 @@ shim. Jellyfin/Plex/Emby instead run **one ffmpeg per variant** (single output).
 one single-output ffmpeg per rung behind a composite handle, while software
 keeps the single-process graph. This avoids the multi-encode-in-one-process
 graph that crashes fragile VA drivers and isolates per-rung failures. It is
-encapsulated in the ffmpeg adapter — the orchestrator (sessions, throttle,
+encapsulated in the ffmpeg adapter - the orchestrator (sessions, throttle,
 teardown, demotion, watchdog, concurrency slots) is unchanged. **Off by default**
 (the multi-output path works on NVENC and the change is player-vital); flip the
 flag to enable. Validated on NVENC (3 rungs, each its own ffmpeg, no `split`);
@@ -140,4 +140,4 @@ sessions (mind the NVENC session cap on consumer cards).
 
 Remaining future work: route per-variant on demand at the **orchestrator** level
 (spawn only the rung the client actually requests) for the full "only encode
-what's watched" win — the current composite still spawns all N rungs up front.
+what's watched" win - the current composite still spawns all N rungs up front.

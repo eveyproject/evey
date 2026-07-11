@@ -9,7 +9,7 @@ import (
 // normalizeLanguageCode folds the many spellings a probe emits (ISO 639-2/B,
 // 639-2/T, BCP-47 macrolanguage tags, English names) to ISO 639-1. The table
 // lives in pkg/langcode so the prober's real-file parity gate uses the exact
-// same normalization (previously a second, incomplete copy drifted — it missed
+// same normalization (previously a second, incomplete copy drifted - it missed
 // the 639-2/B codes whose 2-letter form isn't a prefix, e.g. dut→nl, tur→tr).
 func normalizeLanguageCode(lang string) string {
 	return langcode.Normalize(lang)
@@ -47,7 +47,7 @@ func buildPrefLangs(audioLanguages []string, locale, serverLang string) []string
 //  1. First audio stream whose normalised Language matches a prefLang, tried in
 //     prefLangs order (first preference wins).
 //  2. First audio stream with IsDefault == true.
-//  3. Audio index 0 (hard fallback — always valid).
+//  3. Audio index 0 (hard fallback - always valid).
 //
 // An empty prefLangs list skips step 1 and falls through to IsDefault / 0.
 func resolveDefaultAudioTrack(streams []*domainlibrary.MediaStream, prefLangs []string) int {

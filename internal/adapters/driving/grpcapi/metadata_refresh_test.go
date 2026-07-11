@@ -38,7 +38,7 @@ func (s *refreshStream) Send(m *eveyv1.RefreshMetadataProgress) error {
 	return nil
 }
 
-// grpc.ServerStream methods — no-op stubs sufficient for handler tests.
+// grpc.ServerStream methods - no-op stubs sufficient for handler tests.
 func (s *refreshStream) Context() context.Context     { return s.ctx }
 func (s *refreshStream) SetHeader(grpcmeta.MD) error  { return nil }
 func (s *refreshStream) SendHeader(grpcmeta.MD) error { return nil }
@@ -67,7 +67,7 @@ func newRefreshMetadataHandler() (*metadataHandler, *metafakes.FakeMetadataProvi
 	return &metadataHandler{cmd: cmd, query: query}, provider, mediaRepo
 }
 
-// Forcing provider=tmdb resolves the item's stored TMDB id and re-enriches —
+// Forcing provider=tmdb resolves the item's stored TMDB id and re-enriches -
 // it no longer passes an empty media type (the old 500) nor discards the result.
 func TestRefreshMetadata_PreferredTMDB_ReenrichesFromStoredID(t *testing.T) {
 	h, provider, mediaRepo := newRefreshMetadataHandler()

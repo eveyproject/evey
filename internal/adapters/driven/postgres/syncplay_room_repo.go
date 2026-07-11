@@ -200,7 +200,7 @@ func (r *SyncPlayRoomRepo) RemoveMember(ctx context.Context, roomID string, user
 }
 
 // RemoveMemberAndDeleteIfEmpty removes userID from the room and, when no
-// members remain, deletes the room — all under one FOR UPDATE lock.
+// members remain, deletes the room - all under one FOR UPDATE lock.
 // If the departing member was the host and the room is not deleted, the
 // oldest remaining member (earliest JoinedAt; tie-break: ascending UserID) is
 // elected as the new host inside the same transaction, preventing a ghost host
@@ -362,7 +362,7 @@ func (r *SyncPlayRoomRepo) DeleteStaleEmptyRooms(ctx context.Context, olderThan 
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	// members can be a JSON null (a room created from a nil slice marshals to
-	// 'null', not '[]'), and jsonb_array_length() errors on a non-array scalar —
+	// 'null', not '[]'), and jsonb_array_length() errors on a non-array scalar -
 	// so normalise anything that isn't an array to '[]' before measuring length.
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM syncplay_rooms

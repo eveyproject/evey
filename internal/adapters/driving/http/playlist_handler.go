@@ -52,10 +52,10 @@ type playlistHandler struct {
 func registerPlaylistRoutes(mux *http.ServeMux, plSvc *appplaylist.Service, gen playlistGenerator, libSvc MediaArchiveSource, musicSvc musicTrackResolver, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, baseURL string, rl *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &playlistHandler{plSvc: plSvc, gen: gen, libSvc: libSvc, music: musicSvc, libChecker: libChecker, baseURL: baseURL}
-	// Like a collection ZIP, a playlist can fan out to many large files — a
+	// Like a collection ZIP, a playlist can fan out to many large files - a
 	// heavier amplification vector than a single-file download, so rate-limit it.
 	mux.HandleFunc("GET /api/v1/playlists/{id}/download", ratelimit.MiddlewareFunc(rl, authMw(h.downloadPlaylist)))
-	// Generating scans the whole music library + the user's playlists — also
+	// Generating scans the whole music library + the user's playlists - also
 	// heavier than a normal call, so it shares the rate limiter.
 	mux.HandleFunc("POST /api/v1/playlists/generate", ratelimit.MiddlewareFunc(rl, authMw(h.generatePlaylist)))
 }
@@ -111,7 +111,7 @@ func (h *playlistHandler) generatePlaylist(w http.ResponseWriter, r *http.Reques
 
 // downloadPlaylist streams a ZIP of a playlist's files. Ownership is enforced by
 // the service (id + caller's user id), so a user can only download a playlist
-// they created — a non-owner gets 404 (no existence leak). Works for both
+// they created - a non-owner gets 404 (no existence leak). Works for both
 // manual and smart playlists: for smart ones GetItems resolves the rules to the
 // current matching set (a snapshot at download time). Files are confined to the
 // library roots and access is re-checked per item (defense-in-depth).

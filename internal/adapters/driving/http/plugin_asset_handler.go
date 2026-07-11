@@ -53,7 +53,7 @@ const maxPluginAssetBytes int64 = 50 << 20 // 50 MB
 
 // corsRequiredAssetExt is the set of asset extensions that need
 // Access-Control-Allow-Origin: null for the iframe (opaque origin) to
-// fetch them — fonts always require CORS, fetch()-able blobs (3D models,
+// fetch them - fonts always require CORS, fetch()-able blobs (3D models,
 // JSON, raw binaries) too. Other types load via <img>/<script>/<link>
 // without CORS.
 var corsRequiredAssetExt = map[string]bool{
@@ -65,7 +65,7 @@ var corsRequiredAssetExt = map[string]bool{
 func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGenerator, pluginTokens PluginTokenParser, repo domainplugin.PluginRepository, pluginDir string, sanitize cssSanitizer, wakener PluginWakener) {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &pluginAssetHandler{pluginDir: pluginDir, repo: repo, tokenGen: tokenGen, pluginTokens: pluginTokens, sanitizeCSS: sanitize, wakener: wakener}
-	// Generic asset route — serves any file under <install_dir>/<web_root>/.
+	// Generic asset route - serves any file under <install_dir>/<web_root>/.
 	// Single-bundle frontends only in v1 (no dynamic-import code splitting).
 	// Authentication accepts a user access token OR the scoped plugin token
 	// issued via /plugins/{id}/token (the iframe loads the script via
@@ -74,7 +74,7 @@ func registerPluginAssetRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGene
 	mux.HandleFunc("GET /api/v1/plugins/themes", authMw(h.handleListThemes))
 }
 
-// authorizeFrontJS validates the bearer token in the request — either a
+// authorizeFrontJS validates the bearer token in the request - either a
 // plugin-scoped token (must match the current pluginID) or a regular access
 // token. Returns true on success.
 func (h *pluginAssetHandler) authorizeFrontJS(r *http.Request, pluginID string) bool {
@@ -104,7 +104,7 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		attribute.String("asset_path", requestedPath),
 	)
 
-	// (1) Auth — plugin-scoped token OR access token.
+	// (1) Auth - plugin-scoped token OR access token.
 	if !h.authorizeFrontJS(r, pluginID) {
 		span.SetStatus(otelcodes.Error, "unauthorized")
 		http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
@@ -119,7 +119,7 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		go h.wakener.EnsureStarted(context.WithoutCancel(ctx), pluginID)
 	}
 
-	// (3) Path traversal — explicit reject before any join.
+	// (3) Path traversal - explicit reject before any join.
 	if strings.Contains(requestedPath, "..") ||
 		strings.HasPrefix(requestedPath, "/") ||
 		strings.Contains(requestedPath, "\\") {
@@ -151,11 +151,11 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// (2) Path restriction — only files under <install_dir>/<web_root>/.
+	// (2) Path restriction - only files under <install_dir>/<web_root>/.
 	// web_root is RE-validated here, not only at install time: the value read
 	// back from the DB is untrusted input for this handler (a hand-edited or
 	// migrated row must not gain traversal). Rejecting ".." / absolute before
-	// the join, then anchoring the containment check on a trailing separator —
+	// the join, then anchoring the containment check on a trailing separator -
 	// a bare HasPrefix would accept a SIBLING directory whose name merely
 	// starts with the plugin's ("/plugins/foo-evil" vs "/plugins/foo").
 	if strings.Contains(p.WebRoot, "..") || filepath.IsAbs(p.WebRoot) {
@@ -177,7 +177,7 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// (7) Per-file size limit — refuse > 50 MB before opening.
+	// (7) Per-file size limit - refuse > 50 MB before opening.
 	stat, statErr := os.Stat(candidate)
 	if statErr != nil {
 		span.RecordError(statErr)
@@ -220,7 +220,7 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 	if ext == ".js" || ext == ".mjs" {
 		ct = "application/javascript; charset=utf-8"
 	}
-	// Some runtimes ship a mime DB without font types — pin them explicitly
+	// Some runtimes ship a mime DB without font types - pin them explicitly
 	// so plugin-shipped fonts always advertise as font/* (the asset test
 	// suite asserts this) and downstream caches can choose to compress
 	// based on type.
@@ -237,7 +237,7 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 		ct = "application/vnd.ms-fontobject"
 	}
 
-	// (8) CSS sanitizer — pass any CSS asset through the same sanitizer
+	// (8) CSS sanitizer - pass any CSS asset through the same sanitizer
 	// that runs on theme.css at install time, so a plugin-shipped stylesheet
 	// can't smuggle dangerous selectors past the install-time scrub.
 	if ext == ".css" && h.sanitizeCSS != nil {
@@ -260,7 +260,7 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 	// If a browser navigates directly to a plugin asset URL, constrain what
 	// it can do. 'none' blocks all sub-resources; sandbox adds extra isolation.
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
-	// (6) Cache-Control immutable — Vite/esbuild emits hashed filenames so
+	// (6) Cache-Control immutable - Vite/esbuild emits hashed filenames so
 	// the cache key already encodes the content. Same for the entry file.
 	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	// (5) CORS for fonts/binary fetch-targets only.
@@ -316,7 +316,7 @@ func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Req
 // parseRootCSSVars extracts `--name: value;` declarations from the first
 // `:root { ... }` block in a CSS file. Comments are stripped first; values
 // are trimmed but otherwise returned verbatim (the client decides what to
-// do with rgba(), hex, etc.). Only the first :root block is read — themes
+// do with rgba(), hex, etc.). Only the first :root block is read - themes
 // don't ship multiple, and this keeps parsing predictable.
 func parseRootCSSVars(css []byte) map[string]string {
 	src := stripCSSComments(string(css))
@@ -379,7 +379,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 		ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Upload")
 		defer span.End()
 		r = r.WithContext(ctx)
-		// A 100 MB plugin on a slow link can take a while — opt out of the body
+		// A 100 MB plugin on a slow link can take a while - opt out of the body
 		// read deadline (BodyReadTimeoutMiddleware) so it is not cut off.
 		ClearBodyReadDeadline(w)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max
@@ -463,7 +463,7 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 			if strings.Contains(installErr.Error(), "plugin blocked:") {
 				// Prefer the structured PluginBlockedError when available (the
 				// report.Safe=false path): it carries the deduplicated
-				// `categories` enum list — machine-readable, useful for the
+				// `categories` enum list - machine-readable, useful for the
 				// admin dashboard + the e2e security spec. Other "plugin
 				// blocked:" paths (analyzer-failed, theme.js scanner,
 				// native-binary, escalated warnings) don't have categories
@@ -519,7 +519,7 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		ctx, span := tracing.StartSpan(r.Context(), "http.plugin.Preview")
 		defer span.End()
 		r = r.WithContext(ctx)
-		// A 100 MB plugin on a slow link can take a while — opt out of the body
+		// A 100 MB plugin on a slow link can take a while - opt out of the body
 		// read deadline (BodyReadTimeoutMiddleware) so it is not cut off.
 		ClearBodyReadDeadline(w)
 		r.Body = http.MaxBytesReader(w, r.Body, 100<<20) // 100MB max

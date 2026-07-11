@@ -46,7 +46,7 @@ func TestCachedAnalyzer_Itoa_ZeroCheck(t *testing.T) {
 // Collision test: minCount=5 vs minCount=-5. Normal keys "p:5","p:-5" distinct. Mutated: "p:-","p:"
 // distinct too. Hmm.
 // Better: use key collision via itoa(5)="-" and itoa(-5)="" - those differ. Fine.
-// Actual kill: itoa(-5) vs itoa(-50) — normal "-5","-50" (distinct); mutated: both "" (collision).
+// Actual kill: itoa(-5) vs itoa(-50) - normal "-5","-50" (distinct); mutated: both "" (collision).
 func TestCachedAnalyzer_Itoa_NegativeSign(t *testing.T) {
 	fake := notiffakes.NewFakeWatchHistoryAnalyzer()
 	fake.Genres = []string{"x"}
@@ -89,7 +89,9 @@ func TestCachedAnalyzer_Itoa_LoopRuns(t *testing.T) {
 }
 
 // L69 arithmetic: buf[pos] = byte('0' + n%10). Mutations:
-//   '0' + n%10 -> '0' - n%10, '0' * n%10, '0' / n%10, '0' % n%10.
+//
+//	'0' + n%10 -> '0' - n%10, '0' * n%10, '0' / n%10, '0' % n%10.
+//
 // Also n%10 -> n/10, n*10, n+10, n-10.
 // Collision: minCount=12 vs minCount=21. Normal: keys "p:12","p:21" distinct.
 // '0' - n%10 mutation: 12 -> '0'-2,'0'-1 = chars, but deterministic; 21 -> '0'-1,'0'-2. Still distinct.
@@ -102,7 +104,7 @@ func TestCachedAnalyzer_Itoa_DigitComputation(t *testing.T) {
 	cached := appfeed.NewCachedAnalyzer(fake, 5*time.Minute)
 	ctx := context.Background()
 
-	// 12 vs 13 — differ only in last digit (n%10 mutations).
+	// 12 vs 13 - differ only in last digit (n%10 mutations).
 	_, err := cached.GetFavoriteGenres(ctx, "p", 12)
 	require.NoError(t, err)
 
@@ -111,13 +113,13 @@ func TestCachedAnalyzer_Itoa_DigitComputation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"b"}, g2, "minCount=12 vs 13 distinct (n%10 last-digit)")
 
-	// 12 vs 21 — same digits swapped (byte math '0'+d order matters).
+	// 12 vs 21 - same digits swapped (byte math '0'+d order matters).
 	fake.Genres = []string{"c"}
 	g3, err := cached.GetFavoriteGenres(ctx, "p", 21)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"c"}, g3, "minCount=12 vs 21 distinct (digit ordering)")
 
-	// Extra: 0-padding via n/10 division — 5 vs 15 distinct.
+	// Extra: 0-padding via n/10 division - 5 vs 15 distinct.
 	fake.Genres = []string{"d"}
 	_, err = cached.GetFavoriteGenres(ctx, "q", 5)
 	require.NoError(t, err)

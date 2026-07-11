@@ -2,7 +2,7 @@
 
 An honest account of where Evey stands on internationalization (i18n) and
 accessibility (a11y): what works, how it works, and what doesn't yet. This is a
-self-hosted project built and maintained by one person — treat a11y in
+self-hosted project built and maintained by one person - treat a11y in
 particular as *best-effort, not certified*.
 
 ---
@@ -11,7 +11,7 @@ particular as *best-effort, not certified*.
 
 ### What is and isn't translated
 
-- **Translated:** the UI chrome — buttons, menus, settings, error messages,
+- **Translated:** the UI chrome - buttons, menus, settings, error messages,
   email/push notification text.
 - **Not translated by Evey:** media metadata (titles, plot summaries, genres)
   comes from your metadata provider (TMDB/OMDb) in the **metadata language** you
@@ -19,7 +19,7 @@ particular as *best-effort, not certified*.
   Your own libraries, file names, and anything you type are stored as-is.
 
 So the UI can be in French while a movie's synopsis is in English (or vice
-versa) — they're two separate settings.
+versa) - they're two separate settings.
 
 ### Supported UI languages
 
@@ -52,7 +52,7 @@ than showing a blank or a key.
   intentional but it *is* a quality compromise (`configuración` →
   `configuracion`). Not ideal; noted.
 - **No right-to-left languages yet.** There's no Arabic/Hebrew/Persian, and the
-  layout has not been built or tested for RTL — adding one is real work (CSS
+  layout has not been built or tested for RTL - adding one is real work (CSS
   logical properties, `dir` handling), not just a translation file.
 - **Translations aren't professionally reviewed.** They're community/maintainer
   quality. Corrections are welcome.
@@ -65,7 +65,7 @@ than showing a blank or a key.
    (keep the keys).
 2. Add the locale to the allowlist in
    [`internal/pkg/i18n/i18n.go`](../internal/pkg/i18n/i18n.go) (`supportedLocales`).
-3. Keep the key set identical across locales — the parity check fails otherwise.
+3. Keep the key set identical across locales - the parity check fails otherwise.
 
 ---
 
@@ -82,7 +82,7 @@ on AT, expect rough edges and please report specifics.
 
 ### What's in place
 
-- **Reduced motion:** `prefers-reduced-motion: reduce` is honored globally —
+- **Reduced motion:** `prefers-reduced-motion: reduce` is honored globally -
   animations and transitions are effectively disabled when your OS asks for it.
 - **Language for AT:** `<html lang>` tracks the active UI language.
 - **Keyboard (player):** full keyboard controls with an on-screen shortcuts

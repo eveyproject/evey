@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# make-bench-sample.sh — produce the encode-calibration reference clips.
+# make-bench-sample.sh - produce the encode-calibration reference clips.
 #
 # The calibration bench (internal/adapters/driven/ffmpeg/benchmark.go) measures
 # the host's realtime encode ceiling against a 4K clip. A real-content clip
-# calibrates far more honestly than the synthetic fallback — the synthetic
+# calibrates far more honestly than the synthetic fallback - the synthetic
 # over-states decode+encode cost and pins the cap low. This script turns a
 # license-clean source into the two reference clips Evey downloads at first
 # calibration (SDR + HDR), and prints the SHA256 to pin.
 #
-# SOURCE — must be permissively licensed so we may re-encode (derivative) and
+# SOURCE - must be permissively licensed so we may re-encode (derivative) and
 # redistribute, including in a tool others deploy commercially:
 #   * Blender Open Movies (CC-BY 4.0): Tears of Steel, Sintel, Coffee Run, ...
 #     https://studio.blender.org/films/  (4K masters under "Download").

@@ -80,7 +80,7 @@ export const BRIDGE_SCRIPT = `
   };
   window.addEventListener("message", function(e) {
     // Only accept messages originating from the parent frame. The iframe runs
-    // with sandbox (no allow-same-origin), so its origin is opaque "null" —
+    // with sandbox (no allow-same-origin), so its origin is opaque "null" -
     // checking e.origin is not reliable here. e.source === window.parent is
     // the authoritative guard: only the direct embedder can send the init payload.
     if (e.source !== window.parent) return;

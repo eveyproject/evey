@@ -8,7 +8,7 @@ import (
 	"syscall"
 )
 
-// dropPrivileges lowers the launcher — and therefore the plugin it execs — to
+// dropPrivileges lowers the launcher - and therefore the plugin it execs - to
 // the unprivileged plugin uid/gid. It is the FIRST thing run() does: before any
 // OS thread is locked (Go's setuid is all-thread) and before the seccomp filter
 // is installed (that filter denies setuid/setgid, so the plugin can never change
@@ -30,7 +30,7 @@ import (
 //
 // The plugin ends up with no capabilities regardless of the launcher's transient
 // cap_setuid: the plugin binary has no file caps, we never raise inheritable or
-// ambient caps, and Landlock/seccomp set PR_SET_NO_NEW_PRIVS before execve — so
+// ambient caps, and Landlock/seccomp set PR_SET_NO_NEW_PRIVS before execve - so
 // the cap recalculation at exec yields an empty set.
 func dropPrivileges(uid, gid int) error {
 	if uid <= 0 {

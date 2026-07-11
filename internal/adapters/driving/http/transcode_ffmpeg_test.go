@@ -7,7 +7,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/hdr"
 )
 
-// Tests dédiés buildFFmpegArgs — couverture des branches HDR/tone-map
+// Tests dédiés buildFFmpegArgs - couverture des branches HDR/tone-map
 // (les autres branches sont déjà couvertes par coverage_boost2_test.go
 // et transcode_burnin_test.go). Audit A12 = faux positif: le fichier
 // transcode_ffmpeg.go contient uniquement buildFFmpegArgs (logique pure,

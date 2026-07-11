@@ -34,7 +34,7 @@ type activityHandler struct {
 
 // RecordPageView logs a client navigation as a "page_view" audit entry, so
 // admins can see which pages users visit. Best-effort: a failure or an empty/
-// oversized path is swallowed (return OK) — page-view logging must never break
+// oversized path is swallowed (return OK) - page-view logging must never break
 // navigation. UA/device/IP are captured from the request by the interceptors.
 func (h *activityHandler) RecordPageView(ctx context.Context, req *eveyv1.RecordPageViewRequest) (*eveyv1.RecordPageViewResponse, error) {
 	resp := &eveyv1.RecordPageViewResponse{}
@@ -102,7 +102,7 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 	if err != nil {
 		return nil, internalError("get play history", err)
 	}
-	// Real total across all matching sessions (a COUNT) — was never set, so the
+	// Real total across all matching sessions (a COUNT) - was never set, so the
 	// UI always showed "0 entrées au total" despite rendering rows.
 	total, err := h.svc.CountPlayHistory(ctx, filter)
 	if err != nil {

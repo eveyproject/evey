@@ -23,7 +23,7 @@ const (
 )
 
 // struct seccomp_data field offsets (nr __u32 @0, arch __u32 @4, args[0] __u64
-// @16 — we read the low 32 bits, which is the AF_* family for socket(2)).
+// @16 - we read the low 32 bits, which is the AF_* family for socket(2)).
 const (
 	offNR   = 0
 	offArch = 4
@@ -88,10 +88,10 @@ func buildSeccompFilter(denyInet bool) []unix.SockFilter {
 	if denyInet {
 		f = append(f,
 			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 5, K: uint32(unix.SYS_SOCKET)}, // not socket → ALLOW
-			unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0},                                  // A = domain
-			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 2, Jf: 0, K: afInet},                    // AF_INET  → EPERM
-			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: afInet6},                   // AF_INET6 → EPERM
-			unix.SockFilter{Code: bpfJMP | bpfJA, K: 1},                                                // else (AF_UNIX, …) → ALLOW
+			unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0},                                // A = domain
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 2, Jf: 0, K: afInet},                  // AF_INET  → EPERM
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: afInet6},                 // AF_INET6 → EPERM
+			unix.SockFilter{Code: bpfJMP | bpfJA, K: 1},                                             // else (AF_UNIX, …) → ALLOW
 			unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
 		)
 	}
@@ -101,7 +101,7 @@ func buildSeccompFilter(denyInet bool) []unix.SockFilter {
 
 // applySeccomp installs the denylist on the CALLING thread. It must be the last
 // confinement step before execve: the filter is per-thread (no TSYNC), so only
-// the exec-ing thread is constrained here — which is correct, because execve
+// the exec-ing thread is constrained here - which is correct, because execve
 // preserves the filter into the (single-threaded) plugin image, and the rest of
 // the launcher's Go runtime threads stay unfiltered until they're replaced.
 func applySeccomp(denyInet bool) error {

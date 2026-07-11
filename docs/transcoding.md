@@ -5,9 +5,9 @@ Evey transcodes media on-the-fly when the client doesn't support the source form
 ## How It Works
 
 Evey picks the best playback method automatically:
-1. **Direct Play** — format supported, no processing
-2. **Remux** — repackage container (MKV → MP4), no re-encoding
-3. **Transcode** — re-encode to HLS with adaptive bitrate
+1. **Direct Play** - format supported, no processing
+2. **Remux** - repackage container (MKV → MP4), no re-encoding
+3. **Transcode** - re-encode to HLS with adaptive bitrate
 
 ## Configuration
 
@@ -19,7 +19,7 @@ EVEY_TRANSCODING_HW_ACCEL_ENABLED=false
 ## Hardware Acceleration
 
 Evey ships **one image** whose ffmpeg has NVENC, VAAPI, and QSV all compiled in.
-No GPU driver is baked into the image — you inject the driver at runtime by
+No GPU driver is baked into the image - you inject the driver at runtime by
 mapping the device, exactly like Jellyfin. The same image is software-only,
 NVENC, or VAAPI/QSV depending purely on what you map. See
 [ADR-0015](adr/0015-hardware-acceleration.md) for the rationale.
@@ -54,7 +54,7 @@ services:
       - /dev/dri:/dev/dri
 ```
 
-You can map both at once (NVIDIA reservation + `/dev/dri`) — the one image
+You can map both at once (NVIDIA reservation + `/dev/dri`) - the one image
 serves whichever backend you then select.
 
 ### Enabling it
@@ -79,7 +79,7 @@ EVEY_TRANSCODING_HW_MODE=auto
 # Fast-fail a wedged GPU to software after this delay (default 5s).
 EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT=5s
 # Spawn one ffmpeg per ABR rung on the HW path (Jellyfin/Plex model) instead of
-# one multi-output process — isolates per-rung failures and avoids the
+# one multi-output process - isolates per-rung failures and avoids the
 # multi-encode graph that crashes fragile VA drivers. Off by default; software
 # always uses the single-process graph. See docs/adr/0015.
 EVEY_TRANSCODING_HW_PER_VARIANT=false
@@ -99,15 +99,15 @@ At boot (and on `POST /admin/transcode/calibration/recalibrate`) the bench
 measures the host's realtime encode ceiling against a 4K clip, separately for
 SDR and HDR (`software_max_height` / `software_hdr_max_height`). The clip's
 decode + tonemap + encode cost is what the cap is derived from, so a
-**real-content clip calibrates far more honestly than a synthetic one** — a
+**real-content clip calibrates far more honestly than a synthetic one** - a
 synthetic over-states cost and pins the cap low (the classic symptom: a 4K HDR
 title that the box can actually play at 1080p gets capped to 480p/360p).
 
 The bench resolves its input in priority order:
 
-1. **Operator file** — a real clip you drop in. Used verbatim.
-2. **Pinned download** — a license-clean reference clip fetched once (SHA256-verified), cached.
-3. **Synthetic** — generated on the fly (`testsrc2` + light grain at ~5 Mbit/s). Always available; the airgapped fallback.
+1. **Operator file** - a real clip you drop in. Used verbatim.
+2. **Pinned download** - a license-clean reference clip fetched once (SHA256-verified), cached.
+3. **Synthetic** - generated on the fly (`testsrc2` + light grain at ~5 Mbit/s). Always available; the airgapped fallback.
 
 ```bash
 # Point the bench at a real file (yours, or a downloaded reference clip):
@@ -121,13 +121,13 @@ EVEY_BENCH_SDR_SAMPLE_SHA256=<sha256>
 ```
 
 Build the reference clips from a permissively-licensed source (Blender Open
-Movies, CC-BY — **not** CC-BY-NC-ND content like Netflix "Sol Levante") with
+Movies, CC-BY - **not** CC-BY-NC-ND content like Netflix "Sol Levante") with
 `scripts/make-bench-sample.sh <source-4k>`; it prints the SHA256 to pin.
 
 ### WSL2 caveat
 
 On WSL2 the GPU is reached through Mesa's experimental **d3d12** driver. **NVENC
-works** (real CUDA passthrough); **VAAPI/QSV do not** — the d3d12 VA driver
+works** (real CUDA passthrough); **VAAPI/QSV do not** - the d3d12 VA driver
 crashes on Evey's multi-variant encode. Evey detects WSL and greys VAAPI/QSV in
 the admin. Validate VAAPI/QSV on a native Linux host.
 

@@ -8,7 +8,7 @@
 //
 // It exercises the v3 read path end-to-end through the real client:
 // tmdb lookup with open-ended credits resolved against duration, the imdb_id
-// fallback, and a movie lookup. Read-only — it never submits.
+// fallback, and a movie lookup. Read-only - it never submits.
 package introproviders
 
 import (
@@ -25,7 +25,7 @@ func liveClient(t *testing.T) *TIDBClient {
 	t.Helper()
 	key := os.Getenv("EVEY_INTRO_TIDB_API_KEY")
 	if key == "" {
-		t.Skip("EVEY_INTRO_TIDB_API_KEY not set — skipping live TIDB test")
+		t.Skip("EVEY_INTRO_TIDB_API_KEY not set - skipping live TIDB test")
 	}
 	return NewTIDBClient(key) // real https://api.theintrodb.org/v3
 }
@@ -81,7 +81,7 @@ func TestTIDBLive_TVEpisode_ResolvesOpenEndedCredits(t *testing.T) {
 		assert.Greater(t, credits.EndMs, credits.StartMs)
 		t.Logf("end_credits resolved: [%d, %d] (runtime %d)", credits.StartMs, credits.EndMs, durMs)
 	} else {
-		t.Log("no credits segment for this item (acceptable — coverage varies)")
+		t.Log("no credits segment for this item (acceptable - coverage varies)")
 	}
 }
 
@@ -92,7 +92,7 @@ func TestTIDBLive_ImdbFallback(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	// Breaking Bad series imdb id, no tmdb — must resolve via imdb_id.
+	// Breaking Bad series imdb id, no tmdb - must resolve via imdb_id.
 	raw, err := c.Fetch(ctx, Lookup{ImdbID: "tt0903747", Season: 1, Episode: 1})
 	require.NoError(t, err)
 	for _, s := range raw {

@@ -53,7 +53,7 @@ function getThemeVars(): string {
         }
       }
     } catch {
-      // cross-origin stylesheets — skip
+      // cross-origin stylesheets - skip
     }
   }
   return vars.join("\n    ");
@@ -167,7 +167,7 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
 
   // Fetch the plugin's saved config and forward it to the iframe in
   // the init message so front modules don't have to deal with auth themselves.
-  // Accessible to any authenticated user — returns the values the admin configured.
+  // Accessible to any authenticated user - returns the values the admin configured.
   useEffect(() => {
     if (!accessToken) return;
     let cancelled = false;
@@ -219,7 +219,7 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
   }, [pluginId, src, accessToken]);
 
   // Sliding-window rate limit for toasts: a plugin can emit at most TOAST_MAX
-  // toasts per TOAST_WINDOW_MS. Drop silently past the cap — a noisy plugin
+  // toasts per TOAST_WINDOW_MS. Drop silently past the cap - a noisy plugin
   // must not be able to fill the screen or thrash the toast store.
   const TOAST_MAX = 3;
   const TOAST_WINDOW_MS = 1000;
@@ -285,7 +285,7 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
     if (!token) throw new Error("plugin token unavailable");
     let res = await callPluginEndpoint(method, args, token);
     if (res.status === 401) {
-      pluginTokenRef.current = null; // expired — re-issue once
+      pluginTokenRef.current = null; // expired - re-issue once
       token = await ensurePluginToken();
       if (token) res = await callPluginEndpoint(method, args, token);
     }
@@ -364,7 +364,7 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
             const recent = toastTimestamps.current.filter((t) => now - t < TOAST_WINDOW_MS);
             if (recent.length >= TOAST_MAX) {
               toastTimestamps.current = recent;
-              break; // drop silently — over the rate cap
+              break; // drop silently - over the rate cap
             }
             recent.push(now);
             toastTimestamps.current = recent;

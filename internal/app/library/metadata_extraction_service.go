@@ -5,17 +5,17 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/google/uuid"
 )
 
 type MetadataExtractionService struct {
-	mkvReader   mkv.ContainerReader
-	chapters    library.ChapterRepository
+	mkvReader    mkv.ContainerReader
+	chapters     library.ChapterRepository
 	mediaStreams library.MediaStreamRepository
-	subScanner  library.ExternalSubtitleScanner
+	subScanner   library.ExternalSubtitleScanner
 }
 
 func NewMetadataExtractionService(
@@ -24,8 +24,8 @@ func NewMetadataExtractionService(
 	mediaStreams library.MediaStreamRepository,
 ) *MetadataExtractionService {
 	return &MetadataExtractionService{
-		chapters:    chapters,
-		mkvReader:   reader,
+		chapters:     chapters,
+		mkvReader:    reader,
 		mediaStreams: mediaStreams,
 	}
 }
@@ -97,4 +97,3 @@ func (s *MetadataExtractionService) discoverExternalSubtitles(existing []*librar
 	}
 	return streams
 }
-

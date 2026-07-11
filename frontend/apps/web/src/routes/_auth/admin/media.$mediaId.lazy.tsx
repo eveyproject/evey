@@ -171,7 +171,7 @@ function AdminMediaSegmentsPage() {
           setSegment.mutateAsync({ type: seg.type, startMs: seg.startMs, endMs: seg.endMs }),
         ),
       );
-      toast.success(t("admin.segments.save") + " — OK");
+      toast.success(t("admin.segments.save") + " - OK");
     } catch (err) {
       if (import.meta.env.DEV) console.error("[AdminSegments] save error", err);
       toast.error("Erreur lors de la sauvegarde");
@@ -183,7 +183,7 @@ function AdminMediaSegmentsPage() {
       await deleteSegment.mutateAsync(type);
       setLocalSegments((prev) => prev.filter((s) => s.type !== type));
       if (selectedType === type) setSelectedType(null);
-      toast.success(t("admin.segments.delete") + " — OK");
+      toast.success(t("admin.segments.delete") + " - OK");
     } catch (err) {
       if (import.meta.env.DEV) console.error("[AdminSegments] delete error", err);
       toast.error("Erreur lors de la suppression");
@@ -193,7 +193,7 @@ function AdminMediaSegmentsPage() {
   async function handleRedetect() {
     try {
       await triggerDetect.mutateAsync();
-      toast.success(t("admin.segments.redetect") + " — Détection lancée. Actualisez dans 1-2 minutes.");
+      toast.success(t("admin.segments.redetect") + " - Détection lancée. Actualisez dans 1-2 minutes.");
     } catch (err) {
       if (import.meta.env.DEV) console.error("[AdminSegments] redetect error", err);
       toast.error("Erreur lors du déclenchement de la détection");
@@ -228,7 +228,7 @@ function AdminMediaSegmentsPage() {
       <PageHeader
         title={
           mediaItem
-            ? `${t("admin.segments.title")} — ${mediaItem.title ?? mediaId}`
+            ? `${t("admin.segments.title")} - ${mediaItem.title ?? mediaId}`
             : t("admin.segments.title")
         }
         actions={
@@ -467,7 +467,7 @@ function MmSsInputs({
   );
 }
 
-// Propagate button — shows dropdown if multiple types, direct click if one
+// Propagate button - shows dropdown if multiple types, direct click if one
 function PropagateButton({
   types,
   isPending,

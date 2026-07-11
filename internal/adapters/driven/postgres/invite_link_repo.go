@@ -116,7 +116,7 @@ func (r *InviteLinkRepository) DecrementUsedCount(ctx context.Context, id string
 //
 // Binds to an ambient *sql.Tx via txFromCtx so RegisterWithInvite can claim
 // the slot, create the user, grant libraries and create the default profile
-// in a single tx — any failure rolls back the claim atomically.
+// in a single tx - any failure rolls back the claim atomically.
 func (r *InviteLinkRepository) IncrementUsedCount(ctx context.Context, id string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.invite_link.IncrementUsedCount")
 	defer span.End()

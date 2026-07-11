@@ -5,10 +5,10 @@ import "strings"
 // HWMode is the admin-selectable hardware-acceleration policy. It sits ABOVE
 // calibration: the mode decides which backend (if any) calibration is allowed
 // to pick, so an operator can pin a specific accelerator, force software, or
-// leave it on auto — all from the admin panel, without a redeploy.
+// leave it on auto - all from the admin panel, without a redeploy.
 //
 //   - HWModeAuto: calibration picks the best accelerator it detects (the
-//     historical default — nothing changes for existing installs).
+//     historical default - nothing changes for existing installs).
 //   - HWModeOff: software only, EVEN IF a usable GPU is present. The escape
 //     hatch when HW misbehaves (driver bug, thermal, a TDR-prone box) or when
 //     the operator simply prefers CPU.
@@ -53,7 +53,7 @@ type HWPreference struct {
 	// Backend pins the bench to one accelerator ("nvenc"/"vaapi"/"qsv"); empty
 	// lets the detector pick. Ignored when DisableHW is set.
 	Backend string
-	// DisableHW skips hardware probing — the host is calibrated software-only.
+	// DisableHW skips hardware probing - the host is calibrated software-only.
 	DisableHW bool
 }
 

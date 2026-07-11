@@ -249,7 +249,7 @@ describe("resolveDefaultSubtitle", () => {
 
 // Plan B P2: which browsers get native <video> HLS (Safari macOS laptops + iOS,
 // the CPU/battery win) vs hls.js (everything else). Real User-Agent strings
-// stand in for a live engine so every device is exercised deterministically —
+// stand in for a live engine so every device is exercised deterministically -
 // the Safari/Mac "simulation" a WebKit binary can't reliably give us on WSL.
 describe("computeNativeHLSPreference", () => {
   const UA = {

@@ -25,8 +25,8 @@ var (
 
 // dockerAvailable reports whether a Docker daemon is reachable for
 // testcontainers. It lets the postgres-integration tests SKIP (rather than fail)
-// where Docker is absent — e.g. inside the app container, which has no socket by
-// design — while still running wherever Docker exists (host, CI). The probe is
+// where Docker is absent - e.g. inside the app container, which has no socket by
+// design - while still running wherever Docker exists (host, CI). The probe is
 // cached: it costs one provider handshake per test binary, not one per test.
 func dockerAvailable() bool {
 	dockerProbeOnce.Do(func() {
@@ -81,7 +81,7 @@ func StartShared() func() {
 		},
 		// Port-listen alone races the postgres init (server briefly
 		// listens while bootstrapping initdb, then restarts). The
-		// ready log appears twice — initdb + final boot — so
+		// ready log appears twice - initdb + final boot - so
 		// WithOccurrence(2) is the standard pg wait.
 		WaitingFor: wait.ForAll(
 			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
@@ -111,7 +111,7 @@ func StartShared() func() {
 	if err != nil {
 		panic(fmt.Sprintf("open db: %v", err))
 	}
-	// Retry ping — port may be listening before Postgres is fully ready
+	// Retry ping - port may be listening before Postgres is fully ready
 	for range 30 {
 		if err = db.Ping(); err == nil {
 			break
@@ -304,7 +304,7 @@ func startDedicated(t *testing.T) (*sql.DB, func()) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	// Same retry loop as StartShared — the ready-log wait above mostly
+	// Same retry loop as StartShared - the ready-log wait above mostly
 	// covers the init race, but the kernel sometimes still hands us a
 	// half-closed socket on the first Ping under load.
 	var pingErr error

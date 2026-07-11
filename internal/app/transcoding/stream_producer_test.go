@@ -48,7 +48,7 @@ func TestProducerSelector_For_RoutesByPredicate(t *testing.T) {
 }
 
 // A nil predicate (the fan-out remover instance) must default to software for
-// For() and never panic — routing is unused on that instance.
+// For() and never panic - routing is unused on that instance.
 func TestProducerSelector_For_NilPredicate_DefaultsSoftware(t *testing.T) {
 	sw := &fakeProducer{name: "sw"}
 	hw := &fakeProducer{name: "hw"}

@@ -10,7 +10,7 @@ import (
 )
 
 // PlaybackQoEReader serves the admin dashboard. Reads are append-only on a
-// log-shaped table — no ORM, just hand-written aggregations that match the
+// log-shaped table - no ORM, just hand-written aggregations that match the
 // partial index on (ts DESC) WHERE buffer_starved = TRUE.
 //
 // All queries take a Window so the dashboard can pivot between "last 24h"
@@ -98,7 +98,7 @@ func (r *PlaybackQoEReader) GetTopStarvedTitles(ctx context.Context, window time
 
 	// LEFT JOIN media_items so a starved row with no matching media
 	// (orphaned event after a library cleanup) still shows up with
-	// empty title/path rather than disappearing — admin can still see
+	// empty title/path rather than disappearing - admin can still see
 	// the ratio and act on it.
 	const q = `
 		WITH agg AS (
@@ -190,7 +190,7 @@ func (r *PlaybackQoEReader) GetByDeviceClass(ctx context.Context, window time.Du
 }
 
 // intervalArg converts a Go Duration into the Postgres-compatible string for
-// `interval` cast. We can't bind a Duration directly — pg's interval parser
+// `interval` cast. We can't bind a Duration directly - pg's interval parser
 // only takes strings or numeric seconds.
 func intervalArg(d time.Duration) string {
 	if d <= 0 {

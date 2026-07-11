@@ -115,7 +115,6 @@ func TestStreamTrack_Success(t *testing.T) {
 	}
 }
 
-
 func TestGetTrackArt_Success(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()
 	ctx := context.Background()
@@ -376,7 +375,6 @@ func TestScanDirectory_OpenFileError(t *testing.T) {
 		t.Fatalf("expected 1 fallback track, got %d", count)
 	}
 }
-
 
 func TestScanDirectory_MovedFile(t *testing.T) {
 	repo := fakes.NewFakeMusicTrackRepository()

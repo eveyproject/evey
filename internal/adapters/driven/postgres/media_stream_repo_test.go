@@ -414,10 +414,10 @@ func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 }
 
 // TestMediaStreamRepo_FrameRateMode_RoundTrip verifies frame_rate_mode
-// defaults to '' (unknown) for existing rows, persists a cfr/vfr
+// defaults to ” (unknown) for existing rows, persists a cfr/vfr
 // classification, and never overwrites a value already set - mirroring
 // SetKeyframes' idempotency but keyed on the column's default rather than SQL
-// NULL (frame_rate_mode is NOT NULL DEFAULT '').
+// NULL (frame_rate_mode is NOT NULL DEFAULT ”).
 func TestMediaStreamRepo_FrameRateMode_RoundTrip(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

@@ -139,7 +139,7 @@ describe("SettingsPage", () => {
     const profile = { ...mockProfile, preferences: { ...mockProfile.preferences, parental_enabled: "true" } };
     mockListProfiles.mockReturnValue({ data: { profiles: [profile] } });
     // Pretend a PIN already exists so the Save PIN button isn't gated on the
-    // first-time-set `currentPassword` field — the test only cares about the
+    // first-time-set `currentPassword` field - the test only cares about the
     // client-side PIN/confirm mismatch path.
     mockGetParentalSettings.mockReturnValue({ data: { enabled: true, hasPin: true, maxAge: null } });
     const SettingsPage = await getSettingsPage();

@@ -20,7 +20,7 @@ import (
 )
 
 // dialPluginSock connects to a per-plugin host socket as the current
-// process — SO_PEERCRED on the server side will see this PID.
+// process - SO_PEERCRED on the server side will see this PID.
 func dialPluginSock(t *testing.T, sockPath string) (*grpc.ClientConn, pluginv1.HostServiceClient) {
 	t.Helper()
 	conn, err := grpc.NewClient(
@@ -39,7 +39,7 @@ func newRegisteredHost(t *testing.T, plugins map[string]*plugindomain.Plugin) *H
 	tmp := t.TempDir()
 	// Override the package socket base dir for this test by symlinking.
 	// We cannot rebind the const, so we lay out per-plugin dirs ourselves
-	// via the public API — register requires the base dir to exist.
+	// via the public API - register requires the base dir to exist.
 	require.NoError(t, os.MkdirAll(filepath.Join(tmp, "plugins"), 0o755))
 
 	store := &fakeConfigStore{plugins: plugins}
@@ -89,7 +89,7 @@ func TestAuthInterceptor_AcceptsMatchingPID(t *testing.T) {
 	require.NoError(t, err)
 	defer h.UnregisterPlugin("plg-test")
 
-	// Pin auth to this test's PID — kernel SO_PEERCRED on the
+	// Pin auth to this test's PID - kernel SO_PEERCRED on the
 	// connection will report exactly this value.
 	h.SetExpectedPID("plg-test", int32(os.Getpid()))
 
@@ -114,7 +114,7 @@ func TestAuthInterceptor_RejectsPIDMismatch(t *testing.T) {
 	require.NoError(t, err)
 	defer h.UnregisterPlugin("plg-test")
 
-	// Bind to a PID that is NOT the current test process — the dial
+	// Bind to a PID that is NOT the current test process - the dial
 	// from this process must be rejected.
 	wrongPID := int32(os.Getpid() + 1)
 	if wrongPID == int32(os.Getpid()) {
@@ -140,7 +140,7 @@ func TestAuthInterceptor_RejectsPIDMismatch(t *testing.T) {
 // the sibling's socket. Both sockets pin auth to different PIDs (here we
 // simulate "other plugin owns PID X" by binding plg-victim to a PID that
 // is NOT this test process). Even with full filesystem access to the
-// victim socket, the call from our PID is rejected — pluginID comes from
+// victim socket, the call from our PID is rejected - pluginID comes from
 // the listener closure, never from the wire.
 func TestAuthInterceptor_NoSpoofingViaCrossSocket(t *testing.T) {
 	if os.Getuid() == 0 {

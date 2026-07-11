@@ -300,7 +300,7 @@ export function ArtworksAdmin() {
         )}
       </Card>
 
-      {/* Blurhash backfill — retro-fits the placeholder hash onto artworks
+      {/* Blurhash backfill - retro-fits the placeholder hash onto artworks
           ingested before the blurhash column existed. Sync call; the button
           stays disabled while the request is in flight, and the toast names
           succeeded/failed so the admin can verify the pass landed. */}
@@ -327,7 +327,7 @@ export function ArtworksAdmin() {
         </Button>
       </Card>
 
-      {/* Purge corrupt variants — deletes 0-byte resized posters left by a
+      {/* Purge corrupt variants - deletes 0-byte resized posters left by a
           failed/timed-out resize. The serving path regenerates them on demand,
           so this is a bulk-clear convenience rather than a fix; the toast names
           how many files were removed. */}

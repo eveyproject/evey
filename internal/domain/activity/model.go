@@ -76,10 +76,10 @@ type GenreStats struct {
 }
 
 type MediaPlayCount struct {
-	MediaItemID  shared.MediaItemID
-	Title        string
-	PlayCount    int
-	TotalTimeMs  int64
+	MediaItemID shared.MediaItemID
+	Title       string
+	PlayCount   int
+	TotalTimeMs int64
 }
 
 type AuditLogEntry struct {
@@ -108,7 +108,7 @@ type ServerStatsResult struct {
 	// TotalStorageBytes sums the on-disk size of every media file.
 	TotalStorageBytes int64
 	// TotalBandwidthBytes is filled by the query service from the metric
-	// history (integral of the sampled streaming rate) — the stats reader
+	// history (integral of the sampled streaming rate) - the stats reader
 	// itself leaves it 0.
 	TotalBandwidthBytes int64
 	PopularMedia        []ServerPopularMedia
@@ -148,9 +148,9 @@ type RecentActivityEntry struct {
 }
 
 type DailyPlayCount struct {
-	Date               string
-	PlayCount          int
-	WatchTimeSeconds   int64
+	Date             string
+	PlayCount        int
+	WatchTimeSeconds int64
 }
 
 type PlayMethodCount struct {
@@ -164,12 +164,12 @@ type HourlyPlayCount struct {
 }
 
 type AnalyticsData struct {
-	TopMedia            []TopMediaItem
-	RecentActivity      []RecentActivityEntry
-	TotalPlaysToday     int
-	TotalPlaysThisWeek  int
-	ActiveUsersToday    int
-	DailyPlays          []DailyPlayCount
-	PlayMethods         []PlayMethodCount
-	HourlyPlays         []HourlyPlayCount
+	TopMedia           []TopMediaItem
+	RecentActivity     []RecentActivityEntry
+	TotalPlaysToday    int
+	TotalPlaysThisWeek int
+	ActiveUsersToday   int
+	DailyPlays         []DailyPlayCount
+	PlayMethods        []PlayMethodCount
+	HourlyPlays        []HourlyPlayCount
 }

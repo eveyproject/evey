@@ -144,7 +144,6 @@ func TestCachedMediaItemQueryRepo_Register_InvalidatesOnRemoved(t *testing.T) {
 	assert.Equal(t, "Updated", item.Title)
 }
 
-
 func TestCachedMediaItemQueryRepo_GetCastByMediaItem(t *testing.T) {
 	t.Parallel()
 	inner := libfakes.NewFakeMediaItemQueryRepo()

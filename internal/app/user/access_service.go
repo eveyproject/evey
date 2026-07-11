@@ -97,8 +97,8 @@ func (s *AccessService) RevokeInviteLink(ctx context.Context, inviteID string) e
 
 // ValidateInvite reports whether an invite code is still usable and whether it
 // would create an admin account. Used by the registration page to gate the
-// form. An unknown/expired/revoked/exhausted code returns (false, false, nil) —
-// not an error — so the caller shows the same neutral "link no longer valid"
+// form. An unknown/expired/revoked/exhausted code returns (false, false, nil) -
+// not an error - so the caller shows the same neutral "link no longer valid"
 // state regardless of the reason (no oracle on which codes ever existed).
 func (s *AccessService) ValidateInvite(ctx context.Context, token string) (valid bool, isAdmin bool, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.ValidateInvite")
@@ -294,7 +294,7 @@ func (s *AccessService) HasLibraryAccess(ctx context.Context, userID, libraryID 
 }
 
 // GetLibraryAccessByUserID returns the list of library IDs the user may
-// see. Empty slice (non-nil) means "user has zero granted libraries" —
+// see. Empty slice (non-nil) means "user has zero granted libraries" -
 // callers rely on the nil-vs-empty distinction to short-circuit admin /
 // unrestricted paths (nil = unrestricted, empty = access to nothing).
 // Returning nil here silently promoted users with zero grants to

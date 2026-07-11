@@ -10,7 +10,7 @@ import (
 // name(s) we look for on PATH. Order matters: the first match wins
 // (e.g. lua 5.4 over plain lua).
 //
-// Compiled languages ("go") are intentionally absent — they have no
+// Compiled languages ("go") are intentionally absent - they have no
 // runtime to resolve; isCompiled() short-circuits them as always-available.
 var runtimeBinaries = map[string][]string{
 	"python": {"python3", "python"},
@@ -22,7 +22,7 @@ var runtimeBinaries = map[string][]string{
 	"sh":     {"sh"},
 }
 
-// compiledLanguages need no interpreter — the plugin ships a binary.
+// compiledLanguages need no interpreter - the plugin ships a binary.
 var compiledLanguages = map[string]bool{
 	"go": true,
 }

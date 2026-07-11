@@ -15,7 +15,7 @@ import (
 
 // ingestCMCD parses CMCD (CTA-5004) from the request and forwards the event
 // to the QoE sink. No-op when CMCD is absent or the sink isn't wired (dev /
-// tests). Resolves user_id from the request context — anonymous plays
+// tests). Resolves user_id from the request context - anonymous plays
 // (shared link, no token) end up with an empty user_id, which is fine.
 func (h *hlsVODServe) ingestCMCD(r *http.Request, mediaID string, variantIdx, segmentIdx int, isInit, isManifest, isVariantPL bool) {
 	if h.qoeSink == nil {
@@ -33,8 +33,8 @@ func (h *hlsVODServe) ingestCMCD(r *http.Request, mediaID string, variantIdx, se
 	}
 
 	// Debug-level: CMCD ingest fires once per beacon (per segment, per stream),
-	// so Info would flood prod logs. The Phase 1 rollout is over — the QoE SQL
-	// table and the /admin/qoe dashboard are confirmed working — so this drops
+	// so Info would flood prod logs. The Phase 1 rollout is over - the QoE SQL
+	// table and the /admin/qoe dashboard are confirmed working - so this drops
 	// from Info to Debug (kept for on-demand troubleshooting, not steady-state).
 	slog.Debug("hls-vod: CMCD ingest",
 		slog.String("media_id", mediaID),
@@ -68,10 +68,10 @@ func (h *hlsVODServe) ingestCMCD(r *http.Request, mediaID string, variantIdx, se
 // notifyProducerHint forwards CMCD telemetry (buffer length, starvation flag,
 // current segment cursor) to the resolved producer's NotifyClientHint so the
 // throttle / prefetch / pacing policy can react in real time. Read-only on the
-// HTTP path — never blocks, never errors. No-op when CMCD is absent or no
+// HTTP path - never blocks, never errors. No-op when CMCD is absent or no
 // producer resolved.
 //
-// NEVER touches which variant is served — the player owns rendition
+// NEVER touches which variant is served - the player owns rendition
 // selection. The feedback loop only adjusts encoder pacing.
 func (h *hlsVODServe) notifyProducerHint(producer apptranscoding.StreamProducer, r *http.Request, mediaID string, segmentIdx int) {
 	if producer == nil {

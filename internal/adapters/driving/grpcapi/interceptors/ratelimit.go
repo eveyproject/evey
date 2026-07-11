@@ -22,7 +22,7 @@ type MethodLimiter struct {
 
 // DefaultPublicMethodLimiters returns per-method limiters for endpoints
 // prone to brute-force or abuse. Most entries are public (no auth needed
-// to hit), but a few require auth — we still rate-limit them because an
+// to hit), but a few require auth - we still rate-limit them because an
 // already-authenticated attacker can grind brute-force targets too
 // (QuickConnect code guessing, invite redemption, etc.). Each limiter
 // is per-IP.

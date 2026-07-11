@@ -15,11 +15,11 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-// ondemand.go — the mkvgo implementation of apptranscoding.OnDemandPackager:
+// ondemand.go - the mkvgo implementation of apptranscoding.OnDemandPackager:
 // zero-storage HLS/DASH packaging via mp4.PlanHLS. A plan is a few bounded
 // reads (metadata head + Cues for Matroska, the moov for MP4/MOV) and is then
 // immutable and concurrency-safe, so we cache one per source and serve every
-// segment/playlist/manifest request straight off it — no ffmpeg, no session
+// segment/playlist/manifest request straight off it - no ffmpeg, no session
 // state, no on-disk segments.
 
 const (
@@ -49,7 +49,7 @@ func (p *OnDemandPackager) Close() {
 }
 
 // Plan returns a cached-or-freshly-built plan for srcPath. It fails (and the
-// caller falls back to ffmpeg) when the source cannot be packaged verbatim —
+// caller falls back to ffmpeg) when the source cannot be packaged verbatim -
 // an unsupported codec, or a Matroska with no Cues seek index.
 func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.OnDemandPlan")
@@ -101,8 +101,8 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 // keeps prefixed and unprefixed plans distinct if that ever changes.
 //
 // The AES key is hashed into the key (not just its length): the encrypted
-// segment bytes depend on the exact key, so a rotated secret — same file, new
-// derived key — must not alias onto a plan encrypted with the old key. The
+// segment bytes depend on the exact key, so a rotated secret - same file, new
+// derived key - must not alias onto a plan encrypted with the old key. The
 // KeyURI rides along since it changes the playlists' EXT-X-KEY line.
 func onDemandCacheKey(srcPath string, opts apptranscoding.OnDemandOptions) string {
 	var mtime, size int64

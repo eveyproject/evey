@@ -1046,7 +1046,7 @@ func TestDeleteProfile_PublishError_EmitsWarning(t *testing.T) {
 
 // Invariant: an admin user's profile cannot be marked IsKids=true. Without
 // this guard a single-user server (admin = only user) can end up with a
-// kids profile filtering its own library — semantically incoherent.
+// kids profile filtering its own library - semantically incoherent.
 func TestCreateProfile_AdminCannotBeKids(t *testing.T) {
 	d := newUserTestDeps()
 	ctx := context.Background()

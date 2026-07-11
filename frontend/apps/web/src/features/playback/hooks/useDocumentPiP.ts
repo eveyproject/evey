@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 // Document Picture-in-Picture brings the WHOLE player UI (controls, progress
 // bar, subtitles, chapter skip, next episode prompt, ...) into a separate
-// always-on-top window — not just the bare <video> element of the standard
+// always-on-top window - not just the bare <video> element of the standard
 // PiP API. Chrome/Edge 116+ only; we feature-detect and the caller falls
 // back to the legacy PiP when documentPictureInPicture is undefined.
 //
@@ -50,7 +50,7 @@ export function useDocumentPiP(selector = "[data-player-container]"): UseDocumen
 
   // Anchor refs so we can restore the moved node into its original spot.
   // We capture the original parent + nextSibling at open time and put the
-  // container back at close. Don't rely on these between hook re-renders —
+  // container back at close. Don't rely on these between hook re-renders -
   // they're only valid for the lifetime of one open/close pair.
   const originalParent = useRef<Node | null>(null);
   const originalNextSibling = useRef<Node | null>(null);
@@ -81,7 +81,7 @@ export function useDocumentPiP(selector = "[data-player-container]"): UseDocumen
 
     copyStylesheets(document, pipWindow.document);
 
-    // Capture the restoration anchor BEFORE moving — once moved, parentNode
+    // Capture the restoration anchor BEFORE moving - once moved, parentNode
     // becomes the PiP body.
     originalParent.current = container.parentNode;
     originalNextSibling.current = container.nextSibling;

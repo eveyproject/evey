@@ -22,7 +22,7 @@ func (f *tickFakeScanner) ScanLibrary(_ context.Context, _ string) (int, int, er
 	return 0, 0, nil
 }
 
-// tick must advance NextRunAt at trigger time, not after the scan completes —
+// tick must advance NextRunAt at trigger time, not after the scan completes -
 // otherwise a tick during a long scan re-fires the schedule (the scan lock
 // rejects the duplicate but logs a spurious failure every long scan on a NAS).
 func TestScheduler_Tick_AdvancesNextRunAtAtTrigger(t *testing.T) {

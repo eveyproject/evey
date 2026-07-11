@@ -56,7 +56,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       aria-label={isOnAdmin ? t("common.nav.adminNav") : t("common.nav.mainNav")}
       className={`flex flex-col h-full bg-[var(--surface)] border-r border-[var(--border)] py-4 shrink-0 overflow-hidden transition-[max-width] duration-200 ${isCollapsed ? "max-w-16 w-16" : "max-w-56 w-56"}`}
     >
-      {/* Header — on desktop the logo itself toggles the collapsed state
+      {/* Header - on desktop the logo itself toggles the collapsed state
           (the old dedicated button is gone); on the mobile overlay there's no
           collapse, so the logo links home and closes the drawer. */}
       <div className={`flex items-center mb-6 ${isCollapsed ? "justify-center px-2" : "justify-between px-4"}`}>

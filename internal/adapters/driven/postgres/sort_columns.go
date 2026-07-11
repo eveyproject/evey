@@ -2,7 +2,7 @@ package postgres
 
 // SortColumnMap maps proto/API sort field names to SQL column names.
 // All entries are table-qualified so they slot directly into queries
-// that JOIN media_items (mi) with the sub-aggregates (mc, mcl) — see
+// that JOIN media_items (mi) with the sub-aggregates (mc, mcl) - see
 // mediaItemFromJoins.
 var SortColumnMap = map[string]string{
 	"title":            "mi.sort_title",

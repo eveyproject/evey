@@ -10,7 +10,7 @@ import (
 )
 
 // A non-EBML file (wrong extension / not Matroska) must be reported as having
-// no seek index and skipped by ReindexInPlace without ever being touched —
+// no seek index and skipped by ReindexInPlace without ever being touched -
 // the sweep walks mixed trees (mp4/avi/srt) and must leave non-MKV alone.
 func TestReindexInPlace_NonEBML_SkipsUntouched(t *testing.T) {
 	a := New()

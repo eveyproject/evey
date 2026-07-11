@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/google/uuid"
 )
 
 type CommandService struct {
@@ -73,7 +73,7 @@ func (s *CommandService) PurgeOldAuditLogs(ctx context.Context, before time.Time
 
 // runRetention performs one purge pass for whichever tables have a positive
 // retention window (days <= 0 = keep forever). Failures are logged, never
-// fatal — a single bad pass must not kill the daily loop.
+// fatal - a single bad pass must not kill the daily loop.
 func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDays int) {
 	// "Never fatal" covers panics too, not just errors: the caller runs this in a
 	// detached daily goroutine, so an unrecovered panic (e.g. a nil repo or a

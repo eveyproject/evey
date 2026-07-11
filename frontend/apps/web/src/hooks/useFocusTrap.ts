@@ -8,7 +8,7 @@ const FOCUSABLE =
  * focuses the first focusable element on activation, and restores focus to
  * the previously focused element when deactivated.
  *
- * Caller owns Escape handling — the hook only manages Tab cycling + focus
+ * Caller owns Escape handling - the hook only manages Tab cycling + focus
  * lifecycle so it can be paired with custom keybindings.
  */
 export function useFocusTrap(

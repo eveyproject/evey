@@ -133,7 +133,7 @@ describe("TopBar", () => {
   it("renders unified user menu with one profile (no separate switcher button)", () => {
     mockProfiles = [{ id: "p1", userId: "u1", name: "Alice", isDefault: true }];
     renderTopBar();
-    // Only one avatar button — the profile switcher and user menu are merged.
+    // Only one avatar button - the profile switcher and user menu are merged.
     expect(screen.getAllByTestId("profile-switcher-btn")).toHaveLength(1);
   });
 

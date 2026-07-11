@@ -151,7 +151,7 @@ func TestDispatcher_ImplementsStreamProber(t *testing.T) {
 
 // A dropped video or audio track means the container holds media the fast-path
 // result would silently omit (a scan would record e.g. an h263 camera mp4 as
-// audio-only) — those files must error out of the fast-path so the dispatcher
+// audio-only) - those files must error out of the fast-path so the dispatcher
 // falls back to ffprobe. Non-media handler drops (hint/tmcd/meta, Type == "")
 // and subtitle drops (QuickTime chapter text) stay fast-path.
 func TestGateMP4Drops(t *testing.T) {

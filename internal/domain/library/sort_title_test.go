@@ -20,7 +20,7 @@ func TestNormalizeSortTitle(t *testing.T) {
 		{"an inconvenient truth → inconvenient truth", "An Inconvenient Truth", "inconvenient truth"},
 		// Articles: French
 		{"les amours imaginaires → amours imaginaires", "Les Amours Imaginaires", "amours imaginaires"},
-		// Only the LEADING article is stripped — internal d'/l' stay
+		// Only the LEADING article is stripped - internal d'/l' stay
 		{"le fabuleux destin → fabuleux destin (internal d' kept)", "Le Fabuleux Destin d'Amélie Poulain", "fabuleux destin d'amelie poulain"},
 		{"la haine → haine", "La Haine", "haine"},
 		{"l'odyssée → odyssee (apostrophe stripped + diacritics)", "L'Odyssée", "odyssee"},

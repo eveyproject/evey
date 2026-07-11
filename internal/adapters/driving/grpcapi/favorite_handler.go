@@ -90,7 +90,7 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 		}
 	}
 	// Parental: a kid profile must not see adult favorites' metadata (title /
-	// year / rating) — drop blocked items entirely, mirroring resume/next-up.
+	// year / rating) - drop blocked items entirely, mirroring resume/next-up.
 	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	resp := &eveyv1.ListFavoritesResponse{}
 	for _, f := range favs {
@@ -138,7 +138,7 @@ func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavori
 	// AddFavorite must be idempotent: the underlying Toggle flips state, so a
 	// double-tap (slow heart button, optimistic-UI re-fire, a retry after a lost
 	// response) used to silently UN-favorite the item. Guard on current state
-	// like RemoveFavorite does — only add when not already favorited — so the
+	// like RemoveFavorite does - only add when not already favorited - so the
 	// end state is always "favorited" no matter how many times it's called.
 	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
 	if err != nil {

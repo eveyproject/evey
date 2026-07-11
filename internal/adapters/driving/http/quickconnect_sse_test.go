@@ -349,7 +349,7 @@ func TestQuickConnectSSE_ConcurrentSubscribersSameCode(t *testing.T) {
 	}()
 
 	// Wait for each sub to emit its initial ping (proves they're subscribed)
-	// using the per-recorder flushed signal — no fixed sleeps.
+	// using the per-recorder flushed signal - no fixed sleeps.
 	for i, r := range recs {
 		if !r.waitForBody(t, ": ping", 3*time.Second) {
 			t.Fatalf("sub %d never emitted initial ping: %q", i, r.body())

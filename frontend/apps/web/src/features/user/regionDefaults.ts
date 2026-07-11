@@ -1,4 +1,4 @@
-// Mirror of internal/pkg/region.DefaultForLocale. Used for UX hints only —
+// Mirror of internal/pkg/region.DefaultForLocale. Used for UX hints only -
 // the authoritative default lives server-side and is applied via
 // ResolveRegion when a profile is used without an explicit region.
 const DEFAULT_REGION_FOR_LOCALE: Record<string, string> = {

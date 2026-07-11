@@ -10,8 +10,8 @@ import (
 )
 
 type fakeLibQuerySvc struct {
-	items   map[string]*domainlibrary.MediaItem
-	getErr  error
+	items  map[string]*domainlibrary.MediaItem
+	getErr error
 }
 
 func (f *fakeLibQuerySvc) GetMediaItem(_ context.Context, id string) (*domainlibrary.MediaItem, error) {

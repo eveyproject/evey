@@ -232,7 +232,7 @@ describe("SkipIntroButton", () => {
   it("picks the segment the playhead is inside, not just the first (intro shadow bug)", () => {
     // intro at the start + end_credits at the end. Playhead is in credits.
     // The old find(first skippable) resolved intro, then the currentTime
-    // guard hid the button entirely — credits were never skippable.
+    // guard hid the button entirely - credits were never skippable.
     mockUseMediaSegments.mockReturnValue({ data: [introSegment, creditsSegment] });
     mockUseQuery.mockReturnValue({ data: { chapters: [] } });
     render(<SkipIntroButton mediaId="m1" currentTime={1810} onSkip={vi.fn()} />);

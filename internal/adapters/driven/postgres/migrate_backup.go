@@ -14,7 +14,7 @@ import (
 )
 
 // BackupOpts configures pre-migration database backups. When Dir is
-// empty, RunMigrations runs without taking a backup — convenient for
+// empty, RunMigrations runs without taking a backup - convenient for
 // tests where the container is ephemeral. Production callers should set
 // Dir + the connection params so a rollback dump exists if Up() fails.
 type BackupOpts struct {
@@ -36,7 +36,7 @@ const backupFilePrefix = "pre-migration-"
 // Returns the path of the written file. Caller is expected to log this
 // path on migration failure so the operator knows what to restore from.
 //
-// pg_dump must be on PATH — fail-closed if missing rather than silently
+// pg_dump must be on PATH - fail-closed if missing rather than silently
 // migrating without a safety net. The Dockerfile installs
 // postgresql-client.
 func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
@@ -75,7 +75,7 @@ func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 		return "", fmt.Errorf("create dump file: %w", err)
 	}
 	// A deferred Close that ignores its error can silently lose data on
-	// O_WRONLY handles — a failed fsync/flush at close time means the
+	// O_WRONLY handles - a failed fsync/flush at close time means the
 	// on-disk dump is truncated but the caller sees "success". Surface
 	// the Close error when no other error has superseded it, and remove
 	// the (likely corrupt) partial file.
@@ -111,7 +111,7 @@ func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 }
 
 // pruneOldBackups keeps only the `keep` most recent pre-migration
-// dumps under dir, deleting the rest. Sort order is filename — they
+// dumps under dir, deleting the rest. Sort order is filename - they
 // embed the migration version + UTC timestamp so lexicographic sort ==
 // chronological. Errors are logged, not returned: a failed prune
 // shouldn't block a successful migration.

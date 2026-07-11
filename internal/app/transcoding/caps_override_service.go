@@ -22,7 +22,7 @@ import (
 //
 //   - A periodic worker (default 30 min) joins playback_qoe_events
 //     with media_streams to bucket each event by source resolution
-//     (the bucket the override system reasons about — see
+//     (the bucket the override system reasons about - see
 //     domain SourceClassFor).
 //   - For each bucket with at least minSamples plays AND a
 //     starved_ratio > starvedThreshold, an override is written:
@@ -32,7 +32,7 @@ import (
 //     service caches the override list in-memory + reloads on every
 //     Refresh + every worker tick, so the handler stays lock-free.
 //
-// The aggregation query is intentionally simple — Phase C MVP.
+// The aggregation query is intentionally simple - Phase C MVP.
 // Per-codec / per-title granularity is a follow-up if real data
 // shows the bucket granularity is too coarse.
 type CapOverrideService struct {
@@ -51,26 +51,26 @@ type CapOverrideService struct {
 }
 
 type CapOverrideServiceOpts struct {
-	// TickInterval — how often the worker aggregates QoE events and
+	// TickInterval - how often the worker aggregates QoE events and
 	// updates overrides. 30 min is conservative; lower it for faster
 	// reaction on busy hosts.
 	TickInterval time.Duration
 
-	// AggregationWindow — how far back we look at QoE events when
+	// AggregationWindow - how far back we look at QoE events when
 	// computing starvation ratios. 24 h gives enough volume to be
 	// stable without dragging in old network conditions.
 	AggregationWindow time.Duration
 
-	// MinSamples — minimum playback events in a bucket before we
+	// MinSamples - minimum playback events in a bucket before we
 	// consider applying an override. Below this the ratio is too
 	// noisy.
 	MinSamples int
 
-	// StarvedThreshold — fraction of starved events that triggers an
+	// StarvedThreshold - fraction of starved events that triggers an
 	// override. 0.30 = 30 %.
 	StarvedThreshold float64
 
-	// OverrideTTL — how long an override sticks before being deleted
+	// OverrideTTL - how long an override sticks before being deleted
 	// (and re-evaluated by the worker on the next tick).
 	OverrideTTL time.Duration
 }
@@ -189,7 +189,7 @@ func (s *CapOverrideService) ResetOverride(ctx context.Context, sourceClass stri
 			slog.String("source_class", sourceClass))
 	}
 	if err := s.Refresh(ctx); err != nil {
-		// Cache refresh failure is non-fatal — the next tick will
+		// Cache refresh failure is non-fatal - the next tick will
 		// reload anyway. Surface a warning so admins notice if
 		// /admin/qoe shows the override that should be gone.
 		s.logger.Warn("caps override: cache refresh failed after reset", slog.Any("err", err))
@@ -198,7 +198,7 @@ func (s *CapOverrideService) ResetOverride(ctx context.Context, sourceClass stri
 }
 
 // ListActive returns every cached non-expired override. Exposed for the
-// admin UI panel — same atomic snapshot the handler reads on each
+// admin UI panel - same atomic snapshot the handler reads on each
 // request, so what the admin sees IS what the handler enforces.
 func (s *CapOverrideService) ListActive() []domaintranscoding.CapOverride {
 	list := s.cached.Load()
@@ -214,7 +214,7 @@ func (s *CapOverrideService) ListActive() []domaintranscoding.CapOverride {
 
 // OverrideForHeight returns the active override matching the
 // (codec, height) bucket, or false if none applies. Called by the
-// handler on every HLS-VOD request — lock-free atomic read.
+// handler on every HLS-VOD request - lock-free atomic read.
 //
 // Match priority:
 //  1. Exact "<codec>/<height>" bucket (post-per-codec rows).
@@ -225,7 +225,7 @@ func (s *CapOverrideService) ListActive() []domaintranscoding.CapOverride {
 //     re-aggregates and overwrites them with codec-aware ones).
 //
 // The first match wins; we don't merge overrides (the lowest cap
-// among matches wouldn't be meaningful in practice — the worker
+// among matches wouldn't be meaningful in practice - the worker
 // already picks one rung lower than current).
 func (s *CapOverrideService) OverrideForHeight(sourceCodec string, sourceHeight int) (domaintranscoding.CapOverride, bool) {
 	cls := domaintranscoding.SourceClassFor(sourceCodec, sourceHeight)
@@ -281,7 +281,7 @@ func (s *CapOverrideService) OverrideForHeight(sourceCodec string, sourceHeight 
 // override one rung below the calibrated cap whenever a bucket
 // exceeds the threshold.
 //
-// We DON'T touch the override when a bucket is below threshold —
+// We DON'T touch the override when a bucket is below threshold -
 // existing overrides stay until expires_at, then the worker
 // re-evaluates. That avoids flapping caps when a class flirts with
 // the threshold.
@@ -336,7 +336,7 @@ func (s *CapOverrideService) aggregateAndUpsert(ctx context.Context) error {
 // over-correct on a transient network event).
 //
 // Accepts both per-codec ("hevc/2160p") and legacy ("2160p") class
-// strings — only the height suffix matters for the height cap. The
+// strings - only the height suffix matters for the height cap. The
 // codec is informational for the override row.
 func lowerCapFor(cls string) int {
 	heightPart := cls
@@ -345,7 +345,7 @@ func lowerCapFor(cls string) int {
 	}
 	switch heightPart {
 	case "2160p":
-		return 1080 // skip 1440p — the cap-1080 case is the proven safe one
+		return 1080 // skip 1440p - the cap-1080 case is the proven safe one
 	case "1440p":
 		return 1080
 	case "1080p":

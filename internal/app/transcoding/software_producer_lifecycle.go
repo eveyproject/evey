@@ -11,11 +11,11 @@ import (
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
-// RemoveSession kills EVERY session producing for the given media ID — across
+// RemoveSession kills EVERY session producing for the given media ID - across
 // all hashes (different audio/sub/codec decisions) and all positions. This is
 // the FORCEFUL path (admin kill-session): it tears sessions down regardless of
 // whether another viewer is consuming them. The gentle playback-stop path must
-// NOT call this unconditionally — the StopStream handler gates it on "no other
+// NOT call this unconditionally - the StopStream handler gates it on "no other
 // active stream for this media" so closing one of two tabs never kills the
 // other. No-op when none match.
 func (p *SoftwareProducer) RemoveSession(mediaItemID string) {

@@ -104,7 +104,7 @@ export function useTranscodePlayback({
 
     // VOD pipeline: the server precomputes the full manifest covering
     // the entire media (0 → totalDuration) and serves segments on
-    // demand. There is no "transcode start offset" — the playhead is
+    // demand. There is no "transcode start offset" - the playhead is
     // an absolute position in the source. transcodeOffset must stay
     // at 0 so positionRef = currentTime matches the absolute time;
     // a non-zero offset (legacy sliding-window assumption) silently
@@ -115,7 +115,7 @@ export function useTranscodePlayback({
     // timestamp: hls.js places each segment at its absolute EXTINF offset in
     // the precalculated VOD manifest and applies a per-segment timestampOffset.
     // Each ffmpeg session resets the fragment's fMP4 tfdt to 0 (a fresh session
-    // always does, with or without -copyts — verified against jellyfin-ffmpeg7),
+    // always does, with or without -copyts - verified against jellyfin-ffmpeg7),
     // and hls.js tolerates that because the EXTINF drives the timeline. So a
     // seek-spawned rafale at segment N lands at N's manifest position regardless
     // of its tfdt.
@@ -134,12 +134,12 @@ export function useTranscodePlayback({
     if (prefersNativeHLS()) {
       video.src = hlsUrl;
       // Native-HLS path (Safari macOS laptops + iOS). Preferred wherever the
-      // <video> decodes HLS itself — lighter on CPU/battery than hls.js+MSE —
+      // <video> decodes HLS itself - lighter on CPU/battery than hls.js+MSE -
       // not only where MSE is missing. Segment auth rides the httpOnly evey_hls
       // cookie (issued off this master request's ?token=), and the token is the
       // long-lived native session token so a pause can't expire it mid-stream. The
       // stream is transcoded starting at `offset`, so video.currentTime is
-      // local to the restarted segment — positionRef must hold the ABSOLUTE
+      // local to the restarted segment - positionRef must hold the ABSOLUTE
       // position (offset + local) like the Hls.js path does, otherwise every
       // seek after an out-of-buffer restart on Safari lands offset seconds off.
       //
@@ -200,7 +200,7 @@ export function useTranscodePlayback({
         // The server bakes the stream token into segment URIs in the master/sub
         // playlists. The token has a 5-min sliding TTL that lapses during pause,
         // so on resume those baked-in URLs return 401. After a 401 retry refreshes
-        // the token, every subsequent xhr must override the URL token — so we
+        // the token, every subsequent xhr must override the URL token - so we
         // always strip and re-inject, regardless of what the URL carries.
         try {
           const u = new URL(url, window.location.origin);
@@ -227,7 +227,7 @@ export function useTranscodePlayback({
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       setHlsLevels(hls.levels.map((l) => l.height));
-      // NB: hls.js ABR is intentionally NOT used on this transcode path — the
+      // NB: hls.js ABR is intentionally NOT used on this transcode path - the
       // level-sync effect in HLSPlayer PINS a single rung (top for Auto, the chosen
       // one for manual) because free ABR loads several rungs at once on a transcode
       // box and thrashes. So no startLevel / abrEwmaDefaultEstimate tuning here.
@@ -236,7 +236,7 @@ export function useTranscodePlayback({
       // hls.js to request the matching segment from the server.
       // SegmentOrchestrator (or the copy rung) spawns a rafale at that segment
       // with the matching -ss; hls.js accepts it because the playlist's EXTINF
-      // places the segment — the fragment's tfdt resets to 0 per session and is
+      // places the segment - the fragment's tfdt resets to 0 per session and is
       // tolerated (positioning is by the manifest, not the fragment timestamp).
       if (initialSeekSec > 0) {
         video.currentTime = initialSeekSec;
@@ -278,7 +278,7 @@ export function useTranscodePlayback({
               streamTokenRef.current = newToken;
               // The token refresh is async; if the effect re-ran meanwhile
               // (audio/subtitle/quality switch destroyed this instance and
-              // built a new one), don't drive the dead instance — the live
+              // built a new one), don't drive the dead instance - the live
               // one in hlsRef is already loading.
               if (hls !== hlsRef.current) return;
               // For manifest/level failures, hls.js holds a stale URL with the
@@ -300,7 +300,7 @@ export function useTranscodePlayback({
                 hls.startLoad();
               }
             } catch {
-              // Only fail the LIVE instance — if the effect re-ran during the
+              // Only fail the LIVE instance - if the effect re-ran during the
               // async refresh (audio/subtitle/quality switch), this hls is dead
               // and the new one in hlsRef is already loading.
               if (hls === hlsRef.current) setFatalError(true);

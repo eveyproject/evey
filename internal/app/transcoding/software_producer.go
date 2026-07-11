@@ -21,12 +21,12 @@ import (
 //
 // Profiles serves a ladder CAPPED at the sustainable software ceiling (a single
 // rung in copy mode). The transcode path keeps the lower rungs so Auto can fall
-// back to a smaller rendition when the top is slow — but the famine the decouple
+// back to a smaller rendition when the top is slow - but the famine the decouple
 // fixed (N unpaced parallel encoders) is held off a different way than forced
 // single-rung: at most MaxConcurrentVariantsPerHash encoders run per hash at
 // once, and requesting a variant SIGSTOPs the siblings (pauseOtherVariants), so
 // only the rung the client is actually pulling burns CPU. The client never gets
-// ErrCapacityExceeded — it WAITS for the paced encoder rather than abort-probing
+// ErrCapacityExceeded - it WAITS for the paced encoder rather than abort-probing
 // across rungs that each spawn their own starving session.
 //
 // This is the antithesis of SegmentOrchestrator (the hardware path) on the axes
@@ -37,7 +37,7 @@ import (
 //
 // It DOES, however, allow a SMALL bounded number of encoders for the SAME hash
 // when (and only when) two viewers sit at genuinely different live positions of
-// the same film — two browser tabs, or a PC + a phone, started at different
+// the same film - two browser tabs, or a PC + a phone, started at different
 // offsets. Viewers at the same position share one encoder via the addressable
 // cache; only distinct uncached positions get their own. This is the multi-tab
 // coexistence the orchestrator already guarantees (commit 0ac96ebbb), ported to
@@ -55,7 +55,7 @@ import (
 //     rung in copy mode); concurrency held by MaxConcurrentVariantsPerHash +
 //     SIGSTOP of the non-requested variants, not by collapsing to one rung
 //  7. an uncovered position (e.g. a second viewer cold-starting below a deep
-//     viewer) spawns a session ALONGSIDE — it never kills a sibling another
+//     viewer) spawns a session ALONGSIDE - it never kills a sibling another
 //     viewer is consuming; the LRU is evicted only when the cap is exceeded
 //  8. the common VOD manifest is served alongside (the client reads segment N
 //     when the paced process reaches it)
@@ -67,7 +67,7 @@ type SoftwareProducer struct {
 	opts    SoftwareProducerOptions
 
 	// copyPlanner gates COPY MODE (the Jellyfin-style paced video-copy rung).
-	// nil = pure transcode, byte-identical to before — every copy-mode divergence
+	// nil = pure transcode, byte-identical to before - every copy-mode divergence
 	// is behind a `copyPlanner != nil` check. When set (a dedicated copy instance
 	// wired for the remux rung), startSession emits `-c:v copy` and maps a segment
 	// index to its keyframe StartSec via the plan, and Manifest serves the
@@ -88,7 +88,7 @@ type SoftwareProducer struct {
 	videoLimiter *VideoSessionLimiter
 
 	// shutdownCtx is the long-lived parent for every ffmpeg this producer
-	// spawns — never the HTTP request context (that one dies when the segment
+	// spawns - never the HTTP request context (that one dies when the segment
 	// is served, which would tear down the long-lived encoder). Cancelled only
 	// by Close.
 	shutdownCtx    context.Context
@@ -100,7 +100,7 @@ type SoftwareProducer struct {
 	// position), but a small bounded slice when two viewers sit at genuinely
 	// different live positions of the same film (two tabs / PC + phone started
 	// at different offsets). A second viewer spawns a session ALONGSIDE rather
-	// than killing the first's — the multi-tab coexistence guarantee. Bounded by
+	// than killing the first's - the multi-tab coexistence guarantee. Bounded by
 	// opts.MaxSessionsPerHash (LRU-evicted past the cap), mirroring the
 	// orchestrator's []*orchestratorSession.
 	sessions map[string][]*swSession
@@ -126,12 +126,12 @@ type SoftwareProducerOptions struct {
 	// racing ahead of a viewer who is, by construction, watching in real time.
 	ReadRate float64
 
-	// SegmentSeconds — keep in sync with ManifestSegmentSeconds and the ffmpeg
+	// SegmentSeconds - keep in sync with ManifestSegmentSeconds and the ffmpeg
 	// keyframe cadence. Maps a requested segment index to a `-ss` seek offset.
 	SegmentSeconds float64
 
 	// InactivityTimeout is how long a session lingers with no segment request
-	// before the GC kills it AND frees its disk segments. Default 30 min — long,
+	// before the GC kills it AND frees its disk segments. Default 30 min - long,
 	// matching the legacy HLSManager (a Chromecast can sit on a deep buffer for
 	// minutes), because the LRU disk evictor bounds the disk cost independently.
 	InactivityTimeout time.Duration
@@ -144,25 +144,25 @@ type SoftwareProducerOptions struct {
 	// player). A segment request resumes it. Default 20 s.
 	PauseIdleThreshold time.Duration
 
-	// WaitBudgetDur is what WaitBudget() reports — how long the handler blocks
+	// WaitBudgetDur is what WaitBudget() reports - how long the handler blocks
 	// on cache.Wait for a software segment. Default 60 s: a single paced encoder
 	// is slower to land segment 0 on a 4K HDR software decode, and the client is
 	// expected to wait (no abort-and-probe).
 	WaitBudgetDur time.Duration
 
 	// MaxSessionsPerHash bounds the number of concurrent ffmpeg encoders for a
-	// SINGLE DecisionHash — i.e. how many genuinely-distinct live positions of
+	// SINGLE DecisionHash - i.e. how many genuinely-distinct live positions of
 	// the same film coexist before the least-recently-used one is evicted.
 	// Default 2: enough for the common two-tab / two-device case (the multi-tab
 	// coexistence guarantee) while keeping concurrent software encodes on a weak
 	// NAS bounded (each encode is full CPU; viewers at the same position share
 	// one via the cache, so this only bites on distinct uncached positions). Set
 	// to 1 to restore the legacy single-process-per-hash model (a second
-	// distinct position then evicts the first — the pre-fix behaviour).
+	// distinct position then evicts the first - the pre-fix behaviour).
 	MaxSessionsPerHash int
 
 	// MaxConcurrentVariantsPerHash bounds how many DISTINCT rungs (variantIdx) may
-	// have a live encoder for one film at once — the anti-thrash ceiling on a weak
+	// have a live encoder for one film at once - the anti-thrash ceiling on a weak
 	// NAS where each rung is its own full 4K decode (the software path never shares
 	// a decode across rungs). Past the cap the least-recently-used rung's encoder is
 	// evicted (its segments stay on disk for the LRU disk evictor). Default 2; set
@@ -193,8 +193,8 @@ type SoftwareProducerOptions struct {
 	// frontier a request may be and still reuse that (paced) encoder rather than
 	// seek a fresh one. Within the window the player waits a beat for the
 	// sequential encoder to arrive; beyond it (a real forward seek) waiting would
-	// blow the wait budget — a 4K HDR encoder paced at 1.5× takes minutes to cross
-	// hundreds of segments — so a fresh encoder seeks (`-ss`) straight to the
+	// blow the wait budget - a 4K HDR encoder paced at 1.5× takes minutes to cross
+	// hundreds of segments - so a fresh encoder seeks (`-ss`) straight to the
 	// target. Default 16 (~48 s of 3 s segments): far above the 0-1 segment gap of
 	// continuous playback (steady viewing never spuriously spawns a second encoder)
 	// yet a small fraction of any deliberate scrub.
@@ -252,7 +252,7 @@ type swSession struct {
 	// exists, else spawns a new session at the requested offset.
 	startSeg int
 	// variantIdx is which ABR rung (index into fp.Profiles) this encoder produces.
-	// A session is only ever reused for a request of the SAME variantIdx — rungs
+	// A session is only ever reused for a request of the SAME variantIdx - rungs
 	// are isolated, because the cache Wait() polls per-variant disk files with no
 	// per-variant pending channel, so handing a variant-0 encoder a variant-1
 	// request would never write stream_1_* and rebuffer forever. Single-rendition
@@ -283,8 +283,8 @@ type swSession struct {
 	// metricDecOnce guarantees the HLSVODSessions gauge is decremented EXACTLY
 	// once per session, whether it ends by natural ffmpeg EOF (the reap goroutine
 	// runs, killSession does not) or by eviction/kill (killSession runs). Without
-	// it a fully-watched software session — the nominal weak-NAS single-variant
-	// case — would Inc but never Dec, leaking the gauge upward. Mirrors the
+	// it a fully-watched software session - the nominal weak-NAS single-variant
+	// case - would Inc but never Dec, leaking the gauge upward. Mirrors the
 	// orchestrator's same-named guard.
 	metricDecOnce sync.Once
 	// videoSlotAcquired records whether startSession successfully took a
@@ -353,10 +353,10 @@ func NewSoftwareProducer(
 //   - SDR: capped at capacity.SoftwareMaxHeight.
 //
 // Pure in its inputs (base, src, decision, capacity) so the ladder is identical
-// at manifest-time and segment-time — the cache-hash invariant.
+// at manifest-time and segment-time - the cache-hash invariant.
 // SetCopyMode enables the video-COPY rung on this producer instance (the
 // Jellyfin-style remux: one -c:v copy session per live position, seek =
-// restart). Call ONCE before first use — the wiring builds a DEDICATED copy
+// restart). Call ONCE before first use - the wiring builds a DEDICATED copy
 // instance for the remux path, distinct from the transcode instance the selector
 // returns, so the two never share a manifest. nil planner = pure transcode.
 //
@@ -408,7 +408,7 @@ func planIndexForLanding(segs []CopySegment, landingSec float64) int {
 // transcode flow paces at opts.ReadRate (default 1.5x) to keep a CPU-bound
 // encoder near wall-clock. The copy flow paces LOOSELY at 8x: fast enough that
 // the client buffer never starves and seeks land instantly (each ~10 s segment
-// muxes in ~1.2 s, plus a 30 s full-speed initial burst — see
+// muxes in ~1.2 s, plus a 30 s full-speed initial burst - see
 // appendCopyPacingBurst), but bounded so the ~free video copy cannot race
 // minutes ahead of the CPU-bound audio re-encode inside ffmpeg. A fully UNPACED
 // copy did exactly that on the prod NAS: video outran audio until the muxer's
@@ -427,12 +427,12 @@ func (p *SoftwareProducer) copyReadRate() float64 {
 // Manifest serves the copy rendition's keyframe-aligned VOD media playlist
 // (variable #EXTINF from the keyframe plan). Implements ManifestProvider.
 //
-// ⚠️ The type-assertion in serveVariant is STRUCTURAL — it matches *any*
+// ⚠️ The type-assertion in serveVariant is STRUCTURAL - it matches *any*
 // *SoftwareProducer, including the transcode instance (copyPlanner nil), NOT just
 // a copy instance. So serveVariant MUST gate the ManifestProvider branch on
 // isCopyRequest; without that gate the transcode path calls this and 500s (see
 // the regression in commit history). This method returning an error when not in
-// copy mode is only a backstop — the real guard is the handler's copy gate.
+// copy mode is only a backstop - the real guard is the handler's copy gate.
 func (p *SoftwareProducer) Manifest(ctx context.Context, fp DecisionFingerprint) ([]byte, error) {
 	if p.copyPlanner == nil {
 		return nil, errors.New("software: Manifest unavailable (producer not in copy mode)")
@@ -447,7 +447,7 @@ func (p *SoftwareProducer) Manifest(ctx context.Context, fp DecisionFingerprint)
 func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDims, decision transcoding.PlaybackDecision, capacity transcoding.EncodeCapability) []transcoding.HLSProfile {
 	// Copy mode = the Jellyfin remux: ONE rung at the source resolution with the
 	// video copied (the handler advertises the source avc1.PPCCLL) and audio→AAC.
-	// No transcode ladder — direct-play quality is the single rendition.
+	// No transcode ladder - direct-play quality is the single rendition.
 	if p.copyPlanner != nil {
 		w, h := src.Width, src.Height
 		if w <= 0 || h <= 0 {
@@ -482,11 +482,11 @@ func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDim
 		maxH = capacity.SoftwareHDRMaxHeight
 	}
 
-	// The natural ladder capped to the sustainable ceiling — already ascending
+	// The natural ladder capped to the sustainable ceiling - already ascending
 	// with a 360p floor. No collapse: Auto needs the lower rungs to fall back to
 	// and the viewer needs them to choose from. When the ceiling dropped rungs
 	// the source could feed, the top surviving rung inherits the first dropped
-	// rung's bitrate budget (see BoostCappedTopRung) — quality the box can
+	// rung's bitrate budget (see BoostCappedTopRung) - quality the box can
 	// afford at the height it can sustain.
 	capped := transcoding.CapLadderToHeight(sourceCapped, maxH)
 	return transcoding.BoostCappedTopRung(sourceCapped, capped)
@@ -506,7 +506,7 @@ func (p *SoftwareProducer) WaitBudget() time.Duration { return p.opts.WaitBudget
 // EnsureSegmentRange guarantees segment `segmentIdx` will be produced (or is
 // already on disk). Returns immediately; the caller blocks on cache.Wait.
 //
-// NEVER returns ErrCapacityExceeded — the software model has no global session
+// NEVER returns ErrCapacityExceeded - the software model has no global session
 // cap. A second media never sheds the first: both get their own long-lived
 // encoder, paced so the host degrades gracefully under the input-rate cap
 // rather than 503-looping.
@@ -516,7 +516,7 @@ func (p *SoftwareProducer) WaitBudget() time.Duration { return p.opts.WaitBudget
 //   - a live session covers the request (its startSeg <= segmentIdx): reuse the
 //     closest-behind one; its sequential encoder is already producing toward it
 //   - no covering session (e.g. a second viewer cold-starting BELOW a deep
-//     viewer's start): spawn a new encoder ALONGSIDE at segmentIdx — never kill
+//     viewer's start): spawn a new encoder ALONGSIDE at segmentIdx - never kill
 //     a sibling another viewer is consuming. Bounded by MaxSessionsPerHash; the
 //     LRU is evicted only when that cap is exceeded.
 func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFingerprint, variantIdx, segmentIdx int) error {
@@ -540,7 +540,7 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 	if covering != nil {
 		// A sibling encoder started at or below this position is already producing
 		// forward toward segmentIdx AND is within reach of it; reuse it (resume if
-		// the idle-pause loop suspended it — the client is pulling again). Commit
+		// the idle-pause loop suspended it - the client is pulling again). Commit
 		// its frontier to the request so a run of just-in-time edge misses keeps
 		// reusing this encoder instead of drifting past the reach window into a
 		// spurious seek. No new process.
@@ -557,7 +557,7 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 	// Nothing reaches this position in time: either no session covers it, or the
 	// closest-behind one is a forward seek away (its frontier is too far below).
 	// Start a fresh encoder seeking (`-ss`) to segmentIdx, ALONGSIDE any existing
-	// sessions for the hash — we do NOT kill them. A second viewer cold-starting
+	// sessions for the hash - we do NOT kill them. A second viewer cold-starting
 	// below a deep viewer, or a viewer jumping forward past the live frontier, must
 	// not yank a sibling another viewer consumes; they coexist, bounded by
 	// MaxSessionsPerHash (LRU-evicted).
@@ -567,7 +567,7 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 // findCoveringSessionLocked returns the live session best placed to serve
 // segmentIdx FOR THE GIVEN VARIANT: the same-variant session with the largest
 // startSeg still <= segmentIdx (the closest-behind encoder, already producing
-// forward toward it). Sessions producing a DIFFERENT rung are skipped — reusing
+// forward toward it). Sessions producing a DIFFERENT rung are skipped - reusing
 // one would never write this variant's segment file (the cache Wait polls
 // per-variant), so the caller must spawn a fresh encoder for it. Returns nil when
 // no same-variant session started at or below segmentIdx. Must hold p.mu.
@@ -623,7 +623,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// segment's timeline is checked against its plan position, so any
 		// future regression of the plan↔ffmpeg contract raises an ERROR log +
 		// metric instead of an audible desync. segs is the planner's cached,
-		// immutable plan — safe to capture.
+		// immutable plan - safe to capture.
 		planSegs := segs
 		copyPlanOracle = func(idx int) (int64, bool) {
 			if idx < 0 || idx >= len(planSegs) {
@@ -631,18 +631,18 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 			}
 			return planSegs[idx].StartMs, true
 		}
-		// The copy session runs `-hls_time 0` (split at EVERY keyframe — see
+		// The copy session runs `-hls_time 0` (split at EVERY keyframe - see
 		// hlsTimeFor), the only split rule that matches the every-keyframe plan
 		// for cold and seek sessions alike.
 		//
 		// Mid-stream start: a pre-input -ss seeks via the container's seek
 		// index, which is SPARSE in real-world files (mkvmerge: one MKV cue per
-		// ~5 s cluster) — ffmpeg lands on the cue point AT-OR-BEFORE the target,
+		// ~5 s cluster) - ffmpeg lands on the cue point AT-OR-BEFORE the target,
 		// possibly whole GOPs before the requested keyframe. The session's plan
 		// bookkeeping (StartSec, -start_number, the tfdt rebase) must follow the
 		// LANDED keyframe, not the requested one, or every video timestamp it
 		// emits is shifted by the gap while the re-encoded audio (trimmed at the
-		// exact -ss time) stays true — the measured post-deep-seek A/V desync.
+		// exact -ss time) stays true - the measured post-deep-seek A/V desync.
 		// Producing a few extra segments before the requested one is the cheap,
 		// correct outcome: they are exact plan segments (cache-consistent).
 		if startSeg > 0 {
@@ -650,7 +650,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 			// timestamp the landing probe runs against: probe(T) == landing(T)
 			// by construction, so the bookkeeping below stays true. (Re-deriving
 			// -ss from the landed keyframe would land one keyframe earlier again
-			// — the ffmpeg CLI's ~130 ms DTS-heuristic seek offset.)
+			// - the ffmpeg CLI's ~130 ms DTS-heuristic seek offset.)
 			seekTargetSec = float64(segs[startSeg].StartMs)/1000.0 + transcoding.CopySeekNudgeSec
 			if p.seekProber != nil {
 				requested := startSeg
@@ -716,7 +716,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// viewer (no abort-and-probe client → no need to burst).
 		//
 		// COPY MODE: paced LOOSELY at 8x + a 30 s initial burst instead of the
-		// transcode 1.5x — fast enough that the client never starves and seeks are
+		// transcode 1.5x - fast enough that the client never starves and seeks are
 		// instant, bounded so video copy can't outrun the audio re-encode into the
 		// muxer's interleave force-flush (the prod A/V desync). See copyReadRate.
 		ReadRate:         p.copyReadRate(),
@@ -728,7 +728,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		MaxAudioChannels: fp.MaxAudioChannels,
 		ForceSidecarSubs: fp.ForceSidecarSubs,
 		UseFMP4:          fp.UseFMP4,
-		// HWAccel deliberately left empty — this is the SOFTWARE producer. Even
+		// HWAccel deliberately left empty - this is the SOFTWARE producer. Even
 		// if the fingerprint carried a HW backend (it won't, the selector only
 		// routes here when HW is unusable), we never run the GPU pipeline here.
 	}
@@ -780,7 +780,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// our coveringWithinReach decision and now. Re-check under the lock with the
 	// SAME reach-aware test; if a sibling now reaches this exact position, discard
 	// the loser (avoid a redundant duplicate encoder for the same offset). A
-	// distant sibling that merely started BELOW startSeg does not count — that is
+	// distant sibling that merely started BELOW startSeg does not count - that is
 	// the forward-seek case we are spawning this fresh encoder for; distinct live
 	// positions are the coexistence we want, not a race.
 	if winner := p.coveringWithinReachLocked(hash, variantIdx, startSeg); winner != nil {
@@ -800,7 +800,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	p.spawnedHashes[hash] = struct{}{}
 	// Enforce the per-hash cap: if we just crossed MaxSessionsPerHash, evict the
 	// least-recently-used sibling (never the one we just appended). Kill it
-	// outside the lock — killSession reacquires p.mu.
+	// outside the lock - killSession reacquires p.mu.
 	victim := p.evictLRUIfFullLocked(hash)
 	variantVictims := p.evictExcessVariantsLocked(hash, variantIdx)
 	p.mu.Unlock()
@@ -819,7 +819,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// On a weak NAS only one heavy software transcode fits. This encoder just
 	// started AHEAD of the viewer's previous position (a forward seek), so hand it
 	// the CPU at once: SIGSTOP the hash's encoders strictly BEHIND it instead of
-	// letting the abandoned one contend for up to PauseIdleThreshold seconds — a
+	// letting the abandoned one contend for up to PauseIdleThreshold seconds - a
 	// deep forward seek otherwise ran the new encoder at ~0.2× realtime against the
 	// old one, which is the "small buffering after seeking" symptom. Only behind
 	// siblings are paused, so a deeper viewer / second tab AHEAD keeps running; a
@@ -875,7 +875,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		slog.String("hash", hash),
 		slog.Int("start_seg", startSeg),
 		// The EFFECTIVE pacing of this session (copy mode overrides the
-		// configured transcode rate) — logging p.opts.ReadRate here once hid
+		// configured transcode rate) - logging p.opts.ReadRate here once hid
 		// that copy sessions ran unpaced.
 		slog.Float64("read_rate", procOpts.ReadRate),
 		slog.String("source", srcPath))
@@ -923,7 +923,7 @@ func (p *SoftwareProducer) touch(hash string, variantIdx, segmentIdx int) {
 	s.lastAccess = time.Now()
 	if segmentIdx > s.frontier {
 		// A cache hit here proves the encoder has produced through segmentIdx, so
-		// advance its frontier — keeps the seek-reach test (coveringWithinReach)
+		// advance its frontier - keeps the seek-reach test (coveringWithinReach)
 		// honest about how far this session has actually reached.
 		s.frontier = segmentIdx
 	}
@@ -934,7 +934,7 @@ func (p *SoftwareProducer) touch(hash string, variantIdx, segmentIdx int) {
 // coveringWithinReachLocked returns the live session that can serve segmentIdx
 // within the wait budget: the closest-behind encoder (largest startSeg <=
 // segmentIdx) whose production frontier is at most SeekReachWindowSegs behind the
-// request. Returns nil when the best candidate is further behind — that's a
+// request. Returns nil when the best candidate is further behind - that's a
 // forward seek, and reusing a sequential encoder that would take minutes to
 // arrive is exactly what made deep seeks buffer forever; the caller instead
 // seeks a FRESH encoder (`-ss`) to segmentIdx. Must be called with p.mu held.

@@ -247,7 +247,7 @@ func TestMetadataResearchMetadata_DropsOverridesAndResets(t *testing.T) {
 	}
 }
 
-// noopEnricher satisfies ItemEnricher without doing any work — used to
+// noopEnricher satisfies ItemEnricher without doing any work - used to
 // verify ResearchMetadata's reset half independently of search behaviour.
 type noopEnricher struct{}
 

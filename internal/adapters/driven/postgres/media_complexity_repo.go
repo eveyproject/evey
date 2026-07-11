@@ -54,7 +54,7 @@ func (r *MediaComplexityRepo) Get(ctx context.Context, mediaItemID string) (doma
 	entry.Class = domaintranscoding.ContentClass(class.String)
 	if metricsRaw.Valid && metricsRaw.String != "" {
 		if jerr := json.Unmarshal([]byte(metricsRaw.String), &entry.Metrics); jerr != nil {
-			// Don't fail Get on bad JSON — surface class anyway. Operator
+			// Don't fail Get on bad JSON - surface class anyway. Operator
 			// can reclassify to refresh.
 			_ = jerr
 		}
@@ -98,7 +98,7 @@ func (r *MediaComplexityRepo) ListUnclassified(ctx context.Context, limit int) (
 	if limit <= 0 || limit > 1000 {
 		limit = 50
 	}
-	// Only items that actually have a file the classifier can probe —
+	// Only items that actually have a file the classifier can probe -
 	// no file = nothing to sample.
 	const q = `
 		SELECT mi.id

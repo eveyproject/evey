@@ -32,7 +32,7 @@ func resolveVideoEncoder(codec string) string {
 // encoder. libx264/libx265 use the named ladder ("veryfast"); libsvtav1 takes a
 // numeric 0-13 preset (higher = faster) and rejects the named values, failing
 // to open. AV1 software encoding is heavy, so on the weak-NAS target we lean
-// fast — 10 is a balanced default and the speed/quality knob if it needs tuning.
+// fast - 10 is a balanced default and the speed/quality knob if it needs tuning.
 func svtAV1PresetArgs(encoder string) []string {
 	if encoder == "libsvtav1" {
 		return []string{"-preset", svtAV1Preset}
@@ -47,7 +47,7 @@ func svtAV1PresetArgs(encoder string) []string {
 // non-libx264 encoders get nothing and derive the profile from the pixel format.
 // variantIdx < 0 emits the single-output form (-profile:v); else the per-rung
 // -profile:v:N form used by the multi-variant builder. Reachable via a client
-// PreferredVideoCodec=hevc on a software path (no HW HEVC) — found by audit.
+// PreferredVideoCodec=hevc on a software path (no HW HEVC) - found by audit.
 // H.264 profile/level advertised in the manifest CODECS attribute; libx264
 // only (x265/av1 reject a "high" profile), so this stays a named H.264 pair.
 const (
@@ -89,7 +89,7 @@ func normalizeVideoCodec(codec string) string {
 // encoder name. accel None/empty/invalid → software (resolveVideoEncoder).
 // When a backend is requested but the codec has no hardware encoder for it
 // (unrecognised codec), it falls back to software so the command stays valid
-// — defensive only: the wiring layer already gates HWAccel on per-codec
+// - defensive only: the wiring layer already gates HWAccel on per-codec
 // capability probing (HWDetector.SupportsCodec), so a set HWAccel is trusted.
 func videoEncoderFor(codec string, accel transcoding.HWAccelType) string {
 	if accel == "" || accel == transcoding.None || !accel.IsValid() {
@@ -128,8 +128,8 @@ func resolveAudioEncoder(codec string) string {
 
 // scaledAudioBitrateKbps scales the ladder's per-rung audio bitrate (sized
 // for stereo) to the transcode's channel target: ~64 kbps per channel beyond
-// stereo (5.1 → 384k), capped at 512k. Deterministic in (base, maxChannels) —
-// both hashed — so a given fingerprint always yields the same audio bytes.
+// stereo (5.1 → 384k), capped at 512k. Deterministic in (base, maxChannels) -
+// both hashed - so a given fingerprint always yields the same audio bytes.
 const (
 	stereoChannels      = 2
 	audioKbpsPerChannel = 64  // ~64 kbps/channel beyond stereo (5.1 -> 384k)

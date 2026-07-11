@@ -237,7 +237,7 @@ func probeHWDecode(ctx context.Context, ffmpegPath, swEncoder, format, hwType, d
 }
 
 // probeHWEncode runs a tiny real encode through the hardware encoder to confirm
-// THIS host's GPU/driver can actually use it — not merely that ffmpeg was built
+// THIS host's GPU/driver can actually use it - not merely that ffmpeg was built
 // with it. Fail-closed: returns false on any error/timeout, so a dead backend is
 // never reported as usable. Worst case we fall back to software (a perf cost),
 // which is far better than the broken-NVENC playtime loop it replaces.
@@ -266,13 +266,13 @@ func probeHWEncode(ctx context.Context, ffmpegPath, encoder, hwType, device stri
 }
 
 // probeHW10BitTranscode reports whether the HW VPP can scale a 10-bit (p010)
-// surface down to 8-bit nv12 — the conversion every transcode of an HEVC Main10
+// surface down to 8-bit nv12 - the conversion every transcode of an HEVC Main10
 // / yuv420p10le source needs before the 8-bit HW encoder (hwScaleFilter emits
 // scale_<backend>=W:-2:format=nv12). Encode AND decode capability imply nothing
 // about it: the Intel i965 VEBOX aborts (SIGABRT, fourcc assertion) the
 // instant a 10-bit surface reaches scale_vaapi, so without this probe every
 // 2160p HDR source crashes the HW pipeline and churns through a demotion. It
-// uploads a synthetic p010 frame (no HEVC decode — a pre-Skylake iGPU can't do
+// uploads a synthetic p010 frame (no HEVC decode - a pre-Skylake iGPU can't do
 // that anyway) and runs the real per-backend scaler. Fail-closed: any
 // error/abort/timeout ⇒ false ⇒ the source software-transcodes.
 func probeHW10BitTranscode(ctx context.Context, ffmpegPath, hwType, device string) bool {

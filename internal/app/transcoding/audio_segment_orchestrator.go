@@ -14,14 +14,14 @@ import (
 // AudioSegmentOrchestrator manages audio-only ffmpeg sessions for HLS EXT-X-MEDIA
 // renditions. One session per AudioFingerprint (keyed by fp.Hash()). Unlike the
 // video SegmentOrchestrator it does not support multi-rafale per hash, CMCD
-// throttling, or LRU eviction — audio sessions are lightweight and short-lived.
+// throttling, or LRU eviction - audio sessions are lightweight and short-lived.
 type AudioSegmentOrchestrator struct {
 	cache      *SegmentCache
 	transcoder transcoding.AudioProcess
 	logger     *slog.Logger
 
 	// shutdownCtx is the long-lived parent context for every ffmpeg audio session.
-	// Cancelled only by Close — never the HTTP request context.
+	// Cancelled only by Close - never the HTTP request context.
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
 
@@ -30,10 +30,10 @@ type AudioSegmentOrchestrator struct {
 }
 
 type audioSession struct {
-	mu       sync.Mutex // guards teardown nil-out between Close and reap goroutine
-	fp       AudioFingerprint
-	handle   transcoding.HLSProcessHandle
-	teardown func() // idempotent; release SegmentCache pending refcount
+	mu        sync.Mutex // guards teardown nil-out between Close and reap goroutine
+	fp        AudioFingerprint
+	handle    transcoding.HLSProcessHandle
+	teardown  func() // idempotent; release SegmentCache pending refcount
 	startedAt time.Time
 }
 
@@ -55,7 +55,7 @@ func NewAudioSegmentOrchestrator(
 
 // EnsureAudioSegment guarantees that the audio segment (fp.SourceTrackIdx, segIdx)
 // is available on disk. Spawns an ffmpeg session if one does not already exist for
-// fp.Hash(). Concurrent calls for the same fingerprint share the single session —
+// fp.Hash(). Concurrent calls for the same fingerprint share the single session -
 // only one ffmpeg is spawned regardless of how many goroutines call in parallel.
 // Blocks (with ctx timeout) until the segment is ready or the session fails.
 func (o *AudioSegmentOrchestrator) EnsureAudioSegment(ctx context.Context, fp AudioFingerprint, segIdx int) error {
@@ -94,7 +94,7 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 	defer o.mu.Unlock()
 
 	if _, ok := o.sessions[audioHash]; ok {
-		// Session already live — nothing to spawn.
+		// Session already live - nothing to spawn.
 		return nil
 	}
 
@@ -142,7 +142,7 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 		slog.String("codec", fp.AudioCodec))
 
 	// Reap goroutine: remove the session when ffmpeg exits (naturally or via cancel).
-	// cancel() is idempotent — the goroutine owns it from here.
+	// cancel() is idempotent - the goroutine owns it from here.
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -184,7 +184,7 @@ func (o *AudioSegmentOrchestrator) ActiveCount() int {
 
 // Close stops all active audio sessions and releases their resources. Idempotent.
 func (o *AudioSegmentOrchestrator) Close() error {
-	// Cancel the long-lived context — all session reap goroutines unblock via Done().
+	// Cancel the long-lived context - all session reap goroutines unblock via Done().
 	o.shutdownCancel()
 
 	// Snapshot live sessions under the lock, then stop them outside.

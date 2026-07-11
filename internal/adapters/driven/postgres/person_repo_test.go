@@ -45,7 +45,7 @@ func TestPersonRepo_Create_Conflict(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, p2)) // conflict on unique name
 
 	// RETURNING id: the conflict path must set p2.ID to the SURVIVING row id, not
-	// keep p2's own uuid — else the enricher's media_people cast link targets a
+	// keep p2's own uuid - else the enricher's media_people cast link targets a
 	// non-existent person and the FK drops it (concurrent-enrichment race).
 	assert.Equal(t, p1.ID, p2.ID, "create conflict must return the existing person id")
 	got, err := repo.GetByName(ctx, "Bob Jones")
@@ -127,7 +127,7 @@ func TestPersonRepo_List(t *testing.T) {
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(list), 3)
 
-	// ORDER BY name — Aaron < Maria < Zara
+	// ORDER BY name - Aaron < Maria < Zara
 	names := make([]string, len(list))
 	for i, p := range list {
 		names[i] = p.Name

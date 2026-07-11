@@ -26,8 +26,8 @@ favorites:
   movies: 电影
   series: 剧集
   recentlyAdded: 最近添加
-  titleAZ: "标题 A–Z"
-  titleZA: "标题 Z–A"
+  titleAZ: "标题 A-Z"
+  titleZA: "标题 Z-A"
   yearNewest: 年份（最新）
   rating: 评分
   noFavorites: 暂无收藏
@@ -360,7 +360,7 @@ syncplay:
   connecting: "连接中..."
   leave: 离开
   resyncAll: "同步所有人"
-  joinError: "无法加入 — 请检查代码。"
+  joinError: "无法加入 - 请检查代码。"
   shareLink: 分享链接
   copyCode: 复制代码
   watchTogetherRoom: 一起看房间
@@ -503,7 +503,7 @@ search:
   toYear: 至
   sortBy: 排序方式
   relevance: 相关性
-  titleAZ: "标题 A–Z"
+  titleAZ: "标题 A-Z"
   yearNewest: 年份（最新）
   dateAdded: 添加日期
 streams:

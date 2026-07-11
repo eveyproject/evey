@@ -17,7 +17,7 @@ func withClaims(r *http.Request, c *domainuser.Claims) *http.Request {
 	return r.WithContext(context.WithValue(r.Context(), httpClaimsCtxKey{}, c))
 }
 
-// streamingRateLimitKey prefers profile, then user, then IP — and the three
+// streamingRateLimitKey prefers profile, then user, then IP - and the three
 // spaces are disjoint so identical raw ids in different roles never collide.
 func TestStreamingRateLimitKey(t *testing.T) {
 	base := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0_000.m4s", nil)
@@ -38,7 +38,7 @@ func TestStreamingRateLimitKey(t *testing.T) {
 }
 
 // The limiter blocks a single profile's flood with 503+Retry-After (NOT 429),
-// and an UNRELATED profile keeps streaming — proving per-profile isolation
+// and an UNRELATED profile keeps streaming - proving per-profile isolation
 // (the multi-profile household case).
 func TestStreamingRateLimit_PerProfileIsolationAnd503(t *testing.T) {
 	lim := ratelimit.NewWithBurst(3, 0) // 3 tokens, no refill → deterministic
@@ -67,7 +67,7 @@ func TestStreamingRateLimit_PerProfileIsolationAnd503(t *testing.T) {
 	assert.Equal(t, "2", lastRetry, "503 carries Retry-After so hls.js retries")
 	assert.Equal(t, 3, served, "exactly 3 of A's requests passed")
 
-	// Profile B (same user, different profile) is unaffected — its own bucket.
+	// Profile B (same user, different profile) is unaffected - its own bucket.
 	w := httptest.NewRecorder()
 	h(w, reqFor("B"))
 	assert.Equal(t, http.StatusOK, w.Code, "a different profile keeps its full budget")

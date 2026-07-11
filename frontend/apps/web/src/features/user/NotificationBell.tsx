@@ -22,7 +22,7 @@ interface Notification {
 }
 
 // Notification types hidden from the user-facing bell. The average user
-// doesn't care about plugin failures — admins still see them in the
+// doesn't care about plugin failures - admins still see them in the
 // dedicated plugin security dashboard.
 const HIDDEN_TYPES = new Set(["plugin_error"]);
 

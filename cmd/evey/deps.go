@@ -67,7 +67,7 @@ type mediaDeps struct {
 	transcodingSvc *apptranscoding.Service
 	// hlsVODOrch owns the ffmpeg rafale sessions that produce VOD-style HLS
 	// segments. Also satisfies ActiveStreamChecker (trickplay scheduler) and
-	// HLSSessionRemover (admin kill-session, playback stop) — the legacy
+	// HLSSessionRemover (admin kill-session, playback stop) - the legacy
 	// HLSManager that used to sit here is fully retired.
 	hlsVODOrch    *apptranscoding.SegmentOrchestrator
 	hlsVODCache   *apptranscoding.SegmentCache
@@ -141,7 +141,7 @@ type engagementDeps struct {
 
 // authDeps groups authentication infrastructure.
 type authDeps struct {
-	// tokenGen is the raw JWT generator — kept concrete for the plugin-token
+	// tokenGen is the raw JWT generator - kept concrete for the plugin-token
 	// methods that sit outside user.TokenGenerator.
 	tokenGen *auth.JWTGenerator
 	// userTokenGen is the epoch-guarded decorator: every user access-token

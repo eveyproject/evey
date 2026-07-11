@@ -44,7 +44,7 @@ func pdeathsigHelperMain() int {
 	}
 	// Mirror the production argv shape (buildLauncherArgv): the seccomp filter
 	// is always installed for real plugins, and it is precisely what loses the
-	// runner-armed pdeathsig across execve — without -seccomp this scenario
+	// runner-armed pdeathsig across execve - without -seccomp this scenario
 	// passes even unfixed.
 	args := []string{
 		"-ro", "/usr", "-ro", "/bin", "-ro", "/lib", "-ro", "/lib64", "-ro", "/etc",
@@ -80,7 +80,7 @@ func pdeathsigHelperMain() int {
 // server process dies. The production launcher carries the cap_setuid file
 // capability (Dockerfile: setcap cap_setuid+ep), and the kernel CLEARS the
 // runner-armed PR_SET_PDEATHSIG when execve'ing a binary with file caps
-// (prctl(2)) — so the launcher must re-arm it on the exec'ing thread right
+// (prctl(2)) - so the launcher must re-arm it on the exec'ing thread right
 // before exec'ing the plugin. Regression: orphaned node plugin processes
 // piling up across server restarts (~25 MB each).
 func TestLauncher_ParentDeathSignalReachesPlugin(t *testing.T) {
@@ -345,7 +345,7 @@ func TestRun_NoCommand(t *testing.T) {
 // TestDropPrivileges_ReexecDropsUID re-execs the launcher with -uid/-gid and
 // verifies the plugin runs as the dropped uid and loses access to a 0600 file
 // owned by the original uid. Needs root (the make-test container runs as root)
-// so setuid succeeds without the cap_setuid file capability — the file-cap path
+// so setuid succeeds without the cap_setuid file capability - the file-cap path
 // is covered by the docker PoC; this locks the launcher's drop logic + guards.
 func TestDropPrivileges_ReexecDropsUID(t *testing.T) {
 	if os.Getuid() != 0 {
@@ -395,7 +395,7 @@ func TestDropPrivileges_ReexecDropsUID(t *testing.T) {
 	t.Run("best-effort: a drop failure warns and runs same-uid instead of refusing", func(t *testing.T) {
 		// dropPrivileges refuses uid 500; with -uid-besteffort the launcher warns
 		// and runs the command as the original uid (no setuid happened → no
-		// escalation) rather than exiting — so a host that can't drop keeps working.
+		// escalation) rather than exiting - so a host that can't drop keeps working.
 		out, err := reexec("-uid", "500", "-gid", "500", "-uid-besteffort", "--",
 			"/bin/sh", "-c", "echo RAN")
 		if err != nil {

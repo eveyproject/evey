@@ -38,8 +38,8 @@ type getByIDEntry struct {
 
 // maxCacheEntries caps each store. The TTL is only checked on READ (it hides
 // expired entries, it never frees them), so without a cap a long scan or a
-// flood of distinct free-text searches — both feed these maps, via the
-// enricher and the interactive MetadataService — would grow them until restart
+// flood of distinct free-text searches - both feed these maps, via the
+// enricher and the interactive MetadataService - would grow them until restart
 // and eventually OOM a small box. On overflow we reclaim expired entries first,
 // then evict down to 3/4 of the cap (headroom so we don't re-prune every put),
 // keeping the back-to-back scan/refresh dedup the cache is for.
@@ -81,7 +81,7 @@ func (c *CachedProvider) lang() string {
 	return ""
 }
 
-func (c *CachedProvider) Name() string                        { return c.inner.Name() }
+func (c *CachedProvider) Name() string                            { return c.inner.Name() }
 func (c *CachedProvider) Unwrap() domainmetadata.MetadataProvider { return c.inner }
 
 func (c *CachedProvider) Search(ctx context.Context, query string, year *int, mediaType string) ([]domainmetadata.MetadataResult, error) {

@@ -508,7 +508,7 @@ func TestRefreshToken_Happy(t *testing.T) {
 }
 
 // A silent refresh (empty requestedProfileID) must keep the profile the token
-// was bound to — not snap back to the default profile (the parental-escape bug).
+// was bound to - not snap back to the default profile (the parental-escape bug).
 func TestRefreshToken_PreservesBoundProfile(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()
@@ -532,7 +532,7 @@ func TestRefreshToken_PreservesBoundProfile(t *testing.T) {
 }
 
 // Switching OUT of a kids profile INTO a PIN-protected non-kids one is rejected
-// without a valid PIN proof — even via a direct API call that bypasses the UI.
+// without a valid PIN proof - even via a direct API call that bypasses the UI.
 func TestRefreshToken_SwitchOutOfKids_RequiresPIN(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()

@@ -258,7 +258,7 @@ func mapVideoEncoder(codec, hwAccel string) string {
 	case "av1":
 		// SVT-AV1: libaom-av1 is absent from the shipped jellyfin-ffmpeg build
 		// and far too slow. (The caller-supplied job.Preset must be numeric for
-		// SVT — named x264 presets fail to open the encoder.)
+		// SVT - named x264 presets fail to open the encoder.)
 		return "libsvtav1"
 	}
 	return codec

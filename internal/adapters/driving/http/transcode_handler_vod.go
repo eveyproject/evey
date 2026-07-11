@@ -42,7 +42,7 @@ type hlsVODServe struct {
 	// The software producer is the long-lived, input-paced, single-rendition
 	// Jellyfin model (sane on a weak NAS with hw_accel off); the hardware
 	// producer is the multi-session burst-ahead orchestrator (a GPU
-	// parallelises rungs cheaply). The selector's For(decision, src) decides —
+	// parallelises rungs cheaply). The selector's For(decision, src) decides -
 	// it reuses resolveHW so the manifest, the fingerprint, and the routing
 	// never disagree on which path a request takes. Nil in hand-built test
 	// handlers, which then fall back to the orchestrator field below.
@@ -55,7 +55,7 @@ type hlsVODServe struct {
 	orchestrator *apptranscoding.SegmentOrchestrator
 
 	// copyProducer serves the H.264 video-COPY (remux) rung when wired (behind
-	// EVEY_REMUX_COPY=on): a dedicated SoftwareProducer in copy mode — the
+	// EVEY_REMUX_COPY=on): a dedicated SoftwareProducer in copy mode - the
 	// Jellyfin remux, one paced `-c:v copy` + AAC session, seek = restart. nil =
 	// the copy path is off and every request routes through the selector
 	// (transcode) exactly as before. Interface-typed because both producers
@@ -81,8 +81,8 @@ type hlsVODServe struct {
 	// shaper can freeze the ceiling while that session holds a slot. Optional.
 	admissionBind func(key, fingerprintHash string)
 
-	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS —
-	// zero-storage, stateless, byte-identical HLS + DASH — when wired (behind
+	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS -
+	// zero-storage, stateless, byte-identical HLS + DASH - when wired (behind
 	// transcoding.hls_ondemand). It supersedes copyProducer for video+audio
 	// copy-eligible requests whose source packages verbatim (see planHLSEligible
 	// / transcode_ondemand.go); everything else falls through to the ffmpeg
@@ -107,7 +107,7 @@ type hlsVODServe struct {
 	qoeSink appqoe.EventSink
 
 	// complexityRepo reads the per-title classification used to pick the
-	// ABR ladder. Nil-safe — profilesForDecision falls back to
+	// ABR ladder. Nil-safe - profilesForDecision falls back to
 	// LadderFilmNormal when the repo isn't wired (dev w/o postgres) or
 	// the row hasn't been classified yet.
 	complexityRepo domaintranscoding.ComplexityRepo
@@ -115,13 +115,13 @@ type hlsVODServe struct {
 	// capability reports the host's calibrated encode ceiling. Nil-safe:
 	// profilesForDecision falls back to the safe 720p floor when the
 	// service isn't wired (tests). Returns a fresh snapshot per call so
-	// recalibration via the admin endpoint takes effect immediately —
+	// recalibration via the admin endpoint takes effect immediately -
 	// no need to restart the server.
 	capability func() domaintranscoding.EncodeCapability
 
 	// capOverride is the CMCD-feedback adaptive override service.
 	// Returns (override, true) when an active override applies to the
-	// source-class bucket — handler uses MIN(benchmark, override) as
+	// source-class bucket - handler uses MIN(benchmark, override) as
 	// the effective cap. Nil-safe so tests without the worker still
 	// pass.
 	capOverride func(sourceCodec string, sourceHeight int) (domaintranscoding.CapOverride, bool)
@@ -143,7 +143,7 @@ type hlsVODServe struct {
 	// forces the software tonemap path. Nil-safe (nil/true → allowed).
 	hwTonemapEnabled func() bool
 
-	// useFMP4 controls the segment container. fMP4 is the project default —
+	// useFMP4 controls the segment container. fMP4 is the project default -
 	// segments are ~30% smaller and the codecs string in the master playlist
 	// matches what hls.js expects on modern Chromium/Firefox.
 	useFMP4 bool
@@ -158,7 +158,7 @@ type hlsVODServe struct {
 	// audio handles the audio rendition routes (audio_T.m3u8 / init /
 	// segment). Routed through the same /hls/{file} entry point so the
 	// relative URLs the master playlist emits resolve correctly. Nil-safe
-	// — dispatched paths 404 when unset (tests, no AudioOrch wired).
+	// - dispatched paths 404 when unset (tests, no AudioOrch wired).
 	audio *audioServe
 
 	// segmentWaitTimeout caps how long the segment handler will block waiting
@@ -169,13 +169,13 @@ type hlsVODServe struct {
 	// serverLang returns the server-level metadata language (cfg.Metadata.Language,
 	// e.g. "en"). Used as the lowest-priority fallback for default audio track
 	// resolution when neither the profile's audio_languages nor its locale
-	// match any stream. Nil-safe — falls back to "en".
+	// match any stream. Nil-safe - falls back to "en".
 	serverLang func() string
 
 	// mediaLookup / classLookup are SHORT-TTL caches for the per-segment hot
 	// path: every segment request used to pay three DB round-trips
 	// (GetMediaItem + GetMediaStreams + complexity Get) for values that are
-	// stable across a playback burst. 10 s of staleness is harmless — the
+	// stable across a playback burst. 10 s of staleness is harmless - the
 	// access/parental checks still run live per request, and a mid-playback
 	// metadata change converging one burst later is the same tolerance the
 	// manifest/segment pair already has. Cached values are SHARED between
@@ -186,7 +186,7 @@ type hlsVODServe struct {
 }
 
 // cachedMediaLookup is one mediaLookup entry: the item and its streams as
-// resolved together (never cache one without the other — the fingerprint
+// resolved together (never cache one without the other - the fingerprint
 // derives from both).
 type cachedMediaLookup struct {
 	item    *domainlibrary.MediaItem
@@ -201,7 +201,7 @@ const (
 // vodSegmentNameRE parses the on-the-wire segment file name and returns the
 // (variantIdx, segmentIdx, isInit, ext) tuple. Strict: any other shape 404s.
 // The index is \d+ (not \d{3}): ffmpeg's hls_segment_filename only zero-pads to
-// a 3-digit MINIMUM, so segment 1000+ (≥ ~50 min at 3s/seg) is 4 digits — a
+// a 3-digit MINIMUM, so segment 1000+ (≥ ~50 min at 3s/seg) is 4 digits - a
 // \d{3} cap 404'd all deep-resume / long-playback segments.
 var vodSegmentNameRE = regexp.MustCompile(`^stream_(\d+)(?:_(\d+)|_init)\.(ts|m4s|mp4)$`)
 
@@ -230,7 +230,7 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// commonAuth resolves the media item (and its streams) on its way through
 	// the access checks. Passing them down to the per-file handlers prevents
-	// each downstream function from re-fetching — one master + one variant +
+	// each downstream function from re-fetching - one master + one variant +
 	// one segment request used to fan out to 9 DB hits, now down to 3.
 	item, streams, ok := h.commonAuth(w, r, mediaID, span)
 	if !ok {
@@ -268,8 +268,8 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 // the file name the master playlist emitted (audio_T.m3u8 / audio_T_NNN.m4s
 // / audio_T_init.mp4) and forward to the audio handler with explicit ints.
 // We can't register `/api/v1/media/{id}/audio_{trackIdx}.m3u8` as a separate
-// route — Go 1.22+ ServeMux refuses wildcards that don't cover a whole
-// path segment — and we don't want to either, because the URLs the manifest
+// route - Go 1.22+ ServeMux refuses wildcards that don't cover a whole
+// path segment - and we don't want to either, because the URLs the manifest
 // emits are *relative* to /hls/master.m3u8 and thus resolve into /hls/{file}.
 func (h *hlsVODServe) dispatchAudioPlaylist(w http.ResponseWriter, r *http.Request, mediaID, file string, span trace.Span) {
 	if h.audio == nil {
@@ -315,7 +315,7 @@ func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID
 
 	// Hot-path cache: segment requests arrive every few seconds during
 	// playback and each used to re-fetch the item + streams from the DB. The
-	// ACCESS checks below always run live — only the media lookup is cached.
+	// ACCESS checks below always run live - only the media lookup is cached.
 	var item *domainlibrary.MediaItem
 	var streams []*domainlibrary.MediaStream
 	cached := false
@@ -361,7 +361,7 @@ func (h *hlsVODServe) commonAuth(w http.ResponseWriter, r *http.Request, mediaID
 }
 
 func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
-	// Catches the startup CMCD payload (?CMCD=su,sid=...,ot=m) — the first
+	// Catches the startup CMCD payload (?CMCD=su,sid=...,ot=m) - the first
 	// thing every player sends. Useful for "time to first frame" admin views.
 	h.ingestCMCD(r, mediaID, 0, 0, false, true, false)
 
@@ -432,7 +432,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	}
 
 	// Copy/remux rung: when the selected producer owns its playlist (ffmpeg's
-	// keyframe-aligned mux), serve THAT — its segment boundaries differ from the
+	// keyframe-aligned mux), serve THAT - its segment boundaries differ from the
 	// precalculated generator's. Otherwise fall through to the precalculated
 	// VOD manifest (the transcode path, unchanged).
 	var out string
@@ -462,7 +462,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 				// auth + decision suffix the generator's playlists carry:
 				// without it the segment requests arrive with no token (401 for
 				// native players that don't hold the evey_hls cookie) and no
-				// codec/hdr caps — makeDecision then re-derives a TRANSCODE
+				// codec/hdr caps - makeDecision then re-derives a TRANSCODE
 				// fingerprint and spawns a parallel ffmpeg re-encode whose
 				// bytes contradict the master's copy CODECS.
 				out, served = rebakeManifestURIs(string(data), apptranscoding.QuerySuffixFor(in)), true
@@ -538,7 +538,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// The COPY rung must be excluded: it cuts on source keyframes, which are
 	// routinely SHORTER than the grid (sub-3s GOPs are common), so it lists MORE
 	// segments than ceil(dur/grid). A grid bound here false-404'd the tail of
-	// every such copy stream — e.g. a 51:48 h264 source with ~2.7s GOPs lists
+	// every such copy stream - e.g. a 51:48 h264 source with ~2.7s GOPs lists
 	// 1146 segments but ceil(dur/3s)+1 = 1038, killing the last ~5 min at 46:43.
 	// The copy path range-checks a forged index cheaply downstream via the plan's
 	// len(segs) (software_producer startSession) with no ffmpeg -ss spawn, so it
@@ -557,7 +557,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	}
 
 	// CMCD ingest (CTA-5004). Parsed and shipped to the QoE sink before we
-	// do anything that can 5xx — we want telemetry even on failure paths.
+	// do anything that can 5xx - we want telemetry even on failure paths.
 	// Sink is non-blocking; an absent payload is the no-op common case.
 	h.ingestCMCD(r, mediaID, variantIdx, segmentIdx, isInit, false, false)
 
@@ -576,7 +576,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 
 	// Resolve the producer for this request (software vs hardware) ONCE so the
 	// EnsureSegmentRange calls, the client-hint, and the wait budget all target
-	// the same machine — and the same one the ladder was shaped for. Falls back
+	// the same machine - and the same one the ladder was shaped for. Falls back
 	// to the orchestrator when no selector is wired (degenerate setups).
 	producer := h.producerForRequest(r.Context(), r, streams, item)
 	if producer == nil {
@@ -586,7 +586,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	}
 	// Phase 3 feedback loop: forward the CMCD signal to the producer so it can
 	// wake up a paused ffmpeg on starvation and stretch the prefetch window when
-	// the client has a fat buffer. NEVER changes which variant is served — that's
+	// the client has a fat buffer. NEVER changes which variant is served - that's
 	// the player's call.
 	h.notifyProducerHint(producer, r, mediaID, segmentIdx)
 
@@ -600,7 +600,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		return
 	}
 
-	// Ensure ffmpeg is producing the right rafale. Async — we then block on
+	// Ensure ffmpeg is producing the right rafale. Async - we then block on
 	// SegmentCache.Wait below for the specific file. Init segments piggyback
 	// on the first rafale (they are produced alongside segment 0 by fMP4 hls
 	// muxer). ErrCapacityExceeded is hardware-only (the orchestrator's global
@@ -619,7 +619,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "ensure segment range")
 		if errors.Is(err, apptranscoding.ErrCapacityExceeded) {
-			// Host at its global transcode cap (hardware path) — shed load
+			// Host at its global transcode cap (hardware path) - shed load
 			// gracefully. hls.js retries a 503 on a fragment fetch, so playback
 			// resumes once a slot frees instead of melting the CPU.
 			slog.Warn("hls-vod: at capacity, shedding segment",
@@ -694,7 +694,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 
 	// Mark the hash as freshly accessed so the LRU sweeper keeps it warm. Reads
 	// never bump file mtime, and the copy rung's ReadRate=0 mux freezes mtime
-	// once it finishes — without this an actively-watched title would be evicted
+	// once it finishes - without this an actively-watched title would be evicted
 	// out from under the player (re-mux storm). Cheap: one map write per segment.
 	h.cache.Touch(key.DecisionHash)
 
@@ -758,7 +758,7 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 // (remux) rung rather than transcoded. Three conditions, all required: the copy
 // path is wired (EVEY_REMUX_COPY=on → copyProducer non-nil), the decision did
 // NOT require a video transcode (VideoDecision=="copy"), and the source is
-// copy-eligible — sourceCopyVideoCodec returns "" unless it is H.264 8-bit SDR
+// copy-eligible - sourceCopyVideoCodec returns "" unless it is H.264 8-bit SDR
 // with a known level (so the master can advertise an accurate avc1.PPCCLL).
 // When false, the request routes through the selector exactly as before.
 func (h *hlsVODServe) isCopyRequest(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream, sourceBytes int64) bool {
@@ -772,10 +772,10 @@ func (h *hlsVODServe) isCopyRequest(decision domaintranscoding.PlaybackDecision,
 	// produces them well ahead of the viewer. If the cache filesystem can't fit it
 	// with headroom, fall back to the segment-bounded transcode ladder rather than
 	// risk ENOSPC on a small box. Fail-OPEN when the size is unknown or
-	// statfs fails — keeps today's behaviour and the mux still fails gracefully
+	// statfs fails - keeps today's behaviour and the mux still fails gracefully
 	// downstream. (master- and segment-time both reach this with the same
 	// item.File.Size; a free-space flip between them is a rare, bounded 503-retry,
-	// not a cache aliasing — the copy hash never collides with a transcode hash.)
+	// not a cache aliasing - the copy hash never collides with a transcode hash.)
 	if sourceBytes > 0 {
 		if free, err := h.cache.FreeBytes(); err == nil && free < sourceBytes+sourceBytes/10 {
 			return false
@@ -830,7 +830,7 @@ func splitCSVQuery(r *http.Request, key string) []string {
 // is the *current* episode. The handler resolves the next episode in the
 // series and spawns a ffmpeg rafale targeting its first segment so a
 // later autoplay (or next-ep button) hits a warm cache and starts in
-// under a second. Safe to fire multiple times — EnsureSegmentRange is
+// under a second. Safe to fire multiple times - EnsureSegmentRange is
 // idempotent.
 //
 // Returns 200 + {next_media_item_id} on success, 204 when the current
@@ -877,13 +877,13 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if nextItem == nil || nextItem.File == nil || nextItem.File.Path == "" {
-		// Series finale or next ep file missing — nothing to warm.
+		// Series finale or next ep file missing - nothing to warm.
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
 	// Re-check access on the NEXT item independently. The current item's
-	// access doesn't imply the next one — a series can straddle libraries,
+	// access doesn't imply the next one - a series can straddle libraries,
 	// and a kid profile may have access to the current ep but not the next
 	// (different rating / blocked tags). Without these two checks an
 	// attacker could pivot from an accessible ep to trigger a transcode
@@ -907,8 +907,8 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 	// playing this next episode: capabilities forwarded via query params,
 	// per-title ladder via profilesForDecision, defaults safe.
 	// Use the SAME builder the player path uses, so the warmed segments hash
-	// identically to what the player will request (it earlier drifted —
-	// HDRTonemap/ForceSidecarSubs hardcoded — so HDR/sidecar prewarms missed the
+	// identically to what the player will request (it earlier drifted -
+	// HDRTonemap/ForceSidecarSubs hardcoded - so HDR/sidecar prewarms missed the
 	// cache). One source of truth now also carries HWTonemap.
 	fp, err := h.buildFingerprint(r, string(nextItem.ID), nextItem, streams)
 	if err != nil {
@@ -929,7 +929,7 @@ func (h *hlsVODServe) servePrewarmNext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := producer.EnsureSegmentRange(r.Context(), fp, 0, 0); err != nil {
-		// Don't fail the response — the player will reach a cold cache
+		// Don't fail the response - the player will reach a cold cache
 		// on switch, just no faster than before.
 		if errors.Is(err, apptranscoding.ErrVideoCapacityExhausted) {
 			// Expected graceful degradation under load, not a bug: the host is at

@@ -13,7 +13,7 @@ import (
 )
 
 // Pin the contract that TIDB returns segment data when the upstream
-// answers 200 with non-empty arrays. Confidence must be 0.97 — we want
+// answers 200 with non-empty arrays. Confidence must be 0.97 - we want
 // upstream to be treated as competitive with our pHash+Chromaprint
 // primary when it has data.
 func TestTIDBClient_OK_TVEpisode(t *testing.T) {
@@ -72,7 +72,7 @@ func TestTIDBClient_OK_Movie(t *testing.T) {
 }
 
 // Open-ended credits (end_ms == null) are dropped when the lookup carries
-// no duration to close them — a half-open range can't be rendered as a skip
+// no duration to close them - a half-open range can't be rendered as a skip
 // CTA. Pin the fallback so the cache never stores a no-op segment.
 func TestTIDBClient_DropsOpenEndedCredits_WhenDurationUnknown(t *testing.T) {
 	t.Parallel()
@@ -142,7 +142,7 @@ func TestTIDBClient_UsesUpstreamConfidence(t *testing.T) {
 }
 
 // 404 from the upstream is the normal "we don't know this episode" case
-// — must surface as (nil, nil) so the chain falls through to the next
+// - must surface as (nil, nil) so the chain falls through to the next
 // provider, NOT as an error.
 func TestTIDBClient_NotFound_FallsThrough(t *testing.T) {
 	t.Parallel()
@@ -159,7 +159,7 @@ func TestTIDBClient_NotFound_FallsThrough(t *testing.T) {
 }
 
 // 429 with Retry-After must surface as ErrRateLimited carrying the
-// header value — the chain uses it to set the cooldown.
+// header value - the chain uses it to set the cooldown.
 func TestTIDBClient_RateLimited(t *testing.T) {
 	t.Parallel()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -199,7 +199,7 @@ func TestTIDBClient_ImdbFallback_Queries(t *testing.T) {
 	assert.Equal(t, "intro", got[0].Type)
 }
 
-// With neither TmdbID nor ImdbID there is nothing to query — return
+// With neither TmdbID nor ImdbID there is nothing to query - return
 // (nil, nil) without making a request (base points at an unreachable host).
 func TestTIDBClient_NoIdentifier_Skips(t *testing.T) {
 	t.Parallel()
@@ -229,7 +229,7 @@ func TestTIDBClient_RateLimited_PrefersLongestWindow(t *testing.T) {
 	assert.Equal(t, 3600, int(rl.RetryAfter.Seconds()))
 }
 
-// 500 propagates as an error — the chain logs + falls through but the
+// 500 propagates as an error - the chain logs + falls through but the
 // error must carry the status code so the operator can debug.
 func TestTIDBClient_ServerError(t *testing.T) {
 	t.Parallel()

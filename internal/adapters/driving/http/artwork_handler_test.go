@@ -208,7 +208,7 @@ func TestArtwork_Public_NoAuth_200(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/artwork/poster", nil)
 	req.SetPathValue("id", "m1")
 	req.SetPathValue("artType", "poster")
-	// NOTE: no claims, no stream token — simulating a public request.
+	// NOTE: no claims, no stream token - simulating a public request.
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 
@@ -395,7 +395,7 @@ func TestArtwork_Width_CacheHit_NoSecondResize(t *testing.T) {
 	conv := &fakeImageConverter{}
 	h, imgPath := artworkHandlerWithConverter(t, conv)
 
-	// Pre-create the variant so it already exists on disk — simulates a cache hit.
+	// Pre-create the variant so it already exists on disk - simulates a cache hit.
 	variantPath := buildVariantPath(imgPath, 342)
 	if err := os.WriteFile(variantPath, []byte("RIFF-webp-cached"), 0644); err != nil {
 		t.Fatal(err)

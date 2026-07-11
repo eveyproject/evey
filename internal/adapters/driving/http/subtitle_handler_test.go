@@ -464,7 +464,7 @@ func TestSubtitleHandler_StreamsError_500(t *testing.T) {
 	}
 }
 
-// A bitmap subtitle (PGS/DVDSub/...) can't be muxed to text WebVTT — reject
+// A bitmap subtitle (PGS/DVDSub/...) can't be muxed to text WebVTT - reject
 // with 422 instead of spawning an ffmpeg that emits an empty/failed stream.
 func TestSubtitleHandler_ImageSubtitle_422(t *testing.T) {
 	item := &domainlibrary.MediaItem{
@@ -534,7 +534,7 @@ func TestSubtitleHandler_ParentalAdmin_NotBlocked(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(true))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	// Admin bypasses parental — handler continues past the gate.
+	// Admin bypasses parental - handler continues past the gate.
 	// ffmpeg is not present in unit tests so we get some non-403 status.
 	if w.Code == http.StatusForbidden {
 		t.Errorf("admin must not be blocked by parental, got 403")
@@ -553,10 +553,10 @@ func TestSubtitleHandler_IsMKVFastPath(t *testing.T) {
 	}{
 		{".mkv", true},
 		{".webm", true},
-		{".mp4", true},  // tx3g/wvtt via the mkvgo mp4 package
-		{".m4v", true},  // ISO-BMFF sibling of .mp4
-		{".mov", true},  // QuickTime via the mkvgo mp4 package (mkvgo >= v0.12.0)
-		{".ts", false},  // MPEG-TS is out of mkvgo's scope
+		{".mp4", true}, // tx3g/wvtt via the mkvgo mp4 package
+		{".m4v", true}, // ISO-BMFF sibling of .mp4
+		{".mov", true}, // QuickTime via the mkvgo mp4 package (mkvgo >= v0.12.0)
+		{".ts", false}, // MPEG-TS is out of mkvgo's scope
 		{".avi", false},
 		{".MKV", false}, // caller lower-cases before calling; upper-case must be false
 		{".MP4", false},

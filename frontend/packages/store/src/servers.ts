@@ -36,7 +36,7 @@ export function normalizeServerUrl(raw: string): string {
     // lowercase scheme and host only; preserve path casing
     return `${u.protocol.toLowerCase()}//${u.hostname.toLowerCase()}${u.port ? `:${u.port}` : ""}${u.pathname === "/" ? "" : u.pathname}`;
   } catch {
-    // not a valid URL — return as-is after trailing-slash strip
+    // not a valid URL - return as-is after trailing-slash strip
     return trimmed;
   }
 }

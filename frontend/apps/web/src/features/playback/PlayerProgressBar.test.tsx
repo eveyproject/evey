@@ -60,7 +60,7 @@ describe("PlayerProgressBar seek commit", () => {
     expect(onSeek.mock.calls[0][0].target.value).toBe("75");
   });
 
-  // Anti-regression: only the last change in a burst commits — protects the
+  // Anti-regression: only the last change in a burst commits - protects the
   // transcode pipeline from a cascade of seek restarts during a drag.
   it("debounces a burst of changes to a single commit on the final value", () => {
     const onSeek = vi.fn();
@@ -92,11 +92,11 @@ describe("PlayerProgressBar seek commit", () => {
     act(() => { vi.advanceTimersByTime(200); });
     expect(onSeek).toHaveBeenCalledTimes(1);
 
-    // absoluteTime still old (restart in flight) — thumb must NOT snap back.
+    // absoluteTime still old (restart in flight) - thumb must NOT snap back.
     rerender(<PlayerProgressBar {...defaultProps} absoluteTime={1800} effectiveDuration={3000} onSeek={onSeek} />);
     expect(slider.value).toBe("600");
 
-    // playhead reaches the target — held value released, tracks real position.
+    // playhead reaches the target - held value released, tracks real position.
     rerender(<PlayerProgressBar {...defaultProps} absoluteTime={600} effectiveDuration={3000} onSeek={onSeek} />);
     expect(slider.value).toBe("600");
     rerender(<PlayerProgressBar {...defaultProps} absoluteTime={605} effectiveDuration={3000} onSeek={onSeek} />);

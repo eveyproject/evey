@@ -78,7 +78,7 @@ func seedTrack(t *testing.T, repo *musicfakes.FakeMusicTrackRepository, id, libI
 
 // --- tests: recordPlay ---
 
-// Happy path: authenticated user with a profile — 204 returned and play recorded.
+// Happy path: authenticated user with a profile - 204 returned and play recorded.
 func TestRecordPlay_HappyPath_204(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	seedTrack(t, repo, "t1", "lib-1")

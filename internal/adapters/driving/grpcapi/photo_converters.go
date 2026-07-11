@@ -6,7 +6,7 @@ import (
 )
 
 // photoToProto converts a Photo to proto. When includeFilePath is false the
-// absolute server path is omitted — it's admin-only (matches mediaItemToProto)
+// absolute server path is omitted - it's admin-only (matches mediaItemToProto)
 // and otherwise leaks the host filesystem layout to non-admin profiles (pentest
 // 2026-05-26).
 func photoToProto(p photo.Photo, includeFilePath bool) *eveyv1.Photo {

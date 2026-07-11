@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeEffectiveDuration } from "./PlayerContext";
 import type { PlayerState } from "./PlayerContext";
 
-describe("PlayerContext — effectiveDuration logic", () => {
+describe("PlayerContext - effectiveDuration logic", () => {
   it("prefers knownDurationSec over video duration", () => {
     expect(computeEffectiveDuration(3600, 120)).toBe(3600);
   });
@@ -17,7 +17,7 @@ describe("PlayerContext — effectiveDuration logic", () => {
   });
 });
 
-describe("PlayerContext — absoluteTime logic", () => {
+describe("PlayerContext - absoluteTime logic", () => {
   it("absoluteTime = transcodeOffset + currentTime", () => {
     expect(300 + 45).toBe(345);
   });
@@ -27,7 +27,7 @@ describe("PlayerContext — absoluteTime logic", () => {
   });
 });
 
-describe("PlayerContext — PlayerState type", () => {
+describe("PlayerContext - PlayerState type", () => {
   it("PlayerState has expected shape", () => {
     const state: Partial<PlayerState> = {
       playing: false,

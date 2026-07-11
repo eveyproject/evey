@@ -30,7 +30,7 @@ describe("DownloadButton", () => {
     expect(screen.getByTestId("download-btn")).toHaveTextContent("Download season");
   });
 
-  it("always includes token in URL — never renders without auth", () => {
+  it("always includes token in URL - never renders without auth", () => {
     render(<DownloadButton mediaId="m1" token="abc" />);
     const href = screen.getByTestId("download-btn").getAttribute("href");
     expect(href).toContain("?token=abc");

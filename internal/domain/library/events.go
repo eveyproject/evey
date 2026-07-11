@@ -7,9 +7,9 @@ import (
 )
 
 type LibraryCreated struct {
-	LibraryID shared.LibraryID
-	Name      string
-	Type      string
+	LibraryID  shared.LibraryID
+	Name       string
+	Type       string
 	OccurredAt time.Time
 }
 
@@ -63,7 +63,7 @@ func (e MediaItemRemoved) EventName() string { return "media.item.removed" }
 // TrickplayGenerated fires after a trickplay manifest + sidecar are written.
 // Consumers (e.g. the intro detection worker) trigger downstream work that
 // depends on the trickplay sprites being present on disk. Unlike
-// MediaItemAdded, this also fires on regenerations of existing media — that's
+// MediaItemAdded, this also fires on regenerations of existing media - that's
 // the point: rewipe trickplays + this event re-runs intro detection cleanly.
 type TrickplayGenerated struct {
 	MediaItemID shared.MediaItemID

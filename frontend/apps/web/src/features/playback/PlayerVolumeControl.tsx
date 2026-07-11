@@ -60,7 +60,7 @@ export function PlayerVolumeControl({ volume, muted, onToggleMute, onVolumeChang
         aria-label={t("player.controls.volume")}
         aria-valuetext={`${pct}%`}
       />
-      {/* % readout — amber once past 100% to flag the amplification. */}
+      {/* % readout - amber once past 100% to flag the amplification. */}
       <span
         className={[
           "hidden sm:block tabular-nums text-[11px] w-9 text-right select-none",

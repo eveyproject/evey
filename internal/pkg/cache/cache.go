@@ -22,7 +22,7 @@ type TTLCache[T any] struct {
 	mu    sync.Mutex
 	items map[string]*list.Element
 	// lru holds the entries newest-first. INVARIANT: every element's Value is a
-	// *entry[T] — the only insertion point is lru.PushFront(&entry[T]{...}) in
+	// *entry[T] - the only insertion point is lru.PushFront(&entry[T]{...}) in
 	// Set, so the bare el.Value.(*entry[T]) assertions in Get/Set/Delete/evict
 	// can never fail. Documented rather than ok-guarded to avoid dead branches.
 	lru     *list.List

@@ -59,7 +59,7 @@ export function GlobalAudioPlayer() {
   const source = useMusicPlayerStore((s) => s.source);
   const navigate = useNavigate();
   // The audio element lives in the layout (outside the router Outlet), so this
-  // navigation swaps the page content without remounting <audio> — playback is
+  // navigation swaps the page content without remounting <audio> - playback is
   // never interrupted.
   const goToSource = !source
     ? undefined
@@ -100,7 +100,7 @@ export function GlobalAudioPlayer() {
   // Guards against double-counting a listen: `ended` can fire more than once for
   // a single playthrough (browser quirks / re-renders), which inflates the
   // play-count taste signal. Reset on each new track's loadedmetadata, set on
-  // the first ended — a genuine replay reloads the track and counts again.
+  // the first ended - a genuine replay reloads the track and counts again.
   const playRecordedRef = useRef(false);
   // Counts consecutive stream errors. A systemic failure (expired token, server
   // down) makes every track error, and onError -> next() -> onError would loop
@@ -120,7 +120,7 @@ export function GlobalAudioPlayer() {
     audio.volume = volumeRef.current;
     audio.muted = mutedRef.current;
     // Respect an active external pause (e.g. a trailer modal): don't start
-    // playback that the externally-paused effect would immediately stop —
+    // playback that the externally-paused effect would immediately stop -
     // that race produced a brief blip of audio.
     if (externallyPausedRef.current) {
       setIsPlaying(false);
@@ -198,7 +198,7 @@ export function GlobalAudioPlayer() {
           playRecordedRef.current = false;
         }}
         onEnded={() => {
-          // A finished track counts as a listen — feeds the playlist generator's
+          // A finished track counts as a listen - feeds the playlist generator's
           // taste signal. Fire-and-forget; never block playback advance. Guarded
           // so a duplicate `ended` for the same playthrough counts only once.
           if (!playRecordedRef.current) {
@@ -235,13 +235,13 @@ export function GlobalAudioPlayer() {
             aria-label={source!.label}
             className="group min-w-0 text-left bg-transparent border-none cursor-pointer p-0"
           >
-            <p className="font-medium truncate text-sm text-[var(--text)] group-hover:text-[var(--accent)] transition-colors-fast">{playing.Title || "—"}</p>
-            <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "—"}</p>
+            <p className="font-medium truncate text-sm text-[var(--text)] group-hover:text-[var(--accent)] transition-colors-fast">{playing.Title || "-"}</p>
+            <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "-"}</p>
           </button>
         ) : (
           <div className="min-w-0">
-            <p className="font-medium truncate text-sm text-[var(--text)]">{playing.Title || "—"}</p>
-            <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "—"}</p>
+            <p className="font-medium truncate text-sm text-[var(--text)]">{playing.Title || "-"}</p>
+            <p className="text-xs truncate text-[var(--text-muted)]">{playing.Artist || "-"}</p>
           </div>
         )}
       </div>
@@ -269,7 +269,7 @@ export function GlobalAudioPlayer() {
         <div className="flex items-center gap-2 w-full max-w-[200px] sm:max-w-[400px]">
           <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8 text-right">{formatDuration(currentTime)}</span>
           <input type="range" min={0} max={duration || 0} step={1} value={currentTime} onChange={seek} aria-label={t("media.music.seekPosition")} className="flex-1 accent-[var(--accent)]" />
-          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8">{duration > 0 ? formatDuration(duration) : "—"}</span>
+          <span className="text-[0.7rem] text-[var(--text-muted)] min-w-8">{duration > 0 ? formatDuration(duration) : "-"}</span>
         </div>
       </div>
       <div className="hidden sm:flex items-center gap-2 min-w-[100px]">

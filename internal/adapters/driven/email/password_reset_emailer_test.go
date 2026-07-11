@@ -41,8 +41,8 @@ func TestPasswordResetEmailer_SendsEmail(t *testing.T) {
 	if sender.sent[0].to[0] != "reset@example.com" {
 		t.Errorf("to = %v, want reset@example.com", sender.sent[0].to)
 	}
-	if sender.sent[0].subject != "Evey — Password Reset" {
-		t.Errorf("subject = %q, want Evey — Password Reset", sender.sent[0].subject)
+	if sender.sent[0].subject != "Evey - Password Reset" {
+		t.Errorf("subject = %q, want Evey - Password Reset", sender.sent[0].subject)
 	}
 	if !containsStr(sender.sent[0].body, "https://evey.test/reset-password?token=tok-abc") {
 		t.Errorf("body missing reset URL: %q", sender.sent[0].body)

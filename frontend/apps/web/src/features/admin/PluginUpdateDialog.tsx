@@ -148,7 +148,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
         (err instanceof Error && (err.message.includes("409") || err.message.toLowerCase().includes("aborted"))) ||
         (typeof err === "object" && err !== null && "status" in err && (err as { status: number }).status === 409);
       const msg = isAborted
-        ? "Le hash du candidat ne correspond plus — actualisez la prévisualisation"
+        ? "Le hash du candidat ne correspond plus - actualisez la prévisualisation"
         : err instanceof Error
           ? err.message
           : "Erreur lors de l'application de la mise à jour";
@@ -189,7 +189,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
               }}
               data-testid="banner-requires-ack"
             >
-              Cette mise à jour demande de nouvelles permissions — vérifiez avant d'appliquer
+              Cette mise à jour demande de nouvelles permissions - vérifiez avant d'appliquer
             </div>
           ) : (
             <div
@@ -201,7 +201,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
               }}
               data-testid="banner-safe"
             >
-              Aucun changement de permissions — mise à jour sûre
+              Aucun changement de permissions - mise à jour sûre
             </div>
           )}
 

@@ -14,7 +14,7 @@ function renderDoc(input: unknown) {
   return render(<SduiRenderer doc={sanitizeSduiDocument(input)} />);
 }
 
-describe("SDUI — adversarial security", () => {
+describe("SDUI - adversarial security", () => {
   it("renders injected HTML/JS as inert text, never as markup (XSS)", () => {
     const { container } = renderDoc({
       nodes: [

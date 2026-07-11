@@ -100,7 +100,7 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 // nativeBinaryPerm is the manifest permission a plugin must declare to
 // be allowed to ship compiled binaries or embedded archives. Without it
 // the installer rejects any plugin that the static analyzer flagged
-// with `compiled_binary` or `embedded_archive` categories — opaque blobs
+// with `compiled_binary` or `embedded_archive` categories - opaque blobs
 // the regex scanner cannot inspect.
 const nativeBinaryPerm = "native-binary"
 
@@ -113,7 +113,7 @@ const gpuPermission = "hardware.gpu"
 
 // gpuPermissionWarning is shown at install/update preview whenever a plugin
 // declares hardware.gpu, so the admin consents to the residual risk explicitly.
-const gpuPermissionWarning = "[CRITICAL] permission hardware.gpu — grants the GPU render node: a kernel-driver attack surface and a GPU-memory boundary SHARED with the transcoder (cross-process memory leak possible on AMD/Apple/Qualcomm GPUs; a hung GPU can stall transcoding). Grant ONLY to first-party / trusted plugins; never to an untrusted source. See docs/plugins.md."
+const gpuPermissionWarning = "[CRITICAL] permission hardware.gpu - grants the GPU render node: a kernel-driver attack surface and a GPU-memory boundary SHARED with the transcoder (cross-process memory leak possible on AMD/Apple/Qualcomm GPUs; a hung GPU can stall transcoding). Grant ONLY to first-party / trusted plugins; never to an untrusted source. See docs/plugins.md."
 
 // ErrPluginPermissionEscalation is returned when an update would silently
 // grant the plugin new permissions, capabilities, frontend slots, or
@@ -131,7 +131,7 @@ var ErrPluginPermissionEscalation = errors.New("plugin update requires permissio
 //
 // Other "plugin blocked: ..." returns (analyzer-failed, theme.js scanner,
 // native-binary opt-in, escalated warnings) do NOT use this type because they
-// don't have a per-finding category list — the http handler falls back to its
+// don't have a per-finding category list - the http handler falls back to its
 // existing string-parsing path for those.
 type PluginBlockedError struct {
 	Issues     []string
@@ -220,12 +220,12 @@ func InstallerWithRuntimeChecker(c plugin.RuntimeAvailabilityChecker) InstallerO
 
 // InstallerWithHTTPClient replaces the default ssrf-safe HTTP client used
 // to fetch remote plugin ZIPs. Intended for tests that need to download
-// from a loopback httptest server — production should not bypass SSRF.
+// from a loopback httptest server - production should not bypass SSRF.
 func InstallerWithHTTPClient(c *http.Client) InstallerOption {
 	return func(s *InstallerService) { s.httpClient = c }
 }
 
-// defaultListDirs is the production implementation of listDirsFn — backed
+// defaultListDirs is the production implementation of listDirsFn - backed
 // by os.ReadDir, returns only the names of subdirectories.
 func defaultListDirs(baseDir string) ([]string, error) {
 	entries, err := os.ReadDir(baseDir)
@@ -395,7 +395,7 @@ func (s *InstallerService) parseAndValidateManifest(zipPath string) (*plugin.Plu
 	if s.runtimes != nil && manifest.Kind != plugin.KindTheme && manifest.Language != "" {
 		if !s.runtimes.IsAvailable(manifest.Language) {
 			return nil, fmt.Errorf(
-				"plugin requires %q runtime which is not installed in this image; available runtimes: %v — install the matching image variant (e.g. evey:beta-nodejs for node, evey:beta-full for all runtimes)",
+				"plugin requires %q runtime which is not installed in this image; available runtimes: %v - install the matching image variant (e.g. evey:beta-nodejs for node, evey:beta-full for all runtimes)",
 				manifest.Language, s.runtimes.Available(),
 			)
 		}
@@ -476,7 +476,7 @@ func (s *InstallerService) buildPluginRecord(existing *plugin.Plugin, sourceHash
 		return nil, fmt.Errorf("build plugin: %w", err)
 	}
 
-	// Defense-in-depth: a kind:plugin without a backend language is nonsensical —
+	// Defense-in-depth: a kind:plugin without a backend language is nonsensical -
 	// use kind:theme for front-only customization.
 	if p.Kind == plugin.KindPlugin && p.Language == "" {
 		return nil, errors.New("kind:plugin requires a backend; for front-only customization use kind:theme")
@@ -536,7 +536,7 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 			sanitized, warns := s.cssSanitizer.SanitizeCSS(raw)
 			if len(warns) > 0 {
 				slog.Warn("css sanitizer cleaned theme at install", slog.String("pluginID", p.ID), slog.Any("warnings", warns))
-				// The write-back is the only sanitization barrier — theme_asset
+				// The write-back is the only sanitization barrier - theme_asset
 				// serves theme.css raw (and pre-auth on the login page). If it
 				// fails, fail the install so the deferred cleanup removes the dir
 				// rather than leaving the dangerous original on disk.
@@ -579,7 +579,7 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 	if s.analyzer != nil && p.InstallDir != "" {
 		report, analyzeErr := s.analyzer.Analyze(p.InstallDir, p.WebRoot)
 		if analyzeErr != nil {
-			// Fail-closed: without a clean analysis we cannot grant install —
+			// Fail-closed: without a clean analysis we cannot grant install -
 			// a third-party plugin could ship obfuscated malware that the
 			// regex analyzer choked on and we'd otherwise install it blind.
 			slog.Error("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
@@ -596,20 +596,20 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 			return err
 		}
 		// Native binaries and archives bypass the static analyzer (they
-		// are opaque blobs). Block installation by default — the manifest
+		// are opaque blobs). Block installation by default - the manifest
 		// must explicitly request the `native-binary` permission so the
 		// admin sees and accepts the elevated risk at preview time.
 		if !slices.Contains(p.Permissions, nativeBinaryPerm) {
 			if report.HasCategory("compiled_binary") || report.HasCategory("embedded_archive") {
-				return fmt.Errorf("plugin blocked: bundles compiled binaries or archives — declare permission %q in manifest to opt in", nativeBinaryPerm)
+				return fmt.Errorf("plugin blocked: bundles compiled binaries or archives - declare permission %q in manifest to opt in", nativeBinaryPerm)
 			}
 		}
-		// hardware.gpu is the highest-risk permission — append a loud, specific
+		// hardware.gpu is the highest-risk permission - append a loud, specific
 		// CRITICAL warning so the admin sees it at preview alongside the analyzer
 		// findings and consents to the GPU residual risk deliberately.
 		if slices.Contains(p.Permissions, gpuPermission) {
 			report.Issues = append(report.Issues, gpuPermissionWarning)
-			slog.Warn("plugin declares hardware.gpu (highest-risk permission — render node grant)",
+			slog.Warn("plugin declares hardware.gpu (highest-risk permission - render node grant)",
 				slog.String("pluginID", p.ID))
 		}
 		// Persist non-blocking warnings so the admin can audit them
@@ -774,7 +774,7 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 		SourceHash:        sourceHash,
 	}
 
-	// Run analyzer on candidate in a temp dir (best-effort — errors don't block preview).
+	// Run analyzer on candidate in a temp dir (best-effort - errors don't block preview).
 	if s.installer != nil && s.analyzer != nil && s.fs != nil {
 		tmpDir, tmpErr := s.fs.MkdirTemp("", "evey-plugin-update-preview-*")
 		if tmpErr == nil {
@@ -792,7 +792,7 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 		}
 	}
 
-	// Cosign on candidate (best-effort — status recorded, not blocking).
+	// Cosign on candidate (best-effort - status recorded, not blocking).
 	if s.sigVerifier != nil {
 		sigStatus, sigErr := s.sigVerifier.VerifySignature(ctx, localPath, "")
 		if sigErr != nil {
@@ -921,7 +921,7 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 		}
 	}
 
-	// 2) Drop cached permissions before we hand the FS path to RemoveAll —
+	// 2) Drop cached permissions before we hand the FS path to RemoveAll -
 	//    permChecker is best-effort and never blocks uninstall.
 	if s.permChecker != nil {
 		s.permChecker.InvalidatePermissions(p.ID)
@@ -931,7 +931,7 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 	//    surface when the sandbox isn't fully torn down yet. Three attempts
 	//    with exponential backoff (100ms, 500ms, 2s) covers the typical
 	//    bwrap unmount window. If it still fails we log and keep going so
-	//    the DB row gets cleaned anyway — a future CleanupOrphans pass will
+	//    the DB row gets cleaned anyway - a future CleanupOrphans pass will
 	//    eventually pick up a stuck dir.
 	if p.InstallDir != "" && s.fs != nil {
 		backoffs := []time.Duration{100 * time.Millisecond, 500 * time.Millisecond, 2 * time.Second}
@@ -954,7 +954,7 @@ func (s *InstallerService) UninstallPlugin(ctx context.Context, id string) error
 	}
 
 	// 4) Delete the DB row. If this fails the FS is already gone (or queued
-	//    for cleanup) but the plugin isn't actually uninstalled yet — the row
+	//    for cleanup) but the plugin isn't actually uninstalled yet - the row
 	//    still exists, so we must surface the error instead of reporting
 	//    success, and skip the PluginUninstalled event below (nothing was
 	//    actually uninstalled). The admin can retry; a repeated attempt is
@@ -1034,8 +1034,8 @@ func (s *InstallerService) CleanupOrphans(ctx context.Context) int {
 // either a source fix or explicit opt-in, not just post-install admin review.
 //
 // Escalated categories:
-//   - "deserialization": yaml.load without Loader — replace with yaml.safe_load
-//   - "obfuscation" (warning-level patterns): str_rot13, chr() chains — code obfuscation
+//   - "deserialization": yaml.load without Loader - replace with yaml.safe_load
+//   - "obfuscation" (warning-level patterns): str_rot13, chr() chains - code obfuscation
 //   - "native_code" (Go unsafe.*): allowed when the "native-binary" permission is declared
 func (s *InstallerService) checkEscalatedWarnings(_ context.Context, p *plugin.Plugin, report *plugin.AnalysisReport) error {
 	blockAndClean := func(msg string) error {
@@ -1046,15 +1046,15 @@ func (s *InstallerService) checkEscalatedWarnings(_ context.Context, p *plugin.P
 	}
 
 	if report.HasWarningCategory("deserialization") {
-		return blockAndClean("unsafe deserialization patterns detected (e.g. yaml.load without Loader) — use safe alternatives such as yaml.safe_load()")
+		return blockAndClean("unsafe deserialization patterns detected (e.g. yaml.load without Loader) - use safe alternatives such as yaml.safe_load()")
 	}
 	if report.HasWarningCategory("obfuscation") {
-		return blockAndClean("code obfuscation patterns detected (str_rot13, chr() concatenation) — remove obfuscated constructs before installing")
+		return blockAndClean("code obfuscation patterns detected (str_rot13, chr() concatenation) - remove obfuscated constructs before installing")
 	}
 	// native_code warnings (Go unsafe.*) require explicit native-binary opt-in
 	// because unsafe code bypasses Go memory safety guarantees.
 	if report.HasWarningCategory("native_code") && !slices.Contains(p.Permissions, nativeBinaryPerm) {
-		return blockAndClean(fmt.Sprintf("native/unsafe code patterns detected — declare permission %q in manifest to opt in", nativeBinaryPerm))
+		return blockAndClean(fmt.Sprintf("native/unsafe code patterns detected - declare permission %q in manifest to opt in", nativeBinaryPerm))
 	}
 	return nil
 }

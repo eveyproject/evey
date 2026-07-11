@@ -12,7 +12,7 @@ type RoomRepository interface {
 	AddMember(ctx context.Context, roomID string, member Member) error
 	RemoveMember(ctx context.Context, roomID string, userID string) error
 	// RemoveMemberAndDeleteIfEmpty removes the member and, when no members
-	// remain, deletes the room — atomically under one row lock so a concurrent
+	// remain, deletes the room - atomically under one row lock so a concurrent
 	// join is never clobbered and an emptied room is never left behind.
 	// If the departing member was the host and the room is not deleted, the
 	// oldest remaining member (earliest JoinedAt; tie-break: ascending UserID)

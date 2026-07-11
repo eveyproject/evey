@@ -199,7 +199,7 @@ func TestNVENCProbeArgs_DeviceFree(t *testing.T) {
 	}
 }
 
-// Every probed NVENC feature must be one the builder actually gates on — guards
+// Every probed NVENC feature must be one the builder actually gates on - guards
 // against the probe list and hwEncoderQualityArgs drifting apart (a probed
 // option that the builder ignores, or vice versa).
 func TestNVENCProbeNames_MatchBuilderGating(t *testing.T) {
@@ -275,7 +275,7 @@ func TestBuildFFmpegArgs_HWGate_BurnInFallsBackToSoftware(t *testing.T) {
 func TestBuildFFmpegArgs_ToneMap_EmitsTonemapOnceBeforeSplit(t *testing.T) {
 	// HDR source + non-HDR client (ToneMap=true) must emit an HDR->SDR tonemap.
 	// Multi-variant: applied ONCE before the split (the tonemap is expensive),
-	// not per-rung — otherwise a weak box pays N× the cost.
+	// not per-rung - otherwise a weak box pays N× the cost.
 	opts := sampleHWOpts(transcoding.None, "", 3)
 	opts.ToneMap = true
 	joined := strings.Join(BuildFFmpegArgs(opts), " ")
@@ -283,7 +283,7 @@ func TestBuildFFmpegArgs_ToneMap_EmitsTonemapOnceBeforeSplit(t *testing.T) {
 		t.Fatalf("ToneMap=true must emit a tonemap filter: %q", joined)
 	}
 	// The software tonemap is either the portable zscale chain or jellyfin-ffmpeg's
-	// fused tonemapx (one SIMD pass, no separate zscale) — which one depends on the
+	// fused tonemapx (one SIMD pass, no separate zscale) - which one depends on the
 	// ffmpeg build (tonemapx is present in the container, absent on a plain host).
 	// Either is a valid software HDR->SDR tonemap; assert one is present.
 	if !strings.Contains(joined, "zscale") && !strings.Contains(joined, "tonemapx") {
@@ -378,7 +378,7 @@ func TestBuildFFmpegArgs_HWTonemap_VAAPI_StaysOnGPU(t *testing.T) {
 }
 
 func TestBuildFFmpegArgs_HWTonemap_OffStaysSoftware(t *testing.T) {
-	// The invariant: tonemap needed but HWTonemap=false (the probe failed — every
+	// The invariant: tonemap needed but HWTonemap=false (the probe failed - every
 	// host on the current fleet) must run the software zscale + libx264 path,
 	// byte-identical to a host with no GPU tone-mapping. No HW filters leak in.
 	opts := sampleHWOpts(transcoding.VAAPI, "/dev/dri/renderD128", 3)

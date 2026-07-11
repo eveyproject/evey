@@ -22,7 +22,7 @@ type EvictionPolicy struct {
 	// disables eviction (Phase 1 default).
 	MaxBytes int64
 
-	// MarginBytes is the headroom below MaxBytes after an eviction pass — gives
+	// MarginBytes is the headroom below MaxBytes after an eviction pass - gives
 	// the next encoder rafale room to land segments before the next sweep
 	// hits MaxBytes again. Default = MaxBytes / 10.
 	MarginBytes int64
@@ -32,7 +32,7 @@ type EvictionPolicy struct {
 	SweepInterval time.Duration
 
 	// ProtectRecent protects the N most-recent-atime decision hashes from
-	// eviction during a sweep — guarantees an actively-watched session
+	// eviction during a sweep - guarantees an actively-watched session
 	// (with hits in the last sweep window) is never evicted out from under
 	// the player. Default 4.
 	ProtectRecent int
@@ -57,14 +57,14 @@ func (p EvictionPolicy) withDefaults() EvictionPolicy {
 // sweeper goroutine; safe to defer.
 //
 // The sweeper deletes whole hash directories at a time rather than picking
-// individual segments — partial directories would force the orchestrator to
+// individual segments - partial directories would force the orchestrator to
 // re-spawn ffmpeg for missing inner segments, defeating the cache. Whole-hash
 // eviction also lets us bump atime on access cheaply (atime of the directory
 // rather than every file).
 func (c *SegmentCache) StartEviction(policy EvictionPolicy, logger *slog.Logger) (stop func()) {
 	policy = policy.withDefaults()
 	if policy.MaxBytes <= 0 {
-		// Disabled — return a no-op stop.
+		// Disabled - return a no-op stop.
 		return func() {}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -116,7 +116,7 @@ func (c *SegmentCache) sweepOnce(p EvictionPolicy, logger *slog.Logger) {
 	}
 
 	// Sort by atime ascending (oldest first). The newest p.ProtectRecent are
-	// shielded — they're likely the actively-streaming sessions.
+	// shielded - they're likely the actively-streaming sessions.
 	sort.Slice(hashes, func(i, j int) bool {
 		return hashes[i].LastAccess.Before(hashes[j].LastAccess)
 	})
@@ -139,7 +139,7 @@ func (c *SegmentCache) sweepOnce(p EvictionPolicy, logger *slog.Logger) {
 			continue
 		}
 		if !ok {
-			// A live session is streaming this hash — skip it. The cache may
+			// A live session is streaming this hash - skip it. The cache may
 			// briefly exceed MaxBytes until the session ends; on a small NAS
 			// cache that's the right tradeoff vs. stalling a player to 503.
 			continue
@@ -197,7 +197,7 @@ func (c *SegmentCache) listHashUsage() ([]HashUsage, error) {
 	// Merge in the access-time registry: a hash that is being READ (segments
 	// served) but no longer WRITTEN keeps a fresh LastAccess. max(mtime, access)
 	// is strictly >= the mtime-only value, so eviction is never MORE aggressive
-	// than before — an actively-watched copy title (frozen mtime) stays warm.
+	// than before - an actively-watched copy title (frozen mtime) stays warm.
 	// Done after the directory I/O so the lock is held only for the map merge.
 	c.mu.RLock()
 	for i := range out {

@@ -147,7 +147,7 @@ func TestArtwork_WebP_ZeroByteVariant_Regenerated(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A leftover 0-byte variant from a prior failed/timed-out resize must be
-	// treated as "not cached" and regenerated — never served as an empty 200
+	// treated as "not cached" and regenerated - never served as an empty 200
 	// (which `immutable` caching would then freeze in clients).
 	variant := imgPath[:len(imgPath)-len(filepath.Ext(imgPath))] + "_w500.webp"
 	if err := os.WriteFile(variant, []byte{}, 0644); err != nil {

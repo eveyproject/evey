@@ -534,7 +534,7 @@ func TestReconcileTracks_DriftRebuilds(t *testing.T) {
 	seedTrack(repo, "t1")
 	seedTrack(repo, "t2")
 	seedTrack(repo, "t3")
-	// Engine holds 1 doc, DB holds 3 — drift (writes dropped during an outage)
+	// Engine holds 1 doc, DB holds 3 - drift (writes dropped during an outage)
 	// → full rebuild.
 	n, err := cmd.ReconcileTracks(context.Background(), idx, fakeMusicDocCounter{count: 1})
 	if err != nil {
@@ -548,7 +548,7 @@ func TestReconcileTracks_DriftRebuilds(t *testing.T) {
 	}
 }
 
-// Stale docs (engine holds MORE than the DB) must NOT trigger a rebuild — a
+// Stale docs (engine holds MORE than the DB) must NOT trigger a rebuild - a
 // re-index only upserts and can't shrink the count, so it would loop every tick.
 func TestReconcileTracks_StaleDocs_NoRebuild(t *testing.T) {
 	cmd, repo, idx := newReconcileCmd(t)

@@ -75,7 +75,7 @@ func (s *CommandService) ReindexAllTracks(ctx context.Context) (int, error) {
 // reindexTracksInto rebuilds the given search index from the DB, one batch per
 // music library. The target is a PARAMETER so the reconcile path can write to the
 // primary adapter directly instead of the resilient wrapper (which swallows
-// errors). A per-library batch failure is logged and skipped — a transient miss
+// errors). A per-library batch failure is logged and skipped - a transient miss
 // is reconciled on the next pass rather than aborting the whole rebuild.
 func (s *CommandService) reindexTracksInto(ctx context.Context, search music.MusicSearchIndex) (int, error) {
 	if search == nil || s.libRepo == nil {
@@ -116,11 +116,11 @@ type musicDocCounter interface {
 // ReconcileTracks heals music-search drift. The resilient wrapper swallows index
 // writes while the engine is down, so a track added during an outage stays
 // unsearchable until something rebuilds the index. This compares the engine's
-// document count to the DB track count and rebuilds on divergence — call it at
+// document count to the DB track count and rebuilds on divergence - call it at
 // boot AND periodically so a mid-session outage self-heals without a restart.
 // Same count-based limitation as the media reconcile: drift that nets to zero
 // (equal adds and deletes in one outage) is invisible until the next real count
-// change or a manual reindex — acceptable for the frequency.
+// change or a manual reindex - acceptable for the frequency.
 //
 // Returns (0, nil) and skips when the engine is UNREACHABLE (DocumentCount
 // errors) so a periodic caller doesn't scan the DB against a down engine. The
@@ -132,7 +132,7 @@ func (s *CommandService) ReconcileTracks(ctx context.Context, primary music.Musi
 	}
 	docCount, err := docCounter.DocumentCount(ctx)
 	if err != nil {
-		//nolint:nilerr // an unreachable engine is a SKIP, not a failure to propagate — retry next tick
+		//nolint:nilerr // an unreachable engine is a SKIP, not a failure to propagate - retry next tick
 		return 0, nil
 	}
 	dbCount, err := s.countAllTracks(ctx)
@@ -142,11 +142,11 @@ func (s *CommandService) ReconcileTracks(ctx context.Context, primary music.Musi
 	// Rebuild ONLY when the index has FEWER docs than the DB (missing tracks a
 	// re-index can add back). When it has MORE (a delete dropped during an outage
 	// left a stale doc), a re-index upserts and can never shrink the count, so
-	// firing every tick would rebuild forever — a CPU loop. Skip it; clear a stale
+	// firing every tick would rebuild forever - a CPU loop. Skip it; clear a stale
 	// doc with a manual reindex. Equal counts = in sync.
 	if docCount >= int64(dbCount) {
 		if docCount > int64(dbCount) {
-			slog.Warn("music search reconcile: index has more docs than the DB (stale doc from a dropped delete); a re-index only upserts and can't shrink it — wipe the search index and reindex to clear",
+			slog.Warn("music search reconcile: index has more docs than the DB (stale doc from a dropped delete); a re-index only upserts and can't shrink it - wipe the search index and reindex to clear",
 				slog.Int64("index_docs", docCount), slog.Int("db_tracks", dbCount))
 		}
 		return 0, nil
@@ -554,7 +554,7 @@ func (s *CommandService) parseTrack(ctx context.Context, path, libraryID, mimeTy
 	if err != nil {
 		return nil, fmt.Errorf("build track: %w", err)
 	}
-	// Album identity is the on-disk parent directory — see Track.AlbumFolder.
+	// Album identity is the on-disk parent directory - see Track.AlbumFolder.
 	t.AlbumFolder = filepath.Dir(path)
 	if s.prober != nil {
 		// Derive from the caller's ctx (carrying the parse-timeout budget and

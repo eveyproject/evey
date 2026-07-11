@@ -41,7 +41,7 @@ export const SearchDropdown = memo(function SearchDropdown({
 
   const trimmed = query.trim();
 
-  // Only the active scope queries — the user picks video vs music up front.
+  // Only the active scope queries - the user picks video vs music up front.
   const { data, isLoading, isError } = useQuery({
     queryKey: ["/api/v1/media/search/quick", trimmed],
     queryFn: ({ signal }) =>

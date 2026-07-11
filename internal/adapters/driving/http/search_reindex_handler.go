@@ -16,7 +16,7 @@ type SearchReindexer interface {
 
 // searchReindexHandler kicks off a full (or per-library, via ?library_id=)
 // Meilisearch reindex from Postgres in the background and returns 202
-// immediately — the sweep can touch thousands of items. It contacts no
+// immediately - the sweep can touch thousands of items. It contacts no
 // metadata providers. Admin-gated + heavy-rate-limited at registration; runs
 // on serverCtx so it survives the request returning.
 func searchReindexHandler(svc SearchReindexer, serverCtx context.Context) http.HandlerFunc {

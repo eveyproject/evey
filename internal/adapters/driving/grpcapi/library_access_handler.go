@@ -42,7 +42,7 @@ func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *ev
 	defer span.End()
 	// Fail closed on read/revoke errors: swallowing them left `existing` nil, so
 	// the revoke loop no-opped and the new grants were added on top of the old
-	// ones — narrowing a user's access silently widened it, reported as success.
+	// ones - narrowing a user's access silently widened it, reported as success.
 	existing, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
 	if err != nil {
 		return nil, internalError("set library access: read existing", err)

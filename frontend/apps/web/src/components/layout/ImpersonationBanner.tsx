@@ -5,8 +5,8 @@ import { useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 
 // Persistent banner shown while an admin is impersonating another user (the active
-// token carries an `imp_by` claim). "Exit" restores the admin's own token — stashed
-// by useAuthStore.impersonate — without a re-login.
+// token carries an `imp_by` claim). "Exit" restores the admin's own token - stashed
+// by useAuthStore.impersonate - without a re-login.
 export function ImpersonationBanner() {
   const { t } = useTranslation();
   const navigate = useNavigate();

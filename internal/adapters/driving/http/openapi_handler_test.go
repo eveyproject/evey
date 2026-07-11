@@ -38,7 +38,7 @@ func TestBuildPublicOpenAPISpec_FiltersToAPIKeySurface(t *testing.T) {
 	dir := t.TempDir()
 	// A fixture spec with one operation that IS in the API-key surface
 	// (LibraryService_ListLibraries -> media:read) and one that is NOT
-	// (LibraryService_DeleteLibrary, internal — never granted to API keys).
+	// (LibraryService_DeleteLibrary, internal - never granted to API keys).
 	fixture := `{
       "swagger": "2.0",
       "paths": {

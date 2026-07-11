@@ -62,7 +62,7 @@ describe("AnalyticsPage", () => {
 
     render(React.createElement(AnalyticsPage), { wrapper: createWrapper() });
 
-    // Spinner renders — check for SVG or role=status or just that stat cards are absent
+    // Spinner renders - check for SVG or role=status or just that stat cards are absent
     expect(screen.queryByText("Plays Today")).not.toBeInTheDocument();
   });
 

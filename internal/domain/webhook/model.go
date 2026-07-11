@@ -69,7 +69,7 @@ func WithConfigEnabled(enabled bool) ConfigOption {
 // NewConfig is the canonical constructor. Stamps CreatedAt and
 // validates. Required identity/intent fields (id, name, url, events)
 // are surfaced as params so construction never succeeds with them
-// missing. URL reachability is an adapter concern — Service.Create
+// missing. URL reachability is an adapter concern - Service.Create
 // layers urlvalidator on top.
 func NewConfig(id, name, url string, events []string, opts ...ConfigOption) (*Config, error) {
 	c := &Config{

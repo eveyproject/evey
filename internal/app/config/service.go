@@ -25,7 +25,7 @@ func NewService(repo shared.ServerConfigRepository, opts ...Option) *Service {
 // Option configures the Service. WithEventBus enables live config reload:
 // every Set/Delete publishes a ServerConfigChanged event so subscribers
 // holding cached state (auto-download flag, intro providers, etc.) can
-// react without a server restart. Optional — when nil the service is a
+// react without a server restart. Optional - when nil the service is a
 // pure CRUD facade.
 type Option func(*Service)
 

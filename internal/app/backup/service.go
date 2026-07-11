@@ -25,7 +25,7 @@ import (
 // internal/IO failures with errors.Is.
 var ErrInvalidBackup = errors.New("backup rejected: invalid or tampered archive")
 
-// maxRestoreDumpBytes bounds the decompressed dump.sql during restore — a
+// maxRestoreDumpBytes bounds the decompressed dump.sql during restore - a
 // gzip-bomb guard (G110). Package-level var so tests can lower it without
 // materialising a multi-GiB fixture.
 var maxRestoreDumpBytes int64 = 8 << 30 // 8 GiB
@@ -37,7 +37,7 @@ var BackupTables = []string{
 	// Media catalogue (films/series + metadata). Technically re-scannable from
 	// disk, but included so a restore is complete AND watch_progress (keyed by
 	// media_item_id) keeps valid references instead of dangling until a rescan
-	// regenerates the rows — matching how music_tracks/photos are already backed
+	// regenerates the rows - matching how music_tracks/photos are already backed
 	// up. Restore order is irrelevant: pg_dump runs with --disable-triggers.
 	"people",
 	"media_items",
@@ -189,7 +189,7 @@ func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 	}
 
 	// Schema version guard. Backups created before this field was added carry an
-	// empty SchemaVersion — skip the check rather than breaking existing backups.
+	// empty SchemaVersion - skip the check rather than breaking existing backups.
 	if archive.manifest.SchemaVersion == "" {
 		slog.Warn("restore: backup predates schema-version stamping, skipping schema check")
 	} else if archive.manifest.SchemaVersion != currentSchemaVersion {
@@ -215,7 +215,7 @@ func (s *Service) DeleteBackup(ctx context.Context, backupID string) error {
 
 // StartScheduler runs an initial CleanupOldBackups then enters the periodic
 // loop. The optional `initDone` channel is closed once the initial cleanup
-// has returned — tests pass it to deterministically wait for the goroutine
+// has returned - tests pass it to deterministically wait for the goroutine
 // to make progress instead of sleeping.
 func (s *Service) StartScheduler(ctx context.Context, intervalHours, retentionDays int, initDone ...chan<- struct{}) {
 	if intervalHours <= 0 {
@@ -325,7 +325,7 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 		}
 		switch hdr.Name {
 		case "manifest.json":
-			const maxManifest = 16 << 20 // 16 MiB — a real manifest is a few KB
+			const maxManifest = 16 << 20 // 16 MiB - a real manifest is a few KB
 			content, readErr := io.ReadAll(io.LimitReader(tr, maxManifest+1))
 			if readErr != nil {
 				return nil, fmt.Errorf("read tar entry %s: %w", hdr.Name, ErrInvalidBackup)
@@ -337,14 +337,14 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 		case "dump.sql":
 			tmp, tmpErr := os.CreateTemp("", "evey-restore-*.sql")
 			if tmpErr != nil {
-				// OS-level temp file creation failure — internal error, not bad input.
+				// OS-level temp file creation failure - internal error, not bad input.
 				return nil, fmt.Errorf("create temp file for dump: %w", tmpErr)
 			}
 			h := sha256.New()
 			// Bound the decompressed dump to guard against a gzip bomb (G110): the
 			// dump is row data only (metadata, never the media files themselves),
 			// so even a large catalogue stays far below this. A tiny upload that
-			// expands past it is corrupt or hostile — refuse rather than fill disk.
+			// expands past it is corrupt or hostile - refuse rather than fill disk.
 			written, cpErr := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(tr, maxRestoreDumpBytes+1))
 			if cpErr != nil {
 				tmp.Close()
@@ -359,7 +359,7 @@ func extractTarGz(r io.Reader) (*backupArchive, error) {
 			// The integrity SHA is computed from the stream, but the restore reads
 			// it back from this file. A dropped Close error could leave the file
 			// truncated (e.g. a deferred flush hitting ENOSPC) while the stream SHA
-			// still matches the manifest — the corruption would pass the integrity
+			// still matches the manifest - the corruption would pass the integrity
 			// check. Fail closed so a non-persisted dump never reaches the database.
 			if closeErr := tmp.Close(); closeErr != nil {
 				os.Remove(tmp.Name()) //nolint:errcheck

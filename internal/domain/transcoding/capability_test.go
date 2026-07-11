@@ -9,7 +9,7 @@ import (
 )
 
 // The admin calibration view must always show hw_10bit_transcode, including when
-// it is false — that is the case that matters on a weak host (gate active). An
+// it is false - that is the case that matters on a weak host (gate active). An
 // omitempty tag would drop the false bool and hide the gate, so guard against a
 // regression that re-adds it.
 func TestEncodeCapability_HW10BitTranscode_AlwaysSerialized(t *testing.T) {

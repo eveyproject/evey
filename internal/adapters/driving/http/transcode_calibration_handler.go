@@ -16,7 +16,7 @@ import (
 )
 
 // calibrationSvc is the narrow port the calibration HTTP handlers need
-// — Recalibrate (the action) and Current (the snapshot for the GET
+// - Recalibrate (the action) and Current (the snapshot for the GET
 // endpoint). Lets tests inject a fake without spinning up the real
 // CalibrationService + BenchmarkRunner combo.
 type calibrationSvc interface {
@@ -49,12 +49,12 @@ type capOverrideResetter interface {
 // render-node path, e.g. /dev/dri/renderD128) and CPUSignature (the host CPU
 // identity hash). The admin calibration UI uses neither; every other field is
 // promoted flat. The domain struct keeps its json tags (it's persisted as JSON
-// to the capability store) — the redaction lives only at this boundary.
+// to the capability store) - the redaction lives only at this boundary.
 type publicEncodeCapability struct {
 	domaintranscoding.EncodeCapability
 	// Same json names as the embedded fields so these (zero-value) shallower
 	// fields win the name conflict; omitempty then drops them from the output.
-	// (json:"-" would NOT work — ignored fields don't shadow the embedded ones.)
+	// (json:"-" would NOT work - ignored fields don't shadow the embedded ones.)
 	HWDevice     string `json:"hw_device,omitempty"`
 	CPUSignature string `json:"cpu_signature,omitempty"`
 }
@@ -97,7 +97,7 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 }
 
 // transcodeOverridesGetHandler returns the active CMCD-feedback
-// adaptive overrides (Phase C). Read-only — surfaces what the worker
+// adaptive overrides (Phase C). Read-only - surfaces what the worker
 // has computed from playback_qoe_events. The admin uses this to see
 // "why is the 4K bucket capped to 1080p?" and the worker is the only
 // thing that writes it; the UI has no force-reset button by design
@@ -131,10 +131,10 @@ func transcodeOverridesGetHandler(lister capOverrideLister) http.HandlerFunc {
 // override for a source-class bucket. Admin can use it when they're
 // confident the underlying limit has changed (HW added, encoder
 // preset tuned) and they want to give the calibrated ceiling a fresh
-// chance — instead of waiting for the 7-day TTL.
+// chance - instead of waiting for the 7-day TTL.
 //
 // Routes via `?source_class=2160p` (or `1440p`/`1080p`). Returns 204
-// on success (idempotent — removing a non-existent override is
+// on success (idempotent - removing a non-existent override is
 // fine), 400 on missing query.
 func transcodeOverrideResetHandler(svc capOverrideResetter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -169,7 +169,7 @@ func transcodeOverrideResetHandler(svc capOverrideResetter) http.HandlerFunc {
 	}
 }
 
-// transcodeRecalibrateHandler triggers a fresh benchmark. Synchronous —
+// transcodeRecalibrateHandler triggers a fresh benchmark. Synchronous -
 // the admin UI shows a spinner for the ~20 s the bench runs. Returns
 // 409 when another recalibration is already in flight so two admins
 // clicking the button at once don't queue work.

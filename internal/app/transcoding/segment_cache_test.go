@@ -42,7 +42,7 @@ func TestDecisionFingerprint_Hash_ProfileOrderIndependent(t *testing.T) {
 }
 
 func TestDecisionFingerprint_Hash_DistinguishesAudioTrack(t *testing.T) {
-	// Two decisions that differ on audio track MUST land in separate caches —
+	// Two decisions that differ on audio track MUST land in separate caches -
 	// otherwise the wrong-audio segment would be served to one of them.
 	fpA := minimalFingerprint(t)
 	fpA.AudioTrack = 0
@@ -52,7 +52,7 @@ func TestDecisionFingerprint_Hash_DistinguishesAudioTrack(t *testing.T) {
 }
 
 func TestDecisionFingerprint_Hash_DistinguishesContainer(t *testing.T) {
-	// fMP4 segments are byte-incompatible with TS — must hash to different keys.
+	// fMP4 segments are byte-incompatible with TS - must hash to different keys.
 	fpA := minimalFingerprint(t)
 	fpA.UseFMP4 = false
 	fpB := minimalFingerprint(t)
@@ -83,7 +83,7 @@ func TestAudioFingerprint_Hash_DistinguishesCodec(t *testing.T) {
 }
 
 func TestAudioFingerprint_Hash_NamespaceDisjointFromVideo(t *testing.T) {
-	// The two fingerprint types live in disjoint hash spaces — even when
+	// The two fingerprint types live in disjoint hash spaces - even when
 	// every shared field happens to match. Verifies the "audio:" namespace
 	// prefix actually does its job.
 	dec := DecisionFingerprint{MediaID: "m1", SourcePath: "/m.mkv", AudioCodec: "aac"}
@@ -107,7 +107,7 @@ func TestSegmentKey_FileName(t *testing.T) {
 		{"fmp4 variant 2 seg 7", SegmentKey{VariantIdx: 2, SegmentIdx: 7}, true, "stream_2_007.m4s"},
 		{"fmp4 init variant 0", SegmentKey{VariantIdx: 0, IsInit: true}, true, "stream_0_init.mp4"},
 		{"fmp4 init variant 3", SegmentKey{VariantIdx: 3, IsInit: true}, true, "stream_3_init.mp4"},
-		{"ts init still .mp4 — init is always fMP4", SegmentKey{VariantIdx: 0, IsInit: true}, false, "stream_0_init.mp4"},
+		{"ts init still .mp4 - init is always fMP4", SegmentKey{VariantIdx: 0, IsInit: true}, false, "stream_0_init.mp4"},
 		// Audio rendition path: separate namespace, always fMP4.
 		{"audio track 0 seg 0", SegmentKey{Kind: KindAudio, VariantIdx: 0, SegmentIdx: 0}, true, "audio_0_000.m4s"},
 		{"audio track 2 seg 42", SegmentKey{Kind: KindAudio, VariantIdx: 2, SegmentIdx: 42}, true, "audio_2_042.m4s"},
@@ -151,7 +151,7 @@ func TestSegmentCache_IsReady_TrueWhenFileExists(t *testing.T) {
 func TestSegmentCache_IsReady_FalseWhenZeroBytes(t *testing.T) {
 	// The fMP4 init segment is written non-atomically (no temp_file rename), so
 	// it exists at 0 bytes for a window. A 0-byte file must NOT be reported
-	// ready — serving an empty init breaks the player's SourceBuffer init and
+	// ready - serving an empty init breaks the player's SourceBuffer init and
 	// causes endless buffering. Wait must keep blocking until ffmpeg writes it.
 	c, _ := newTestCache(t)
 	k := SegmentKey{DecisionHash: "abcd", VariantIdx: 0, IsInit: true}
@@ -180,7 +180,7 @@ func TestSegmentCache_IsReady_FalseWhenTmpSiblingExists(t *testing.T) {
 
 func TestSegmentCache_IsReady_FalseWhenStypOnly(t *testing.T) {
 	// An aborted ffmpeg mux under load can leave a non-empty but malformed fMP4
-	// segment at the final name — observed in prod as a 24-byte styp-only `.m4s`
+	// segment at the final name - observed in prod as a 24-byte styp-only `.m4s`
 	// (no moof/mdat). It passes the size>0 check but breaks the player's
 	// SourceBuffer if served, and silently wedges the ABR fallback. It must be
 	// reported not-ready so Wait re-spawns the rafale.
@@ -199,7 +199,7 @@ func TestSegmentCache_IsReady_FalseWhenStypOnly(t *testing.T) {
 }
 
 func TestSegmentCache_IsReady_NonFMP4_SkipsContentCheck(t *testing.T) {
-	// The fMP4 box-content check must NOT run for MPEG-TS (.ts) segments — they
+	// The fMP4 box-content check must NOT run for MPEG-TS (.ts) segments - they
 	// have no ISO-BMFF boxes. A non-empty .ts file is ready on size>0 alone.
 	c, _ := newTestCache(t)
 	k := SegmentKey{DecisionHash: "abcd", VariantIdx: 0, SegmentIdx: 0}
@@ -247,11 +247,11 @@ func TestSegmentCache_Wait_RespectsContextCancel(t *testing.T) {
 	wg.Wait()
 }
 
-// TestSegmentCache_RegisterSession_RefcountedTeardown — the multi-rafale
+// TestSegmentCache_RegisterSession_RefcountedTeardown - the multi-rafale
 // orchestrator can RegisterSession twice on the same hash (two clients
 // watching the same film at different positions). The release returned
 // by RegisterSession must NOT close the shared pending channel until
-// EVERY rafale has released — otherwise Wait() callers for the
+// EVERY rafale has released - otherwise Wait() callers for the
 // still-active rafale receive a spurious "session torn down" abort.
 func TestSegmentCache_RegisterSession_RefcountedTeardown(t *testing.T) {
 	c, _ := newTestCache(t)
@@ -271,7 +271,7 @@ func TestSegmentCache_RegisterSession_RefcountedTeardown(t *testing.T) {
 	release1()
 	select {
 	case <-ch:
-		t.Fatal("first release closed the shared channel — would break Wait() for the surviving rafale")
+		t.Fatal("first release closed the shared channel - would break Wait() for the surviving rafale")
 	default:
 	}
 
@@ -285,7 +285,7 @@ func TestSegmentCache_RegisterSession_RefcountedTeardown(t *testing.T) {
 	}
 }
 
-// TestSegmentCache_RegisterSession_DoubleReleaseSafe — both the
+// TestSegmentCache_RegisterSession_DoubleReleaseSafe - both the
 // orchestrator's killSession path and the reap goroutine can hold a
 // reference to the same release func; if both fire on a normal exit,
 // the release MUST be idempotent (no double-decrement of refcount).
@@ -410,7 +410,7 @@ func mp4Box(typ string, body ...byte) []byte {
 }
 
 // fmp4Seg is a minimal but structurally valid fMP4 media segment
-// (styp + moof + mdat) — enough for IsReady's content-box check to accept it.
+// (styp + moof + mdat) - enough for IsReady's content-box check to accept it.
 func fmp4Seg() []byte {
 	out := mp4Box("styp", 'm', 's', 'd', 'h')
 	out = append(out, mp4Box("moof")...)

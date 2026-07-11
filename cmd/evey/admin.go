@@ -25,7 +25,7 @@ import (
 
 // runAdmin dispatches `evey admin <subcommand> [flags]` to the right
 // recovery handler. These commands run *instead of* booting the
-// server — they're meant for cases where the operator can no longer
+// server - they're meant for cases where the operator can no longer
 // log in or the DB needs a known-good restore.
 func runAdmin(args []string) error {
 	if len(args) < 1 {
@@ -96,7 +96,7 @@ Media maintenance subcommands:
                                     backup. --limit N for a cautious first run; --keep-backup=false
                                     to drop backups.
   validate-streaming --root <dir>   Report each MKV/WebM file's streaming-readiness
-                                    (Cues index, keyframe cues, DefaultDuration…) —
+                                    (Cues index, keyframe cues, DefaultDuration…) -
                                     what the on-demand HLS rung and seeking rely on.
                                     Read-only; --errors-only to skip warnings.
   artwork-gc [--root <dir>] [--apply]
@@ -105,7 +105,7 @@ Media maintenance subcommands:
                                     scheme). Dry-run by default; --apply deletes.
                                     --root defaults to /data/artworks.
 
-Capacity subcommands (need a LIVE server — HTTP client of the local gateway):
+Capacity subcommands (need a LIVE server - HTTP client of the local gateway):
   load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S]
                                     scenarios: transcode, natural, mkvgo, light (80/20),
                                     balanced (50/50), heavy (20/80), mkvgo+N (N pinned
@@ -141,7 +141,7 @@ See docs/runbooks/recovery.md and docs/runbooks/cli.md for full procedures.
 
 // adminResetPassword generates a fresh password, hashes it via the
 // existing UserService.ChangePassword path, and prints the new
-// plaintext to stdout. Operator must capture stdout — the password
+// plaintext to stdout. Operator must capture stdout - the password
 // isn't logged or stored anywhere else.
 func adminResetPassword(args []string) error {
 	fs := flag.NewFlagSet("reset-password", flag.ExitOnError)
@@ -188,7 +188,7 @@ func adminResetPassword(args []string) error {
 	fmt.Printf("user_id:  %s\n", string(user.ID))
 	fmt.Printf("password: %s\n", newPassword)
 	fmt.Println()
-	fmt.Println("Save this — it is the only time the new password is shown.")
+	fmt.Println("Save this - it is the only time the new password is shown.")
 	fmt.Fprintf(os.Stderr, "[admin] reset password for user %s (%s)\n", *email, string(user.ID))
 	return nil
 }
@@ -214,7 +214,7 @@ func adminRotateJWTKey(args []string) error {
 	}
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "[admin] no existing key at %s — server will generate one on next boot\n", path)
+			fmt.Fprintf(os.Stderr, "[admin] no existing key at %s - server will generate one on next boot\n", path)
 			return nil
 		}
 		return fmt.Errorf("stat key: %w", err)
@@ -226,7 +226,7 @@ func adminRotateJWTKey(args []string) error {
 	fmt.Printf("Old key backed up to: %s\n", backup)
 	fmt.Printf("New key will be generated on next server start.\n")
 	fmt.Println()
-	fmt.Println("WARNING: every active session is now invalid — all users must re-login.")
+	fmt.Println("WARNING: every active session is now invalid - all users must re-login.")
 	fmt.Fprintf(os.Stderr, "[admin] rotated jwt key (old → %s)\n", backup)
 	return nil
 }
@@ -235,7 +235,7 @@ func adminRotateJWTKey(args []string) error {
 // pre-migration backup) through gunzip + psql. The DB must exist and
 // be reachable using the configured EVEY_DB_* env vars. Existing data
 // in the target DB will be overwritten by the dump's CREATE/INSERT
-// statements — call with care.
+// statements - call with care.
 func adminRestoreBackup(args []string) error {
 	if len(args) < 1 {
 		return fmt.Errorf("usage: evey admin restore-backup <path-to-dump.sql.gz>")
@@ -305,7 +305,7 @@ func adminRestoreBackup(args []string) error {
 }
 
 // openAdminDB opens a short-lived DB connection for an admin command.
-// It does NOT run migrations — the operator may be restoring from a
+// It does NOT run migrations - the operator may be restoring from a
 // backup of an older schema. Use sparingly: if the schema mismatches
 // what the command writes, the failure is on the operator.
 func openAdminDB() (*config.Config, *sql.DB, func(), error) {
@@ -336,13 +336,13 @@ func generateRandomPassword(byteLen int) (string, error) {
 }
 
 // adminReindexSearch rebuilds the Meilisearch index from the database without
-// the server running — for when the index was lost/migrated (e.g. embedded↔
+// the server running - for when the index was lost/migrated (e.g. embedded↔
 // external switch, version bump, or a DB restore that doesn't carry the
 // index). Reads straight from Postgres, no metadata-provider calls.
 func adminReindexSearch(args []string) error {
 	fs := flag.NewFlagSet("reindex-search", flag.ExitOnError)
 	libraryID := fs.String("library", "", "library ID to reindex (default: all libraries)")
-	purge := fs.Bool("purge", false, "clear the index first, then rebuild — removes stale/orphan docs an upsert can't (brief empty-search window)")
+	purge := fs.Bool("purge", false, "clear the index first, then rebuild - removes stale/orphan docs an upsert can't (brief empty-search window)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -358,11 +358,11 @@ func adminReindexSearch(args []string) error {
 	// rather than erroring on a missing engine.
 	url := strings.TrimRight(cfg.Meilisearch.URL, "/")
 	if url == "" {
-		fmt.Println("Meilisearch not configured — search uses the Postgres fallback (ILIKE). Nothing to rebuild.")
+		fmt.Println("Meilisearch not configured - search uses the Postgres fallback (ILIKE). Nothing to rebuild.")
 		return nil
 	}
 	if code, _, herr := httpGet(url+"/health", "", 3*time.Second); herr != nil || code != 200 {
-		fmt.Printf("Meilisearch unavailable at %s — search is served by the Postgres fallback (ILIKE), which needs no index. Nothing to rebuild.\n", url)
+		fmt.Printf("Meilisearch unavailable at %s - search is served by the Postgres fallback (ILIKE), which needs no index. Nothing to rebuild.\n", url)
 		return nil
 	}
 
@@ -438,13 +438,13 @@ func adminMigrate(args []string) error {
 		if err := postgres.RunMigrations(db, backupOpts); err != nil {
 			return fmt.Errorf("migrate up: %w", err)
 		}
-		fmt.Println("migrations: up — schema at latest version")
+		fmt.Println("migrations: up - schema at latest version")
 		return nil
 	case "down":
 		if err := postgres.RollbackLastMigration(db, backupOpts); err != nil {
 			return fmt.Errorf("migrate down: %w", err)
 		}
-		fmt.Println("migrations: down — one step rolled back")
+		fmt.Println("migrations: down - one step rolled back")
 		return nil
 	case "version":
 		v, dirty, err := postgres.CurrentMigrationVersion(db)
@@ -452,7 +452,7 @@ func adminMigrate(args []string) error {
 			return fmt.Errorf("migrate version: %w", err)
 		}
 		if dirty {
-			fmt.Printf("schema version: %d (DIRTY — previous migration failed)\n", v)
+			fmt.Printf("schema version: %d (DIRTY - previous migration failed)\n", v)
 			return fmt.Errorf("schema is dirty")
 		}
 		fmt.Printf("schema version: %d\n", v)
@@ -470,7 +470,7 @@ func adminMigrateUsage() error {
   version           Print current schema version (exit 1 if DB is in a dirty state).
 
   --no-backup       Skip the pre-migration pg_dump (use on hosts where
-                    pg_dump isn't installed — typical WSL dev). Defaults
+                    pg_dump isn't installed - typical WSL dev). Defaults
                     to taking the dump when EVEY_BACKUP_DIR is set.
 `)
 	return fmt.Errorf("admin migrate: subcommand required")
@@ -478,7 +478,7 @@ func adminMigrateUsage() error {
 
 // adminReclassify wipes the per-title complexity row for one or every media
 // item, which puts the items back into the worker's unclassified queue
-// (the worker picks them up on its next tick — no separate trigger).
+// (the worker picks them up on its next tick - no separate trigger).
 //
 //	evey admin reclassify <media-id>     just this one
 //	evey admin reclassify --all          everything

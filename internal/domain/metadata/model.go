@@ -35,14 +35,14 @@ type MetadataResult struct {
 	// (e.g. TMDB release_dates / content_ratings) exposes them.
 	CertificationsByCountry map[string]string
 	Genres                  []string
-	Studios         []string
-	ProviderIDs     map[string]string
-	Ratings         map[string]float64 // imdb, rt, metacritic, tmdb
-	People          []PersonResult
-	Artwork         []ArtworkResult
-	Trailers        []TrailerResult
-	Popularity      float64 // TMDB popularity score, used as tiebreaker
-	Collection      *CollectionRef
+	Studios                 []string
+	ProviderIDs             map[string]string
+	Ratings                 map[string]float64 // imdb, rt, metacritic, tmdb
+	People                  []PersonResult
+	Artwork                 []ArtworkResult
+	Trailers                []TrailerResult
+	Popularity              float64 // TMDB popularity score, used as tiebreaker
+	Collection              *CollectionRef
 	// TV series structure info (for match validation)
 	SeasonEpisodeCounts map[int]int // season_number → episode_count
 	// AlternativeTitles holds locale-variant release titles (e.g. the US
@@ -54,11 +54,11 @@ type MetadataResult struct {
 type TrailerResult struct {
 	Site             string // "YouTube", "Vimeo", "Dailymotion", etc.
 	Key              string // platform video ID
-	Language         string // ISO 639-1 — trailer audio language
+	Language         string // ISO 639-1 - trailer audio language
 	Official         bool
 	Type             string // "Trailer", "Teaser", "Clip", etc.
 	UseSubtitles     bool   // true when trailer is not in server language
-	SubtitleLanguage string // ISO 639-1 — language for CC (= server lang when UseSubtitles=true)
+	SubtitleLanguage string // ISO 639-1 - language for CC (= server lang when UseSubtitles=true)
 }
 
 type PersonResult struct {

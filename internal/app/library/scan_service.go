@@ -266,7 +266,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 	// regular scan path (detectChanges) short-circuits any file whose
 	// size+mtime+fingerprint match the cached index, so a parser fix only
 	// reaches newly-discovered files. The orphans the heal pass targets
-	// have been on disk untouched since they were originally scanned —
+	// have been on disk untouched since they were originally scanned -
 	// without this they would stay frozen on titles written by the
 	// pre-fix parser ("Die hard 2 2016P", "Léon remastered extended", …)
 	// and match-orphans would loop forever on the same stall.
@@ -285,7 +285,7 @@ func (s *ScanService) ScanLibrary(ctx context.Context, libraryID string) (added,
 //
 // Iterates ListByLibraryID and filters orphans client-side (CommandRepo
 // has no orphan-aware list method; cost is one extra full library load
-// per scan, which is acceptable at scan cadence). Idempotent — drift-only
+// per scan, which is acceptable at scan cadence). Idempotent - drift-only
 // updates, no-op when the parser output matches the stored title.
 func (s *ScanService) healOrphanTitles(ctx context.Context, libraryID string) int {
 	ctx, span := tracing.StartSpan(ctx, "app.scan.healOrphanTitles")
@@ -322,7 +322,7 @@ func (s *ScanService) healOrphanTitles(ctx context.Context, libraryID string) in
 		//    ScanTitle but parser improved) or a half-healed row from
 		//    before scan_title became mutable in Update (Title already
 		//    equals the parser output, ScanTitle still holds the dirty
-		//    original — happens once per row recovering from that bug).
+		//    original - happens once per row recovering from that bug).
 		if fresh == it.ScanTitle {
 			continue
 		}
@@ -535,7 +535,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 			return 0, 0, err
 		}
 		if !created {
-			return 0, 0, nil // skipped (failed invariants) — not an error, not counted
+			return 0, 0, nil // skipped (failed invariants) - not an error, not counted
 		}
 		return 1, 0, nil
 	}
@@ -547,7 +547,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 // file. Path is the authoritative identity, checked first: a re-scan of an
 // existing file must resolve to the item at that path, never to a different file
 // that merely shares its size+mtime fingerprint. Only when the path is new do we
-// fall back to the fingerprint to detect a move/rename — and because the
+// fall back to the fingerprint to detect a move/rename - and because the
 // fingerprint is size+mtime (not content-derived), distinct files can collide,
 // so a fingerprint match in a DIFFERENT library is rejected to prevent
 // cross-library repointing. Returns (nil, nil) when no match exists (caller
@@ -555,7 +555,7 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 //
 // NOTE: a same-library size+mtime collision (e.g. `cp -p` of a distinct file)
 // can still mis-resolve via the fingerprint fallback; a content-derived
-// fingerprint is the full fix (deferred — changing the format forces a rescan).
+// fingerprint is the full fix (deferred - changing the format forces a rescan).
 func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID string, f library.ScannedFile) (*library.MediaItem, error) {
 	existing, getErr := s.mediaItems.GetByFilePath(ctx, f.Path)
 	if getErr == nil {
@@ -582,7 +582,7 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID strin
 	}
 	// Same-library fingerprint match is only a MOVE if the old file is gone. If
 	// it's still on disk, two distinct files share a size+mtime fingerprint (a
-	// collision, e.g. `cp -p`) — don't repoint the existing item onto this path,
+	// collision, e.g. `cp -p`) - don't repoint the existing item onto this path,
 	// create a fresh one instead.
 	if existing != nil && existing.File != nil && s.scanner.FileExists(existing.File.Path) {
 		return nil, nil
@@ -730,7 +730,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	// Persist the new fingerprint + mtime BEFORE the heavy probe/chapters
 	// pipeline. Otherwise on a 4K 46GB file the probe + extractChapters can
 	// eat the whole workerCtx budget (30s) and the Update that follows
-	// fails with 'begin tx: context deadline exceeded' — the stale
+	// fails with 'begin tx: context deadline exceeded' - the stale
 	// fingerprint then survives, the next scan re-flags the file as
 	// changed, and the loop pins CPU forever. Updating first means a
 	// timeout only loses the duration_ms refresh (recoverable next scan)

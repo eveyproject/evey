@@ -59,7 +59,7 @@ service LibraryService {
   }
 
   // Public, non-sensitive projection of media items (id/title/type/year/poster/
-  // overview only — never file paths or provider ids). This is the read surface
+  // overview only - never file paths or provider ids). This is the read surface
   // a plugin may be granted via the `public` permission; regular users may call
   // it too. Distinct from GetMediaItem/ListMediaItems, which return sensitive
   // server-side detail and are never exposed to plugin tokens.
@@ -326,7 +326,7 @@ message PaginationRequest {
   int32 page_size = 2;
   // Opaque keyset cursor returned by a previous PaginationResponse. When
   // set, server uses keyset pagination instead of offset and ignores
-  // `page` — guarantees no skips/duplicates under concurrent writes.
+  // `page` - guarantees no skips/duplicates under concurrent writes.
   string cursor = 3;
 }
 
@@ -449,7 +449,7 @@ message SearchMediaRequest {
   SortOrder sort_order = 8;
   // Scope the search to a single library. Empty = global. Wired by the
   // library page so its search box stops behaving like a client-side
-  // filter on already-loaded items — the backend now actually limits
+  // filter on already-loaded items - the backend now actually limits
   // results to the library. Meilisearch + SQL fallback both filter on
   // library_id natively.
   string library_id = 9;
@@ -508,7 +508,7 @@ message FilterMediaItemsRequest {
   string library_id = 1;
   MediaItemType type = 2;
   // genre: single-genre filter (kept for the free-text genre input). For
-  // multi-select use `genres` below — when both are set, `genres` wins.
+  // multi-select use `genres` below - when both are set, `genres` wins.
   string genre = 3;
   int32 year_from = 4;
   int32 year_to = 5;

@@ -35,7 +35,7 @@ func (r *FakeUserRepository) Create(_ context.Context, u *user.User) error {
 	return nil
 }
 
-// GuardErr, when set, is returned by the guarded delete/disable — for tests
+// GuardErr, when set, is returned by the guarded delete/disable - for tests
 // exercising the service's error path without touching the generic Err.
 func (r *FakeUserRepository) SetGuardErr(err error) {
 	r.mu.Lock()

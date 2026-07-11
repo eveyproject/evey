@@ -56,8 +56,8 @@ func waitDead(pid int, timeout time.Duration) bool {
 // defense against plugin process leaks: pdeathsig delivery is not reliable on
 // every kernel (and is cleared outright by the prod launcher's file caps on
 // unfixed builds), so a restarting server must terminate plugin processes a
-// previous instance left running — matched by cmdline under the runner's
-// plugin dir — before starting fresh ones.
+// previous instance left running - matched by cmdline under the runner's
+// plugin dir - before starting fresh ones.
 func TestReapStaleProcesses_KillsOrphansFromPreviousInstance(t *testing.T) {
 	dir := t.TempDir()
 	stale := spawnFakeStalePlugin(t, dir)

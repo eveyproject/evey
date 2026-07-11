@@ -218,7 +218,7 @@ const CollectionsSection = memo(function CollectionsSection({ maxItems }: Sectio
   );
 });
 
-// Each home section accepts an optional `maxItems` overriding its default —
+// Each home section accepts an optional `maxItems` overriding its default -
 // driven by the merged feed config (admin default + profile override).
 // Falsy = "use the slider's own default" so we don't accidentally fetch 0.
 type SectionProps = { maxItems?: number };
@@ -264,7 +264,7 @@ function HomePage() {
 
   const sections = useMemo(() => allSections.filter((c) => c.enabled), [allSections]);
 
-  // Stabilize the Set passed to PluginSlot — otherwise a new Set identity
+  // Stabilize the Set passed to PluginSlot - otherwise a new Set identity
   // every render forces the slot to re-evaluate its registered list each time
   // the parent re-renders for unrelated reasons.
   const excludeRegisteredPluginIDs = useMemo(
@@ -308,7 +308,7 @@ function HomePage() {
         ) : (
           <>
             {/* Newly-installed home.section plugins not yet in the user's
-                feed config render at the TOP — matches CustomizePanel,
+                feed config render at the TOP - matches CustomizePanel,
                 which prepends them with a negative displayOrder. Once the
                 user saves a position, the entry persists and is rendered
                 inline below at its sorted slot. */}

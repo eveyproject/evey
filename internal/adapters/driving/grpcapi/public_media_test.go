@@ -26,7 +26,7 @@ func TestPublicMediaItemToProto_ProjectsSafeFields(t *testing.T) {
 	assert.Equal(t, int32(1999), pb.Year)
 	assert.Equal(t, "neo", pb.Overview)
 	assert.Equal(t, "https://host/poster.jpg", pb.PosterUrl)
-	// PublicMediaItem has no file_path field at all — the leak is impossible by
+	// PublicMediaItem has no file_path field at all - the leak is impossible by
 	// construction. This test pins the safe-field mapping.
 }
 

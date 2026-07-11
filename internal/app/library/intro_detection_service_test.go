@@ -118,7 +118,7 @@ func TestFrequencyMap_DuplicatesCountedOnce(t *testing.T) {
 
 // --- allCandidatesGapTolerant tests ---
 
-// msSeq builds a slice of timestamps with constant spacing — convenience for
+// msSeq builds a slice of timestamps with constant spacing - convenience for
 // tests that don't care about jitter and want N frames every `step` ms.
 func msSeq(n int, step int64) []int64 {
 	out := make([]int64, n)
@@ -387,6 +387,7 @@ func (r *fakeSegmentRepo) GetByMediaItemID(_ context.Context, id shared.MediaIte
 	}
 	return out, nil
 }
+
 // GetByMediaItemIDs mirrors the postgres batch query: one call covering every
 // requested id, grouped into a map. Missing ids are absent from the map.
 func (r *fakeSegmentRepo) GetByMediaItemIDs(_ context.Context, ids []shared.MediaItemID) (map[shared.MediaItemID][]*domainlibrary.MediaSegment, error) {
@@ -472,7 +473,7 @@ func (r *fakeMediaItemRepo) GetByID(_ context.Context, _ shared.MediaItemID) (*d
 func (r *fakeMediaItemRepo) Create(_ context.Context, _ *domainlibrary.MediaItem) error { return nil }
 func (r *fakeMediaItemRepo) List(_ context.Context, f domainlibrary.ListMediaItemsFilter) ([]*domainlibrary.MediaItem, error) {
 	// Honour Offset/Limit so paginating callers (detectSeason) terminate and
-	// page correctly — a fake that ignored them would loop forever once the
+	// page correctly - a fake that ignored them would loop forever once the
 	// caller pages past a full page.
 	items := r.siblings
 	if f.Offset >= len(items) {
@@ -560,8 +561,8 @@ type fakeConfigRepo struct{}
 func (r *fakeConfigRepo) Get(_ context.Context, _ string) (*shared.ServerConfigEntry, error) {
 	return &shared.ServerConfigEntry{Key: "trickplay.enabled", Value: "false"}, nil
 }
-func (r *fakeConfigRepo) Set(_ context.Context, _, _ string) error   { return nil }
-func (r *fakeConfigRepo) Delete(_ context.Context, _ string) error   { return nil }
+func (r *fakeConfigRepo) Set(_ context.Context, _, _ string) error { return nil }
+func (r *fakeConfigRepo) Delete(_ context.Context, _ string) error { return nil }
 func (r *fakeConfigRepo) List(_ context.Context) ([]*shared.ServerConfigEntry, error) {
 	return nil, nil
 }
@@ -693,7 +694,7 @@ func TestDetectSeason_BatchesExhaustedCheck(t *testing.T) {
 	}
 	// GetByID returns this single item for both candidates: since the exhausted
 	// one must never reach detectIntroWithHint (which dereferences item.File),
-	// giving it a real file here would silently pass even with a bug — a nil
+	// giving it a real file here would silently pass even with a bug - a nil
 	// item.File would panic instead of just failing the assertion, which is a
 	// stronger guard.
 	dur, _ := shared.NewDurationMs(1_200_000)
@@ -718,7 +719,7 @@ func TestDetectSeason_BatchesExhaustedCheck(t *testing.T) {
 }
 
 // TestDetectSeason_ExhaustedBatchErrorFailsOpen proves that when the batched
-// exhausted check itself errors, detectSeason does NOT skip anyone — matching
+// exhausted check itself errors, detectSeason does NOT skip anyone - matching
 // the previous per-episode fail-open semantics (an error meant "don't skip").
 func TestDetectSeason_ExhaustedBatchErrorFailsOpen(t *testing.T) {
 	t.Parallel()
@@ -1119,7 +1120,7 @@ func TestPropagateSegment_PaginatesAllSiblings(t *testing.T) {
 	det := &fakeDetector{tileHashes: []uint64{0x1111, 0x2222, 0x3333}}
 	cacheDir := t.TempDir()
 	// Only the reference needs a sidecar so its hash set is non-empty; siblings
-	// fail extraction and are skipped — but each is still queried (manual-lock
+	// fail extraction and are skipped - but each is still queried (manual-lock
 	// check) before that, which is what proves the pagination coverage.
 	writeTrickplaySidecarFixture(t, cacheDir, "ep-ref", 15, 15, 15)
 	itemRepo := &fakeMediaItemRepo{item: ref, siblings: siblings}
@@ -1194,7 +1195,7 @@ func TestPickWindowMatchingDuration_TooLongReturnsNil(t *testing.T) {
 // atomic manual-lock upsert (UpsertUnlessManual) errors, DetectIntro propagates
 // the error rather than swallowing it. The read-then-write guard was replaced by
 // a single conditional statement, so the lock check can no longer fail
-// independently of the write — the write error is the only failure mode left.
+// independently of the write - the write error is the only failure mode left.
 func TestUpsertSegmentRespectingManual_UpsertError_Propagates(t *testing.T) {
 	t.Parallel()
 	dur, _ := shared.NewDurationMs(3_600_000)
@@ -1254,7 +1255,7 @@ func TestPropagateSegment_SiblingGetSegError_SkipsUpsert(t *testing.T) {
 		batchErr: errors.New("db transient"),
 	}
 	// manifest.MediaItemID = "ep-ref" so both ref and sib resolve to the same
-	// sidecar path, giving both 5 matching hashes — i.e. without the error
+	// sidecar path, giving both 5 matching hashes - i.e. without the error
 	// injection the sibling WOULD be upserted.
 	manifest := &domainlibrary.TrickplayManifest{
 		MediaItemID: ref.ID,

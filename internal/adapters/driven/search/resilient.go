@@ -93,7 +93,7 @@ func (r *ResilientSearch) Clear(ctx context.Context) error {
 	}
 	// Unlike the other writes, surface the error: the reconcile clears then
 	// reindexes and must NOT proceed to reindex (and log success) if the wipe
-	// silently failed — that would leave the stale docs in place.
+	// silently failed - that would leave the stale docs in place.
 	return r.primary.Clear(ctx)
 }
 

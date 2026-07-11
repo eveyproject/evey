@@ -224,7 +224,7 @@ func TestOrphanPruner_EmptySeasonsPruned(t *testing.T) {
 		File: &library.MediaFile{Path: "/tv/show/s01"},
 	})
 
-	// "seen" includes the container paths so they are not orphaned as files —
+	// "seen" includes the container paths so they are not orphaned as files -
 	// the pruner removes them because they have no children.
 	seen := map[string]struct{}{
 		"/tv/show":     {},
@@ -297,11 +297,11 @@ func TestOrphanPruner_DeleteByIDsError_FailClosed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prune must not bubble batch-delete errors: %v", err)
 	}
-	// Nothing was actually deleted — count must reflect reality.
+	// Nothing was actually deleted - count must reflect reality.
 	if removed != 0 {
 		t.Fatalf("want 0 removed when delete fails, got %d", removed)
 	}
-	// Row still in DB — must NOT be de-indexed (search still returns it).
+	// Row still in DB - must NOT be de-indexed (search still returns it).
 	hits, _, _ := search.Search(context.Background(), "orphan", nil, nil, 10)
 	if len(hits) == 0 {
 		t.Fatal("orphan must remain in search index when DB delete failed")
@@ -365,7 +365,7 @@ func TestOrphanPruner_NilSearchIndex_StillPrunesAndPublishes(t *testing.T) {
 	t.Parallel()
 	items := libfakes.NewFakeMediaItemCommandRepo()
 	bus := sharedfakes.NewFakeEventBus()
-	// nil search is allowed per the Prune contract — pruner skips index ops.
+	// nil search is allowed per the Prune contract - pruner skips index ops.
 	pruner := applib.NewOrphanPruner(items, nil, bus)
 
 	items.Create(context.Background(), &library.MediaItem{

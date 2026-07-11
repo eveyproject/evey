@@ -199,7 +199,7 @@ func serveDownload(w http.ResponseWriter, r *http.Request, item *library.MediaIt
 	}
 	// Defense-in-depth: confine path to known library roots so a poisoned
 	// media_files.path cannot exfiltrate an arbitrary file. Fails open when
-	// roots are unknown (transient list error) — confinement is NOT the
+	// roots are unknown (transient list error) - confinement is NOT the
 	// access gate; access was already checked by the caller.
 	if len(roots) > 0 && !pathWithinRoots(roots, item.File.Path) {
 		slog.Warn("download: path outside library roots, blocked",
@@ -276,7 +276,7 @@ func archivableFile(it *library.MediaItem, roots []string) bool {
 }
 
 // mediaRoots returns the cleaned set of configured library paths. Returns nil
-// on error or when none are configured — callers treat nil as "unknown" and
+// on error or when none are configured - callers treat nil as "unknown" and
 // fall open (the path confinement is defense-in-depth, not the access gate).
 func mediaRoots(ctx context.Context, libSvc LibraryLister) []string {
 	libs, err := libSvc.ListLibraries(ctx)

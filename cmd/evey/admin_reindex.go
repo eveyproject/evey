@@ -13,7 +13,7 @@ import (
 )
 
 // adminReindexNoCue walks a directory tree and rebuilds the seek index (Cues)
-// of every EBML file (MKV/WebM) that lacks one — the fix for slow resume on
+// of every EBML file (MKV/WebM) that lacks one - the fix for slow resume on
 // files muxed without an index, where the player has to linearly scan to seek.
 //
 // It is filesystem-only (no DB): point it at a library root, review the
@@ -66,7 +66,7 @@ func adminReindexNoCue(args []string) error {
 	adapter := mkvgoadapter.New()
 	ctx := context.Background()
 
-	runLabel := "DRY-RUN (no files modified — re-run with --apply to rewrite)"
+	runLabel := "DRY-RUN (no files modified - re-run with --apply to rewrite)"
 	if *apply {
 		switch {
 		case reindexMode == mkv.ModeInPlace:
@@ -145,9 +145,9 @@ func adminReindexNoCue(args []string) error {
 	fmt.Printf("\nsummary: %d EBML files scanned, %d already indexed, %d without index", scanned, alreadyIndexed, noIndex)
 	if *apply {
 		fmt.Printf(", %d reindexed, %d failed (originals safe)\n", reindexed, failed)
-		fmt.Printf("note: rewritten files changed on disk — re-scan the library so it re-probes them.\n")
+		fmt.Printf("note: rewritten files changed on disk - re-scan the library so it re-probes them.\n")
 	} else {
-		fmt.Printf(" (dry-run — nothing modified)\n")
+		fmt.Printf(" (dry-run - nothing modified)\n")
 	}
 	return nil
 }

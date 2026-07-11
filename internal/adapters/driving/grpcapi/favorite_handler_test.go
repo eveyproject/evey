@@ -48,7 +48,7 @@ func TestFavoriteHandler_ListFavorites_Empty(t *testing.T) {
 }
 
 // AddFavorite is idempotent: calling it twice keeps the item favorited (it must
-// NOT toggle back off — that was a real bug, a double-tap silently un-favorited).
+// NOT toggle back off - that was a real bug, a double-tap silently un-favorited).
 func TestFavoriteHandler_AddFavorite_Idempotent(t *testing.T) {
 	h, _ := newTestFavoriteHandler()
 	ctx := ctxWithClaims("user-1", "profile-1", false)
@@ -131,7 +131,7 @@ func TestFavoriteHandler_ListFavorites_WithItems(t *testing.T) {
 }
 
 // A kids profile must not see adult favorites' metadata, and (the wiring fix)
-// kid-safe favorites must now resolve their title — the handler used to be
+// kid-safe favorites must now resolve their title - the handler used to be
 // constructed without libQuery, so titles never appeared at all.
 func TestFavoriteHandler_ListFavorites_ParentalFiltersAdult(t *testing.T) {
 	repo := favfakes.NewFakeRepository()
@@ -223,7 +223,7 @@ func TestFavoriteHandler_IsFavorite_Unauthenticated(t *testing.T) {
 	assert.Equal(t, codes.Unauthenticated, status.Code(err))
 }
 
-// IDOR regression guard — non-admin must not operate on another profile.
+// IDOR regression guard - non-admin must not operate on another profile.
 func TestFavoriteHandler_ListFavorites_IDORAnotherProfile(t *testing.T) {
 	h, _ := newTestFavoriteHandler()
 	ctx := ctxWithClaims("user-1", "profile-1", false)

@@ -222,7 +222,7 @@ func TestUnregisterWebPush_EmptyEndpoint(t *testing.T) {
 // IDOR regression: UnregisterWebPush shares DeletePushByEndpoint with
 // DeleteWebPushSubscription; make sure a cross-user endpoint call on it
 // stays a no-op too. Relies on the repo's `WHERE user_id AND endpoint`
-// filter — if someone rewrites it to endpoint-only, this catches it.
+// filter - if someone rewrites it to endpoint-only, this catches it.
 func TestUnregisterWebPush_OwnershipScopedByUserID(t *testing.T) {
 	t.Parallel()
 	subs := notiffakes.NewFakePushSubscriptionRepository()

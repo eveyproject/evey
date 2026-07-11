@@ -71,7 +71,7 @@ func TestTranscodingDetectHardware_ReturnsDevices(t *testing.T) {
 	if resp == nil {
 		t.Fatal("expected non-nil response")
 	}
-	// FakeHWDetector returns empty by default — slice must at least exist.
+	// FakeHWDetector returns empty by default - slice must at least exist.
 	if resp.Devices == nil {
 		// emtpy slice is fine; nil is also fine, we just assert no panic
 		_ = resp.Devices

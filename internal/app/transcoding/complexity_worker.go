@@ -49,7 +49,7 @@ type ComplexityWorkerOpts struct {
 	// BatchSize is the max number of items pulled per tick. Default 5.
 	BatchSize int
 	// IdleInterval is how long the worker sleeps between batches when
-	// there's nothing left to classify. Default 15 min — picks up new
+	// there's nothing left to classify. Default 15 min - picks up new
 	// items dropped by the scanner within a reasonable window without
 	// burning cycles when the library is steady.
 	IdleInterval time.Duration
@@ -124,7 +124,7 @@ func (w *ComplexityWorker) run(ctx context.Context) {
 
 		processed := w.processBatch(ctx)
 		if processed == 0 {
-			// Nothing to do — sleep longer.
+			// Nothing to do - sleep longer.
 			select {
 			case <-time.After(w.idleInterval):
 			case <-w.stop:
@@ -153,7 +153,7 @@ func (w *ComplexityWorker) processBatch(ctx context.Context) int {
 		default:
 		}
 		w.classifyOne(ctx, id)
-		// Throttle: don't sleep after the last item — keeps the worker
+		// Throttle: don't sleep after the last item - keeps the worker
 		// snappy when ListUnclassified came back full and another batch
 		// is waiting.
 		if i < len(ids)-1 {
@@ -183,7 +183,7 @@ func (w *ComplexityWorker) classifyOne(ctx context.Context, mediaItemID string) 
 	}
 	durationSec := item.File.Duration.Seconds()
 	if durationSec <= 0 {
-		// Duration unknown — the classifier needs it to spread samples.
+		// Duration unknown - the classifier needs it to spread samples.
 		// Skip; the scanner will eventually re-probe.
 		return
 	}

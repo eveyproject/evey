@@ -7,7 +7,7 @@ import (
 
 type ProgressCommandRepo interface {
 	// Upsert writes the progress entry. Completed is sticky on conflict: a
-	// row already marked completed=true cannot regress to false via Upsert —
+	// row already marked completed=true cannot regress to false via Upsert -
 	// only Delete (used by MarkAsUnwatched) clears the row. This protects
 	// auto-completion at 90% and explicit MarkAsWatched from being undone
 	// by a subsequent ReportProgressBySession tick.

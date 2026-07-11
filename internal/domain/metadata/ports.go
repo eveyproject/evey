@@ -29,10 +29,10 @@ type MetadataOverrideRepository interface {
 
 // ArtworkStats holds aggregate counts about local-path coverage.
 type ArtworkStats struct {
-	TotalRecords      int64
-	WithLocalPath     int64
-	MissingLocalPath  int64
-	TotalSizeBytes    int64
+	TotalRecords     int64
+	WithLocalPath    int64
+	MissingLocalPath int64
+	TotalSizeBytes   int64
 }
 
 type ArtworkRepository interface {

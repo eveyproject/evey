@@ -22,9 +22,9 @@ import (
 // mobile, another browser tab) hold a persistent WebSocket and register as
 // controllable targets; the web UI lists them and pushes playback commands
 // the server relays to the addressed device. No casting protocol, no LAN
-// dependency — it works for remote clients exactly as for local ones.
+// dependency - it works for remote clients exactly as for local ones.
 
-const deviceCmdMaxBody = 4 << 10 // 4 KiB — commands are tiny JSON
+const deviceCmdMaxBody = 4 << 10 // 4 KiB - commands are tiny JSON
 
 type devicesHandler struct {
 	registry *appsyncplay.DeviceRegistry
@@ -41,13 +41,13 @@ func registerDeviceRoutes(mux *http.ServeMux, registry *appsyncplay.DeviceRegist
 	mux.Handle("/api/v1/devices/ws", http.HandlerFunc(h.wsUpgradeHandler))
 }
 
-// GET /api/v1/devices — the caller's currently-connected Play On targets.
+// GET /api/v1/devices - the caller's currently-connected Play On targets.
 func (h *devicesHandler) list(w http.ResponseWriter, r *http.Request) {
 	ctx, span := tracing.StartSpan(r.Context(), "http.devices.List")
 	defer span.End()
 	claims := HTTPClaimsFromContext(ctx)
 	devices := h.registry.List(claims.UserID)
-	// Project to a stable JSON shape — the domain struct carries UserID,
+	// Project to a stable JSON shape - the domain struct carries UserID,
 	// which the client neither needs nor should see echoed back.
 	type deviceDTO struct {
 		ID          string `json:"id"`
@@ -70,7 +70,7 @@ func (h *devicesHandler) list(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// POST /api/v1/devices/{id}/command — push a playback command to one of
+// POST /api/v1/devices/{id}/command - push a playback command to one of
 // the caller's devices. 404 when the device isn't connected so the UI can
 // refresh its list; the registry is scoped per-user, so a caller can only
 // ever address their own devices.
@@ -146,7 +146,7 @@ func (h *devicesHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request
 
 		if _, err := h.registry.Register(userID, reg.DeviceID, reg.Name, reg.DeviceType, sender); err != nil {
 			// Past the per-user cap: the socket is already upgraded (HTTP 101),
-			// so there's no status code to return — closing the connection is
+			// so there's no status code to return - closing the connection is
 			// the rejection. The client can retry after dropping a device.
 			slog.Warn("devices ws: register rejected", slog.String("user", userID), slog.Any("err", err))
 			return
@@ -155,7 +155,7 @@ func (h *devicesHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request
 
 		// Keep the connection alive to receive pushed commands. Future
 		// client→server frames (acks, status) are read and currently
-		// ignored — the loop's job is disconnect detection.
+		// ignored - the loop's job is disconnect detection.
 		const readDeadline = 120 * time.Second
 		for {
 			if err := ws.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {

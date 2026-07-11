@@ -213,7 +213,7 @@ export function APIKeySettings() {
                     className="accent-[var(--accent)]"
                   />
                   <span className="text-xs font-mono text-[var(--text-muted)]">{sc}</span>
-                  <span className="text-xs text-[var(--text-muted)]">— {t(`auth.apiKeys.scopeLabels.${sc}`)}</span>
+                  <span className="text-xs text-[var(--text-muted)]">- {t(`auth.apiKeys.scopeLabels.${sc}`)}</span>
                 </label>
               ))}
             </div>

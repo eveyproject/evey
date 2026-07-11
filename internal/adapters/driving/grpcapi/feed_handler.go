@@ -54,7 +54,7 @@ func (h *feedHandler) requireMediaAccess(ctx context.Context, mediaItemID string
 // filterAccessibleAndAllowed applies BOTH the library-access and the parental
 // filter, resolving the underlying media items at most once. The previous code
 // ran filterByLibraryAccess then filterByParental back-to-back, each issuing its
-// own GetMediaItemsByIDs over the same ids — a doubled heavy resolve per feed
+// own GetMediaItemsByIDs over the same ids - a doubled heavy resolve per feed
 // section on every non-admin home load.
 func (h *feedHandler) filterAccessibleAndAllowed(ctx context.Context, items []*feed.FeedItem) ([]*feed.FeedItem, error) {
 	if len(items) == 0 || h.libQuery == nil {

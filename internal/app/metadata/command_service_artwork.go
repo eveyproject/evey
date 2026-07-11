@@ -33,7 +33,7 @@ type DownloadJob struct {
 	mu        sync.Mutex
 	// Done is set once the bulk download goroutine has finished. Read by
 	// the polling HTTP handler concurrently with the writer in
-	// runBulkDownload — must be atomic to keep `go test -race` happy.
+	// runBulkDownload - must be atomic to keep `go test -race` happy.
 	Done atomic.Bool
 }
 
@@ -84,7 +84,7 @@ func (s *CommandService) artworkDestPath(rec *metadata.ArtworkRecord) string {
 	// Content-address by source URL, NOT by the record's UUID. Re-enrichment
 	// mints a fresh ArtworkRecord (new UUID) every pass; keying the filename on
 	// the UUID meant the SAME image was re-downloaded to a NEW path each time
-	// and the old file leaked (DeleteByMediaItemID drops DB rows, not files) —
+	// and the old file leaked (DeleteByMediaItemID drops DB rows, not files) -
 	// a 250 GB pile of 70+ identical copies per item. Hashing the source URL
 	// maps one image to one stable path: re-download overwrites in place (or is
 	// skipped), and a deleted record's file is re-referenced by the next record
@@ -116,7 +116,7 @@ func (s *CommandService) ArtworkStats(ctx context.Context) (metadata.ArtworkStat
 }
 
 // PurgeCorruptVariants deletes resized artwork variants (<base>_w<width>.webp)
-// that are 0 bytes on disk — leftovers from a resize that exited non-zero or
+// that are 0 bytes on disk - leftovers from a resize that exited non-zero or
 // timed out. The serving path already regenerates these on demand, so this is a
 // convenience for operators who'd rather clear them in bulk (e.g. after
 // deploying the 0-byte fix) than shell into the data volume. Only zero-length
@@ -138,7 +138,7 @@ func (s *CommandService) PurgeCorruptVariants(ctx context.Context) (int, error) 
 			return ctx.Err()
 		}
 		if walkErr != nil {
-			// A transient error on one entry shouldn't abort the whole sweep —
+			// A transient error on one entry shouldn't abort the whole sweep -
 			// returning nil tells WalkDir to keep going past it.
 			slog.Warn("purge variants: walk", slog.String("path", path), slog.Any("err", walkErr))
 			return nil
@@ -166,7 +166,7 @@ func (s *CommandService) PurgeCorruptVariants(ctx context.Context) (int, error) 
 }
 
 // isResizedVariant reports whether name is a "<base>_w<width>.webp" resized
-// artwork variant — the only files PurgeCorruptVariants is allowed to delete.
+// artwork variant - the only files PurgeCorruptVariants is allowed to delete.
 // Full-resolution "<base>.webp" lacks the _w<digits> marker and is excluded.
 func isResizedVariant(name string) bool {
 	const suffix = ".webp"
@@ -224,7 +224,7 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 		select {
 		case <-ctx.Done():
 			// A bare `break` would only exit the select, then fall through to
-			// wg.Add+go WITHOUT having acquired a sem slot — that goroutine's
+			// wg.Add+go WITHOUT having acquired a sem slot - that goroutine's
 			// deferred `<-sem` would steal a running worker's token, blocking
 			// it forever and deadlocking wg.Wait(). Drain the workers that did
 			// acquire a slot, mark done, and stop. (Mirrors RetryMissingArtworks.)
@@ -246,7 +246,7 @@ func (s *CommandService) runBulkDownload(ctx context.Context, job *DownloadJob, 
 			destPath := s.artworkDestPath(rec)
 			// Skip if already downloaded (re-entrant). Require size>0: the
 			// downloader os.Create's the file before io.Copy, so a SIGKILL/OOM
-			// mid-download leaves a 0-byte file at the content-addressed path —
+			// mid-download leaves a 0-byte file at the content-addressed path -
 			// reconciling that as "present" would mark the record done forever
 			// (excluded from ListMissingLocalPath) with broken artwork.
 			if fi, err := os.Stat(destPath); err == nil && fi.Size() > 0 {
@@ -424,7 +424,7 @@ func (s *CommandService) retryMissingRecords(ctx context.Context, job *DownloadJ
 
 // BackfillBlurhashes re-hashes every artwork row that has a LocalPath on
 // disk but no blurhash. Retro-fits placeholders onto artworks ingested
-// before migration 000095 (when the column was added). Idempotent — rows
+// before migration 000095 (when the column was added). Idempotent - rows
 // that already have a hash are filtered out by the repository query.
 //
 // Best-effort: per-record decode failures are logged at debug and the loop
@@ -542,7 +542,7 @@ func (s *CommandService) backfillBlurhashRecords(ctx context.Context, job *Downl
 // RetryMissingArtworksLoop runs RetryMissingArtworks periodically until
 // ctx is cancelled. Intended to be launched as a goroutine at startup.
 // Wired so a transient CDN/network outage during the initial enrichment
-// burst is self-healing within the next interval — admin doesn't need
+// burst is self-healing within the next interval - admin doesn't need
 // to remember to hit "Download missing" by hand.
 func (s *CommandService) RetryMissingArtworksLoop(ctx context.Context, interval time.Duration) {
 	if interval <= 0 {
@@ -564,7 +564,7 @@ func (s *CommandService) RetryMissingArtworksLoop(ctx context.Context, interval 
 // the enricher fires an auto-download the instant it persists a new artwork
 // record (gated on the admin toggle inside maybeAutoDownload). Registered
 // post-construction in wire.go via Enricher.SetArtworkPostSaveHook, because the
-// CommandService is built WITH the enricher — the back-reference can only be set
+// CommandService is built WITH the enricher - the back-reference can only be set
 // once both exist.
 func (s *CommandService) ArtworkAutoDownloadHook() ArtworkPostSaveHook {
 	return s.maybeAutoDownload
@@ -579,7 +579,7 @@ func (s *CommandService) maybeAutoDownload(ctx context.Context, rec *metadata.Ar
 	destPath := s.artworkDestPath(rec)
 	if fi, err := os.Stat(destPath); err == nil && fi.Size() > 0 {
 		// already downloaded (a 0-byte file = an interrupted download, re-fetch
-		// it — matches runBulkDownload/retryMissingRecords/DownloadArtwork)
+		// it - matches runBulkDownload/retryMissingRecords/DownloadArtwork)
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
@@ -640,7 +640,7 @@ func (s *CommandService) DownloadArtwork(ctx context.Context, record *metadata.A
 			slog.Warn("persist blurhash", slog.String("artwork.id", record.ID), slog.Any("err", err))
 		}
 	}
-	// Log-only: notification event — file already downloaded to destPath above
+	// Log-only: notification event - file already downloaded to destPath above
 	evtArtwork := metadata.ArtworkDownloaded{MediaItemID: record.MediaItemID, Type: record.Type, LocalPath: destPath, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evtArtwork); err != nil {
 		slog.Warn("publish event", slog.String("event", evtArtwork.EventName()), slog.Any("err", err))

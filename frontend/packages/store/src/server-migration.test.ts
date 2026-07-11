@@ -62,7 +62,7 @@ describe("migrateFromSingleServer", () => {
     expect(byServer.profileId).toBe("p-1");
   });
 
-  it("is idempotent — second call is a no-op", async () => {
+  it("is idempotent - second call is a no-op", async () => {
     await migrateFromSingleServer({
       readLegacyServerUrl: async () => "https://evey.home.net",
     });

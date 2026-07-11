@@ -135,7 +135,7 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		args = append(args, f.AfterID)
 		// argIdx intentionally not bumped: AfterID is the last placeholder
 		// the filter produces. Keep this branch last so later additions
-		// get a free slot — if you add a new condition below, re-add the
+		// get a free slot - if you add a new condition below, re-add the
 		// increment here.
 	}
 	where := ""
@@ -193,7 +193,7 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	}
 
 	// Cursor takes precedence over Offset. Reject cursors generated for a
-	// different sort key — re-using them would produce undefined ordering.
+	// different sort key - re-using them would produce undefined ordering.
 	if f.Cursor.LastID != "" {
 		if f.Cursor.SortField != sortKey {
 			return nil, shared.ErrCursorMismatch
@@ -217,7 +217,7 @@ func (r *MediaItemRepository) List(ctx context.Context, f library.ListMediaItems
 	case sortField == "added_at" || sortField == "mi.added_at":
 		// mi.id tiebreak so offset pagination is deterministic across pages when
 		// several items share the same added_at (a scan can stamp many rows the
-		// same millisecond) — otherwise a page boundary can skip or repeat a row.
+		// same millisecond) - otherwise a page boundary can skip or repeat a row.
 		// Matches the cursor branch's (sortField, mi.id) total order above.
 		query += fmt.Sprintf(` ORDER BY CASE WHEN mi.type = 'series'
 			 THEN COALESCE(mi.latest_child_added_at, mi.added_at)

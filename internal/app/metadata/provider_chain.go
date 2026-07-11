@@ -6,7 +6,7 @@ import (
 
 // ProviderChain is an ordered list of metadata providers with capability
 // routing. Walk the chain to find the first provider that satisfies a
-// query — search fallback, season details, episode details, translations.
+// query - search fallback, season details, episode details, translations.
 //
 // Pattern: Chain of Responsibility. Each step is "try this provider; on
 // nil/error, fall through to the next." First non-nil wins. Capability

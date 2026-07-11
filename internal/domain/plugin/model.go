@@ -76,7 +76,7 @@ func (p *Plugin) IsTheme() bool { return p.Kind == KindTheme }
 // PublicConfig returns the subset of the plugin's saved configuration that is
 // safe to hand to the sandboxed front-end iframe and to non-admin callers of
 // GET /plugins/{id}/config. Only keys declared in the manifest's config_schema
-// are returned, minus any field marked secret — i.e. a field of type "password"
+// are returned, minus any field marked secret - i.e. a field of type "password"
 // or one carrying an explicit `secret: true`. Keys absent from the schema
 // (ad-hoc values an admin may have stored) and secret keys (API keys, internal
 // URLs) are withheld, so secrets never reach the browser where any authenticated
@@ -264,7 +264,7 @@ func validateSrcUnderWebRoot(webRoot, src string) error {
 	cleanRoot := filepath.Clean(webRoot)
 	cleanSrc := filepath.Clean(src)
 	if cleanRoot == "." {
-		return nil // plugin root — anything under it is allowed
+		return nil // plugin root - anything under it is allowed
 	}
 	prefix := cleanRoot + string(filepath.Separator)
 	if cleanSrc != cleanRoot && !strings.HasPrefix(cleanSrc, prefix) {
@@ -308,8 +308,8 @@ type PluginFinding struct {
 
 type AnalysisReport struct {
 	Safe        bool
-	Issues      []string        // pre-formatted "[SEVERITY] file:line — description (pattern)"
-	Categories  []string        // unique finding categories — used by the installer to gate native-binary opt-in
+	Issues      []string        // pre-formatted "[SEVERITY] file:line - description (pattern)"
+	Categories  []string        // unique finding categories - used by the installer to gate native-binary opt-in
 	RawFindings []PluginFinding // per-finding detail: populated at install time, used for dashboard
 	URLs        []ExtractedURL
 	FileCount   int
@@ -330,7 +330,7 @@ func (r *AnalysisReport) HasCategory(cat string) bool {
 
 // HasWarningCategory returns true if the report contains at least one
 // WARNING-severity finding for the given category (and no CRITICAL finding
-// for that category — CRITICAL findings are already handled by Safe=false).
+// for that category - CRITICAL findings are already handled by Safe=false).
 // Used by the installer to escalate specific warning categories to blocking.
 func (r *AnalysisReport) HasWarningCategory(cat string) bool {
 	for _, f := range r.RawFindings {

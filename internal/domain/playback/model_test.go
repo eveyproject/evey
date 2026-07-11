@@ -58,11 +58,11 @@ func TestNewPlaySession(t *testing.T) {
 func TestPlayMethod_IsValid(t *testing.T) {
 	t.Parallel()
 	cases := map[playback.PlayMethod]bool{
-		playback.DirectPlay:        true,
-		playback.DirectStream:      true,
-		playback.Transcode:         true,
-		playback.PlayMethod(""):    false,
-		"garbage":                  false,
+		playback.DirectPlay:     true,
+		playback.DirectStream:   true,
+		playback.Transcode:      true,
+		playback.PlayMethod(""): false,
+		"garbage":               false,
 	}
 	for m, want := range cases {
 		if m.IsValid() != want {

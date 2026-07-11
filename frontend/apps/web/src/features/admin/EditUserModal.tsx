@@ -80,7 +80,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
     });
   }, []);
 
-  // No onError here — the catch block in handleSubmit is the single source of
+  // No onError here - the catch block in handleSubmit is the single source of
   // truth for error toasts. A dual onError+catch pattern would show two toasts.
   const updateUser = useUserServiceUpdateUser();
   const revokeAccess = useLibraryAccessServiceRevokeAllUserLibraryAccess();

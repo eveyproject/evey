@@ -9,7 +9,7 @@ import { useMediaSegments } from "@/hooks/useMediaSegments";
 // playback moves through the episode.
 // "preview" (next-episode preview reel) is admin-gated server-side: it is
 // only present in the API response when the admin enables it, so listing it
-// here is safe — no button appears unless the server actually returns one.
+// here is safe - no button appears unless the server actually returns one.
 const SKIPPABLE = ["intro", "recap", "end_credits", "preview"] as const;
 type SkippableType = (typeof SKIPPABLE)[number];
 
@@ -45,7 +45,7 @@ interface SkipIntroButtonProps {
 }
 
 // active picks the skippable segment the playhead currently sits inside,
-// long enough to be worth a button. Returns null when none match — this is
+// long enough to be worth a button. Returns null when none match - this is
 // what gates the button's visibility frame-to-frame. Picking by playhead
 // (rather than "first segment") is what lets intro + recap + credits all
 // work from one button without the end-credits case being shadowed by an

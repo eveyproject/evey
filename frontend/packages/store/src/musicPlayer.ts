@@ -38,7 +38,7 @@ interface MusicPlayerState {
   playing: MusicTrack | null;
   queue: MusicTrack[];
   shuffle: boolean;
-  // externally-forced pause — e.g. a trailer modal is open.
+  // externally-forced pause - e.g. a trailer modal is open.
   // The <audio> element in GlobalAudioPlayer reacts to this flag.
   externallyPaused: boolean;
   // Where the current playback was started from (album/playlist/artist), or

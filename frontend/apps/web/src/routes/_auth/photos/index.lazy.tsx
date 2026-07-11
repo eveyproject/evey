@@ -208,7 +208,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
         />
         <div className="text-white text-sm text-center">
           <span className="font-medium">{photo.Title}</span>
-          {photo.Album && <span className="ml-2 text-[var(--text-muted)]">— {photo.Album}</span>}
+          {photo.Album && <span className="ml-2 text-[var(--text-muted)]">- {photo.Album}</span>}
           <span className="ml-2 text-[var(--text-muted)]">{index + 1} / {photos.length}</span>
         </div>
       </div>
@@ -437,7 +437,7 @@ function PhotosPage() {
 
   // Close the lightbox whenever the displayed photo set changes (switching album
   // or library). Otherwise the lightbox renders unconditionally on lightboxIndex,
-  // so a stale index would index into the NEW set — showing the wrong photo, or
+  // so a stale index would index into the NEW set - showing the wrong photo, or
   // auto-opening the lightbox on a photo the user never clicked.
   useEffect(() => {
     setLightboxIndex(null);

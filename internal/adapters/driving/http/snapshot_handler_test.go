@@ -57,7 +57,7 @@ func TestSnapshot_ParentalBlocked_NotFound(t *testing.T) {
 }
 
 // A stream token is a capability scoped to one media item; replaying MOVIE1's
-// token against MOVIE2's snapshot must be forbidden — this handler previously
+// token against MOVIE2's snapshot must be forbidden - this handler previously
 // relied on library access only and leaked frames of any same-library media to
 // a leaked token (pentest 2026-05-26).
 func TestSnapshot_StreamTokenMediaMismatch_Forbidden(t *testing.T) {

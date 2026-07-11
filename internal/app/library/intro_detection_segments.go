@@ -16,7 +16,7 @@ import (
 // Manual and propagated segment mutations for intro detection (set/delete/propagate).
 
 // upsertSegmentRespectingManual upserts unless an existing segment for the same
-// (media_item_id, type) has source "manual" or "manual_propagated" — operator
+// (media_item_id, type) has source "manual" or "manual_propagated" - operator
 // choices must never be silently overwritten by re-runs of auto-detection.
 //
 // The manual-lock check and the write are done in ONE atomic statement
@@ -135,7 +135,7 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 	}
 
 	episodeType := string(domainlibrary.Episode)
-	// Page through the whole season — a fixed Limit:100 would silently skip
+	// Page through the whole season - a fixed Limit:100 would silently skip
 	// episodes 101+ of a long single-season (anime, daily soaps), leaving them
 	// without the propagated segment. Mirrors detectSeason's pagination.
 	var siblings []*domainlibrary.MediaItem
@@ -164,7 +164,7 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 
 	// Collect sibling ids up front so the manual-lock guard and the trickplay
 	// manifest read below can each be a single batched query instead of one
-	// round trip per sibling — a full-season page can be up to 200 episodes.
+	// round trip per sibling - a full-season page can be up to 200 episodes.
 	siblingIDs := make([]shared.MediaItemID, 0, len(siblings))
 	for _, sib := range siblings {
 		if sib.ID == refItem.ID {
@@ -175,7 +175,7 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 
 	segsByID, segBatchErr := s.segmentRepo.GetByMediaItemIDs(ctx, siblingIDs)
 	if segBatchErr != nil {
-		// Cannot determine ANY sibling's lock state — skip the whole page rather
+		// Cannot determine ANY sibling's lock state - skip the whole page rather
 		// than risk clobbering an operator "manual" mark we failed to read.
 		// Conservative on purpose: a partial/fail-open batch result here could
 		// silently propagate over a mark we simply couldn't verify.
@@ -184,7 +184,7 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 		return propagatedTo, nil
 	}
 	// A sibling absent here (no manifest, or the batch read failed outright)
-	// is skipped below exactly like the previous per-sibling error handling —
+	// is skipped below exactly like the previous per-sibling error handling -
 	// trickplay is a "continue on any miss" read, unlike the segments guard
 	// above, so a whole-batch failure degrading to "every id absent" is safe.
 	trickByID, trickBatchErr := s.trickplayRepo.GetByMediaItemIDs(ctx, siblingIDs)

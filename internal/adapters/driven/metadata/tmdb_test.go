@@ -403,9 +403,9 @@ func TestSelectTrailers(t *testing.T) {
 		{Key: "a3", Site: "YouTube", Type: "Trailer", Language: "en", Official: true},
 		{Key: "a4", Site: "YouTube", Type: "Trailer", Language: "en", Official: false},
 		{Key: "f1", Site: "YouTube", Type: "Trailer", Language: "fr", Official: true},
-		{Key: "", Site: "YouTube", Type: "Trailer", Language: "en"},    // empty key, skipped
-		{Key: "c1", Site: "YouTube", Type: "Clip", Language: "en"},     // not a trailer, skipped
-		{Key: "t1", Site: "YouTube", Type: "Teaser", Language: "en"},   // not a trailer, skipped
+		{Key: "", Site: "YouTube", Type: "Trailer", Language: "en"},  // empty key, skipped
+		{Key: "c1", Site: "YouTube", Type: "Clip", Language: "en"},   // not a trailer, skipped
+		{Key: "t1", Site: "YouTube", Type: "Teaser", Language: "en"}, // not a trailer, skipped
 	}
 
 	result := selectTrailers(videos, "en")
@@ -719,7 +719,7 @@ func TestAppendImages_Limit(t *testing.T) {
 
 func TestAppendImages_SkipsEmptyFilePath(t *testing.T) {
 	imgs := []tmdbImage{
-		{FilePath: "", Width: 500, Height: 750},          // skipped: no path
+		{FilePath: "", Width: 500, Height: 750},            // skipped: no path
 		{FilePath: "/poster.jpg", Width: 500, Height: 750}, // kept
 	}
 	result := appendImages(nil, imgs, "poster", 5)

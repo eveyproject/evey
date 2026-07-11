@@ -50,7 +50,7 @@ func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code stri
 
 func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Span only covers the SSE connection open, not per-event work — long-lived
+		// Span only covers the SSE connection open, not per-event work - long-lived
 		// SSE streams shouldn't keep one span open for minutes.
 		_, span := tracing.StartSpan(r.Context(), "http.quickconnect.SSEOpen")
 		code := r.PathValue("code")
@@ -69,7 +69,7 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) ht
 			http.Error(w, `{"message":"streaming unsupported"}`, http.StatusInternalServerError)
 			return
 		}
-		// End the open-span here — the loop below is the long-lived SSE stream.
+		// End the open-span here - the loop below is the long-lived SSE stream.
 		span.End()
 
 		persistent := strings.EqualFold(r.Header.Get("X-Persistent-Session"), "true")

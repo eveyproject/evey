@@ -309,7 +309,7 @@ func (q *FeedQuerier) RecentlyAdded(ctx context.Context, profileID string, daysW
 // Recommended returns items matching the given genres, scored by match count.
 // Items the profile has fully watched are filtered out so clicking the
 // watched badge on a card removes it from the home immediately. (Earlier
-// behaviour kept watched items at the bottom of the list — the explicit
+// behaviour kept watched items at the bottom of the list - the explicit
 // click is now treated as a hide-from-home signal.)
 func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres []string, limit int) ([]*feed.FeedItem, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.feed.Recommended")
@@ -370,7 +370,7 @@ func (q *FeedQuerier) Recommended(ctx context.Context, profileID string, genres 
 		  -- GIN pre-filter (idx_media_catalog_genres_gin): prune to genre-
 		  -- overlapping candidates by index before the per-row scoring, instead
 		  -- of seq-scanning every movie/series. Equivalent to (scoreExpr) >= 1
-		  -- below — both mean "shares at least one of the profile's genres".
+		  -- below - both mean "shares at least one of the profile's genres".
 		  AND mc.genres ?| $%d::text[]
 		  AND (%s) >= 1
 		  AND w.completed = FALSE
@@ -470,7 +470,7 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 
 // fillPrimaryBlurhashes batch-resolves the primary-artwork blurhash for the
 // given items and stamps it on each FeedItem in place. Best-effort: a query
-// failure is logged and the items return without the placeholder hint —
+// failure is logged and the items return without the placeholder hint -
 // missing hashes degrade gracefully on the client (solid background).
 func (q *FeedQuerier) fillPrimaryBlurhashes(ctx context.Context, items []*feed.FeedItem) {
 	if len(items) == 0 {
@@ -498,7 +498,7 @@ func (q *FeedQuerier) fillPrimaryBlurhashes(ctx context.Context, items []*feed.F
 			slog.Debug("feed: scan blurhash row failed", slog.Any("err", err))
 			return
 		}
-		// First hit wins — sort_order on the artwork side means the
+		// First hit wins - sort_order on the artwork side means the
 		// most-preferred poster is returned first.
 		if _, exists := hashes[mediaID]; !exists {
 			hashes[mediaID] = hash

@@ -9,14 +9,14 @@
 //
 // Outputs in tests/plugins/cosign/:
 //
-//	test.pub              — PKIX PEM public key (set EVEY_PLUGINS_COSIGN_PUBLIC_KEY to this path)
-//	test.key              — EC PEM private key  (keep secret; use with `cosign sign-blob --key`)
-//	plugin-valid.zip      — valid plugin, correctly signed
-//	plugin-valid.zip.sig  — valid signature
-//	plugin-tampered.zip      — zip whose content was modified after signing
-//	plugin-tampered.zip.sig  — original (now invalid) signature
-//	plugin-wrongkey.zip      — valid plugin signed with a different key
-//	plugin-wrongkey.zip.sig  — signature from the other key (won't verify against test.pub)
+//	test.pub              - PKIX PEM public key (set EVEY_PLUGINS_COSIGN_PUBLIC_KEY to this path)
+//	test.key              - EC PEM private key  (keep secret; use with `cosign sign-blob --key`)
+//	plugin-valid.zip      - valid plugin, correctly signed
+//	plugin-valid.zip.sig  - valid signature
+//	plugin-tampered.zip      - zip whose content was modified after signing
+//	plugin-tampered.zip.sig  - original (now invalid) signature
+//	plugin-wrongkey.zip      - valid plugin signed with a different key
+//	plugin-wrongkey.zip.sig  - signature from the other key (won't verify against test.pub)
 package main
 
 import (

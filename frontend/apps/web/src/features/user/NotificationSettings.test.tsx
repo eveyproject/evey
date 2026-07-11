@@ -59,6 +59,6 @@ describe("NotificationSettings loading", () => {
       useNotificationServiceGetNotificationSettings: () => ({ data: undefined, isLoading: true }),
       useNotificationServiceUpdateNotificationSettings: () => ({ mutate: vi.fn(), isPending: false }),
     }));
-    // Loading state renders "Loading..." text — covered by unit approach in integration
+    // Loading state renders "Loading..." text - covered by unit approach in integration
   });
 });

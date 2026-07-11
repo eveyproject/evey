@@ -9,7 +9,7 @@ import (
 
 // SourceDims carries the source video stream's resolution and HDR-relevant
 // shape into the pure Profiles() shaping. Kept tiny and value-typed so a
-// producer's Profiles() can stay deterministic — it never reaches back into
+// producer's Profiles() can stay deterministic - it never reaches back into
 // mutable handler state, the whole point of the cache-hash invariant
 // (segment_cache.go: Profiles is part of DecisionFingerprint.Hash(), so any
 // drift between manifest-time and segment-time shaping is a permanent miss).
@@ -30,7 +30,7 @@ type SourceDims struct {
 // StreamProducer is the seam between the HTTP handler and the machine that
 // actually produces HLS segments. Two implementations exist:
 //
-//   - SoftwareProducer: the Jellyfin model — ONE long-lived, input-paced
+//   - SoftwareProducer: the Jellyfin model - ONE long-lived, input-paced
 //     (`-readrate`) ffmpeg per DecisionHash, single-rendition, restart-on-seek,
 //     no capacity rejection (the client waits), idle GC. The sane software
 //     path for a weak NAS with hw_accel off.
@@ -46,7 +46,7 @@ type StreamProducer interface {
 	// must yield the SAME ladder at manifest-time and at segment-time or the
 	// segment cache misses forever.
 	//
-	// capacity is passed as an immutable snapshot argument — the producer reads
+	// capacity is passed as an immutable snapshot argument - the producer reads
 	// no mutable state. The HW producer returns the full ladder capped at the
 	// HW ceiling; the software producer collapses to ONE sustainable rung.
 	Profiles(base []transcoding.HLSProfile, src SourceDims, decision transcoding.PlaybackDecision, capacity transcoding.EncodeCapability) []transcoding.HLSProfile
@@ -72,7 +72,7 @@ type StreamProducer interface {
 
 	// NotifyClientHint forwards CMCD telemetry (buffer length, starvation,
 	// cursor) so the producer can adjust pacing. NEVER changes which variant is
-	// served — the player owns rendition selection.
+	// served - the player owns rendition selection.
 	NotifyClientHint(mediaItemID string, bufferLengthMs int, starved bool, segmentIdx int)
 
 	// ActiveSessionCount reports how many ffmpeg sessions are live (admin
@@ -89,7 +89,7 @@ type StreamProducer interface {
 
 // ManifestProvider is the optional capability a StreamProducer exposes when it
 // owns its HLS media playlist instead of deferring to the precalculated VOD
-// generator — the copy/remux rung, whose playlist is the keyframe-aligned plan.
+// generator - the copy/remux rung, whose playlist is the keyframe-aligned plan.
 // serveVariant type-asserts the selected producer to it, GATED on isCopyRequest:
 // the assertion matches any *SoftwareProducer (incl. the transcode instance,
 // copyPlanner nil), so the handler's copy gate is what actually scopes it.
@@ -179,7 +179,7 @@ func (s *ProducerSelector) ActiveSessionCount() int {
 	return n
 }
 
-// RemoveSession fans the kill out to both producers — a media item could have
+// RemoveSession fans the kill out to both producers - a media item could have
 // live sessions on either path (e.g. an admin toggled HW mid-stream). No-op on
 // the producer with no matching session.
 func (s *ProducerSelector) RemoveSession(mediaItemID string) {

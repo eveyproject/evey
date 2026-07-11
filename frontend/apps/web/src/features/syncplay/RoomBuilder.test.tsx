@@ -11,7 +11,7 @@ function createdIds(onCreate: ReturnType<typeof vi.fn>): string[] {
   return lastItems(onCreate).map((i) => i.id);
 }
 
-// Hook/imperative mocks — the component applies a `select` transform, so the
+// Hook/imperative mocks - the component applies a `select` transform, so the
 // mocked hooks return data already in the shape the component consumes.
 const mockGetAlbums = vi.fn();
 const mockListTracks = vi.fn();

@@ -4,7 +4,7 @@ package ffmpeg
 // timestamp sits AFTER the video's. Some repacks carry ~1s of it as a mux
 // defect; the HLS pipeline preserves source PTS, so without cancellation the
 // viewer hears a constant A/V offset (see appendAudioDelayInput). The probe
-// runs at session start (HLSTranscoder.Start) — a header-only ffprobe — and
+// runs at session start (HLSTranscoder.Start) - a header-only ffprobe - and
 // caches per file identity so seek-spawned sessions don't re-pay it.
 
 import (
@@ -38,7 +38,7 @@ const audioDelayCacheCap = 8192
 
 // audioStartDelayFor returns the delay BuildFFmpegArgs should cancel for this
 // session, or 0 (strict no-op) when it does not apply: no audio, copied audio
-// (never delay-cancelled — see audioDelayCancelActive), probe failure (fail
+// (never delay-cancelled - see audioDelayCancelActive), probe failure (fail
 // soft: the session plays with the source's delay, exactly the pre-fix
 // behaviour), or a delay under the cancel floor.
 func audioStartDelayFor(ctx context.Context, opts transcoding.HLSProcessOpts) float64 {
@@ -63,7 +63,7 @@ func audioStartDelayFor(ctx context.Context, opts transcoding.HLSProcessOpts) fl
 	}
 	if d < 0 {
 		// Audio STARTING BEFORE video is a different (rarer) defect; shifting it
-		// forward is untested territory — keep the no-op.
+		// forward is untested territory - keep the no-op.
 		d = 0
 	}
 	if d > audioDelayCancelMinSec {

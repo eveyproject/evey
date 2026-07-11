@@ -12,7 +12,7 @@ export const Route = createFileRoute("/_auth")({
     if (accessToken && !isTokenExpired(accessToken)) return;
     if (await refreshTokenUnderLock()) return;
     // Refresh failed: the session is dead. Clear the stale token before
-    // redirecting — otherwise index/login still see a truthy accessToken and
+    // redirecting - otherwise index/login still see a truthy accessToken and
     // bounce the user through extra redirects before a 401 finally logs out.
     useAuthStore.getState().logout();
     throw redirect({ to: "/login" });

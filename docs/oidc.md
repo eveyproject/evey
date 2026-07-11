@@ -58,4 +58,4 @@ Users who log in via OIDC for the first time are automatically created with:
 - Non-admin role
 - A default profile
 
-OIDC users cannot set a local password — they always authenticate through the provider.
+OIDC users cannot set a local password - they always authenticate through the provider.

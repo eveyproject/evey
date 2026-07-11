@@ -65,7 +65,7 @@ describe("SetupPage", () => {
     expect(screen.getByRole("button", { name: /Continue/i })).toBeInTheDocument();
   });
 
-  it("shows step indicator — step 1 of 4", async () => {
+  it("shows step indicator - step 1 of 4", async () => {
     const SetupPage = await getSetupPage();
     render(React.createElement(SetupPage), { wrapper: createWrapper() });
     expect(screen.getByText(/Step 1 of 4/i)).toBeInTheDocument();

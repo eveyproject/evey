@@ -6,11 +6,11 @@ Evey is a self-hosted media server. Backend is Go (hexagonal / DDD), frontend is
 
 Strict ports-and-adapters layout under `internal/`:
 
-- `internal/domain/<context>/` — pure domain: models, value objects, **ports** (interfaces). No framework imports.
-- `internal/app/<context>/` — application services. Orchestrate ports. No IO.
-- `internal/adapters/driven/` — outbound adapters implementing domain ports: `postgres`, `meilisearch`, `ffmpeg`, `mkvgo`, `filesystem`, `opensubtitles`, `email`, `webpush`, `webhooksender`, `pluginrunner`, `metadata`, `search`.
-- `internal/adapters/driving/` — inbound adapters: `grpcapi` (+ grpc-gateway HTTP), `http` (static, auth middleware, SSE), `pluginhost` (iframe sandbox).
-- `internal/pkg/` — shared kernel reused across contexts (auth, logging, proto types, config).
+- `internal/domain/<context>/` - pure domain: models, value objects, **ports** (interfaces). No framework imports.
+- `internal/app/<context>/` - application services. Orchestrate ports. No IO.
+- `internal/adapters/driven/` - outbound adapters implementing domain ports: `postgres`, `meilisearch`, `ffmpeg`, `mkvgo`, `filesystem`, `opensubtitles`, `email`, `webpush`, `webhooksender`, `pluginrunner`, `metadata`, `search`.
+- `internal/adapters/driving/` - inbound adapters: `grpcapi` (+ grpc-gateway HTTP), `http` (static, auth middleware, SSE), `pluginhost` (iframe sandbox).
+- `internal/pkg/` - shared kernel reused across contexts (auth, logging, proto types, config).
 
 Dependency rule: `adapters -> app -> domain`. Domain never imports app or adapters. Composition happens in `cmd/.../wire.go`.
 
@@ -54,7 +54,7 @@ Twenty contexts live under `internal/domain/` and `internal/app/`. Most are inde
 
 No context imports another context's domain package directly. Cross-context reads go through the `media` app-layer read model or through exposed app-service interfaces.
 
-## Typical data flow — "user plays a media"
+## Typical data flow - "user plays a media"
 
 1. Mobile/web client calls `POST /api/v1/playback/start` (grpc-gateway route).
 2. `internal/adapters/driving/http` runs `HTTPAuthMiddleware`, extracts session.
@@ -66,19 +66,19 @@ No context imports another context's domain package directly. Cross-context read
 
 ## Composition root
 
-Wire graphs live in `cmd/evey/wire.go` (and friends). Tests bypass adapters by injecting fakes that implement the same domain ports — see [ADR-0001](adr/0001-hexagonal-architecture.md).
+Wire graphs live in `cmd/evey/wire.go` (and friends). Tests bypass adapters by injecting fakes that implement the same domain ports - see [ADR-0001](adr/0001-hexagonal-architecture.md).
 
 ## Further reading
 
-- [DEV.md](../DEV.md) — build, run, migrations, proto generation
-- [docs/api/](api/) — generated API reference
-- [docs/adr/](adr/) — architectural decision records
+- [DEV.md](../DEV.md) - build, run, migrations, proto generation
+- [docs/api/](api/) - generated API reference
+- [docs/adr/](adr/) - architectural decision records
 
 ## C4 diagrams
 
 These four diagrams document Evey at decreasing zoom levels following the [C4 model](https://c4model.com/). All diagrams render with Mermaid; no binary assets. Names match the actual Go packages under `internal/` and the container names in `docker-compose.yml`.
 
-### Level 1 — System Context
+### Level 1 - System Context
 
 Who talks to Evey, and which third parties Evey reaches out to.
 
@@ -105,7 +105,7 @@ flowchart LR
     evey -.->|HTTPS push delivery| webpush
 ```
 
-### Level 2 — Container
+### Level 2 - Container
 
 The deployable units brought up by `docker compose --env-file .env.dev up`. Solid arrows are runtime traffic; dashed arrows are outbound to third parties.
 
@@ -146,10 +146,10 @@ flowchart TB
 > **Production differs from this dev topology.** The install compose has no
 > separate `evey-web` container (nor the dev-only mailcatcher): the `evey-server`
 > binary serves the built web UI from `/srv`, so the reverse proxy forwards
-> *everything* — UI and API — to it on `:9091`. See
+> *everything* - UI and API - to it on `:9091`. See
 > [installation.md](installation.md) and [reverse-proxy.md](reverse-proxy.md).
 
-### Level 3 — Component (zoom on `evey-server`)
+### Level 3 - Component (zoom on `evey-server`)
 
 Hexagonal layering inside the Go binary. Driving adapters call application services through their interfaces; application services depend only on domain ports; driven adapters implement those ports.
 
@@ -231,7 +231,7 @@ Goroutine notes:
 - `shared.EventBus` dispatches subscribers asynchronously: each subscriber runs in its own goroutine + transaction so a slow consumer never blocks publishers.
 - `pluginrunner` spawns one subprocess per plugin; iframe plugins live inside the user browser and talk back via signed tokens issued by `app/plugin`.
 
-### Level 3 (bonus) — Component zoom on the scan pipeline
+### Level 3 (bonus) - Component zoom on the scan pipeline
 
 The hot path that turns files on disk into searchable, enriched media. Solid arrows are direct calls; dashed arrows are domain events on the bus.
 

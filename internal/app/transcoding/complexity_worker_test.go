@@ -20,7 +20,7 @@ import (
 // fakeComplexityRepo records Set calls and replays the configured
 // unclassified queue once before going empty.
 type fakeComplexityRepo struct {
-	mu          sync.Mutex
+	mu           sync.Mutex
 	unclassified []string
 	gets         map[string]domaintranscoding.ComplexityEntry
 	sets         []setCall

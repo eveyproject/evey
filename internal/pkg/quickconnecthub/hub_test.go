@@ -9,7 +9,7 @@ func TestSubscribeAndNotify(t *testing.T) {
 	h := New()
 	ch := h.Subscribe("ABC123")
 
-	// Notify synchronously from another goroutine — no fixed delay needed.
+	// Notify synchronously from another goroutine - no fixed delay needed.
 	// The subscriber channel is buffered; Notify just closes it, so the order
 	// between Subscribe and Notify is what matters and is already established.
 	go h.Notify("ABC123")

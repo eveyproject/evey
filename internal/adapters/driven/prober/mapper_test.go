@@ -44,7 +44,7 @@ func TestMapContainer_FullSDRHEVC(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, res.Streams, 3)
 	assert.Equal(t, int64(7_200_000), res.Duration.Milliseconds())
-	// Container MUST be reported — an empty ContainerFormat reads as
+	// Container MUST be reported - an empty ContainerFormat reads as
 	// "container_incompatible" and forces a needless remux (Android seek/color
 	// regression). EBML family -> "matroska" (decision maps it to "mkv"); the
 	// same container over the ISO-BMFF route reports "mp4".
@@ -220,7 +220,7 @@ func TestMapContainer_ExtendedDispositions(t *testing.T) {
 	c := &extmkv.Container{
 		DurationMs: 3_600_000,
 		Tracks: []extmkv.Track{
-			// Video track — dispositions don't apply but must not block mapping.
+			// Video track - dispositions don't apply but must not block mapping.
 			{
 				Type: extmkv.VideoTrack, Codec: "h264",
 				Width: new(uint32(1920)), Height: new(uint32(1080)),
@@ -230,23 +230,23 @@ func TestMapContainer_ExtendedDispositions(t *testing.T) {
 			},
 			// Audio: commentary track (director's commentary).
 			{
-				Type:            extmkv.AudioTrack, Codec: "aac",
-				Channels:        new(uint8(2)), SampleRate: new(48000.0),
-				Language:        "eng", LanguagePresent: true,
-				Commentary:      true,
+				Type: extmkv.AudioTrack, Codec: "aac",
+				Channels: new(uint8(2)), SampleRate: new(48000.0),
+				Language: "eng", LanguagePresent: true,
+				Commentary: true,
 			},
 			// Audio: hearing-impaired descriptive track.
 			{
-				Type:            extmkv.AudioTrack, Codec: "aac",
-				Channels:        new(uint8(2)), SampleRate: new(48000.0),
-				Language:        "eng", LanguagePresent: true,
+				Type: extmkv.AudioTrack, Codec: "aac",
+				Channels: new(uint8(2)), SampleRate: new(48000.0),
+				Language: "eng", LanguagePresent: true,
 				HearingImpaired: true,
 				IsDefault:       true,
 			},
 			// Subtitle: visually impaired + text descriptions + original.
 			{
-				Type:             extmkv.SubtitleTrack, Codec: "srt",
-				Language:         "eng", LanguagePresent: true,
+				Type: extmkv.SubtitleTrack, Codec: "srt",
+				Language: "eng", LanguagePresent: true,
 				VisualImpaired:   true,
 				TextDescriptions: true,
 				Original:         true,

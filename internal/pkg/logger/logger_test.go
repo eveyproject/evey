@@ -90,7 +90,7 @@ func TestNew_WritesToFile(t *testing.T) {
 
 // Tests that call logger.New are intentionally NOT t.Parallel: New mutates the
 // package-global level var (globalLevel, backing runtime SetLevel), so parallel
-// New calls race — a sibling raising the level to warn/error could suppress this
+// New calls race - a sibling raising the level to warn/error could suppress this
 // test's log line before it is written, leaving the expected file uncreated.
 func TestParseLevel_AllValues(t *testing.T) {
 	dir := t.TempDir()
@@ -434,7 +434,7 @@ func TestContextHandler_WithDerivedLogger_StillInjectsRequestID(t *testing.T) {
 	dir := t.TempDir()
 	parent := logger.New(logger.Config{Dir: dir, Level: "debug"})
 
-	// Derive via logger.With(...) — exercises WithAttrs delegation.
+	// Derive via logger.With(...) - exercises WithAttrs delegation.
 	child := logger.NewWith(parent, "mycomp")
 	// Derive further via With to exercise chaining.
 	grandchild := child.With(slog.String("extra", "val"))

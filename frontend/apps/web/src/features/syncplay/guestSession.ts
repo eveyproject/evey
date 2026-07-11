@@ -14,7 +14,7 @@ export function writeGuestSession(s: GuestSession): void {
   try {
     sessionStorage.setItem(KEY, JSON.stringify(s));
   } catch {
-    /* storage disabled — the watch route will just redirect to login */
+    /* storage disabled - the watch route will just redirect to login */
   }
 }
 

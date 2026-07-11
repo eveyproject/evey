@@ -11,7 +11,7 @@ type FakeShareLinkRepo struct {
 	mu    sync.RWMutex
 	links []*shared.ShareLink
 	Err   error
-	// DeleteErr fails only Delete, leaving lookups working — used to exercise a
+	// DeleteErr fails only Delete, leaving lookups working - used to exercise a
 	// revoke that fails after the existence/ownership checks have passed.
 	DeleteErr error
 }

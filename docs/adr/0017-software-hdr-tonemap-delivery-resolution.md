@@ -6,7 +6,7 @@
 ## Context
 
 On a weak NAS (a old iGPU-era box: no HEVC hardware decoder, no 10-bit VAAPI
-VPP — `scale_vaapi` aborts `-22` on a `p010` surface, so hardware acceleration
+VPP - `scale_vaapi` aborts `-22` on a `p010` surface, so hardware acceleration
 is off for this content), playing a 4K HEVC 10-bit HDR title collapsed the ABR
 ladder to 360p. Jellyfin, configured **with hardware acceleration disabled**
 (full software) on the *same* box, sustained ~1080p at ~8 Mbit with correct
@@ -18,10 +18,10 @@ Main 10 HDR10 sample (`ffmpeg` 7.1.4, the production container):
 
 1. **Tone-map ran at the source resolution.** The HDR→SDR chain
    (`zscale` linearize → `gbrpf32le` float → `tonemap` → bt709) ran on the full
-   3840×2160 frame *before* the downscale — 8.3 M px/frame of float math and
+   3840×2160 frame *before* the downscale - 8.3 M px/frame of float math and
    memory bandwidth on the dominant stage. Folding the resize into the first
    (linearizing) `zscale` so the float pipeline runs at 1080p measured **36 →
-   75–83 fps (≈2.1–2.3×)** — and matches Jellyfin's scale-before-tonemap order.
+   75-83 fps (≈2.1-2.3×)** - and matches Jellyfin's scale-before-tonemap order.
 2. **Multi-variant fan-out.** One ffmpeg process tone-mapped once at 4K then
    `split` into N parallel `libx264` encodes. Single 1080p vs the 4-rung burst
    measured **67 vs 26 fps (≈2.58×)**.
@@ -65,18 +65,18 @@ quality than scaling in the encoded domain.
 
 ## Consequences
 
-- **~2× throughput on the dominant stage**, multiplicative with single-variant —
+- **~2× throughput on the dominant stage**, multiplicative with single-variant -
   enough to lift such a box off the 360p floor toward Jellyfin parity (~1080p
   with occasional dips). The hard floor that remains is the **4K HEVC 10-bit
   software *decode*** itself, which touches every pixel once regardless of
-  filter order — Jellyfin has the same limit, hence its minor buffering too.
+  filter order - Jellyfin has the same limit, hence its minor buffering too.
 - **The cap is data-driven, not hand-tuned.** After the bench change, calibration
   must be re-run on the deployment host so `software_hdr_max_height` reflects the
   faster chain; until then the ladder stays capped at the stale value. The cap is
   applied in `profilesForDecision` only when software-tone-mapping
   (`!hwUsable && hdr_tonemapping_needed`), gated on `CapLadderToHeight`.
 - **Burn-in is unchanged** (`DstWidth = 0`), so subtitle overlay geometry is
-  untouched — the fold is HDR10/HLG-software-path only.
+  untouched - the fold is HDR10/HLG-software-path only.
 - **Rollback** is the `DstWidth ≤ 0` branch (the original chain) plus leaving the
   single-variant flag off.
 - Behaviour is locked by tests at every layer: `BuildToneMapFilter` fold,
@@ -91,7 +91,7 @@ quality than scaling in the encoded domain.
   ceiling, and the missing decoupled pipeline is a larger change in the vital
   player path; the all-software efficiency fix alone closes the gap to Jellyfin.
   Kept as future work (and the natural complement to ADR-0015).
-- **Just raise the resolution cap.** Rejected: dishonest — it would advertise
+- **Just raise the resolution cap.** Rejected: dishonest - it would advertise
   rungs the slow pipeline could not sustain, starving the player. The fix is to
   make the pipeline fast *and* re-measure the cap against it.
 - **Per-title content-class ladders.** Orthogonal and deferred (a separate

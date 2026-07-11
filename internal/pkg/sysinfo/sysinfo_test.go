@@ -8,7 +8,7 @@ import (
 )
 
 func TestCPUSignature_StableAcrossCalls(t *testing.T) {
-	// CPU identity doesn't change between calls — same hash every time.
+	// CPU identity doesn't change between calls - same hash every time.
 	// Empty on non-Linux is acceptable (caller handles "unknown identity").
 	first := CPUSignature()
 	second := CPUSignature()
@@ -74,8 +74,8 @@ func TestGetStorageStats_DeduplicatesPaths(t *testing.T) {
 
 func TestGetStorageStats_GroupsPathsOnSameDisk(t *testing.T) {
 	// Two distinct paths on the same filesystem (subdirs of one temp dir share
-	// the device id) must collapse into a single disk entry — the same drive's
-	// capacity is not counted twice — while still listing both library paths.
+	// the device id) must collapse into a single disk entry - the same drive's
+	// capacity is not counted twice - while still listing both library paths.
 	root := t.TempDir()
 	a := filepath.Join(root, "movies")
 	b := filepath.Join(root, "tv")

@@ -75,7 +75,7 @@ type BufferedSink struct {
 	// sendMu serializes the send on ch against Close's close(ch): Record holds
 	// it RLocked across the (re-checked) send, Close takes it Locked before
 	// close(ch). While any Record holds the RLock the channel cannot be closed,
-	// so a send can never race the close — no "send on closed channel" panic on
+	// so a send can never race the close - no "send on closed channel" panic on
 	// shutdown while telemetry is still arriving. closed stays an atomic for the
 	// lock-free fast-path return; the RLock is uncontended between concurrent
 	// Records (readers) so the hot path stays non-blocking.
@@ -85,7 +85,7 @@ type BufferedSink struct {
 }
 
 // SinkOptions tune the buffer + worker. Zero values produce 1024-event
-// buffer and 1 worker — fine for self-host workloads (single-server, dozens
+// buffer and 1 worker - fine for self-host workloads (single-server, dozens
 // of concurrent sessions).
 type SinkOptions struct {
 	BufferSize int
@@ -116,7 +116,7 @@ func NewBufferedSink(storage Storage, opts SinkOptions, logger *slog.Logger) *Bu
 }
 
 // Record is non-blocking. Drops on full buffer and counts the drop. This is
-// the right tradeoff for telemetry — a slow DB must never delay a segment.
+// the right tradeoff for telemetry - a slow DB must never delay a segment.
 func (s *BufferedSink) Record(evt Event) {
 	if s.closed.Load() {
 		return
@@ -125,14 +125,14 @@ func (s *BufferedSink) Record(evt Event) {
 	defer s.sendMu.RUnlock()
 	if s.closed.Load() {
 		// Close ran between the lock-free fast-path check and acquiring the
-		// RLock — the channel is closed (or about to be); drop, don't send.
+		// RLock - the channel is closed (or about to be); drop, don't send.
 		return
 	}
 	select {
 	case s.ch <- evt:
 	default:
 		s.dropMtr.Inc()
-		// TODO: remove after CMCD stabilization — verbose drop warning to
+		// TODO: remove after CMCD stabilization - verbose drop warning to
 		// surface a misconfigured buffer size during the Phase 1 rollout.
 		s.logger.Warn("qoe sink buffer full, event dropped",
 			slog.String("media_id", evt.MediaItemID),
@@ -146,7 +146,7 @@ func (s *BufferedSink) Close(ctx context.Context) error {
 		return nil
 	}
 	// Take the write lock so any in-flight Record send completes before we
-	// close — closed is already true, so no new send will start past the
+	// close - closed is already true, so no new send will start past the
 	// re-check. This is what makes close(ch) safe against concurrent Record.
 	s.sendMu.Lock()
 	close(s.ch)
@@ -174,7 +174,7 @@ func (s *BufferedSink) worker() {
 // processEvent persists one event with a PER-ITERATION recover: a panic on a
 // single event (e.g. a future storage impl) is logged and the loop keeps
 // draining. A recover on the outer worker loop instead would let one bad event
-// kill the goroutine permanently — the channel would never be read again and
+// kill the goroutine permanently - the channel would never be read again and
 // ALL subsequent telemetry would be silently dropped while Record keeps filling.
 func (s *BufferedSink) processEvent(evt Event) {
 	defer func() {
@@ -184,7 +184,7 @@ func (s *BufferedSink) processEvent(evt Event) {
 				slog.String("stack", string(debug.Stack())))
 		}
 	}()
-	// TODO: remove after CMCD stabilization — verbose per-event log to
+	// TODO: remove after CMCD stabilization - verbose per-event log to
 	// confirm payloads actually arrive during Phase 1.
 	s.logger.Debug("qoe ingest",
 		slog.String("media_id", evt.MediaItemID),
@@ -198,7 +198,7 @@ func (s *BufferedSink) processEvent(evt Event) {
 		slog.Bool("starved", evt.Payload.BufferStarved),
 		slog.Bool("startup", evt.Payload.Startup))
 
-	// Use Background — the HTTP request context is long gone by the
+	// Use Background - the HTTP request context is long gone by the
 	// time we drain this event. The query has its own withTimeout.
 	if err := s.storage.InsertEvent(context.Background(), evt); err != nil {
 		s.logger.Warn("qoe sink: insert failed",

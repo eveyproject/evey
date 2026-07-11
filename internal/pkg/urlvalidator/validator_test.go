@@ -244,7 +244,7 @@ func TestValidateRedirectURL_AllowsPublicIP(t *testing.T) {
 
 func TestValidateRedirectURL_AllowsLocalhostHostname(t *testing.T) {
 	t.Parallel()
-	// localhost as hostname (not IP) is allowed for redirect — no SSRF risk
+	// localhost as hostname (not IP) is allowed for redirect - no SSRF risk
 	assert.NoError(t, ValidateRedirectURL("http://localhost/callback"))
 }
 

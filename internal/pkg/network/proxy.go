@@ -82,7 +82,7 @@ func (p *ProxyTrust) ResolveClientIP(r *http.Request) string {
 			return ip
 		}
 	}
-	// all trusted — return leftmost
+	// all trusted - return leftmost
 	if first := strings.TrimSpace(parts[0]); net.ParseIP(first) != nil {
 		return first
 	}
@@ -99,7 +99,7 @@ func (p *ProxyTrust) Middleware(next http.Handler) http.Handler {
 		// validated the proxy chain, so anything downstream must not see the
 		// raw client-supplied chain. In particular the grpc-gateway re-injects
 		// X-Forwarded-For into gRPC metadata (original header + RemoteAddr),
-		// and the per-IP rate limiter keys off metadata[0] — without this an
+		// and the per-IP rate limiter keys off metadata[0] - without this an
 		// untrusted client could prepend a spoofed leftmost entry and poison
 		// rate-limit/audit attribution. Overwriting (not appending) drops the
 		// untrusted chain entirely.

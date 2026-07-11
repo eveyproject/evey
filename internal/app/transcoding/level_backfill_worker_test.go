@@ -240,7 +240,7 @@ func TestLevelBackfill_StartStopClean(t *testing.T) {
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("Stop() did not return — worker goroutine leaked")
+		t.Fatal("Stop() did not return - worker goroutine leaked")
 	}
 }
 

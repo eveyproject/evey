@@ -284,11 +284,11 @@ type MediaStream struct {
 	// Level is the codec level (e.g. H.264 level 4.0 = 40), nil when unknown.
 	// Needed with Profile to build the exact RFC-6381 CODECS string for a
 	// video-copy rung; a nil Level gates copy off (no accurate codec advertise).
-	Level      *int
-	Language   string
-	Title      string
-	IsDefault  bool
-	IsForced   bool
+	Level     *int
+	Language  string
+	Title     string
+	IsDefault bool
+	IsForced  bool
 	// Extended disposition flags, sourced from Matroska FlagCommentary/… and the
 	// matching ffprobe disposition fields. All false when the container or the probe
 	// did not report the flag. Commentary marks director/cast commentary audio tracks
@@ -300,10 +300,10 @@ type MediaStream struct {
 	TextDescriptions bool
 	Original         bool
 	Width            *int
-	Height     *int
-	Framerate  *float64
-	BitDepth   *int
-	ColorSpace *string
+	Height           *int
+	Framerate        *float64
+	BitDepth         *int
+	ColorSpace       *string
 	// ColorTransfer is the ffprobe color_transfer (smpte2084 = PQ, arib-std-b67
 	// = HLG, bt709 = SDR…), nil when the probe didn't report it. The only field
 	// that tells PQ from HLG, and - with DoViProfile - the HDR ground truth the

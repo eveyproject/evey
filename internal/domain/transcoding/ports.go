@@ -135,7 +135,7 @@ type HLSProcessOpts struct {
 	DeinterlaceAll bool
 	// SourceSAR is the source sample aspect ratio ("64:45" on anamorphic DVD),
 	// empty/"1:1" for square pixels. When anamorphic, the builder derives the
-	// scale height from the DISPLAY aspect so the output isn't stretched —
+	// scale height from the DISPLAY aspect so the output isn't stretched -
 	// the historical scale=W:-2,setsar=1 preserved storage pixels and squashed
 	// the picture.
 	SourceSAR      string
@@ -144,7 +144,7 @@ type HLSProcessOpts struct {
 	// StartNumber is the absolute segment index this process starts producing at
 	// (ffmpeg -start_number). Only the COPY builder reads it: keyframe-aligned copy
 	// segments are variable-length, so the time→index map is non-linear and
-	// start_number cannot be derived from StartSec/segLen — a forward seek to
+	// start_number cannot be derived from StartSec/segLen - a forward seek to
 	// plan-segment K must emit stream_N_<K>, not stream_N_<floor(StartSec/segLen)>.
 	// Transcode (uniform segments) ignores it and derives start_number from StartSec.
 	StartNumber int
@@ -165,16 +165,16 @@ type HLSProcessOpts struct {
 	// StartSec + CopySeekNudgeSec (no probe ran).
 	SeekTargetSec float64
 	// ExpectedSegmentStartMs reports the keyframe plan's start time for an
-	// absolute copy-segment index — the runtime tripwire's oracle. The copy
+	// absolute copy-segment index - the runtime tripwire's oracle. The copy
 	// publish pump compares every produced segment's (rebased) timeline
 	// against it and raises an ERROR log + metric on divergence, so a future
 	// regression of the plan↔ffmpeg contract (split grid, seek landing, audio
-	// trim labeling — each bit us once) trips an alert instead of an audible
+	// trim labeling - each bit us once) trips an alert instead of an audible
 	// desync. nil = no verification. Second return false = index unknown.
 	ExpectedSegmentStartMs func(segIdx int) (int64, bool)
 	// ReadRate paces ffmpeg's input to N× real-time (`-readrate N`, a pre-`-i`
 	// flag) so a single long-lived encoder stays close to wall-clock and doesn't
-	// burn CPU racing ahead of the viewer. 0 (default) = no pacing — byte-identical
+	// burn CPU racing ahead of the viewer. 0 (default) = no pacing - byte-identical
 	// to today. Only the single-ffmpeg SOFTWARE producer sets it (≈1.5); the HW
 	// orchestrator leaves it 0 and relies on its burst-ahead + SIGSTOP throttle.
 	ReadRate float64
@@ -182,7 +182,7 @@ type HLSProcessOpts struct {
 
 	// SourceVideoCodec is the codec of the SOURCE video stream ("h264",
 	// "hevc"…). The COPY builder reads it to tag the fMP4 sample entry
-	// (`-tag:v hvc1` for HEVC — Safari refuses ffmpeg's hev1 default);
+	// (`-tag:v hvc1` for HEVC - Safari refuses ffmpeg's hev1 default);
 	// transcode builders ignore it (they know their encoder). Empty → no tag
 	// override (h264 copy needs none).
 	SourceVideoCodec string
@@ -201,7 +201,7 @@ type HLSProcessOpts struct {
 	// HW scale → HW encode). The wiring layer only sets this to a non-None
 	// value when (a) the flag transcoding.hw_accel_enabled is on, (b) a
 	// detected device supports the requested codec, and (c) the content is
-	// simple (no HDR tonemap, no bitmap-subtitle burn-in) — otherwise the
+	// simple (no HDR tonemap, no bitmap-subtitle burn-in) - otherwise the
 	// builder falls back to the software path for correctness.
 	HWAccel HWAccelType
 	// HWDevice is the DRM render node for VAAPI/QSV (e.g. /dev/dri/renderD128).
@@ -217,7 +217,7 @@ type HLSProcessOpts struct {
 
 	// UseFMP4 picks the segment container: true → fMP4 (.m4s + per-variant
 	// init segment), false → MPEG-TS (.ts). Must match the extension baked
-	// into the manifest the player consumes — otherwise segment fetches
+	// into the manifest the player consumes - otherwise segment fetches
 	// look up a file the encoder never produces and time out forever.
 	// Single-variant builders already honoured this via appendHLSOutputArgs;
 	// the multi-variant builder used to hardcode .ts and silently ignored

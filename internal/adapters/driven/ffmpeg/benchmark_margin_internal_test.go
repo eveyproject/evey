@@ -7,7 +7,7 @@ import (
 )
 
 // TestBenchmarkRunner_DefaultMargin pins the calibration headroom: a small 20 %
-// over realtime. The cap is deliberately NOT over-conservative — the auto-degrade
+// over realtime. The cap is deliberately NOT over-conservative - the auto-degrade
 // ABR ladder is the safety net, so a rung the box genuinely sustains (e.g. 1080p
 // HDR at ~1.37x realtime) stays the cap instead of being dropped.
 func TestBenchmarkRunner_DefaultMargin(t *testing.T) {

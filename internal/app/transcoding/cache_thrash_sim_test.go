@@ -4,7 +4,7 @@ package transcoding
 // the whole-file + LRU copy rung (Path A) on a small-disk, multi-user box, to
 // decide whether the zero-dup byte-range adapter (Path B) is needed before beta
 // or can stay post-beta. It drives the REAL sweepOnce/listHashUsage eviction
-// logic — so the conclusions are silicon-independent (pure cache logic). What it
+// logic - so the conclusions are silicon-independent (pure cache logic). What it
 // does NOT model: the wall-clock cost of one re-mux (that IS silicon-bound and
 // is worse on a weak NAS than on this dev host).
 //
@@ -56,7 +56,7 @@ func quietSimLogger() *slog.Logger {
 
 // runThrashSim plays `sessions` through `ticks` sweep cycles against a real
 // SegmentCache + sweepOnce, returning the measured thrash. When touchActive is
-// true it Touches each active viewer's hash every tick — modelling fix (b)
+// true it Touches each active viewer's hash every tick - modelling fix (b)
 // (serveSegment marks the hash on every served segment), so the LRU sees an
 // actively-read title as warm instead of relying on the frozen mtime.
 func runThrashSim(t *testing.T, name string, ticks int, policy EvictionPolicy, sessions []simSession, touchActive bool) simResult {
@@ -180,9 +180,9 @@ func concurrentSessions(n int, sizeGB float64, watchTicks int) []simSession {
 // fixed title size and small-disk cap, showing where the LRU starts evicting
 // actively-watched titles (the catastrophic regime).
 func TestCacheThrashSim_Concurrent(t *testing.T) {
-	const sizeGB = 8.0       // a 2h 1080p H.264 ~ 8 GB (copy rung is H.264 8-bit SDR)
-	const watchTicks = 240   // 2h film = 240 sweep cycles
-	const cacheGB = 40.0     // Pi/VPS target disk budget
+	const sizeGB = 8.0     // a 2h 1080p H.264 ~ 8 GB (copy rung is H.264 8-bit SDR)
+	const watchTicks = 240 // 2h film = 240 sweep cycles
+	const cacheGB = 40.0   // Pi/VPS target disk budget
 	t.Logf("Concurrent viewers, %.0fGB titles, %.0fGB cache, 2h watch (ProtectRecent=4 default):", sizeGB, cacheGB)
 	for _, n := range []int{1, 2, 3, 4, 5, 6, 8, 10} {
 		sessions := concurrentSessions(n, sizeGB, watchTicks)
@@ -209,7 +209,7 @@ func TestCacheThrashSim_CacheSizeSweep(t *testing.T) {
 }
 
 // TestCacheThrashSim_Zapping models one viewer opening many titles briefly
-// (1 tick each) — the over-mux cost: a whole file is muxed even for seconds of
+// (1 tick each) - the over-mux cost: a whole file is muxed even for seconds of
 // watching, and the mux is not cancelled on disconnect.
 func TestCacheThrashSim_Zapping(t *testing.T) {
 	const sizeGB = 8.0
@@ -237,7 +237,7 @@ func TestCacheThrashSim_Zapping(t *testing.T) {
 // cache over the cap. With mtime-only LRU the long viewer (oldest mtime once its
 // ReadRate=0 mux finished) is evicted out from under itself again and again; with
 // the access-time merge (Touch on every served segment) it stays warm and the LRU
-// sheds the finished short sessions instead. Measures the delta — and shows fix
+// sheds the finished short sessions instead. Measures the delta - and shows fix
 // (b) does NOT claim to fix the Σ>cap regime (that's the byte-range / disk guard).
 func TestCacheThrashSim_FixB_LongViewerVsArrivals(t *testing.T) {
 	const sizeGB = 8.0
@@ -258,7 +258,7 @@ func TestCacheThrashSim_FixB_LongViewerVsArrivals(t *testing.T) {
 	pol := EvictionPolicy{MaxBytes: int64(cacheGB * float64(simGiB))}
 	without := runThrashSim(t, "mtime-only LRU (before fix b)", 300, pol, mk(), false)
 	withTouch := runThrashSim(t, "access-time LRU (fix b)", 300, pol, mk(), true)
-	t.Logf("Fix (b) effect — 1 long viewer + rolling short arrivals, 8GB titles, 40GB cap:")
+	t.Logf("Fix (b) effect - 1 long viewer + rolling short arrivals, 8GB titles, 40GB cap:")
 	logSimResult(t, without)
 	logSimResult(t, withTouch)
 	if withTouch.evictUnderViewer >= without.evictUnderViewer {

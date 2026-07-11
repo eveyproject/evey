@@ -92,7 +92,7 @@ type mediaDocument struct {
 	LibraryID        string   `json:"library_id"`
 	AddedAt          int64    `json:"added_at"`
 	// Translations maps a normalized locale ("fr", "es", …) to the item's title in
-	// that locale. Stored (retrievable) but NOT searchable — recall is already
+	// that locale. Stored (retrievable) but NOT searchable - recall is already
 	// covered by translated_titles. It feeds the profile-language re-rank: among
 	// comparable Meili hits, a French viewer's French-title match is floated above
 	// one that only matched a foreign title or cast. See reRankByProfileLocale.
@@ -218,7 +218,7 @@ func reRankByProfileLocale(hits []library.SearchHit, localeTitles []string, quer
 		}
 	}
 	if len(matched) == 0 {
-		return hits // nothing to float — keep Meili's order untouched
+		return hits // nothing to float - keep Meili's order untouched
 	}
 	return append(matched, rest...)
 }
@@ -325,7 +325,7 @@ func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
 }
 
 // Clear deletes every document in the index. Used by the reconcile to evict
-// stale docs (a delete dropped during an outage) before a full reindex — an
+// stale docs (a delete dropped during an outage) before a full reindex - an
 // upsert reindex alone can never shrink the index back to the DB count.
 func (a *SearchAdapter) Clear(ctx context.Context) error {
 	ctx, span := tracing.StartSpan(ctx, "meilisearch.Clear")

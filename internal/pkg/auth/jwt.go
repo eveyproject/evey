@@ -153,7 +153,7 @@ func (g *JWTGenerator) ValidateAccessToken(tokenStr string) (*user.Claims, error
 		}
 	}
 	// Tokens minted before the epoch claim existed default to 0, matching the
-	// users.token_epoch column default — they stay valid until the first bump.
+	// users.token_epoch column default - they stay valid until the first bump.
 	if epoch, ok := mapClaims["epoch"].(float64); ok {
 		claims.TokenEpoch = int64(epoch)
 	}

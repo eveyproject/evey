@@ -6,17 +6,17 @@ import (
 )
 
 // ErrNoBackup is returned by RestoreBackup/DeleteBackup when path has no
-// "<path>.mkvgobak" — callers map it to a clean not-found instead of a 500.
+// "<path>.mkvgobak" - callers map it to a clean not-found instead of a 500.
 var ErrNoBackup = errors.New("no reindex backup")
 
 // Reindexer rebuilds the seek index (Cues) of an EBML container so a player can
 // seek/resume in O(1) instead of linearly scanning a file muxed without an
-// index — the root cause of slow resume on such files. The capability writes
+// index - the root cause of slow resume on such files. The capability writes
 // into the source file, so the implementation MUST be fail-safe: whatever the
 // strategy, a failure leaves the original byte-for-byte intact.
 type Reindexer interface {
 	// HasSeekIndex reports whether the EBML file at path already carries a Cues
-	// seek index. Non-EBML files report (false, nil) — there is nothing to index.
+	// seek index. Non-EBML files report (false, nil) - there is nothing to index.
 	HasSeekIndex(ctx context.Context, path string) (bool, error)
 
 	// ReindexInPlace rebuilds path's seek index safely. Two strategies, chosen
@@ -25,7 +25,7 @@ type Reindexer interface {
 	//   - "inplace": surgically patch the file itself (append a fresh Cues,
 	//     extend the Segment, repoint the SeekHead) with an in-file journal
 	//     making the operation crash-safe. Needs write access to the FILE
-	//     only, never duplicates it on disk, and leaves NO backup — the
+	//     only, never duplicates it on disk, and leaves NO backup - the
 	//     journal is truncated away on success.
 	//   - "rewrite": write a reindexed copy to a sibling temp file, fully
 	//     re-parse + validate it, cross-check it against the original (track
@@ -48,7 +48,7 @@ type Reindexer interface {
 	RestoreBackup(ctx context.Context, path string) error
 
 	// DeleteBackup removes the "<path>.mkvgobak" backup once the operator has
-	// confirmed the repaired file plays fine — reclaiming the duplicated disk
+	// confirmed the repaired file plays fine - reclaiming the duplicated disk
 	// space is the point. Returns an error if no backup exists.
 	DeleteBackup(ctx context.Context, path string) error
 
@@ -80,7 +80,7 @@ var ErrInsufficientSpace = errors.New("not enough free disk space on the media v
 // Reindex modes the operator can demand (ReindexOptions.Mode).
 const (
 	// ModeAuto (empty string): surgical in-place when available, otherwise the
-	// rewrite fallback — the safest default.
+	// rewrite fallback - the safest default.
 	ModeAuto = ""
 	// ModeInPlace: surgical patch ONLY; fail with ErrInPlaceUnsupported instead
 	// of silently rewriting (the operator explicitly refused a duplicate).
@@ -123,7 +123,7 @@ type ReindexOptions struct {
 
 // ReindexResult reports the outcome of a ReindexInPlace call.
 type ReindexResult struct {
-	Skipped    bool     // already indexed or not an EBML container — no-op
+	Skipped    bool     // already indexed or not an EBML container - no-op
 	Method     string   // ReindexMethodInPlace | ReindexMethodRewrite ("" when skipped)
 	BackupPath string   // retained backup path ("" for in-place / not kept / skipped)
 	Warnings   []string // non-fatal validation warnings on the rebuilt file

@@ -53,29 +53,29 @@ type analyzerRule struct {
 }
 
 var analyzerRules = []analyzerRule{
-	// Shell execution — qualified calls (clear intent, no false positives).
+	// Shell execution - qualified calls (clear intent, no false positives).
 	{regexp.MustCompile(`(?i)(os\.system|subprocess\.(call|run|Popen)|child_process\.(exec|execSync|spawn|spawnSync))`), SeverityCritical, "shell_exec", "shell command execution", nil},
-	// Bare `exec(` / `spawn(` — only when preceded by a non-member-access
+	// Bare `exec(` / `spawn(` - only when preceded by a non-member-access
 	// boundary (space, start, ;, (, {, =, ,) so `regex.exec(`, `Class.spawn(`,
 	// `pool.exec(` don't trigger. Case-sensitive on the bare identifier
 	// because `Exec` / `Spawn` are class names in three.js / R3F.
 	{regexp.MustCompile(`(?:^|[\s;(,{=])(?:exec|spawn)\s*\(`), SeverityCritical, "shell_exec", "bare exec/spawn call", nil},
 	{regexp.MustCompile(`(?i)(os\.popen|commands\.getoutput|backtick)`), SeverityCritical, "shell_exec", "shell command execution via pipe", nil},
 
-	// Network — outbound connections.
+	// Network - outbound connections.
 	// Qualified network APIs first (always meaningful).
 	{regexp.MustCompile(`(?i)(socket\.connect|http\.request|urllib\.request|requests\.(get|post|put|delete)|axios\.|net\.Dial)`), SeverityWarning, "network", "outbound network connection", nil},
-	// Bare `fetch(` only when not a member access. Lowercase only —
+	// Bare `fetch(` only when not a member access. Lowercase only -
 	// `Fetch` / `prefetchFetch` / etc. are common identifiers in minified JS.
 	{regexp.MustCompile(`(?:^|[\s;(,{=])fetch\s*\(`), SeverityWarning, "network", "outbound fetch() call", nil},
 	{regexp.MustCompile(`(?i)(reverse.?shell|bind.?shell|nc\s+-[elp]|ncat\s|socat\s)`), SeverityCritical, "network", "potential reverse/bind shell", nil},
 
-	// Filesystem — dangerous access
+	// Filesystem - dangerous access
 	{regexp.MustCompile(`(?i)(\/etc\/passwd|\/etc\/shadow|\.ssh\/|authorized_keys|id_rsa)`), SeverityCritical, "filesystem", "access to sensitive system files", nil},
 	{regexp.MustCompile(`(?i)(shutil\.rmtree|rimraf|rm\s+-rf|os\.remove|unlink\()`), SeverityWarning, "filesystem", "recursive file deletion", nil},
 	{regexp.MustCompile(`(?i)(symlink|os\.link|os\.symlink|fs\.symlinkSync)`), SeverityWarning, "filesystem", "symlink creation", nil},
 
-	// Code obfuscation — `eval(` is always dangerous regardless of where it
+	// Code obfuscation - `eval(` is always dangerous regardless of where it
 	// appears. Python's `compile(src, fname, "exec")` is matched by requiring
 	// an "exec"/'exec' string literal INSIDE the compile() parens, so chained
 	// calls like `renderer.compile(L,V,j); regex.exec(...)` from minified
@@ -94,10 +94,10 @@ var analyzerRules = []analyzerRule{
 	// Package install at runtime
 	{regexp.MustCompile(`(?i)(pip\s+install|npm\s+install|yarn\s+add|go\s+install|curl\s.*\|\s*(sh|bash))`), SeverityCritical, "runtime_install", "runtime package installation", nil},
 
-	// Dynamic imports — bypass static import restrictions
+	// Dynamic imports - bypass static import restrictions
 	{regexp.MustCompile(`(?i)(__import__\s*\(|importlib\.import_module|getattr\s*\(\s*__builtins__)`), SeverityCritical, "dynamic_import", "dynamic module import (potential sandbox bypass)", nil},
 
-	// Obfuscation via getattr(__builtins__, ...) — used to retrieve eval/exec by name
+	// Obfuscation via getattr(__builtins__, ...) - used to retrieve eval/exec by name
 	{regexp.MustCompile(`getattr\s*\(\s*__builtins__\s*,`), SeverityCritical, "obfuscation_getattr_builtins", "getattr(__builtins__, ...) used to access builtins dynamically (sandbox bypass)", nil},
 
 	// __import__ called with a variable argument instead of a string literal
@@ -109,7 +109,7 @@ var analyzerRules = []analyzerRule{
 	// Direct syscall interface
 	{regexp.MustCompile(`(?i)(ctypes\.CDLL|ctypes\.cdll|ffi\.Library)`), SeverityCritical, "native_code", "native code execution via ctypes/ffi", nil},
 
-	// String concatenation evasion — building dangerous strings dynamically
+	// String concatenation evasion - building dangerous strings dynamically
 	{regexp.MustCompile(`(?i)require\s*\(\s*["'][^"']*["']\s*\+`), SeverityCritical, "obfuscation", "dynamic require with string concatenation", nil},
 	// require with array.join evasion: require(["child", "_process"].join(""))
 	{regexp.MustCompile(`(?i)require\s*\(\s*\[[^\]]+\]\s*\.\s*(?:join|reduce)\s*\(`), SeverityCritical, "obfuscation", "dynamic require with array.join evasion", nil},
@@ -121,80 +121,80 @@ var analyzerRules = []analyzerRule{
 	// Threshold of 3 args avoids hits on legitimate `String.fromCharCode(0xfeff)`
 	// or single-char emit; obfuscators always produce long lists.
 	{regexp.MustCompile(`String\.fromCharCode\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+`), SeverityWarning, "obfuscation", "String.fromCharCode chain (potential payload assembly)", nil},
-	// Python: ''.join([chr(n), chr(m), ...]) — equivalent to chr-chain in PHP.
+	// Python: ''.join([chr(n), chr(m), ...]) - equivalent to chr-chain in PHP.
 	{regexp.MustCompile(`(?i)["']{2}\.join\s*\(\s*\[?\s*chr\s*\(\s*\d+\s*\)\s*,\s*chr\s*\(`), SeverityWarning, "obfuscation", "Python chr-list join (potential string obfuscation)", nil},
 
-	// Sensitive file paths — broader patterns
+	// Sensitive file paths - broader patterns
 	{regexp.MustCompile(`(?i)/proc/\d+/environ`), SeverityCritical, "filesystem", "access to process environment via /proc", nil},
 	{regexp.MustCompile(`(?i)/data/jwt\.key|jwt[._-]key|private[._-]key`), SeverityWarning, "filesystem", "reference to JWT/private key file", nil},
 	{regexp.MustCompile(`(?i)\.env\.dev|\.env\.local|\.env\.prod`), SeverityWarning, "filesystem", "reference to environment config file", nil},
 
-	// Process signals — direct call, plus bracket-notation evasion process["kill"](1
+	// Process signals - direct call, plus bracket-notation evasion process["kill"](1
 	{regexp.MustCompile(`(?i)process\.kill\s*\(\s*1[,)]|os\.kill\s*\(\s*1[,)]`), SeverityCritical, "privilege", "attempt to signal PID 1 (server process)", nil},
 	{regexp.MustCompile(`(?i)process\s*\[\s*["']kill["']\s*\]\s*\(\s*1[,)]`), SeverityCritical, "privilege", "attempt to signal PID 1 via bracket-notation process[\"kill\"]", nil},
 
-	// Python — unsafe deserialization (arbitrary code exec)
+	// Python - unsafe deserialization (arbitrary code exec)
 	{regexp.MustCompile(`(?i)(pickle\.loads?|pickle\.load\s*\(|marshal\.loads?|marshal\.load\s*\()`), SeverityCritical, "deserialization", "unsafe deserialization (pickle/marshal can execute arbitrary code)", nil},
 	{regexp.MustCompile(`(?i)(yaml\.load\s*\([^,)]+\))`), SeverityWarning, "deserialization", "yaml.load without explicit Loader (use yaml.safe_load)", nil},
 	{regexp.MustCompile(`(?i)__reduce__|__reduce_ex__`), SeverityCritical, "deserialization", "custom __reduce__ can hijack deserialization", nil},
 
-	// Python — class hierarchy traversal (sandbox escape)
+	// Python - class hierarchy traversal (sandbox escape)
 	{regexp.MustCompile(`(?i)(__class__\.__bases__|__subclasses__\s*\(\)|__mro__\b)`), SeverityCritical, "sandbox_escape", "class hierarchy traversal (common Python sandbox escape)", nil},
 
-	// PHP — code execution patterns
+	// PHP - code execution patterns
 	{regexp.MustCompile(`(?i)preg_replace\s*\(.*\/e`), SeverityCritical, "shell_exec", "PHP preg_replace /e modifier executes matched content as PHP code", nil},
 	{regexp.MustCompile(`(?i)\bassert\s*\(\s*(base64_decode|gzinflate|str_rot13|\$_)`), SeverityCritical, "obfuscation", "PHP assert() with dynamic/encoded argument (code execution)", nil},
 	{regexp.MustCompile(`(?i)(chr\s*\(\s*\d+\s*\)\s*\.){3,}`), SeverityWarning, "obfuscation", "PHP chr() chain (potential string obfuscation)", nil},
 	// chr() chain WITHOUT explicit dot concat: chr(115) . chr(121) variant where
 	// the writer drops the dot (PHP 8 short concat) or uses comma list inside an
 	// implode/array. Catch 3+ chr() calls in close proximity regardless of
-	// glue character — only (whitespace|.|,) allowed between them so we don't
+	// glue character - only (whitespace|.|,) allowed between them so we don't
 	// over-match unrelated calls on the same line.
 	{regexp.MustCompile(`(?i)chr\s*\(\s*\d+\s*\)\s*[\s.,]\s*chr\s*\(\s*\d+\s*\)\s*[\s.,]\s*chr\s*\(\s*\d+\s*\)`), SeverityWarning, "obfuscation", "PHP chr() chain (no-dot variant)", nil},
 	{regexp.MustCompile(`(?i)str_rot13\s*\(`), SeverityWarning, "obfuscation", "PHP str_rot13 (common obfuscation technique)", nil},
 	// PHP shell execution. `system\(` was triggering on `THREE.System(`,
-	// `EffectSystem(`, etc. — capital S = class name, lowercase only. Also
+	// `EffectSystem(`, etc. - capital S = class name, lowercase only. Also
 	// require the call NOT be a member access (no `.system(`).
 	{regexp.MustCompile(`(?:^|[^.\w])(?:system|passthru|shell_exec|popen|proc_open)\s*\(`), SeverityCritical, "shell_exec", "PHP shell execution function", []string{".php"}},
 
-	// Ruby — command execution
+	// Ruby - command execution
 	{regexp.MustCompile("(?i)(`[^`]*`)"), SeverityWarning, "shell_exec", "Ruby backtick command execution", []string{".rb"}},
 	{regexp.MustCompile(`(?i)(Kernel\.(exec|system|spawn)\s*\(|%x\{|IO\.popen\s*\()`), SeverityCritical, "shell_exec", "Ruby Kernel.exec/system/spawn or IO.popen", []string{".rb"}},
 	{regexp.MustCompile(`(?i)open\s*\(\s*["']\|`), SeverityCritical, "shell_exec", "Ruby open('|cmd') shell injection via pipe prefix", []string{".rb"}},
 
-	// Go — unsafe pointer arithmetic
+	// Go - unsafe pointer arithmetic
 	{regexp.MustCompile(`(?i)\bunsafe\.Pointer\b`), SeverityWarning, "native_code", "Go unsafe.Pointer (bypasses type safety)", []string{".go"}},
 	{regexp.MustCompile(`(?i)\bunsafe\.Slice\b|\bunsafe\.SliceData\b|\bunsafe\.StringData\b`), SeverityWarning, "native_code", "Go unsafe slice/string manipulation", []string{".go"}},
 
-	// Shell — base64 pipe to shell (obfuscated payload)
+	// Shell - base64 pipe to shell (obfuscated payload)
 	{regexp.MustCompile(`(?i)(base64\s+-d|base64\s+--decode|openssl\s+enc\s+-d)[^|]*\|\s*(sh|bash|dash|zsh|ash)\b`), SeverityCritical, "obfuscation", "base64-decoded payload piped to shell", nil},
 	{regexp.MustCompile(`(?i)echo\s+[A-Za-z0-9+/]{20,}={0,2}\s*\|\s*(base64|openssl)`), SeverityCritical, "obfuscation", "inline base64 blob piped to decoder (obfuscated shell payload)", nil},
 
-	// JS Function constructor escape — (function(){}).constructor("evil")()
+	// JS Function constructor escape - (function(){}).constructor("evil")()
 	{regexp.MustCompile(`(?i)\.constructor\s*\(\s*["']`), SeverityCritical, "sandbox_escape", "Function via .constructor", nil},
 
-	// Go raw syscall by number — syscall.Syscall(59, ...) bypasses all wrappers
+	// Go raw syscall by number - syscall.Syscall(59, ...) bypasses all wrappers
 	{regexp.MustCompile(`(?i)syscall\.(Syscall|RawSyscall)\s*\(\s*\d+`), SeverityCritical, "native_code", "raw syscall by number", []string{".go"}},
 
-	// Python getattr alias on builtin — getattr(obj, "exec"/"eval"/...)
+	// Python getattr alias on builtin - getattr(obj, "exec"/"eval"/...)
 	{regexp.MustCompile(`(?i)getattr\s*\(\s*[a-zA-Z_]\w*\s*,\s*["'](exec|eval|system|__import__|compile)`), SeverityCritical, "dynamic_import", "getattr on builtin via alias", nil},
 
-	// Python module aliasing — import os as _o; _o.system(...)
-	{regexp.MustCompile(`(?i)(?:from\s+\S+\s+)?(?:os|subprocess|builtins|importlib)\s+(?:import\s+\w+\s+)?as\s+[a-zA-Z_]\w*`), SeverityWarning, "obfuscation", "module aliased — verify usage", nil},
+	// Python module aliasing - import os as _o; _o.system(...)
+	{regexp.MustCompile(`(?i)(?:from\s+\S+\s+)?(?:os|subprocess|builtins|importlib)\s+(?:import\s+\w+\s+)?as\s+[a-zA-Z_]\w*`), SeverityWarning, "obfuscation", "module aliased - verify usage", nil},
 	// Python aliased OS module used for shell execution on the same line.
 	{regexp.MustCompile(`(?i)(?:os|subprocess)\s+as\s+[a-zA-Z_]\w*.*\.(system|popen|exec|call|run)\s*\(`), SeverityCritical, "shell_exec", "aliased OS module used for shell execution", nil},
 
-	// Host secret access — CRITICAL (covers /data/*.key, /data/jwt, .aws/credentials, /run/secrets/, etc.)
+	// Host secret access - CRITICAL (covers /data/*.key, /data/jwt, .aws/credentials, /run/secrets/, etc.)
 	{regexp.MustCompile(`(?i)(/data/[^\s"'` + "`" + `]*\.(?:key|env|pem|p12|pfx)|/data/jwt|/etc/passwd|/etc/shadow|\.aws/credentials|/run/secrets/)`), SeverityCritical, "filesystem", "host secret access", nil},
 
-	// __builtins__.__dict__["exec"] — dict bracket indexing to retrieve builtin
+	// __builtins__.__dict__["exec"] - dict bracket indexing to retrieve builtin
 	// by name (literal). Critical if literal is dangerous.
 	{regexp.MustCompile(`__builtins__\s*\.\s*__dict__\s*\[\s*["'](exec|eval|system|__import__|compile|open)["']\s*\]`), SeverityCritical, "dynamic_import", "__builtins__.__dict__ bracket indexing", nil},
 
-	// __builtins__.__dict__[anything] — permissive variant. After alias
+	// __builtins__.__dict__[anything] - permissive variant. After alias
 	// resolution (resolveSimpleAliases) literals get inlined; this catches
 	// the unresolved case (variable name) so admin still sees a Warning.
-	{regexp.MustCompile(`__builtins__\s*\.\s*__dict__\s*\[`), SeverityWarning, "dynamic_import", "__builtins__ dict access — verify", nil},
+	{regexp.MustCompile(`__builtins__\s*\.\s*__dict__\s*\[`), SeverityWarning, "dynamic_import", "__builtins__ dict access - verify", nil},
 
 	// Stored .constructor reference followed by call: F(<ident>) where F is
 	// known to be a Function constructor. The resolver rewrites F( to
@@ -204,7 +204,7 @@ var analyzerRules = []analyzerRule{
 	{regexp.MustCompile(`\.constructor\s*\(\s*[a-zA-Z_]\w*\s*\)`), SeverityCritical, "sandbox_escape", "Function.constructor call with variable arg", nil},
 }
 
-// URL extraction patterns — all network schemes
+// URL extraction patterns - all network schemes
 const urlSchemes = `(?:https?|ftp|ftps|wss?|ssh|telnet|ldaps?|smb|mqtt|amqp|redis|mongodb|postgres(?:ql)?|mysql|stratum\+tcp|gopher|file)`
 
 var (
@@ -268,14 +268,14 @@ func manifestDeclaresDeps(path string) bool {
 
 var depJSONRe = regexp.MustCompile(`(?s)"(?:dependencies|peerDependencies|require)"\s*:\s*\{[^}]*"`)
 
-// Executable binary extensions — emit a warning (cannot be statically analyzed)
+// Executable binary extensions - emit a warning (cannot be statically analyzed)
 var executableExtensions = map[string]bool{
 	".so": true, ".dll": true, ".dylib": true, ".exe": true,
 	".bin": true, ".o": true, ".a": true, ".class": true, ".jar": true,
 	".pyc": true, ".pyo": true, ".wasm": true,
 }
 
-// Executable binary extensions — emit a warning (cannot be statically analyzed)
+// Executable binary extensions - emit a warning (cannot be statically analyzed)
 var archiveExtensions = map[string]bool{
 	".zip": true, ".gz": true, ".tar": true, ".bz2": true, ".xz": true,
 }
@@ -284,23 +284,23 @@ var archiveExtensions = map[string]bool{
 // DetectContentType returns "application/octet-stream" for unknown formats,
 // so we accept that as valid for font/audio/doc types it can't identify.
 var assetMIME = map[string][]string{
-	".png":  {"image/png"},
-	".jpg":  {"image/jpeg"},
-	".jpeg": {"image/jpeg"},
-	".gif":  {"image/gif"},
-	".ico":  {"image/"},
-	".svg":  {"text/xml", "text/plain", "image/svg"},
-	".woff": {"application/octet-stream", "font/"},
+	".png":   {"image/png"},
+	".jpg":   {"image/jpeg"},
+	".jpeg":  {"image/jpeg"},
+	".gif":   {"image/gif"},
+	".ico":   {"image/"},
+	".svg":   {"text/xml", "text/plain", "image/svg"},
+	".woff":  {"application/octet-stream", "font/"},
 	".woff2": {"application/octet-stream", "font/"},
-	".ttf":  {"application/octet-stream", "font/"},
-	".eot":  {"application/octet-stream", "font/"},
-	".mp3":  {"audio/", "application/octet-stream"},
-	".mp4":  {"video/", "application/octet-stream"},
-	".wav":  {"audio/", "application/octet-stream"},
-	".flac": {"audio/", "application/octet-stream"},
-	".pdf":  {"application/pdf"},
-	".doc":  {"application/octet-stream", "application/msword"},
-	".docx": {"application/octet-stream", "application/zip"},
+	".ttf":   {"application/octet-stream", "font/"},
+	".eot":   {"application/octet-stream", "font/"},
+	".mp3":   {"audio/", "application/octet-stream"},
+	".mp4":   {"video/", "application/octet-stream"},
+	".wav":   {"audio/", "application/octet-stream"},
+	".flac":  {"audio/", "application/octet-stream"},
+	".pdf":   {"application/pdf"},
+	".doc":   {"application/octet-stream", "application/msword"},
+	".docx":  {"application/octet-stream", "application/zip"},
 }
 
 // StaticAnalyzer implements the domain PluginAnalyzer interface.
@@ -320,7 +320,7 @@ func (a *StaticAnalyzer) Analyze(dir, webRoot string) (*plugin.AnalysisReport, e
 	seenCat := map[string]bool{}
 	for _, f := range raw.Findings {
 		sev := severityLabel(f.Severity)
-		report.Issues = append(report.Issues, fmt.Sprintf("[%s] %s:%d — %s (%s)", sev, f.File, f.Line, f.Description, f.Pattern))
+		report.Issues = append(report.Issues, fmt.Sprintf("[%s] %s:%d - %s (%s)", sev, f.File, f.Line, f.Description, f.Pattern))
 		report.RawFindings = append(report.RawFindings, plugin.PluginFinding{
 			Category:    f.Category,
 			Severity:    sev,
@@ -356,7 +356,7 @@ func severityLabel(s AnalysisSeverity) string {
 }
 
 // AnalyzePlugin scans a plugin directory for suspicious patterns.
-// Equivalent to AnalyzePluginWithWebRoot(dir, "") — kept for tests/callers
+// Equivalent to AnalyzePluginWithWebRoot(dir, "") - kept for tests/callers
 // that don't carry a manifest.
 func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 	return AnalyzePluginWithWebRoot(dir, "")
@@ -366,7 +366,7 @@ func AnalyzePlugin(dir string) (*AnalysisReport, error) {
 // longer used to silence pattern rules (we tightened the regexes instead
 // so `regex.exec(`, `Class.Fetch(`, `THREE.System(` etc. don't false-
 // positive on minified bundles). Kept for callers that already pass the
-// manifest's WebRoot — argument is accepted but unused.
+// manifest's WebRoot - argument is accepted but unused.
 func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 	report := &AnalysisReport{Safe: true}
 
@@ -384,7 +384,7 @@ func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 
 		// Warn when a dependency manifest declares deps that aren't vendored.
 		// An empty/no-deps manifest (e.g. package.json with only {"main":"x.js"})
-		// is fine — many plugins rely solely on the runtime's bundled SDK.
+		// is fine - many plugins rely solely on the runtime's bundled SDK.
 		base := info.Name()
 		if depManifests[base] && manifestDeclaresDeps(path) {
 			relPath, relErr := filepath.Rel(dir, path)
@@ -397,7 +397,7 @@ func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 				File:        relPath,
 				Line:        0,
 				Pattern:     base,
-				Description: "dependency manifest declares deps but no vendored modules found — bundle node_modules / vendor / etc. in the ZIP",
+				Description: "dependency manifest declares deps but no vendored modules found - bundle node_modules / vendor / etc. in the ZIP",
 			})
 		}
 
@@ -432,7 +432,7 @@ func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 			}
 			report.TotalFilesScanned++
 			category := "compiled_binary"
-			desc := "compiled binary cannot be statically analyzed — runtime sandbox will enforce isolation"
+			desc := "compiled binary cannot be statically analyzed - runtime sandbox will enforce isolation"
 			if archiveExtensions[ext] {
 				category = "embedded_archive"
 				desc = "archive may contain unanalyzed code extractable at runtime"
@@ -459,7 +459,7 @@ func AnalyzePluginWithWebRoot(dir, _ string) (*AnalysisReport, error) {
 			return scanErr
 		}
 		report.Findings = append(report.Findings, findings...)
-		// Lockfiles list every transitive dep's tarball URL — that's not
+		// Lockfiles list every transitive dep's tarball URL - that's not
 		// signal, just noise. Keep findings (the unvendored_deps warning
 		// fires on the manifest itself) but drop URL extraction here.
 		if !isDepLockfile(base) {
@@ -502,7 +502,7 @@ func verifyAssetMIME(path, ext string, expected []string) string {
 			return ""
 		}
 	}
-	return fmt.Sprintf("file extension %s does not match detected content type %q — possible disguised file", ext, detected)
+	return fmt.Sprintf("file extension %s does not match detected content type %q - possible disguised file", ext, detected)
 }
 
 func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
@@ -528,7 +528,7 @@ func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 	seen := map[string]bool{}
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	// Minified bundles (esbuild/Vite IIFE output, vendor.js chunks) routinely
-	// produce single lines >64 KB — the default Scanner buffer chokes with
+	// produce single lines >64 KB - the default Scanner buffer chokes with
 	// "token too long". Bump the cap to 4 MB which covers any realistic
 	// minified file we'd ship in a plugin (plugin-asset size limit is 50 MB
 	// per file but a single line that big would already be pathological).
@@ -540,7 +540,7 @@ func scanFile(path, relPath string) ([]AnalysisFinding, []ExtractedURL, error) {
 		line := scanner.Text()
 
 		// normalized is the line after obfuscation-defusing transformations.
-		// It is used for pattern matching only — the raw line is preserved for
+		// It is used for pattern matching only - the raw line is preserved for
 		// URL extraction and for the Pattern field in findings (so displayed
 		// matches reflect normalized form but are still legible).
 		normalized := normalizeLine(line)

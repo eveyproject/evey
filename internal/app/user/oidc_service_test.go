@@ -198,7 +198,7 @@ func TestAuthURL_ContainsSignedState(t *testing.T) {
 	if !strings.Contains(url, "my-nonce") {
 		t.Errorf("URL should contain nonce, got %s", url)
 	}
-	// state format: ts|nonce.sig — must contain pipe separator
+	// state format: ts|nonce.sig - must contain pipe separator
 	if !strings.Contains(url, "%7C") && !strings.Contains(url, "|") {
 		t.Errorf("URL should contain timestamp pipe separator, got %s", url)
 	}
@@ -303,7 +303,7 @@ func TestValidateState_MissingTimestamp(t *testing.T) {
 	defer oidcSrv.close()
 	svc := buildOIDCService(t, oidcSrv)
 
-	// Old format without timestamp — should be rejected
+	// Old format without timestamp - should be rejected
 	sig := svc.signState("nonce-only")
 	_, err := svc.ValidateState("nonce-only." + sig)
 	if err == nil {
@@ -589,7 +589,7 @@ func TestHandleCallback_AccessTokenGenerationError(t *testing.T) {
 		s.tokens = tokenGen
 	})
 
-	// Make GenerateAccessToken fail via Err field — but we need it to succeed for refresh.
+	// Make GenerateAccessToken fail via Err field - but we need it to succeed for refresh.
 	// Instead, use a custom token generator
 	tokenGen.Err = errors.New("token gen boom")
 
@@ -833,7 +833,7 @@ func TestHandleCallback_TokenExchangeError(t *testing.T) {
 	}
 }
 
-// Ping tests removed — OIDCService.Ping was deleted (dead code cleanup)
+// Ping tests removed - OIDCService.Ping was deleted (dead code cleanup)
 
 // generateAndStoreRefreshToken tests kept in command_service_test.go (duplicate removed)
 
@@ -1197,8 +1197,8 @@ func TestHandleCallback_EmailAtPositionZero_UsesHexFallback(t *testing.T) {
 
 // profiles.Create error on first OIDC login now PROPAGATES (was swallowed with
 // a warn-and-continue). The user + default profile create is wrapped in one tx,
-// so a profile failure aborts the whole callback — and in production (real uow)
-// rolls back the orphan user — instead of minting a token for a user that has
+// so a profile failure aborts the whole callback - and in production (real uow)
+// rolls back the orphan user - instead of minting a token for a user that has
 // no default profile (the GetByOIDCSubject fast-path would never heal it).
 func TestHandleCallback_NewUserProfileCreateError_Propagates(t *testing.T) {
 	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
@@ -1367,7 +1367,7 @@ func TestHandleCallback_NonceMismatch_Rejected(t *testing.T) {
 }
 
 func TestHandleCallback_MissingNonceWhenExpected_Rejected(t *testing.T) {
-	// id_token carries no nonce claim, but we expected one — must be rejected.
+	// id_token carries no nonce claim, but we expected one - must be rejected.
 	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
 		"sub": "sub-nonce-missing", "email": "n@example.com",
 	})

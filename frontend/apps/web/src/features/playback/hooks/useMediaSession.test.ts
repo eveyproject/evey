@@ -15,7 +15,7 @@ function installFakeMediaSession() {
     setPositionState: vi.fn(),
   };
   Object.defineProperty(navigator, "mediaSession", { value: fake, configurable: true });
-  // MediaMetadata is not in jsdom — provide a capturing stub.
+  // MediaMetadata is not in jsdom - provide a capturing stub.
   vi.stubGlobal(
     "MediaMetadata",
     class {

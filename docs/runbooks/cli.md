@@ -1,4 +1,4 @@
-# Evey CLI — `evey admin`
+# Evey CLI - `evey admin`
 
 The Evey server binary doubles as the operator CLI. When `evey` is invoked
 without arguments, it boots the HTTP/gRPC server; with `admin` as the first
@@ -35,7 +35,7 @@ make migrate-down
 ```
 
 These shell out to `docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate <op>'`,
-so `evey-server` must be up — start it with `make dev` first if it isn't.
+so `evey-server` must be up - start it with `make dev` first if it isn't.
 
 ### Direct shell into the running container
 
@@ -62,7 +62,7 @@ The pre-installed binary already has every subcommand built in.
   Docker image: `/data/backups`). Failure mid-Up leaves
   `schema_migrations.dirty = true`; see `migration-runbook.md`.
 - `down` rolls back exactly one migration. Surgical, not "tear it all
-  down" — there's no `down --all`. Also takes a pre-rollback `pg_dump`.
+  down" - there's no `down --all`. Also takes a pre-rollback `pg_dump`.
 - `version` prints the current schema version. Returns exit code 1 with a
   `DIRTY` warning when a previous migration failed halfway (i.e. some
   but not all `Up` statements ran).
@@ -82,16 +82,16 @@ operator commands in the recovery / schema sense:
 
 | Binary | Purpose | Why standalone |
 |---|---|---|
-| `cmd/intro-backfill` | Refresh intro detection on a slice of the catalog after a pipeline change | **API client** — talks to `/api/v1/admin/media/{id}/detect-segments` with a bearer token, not in-process. |
-| `cmd/intro-diag` | Diagnose why pHash intro detection matched (or didn't) on a specific series | **Developer debug** tool — reads trickplay sprites off disk, prints a frame-by-frame Hamming match map. Optional audio cross-correlation pass. |
-| `cmd/trickplay-verify` | Verify that each trickplay tile actually shows the frame at the recorded timestamp | **QA/CI** tool — re-extracts source frames via ffmpeg and aHashes them against the tile. |
+| `cmd/intro-backfill` | Refresh intro detection on a slice of the catalog after a pipeline change | **API client** - talks to `/api/v1/admin/media/{id}/detect-segments` with a bearer token, not in-process. |
+| `cmd/intro-diag` | Diagnose why pHash intro detection matched (or didn't) on a specific series | **Developer debug** tool - reads trickplay sprites off disk, prints a frame-by-frame Hamming match map. Optional audio cross-correlation pass. |
+| `cmd/trickplay-verify` | Verify that each trickplay tile actually shows the frame at the recorded timestamp | **QA/CI** tool - re-extracts source frames via ffmpeg and aHashes them against the tile. |
 
 They're shipped as separate binaries because none of them needs the full
-server config plumbing — they're scoped, run-once tools, not part of the
+server config plumbing - they're scoped, run-once tools, not part of the
 recovery surface.
 
 ## Related runbooks
 
-- `migration-runbook.md` — schema deploy, rollback, dirty-state recovery.
-- `recovery.md` — password reset, JWT key rotation, backup restore, search reindex.
-- `incident-runbook.md` — first-response when the server is misbehaving.
+- `migration-runbook.md` - schema deploy, rollback, dirty-state recovery.
+- `recovery.md` - password reset, JWT key rotation, backup restore, search reindex.
+- `incident-runbook.md` - first-response when the server is misbehaving.

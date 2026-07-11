@@ -13,7 +13,7 @@ import (
 const PluginTokenType = "plugin"
 
 // AllowedPluginScopes is the whitelist of scopes that may ever appear on a plugin token.
-// Uses dot format (media.read, api.library) — the same format used by plugin manifests
+// Uses dot format (media.read, api.library) - the same format used by plugin manifests
 // and the gRPC interceptor's methodPermissions table. Any scope not in this set is
 // stripped during issuance (defence-in-depth).
 var AllowedPluginScopes = map[string]bool{

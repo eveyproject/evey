@@ -34,7 +34,7 @@ type Translator struct {
 	fallback string
 }
 
-// NewEmpty returns a translator with no messages — T() returns keys as-is.
+// NewEmpty returns a translator with no messages - T() returns keys as-is.
 func NewEmpty() *Translator {
 	return &Translator{
 		messages: map[string]map[string]string{"en": {}},
@@ -75,7 +75,7 @@ func NewFromDir(dir string) (*Translator, error) {
 				// drops the entire namespace from every locale, which surfaces
 				// to users as raw key strings on every screen using it. The
 				// previous warn-and-continue path hid a real production
-				// regression for hours — refuse to boot instead.
+				// regression for hours - refuse to boot instead.
 				return nil, fmt.Errorf("i18n: invalid YAML %s/%s: %w", locale, f.Name(), err)
 			}
 			if t.messages[locale] == nil {
@@ -171,7 +171,7 @@ func ParseLocale(raw string) string {
 	if raw == "" {
 		return FallbackLocale
 	}
-	// Accept-Language can be "fr-FR, en;q=0.9" — take first tag, strip region
+	// Accept-Language can be "fr-FR, en;q=0.9" - take first tag, strip region
 	parts := strings.Split(raw, ",")
 	tag := strings.TrimSpace(parts[0])
 	tag = strings.SplitN(tag, ";", 2)[0]

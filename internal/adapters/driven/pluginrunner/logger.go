@@ -222,12 +222,12 @@ func (l *PluginLogger) cleanOldLogs() {
 
 // extractDateFromFilename parses YYYY-MM-DD from
 // "{pluginID}-YYYY-MM-DD.log" or "{pluginID}-YYYY-MM-DD-HH.log".
-// The second return is false when no parseable date is found — explicit
+// The second return is false when no parseable date is found - explicit
 // signal rather than overloading time.Time{} as "absent", which confuses
 // IsZero() vs "the unix epoch midpoint" for future edge cases.
 func extractDateFromFilename(name string) (time.Time, bool) {
 	name = strings.TrimSuffix(name, ".log")
-	// Find the date part — last occurrence of YYYY-MM-DD pattern
+	// Find the date part - last occurrence of YYYY-MM-DD pattern
 	parts := strings.Split(name, "-")
 	// Need at least pluginID prefix + year + month + day
 	for i := 0; i+2 < len(parts); i++ {

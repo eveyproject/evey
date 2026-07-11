@@ -11,7 +11,7 @@ export interface PlayOnDevice {
 const QUERY_KEY = ["play-on-devices"] as const;
 
 // Lists the user's currently-connected Play On targets (first-party
-// clients holding a persistent WebSocket — TV app, mobile, another browser
+// clients holding a persistent WebSocket - TV app, mobile, another browser
 // tab). The list is per-user; refreshing on demand because devices
 // register/unregister out-of-band as they (re)connect.
 export function usePlayOnDevices() {
@@ -19,7 +19,7 @@ export function usePlayOnDevices() {
     queryKey: QUERY_KEY,
     queryFn: () => eveyFetch<{ devices: PlayOnDevice[] }>({ url: "/api/v1/devices", method: "GET" })
       .then((r) => r.devices ?? []),
-    // Devices come and go on their own (TV powered off, app closed) —
+    // Devices come and go on their own (TV powered off, app closed) -
     // a 10-second refetch keeps the picker in sync without spamming.
     refetchInterval: 10_000,
     staleTime: 5_000,
@@ -33,7 +33,7 @@ export interface PlayOnCommand {
 }
 
 // Sends a playback command to one of the user's devices. A 404 means the
-// device has disconnected since the picker was opened — the caller can
+// device has disconnected since the picker was opened - the caller can
 // refetch the device list to refresh the UI.
 export function usePlayOnCommand() {
   return useMutation({

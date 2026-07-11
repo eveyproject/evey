@@ -68,7 +68,7 @@ func TestTranslate_MissingKey(t *testing.T) {
 	tr, err := NewFromDir(setupTestDir(t))
 	require.NoError(t, err)
 
-	// Key doesn't exist in any locale — returns the key itself
+	// Key doesn't exist in any locale - returns the key itself
 	assert.Equal(t, "nonexistent.key", tr.T("en", "nonexistent.key"))
 	assert.Equal(t, "nonexistent.key", tr.T("fr", "nonexistent.key"))
 }

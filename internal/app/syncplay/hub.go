@@ -37,7 +37,7 @@ func NewHub(repo syncplay.RoomRepository) *Hub {
 // StartJanitor sweeps stale empty rooms every interval until ctx is cancelled,
 // deleting rooms with no members older than maxAge (a room created via REST
 // whose host never opened the ws would otherwise leak). It runs one sweep
-// immediately, then on each tick. Blocking — run it in its own goroutine.
+// immediately, then on each tick. Blocking - run it in its own goroutine.
 func (h *Hub) StartJanitor(ctx context.Context, interval, maxAge time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -308,7 +308,7 @@ func (h *Hub) DisconnectMember(ctx context.Context, roomID, userID string) error
 	}
 	h.broadcast(roomID, userID, leaveMsg)
 
-	// Delete the room when this was the last member — otherwise a watch party
+	// Delete the room when this was the last member - otherwise a watch party
 	// that ends by everyone closing their tab (the WS-close path, not the
 	// LeaveRoom button) leaks its syncplay_rooms row forever.
 	// Host election (if needed) is performed atomically inside the repo call.
@@ -366,7 +366,7 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 		}
 		h.broadcast(roomID, userID, cmd)
 	case "resync":
-		// The v2 "everyone sync to me": ANY member — not just the host — can pull
+		// The v2 "everyone sync to me": ANY member - not just the host - can pull
 		// the whole party to their current position and resume. Unlike host-only
 		// play/pause/seek, resync is intentionally open: v2 playback control is
 		// local, and this explicit regroup is the only cross-member broadcast a
@@ -424,7 +424,7 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 				return cmd, fmt.Errorf("advance track index: %w", advErr)
 			}
 			if !changed {
-				return cmd, nil // out of bounds — no-op
+				return cmd, nil // out of bounds - no-op
 			}
 			idx, mediaID = newIdx, mID
 		}
@@ -441,7 +441,7 @@ func (h *Hub) HandleCommand(ctx context.Context, roomID, userID, username string
 		cmd.TrackIndex = idx
 		cmd.MediaID = mediaID
 		// Queue/track changes are authoritative server state EVERY client must
-		// converge on — the host that sent it included. Unlike play/pause/seek
+		// converge on - the host that sent it included. Unlike play/pause/seek
 		// (where the sender already acted on its own audio element, so it is
 		// skipped to avoid a feedback loop), the frontend does NOT advance the
 		// queue locally on send: it waits for this echo. Broadcasting with an

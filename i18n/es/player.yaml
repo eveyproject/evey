@@ -102,7 +102,7 @@ goBack: "Volver"
 shareDesc: "Comparte este enlace con tus amigos para ver juntos:"
 copyLink: "Copiar enlace"
 copyCode: "Copiar código"
-codeShareDesc: "Comparte este código — cualquiera puede introducirlo para unirse y ver contigo."
+codeShareDesc: "Comparte este código - cualquiera puede introducirlo para unirse y ver contigo."
 close: "Cerrar"
 shortcuts:
   title: "Atajos de teclado"
@@ -113,7 +113,7 @@ shortcuts:
   seekForward: "Avanzar {{seconds}}s"
   volumeUp: "Subir volumen"
   volumeDown: "Bajar volumen"
-  seekPercent: "Ir a 0%–90%"
+  seekPercent: "Ir a 0%-90%"
   toggleCaptions: "Alternar subtítulos"
   decreaseSpeed: "Reducir velocidad"
   increaseSpeed: "Aumentar velocidad"
@@ -148,5 +148,5 @@ playOn:
   button: Reproducir en otro dispositivo
   title: Reproducir en
   sent: "Enviado a {{name}}"
-  failed: Error al enviar — el dispositivo puede haberse desconectado
+  failed: Error al enviar - el dispositivo puede haberse desconectado
   empty: Sin dispositivos conectados. Abre la app Evey en tu TV o teléfono para que aparezca aquí.

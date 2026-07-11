@@ -96,7 +96,7 @@ export const MediaCard = memo(function MediaCard({
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => { setWatchedLocal(false); toast.success(t("media.contextMenu.markedUnwatched")); invalidateItem(); } } });
 
   const poster = useMemo(() => {
-    // Always route through the backend endpoint when we know the media id —
+    // Always route through the backend endpoint when we know the media id -
     // it serves the local file when present, falls back to a 302 to the
     // external source only when local is missing. Using item.artwork[].url
     // directly leaks the raw provider URL (Amazon CDN for OMDb), which

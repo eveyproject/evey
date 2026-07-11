@@ -6,7 +6,7 @@ import (
 	// Blank imports register decoders so image.Decode auto-detects the
 	// format. JPEG is the dominant photo encoding; PNG covers screenshots
 	// and graphics; GIF is rare but cheap. HEIC / RAW are intentionally
-	// out — they need cgo libs and the encoder falls back gracefully.
+	// out - they need cgo libs and the encoder falls back gracefully.
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -18,7 +18,7 @@ import (
 
 // blurhashComponentsX / blurhashComponentsY size the encoder's frequency
 // resolution. 4×3 is the Wolt default for landscape covers and produces
-// ~30-char strings — enough detail to read the image's dominant colours
+// ~30-char strings - enough detail to read the image's dominant colours
 // without inflating every list response.
 const (
 	blurhashComponentsX = 4
@@ -26,9 +26,9 @@ const (
 )
 
 // maxPhotoPixels caps the decoded frame so a "pixel flood" image (small
-// file, gigapixel declared dimensions) can't OOM the scanner — image.Decode
+// file, gigapixel declared dimensions) can't OOM the scanner - image.Decode
 // allocates width*height*4 bytes. The limit is higher than the artwork cap
-// because real camera sensors are large (modern phones reach 50–200 MP); a
+// because real camera sensors are large (modern phones reach 50-200 MP); a
 // genuine decompression bomb declares gigapixels and is still rejected. At
 // 250 MP the transient allocation tops out near 1 GB, freed after encode.
 const maxPhotoPixels = 250_000_000

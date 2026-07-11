@@ -25,7 +25,7 @@ import (
 func buildJPEGWithExif(dateTime, model string) []byte {
 	// TIFF header (little-endian)
 	tiffHeader := []byte("II")
-	tiffHeader = append(tiffHeader, 0x2A, 0x00) // magic
+	tiffHeader = append(tiffHeader, 0x2A, 0x00)             // magic
 	tiffHeader = append(tiffHeader, 0x08, 0x00, 0x00, 0x00) // IFD0 offset = 8
 
 	entries := 0
@@ -47,8 +47,8 @@ func buildJPEGWithExif(dateTime, model string) []byte {
 	if dateTime != "" {
 		entry := make([]byte, 12)
 		binary.LittleEndian.PutUint16(entry[0:2], 0x0132) // DateTime tag
-		binary.LittleEndian.PutUint16(entry[2:4], 2)       // ASCII type
-		count := len(dateTime) + 1                          // include null
+		binary.LittleEndian.PutUint16(entry[2:4], 2)      // ASCII type
+		count := len(dateTime) + 1                        // include null
 		binary.LittleEndian.PutUint32(entry[4:8], uint32(count))
 		off := dataOffset + len(dataArea)
 		binary.LittleEndian.PutUint32(entry[8:12], uint32(off))
@@ -59,7 +59,7 @@ func buildJPEGWithExif(dateTime, model string) []byte {
 	if model != "" {
 		entry := make([]byte, 12)
 		binary.LittleEndian.PutUint16(entry[0:2], 0x0110) // Model tag
-		binary.LittleEndian.PutUint16(entry[2:4], 2)       // ASCII type
+		binary.LittleEndian.PutUint16(entry[2:4], 2)      // ASCII type
 		count := len(model) + 1
 		binary.LittleEndian.PutUint32(entry[4:8], uint32(count))
 		off := dataOffset + len(dataArea)
@@ -256,7 +256,7 @@ func TestScanDirectory_AlbumFromSubdir(t *testing.T) {
 
 func TestScanDirectory_RootFileAlbumIsEmpty(t *testing.T) {
 	// Files sitting at the library root have no album subfolder: album=""
-	// by design (disambiguates nested folders with colliding basenames —
+	// by design (disambiguates nested folders with colliding basenames -
 	// album now stores the relative subpath from the library root).
 	dir := "/fake/photos"
 	scanner := scannerFromFiles(dir, []fakeFile{{relPath: "root.jpg", data: minimalJPEG}})

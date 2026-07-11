@@ -17,7 +17,7 @@ import (
 // TestBackupTables_AllExistInSchema guards against the BackupTables list drifting
 // from the schema. A wrong or renamed table name (e.g. "webhooks" instead of
 // "webhook_configs") makes pg_dump skip or fail that --table, silently dropping
-// the table from every backup — and losing it on restore.
+// the table from every backup - and losing it on restore.
 func TestBackupTables_AllExistInSchema(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
@@ -27,7 +27,7 @@ func TestBackupTables_AllExistInSchema(t *testing.T) {
 			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
 			tbl).Scan(&exists)
 		require.NoErrorf(t, err, "checking table %q", tbl)
-		assert.Truef(t, exists, "BackupTables lists %q but it is not a table in the schema — pg_dump would skip/fail it, losing it on restore", tbl)
+		assert.Truef(t, exists, "BackupTables lists %q but it is not a table in the schema - pg_dump would skip/fail it, losing it on restore", tbl)
 	}
 }
 

@@ -199,7 +199,7 @@ describe("PluginCard", () => {
 
   it("disables the toggle button while a toggle is in flight (anti double-submit)", () => {
     // toggling is driven by the parent mutation's isPending, so it clears on
-    // settle (success AND error) — unlike a local on-click flag that would
+    // settle (success AND error) - unlike a local on-click flag that would
     // stay stuck on a failed toggle.
     const { rerender } = render(
       <PluginCard plugin={basePlugin as never} onEnable={vi.fn()} onDisable={vi.fn()} onUninstall={vi.fn()} toggling={false} />,

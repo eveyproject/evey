@@ -68,7 +68,7 @@ func authCookieMiddleware(next http.Handler, httpsOnly bool) http.Handler {
 			MaxAge:   refreshCookieMaxAge,
 		})
 
-		// Keep original body intact — native clients read tokens from body
+		// Keep original body intact - native clients read tokens from body
 		rec.flush(w)
 	})
 }

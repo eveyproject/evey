@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
+	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 )
 
 func TestKeyframeSnapshotIntegration(t *testing.T) {

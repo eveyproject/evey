@@ -4,7 +4,7 @@ import "context"
 
 // MetadataEditor edits MKV container metadata: segment title and per-track
 // fields (language, name, default/forced flags). It does NOT transcode or
-// repackage audio/video — only the header region is touched.
+// repackage audio/video - only the header region is touched.
 type MetadataEditor interface {
 	// EditMetadata applies req to srcPath, writing the result to dstPath.
 	// dstPath may equal srcPath only if the implementation guarantees atomic

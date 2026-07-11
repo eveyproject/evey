@@ -14,7 +14,7 @@ import (
 // (artwork.local_path / artwork.webp_path). Such orphans piled up under the
 // old scheme where the on-disk filename was the ArtworkRecord UUID: every
 // re-enrichment minted a fresh record (new UUID → new file) and the old file
-// leaked because DeleteByMediaItemID drops DB rows, not files — observed as
+// leaked because DeleteByMediaItemID drops DB rows, not files - observed as
 // hundreds of GB of byte-identical copies. Content-addressing (keying the file
 // on the source URL) stops new orphans; this reclaims the existing pile.
 //
@@ -40,7 +40,7 @@ func adminArtworkGC(args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	// Every path any artwork row points at — both the original and the webp
+	// Every path any artwork row points at - both the original and the webp
 	// variant. A file under root not in this set is an orphan.
 	referenced := make(map[string]struct{})
 	rows, err := db.QueryContext(ctx,
@@ -107,13 +107,13 @@ func adminArtworkGC(args []string) error {
 	// Safety: if the DB references artwork but NONE of those files were found
 	// under root, the paths don't line up (wrong --root, or DB paths use a
 	// different prefix than this host) and every file looks orphaned. Refuse to
-	// delete — otherwise a prefix mismatch wipes the whole cache.
+	// delete - otherwise a prefix mismatch wipes the whole cache.
 	if *apply && len(referenced) > 0 && refFound == 0 && scanned > 0 {
-		return fmt.Errorf("refusing --apply: 0 of %d DB-referenced files found under %s — likely a wrong --root / path-prefix mismatch", len(referenced), *root)
+		return fmt.Errorf("refusing --apply: 0 of %d DB-referenced files found under %s - likely a wrong --root / path-prefix mismatch", len(referenced), *root)
 	}
 
 	if !*apply {
-		fmt.Println("dry-run — pass --apply to delete. Sample:")
+		fmt.Println("dry-run - pass --apply to delete. Sample:")
 		for i, p := range toDelete {
 			if i >= 10 {
 				fmt.Printf("  ... and %d more\n", orphans-10)

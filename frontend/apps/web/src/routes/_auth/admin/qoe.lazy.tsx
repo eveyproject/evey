@@ -60,7 +60,7 @@ function useQoEDashboard(window: Window) {
       }),
     // Refetch on every window toggle: 24h and 7d use separate React Query
     // caches, and a 30s staleTime made one of them go stale while the other
-    // was the fresh focused view — you'd see 24h > 7d which is
+    // was the fresh focused view - you'd see 24h > 7d which is
     // mathematically impossible. keepPreviousData avoids a loading flash
     // during the refetch.
     staleTime: 0,
@@ -75,12 +75,12 @@ function formatPct(ratio: number): string {
 }
 
 function formatInt(n: number | undefined): string {
-  if (n === undefined || n === null || !Number.isFinite(n)) return "—";
+  if (n === undefined || n === null || !Number.isFinite(n)) return "-";
   return n.toLocaleString();
 }
 
 function formatRelative(iso: string, t: (k: string) => string): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const then = new Date(iso).getTime();
   const delta = (Date.now() - then) / 1000;
   if (delta < 60) return t("admin.qoe.justNow");
@@ -390,7 +390,7 @@ type EncodeOverride = {
 
 // EncodeOverridesCard surfaces the CMCD-feedback adaptive cap overrides
 // the Phase C worker has written. Admin can wait for TTL (7 d) or use
-// the "Reset" button to drop a row immediately — typically when they
+// the "Reset" button to drop a row immediately - typically when they
 // know the underlying limit changed (HW added, faster CPU swapped in).
 function EncodeOverridesCard() {
   const { t, i18n } = useTranslation();
@@ -414,7 +414,7 @@ function EncodeOverridesCard() {
       });
       await refetch();
     } catch (err) {
-      // Surface the error in the console — the table will simply
+      // Surface the error in the console - the table will simply
       // refresh on the next staleTime expiry if the request silently
       // failed at the network layer.
       console.warn("override reset failed", err);
@@ -439,7 +439,7 @@ function EncodeOverridesCard() {
           <InfoTooltip label={t("admin.qoe.overrides.title", "Automatic quality limits")}>
             {t(
               "admin.qoe.overrides.help",
-              "Players continuously report how playback is going — buffer level, stalls and bandwidth (an industry standard called CMCD). When one kind of source keeps stalling viewers, Evey lowers its quality limit for a while to stop the stalls, then lifts it again automatically.",
+              "Players continuously report how playback is going - buffer level, stalls and bandwidth (an industry standard called CMCD). When one kind of source keeps stalling viewers, Evey lowers its quality limit for a while to stop the stalls, then lifts it again automatically.",
             )}
           </InfoTooltip>
         </h2>
@@ -454,7 +454,7 @@ function EncodeOverridesCard() {
         <p className="p-4 text-sm text-muted-foreground">
           {t(
             "admin.qoe.overrides.empty",
-            "No active automatic limits — the full calibrated quality ceiling applies to every kind of source.",
+            "No active automatic limits - the full calibrated quality ceiling applies to every kind of source.",
           )}
         </p>
       ) : (

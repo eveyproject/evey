@@ -78,7 +78,7 @@ func TestBuildBwrapCmd_NoEtcHostsBind(t *testing.T) {
 }
 
 func TestBwrapMountWhitelist(t *testing.T) {
-	// pluginDir intentionally NOT under /data — the test asserts that no
+	// pluginDir intentionally NOT under /data - the test asserts that no
 	// host-secret path is bind-mounted; the plugin's own writable workdir
 	// is a legitimate --bind regardless of where the operator places it.
 	pluginDir := "/srv/evey-plugins/foo"

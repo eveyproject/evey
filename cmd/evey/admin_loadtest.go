@@ -29,7 +29,7 @@ import (
 //   - The gateway listens on the gRPC port + 1 (EVEY_SERVER_PORT is the gRPC
 //     port; the REST gateway is +1), so we hit 127.0.0.1:<port+1>.
 //   - Auth: we read the JWT signing key (same key rotate-jwt-key manages) and
-//     mint ourselves a 15-minute admin token — no new server mechanism.
+//     mint ourselves a 15-minute admin token - no new server mechanism.
 //   - `admission_full` is a VERDICT (the box refused a new stream = its ceiling),
 //     not an error: the command still exits 0.
 func adminLoadTest(args []string) error {
@@ -91,7 +91,7 @@ func adminLoadTest(args []string) error {
 		case <-ctx.Done():
 			// Restore signal handling for a second Ctrl-C (hard quit), then ask.
 			stop()
-			fmt.Fprintf(os.Stderr, "\n\ninterrupted — cancel and delete this run? [y/N] ")
+			fmt.Fprintf(os.Stderr, "\n\ninterrupted - cancel and delete this run? [y/N] ")
 			if yes := readYes(); yes {
 				bg, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 				if _, derr := loadTestReq(bg, client, http.MethodDelete, base, token, nil); derr != nil {
@@ -165,7 +165,7 @@ func forgeAdminToken(cfg *config.Config) (string, error) {
 		return "", errors.New("EVEY_JWT_PRIVATE_KEY_PATH is empty")
 	}
 	if _, err := os.Stat(path); err != nil {
-		return "", fmt.Errorf("no JWT key at %s — is the server set up and running? (%w)", path, err)
+		return "", fmt.Errorf("no JWT key at %s - is the server set up and running? (%w)", path, err)
 	}
 	key, err := auth.LoadOrGenerateRSAKey(path)
 	if err != nil {
@@ -185,7 +185,7 @@ func forgeAdminToken(cfg *config.Config) (string, error) {
 		`SELECT id, username, token_epoch FROM users WHERE is_admin = true LIMIT 1`).
 		Scan(&uid, &uname, &epoch)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", errors.New("no admin user found — set one up first")
+		return "", errors.New("no admin user found - set one up first")
 	}
 	if err != nil {
 		return "", fmt.Errorf("find admin user: %w", err)
@@ -258,7 +258,7 @@ func printReport(r *eveyv1.LoadTestReport) {
 	fmt.Fprintf(os.Stderr, "  sustained viewers  %d\n", r.GetSustainedViewers())
 	fmt.Fprintf(os.Stderr, "  stopped because    %s", r.GetStopReason())
 	if d := r.GetStopDetail(); d != "" {
-		fmt.Fprintf(os.Stderr, " — %s", d)
+		fmt.Fprintf(os.Stderr, " - %s", d)
 	}
 	fmt.Fprintln(os.Stderr)
 	fmt.Fprintf(os.Stderr, "  TTFF   p50 %dms · p95 %dms\n", r.GetTtffMsP50(), r.GetTtffMsP95())

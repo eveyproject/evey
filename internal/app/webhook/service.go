@@ -121,14 +121,14 @@ func (s *Service) deliver(ctx context.Context, cfg *webhook.Config, eventName st
 	// X-Evey-Delivery header: delivery is at-least-once (network timeouts make
 	// retries indistinguishable from duplicates on the receiving end), so a
 	// consumer needs a stable occurrence id to deduplicate on. Previously the
-	// id was stored server-side only — never sent — leaving consumers no way
+	// id was stored server-side only - never sent - leaving consumers no way
 	// to tell a retry from a genuinely new event.
 	deliveryID := uuid.New().String()
 	lastErr, statusCode := s.attemptDeliver(ctx, cfg, deliveryID, body)
 
 	// Persist the audit on a context detached from the delivery deadline. The
 	// retry budget (1+5+30s) can exceed deliveryTimeout (30s), so when retries
-	// are exhausted ctx is already expired by the time we get here — and the
+	// are exhausted ctx is already expired by the time we get here - and the
 	// exhausted-retry record is exactly the one worth keeping. Writing under the
 	// dead ctx would silently drop it; give the write its own short budget.
 	auditCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)

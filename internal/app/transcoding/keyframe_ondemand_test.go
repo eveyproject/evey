@@ -86,7 +86,7 @@ func TestKeyframeOnDemand_SkipsWhilePlaybackActive(t *testing.T) {
 	k := apptranscoding.NewKeyframeOnDemand(store, prober, nil).
 		WithActivePlayback(func() int { return active })
 
-	// A viewer is watching: the on-demand probe must not run — a cue-less walk
+	// A viewer is watching: the on-demand probe must not run - a cue-less walk
 	// on top of a live transcode is exactly what starves it.
 	assert.False(t, k.TryIndex(context.Background(), "m1", "/f.mkv"),
 		"must skip while playback is active")
@@ -119,7 +119,7 @@ func TestKeyframeOnDemand_BudgetDetachesSlowProbe(t *testing.T) {
 	ok := k.TryIndex(context.Background(), "m1", "/f.mkv")
 	assert.False(t, ok)
 	assert.Less(t, time.Since(start), 2*time.Second,
-		"the negotiation must return at the inline budget — the mkvgo cluster walk does not honour ctx cancellation, so the wait and the work are decoupled")
+		"the negotiation must return at the inline budget - the mkvgo cluster walk does not honour ctx cancellation, so the wait and the work are decoupled")
 }
 
 // A probe slower than the inline budget still lands in the background: this
@@ -139,7 +139,7 @@ func TestKeyframeOnDemand_SlowProbePersistsInBackground(t *testing.T) {
 
 func TestKeyframeOnDemand_WorkerWonRace(t *testing.T) {
 	// rows==0 = the NULL-guarded write found the index already present (the
-	// background worker beat us): still a success for the caller — the
+	// background worker beat us): still a success for the caller - the
 	// keyframes exist and the decision can use them.
 	store := &fakeKfStore{rows: 0}
 	prober := &fakeKfProber{kf: []int64{0, 6000}}

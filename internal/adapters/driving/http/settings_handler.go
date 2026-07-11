@@ -60,7 +60,7 @@ type hwModeController interface {
 
 // hwModeControllerOf adapts a concrete *CalibrationService to the interface,
 // returning a genuinely nil interface when the pointer is nil (so the handler's
-// `hwMode != nil` guard works — a typed nil would slip past it and panic).
+// `hwMode != nil` guard works - a typed nil would slip past it and panic).
 func hwModeControllerOf(c *apptranscoding.CalibrationService) hwModeController {
 	if c == nil {
 		return nil
@@ -129,7 +129,7 @@ func registerServerSettingsRoutes(
 	settings := []settingDef{
 		// Getters read cfg fields RAW (not via the Effective* accessors): the
 		// whole settings loop runs inside cfg.withReadLock in buildResponse, and
-		// the Effective* accessors take cfg's read lock themselves — calling them
+		// the Effective* accessors take cfg's read lock themselves - calling them
 		// here would recursively RLock, which Go's RWMutex forbids.
 		{jsonKey: "serverName", cfgKey: cfgKeyServerName, defaultVal: "Evey",
 			getter: func() any { return cfg.Server.Name }},
@@ -176,7 +176,7 @@ func registerServerSettingsRoutes(
 
 	// buildResponse snapshots every setting. The caller must already hold
 	// mu.RLock (guards `overridden`, read via source()); withReadLock adds cfg's
-	// read lock (guards the raw cfg field reads in the getters) — mu outer, cfg
+	// read lock (guards the raw cfg field reads in the getters) - mu outer, cfg
 	// inner.
 	buildResponse := func() map[string]settingValue {
 		resp := make(map[string]settingValue, len(settings))
@@ -251,7 +251,7 @@ func registerServerSettingsRoutes(
 					}
 					// SegmentOrchestrator doesn't yet take a runtime cap on
 					// concurrent rafales (the legacy HLSManager exposed
-					// SetMaxConcurrent — gone with the rest of the manager).
+					// SetMaxConcurrent - gone with the rest of the manager).
 					// transcodingSvc.SetMaxConcurrent above still bounds the
 					// background transcode jobs, which is the primary use case
 					// for this setting. A per-orchestrator cap can be added in
@@ -425,7 +425,7 @@ func registerServerSettingsRoutes(
 		// mu (outer) guards `overridden`; cfg's write lock (inner, via
 		// ApplyServerSettings) guards the cfg field writes in u.apply(). The DB
 		// persist + sideEffect run OUTSIDE cfg's lock so a slow store.Set doesn't
-		// block live Effective* readers — only the plain field assignment is
+		// block live Effective* readers - only the plain field assignment is
 		// serialized against them.
 		mu.Lock()
 		for _, u := range updates {

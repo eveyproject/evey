@@ -39,7 +39,7 @@ func csrfMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 			//
 			// React Native's fetch sometimes sets an `Origin` header that
 			// passes the older Sec-Fetch-Site/Origin sniff but never carries
-			// the cookie jar — relying on those headers alone would 403 the
+			// the cookie jar - relying on those headers alone would 403 the
 			// mobile /auth/refresh and bounce the user to /login on every
 			// access-token rotation. The cookie test is the load-bearing
 			// signal here; the Sec-Fetch sniff is kept as a redundant guard

@@ -149,7 +149,7 @@ func TestPhoto_KillMutant_EmptyHashDoesNotMove(t *testing.T) {
 		t.Fatalf("expected 1 new photo inserted, got %d", count)
 	}
 
-	// p-other must still exist at its original path — not hijacked by the scan.
+	// p-other must still exist at its original path - not hijacked by the scan.
 	p, err := repo.GetByID(ctx, "p-other")
 	if err != nil || p == nil {
 		t.Fatalf("p-other lost: %v", err)

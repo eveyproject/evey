@@ -21,8 +21,8 @@ func TestBenchmarkRunner_TestSrcFallback_ReturnsValidCap(t *testing.T) {
 
 	r := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{
 		SamplePath:  "/nonexistent/forces/fallback.mkv",
-		DurationSec: 1,   // very short — we don't need accurate FPS here, just a non-zero pass
-		Margin:      0.1, // very permissive — even a slow CI box must report >= 720p
+		DurationSec: 1,   // very short - we don't need accurate FPS here, just a non-zero pass
+		Margin:      0.1, // very permissive - even a slow CI box must report >= 720p
 	}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -31,14 +31,14 @@ func TestBenchmarkRunner_TestSrcFallback_ReturnsValidCap(t *testing.T) {
 	require.NoError(t, err)
 
 	// Floor guarantee: even on the weakest possible runner the bench
-	// must NOT report 0 — that would brick playback.
+	// must NOT report 0 - that would brick playback.
 	assert.GreaterOrEqual(t, cap.SoftwareMaxHeight, 720, "software cap must be at least 720p (universal floor)")
 	assert.Positive(t, cap.BenchmarkDurationMs)
 	assert.NotZero(t, cap.BenchmarkedAt)
 
 	// A HW cap must come with its per-rung evidence: if a GPU backend was usable
 	// (HWMaxHeight > 0) the hardware ladder samples must be recorded so the admin
-	// panel can show the HW fps, not just software. Regression guard — they used
+	// panel can show the HW fps, not just software. Regression guard - they used
 	// to be computed then dropped. Conditional so boxes without a GPU still pass.
 	if cap.HWMaxHeight > 0 {
 		hasHW := false
@@ -54,7 +54,7 @@ func TestBenchmarkRunner_TestSrcFallback_ReturnsValidCap(t *testing.T) {
 
 // TestBenchmarkRunner_SingleVariant_RunsEndToEnd proves the single-rung probe
 // shape (the runtime default) executes a real ffmpeg encode and returns a valid
-// cap — the bench must model decode + 1 encode, not the parallel ladder, or it
+// cap - the bench must model decode + 1 encode, not the parallel ladder, or it
 // pins the HDR cap far below what an on-demand session sustains.
 func TestBenchmarkRunner_SingleVariant_RunsEndToEnd(t *testing.T) {
 	requireFFmpeg(t)
@@ -62,7 +62,7 @@ func TestBenchmarkRunner_SingleVariant_RunsEndToEnd(t *testing.T) {
 	r := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{
 		SamplePath:    "/nonexistent/forces/fallback.mkv",
 		DurationSec:   1,
-		Margin:        0.1, // permissive — even a slow CI box clears the floor
+		Margin:        0.1, // permissive - even a slow CI box clears the floor
 		SingleVariant: true,
 	}, nil)
 
@@ -95,7 +95,7 @@ func TestBenchmarkRunner_RespectMargin(t *testing.T) {
 }
 
 // TestBenchmarkRunner_AV1Ceiling proves the AV1 software bench runs and yields
-// its OWN ceiling (libsvtav1, not the libx264 number): either 0 (not viable —
+// its OWN ceiling (libsvtav1, not the libx264 number): either 0 (not viable -
 // AV1 has no 720p floor) or a real ladder rung. The samples must carry the
 // software-av1 label so the admin calibration view can show why AV1 is gated.
 func TestBenchmarkRunner_AV1Ceiling(t *testing.T) {
@@ -104,7 +104,7 @@ func TestBenchmarkRunner_AV1Ceiling(t *testing.T) {
 	r := ffmpeg.NewBenchmarkRunner(ffmpeg.BenchmarkOpts{
 		SamplePath:  "/nonexistent/forces/fallback.mkv",
 		DurationSec: 1,
-		Margin:      0.1, // permissive — a box that can libsvtav1-encode at all passes
+		Margin:      0.1, // permissive - a box that can libsvtav1-encode at all passes
 	}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)

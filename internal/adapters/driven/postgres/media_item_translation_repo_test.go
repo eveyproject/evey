@@ -74,7 +74,7 @@ func TestMediaItemTranslationRepo_GetByMediaItemsAndLocale(t *testing.T) {
 	require.NoError(t, repo.Upsert(ctx, &library.MediaItemTranslation{MediaItemID: b.ID, Locale: "fr-FR", Title: "Titre B"}))
 	require.NoError(t, repo.Upsert(ctx, &library.MediaItemTranslation{MediaItemID: a.ID, Locale: "de-DE", Title: "Titel A"}))
 
-	// fr-FR over {a,b,c}: a+b present, c absent — and absence is NOT an error.
+	// fr-FR over {a,b,c}: a+b present, c absent - and absence is NOT an error.
 	got, err := repo.GetByMediaItemsAndLocale(ctx, []string{string(a.ID), string(b.ID), string(c.ID)}, "fr-FR")
 	require.NoError(t, err)
 	require.Len(t, got, 2)

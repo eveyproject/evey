@@ -163,8 +163,8 @@ func mapDetailTitleAndDate(result *domain.MetadataResult, d tmdbDetailResponse, 
 // the original-language title even for `language=fr`, while the French title
 // lives only in alternative_titles (e.g. a German doc whose FR title is
 // "Les grottes immergées …"). We override only when TMDB clearly gave us no
-// localized title — result.Title still equals the original title AND the work
-// is in a different language than the server — so a genuine localized title is
+// localized title - result.Title still equals the original title AND the work
+// is in a different language than the server - so a genuine localized title is
 // never clobbered.
 func applyRegionalTitle(result *domain.MetadataResult, d tmdbDetailResponse, serverLang string) {
 	if serverLang == "" || result.Title == "" || result.Title != result.OriginalTitle {
@@ -172,7 +172,7 @@ func applyRegionalTitle(result *domain.MetadataResult, d tmdbDetailResponse, ser
 	}
 	lang := strings.ToLower(strings.SplitN(serverLang, "-", 2)[0])
 	if d.OriginalLanguage != "" && d.OriginalLanguage == lang {
-		return // already in the server's language — nothing to localize
+		return // already in the server's language - nothing to localize
 	}
 	regions := regionsForLanguage(lang)
 	if len(regions) == 0 {
@@ -182,7 +182,7 @@ func applyRegionalTitle(result *domain.MetadataResult, d tmdbDetailResponse, ser
 	for _, want := range regions {
 		for _, a := range alts {
 			// Skip a regional title that carries no real localization over the
-			// current one — TMDB contributors pollute this list with "(1)"/"(2)"
+			// current one - TMDB contributors pollute this list with "(1)"/"(2)"
 			// disambiguators, and swapping "Avatar" for "Avatar (1)" only degrades
 			// the display name. Keep scanning for a genuinely different one.
 			if strings.EqualFold(a.Region, want) && a.Title != "" && !regionalTitleAddsNothing(a.Title, result.Title) {

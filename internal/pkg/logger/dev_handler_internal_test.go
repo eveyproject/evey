@@ -33,7 +33,7 @@ func TestDevHandler_GroupQualifiesKeys(t *testing.T) {
 			t.Errorf("dev output missing %q; got: %q", want, out)
 		}
 	}
-	// The bare (unqualified) keys must NOT appear — that was the bug.
+	// The bare (unqualified) keys must NOT appear - that was the bug.
 	if strings.Contains(out, " method=GET") || strings.Contains(out, " status=200") {
 		t.Errorf("dev output has unqualified group keys (WithGroup ignored); got: %q", out)
 	}

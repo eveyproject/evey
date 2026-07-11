@@ -59,8 +59,8 @@ func (c *Chromaprinter) Available(ctx context.Context) error {
 // comparison; the compact base64 string returned by fpcalc by default is for
 // AcoustID lookups and can't be diffed bitwise).
 //
-// fpcalc itself has no seek option — its -ts switch is for AcoustID timestamp
-// metadata, not for skipping into the input — so we pipe the audio through
+// fpcalc itself has no seek option - its -ts switch is for AcoustID timestamp
+// metadata, not for skipping into the input - so we pipe the audio through
 // ffmpeg with -ss/-t and let fpcalc read from stdin.
 //
 // Returns the underlying []uint32 (typed alias) so the app-layer port can
@@ -147,4 +147,3 @@ func parseFpcalcRawOutput(buf []byte) ([]uint32, error) {
 	}
 	return nil, errors.New("FINGERPRINT line not found in fpcalc output")
 }
-

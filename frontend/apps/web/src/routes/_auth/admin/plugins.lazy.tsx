@@ -109,8 +109,8 @@ function PreviewPanel({
           {preview.name}
         </span>
         <span className="text-xs text-[var(--text-muted)]">
-          v{preview.version} — {preview.language}
-          {preview.author ? ` — by ${preview.author}` : ""}
+          v{preview.version} - {preview.language}
+          {preview.author ? ` - by ${preview.author}` : ""}
         </span>
         {preview.description && (
           <p className="text-sm mt-1 text-[var(--text-muted)]">

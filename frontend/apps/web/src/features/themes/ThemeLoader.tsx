@@ -73,7 +73,7 @@ function buildThemeIframeSrcdoc(pluginId: string): string {
 //   3. Listening for postMessage from the iframe and processing evey.theme.* calls
 //
 // The iframe uses sandbox="allow-scripts" (no allow-same-origin) so it runs in
-// an opaque origin — it cannot read parent DOM or cookies, only postMessage.
+// an opaque origin - it cannot read parent DOM or cookies, only postMessage.
 // This is the most restrictive sandbox that still permits the bridge to work.
 export function ThemeLoader() {
   const { pluginId } = useThemeStore();
@@ -95,7 +95,7 @@ export function ThemeLoader() {
     removeAllThemeAssets();
     injectThemeCSS(pluginId);
 
-    // Only attempt theme.js if the user is authenticated — the route requires auth.
+    // Only attempt theme.js if the user is authenticated - the route requires auth.
     // Read the token directly from store state (not subscribed) so that token
     // rotation does not re-trigger this effect and re-initialise the theme assets.
     const accessToken = useAuthStore.getState().accessToken;
@@ -111,21 +111,21 @@ export function ThemeLoader() {
           url: `/api/v1/themes/${encodeURIComponent(pluginId)}/theme.js`,
           method: "GET",
         }).catch((err: { httpStatus?: number }) => {
-          // 404 means no theme.js — that is fine, CSS-only themes are valid.
+          // 404 means no theme.js - that is fine, CSS-only themes are valid.
           if (err?.httpStatus === 404) return null;
           throw err;
         });
 
         if (cancelled || !res) return;
 
-        // theme.js exists — create a hidden sandbox iframe.
+        // theme.js exists - create a hidden sandbox iframe.
         const iframeId = THEME_IFRAME_ID_PREFIX + pluginId;
         if (document.getElementById(iframeId)) return;
 
         const iframe = document.createElement("iframe");
         iframe.id = iframeId;
         iframe.setAttribute("sandbox", "allow-scripts");
-        // Hidden — purely an execution context, no visible UI from theme.js in V1.
+        // Hidden - purely an execution context, no visible UI from theme.js in V1.
         iframe.style.display = "none";
         iframe.style.position = "absolute";
         iframe.style.width = "0";
@@ -134,7 +134,7 @@ export function ThemeLoader() {
         document.body.appendChild(iframe);
         iframeRef.current = iframe;
       } catch {
-        // Non-fatal — CSS still works if JS setup fails.
+        // Non-fatal - CSS still works if JS setup fails.
       }
     })();
 
@@ -146,12 +146,12 @@ export function ThemeLoader() {
   // null->value login still re-runs the effect via the isAuthed boolean.
   }, [pluginId, isAuthed]);
 
-  // postMessage listener — validated against the iframe's contentWindow before acting.
+  // postMessage listener - validated against the iframe's contentWindow before acting.
   useEffect(() => {
     function handleMessage(e: MessageEvent) {
       const iframe = iframeRef.current;
       // Guard: only accept messages from the active theme iframe.
-      // sandbox="allow-scripts" iframes have an opaque "null" origin — we can't
+      // sandbox="allow-scripts" iframes have an opaque "null" origin - we can't
       // use e.origin for same-origin checks, so we compare e.source instead.
       if (!iframe || e.source !== iframe.contentWindow) return;
 
@@ -186,7 +186,7 @@ export function ThemeLoader() {
         }
         case "theme.registerComponent":
         case "theme.observe": {
-          // Not implemented in V1 — the bridge already sent the not-implemented ack.
+          // Not implemented in V1 - the bridge already sent the not-implemented ack.
           break;
         }
       }

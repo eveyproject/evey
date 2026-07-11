@@ -343,7 +343,7 @@ func (h *musicHandler) ScanMusicDirectory(ctx context.Context, req *eveyv1.ScanM
 		return nil, status.Error(codes.InvalidArgument, "directory not within library paths")
 	}
 	// Detach from the request context: a music scan walks the filesystem and
-	// fans tag-parsing across NumCPU workers — for a large library that runs
+	// fans tag-parsing across NumCPU workers - for a large library that runs
 	// for minutes and must outlive the client's fire-and-forget RPC (the
 	// request ctx dies on return, and a proxy read-timeout would otherwise 504
 	// and cancel the work mid-scan). Mirrors ScanPhotoDirectory. Count = -1

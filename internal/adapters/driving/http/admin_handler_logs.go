@@ -240,7 +240,7 @@ func (h *adminHandler) handleStreamLogs(w http.ResponseWriter, r *http.Request) 
 	lines := parseLineCount(r, 200, 2000)
 	logPath, err := currentLogPath(h.logDir)
 	if err != nil {
-		// No log file yet — degrade to ping-only follow so the client stays
+		// No log file yet - degrade to ping-only follow so the client stays
 		// connected and we'll start sending as soon as one appears.
 		h.followLog(w, flusher, r, "", 0)
 		return

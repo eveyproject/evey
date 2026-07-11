@@ -9,7 +9,7 @@ import (
 )
 
 func TestKeyframeSegments_EveryKeyframeIsABoundary(t *testing.T) {
-	// One segment per keyframe gap — NO coalescing, mirroring the copy session's
+	// One segment per keyframe gap - NO coalescing, mirroring the copy session's
 	// `-hls_time 0` (the only ffmpeg split rule that is session-independent).
 	// The last segment runs to the media end.
 	kf := []int64{0, 3253, 6548, 9843, 13138}
@@ -26,7 +26,7 @@ func TestKeyframeSegments_EveryKeyframeIsABoundary(t *testing.T) {
 }
 
 func TestKeyframeSegments_IrregularGapsNotMerged(t *testing.T) {
-	// Long-GOP source with scene-cut keyframes (10s/3s alternation — the exact
+	// Long-GOP source with scene-cut keyframes (10s/3s alternation - the exact
 	// prod pattern that exposed the drift). Short gaps MUST stay their own
 	// segments: ffmpeg at -hls_time 0 cuts there, so a plan that merged them
 	// would shift every later segment's number (the playlist↔content drift bug).

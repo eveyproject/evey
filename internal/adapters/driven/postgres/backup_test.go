@@ -54,7 +54,7 @@ func TestRestoreTables_Validation(t *testing.T) {
 			"ALTER TABLE ONLY public.media_items DISABLE TRIGGER ALL;\n" +
 			"COPY public.media_items (id) FROM stdin;\n\\.\n" +
 			"ALTER TABLE ONLY public.media_items ENABLE TRIGGER ALL;\n",
-		// Scary-looking text INSIDE copy data is data, not SQL — must NOT be rejected.
+		// Scary-looking text INSIDE copy data is data, not SQL - must NOT be rejected.
 		"malicious-looking copy data is allowed": "-- PostgreSQL database dump\n" +
 			"COPY public.logs (id, msg) FROM stdin;\n" +
 			"1\tCOPY x FROM PROGRAM 'rm -rf /'\n" +

@@ -102,7 +102,7 @@ goBack: "返回"
 shareDesc: "分享此链接给朋友一起观看："
 copyLink: "复制链接"
 copyCode: "复制代码"
-codeShareDesc: "分享此代码 — 任何人都可以输入它加入并与你一起观看。"
+codeShareDesc: "分享此代码 - 任何人都可以输入它加入并与你一起观看。"
 close: "关闭"
 shortcuts:
   title: "键盘快捷键"
@@ -113,7 +113,7 @@ shortcuts:
   seekForward: "前进 {{seconds}} 秒"
   volumeUp: "增大音量"
   volumeDown: "减小音量"
-  seekPercent: "跳转到 0%–90%"
+  seekPercent: "跳转到 0%-90%"
   toggleCaptions: "切换字幕"
   decreaseSpeed: "减慢速度"
   increaseSpeed: "加快速度"
@@ -148,5 +148,5 @@ playOn:
   button: 在其他设备上播放
   title: 播放到
   sent: "已发送到 {{name}}"
-  failed: 发送失败 — 设备可能已断开连接
+  failed: 发送失败 - 设备可能已断开连接
   empty: 没有已连接的设备。在你的电视或手机上打开 Evey 应用以使其在此处可用。

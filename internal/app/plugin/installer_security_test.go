@@ -23,7 +23,7 @@ func fixtureRoot() string {
 //
 // Fixtures that depend on new patterns being added by Worker A (analyzer
 // hardening) will fail until that branch is merged. This is intentional:
-// the test acts as a regression guard — a future change that silently
+// the test acts as a regression guard - a future change that silently
 // removes detection will turn the test red.
 func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 	cases := []struct {
@@ -38,7 +38,7 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 			workerANeeded: false,
 			expectedCat:   "shell_exec",
 		},
-		// python-fstring-eval: outer eval( is plaintext — detected today.
+		// python-fstring-eval: outer eval( is plaintext - detected today.
 		{
 			dir:           "python-fstring-eval",
 			workerANeeded: false,
@@ -57,7 +57,7 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 			workerANeeded: false,
 			expectedCat:   "shell_exec",
 		},
-		// python-getattr-builtin: getattr(__builtins__, ...) — detected today.
+		// python-getattr-builtin: getattr(__builtins__, ...) - detected today.
 		{
 			dir:           "python-getattr-builtin",
 			workerANeeded: false,
@@ -69,7 +69,7 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 			workerANeeded: false,
 			expectedCat:   "native_code",
 		},
-		// php-combo-realistic: multi-vector — same dot-concat fold as #1 needed.
+		// php-combo-realistic: multi-vector - same dot-concat fold as #1 needed.
 		{
 			dir:           "php-combo-realistic",
 			workerANeeded: false,
@@ -125,9 +125,9 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 
 			if !hasCritical {
 				if c.workerANeeded {
-					t.Skipf("no Critical finding for %q — payload not yet detected (extends Worker A patterns; tracked in backlog C1)", c.dir)
+					t.Skipf("no Critical finding for %q - payload not yet detected (extends Worker A patterns; tracked in backlog C1)", c.dir)
 				} else {
-					t.Fatalf("no Critical finding for %q — analyzer regression", c.dir)
+					t.Fatalf("no Critical finding for %q - analyzer regression", c.dir)
 				}
 			}
 

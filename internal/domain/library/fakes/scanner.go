@@ -9,7 +9,7 @@ import (
 type FakeFileScanner struct {
 	Results map[string][]library.ScannedFile
 	// ParsedTitles lets a test pre-seed the title the scanner would
-	// derive from a given file path — used by the orphan title-heal pass.
+	// derive from a given file path - used by the orphan title-heal pass.
 	// Keys are file paths, values are the parsed title. Missing keys fall
 	// back to "" (which the heal pass treats as "no signal, skip item").
 	ParsedTitles map[string]string

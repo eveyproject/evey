@@ -8,7 +8,7 @@ import "sort"
 // trusting one, we gather every available signal as a weighted VOTE for the same
 // edge and fuse them: where independent signals AGREE we are confident
 // (deterministic); where only one is available we fall back to it at low
-// confidence. This is what makes detection robust on series with no subtitles —
+// confidence. This is what makes detection robust on series with no subtitles -
 // the other witnesses carry the vote.
 
 // boundaryVote is one signal's estimate of an edge (start or end), in ms, with a
@@ -30,7 +30,7 @@ type fusedBoundary struct {
 // fuseBoundary clusters the votes (any two within tolMs are the same edge),
 // picks the cluster carrying the most weight, and returns its weight-weighted
 // mean as the consensus edge. confidence is the fraction of total weight that
-// agreed — high when several independent signals point to the same place, low
+// agreed - high when several independent signals point to the same place, low
 // when a lone signal stands unsupported. ok is false when there are no votes.
 func fuseBoundary(votes []boundaryVote, tolMs int64) (fusedBoundary, bool) {
 	valid := make([]boundaryVote, 0, len(votes))

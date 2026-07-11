@@ -26,7 +26,7 @@ func TestTxFromCtx_ReturnsFallbackWhenNilTx(t *testing.T) {
 
 func TestTxUnit_Do_NestedReusesAmbientTx(t *testing.T) {
 	// Pre-populate ctx with a non-nil *sql.Tx sentinel; Do must NOT begin a
-	// new transaction (which would nil-panic on the nil *sql.DB) — it should
+	// new transaction (which would nil-panic on the nil *sql.DB) - it should
 	// call fn directly with the same ctx.
 	u := NewTxUnit(nil)
 	marker := &sql.Tx{}

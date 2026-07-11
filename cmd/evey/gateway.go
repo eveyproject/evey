@@ -37,7 +37,7 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 		}),
 		// Capture the REAL client user-agent + IP into metadata. Without this,
 		// downstream sees grpc-go's own user-agent and the gateway->grpc peer
-		// (a private container IP) — useless in the audit log. ratelimit.ClientIP
+		// (a private container IP) - useless in the audit log. ratelimit.ClientIP
 		// only trusts X-Forwarded-For from a trusted proxy (anti-spoof).
 		runtime.WithMetadata(func(_ context.Context, r *http.Request) metadata.MD {
 			pairs := make([]string, 0, 4)

@@ -31,7 +31,7 @@ function PlayerPage() {
   const router = useRouter();
   const profileId = useAuthStore((s) => s.profileId);
 
-  // Close the global music mini-player when a full-screen video player opens —
+  // Close the global music mini-player when a full-screen video player opens -
   // audio + video playback at the same time is bad UX.
   const closeMusic = useMusicPlayerStore((s) => s.close);
   useEffect(() => { closeMusic(); }, [closeMusic]);
@@ -114,7 +114,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   }, [isLoading]);
 
   // Leaving the player (back button, navigation, close) stops playback and ends
-  // the session immediately — no mini-player keeps it running in the background.
+  // the session immediately - no mini-player keeps it running in the background.
   useEffect(() => {
     usePlayerStore.getState().play(mediaId);
     return () => {
@@ -133,7 +133,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     // every episode change via the [mediaId] effect cleanup) can tear down the
     // server session. store.stop() NULLS _stopSessionFn after firing, and this
     // component does NOT remount on episode change (only HLSPlayer is keyed by
-    // mediaId) — so we must re-arm whenever a new session starts, or every
+    // mediaId) - so we must re-arm whenever a new session starts, or every
     // intermediate episode in a binge leaks an orphaned transcode session on the
     // server (A stops via the still-armed fn, the last via usePlaySession's
     // unmount cleanup, but B..N-1 never do). sessionId in the deps re-arms it.
@@ -183,7 +183,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     usePlayerStore.getState().stop();
     // router.history.back() is a no-op when the player was reached via a
     // deep link, a hard refresh, or any path that left the SPA history
-    // empty — which is exactly when users complain "back does nothing".
+    // empty - which is exactly when users complain "back does nothing".
     // Fall back to the media detail page of whatever is playing so the
     // close button always lands somewhere sane.
     if (router.history.canGoBack()) {
@@ -352,7 +352,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
                 setPlayerCleanup(() => {
                   // play() returns a Promise that rejects with AbortError
                   // when pause() interrupts an in-flight fetch (esp. on
-                  // HLS reload mid-seek). Swallow it — by the time we're
+                  // HLS reload mid-seek). Swallow it - by the time we're
                   // here the user has closed the player, no UX impact.
                   try { el.pause(); } catch { /* ignore */ }
                   try {
@@ -383,7 +383,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 id="share-dialog-title" className="text-lg font-semibold">{t("player.watchTogether")}</h2>
-              <p className="text-sm text-white/70">{t("player.codeShareDesc", "Share this code — anyone can enter it to join and watch with you.")}</p>
+              <p className="text-sm text-white/70">{t("player.codeShareDesc", "Share this code - anyone can enter it to join and watch with you.")}</p>
               <div
                 className="rounded px-3 py-3 text-center font-mono text-3xl tracking-[0.3em] font-bold select-all"
                 style={{ background: "var(--overlay-border-subtle)" }}

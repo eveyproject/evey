@@ -292,7 +292,7 @@ func stripPointerEventsOnInteractive(css string, warnings *[]string) string {
 // decodeCSSEscapes returns a copy of s with CSS escape sequences resolved so
 // that detection regexes cannot be bypassed by hex-encoding (e.g. `\3a ` → `:`).
 // It handles:
-//   - `\` followed by 1–6 hex digits and an optional single trailing whitespace
+//   - `\` followed by 1-6 hex digits and an optional single trailing whitespace
 //     (per CSS Syntax Level 3 §4.3.7)
 //   - simple backslash-escaped non-hex characters (`\x` → `x`)
 //
@@ -312,7 +312,7 @@ func decodeCSSEscapes(s string) string {
 		}
 		// s[i] == '\\'
 		if i+1 >= len(s) {
-			// trailing backslash — emit as-is
+			// trailing backslash - emit as-is
 			b.WriteByte('\\')
 			i++
 			continue

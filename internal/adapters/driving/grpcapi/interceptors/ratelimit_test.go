@@ -144,7 +144,7 @@ func TestDefaultPublicMethodLimiters_CoversAudit(t *testing.T) {
 		"/evey.v1.UserService/RegisterWithInvite",
 		"/evey.v1.UserService/InitiateQuickConnect",
 		"/evey.v1.UserService/CheckQuickConnect",
-		// AuthorizeQuickConnect must be capped too — otherwise an
+		// AuthorizeQuickConnect must be capped too - otherwise an
 		// authenticated attacker can brute-force the 24-bit short code
 		// and hijack a victim's pending device.
 		"/evey.v1.UserService/AuthorizeQuickConnect",

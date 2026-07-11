@@ -258,7 +258,7 @@ func TestCommandService_MediaItemAdded_AnalyticsErrorStillNotifiesLevelAll(t *te
 	require.NoError(t, settings.Upsert(ctx, &notifdom.Settings{ProfileID: "p_all", MovieLevel: notifdom.LevelAll, SeriesLevel: notifdom.LevelAll, MusicLevel: notifdom.LevelAll}))
 
 	// Genre-favorites analytics is down: this must NOT suppress notifications for
-	// every profile — LevelAll profiles don't use genre relevance.
+	// every profile - LevelAll profiles don't use genre relevance.
 	analyzer.Err = errors.New("analytics down")
 	svc.Register()
 
@@ -296,7 +296,7 @@ func TestCommandService_FlushBatches_FlushesPending(t *testing.T) {
 	defer svc.Stop()
 	svc.Register()
 
-	// series event is batched (waits 10s) — FlushBatches forces immediate emit
+	// series event is batched (waits 10s) - FlushBatches forces immediate emit
 	require.NoError(t, bus.Publish(ctx, libevent.MediaItemAdded{
 		MediaItemID: "s1", LibraryID: "lib1", Title: "Lost", Type: "series", OccurredAt: time.Now(),
 	}))

@@ -63,8 +63,8 @@ type MediaCatalog interface {
 
 // FileStateRefresher re-stamps the change-detection fingerprint (size + mtime)
 // the library scan keys on for a media file. After a reindex rewrites a
-// container in place, the bytes change but the logical content — streams,
-// keyframe times, duration — does not; refreshing the stored fingerprint makes
+// container in place, the bytes change but the logical content - streams,
+// keyframe times, duration - does not; refreshing the stored fingerprint makes
 // the next scan treat the file as UNCHANGED instead of re-probing it and
 // dropping the keyframe index, which would force a transcode window (the copy
 // rung needs keyframes_ms) until the keyframe backfill worker catches up.
@@ -75,7 +75,7 @@ type FileStateRefresher interface {
 }
 
 // AudioDelayProber measures how far a file's audio content starts AFTER its
-// video (max across audio tracks, seconds) — the repack mux defect that plays
+// video (max across audio tracks, seconds) - the repack mux defect that plays
 // as a constant A/V desync. Satisfied by the ffmpeg prober; optional (nil
 // skips the diagnosis). Kept separate from the Cues probe: it is a different
 // defect class, repaired by a remux, not a reindex.
@@ -193,7 +193,7 @@ func (s *SeekIndexService) WithFileStateRefresher(r FileStateRefresher) *SeekInd
 }
 
 // WithAudioDelayProber wires the audio start-delay diagnosis into scans (one
-// header-only ffprobe per file — the scan stays an async job with progress).
+// header-only ffprobe per file - the scan stays an async job with progress).
 // Optional and chainable; without it AudioDelaySec stays 0 everywhere.
 func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexService {
 	s.audioDelay = p
@@ -204,7 +204,7 @@ func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexSe
 // reindex just rewrote, so the next library scan sees it UNCHANGED and keeps
 // the existing streams + keyframe index instead of re-probing (which nulls
 // keyframes_ms and forces a transcode window). Best-effort: any failure only
-// means the file is re-probed later — the pre-refresh behaviour — so it is
+// means the file is re-probed later - the pre-refresh behaviour - so it is
 // logged, never fatal to the job. Runs right after the swap to beat the ~2 min
 // periodic scan to the file.
 func (s *SeekIndexService) refreshFileState(ctx context.Context, path string) {
@@ -229,7 +229,7 @@ func isEBMLPath(p string) bool { return ebmlExts[strings.ToLower(filepath.Ext(p)
 
 func containerOf(p string) string { return strings.TrimPrefix(strings.ToLower(filepath.Ext(p)), ".") }
 
-// IsReadOnlyFS reports whether err ultimately comes from a read-only mount —
+// IsReadOnlyFS reports whether err ultimately comes from a read-only mount -
 // the common hardening where media volumes are bound :ro in docker-compose.
 // The string fallback covers error chains that didn't wrap with %w.
 func IsReadOnlyFS(err error) bool {
@@ -260,7 +260,7 @@ func (s *SeekIndexService) Status() JobStatus {
 	return st
 }
 
-// CachedScan returns the last completed scan for the scope, if any. Instant —
+// CachedScan returns the last completed scan for the scope, if any. Instant -
 // no disk I/O.
 func (s *SeekIndexService) CachedScan(libraryID string) (ScanResult, time.Time, bool) {
 	s.mu.Lock()
@@ -278,7 +278,7 @@ func (s *SeekIndexService) StartScan(_ context.Context, libraryID string) error 
 	}
 	go func() {
 		defer s.recoverJob()
-		// Fresh context: the job outlives the triggering request — the same
+		// Fresh context: the job outlives the triggering request - the same
 		// pattern as the enrichment / album-art kickers.
 		bg := context.Background()
 		_, err := s.scanAndCache(bg, libraryID)
@@ -460,7 +460,7 @@ func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID string
 }
 
 // DeleteBackupMedia removes one media file's reindex backup, reclaiming the
-// duplicated disk space. Synchronous — an unlink is instant, no job needed —
+// duplicated disk space. Synchronous - an unlink is instant, no job needed -
 // and allowed while a job runs (it doesn't touch the media file itself).
 func (s *SeekIndexService) DeleteBackupMedia(ctx context.Context, mediaID string) error {
 	f, err := s.catalog.GetMediaFile(ctx, mediaID)
@@ -478,7 +478,7 @@ func (s *SeekIndexService) DeleteBackupMedia(ctx context.Context, mediaID string
 }
 
 // StartPurgeBackups kicks a background job that re-scans the scope then
-// deletes every reindex backup in it — the bulk "the repairs are confirmed
+// deletes every reindex backup in it - the bulk "the repairs are confirmed
 // fine, give me my disk back" action.
 func (s *SeekIndexService) StartPurgeBackups(_ context.Context, libraryID string) error {
 	return s.startBatch(JobPurge, libraryID, nil,
@@ -630,7 +630,7 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef) (SeekStatus, bool) {
 	fi, statErr := os.Stat(f.Path)
 	if statErr != nil {
-		// File recorded in the DB but missing/unreadable on disk — skip it
+		// File recorded in the DB but missing/unreadable on disk - skip it
 		// rather than reporting a misleading "no index".
 		s.logger.Warn("seek-index scan: file unreadable, skipping",
 			slog.String("path", f.Path), slog.Any("err", statErr))
@@ -644,7 +644,7 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef) (SeekStatu
 	}
 	hasBak, bakErr := s.reindexer.HasBackup(ctx, f.Path)
 	if bakErr != nil {
-		// Backup status is secondary diagnostics — a probe failure must not
+		// Backup status is secondary diagnostics - a probe failure must not
 		// drop the file from the scan, just report it as "no backup".
 		s.logger.Warn("seek-index scan: backup probe failed",
 			slog.String("path", f.Path), slog.Any("err", bakErr))

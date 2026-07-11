@@ -9,7 +9,7 @@ import (
 )
 
 type fakePersonFetcher struct {
-	byName   map[string]*domainlib.PersonDetailsResult
+	byName    map[string]*domainlib.PersonDetailsResult
 	errByName map[string]error
 }
 
@@ -79,7 +79,7 @@ func TestEnricher_EnrichAllPeopleBios_CtxCancelled(t *testing.T) {
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // cancel immediately — loop should break on first iteration
+	cancel() // cancel immediately - loop should break on first iteration
 	n, err := e.EnrichAllPeopleBios(ctx, nil)
 	if err != nil {
 		t.Fatalf("unexpected err: %v", err)

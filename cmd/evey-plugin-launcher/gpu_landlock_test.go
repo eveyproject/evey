@@ -15,7 +15,7 @@ func TestIsRenderNode(t *testing.T) {
 			t.Errorf("isRenderNode(%q) = false, want true", p)
 		}
 	}
-	// Anything that is not a render node must be refused — especially the
+	// Anything that is not a render node must be refused - especially the
 	// privileged card/primary node, the WSL and NVIDIA nodes, and traversal.
 	bad := []string{
 		"/dev/dri/card0", "/dev/dri/card1", "/dev/dri/controlD64",

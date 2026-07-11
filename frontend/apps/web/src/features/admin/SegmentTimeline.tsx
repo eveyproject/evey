@@ -7,7 +7,7 @@ export type { MediaSegment };
 // Raw Tailwind colors are deliberate here: admin-only segment visualisation
 // uses fixed semantic hues (intro=blue, recap=purple, credits=orange, studio
 // logo=yellow) so admins can recognise the type at a glance regardless of the
-// active theme — same rationale as error reds or success greens.
+// active theme - same rationale as error reds or success greens.
 const SEGMENT_COLORS: Record<string, string> = {
   intro: "bg-blue-500",
   recap: "bg-purple-500",
@@ -98,7 +98,7 @@ function SegmentEditor({ segment, durationMs, onStartChange, onEndChange }: Segm
           {formatMs(segment.startMs)} / {formatMs(segment.endMs)}
         </span>
         <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface)] text-[var(--text-muted)]">
-          {Math.round((segment.confidence ?? 0) * 100)}% — {segment.source}
+          {Math.round((segment.confidence ?? 0) * 100)}% - {segment.source}
         </span>
         {manual && (
           <span

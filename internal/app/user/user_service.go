@@ -42,7 +42,7 @@ func WithTokenRevoker(rev TokenRevoker) UserServiceOption {
 // RevokeUserTokens invalidates every credential of the user: refresh tokens
 // are deleted immediately and outstanding access tokens are revoked via the
 // token_epoch bump. Used by the security mutations (DisableUser, ChangePassword,
-// ResetPassword, role change) — NOT by KillSession, which only stops playback.
+// ResetPassword, role change) - NOT by KillSession, which only stops playback.
 func (s *UserService) RevokeUserTokens(ctx context.Context, userID string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.RevokeUserTokens")
 	defer span.End()
@@ -173,7 +173,7 @@ func (s *UserService) UpdateUser(ctx context.Context, u *user.User) error {
 	if s.tokenRevoker != nil {
 		before, err := s.users.GetByID(ctx, u.ID)
 		if err != nil {
-			// Can't determine whether is_admin changed — revoke to be safe rather
+			// Can't determine whether is_admin changed - revoke to be safe rather
 			// than risk leaving a just-demoted admin's is_admin token valid.
 			roleChanged = true
 		} else {
@@ -289,7 +289,7 @@ func (s *UserService) DisableUser(ctx context.Context, userID string) error {
 		return fmt.Errorf("UserService.DisableUser: %w", err)
 	}
 	if u.IsAdmin {
-		// Atomic guard+disable — see DeleteUser.
+		// Atomic guard+disable - see DeleteUser.
 		if err := s.users.DisableIfNotLastAdmin(ctx, shared.UserID(userID)); err != nil {
 			if errors.Is(err, user.ErrLastEnabledAdmin) {
 				return ErrLastAdmin
@@ -405,7 +405,7 @@ func (s *UserService) checkProfileInvariants(ctx context.Context, p *user.Profil
 	// Load user opportunistically to read MaxProfiles + IsAdmin. Missing
 	// user is not fatal for the cap check (FK will reject the insert
 	// downstream), but the admin/kids invariant is conditional on the
-	// lookup succeeding — without the user we can't tell.
+	// lookup succeeding - without the user we can't tell.
 	var maxProfiles *int
 	if u, err := s.users.GetByID(ctx, p.UserID); err == nil && u != nil {
 		maxProfiles = u.MaxProfiles
@@ -442,7 +442,7 @@ func (s *UserService) checkProfileInvariants(ctx context.Context, p *user.Profil
 		return ErrKidsRequiresPIN
 	}
 	// Invariant 2: we cannot create or flip-to-kids a profile while a sibling
-	// non-kids profile still lacks a PIN — otherwise we'd break the symmetry.
+	// non-kids profile still lacks a PIN - otherwise we'd break the symmetry.
 	if p.IsKids && pinlessNonKidsSibling != nil {
 		return ErrKidsRequiresPIN
 	}

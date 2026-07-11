@@ -146,7 +146,7 @@ describe("ServerConfigPage", () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
-    // The password toggle lives inside the (collapsed) SMTP card — expand first.
+    // The password toggle lives inside the (collapsed) SMTP card - expand first.
     fireEvent.click(screen.getByRole("button", { name: /Email \/ SMTP/i }));
     // Several password fields each carry a Show/Hide eye; toggle the first.
     const showBtns = await screen.findAllByRole("button", { name: /Show/i });

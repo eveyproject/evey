@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 import type { V1StreamInfo, V1MediaStream } from "@evey/api";
 
 function formatBitrate(bitrate?: string): string {
-  if (!bitrate) return "—";
+  if (!bitrate) return "-";
   const bps = Number(bitrate);
-  if (!Number.isFinite(bps) || bps <= 0) return "—";
+  if (!Number.isFinite(bps) || bps <= 0) return "-";
   if (bps >= 1_000_000) return `${(bps / 1_000_000).toFixed(1)} Mbps`;
   if (bps >= 1_000) return `${Math.round(bps / 1_000)} Kbps`;
   return `${bps} bps`;
@@ -20,7 +20,7 @@ function formatPlayMethod(method?: string): string {
     case "PLAY_METHOD_TRANSCODE":
       return "Transcode";
     default:
-      return method ?? "—";
+      return method ?? "-";
   }
 }
 
@@ -57,7 +57,7 @@ interface StreamInfoPanelProps {
 }
 
 // StreamInfoPanel surfaces the playback decision the backend already returns
-// (play method, codecs, transcode reasons) — visibility the mobile app has but the
+// (play method, codecs, transcode reasons) - visibility the mobile app has but the
 // web player lacked. Mirrors the SettingsPanel popover chrome.
 export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelProps) {
   const { t } = useTranslation();
@@ -104,7 +104,7 @@ export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelP
           {videoStream && (
             <>
               <Section title={t("player.streamInfo.video")} />
-              <InfoRow label={t("player.streamInfo.codec")} value={(videoStream.codec ?? "—").toUpperCase()} />
+              <InfoRow label={t("player.streamInfo.codec")} value={(videoStream.codec ?? "-").toUpperCase()} />
               {videoStream.width && videoStream.height && (
                 <InfoRow label={t("player.streamInfo.resolution")} value={`${videoStream.width}×${videoStream.height}`} />
               )}
@@ -129,7 +129,7 @@ export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelP
           {audioStream && (
             <>
               <Section title={t("player.streamInfo.audio")} />
-              <InfoRow label={t("player.streamInfo.codec")} value={(audioStream.codec ?? "—").toUpperCase()} />
+              <InfoRow label={t("player.streamInfo.codec")} value={(audioStream.codec ?? "-").toUpperCase()} />
               {audioStream.channels && (
                 <InfoRow label={t("player.streamInfo.channels")} value={formatChannels(audioStream.channels)} />
               )}

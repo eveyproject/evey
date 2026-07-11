@@ -12,13 +12,13 @@ import (
 
 // ProbeSandbox runs a throwaway bubblewrap sandbox to verify the host actually
 // permits the namespace + mount operations bwrap needs. It exists because the
-// usual failure mode — Docker's default seccomp profile blocking unshare/mount
-// — only surfaces when the FIRST plugin tries to start and crashes with a
+// usual failure mode - Docker's default seccomp profile blocking unshare/mount
+// - only surfaces when the FIRST plugin tries to start and crashes with a
 // cryptic "socket timeout". Probing once at boot turns that into an actionable
 // warning.
 //
 // Returns nil when bwrap can build its sandbox (even if the trivial payload
-// then fails to exec — that proves setup worked), or a descriptive error when
+// then fails to exec - that proves setup worked), or a descriptive error when
 // the SETUP itself is denied. basic/auto never hard-fail; landlock fails when
 // the kernel does not enforce Landlock.
 func ProbeSandbox(mode string) error {
@@ -63,7 +63,7 @@ func ProbeSandbox(mode string) error {
 	}
 	s := strings.TrimSpace(string(out))
 	// "execvp ...: No such file" means bwrap built the sandbox fine and only
-	// failed to resolve the trivial payload — that is a PASS for our purpose.
+	// failed to resolve the trivial payload - that is a PASS for our purpose.
 	if strings.Contains(s, "execvp") {
 		return nil
 	}

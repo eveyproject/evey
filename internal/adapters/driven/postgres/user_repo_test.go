@@ -191,8 +191,8 @@ func TestUserRepo_GetByOIDCSubject_NotFound(t *testing.T) {
 }
 
 // The partial unique index idx_users_oidc_identity (migration 000113) blocks a
-// second user with the SAME (oidc_issuer, oidc_subject) — even with a different
-// username — so a concurrent OIDC first-login can't create a duplicate identity.
+// second user with the SAME (oidc_issuer, oidc_subject) - even with a different
+// username - so a concurrent OIDC first-login can't create a duplicate identity.
 // Create must surface it as shared.ErrConflict so OIDCService can recover.
 func TestUserRepo_Create_DuplicateOIDCIdentity_Conflicts(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)

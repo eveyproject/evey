@@ -409,7 +409,7 @@ func TestRestoreBackup_MissingDump(t *testing.T) {
 
 func TestRestoreBackup_ReadError(t *testing.T) {
 	// An upload stream that fails to read is indistinguishable from a corrupt
-	// archive at the gzip layer — it is classified as ErrInvalidBackup (client
+	// archive at the gzip layer - it is classified as ErrInvalidBackup (client
 	// error), not an internal server fault.
 	svc, _, _ := setup()
 	err := svc.RestoreBackup(context.Background(), &errReader{err: errors.New("read broken")})
@@ -491,7 +491,7 @@ func TestRestoreBackup_SchemaVersionMismatch_Rejected(t *testing.T) {
 	if !strings.Contains(err.Error(), `"41"`) || !strings.Contains(err.Error(), `"42"`) {
 		t.Fatalf("error should name both versions, got: %v", err)
 	}
-	// Schema mismatch is NOT a client input error — it is a policy rejection.
+	// Schema mismatch is NOT a client input error - it is a policy rejection.
 	if errors.Is(err, ErrInvalidBackup) {
 		t.Fatalf("schema mismatch must NOT satisfy errors.Is(err, ErrInvalidBackup), got: %v", err)
 	}
@@ -510,7 +510,7 @@ func TestRestoreBackup_SchemaVersionMatch_Succeeds(t *testing.T) {
 
 func TestRestoreBackup_SchemaVersionEmpty_Skipped(t *testing.T) {
 	// Backup with empty SchemaVersion (pre-feature) must succeed with a warning,
-	// not a rejection — preserving restorability of existing backups.
+	// not a rejection - preserving restorability of existing backups.
 	svc, _, dumper := setup()
 	dumper.SchemaVersion = "42"
 	dump := []byte("-- PostgreSQL database dump\nSET statement_timeout = 0;\n")
@@ -537,7 +537,7 @@ func TestCreateBackup_DumpError(t *testing.T) {
 	}
 }
 
-// trackedRC reports whether Close was called — proves CreateBackup drains/closes
+// trackedRC reports whether Close was called - proves CreateBackup drains/closes
 // the dump pipe so the pg_dump writer goroutine can't wedge on an error path.
 type trackedRC struct {
 	io.Reader
@@ -693,7 +693,7 @@ func TestRestoreBackup_ManifestTooLarge(t *testing.T) {
 	var buf bytes.Buffer
 	gw := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gw)
-	// 17 MiB of junk — well beyond the 16 MiB cap.
+	// 17 MiB of junk - well beyond the 16 MiB cap.
 	oversized := bytes.Repeat([]byte("a"), 17<<20)
 	writeTar(t, tw, "manifest.json", oversized)
 	writeTar(t, tw, "dump.sql", []byte("-- dump\n"))
@@ -718,7 +718,7 @@ func TestWithEventBus_PublishesBackupFailedOnScheduledError(t *testing.T) {
 
 	// Exercise the PRODUCTION scheduled-cycle path: a failing dump must make the
 	// service ITSELF emit backup.failed (for alerting). Previously this test
-	// hand-published the event, so the real publish branch was never covered — a
+	// hand-published the event, so the real publish branch was never covered - a
 	// regression that stopped emitting backup.failed would have passed green.
 	svc.runScheduledBackupCycle(context.Background(), 0)
 

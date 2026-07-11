@@ -341,7 +341,7 @@ func TestReportProgressBySession_UpdatesSessionPosition(t *testing.T) {
 
 // longTestDurationMs is comfortably above MinAutoResumeDurationMs (300_000)
 // so threshold tests are not also gated by the short-item floor. Positions
-// inside tests scale relative to this — a 10% increment is longTestPctMs.
+// inside tests scale relative to this - a 10% increment is longTestPctMs.
 const (
 	longTestDurationMs int64 = 1_000_000 // 1000 s ≈ 16.6 min
 	longTestPctMs      int64 = longTestDurationMs / 100
@@ -387,13 +387,13 @@ func TestReportProgressBySession_AutoCompletesAt90Percent(t *testing.T) {
 
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 
-	// 89% — must NOT auto-complete (just under the 90% threshold).
+	// 89% - must NOT auto-complete (just under the 90% threshold).
 	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 89*longTestPctMs, false, ""))
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
 	assert.False(t, wp.Completed, "position 89%% must stay incomplete")
 
-	// 90% exactly — flips the flag.
+	// 90% exactly - flips the flag.
 	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 90*longTestPctMs, false, ""))
 	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
@@ -414,7 +414,7 @@ func TestReportProgressBySession_CompletedStickyAcrossSeekBack(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, wp.Completed)
 
-	// User seeks back to 20% — repo's sticky-true semantic keeps Completed.
+	// User seeks back to 20% - repo's sticky-true semantic keeps Completed.
 	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 20*longTestPctMs, false, ""))
 	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
@@ -463,7 +463,7 @@ func TestReportProgressBySession_GetterError_DegradesGracefully(t *testing.T) {
 	seedUserProfile(ctx, ur, pfr, nil)
 
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
-	// Must succeed even when the duration lookup errors — auto-complete is
+	// Must succeed even when the duration lookup errors - auto-complete is
 	// best-effort, never blocks the progress write.
 	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 95_000, false, ""))
 
@@ -495,7 +495,7 @@ func TestReportProgress_AutoCompletesAt90Percent(t *testing.T) {
 	ctx := context.Background()
 	seedUserProfile(ctx, ur, pfr, nil)
 
-	// Caller sends completed=false but the position crosses the threshold —
+	// Caller sends completed=false but the position crosses the threshold -
 	// the server-side getter promotes it to true. Matches the BySession
 	// path so CLI / non-web clients get parity with mobile/web.
 	require.NoError(t, cmd.ReportProgress(ctx, "p1", "m1", 95*longTestPctMs, false))
@@ -536,7 +536,7 @@ func TestReportProgressBySession_ShortItemMidStream_NoProgressRow(t *testing.T) 
 func TestReportProgressBySession_ShortItemCompleted_PersistsAndCounts(t *testing.T) {
 	t.Parallel()
 	// Same short trailer, but the user watched it to the end: completion
-	// IS written (and counted) — the floor only suppresses mid-stream noise.
+	// IS written (and counted) - the floor only suppresses mid-stream noise.
 	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"trailer": 120_000})
 	ctx := context.Background()
 	seedUserProfile(ctx, ur, pfr, nil)
@@ -565,7 +565,7 @@ func TestReportProgress_ShortItemMidStream_NoProgressRow(t *testing.T) {
 
 func TestReportProgress_ShortItemExplicitCompletedWritesThrough(t *testing.T) {
 	t.Parallel()
-	// Explicit completed=true from the caller bypasses the floor — the
+	// Explicit completed=true from the caller bypasses the floor - the
 	// short-item suppression only applies to inferred mid-stream ticks.
 	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"trailer": 120_000})
 	ctx := context.Background()
@@ -594,7 +594,7 @@ func TestReportProgressBySession_PlayCountIncrementsOnFirstCompletion(t *testing
 	assert.Equal(t, 1, wp.PlayCount, "first completion must bump play_count to 1")
 
 	// Subsequent ticks while still completed must NOT keep bumping the
-	// counter — the sticky-true gate keeps EXCLUDED.completed=true but
+	// counter - the sticky-true gate keeps EXCLUDED.completed=true but
 	// the previous row already has completed=true, so the transition
 	// branch doesn't fire. Re-watching from scratch is a separate flow
 	// (Delete via MarkAsUnwatched, then new completion).
@@ -618,7 +618,7 @@ func TestReportProgressBySession_PlayCountPreservedBetweenSessions(t *testing.T)
 	require.NoError(t, err)
 	assert.Equal(t, 1, wp.PlayCount)
 
-	// Mid-stream progress tick at 20% — must NOT regress PlayCount to 0.
+	// Mid-stream progress tick at 20% - must NOT regress PlayCount to 0.
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 20*longTestPctMs, false, ""))
 	wp, err = pr.GetByProfileAndMedia(ctx, "p1", "m1")
@@ -639,7 +639,7 @@ func TestMarkAsWatched_StaysStickyAgainstSubsequentProgressTick(t *testing.T) {
 	require.NoError(t, cmd.StartStream(ctx, &playback.PlaySession{ID: "s1", ProfileID: "p1", MediaItemID: "m1"}, "u1"))
 	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
 
-	// Next tick lands well below 90% — must NOT regress to false.
+	// Next tick lands well below 90% - must NOT regress to false.
 	require.NoError(t, cmd.ReportProgressBySession(ctx, "s1", 10*longTestPctMs, false, ""))
 	wp, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	require.NoError(t, err)
@@ -721,7 +721,7 @@ func TestMarkAsUnwatched_DeletesProgressRow(t *testing.T) {
 	require.NoError(t, cmd.MarkAsWatched(ctx, "p1", "m1"))
 	require.NoError(t, cmd.MarkAsUnwatched(ctx, "p1", "m1"))
 
-	// MarkAsUnwatched deletes the row entirely — the item appears
+	// MarkAsUnwatched deletes the row entirely - the item appears
 	// never-watched again, matching the Jellyfin semantics the gRPC
 	// handler relies on (NotFound → empty WatchProgress).
 	_, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")

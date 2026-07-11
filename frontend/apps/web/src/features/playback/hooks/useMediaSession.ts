@@ -4,7 +4,7 @@ export interface MediaSessionParams {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   /** Display title (episode/movie). No metadata is published without it. */
   title?: string;
-  /** Optional artwork URL (poster). Best-effort — a 401/404 just shows no art. */
+  /** Optional artwork URL (poster). Best-effort - a 401/404 just shows no art. */
   artworkUrl?: string;
   playing: boolean;
   /** Absolute position/duration on the media timeline (transcode-offset aware). */
@@ -21,7 +21,7 @@ export interface MediaSessionParams {
    *  lock screen. Only wired for series; absent ⇒ those controls stay hidden. */
   episodes?: ReadonlyArray<{ id: string }>;
   currentEpisodeId?: string;
-  /** Navigate to an episode — reuses the player's existing episode switch. */
+  /** Navigate to an episode - reuses the player's existing episode switch. */
   onPlayEpisode?: (episodeId: string) => void;
 }
 
@@ -32,8 +32,8 @@ const hasMediaSession = () =>
 // lock screen / notification shade / macOS Now Playing shows the title +
 // artwork and its play / pause / seek controls drive the <video> element.
 // Entirely feature-detected and additive: on a browser without Media Session
-// support every effect is a no-op. Seeks go through video.currentTime — the
-// same mechanism as the in-player scrub bar — so they behave identically in
+// support every effect is a no-op. Seeks go through video.currentTime - the
+// same mechanism as the in-player scrub bar - so they behave identically in
 // direct-play and transcode mode (the player's seeking listeners react the
 // same way), with the transcodeOffset applied for absolute seeks.
 export function useMediaSession({
@@ -75,7 +75,7 @@ export function useMediaSession({
           : [],
       });
     } catch {
-      // MediaMetadata unavailable (older Safari) — leave it unset.
+      // MediaMetadata unavailable (older Safari) - leave it unset.
     }
     return () => {
       if (hasMediaSession()) navigator.mediaSession.metadata = null;
@@ -95,7 +95,7 @@ export function useMediaSession({
       try {
         ms.setActionHandler(action, handler);
       } catch {
-        // Unsupported action on this browser — ignore.
+        // Unsupported action on this browser - ignore.
       }
     };
 
@@ -178,7 +178,7 @@ export function useMediaSession({
         playbackRate: playbackRate || 1,
       });
     } catch {
-      // Invalid state (e.g. position > duration mid-update) — skip this tick.
+      // Invalid state (e.g. position > duration mid-update) - skip this tick.
     }
   }, [duration, position, playbackRate]);
 }

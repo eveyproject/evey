@@ -26,8 +26,8 @@ favorites:
   movies: Films
   series: Séries
   recentlyAdded: Ajoutés récemment
-  titleAZ: "Titre A–Z"
-  titleZA: "Titre Z–A"
+  titleAZ: "Titre A-Z"
+  titleZA: "Titre Z-A"
   yearNewest: Année (plus récent)
   rating: Note
   noFavorites: Pas encore de favoris
@@ -359,7 +359,7 @@ syncplay:
   connected: Connecté
   connecting: "Connexion..."
   leave: Quitter
-  joinError: "Impossible de rejoindre — vérifiez le code."
+  joinError: "Impossible de rejoindre - vérifiez le code."
   resyncAll: Tout le monde me rejoint
   shareLink: Partager le lien
   copyCode: Copier le code
@@ -503,7 +503,7 @@ search:
   toYear: À
   sortBy: Trier par
   relevance: Pertinence
-  titleAZ: "Titre A–Z"
+  titleAZ: "Titre A-Z"
   yearNewest: Année (plus récent)
   dateAdded: "Date d'ajout"
 streams:

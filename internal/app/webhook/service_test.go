@@ -498,7 +498,7 @@ func TestHandleAny_DeliveryRecordsError(t *testing.T) {
 
 // A delivery whose retries exhaust the per-delivery deadline must still record
 // its audit row. The delivery context is already expired by the time we persist,
-// so the write must run on a detached context — otherwise the most important
+// so the write must run on a detached context - otherwise the most important
 // record (the failed/exhausted delivery) is silently lost.
 func TestHandleAny_DeliveryRecordedEvenWhenContextExpired(t *testing.T) {
 	t.Parallel()
@@ -516,7 +516,7 @@ func TestHandleAny_DeliveryRecordedEvenWhenContextExpired(t *testing.T) {
 	repo.mu.Unlock()
 
 	// Pre-cancel the context: every ctx.Done() check inside the delivery fires
-	// immediately, so the audit write hits an already-dead context — the exact
+	// immediately, so the audit write hits an already-dead context - the exact
 	// condition produced in prod when retries outlast deliveryTimeout.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -532,7 +532,7 @@ func TestHandleAny_DeliveryRecordedEvenWhenContextExpired(t *testing.T) {
 }
 
 // TestHandleAny_RetriesOnFailureThenSucceeds uses programmableSender (per-call response).
-// Pure unit test — no HTTP.
+// Pure unit test - no HTTP.
 func TestHandleAny_RetriesOnFailureThenSucceeds(t *testing.T) {
 	t.Parallel()
 	sender := &programmableSender{
@@ -792,7 +792,7 @@ func TestHandleAny_RealSenderIntegration(t *testing.T) {
 	deliveries := &fakeDeliveryRepo{}
 	bus := sharedfakes.NewFakeEventBus()
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	// Inject a plain client — httptest.Server binds 127.0.0.1 which the
+	// Inject a plain client - httptest.Server binds 127.0.0.1 which the
 	// default SSRF-protected client (webhooksender.New) would reject.
 	svc := webhook.NewService(repo, deliveries, webhooksender.NewWithClient(&http.Client{Timeout: 5 * time.Second}), log, bus)
 	svc.SetURLValidator(func(string) error { return nil })
@@ -852,7 +852,7 @@ func TestHandleAny_DeliveryIDHeaderStableAcrossRetries(t *testing.T) {
 		t.Fatal("X-Evey-Delivery header missing")
 	}
 	if retry := calls[1].Headers["X-Evey-Delivery"]; retry != first {
-		t.Fatalf("delivery id changed across retries: %q vs %q — consumers can't dedup", first, retry)
+		t.Fatalf("delivery id changed across retries: %q vs %q - consumers can't dedup", first, retry)
 	}
 	deliveries.mu.Lock()
 	storedID := deliveries.data[0].ID

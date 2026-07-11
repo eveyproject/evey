@@ -59,7 +59,7 @@ function assTimeToVtt(t: string): string | null {
 }
 
 // Minimal ASS/SSA → WebVTT converter. Earlier code ran ASS through srtToVtt,
-// which only swaps comma/period in timestamps — ASS uses a completely different
+// which only swaps comma/period in timestamps - ASS uses a completely different
 // "Dialogue:" line format, so the browser parsed zero cues and the subtitle
 // silently never appeared. We parse the [Events] Format header to locate the
 // Start/End/Text columns, then emit one VTT cue per Dialogue line, stripping
@@ -265,7 +265,7 @@ export function SettingsPanel({
   const { t } = useTranslation();
   const allQualityOptions = useQualityOptions();
   // Build the manual quality list from the ACTUAL hls rung heights, each
-  // labelled by its nearest standard tier — the static list only matched 16:9
+  // labelled by its nearest standard tier - the static list only matched 16:9
   // heights, so a widescreen ladder (e.g. 532/798) collapsed to just "Original".
   // The option value stays the real height (rung selection keys off it); dedupe
   // by tier keeping the tallest rung. Fall back to the static list before the
@@ -304,7 +304,7 @@ export function SettingsPanel({
 
   const currentAudioLabel = audioStreams.find((s) => s.index === currentAudioIndex)?.title
     ?? audioStreams.find((s) => s.index === currentAudioIndex)?.language
-    ?? (audioStreams.length > 0 ? t("media.track", { number: currentAudioIndex }) : "—");
+    ?? (audioStreams.length > 0 ? t("media.track", { number: currentAudioIndex }) : "-");
 
   const currentSubLabel = currentSubtitleTrackIndex === null
     ? t("player.settings.off")

@@ -273,7 +273,7 @@ describe("FeedConfigCard", () => {
     // No number input for plugin rows
     expect(screen.queryByRole("spinbutton")).toBeNull();
     // Dash placeholder rendered instead
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.getByText("-")).toBeInTheDocument();
   });
 
   it("does not list disabled plugins as virtual rows", () => {
@@ -354,7 +354,7 @@ describe("FeedConfigCard", () => {
     expect(Number(inputs[0].value)).toBeGreaterThanOrEqual(1);
   });
 
-  // ── Save — payload sent to batchUpdate ────────────────────────────────────────
+  // ── Save - payload sent to batchUpdate ────────────────────────────────────────
 
   it("clicking Save calls feedServiceBatchUpdateAdminFeedConfigs with current rows", async () => {
     renderCard();
@@ -394,7 +394,7 @@ describe("FeedConfigCard", () => {
   });
 
   it("save sends updated displayOrder values after drag reorder", () => {
-    // Drag is exercised via the handleDragEnd logic — test via direct state
+    // Drag is exercised via the handleDragEnd logic - test via direct state
     // by verifying the payload includes displayOrder field for each row.
     renderCard();
     fireEvent.click(screen.getByTestId("feeds-save-btn"));
@@ -410,7 +410,7 @@ describe("FeedConfigCard", () => {
     });
   });
 
-  // ── Save — side effects ───────────────────────────────────────────────────────
+  // ── Save - side effects ───────────────────────────────────────────────────────
 
   it("save button shows loading text while saving and re-enables after", async () => {
     let resolveSave!: () => void;

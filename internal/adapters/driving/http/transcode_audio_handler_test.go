@@ -19,7 +19,7 @@ import (
 // ----------------------------------------------------------------
 
 // fakeAudioEnsurer implements AudioSegmentEnsurer for tests.
-// It never actually spawns ffmpeg — it just records calls and
+// It never actually spawns ffmpeg - it just records calls and
 // optionally returns a preset error.
 type fakeAudioEnsurer struct {
 	calls []int

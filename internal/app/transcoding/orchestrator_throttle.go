@@ -14,7 +14,7 @@ import (
 // throttleLoop applies pause-when-ahead to every live session on a ticker.
 // Pattern lifted from Plex's transcode pipeline (audit competitors_big): when
 // ffmpeg has produced ThrottlePauseAhead segments more than the client's
-// high-water, SIGSTOP it — we burn 0 CPU until the client catches up.
+// high-water, SIGSTOP it - we burn 0 CPU until the client catches up.
 // Hysteresis (ResumeBelow strictly less than PauseAhead) prevents flapping.
 // The loop is a no-op when ThrottleEnabled is false (the goroutine isn't
 // even started in that case).
@@ -105,21 +105,21 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 
 // NotifyClientHint feeds CMCD telemetry from the HTTP layer back into the
 // orchestrator so the throttle / prefetch policy can react to what the
-// client is actually experiencing — buffer length, imminent starvation,
-// real cursor — instead of the coarse "last requested segment" proxy.
+// client is actually experiencing - buffer length, imminent starvation,
+// real cursor - instead of the coarse "last requested segment" proxy.
 //
 // CRITICAL constraint: this method NEVER changes which variant the client
 // downloads. The HLS protocol gives the player full control over rendition
 // selection (the segment URL carries the variant index). All we can do
 // here is adjust the encoder's pace and lookahead, and wake up a paused
-// ffmpeg — all transparent to the client and to the user's manual quality
+// ffmpeg - all transparent to the client and to the user's manual quality
 // lock.
 //
 // Effects per session whose mediaID matches:
 //
 //   - clientHighWater bumped forward when the CMCD-derived cursor is
 //     ahead of what touchSession had previously seen. We only ever bump
-//     forward — a stale CMCD packet must not pull the throttle back.
+//     forward - a stale CMCD packet must not pull the throttle back.
 //
 //   - On bs=1 (buffer starved), SIGCONT a paused session immediately
 //     instead of waiting up to ThrottleTickInterval. The client has
@@ -156,7 +156,7 @@ func (o *SegmentOrchestrator) NotifyClientHint(mediaItemID string, bufferLengthM
 	// CMCD `bl` is client-reported and forgeable: a single hint with
 	// bl=999999999 would otherwise stretch endSeg to encode the whole film below
 	// (the MaxActiveSessions cap bounds the NUMBER of sessions, not their length).
-	// Cap the prefetch reach at 2× the rafale lookahead — combined with the
+	// Cap the prefetch reach at 2× the rafale lookahead - combined with the
 	// duration clamp on consumableIdx, endSeg can never run away from the real
 	// playback position.
 	if maxAhead := 2 * o.opts.LookAheadSegments; bufferAheadSegs > maxAhead {

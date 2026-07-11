@@ -170,12 +170,12 @@ func validateManifest(m *plugin.PluginManifest) error {
 }
 
 // validateExternalFetch checks that every entry in the list is a plain
-// hostname or a hostname with an HTTPS scheme — no wildcards, no paths, no
+// hostname or a hostname with an HTTPS scheme - no wildcards, no paths, no
 // bare IP addresses (those can't be meaningfully whitelisted in /etc/hosts).
 func validateExternalFetch(entries []string) error {
 	for _, entry := range entries {
 		if strings.HasPrefix(entry, "*.") || entry == "*" {
-			return fmt.Errorf("manifest: external_fetch entry %q is a wildcard — use explicit hostnames", entry)
+			return fmt.Errorf("manifest: external_fetch entry %q is a wildcard - use explicit hostnames", entry)
 		}
 		host := entry
 		if strings.Contains(entry, "://") {
@@ -188,7 +188,7 @@ func validateExternalFetch(entries []string) error {
 		if host == "" {
 			return fmt.Errorf("manifest: external_fetch entry %q has no resolvable hostname", entry)
 		}
-		// reject plain IP addresses — hostnames only
+		// reject plain IP addresses - hostnames only
 		if net := strings.ReplaceAll(host, ".", ""); strings.Trim(net, "0123456789") == "" {
 			return fmt.Errorf("manifest: external_fetch entry %q must be a hostname, not an IP address", entry)
 		}

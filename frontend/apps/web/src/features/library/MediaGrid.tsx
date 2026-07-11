@@ -10,7 +10,7 @@ interface MediaGridProps {
 // AuthLayout puts <main id="main-content"> as the scrollable region
 // (overflow-y-auto) because the body itself is locked to viewport
 // (h-screen overflow-hidden). VirtuosoGrid's useWindowScroll mode
-// expects the window to scroll — which can never happen here. We hand
+// expects the window to scroll - which can never happen here. We hand
 // it the actual scroll parent instead so endReached fires properly and
 // all virtualized cards become reachable. Lookup is done client-side
 // post-mount; null during SSR / first paint, which falls back to

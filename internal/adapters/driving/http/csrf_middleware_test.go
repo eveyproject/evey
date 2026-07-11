@@ -115,7 +115,7 @@ func TestCSRFMiddleware_POST_MismatchHeader_Forbidden(t *testing.T) {
 
 func TestCSRFMiddleware_POST_SessionNoHeader_Forbidden(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Error("next should not be called — session request without CSRF header must fail-closed")
+		t.Error("next should not be called - session request without CSRF header must fail-closed")
 	})
 	h := csrfMiddleware(false, next)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/something", nil)
@@ -133,7 +133,7 @@ func TestCSRFMiddleware_POST_SessionNoHeader_Forbidden(t *testing.T) {
 
 func TestCSRFMiddleware_POST_NoCsrfCookie_Bypassed(t *testing.T) {
 	// A client that does NOT carry our _csrf cookie cannot be a browser
-	// CSRF target — browsers auto-attach our cookies on cross-origin POST,
+	// CSRF target - browsers auto-attach our cookies on cross-origin POST,
 	// so the absence of the cookie means there is no session to forge
 	// against. Bypass and let the request through, regardless of any
 	// Sec-Fetch-Site or Origin header the client may have set on its own.
@@ -251,7 +251,7 @@ func TestCSRFMiddleware_GET_ExistingCookie_NoNewCookie(t *testing.T) {
 
 func TestCSRFMiddleware_POST_EmptyCookieValue_Bypassed(t *testing.T) {
 	// An empty _csrf cookie is functionally indistinguishable from no
-	// cookie at all — same conclusion: not a browser session, bypass.
+	// cookie at all - same conclusion: not a browser session, bypass.
 	called := false
 	next := http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { called = true })
 	h := csrfMiddleware(false, next)
@@ -270,7 +270,7 @@ func TestCSRFMiddleware_POST_EmptyCookieValue_Bypassed(t *testing.T) {
 
 // Mobile clients (React Native, Expo) sometimes carry a stale refresh-token
 // cookie in their fetch jar after a forced logout. They never set Sec-Fetch-*
-// or Origin headers, so they must bypass CSRF — otherwise login is impossible
+// or Origin headers, so they must bypass CSRF - otherwise login is impossible
 // until the cookie naturally expires.
 func TestCSRFMiddleware_POST_StaleRefreshCookie_NoBrowserHeaders_SkipCSRF(t *testing.T) {
 	called := false

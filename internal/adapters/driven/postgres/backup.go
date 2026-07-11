@@ -24,7 +24,7 @@ var pgDumpHeader = []byte("-- PostgreSQL database dump")
 // Backups are produced by DumpTables as `pg_dump --data-only --no-owner
 // --no-privileges --disable-triggers`. That output has a small, fixed grammar,
 // so the restore validator is an ALLOWLIST (every non-data line must match one
-// of these forms) rather than a blocklist — a blocklist was provably evadable
+// of these forms) rather than a blocklist - a blocklist was provably evadable
 // (CREATE EXTENSION, escaped tokens, multi-line) and, crucially, missed psql
 // meta-command RCE such as `\!` and `\copy ... from program`. Anything outside
 // this grammar is rejected, so the restore can never carry a server-side
@@ -161,7 +161,7 @@ func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) erro
 		"--single-transaction",
 		// ON_ERROR_STOP makes psql exit non-zero on the first SQL error. Without
 		// it, --single-transaction still rolls the restore back on error, but
-		// psql exits 0 — so the caller would report a successful restore for a
+		// psql exits 0 - so the caller would report a successful restore for a
 		// restore that actually applied nothing (false success).
 		"-v", "ON_ERROR_STOP=1",
 	)

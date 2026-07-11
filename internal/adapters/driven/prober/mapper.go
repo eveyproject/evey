@@ -1,6 +1,6 @@
 // Package prober provides a StreamProber that fast-paths containers mkvgo can
-// read head-only — .mkv/.webm via the Matroska reader and .mp4/.m4v via
-// mp4.OpenMeta — through the in-process mkvgo path, and falls back to the
+// read head-only - .mkv/.webm via the Matroska reader and .mp4/.m4v via
+// mp4.OpenMeta - through the in-process mkvgo path, and falls back to the
 // ffprobe prober for everything else (and for any file whose metadata it cannot
 // render field-equivalent to ffprobe). ffprobe stays the authority; the mkvgo
 // path is a pure optimization (no fork, reads only the file head).
@@ -20,8 +20,8 @@ import (
 // mapContainer converts a mkvgo *Container into a library.ProbeResult that is
 // field-equivalent to what the ffprobe prober would produce for the
 // decision-affecting fields (codec, language, default/forced, dimensions,
-// channels, samplerate, colour/HDR, duration). It returns ok=false — NOT an
-// error — whenever it cannot guarantee that equivalence, so the dispatcher can
+// channels, samplerate, colour/HDR, duration). It returns ok=false - NOT an
+// error - whenever it cannot guarantee that equivalence, so the dispatcher can
 // cleanly fall back to ffprobe. Conservative by design: when in doubt, bail.
 // mapContainer's ebml argument is true for Matroska/WebM sources and false for
 // MP4: only Matroska defaults a track's language to "eng" when no Language
@@ -39,7 +39,7 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 
 		st := mapStreamType(t.Type)
 		if st == "" {
-			return nil, false // unknown/attachment/button track — let ffprobe classify it
+			return nil, false // unknown/attachment/button track - let ffprobe classify it
 		}
 
 		// Codec must land in ffprobe vocabulary. mkvgo stores a short name for a
@@ -86,7 +86,7 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 		// Per-stream average bitrate. MP4 from btrt/esds (== ffprobe's bit_rate).
 		// Matroska from the per-track BPS tag: the fast path reads it head-only via
 		// mkvgo's WithBitrate (SeekHead → Tags), and the ffprobe fallback reads the
-		// same TAG:BPS (ffprobe's own stream bit_rate stays N/A for MKV) — so both
+		// same TAG:BPS (ffprobe's own stream bit_rate stays N/A for MKV) - so both
 		// prober paths agree, and both carry the per-track rate ffprobe surfaces only
 		// as a tag. Unblocks the music scan.
 		if t.Bitrate != nil && *t.Bitrate > 0 {
@@ -146,9 +146,9 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			// HDR-capable codec with no colour metadata: distinguish "confirmed
 			// unspecified" from "could not read". mkvgo sets ColourDetermined when it
 			// actually parsed a colour source (container Colour, MP4 colr, or the SPS
-			// VUI / AV1 color_config / vpcC) — even when the result resolves to
+			// VUI / AV1 color_config / vpcC) - even when the result resolves to
 			// unspecified (true SDR, validated on 230/230 real HEVC/AV1 SDR titles).
-			// Only when the colour was never read (ColourDetermined=false — e.g. a bare
+			// Only when the colour was never read (ColourDetermined=false - e.g. a bare
 			// hvcC with no SPS and in-band recovery off) might real HDR be hiding in the
 			// bitstream, so we bail to ffprobe there; a confirmed-unspecified track
 			// fast-paths as the SDR it is.

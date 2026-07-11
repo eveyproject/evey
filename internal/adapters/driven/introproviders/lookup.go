@@ -23,11 +23,11 @@ import (
 //   - TV episodes: TmdbID = series ID (NOT episode ID), Season + Episode
 //     = 1-indexed numbers, IsMovie = false.
 type Lookup struct {
-	TmdbID    int    // TIDB primary key for both movies and TV series
-	ImdbID    string // optional, may be ""; IntroDB primary key + TIDB v3 fallback
-	Season    int    // 0 for movies
-	Episode   int    // 0 for movies
-	IsMovie   bool   // true → movie endpoint shape; false → TV episode shape
+	TmdbID  int    // TIDB primary key for both movies and TV series
+	ImdbID  string // optional, may be ""; IntroDB primary key + TIDB v3 fallback
+	Season  int    // 0 for movies
+	Episode int    // 0 for movies
+	IsMovie bool   // true → movie endpoint shape; false → TV episode shape
 	// DurationMs is the item's runtime in milliseconds (0 = unknown). Sent
 	// to TIDB v3 as duration_ms to pick the matching release cut, and used
 	// to close open-ended credits/preview segments (end_ms == null = "to end
@@ -57,7 +57,7 @@ func NewAncestorResolver(repo MediaAncestorRepo) *AncestorResolver {
 	return &AncestorResolver{repo: repo}
 }
 
-// ErrLookupUnresolvable means the item has no usable TMDB/IMDb ID — a
+// ErrLookupUnresolvable means the item has no usable TMDB/IMDb ID - a
 // hard skip for the providers (no fallback to title-search). Returned
 // when the catalog wasn't enriched, parents weren't loaded, or the item
 // is a container type (series / season).
@@ -141,7 +141,7 @@ func providerIDs(item *domainlibrary.MediaItem) map[string]string {
 
 // Client is the narrow contract every upstream HTTP adapter (TIDB,
 // IntroDB) implements. Returning an empty slice with nil error means
-// "service responded but has no data for this lookup" — the chain
+// "service responded but has no data for this lookup" - the chain
 // continues to the next provider.
 type Client interface {
 	Source() string // stable identifier for MediaSegment.Source ("tidb", "introdb")

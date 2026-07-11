@@ -14,7 +14,7 @@ const (
 	cleanupInterval       = 1 * time.Minute
 	// CastStreamTokenTTL is the renewal window for tokens handed to a
 	// Chromecast. The device fetches HLS segments on its own and buffers
-	// minutes ahead, then goes quiet — with the 5-minute default it would
+	// minutes ahead, then goes quiet - with the 5-minute default it would
 	// expire mid-film during a buffer-quiet stretch (the local player
 	// dodges this by re-validating on every xhr, the cast can't). 12h
 	// comfortably covers any single playback session.
@@ -25,7 +25,7 @@ type StreamTokenStore struct {
 	// tokens maps token string → *shared.StreamToken. CreateWithTTL is the ONLY
 	// insert site (always a string key and a *shared.StreamToken value), so the
 	// unchecked type assertions in Validate / cleanupLoop are invariant-safe by
-	// construction — a bare v.(*shared.StreamToken) / key.(string) cannot panic.
+	// construction - a bare v.(*shared.StreamToken) / key.(string) cannot panic.
 	tokens sync.Map
 	ttl    time.Duration
 	done   chan struct{}
@@ -114,7 +114,7 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 	if mediaItemID != "" && st.MediaItemID != shared.MediaItemID(mediaItemID) {
 		return nil, false
 	}
-	// Slide by the token's own TTL, not the store default — otherwise a
+	// Slide by the token's own TTL, not the store default - otherwise a
 	// long-lived cast token would be downgraded to the 5-minute window
 	// on its first segment fetch.
 	ttl := st.TTL
@@ -124,7 +124,7 @@ func (s *StreamTokenStore) Validate(token, mediaItemID string) (*shared.StreamTo
 	// Copy-on-write the sliding TTL: never mutate the shared *StreamToken in
 	// place. The per-segment hot path fires Validate concurrently for the same
 	// token while cleanupLoop ranges over it, and st.ExpiresAt is a multi-word
-	// time.Time — an in-place write races those reads (a torn read -race only
+	// time.Time - an in-place write races those reads (a torn read -race only
 	// surfaces under concurrent same-token traffic). Store a fresh pointer so
 	// every reader sees an immutable snapshot; the loaded st is never written,
 	// so copying it here is safe too.

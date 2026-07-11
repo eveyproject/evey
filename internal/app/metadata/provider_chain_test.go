@@ -97,7 +97,7 @@ func TestProviderChain_FirstNonNil_WalksUntilMatch(t *testing.T) {
 		t.Fatal("expected match result")
 	}
 	if len(calls) != 2 || calls[0] != "a" || calls[1] != "b" {
-		t.Fatalf("calls = %v — chain must short-circuit after first match", calls)
+		t.Fatalf("calls = %v - chain must short-circuit after first match", calls)
 	}
 }
 

@@ -111,7 +111,7 @@ type HTTPServer struct {
 	// Nil-safe: the audio rendition routes return 404 when unset. Wiring
 	// from wire.go lands after the feature flag stabilises.
 	AudioOrch *apptranscoding.AudioSegmentOrchestrator
-	// ComplexityRepo drives per-title ABR ladder selection. Nil-safe — the
+	// ComplexityRepo drives per-title ABR ladder selection. Nil-safe - the
 	// VOD handler falls back to LadderFilmNormal when unset.
 	ComplexityRepo domaintranscoding.ComplexityRepo
 	// CalibrationSvc supplies the host's calibrated encode ceiling
@@ -146,7 +146,7 @@ type HTTPServer struct {
 	// transcodeCloser tears down the VOD software producers built during route
 	// registration (the selector's SoftwareProducer + the optional copy
 	// producer). They own long-lived ffmpeg sessions that would otherwise
-	// outlive the process as orphans — nothing else closes them. The hardware
+	// outlive the process as orphans - nothing else closes them. The hardware
 	// orchestrator is deliberately NOT in here: main already defers its
 	// CleanupAll (an alias of Close), and Close is not idempotent. Set by
 	// newHLSVODServe; invoked exactly once via CloseTranscodeProducers.
@@ -187,7 +187,7 @@ type HTTPServer struct {
 	// SyncPlay
 	SyncPlayHub *appsyncplay.Hub
 
-	// Play On — registry of first-party clients controllable via the server
+	// Play On - registry of first-party clients controllable via the server
 	DeviceRegistry *appsyncplay.DeviceRegistry
 
 	// Subtitle (optional)
@@ -254,7 +254,7 @@ type HTTPServer struct {
 	AdminWriteRL    *ratelimit.Limiter
 	PasswordResetRL *ratelimit.Limiter
 	OIDCLoginRL     *ratelimit.Limiter
-	// SnapshotRL caps the frame-extraction route — each request spawns an
+	// SnapshotRL caps the frame-extraction route - each request spawns an
 	// ffmpeg, so it must not ride the generous global limiter.
 	SnapshotRL *ratelimit.Limiter
 
@@ -300,7 +300,7 @@ func (s *HTTPServer) CloseTranscodeProducers() {
 
 func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	auth := httpAuthMiddleware(s.TokenGen)
-	// streamAuth additionally accepts opaque stream tokens (?token=) — apply ONLY
+	// streamAuth additionally accepts opaque stream tokens (?token=) - apply ONLY
 	// to /api/v1/media/{id}/* playback routes the player loads as raw URLs.
 	streamAuth := httpStreamAuthMiddleware(s.TokenGen)
 	admin := httpAdminMiddleware(s.TokenGen)
@@ -344,7 +344,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", streamAuth(mh))
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
-	// Public share download: no auth — the uuid token is the capability.
+	// Public share download: no auth - the uuid token is the capability.
 	// Admin-only to CREATE (RBAC), but the resulting link must resolve without
 	// a login. Rate-limited per-IP as defence-in-depth (the uuid entropy is the
 	// real guard against token guessing).
@@ -376,7 +376,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	// Encode calibration: read the current capability + force a rebench
 	// (typically when the admin changes HW accel settings or migrates
-	// the container). Both gated admin + AdminHeavyRL — the recalibrate
+	// the container). Both gated admin + AdminHeavyRL - the recalibrate
 	// can hammer CPU for ~30 s, can't be spammed.
 	if s.CalibrationSvc != nil {
 		mux.HandleFunc("GET /api/v1/admin/transcode/calibration", admin(transcodeCalibrationGetHandler(s.CalibrationSvc)))
@@ -385,7 +385,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.CapOverrideSvc != nil {
 		mux.HandleFunc("GET /api/v1/admin/transcode/calibration/overrides", admin(transcodeOverridesGetHandler(s.CapOverrideSvc)))
 		// Reset is per-source-class via query string so the URL stays
-		// flat ("DELETE /overrides/2160p" would also work — chose
+		// flat ("DELETE /overrides/2160p" would also work - chose
 		// the query form to mirror trickplay/regenerate's pattern).
 		mux.HandleFunc("DELETE /api/v1/admin/transcode/calibration/overrides", admin(transcodeOverrideResetHandler(s.CapOverrideSvc)))
 	}
@@ -405,7 +405,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// after ~9 min of continuous playback (cf features/hls_vod_playlist_refacto).
 	if s.HLSTranscoder != nil && s.HLSVODOrch != nil {
 		if vodHandler := newHLSVODServe(s, s.LibQuerySvc, hlsAccessCache, parentalChk); vodHandler != nil {
-			// Audio rendition handler — same auth/parental/cache/manifest
+			// Audio rendition handler - same auth/parental/cache/manifest
 			// dependencies as the video pipeline, plus the AudioOrch nil-safe
 			// wrap. Routed via vodHandler.serveHTTP (it dispatches the
 			// audio_T.m3u8 / audio_T_init.mp4 / audio_T_NNN.m4s shapes from
@@ -427,20 +427,20 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 				segmentWaitTimeout:   30 * time.Second,
 			}
 
-			// Single catch-all — the handler dispatches on the {file} pattern
+			// Single catch-all - the handler dispatches on the {file} pattern
 			// (master.m3u8 / stream_N.m3u8 / stream_N_NNN.ext / stream_N_init.mp4
 			// AND audio_T.m3u8 / audio_T_init.mp4 / audio_T_NNN.m4s). The
 			// per-profile streaming limiter sits INSIDE streamAuth so it keys on
 			// the resolved profile/user; it returns 503+Retry-After (hls.js-safe)
 			// on a flood. This is the highest-frequency route (a segment every
-			// few seconds per stream) — the DoS vector the GlobalRL was wrong for
+			// few seconds per stream) - the DoS vector the GlobalRL was wrong for
 			// (its per-IP 429 would 1) false-positive a multi-profile household
 			// and 2) stall hls.js).
 			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, s.StreamMeter.Middleware(vodHandler.serveHTTP))))
 			// Predictive warm-up: the player POSTs at ~85% progress of an
 			// episode so the next ep's transcode is pre-spawned and the
 			// autoplay handoff feels instant. Auth-required (logged-in user
-			// only) but no body — the URL identifies the *current* media.
+			// only) but no body - the URL identifies the *current* media.
 			// Rate-limited via AdminHeavyRL: each accepted request can spawn
 			// an ffmpeg rafale, so we must cap per-IP abuse independently of
 			// the frontend's once-per-mount throttle (a JS console can bypass
@@ -485,7 +485,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		if s.QuickConnectHub != nil {
 			// Same limiter as the polling QC route: the SSE stream is an auth
 			// path (it mints tokens) and each open connection holds a goroutine
-			// + hub subscription for up to ~2min — unlimited opens were a cheap
+			// + hub subscription for up to ~2min - unlimited opens were a cheap
 			// resource-pinning + passive brute-force vector.
 			mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}/events", ratelimit.MiddlewareFunc(s.LoginRL, quickConnectSSEHandler(s.QuickConnectHub, &qcCheckerAdapter{query: s.UserQuerySvc, auth: s.UserAuthSvc, cfg: s.Cfg})))
 		}

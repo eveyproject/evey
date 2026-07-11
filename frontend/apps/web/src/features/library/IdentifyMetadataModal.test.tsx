@@ -352,7 +352,7 @@ describe("IdentifyMetadataModal", () => {
     // Close
     fireEvent.click(screen.getByRole("button", { name: /close/i }));
 
-    // Reopen with same props — results should be cleared
+    // Reopen with same props - results should be cleared
     rerender(
       React.createElement(IdentifyMetadataModal, { ...defaultProps, open: true }),
     );

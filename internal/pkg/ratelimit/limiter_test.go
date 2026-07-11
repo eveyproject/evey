@@ -326,7 +326,7 @@ func TestLimiter_RateExactDivisionByMinute(t *testing.T) {
 	}
 	require.False(t, l.Allow(ip), "should be exhausted")
 
-	// advance exactly 0.5s — original yields 0.5 tokens (blocked).
+	// advance exactly 0.5s - original yields 0.5 tokens (blocked).
 	// mutated * (rate=3600): allowed. mutated + (rate=61): allowed.
 	l.mu.Lock()
 	l.visitors[ip].lastCheck = l.visitors[ip].lastCheck.Add(-500 * time.Millisecond)

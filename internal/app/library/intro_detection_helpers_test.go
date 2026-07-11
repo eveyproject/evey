@@ -16,7 +16,7 @@ func TestMedianFloat(t *testing.T) {
 	if got := medianFloat([]float64{4, 1, 3, 2}); got != 3 {
 		t.Errorf("even-length upper-median, got %v", got)
 	}
-	// Sorts a COPY — the caller's slice must be untouched.
+	// Sorts a COPY - the caller's slice must be untouched.
 	in := []float64{3, 1, 2}
 	_ = medianFloat(in)
 	if in[0] != 3 || in[1] != 1 || in[2] != 2 {
@@ -99,7 +99,7 @@ func TestSlidingBestPearsonBandedImpl(t *testing.T) {
 	check("identical -> corr 1 @ off 0", c, o, res{1, 0})
 
 	// A distinctive down-up target [3,1,2] matches uniquely at bin-offset 3
-	// (vectorSize=1) — the increasing window [1,2,3] anti-correlates, etc.
+	// (vectorSize=1) - the increasing window [1,2,3] anti-correlates, etc.
 	c, o = slidingBestPearsonBandedImpl(
 		[]float64{3, 1, 2},
 		[]float64{1, 2, 3, 3, 1, 2, 1, 1, 1}, 1)

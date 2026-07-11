@@ -8,7 +8,7 @@ interface StreamTokenResponse {
 
 export interface StreamTokenResult {
   streamToken: string | null;
-  // opts.cast requests a long-lived token for Chromecast playback — the device
+  // opts.cast requests a long-lived token for Chromecast playback - the device
   // fetches segments on its own and can't refresh the short sliding token the
   // way the local player's xhrSetup does. opts.native requests the same long
   // window for a native <video> HLS element (Safari/iOS), which is likewise
@@ -31,7 +31,7 @@ export function useStreamToken(): StreamTokenResult {
         url: `/api/v1/media/${mediaId}/stream-token${purpose ? `?purpose=${purpose}` : ""}`,
         method: "POST",
       });
-      // A cast token is a parallel, longer-lived token — don't clobber the local
+      // A cast token is a parallel, longer-lived token - don't clobber the local
       // player's streamToken state with it. The native token IS the local one.
       if (!opts?.cast) {
         tokenRef.current = res.token;

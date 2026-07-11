@@ -28,15 +28,15 @@ type WatcherService struct {
 	bus       shared.EventBus
 	// debounceDelay is how long FS events coalesce before a scan fires (and the
 	// re-arm interval when a scan was already in progress). Injectable so tests
-	// can shrink it to milliseconds — the real-time default makes timing-based
+	// can shrink it to milliseconds - the real-time default makes timing-based
 	// tests slow and flaky on slower runners.
 	debounceDelay time.Duration
 
-	mu            sync.Mutex
-	pathToLib     map[string]string // watched path → library ID
-	failedLibs    map[string]bool   // library IDs where inotify failed → need periodic scan
-	cancel        context.CancelFunc
-	ctx           context.Context
+	mu         sync.Mutex
+	pathToLib  map[string]string // watched path → library ID
+	failedLibs map[string]bool   // library IDs where inotify failed → need periodic scan
+	cancel     context.CancelFunc
+	ctx        context.Context
 }
 
 type WatcherOption func(*WatcherService)
@@ -63,10 +63,10 @@ func NewWatcherService(
 	opts ...WatcherOption,
 ) *WatcherService {
 	ws := &WatcherService{
-		watcher:    watcher,
-		libraries:  libraries,
-		scanner:    scanner,
-		log:        log,
+		watcher:       watcher,
+		libraries:     libraries,
+		scanner:       scanner,
+		log:           log,
 		pathToLib:     make(map[string]string),
 		failedLibs:    make(map[string]bool),
 		debounceDelay: defaultDebounceDelay,

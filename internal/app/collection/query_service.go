@@ -8,7 +8,7 @@ import (
 )
 
 type QueryService struct {
-	query       library.CollectionQueryRepo
+	query        library.CollectionQueryRepo
 	smartQuerier SmartQuerier
 }
 

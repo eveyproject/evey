@@ -1,5 +1,5 @@
 // Canonical list of homepage feed types renderable by the web client.
-// Backend may return additional types (legacy/experimental) — those are
+// Backend may return additional types (legacy/experimental) - those are
 // filtered out of the Customize panel since toggling them has no visual effect.
 
 const KNOWN_FEED_TYPES = [

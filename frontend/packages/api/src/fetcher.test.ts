@@ -99,7 +99,7 @@ describe("eveyFetch", () => {
 
     await expect(eveyFetch({ url: "/api/v1/auth/refresh", method: "POST" })).rejects.toThrow();
     expect(window.dispatchEvent).toHaveBeenCalledWith(expect.any(Event));
-    // Only called once — no retry (URL contains /auth/refresh so skip refresh attempt)
+    // Only called once - no retry (URL contains /auth/refresh so skip refresh attempt)
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -131,7 +131,7 @@ describe("eveyFetch", () => {
   // --- Pre-flight JWT expiry refresh (proactive) ----------------------------
   // mkJwt builds a structurally-valid JWT with a custom exp claim so the
   // pre-flight expiry check (`_ensureFreshToken` → `isJwtExpired`) actually
-  // engages. Signature is bogus — the test only exercises decode logic.
+  // engages. Signature is bogus - the test only exercises decode logic.
   function mkJwt(expSecondsFromNow: number): string {
     const header = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" })).replace(/=/g, "");
     const exp    = Math.floor(Date.now() / 1000) + expSecondsFromNow;
@@ -152,7 +152,7 @@ describe("eveyFetch", () => {
 
     expect(result).toEqual({ data: "ok" });
     expect(updater).toHaveBeenCalledWith("fresh");
-    // Exactly 2 fetches — no 401 detour, refresh happens upfront.
+    // Exactly 2 fetches - no 401 detour, refresh happens upfront.
     expect(fetchMock).toHaveBeenCalledTimes(2);
     // First call must be the refresh, second the actual API call.
     expect(fetchMock.mock.calls[0][0]).toContain("/auth/refresh");
@@ -172,7 +172,7 @@ describe("eveyFetch", () => {
   });
 
   it("does NOT pre-flight refresh before hitting /auth/refresh itself (no double rotation)", async () => {
-    setTokenProvider(() => mkJwt(-30)); // expired — would normally pre-refresh
+    setTokenProvider(() => mkJwt(-30)); // expired - would normally pre-refresh
     fetchMock.mockResolvedValueOnce(mockResponse(200, { accessToken: "rotated" }));
 
     await eveyFetch<{ accessToken: string }>({ url: "/api/v1/auth/refresh", method: "POST" });

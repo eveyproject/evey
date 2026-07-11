@@ -218,7 +218,7 @@ describe("PluginResourceLimits", () => {
     expect(options).toContain("basic");
   });
 
-  // ── Save — payload ────────────────────────────────────────────────────────
+  // ── Save - payload ────────────────────────────────────────────────────────
 
   it("clicking save calls update.mutate with the current field values", () => {
     renderCard();
@@ -267,7 +267,7 @@ describe("PluginResourceLimits", () => {
     expect(screen.getByTestId("rl-save")).not.toBeDisabled();
   });
 
-  // ── Save — side effects ───────────────────────────────────────────────────
+  // ── Save - side effects ───────────────────────────────────────────────────
 
   it("onSuccess invalidates the resource limits query key", async () => {
     renderCard();

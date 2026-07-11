@@ -68,8 +68,8 @@ func TestMediaSegmentRepo_UpsertUnlessManual(t *testing.T) {
 }
 
 // UpsertUnlessOperatorManual is the propagation-path guard: it must atomically
-// skip when the existing row is a hard operator 'manual' mark, but — unlike
-// UpsertUnlessManual — it MUST overwrite a 'manual_propagated' row, so a
+// skip when the existing row is a hard operator 'manual' mark, but - unlike
+// UpsertUnlessManual - it MUST overwrite a 'manual_propagated' row, so a
 // re-run of propagation can refresh its own earlier work.
 func TestMediaSegmentRepo_UpsertUnlessOperatorManual(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
@@ -114,7 +114,7 @@ func TestMediaSegmentRepo_UpsertUnlessOperatorManual(t *testing.T) {
 
 // The bounded, version-gated intro-detection attempt counter: increments at the
 // same algo version, resets on a bump, and exhausts only at the matching version.
-// Exercised through the batch API — ids absent from the returned map are the
+// Exercised through the batch API - ids absent from the returned map are the
 // "not exhausted" case (never attempted, under the cap, or an older version).
 func TestMediaSegmentRepo_IntroDetectionAttempts(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)

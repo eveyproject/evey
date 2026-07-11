@@ -29,11 +29,11 @@ func (p *SoftwareProducer) NotifyClientHint(mediaItemID string, bufferLengthMs i
 		}
 	}
 	p.mu.Unlock()
-	// Resume ONLY the closest-behind session — the one whose window
+	// Resume ONLY the closest-behind session - the one whose window
 	// [startSeg, ∞) actually serves segmentIdx (same selection rule as
 	// findCoveringSessionLocked, applied across the mediaID's hashes).
 	// Resuming every paused sibling let an abandoned unpaced copy session
-	// race back toward EOF and REWRITE the active session's cache files —
+	// race back toward EOF and REWRITE the active session's cache files -
 	// the post-seek starvation hint (empty buffer → CMCD bs=1) was the
 	// trigger of exactly that rewrite storm. lastAccess is still bumped on
 	// all matches so the GC keeps consumed-from-disk sessions warm.
@@ -63,7 +63,7 @@ func (p *SoftwareProducer) resumeIfPaused(s *swSession) {
 	}
 	// Resume the process while still holding s.mu so a concurrent sweepPause /
 	// pauseEach cannot interleave its SIGSTOP between this SIGCONT and the flag
-	// flip and leave the encoder stopped while s.paused reads false — a
+	// flip and leave the encoder stopped while s.paused reads false - a
 	// stuck-paused session no later resume would ever wake. Flip the flag only
 	// on success so a failed Resume keeps s.paused=true for the next retry.
 	if err := s.handle.Resume(); err != nil {
@@ -105,7 +105,7 @@ func (p *SoftwareProducer) pauseEach(sessions []*swSession) {
 // further in) nor OTHER rungs (that is pauseOtherVariants' job). On a box that
 // fits one heavy software transcode, the just-seeked-to position takes the CPU
 // immediately rather than fighting the abandoned encoder for PauseIdleThreshold
-// seconds — the "small buffering after seeking" symptom.
+// seconds - the "small buffering after seeking" symptom.
 func (p *SoftwareProducer) pauseSiblingsBehind(hash string, keep *swSession) {
 	keep.mu.Lock()
 	keepStart := keep.startSeg
@@ -135,7 +135,7 @@ func (p *SoftwareProducer) pauseSiblingsBehind(hash string, keep *swSession) {
 // rather than let it run a second full 4K decode against the new rung for up to
 // PauseIdleThreshold seconds (the level-switch famine window the thrash review
 // flagged). A rung a genuine co-viewer still consumes resumes on its next
-// request. Pause, not kill — the distinct-variant cap reclaims the slot.
+// request. Pause, not kill - the distinct-variant cap reclaims the slot.
 func (p *SoftwareProducer) pauseOtherVariants(hash string, keep *swSession) {
 	keep.mu.Lock()
 	keepVariant := keep.variantIdx
@@ -187,7 +187,7 @@ func (p *SoftwareProducer) sweepPause() {
 		s.paused = true
 		s.pausedSince = time.Now()
 		s.mu.Unlock()
-		p.logger.Debug("software: ffmpeg suspended — client idle", slog.String("hash", hash))
+		p.logger.Debug("software: ffmpeg suspended - client idle", slog.String("hash", hash))
 	}
 }
 

@@ -29,7 +29,7 @@ func makeFakeProbeScript(t *testing.T, duration float64) string {
 // sprite-counting loop in Generate finds at least one file.
 //
 // Also emits stderr lines mimicking the showinfo filter so the timestamp
-// parser has something to consume — without these, Generate fails on
+// parser has something to consume - without these, Generate fails on
 // "no timestamps captured from showinfo".
 func makeFakeFfmpegScript(t *testing.T) string {
 	t.Helper()

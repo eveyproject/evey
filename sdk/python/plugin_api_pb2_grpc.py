@@ -464,7 +464,7 @@ class HostServiceServicer:
         raise NotImplementedError('Method not implemented!')
 
     def GetData(self, request, context):
-        """Data store — the plugin's own persistent key/value namespace (plugin-global
+        """Data store - the plugin's own persistent key/value namespace (plugin-global
         scope). Rows live in plugin_data and are wiped when the plugin is
         uninstalled. No special permission required: a plugin owns its own data.
         """
@@ -491,7 +491,7 @@ class HostServiceServicer:
         raise NotImplementedError('Method not implemented!')
 
     def Fetch(self, request, context):
-        """Network — brokered outbound HTTP(S) fetch. Plugins have no direct network
+        """Network - brokered outbound HTTP(S) fetch. Plugins have no direct network
         access (the sandbox unshares the net namespace); all egress is mediated
         here so the host can enforce the plugin's external_fetch allow-list AND an
         SSRF-safe dialer (rejects private/reserved IPs after DNS resolution).

@@ -15,7 +15,7 @@ import (
 )
 
 // configKeyArtworkAutoDownload toggles fire-and-forget artwork download on
-// scan-time metadata enrichment. Default is ON — without this 99% of users
+// scan-time metadata enrichment. Default is ON - without this 99% of users
 // see broken posters after a scan because the metadata enricher creates
 // artwork rows with external source URLs but never fetches them, and the
 // browser refuses to display cross-origin images via Opaque Response
@@ -94,7 +94,7 @@ func registerArtworkAdminRoutes(
 		}
 	}))
 
-	// POST /api/v1/admin/artworks/download-all — starts background bulk download.
+	// POST /api/v1/admin/artworks/download-all - starts background bulk download.
 	// Returns immediately with jobId + totalToDownload.
 	mux.HandleFunc("POST /api/v1/admin/artworks/download-all", admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkDownloadAll")
@@ -119,7 +119,7 @@ func registerArtworkAdminRoutes(
 		}
 	}))
 
-	// POST /api/v1/admin/artworks/retry-missing — one-shot best-effort retry
+	// POST /api/v1/admin/artworks/retry-missing - one-shot best-effort retry
 	// of artwork rows that still don't have a LocalPath. Same logic as the
 	// hourly RetryMissingArtworksLoop, exposed as an explicit admin button
 	// for when an operator just toggled auto-download back on or fixed a
@@ -148,7 +148,7 @@ func registerArtworkAdminRoutes(
 		}
 	}))
 
-	// POST /api/v1/admin/artworks/backfill-blurhashes — recompute placeholder
+	// POST /api/v1/admin/artworks/backfill-blurhashes - recompute placeholder
 	// hashes for every artwork row that has a LocalPath on disk but no
 	// blurhash. Lets admins retro-fit the field onto artworks ingested before
 	// migration 000095 without re-downloading. Runs synchronously: decode is
@@ -175,7 +175,7 @@ func registerArtworkAdminRoutes(
 		}
 	}))
 
-	// POST /api/v1/admin/artworks/purge-variants — delete 0-byte resized
+	// POST /api/v1/admin/artworks/purge-variants - delete 0-byte resized
 	// variants (<base>_w<width>.webp) left behind by failed/timed-out resizes.
 	// The serving path auto-regenerates these on demand, so this is an explicit
 	// bulk-clear button for operators rather than a correctness requirement.
@@ -199,7 +199,7 @@ func registerArtworkAdminRoutes(
 		}
 	}))
 
-	// GET /api/v1/admin/artworks/download-all/{jobId} — poll job progress.
+	// GET /api/v1/admin/artworks/download-all/{jobId} - poll job progress.
 	mux.HandleFunc("GET /api/v1/admin/artworks/download-all/{jobId}", admin(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.admin.ArtworkDownloadAllStatus")
 		defer span.End()

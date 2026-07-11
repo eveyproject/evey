@@ -416,7 +416,7 @@ func TestAdminSetupWizard(t *testing.T) {
 
 func TestAdminSetupWizard_PostSetupRejected(t *testing.T) {
 	d := newTestSystemHandler()
-	// First setup — legitimate.
+	// First setup - legitimate.
 	if _, err := d.SetupWizard(context.Background(), &eveyv1.SetupWizardRequest{
 		AdminUsername: "admin",
 		AdminPassword: "password123",
@@ -437,7 +437,7 @@ func TestAdminSetupWizard_PostSetupRejected(t *testing.T) {
 		ServerRegion:   "attacker-region",
 	})
 	if err == nil {
-		t.Fatal("expected error — setup already done")
+		t.Fatal("expected error - setup already done")
 	}
 	if code := status.Code(err); code != codes.AlreadyExists {
 		t.Fatalf("expected AlreadyExists, got %v", code)

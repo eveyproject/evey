@@ -15,7 +15,7 @@ import (
 
 // detectSeason must page through the WHOLE season, not just the first page. A long
 // single-season (anime, daily soaps) with >100 episodes would otherwise leave the
-// later episodes without intro markers — detectSeason is the only detection path
+// later episodes without intro markers - detectSeason is the only detection path
 // (MediaItemAdded schedules the season, not individual episodes).
 func TestDetectSeason_PaginatesAllEpisodes(t *testing.T) {
 	t.Parallel()
@@ -49,7 +49,7 @@ func TestDetectSeason_PaginatesAllEpisodes(t *testing.T) {
 
 // detectSeason runs DetectIntro on each episode that doesn't already have a
 // "good" intro. With the fix, segments authored by mkv_chapter / tidb /
-// introdb count as good — re-running pHash + Chromaprint on those would
+// introdb count as good - re-running pHash + Chromaprint on those would
 // burn CPU just to rediscover the same answer (or worse, replace it with
 // a noisier heuristic answer).
 //
@@ -104,7 +104,7 @@ func TestDetectSeason_SkipsTIDBCoveredEpisode(t *testing.T) {
 }
 
 // An episode with NO segments but whose attempt counter is at the cap for the
-// CURRENT algo version must be skipped — re-decoding it (a full 4K HEVC decode)
+// CURRENT algo version must be skipped - re-decoding it (a full 4K HEVC decode)
 // would land on the same empty answer. Skipping before DetectIntro means no new
 // attempt is recorded, so the counter is unchanged.
 func TestDetectSeason_SkipsExhaustedEpisode(t *testing.T) {
@@ -126,7 +126,7 @@ func TestDetectSeason_SkipsExhaustedEpisode(t *testing.T) {
 
 	assert.Equal(t, int32(0), detector.calls.Load(), "detector must not run for an exhausted episode")
 	assert.Equal(t, maxIntroDetectionAttempts, segmentRepo.attempts[epID].count,
-		"a skipped episode records no new attempt — the counter is unchanged")
+		"a skipped episode records no new attempt - the counter is unchanged")
 }
 
 func TestDetectSeason_SkipsMKVChapterCovered(t *testing.T) {
@@ -147,7 +147,7 @@ func TestDetectSeason_SkipsMKVChapterCovered(t *testing.T) {
 		"detector must not be called when an MKV chapter authored the intro")
 }
 
-// Audio-fallback intros are explicitly NOT considered good — they're a
+// Audio-fallback intros are explicitly NOT considered good - they're a
 // last-resort heuristic, so a future TIDB/IntroDB hit should be allowed
 // to replace them. We pin the contract by reading hasGoodIntro logic
 // indirectly: the test below would need detectSeason to *enter*
@@ -160,7 +160,7 @@ func TestDetectSeason_SkipsMKVChapterCovered(t *testing.T) {
 // returns ErrNotFound before reaching the detector. Instead we use a
 // synchronous run of the same skip-decision predicate by re-implementing
 // it inline as a regression contract. If anyone changes hasGoodIntro in
-// the production code, this constant list must follow — that's the
+// the production code, this constant list must follow - that's the
 // point of the test.
 func TestSkipDecision_AudioFallbackIsNotGood(t *testing.T) {
 	t.Parallel()
@@ -172,9 +172,9 @@ func TestSkipDecision_AudioFallbackIsNotGood(t *testing.T) {
 		{"tidb", true},
 		{"introdb", true},
 		{"phash", true},
-		{"audio", false},      // re-detection allowed: heuristic
+		{"audio", false},       // re-detection allowed: heuristic
 		{"blackdetect", false}, // re-detection allowed: heuristic
-		{"manual", true},      // sticky via the manualLocked branch (different code path)
+		{"manual", true},       // sticky via the manualLocked branch (different code path)
 	}
 	for _, c := range cases {
 		t.Run(c.source, func(t *testing.T) {

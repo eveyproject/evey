@@ -122,14 +122,14 @@ func TestAudioTranscode_NoDefaultTrack_JudgesFirst(t *testing.T) {
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
-	assert.Equal(t, "transcode", d.AudioDecision, "first (served) audio track is DTS — judge it, don't copy raw")
+	assert.Equal(t, "transcode", d.AudioDecision, "first (served) audio track is DTS - judge it, don't copy raw")
 	assert.Contains(t, d.TranscodeReasons, "audio_codec_unsupported")
 	assert.Equal(t, "aac", d.AudioCodec)
 }
 
 // A default track exists (AAC, second stream): it is served, not the first (DTS).
 // The decision must judge the default, so a supported default copies even though
-// an earlier track is unsupported — the fix must not over-transcode.
+// an earlier track is unsupported - the fix must not over-transcode.
 func TestAudioCopy_DefaultTrackPreferredOverFirst(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
@@ -138,7 +138,7 @@ func TestAudioCopy_DefaultTrackPreferredOverFirst(t *testing.T) {
 	}
 	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0)
 
-	assert.Equal(t, "copy", d.AudioDecision, "default AAC track is served and supported — copy, ignore the earlier DTS")
+	assert.Equal(t, "copy", d.AudioDecision, "default AAC track is served and supported - copy, ignore the earlier DTS")
 }
 
 func TestBitrateCap(t *testing.T) {
@@ -267,7 +267,7 @@ func TestHDR_FromColorSpace_HDRClient_DirectPlay(t *testing.T) {
 }
 
 // Dolby Vision profile 5 carries a PQ transfer like plain HDR10, but its
-// IPTC2 base layer renders green/purple outside a DoVi pipeline — the DoVi
+// IPTC2 base layer renders green/purple outside a DoVi pipeline - the DoVi
 // configuration record (probed side data) must force the transcode even for
 // an HDR-capable client.
 func TestHDR_DoViProfile5_HDRClient_StillTranscode(t *testing.T) {
@@ -337,7 +337,7 @@ func TestSubtitleBurnIn_DVDSub(t *testing.T) {
 
 // The core of the gate-on-selection fix: a title that merely CARRIES a bitmap
 // subtitle, played with none selected (the -1 default), must keep its copy rung
-// — not be needlessly transcoded. This is what recovers ~20% of a Blu-ray-rip
+// - not be needlessly transcoded. This is what recovers ~20% of a Blu-ray-rip
 // library for remux.
 func TestSubtitleBitmap_NotSelected_StaysCopy(t *testing.T) {
 	streams := []*library.MediaStream{
@@ -456,7 +456,7 @@ func TestHDRClient_DirectPlay(t *testing.T) {
 	assert.Empty(t, d.TranscodeReasons)
 }
 
-// Target video: "Seize ans" (03451ca1) — HEVC + EAC3, MKV container
+// Target video: "Seize ans" (03451ca1) - HEVC + EAC3, MKV container
 
 func hevcEac3Streams() []*library.MediaStream {
 	return []*library.MediaStream{
@@ -564,8 +564,8 @@ func TestAudioDecision_SelectedTrackWins(t *testing.T) {
 	assert.Equal(t, "transcode", d.AudioDecision, "default-flag track (DTS) judged when nothing is selected")
 }
 
-// A multichannel source that must transcode (DTS) targets its real layout —
-// capped at 5.1 and by client/profile prefs — instead of the historical
+// A multichannel source that must transcode (DTS) targets its real layout -
+// capped at 5.1 and by client/profile prefs - instead of the historical
 // silent stereo downmix. Stereo sources keep MaxAudioChannels untouched so
 // their cache hash (and bytes) are unchanged.
 func TestAudioChannelTarget(t *testing.T) {
@@ -610,10 +610,10 @@ func TestAudioChannelTarget(t *testing.T) {
 func TestSelectedAudioSpec_SkipsCommentaryDefault(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
-		// Commentary track marked as default — should NOT be auto-selected when a
+		// Commentary track marked as default - should NOT be auto-selected when a
 		// non-commentary alternative exists.
 		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true, Commentary: true},
-		// Non-commentary track — should be preferred by auto-selection.
+		// Non-commentary track - should be preferred by auto-selection.
 		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: false, Commentary: false},
 	}
 	prefs := apptranscode.DefaultTranscodingPreferences()
@@ -640,7 +640,7 @@ func TestSelectedAudioSpec_OnlyCommentaryKeptWhenNoAlternative(t *testing.T) {
 func TestSelectedAudioSpec_ExplicitAudioTrackHonorsCommentary(t *testing.T) {
 	streams := []*library.MediaStream{
 		{StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
-		// Track 0 (audio-relative): commentary DTS — user explicitly selects this.
+		// Track 0 (audio-relative): commentary DTS - user explicitly selects this.
 		{StreamType: "audio", Codec: "dts", Channels: new(6), IsDefault: true, Commentary: true},
 		// Track 1: non-commentary AAC.
 		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: false},

@@ -61,7 +61,7 @@ func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAu
 		return nil, internalError("get audit log", err)
 	}
 	// Real total across all matching rows (a COUNT), so the client can paginate
-	// past the first page — Total used to be len(entries), i.e. the page size.
+	// past the first page - Total used to be len(entries), i.e. the page size.
 	total, err := d.activitySvc.CountAuditLog(ctx, filter)
 	if err != nil {
 		span.RecordError(err)
@@ -136,7 +136,7 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 		return nil, status.Error(codes.NotFound, "session not found")
 	}
 	// Send stop command so the player closes gracefully. This stops the
-	// PLAYBACK session only — it deliberately does NOT revoke the owner's auth
+	// PLAYBACK session only - it deliberately does NOT revoke the owner's auth
 	// tokens. An admin stopping a stream (free a transcode slot, end a forgotten
 	// session) must not sign the user out of the app; banning a user is a
 	// separate action (DisableUser, which bumps the token epoch).

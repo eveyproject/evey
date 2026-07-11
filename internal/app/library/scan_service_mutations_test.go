@@ -144,7 +144,7 @@ func TestScanService_MovedFile_DetectedByFingerprint(t *testing.T) {
 }
 
 // A distinct file in another library that happens to share the size+mtime
-// fingerprint must NOT repoint the other library's item — it's created fresh.
+// fingerprint must NOT repoint the other library's item - it's created fresh.
 func TestScanService_CrossLibraryFingerprintCollision_NoRepoint(t *testing.T) {
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-a", Type: "movie", Paths: []string{"/a"}})
@@ -170,7 +170,7 @@ func TestScanService_CrossLibraryFingerprintCollision_NoRepoint(t *testing.T) {
 }
 
 // A same-library size+mtime fingerprint collision where the original file is
-// STILL on disk must NOT repoint the existing item — the files are distinct, so
+// STILL on disk must NOT repoint the existing item - the files are distinct, so
 // a new item is created (the prior code repointed and the original vanished).
 func TestScanService_SameLibCollision_OldFilePresent_NoRepoint(t *testing.T) {
 	h := newScanHarness()
@@ -205,7 +205,7 @@ func TestScanService_SameLibCollision_OldFilePresent_NoRepoint(t *testing.T) {
 }
 
 func TestScanService_MovedFile_EmptyFingerprintNotMoved(t *testing.T) {
-	// Target 210:49 `f.Fingerprint != ""` — empty fingerprint must NOT trigger moved path.
+	// Target 210:49 `f.Fingerprint != ""` - empty fingerprint must NOT trigger moved path.
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
@@ -623,8 +623,8 @@ func TestScanService_ChangedItem_SearchIndexErrorLogged(t *testing.T) {
 }
 
 // --- scan_service.go:430 changed + overview empty → publish re-add event ---
-// boundary: len(seriesTitle) > 0 — movie scan passes no seriesTitle, so len==0.
-// Negated (`<= 0`) makes condition always true; else always false — but behaviour same.
+// boundary: len(seriesTitle) > 0 - movie scan passes no seriesTitle, so len==0.
+// Negated (`<= 0`) makes condition always true; else always false - but behaviour same.
 // Observable: confirm MediaItemAdded event fires on changed+empty overview.
 
 func TestScanService_ChangedItem_EmptyOverviewTriggersReAddEvent(t *testing.T) {
@@ -959,7 +959,7 @@ func TestScanService_Publish_DetachedFromScanCtx(t *testing.T) {
 
 	// Hard worst case: the caller-supplied ctx is already cancelled when the
 	// scan starts. Production fakes ignore ctx so the body still reaches each
-	// Publish — we then assert each Publish receives a non-cancelled ctx.
+	// Publish - we then assert each Publish receives a non-cancelled ctx.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -969,7 +969,7 @@ func TestScanService_Publish_DetachedFromScanCtx(t *testing.T) {
 	require.NotEmpty(t, ctxs, "scan must reach at least one events.Publish call")
 	for i, c := range ctxs {
 		assert.NoError(t, c.Err(),
-			"Publish #%d (event %s) leaked the cancelled scan ctx — bus would drop it in prod",
+			"Publish #%d (event %s) leaked the cancelled scan ctx - bus would drop it in prod",
 			i, h.bus.PublishedEvents()[i].EventName())
 	}
 }
@@ -1008,7 +1008,7 @@ func TestScanService_HealOrphanTitles_RewritesDirtyOrphan(t *testing.T) {
 }
 
 // Guard: TMDB-matched item (has provider IDs) must NOT be processed by
-// the heal pass — the MissingProviderIDs filter must hold.
+// the heal pass - the MissingProviderIDs filter must hold.
 func TestScanService_HealOrphanTitles_SkipsMatchedItem(t *testing.T) {
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
@@ -1036,7 +1036,7 @@ func TestScanService_HealOrphanTitles_SkipsMatchedItem(t *testing.T) {
 }
 
 // Guard: orphan whose Title was edited via SetMetadataOverride propagation
-// (Title != ScanTitle, no provider IDs yet) must also be skipped — the
+// (Title != ScanTitle, no provider IDs yet) must also be skipped - the
 // user's manual cleanup wins over a parser re-derivation.
 func TestScanService_HealOrphanTitles_SkipsUserEditedOrphan(t *testing.T) {
 	h := newScanHarness()
@@ -1046,7 +1046,7 @@ func TestScanService_HealOrphanTitles_SkipsUserEditedOrphan(t *testing.T) {
 	h.media.Create(context.Background(), &library.MediaItem{
 		ID:        "orph-2",
 		LibraryID: "lib-1",
-		Title:     "User's Custom Cleanup",      // propagated via override hook
+		Title:     "User's Custom Cleanup",       // propagated via override hook
 		ScanTitle: "Original Polluted Title 720", // pristine parser-pollution
 		File:      &library.MediaFile{Path: "/m/edit.mkv", Size: 100, Fingerprint: "fp", ModTime: now},
 	})
@@ -1077,8 +1077,8 @@ func TestScanService_HealOrphanTitles_FinishesHalfHealedRow(t *testing.T) {
 	h.media.Create(context.Background(), &library.MediaItem{
 		ID:        "half-1",
 		LibraryID: "lib-1",
-		Title:     "Die hard 2",        // already healed
-		ScanTitle: "Die hard 2 2016P",  // stuck because Update didn't persist
+		Title:     "Die hard 2",       // already healed
+		ScanTitle: "Die hard 2 2016P", // stuck because Update didn't persist
 		File:      &library.MediaFile{Path: "/m/dh2.mkv", Size: 100, Fingerprint: "fp", ModTime: now},
 	})
 	h.scanner.ParsedTitles["/m/dh2.mkv"] = "Die hard 2"
@@ -1121,8 +1121,6 @@ func TestScanService_HealOrphanTitles_NoDriftNoUpdate(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Clean Title", got.Title)
 }
-
-
 
 // A file indexed while its probe yielded no streams gets StreamProbeAttempts=1,
 // then a later scan re-probes it and heals once the probe succeeds.

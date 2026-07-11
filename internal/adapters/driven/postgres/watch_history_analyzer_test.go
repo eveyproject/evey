@@ -31,12 +31,12 @@ func TestWatchHistoryAnalyzer_GetFavoriteGenres(t *testing.T) {
 	lib := newTestLibrary("whalib1")
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	// item1: Action genre — watched 3 times
+	// item1: Action genre - watched 3 times
 	item1 := newTestMediaItem("whami1a", lib.ID)
 	item1.Catalog.Genres = []string{"Action"}
 	require.NoError(t, itemRepo.Create(ctx, item1))
 
-	// item2: Drama genre — watched 1 time
+	// item2: Drama genre - watched 1 time
 	item2 := newTestMediaItem("whami1b", lib.ID)
 	item2.Catalog.Genres = []string{"Drama"}
 	require.NoError(t, itemRepo.Create(ctx, item2))

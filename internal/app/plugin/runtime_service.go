@@ -69,7 +69,7 @@ func (s *RuntimeService) StartPlugin(ctx context.Context, id string) error {
 	// A freshly-installed non-theme plugin is already spawned by the installer
 	// (status → Initializing) and is connecting to the host socket. Starting it
 	// again here would spawn a SECOND process; the first one then fails the
-	// SO_PEERCRED PID auth ("PID mismatch — possible spoofing attempt") because
+	// SO_PEERCRED PID auth ("PID mismatch - possible spoofing attempt") because
 	// SetExpectedPID was re-armed with the second PID. Treat Initializing as
 	// already-started so an enable-after-install is a no-op, not a double-spawn.
 	if p.Status == plugin.Running || p.Status == plugin.Initializing {
@@ -134,7 +134,7 @@ func (s *RuntimeService) StopPlugin(ctx context.Context, id string) error {
 }
 
 // RestartRunningPlugins bounces every currently-running (non-theme) plugin so a
-// changed start-time setting — chiefly the sandbox mode — takes effect now
+// changed start-time setting - chiefly the sandbox mode - takes effect now
 // instead of lazily on the next manual restart. Best-effort and fire-and-forget:
 // a plugin that fails to start under the new mode is left in Error status
 // (visible in the dashboard), so the admin can revert the setting.
@@ -164,7 +164,7 @@ func (s *RuntimeService) RestartRunningPlugins(ctx context.Context) {
 
 // EnablePlugin marks the plugin enabled and (for non-theme plugins) starts
 // the runner. Without the runner.Start call the plugin remained Stopped after
-// re-enabling — matching DB state but not actually serving traffic.
+// re-enabling - matching DB state but not actually serving traffic.
 func (s *RuntimeService) EnablePlugin(ctx context.Context, id string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.plugin.EnablePlugin")
 	defer span.End()
@@ -180,7 +180,7 @@ func (s *RuntimeService) EnablePlugin(ctx context.Context, id string) error {
 	if p.Status == plugin.Running {
 		return nil
 	}
-	// Themes are "running" without a runner — flip the status so the UI
+	// Themes are "running" without a runner - flip the status so the UI
 	// reflects that the theme is active.
 	if p.IsTheme() {
 		p.Status = plugin.Running

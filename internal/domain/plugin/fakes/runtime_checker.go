@@ -16,7 +16,7 @@ type RuntimeChecker struct {
 }
 
 // NewRuntimeChecker returns a fake that reports the given languages as
-// available. Pass no arguments for a checker that reports nothing — useful
+// available. Pass no arguments for a checker that reports nothing - useful
 // for asserting installer fails fast on missing runtime.
 func NewRuntimeChecker(langs ...string) *RuntimeChecker {
 	cp := append([]string(nil), langs...)

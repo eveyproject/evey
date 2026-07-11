@@ -89,7 +89,7 @@ import (
 //
 // All other domain events (user.*, playback.*, transcode.*, plugin.*, rating.*,
 // activity.*, music.*, photo.*, mkv.*, metadata.*) are published but have no
-// bus subscribers — they are consumed by the webhook "*" catch-all only.
+// bus subscribers - they are consumed by the webhook "*" catch-all only.
 
 // infraDeps holds infrastructure adapters and low-level dependencies shared across app services.
 type infraDeps struct {
@@ -204,7 +204,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	omdbProvider := metadataadapter.NewOMDbProvider(omdbKey, metadataHTTP)
 	// nil → the downloader builds its own ssrf.SafeHTTPClient. Artwork URLs come
 	// from provider/plugin responses (e.g. OMDb's Poster passthrough), which are
-	// untrusted in Evey's threat model — they must not reach a plain client that
+	// untrusted in Evey's threat model - they must not reach a plain client that
 	// can hit loopback/link-local. The host-pinned API providers keep metadataHTTP.
 	artworkDownloader := metadataadapter.NewArtworkHTTPDownloader(nil)
 	personFetcher := metadataadapter.NewTMDBPersonFetcher(tmdbProvider)
@@ -228,7 +228,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		if err := refuseDevModeInProd(os.Getenv("EVEY_ENV")); err != nil {
 			return nil, err
 		}
-		slog.Warn("SECURITY WARNING: plugin sandbox bypass is ENABLED — " +
+		slog.Warn("SECURITY WARNING: plugin sandbox bypass is ENABLED - " +
 			"DevMode=true must NEVER be set in production; " +
 			"plugins without the 'subprocess' permission will start unsandboxed")
 	}
@@ -265,12 +265,12 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 
 	// Secret for deriving per-media AES-128 HLS keys (on-demand encryption,
 	// opt-in). Bootstrapped next to the JWT key, same first-run model. A
-	// corrupt/unreadable secret must NOT block boot — encryption is an optional
+	// corrupt/unreadable secret must NOT block boot - encryption is an optional
 	// hardening, so degrade to "encryption unavailable" (the handler requires a
 	// non-empty secret) and let the operator repair the file.
 	hlsAESSecret, secErr := auth.LoadOrGenerateSecret(filepath.Join(filepath.Dir(cfg.JWT.PrivateKeyPath), "hls_aes.key"), 32)
 	if secErr != nil {
-		slog.Error("hls aes secret unavailable — on-demand HLS encryption disabled until the file is repaired or removed",
+		slog.Error("hls aes secret unavailable - on-demand HLS encryption disabled until the file is repaired or removed",
 			slog.Any("err", secErr))
 		hlsAESSecret = nil
 	}
@@ -335,7 +335,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	// Plugin resource caps: overlay any admin overrides (server_config) on the
 	// env/boot defaults and push them into the runner. Applied at boot (saved
-	// overrides take effect immediately) and live on every plugins.* change —
+	// overrides take effect immediately) and live on every plugins.* change -
 	// memory/PID/disk on the next monitor sweep, nice/sandbox on the next plugin
 	// start. An absent/invalid row falls back to the default, never blocking.
 	pluginResDefaults := appplugin.ResourceDefaults{
@@ -356,7 +356,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// (no ffprobe fork, head-only read), falling back to ffprobe for anything it
 	// cannot render field-equivalent (unknown codec, HDR/DoVi ground truth, parse
 	// panic). Validated field-equivalent against ffprobe on the real library, so it
-	// is always on — there is no scenario where disabling it helps (the fallback is
+	// is always on - there is no scenario where disabling it helps (the fallback is
 	// the safety net), hence no toggle/env. nil gates == always on.
 	scanProber := proberpkg.New(infra.prober, nil, nil)
 
@@ -452,7 +452,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	// Buffer player-tick progress writes so the (~5s) hot path skips DB I/O.
 	// Periodic flusher upserts the latest state per (profile, media). On
-	// crash up to one flush interval of progress is lost — acceptable for a
+	// crash up to one flush interval of progress is lost - acceptable for a
 	// self-hosted single instance per the backlog tradeoff.
 	progressBuffer := appplayback.NewWatchProgressBuffer(r.WatchProgress, appplayback.DefaultWatchProgressFlushInterval)
 	// Wire the cached media-item lookup into ReportProgressBySession so it
@@ -501,7 +501,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appmetadata.EnricherWithPersonFetcher(infra.personFetcher),
 		appmetadata.EnricherWithOverrides(r.MetadataOverride),
 		// Item update + artwork replace + cast upsert commit or roll back
-		// together — a mid-enrichment failure no longer strands the item with a
+		// together - a mid-enrichment failure no longer strands the item with a
 		// fresh title but no artwork/cast (unrepairable except by a manual
 		// "Refresh metadata", since the re-scan trigger keys on empty Overview).
 		appmetadata.EnricherWithUnitOfWork(postgres.NewTxUnit(db)),
@@ -513,7 +513,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Fire the artwork auto-download the moment the enricher persists a new record
 	// (no-op unless the admin toggle artwork.auto_download is on, checked inside
 	// maybeAutoDownload). Set here rather than as a NewEnricher option because
-	// metadataCmdSvc is built WITH the enricher — the hook back-reference only
+	// metadataCmdSvc is built WITH the enricher - the hook back-reference only
 	// exists once both do.
 	enricher.SetArtworkPostSaveHook(metadataCmdSvc.ArtworkAutoDownloadHook())
 
@@ -654,8 +654,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist, r.MediaItemQuery)
 	playlistSvc.WithMusicTrackChecker(musicTrackCheckerAdapter{repo: r.MusicTrack})
 	// AddItem resolves the media item (for its library) and gates it on the
-	// acting profile's library access, so a profile cannot add — and then read
-	// the metadata of — media from a library it has no access to.
+	// acting profile's library access, so a profile cannot add - and then read
+	// the metadata of - media from a library it has no access to.
 	playlistSvc.WithMediaChecker(mediaItemCheckerAdapter{repo: r.MediaItem})
 	playlistSvc.WithLibraryAccessChecker(playlistLibraryAccessAdapter{profiles: r.Profile, access: r.LibraryAccess})
 	playlistGenSvc := appplaylist.NewGeneratorService(r.MusicTrack, r.MusicPlay, r.Playlist, r.PlaylistItem)
@@ -704,7 +704,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}, slog.Default())
 	// Inline SourceResolver: the orchestrator hands a DecisionFingerprint
 	// back, we look up the media item via the library query service. Streams
-	// are filled in later (Phase 3 follow-up) — Phase 1+2 only need the path.
+	// are filled in later (Phase 3 follow-up) - Phase 1+2 only need the path.
 	sourceResolver := apptranscoding.SourceResolverFunc(func(ctx context.Context, fp apptranscoding.DecisionFingerprint) (string, []apptranscoding.SourceStream, error) {
 		item, err := libQuerySvc.GetMediaItem(ctx, fp.MediaID)
 		if err != nil {
@@ -824,7 +824,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// gated by library.ingest_serving_plan (off | plan | plan+repair).
 	libCmdSvc.WithIngestPlanning(r.ServerCfg, infra.mkvAdapter, r.ServingPlan, infra.mkvAdapter)
 	libCmdSvc.WithIngestActivePlayback(hlsVODRemover.ActiveSessionCount)
-	// Trickplay generation throttles while any stream is live — feed it the
+	// Trickplay generation throttles while any stream is live - feed it the
 	// fan-out selector so SOFTWARE streams also hold it off, not just HW ones (a
 	// weak NAS must not burn CPU on trickplay during an SW transcode).
 	libCmdSvc.SetTrickplayActiveStreamChecker(hlsVODRemover)
@@ -840,7 +840,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Per-title complexity classifier: background worker samples 30 frames
 	// per file, computes YDEV + scenecut metrics, maps to a content class
 	// stored on media_items. profilesForDecision reads it at manifest time
-	// to pick the appropriate ABR ladder. Repo nil-safe across the path —
+	// to pick the appropriate ABR ladder. Repo nil-safe across the path -
 	// unclassified items keep getting LadderFilmNormal.
 	complexityRepo := postgres.NewMediaComplexityRepo(db)
 	complexityClassifier := ffmpeg.NewComplexityClassifier("ffmpeg", "ffprobe")
@@ -851,7 +851,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// the 4K rung on Raspberry Pi would lock the multi-variant ffmpeg
 	// pipeline below realtime and seg 0 would never land in time.
 	//
-	// Bench is blocking on first boot (~20 s) — the safe 720p fallback
+	// Bench is blocking on first boot (~20 s) - the safe 720p fallback
 	// in the service constructor keeps requests served until it returns.
 	// Persisted across restarts via server_settings + CPU signature
 	// invalidation, so the 20 s only hits once per host lifetime.
@@ -861,7 +861,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// override, else env) wins; otherwise derive it from the legacy
 	// HWAccelEnabled + HWBackend knobs. We read the persisted overrides DIRECTLY
 	// here because the calibration service is built before main's loadOverride
-	// pass — without this, an admin's saved mode would be ignored until they
+	// pass - without this, an admin's saved mode would be ignored until they
 	// re-set it. Calibration honours the mode (pins/benches the chosen backend,
 	// or software-only on off); the admin panel flips it live via SetHWMode.
 	cfgOverride := func(key string) string {
@@ -879,8 +879,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		hwModeStr = v
 	}
 	hwMode := domaintranscoding.ResolveHWMode(hwModeStr, hwAccelEnabled, cfg.Transcoding.HWBackend)
-	// AV1 software ceiling is admin-settable (server_settings), so — like hw_mode
-	// above — read the persisted override DIRECTLY from the store here: main's
+	// AV1 software ceiling is admin-settable (server_settings), so - like hw_mode
+	// above - read the persisted override DIRECTLY from the store here: main's
 	// loadOverride pass that hydrates cfg.Transcoding.SoftwareAV1MaxHeightOverride
 	// runs AFTER this, so trusting the cfg field would always seed 0 and the
 	// admin's saved ceiling would be lost on every restart.
@@ -917,7 +917,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Yield ALL background analysis ffmpeg (intro detection, complexity sampling,
 	// chromaprint) to real work: each SIGSTOPs itself while a playback/transcode
 	// session is live OR a recalibration is running, and resumes when the box is
-	// idle — CPU/memory-bandwidth/I/O go to what matters, the decode keeps its
+	// idle - CPU/memory-bandwidth/I/O go to what matters, the decode keeps its
 	// progress (no re-run).
 	isBusy := func() bool {
 		return hlsVODRemover.ActiveSessionCount() > 0 || calibrationSvc.IsBenchmarking()
@@ -1052,7 +1052,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// segments. ON by default since the mkvgo era (2026-07-08 decision): the
 	// probe reads the container's own seek index in milliseconds and even a
 	// cue-less MKV costs a bounded in-process scan, so the historical
-	// ffprobe-era caution (opt-in + ultra-slow pacing) no longer applies —
+	// ffprobe-era caution (opt-in + ultra-slow pacing) no longer applies -
 	// out-of-the-box installs get the copy rung. Opt OUT with
 	// transcoding.keyframe_backfill = off (or EVEY_KEYFRAME_BACKFILL=off);
 	// pacing stays tunable via the server_config keys below. Runs after the
@@ -1070,7 +1070,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	kfProber := proberpkg.NewKeyframeDispatcher(infra.prober, nil, nil)
 	// On-demand keyframe fill at GetStreamInfo: unconditional (unlike the paced
 	// worker) because its budget context caps the attempt at the fast-path cost
-	// — a file the fast-path can't index stays on the worker's slow path.
+	// - a file the fast-path can't index stays on the worker's slow path.
 	keyframeOnDemand := apptranscoding.NewKeyframeOnDemand(r.MediaStream, kfProber, slog.Default()).
 		WithFrameRateAnalyzer(infra.mkvAdapter, r.MediaStream).
 		WithActivePlayback(hlsVODRemover.ActiveSessionCount)
@@ -1158,7 +1158,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// CMCD (CTA-5004) ingest sink. The HTTP handler parses the CMCD query
 	// param on every segment / master / variant fetch and ships an event
 	// here; the buffered worker drains into playback_qoe_events. Phase 1 is
-	// pure observation — no feedback loop yet — so the only failure path we
+	// pure observation - no feedback loop yet - so the only failure path we
 	// care about is "buffer full" which surfaces via metrics + warn logs.
 	qoeStorage := qoeStorageAdapter{repo: postgres.NewPlaybackQoERepo(db)}
 	qoeSink := appqoe.NewBufferedSink(qoeStorage, appqoe.SinkOptions{
@@ -1215,7 +1215,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	}
 
 	// External intro/recap/credits providers (TIDB primary, IntroDB fallback)
-	// run ahead of MKV chapter pass when enabled. Off by default — opt-in
+	// run ahead of MKV chapter pass when enabled. Off by default - opt-in
 	// because they require outbound HTTP. The chain layer caches every
 	// answer in postgres so a typical scan only hits the network once per
 	// episode for the catalog's lifetime.
@@ -1265,12 +1265,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// session is never evicted out from under the player.
 	//
 	// A second standalone CacheEvictor used to run here on cfg.Transcoding.CacheDir
-	// — the PARENT of segments/. It treated segments/, photos/ and
+	// - the PARENT of segments/. It treated segments/, photos/ and
 	// music_album_art/ as three LRU units, so on overflow it would have removed a
 	// whole sibling cache (every photo thumbnail / all album art) or the entire
 	// segments blob at once instead of evicting per-hash. Removed: StartEviction is
 	// the single, correctly-scoped evictor. (The old whole-subdir CacheEvictor,
-	// which evicted by mtime with no pendingRefs guard, was deleted — it would
+	// which evicted by mtime with no pendingRefs guard, was deleted - it would
 	// have evicted a hash mid-write if ever re-wired.)
 
 	return &appDeps{
@@ -1401,7 +1401,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 
 	// Apply any admin DB overrides for the library watcher + periodic scan
 	// BEFORE they start (these settings are consumed here, not re-read later, so
-	// a change takes effect on the next restart — see /admin/server-settings).
+	// a change takes effect on the next restart - see /admin/server-settings).
 	loadOverride(ctx, deps.cfgStore, "library.watcher_enabled", parseBool, &cfg.Library.WatcherEnabled)
 	loadOverride(ctx, deps.cfgStore, "library.periodic_scan_interval", parseDuration, &cfg.Library.PeriodicScanInterval)
 
@@ -1411,7 +1411,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 	deps.library.cmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, nil)
 
 	// One-shot async backfill of media_items.sort_title for rows scanned
-	// before the column was populated. Idempotent — exits cheaply once
+	// before the column was populated. Idempotent - exits cheaply once
 	// every row has a non-empty value. Async so we never block boot on
 	// it; the only consumer (the lib listing keyset cursor) tolerates
 	// a brief window of UUID-sorted results.
@@ -1434,7 +1434,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 		deps.content.metadataCmdSvc.StartEnrichmentWorker(ctx)
 	}
 	// Periodic reconciliation of artwork records that have a SourceURL but
-	// no local file on disk — heals transient CDN/network failures from
+	// no local file on disk - heals transient CDN/network failures from
 	// the initial enrichment burst without admin intervention. Runs
 	// regardless of provider keys: catches up records inserted by any
 	// metadata path (TMDB, OMDb, manual override).
@@ -1442,7 +1442,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 
 	// Live-reload the artwork auto-download flag on server-config change.
 	// Without this the admin toggle would only take effect on next server
-	// restart — defeats the point of having a UI switch.
+	// restart - defeats the point of having a UI switch.
 	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(_ context.Context, e shared.Event) {
 		ev, ok := e.(shared.ServerConfigChanged)
 		if !ok || ev.Key != "artwork.auto_download" {
@@ -1499,7 +1499,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 			// Drain the durable search write-queue: replay writes the engine
 			// rejected while it was down (recorded by the resilient wrapper into the
 			// pending_search_index outbox). This is the PRIMARY drift-prevention path
-			// — no write is lost — so the count-based reconcile above is left only for
+			// - no write is lost - so the count-based reconcile above is left only for
 			// the total-index-loss case it handles well. Runs often and cheap (the
 			// queue is normally empty), so a recovered engine catches up within a
 			// minute. Uses `sa` (the PRIMARY) so a still-down engine surfaces its error
@@ -1532,7 +1532,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 		}
 	}
 
-	// Reconcile the music search index against the DB — same drift as the media
+	// Reconcile the music search index against the DB - same drift as the media
 	// index: the resilient wrapper swallows writes while Meili is down, so a track
 	// added during an outage stays unsearchable. ReconcileTracks rebuilds when the
 	// engine's doc count diverges from the DB track count (this also covers the
@@ -1625,7 +1625,7 @@ func resolveAPIKey(ctx context.Context, cfgRepo shared.ServerConfigRepository, d
 // resolveFlag returns the effective value of an operational (non-secret) flag:
 // a server_config DB row wins, else the process env var, else "". This lets an
 // admin flip the toggle from /admin/server-config instead of editing the
-// container env — a restart is still required, since these flags are read once
+// container env - a restart is still required, since these flags are read once
 // at boot. Both the dotted DB key (canonical) and the raw env-var name are
 // accepted as DB keys, so a row keyed either way takes effect. Unlike
 // resolveAPIKey it does NOT seed the env value back into the DB (nothing to hide
@@ -1637,7 +1637,7 @@ func resolveAPIKey(ctx context.Context, cfgRepo shared.ServerConfigRepository, d
 // the flag exists to rule it out entirely when debugging a wrong-frame report.
 func snapshotFrameExtractor(ctx context.Context, cfgRepo shared.ServerConfigRepository, infra *infraDeps) httpapi.FrameExtractor {
 	if resolveFlag(ctx, cfgRepo, "transcoding.snapshot_fastpath", "EVEY_SNAPSHOT_FASTPATH") == "off" {
-		slog.Info("snapshot: mkvgo keyframe fast path disabled (transcoding.snapshot_fastpath=off) — exact ffmpeg -ss extractor only")
+		slog.Info("snapshot: mkvgo keyframe fast path disabled (transcoding.snapshot_fastpath=off) - exact ffmpeg -ss extractor only")
 		return infra.trickplayGen
 	}
 	return httpapi.NewFastFrameExtractor(infra.mkvAdapter, infra.trickplayGen, infra.trickplayGen)
@@ -1746,7 +1746,7 @@ func (a playlistLibraryAccessAdapter) HasAccessForProfile(ctx context.Context, p
 
 // mediaItemDurationGetter adapts the cached MediaItem query repo to the
 // playback.MediaItemDurationGetter port. Returns 0 when the item has no
-// file (container types) or the file probe never recorded a duration —
+// file (container types) or the file probe never recorded a duration -
 // the playback command service skips auto-completion in that case.
 type mediaItemDurationGetter struct {
 	cache *applibrary.CachedMediaItemQueryRepo

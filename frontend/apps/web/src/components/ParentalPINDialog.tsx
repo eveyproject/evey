@@ -41,7 +41,7 @@ export function ParentalPINDialog({ open, onClose, onVerified, profileId }: Pare
         inputRef.current?.focus();
       }
     } catch {
-      // Request failed (network, 5xx, timeout) — not a wrong-PIN response.
+      // Request failed (network, 5xx, timeout) - not a wrong-PIN response.
       // Wrong-PIN is handled above via result.valid === false.
       setError(t("common.error"));
       setPin("");

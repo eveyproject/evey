@@ -17,7 +17,7 @@ import (
 // on a non-video track, cue times matching no keyframe, video tracks without a
 // DefaultDuration, subtitle blocks without a BlockDuration, AAC without its
 // AudioSpecificConfig. These are exactly what the on-demand HLS copy rung
-// (mp4.PlanHLS) and fast seeking rely on — a file with errors falls back to the
+// (mp4.PlanHLS) and fast seeking rely on - a file with errors falls back to the
 // ffmpeg pipeline instead of stateless packaging. Read-only: it never touches a
 // file; `reindex-no-cue` is the fix for a missing index.
 func adminValidateStreaming(args []string) error {

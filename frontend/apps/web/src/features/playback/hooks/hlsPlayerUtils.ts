@@ -5,7 +5,7 @@ import { getBrowserCapabilities } from "@/utils/codec";
 // computeNativeHLSPreference is the pure decision behind prefersNativeHLS,
 // factored out so every browser can be exercised in a unit test without a real
 // engine. Native HLS (the <video> element's own player) is preferred on Safari
-// (macOS laptops + iOS) — lighter on CPU/battery than hls.js+MSE — and is the
+// (macOS laptops + iOS) - lighter on CPU/battery than hls.js+MSE - and is the
 // only option where MSE is missing (old iOS). Chrome/Firefox/Edge/Android stay
 // on hls.js even when the OS can decode HLS, because that path is the mature one
 // and carries our token refresh / CMCD / ABR control.
@@ -61,7 +61,7 @@ export function appendCodecParams(params: URLSearchParams): void {
   if (caps.audioCodecs.length > 0) params.set("audioCodecs", caps.audioCodecs.join(","));
   if (caps.containers.length > 0) params.set("containers", caps.containers.join(","));
   // HDR display capability: without it the server decision is HDR-blind and
-  // forces a tonemap transcode on every HDR title — even for clients that
+  // forces a tonemap transcode on every HDR title - even for clients that
   // decode HEVC+HDR10 natively (the copy rung). Only sent when true: the
   // server default is SDR (conservative, mirrors the gRPC supportsHdr param).
   if (caps.hdr) params.set("hdr", "1");
@@ -87,7 +87,7 @@ export function buildTranscodeHlsUrl(
   appendCodecParams(params);
   // VOD pipeline: server precomputes the manifest from the known media
   // duration so hls.js sees a complete VOD stream from t=0 and never
-  // live-edge-snaps. startSec is harmless here — server ignores it and the
+  // live-edge-snaps. startSec is harmless here - server ignores it and the
   // client seeks via video.currentTime.
   return `/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
@@ -137,7 +137,7 @@ function matchLang(
 //   4. isDefault flag
 //   5. First available stream
 //
-// For steps 2–3 we iterate the ordered list and return the first stream that
+// For steps 2-3 we iterate the ordered list and return the first stream that
 // is actually present in the file, so missing languages are silently skipped.
 export function resolveDefaultAudio(
   audioStreams: { index: number; trackIndex: number; language?: string; title?: string; isDefault?: boolean }[],
@@ -161,7 +161,7 @@ export function resolveDefaultAudio(
     if (match) return match;
   }
 
-  // 3. Profile preferred langs — ordered list, skip codes absent in the file.
+  // 3. Profile preferred langs - ordered list, skip codes absent in the file.
   if (profileAudioLangs) {
     for (const lang of profileAudioLangs) {
       if (!lang) continue;
@@ -175,7 +175,7 @@ export function resolveDefaultAudio(
 }
 
 // resolveDefaultSubtitle picks the best matching subtitle track. Resolution order:
-//   1. Per-series override (localStorage) — null means "disabled"
+//   1. Per-series override (localStorage) - null means "disabled"
 //   2. Profile preferred subtitle langs (ordered list from profile.preferences)
 //   3. Profile locale fallback (from profileLangFallbacks)
 //   4. No subtitle (null)
@@ -193,7 +193,7 @@ export function resolveDefaultSubtitle(
   profileSubtitleLangs?: string[],
   resolvedAudioLang?: string,
 ): number | null {
-  // 1. Per-series override — null means user explicitly disabled subs.
+  // 1. Per-series override - null means user explicitly disabled subs.
   const seriesPrefs = seriesId ? getSeriesTrackPrefs(seriesId) : null;
   if (seriesPrefs && "subtitleLang" in seriesPrefs) {
     if (seriesPrefs.subtitleLang === null || seriesPrefs.subtitleLang === undefined) return null;
@@ -205,7 +205,7 @@ export function resolveDefaultSubtitle(
 
   // Forced subtitle helper: if a forced track exists in the audio language,
   // prefer it (hidden dialogue / foreign segments). Requires isForced on the
-  // SubtitleStream type — currently absent; returns undefined until propagated.
+  // SubtitleStream type - currently absent; returns undefined until propagated.
   const forcedInAudioLang = resolvedAudioLang
     ? subtitleStreams.find(
         (s) =>
@@ -214,7 +214,7 @@ export function resolveDefaultSubtitle(
       )
     : undefined;
 
-  // 2. Profile preferred subtitle langs — ordered, skip absent codes.
+  // 2. Profile preferred subtitle langs - ordered, skip absent codes.
   if (profileSubtitleLangs) {
     for (const lang of profileSubtitleLangs) {
       if (!lang) continue;

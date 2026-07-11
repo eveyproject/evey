@@ -9,7 +9,7 @@ import (
 // bodyReadTimeout bounds how long a request may take to deliver its BODY. Go's
 // server caps the header read (ReadHeaderTimeout) but nothing caps the body, so
 // a client that dribbles a POST body one byte at a time pins a goroutine
-// indefinitely — a slow-POST / "slowloris" denial of service. The MaxBytesReader
+// indefinitely - a slow-POST / "slowloris" denial of service. The MaxBytesReader
 // size caps limit how MUCH a body may be, not how LONG it may take. 30s is far
 // more than any bounded JSON body needs even on a poor link, while killing an
 // indefinite stall.

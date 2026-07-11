@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/Button";
 
 // Accept undefined: `active` can be undefined when the profiles list is empty
 // (loading window, or a transient 0-profile state), and the avatar button calls
-// these directly — without the guard that would crash every authenticated page.
+// these directly - without the guard that would crash every authenticated page.
 function profileAvatarUrl(p: V1Profile | undefined): string | null {
   return p?.avatarPath && p.id ? `/api/v1/profiles/${p.id}/avatar` : null;
 }
@@ -149,7 +149,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
         void navigate({ to: "/player/$mediaId", params: { mediaId: info.mediaId }, search: { room: info.roomId } });
       }
     } catch {
-      toast.error(t("media.syncplay.joinError", "Could not join — check the code"));
+      toast.error(t("media.syncplay.joinError", "Could not join - check the code"));
     } finally {
       setJoining(false);
     }

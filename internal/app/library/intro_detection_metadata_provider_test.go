@@ -28,7 +28,7 @@ func (p *fakeIntroMetadataProvider) GetSegments(_ context.Context, _ *domainlibr
 }
 
 // When the provider returns segments, runPipeline must short-circuit and
-// skip MKV chapter pass — provider data is the most authoritative source.
+// skip MKV chapter pass - provider data is the most authoritative source.
 // We pin this by giving the chapterRepo a chapter that *would* be picked up
 // by chapterPass (Title="Intro") and asserting we get the provider's value
 // back instead.
@@ -56,7 +56,7 @@ func TestRunPipeline_MetadataProviderWinsOverChapterPass(t *testing.T) {
 	assert.Equal(t, 1, provider.calls)
 	assert.Equal(t, "tmdb", got[0].Source)
 	assert.Equal(t, int64(7_000), got[0].StartMs)
-	assert.Equal(t, int64(45_000), got[0].EndMs, "must NOT be 60_000 — chapterPass must not run after a provider hit")
+	assert.Equal(t, int64(45_000), got[0].EndMs, "must NOT be 60_000 - chapterPass must not run after a provider hit")
 }
 
 // When the provider returns nil, the pipeline must fall through to
@@ -79,7 +79,7 @@ func TestRunPipeline_MetadataProviderEmpty_FallsThroughToChapters(t *testing.T) 
 	assert.Equal(t, "mkv_chapter", got[0].Source)
 }
 
-// Provider errors are non-fatal — pipeline must still try chapters and the
+// Provider errors are non-fatal - pipeline must still try chapters and the
 // heuristic chain. This keeps detection robust to a flaky external service
 // (HTTP timeout, rate limit, parse error) instead of blocking the whole
 // item.

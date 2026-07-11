@@ -91,7 +91,7 @@ describe("usePlaySession", () => {
   });
 
   it("stops the session on unmount even after the player mode changed (no mini-player handoff)", async () => {
-    // Leaving the player always ends the session now — there is no mini-player
+    // Leaving the player always ends the session now - there is no mini-player
     // that keeps the stream (and its admin "Now Playing" entry) alive in the
     // background. The browser back button unmounts the route → session stops.
     const usePlaySession = await loadHook("");

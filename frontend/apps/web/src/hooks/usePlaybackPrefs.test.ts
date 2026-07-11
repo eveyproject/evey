@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 
 // localStorage is reset between tests via jsdom
-describe("usePlaybackPrefs — audio/subtitle lang", () => {
+describe("usePlaybackPrefs - audio/subtitle lang", () => {
   beforeEach(() => localStorage.clear());
 
   it("getPreferredAudioLang returns null when not set", async () => {
@@ -34,7 +34,7 @@ describe("usePlaybackPrefs — audio/subtitle lang", () => {
   });
 });
 
-describe("usePlaybackPrefs — series track prefs", () => {
+describe("usePlaybackPrefs - series track prefs", () => {
   beforeEach(() => localStorage.clear());
 
   it("getSeriesTrackPrefs returns null when not set", async () => {
@@ -57,7 +57,7 @@ describe("usePlaybackPrefs — series track prefs", () => {
   });
 });
 
-describe("usePlaybackPrefs — subtitle style", () => {
+describe("usePlaybackPrefs - subtitle style", () => {
   beforeEach(() => localStorage.clear());
 
   it("getSubtitleStyle returns DEFAULT_SUBTITLE_STYLE when not set", async () => {

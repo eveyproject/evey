@@ -36,7 +36,7 @@ func TestQuickConnectRepo_Create_GetByCode(t *testing.T) {
 	assert.Equal(t, user.Pending, got.Status)
 }
 
-// An expired code must be treated as non-existent — otherwise the 2-minute TTL
+// An expired code must be treated as non-existent - otherwise the 2-minute TTL
 // (a security control) isn't enforced on the check/authorize paths until the
 // hourly cleanup job runs, so an expired-but-authorized code could still mint tokens.
 func TestQuickConnectRepo_GetByCode_ExpiredIsNotFound(t *testing.T) {
@@ -90,7 +90,7 @@ func TestQuickConnectRepo_UpdateStatus(t *testing.T) {
 	assert.Equal(t, userID, string(*got.UserID))
 
 	// A second authorization (the request is no longer pending) must report
-	// not-found rather than a false success — this is the race-loser / leaked-code
+	// not-found rather than a false success - this is the race-loser / leaked-code
 	// replay guard. Without it the loser of a concurrent authorize believes the
 	// device was bound to them.
 	require.ErrorIs(t, repo.UpdateStatus(ctx, "qc2", string(user.Authorized), &userID), shared.ErrNotFound)

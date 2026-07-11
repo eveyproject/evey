@@ -21,7 +21,7 @@ var (
 	// ErrEmptyTitle is returned when the title is empty after trimming whitespace.
 	ErrEmptyTitle = errors.New("media item: empty title")
 	// ErrMissingParent is returned when an Episode or Season is constructed
-	// without a ParentID — the hierarchy invariant Series > Season > Episode
+	// without a ParentID - the hierarchy invariant Series > Season > Episode
 	// requires every non-root node to point to its parent.
 	ErrMissingParent = errors.New("media item: missing parent ID for episode/season")
 )
@@ -40,7 +40,7 @@ func WithMediaItemID(id shared.MediaItemID) MediaItemOption {
 	return func(m *MediaItem) { m.ID = id }
 }
 
-// WithMediaItemParent sets the parent ID — required for Episode/Season
+// WithMediaItemParent sets the parent ID - required for Episode/Season
 // (see ErrMissingParent) and ignored by validation otherwise.
 func WithMediaItemParent(parentID string) MediaItemOption {
 	return func(m *MediaItem) { m.ParentID = parentID }
@@ -100,7 +100,7 @@ func WithMediaItemFile(file *MediaFile) MediaItemOption {
 // type validity, non-empty title, parent presence for episode/season).
 //
 // The struct stays exported and zero-value instantiation via &MediaItem{...}
-// keeps working for existing call sites — this constructor adds an
+// keeps working for existing call sites - this constructor adds an
 // optional validated path so new code can express the invariants up
 // front rather than discover them at repository Create time.
 func NewMediaItem(libraryID shared.LibraryID, itemType MediaItemType, title string, opts ...MediaItemOption) (*MediaItem, error) {

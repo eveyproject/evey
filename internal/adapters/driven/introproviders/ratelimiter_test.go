@@ -77,7 +77,7 @@ func TestHeaderRateLimiter_Wait_RespectsContextCancellation(t *testing.T) {
 
 	h := http.Header{}
 	h.Set("X-RateLimit-Remaining", "1")
-	h.Set("X-RateLimit-Reset", "3600") // 1 hour — would block forever without cancel
+	h.Set("X-RateLimit-Reset", "3600") // 1 hour - would block forever without cancel
 	rl.Update(h)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)

@@ -18,7 +18,7 @@ import (
 // the target profile belongs to the caller; it delegates entirely to
 // UserService.SetDefaultProfile which resolves ownership from the profile row
 // itself (target.UserID), not from the caller's claims. An admin can therefore
-// set the default profile for any user — this is the intended design for an
+// set the default profile for any user - this is the intended design for an
 // admin-only RPC.
 
 func TestSetDefaultProfile_HappyPath_OwnProfile(t *testing.T) {
@@ -147,7 +147,7 @@ func TestSetDefaultProfile_Unauthenticated(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error without claims")
 	}
-	// requireClaims wraps the unauthenticated status — accept any non-nil error
+	// requireClaims wraps the unauthenticated status - accept any non-nil error
 	// whose code is Unauthenticated or whose wrapped error comes from requireClaims.
 	code := status.Code(err)
 	if code != codes.Unauthenticated && code != codes.Internal {

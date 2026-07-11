@@ -19,7 +19,7 @@ import (
 )
 
 // orphanBulkEnricher is a minimal BulkItemEnricher (+ ItemEnricher) that does
-// nothing — sufficient to let MatchOrphansInLibrary pass the type-assertion
+// nothing - sufficient to let MatchOrphansInLibrary pass the type-assertion
 // guard and return the queued count without triggering real provider calls.
 type orphanBulkEnricher struct{}
 

@@ -39,13 +39,13 @@ type FakeSession struct {
 	AliveFlag    bool
 	Closed       bool
 
-	LoadErr   error
-	PauseErr  error
+	LoadErr    error
+	PauseErr   error
 	UnpauseErr error
-	StopErr   error
-	SeekErr   error
-	VolumeErr error
-	StatusErr error
+	StopErr    error
+	SeekErr    error
+	VolumeErr  error
+	StatusErr  error
 }
 
 type chrmStatus = chromecast.MediaStatus

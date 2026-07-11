@@ -58,7 +58,7 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 	}
 
-	// HLS muxer — event-mode, fMP4 container, temp_file for atomic renames.
+	// HLS muxer - event-mode, fMP4 container, temp_file for atomic renames.
 	args = append(args,
 		"-f", "hls",
 		"-hls_time", hlsSegmentSeconds,

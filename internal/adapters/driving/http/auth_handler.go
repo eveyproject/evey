@@ -22,7 +22,7 @@ import (
 
 const (
 	oidcSessionCookieName = "evey_oidc_session"
-	oidcSessionCookieAge  = 5 * 60 // 5 minutes — one-time exchange
+	oidcSessionCookieAge  = 5 * 60 // 5 minutes - one-time exchange
 
 	oidcIDTokenCookieName = "evey_oidc_id_token"
 
@@ -282,7 +282,7 @@ func decodeParentalUpdateBody(w http.ResponseWriter, r *http.Request, span trace
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return body, false
 	}
-	// Unify the two field names — prefer `pin` when both are sent.
+	// Unify the two field names - prefer `pin` when both are sent.
 	if body.PIN == nil {
 		body.PIN = body.NewPIN
 	}
@@ -488,7 +488,7 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
-	// Rate-limit only authorized callers — prevents cross-user DoS of the
+	// Rate-limit only authorized callers - prevents cross-user DoS of the
 	// per-profile bucket.
 	if !h.pinRL.Allow(profileID) {
 		span.SetStatus(codes.Error, "rate limited")

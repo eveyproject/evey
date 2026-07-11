@@ -37,7 +37,7 @@ func TestNormalizeLanguageCode_ISO6392T(t *testing.T) {
 
 // BCP-47 / ISO 639-3 macrolanguage codes (what modern MKVs carry in
 // LanguageBCP47, surfaced by the in-process mkvgo prober) must fold like the
-// legacy 639-2 "chi" ffprobe reports — else a "zh" audio preference would match
+// legacy 639-2 "chi" ffprobe reports - else a "zh" audio preference would match
 // an ffprobe-scanned file but not an mkvgo-scanned one.
 func TestNormalizeLanguageCode_ChineseMacrolang(t *testing.T) {
 	t.Parallel()
@@ -76,7 +76,7 @@ func TestBuildPrefLangs_AudioLanguagesFirst(t *testing.T) {
 
 func TestBuildPrefLangs_DeduplicatesLocale(t *testing.T) {
 	t.Parallel()
-	// Profile locale matches a profile AudioLanguage — deduplicated.
+	// Profile locale matches a profile AudioLanguage - deduplicated.
 	got := buildPrefLangs([]string{"fr"}, "fr", "en")
 	assert.Equal(t, []string{"fr", "en"}, got)
 }

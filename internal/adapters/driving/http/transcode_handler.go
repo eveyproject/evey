@@ -416,7 +416,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "transcode failed", http.StatusInternalServerError)
 		return
 	}
-	// Disable write deadline — transcode streams last minutes/hours, global WriteTimeout would cut them.
+	// Disable write deadline - transcode streams last minutes/hours, global WriteTimeout would cut them.
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
 		slog.Debug("set write deadline unsupported", slog.Any("err", err))
 	}

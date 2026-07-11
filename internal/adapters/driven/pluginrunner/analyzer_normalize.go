@@ -122,7 +122,7 @@ func mapStringLiterals(src string, fn func(string) string) string {
 			j++
 		}
 		if j >= len(src) {
-			// Unterminated string — emit as-is.
+			// Unterminated string - emit as-is.
 			b.WriteString(src[i:])
 			break
 		}
@@ -188,27 +188,27 @@ var unicodeConfusables = map[rune]rune{
 	'ј': 'j', // U+0458
 	'ℬ': 'B', // U+212C
 	// Greek
-	'α': 'a',  // U+03B1
-	'β': 'b',  // U+03B2 (close enough)
-	'ε': 'e',  // U+03B5
-	'ο': 'o',  // U+03BF
-	'ρ': 'p',  // U+03C1
-	'υ': 'u',  // U+03C5
-	'ν': 'v',  // U+03BD
-	'κ': 'k',  // U+03BA
-	'Α': 'A',  // U+0391
-	'Β': 'B',  // U+0392
-	'Ε': 'E',  // U+0395
-	'Η': 'H',  // U+0397
-	'Ι': 'I',  // U+0399
-	'Κ': 'K',  // U+039A
-	'Μ': 'M',  // U+039C
-	'Ν': 'N',  // U+039D
-	'Ο': 'O',  // U+039F
-	'Ρ': 'R',  // U+03A1
-	'Τ': 'T',  // U+03A4
-	'Υ': 'Y',  // U+03A5
-	'Χ': 'X',  // U+03A7
+	'α': 'a', // U+03B1
+	'β': 'b', // U+03B2 (close enough)
+	'ε': 'e', // U+03B5
+	'ο': 'o', // U+03BF
+	'ρ': 'p', // U+03C1
+	'υ': 'u', // U+03C5
+	'ν': 'v', // U+03BD
+	'κ': 'k', // U+03BA
+	'Α': 'A', // U+0391
+	'Β': 'B', // U+0392
+	'Ε': 'E', // U+0395
+	'Η': 'H', // U+0397
+	'Ι': 'I', // U+0399
+	'Κ': 'K', // U+039A
+	'Μ': 'M', // U+039C
+	'Ν': 'N', // U+039D
+	'Ο': 'O', // U+039F
+	'Ρ': 'R', // U+03A1
+	'Τ': 'T', // U+03A4
+	'Υ': 'Y', // U+03A5
+	'Χ': 'X', // U+03A7
 	// Fullwidth Latin
 	'Ａ': 'A', 'Ｂ': 'B', 'Ｃ': 'C', 'Ｄ': 'D', 'Ｅ': 'E',
 	'Ｆ': 'F', 'Ｇ': 'G', 'Ｈ': 'H', 'Ｉ': 'I', 'Ｊ': 'J',
@@ -224,7 +224,7 @@ var unicodeConfusables = map[rune]rune{
 
 // normalizeUnicode returns a version of src where Cyrillic/Greek/fullwidth
 // confusable characters are replaced by their ASCII lookalike. The result
-// is used only for pattern matching — the original source is preserved for
+// is used only for pattern matching - the original source is preserved for
 // display purposes.
 func normalizeUnicode(src string) string {
 	// Fast path: bail early if no non-ASCII rune is present.
@@ -256,7 +256,7 @@ func isAllASCII(s string) bool {
 
 // fstringLiteralRe matches Python f-string segments where each interpolation
 // is a single-quoted string literal: f"{'ev'}{'al'}" → "eval".
-// Only handles the pattern f"({literal})+" — more complex expressions are left as-is.
+// Only handles the pattern f"({literal})+" - more complex expressions are left as-is.
 var fstringLiteralRe = regexp.MustCompile(`f"((?:\{'[^']*'\})+)"`)
 
 // foldFStrings folds Python f-string expressions containing only single-quoted
@@ -287,7 +287,7 @@ func foldFStrings(src string) string {
 	})
 }
 
-// joinListRe matches Python "".join([...]) or ''.join([...]) where the list
+// joinListRe matches Python "".join([...]) or ”.join([...]) where the list
 // contains only string literals.
 var joinListRe = regexp.MustCompile(`["']{2}\.join\s*\(\s*\[([^\]]+)\]\s*\)`)
 
@@ -308,7 +308,7 @@ func foldJoin(src string) string {
 			}
 			q := items[i]
 			if q != '"' && q != '\'' {
-				// Non-literal element — can't fold safely.
+				// Non-literal element - can't fold safely.
 				return m
 			}
 			i++
@@ -398,7 +398,7 @@ var constructorAssignRe = regexp.MustCompile(`(?:const|let|var)\s+([a-zA-Z_]\w*)
 // success; otherwise returns "", false.
 func resolveConcatOperands(rhs string, stringAlias map[string]string) (string, bool) {
 	// Split on . and + at the top level (no nesting expected for the patterns
-	// we target — this is a regex-driven analyzer, not a full AST).
+	// we target - this is a regex-driven analyzer, not a full AST).
 	// Replace . and + outside of quotes with a sentinel, then split.
 	var b strings.Builder
 	inS, inD := false, false
@@ -515,7 +515,7 @@ func resolveSimpleAliases(content string) string {
 	// firstSeen tracks whether we have already recorded a binding for a var.
 	firstSeen := map[string]bool{}
 	// reassigned tracks vars that were assigned to a different RHS later in
-	// the source — invalidates any prior binding.
+	// the source - invalidates any prior binding.
 	reassigned := map[string]bool{}
 	// pendingConcat holds RHS of multi-operand concats we couldn't resolve
 	// in the first pass (operands not yet bound). We retry with fixed-point.
@@ -743,7 +743,7 @@ func normalizeLine(line string) string {
 // `.constructor(varname)` doesn't fire on legitimate typed-array /
 // class-clone patterns common in bundled JS (Three.js, React, lodash,
 // etc.). Without `new`, `.constructor(arg)` is the dangerous Function-
-// constructor idiom — that case is left untouched.
+// constructor idiom - that case is left untouched.
 var typedArrayConstructorRe = regexp.MustCompile(`\bnew\s+[A-Za-z_$][\w$.]*\.constructor\s*\([^)]*\)`)
 
 func stripTypedArrayConstructor(line string) string {
@@ -855,7 +855,7 @@ func stripBlockComments(src string) string {
 
 // stripLineComments truncates the line at the first comment marker that lies
 // outside string literals. Recognised markers: `#` (Python/Ruby/Bash/PHP) and
-// `//` (JS/Go/PHP). Block comments (`/* ... */`) are not handled — they span
+// `//` (JS/Go/PHP). Block comments (`/* ... */`) are not handled - they span
 // lines and must be stripped at the file level via stripBlockComments before
 // lines are split.
 //

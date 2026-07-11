@@ -118,7 +118,7 @@ func TestDevices_Command_UnknownDevice_404(t *testing.T) {
 	}
 }
 
-// A caller must not be able to command another user's device — the
+// A caller must not be able to command another user's device - the
 // registry is per-user, so user-2 addressing user-1's device gets a 404.
 func TestDevices_Command_OtherUsersDevice_404(t *testing.T) {
 	f := newDevicesFixture(t)

@@ -61,7 +61,7 @@ export function usePlayerKeyboard({
       if (!video) return;
 
       // Yield to any modal dialog open over the player (share, shortcuts help,
-      // parental gate). It owns the keyboard — most importantly Escape, which
+      // parental gate). It owns the keyboard - most importantly Escape, which
       // must close the dialog, not exit the player. This listener is on
       // window-capture and would otherwise fire before the dialog's own handler.
       if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;

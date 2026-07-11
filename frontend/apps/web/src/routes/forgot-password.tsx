@@ -22,14 +22,14 @@ function ForgotPasswordPage() {
 
   // Public setup status exposes whether recovery is configured (SMTP). When it
   // is off, the backend returns ErrPasswordRecoveryDisabled, but the anti-leak
-  // onError below would still show "check your email" — promising a mail that is
+  // onError below would still show "check your email" - promising a mail that is
   // never sent. So short-circuit to an honest message instead.
   const setupStatus = useAdminSystemServiceGetSetupStatus({ query: { staleTime: 60 * 1000 } });
 
   const requestReset = useUserServiceRequestPasswordReset({
     mutation: {
       onSuccess: () => setSent(true),
-      onError: () => setSent(true), // no leak — always show success
+      onError: () => setSent(true), // no leak - always show success
     },
   });
 

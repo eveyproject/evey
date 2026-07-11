@@ -67,7 +67,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	// still missing. This replaces the previous early-return design, where a
 	// PARTIAL match (a provider that only knows the recap, chapters that only
 	// mark the intro) suppressed local detection of every OTHER type. The
-	// in-house pipeline must be self-sufficient — external providers are an
+	// in-house pipeline must be self-sufficient - external providers are an
 	// additive bonus layered on top, never a precondition for local detection.
 	found := make(map[string]domainlibrary.MediaSegment, 3)
 	add := func(segs []domainlibrary.MediaSegment, decision string) {
@@ -93,7 +93,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	needIntro := func() bool { _, ok := found["intro"]; return !ok }
 
 	// External metadata provider first: most authoritative for any type it
-	// returns. Non-fatal on error — fall through to chapters/heuristics.
+	// returns. Non-fatal on error - fall through to chapters/heuristics.
 	if s.metadataProvider != nil {
 		if mdSegs, mdErr := s.metadataProvider.GetSegments(ctx, item); mdErr != nil {
 			slog.Warn("intro_detection: metadata provider failed, falling back",
@@ -174,7 +174,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	// Audio-primary DISCOVERY: the visual pass produced nothing confirmable
 	// (poor SD trickplay, or a cold-open show whose title card isn't visually
 	// stable). Let chromaprint discover a recurring intro directly across
-	// siblings at a free per-episode offset — the variable-teaser case the
+	// siblings at a free per-episode offset - the variable-teaser case the
 	// visual+confirm path structurally misses.
 	if needIntro() && cfg.AudioDiscoveryEnabled {
 		if seg, ok := s.discoverIntroByAudio(ctx, item); ok {
@@ -183,7 +183,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 	}
 
 	// Last resort: concurrent audio/subtitle silence passes. Its error is only
-	// fatal when nothing else covered the episode — a recap found upstream must
+	// fatal when nothing else covered the episode - a recap found upstream must
 	// still be returned even if the silence pass fails to find the intro. A
 	// degenerate sub-second result (the studio-logo silence at 0:00) is dropped
 	// downstream by the heuristic-floor guard in detectIntroWithHint.
@@ -216,7 +216,7 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 // refineWithPrecisionPass widens each pHash window to the actual intro
 // boundaries. The pHash window is the anchor (it survived audio
 // confirmation, so we trust it points at a real intro), but its raw
-// boundaries only cover the matched frames — the actual intro can extend
+// boundaries only cover the matched frames - the actual intro can extend
 // before the first match and after the last (frames unique per episode
 // don't match across siblings).
 //
@@ -226,12 +226,12 @@ func (s *IntroDetectionService) runPipeline(ctx context.Context, item *domainlib
 //  2. Otherwise apply a fixed +/-fallbackPadSec extension to the pHash
 //     window. Series with continuous music (Robin Hood, action shows)
 //     don't have detectable silence around their intro, so silencedetect
-//     finds nothing — but the actual intro is still wider than the
+//     finds nothing - but the actual intro is still wider than the
 //     matched-frame window. The fallback pad gives the user a usable
 //     skip button rather than a too-tight 16s window.
 //
 // PrecisionPass used to be called on the whole episode and would lock onto
-// the first studio-logo silence at 0s — that failure mode doesn't apply
+// the first studio-logo silence at 0s - that failure mode doesn't apply
 // here because we anchor on the pHash window position.
 func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, filePath string, windows []confirmedWindow) []confirmedWindow {
 	ctx, span := tracing.StartSpan(ctx, "app.library.intro.refineWithPrecisionPass")
@@ -264,7 +264,7 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 			refEnd >= w.startMs-sanityMarginMs &&
 			refStart <= w.endMs+sanityMarginMs &&
 			// PrecisionPass returns the *input* (startMs, endMs) when it
-			// finds nothing — detect the no-op to fall through to padding.
+			// finds nothing - detect the no-op to fall through to padding.
 			(refStart != w.startMs || refEnd != w.endMs)
 
 		var newStart, newEnd int64
@@ -299,7 +299,7 @@ func (s *IntroDetectionService) refineWithPrecisionPass(ctx context.Context, fil
 // start (past a short guard that skips a cold-open line lingering into the theme)
 // marks content resumption ≈ the visual intro end. This is the one signal that
 // nails the end on "music-bleed" shows, where the recurring AUDIO run overshoots
-// the visual cut (theme music continues under the next scene) — the eval showed
+// the visual cut (theme music continues under the next scene) - the eval showed
 // audio_cluster ends ~+30s late there. Returns endMs unchanged (a no-op) when
 // the file has no subtitles or no plausible cue is found, so media without subs
 // is unaffected.
@@ -318,7 +318,7 @@ func (s *IntroDetectionService) refineEndBySubtitleOnset(ctx context.Context, fi
 	// Upper bound = the audio end. The recurring-audio run length OVERSHOOTS the
 	// visual cut (theme bleeds into the next scene), so the true dialogue-resume
 	// sits at or before it. A first cue PAST the audio end means dialogue didn't
-	// resume right after the intro (a silent post-intro action scene) — that cue
+	// resume right after the intro (a silent post-intro action scene) - that cue
 	// is not the intro's end, so we keep the audio end rather than overshoot far.
 	for _, c := range cues {
 		if c <= startMs+guardMs {
@@ -339,7 +339,7 @@ func (s *IntroDetectionService) refineEndBySubtitleOnset(ctx context.Context, fi
 // AGREE we are confident; stacking them is what keeps the end robust on series
 // with NO subtitles. Returns the fused end and a confidence in [0,1] (the share
 // of evidence weight that agreed). All votes are bounded by the audio end + a
-// little slack — the recurring-audio run overshoots, so the true resume is at or
+// little slack - the recurring-audio run overshoots, so the true resume is at or
 // before it.
 func (s *IntroDetectionService) fuseIntroEnd(ctx context.Context, filePath string, startMs, audioEnd int64) (int64, float64) {
 	// Relative weights of the three end witnesses: the subtitle dialogue-resume
@@ -404,7 +404,7 @@ func (s *IntroDetectionService) refineIntroEndsBySubtitle(ctx context.Context, f
 // chapterPass looks for Matroska chapters whose title matches a known
 // intro/recap pattern (Intro, Opening, Theme, Generique, Title Sequence,
 // Previously, Recap, ...). Returns one MediaSegment per matched chapter
-// with source="mkv_chapter", confidence 1.0 — chapters are authoritative
+// with source="mkv_chapter", confidence 1.0 - chapters are authoritative
 // since they were encoded by the uploader.
 //
 // Special cases:

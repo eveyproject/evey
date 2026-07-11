@@ -64,7 +64,7 @@ func buildVariantPath(srcPath string, width int) string {
 
 // removeVariant best-effort deletes a stale/partial resized variant so it isn't
 // served next time. A failure (other than already-gone) is logged but never
-// fatal — the next request simply regenerates it.
+// fatal - the next request simply regenerates it.
 func removeVariant(path string) {
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		slog.Warn("artwork variant cleanup", slog.String("path", path), slog.Any("err", err))
@@ -120,7 +120,7 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 			// A non-empty LocalPath may still point at a file that has vanished
 			// from disk (cache cleared, manual cleanup, partial fetch). Serving
 			// it would 404, and the `return` below would swallow the SourceURL
-			// fallback — leaving a broken image when a remote URL is available.
+			// fallback - leaving a broken image when a remote URL is available.
 			// Treat a missing file as "no local copy" and fall through.
 			if rec.LocalPath != nil && *rec.LocalPath != "" && localFileExists(*rec.LocalPath) {
 				if wantsWebP {
@@ -130,10 +130,10 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 						// Regenerate when the variant is missing OR a 0-byte leftover
 						// from a prior failed/timed-out resize. Checking only existence
 						// would serve the empty file forever, and `immutable` caching
-						// then freezes the broken image in clients — the cause of a
+						// then freezes the broken image in clients - the cause of a
 						// poster vanishing at just one srcSet width (e.g. w=500).
 						if fi, statErr := os.Stat(variantPath); statErr != nil || fi.Size() == 0 {
-							// Not cached yet — generate with 10 s timeout so a slow ffmpeg
+							// Not cached yet - generate with 10 s timeout so a slow ffmpeg
 							// doesn't block the response indefinitely.
 							ctx10, cancel := context.WithTimeout(r.Context(), artworkResizeTimeout)
 							defer cancel()
@@ -333,7 +333,7 @@ func selectArtworkHandler(tokens TokenVerifier, artworkRepo ArtworkRepo, libSvc 
 				break
 			}
 		}
-		// This is the defining write — promoting `selected` to primary. Reporting
+		// This is the defining write - promoting `selected` to primary. Reporting
 		// {"ok":true} when it fails made the UI show a new poster that reverted on
 		// the next refresh.
 		if err := artworkRepo.UpdateSortOrder(r.Context(), selected.ID, -1); err != nil {

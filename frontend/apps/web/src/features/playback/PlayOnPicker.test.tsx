@@ -191,7 +191,7 @@ describe("PlayOnPicker", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /player\.playOn\.button/i }));
 
-    // Now simulate devices arriving as empty — same component instance stays open
+    // Now simulate devices arriving as empty - same component instance stays open
     mockIsLoading = false;
     rerender(<PlayOnPicker mediaId="mi-abc" getPositionMs={() => 0} />);
 

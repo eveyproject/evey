@@ -7,12 +7,12 @@ import "context"
 // override the decision after the fact, and so a future classifier rev
 // can be backfilled without re-running ffmpeg on the source.
 type ComplexityMetrics struct {
-	// MotionMean averages ffmpeg signalstats `YDIF` — frame-to-frame
-	// luminance differences — across the sampled frames. Proxy for
+	// MotionMean averages ffmpeg signalstats `YDIF` - frame-to-frame
+	// luminance differences - across the sampled frames. Proxy for
 	// temporal complexity: low ⇒ static scenes (dialogue, anime
 	// cell-shading), high ⇒ fast cuts / action / camera movement.
 	// Range typically 0..30 on real content. (The field was originally
-	// named YDEVMean but signalstats never emitted YDEV — the regex
+	// named YDEVMean but signalstats never emitted YDEV - the regex
 	// silently produced zeros for every classify. Switched to YDIF
 	// which signalstats does emit.)
 	MotionMean float64 `json:"motion_mean"`
@@ -36,7 +36,7 @@ type ComplexityMetrics struct {
 	SourceHeight int `json:"source_height"`
 
 	// FramesSampled tells the admin how many frames went into the
-	// MotionMean average — lets them spot a degenerate "we only sampled 3
+	// MotionMean average - lets them spot a degenerate "we only sampled 3
 	// frames" classification.
 	FramesSampled int `json:"frames_sampled"`
 }
@@ -71,7 +71,7 @@ func Classify(m ComplexityMetrics) ContentClass {
 	// returned nothing (ffmpeg killed, file too short, unsupported codec)
 	// the YDEV / Scenecuts are zero and the cut-based heuristics below
 	// would all match those zeros and bucket everything as low-motion.
-	// Decide on bitrate + resolution alone instead — coarser but always
+	// Decide on bitrate + resolution alone instead - coarser but always
 	// safer than a wrong ladder pick.
 	if m.FramesSampled == 0 {
 		switch {
@@ -87,7 +87,7 @@ func Classify(m ComplexityMetrics) ContentClass {
 	// Thresholds for MotionMean (signalstats YDIF) calibrated against
 	// the typical 0..30 range: < 1.5 ≈ static, 2-5 ≈ normal motion,
 	// > 5 ≈ sustained motion. Old (0..127 YDEV) thresholds were 25 / 40
-	// / 50 / 55 — rebalanced below.
+	// / 50 / 55 - rebalanced below.
 
 	// Sustained motion + many cuts → sport. Rare on a film/TV library
 	// but cheap to gate. Must come before high-motion so we don't shadow.
@@ -96,7 +96,7 @@ func Classify(m ComplexityMetrics) ContentClass {
 	}
 
 	// Animation heuristic: low motion + few hard cuts + source encoder
-	// already got away with low bitrate. All three matter — a low-bitrate
+	// already got away with low bitrate. All three matter - a low-bitrate
 	// live-action rip from 2003 also has low motion but doesn't belong
 	// on the anim ladder.
 	if m.MotionMean < 1.5 && m.ScenecutsPerMinute < 6 && m.SourceBitrateKbps < 3000 {

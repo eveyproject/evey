@@ -28,7 +28,7 @@ export function RegionSettings() {
   const activeProfileId = useAuthStore((s) => s.profileId);
   const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
   // region is per-profile: operate on the active profile (from JWT), not the
-  // default one — otherwise a non-default profile reads/writes the wrong region.
+  // default one - otherwise a non-default profile reads/writes the wrong region.
   const activeProfile =
     profilesResp?.profiles?.find((p) => p.id === activeProfileId) ??
     profilesResp?.profiles?.find((p) => p.isDefault) ??

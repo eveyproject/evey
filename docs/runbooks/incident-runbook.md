@@ -27,7 +27,7 @@ curl -v http://localhost:9091/healthz
 
 ## 2. All logins return 401
 
-**Symptom**: every user — including admins who logged in yesterday — gets 401 from `/api/v1/auth/*`.
+**Symptom**: every user - including admins who logged in yesterday - gets 401 from `/api/v1/auth/*`.
 
 **Diagnose**:
 ```sh
@@ -36,8 +36,8 @@ docker logs --since 10m evey-server | grep -iE 'jwt|auth|signing|private key'
 ```
 
 **Common causes + fix**:
-- **JWT key missing or changed**: `EVEY_JWT_PRIVATE_KEY_PATH` (default `/data/jwt.key`) not readable, or was rotated. Every token signed by the old key is now invalid — there is no mitigation beyond restoring the old key from backup or forcing every user to re-login. Confirm the `evey-data` volume is mounted correctly at `/data`.
-- **Rate limit tripping every request**: check `EVEY_RATELIMIT_LOGIN_MAX` (default `10` per IP per minute) and `EVEY_RATELIMIT_GLOBAL_MAX` (default `300`). Reverse proxy forwarding all traffic as a single IP will trip this fast — set `EVEY_TRUSTED_PROXIES` and `EVEY_FORWARDED_PROTO=true`, restart. Dev override already sets `1000` / `10000`.
+- **JWT key missing or changed**: `EVEY_JWT_PRIVATE_KEY_PATH` (default `/data/jwt.key`) not readable, or was rotated. Every token signed by the old key is now invalid - there is no mitigation beyond restoring the old key from backup or forcing every user to re-login. Confirm the `evey-data` volume is mounted correctly at `/data`.
+- **Rate limit tripping every request**: check `EVEY_RATELIMIT_LOGIN_MAX` (default `10` per IP per minute) and `EVEY_RATELIMIT_GLOBAL_MAX` (default `300`). Reverse proxy forwarding all traffic as a single IP will trip this fast - set `EVEY_TRUSTED_PROXIES` and `EVEY_FORWARDED_PROTO=true`, restart. Dev override already sets `1000` / `10000`.
 - Clock skew between server and clients → `date -u` on the host.
 
 ## 3. Transcoding fails / videos won't play transcoded
@@ -97,9 +97,9 @@ docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" -c "
 
 **Symptom**: search returns degraded results, logs show `meilisearch unavailable, using SQL search fallback`.
 
-**Behavior**: Evey has a resilient fallback — search keeps working via SQL (`cmd/evey/wire.go` wires a resilient search adapter that logs `meilisearch unavailable, using SQL search fallback` when Meili is unreachable). No user action needed to stay online; only ranking quality degrades.
+**Behavior**: Evey has a resilient fallback - search keeps working via SQL (`cmd/evey/wire.go` wires a resilient search adapter that logs `meilisearch unavailable, using SQL search fallback` when Meili is unreachable). No user action needed to stay online; only ranking quality degrades.
 
-**Note on deployment mode**: The default `docker-compose.yml` runs Meilisearch **embedded inside the `evey-server` container** (`EVEY_EMBEDDED_MEILI: "true"`). A standalone `evey-meilisearch` container only exists in the dev override (`docker-compose.override.yml`). In embedded mode, "Meilisearch down" means the evey-server process is unhealthy — there is no separate container to restart.
+**Note on deployment mode**: The default `docker-compose.yml` runs Meilisearch **embedded inside the `evey-server` container** (`EVEY_EMBEDDED_MEILI: "true"`). A standalone `evey-meilisearch` container only exists in the dev override (`docker-compose.override.yml`). In embedded mode, "Meilisearch down" means the evey-server process is unhealthy - there is no separate container to restart.
 
 **Diagnose + fix (embedded, default)**:
 ```sh
@@ -132,7 +132,7 @@ docker volume inspect evey_evey-cache   # compose-mangled name may vary
 ```
 
 **Fix**:
-- Safe purge — the cache is regenerable:
+- Safe purge - the cache is regenerable:
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/transcode/*'
   ```
@@ -220,7 +220,7 @@ Symptom: admin sees an unexpected device in **Now Playing** (admin panel), or a 
 
 Symptom: a library scan shows "in progress" for hours but no file progress in logs.
 
-1. Check the `scan_service.scanning` map indirectly — if the process is hung, CPU is idle and recent logs show no `scan_service`:
+1. Check the `scan_service.scanning` map indirectly - if the process is hung, CPU is idle and recent logs show no `scan_service`:
    ```sh
    docker compose logs --tail=500 evey-server | grep scan_service
    ```

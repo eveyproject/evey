@@ -2,7 +2,7 @@ package ffmpeg
 
 import "testing"
 
-// Verifies the ring buffer keeps the tail when overfilled — load-bearing
+// Verifies the ring buffer keeps the tail when overfilled - load-bearing
 // for the ffmpeg stderr capture: a multi-MB progress stream must collapse
 // to its last 8 KB so the fatal-error line survives in logs.
 func TestRingBuffer_TailCapture(t *testing.T) {

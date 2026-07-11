@@ -43,12 +43,12 @@ type SegmentOrchestrator struct {
 
 	// hwDemote is the level-2 safety-net sink: invoked (off the reap goroutine)
 	// when a session's ffmpeg exits with a hardware-capability failure, so the
-	// calibration service can demote the host capability. Optional/nil-safe —
+	// calibration service can demote the host capability. Optional/nil-safe -
 	// when unset, a HW failure just falls through to the normal 503-retry.
 	hwDemote func(ctx context.Context, class transcoding.FailureClass, codec string)
 
 	// shutdownCtx is the long-lived parent context for every ffmpeg session
-	// the orchestrator spawns. Never the HTTP request context — that one is
+	// the orchestrator spawns. Never the HTTP request context - that one is
 	// cancelled the moment the segment is served, which would tear down the
 	// rafale before the next segment is requested. Cancelled only by Close.
 	shutdownCtx    context.Context
@@ -63,7 +63,7 @@ type SegmentOrchestrator struct {
 	// files so the per-variant filename never collides between rafales.
 	//
 	// Bounded by maxRafalesPerHash to keep CPU under control on
-	// pathological hosts — beyond the cap the LRU rafale is evicted.
+	// pathological hosts - beyond the cap the LRU rafale is evicted.
 	sessions map[string][]*orchestratorSession
 
 	stopGC chan struct{}
@@ -79,7 +79,7 @@ type SegmentOrchestrator struct {
 	// prewarmWG tracks PreWarm goroutines so Close() can drain them before
 	// nuking the cache. Without this, a goroutine spawned by serveVariant
 	// could write fresh files into the cache dir AFTER Close() ran its
-	// cleanup pass — leaking tempdirs in tests and racing with the
+	// cleanup pass - leaking tempdirs in tests and racing with the
 	// orchestrator's lifecycle in prod.
 	prewarmWG sync.WaitGroup
 
@@ -87,14 +87,14 @@ type SegmentOrchestrator struct {
 	// has ever spawned a session for. We track it separately from the
 	// live `sessions` map so Close() can cleanup the disk even when
 	// sweepIdle has already deleted the session struct from the live
-	// map — the disk segments stay on the host until an explicit
+	// map - the disk segments stay on the host until an explicit
 	// shutdown cleanup, and we don't want a goroutine ordering race
 	// between sweepIdle and Close to leak them.
 	//
 	// KNOWN BOUNDED GROWTH: unlike the software producer (whose sweepIdle
 	// reclaims the hash dir and can therefore also drop the set entry), the
 	// orchestrator's disk is reclaimed by the cache's LRU eviction, which this
-	// struct never observes — so entries here outlive their dir and accumulate
+	// struct never observes - so entries here outlive their dir and accumulate
 	// (~60 B per distinct hash) until Close. The Close-time CleanupHash on an
 	// already-evicted hash is a harmless no-op, and the OOM horizon is years;
 	// pruning would need an eviction callback from SegmentCache, not worth the
@@ -104,7 +104,7 @@ type SegmentOrchestrator struct {
 	// sessionSem is a counting semaphore bounding the total number of live
 	// ffmpeg rafales to opts.MaxActiveSessions. nil when uncapped
 	// (MaxActiveSessions <= 0). A slot is acquired in spawnSession before ffmpeg
-	// starts and released exactly once — by the reap goroutine when the session
+	// starts and released exactly once - by the reap goroutine when the session
 	// exits, or by an early-return / spawn-race-lost path before the reap
 	// goroutine takes ownership.
 	sessionSem chan struct{}
@@ -121,7 +121,7 @@ type SegmentOrchestrator struct {
 type orchestratorSession struct {
 	mu         sync.Mutex
 	hash       string
-	mediaID    string // for RemoveSession reverse lookup (a single mediaID can have several hashes — different audio/sub/codec decisions)
+	mediaID    string // for RemoveSession reverse lookup (a single mediaID can have several hashes - different audio/sub/codec decisions)
 	handle     transcoding.HLSProcessHandle
 	startSeg   int // first segment this rafale is producing
 	endSeg     int // last segment (inclusive) the rafale will produce
@@ -137,7 +137,7 @@ type orchestratorSession struct {
 	variantIdx int
 
 	// Throttle state. clientHighWater is the largest segment index any client
-	// has asked us to ensure for this session — used as a proxy for "how far
+	// has asked us to ensure for this session - used as a proxy for "how far
 	// the client has consumed". paused tracks whether the ffmpeg process is
 	// currently SIGSTOPped; useFMP4 is captured at spawn so the throttle loop
 	// can query the cache without the fingerprint.
@@ -146,7 +146,7 @@ type orchestratorSession struct {
 	useFMP4         bool
 	// lastResumeAt rate-limits NotifyClientHint's SIGCONT path.
 	// A malicious / buggy client could forge `bs=1` at 1000/sec and
-	// keep us hammering the kernel with SIGCONT syscalls — idempotent
+	// keep us hammering the kernel with SIGCONT syscalls - idempotent
 	// on a running process but wasted scheduler time. One Resume per
 	// second per session is plenty (the player rebuffers more slowly
 	// than that anyway).
@@ -154,7 +154,7 @@ type orchestratorSession struct {
 
 	// metricDecOnce guarantees the HLSVODSessions gauge is decremented EXACTLY
 	// once per spawned session, whether it leaves via the reap goroutine (natural
-	// ffmpeg exit — the dominant path when a viewer watches to the end) or via
+	// ffmpeg exit - the dominant path when a viewer watches to the end) or via
 	// killSession (GC / seek-cancel / watchdog). Without it the reap path never
 	// decremented and the gauge climbed monotonically.
 	metricDecOnce sync.Once
@@ -225,7 +225,7 @@ func NewSegmentOrchestrator(
 // SetHWDemoteSink wires the level-2 HW safety net: the sink is called when a
 // session's ffmpeg exits with a hardware-capability failure (classified via the
 // handle's Failure()), so the capability can be demoted for subsequent requests.
-// Optional — left unset in tests / when no calibration service is present.
+// Optional - left unset in tests / when no calibration service is present.
 // WithVideoSessionLimiter wires the shared cap on concurrently-ENCODING video
 // sessions. Pass the SAME *VideoSessionLimiter instance given to the software
 // producer's transcode instance so the two draw from one pool - every session
@@ -244,11 +244,11 @@ func (o *SegmentOrchestrator) SetHWDemoteSink(sink func(ctx context.Context, cla
 
 // findCoveringSessionLocked picks a live session whose [startSeg, endSeg]
 // range covers segmentIdx (or whose nearAhead window does). Returns nil
-// when no rafale serves this position — caller spawns a new one. Must
+// when no rafale serves this position - caller spawns a new one. Must
 // be called with o.mu held.
 //
 // When opts.SingleVariant is true, only sessions whose variantIdx matches the
-// requested variantIdx are eligible — each ABR rung has its own dedicated
+// requested variantIdx are eligible - each ABR rung has its own dedicated
 // session. When SingleVariant is false, variantIdx is ignored and the first
 // covering session for the hash is returned (multi-variant behaviour unchanged).
 func (o *SegmentOrchestrator) findCoveringSessionLocked(hash string, variantIdx, segmentIdx, nearAheadBudget int) *orchestratorSession {
@@ -283,7 +283,7 @@ func (o *SegmentOrchestrator) findCoveringSessionLocked(hash string, variantIdx,
 // segment is slow (4K HEVC software decode).
 func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, variantIdx, startSegIdx int) {
 	// Skip cleanly if Close already ran. shutdownCtx.Err() is non-nil after
-	// shutdownCancel — spawning a goroutine then would race the cache wipe.
+	// shutdownCancel - spawning a goroutine then would race the cache wipe.
 	if o.shutdownCtx.Err() != nil {
 		return
 	}
@@ -313,13 +313,13 @@ func (o *SegmentOrchestrator) PreWarm(fp DecisionFingerprint, variantIdx, startS
 }
 
 // EnsureSegmentRange guarantees that segment `segmentIdx` of `variantIdx` will
-// be produced (or is already on disk). Returns immediately — callers must use
+// be produced (or is already on disk). Returns immediately - callers must use
 // cache.Wait to block on segment readiness. The returned error is non-nil only
 // on terminal setup failure (resolver/source unavailable, ffmpeg spawn refused).
 //
 // variantIdx identifies the ABR rung the client is requesting. When
 // SingleVariant is OFF (the default) this value is forwarded to the cache
-// fast-path check but otherwise ignored for session-matching — the existing
+// fast-path check but otherwise ignored for session-matching - the existing
 // multi-variant behaviour is preserved byte-for-byte. When SingleVariant is ON,
 // each (hash, variantIdx) pair gets its own ffmpeg rafale.
 //
@@ -350,7 +350,7 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	// Multi-rafale per hash: walk every active rafale for this
 	// fingerprint and reuse the first one whose [startSeg, endSeg]
 	// window (or nearAhead extension) covers segmentIdx. If none
-	// does, spawn a fresh rafale ALONGSIDE the existing ones — we
+	// does, spawn a fresh rafale ALONGSIDE the existing ones - we
 	// don't tear them down anymore. The previous "kill on
 	// out-of-window seek" policy was correct for a single-client
 	// orchestrator but broke as soon as two clients sat on different
@@ -381,7 +381,7 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 		return nil
 	}
 
-	// No rafale covers this position — spawn a new one. If we cross
+	// No rafale covers this position - spawn a new one. If we cross
 	// MaxRafalesPerHash, the post-spawn evictLRUIfFullLocked pass
 	// retires the LRU.
 	o.logger.Info("orchestrator: spawning additional rafale for unserved seek",
@@ -482,7 +482,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	// Single-variant ON: encode only the one rung the client asked for
 	// (1 decode + 1 encode, saves the unused rungs).
 	// Single-variant OFF: encode the full ABR ladder in one multi-output
-	// ffmpeg — byte-identical to the pre-flag behaviour.
+	// ffmpeg - byte-identical to the pre-flag behaviour.
 	var sessionProfiles []transcoding.HLSProfile
 	var sessionVariantIdx int
 	if o.opts.SingleVariant {
@@ -521,7 +521,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		// fp.UseFMP4 is the container choice baked into the manifest the
 		// player will receive (.m4s vs .ts). Without forwarding it, ffmpeg
 		// always wrote .ts via the multi-variant builder while the manifest
-		// pointed at .m4s — segment fetches missed the cache forever.
+		// pointed at .m4s - segment fetches missed the cache forever.
 		UseFMP4: fp.UseFMP4,
 		// Hardware encode backend resolved by the handler (empty = software).
 		// The ffmpeg builder switches to the zero-copy GPU pipeline only when
@@ -583,7 +583,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	// Multi-rafale spawn race: only veto the new spawn if another
 	// goroutine has ALREADY spawned a rafale that covers startSegIdx
 	// (window or nearAhead). Multiple rafales on disjoint ranges of
-	// the same hash are the whole point of this refactor — letting
+	// the same hash are the whole point of this refactor - letting
 	// them coexist is what fixes the multi-client / multi-tab bug.
 	// In single-variant mode the race check also filters by variantIdx
 	// so two goroutines requesting the same rung at the same position
@@ -610,7 +610,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	evicted := o.evictLRUIfFullLocked(hash)
 	o.mu.Unlock()
 
-	// LRU-evict the oldest rafale outside the lock — killSession
+	// LRU-evict the oldest rafale outside the lock - killSession
 	// reacquires o.mu so we can't hold it here.
 	if evicted != nil {
 		o.logger.Info("orchestrator: LRU-evicting rafale (cap reached)",
@@ -620,7 +620,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	}
 
 	// Reap when ffmpeg exits so the session entry doesn't linger
-	// forever. Releases its cache-pending refcount via teardown too —
+	// forever. Releases its cache-pending refcount via teardown too -
 	// natural EOF skips killSession's teardown path so without this,
 	// future Wait() callers for the hash would block until the cache
 	// pending channel was eventually closed by another route.
@@ -640,7 +640,7 @@ func (o *SegmentOrchestrator) spawnSession(
 			}
 		}()
 		// Distinguish a natural ffmpeg exit (inspect why) from our own teardown
-		// (seek-cancel / GC / shutdown via sessionCtx) — only the former can be
+		// (seek-cancel / GC / shutdown via sessionCtx) - only the former can be
 		// a hardware-capability failure worth demoting on.
 		naturalExit := false
 		select {
@@ -657,7 +657,7 @@ func (o *SegmentOrchestrator) spawnSession(
 			teardown()
 		}
 		o.removeSessionFromList(hash, session)
-		// Natural exit: decrement the live-sessions gauge (exactly once — see
+		// Natural exit: decrement the live-sessions gauge (exactly once - see
 		// killSession). The reap is the dominant exit path (ffmpeg hits EOF).
 		// Count natural completions so the gauge can be reconciled against
 		// spawns − (completed + killed): a divergence flags a teardown leak like
@@ -716,7 +716,7 @@ func (o *SegmentOrchestrator) spawnSession(
 	// HW fast-fail watchdog: a hardware rafale that hasn't written its init
 	// segment within HWFirstSegmentTimeout is a stuck/dead GPU pipeline (a TDR
 	// reset, a hung encoder). Don't make the client wait out the full ~25 s
-	// segment timeout — demote to software now and kill the session so the
+	// segment timeout - demote to software now and kill the session so the
 	// retry re-resolves the (encoder-agnostic) software tier. The init is the
 	// signal, not a full segment: a working-but-slow GPU writes it within
 	// ~1-3 s while a dead one never does, so the tight window doesn't false-
@@ -732,14 +732,14 @@ func (o *SegmentOrchestrator) spawnSession(
 			t := time.NewTimer(o.opts.HWFirstSegmentTimeout)
 			defer t.Stop()
 			select {
-			case <-session.done: // already exited — the reap goroutine handles it
+			case <-session.done: // already exited - the reap goroutine handles it
 				return
 			case <-sessionCtx.Done(): // cancelled (seek / GC / shutdown)
 				return
 			case <-t.C:
 			}
 			if o.hwSessionAlive(hash, variantIdx, fp.UseFMP4) {
-				return // the encoder is producing (maybe slowly) — let it run
+				return // the encoder is producing (maybe slowly) - let it run
 			}
 			o.logger.Warn("orchestrator: HW session wrote no init within watchdog window, demoting to software",
 				slog.String("hash", hash),
@@ -779,7 +779,7 @@ func (o *SegmentOrchestrator) hashProducedSegment(hash string, variantIdx int, u
 // working pipeline, never by a stuck/dead GPU) or at least one media segment.
 // Used by the HW fast-fail watchdog to tell a slow-but-working GPU from a dead
 // one without waiting for a full first segment.
-// variantIdx selects which rung's init/segment to check — in multi-variant mode
+// variantIdx selects which rung's init/segment to check - in multi-variant mode
 // this is always 0 (base rung); in single-variant mode it is the session's own rung.
 func (o *SegmentOrchestrator) hwSessionAlive(hash string, variantIdx int, useFMP4 bool) bool {
 	if o.cache.IsReady(SegmentKey{DecisionHash: hash, VariantIdx: variantIdx, IsInit: true}, useFMP4) {
@@ -830,7 +830,7 @@ func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx i
 
 // ActiveCount returns how many ffmpeg sessions are currently live across
 // every fingerprint. Test + observability accessor; cheap to call.
-// Counts all rafales in the slice, not just distinct hashes — a film
+// Counts all rafales in the slice, not just distinct hashes - a film
 // with two concurrent clients reports 2, not 1.
 func (o *SegmentOrchestrator) ActiveCount() int {
 	o.mu.Lock()
@@ -843,7 +843,7 @@ func (o *SegmentOrchestrator) ActiveCount() int {
 }
 
 // ActiveSessionCount is the alias the library trickplay scheduler and the
-// admin/system metrics gauge consume — same shape as the legacy HLSManager's
+// admin/system metrics gauge consume - same shape as the legacy HLSManager's
 // counter, so the trickplay ActiveStreamChecker contract drops in without
 // changing callers.
 func (o *SegmentOrchestrator) ActiveSessionCount() int { return o.ActiveCount() }
@@ -851,7 +851,7 @@ func (o *SegmentOrchestrator) ActiveSessionCount() int { return o.ActiveCount() 
 // RemoveSession kills every rafale currently producing for the given media
 // ID. A single media can have several live sessions when different clients
 // negotiate different audio tracks / sub burn-ins / codecs (one DecisionHash
-// each), so the legacy contract — keyed by mediaID — fans out here. Safe to
+// each), so the legacy contract - keyed by mediaID - fans out here. Safe to
 // call for a media with no live session (no-op). Implements the
 // HLSSessionRemover interface the admin/kill-session and playback-stop paths
 // rely on.
@@ -878,7 +878,7 @@ func (o *SegmentOrchestrator) RemoveSession(mediaItemID string) {
 // It already carried EnsureSegmentRange / PreWarm / NotifyClientHint /
 // ActiveSessionCount / RemoveSession / Close; Profiles + WaitBudget below
 // complete the interface. The behaviour of every pre-existing method is
-// unchanged — this is the HW impl behind the seam.
+// unchanged - this is the HW impl behind the seam.
 var _ StreamProducer = (*SegmentOrchestrator)(nil)
 
 // WaitBudget is how long the segment handler should block on cache.Wait for an
@@ -889,7 +889,7 @@ func (o *SegmentOrchestrator) WaitBudget() time.Duration { return o.opts.WaitBud
 
 // Profiles shapes the ABR ladder for the HARDWARE path: the full ladder (a GPU
 // parallelises rungs cheaply) capped to the source resolution and the host's
-// calibrated HW ceiling. Pure in its inputs — the same (base, src, capacity)
+// calibrated HW ceiling. Pure in its inputs - the same (base, src, capacity)
 // yields the same ladder at manifest-time and segment-time, the cache-hash
 // invariant. decision is unused here (the HW path keeps every rung); it is
 // part of the interface so the software producer can branch on HDR.

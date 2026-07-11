@@ -250,7 +250,7 @@ func TestChooseAnchorIndices(t *testing.T) {
 		want   []int
 	}{
 		{0, 5, nil},
-		{3, 5, []int{0, 1, 2}},   // n <= max -> all
+		{3, 5, []int{0, 1, 2}},       // n <= max -> all
 		{7, 5, []int{0, 1, 3, 4, 6}}, // spread incl. first and last
 		{10, 1, []int{0}},
 	}

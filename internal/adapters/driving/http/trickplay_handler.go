@@ -66,7 +66,7 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 		tilesPerImage := manifest.TileWidth * manifest.TileHeight
 		if tilesPerImage <= 0 || manifest.TileWidth <= 0 {
 			// A zero/negative tile geometry (corrupted or partial-migration row)
-			// would divide-by-zero in the cue loop below — emit an empty VTT
+			// would divide-by-zero in the cue loop below - emit an empty VTT
 			// instead of panicking every request for this item.
 			w.Header().Set("Content-Type", "text/vtt")
 			w.Header().Set("Cache-Control", "no-cache")
@@ -74,7 +74,7 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			return
 		}
 
-		// Read the per-frame timestamp sidecar — required, no fallback.
+		// Read the per-frame timestamp sidecar - required, no fallback.
 		// (interval-based timing was wrong when keyframes are sparse.)
 		frameMs, sidecarErr := readSidecarTimestamps(manifest.ImagePath)
 		if sidecarErr != nil || len(frameMs) == 0 {

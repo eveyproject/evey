@@ -144,7 +144,7 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 }
 
 // Count returns the total rows matching the filter predicates (no joins needed
-// — resource_name resolution is a display concern of List only).
+// - resource_name resolution is a display concern of List only).
 func (r *AuditLogRepository) Count(ctx context.Context, f activity.AuditLogFilter) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.audit_log.Count")
 	defer span.End()

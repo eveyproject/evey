@@ -33,15 +33,15 @@ func sourceCopyVideoRange(streams []*domainlibrary.MediaStream) string {
 		case "hdr10", "hdr10+":
 			return "PQ"
 		}
-		return "" // dolby_vision etc. — never served as copy, no attribute
+		return "" // dolby_vision etc. - never served as copy, no attribute
 	}
 	return ""
 }
 
 // sourceCopyVideoCodec returns the RFC-6381 codec string (avc1.PPCCLL /
 // hvc1.P.C.Lxxx.B0) to advertise for a copy rung of the source video stream,
-// or "" when the source is not copy-eligible (the eligibility gates — level,
-// HDR ground truth, DoVi policy — live in CopyVideoCodecString). The manifest
+// or "" when the source is not copy-eligible (the eligibility gates - level,
+// HDR ground truth, DoVi policy - live in CopyVideoCodecString). The manifest
 // only uses it for a rung whose HLSProfile.Copy is true.
 func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 	for _, s := range streams {
@@ -52,7 +52,7 @@ func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 		// StartSec) is built from s.Keyframes, so an item that has not been
 		// keyframe-backfilled yet must fall back to transcode rather than route to
 		// copy and break on an empty plan. Critical now that the rung is on by
-		// default — the worker backfills keyframes_ms only after level.
+		// default - the worker backfills keyframes_ms only after level.
 		if len(s.Keyframes) == 0 {
 			return ""
 		}
@@ -73,7 +73,7 @@ func sourceCopyVideoCodec(streams []*domainlibrary.MediaStream) string {
 // audioCopyCodecs are the source codecs the muxed pipeline may pass through
 // (`-c:a copy`). The DECISION already guarantees the client decodes the
 // selected track (evaluateAudio checks client.AudioCodecs, which the web
-// player fills from canPlayType — ac-3/ec-3 only appear on Safari/TV-class
+// player fills from canPlayType - ac-3/ec-3 only appear on Safari/TV-class
 // clients); this set additionally bounds passthrough to codecs whose fMP4
 // muxing and RFC 6381 CODECS attribute (mp4a.40.2 / ac-3 / ec-3) are wired.
 var audioCopyCodecs = map[string]bool{"aac": true, "ac3": true, "eac3": true}
@@ -220,12 +220,12 @@ func streamIsTenBit(s *domainlibrary.MediaStream) bool {
 		return true
 	}
 	// Lower-cased to match hdr.DetectHDR's profile predicate (e.g. "Main 10",
-	// "High 10") — the two ten-bit rules must agree across layers.
+	// "High 10") - the two ten-bit rules must agree across layers.
 	return strings.Contains(strings.ToLower(s.Profile), "10")
 }
 
 // sourceDimsOf extracts the first video stream's resolution + 10-bit flag.
-// Streams may be missing (degenerate file) — zero Width/Height is handled by
+// Streams may be missing (degenerate file) - zero Width/Height is handled by
 // CapLadderToSource as "unknown, don't cap". Width/Height are *int on the
 // domain type so a missing probe doesn't conflate "unknown" with "zero pixels".
 func sourceDimsOf(streams []*domainlibrary.MediaStream) apptranscoding.SourceDims {

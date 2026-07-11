@@ -16,7 +16,7 @@ func TestSplitFilename_DotSeparated(t *testing.T) {
 }
 
 func TestSplitFilename_HyphenSeparated(t *testing.T) {
-	// hyphens are separators — same as normalize_video
+	// hyphens are separators - same as normalize_video
 	parts := SplitFilename("The-Office-S01E05-720p.mkv")
 	assert.Contains(t, parts, "The")
 	assert.Contains(t, parts, "Office")
@@ -298,7 +298,7 @@ func TestParse_Quality(t *testing.T) {
 		{"Movie.REMUX.mkv", "remux"},
 		{"Movie.NoQuality.mkv", ""},
 		// Bare-number resolutions (no `p` suffix). Some upstream renamers
-		// omit the `p` — without these, the digits leak into the title.
+		// omit the `p` - without these, the digits leak into the title.
 		{"Movie.2160.mkv", "2160"},
 		{"Movie.1080.mkv", "1080"},
 		{"Movie.720.mkv", "720"},
@@ -334,7 +334,7 @@ func TestParse_EditionSuffixStripped(t *testing.T) {
 		{"Movie Special Edition.mkv", "Movie"},
 		{"Movie Remastered.mkv", "Movie"},
 		// Title that legitimately contains "uncut" word stays unaffected
-		// only if it's not a standalone token — here it is, so it's
+		// only if it's not a standalone token - here it is, so it's
 		// stripped. Documents intentional risk.
 		{"Some Movie Uncut.mkv", "Some Movie"},
 		// Production gaps surfaced on pré-prod Saw + Léon orphans: "dc"

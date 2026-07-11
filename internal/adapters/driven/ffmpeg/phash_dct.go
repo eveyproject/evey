@@ -7,7 +7,7 @@ import (
 	"golang.org/x/image/draw"
 )
 
-// pHash perceptual hash using DCT-II — produces a 64-bit signature far more
+// pHash perceptual hash using DCT-II - produces a 64-bit signature far more
 // robust to compression artifacts and minor scene changes than the average
 // hash it replaces. The region [x0,y0,x1,y1] is scaled to 32×32 greyscale,
 // 2D DCT-II is applied, the top-left 8×8 block is kept (low-frequency
@@ -17,12 +17,13 @@ import (
 // the 63 remaining AC coefs.
 //
 // Distribution of Hamming distances on natural images:
-//   identical frames        → 0
-//   same shot, JPEG re-encode → 0–4
-//   same intro across episodes → 4–14
-//   unrelated scenes          → ~32 (random)
 //
-// The pipeline's max_hamming default of 8 still works — pHash distribution
+//	identical frames        → 0
+//	same shot, JPEG re-encode → 0-4
+//	same intro across episodes → 4-14
+//	unrelated scenes          → ~32 (random)
+//
+// The pipeline's max_hamming default of 8 still works - pHash distribution
 // is tighter than aHash for "same intro" matches but slightly looser for
 // truly identical frames; cf. bench dataset.
 func pHashDCT(img image.Image, x0, y0, x1, y1 int) uint64 {
@@ -107,7 +108,7 @@ func dct1D32Cols(in [32][32]float64) [32][32]float64 {
 }
 
 // medianFloat63 returns the median of a slice of 63 floats. Uses an
-// insertion sort on a stack-allocated copy — fine for the fixed small size.
+// insertion sort on a stack-allocated copy - fine for the fixed small size.
 func medianFloat63(values []float64) float64 {
 	var buf [63]float64
 	copy(buf[:], values)
@@ -120,7 +121,7 @@ func medianFloat63(values []float64) float64 {
 }
 
 // dctCos32[n][k] = cos((π/N) * (n+0.5) * k) with N=32. Pre-computed once at
-// init() time — saves 1024 cos() calls per pHash and matters since each
+// init() time - saves 1024 cos() calls per pHash and matters since each
 // trickplay sprite holds 25 tiles and a series can have hundreds of sprites.
 var dctCos32 [32][32]float64
 

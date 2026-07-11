@@ -113,7 +113,7 @@ func (alwaysBlockChecker) BlockedByParental(context.Context, string, *domainlibr
 	return true
 }
 
-// allowAllParental never blocks — used when a test exercises handler logic past
+// allowAllParental never blocks - used when a test exercises handler logic past
 // the parental gate without an admin claim doing the bypassing.
 type allowAllParental struct{}
 
@@ -124,7 +124,7 @@ func (allowAllParental) BlockedByParental(context.Context, string, *domainlibrar
 // TestMediaStream_ParentalBlocked_NotFound guards the parental gate on the main
 // streaming endpoint (handleStream / withParental). Production wires
 // withParental(parentalChk) in server.go, but no test exercised a blocking
-// checker through it — a regression dropping the gate from the primary flux
+// checker through it - a regression dropping the gate from the primary flux
 // would have passed unnoticed. The temp file makes the negative control real:
 // with the gate open the bytes stream (200), so the 404 below is the gate.
 func TestMediaStream_ParentalBlocked_NotFound(t *testing.T) {

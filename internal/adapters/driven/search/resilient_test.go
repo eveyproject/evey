@@ -241,7 +241,7 @@ func TestClear_DelegatesToPrimary(t *testing.T) {
 }
 
 // Unlike Index/Remove (which swallow), Clear SURFACES the primary's error so the
-// reconcile does not proceed to reindex — and log success — over a failed wipe,
+// reconcile does not proceed to reindex - and log success - over a failed wipe,
 // which would leave the stale docs in place.
 func TestClear_SurfacesPrimaryError(t *testing.T) {
 	primary := &fakeSearchIndex{clearFunc: func(_ context.Context) error { return errors.New("meili down") }}

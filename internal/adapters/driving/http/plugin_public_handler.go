@@ -99,7 +99,7 @@ func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGen
 			return
 		}
 		if !p.Enabled || p.Status != domainplugin.Running {
-			// Plugin not in a visible state — return not-found so callers
+			// Plugin not in a visible state - return not-found so callers
 			// can't enumerate disabled/errored plugins.
 			span.SetStatus(otelcodes.Error, "plugin not available")
 			http.Error(w, `{"message":"plugin not found"}`, http.StatusNotFound)
@@ -109,7 +109,7 @@ func registerPluginPublicRoutes(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		// Only expose config keys the manifest declares non-secret. This is the
 		// public, non-admin endpoint and its result is forwarded into the
 		// sandboxed iframe (client-side), so secrets (type: password / secret:
-		// true) must never appear here — admins read the full config via the
+		// true) must never appear here - admins read the full config via the
 		// admin endpoint instead.
 		cfg := p.PublicConfig()
 

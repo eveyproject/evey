@@ -34,7 +34,7 @@ func TestArtworkTypeConstants(t *testing.T) {
 func TestArtworkResult_ProviderField(t *testing.T) {
 	t.Parallel()
 
-	// Provider must be set — it prevents deduplication across providers
+	// Provider must be set - it prevents deduplication across providers
 	cases := []struct {
 		provider string
 		artType  string
@@ -222,7 +222,7 @@ func TestMetadataResult_PeopleAndArtwork(t *testing.T) {
 	if len(r.Artwork) != 2 {
 		t.Errorf("Artwork len = %d, want 2", len(r.Artwork))
 	}
-	// different providers on different artwork — both kept
+	// different providers on different artwork - both kept
 	if r.Artwork[0].Provider == r.Artwork[1].Provider {
 		t.Error("artwork from different providers must not share provider field")
 	}
@@ -346,7 +346,7 @@ func TestNewArtworkRecord(t *testing.T) {
 func TestArtworkRecord_OptionalFields(t *testing.T) {
 	t.Parallel()
 
-	// minimum valid record — no optional dimensions/language
+	// minimum valid record - no optional dimensions/language
 	rec := &metadata.ArtworkRecord{
 		ID:          "ar1",
 		MediaItemID: "m1",

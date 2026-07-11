@@ -13,7 +13,7 @@ import (
 //
 // Admin-only, pure read: a JSON snapshot of every instrumented background worker
 // (running/idle, the item it's on, items processed this run) so an operator can
-// see WHAT is keeping the host busy — why the CPU isn't near idle. Sourced from
+// see WHAT is keeping the host busy - why the CPU isn't near idle. Sourced from
 // the in-process bgtasks registry, so it's always cheap and never 5xx.
 func registerBackgroundTasksRoute(mux *http.ServeMux, tokenGen TokenVerifier) {
 	admin := httpAdminMiddleware(tokenGen)

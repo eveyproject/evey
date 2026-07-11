@@ -13,7 +13,7 @@ import (
 // later without breaking clients that round-trip it.
 //
 // Use with WHERE (sort_value, id) > (cursor.value, cursor.id) ORDER BY
-// sort_value, id — the (value, id) tuple comparison guarantees no skips
+// sort_value, id - the (value, id) tuple comparison guarantees no skips
 // or duplicates even when sort_value is non-unique.
 type Cursor struct {
 	SortField string `json:"f"`
@@ -22,7 +22,7 @@ type Cursor struct {
 }
 
 // ErrCursorMismatch is returned when the cursor was generated for a
-// different sort key than the current request — re-issuing it would
+// different sort key than the current request - re-issuing it would
 // produce undefined ordering. Callers should restart from page 1.
 var ErrCursorMismatch = errors.New("cursor sort field does not match request")
 

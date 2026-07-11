@@ -76,7 +76,7 @@ func (r *MusicPlayRepository) PlayCountsForProfile(ctx context.Context, profileI
 }
 
 // GenreAffinityForProfile returns, per lowercased genre, the profile's total
-// play count across that genre — the taste signal the playlist generator scores
+// play count across that genre - the taste signal the playlist generator scores
 // candidates against. Computed in SQL from the full play history so it stays
 // accurate even though the generator's candidate pool is only a bounded random
 // sample (joining plays to tracks is cheap: the history is small).

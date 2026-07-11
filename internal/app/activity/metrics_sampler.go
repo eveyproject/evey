@@ -10,7 +10,7 @@ import (
 )
 
 // defaultSampleInterval is how often a server-metric row is recorded. One row
-// a minute is 1 440/day — small enough that the existing
+// a minute is 1 440/day - small enough that the existing
 // EVEY_METRICS_RETENTION_DAYS purge comfortably bounds the table.
 const defaultSampleInterval = time.Minute
 
@@ -27,7 +27,7 @@ type SysSample struct {
 // MetricsSampler periodically records a ServerMetric row: CPU/memory, active
 // stream/transcode counts and the streaming bandwidth actually served over
 // the last interval (from the byte meter). It is what finally feeds the
-// server_metrics table — RecordMetric/ListServerMetrics existed with no
+// server_metrics table - RecordMetric/ListServerMetrics existed with no
 // producer, so the history was empty and "bandwidth consumed" had no source.
 type MetricsSampler struct {
 	cmd      *CommandService
@@ -65,7 +65,7 @@ func NewMetricsSampler(
 }
 
 // Run samples on a fixed interval until ctx is done. Errors are logged and
-// the loop continues — a DB blip must not stop the history.
+// the loop continues - a DB blip must not stop the history.
 func (s *MetricsSampler) Run(ctx context.Context) {
 	if s.meter != nil {
 		s.lastTotal = s.meter.Total()

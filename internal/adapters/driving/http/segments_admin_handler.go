@@ -13,7 +13,7 @@ import (
 
 // PUT /api/v1/admin/media/{id}/segments
 // Body: {"type":"intro","startMs":45000,"endMs":60000}
-// Sets a manual segment. Idempotent on (media_id, type) — replaces auto detection.
+// Sets a manual segment. Idempotent on (media_id, type) - replaces auto detection.
 func setSegmentHandler(tokenGen TokenVerifier, svc IntroDetectionTrigger, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter) http.HandlerFunc {
 	admin := httpAdminMiddleware(tokenGen)
 	return admin(func(w http.ResponseWriter, r *http.Request) {

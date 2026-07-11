@@ -134,7 +134,7 @@ func run() error {
 	defer deps.media.hlsVODOrch.CleanupAll()
 	defer func() {
 		// Give the QoE sink a brief window to flush pending CMCD events; we
-		// don't block shutdown on it though — telemetry that didn't make it
+		// don't block shutdown on it though - telemetry that didn't make it
 		// is acceptable, a slow shutdown is not.
 		closeCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -175,7 +175,7 @@ func run() error {
 	// server_metric rides its long-standing EVEY_METRICS_RETENTION_DAYS.
 	deps.engagement.activityCmdSvc.StartRetentionPurge(ctx, cfg.Log.AuditRetentionDays, cfg.Metrics.RetentionDays)
 	// Minute-grained server-metric samples (CPU/RAM, streams, measured
-	// streaming bandwidth) — feeds the dashboard rate + the activity stats'
+	// streaming bandwidth) - feeds the dashboard rate + the activity stats'
 	// consumed-bandwidth integral.
 	go deps.engagement.metricsSampler.Run(ctx)
 	// env-var-based fallback scheduler (used when DB row has enabled=false and EVEY_BACKUP_INTERVAL_HOURS>0)
@@ -185,14 +185,14 @@ func run() error {
 	go deps.library.scheduler.Run(ctx)
 
 	// Plugin subsystem is gated by EVEY_PLUGINS_ENABLED. When false the
-	// host socket and auto-start are skipped — a plugin enabled in DB
+	// host socket and auto-start are skipped - a plugin enabled in DB
 	// from a previous run will stay dormant until the flag is flipped.
 	if cfg.Server.PluginsEnabled {
 		// Preflight the sandbox once so a host that can't run bwrap (Docker's
 		// default seccomp blocks unshare/mount) yields an actionable message
 		// instead of every plugin crashing later with a cryptic socket timeout.
 		if perr := pluginrunner.ProbeSandbox(cfg.Plugins.SandboxMode); perr != nil {
-			rootLog.Warn("plugin sandbox preflight FAILED — plugins will crash at startup until this is fixed. "+
+			rootLog.Warn("plugin sandbox preflight FAILED - plugins will crash at startup until this is fixed. "+
 				"Apply the bundled seccomp profile to the evey container (security_opt: seccomp=.../seccomp-evey.json), "+
 				"or set EVEY_PLUGINS_SANDBOX_MODE=basic to run without bubblewrap (weaker isolation).",
 				slog.String("sandbox_mode", cfg.Plugins.SandboxMode), slog.Any("err", perr))
@@ -232,7 +232,7 @@ func run() error {
 	}
 
 	// Drain the front door FIRST: stop accepting new HTTP and let in-flight
-	// requests finish while gRPC — which they proxy to via gwConn — is still up.
+	// requests finish while gRPC - which they proxy to via gwConn - is still up.
 	// The previous order stopped gRPC before the HTTP gateway, so any request the
 	// still-open gateway accepted in that window got an Unavailable 5xx instead of
 	// a clean drain.

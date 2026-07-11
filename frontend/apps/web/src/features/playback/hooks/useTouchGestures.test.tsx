@@ -1,5 +1,5 @@
 /**
- * useTouchGestures — unit tests
+ * useTouchGestures - unit tests
  *
  * Strategy: the hook exposes handleTouchStart/Move/End as plain
  * React callbacks.  We call them directly with shaped plain-objects that
@@ -9,7 +9,7 @@
  * What we DO NOT test:
  *  - setTimeout-driven seekFlash clearing / singleTap timer firing (those
  *    require fake-timer coordination across two separate act() calls; brittle
- *    for minimal gain — the timer logic is a one-liner wrapping setSeekFlash).
+ *    for minimal gain - the timer logic is a one-liner wrapping setSeekFlash).
  */
 import { renderHook, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -577,7 +577,7 @@ describe("useTouchGestures", () => {
 
   // ── middle zone swipe: ignored ────────────────────────────────────────────
 
-  it("vertical swipe in the middle zone (relX 0.4–0.6) is ignored", () => {
+  it("vertical swipe in the middle zone (relX 0.4-0.6) is ignored", () => {
     const args = defaultArgs(video);
     const { result } = renderHook(() => useTouchGestures(args));
 

@@ -101,7 +101,7 @@ EVEY_LIBRARY_WATCHER_ENABLED=true      # realtime file watching
 ```
 
 The library scan prober reads `.mkv`/`.webm` and `.mp4`/`.m4v` metadata in-process
-(mkvgo, head-only — ~35x faster on re-scan/repair/NAS) with no configuration: it is
+(mkvgo, head-only - ~35x faster on re-scan/repair/NAS) with no configuration: it is
 always on. ffprobe stays the authority and handles any file the fast-path cannot map
 field-equivalent (HDR/Dolby Vision, unmapped codecs, …). See
 [adr/0016-mkv-fastpath-prober.md](adr/0016-mkv-fastpath-prober.md).
@@ -116,14 +116,14 @@ See [transcoding.md](transcoding.md) for hardware setup.
 
 ### Plugins (sandbox & limits)
 ```env
-EVEY_PLUGINS_SANDBOX_MODE=auto         # auto|landlock|bubblewrap|strict|basic — auto picks the strongest your host supports
-EVEY_PLUGINS_UID_SEPARATION=auto       # auto|on|off — run plugins as a separate user to wall off secrets (auto = on only on hosts without Landlock); incompatible with no-new-privileges
+EVEY_PLUGINS_SANDBOX_MODE=auto         # auto|landlock|bubblewrap|strict|basic - auto picks the strongest your host supports
+EVEY_PLUGINS_UID_SEPARATION=auto       # auto|on|off - run plugins as a separate user to wall off secrets (auto = on only on hosts without Landlock); incompatible with no-new-privileges
 EVEY_PLUGINS_MEMORY_MB=256             # max RAM per plugin (MiB); admin-editable via Admin → Plugins
 EVEY_PLUGINS_PIDS_MAX=64               # max processes/threads per plugin; admin-editable
 EVEY_PLUGINS_DISK_MAX_MB=100           # max install-dir size per plugin (MiB; 0 = off); admin-editable
-EVEY_PLUGINS_CPU_NICE=10               # scheduling nice 0–19 (higher = lower priority); admin-editable
+EVEY_PLUGINS_CPU_NICE=10               # scheduling nice 0-19 (higher = lower priority); admin-editable
 EVEY_PLUGINS_ENABLED=true              # master switch for the plugin subsystem
-EVEY_PLUGINS_COSIGN_POLICY=warn        # off|warn|enforce — require a cosign signature on plugin ZIPs
+EVEY_PLUGINS_COSIGN_POLICY=warn        # off|warn|enforce - require a cosign signature on plugin ZIPs
 EVEY_PLUGINS_COSIGN_PUBLIC_KEY=        # PEM public-key path (required when policy != off)
 ```
 

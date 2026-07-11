@@ -46,7 +46,7 @@ func WithCacheStore(cs transcoding.CacheStore) Option {
 	return func(s *Service) { s.cache = cs }
 }
 
-// SetPlaybackGauge wires the live-playback gauge after construction — wire.go
+// SetPlaybackGauge wires the live-playback gauge after construction - wire.go
 // builds the session limiter after this service. Pair with
 // SuperviseBackgroundPreemption.
 func (s *Service) SetPlaybackGauge(g PlaybackGauge) { s.playback = g }
@@ -148,7 +148,7 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 
 // refreshActiveGauge recounts Running jobs and sets the Prom gauge.
 // Called at every lifecycle hook we control (start/fail/stop) because
-// natural completion isn't signaled back to this service — without
+// natural completion isn't signaled back to this service - without
 // this recount the gauge would drift upward monotonically.
 func (s *Service) refreshActiveGauge(ctx context.Context) {
 	active, err := s.jobs.ListActive(ctx)
@@ -354,7 +354,7 @@ func (s *Service) pauseRunning(ctx context.Context) {
 }
 
 // resumePaused SIGCONTs every job we paused. A resume error means the job is
-// gone (stopped/completed) — drop it from the set either way.
+// gone (stopped/completed) - drop it from the set either way.
 func (s *Service) resumePaused(ctx context.Context) {
 	s.pauseMu.Lock()
 	defer s.pauseMu.Unlock()

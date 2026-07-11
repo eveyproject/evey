@@ -72,7 +72,7 @@ func IsValidSandboxMode(mode string) bool { return validSandboxModes[mode] }
 
 // ResolveResourceConfig overlays stored overrides (server_config) on the boot
 // defaults and returns the effective values. Invalid/out-of-range stored values
-// are ignored (the default wins) and logged — a bad row must never break plugin
+// are ignored (the default wins) and logged - a bad row must never break plugin
 // startup. A nil repo yields the defaults unchanged.
 func ResolveResourceConfig(ctx context.Context, repo shared.ServerConfigRepository, def ResourceDefaults) ResourceValues {
 	v := ResourceValues(def)

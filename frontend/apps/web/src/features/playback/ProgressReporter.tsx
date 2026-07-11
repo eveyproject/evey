@@ -27,9 +27,9 @@ interface ProgressReporterProps {
   sessionId: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   transcodeOffsetRef?: React.RefObject<number>;
-  /** Current media item id — drives the predictive next-episode warm-up. */
+  /** Current media item id - drives the predictive next-episode warm-up. */
   mediaId?: string;
-  /** Media type (episode / movie / ...) — gates the warm-up to episodes. */
+  /** Media type (episode / movie / ...) - gates the warm-up to episodes. */
   mediaType?: string;
   onRemoteStop?: () => void;
   /** Present and active while a cast session plays this media. */
@@ -45,7 +45,7 @@ const PREWARM_PROGRESS_THRESHOLD = 0.85;
 export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, mediaId, mediaType, onRemoteStop, cast }: ProgressReporterProps) {
   const pendingRef = useRef(false);
   const errorCountRef = useRef(0);
-  // One prewarm per media item per mount — fires exactly when the
+  // One prewarm per media item per mount - fires exactly when the
   // current play first crosses the threshold. Resets whenever the
   // mediaId changes (next ep starts).
   const prewarmedForRef = useRef<string | null>(null);
@@ -92,7 +92,7 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
         errorCountRef.current = 0;
         // Predictive next-episode warm-up. Only for series episodes, only
         // once per (mount, mediaId), only past the threshold, and only for
-        // LOCAL playback (a cast reload swaps the whole receiver media —
+        // LOCAL playback (a cast reload swaps the whole receiver media -
         // the local autoplay chain this warm-up feeds doesn't run there).
         if (
           !casting &&
@@ -108,7 +108,7 @@ export function ProgressReporter({ sessionId, videoRef, transcodeOffsetRef, medi
             method: "POST",
           }).catch((err) => {
             // 204 (series finale) lands as a no-content response and
-            // eveyFetch can resolve to undefined — both are fine. Real
+            // eveyFetch can resolve to undefined - both are fine. Real
             // network errors get logged but never bubble.
             console.debug("prewarm-next failed (non-fatal)", err);
           });

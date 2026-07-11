@@ -50,7 +50,7 @@ func (t Type) IsValid() bool {
 // or infrastructure events admins need to know about, but that should not
 // pollute the personal notification feed (no badge, no dropdown listing).
 //
-// They still land in the same `notifications` table — querying with
+// They still land in the same `notifications` table - querying with
 // AdminOnly() filters them in/out at read time. A future /admin/notifications
 // endpoint can surface them dedicated to admins.
 func (t Type) IsAdminOnly() bool {
@@ -93,7 +93,7 @@ type Notification struct {
 	Message        string
 	MediaItemID    shared.MediaItemID
 	RelatedMediaID shared.MediaItemID // series ID for new_episode/new_season grouping
-	EpisodeCount   int               // accumulated episode count for grouped new_episode notifs
+	EpisodeCount   int                // accumulated episode count for grouped new_episode notifs
 	Level          Level
 	CreatedAt      time.Time
 	ExpiresAt      *time.Time

@@ -191,7 +191,7 @@ func NewWith(parent *slog.Logger, component string) *slog.Logger {
 }
 
 // StartCleanup removes log files older than retention days. The optional
-// initDone channel(s) are closed after the initial cleanOldLogs pass —
+// initDone channel(s) are closed after the initial cleanOldLogs pass -
 // tests pass one to wait deterministically instead of sleeping.
 func StartCleanup(ctx context.Context, dir string, retentionDays int, initDone ...chan<- struct{}) {
 	if retentionDays <= 0 {

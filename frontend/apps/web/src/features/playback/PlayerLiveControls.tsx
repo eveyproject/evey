@@ -66,7 +66,7 @@ export function LiveChaptersPanel({ castTimeSec, ...rest }: LiveChaptersPanelPro
 // useActiveChapterIndex tracks the chapter the playhead is in WITHOUT
 // re-rendering its host every tick: it listens to the <video> timeupdate event
 // (or the cast position prop) and only setState when the index actually
-// changes — i.e. on a chapter boundary crossing, which is rare. This is what
+// changes - i.e. on a chapter boundary crossing, which is rare. This is what
 // lets PlayerControls keep the chapter nav buttons inline yet stop re-rendering
 // 4×/sec.
 export function useActiveChapterIndex(

@@ -65,7 +65,7 @@ func (i *PluginTokenInterceptor) maybeParse(ctx context.Context) *authpkg.Plugin
 	}
 	claims, err := i.parser.ParsePluginToken(raw)
 	if err != nil {
-		// Not a plugin token (or invalid) — silently skip; user auth interceptor handles it.
+		// Not a plugin token (or invalid) - silently skip; user auth interceptor handles it.
 		return nil
 	}
 	slog.Debug("plugin token authenticated", slog.String("plugin_id", claims.PluginID), slog.String("user_id", claims.UserID))

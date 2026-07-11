@@ -31,17 +31,17 @@ const tidbUserAgent = "Evey/intro-detection (+https://github.com/evey-project/ev
 // else by imdb_id.
 //
 // The API exposes three independent rate-limit tiers via response headers:
-//   - X-RateLimit-* — 30 req / 10s burst. The headerRateLimiter observes
+//   - X-RateLimit-* - 30 req / 10s burst. The headerRateLimiter observes
 //     Remaining/Reset and proactively pauses before the next request when
 //     Remaining < 3, avoiding 429s on bulk scans.
-//   - X-UsageLimit-* — 100/day anonymous, 500/day with Bearer auth. Not
+//   - X-UsageLimit-* - 100/day anonymous, 500/day with Bearer auth. Not
 //     paced proactively (the reset window can be hours); we let a daily-cap
 //     429 terminate the run and resume next cycle, shielded by the cache.
-//   - X-UsageLimit-SpecificMedia-* — per-media cap (~1000). Same treatment.
+//   - X-UsageLimit-SpecificMedia-* - per-media cap (~1000). Same treatment.
 //
 // On 429 we honour the longest of Retry-After / X-UsageLimit-Reset /
 // X-RateLimit-Reset (parseRetryAfter) so we never retry inside a still-open
-// window. No automatic retry — the caller resumes next cycle.
+// window. No automatic retry - the caller resumes next cycle.
 type TIDBClient struct {
 	baseURL    string
 	apiKey     string
@@ -76,7 +76,7 @@ func NewTIDBClient(apiKey string, opts ...TIDBOption) *TIDBClient {
 // audit which provider produced each segment.
 func (c *TIDBClient) Source() string { return "tidb" }
 
-// tidbSegment matches the API's segment shape — start/end are nullable.
+// tidbSegment matches the API's segment shape - start/end are nullable.
 // For intro/recap a null start means "starts at 0"; for credits/preview a
 // null end means "runs to end of media". Confidence/SubmissionCount are v3
 // additions, optional and frequently absent (the official client ignores
@@ -101,7 +101,7 @@ type tidbMediaResponse struct {
 
 // Fetch performs a single GET /v2/media call and maps the response to
 // domain MediaSegments. 404 = no data for this item (returns nil, nil
-// — chain continues). 429 returns a typed error (the caller backs off
+// - chain continues). 429 returns a typed error (the caller backs off
 // for the rest of the run).
 func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.MediaSegment, error) {
 	ctx, span := tracing.StartSpan(ctx, "introproviders.tidb.Fetch")
@@ -116,7 +116,7 @@ func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.
 		// the imdb-only items that previously fell straight through to IntroDB.
 		q.Set("imdb_id", lookup.ImdbID)
 	default:
-		return nil, nil // no canonical identifier — nothing to query
+		return nil, nil // no canonical identifier - nothing to query
 	}
 	if !lookup.IsMovie {
 		if lookup.Season == 0 || lookup.Episode == 0 {
@@ -178,7 +178,7 @@ func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.
 
 	segs := make([]domainlibrary.MediaSegment, 0, 4)
 	// intro/recap require an explicit end (null end is meaningless). credits/
-	// preview may carry a null end meaning "to end of media" — resolved
+	// preview may carry a null end meaning "to end of media" - resolved
 	// against lookup.DurationMs when known.
 	segs = appendTIDBSegments(segs, payload.Intro, "intro", c.Source(), true, lookup.DurationMs)
 	segs = appendTIDBSegments(segs, payload.Recap, "recap", c.Source(), true, lookup.DurationMs)
@@ -201,10 +201,10 @@ func (c *TIDBClient) Fetch(ctx context.Context, lookup Lookup) ([]domainlibrary.
 // must carry an explicit end_ms; credits/preview (false) may carry end_ms
 // == null meaning "to the end of media", which we close against durationMs
 // (the item's runtime). When the end is open and durationMs is unknown the
-// segment is dropped — a half-open range can't be rendered as a skip CTA.
+// segment is dropped - a half-open range can't be rendered as a skip CTA.
 func appendTIDBSegments(out []domainlibrary.MediaSegment, raw []tidbSegment, segType, source string, endRequired bool, durationMs int64) []domainlibrary.MediaSegment {
 	for _, s := range raw {
-		// A nil start means "starts at 0" — clamp so the player renders the
+		// A nil start means "starts at 0" - clamp so the player renders the
 		// segment from the very beginning.
 		var startMs int64
 		if s.StartMs != nil {
@@ -238,7 +238,7 @@ func appendTIDBSegments(out []domainlibrary.MediaSegment, raw []tidbSegment, seg
 }
 
 // tidbConfidence uses the upstream per-segment confidence when present
-// (clamped to 0..1), else a 0.97 floor — community-validated data should
+// (clamped to 0..1), else a 0.97 floor - community-validated data should
 // stay competitive with our pHash+Chromaprint primary.
 func tidbConfidence(s tidbSegment) float64 {
 	if s.Confidence != nil && *s.Confidence > 0 {
@@ -251,7 +251,7 @@ func tidbConfidence(s tidbSegment) float64 {
 }
 
 // ErrRateLimited is returned by upstream clients when they hit a 429.
-// Chain provider treats it as a transient terminal error for the run —
+// Chain provider treats it as a transient terminal error for the run -
 // the cache hides the user from repeated failures across calls.
 type ErrRateLimited struct {
 	Source     string

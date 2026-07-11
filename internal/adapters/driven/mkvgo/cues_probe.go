@@ -12,7 +12,7 @@ import (
 )
 
 // The Cues-presence probe answers "does this file have a seek index?" from the
-// head SeekHead alone — a handful of small reads + one verification seek —
+// head SeekHead alone - a handful of small reads + one verification seek -
 // instead of reader.Open's full parse (which walks every cluster: seconds per
 // file, hours over a library, the reason the admin scan needed to go async).
 //
@@ -29,7 +29,7 @@ import (
 const probeSeekHeadHops = 2
 
 // probeMaxHeadElements bounds how many top-level elements are walked before
-// giving up — head metadata sits within the first few.
+// giving up - head metadata sits within the first few.
 const probeMaxHeadElements = 12
 
 // probeMaxSeekHeadBytes caps how much SeekHead payload is read into memory.
@@ -80,7 +80,7 @@ func probeCuesPresence(path string) (bool, bool) {
 			return false, false
 		}
 		if eh.Size < 0 {
-			// Unknown-size element (streamed cluster) — can't skip past it.
+			// Unknown-size element (streamed cluster) - can't skip past it.
 			return false, false
 		}
 		switch eh.ID {
@@ -88,7 +88,7 @@ func probeCuesPresence(path string) (bool, bool) {
 			return true, true
 		case extmkv.IDCluster:
 			// Clusters begin and no head SeekHead listed Cues. Cues could still
-			// trail the clusters unlisted — undecidable without a full parse.
+			// trail the clusters unlisted - undecidable without a full parse.
 			return false, false
 		case extmkv.IDSeekHead:
 			cuesPos, nextSH, ok := parseSeekHeadPayload(r, eh.Size)
@@ -103,7 +103,7 @@ func probeCuesPresence(path string) (bool, bool) {
 				pos = segStart + nextSH
 				continue
 			}
-			// A clean SeekHead with no Cues entry — trusted negative.
+			// A clean SeekHead with no Cues entry - trusted negative.
 			return false, true
 		}
 		pos += int64(n) + eh.Size
@@ -163,7 +163,7 @@ func parseSeekEntry(payload []byte) (id uint64, sPos int64, ok bool) {
 			return 0, 0, false
 		}
 		switch eh.ID {
-		case 0x53AB: // SeekID — the raw EBML ID bytes of the referenced element
+		case 0x53AB: // SeekID - the raw EBML ID bytes of the referenced element
 			v, err := ebml.ReadUint(r, eh.Size)
 			if err != nil {
 				return 0, 0, false
@@ -185,7 +185,7 @@ func parseSeekEntry(payload []byte) (id uint64, sPos int64, ok bool) {
 }
 
 // verifyElementAt confirms the element at abs offset is wantID. A mismatch is
-// a stale/odd SeekHead — unconfirmed, so the caller falls back to a full parse.
+// a stale/odd SeekHead - unconfirmed, so the caller falls back to a full parse.
 func verifyElementAt(f *os.File, abs int64, wantID uint32) (bool, bool) {
 	if abs < 0 {
 		return false, false

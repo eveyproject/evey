@@ -63,7 +63,7 @@ var mediaItemTypeFromProto = map[eveyv1.MediaItemType]string{
 }
 
 // mediaItemToProto converts a MediaItem to proto. When includeFilePath is false
-// the absolute server path is omitted — admin-only (matches photoToProto): it
+// the absolute server path is omitted - admin-only (matches photoToProto): it
 // leaks the host filesystem layout, and non-admin clients stream via the media
 // endpoints, not the raw path (pentest 2026-05-26).
 func mediaItemToProto(item *library.MediaItem, includeFilePath bool) *eveyv1.MediaItem {

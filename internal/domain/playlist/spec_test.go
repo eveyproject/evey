@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func intPtr(v int) *int         { return &v }
+func intPtr(v int) *int           { return &v }
 func floatPtr(v float64) *float64 { return &v }
 
 func TestCompileRules_UnknownField(t *testing.T) {

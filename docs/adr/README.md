@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-Structural decisions for Evey. New ADRs are numbered sequentially and never rewritten — supersede with a new ADR instead.
+Structural decisions for Evey. New ADRs are numbered sequentially and never rewritten - supersede with a new ADR instead.
 
 | # | Title | Date | Status |
 | --- | --- | --- | --- |

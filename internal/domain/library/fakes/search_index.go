@@ -50,7 +50,7 @@ func (s *FakeSearchIndex) IndexMediaItemsBatch(_ context.Context, items []*libra
 	return nil
 }
 
-// Indexed returns how many distinct media items are currently in the index —
+// Indexed returns how many distinct media items are currently in the index -
 // a test accessor for asserting reindex/index behaviour.
 func (s *FakeSearchIndex) Indexed() int {
 	s.mu.RLock()
@@ -58,7 +58,7 @@ func (s *FakeSearchIndex) Indexed() int {
 	return len(s.items)
 }
 
-// Get returns the indexed item by id — a test accessor for asserting what was
+// Get returns the indexed item by id - a test accessor for asserting what was
 // pushed to the index (e.g. attached translations).
 func (s *FakeSearchIndex) Get(id string) (*library.MediaItem, bool) {
 	s.mu.RLock()

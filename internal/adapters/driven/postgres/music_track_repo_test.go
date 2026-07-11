@@ -109,7 +109,7 @@ func TestMusicTrackRepo_UpsertReturnsExistingIDOnConflict(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "mt-keep", gotID, "fresh insert returns the inserted id")
 
-	// Same file_path, different (throwaway) id — the conflict must keep mt-keep.
+	// Same file_path, different (throwaway) id - the conflict must keep mt-keep.
 	rescan := newTestTrack("mt-throwaway", lib.ID, "Song (retag)", "Art", "Alb")
 	rescan.FilePath = first.FilePath
 	gotID, err = repo.Upsert(ctx, rescan)
@@ -242,7 +242,7 @@ func TestMusicTrackRepo_GetAlbums(t *testing.T) {
 	lib.Type = "music"
 	require.NoError(t, libRepo.Create(ctx, lib))
 
-	// Both tracks live in the same folder — one album, regardless of tags.
+	// Both tracks live in the same folder - one album, regardless of tags.
 	t1 := newTestTrack("mt7a", lib.ID, "T1", "TheArtist", "TheAlbum")
 	t1.FilePath = "/music/the-album/mt7a.flac"
 	{

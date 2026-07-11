@@ -14,7 +14,7 @@ import (
 var ErrProfileCapReached = errors.New("profile cap reached")
 
 // ErrLastEnabledAdmin is returned by the guarded delete/disable when the
-// target is the last enabled admin — removing it would lock everyone out.
+// target is the last enabled admin - removing it would lock everyone out.
 var ErrLastEnabledAdmin = errors.New("last enabled admin")
 
 type UserRepository interface {
@@ -26,7 +26,7 @@ type UserRepository interface {
 	List(ctx context.Context) ([]*User, error)
 	Update(ctx context.Context, u *User) error
 	// TouchLastLogin stamps the user's last_login_at. Best-effort on the login
-	// path — failure must not block the login itself.
+	// path - failure must not block the login itself.
 	TouchLastLogin(ctx context.Context, id shared.UserID, at time.Time) error
 	Delete(ctx context.Context, id shared.UserID) error
 	// DeleteIfNotLastAdmin and DisableIfNotLastAdmin perform the last-admin
