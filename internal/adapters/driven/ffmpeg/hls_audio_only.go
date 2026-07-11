@@ -221,7 +221,7 @@ func (h *audioHandle) Stop() error {
 		h.mu.Lock()
 		if h.cmd != nil && h.cmd.Process != nil {
 			if err := h.cmd.Process.Kill(); err != nil {
-				slog.Warn("ffmpeg audio kill after timeout failed", slog.Any("err", err))
+				slog.Warn("ffmpeg audio kill after timeout failed", slog.String("output_dir", h.outputDir), slog.String("playlist", h.playlistName), slog.Any("err", err))
 			}
 		}
 		h.mu.Unlock()
