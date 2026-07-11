@@ -64,6 +64,8 @@ export const SyncPlayBar = memo(function SyncPlayBar({ roomId, roomCode, isHost,
       className="flex items-center gap-3 px-4 py-2 text-sm bg-[var(--overlay-bg-strong)] border-t border-[var(--overlay-border-subtle)] text-[var(--overlay-text)]"
     >
       <span
+        role="img"
+        aria-label={connected ? t("media.syncplay.connected") : t("media.syncplay.connecting")}
         className="w-2 h-2 rounded-full flex-shrink-0"
         style={{ background: connected ? "var(--color-success)" : "var(--color-danger)" }}
         title={connected ? t("media.syncplay.connected") : t("media.syncplay.connecting")}

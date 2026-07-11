@@ -771,16 +771,16 @@ export default function PlayerScreen() {
 
           {/* Controls */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 32, marginTop: 24 }}>
-            <Pressable onPress={() => castClient?.seek?.({ position: Math.max(0, castCurrentTime - 10) })}>
+            <Pressable onPress={() => castClient?.seek?.({ position: Math.max(0, castCurrentTime - 10) })} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={t("player.controls.rewind", { seconds: 10 })}>
               <Ionicons name="play-back" size={32} color="#fff" />
             </Pressable>
             <Pressable onPress={() => {
               if (castIsPlaying) castClient?.pause?.();
               else castClient?.play?.();
-            }}>
+            }} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={castIsPlaying ? t("player.controls.pause") : t("player.controls.play")}>
               <Ionicons name={castIsPlaying ? "pause" : "play"} size={48} color="#fff" />
             </Pressable>
-            <Pressable onPress={() => castClient?.seek?.({ position: castCurrentTime + 10 })}>
+            <Pressable onPress={() => castClient?.seek?.({ position: castCurrentTime + 10 })} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={t("player.controls.forward", { seconds: 10 })}>
               <Ionicons name="play-forward" size={32} color="#fff" />
             </Pressable>
           </View>

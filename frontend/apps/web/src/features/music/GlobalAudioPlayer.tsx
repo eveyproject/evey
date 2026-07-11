@@ -284,7 +284,7 @@ export function GlobalAudioPlayer() {
         </button>
         <input type="range" min={0} max={1} step={0.02} value={volume} onChange={(e) => setVolume(Number(e.target.value))} aria-label={t("media.music.volume")} className="w-[72px] accent-[var(--accent)]" />
       </div>
-      <button onClick={close} className="text-[var(--text-muted)] bg-transparent border-none cursor-pointer" aria-label={t("common.aria.close")} title={t("common.aria.close")}>
+      <button onClick={close} className="tap-target flex items-center justify-center text-[var(--text-muted)] bg-transparent border-none cursor-pointer" aria-label={t("common.aria.close")} title={t("common.aria.close")}>
         <X size={18} aria-hidden="true" />
       </button>
     </div>
