@@ -49,14 +49,31 @@ function renderExplorer() {
   );
 }
 
+// The explorer now lands on the live tail (Direct pre-checked); the history
+// search only runs once the user toggles Live off. Most tests exercise the
+// history path, so they start from there.
+async function renderExplorerOnHistory() {
+  const view = renderExplorer();
+  await userEvent.click(screen.getByRole("button", { name: /live/i }));
+  return view;
+}
+
 describe("LogsExplorer", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockFetch.mockResolvedValue(resp([sampleEntry]));
   });
 
-  it("fetches and renders classified log entries", async () => {
+  it("starts on the live tail without firing a history search", () => {
     renderExplorer();
+    // The SSE tail goes through raw fetch, not eveyFetch - a pre-checked
+    // Direct mode means no /admin/logs history query at mount.
+    expect(mockFetch).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /live/i })).toBeInTheDocument();
+  });
+
+  it("fetches and renders classified log entries once Live is toggled off", async () => {
+    await renderExplorerOnHistory();
     expect(await screen.findByText("hls: ffmpeg exited with error")).toBeInTheDocument();
     // level + where render as data-driven badges (ERROR also labels a filter
     // chip, so assert at least one occurrence).
@@ -65,7 +82,7 @@ describe("LogsExplorer", () => {
   });
 
   it("passes the level filter to the search query when a chip is toggled", async () => {
-    renderExplorer();
+    await renderExplorerOnHistory();
     await screen.findByText("hls: ffmpeg exited with error");
 
     // The WARN chip is a plain button labeled WARN.
@@ -78,7 +95,7 @@ describe("LogsExplorer", () => {
   });
 
   it("passes where + media id filters through the query string", async () => {
-    renderExplorer();
+    await renderExplorerOnHistory();
     await screen.findByText("hls: ffmpeg exited with error");
 
     // where select (native <select>): choose player
@@ -95,7 +112,7 @@ describe("LogsExplorer", () => {
     mockFetch.mockResolvedValue(
       resp([{ ...sampleEntry, fields: { variant: 2, media_path: "/media/x.mkv" } }]),
     );
-    renderExplorer();
+    await renderExplorerOnHistory();
     const row = await screen.findByText("hls: ffmpeg exited with error");
     await userEvent.click(row);
     expect(await screen.findByText("media_path")).toBeInTheDocument();

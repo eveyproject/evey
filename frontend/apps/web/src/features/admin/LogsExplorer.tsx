@@ -190,7 +190,10 @@ export function LogsExplorer() {
   const [userId, setUserId] = useState("");
   const [mediaId, setMediaId] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [live, setLive] = useState(false);
+  // Live tail on by default: the operator opening Logs & Debug is almost
+  // always chasing something happening NOW - land on the stream, not on a
+  // search over history (toggle off for forensic queries).
+  const [live, setLive] = useState(true);
   const [liveEntries, setLiveEntries] = useState<LogEntry[]>([]);
 
   // Debounce the free-text box so we don't refetch on every keystroke.
