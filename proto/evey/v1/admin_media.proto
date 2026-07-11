@@ -296,6 +296,12 @@ message ReindexLibrarySeekIndexRequest {
   // this is the difference between one temporary copy at a time and one
   // PERSISTENT copy per repaired file on the volume.
   bool skip_backup = 4;
+  // backup_window (with backups on) keeps only the N most recent repairs'
+  // .mkvgobak while the sweep runs: as the job advances past the window, the
+  // oldest backup is purged automatically, and the job's end drains the
+  // remainder - the volume never holds more than N extra copies and finishes
+  // with none. 0 keeps every backup. Ignored with skip_backup or "inplace".
+  int32 backup_window = 5;
 }
 
 message ReindexLibrarySeekIndexResponse {

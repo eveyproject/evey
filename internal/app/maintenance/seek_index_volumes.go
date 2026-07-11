@@ -1,9 +1,13 @@
 package maintenance
 
 import (
+	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 	"syscall"
+
+	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
 // SeekVolume aggregates the un-indexed repair candidates of one filesystem so
@@ -76,4 +80,89 @@ func VolumeSummary(items []SeekStatus) []SeekVolume {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Root < out[j].Root })
 	return out
+}
+
+// summarizeVolumes is swappable so service tests can simulate a full volume
+// without materializing terabytes on the test filesystem.
+var summarizeVolumes = VolumeSummary
+
+// volumeHeadroomBytes mirrors the rewrite's per-file space-preflight margin
+// (rewriteHeadroomBytes in the mkvgo adapter): the batch guard should predict
+// what the repairs themselves will accept.
+const volumeHeadroomBytes = 256 << 20 // 256 MiB
+
+// backupShortfalls returns the volumes that cannot hold the SUM of their
+// repair candidates. A volume whose free space could not be probed reports
+// FreeBytes 0 and is skipped: the guard is advisory, the per-file preflight
+// inside the rewrite keeps the authority.
+func backupShortfalls(vols []SeekVolume) []SeekVolume {
+	var short []SeekVolume
+	for _, v := range vols {
+		if v.MissingFiles == 0 || v.FreeBytes == 0 {
+			continue
+		}
+		if v.MissingBytes+volumeHeadroomBytes > v.FreeBytes {
+			short = append(short, v)
+		}
+	}
+	return short
+}
+
+// BackupSpaceError reports the volumes that cannot hold the .mkvgobak
+// accumulation of a backup-keeping batch. It wraps mkv.ErrInsufficientSpace
+// (for errors.Is routing) and keeps the per-volume numbers so the API layer
+// can build a translated, parameterized refusal instead of a raw English
+// string.
+type BackupSpaceError struct {
+	Volumes []SeekVolume
+}
+
+func (e *BackupSpaceError) Unwrap() error { return mkv.ErrInsufficientSpace }
+
+// Detail renders the per-volume shortfall numbers. Locale-neutral on purpose
+// (paths, byte sizes, counts) so translations can embed it verbatim.
+func (e *BackupSpaceError) Detail() string {
+	parts := make([]string, 0, len(e.Volumes))
+	for _, v := range e.Volumes {
+		parts = append(parts, fmt.Sprintf("%s: %d × ~%s > %s",
+			v.Root, v.MissingFiles, fmtBytes(v.MissingBytes+volumeHeadroomBytes), fmtBytes(v.FreeBytes)))
+	}
+	return strings.Join(parts, "; ")
+}
+
+// Error keeps the raw-English form for logs and the async job summary (the
+// job runner has no request locale); user-facing surfaces go through the
+// API layer's translation of the same data.
+func (e *BackupSpaceError) Error() string {
+	return fmt.Sprintf("reindex library: %v: keeping one backup per repaired file would overfill the volume (%s) - free up space or repair without backups",
+		mkv.ErrInsufficientSpace, e.Detail())
+}
+
+// backupSpacePreflight refuses a backup-keeping batch upfront when any volume
+// cannot hold the sum of its candidates: keeping one .mkvgobak per repaired
+// file persists that sum on top of the current usage, and the per-file guard
+// cannot see the accumulation coming (it reads the LIVE free space, which
+// only shrinks as the batch progresses) - so without this check an
+// over-committed batch burns hours before its tail starts failing.
+func (s *SeekIndexService) backupSpacePreflight(items []SeekStatus) error {
+	short := backupShortfalls(summarizeVolumes(items))
+	if len(short) == 0 {
+		return nil
+	}
+	return &BackupSpaceError{Volumes: short}
+}
+
+// fmtBytes renders a byte count for operator-facing errors. Mirrors the mkvgo
+// adapter's formatter (the app layer cannot import the adapter).
+func fmtBytes(n int64) string {
+	const unit = int64(1024)
+	if n < unit {
+		return fmt.Sprintf("%d B", n)
+	}
+	div, exp := unit, 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
 }

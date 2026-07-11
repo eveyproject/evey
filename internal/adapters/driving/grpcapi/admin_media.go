@@ -151,9 +151,15 @@ func (d *adminMediaHandler) seekIndexConfigured(ctx context.Context, span trace.
 // volume, job already running, unknown media) to translated, non-500 statuses;
 // everything else stays a sanitized internal error.
 func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err error) error {
+	var spaceErr *appmaintenance.BackupSpaceError
 	switch {
 	case appmaintenance.IsReadOnlyFS(err):
 		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.seek_index_read_only")
+	case errors.As(err, &spaceErr):
+		// The typed error carries the per-volume shortfall; the numbers are
+		// locale-neutral, so they ride a translated envelope as one param.
+		return d.translator.TranslatedError(ctx, codes.FailedPrecondition,
+			"errors.admin.seek_index_backup_overcommit", map[string]string{"volumes": spaceErr.Detail()})
 	case errors.Is(err, appmaintenance.ErrJobRunning):
 		return d.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.admin.seek_index_job_running")
 	case errors.Is(err, domainmkv.ErrNoBackup):
@@ -311,9 +317,10 @@ func (d *adminMediaHandler) ReindexLibrarySeekIndex(ctx context.Context, req *ev
 		return nil, err
 	}
 	run := appmaintenance.ReindexRunOptions{
-		Mode:       req.GetMode(),
-		DeepVerify: req.GetDeepVerify(),
-		SkipBackup: req.GetSkipBackup(),
+		Mode:         req.GetMode(),
+		DeepVerify:   req.GetDeepVerify(),
+		SkipBackup:   req.GetSkipBackup(),
+		BackupWindow: int(req.GetBackupWindow()),
 	}
 	if err := d.seekIndex.StartReindexLibrary(ctx, req.GetLibraryId(), run); err != nil {
 		span.RecordError(err)

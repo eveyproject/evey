@@ -66,6 +66,10 @@ function formatSize(bytes: number): string {
 // the operator should predict what the repair itself will accept.
 const VOLUME_HEADROOM_BYTES = 256 * 1024 * 1024;
 
+// Rolling-backup window for whole-library repairs: at most this many
+// .mkvgobak copies exist at any moment during the sweep.
+const BACKUP_WINDOW = 5;
+
 // Keeping backups persists the SUM of the candidates on the volume.
 function volumeBackupsRisky(v: V1SeekIndexVolume): boolean {
   return Number(v.missingBytes ?? 0) + VOLUME_HEADROOM_BYTES > Number(v.freeBytes ?? 0);
@@ -212,6 +216,11 @@ function SeekIndexPage() {
   // nearly-full volume, where one PERSISTENT copy per repaired file would
   // not fit. Irrelevant to "inplace" (never duplicates the file).
   const [keepBackup, setKeepBackup] = useState(true);
+  // Rolling window: the sweep purges the oldest backup as it advances and
+  // drains the rest when the job ends, so the volume never holds more than
+  // BACKUP_WINDOW extra copies and finishes with none. Default ON: unbounded
+  // accumulation is the surprising behaviour on a whole-library sweep.
+  const [rollingBackups, setRollingBackups] = useState(true);
   const skipBackup = repairMode !== "inplace" && !keepBackup;
   const effectiveDeepVerify = deepVerify || skipBackup;
 
@@ -659,6 +668,21 @@ function SeekIndexPage() {
                 </p>
               </div>
             )}
+            {repairMode !== "inplace" && keepBackup && (
+              <div className="mt-3">
+                <Checkbox
+                  label={t("admin.seekIndex.backupWindow", { n: BACKUP_WINDOW })}
+                  checked={rollingBackups}
+                  onChange={setRollingBackups}
+                  data-testid="seek-index-backup-window"
+                />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {rollingBackups
+                    ? t("admin.seekIndex.backupWindowHint", { n: BACKUP_WINDOW })
+                    : t("admin.seekIndex.backupWindowOffHint")}
+                </p>
+              </div>
+            )}
             <div className="mt-3">
               <Checkbox
                 label={t("admin.seekIndex.deepVerify")}
@@ -680,7 +704,18 @@ function SeekIndexPage() {
             onClick={() => {
               if (confirmBatch === "rollback") rollbackLib.mutate({ data: libraryId ? { libraryId } : {} });
               else if (confirmBatch === "purge") purgeLib.mutate({ data: libraryId ? { libraryId } : {} });
-              else repairLib.mutate({ data: { ...(libraryId ? { libraryId } : {}), mode: repairMode, deepVerify: effectiveDeepVerify, skipBackup } });
+              else
+                repairLib.mutate({
+                  data: {
+                    ...(libraryId ? { libraryId } : {}),
+                    mode: repairMode,
+                    deepVerify: effectiveDeepVerify,
+                    skipBackup,
+                    ...(repairMode !== "inplace" && keepBackup && rollingBackups
+                      ? { backupWindow: BACKUP_WINDOW }
+                      : {}),
+                  },
+                });
               setConfirmBatch(null);
             }}
             data-testid="seek-index-confirm-batch-btn"

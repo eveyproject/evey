@@ -3,6 +3,7 @@ package maintenance_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -54,6 +55,10 @@ func (f *fakeReindexer) ReindexInPlace(_ context.Context, p string, _ mkv.Reinde
 	}
 	f.mu.Lock()
 	f.reindexed = append(f.reindexed, p)
+	if f.hasBackup == nil {
+		f.hasBackup = map[string]bool{}
+	}
+	f.hasBackup[p] = true // the rewrite leaves a .mkvgobak, like the real adapter
 	f.mu.Unlock()
 	return mkv.ReindexResult{BackupPath: p + ".mkvgobak", SrcBytes: 100, DstBytes: 90}, nil
 }
@@ -304,6 +309,43 @@ func TestSeekIndexService_ReindexLibrary_GuardsConcurrencyAndReportsFailures(t *
 	require.True(t, ok)
 	assert.Equal(t, 3, res.Total)
 	assert.Equal(t, 1, res.MissingIndex, "a repaired, only c still missing")
+}
+
+// With a backup window, a whole-library repair never holds more than the N
+// most recent backups: as the job advances past the window, the oldest
+// backups are purged automatically (bounded disk usage), and the job's end
+// drains the remainder - the volume finishes with ZERO .mkvgobak, no manual
+// purge needed. The cache reflects every deletion.
+func TestSeekIndexService_ReindexLibrary_RollingBackupWindow(t *testing.T) {
+	dir := t.TempDir()
+	paths := make([]string, 5)
+	files := make([]appmaintenance.MediaRef, 5)
+	hasIndex := map[string]bool{}
+	for i := range paths {
+		p := filepath.Join(dir, fmt.Sprintf("f%d.mkv", i))
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+		paths[i] = p
+		files[i] = appmaintenance.MediaRef{MediaID: fmt.Sprintf("m%d", i), Path: p}
+		hasIndex[p] = false
+	}
+	reidx := &fakeReindexer{hasIndex: hasIndex, hasBackup: map[string]bool{}}
+	svc := appmaintenance.NewSeekIndexService(reidx, fakeCatalog{files: files}, nil)
+
+	require.NoError(t, svc.StartReindexLibrary(context.Background(), "",
+		appmaintenance.ReindexRunOptions{BackupWindow: 2}))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, 5, st.Last.Done)
+	assert.Zero(t, st.Last.Failed)
+	assert.Equal(t, paths, reidx.deleted,
+		"every backup purged: the three oldest in order as the window slides, then the end-of-job drain")
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	for _, it := range res.Items {
+		assert.False(t, it.HasBackup, "no backup survives the job: %s", it.Path)
+	}
+	assert.Zero(t, res.WithBackup, "rollup reflects the drained window")
 }
 
 // A panic inside the reindexer must release the job slot (otherwise every

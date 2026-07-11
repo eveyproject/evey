@@ -182,8 +182,10 @@ describe("SeekIndexPage", () => {
     fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
+    // Library sweeps default to the rolling backup window: at most 5
+    // .mkvgobak copies on the volume at any moment during the batch.
     expect(repairLibMutate).toHaveBeenCalledWith({
-      data: { mode: "auto", deepVerify: true, skipBackup: false },
+      data: { mode: "auto", deepVerify: true, skipBackup: false, backupWindow: 5 },
     });
     expect(rollbackLibMutate).not.toHaveBeenCalled();
   });

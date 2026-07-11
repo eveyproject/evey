@@ -311,6 +311,14 @@ type ReindexRunOptions struct {
 	// batch never accumulates one persistent copy per repaired file - the
 	// option for a nearly-full volume. Deep-verify is forced on in exchange.
 	SkipBackup bool
+	// BackupWindow (library batches only, requires backups on) keeps only the
+	// N most recent repairs' .mkvgobak while the job runs: as it advances past
+	// the window, the oldest backup is purged automatically, and the job's end
+	// drains the remainder - the volume never holds more than N extra copies
+	// and finishes with none. The window is a short abort-and-rollback horizon
+	// for a job the operator is watching, not a persistent archive.
+	// 0 keeps every backup (the historic behaviour).
+	BackupWindow int
 }
 
 // reindexOptionsFor maps the operator's choices onto the port options. The
@@ -337,10 +345,50 @@ func (s *SeekIndexService) SupportsInPlace() bool { return s.reindexer.SupportsI
 
 // StartReindexLibrary kicks a background job that re-scans the library then
 // rebuilds the seek index of every un-indexed file. See ReindexRunOptions for
-// the strategy/backup semantics.
+// the strategy/backup semantics. A backup-keeping batch is preflighted as a
+// whole: when a volume cannot hold the sum of its candidates (each successful
+// rewrite persists a .mkvgobak copy), the job refuses upfront instead of
+// failing its tail hours in.
 func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID string, run ReindexRunOptions) error {
 	opts := reindexOptionsFor(run)
-	return s.startBatch(JobReindex, libraryID,
+	var preflight func([]SeekStatus) error
+	// A rolling window bounds the accumulation to ~N files, so the whole-sum
+	// preflight would be a false refusal there; the per-file guard inside the
+	// rewrite keeps the authority on transient space.
+	if opts.KeepBackup && run.BackupWindow <= 0 {
+		preflight = s.backupSpacePreflight
+		// Fail fast on the last cached scan when one exists: the operator gets
+		// the refusal synchronously - and translated, the RPC has a locale -
+		// instead of a queued job that dies at its first phase. The job's own
+		// re-scan below keeps the authority when the cache is absent or stale.
+		if scan, _, ok := s.CachedScan(libraryID); ok {
+			var kept []SeekStatus
+			for _, it := range scan.Items {
+				if !it.HasIndex {
+					kept = append(kept, it)
+				}
+			}
+			if err := preflight(kept); err != nil {
+				return err
+			}
+		}
+	}
+	// Backup paths of the most recent successful rewrites, oldest first. Job
+	// state: the batch runs on a single goroutine, so no locking needed.
+	var window []string
+	var epilogue func(context.Context)
+	if run.BackupWindow > 0 {
+		// Drain what the sliding purge left: the job ends with ZERO backups on
+		// the volume, no manual purge pass needed. Each repair was already
+		// validated before its swap; the window only existed to keep a short
+		// abort-and-rollback horizon while the job was alive.
+		epilogue = func(bg context.Context) {
+			for _, p := range window {
+				s.purgeRolledBackup(bg, p)
+			}
+		}
+	}
+	return s.startBatch(JobReindex, libraryID, preflight,
 		func(it SeekStatus) bool { return !it.HasIndex },
 		func(bg context.Context, path string) (bool, error) {
 			res, err := s.reindexer.ReindexInPlace(bg, path, opts)
@@ -351,15 +399,35 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 				s.refreshFileState(bg, path)
 				hasBak := res.BackupPath != ""
 				s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = hasBak })
+				if hasBak && run.BackupWindow > 0 {
+					window = append(window, path)
+					if len(window) > run.BackupWindow {
+						s.purgeRolledBackup(bg, window[0])
+						window = window[1:]
+					}
+				}
 			}
 			return res.Skipped, nil
-		})
+		}, epilogue)
+}
+
+// purgeRolledBackup deletes one media file's backup as it leaves the rolling
+// window (or at the end-of-job drain) and folds the deletion into the cached
+// scan. Best-effort: a failure only leaves that one backup behind,
+// reclaimable via the regular purge action.
+func (s *SeekIndexService) purgeRolledBackup(ctx context.Context, path string) {
+	if err := s.reindexer.DeleteBackup(ctx, path); err != nil {
+		s.logger.Warn("seek-index: rolling backup purge failed (backup left in place)",
+			slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	s.updateCachedFile(path, func(st *SeekStatus) { st.HasBackup = false })
 }
 
 // StartRollbackLibrary kicks a background job that re-scans the library then
 // restores every backed-up file from its .mkvgobak.
 func (s *SeekIndexService) StartRollbackLibrary(_ context.Context, libraryID string) error {
-	return s.startBatch(JobRollback, libraryID,
+	return s.startBatch(JobRollback, libraryID, nil,
 		func(it SeekStatus) bool { return it.HasBackup },
 		func(bg context.Context, path string) (bool, error) {
 			if err := s.reindexer.RestoreBackup(bg, path); err != nil {
@@ -369,7 +437,7 @@ func (s *SeekIndexService) StartRollbackLibrary(_ context.Context, libraryID str
 			// so the restored original is back to "no index".
 			s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = false; st.HasBackup = false })
 			return false, nil
-		})
+		}, nil)
 }
 
 // StartReindexMedia rebuilds one media file's seek index in the background.
@@ -413,7 +481,7 @@ func (s *SeekIndexService) DeleteBackupMedia(ctx context.Context, mediaID string
 // deletes every reindex backup in it — the bulk "the repairs are confirmed
 // fine, give me my disk back" action.
 func (s *SeekIndexService) StartPurgeBackups(_ context.Context, libraryID string) error {
-	return s.startBatch(JobPurge, libraryID,
+	return s.startBatch(JobPurge, libraryID, nil,
 		func(it SeekStatus) bool { return it.HasBackup },
 		func(bg context.Context, path string) (bool, error) {
 			if err := s.reindexer.DeleteBackup(bg, path); err != nil {
@@ -421,7 +489,7 @@ func (s *SeekIndexService) StartPurgeBackups(_ context.Context, libraryID string
 			}
 			s.updateCachedFile(path, func(st *SeekStatus) { st.HasBackup = false })
 			return false, nil
-		})
+		}, nil)
 }
 
 // StartRollbackMedia restores one media file from its backup in the background.
@@ -456,7 +524,13 @@ func (s *SeekIndexService) startSingle(ctx context.Context, kind, mediaID string
 	return nil
 }
 
-func (s *SeekIndexService) startBatch(kind, libraryID string, keep func(SeekStatus) bool, fn func(context.Context, string) (bool, error)) error {
+// startBatch runs scan → optional preflight → per-file processing → optional
+// epilogue as one job. The preflight sees the kept candidates (with sizes)
+// after the scan and can refuse the whole batch before a single file is
+// touched; its error becomes the job-level error of the summary. The epilogue
+// runs after the last file, still inside the job slot (e.g. the rolling
+// backup window's end-of-job drain).
+func (s *SeekIndexService) startBatch(kind, libraryID string, preflight func([]SeekStatus) error, keep func(SeekStatus) bool, fn func(context.Context, string) (bool, error), epilogue func(context.Context)) error {
 	if !s.tryStart(kind, libraryID) {
 		return ErrJobRunning
 	}
@@ -468,14 +542,27 @@ func (s *SeekIndexService) startBatch(kind, libraryID string, keep func(SeekStat
 			s.finish(err)
 			return
 		}
-		var todo []string
+		var kept []SeekStatus
 		for _, it := range scan.Items {
 			if keep(it) {
-				todo = append(todo, it.Path)
+				kept = append(kept, it)
 			}
 		}
-		s.setPhase(PhaseProcessing, len(todo))
+		s.setPhase(PhaseProcessing, len(kept))
+		if preflight != nil {
+			if err := preflight(kept); err != nil {
+				s.finish(err)
+				return
+			}
+		}
+		todo := make([]string, 0, len(kept))
+		for _, it := range kept {
+			todo = append(todo, it.Path)
+		}
 		s.processFiles(bg, kind, todo, fn)
+		if epilogue != nil {
+			epilogue(bg)
+		}
 		s.finish(nil)
 	}()
 	return nil
