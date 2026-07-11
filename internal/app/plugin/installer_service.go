@@ -318,6 +318,72 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	}
 	zipPath := localPath
 
+	manifest, err := s.parseAndValidateManifest(zipPath)
+	if err != nil {
+		return nil, err
+	}
+
+	existing, err := s.resolveExistingPlugin(ctx, manifest)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceHash, sigStatus, err := s.verifyPluginIntegrity(ctx, zipPath, expectedHash)
+	if err != nil {
+		return nil, err
+	}
+
+	p, err := s.buildPluginRecord(existing, sourceHash, manifest, sigStatus)
+	if err != nil {
+		return nil, err
+	}
+
+	finalDir, stagingDir, err := s.extractPluginToStaging(p, existing, zipPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// installOK gates the deferred cleanup: any error return after this point
+	// removes the STAGING dir, ensuring no orphaned dirs accumulate from failed
+	// installs. Once the validated staging dir has been swapped into finalDir
+	// (swapped=true) the deferred cleanup must not touch it - that would delete
+	// the just-installed plugin.
+	installOK := false
+	swapped := false
+	defer func() {
+		if !installOK && !swapped && p.InstallDir != "" && s.fs != nil {
+			s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
+		}
+	}()
+
+	if err := s.validateStagedPlugin(ctx, p); err != nil {
+		return nil, err
+	}
+
+	swapped, err = s.swapAndPersistPlugin(ctx, p, existing, stagingDir, finalDir)
+	if err != nil {
+		return nil, err
+	}
+
+	if startFailed := s.startPluginAndUpdateStatus(ctx, p); startFailed {
+		installOK = true
+		return p, nil
+	}
+
+	evtInstalled := plugin.PluginInstalled{PluginID: p.ID, Name: p.Name, OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evtInstalled); err != nil {
+		slog.Warn("publish event", slog.String("event", evtInstalled.EventName()), slog.Any("err", err))
+	}
+	installOK = true
+	return p, nil
+}
+
+// parseAndValidateManifest parses the plugin manifest from zipPath, validates
+// it, and fails fast if the host image lacks the declared runtime. Themes
+// have no backend language and bypass the runtime check. The checker is
+// optional - callers that don't wire it (legacy tests) keep the previous
+// behaviour.
+func (s *InstallerService) parseAndValidateManifest(zipPath string) (*plugin.PluginManifest, error) {
 	manifest, err := s.parser.Parse(zipPath)
 	if err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
@@ -326,9 +392,6 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		return nil, fmt.Errorf("invalid manifest: %w", err)
 	}
 
-	// Fail fast if the host image lacks the declared runtime. Themes have no
-	// backend language and bypass this check. The checker is optional —
-	// callers that don't wire it (legacy tests) keep the previous behaviour.
 	if s.runtimes != nil && manifest.Kind != plugin.KindTheme && manifest.Language != "" {
 		if !s.runtimes.IsAvailable(manifest.Language) {
 			return nil, fmt.Errorf(
@@ -337,7 +400,13 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			)
 		}
 	}
+	return manifest, nil
+}
 
+// resolveExistingPlugin looks up an already-installed plugin with the same
+// name and, if found, enforces the downgrade and permission-escalation
+// guards. Returns nil, nil when no plugin with this name is installed yet.
+func (s *InstallerService) resolveExistingPlugin(ctx context.Context, manifest *plugin.PluginManifest) (*plugin.Plugin, error) {
 	existing, getErr := s.plugins.GetByName(ctx, manifest.Name)
 	if getErr != nil && !errors.Is(getErr, shared.ErrNotFound) {
 		// A real lookup failure must not be treated as "no existing plugin":
@@ -366,25 +435,36 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		slog.Info("upgrading plugin in place", slog.String("name", manifest.Name),
 			slog.String("id", existing.ID), slog.String("from", existing.Version), slog.String("to", manifest.Version))
 	}
+	return existing, nil
+}
 
+// verifyPluginIntegrity hashes the plugin zip (checking it against
+// expectedHash when the source URL carried a "#sha256:" fragment) and runs
+// cosign signature verification. Policy controls whether a verification
+// failure blocks the install.
+func (s *InstallerService) verifyPluginIntegrity(ctx context.Context, zipPath, expectedHash string) (sourceHash string, sigStatus *plugin.SignatureStatus, err error) {
 	sourceHash, hashErr := hashFile(zipPath)
 	if hashErr != nil {
-		return nil, fmt.Errorf("hash plugin file: %w", hashErr)
+		return "", nil, fmt.Errorf("hash plugin file: %w", hashErr)
 	}
 	if expectedHash != "" && sourceHash != expectedHash {
-		return nil, fmt.Errorf("plugin hash mismatch: expected %s, got %s", expectedHash, sourceHash)
+		return "", nil, fmt.Errorf("plugin hash mismatch: expected %s, got %s", expectedHash, sourceHash)
 	}
 
-	// Cosign signature verification — policy controls whether failure blocks.
-	var sigStatus *plugin.SignatureStatus
 	if s.sigVerifier != nil {
 		sigStatus, err = s.sigVerifier.VerifySignature(ctx, zipPath, "")
 		if err != nil {
 			// Only reached when policy is "enforce" and verification failed.
-			return nil, fmt.Errorf("plugin blocked: %w", err)
+			return "", nil, fmt.Errorf("plugin blocked: %w", err)
 		}
 	}
+	return sourceHash, sigStatus, nil
+}
 
+// buildPluginRecord constructs the domain plugin.Plugin from the parsed
+// manifest, reusing the existing id (and carrying over server-level config +
+// enabled state) on an upgrade, or minting a fresh id for a new install.
+func (s *InstallerService) buildPluginRecord(existing *plugin.Plugin, sourceHash string, manifest *plugin.PluginManifest, sigStatus *plugin.SignatureStatus) (*plugin.Plugin, error) {
 	// Reuse the id on upgrade so the row can be Updated in place (keeping
 	// plugin_data); mint a fresh one only for a genuinely new install.
 	pluginID := id.New("plg-")
@@ -413,13 +493,17 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		p.Config = existing.Config
 		p.Enabled = existing.Enabled
 	}
+	return p, nil
+}
 
-	// The plugin's canonical dir. On upgrade we extract + validate into a sibling
-	// staging dir and only swap it here on success, so a failed upgrade never
-	// touches the live version. On a fresh install the staging dir IS the final
-	// dir (nothing to protect).
-	finalDir := filepath.Join(s.pluginDir, p.ID)
-	stagingDir := finalDir
+// extractPluginToStaging computes the plugin's canonical dir and, on
+// upgrade, a sibling staging dir, then extracts the zip into it. On upgrade
+// the extraction lands in the staging dir so a failed upgrade never touches
+// the live version; on a fresh install the staging dir IS the final dir
+// (nothing to protect). Sets p.InstallDir on success.
+func (s *InstallerService) extractPluginToStaging(p *plugin.Plugin, existing *plugin.Plugin, zipPath string) (finalDir, stagingDir string, err error) {
+	finalDir = filepath.Join(s.pluginDir, p.ID)
+	stagingDir = finalDir
 	if existing != nil {
 		stagingDir = finalDir + ".upgrade"
 	}
@@ -429,31 +513,24 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			s.fs.RemoveAll(stagingDir) //nolint:errcheck
 		}
 		if err := s.installer.Extract(zipPath, stagingDir); err != nil {
-			return nil, fmt.Errorf("extract plugin: %w", err)
+			return finalDir, stagingDir, fmt.Errorf("extract plugin: %w", err)
 		}
 		p.InstallDir = stagingDir
 	}
+	return finalDir, stagingDir, nil
+}
 
-	// installOK gates the deferred cleanup: any error return after this point
-	// removes the STAGING dir, ensuring no orphaned dirs accumulate from failed
-	// installs. Once the validated staging dir has been swapped into finalDir
-	// (swapped=true) the deferred cleanup must not touch it - that would delete
-	// the just-installed plugin.
-	installOK := false
-	swapped := false
-	defer func() {
-		if !installOK && !swapped && p.InstallDir != "" && s.fs != nil {
-			s.fs.RemoveAll(p.InstallDir) //nolint:errcheck
-		}
-	}()
-
+// validateStagedPlugin runs every check that operates on the extracted
+// staging dir: theme.css sanitization, theme.js forbidden-pattern scanning,
+// SDK stub copy, ownership fixup, and static security analysis.
+func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.Plugin) error {
 	if p.InstallDir != "" && p.IsTheme() && s.cssSanitizer != nil {
 		themePath := filepath.Join(p.InstallDir, "theme.css")
 		raw, readErr := os.ReadFile(themePath)
 		// A present-but-unreadable theme.css must NOT skip sanitization (that
 		// would serve it raw); only a genuinely-absent file is fine to skip.
 		if readErr != nil && !os.IsNotExist(readErr) {
-			return nil, fmt.Errorf("read theme.css for sanitization: %w", readErr)
+			return fmt.Errorf("read theme.css for sanitization: %w", readErr)
 		}
 		if readErr == nil {
 			sanitized, warns := s.cssSanitizer.SanitizeCSS(raw)
@@ -464,7 +541,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 				// fails, fail the install so the deferred cleanup removes the dir
 				// rather than leaving the dangerous original on disk.
 				if writeErr := os.WriteFile(themePath, sanitized, 0o644); writeErr != nil {
-					return nil, fmt.Errorf("persist sanitized theme.css: %w", writeErr)
+					return fmt.Errorf("persist sanitized theme.css: %w", writeErr)
 				}
 			}
 		}
@@ -476,7 +553,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		// A present-but-unreadable theme.js must NOT skip the scan (that would
 		// serve forbidden JS to clients); only a genuinely-absent file is fine.
 		if readErr != nil && !os.IsNotExist(readErr) {
-			return nil, fmt.Errorf("read theme.js for scanning: %w", readErr)
+			return fmt.Errorf("read theme.js for scanning: %w", readErr)
 		}
 		if readErr == nil {
 			scanErr, scanWarns := themejs.Scan(raw)
@@ -484,7 +561,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 				slog.Warn("theme JS scanner warnings", slog.String("pluginID", p.ID), slog.Any("warnings", scanWarns))
 			}
 			if scanErr != nil {
-				return nil, fmt.Errorf("plugin blocked: theme.js contains forbidden pattern: %w", scanErr)
+				return fmt.Errorf("plugin blocked: theme.js contains forbidden pattern: %w", scanErr)
 			}
 		}
 	}
@@ -506,17 +583,17 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			// a third-party plugin could ship obfuscated malware that the
 			// regex analyzer choked on and we'd otherwise install it blind.
 			slog.Error("plugin static analysis failed", slog.String("pluginID", p.ID), slog.Any("err", analyzeErr))
-			return nil, fmt.Errorf("plugin blocked: static analysis failed: %w", analyzeErr)
+			return fmt.Errorf("plugin blocked: static analysis failed: %w", analyzeErr)
 		}
 		if !report.Safe {
-			return nil, &PluginBlockedError{Issues: report.Issues, Categories: report.Categories}
+			return &PluginBlockedError{Issues: report.Issues, Categories: report.Categories}
 		}
 		// Escalate specific WARNING categories to blocking. These patterns are
 		// dangerous enough that admin opt-in (like native-binary) or a source
 		// fix is required before install. Categories not listed here remain
 		// non-blocking warnings persisted for admin review post-install.
 		if err := s.checkEscalatedWarnings(ctx, p, report); err != nil {
-			return nil, err
+			return err
 		}
 		// Native binaries and archives bypass the static analyzer (they
 		// are opaque blobs). Block installation by default — the manifest
@@ -524,7 +601,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		// admin sees and accepts the elevated risk at preview time.
 		if !slices.Contains(p.Permissions, nativeBinaryPerm) {
 			if report.HasCategory("compiled_binary") || report.HasCategory("embedded_archive") {
-				return nil, fmt.Errorf("plugin blocked: bundles compiled binaries or archives — declare permission %q in manifest to opt in", nativeBinaryPerm)
+				return fmt.Errorf("plugin blocked: bundles compiled binaries or archives — declare permission %q in manifest to opt in", nativeBinaryPerm)
 			}
 		}
 		// hardware.gpu is the highest-risk permission — append a loud, specific
@@ -540,29 +617,44 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 		// suspicious URLs). UI exposes these on plugin detail.
 		p.AnalysisReport = report
 	}
+	return nil
+}
 
+// swapAndPersistPlugin promotes a validated staging dir over the live
+// version on upgrade, then persists the plugin row (Update in place on
+// upgrade to keep the FK-referenced id stable and avoid cascade-deleting
+// plugin_data, or Create for a fresh install). The returned swapped is true
+// as soon as the staging dir has been swapped into finalDir, even if the
+// subsequent persist fails - the caller's deferred cleanup must not touch a
+// dir that has already been swapped into place.
+func (s *InstallerService) swapAndPersistPlugin(ctx context.Context, p *plugin.Plugin, existing *plugin.Plugin, stagingDir, finalDir string) (swapped bool, err error) {
 	// All validation on the staging dir passed: swap it over the live version
 	// (upgrade only). Any failure before this point left the live version fully
 	// intact - files, DB row and config all untouched.
 	if existing != nil {
 		if err := s.swapUpgradeIntoPlace(ctx, existing, stagingDir, finalDir); err != nil {
-			return nil, fmt.Errorf("in-place upgrade: %w", err)
+			return false, fmt.Errorf("in-place upgrade: %w", err)
 		}
 		p.InstallDir = finalDir
 		swapped = true
 	}
 
-	// Update the existing row in place on upgrade (id reused above) so the
-	// FK-referenced id is stable and plugin_data is not cascade-deleted; Create
-	// a fresh row only for a new install.
 	if existing != nil {
 		if err := s.plugins.Update(ctx, p); err != nil {
-			return nil, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
+			return swapped, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 		}
 	} else if err := s.plugins.Create(ctx, p); err != nil {
-		return nil, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
+		return swapped, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 	}
+	return swapped, nil
+}
 
+// startPluginAndUpdateStatus starts the runner (non-theme, enabled plugins
+// only) and persists the resulting status. It returns true when starting
+// failed - the plugin is still considered successfully installed (status
+// Error, not a rollback) and the caller must return early, skipping the
+// "installed" event publish.
+func (s *InstallerService) startPluginAndUpdateStatus(ctx context.Context, p *plugin.Plugin) (startFailed bool) {
 	switch {
 	case !p.IsTheme() && p.Enabled:
 		if err := s.runner.Start(ctx, p); err != nil {
@@ -571,8 +663,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 			if updateErr := s.plugins.Update(ctx, p); updateErr != nil {
 				slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", updateErr))
 			}
-			installOK = true
-			return p, nil
+			return true
 		}
 		if s.permChecker != nil {
 			s.permChecker.LoadPermissions(p.ID, p.Permissions)
@@ -588,13 +679,7 @@ func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*p
 	if err := s.plugins.Update(ctx, p); err != nil {
 		slog.Warn("update plugin status failed", slog.String("pluginID", p.ID), slog.Any("err", err))
 	}
-
-	evtInstalled := plugin.PluginInstalled{PluginID: p.ID, Name: p.Name, OccurredAt: time.Now()}
-	if err := s.events.Publish(ctx, evtInstalled); err != nil {
-		slog.Warn("publish event", slog.String("event", evtInstalled.EventName()), slog.Any("err", err))
-	}
-	installOK = true
-	return p, nil
+	return false
 }
 
 func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*PluginPreview, error) {
