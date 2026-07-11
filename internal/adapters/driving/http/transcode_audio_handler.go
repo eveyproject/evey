@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -49,24 +48,9 @@ func (h *audioServe) audioRenditionEnabled() bool {
 	return h.cfg != nil && h.cfg.Transcoding.AudioRenditionEnabled
 }
 
-// audioPlaylistHandler renders the audio rendition playlist for source track T.
-// Same auth / parental guards as the video variant playlist handler. Returns
-// 404 when the feature flag is off.
-func audioPlaylistHandler(h *audioServe) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		mediaID := r.PathValue("id")
-		trackIdx, ok := parseAudioTrackIdx(w, r.PathValue("trackIdx"))
-		if !ok {
-			return
-		}
-		h.servePlaylistFile(w, r, mediaID, trackIdx)
-	}
-}
-
 // servePlaylistFile is the auth-and-render path for the audio playlist,
-// callable both from the standalone audioPlaylistHandler (PathValue route)
-// and from the central hlsVODServe dispatcher (regex-routed via /hls/{file})
-// — the on-the-wire URL the manifest emits resolves relative to
+// called from the central hlsVODServe dispatcher (regex-routed via
+// /hls/{file}) - the on-the-wire URL the manifest emits resolves relative to
 // /api/v1/media/{id}/hls/master.m3u8, so the dispatcher is the actual
 // production code path.
 func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int) {
@@ -143,31 +127,6 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		slog.Int("track_idx", trackIdx))
 }
 
-// parseAudioTrackIdx validates the {trackIdx} path component and writes a
-// 400 to w on failure. Returns (idx, true) on success.
-func parseAudioTrackIdx(w http.ResponseWriter, raw string) (int, bool) {
-	idx, err := strconv.Atoi(raw)
-	if err != nil || idx < 0 {
-		http.Error(w, `{"message":"bad track index"}`, http.StatusBadRequest)
-		return 0, false
-	}
-	return idx, true
-}
-
-// audioInitHandler serves the fMP4 init segment for audio track T.
-// It triggers EnsureAudioSegment(ctx, fp, 0) so the ffmpeg session is live,
-// then serves the init file via http.ServeFile. Returns 404 when flag is off.
-func audioInitHandler(h *audioServe) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		mediaID := r.PathValue("id")
-		trackIdx, ok := parseAudioTrackIdx(w, r.PathValue("trackIdx"))
-		if !ok {
-			return
-		}
-		h.serveInitFile(w, r, mediaID, trackIdx)
-	}
-}
-
 func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int) {
 	if !h.audioRenditionEnabled() {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
@@ -218,24 +177,6 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	w.Header().Set("Content-Type", "video/mp4")
 	w.Header().Set("Cache-Control", "no-cache")
 	http.ServeFile(w, r, path)
-}
-
-// audioSegmentHandler serves a single audio segment audio_{T}_{NNN}.m4s.
-// Returns 404 when the feature flag is off.
-func audioSegmentHandler(h *audioServe) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		mediaID := r.PathValue("id")
-		trackIdx, ok := parseAudioTrackIdx(w, r.PathValue("trackIdx"))
-		if !ok {
-			return
-		}
-		segIdx, err := strconv.Atoi(r.PathValue("segIdx"))
-		if err != nil || segIdx < 0 {
-			http.Error(w, `{"message":"bad segment index"}`, http.StatusBadRequest)
-			return
-		}
-		h.serveSegmentFile(w, r, mediaID, trackIdx, segIdx)
-	}
 }
 
 func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx, segIdx int) {

@@ -929,30 +929,6 @@ func newLoginAttemptLimiter(maxFails int, window time.Duration) *loginAttemptLim
 	}
 }
 
-func (l *loginAttemptLimiter) record(username string) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	now := time.Now()
-
-	if len(l.attempts) >= l.maxSize {
-		l.evictLocked(now)
-	}
-
-	e, ok := l.attempts[username]
-	if !ok {
-		e = &attemptEntry{}
-		l.attempts[username] = e
-	} else if now.Sub(e.lastSeen) > l.window {
-		e = &attemptEntry{}
-		l.attempts[username] = e
-	}
-	e.count++
-	e.lastSeen = now
-	if e.count >= l.maxFails {
-		e.lockedAt = now
-	}
-}
-
 // evictLocked removes expired entries, then oldest if still over cap. Caller holds mu.
 func (l *loginAttemptLimiter) evictLocked(now time.Time) {
 	// pass 1: remove expired

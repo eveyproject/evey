@@ -648,9 +648,9 @@ func TestLookupSupplement_OMDbError(t *testing.T) {
 	assert.Nil(t, result) // falls through, no ExternalIDLookup on omdb fake
 }
 
-// --- searchAndFetch ---
+// --- searchAndFetchBest (diskS01Episodes=0, matching the removed searchAndFetch wrapper) ---
 
-func TestSearchAndFetch_Success(t *testing.T) {
+func TestSearchAndFetchBest_Success(t *testing.T) {
 	primary := &fakeProvider{
 		name: "tmdb",
 		searchResults: []domain.MetadataResult{
@@ -661,41 +661,41 @@ func TestSearchAndFetch_Success(t *testing.T) {
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 	log := slog.Default()
 
-	result := e.searchAndFetch(context.Background(), primary, "Movie", nil, "movie", log)
+	result := e.searchAndFetchBest(context.Background(), primary, "Movie", nil, "movie", 0, log)
 	require.NotNil(t, result)
 	assert.Equal(t, "Movie Full", result.Title)
 }
 
-func TestSearchAndFetch_SearchError(t *testing.T) {
+func TestSearchAndFetchBest_SearchError(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb", searchErr: errors.New("fail")}
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 	log := slog.Default()
 
-	result := e.searchAndFetch(context.Background(), primary, "X", nil, "movie", log)
+	result := e.searchAndFetchBest(context.Background(), primary, "X", nil, "movie", 0, log)
 	assert.Nil(t, result)
 }
 
-func TestSearchAndFetch_EmptyResults(t *testing.T) {
+func TestSearchAndFetchBest_EmptyResults(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb", searchResults: []domain.MetadataResult{}}
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 
-	result := e.searchAndFetch(context.Background(), primary, "X", nil, "movie", nil)
+	result := e.searchAndFetchBest(context.Background(), primary, "X", nil, "movie", 0, nil)
 	assert.Nil(t, result)
 }
 
-func TestSearchAndFetch_NoProviderID(t *testing.T) {
+func TestSearchAndFetchBest_NoProviderID(t *testing.T) {
 	primary := &fakeProvider{
 		name:          "tmdb",
 		searchResults: []domain.MetadataResult{{Title: "Movie", ProviderIDs: map[string]string{}}},
 	}
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 
-	result := e.searchAndFetch(context.Background(), primary, "Movie", nil, "movie", nil)
+	result := e.searchAndFetchBest(context.Background(), primary, "Movie", nil, "movie", 0, nil)
 	require.NotNil(t, result)
 	assert.Equal(t, "Movie", result.Title) // returns search result as-is
 }
 
-func TestSearchAndFetch_OMDbFallbackToIMDB(t *testing.T) {
+func TestSearchAndFetchBest_OMDbFallbackToIMDB(t *testing.T) {
 	primary := &fakeProvider{
 		name: "omdb",
 		searchResults: []domain.MetadataResult{
@@ -705,12 +705,12 @@ func TestSearchAndFetch_OMDbFallbackToIMDB(t *testing.T) {
 	}
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 
-	result := e.searchAndFetch(context.Background(), primary, "Movie", nil, "movie", nil)
+	result := e.searchAndFetchBest(context.Background(), primary, "Movie", nil, "movie", 0, nil)
 	require.NotNil(t, result)
 	assert.Equal(t, "Movie Full", result.Title)
 }
 
-func TestSearchAndFetch_DetailError(t *testing.T) {
+func TestSearchAndFetchBest_DetailError(t *testing.T) {
 	primary := &fakeProvider{
 		name: "tmdb",
 		searchResults: []domain.MetadataResult{
@@ -720,7 +720,7 @@ func TestSearchAndFetch_DetailError(t *testing.T) {
 	}
 	e, _, _, _, _, _ := newTestEnricher(primary, nil, nil)
 
-	result := e.searchAndFetch(context.Background(), primary, "Movie", nil, "movie", nil)
+	result := e.searchAndFetchBest(context.Background(), primary, "Movie", nil, "movie", 0, nil)
 	// On a detail-fetch error we now SKIP the provider (return nil) instead of
 	// persisting the search-level skeleton: a non-empty overview with no
 	// artwork/cast would trip the non-force re-enrich guard and strand the item

@@ -607,7 +607,7 @@ func TestResetPassword_UpdateUserErrorV2(t *testing.T) {
 
 func TestLoginLimiter_LockExpires(t *testing.T) {
 	l := newLoginAttemptLimiter(1, 10*time.Millisecond)
-	l.record("alice")
+	_ = l.Record(context.Background(), "alice", l.maxFails, l.window)
 	if !l.isLocked("alice") {
 		t.Fatal("expected locked")
 	}
@@ -626,7 +626,7 @@ func TestLoginLimiter_LockExpires(t *testing.T) {
 
 func TestLoginLimiter_ResetClearsEntry(t *testing.T) {
 	l := newLoginAttemptLimiter(3, time.Minute)
-	l.record("alice")
+	_ = l.Record(context.Background(), "alice", l.maxFails, l.window)
 	l.reset("alice")
 	l.mu.Lock()
 	_, exists := l.attempts["alice"]
@@ -638,7 +638,7 @@ func TestLoginLimiter_ResetClearsEntry(t *testing.T) {
 
 func TestLoginLimiter_RecordCreatesNewEntry(t *testing.T) {
 	l := newLoginAttemptLimiter(5, time.Minute)
-	l.record("alice")
+	_ = l.Record(context.Background(), "alice", l.maxFails, l.window)
 	l.mu.Lock()
 	e, ok := l.attempts["alice"]
 	l.mu.Unlock()
@@ -648,7 +648,7 @@ func TestLoginLimiter_RecordCreatesNewEntry(t *testing.T) {
 	if e.count != 1 {
 		t.Fatalf("expected count=1, got %d", e.count)
 	}
-	l.record("alice")
+	_ = l.Record(context.Background(), "alice", l.maxFails, l.window)
 	l.mu.Lock()
 	e = l.attempts["alice"]
 	l.mu.Unlock()
@@ -659,7 +659,7 @@ func TestLoginLimiter_RecordCreatesNewEntry(t *testing.T) {
 
 func TestLoginLimiter_LockedAtSetAtMaxFails(t *testing.T) {
 	l := newLoginAttemptLimiter(2, time.Minute)
-	l.record("alice")
+	_ = l.Record(context.Background(), "alice", l.maxFails, l.window)
 	l.mu.Lock()
 	e := l.attempts["alice"]
 	locked1 := !e.lockedAt.IsZero()
@@ -667,7 +667,7 @@ func TestLoginLimiter_LockedAtSetAtMaxFails(t *testing.T) {
 	if locked1 {
 		t.Fatal("should not be locked after 1 attempt (maxFails=2)")
 	}
-	l.record("alice")
+	_ = l.Record(context.Background(), "alice", l.maxFails, l.window)
 	l.mu.Lock()
 	e = l.attempts["alice"]
 	locked2 := !e.lockedAt.IsZero()
@@ -680,10 +680,10 @@ func TestLoginLimiter_LockedAtSetAtMaxFails(t *testing.T) {
 func TestLoginLimiter_Eviction(t *testing.T) {
 	l := newLoginAttemptLimiter(5, time.Minute)
 	l.maxSize = 3
-	l.record("a")
-	l.record("b")
-	l.record("c")
-	l.record("d") // triggers eviction
+	_ = l.Record(context.Background(), "a", l.maxFails, l.window)
+	_ = l.Record(context.Background(), "b", l.maxFails, l.window)
+	_ = l.Record(context.Background(), "c", l.maxFails, l.window)
+	_ = l.Record(context.Background(), "d", l.maxFails, l.window) // triggers eviction
 	l.mu.Lock()
 	size := len(l.attempts)
 	l.mu.Unlock()

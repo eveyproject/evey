@@ -362,9 +362,10 @@ func medianFloat(vs []float64) float64 {
 	return cp[n/2]
 }
 
-// ffmpegPkgSlidingBestPearsonBanded indirects via the package-level helper so
-// the service tests can stub it via the IntroDetector port. In practice it
-// always resolves to ffmpeg.SlidingBestPearsonBanded.
+// ffmpegPkgSlidingBestPearsonBanded indirects via a package-level var so the
+// service tests can stub it. The indirection exists for test stubs; the real
+// implementation is the local anti-cycle copy below (slidingBestPearsonBandedImpl),
+// not ffmpeg.SlidingBestPearsonBanded.
 var ffmpegPkgSlidingBestPearsonBanded = slidingBestPearsonBandedImpl
 
 // slidingBestPearsonBandedImpl is a copy of the adapter helper kept inline to

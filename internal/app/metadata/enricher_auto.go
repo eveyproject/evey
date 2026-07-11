@@ -638,11 +638,6 @@ func episodeCountMatches(disk, tmdb int) bool {
 	return float64(diff) <= tolerance
 }
 
-// searchAndFetch searches a provider and fetches full details for the best match (legacy, used by supplementary).
-func (e *Enricher) searchAndFetch(ctx context.Context, provider domainmetadata.MetadataProvider, title string, year *int, mediaType string, log *slog.Logger) *domainmetadata.MetadataResult {
-	return e.searchAndFetchBest(ctx, provider, title, year, mediaType, 0, log)
-}
-
 func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
 	if item.ParentID == "" || item.IndexNumber == nil {
 		return
