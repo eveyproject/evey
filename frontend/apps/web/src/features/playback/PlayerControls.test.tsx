@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 import { PlayerControls } from "./PlayerControls";
@@ -76,5 +76,43 @@ describe("PlayerControls", () => {
   it("renders fullscreen button", () => {
     renderWithProvider();
     expect(screen.getByRole("button", { name: "Fullscreen" })).toBeInTheDocument();
+  });
+});
+
+describe("PlayerControls auto-hide vs keyboard focus", () => {
+  // Hiding the bar under a keyboard user's focus breaks WCAG focus visibility
+  // (observed live: the volume slider vanished mid-arrow-keys and the presses
+  // went dead). Keyboard focus inside the overlay must pin the controls.
+  it("does not hide while a control inside holds keyboard focus", () => {
+    vi.useFakeTimers();
+    try {
+      renderWithProvider();
+      const slider = screen.getByRole("slider", { name: "Volume" });
+      slider.focus();
+      expect(document.activeElement).toBe(slider);
+      // The pin is keyed on keyboard modality: an arrow press on the slider
+      // is exactly the interaction that used to lose the bar mid-adjustment.
+      fireEvent.keyDown(slider, { key: "ArrowRight" });
+
+      act(() => { vi.advanceTimersByTime(3500); });
+
+      const bar = slider.closest("[data-controls]");
+      expect(bar?.className).toContain("opacity-100");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still hides after the timeout when nothing inside is focused", () => {
+    vi.useFakeTimers();
+    try {
+      renderWithProvider();
+      const slider = screen.getByRole("slider", { name: "Volume" });
+      act(() => { vi.advanceTimersByTime(3500); });
+      const bar = slider.closest("[data-controls]");
+      expect(bar?.className).toContain("opacity-0");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -161,11 +161,36 @@ function PlayerControlsInner({
 
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  // Keyboard focus parked on a control pins the bar visible: hiding it mid
+  // arrow-keys breaks WCAG focus visibility (the volume slider literally
+  // vanished under the user's fingers). Mouse-click focus does NOT pin, so
+  // the hover UX keeps its 3s fade. Modality comes from our own listeners
+  // rather than ":focus-visible", whose verdict for range inputs diverges
+  // between engines (Chrome flags them focus-visible even on click).
+  const inputModality = useRef<"pointer" | "keyboard">("pointer");
+  const keyboardFocusWithin = useCallback(() => {
+    const ae = document.activeElement;
+    return (
+      inputModality.current === "keyboard" &&
+      ae instanceof HTMLElement &&
+      rootRef.current?.contains(ae) === true
+    );
+  }, []);
 
   const scheduleHide = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setVisible(false), 3000);
-  }, []);
+    hideTimer.current = setTimeout(function tick() {
+      if (keyboardFocusWithin()) {
+        // Re-arm instead of hiding under the keyboard; re-check every 3s so
+        // the bar still fades once focus leaves the overlay.
+        hideTimer.current = setTimeout(tick, 3000);
+        return;
+      }
+      setVisible(false);
+    }, 3000);
+  }, [keyboardFocusWithin]);
 
   useEffect(() => {
     if (controlsToggleRef) controlsToggleRef.current = () => {
@@ -393,9 +418,16 @@ function PlayerControlsInner({
 
   return (
     <div
+      ref={rootRef}
       className="absolute inset-0"
       onMouseMove={resetHideTimer}
       onClick={handleOverlayClick}
+      // Pressing keys on a focused control reveals the (possibly faded) bar,
+      // pushes the hide timer back and flips the modality to keyboard so the
+      // focus-pinning in scheduleHide engages; pointer activity flips it back.
+      onKeyDown={() => { inputModality.current = "keyboard"; resetHideTimer(); }}
+      onPointerDownCapture={() => { inputModality.current = "pointer"; }}
+      onFocus={resetHideTimer}
       style={{ cursor: visible ? "default" : "none" }}
     >
       {/* top bar */}
