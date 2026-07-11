@@ -23,6 +23,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/region"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -79,7 +80,7 @@ func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryR
 			slog.Warn("check library access", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
-		return nil, status.Errorf(codes.NotFound, "library not found")
+		return nil, status.Error(codes.NotFound, "library not found")
 	}
 	return libraryToProto(lib), nil
 }
@@ -111,7 +112,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	defer span.End()
 	if req.Id == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+		return nil, status.Error(codes.InvalidArgument, "id is required")
 	}
 	lib, err := h.query.GetLibrary(ctx, req.Id)
 	if err != nil {
@@ -129,7 +130,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 			slog.Warn("update library access check", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
-		return nil, status.Errorf(codes.NotFound, "library not found")
+		return nil, status.Error(codes.NotFound, "library not found")
 	}
 	if req.Name != nil {
 		lib.Name = *req.Name
@@ -138,7 +139,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 		for _, p := range req.Paths {
 			if !filepath.IsAbs(p) || !strings.HasPrefix(filepath.Clean(p), "/media") {
 				span.SetStatus(otelcodes.Error, "invalid path")
-				return nil, status.Errorf(codes.InvalidArgument, "invalid path: must be an absolute path under /media")
+				return nil, status.Error(codes.InvalidArgument, "invalid path: must be an absolute path under /media")
 			}
 		}
 		lib.Paths = req.Paths
@@ -156,7 +157,7 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 	defer span.End()
 	if req.Id == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+		return nil, status.Error(codes.InvalidArgument, "id is required")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
 	// but explicitly re-verify access for non-admin claims so a future RBAC
@@ -168,7 +169,7 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 			slog.Warn("delete library access check", slog.Any("err", accessErr))
 		}
 		span.SetStatus(otelcodes.Error, "library access denied")
-		return nil, status.Errorf(codes.NotFound, "library not found")
+		return nil, status.Error(codes.NotFound, "library not found")
 	}
 	if err := h.cmd.DeleteLibrary(ctx, req.Id); err != nil {
 		// Deleting an already-absent library is not a server error: the desired
@@ -213,10 +214,11 @@ func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream evey
 	return nil
 }
 
-func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaItemRequest) (*eveyv1.MediaItem, error) {
-	ctx, span := tracing.StartSpan(ctx, "grpc.library.GetMediaItem")
-	defer span.End()
-	item, err := h.query.GetMediaItem(ctx, req.Id)
+// loadGatedMediaItem loads an item and enforces the library-access and parental
+// gates, mapping every failure to an opaque NotFound so a caller cannot tell an
+// absent item from a forbidden one. Returns the item on success.
+func (h *libraryHandler) loadGatedMediaItem(ctx context.Context, span trace.Span, id string) (*library.MediaItem, error) {
+	item, err := h.query.GetMediaItem(ctx, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "media item not found")
@@ -231,17 +233,19 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 		span.SetStatus(otelcodes.Error, "library access denied")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
-	if blocked, parentalErr := h.isBlockedByParental(ctx, item); blocked {
-		if parentalErr != nil {
-			span.RecordError(parentalErr)
-			slog.Warn("parental check", slog.Any("err", parentalErr))
-		}
+	if h.isBlockedByParental(ctx, item) {
 		span.SetStatus(otelcodes.Error, "parental restricted")
-		// Return NotFound (not PermissionDenied) so a kids profile can't tell a
-		// parental-blocked adult item from a non-existent one — matches the
-		// library-access path above and the HTTP 404 decision. The span still
-		// records the real reason for server-side debugging.
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
+	}
+	return item, nil
+}
+
+func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaItemRequest) (*eveyv1.MediaItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.GetMediaItem")
+	defer span.End()
+	item, err := h.loadGatedMediaItem(ctx, span, req.Id)
+	if err != nil {
+		return nil, err
 	}
 	// Overlay translated metadata first (always, including fallback locale — the
 	// base title may be in another language).
@@ -303,32 +307,8 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.GetSeriesAggregateRequest) (*eveyv1.SeriesAggregate, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.library.GetSeriesAggregate")
 	defer span.End()
-	item, err := h.query.GetMediaItem(ctx, req.Id)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, "media item not found")
-		slog.Warn("grpc: media item query failed", slog.Any("err", err))
-		return nil, status.Error(codes.NotFound, "media item not found")
-	}
-	if ok, accessErr := h.checkLibraryAccess(ctx, item.LibraryID); !ok {
-		if accessErr != nil {
-			span.RecordError(accessErr)
-			slog.Warn("check library access", slog.Any("err", accessErr))
-		}
-		span.SetStatus(otelcodes.Error, "library access denied")
-		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
-	}
-	if blocked, parentalErr := h.isBlockedByParental(ctx, item); blocked {
-		if parentalErr != nil {
-			span.RecordError(parentalErr)
-			slog.Warn("parental check", slog.Any("err", parentalErr))
-		}
-		span.SetStatus(otelcodes.Error, "parental restricted")
-		// Return NotFound (not PermissionDenied) so a kids profile can't tell a
-		// parental-blocked adult item from a non-existent one — matches the
-		// library-access path above and the HTTP 404 decision. The span still
-		// records the real reason for server-side debugging.
-		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
+	if _, err := h.loadGatedMediaItem(ctx, span, req.Id); err != nil {
+		return nil, err
 	}
 	agg, err := h.query.GetSeriesAggregate(ctx, req.Id)
 	if err != nil {
@@ -422,16 +402,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	// like Outbreak (cert AU/GB only, empty official_rating) on a kids
 	// profile. Apply the strict in-memory predicate as a second pass to
 	// match the feeds / playback gates.
-	if pf.maxAge >= 0 || len(pf.blockedTags) > 0 {
-		filtered := items[:0]
-		for _, it := range items {
-			if mediaItemBlockedByParental(pf, it) {
-				continue
-			}
-			filtered = append(filtered, it)
-		}
-		items = filtered
-	}
+	items = filterOutParentalBlocked(pf, items)
 	resp := &eveyv1.ListMediaItemsResponse{
 		Pagination: &eveyv1.PaginationResponse{
 			TotalItems: int32(total),
@@ -578,7 +549,7 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	// items and run the same fail-closed, worst-case-across-countries check used
 	// everywhere else. Non-kids profiles (and admins) skip the fetch entirely.
 	var parentalBlocked map[string]bool
-	if pf.maxAge >= 0 || len(pf.blockedTags) > 0 {
+	if pf.enforced() {
 		ids := make([]string, 0, len(hits))
 		for _, hit := range hits {
 			ids = append(ids, hit.ID)
@@ -630,7 +601,7 @@ func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonReq
 	defer span.End()
 	if req.Id == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+		return nil, status.Error(codes.InvalidArgument, "id is required")
 	}
 	person, err := h.query.GetPerson(ctx, req.Id)
 	if err != nil {
@@ -640,7 +611,7 @@ func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonReq
 	}
 	if person == nil {
 		span.SetStatus(otelcodes.Error, "person not found")
-		return nil, status.Errorf(codes.NotFound, "person not found")
+		return nil, status.Error(codes.NotFound, "person not found")
 	}
 	// Overlay translated biography if user locale != default
 	personLocale := eveyi18n.LocaleFromCtx(ctx)
@@ -675,6 +646,13 @@ type parentalFilter struct {
 	region         string   // profile's resolved region for per-country cert lookup
 	blockedTags    []string
 	locale         string // profile locale, used to resolve region when not set
+}
+
+// enforced reports whether this filter actually restricts anything (an age cap
+// or at least one blocked tag). A zero-value / no-op filter (maxAge == -1, no
+// tags) returns false.
+func (pf parentalFilter) enforced() bool {
+	return pf.maxAge >= 0 || len(pf.blockedTags) > 0
 }
 
 func (h *libraryHandler) resolveParentalFilter(ctx context.Context) parentalFilter {
@@ -748,7 +726,7 @@ func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool
 	if item == nil {
 		return false
 	}
-	if pf.maxAge < 0 && len(pf.blockedTags) == 0 {
+	if !pf.enforced() {
 		return false
 	}
 	if pf.maxAge >= 0 {
@@ -774,9 +752,24 @@ func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool
 	return false
 }
 
-func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.MediaItem) (bool, error) {
-	pf := h.resolveParentalFilter(ctx)
-	return mediaItemBlockedByParental(pf, item), nil
+func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.MediaItem) bool {
+	return mediaItemBlockedByParental(h.resolveParentalFilter(ctx), item)
+}
+
+// filterOutParentalBlocked drops the items the resolved parental filter blocks,
+// reusing the backing array. A no-op (returns the slice unchanged) when the
+// filter is not enforced.
+func filterOutParentalBlocked(pf parentalFilter, items []*library.MediaItem) []*library.MediaItem {
+	if !pf.enforced() {
+		return items
+	}
+	kept := items[:0]
+	for _, it := range items {
+		if !mediaItemBlockedByParental(pf, it) {
+			kept = append(kept, it)
+		}
+	}
+	return kept
 }
 
 func itemTags(item *library.MediaItem) []string {
@@ -1054,16 +1047,7 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError("list", err)
 	}
-	if pf.maxAge >= 0 || len(pf.blockedTags) > 0 {
-		filtered := items[:0]
-		for _, it := range items {
-			if mediaItemBlockedByParental(pf, it) {
-				continue
-			}
-			filtered = append(filtered, it)
-		}
-		items = filtered
-	}
+	items = filterOutParentalBlocked(pf, items)
 	resp := &eveyv1.FilterMediaItemsResponse{Total: int32(total)}
 	for _, item := range items {
 		resp.Items = append(resp.Items, mediaItemToProto(item, ctxIsAdmin(ctx)))
@@ -1198,7 +1182,7 @@ func (h *libraryHandler) GetPublicMediaItem(ctx context.Context, req *eveyv1.Get
 	if ok, _ := h.checkLibraryAccess(ctx, item.LibraryID); !ok { //nolint:errcheck // fail-closed: any error denies
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
-	if blocked, _ := h.isBlockedByParental(ctx, item); blocked { //nolint:errcheck // fail-open on probe error, blocked wins
+	if h.isBlockedByParental(ctx, item) {
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	poster := ""
