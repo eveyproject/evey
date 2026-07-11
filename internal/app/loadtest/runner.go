@@ -239,77 +239,20 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	events := make(chan viewerEvent, 256)
 	var wg sync.WaitGroup
 
-	tier := 0
-	nextCandidate := 0
-	sharedCacheViewers := 0
-	skippedCandidates := 0
-	viewerTypeBySlot := map[int]viewerType{}
+	ramp := rampState{viewerTypeBySlot: map[int]viewerType{}}
 
-	// spawn tries to fill the next ramp slot (tier+1). mkvgo-typed slots
-	// only ever take a fresh distinct candidate (never share); transcode-
-	// typed slots fall back to forking (audioOffsetMs) once distinct
-	// candidates run out. It returns false with an explanatory detail
-	// (naming the type that couldn't be filled) when the slot can't be
-	// filled at all.
-	spawn := func() (bool, string) {
-		slot := tier + 1
-		vt := scenarioViewerType(cfg.Scenario, slot)
-
-		var media MediaCandidate
-		forked := false
-		switch {
-		case nextCandidate < len(candidates):
-			media = candidates[nextCandidate]
-			nextCandidate++
-		case vt == viewerTypeTranscode:
-			media = candidates[tier%len(candidates)]
-			forked = true
-		case vt == viewerTypeMkvgo:
-			return false, "no more mkvgo-eligible titles"
-		default:
-			return false, fmt.Sprintf("no more distinct media available for %s viewers", vt)
-		}
-		tier++
-		viewerTypeBySlot[tier] = vt
-		if forked {
-			sharedCacheViewers++
-		}
-		wg.Add(1)
-		go r.runViewer(viewerCtx, cfg, tier, vt, media, forked, events, &wg)
-		return true, ""
+	r.setStatus("ramping", ramp.tier)
+	if ok, detail := r.spawnInitialViewers(isFlash, viewerCtx, cfg, candidates, events, &wg, &ramp); !ok {
+		cancelViewers()
+		wg.Wait()
+		r.finish(Report{
+			Scenario: cfg.Scenario, Mode: cfg.Mode, StopReason: StopLibraryLimit,
+			StopDetail: detail,
+			StartedAt:  startedAt, EndedAt: time.Now(),
+		})
+		return
 	}
-
-	r.setStatus("ramping", tier)
-	// flashTarget is min(MaxViewers, available candidates): the flash slam
-	// spawns every one of them at once, with no ramp at all. Every other
-	// mode spawns exactly the first slot here and lets the ramp ticker add
-	// the rest.
-	flashTarget := 1
-	if isFlash {
-		flashTarget = min(cfg.MaxViewers, len(candidates))
-	}
-	for range flashTarget {
-		if ok, detail := spawn(); !ok {
-			if isFlash && tier > 0 {
-				// Some viewers already launched; the flash slam is smaller
-				// than intended but still valid - fall through and let it
-				// run its observation window rather than discarding it.
-				break
-			}
-			cancelViewers()
-			wg.Wait()
-			if detail == "" {
-				detail = "no media candidates available"
-			}
-			r.finish(Report{
-				Scenario: cfg.Scenario, Mode: cfg.Mode, StopReason: StopLibraryLimit,
-				StopDetail: detail,
-				StartedAt:  startedAt, EndedAt: time.Now(),
-			})
-			return
-		}
-	}
-	r.setStatus("ramping", tier)
+	r.setStatus("ramping", ramp.tier)
 
 	// flashWindowC fires once, 3xRampEvery after every flash viewer has
 	// launched, ending the observation window. nil on every other mode, so
@@ -320,21 +263,18 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		defer flashWindow.Stop()
 		flashWindowC = flashWindow.C
 	}
-	// flashServed/flashShed bucket outcomes by ramp slot (flash has no
-	// meaningful tier ordering: every slot launches at t0). served&&!shed at
-	// window end is exactly "obtained its first segment and was never shed".
-	flashServed := map[int]bool{}
-	flashShed := map[int]bool{}
-	flashAdmissionDenied := 0
-	flashSLOBreachSeen := false
+	// flash buckets outcomes by ramp slot (flash has no meaningful tier
+	// ordering: every slot launches at t0). served&&!shed at window end is
+	// exactly "obtained its first segment and was never shed".
+	flash := flashState{served: map[int]bool{}, shed: map[int]bool{}}
 
-	sloMs := cfg.SegmentSLOMs
-	sloLocked := sloMs > 0
+	slo := sloTracker{ms: cfg.SegmentSLOMs, locked: cfg.SegmentSLOMs > 0}
 
-	var ring []int
-	tierSegments := map[int][]int{}
-	tierTTFF := map[int][]int{}
-	perTypeSegments := map[viewerType]map[int][]int{}
+	samples := sampleState{
+		tierSegments:    map[int][]int{},
+		tierTTFF:        map[int][]int{},
+		perTypeSegments: map[viewerType]map[int][]int{},
+	}
 
 	rampTicker := time.NewTicker(cfg.RampEvery)
 	defer rampTicker.Stop()
@@ -347,124 +287,21 @@ runLoop:
 	for {
 		select {
 		case <-runCtx.Done():
-			if isEndurance && !r.wasCancelRequested() && errors.Is(runCtx.Err(), context.DeadlineExceeded) {
-				stopReason = StopCompleted
-				stopDetail = fmt.Sprintf("held %d viewers for %s", tier, cfg.MaxDuration)
-				sustained = tier
-				break runLoop
-			}
-			stopReason = StopCancelled
-			switch {
-			case r.wasCancelRequested():
-				stopDetail = "cancelled by operator"
-			case errors.Is(runCtx.Err(), context.DeadlineExceeded):
-				stopDetail = "max duration reached"
-			default:
-				stopDetail = "parent context ended"
-			}
-			sustained = tier
+			stopReason, stopDetail, sustained = r.cancelVerdict(runCtx, isEndurance, ramp.tier, cfg)
 			break runLoop
 
 		case <-flashWindowC:
 			// The observation window is over: tally who made it. A refusal
 			// mid-window never broke this loop (see evAdmissionFull below),
 			// so every launched viewer had its full window to prove itself.
-			served := 0
-			for slot := 1; slot <= tier; slot++ {
-				if flashServed[slot] && !flashShed[slot] {
-					served++
-				}
-			}
 			stopReason = StopCompleted
-			sustained = served
-			detail := fmt.Sprintf("flash: %d of %d viewers served", served, tier)
-			switch {
-			case served == tier:
-			case flashAdmissionDenied > 0:
-				detail += " (admission)"
-			case flashSLOBreachSeen:
-				detail += " (slo)"
-			}
-			stopDetail = detail
+			sustained, stopDetail = flash.verdict(ramp.tier)
 			break runLoop
 
 		case ev := <-events:
-			switch ev.kind {
-			case evTargetDuration:
-				if !sloLocked {
-					sloMs = ev.ms
-					sloLocked = true
-				}
-			case evTTFF:
-				tierTTFF[tier] = append(tierTTFF[tier], ev.ms)
-				if isFlash {
-					flashServed[ev.slot] = true
-				}
-			case evSegment:
-				tierSegments[tier] = append(tierSegments[tier], ev.ms)
-				if perTypeSegments[ev.vt] == nil {
-					perTypeSegments[ev.vt] = map[int][]int{}
-				}
-				perTypeSegments[ev.vt][tier] = append(perTypeSegments[ev.vt][tier], ev.ms)
-				ring = append(ring, ev.ms)
-				if len(ring) > sloWindowSize {
-					ring = ring[len(ring)-sloWindowSize:]
-				}
-				if sloMs > 0 && len(ring) >= minSLOSamples {
-					if p95 := percentile(ring, 95); p95 > sloMs {
-						if isFlash {
-							// A flash slam is designed to overload; a global
-							// latency blip doesn't end the measurement, it's
-							// one of the reasons some viewers get shed.
-							flashSLOBreachSeen = true
-							continue
-						}
-						stopReason = StopSLOBreach
-						sustained = max(tier-1, 0)
-						stopDetail = fmt.Sprintf("p95 segment fetch %dms exceeds %dms SLO at %d viewers", p95, sloMs, tier)
-						break runLoop
-					}
-				}
-			case evAdmissionFull:
-				if isFlash {
-					// The whole point of a flash slam is to see how many
-					// survive it - a refusal counts one viewer as not
-					// served and the run keeps observing the rest.
-					flashShed[ev.slot] = true
-					flashAdmissionDenied++
-					continue
-				}
-				stopReason = StopAdmissionFull
-				sustained = max(tier-1, 0)
-				stopDetail = ev.detail
+			if reason, detail, sust, stop := r.handleViewerEvent(ev, isFlash, viewerCtx, cfg, candidates, events, &wg, &ramp, &flash, &slo, &samples); stop {
+				stopReason, stopDetail, sustained = reason, detail, sust
 				break runLoop
-			case evTokenExpired:
-				stopReason = StopTokenExpired
-				sustained = max(tier-1, 0)
-				stopDetail = ev.detail
-				break runLoop
-			case evViewerError:
-				if isFlash {
-					flashShed[ev.slot] = true
-					continue
-				}
-				stopReason = StopError
-				sustained = max(tier-1, 0)
-				stopDetail = ev.detail
-				break runLoop
-			case evCandidateSkipped:
-				// This slot never became a real viewer: give it back and
-				// immediately retry the same slot (same type) against the
-				// next distinct candidate.
-				skippedCandidates++
-				tier--
-				if ok, detail := spawn(); !ok {
-					stopReason = StopLibraryLimit
-					sustained = tier
-					stopDetail = detail
-					break runLoop
-				}
-				r.setStatus("ramping", tier)
 			}
 
 		case <-rampTicker.C:
@@ -473,30 +310,14 @@ runLoop:
 				// nothing left to do but wait for flashWindowC.
 				continue
 			}
-			if tier >= cfg.MaxViewers {
-				if isEndurance {
-					// Hold the plateau: verdicts (SLO/admission) above stay
-					// fully active, but nothing new joins. runCtx.Done()
-					// (MaxDuration) is what ends this mode.
-					continue
-				}
-				stopReason = StopMaxViewers
-				sustained = tier
-				stopDetail = fmt.Sprintf("reached configured max of %d viewers cleanly", tier)
+			if reason, detail, sust, stop := r.advanceRamp(isEndurance, viewerCtx, cfg, candidates, events, &wg, &ramp); stop {
+				stopReason, stopDetail, sustained = reason, detail, sust
 				break runLoop
 			}
-			if ok, detail := spawn(); !ok {
-				stopReason = StopLibraryLimit
-				sustained = tier
-				stopDetail = detail
-				break runLoop
-			}
-			r.logger.Info("loadtest tier advanced", "viewers", tier)
-			r.setStatus("ramping", tier)
 		}
 	}
 
-	r.setStatus("stopping", tier)
+	r.setStatus("stopping", ramp.tier)
 	cancelViewers()
 	wg.Wait()
 
@@ -509,27 +330,10 @@ runLoop:
 	// tier instead: "the percentiles ARE the measure" of the whole herd.
 	sampleTier := sustained
 	if isFlash {
-		sampleTier = tier
+		sampleTier = ramp.tier
 	}
 
-	segSamples := tierSegments[sampleTier]
-	var ttffSamples []int
-	for t := 1; t <= sampleTier; t++ {
-		ttffSamples = append(ttffSamples, tierTTFF[t]...)
-	}
-
-	mix := map[string]int{}
-	for slot := 1; slot <= sampleTier; slot++ {
-		if vt, ok := viewerTypeBySlot[slot]; ok {
-			mix[string(vt)]++
-		}
-	}
-	p95ByType := map[string]int{}
-	for vt, byTier := range perTypeSegments {
-		if samples := byTier[sampleTier]; len(samples) > 0 {
-			p95ByType[string(vt)] = percentile(samples, 95)
-		}
-	}
+	segSamples, ttffSamples, mix, p95ByType := samples.reportFields(sampleTier, &ramp)
 
 	r.finish(Report{
 		Scenario:           cfg.Scenario,
@@ -541,15 +345,297 @@ runLoop:
 		TTFFMsP95:          percentile(ttffSamples, 95),
 		SegmentMsP50:       percentile(segSamples, 50),
 		SegmentMsP95:       percentile(segSamples, 95),
-		SegmentSLOMs:       sloMs,
+		SegmentSLOMs:       slo.ms,
 		Samples:            len(segSamples),
-		SharedCacheViewers: sharedCacheViewers,
-		SkippedCandidates:  skippedCandidates,
+		SharedCacheViewers: ramp.sharedCacheViewers,
+		SkippedCandidates:  ramp.skippedCandidates,
 		ViewerMix:          mix,
 		SegmentMsP95ByType: p95ByType,
 		StartedAt:          startedAt,
 		EndedAt:            time.Now(),
 	})
+}
+
+// rampState is the ramp's own bookkeeping across every spawn attempt: which
+// tier it's at, which candidate is next, how many viewers had to fork (share
+// a candidate) or got retried after a skipped candidate, and each slot's
+// assigned viewer type.
+type rampState struct {
+	tier               int
+	nextCandidate      int
+	sharedCacheViewers int
+	skippedCandidates  int
+	viewerTypeBySlot   map[int]viewerType
+}
+
+// spawnNext tries to fill the next ramp slot (ramp.tier+1). mkvgo-typed
+// slots only ever take a fresh distinct candidate (never share); transcode-
+// typed slots fall back to forking (audioOffsetMs) once distinct candidates
+// run out. It returns false with an explanatory detail (naming the type
+// that couldn't be filled) when the slot can't be filled at all.
+func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, candidates []MediaCandidate, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (bool, string) {
+	slot := ramp.tier + 1
+	vt := scenarioViewerType(cfg.Scenario, slot)
+
+	var media MediaCandidate
+	forked := false
+	switch {
+	case ramp.nextCandidate < len(candidates):
+		media = candidates[ramp.nextCandidate]
+		ramp.nextCandidate++
+	case vt == viewerTypeTranscode:
+		media = candidates[ramp.tier%len(candidates)]
+		forked = true
+	case vt == viewerTypeMkvgo:
+		return false, "no more mkvgo-eligible titles"
+	default:
+		return false, fmt.Sprintf("no more distinct media available for %s viewers", vt)
+	}
+	ramp.tier++
+	ramp.viewerTypeBySlot[ramp.tier] = vt
+	if forked {
+		ramp.sharedCacheViewers++
+	}
+	wg.Add(1)
+	go r.runViewer(viewerCtx, cfg, ramp.tier, vt, media, forked, events, wg)
+	return true, ""
+}
+
+// spawnInitialViewers launches the run's very first wave: exactly one
+// viewer for every mode except flash, which launches min(MaxViewers,
+// available candidates) at once (no ramp at all). It reports whether the
+// run has anything to observe; on failure the caller finishes the run
+// immediately with StopLibraryLimit.
+func (r *Runner) spawnInitialViewers(isFlash bool, viewerCtx context.Context, cfg Config, candidates []MediaCandidate, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (bool, string) {
+	// flashTarget is min(MaxViewers, available candidates): the flash slam
+	// spawns every one of them at once, with no ramp at all. Every other
+	// mode spawns exactly the first slot here and lets the ramp ticker add
+	// the rest.
+	flashTarget := 1
+	if isFlash {
+		flashTarget = min(cfg.MaxViewers, len(candidates))
+	}
+	for range flashTarget {
+		if ok, detail := r.spawnNext(viewerCtx, cfg, candidates, events, wg, ramp); !ok {
+			if isFlash && ramp.tier > 0 {
+				// Some viewers already launched; the flash slam is smaller
+				// than intended but still valid - fall through and let it
+				// run its observation window rather than discarding it.
+				break
+			}
+			if detail == "" {
+				detail = "no media candidates available"
+			}
+			return false, detail
+		}
+	}
+	return true, ""
+}
+
+// flashState buckets outcomes by ramp slot for ModeFlash, which has no
+// meaningful tier ordering: every slot launches at t0.
+type flashState struct {
+	served          map[int]bool
+	shed            map[int]bool
+	admissionDenied int
+	sloBreachSeen   bool
+}
+
+// verdict tallies, at the end of the flash observation window, how many of
+// the launched slots were served and never shed, and builds the matching
+// stop detail.
+func (f *flashState) verdict(tier int) (sustained int, detail string) {
+	served := 0
+	for slot := 1; slot <= tier; slot++ {
+		if f.served[slot] && !f.shed[slot] {
+			served++
+		}
+	}
+	detail = fmt.Sprintf("flash: %d of %d viewers served", served, tier)
+	switch {
+	case served == tier:
+	case f.admissionDenied > 0:
+		detail += " (admission)"
+	case f.sloBreachSeen:
+		detail += " (slo)"
+	}
+	return served, detail
+}
+
+// sloTracker holds the rolling segment-fetch latency window used to evaluate
+// the SLO, and the SLO target itself once it's known.
+type sloTracker struct {
+	ms     int
+	locked bool
+	ring   []int
+}
+
+// lockTarget adopts the stream's own detected target duration as the SLO
+// the first time a viewer reports one, unless the operator already pinned
+// an explicit SegmentSLOMs.
+func (s *sloTracker) lockTarget(ms int) {
+	if !s.locked {
+		s.ms = ms
+		s.locked = true
+	}
+}
+
+// observe records one more segment-fetch sample and reports whether the
+// rolling p95 over the last sloWindowSize samples just breached the SLO.
+// p95 is only meaningful when breached is true.
+func (s *sloTracker) observe(ms int) (breached bool, p95 int) {
+	s.ring = append(s.ring, ms)
+	if len(s.ring) > sloWindowSize {
+		s.ring = s.ring[len(s.ring)-sloWindowSize:]
+	}
+	if s.ms <= 0 || len(s.ring) < minSLOSamples {
+		return false, 0
+	}
+	p95 = percentile(s.ring, 95)
+	return p95 > s.ms, p95
+}
+
+// sampleState collects the raw TTFF/segment-fetch samples the run measures,
+// bucketed per tier (and, for segments, per viewer type too), so the final
+// report can read back whichever tier turned out to be the verdict.
+type sampleState struct {
+	tierSegments    map[int][]int
+	tierTTFF        map[int][]int
+	perTypeSegments map[viewerType]map[int][]int
+}
+
+// reportFields reads back the samples at sampleTier - the tier the run's
+// verdict settled on - into the shapes Report needs.
+func (s *sampleState) reportFields(sampleTier int, ramp *rampState) (segSamples, ttffSamples []int, mix, p95ByType map[string]int) {
+	segSamples = s.tierSegments[sampleTier]
+	for t := 1; t <= sampleTier; t++ {
+		ttffSamples = append(ttffSamples, s.tierTTFF[t]...)
+	}
+
+	mix = map[string]int{}
+	for slot := 1; slot <= sampleTier; slot++ {
+		if vt, ok := ramp.viewerTypeBySlot[slot]; ok {
+			mix[string(vt)]++
+		}
+	}
+	p95ByType = map[string]int{}
+	for vt, byTier := range s.perTypeSegments {
+		if samples := byTier[sampleTier]; len(samples) > 0 {
+			p95ByType[string(vt)] = percentile(samples, 95)
+		}
+	}
+	return segSamples, ttffSamples, mix, p95ByType
+}
+
+// cancelVerdict decides why the run is ending when runCtx fires: endurance's
+// own MaxDuration is a clean StopCompleted (it held the plateau as
+// designed), while every other exit through this path - an explicit
+// Cancel, another mode's MaxDuration, or the caller's own context ending -
+// is StopCancelled.
+func (r *Runner) cancelVerdict(runCtx context.Context, isEndurance bool, tier int, cfg Config) (StopReason, string, int) {
+	if isEndurance && !r.wasCancelRequested() && errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+		return StopCompleted, fmt.Sprintf("held %d viewers for %s", tier, cfg.MaxDuration), tier
+	}
+	detail := "parent context ended"
+	switch {
+	case r.wasCancelRequested():
+		detail = "cancelled by operator"
+	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
+		detail = "max duration reached"
+	}
+	return StopCancelled, detail, tier
+}
+
+// advanceRamp handles one ramp-ticker firing for every non-flash mode
+// (flash has no ticker-driven ramp; its case in run never calls this). It
+// reports whether the run must stop and, if so, the verdict; endurance's
+// held plateau at MaxViewers is the one case where firing again is a
+// deliberate no-op (stop is false and the caller does nothing further).
+func (r *Runner) advanceRamp(isEndurance bool, viewerCtx context.Context, cfg Config, candidates []MediaCandidate, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (reason StopReason, detail string, sustained int, stop bool) {
+	if ramp.tier >= cfg.MaxViewers {
+		if isEndurance {
+			// Hold the plateau: verdicts (SLO/admission) above stay fully
+			// active, but nothing new joins. runCtx.Done() (MaxDuration) is
+			// what ends this mode.
+			return "", "", 0, false
+		}
+		return StopMaxViewers, fmt.Sprintf("reached configured max of %d viewers cleanly", ramp.tier), ramp.tier, true
+	}
+	if ok, d := r.spawnNext(viewerCtx, cfg, candidates, events, wg, ramp); !ok {
+		return StopLibraryLimit, d, ramp.tier, true
+	}
+	r.logger.Info("loadtest tier advanced", "viewers", ramp.tier)
+	r.setStatus("ramping", ramp.tier)
+	return "", "", 0, false
+}
+
+// handleViewerEvent processes one event a viewer goroutine sent back to the
+// run loop, updating the shared ramp/flash/slo/sample state. It reports
+// whether the run must stop and, if so, the verdict. isFlash selects
+// between flash's own lenient handling (a refusal or an SLO blip sheds one
+// viewer and keeps observing the rest) and every other mode's fail-fast
+// handling (a refusal ends the run immediately).
+func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx context.Context, cfg Config, candidates []MediaCandidate, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState, flash *flashState, slo *sloTracker, samples *sampleState) (reason StopReason, detail string, sustained int, stop bool) {
+	switch ev.kind {
+	case evTargetDuration:
+		slo.lockTarget(ev.ms)
+
+	case evTTFF:
+		samples.tierTTFF[ramp.tier] = append(samples.tierTTFF[ramp.tier], ev.ms)
+		if isFlash {
+			flash.served[ev.slot] = true
+		}
+
+	case evSegment:
+		samples.tierSegments[ramp.tier] = append(samples.tierSegments[ramp.tier], ev.ms)
+		if samples.perTypeSegments[ev.vt] == nil {
+			samples.perTypeSegments[ev.vt] = map[int][]int{}
+		}
+		samples.perTypeSegments[ev.vt][ramp.tier] = append(samples.perTypeSegments[ev.vt][ramp.tier], ev.ms)
+		if breached, p95 := slo.observe(ev.ms); breached {
+			if isFlash {
+				// A flash slam is designed to overload; a global latency
+				// blip doesn't end the measurement, it's one of the reasons
+				// some viewers get shed.
+				flash.sloBreachSeen = true
+				return "", "", 0, false
+			}
+			return StopSLOBreach, fmt.Sprintf("p95 segment fetch %dms exceeds %dms SLO at %d viewers", p95, slo.ms, ramp.tier), max(ramp.tier-1, 0), true
+		}
+
+	case evAdmissionFull:
+		if isFlash {
+			// The whole point of a flash slam is to see how many survive
+			// it - a refusal counts one viewer as not served and the run
+			// keeps observing the rest.
+			flash.shed[ev.slot] = true
+			flash.admissionDenied++
+			return "", "", 0, false
+		}
+		return StopAdmissionFull, ev.detail, max(ramp.tier-1, 0), true
+
+	case evTokenExpired:
+		return StopTokenExpired, ev.detail, max(ramp.tier-1, 0), true
+
+	case evViewerError:
+		if isFlash {
+			flash.shed[ev.slot] = true
+			return "", "", 0, false
+		}
+		return StopError, ev.detail, max(ramp.tier-1, 0), true
+
+	case evCandidateSkipped:
+		// This slot never became a real viewer: give it back and
+		// immediately retry the same slot (same type) against the next
+		// distinct candidate.
+		ramp.skippedCandidates++
+		ramp.tier--
+		if ok, d := r.spawnNext(viewerCtx, cfg, candidates, events, wg, ramp); !ok {
+			return StopLibraryLimit, d, ramp.tier, true
+		}
+		r.setStatus("ramping", ramp.tier)
+	}
+	return "", "", 0, false
 }
 
 // sortedKeys returns m's keys in a deterministic order, so the same run
