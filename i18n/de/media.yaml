@@ -106,6 +106,7 @@ library:
   noItemsFiltered: Versuchen Sie, Ihre Filter oder Ihren Suchbegriff anzupassen.
   noItemsType: Versuchen Sie einen anderen Filter oder scannen Sie die Bibliothek, um Inhalte hinzuzufügen.
   noItemsEmpty: Diese Bibliothek ist leer. Starten Sie einen Scan, um Inhalte hinzuzufügen.
+  noItemsEmptyUser: Noch keine Inhalte vorhanden. Schauen Sie später wieder vorbei.
   goToAdmin: Zur Verwaltung
   selected: ausgewählt
   addToFavorites: Zu Favoriten hinzufügen

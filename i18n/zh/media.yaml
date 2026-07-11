@@ -106,6 +106,7 @@ library:
   noItemsFiltered: 请尝试调整过滤条件或搜索词。
   noItemsType: 尝试不同的过滤条件，或扫描媒体库以添加内容。
   noItemsEmpty: 此媒体库为空。触发扫描以添加内容。
+  noItemsEmptyUser: 这里还没有内容。请稍后再来查看。
   goToAdmin: 前往管理
   selected: 已选择
   addToFavorites: 添加到收藏

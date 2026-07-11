@@ -450,7 +450,7 @@ export default function MediaDetailScreen() {
       onSuccess: async (res) => {
         const url = res?.url ? `${serverUrl}${res.url}` : "";
         if (!url) {
-          toast.error(t("media.detail.shareFailed"));
+          toast.error(t("media.library.shareFailed"));
           return;
         }
         try {
@@ -459,7 +459,7 @@ export default function MediaDetailScreen() {
           // user dismissed the share sheet
         }
       },
-      onError: (err: Error) => toast.error(err?.message || t("media.detail.shareFailed")),
+      onError: (err: Error) => toast.error(err?.message || t("media.library.shareFailed")),
     },
   });
   const qc = useQueryClient();

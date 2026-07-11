@@ -21,7 +21,7 @@ export function CreateInviteForm({ onSuccess }: { onSuccess: () => void }) {
     mutation: {
       onSuccess,
       // Surface rejections (invite quota, bad expiry) instead of failing silently.
-      onError: (err: Error) => toast.error(err?.message || t("admin.users.failedCreate")),
+      onError: (err: Error) => toast.error(err?.message || t("admin.users.failedCreateInvite")),
     },
   });
 
