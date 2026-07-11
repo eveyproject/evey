@@ -262,13 +262,7 @@ func (s *VideoAdmissionShaper) tallestAdmittable(key string, class LadderClass, 
 			sorted = append(sorted, h)
 		}
 	}
-	for i := range sorted {
-		for j := i + 1; j < len(sorted); j++ {
-			if sorted[j] > sorted[i] {
-				sorted[i], sorted[j] = sorted[j], sorted[i]
-			}
-		}
-	}
+	slices.SortFunc(sorted, func(a, b int) int { return b - a }) // tallest first
 	for _, h := range sorted {
 		if s.limiter.CanAdmit(key, class, h) {
 			return h, true

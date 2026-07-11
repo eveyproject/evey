@@ -310,7 +310,7 @@ func MakePlaybackDecisionWithPrefs(
 	applyCodecPreferences(d, specs, prefs)
 	applyAudioChannelTarget(d, specs, client, prefs)
 	applyDirectPlayPrefs(d, prefs)
-	resolvePlayMethod(d, client, prefs)
+	resolvePlayMethod(d, client)
 	applyDefaultBitrates(d)
 
 	span.SetAttributes(
@@ -349,7 +349,7 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	if !videoCodecSupported(client.VideoCodecs, s.Codec) {
 		d.TranscodeReasons = append(d.TranscodeReasons, "video_codec_unsupported")
 		d.VideoDecision = "transcode"
-		d.VideoCodec = "h264"
+		d.VideoCodec = transcoding.DefaultVideoCodec
 	}
 
 	if s.Width != nil && client.MaxWidth > 0 && *s.Width > client.MaxWidth {
@@ -358,9 +358,7 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		d.MaxWidth = client.MaxWidth
 	}
 	if s.Height != nil && client.MaxHeight > 0 && *s.Height > client.MaxHeight {
-		if !containsReason(d.TranscodeReasons, "resolution_exceeded") {
-			d.TranscodeReasons = append(d.TranscodeReasons, "resolution_exceeded")
-		}
+		addReasonOnce(d, "resolution_exceeded")
 		d.VideoDecision = "transcode"
 		d.MaxHeight = client.MaxHeight
 	}
@@ -370,8 +368,8 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		// for Dolby Vision: a single SupportsHDR bool can't tell a DoVi-capable
 		// panel from an HDR10-only one, and direct-playing a DoVi stream to an
 		// HDR10-only display renders wrong. DoVi always tonemaps to SDR.
-		hdr := strings.ToLower(*s.HDRType)
-		isDolbyVision := strings.Contains(hdr, "dolby") || strings.Contains(hdr, "dovi")
+		hdrType := strings.ToLower(*s.HDRType)
+		isDolbyVision := strings.Contains(hdrType, "dolby") || strings.Contains(hdrType, "dovi")
 		if !client.SupportsHDR || isDolbyVision {
 			d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
 			d.VideoDecision = "transcode"
@@ -379,7 +377,16 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 
 	if d.VideoDecision == "transcode" && d.VideoCodec == "" {
-		d.VideoCodec = "h264"
+		d.VideoCodec = transcoding.DefaultVideoCodec
+	}
+}
+
+// addReasonOnce appends a transcode reason unless it is already recorded, so a
+// stream that trips the same condition twice (e.g. both width and height over
+// the client cap) lists the reason a single time.
+func addReasonOnce(d *transcoding.PlaybackDecision, reason string) {
+	if !containsReason(d.TranscodeReasons, reason) {
+		d.TranscodeReasons = append(d.TranscodeReasons, reason)
 	}
 }
 
@@ -405,9 +412,7 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 	// Per-profile cap on audio channels (user pref).
 	if s.Channels != nil && prefs.MaxAudioChannels > 0 && *s.Channels > prefs.MaxAudioChannels {
-		if !containsReason(d.TranscodeReasons, "audio_channels_exceeded") {
-			d.TranscodeReasons = append(d.TranscodeReasons, "audio_channels_exceeded")
-		}
+		addReasonOnce(d, "audio_channels_exceeded")
 		d.AudioDecision = "transcode"
 		if d.AudioCodec == "" {
 			d.AudioCodec = transcoding.DefaultAudioCodec
@@ -420,17 +425,6 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	}
 }
 
-// evaluateSubtitle decides how the subtitle stream s (subtitle-relative index
-// subIdx) is delivered. Burn-in is the only destructive path — it overlays onto
-// decoded frames, so it forces a video transcode (forceBurnVideoTranscode) and
-// denies the copy/remux rung. To match Jellyfin (which gates burn on the
-// SELECTED SubtitleStreamIndex, not on existence), burn fires ONLY when this is
-// the selected track (subIdx == prefs.SubtitleBurnInTrack) and it is a bitmap
-// sub. An unselected bitmap track is a no-op — not burnt, and not deliverable as
-// a sidecar — so a Blu-ray rip that merely CARRIES a PGS track still gets its
-// copy rung when played with no subtitle or with a text subtitle. Text subs are
-// always offered as "external" (sidecar) regardless of selection: non-destructive,
-// the player picks.
 // aacMaxTargetChannels caps the transcoded AAC layout at 5.1. Multichannel
 // AAC decode is universal across MSE browsers up to 6 channels (the browser
 // downmixes to the output device); 7.1 AAC support is patchier, so 7.1
@@ -527,6 +521,17 @@ func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *Stream
 	return first
 }
 
+// evaluateSubtitle decides how the subtitle stream s (subtitle-relative index
+// subIdx) is delivered. Burn-in is the only destructive path — it overlays onto
+// decoded frames, so it forces a video transcode (forceBurnVideoTranscode) and
+// denies the copy/remux rung. To match Jellyfin (which gates burn on the
+// SELECTED SubtitleStreamIndex, not on existence), burn fires ONLY when this is
+// the selected track (subIdx == prefs.SubtitleBurnInTrack) and it is a bitmap
+// sub. An unselected bitmap track is a no-op — not burnt, and not deliverable as
+// a sidecar — so a Blu-ray rip that merely CARRIES a PGS track still gets its
+// copy rung when played with no subtitle or with a text subtitle. Text subs are
+// always offered as "external" (sidecar) regardless of selection: non-destructive,
+// the player picks.
 func evaluateSubtitle(d *transcoding.PlaybackDecision, s StreamSpec, prefs TranscodingPreferences, subIdx int) {
 	selected := subIdx == prefs.SubtitleBurnInTrack
 	isImage := IsImageSubtitle(s.Codec)
@@ -576,7 +581,7 @@ func forceBurnVideoTranscode(d *transcoding.PlaybackDecision) {
 	d.VideoDecision = "transcode"
 	d.TranscodeReasons = append(d.TranscodeReasons, "subtitle_burn_in")
 	if d.VideoCodec == "" {
-		d.VideoCodec = "h264"
+		d.VideoCodec = transcoding.DefaultVideoCodec
 	}
 }
 
@@ -587,7 +592,7 @@ func checkBitrate(d *transcoding.PlaybackDecision, totalBitrate, effectiveMaxBit
 		d.VideoDecision = "transcode"
 		d.VideoBitrate = effectiveMaxBitrate
 		if d.VideoCodec == "" {
-			d.VideoCodec = "h264"
+			d.VideoCodec = transcoding.DefaultVideoCodec
 		}
 	}
 }
@@ -637,31 +642,40 @@ func applyDirectPlayPrefs(d *transcoding.PlaybackDecision, prefs TranscodingPref
 		d.VideoDecision = "transcode"
 		d.AudioDecision = "transcode"
 		d.TranscodeReasons = append(d.TranscodeReasons, "direct_play_disabled")
-		if d.VideoCodec == "" {
-			d.VideoCodec = "h264"
-		}
-		if d.AudioCodec == "" {
-			d.AudioCodec = transcoding.DefaultAudioCodec
-		}
+		ensureTranscodeCodecs(d)
 	}
-	if !prefs.AllowDirectStream && onlyContainerIssue(d.TranscodeReasons) && d.VideoDecision == "copy" && d.AudioDecision == "copy" {
+	if !prefs.AllowDirectStream && isDirectStreamEligible(d) {
 		d.VideoDecision = "transcode"
 		d.AudioDecision = "transcode"
 		d.TranscodeReasons = append(d.TranscodeReasons, "direct_stream_disabled")
-		if d.VideoCodec == "" {
-			d.VideoCodec = "h264"
-		}
-		if d.AudioCodec == "" {
-			d.AudioCodec = transcoding.DefaultAudioCodec
-		}
+		ensureTranscodeCodecs(d)
 	}
 }
 
-func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.ClientProfile, prefs TranscodingPreferences) {
+// isDirectStreamEligible reports that the only thing keeping this off direct
+// play is an incompatible container while both streams still copy — i.e. a pure
+// remux (direct_stream), no re-encoding.
+func isDirectStreamEligible(d *transcoding.PlaybackDecision) bool {
+	return onlyContainerIssue(d.TranscodeReasons) &&
+		d.VideoDecision == "copy" && d.AudioDecision == "copy"
+}
+
+// ensureTranscodeCodecs fills the fallback codecs whenever a stream flipped to
+// transcode without a target codec having been chosen yet.
+func ensureTranscodeCodecs(d *transcoding.PlaybackDecision) {
+	if d.VideoCodec == "" {
+		d.VideoCodec = transcoding.DefaultVideoCodec
+	}
+	if d.AudioCodec == "" {
+		d.AudioCodec = transcoding.DefaultAudioCodec
+	}
+}
+
+func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.ClientProfile) {
 	switch {
 	case len(d.TranscodeReasons) == 0:
 		d.PlayMethod = "direct_play"
-	case onlyContainerIssue(d.TranscodeReasons) && d.VideoDecision == "copy" && d.AudioDecision == "copy":
+	case isDirectStreamEligible(d):
 		d.PlayMethod = "direct_stream"
 		d.Container = preferredContainer(client.Containers)
 	default:
@@ -670,11 +684,9 @@ func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.Clien
 			d.Container = preferredContainer(client.Containers)
 		}
 	}
-	// Safety net: if user disallowed transcoding and we ended up needing it,
-	// surface as "transcode_disallowed" so callers can return a clear error.
-	// We keep PlayMethod="transcode" for consistency with existing flow; handlers
-	// should check TranscodeDisallowed(decision, prefs) before starting HLS.
-	_ = prefs
+	// Safety net: a user who disallowed transcoding but ends up needing it keeps
+	// PlayMethod="transcode" here; handlers gate on TranscodeDisallowed(decision,
+	// prefs) before starting HLS rather than this function reporting it.
 }
 
 // TranscodeDisallowed returns true when the decision requires transcoding but
