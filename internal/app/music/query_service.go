@@ -13,12 +13,12 @@ import (
 )
 
 type QueryService struct {
-	tracks      music.TrackRepository
+	tracks      music.TrackReader
 	scanner     music.MusicScanner
 	searchIndex music.MusicSearchIndex
 }
 
-func NewQueryService(tracks music.TrackRepository, scanner music.MusicScanner) *QueryService {
+func NewQueryService(tracks music.TrackReader, scanner music.MusicScanner) *QueryService {
 	return &QueryService{tracks: tracks, scanner: scanner}
 }
 

@@ -8,15 +8,9 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
-type TrackRepository interface {
-	// Upsert inserts or updates the track (ON CONFLICT by file path) and
-	// returns the PERSISTED id. On conflict the existing row keeps its id, so
-	// the returned id may differ from t.ID — callers that publish events must
-	// use the returned id, not the locally-minted one, or they reference a
-	// row that does not exist.
-	Upsert(ctx context.Context, t Track) (string, error)
+// TrackReader is the read-only surface of the track store.
+type TrackReader interface {
 	GetByID(ctx context.Context, id string) (*Track, error)
-	Delete(ctx context.Context, id string) error
 	ListByLibrary(ctx context.Context, libraryID shared.LibraryID, limit, offset int, search string) ([]Track, int, error)
 	ListAllByLibrary(ctx context.Context, libraryID shared.LibraryID) ([]Track, error)
 	ListByAlbum(ctx context.Context, album, artist string) ([]Track, error)
@@ -29,14 +23,31 @@ type TrackRepository interface {
 	Search(ctx context.Context, libraryID shared.LibraryID, query string, limit int) ([]Track, error)
 	GetAlbums(ctx context.Context, libraryID shared.LibraryID) ([]Album, error)
 	GetArtists(ctx context.Context, libraryID shared.LibraryID) ([]Artist, error)
-	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
 	// ListAllAlbums returns one AlbumKey per album folder (folders we can
 	// represent as a fetchable artist+album). The caller decides which need
 	// art by checking the on-disk file, so an album whose cover_art_url is set
 	// in the DB but whose cached image was wiped gets re-fetched rather than
 	// staying silently broken.
 	ListAllAlbums(ctx context.Context, libraryID shared.LibraryID) ([]AlbumKey, error)
+}
+
+// TrackWriter is the write surface of the track store.
+type TrackWriter interface {
+	// Upsert inserts or updates the track (ON CONFLICT by file path) and
+	// returns the PERSISTED id. On conflict the existing row keeps its id, so
+	// the returned id may differ from t.ID — callers that publish events must
+	// use the returned id, not the locally-minted one, or they reference a
+	// row that does not exist.
+	Upsert(ctx context.Context, t Track) (string, error)
+	Delete(ctx context.Context, id string) error
+	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
 	SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error
+}
+
+// TrackRepository is the full track store surface (reads + writes).
+type TrackRepository interface {
+	TrackReader
+	TrackWriter
 }
 
 // MusicSearchIndex is the full-text search index for music tracks (Meilisearch
