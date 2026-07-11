@@ -115,6 +115,7 @@ profile:
     manage: "प्रोफ़ाइल प्रबंधित करें"
     pinPromptTitle: "PIN दर्ज करें"
     pinPromptBody: "जारी रखने के लिए \"{{name}}\" का PIN दर्ज करें।"
+    pinPromptBodyGeneric: "जारी रखने के लिए पैरेंटल PIN दर्ज करें।"
     pinInvalid: "PIN 4 अंकों का होना चाहिए"
     pinWrong: "ग़लत PIN"
   manage:

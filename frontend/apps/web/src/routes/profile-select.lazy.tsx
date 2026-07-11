@@ -48,16 +48,20 @@ function ProfileSelectPage() {
   const currentProfile = profiles.find((p) => p.id === activeProfileId);
   const currentIsKids = currentProfile?.isKids === true;
 
-  const switchProfile = useCallback(async (target: V1Profile, pinToken?: string): Promise<boolean> => {
-    if (!target.id) return false;
+  const switchProfile = useCallback(async (target: V1Profile, pinToken?: string): Promise<"ok" | "pin" | "fail"> => {
+    if (!target.id) return "fail";
     try {
       const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
       if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       try { localStorage.setItem(LAST_PROFILE_KEY, target.id); } catch { /* ignore */ }
       await qc.invalidateQueries();
-      return true;
-    } catch {
-      return false;
+      return "ok";
+    } catch (err) {
+      // 403 = the server wants a parental PIN proof (gated source or
+      // PIN-carrying target). The refresh token is not consumed, so a retry
+      // with a pinToken works.
+      if (!pinToken && (err as { httpStatus?: number }).httpStatus === 403) return "pin";
+      return "fail";
     }
   }, [qc]);
 
@@ -70,9 +74,10 @@ function ProfileSelectPage() {
       return;
     }
     setBusy(p.id);
-    const ok = await switchProfile(p);
+    const res = await switchProfile(p);
     setBusy(null);
-    if (ok) void navigate({ to: "/home" });
+    if (res === "ok") void navigate({ to: "/home" });
+    else if (res === "pin") setPinTarget(p);
     else toast.error(t("common.error"));
   }, [busy, currentIsKids, switchProfile, navigate, t]);
 
@@ -159,13 +164,14 @@ function ProfileSelectPage() {
       {pinTarget && (
         <PinPromptDialog
           target={pinTarget}
+          fallback={currentProfile ?? undefined}
           onCancel={() => setPinTarget(null)}
           onVerified={async (target, pinToken) => {
             setPinTarget(null);
             setBusy(target.id ?? null);
-            const ok = await switchProfile(target, pinToken);
+            const res = await switchProfile(target, pinToken);
             setBusy(null);
-            if (ok) void navigate({ to: "/home" });
+            if (res === "ok") void navigate({ to: "/home" });
             else toast.error(t("common.error"));
           }}
         />

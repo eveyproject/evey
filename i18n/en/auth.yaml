@@ -116,6 +116,7 @@ profile:
     manage: Manage Profiles
     pinPromptTitle: Enter PIN
     pinPromptBody: "Enter the PIN for \"{{name}}\" to continue."
+    pinPromptBodyGeneric: "Enter the parental PIN to continue."
     pinInvalid: PIN must be 4 digits
     pinWrong: Incorrect PIN
   manage:

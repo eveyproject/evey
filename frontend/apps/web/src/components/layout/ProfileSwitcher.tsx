@@ -101,6 +101,14 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
       setOpen(false);
       setSwitchOpen(false);
     } catch (err) {
+      // The server refuses the switch until a parental PIN proof is supplied
+      // (gated SOURCE profile with a PIN, or PIN-carrying target): surface the
+      // PIN prompt instead of a raw error. The refresh token is deliberately
+      // not consumed server-side, so the retry with a pinToken works.
+      if (!pinToken && (err as { httpStatus?: number }).httpStatus === 403) {
+        setPinTarget(target);
+        return;
+      }
       console.warn("profile switch failed", err);
       toast.error(err instanceof Error ? err.message : t("auth.profile.switchFailed", "Could not switch profile"));
     } finally {
@@ -285,6 +293,7 @@ export function ProfileSwitcher({ profiles, activeProfileId }: Props) {
       {pinTarget && (
         <PinPromptDialog
           target={pinTarget}
+          fallback={active ?? undefined}
           onCancel={() => setPinTarget(null)}
           onVerified={async (target, pinToken) => {
             setPinTarget(null);

@@ -116,6 +116,7 @@ profile:
     manage: "Gérer les profils"
     pinPromptTitle: "Saisir le code PIN"
     pinPromptBody: "Saisissez le code PIN pour \"{{name}}\" afin de continuer."
+    pinPromptBodyGeneric: "Saisissez le code PIN parental pour continuer."
     pinInvalid: "Le code PIN doit contenir 4 chiffres"
     pinWrong: "Code PIN incorrect"
   manage:

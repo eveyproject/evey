@@ -115,6 +115,7 @@ profile:
     manage: "Profile verwalten"
     pinPromptTitle: "PIN eingeben"
     pinPromptBody: "PIN für \"{{name}}\" eingeben, um fortzufahren."
+    pinPromptBodyGeneric: "Eltern-PIN eingeben, um fortzufahren."
     pinInvalid: "Die PIN muss 4 Ziffern enthalten"
     pinWrong: "Falsche PIN"
   manage:
