@@ -11,6 +11,7 @@ import {
 import { useAuthStore, toast } from "@evey/store";
 import { X, GripVertical, RotateCcw } from "lucide-react";
 import { FEED_LABEL_KEYS, isKnownFeedType, isPluginFeedType, pluginIdFromFeedType, pluginFeedType } from "./feedTypes";
+import { Switch } from "@/components/ui/Switch";
 
 interface HomePlugin {
   id: string;
@@ -289,19 +290,11 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
                 {feedLabel(t, row.feedType, libraryNames, pluginNames)}
               </span>
 
-              <button
-                role="switch"
-                aria-checked={row.enabled}
-                aria-label={feedLabel(t, row.feedType, libraryNames, pluginNames)}
-                onClick={() => toggle(i)}
-                className="w-9 h-5 rounded-full transition-colors-fast relative flex-shrink-0"
-                style={{ backgroundColor: row.enabled ? "var(--accent)" : "var(--surface-raised)" }}
-              >
-                <span
-                  className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform-fast"
-                  style={{ left: row.enabled ? "calc(100% - 1.125rem)" : "0.125rem" }}
-                />
-              </button>
+              <Switch
+                checked={row.enabled}
+                onChange={() => toggle(i)}
+                label={feedLabel(t, row.feedType, libraryNames, pluginNames)}
+              />
             </div>
           ))}
         </div>

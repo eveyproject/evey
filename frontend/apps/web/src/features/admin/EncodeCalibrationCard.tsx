@@ -6,6 +6,7 @@ import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Switch } from "@/components/ui/Switch";
 
 // EncodeCapability is the JSON shape served by the backend at
 // /api/v1/admin/transcode/calibration. Mirrors the Go domain struct.
@@ -181,22 +182,13 @@ export function EncodeCalibrationCard() {
           <label className="text-sm font-medium text-[var(--text)]">
             {t("admin.calibration.hwEnableLabel", "Hardware acceleration")}
           </label>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={hwEnabled}
-            aria-label={t("admin.calibration.hwEnableLabel", "Hardware acceleration")}
-            data-testid="hw-enable-toggle"
+          <Switch
+            checked={hwEnabled}
+            onChange={() => setMode.mutate(hwEnabled ? "off" : "auto")}
+            label={t("admin.calibration.hwEnableLabel", "Hardware acceleration")}
             disabled={setMode.isPending}
-            onClick={() => setMode.mutate(hwEnabled ? "off" : "auto")}
-            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-60"
-            style={{ backgroundColor: hwEnabled ? "var(--accent)" : "var(--border)" }}
-          >
-            <span
-              className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
-              style={{ transform: hwEnabled ? "translateX(1.375rem)" : "translateX(0.25rem)" }}
-            />
-          </button>
+            data-testid="hw-enable-toggle"
+          />
           <span className="text-xs text-[var(--text-muted)]">
             {hwEnabled
               ? t("admin.calibration.hwEnabledHint", "Encoding on the GPU when possible")
@@ -245,22 +237,13 @@ export function EncodeCalibrationCard() {
               <label className="text-sm font-medium text-[var(--text)]">
                 {t("admin.calibration.av1Label", "AV1 output")}
               </label>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={av1Enabled}
-                aria-label={t("admin.calibration.av1Label", "AV1 output")}
-                data-testid="av1-enable-toggle"
+              <Switch
+                checked={av1Enabled}
+                onChange={() => setAV1.mutate({ av1Enabled: !av1Enabled })}
+                label={t("admin.calibration.av1Label", "AV1 output")}
                 disabled={setAV1.isPending}
-                onClick={() => setAV1.mutate({ av1Enabled: !av1Enabled })}
-                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-60"
-                style={{ backgroundColor: av1Enabled ? "var(--accent)" : "var(--border)" }}
-              >
-                <span
-                  className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
-                  style={{ transform: av1Enabled ? "translateX(1.375rem)" : "translateX(0.25rem)" }}
-                />
-              </button>
+                data-testid="av1-enable-toggle"
+              />
             </div>
             <p className="text-xs text-[var(--text-muted)]">
               {(data.hw_codecs ?? []).includes("av1")

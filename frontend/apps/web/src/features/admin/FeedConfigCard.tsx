@@ -11,6 +11,7 @@ import {
 import { toast } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { GripVertical } from "lucide-react";
+import { Switch } from "@/components/ui/Switch";
 
 // Mirrors AdminFeedsPage from routes/_auth/admin/feeds.lazy.tsx but as an
 // embeddable card for the server-config page. The standalone /admin/feeds
@@ -291,25 +292,11 @@ export function FeedConfigCard() {
             </span>
 
             <div className="flex justify-center">
-              <button
-                onClick={() => toggle(i)}
-                className="w-10 h-5 rounded-full transition-colors-fast relative"
-                style={{
-                  backgroundColor: row.enabled
-                    ? "var(--accent)"
-                    : "var(--surface-raised)",
-                }}
-                role="switch"
-                aria-checked={row.enabled}
-                aria-label={row.enabled ? t("common.disable") : t("common.enable")}
-              >
-                <span
-                  className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform-fast"
-                  style={{
-                    left: row.enabled ? "calc(100% - 1.125rem)" : "0.125rem",
-                  }}
-                />
-              </button>
+              <Switch
+                checked={row.enabled}
+                onChange={() => toggle(i)}
+                label={row.enabled ? t("common.disable") : t("common.enable")}
+              />
             </div>
 
             <div className="flex justify-center">
