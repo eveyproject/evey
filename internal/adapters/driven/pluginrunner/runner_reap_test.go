@@ -3,6 +3,7 @@
 package pluginrunner
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"syscall"
@@ -11,13 +12,22 @@ import (
 )
 
 // spawnFakeStalePlugin starts a long-lived process whose cmdline points into
-// dir, the way a real plugin process does (argv[0] = <dir>/<id>/main.js). It
-// is NOT registered in any runner, mimicking an orphan left behind by a dead
+// dir, the way a real plugin process does (argv = interpreter + <dir>/<id>/
+// main.js). The script is a real file exec'd via /bin/sh: rewriting argv[0]
+// of /bin/sleep instead breaks on busybox userlands (the test image), where
+// argv[0] selects the applet and the process exits instantly. The process is
+// NOT registered in any runner, mimicking an orphan left behind by a dead
 // server instance.
 func spawnFakeStalePlugin(t *testing.T, dir string) *exec.Cmd {
 	t.Helper()
-	cmd := exec.Command("/bin/sleep", "300")
-	cmd.Args = []string{filepath.Join(dir, "plg-stale-test", "main.js"), "300"}
+	script := filepath.Join(dir, "plg-stale-test", "main.js")
+	if err := os.MkdirAll(filepath.Dir(script), 0o755); err != nil {
+		t.Fatalf("mkdir fake plugin dir: %v", err)
+	}
+	if err := os.WriteFile(script, []byte("sleep 300\n"), 0o755); err != nil {
+		t.Fatalf("write fake plugin script: %v", err)
+	}
+	cmd := exec.Command("/bin/sh", script)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("spawn fake plugin: %v", err)
