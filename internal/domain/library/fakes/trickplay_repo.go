@@ -47,6 +47,24 @@ func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemI
 	return m, nil
 }
 
+func (r *FakeTrickplayRepository) GetByMediaItemIDs(_ context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID]*library.TrickplayManifest, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	result := make(map[shared.MediaItemID]*library.TrickplayManifest, len(mediaItemIDs))
+	for _, id := range mediaItemIDs {
+		if m, ok := r.items[string(id)]; ok {
+			result[id] = m
+		}
+	}
+	return result, nil
+}
+
 func (r *FakeTrickplayRepository) Delete(_ context.Context, mediaItemID shared.MediaItemID) error {
 	if r.Err != nil {
 		return r.Err

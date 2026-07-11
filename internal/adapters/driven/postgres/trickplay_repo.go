@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -69,6 +70,52 @@ func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID 
 		return nil, err
 	}
 	return m, nil
+}
+
+// GetByMediaItemIDs batches GetByMediaItemID for many items into a single
+// query, keyed by media item id. An id with no manifest is simply absent from
+// the returned map. Used by intro propagation's sibling sweeps to replace a
+// per-sibling GetByMediaItemID call with one query for the whole season page.
+func (r *TrickplayRepository) GetByMediaItemIDs(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID]*library.TrickplayManifest, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.trickplay.GetByMediaItemIDs")
+	defer span.End()
+	span.SetAttributes(attribute.Int("media_item.count", len(mediaItemIDs)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if len(mediaItemIDs) == 0 {
+		return map[shared.MediaItemID]*library.TrickplayManifest{}, nil
+	}
+	ids := make([]string, len(mediaItemIDs))
+	for i, id := range mediaItemIDs {
+		ids[i] = string(id)
+	}
+
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, created_at
+		 FROM trickplay_manifests WHERE media_item_id = ANY($1)`, pq.Array(ids))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[shared.MediaItemID]*library.TrickplayManifest, len(mediaItemIDs))
+	for rows.Next() {
+		m := &library.TrickplayManifest{}
+		if err := rows.Scan(&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth, &m.TileHeight, &m.ImageCount, &m.ImagePath, &m.CreatedAt); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		result[m.MediaItemID] = m
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID shared.MediaItemID) error {

@@ -117,6 +117,63 @@ func TestTrickplayRepo_GetByMediaItemID_NotFound(t *testing.T) {
 	assert.Equal(t, shared.ErrNotFound, err)
 }
 
+// TestTrickplayRepo_GetByMediaItemIDs_BatchesAndSkipsMissing proves the batch
+// read returns every requested id that has a manifest, keyed correctly, and
+// simply omits ids with none (rather than an error or a nil-pointer entry) -
+// the semantics intro propagation's sibling sweep relies on.
+func TestTrickplayRepo_GetByMediaItemIDs_BatchesAndSkipsMissing(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	tpRepo := postgres.NewTrickplayRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("tplib4")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	itemWith := newTestMediaItem("tpmi4a", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemWith))
+	itemMissing := newTestMediaItem("tpmi4b", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, itemMissing))
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	m := &library.TrickplayManifest{
+		ID:          "trick4",
+		MediaItemID: itemWith.ID,
+		Interval:    10,
+		Width:       320,
+		Height:      180,
+		TileWidth:   5,
+		TileHeight:  5,
+		ImageCount:  25,
+		ImagePath:   "/trickplay/tpmi4a",
+		CreatedAt:   now,
+	}
+	require.NoError(t, tpRepo.Create(ctx, m))
+
+	got, err := tpRepo.GetByMediaItemIDs(ctx, []shared.MediaItemID{itemWith.ID, itemMissing.ID, "nonexistent"})
+	require.NoError(t, err)
+	require.Len(t, got, 1, "only the id with a manifest must appear in the map")
+	require.Contains(t, got, itemWith.ID)
+	assert.Equal(t, m.ID, got[itemWith.ID].ID)
+	assert.Equal(t, m.Interval, got[itemWith.ID].Interval)
+	assert.Equal(t, m.ImagePath, got[itemWith.ID].ImagePath)
+	assert.NotContains(t, got, itemMissing.ID)
+}
+
+func TestTrickplayRepo_GetByMediaItemIDs_EmptyInput(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	tpRepo := postgres.NewTrickplayRepository(db)
+	ctx := context.Background()
+
+	got, err := tpRepo.GetByMediaItemIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+}
+
 func TestTrickplayRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

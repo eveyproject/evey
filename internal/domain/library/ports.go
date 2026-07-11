@@ -377,6 +377,12 @@ type FileWatcher interface {
 // services. The full repository embeds this.
 type TrickplayQueryRepo interface {
 	GetByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) (*TrickplayManifest, error)
+	// GetByMediaItemIDs batches GetByMediaItemID for many items into one
+	// query, keyed by media item id. An id with no manifest is simply absent
+	// from the returned map (not a nil-pointer entry). Drives the intro
+	// propagation sibling sweeps, which otherwise issued one query per
+	// sibling just to read its trickplay manifest.
+	GetByMediaItemIDs(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID]*TrickplayManifest, error)
 	ListMissingMediaItemIDs(ctx context.Context) ([]string, error)
 }
 

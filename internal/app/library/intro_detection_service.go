@@ -919,19 +919,44 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 
 	cfg := loadIntroConfig(ctx, s.configRepo)
 	maxHamming := cfg.MaxHamming
+
+	// Collect sibling ids up front so the manual-lock guard and the trickplay
+	// manifest read below can each be a single batched query instead of one
+	// round trip per sibling — a full-season page can be up to 200 episodes.
+	siblingIDs := make([]shared.MediaItemID, 0, len(siblings))
 	for _, sib := range siblings {
 		if sib.ID == refItem.ID {
 			continue
 		}
-		sibSegs, sibSegErr := s.segmentRepo.GetByMediaItemID(ctx, sib.ID)
-		if sibSegErr != nil {
-			// Cannot determine lock state — skip the sibling to protect any
-			// operator "manual" mark we cannot read right now.
-			slog.Warn("intro_detection: propagate skipping sibling, cannot read segments for manual-lock guard",
-				slog.String("sibling_id", string(sib.ID)),
-				slog.Any("err", sibSegErr))
+		siblingIDs = append(siblingIDs, sib.ID)
+	}
+
+	segsByID, segBatchErr := s.segmentRepo.GetByMediaItemIDs(ctx, siblingIDs)
+	if segBatchErr != nil {
+		// Cannot determine ANY sibling's lock state — skip the whole page rather
+		// than risk clobbering an operator "manual" mark we failed to read.
+		// Conservative on purpose: a partial/fail-open batch result here could
+		// silently propagate over a mark we simply couldn't verify.
+		slog.Warn("intro_detection: propagate skipping page, cannot read segments for manual-lock guard",
+			slog.Any("err", segBatchErr))
+		return propagatedTo, nil
+	}
+	// A sibling absent here (no manifest, or the batch read failed outright)
+	// is skipped below exactly like the previous per-sibling error handling —
+	// trickplay is a "continue on any miss" read, unlike the segments guard
+	// above, so a whole-batch failure degrading to "every id absent" is safe.
+	trickByID, trickBatchErr := s.trickplayRepo.GetByMediaItemIDs(ctx, siblingIDs)
+	if trickBatchErr != nil {
+		slog.Warn("intro_detection: propagate batch trickplay read failed, siblings without a cached manifest will be skipped",
+			slog.Any("err", trickBatchErr))
+		trickByID = nil
+	}
+
+	for _, sib := range siblings {
+		if sib.ID == refItem.ID {
 			continue
 		}
+		sibSegs := segsByID[sib.ID]
 		manualLock := false
 		for _, sg := range sibSegs {
 			if sg.Type == segType && sg.Source == "manual" {
@@ -943,8 +968,8 @@ func (s *IntroDetectionService) PropagateSegment(ctx context.Context, refMediaIt
 			continue
 		}
 
-		sibManifest, sibErr := s.trickplayRepo.GetByMediaItemID(ctx, sib.ID)
-		if sibErr != nil {
+		sibManifest, ok := trickByID[sib.ID]
+		if !ok {
 			continue
 		}
 		sibFingerprint := ""
@@ -1606,6 +1631,29 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 	}
 	cutoffFrame := frameCutoff(manifest, durationMs, cfg.FrameCutoffPercent)
 
+	// Batch the trickplay manifest read for the whole page instead of one query
+	// per sibling — this loop hits the same N+1 as PropagateSegment's sibling
+	// sweep above.
+	candidateIDs := make([]shared.MediaItemID, 0, len(siblings))
+	for _, sib := range siblings {
+		if sib.ID == item.ID {
+			continue
+		}
+		if sib.File == nil || sib.File.Path == "" {
+			continue
+		}
+		candidateIDs = append(candidateIDs, sib.ID)
+	}
+	// A sibling absent from the map (no manifest, or the batch read failed
+	// outright) is skipped below exactly like the previous per-sibling error
+	// handling.
+	trickByID, trickErr := s.trickplayRepo.GetByMediaItemIDs(ctx, candidateIDs)
+	if trickErr != nil {
+		slog.Warn("intro_detection: pHashPass batch trickplay read failed, siblings without a cached manifest will be skipped",
+			slog.Any("err", trickErr))
+		trickByID = nil
+	}
+
 	// Collect hashes for siblings that have a trickplay manifest. Keep MediaItems
 	// in parallel so the audio-confirmation stage can read their file paths.
 	episodeHashes := make([][]uint64, 0, len(siblings))
@@ -1617,8 +1665,8 @@ func (s *IntroDetectionService) pHashPass(ctx context.Context, item *domainlibra
 		if sib.File == nil || sib.File.Path == "" {
 			continue
 		}
-		sibManifest, sibErr := s.trickplayRepo.GetByMediaItemID(ctx, sib.ID)
-		if sibErr != nil {
+		sibManifest, ok := trickByID[sib.ID]
+		if !ok {
 			continue
 		}
 		sibFingerprint := ""

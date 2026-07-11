@@ -516,6 +516,12 @@ type fakeTrickplayRepoWithManifest struct {
 func (r *fakeTrickplayRepo) GetByMediaItemID(_ context.Context, _ shared.MediaItemID) (*domainlibrary.TrickplayManifest, error) {
 	return nil, shared.ErrNotFound
 }
+
+// GetByMediaItemIDs mirrors GetByMediaItemID's "nothing found" behaviour: every
+// requested id is simply absent from the returned map.
+func (r *fakeTrickplayRepo) GetByMediaItemIDs(_ context.Context, _ []shared.MediaItemID) (map[shared.MediaItemID]*domainlibrary.TrickplayManifest, error) {
+	return map[shared.MediaItemID]*domainlibrary.TrickplayManifest{}, nil
+}
 func (r *fakeTrickplayRepo) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
 	return nil, nil
 }
@@ -526,6 +532,16 @@ func (r *fakeTrickplayRepo) Delete(_ context.Context, _ shared.MediaItemID) erro
 
 func (r *fakeTrickplayRepoWithManifest) GetByMediaItemID(_ context.Context, _ shared.MediaItemID) (*domainlibrary.TrickplayManifest, error) {
 	return r.manifest, nil
+}
+
+// GetByMediaItemIDs mirrors GetByMediaItemID's unconditional-hit behaviour:
+// every requested id maps to the same fixture manifest.
+func (r *fakeTrickplayRepoWithManifest) GetByMediaItemIDs(_ context.Context, ids []shared.MediaItemID) (map[shared.MediaItemID]*domainlibrary.TrickplayManifest, error) {
+	out := make(map[shared.MediaItemID]*domainlibrary.TrickplayManifest, len(ids))
+	for _, id := range ids {
+		out[id] = r.manifest
+	}
+	return out, nil
 }
 func (r *fakeTrickplayRepoWithManifest) ListMissingMediaItemIDs(_ context.Context) ([]string, error) {
 	return nil, nil
@@ -1071,8 +1087,8 @@ func TestPropagateSegment_FailsWithoutReferenceSegment(t *testing.T) {
 // TestPropagateSegment_PaginatesAllSiblings: propagation must reach EVERY episode
 // in the season, not just the first 100. A long single-season (anime, daily
 // soaps) with >100 episodes would otherwise leave the later episodes without the
-// propagated segment. We seed 250 siblings and assert every one was visited (each
-// sibling is queried for a manual lock before propagation).
+// propagated segment. We seed 250 siblings and assert every one was covered by
+// the batched manual-lock read.
 func TestPropagateSegment_PaginatesAllSiblings(t *testing.T) {
 	t.Parallel()
 	const total = 250 // > the 200 page size and the old 100 cap
@@ -1119,10 +1135,11 @@ func TestPropagateSegment_PaginatesAllSiblings(t *testing.T) {
 	_, err := svc.PropagateSegment(context.Background(), "ep-ref", "intro")
 	require.NoError(t, err)
 
-	// Each sibling is queried for a manual lock before propagation, so queriedIDs
-	// proves the pagination reached every episode (past the old 100 cap).
-	queried := make(map[string]bool, len(segRepo.queriedIDs))
-	for _, id := range segRepo.queriedIDs {
+	// Every sibling is covered by the batched manual-lock read, so
+	// batchQueriedIDs proves the pagination reached every episode (past the old
+	// 100 cap).
+	queried := make(map[string]bool, len(segRepo.batchQueriedIDs))
+	for _, id := range segRepo.batchQueriedIDs {
 		queried[id] = true
 	}
 	require.True(t, queried["ep-249"], "propagation must page past 100 to reach the last episode")
@@ -1200,11 +1217,13 @@ func TestUpsertSegmentRespectingManual_UpsertError_Propagates(t *testing.T) {
 	require.Error(t, err, "DetectIntro must propagate the error when the manual-lock upsert fails")
 }
 
-// TestPropagateSegment_SiblingGetSegError_SkipsUpsert proves that when
-// GetByMediaItemID errors for a sibling during the propagation lock-check,
-// that sibling is skipped entirely (fail-closed).  The test seeds matching
-// hash data so the sibling WOULD be upserted without the error injection,
-// distinguishing the fix from other skip reasons (no hashes, no manifest).
+// TestPropagateSegment_SiblingGetSegError_SkipsUpsert proves that when the
+// batched sibling-segments read (the manual-lock guard) fails for the page,
+// every sibling on that page is skipped entirely (fail-closed) rather than
+// falling open and risking a clobbered operator "manual" mark. The test
+// seeds matching hash data so the sibling WOULD be upserted without the
+// error injection, distinguishing the fix from other skip reasons (no
+// hashes, no manifest).
 func TestPropagateSegment_SiblingGetSegError_SkipsUpsert(t *testing.T) {
 	t.Parallel()
 	ref := &domainlibrary.MediaItem{
@@ -1230,8 +1249,9 @@ func TestPropagateSegment_SiblingGetSegError_SkipsUpsert(t *testing.T) {
 	}
 	segRepo := &fakeSegmentRepo{
 		seeded: []*domainlibrary.MediaSegment{refSeg},
-		// Error only for the sibling; ref's GetByMediaItemID must succeed.
-		getErrForID: map[string]error{"ep-sib": errors.New("db transient")},
+		// Ref's own segment lookup (a single-item GetByMediaItemID, outside the
+		// sibling batch) must still succeed; only the batched sibling read fails.
+		batchErr: errors.New("db transient"),
 	}
 	// manifest.MediaItemID = "ep-ref" so both ref and sib resolve to the same
 	// sidecar path, giving both 5 matching hashes — i.e. without the error
@@ -1256,10 +1276,11 @@ func TestPropagateSegment_SiblingGetSegError_SkipsUpsert(t *testing.T) {
 
 	propagated, err := svc.PropagateSegment(context.Background(), "ep-ref", "intro")
 	require.NoError(t, err)
-	require.Empty(t, propagated, "sibling with a GetByMediaItemID error must not appear in propagatedTo")
+	require.Empty(t, propagated, "a batched sibling-segments read error must skip the whole page, not just append nothing")
 	for _, u := range segRepo.upserted {
 		if u.MediaItemID == sib.ID {
-			t.Fatalf("Upsert must not be called for sibling whose lock-check read errored; got %+v", u)
+			t.Fatalf("Upsert must not be called for a sibling on a page whose lock-check batch read errored; got %+v", u)
 		}
 	}
+	require.Equal(t, 1, segRepo.batchCalls, "PropagateSegment must issue exactly one batched sibling-segments read")
 }
