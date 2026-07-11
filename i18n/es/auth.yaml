@@ -33,6 +33,7 @@ setup:
     photos: Fotos
 signingIn: "Iniciando sesión…"
 login:
+  guestJoinTrigger: "Ver juntos"
   guestJoinDesc: "¿Invitado a ver juntos? Introduce el código — sin cuenta."
   guestJoinError: "No se pudo unir — comprueba el código."
   signIn: "Iniciar sesión"

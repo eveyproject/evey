@@ -33,6 +33,7 @@ setup:
     photos: "फ़ोटो"
 signingIn: "साइन इन हो रहा है…"
 login:
+  guestJoinTrigger: "साथ देखें"
   guestJoinDesc: "साथ देखने के लिए आमंत्रित? कोड दर्ज करें — खाते की जरूरत नहीं।"
   guestJoinError: "शामिल नहीं हो सके — कोड जांचें।"
   signIn: "साइन इन"
