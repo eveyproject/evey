@@ -29,7 +29,7 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
-import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
+import { useNextEpisode, COUNTDOWN_SEC } from "../../../src/hooks/useNextEpisode";
 import { useChapters } from "../../../src/hooks/useChapters";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
@@ -53,6 +53,7 @@ const IMAGE_SUBTITLE_CODECS = new Set([
 ]);
 
 const CONTROLS_TIMEOUT = 3000;
+const WATCHED_THRESHOLD = 0.9;
 
 function formatTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -450,7 +451,7 @@ export default function PlayerScreen() {
     if (progress?.played) { autoMarkedRef.current = true; return; }
     if (!profileId || !mediaId) return;
     if (effectiveDuration <= 0 || currentTime <= 0) return;
-    if (currentTime / effectiveDuration >= 0.9) {
+    if (currentTime / effectiveDuration >= WATCHED_THRESHOLD) {
       autoMarkedRef.current = true;
       markAsWatchedMut.mutate({ mediaItemId: mediaId, params: { profileId } });
     }
@@ -481,15 +482,15 @@ export default function PlayerScreen() {
       // pre-seek position before the first post-seek timeUpdate lands.
       setCurrentTime(targetSec);
       // Native seek on the absolute HLS timeline - works for direct-play AND
-      // transcode (the event playlist is 0-based; the server rafales any not-yet-
-      // produced segment). Reloading the stream instead replayed it from the start.
+      // transcode (the event playlist is 0-based; the server produces in bursts any
+      // not-yet-produced segment). Reloading the stream instead replayed it from the start.
       if (player) {
         player.currentTime = targetSec;
       }
       if (syncPlay.state.connected) syncPlay.sendSeek(targetSec * 1000);
       resetHideTimer();
     },
-    [player, duration, knownDuration, resetHideTimer, isTranscode, restartAtPosition, syncPlay],
+    [player, duration, knownDuration, resetHideTimer, syncPlay],
   );
 
   const seekBy = useCallback(
@@ -771,7 +772,7 @@ export default function PlayerScreen() {
 
           {/* Controls */}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 32, marginTop: 24 }}>
-            <Pressable onPress={() => castClient?.seek?.({ position: Math.max(0, castCurrentTime - 10) })} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={t("player.controls.rewind", { seconds: 10 })}>
+            <Pressable onPress={() => castClient?.seek?.({ position: Math.max(0, castCurrentTime - skipBwd) })} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })}>
               <Ionicons name="play-back" size={32} color="#fff" />
             </Pressable>
             <Pressable onPress={() => {
@@ -780,7 +781,7 @@ export default function PlayerScreen() {
             }} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={castIsPlaying ? t("player.controls.pause") : t("player.controls.play")}>
               <Ionicons name={castIsPlaying ? "pause" : "play"} size={48} color="#fff" />
             </Pressable>
-            <Pressable onPress={() => castClient?.seek?.({ position: castCurrentTime + 10 })} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={t("player.controls.forward", { seconds: 10 })}>
+            <Pressable onPress={() => castClient?.seek?.({ position: castCurrentTime + skipFwd })} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={t("player.controls.forward", { seconds: skipFwd })}>
               <Ionicons name="play-forward" size={32} color="#fff" />
             </Pressable>
           </View>
@@ -822,7 +823,7 @@ export default function PlayerScreen() {
             ]}
           >
             <Text style={styles.seekFlashText}>
-              {seekFlash === "left" ? "\u00AB 10" : "10 \u00BB"}
+              {seekFlash === "left" ? `\u00AB ${skipBwd}` : `${skipFwd} \u00BB`}
             </Text>
           </View>
         )}
@@ -836,10 +837,10 @@ export default function PlayerScreen() {
               <View style={[
                 styles.volumeBarFill,
                 { height: `${Math.min(100, Math.round(volumeIndicator * 100))}%` },
-                volumeIndicator > 1 && { backgroundColor: "#f59e0b" },
+                volumeIndicator > 1 && { backgroundColor: theme.colors.warning },
               ]} />
             </View>
-            <Text style={[styles.volumeText, volumeIndicator > 1 && { color: "#f59e0b" }]}>{Math.round(volumeIndicator * 100)}</Text>
+            <Text style={[styles.volumeText, volumeIndicator > 1 && { color: theme.colors.warning }]}>{Math.round(volumeIndicator * 100)}</Text>
           </View>
         )}
 
@@ -889,7 +890,7 @@ export default function PlayerScreen() {
                 <View
                   style={[
                     styles.nextEpProgressFill,
-                    { width: `${((5 - Math.max(nextEp.countdown, 0)) / 5) * 100}%`, backgroundColor: theme.colors.accent },
+                    { width: `${((COUNTDOWN_SEC - Math.max(nextEp.countdown, 0)) / COUNTDOWN_SEC) * 100}%`, backgroundColor: theme.colors.accent },
                   ]}
                 />
               </View>

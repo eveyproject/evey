@@ -5,7 +5,7 @@ import {
 } from "@evey/api";
 
 const CREDITS_THRESHOLD_SEC = 30;
-const COUNTDOWN_SEC = 5;
+export const COUNTDOWN_SEC = 5;
 
 interface UseNextEpisodeArgs {
   media: V1MediaItem | undefined;
