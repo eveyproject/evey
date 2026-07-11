@@ -52,7 +52,30 @@ type CopyPlanner struct {
 	// No cleanup goroutine (interval 0): the LRU cap alone bounds memory and
 	// expiry is checked lazily on Get — the planner has no Close lifecycle to
 	// stop a sweeper from.
-	cache *cache.TTLCache[[]CopySegment]
+	//
+	// Each entry carries the file stamp (size|mtime|fingerprint) it was built
+	// from and Plan revalidates it against the item on every hit: a replaced
+	// file (re-download, repair) re-probes to different keyframes, and serving
+	// the old boundaries would cut -c:v copy segments at offsets that are no
+	// longer keyframes. Self-validation beats a remote invalidation hook — no
+	// scan-event wiring to forget, no stale window. The item read it costs on
+	// a hit is a light PK lookup on the paths that call Plan (manifest bake,
+	// session spawn), never the per-segment hot path.
+	cache *cache.TTLCache[cachedCopyPlan]
+}
+
+// cachedCopyPlan is a plan plus the identity of the file it was derived from.
+type cachedCopyPlan struct {
+	segs  []CopySegment
+	stamp string
+}
+
+// copyPlanFileStamp captures what change-detection knows about a file. It
+// deliberately mirrors the scanner's size+mtime+fingerprint notion of "same
+// file": when the scanner re-probes (and rewrites keyframes), this stamp
+// changes with it.
+func copyPlanFileStamp(f *domainlibrary.MediaFile) string {
+	return fmt.Sprintf("%d|%d|%s", f.Size, f.ModTime.UnixNano(), f.Fingerprint)
 }
 
 const (
@@ -73,7 +96,7 @@ const (
 
 // NewCopyPlanner wires the planner to the stream + item readers.
 func NewCopyPlanner(streams CopyStreamReader, items MediaItemReader) *CopyPlanner {
-	c, _ := cache.NewWithMaxSize[[]CopySegment](0, copyPlanCacheMax) // interval 0 → no sweeper goroutine, stop func is a no-op
+	c, _ := cache.NewWithMaxSize[cachedCopyPlan](0, copyPlanCacheMax) // interval 0 → no sweeper goroutine, stop func is a no-op
 	return &CopyPlanner{
 		streams: streams,
 		items:   items,
@@ -84,8 +107,18 @@ func NewCopyPlanner(streams CopyStreamReader, items MediaItemReader) *CopyPlanne
 // Plan returns the copy segment boundaries for mediaID. Errors when the keyframe
 // index or duration is missing — the caller must then NOT serve a copy rung.
 func (c *CopyPlanner) Plan(ctx context.Context, mediaID string) ([]CopySegment, error) {
-	if segs, ok := c.cache.Get(mediaID); ok {
-		return segs, nil
+	// The item is read on every call (hit included): its file stamp decides
+	// whether a cached plan is still for the file on disk.
+	item, err := c.items.GetByID(ctx, shared.MediaItemID(mediaID))
+	if err != nil {
+		return nil, fmt.Errorf("copy planner: load item %s: %w", mediaID, err)
+	}
+	if item == nil || item.File == nil {
+		return nil, fmt.Errorf("copy planner: no file for media %s", mediaID)
+	}
+	stamp := copyPlanFileStamp(item.File)
+	if entry, ok := c.cache.Get(mediaID); ok && entry.stamp == stamp {
+		return entry.segs, nil
 	}
 
 	streams, err := c.streams.GetByMediaItemID(ctx, shared.MediaItemID(mediaID))
@@ -103,13 +136,6 @@ func (c *CopyPlanner) Plan(ctx context.Context, mediaID string) ([]CopySegment, 
 		return nil, fmt.Errorf("copy planner: no keyframe index for media %s", mediaID)
 	}
 
-	item, err := c.items.GetByID(ctx, shared.MediaItemID(mediaID))
-	if err != nil {
-		return nil, fmt.Errorf("copy planner: load item %s: %w", mediaID, err)
-	}
-	if item == nil || item.File == nil {
-		return nil, fmt.Errorf("copy planner: no file for media %s", mediaID)
-	}
 	durationMs := item.File.Duration.Milliseconds()
 	if durationMs <= 0 {
 		return nil, fmt.Errorf("copy planner: no duration for media %s", mediaID)
@@ -127,7 +153,7 @@ func (c *CopyPlanner) Plan(ctx context.Context, mediaID string) ([]CopySegment, 
 			durationMs/int64(len(segs)), mediaID)
 	}
 
-	c.cache.Set(mediaID, segs, copyPlanCacheTTL)
+	c.cache.Set(mediaID, cachedCopyPlan{segs: segs, stamp: stamp}, copyPlanCacheTTL)
 	return segs, nil
 }
 

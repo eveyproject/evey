@@ -40,6 +40,35 @@ func itemWithDurationMs(ms int64) *domainlibrary.MediaItem {
 	return &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Duration: d}}
 }
 
+func TestCopyPlanner_Plan_RebuildsWhenFileReplaced(t *testing.T) {
+	// A replaced file (same media id, new size/fingerprint after a re-download
+	// or repair) re-probes to DIFFERENT keyframes. The cached plan must not
+	// survive the swap: serving the old boundaries cuts -c:v copy segments at
+	// offsets that no longer are keyframes.
+	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 3000, 6000})}
+	item := itemWithDurationMs(9000)
+	item.File.Size = 1000
+	item.File.Fingerprint = "fp-old"
+	items := &fakeCopyItems{item: item}
+	p := NewCopyPlanner(streams, items)
+
+	first, err := p.Plan(context.Background(), "mi-1")
+	require.NoError(t, err)
+	require.Len(t, first, 3)
+
+	// Swap the file: new fingerprint/size, new keyframe index, new duration.
+	replaced := itemWithDurationMs(12000)
+	replaced.File.Size = 2000
+	replaced.File.Fingerprint = "fp-new"
+	items.item = replaced
+	streams.streams = videoStreamWithKeyframes([]int64{0, 2000, 4000, 6000, 8000, 10000})
+
+	second, err := p.Plan(context.Background(), "mi-1")
+	require.NoError(t, err)
+	assert.Len(t, second, 6, "plan must be rebuilt from the replaced file's keyframes, not served stale")
+	assert.Equal(t, 2, streams.calls, "the replaced file must trigger a re-read of the keyframes")
+}
+
 func TestCopyPlanner_Plan_KeyframeAligned(t *testing.T) {
 	streams := &fakeCopyStreams{streams: videoStreamWithKeyframes([]int64{0, 2000, 4000, 6000, 8000, 10000})}
 	items := &fakeCopyItems{item: itemWithDurationMs(12000)}
