@@ -57,7 +57,7 @@ export function OnlineNow() {
           {t("admin.online.title")}
         </h3>
         <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]">
-          <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_6px] shadow-emerald-500/70 animate-pulse" />
+          <span className="inline-flex h-2 w-2 rounded-full bg-[var(--success)] shadow-[0_0_6px] shadow-[var(--success)]/70 animate-pulse" />
           {t(total === 1 ? "admin.online.countOne" : "admin.online.countOther", { count: total })}
         </span>
       </div>

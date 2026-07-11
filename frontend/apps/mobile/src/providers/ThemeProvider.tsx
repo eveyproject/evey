@@ -36,6 +36,12 @@ function mergeCSSVars(base: ThemeTokens, vars: Record<string, string>): ThemeTok
       text:          get("--text",            base.colors.text),
       textMuted:     get("--text-muted",      base.colors.textMuted),
       border:        get("--border",          base.colors.border),
+      // overlay/divider fall back to base when a plugin theme doesn't supply
+      // them (today's themes don't), but a theme that does will now be honored
+      // instead of silently rendering the default - both are consumed widely
+      // (overlay in ~14 screens, divider in ~5).
+      overlay:       get("--overlay",          base.colors.overlay),
+      divider:       get("--divider",          base.colors.divider),
       error:         get("--error",           base.colors.error),
       danger:        get("--color-danger",    base.colors.danger),
       success:       get("--success",         base.colors.success),

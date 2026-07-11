@@ -11,7 +11,7 @@ export interface PlayerVolumeControlProps {
 
 const TRACK = "rgba(255,255,255,0.25)";
 const ACCENT = "var(--accent)";
-const BOOST = "#f59e0b"; // amber-500 — the >100% zone
+const BOOST = "var(--warning)"; // the >100% boost zone (semantic token, was hardcoded amber-500)
 
 export function PlayerVolumeControl({ volume, muted, onToggleMute, onVolumeChange }: PlayerVolumeControlProps) {
   const { t } = useTranslation();
