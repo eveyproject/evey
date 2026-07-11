@@ -5,7 +5,7 @@ import warnings
 
 import plugin_api_pb2 as plugin_dot_v1_dot_plugin__api__pb2
 
-GRPC_GENERATED_VERSION = '1.80.0'
+GRPC_GENERATED_VERSION = '1.82.1'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -25,7 +25,7 @@ if _version_not_supported:
     )
 
 
-class PluginServiceStub(object):
+class PluginServiceStub:
     """Host -> Plugin communication
     """
 
@@ -62,7 +62,7 @@ class PluginServiceStub(object):
                 _registered_method=True)
 
 
-class PluginServiceServicer(object):
+class PluginServiceServicer:
     """Host -> Plugin communication
     """
 
@@ -132,7 +132,7 @@ def add_PluginServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class PluginService(object):
+class PluginService:
     """Host -> Plugin communication
     """
 
@@ -272,7 +272,7 @@ class PluginService(object):
             _registered_method=True)
 
 
-class HostServiceStub(object):
+class HostServiceStub:
     """Plugin -> Host communication
     """
 
@@ -367,9 +367,14 @@ class HostServiceStub(object):
                 request_serializer=plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysRequest.SerializeToString,
                 response_deserializer=plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysResponse.FromString,
                 _registered_method=True)
+        self.Fetch = channel.unary_unary(
+                '/plugin.v1.HostService/Fetch',
+                request_serializer=plugin_dot_v1_dot_plugin__api__pb2.FetchRequest.SerializeToString,
+                response_deserializer=plugin_dot_v1_dot_plugin__api__pb2.FetchResponse.FromString,
+                _registered_method=True)
 
 
-class HostServiceServicer(object):
+class HostServiceServicer:
     """Plugin -> Host communication
     """
 
@@ -485,6 +490,17 @@ class HostServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Fetch(self, request, context):
+        """Network — brokered outbound HTTP(S) fetch. Plugins have no direct network
+        access (the sandbox unshares the net namespace); all egress is mediated
+        here so the host can enforce the plugin's external_fetch allow-list AND an
+        SSRF-safe dialer (rejects private/reserved IPs after DNS resolution).
+        Requires the "network" permission.
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_HostServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -573,6 +589,11 @@ def add_HostServiceServicer_to_server(servicer, server):
                     request_deserializer=plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysRequest.FromString,
                     response_serializer=plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysResponse.SerializeToString,
             ),
+            'Fetch': grpc.unary_unary_rpc_method_handler(
+                    servicer.Fetch,
+                    request_deserializer=plugin_dot_v1_dot_plugin__api__pb2.FetchRequest.FromString,
+                    response_serializer=plugin_dot_v1_dot_plugin__api__pb2.FetchResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'plugin.v1.HostService', rpc_method_handlers)
@@ -581,7 +602,7 @@ def add_HostServiceServicer_to_server(servicer, server):
 
 
  # This class is part of an EXPERIMENTAL API.
-class HostService(object):
+class HostService:
     """Plugin -> Host communication
     """
 
@@ -1034,6 +1055,33 @@ class HostService(object):
             '/plugin.v1.HostService/ListDataKeys',
             plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysRequest.SerializeToString,
             plugin_dot_v1_dot_plugin__api__pb2.ListDataKeysResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Fetch(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/plugin.v1.HostService/Fetch',
+            plugin_dot_v1_dot_plugin__api__pb2.FetchRequest.SerializeToString,
+            plugin_dot_v1_dot_plugin__api__pb2.FetchResponse.FromString,
             options,
             channel_credentials,
             insecure,

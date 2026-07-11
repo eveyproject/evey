@@ -52,6 +52,13 @@ service HostService {
   rpc SetData(SetDataRequest) returns (SetDataResponse);
   rpc DeleteData(DeleteDataRequest) returns (DeleteDataResponse);
   rpc ListDataKeys(ListDataKeysRequest) returns (ListDataKeysResponse);
+
+  // Network — brokered outbound HTTP(S) fetch. Plugins have no direct network
+  // access (the sandbox unshares the net namespace); all egress is mediated
+  // here so the host can enforce the plugin's external_fetch allow-list AND an
+  // SSRF-safe dialer (rejects private/reserved IPs after DNS resolution).
+  // Requires the "network" permission.
+  rpc Fetch(FetchRequest) returns (FetchResponse);
 }
 
 // --- Enums ---
@@ -319,6 +326,21 @@ message ListDataKeysRequest {}
 
 message ListDataKeysResponse {
   repeated string keys = 1;
+}
+
+// --- Network (brokered fetch) messages ---
+
+message FetchRequest {
+  string url = 1;                   // must be http/https and on the plugin's external_fetch allow-list
+  string method = 2;                // GET (default) or HEAD; other methods are rejected
+  map<string, string> headers = 3;  // request headers; the host attaches none of its own credentials
+}
+
+message FetchResponse {
+  int32 status_code = 1;
+  map<string, string> headers = 2;
+  bytes body = 3;                   // capped by the host; truncated flag reports if the cap was hit
+  bool truncated = 4;
 }
 
 // --- Static analysis (returned by host on install) ---
