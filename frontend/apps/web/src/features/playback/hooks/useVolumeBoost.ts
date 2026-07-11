@@ -26,6 +26,12 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
   // The element the source node is bound to - a MediaElementSourceNode lives
   // and dies with one element, so a media swap (new <video>) must rebuild it.
   const elRef = useRef<HTMLVideoElement | null>(null);
+  // Last gain the user asked for. Firefox creates the context "suspended" even
+  // mid-gesture and resume() completes (or gets granted) asynchronously; a ramp
+  // scheduled before that runs against a frozen clock and never becomes
+  // audible - the UI says 200% while the native, unboosted path keeps playing.
+  // Whenever the context actually reaches "running", this is what to apply.
+  const pendingGainRef = useRef(1);
 
   const teardown = useCallback(() => {
     try { sourceRef.current?.disconnect(); } catch { /* already gone */ }
@@ -71,6 +77,13 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
       source.connect(gain);
       gain.connect(comp);
       comp.connect(ctx.destination);
+      // However the context reaches "running" (our resume(), a later gesture,
+      // the tab regaining audio focus), make the boost real at that moment.
+      ctx.onstatechange = () => {
+        if (ctx.state === "running" && gainRef.current) {
+          gainRef.current.gain.setTargetAtTime(pendingGainRef.current, ctx.currentTime, 0.02);
+        }
+      };
       ctxRef.current = ctx;
       gainRef.current = gain;
       sourceRef.current = source;
@@ -85,6 +98,16 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
     }
   }, [videoRef, teardown]);
 
+  // applyPendingGain (re)schedules the ramp for the last requested gain against
+  // the context's CURRENT clock - the only schedule that matters once running.
+  const applyPendingGain = useCallback(() => {
+    const node = gainRef.current;
+    const ctx = ctxRef.current;
+    if (!node || !ctx) return;
+    // Ramp instead of a hard set to avoid a zipper click while dragging.
+    node.gain.setTargetAtTime(pendingGainRef.current, ctx.currentTime, 0.02);
+  }, []);
+
   // setBoost applies a 1×-2× amplification. gain <= 1 with no graph yet is a
   // no-op so we never build the graph for users who stay at/under 100%.
   const setBoost = useCallback((gain: number) => {
@@ -92,10 +115,17 @@ export function useVolumeBoost(videoRef: React.RefObject<HTMLVideoElement | null
     const node = ensureGraph();
     const ctx = ctxRef.current;
     if (!node || !ctx) return;
-    if (ctx.state === "suspended") void ctx.resume();
-    // Ramp instead of a hard set to avoid a zipper click while dragging.
-    node.gain.setTargetAtTime(Math.max(0, gain), ctx.currentTime, 0.02);
-  }, [ensureGraph]);
+    pendingGainRef.current = Math.max(0, gain);
+    if (ctx.state === "suspended") {
+      // Re-apply once the resume actually lands (async in every browser; may
+      // even be denied and only granted on a later gesture - each new setBoost
+      // retries, and the statechange hook below catches any external resume).
+      ctx.resume().then(applyPendingGain).catch(() => {
+        // Denied for now (autoplay gate) - the next user gesture retries.
+      });
+    }
+    applyPendingGain();
+  }, [ensureGraph, applyPendingGain]);
 
   useEffect(() => teardown, [teardown]);
 
