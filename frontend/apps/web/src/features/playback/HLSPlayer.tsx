@@ -37,7 +37,7 @@ import { useSubtitleManager } from "./hooks/useSubtitleManager";
 import { usePlayerKeyboard } from "./hooks/usePlayerKeyboard";
 import { useTouchGestures } from "./hooks/useTouchGestures";
 import { useOverlayTime } from "./hooks/useOverlayTime";
-import { useDLNA } from "@/hooks/useDLNA";
+import { useCasting } from "@/hooks/useCasting";
 
 export type { AudioStream, SubtitleStream };
 
@@ -251,7 +251,7 @@ export function HLSPlayer({
   const {
     castSdkReady, connected: castConnected, deviceName: castDeviceName,
     castPlayback, startCast, stopCast, castPlayPause, castSeek, castReload, castSetVolume, castSetMuted,
-  } = useDLNA();
+  } = useCasting();
   // Cast button visibility. The native Google Cast SDK (castSdkReady)
   // works for any user on Chrome/Chromium. The server-side DLNA/cast
   // path only discovers devices on the *server's* LAN, so it's only

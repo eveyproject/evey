@@ -1,3 +1,6 @@
+// Casting hook covering the three remote-playback modes Evey supports:
+// native Chromecast (JS Cast SDK), server-side "cast" (backend-driven
+// Chromecast for browsers without the SDK), and DLNA renderer fallback.
 import { useState, useCallback, useEffect, useRef } from "react";
 import { eveyFetch } from "@evey/api";
 import { toast } from "@evey/store";
@@ -121,7 +124,7 @@ function ensureCastSdk() {
   document.head.appendChild(script);
 }
 
-export function useDLNA() {
+export function useCasting() {
   const [state, setState] = useState<CastState>({
     available: true,
     connected: false,

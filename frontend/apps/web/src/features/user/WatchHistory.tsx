@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { MS_PER_DAY } from "@/lib/time";
 
 // Home feeds (and popular-media) filter watched items server-side, so a change
 // to watch state must invalidate them too. Mirrors MediaCard.invalidateItem.
@@ -203,7 +204,7 @@ export function WatchHistory({ limit, showClearButton = false }: Props) {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const itemDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / 86400000);
+    const diffDays = Math.floor((today.getTime() - itemDate.getTime()) / MS_PER_DAY);
 
     if (diffDays === 0) return t("auth.watchHistory.today");
     if (diffDays === 1) return t("auth.watchHistory.yesterday");

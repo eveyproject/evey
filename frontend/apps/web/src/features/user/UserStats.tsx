@@ -37,19 +37,20 @@ function translateGenre(genre: string, lang: string): string {
 }
 
 import { useCssVar } from "@/hooks/useCssVar";
+import { MS_PER_HOUR, MS_PER_MINUTE } from "@/lib/time";
 
 function formatWatchTime(ms: string | undefined): string {
   const total = parseInt(ms ?? "0");
-  const h = Math.floor(total / 3600000);
-  const m = Math.floor((total % 3600000) / 60000);
+  const h = Math.floor(total / MS_PER_HOUR);
+  const m = Math.floor((total % MS_PER_HOUR) / MS_PER_MINUTE);
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }
 
 function formatHours(ms: string | undefined): string {
-  const h = parseInt(ms ?? "0") / 3600000;
+  const h = parseInt(ms ?? "0") / MS_PER_HOUR;
   if (h >= 1) return `${Math.round(h * 10) / 10}h`;
-  const m = Math.round(parseInt(ms ?? "0") / 60000);
+  const m = Math.round(parseInt(ms ?? "0") / MS_PER_MINUTE);
   return `${m}m`;
 }
 
@@ -71,7 +72,7 @@ function buildMonthlyData(byMonth: { year?: number; month?: number; totalTimeMs?
     const m = d.getMonth() + 1;
     const label = d.toLocaleDateString(undefined, { month: "short" });
     const entry = byMonth.find((e) => e.year === y && e.month === m);
-    const hours = parseInt(entry?.totalTimeMs ?? "0") / 3600000;
+    const hours = parseInt(entry?.totalTimeMs ?? "0") / MS_PER_HOUR;
     result.push({ value: Math.round(hours * 10) / 10, label, frontColor: accent });
   }
   return result;

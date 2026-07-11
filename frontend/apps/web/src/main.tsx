@@ -51,6 +51,9 @@ let routerRef: ReturnType<typeof createRouter> | null = null;
 // the same instant don't both hit /auth/refresh with the same (in-flight-
 // rotated) cookie, which the server would treat as reuse and purge all of
 // the user's refresh tokens.
+// How long before expiry the proactive refresh fires. Consistent with the
+// fetcher's own EXPIRY_GRACE_SECONDS (a much smaller last-resort margin).
+const REFRESH_MARGIN_MS = 2 * 60 * 1000;
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleTokenRefresh() {
   if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = null; }
@@ -78,7 +81,7 @@ function scheduleTokenRefresh() {
     }
     // Random jitter in [0, 30s] so two tabs don't wake at the same millisecond.
     const jitter = Math.floor(Math.random() * 30_000);
-    const refreshAt = expiresMs - 2 * 60 * 1000 + jitter;
+    const refreshAt = expiresMs - REFRESH_MARGIN_MS + jitter;
     const delay = Math.max(refreshAt - Date.now(), 0);
     refreshTimer = setTimeout(async () => {
       try {
@@ -110,13 +113,16 @@ async function runUnderTabLock(fn: () => Promise<void>): Promise<void> {
   await fn();
 }
 
+// Threshold below which a token is treated as about to expire (skip reusing
+// it and refresh instead). Matches the jitter ceiling in scheduleTokenRefresh.
+const NEAR_EXPIRY_MS = 60_000;
 function isNearExpiry(token: string): boolean {
   try {
     const tokenParts = token.split(".");
     if (tokenParts.length < 3 || !tokenParts[1]) return true;
     const payload = JSON.parse(atob(tokenParts[1].replace(/-/g, "+").replace(/_/g, "/")));
     const msLeft = payload.exp * 1000 - Date.now();
-    return msLeft < 60_000;
+    return msLeft < NEAR_EXPIRY_MS;
   } catch { return true; }
 }
 

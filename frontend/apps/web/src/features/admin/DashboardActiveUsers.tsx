@@ -1,11 +1,12 @@
 import { Avatar } from "@/components/ui/Avatar";
 import { useTranslation } from "react-i18next";
 import { useActivityServiceGetServerStats } from "@evey/api";
+import { MS_PER_HOUR, MS_PER_MINUTE } from "@/lib/time";
 
 function formatWatchTime(ms: string | undefined): string {
   const total = parseInt(ms ?? "0");
-  const h = Math.floor(total / 3600000);
-  const m = Math.floor((total % 3600000) / 60000);
+  const h = Math.floor(total / MS_PER_HOUR);
+  const m = Math.floor((total % MS_PER_HOUR) / MS_PER_MINUTE);
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }
@@ -13,7 +14,7 @@ function formatWatchTime(ms: string | undefined): string {
 function formatRelativeTime(dateStr: string | undefined): string {
   if (!dateStr) return "-";
   const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
+  const mins = Math.floor(diff / MS_PER_MINUTE);
   if (mins < 1) return "now";
   if (mins < 60) return `${mins}m ago`;
   const hours = Math.floor(mins / 60);
