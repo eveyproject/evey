@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -73,9 +74,13 @@ func (f *fakeReindexer) RestoreBackup(_ context.Context, p string) error {
 
 type fakeCatalog struct {
 	files []appmaintenance.MediaRef
+	lists *int32 // optional: counts ListMediaFiles calls
 }
 
 func (c fakeCatalog) ListMediaFiles(_ context.Context, _ string) ([]appmaintenance.MediaRef, error) {
+	if c.lists != nil {
+		atomic.AddInt32(c.lists, 1)
+	}
 	return c.files, nil
 }
 func (c fakeCatalog) GetMediaFile(_ context.Context, mediaID string) (appmaintenance.MediaRef, error) {
@@ -552,4 +557,107 @@ func TestSeekIndexService_PurgeBackups(t *testing.T) {
 	res, _, ok := svc.CachedScan("")
 	require.True(t, ok)
 	assert.Equal(t, 0, res.WithBackup)
+}
+
+// A completed scan must survive a server restart: a new service instance
+// pointed at the same state dir serves the cached result without touching the
+// disk again - re-scanning 6k files after every reboot is minutes of probes.
+func TestSeekIndexService_ScanCacheSurvivesRestart(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	state := t.TempDir()
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: false}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Title: "F", Path: p}}}
+
+	svc1 := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithStateDir(state)
+	require.NoError(t, svc1.StartScan(context.Background(), ""))
+	waitIdle(t, svc1)
+	res1, at1, ok := svc1.CachedScan("")
+	require.True(t, ok)
+
+	// "Restart": a fresh instance over the same state dir.
+	svc2 := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithStateDir(state)
+	res2, at2, ok := svc2.CachedScan("")
+	require.True(t, ok, "the persisted scan is served after a restart")
+	assert.Equal(t, res1.Items, res2.Items)
+	assert.Equal(t, res1.MissingIndex, res2.MissingIndex)
+	assert.WithinDuration(t, at1, at2, time.Second, "the scan timestamp survives")
+}
+
+// A job that dies with the process (deploy/restart) must not vanish without a
+// trace: the next boot surfaces it as the last job, interrupted, with the
+// progress it had reached - so the operator knows the library is NOT done.
+func TestSeekIndexService_InterruptedJobSurfacesAfterRestart(t *testing.T) {
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a.mkv")
+	b := filepath.Join(dir, "b.mkv")
+	for _, p := range []string{a, b} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	state := t.TempDir()
+	gate := make(chan struct{})
+	reidx := &fakeReindexer{hasIndex: map[string]bool{a: false, b: false}, gate: gate}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: a}, {MediaID: "m2", Path: b}}}
+
+	svc1 := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithStateDir(state)
+	require.NoError(t, svc1.StartReindexLibrary(context.Background(), "lib9", appmaintenance.ReindexRunOptions{}))
+	// Wait until the job is PARKED on the gate (processing, first file in
+	// flight): only then is the marker stable - the scan phase rewrites it on
+	// every probed file, and consuming it mid-scan would race a rewrite.
+	require.Eventually(t, func() bool {
+		st := svc1.Status()
+		return st.Running && st.Phase == appmaintenance.PhaseProcessing && st.CurrentPath != ""
+	}, 5*time.Second, 5*time.Millisecond)
+	// The process "dies" here: svc1 is abandoned mid-job (its goroutine is
+	// parked on the gate; released and drained at cleanup so it cannot race
+	// the TempDir removal with marker writes).
+	t.Cleanup(func() {
+		close(gate)
+		require.Eventually(t, func() bool { return !svc1.Status().Running },
+			5*time.Second, 5*time.Millisecond, "abandoned job did not drain")
+	})
+
+	svc2 := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithStateDir(state)
+	st := svc2.Status()
+	require.NotNil(t, st.Last, "the interrupted job surfaces as the last summary")
+	assert.Equal(t, appmaintenance.JobReindex, st.Last.Kind)
+	assert.Equal(t, "lib9", st.Last.Scope)
+	assert.Contains(t, st.Last.Err, "interrupted", "the summary names the interruption")
+	assert.False(t, svc2.Status().Running, "the marker does not resurrect a running job")
+
+	// The marker is consumed: another restart reports nothing stale.
+	svc3 := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithStateDir(state)
+	if l := svc3.Status().Last; l != nil {
+		assert.NotContains(t, l.Err, "interrupted", "the marker is one-shot")
+	}
+}
+
+// A batch job must reuse the cached scan as its phase 1 instead of re-walking
+// the whole library (the scan is minutes of per-file probes; every repair
+// already re-checks its own file, so a cached candidate list is safe).
+func TestSeekIndexService_BatchReusesCachedScan(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	var lists int32
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: false}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}, lists: &lists}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil)
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	require.EqualValues(t, 1, atomic.LoadInt32(&lists))
+
+	require.NoError(t, svc.StartReindexLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, 1, st.Last.Done)
+	assert.Equal(t, []string{p}, reidx.reindexed)
+	assert.EqualValues(t, 1, atomic.LoadInt32(&lists), "the batch used the cached scan, no re-walk")
+
+	// Without a cache (new scope), the batch scans as before.
+	require.NoError(t, svc.StartReindexLibrary(context.Background(), "lib-uncached", appmaintenance.ReindexRunOptions{}))
+	waitIdle(t, svc)
+	assert.EqualValues(t, 2, atomic.LoadInt32(&lists), "no cache for the scope - the batch scans")
 }

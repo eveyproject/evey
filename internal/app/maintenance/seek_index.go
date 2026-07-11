@@ -162,6 +162,8 @@ type SeekIndexService struct {
 	audioDelay AudioDelayProber   // optional; see WithAudioDelayProber
 	logger     *slog.Logger
 
+	stateDir string // "" = no persistence (WithStateDir enables it)
+
 	mu          sync.Mutex
 	running     bool
 	cur         JobStatus // valid while running (Last excluded)
@@ -537,10 +539,18 @@ func (s *SeekIndexService) startBatch(kind, libraryID string, preflight func([]S
 	go func() {
 		defer s.recoverJob()
 		bg := context.Background()
-		scan, err := s.scanAndCache(bg, libraryID)
-		if err != nil {
-			s.finish(err)
-			return
+		// Phase 1: reuse the cached scan when one exists - a full re-walk is
+		// minutes of per-file probes and every repair re-checks its own file
+		// anyway (an already-indexed file is Skipped, a vanished one fails
+		// cleanly). The scan job itself always walks fresh.
+		scan, _, ok := s.CachedScan(libraryID)
+		if !ok {
+			var err error
+			scan, err = s.scanAndCache(bg, libraryID)
+			if err != nil {
+				s.finish(err)
+				return
+			}
 		}
 		var kept []SeekStatus
 		for _, it := range scan.Items {
@@ -624,6 +634,7 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 	s.mu.Lock()
 	s.scans[jobKey(libraryID)] = cachedScan{res: res, at: time.Now()}
 	s.mu.Unlock()
+	s.saveScans()
 	return res, nil
 }
 
@@ -717,6 +728,7 @@ func (s *SeekIndexService) tryStart(kind, libraryID string) bool {
 		Phase:     PhaseScanning,
 		StartedAt: time.Now(),
 	}
+	s.saveJobMarker()
 	return true
 }
 
@@ -727,6 +739,7 @@ func (s *SeekIndexService) setPhase(phase string, total int) {
 	s.cur.Total = total
 	s.cur.Done, s.cur.Failed, s.cur.Skipped = 0, 0, 0
 	s.cur.CurrentPath = ""
+	s.saveJobMarker()
 }
 
 func (s *SeekIndexService) setCurrent(path string) {
@@ -741,6 +754,7 @@ func (s *SeekIndexService) recordDone(skipped bool) {
 	if skipped {
 		s.cur.Skipped++
 	}
+	s.saveJobMarker()
 	s.mu.Unlock()
 }
 
@@ -762,6 +776,7 @@ func (s *SeekIndexService) recordFailure(path string, err error) {
 	if len(s.curFailures.list) < maxFailures {
 		s.curFailures.list = append(s.curFailures.list, Failure{Path: path, Error: err.Error(), ReadOnly: ro})
 	}
+	s.saveJobMarker()
 }
 
 func (s *SeekIndexService) finish(jobErr error) {
@@ -784,6 +799,14 @@ func (s *SeekIndexService) finish(jobErr error) {
 			sum.ReadOnly = true
 		}
 	}
+	// Persist BEFORE releasing the job slot: the marker is consumed (the job
+	// ended cleanly) and the cache snapshot reflects the repairs. Callers that
+	// wait for Running=false may tear the state dir down right after - the
+	// writes must already be behind us. saveScans takes the lock itself.
+	s.mu.Unlock()
+	s.clearJobMarker()
+	s.saveScans()
+	s.mu.Lock()
 	s.last = sum
 	s.running = false
 	s.cur = JobStatus{}

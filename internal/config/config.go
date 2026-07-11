@@ -403,6 +403,11 @@ type MetricsConfig struct {
 type LibraryConfig struct {
 	PeriodicScanInterval time.Duration // fallback polling when inotify misses events
 	WatcherEnabled       bool
+	// SeekIndexStateDir persists the admin seek-index scan cache and the
+	// running-job marker across restarts (a full scan is minutes of per-file
+	// probes; an in-memory job dies silently with the process). Empty
+	// disables persistence.
+	SeekIndexStateDir string
 }
 
 type PlaybackConfig struct {
@@ -667,6 +672,7 @@ func Load() (*Config, error) {
 		Library: LibraryConfig{
 			PeriodicScanInterval: envDuration("EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL", 2*time.Minute),
 			WatcherEnabled:       envBool("EVEY_LIBRARY_WATCHER_ENABLED", true),
+			SeekIndexStateDir:    envStr("EVEY_SEEKINDEX_STATE_DIR", "/data/seek-index"),
 		},
 		Playback: PlaybackConfig{
 			SkipForwardSeconds:  envInt("EVEY_PLAYBACK_SKIP_FORWARD", 30),
