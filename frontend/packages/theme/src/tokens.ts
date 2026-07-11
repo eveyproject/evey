@@ -1,6 +1,9 @@
-// Design tokens — single source of truth for all platforms
-// Web: converted to CSS custom properties
-// Native (RN): consumed directly as JS values via useTheme()
+// Design tokens for the mobile (React Native) client. These are DERIVED from
+// themeVars.ts - the single source of truth shared with the web CSS - so a
+// colour defined once drives both platforms and cannot drift. Only genuinely
+// mobile-only concepts (error tint, shadow colour, spacing scale - none of
+// which has a web CSS var) are specified here.
+import { themeVars, type ThemeCSSName } from "./themeVars";
 
 export interface ThemeTokens {
   colors: {
@@ -27,137 +30,69 @@ export interface ThemeTokens {
   spacing: { xs: number; sm: number; md: number; lg: number; xl: number };
 }
 
-export const defaultTheme: ThemeTokens = {
-  colors: {
-    bg:           "#0c1220",
-    surface:      "#151d2e",
-    surfaceRaised:"#1e293b",
-    accent:       "#818cf8",
-    accentHover:  "#6366f1",
-    text:         "#f1f5f9",
-    textMuted:    "#90a4bd",
-    border:       "#1e293b",
-    error:        "#e57373",
-    danger:       "#dc2626",
-    dangerHover:  "#b91c1c",
-    onAccent:     "#ffffff",
-    overlay:      "rgba(0,0,0,0.5)",
-    divider:      "rgba(255,255,255,0.08)",
-    shadow:       "#000",
-    success:      "#22c55e",
-    warning:      "#f59e0b",
-    info:         "#818cf8",
-  },
-  radii:   { sm: 6, md: 12, lg: 20 },
-  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
+// error is a mobile-only surface tint with no web CSS var, so it stays here.
+const MOBILE_ERROR: Record<ThemeCSSName, string> = {
+  "default": "#e57373",
+  "amoled": "#f87171",
+  "dark-red": "#f87171",
+  "light-default": "#ef4444",
+  "light-blue": "#dc2626",
 };
 
-export const amoledTheme: ThemeTokens = {
-  colors: {
-    bg:           "#000000",
-    surface:      "#0a0a0a",
-    surfaceRaised:"#141414",
-    accent:       "#c4b5fd",
-    accentHover:  "#a78bfa",
-    text:         "#e4e4e7",
-    textMuted:    "#71717a",
-    border:       "#1a1a1a",
-    error:        "#f87171",
-    danger:       "#dc2626",
-    dangerHover:  "#b91c1c",
-    onAccent:     "#ffffff",
-    overlay:      "rgba(0,0,0,0.7)",
-    divider:      "rgba(255,255,255,0.06)",
-    shadow:       "#000",
-    success:      "#22c55e",
-    warning:      "#f59e0b",
-    info:         "#c4b5fd",
-  },
-  radii:   { sm: 6, md: 12, lg: 20 },
-  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
-};
+// The spacing scale is a native-only concept (web uses Tailwind's scale, not
+// CSS vars), identical across themes.
+const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
 
-export const lightDefaultTheme: ThemeTokens = {
-  colors: {
-    bg:           "#f8f9fb",
-    surface:      "#ffffff",
-    surfaceRaised:"#eef0f4",
-    accent:       "#6366f1",
-    accentHover:  "#4f46e5",
-    text:         "#0f172a",
-    textMuted:    "#94a3b8",
-    border:       "#e2e8f0",
-    error:        "#ef4444",
-    danger:       "#dc2626",
-    dangerHover:  "#b91c1c",
-    onAccent:     "#ffffff",
-    overlay:      "rgba(0,0,0,0.4)",
-    divider:      "rgba(0,0,0,0.08)",
-    shadow:       "#000",
-    success:      "#22c55e",
-    warning:      "#f59e0b",
-    info:         "#6366f1",
-  },
-  radii:   { sm: 6, md: 12, lg: 20 },
-  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
-};
+// resolveVar unwraps a `var(--x)` reference to its concrete value (RN can't
+// resolve CSS variables). --danger/--success/--warning alias the --color-*
+// tokens in every theme.
+function resolveVar(vars: Record<string, string>, value: string): string {
+  const m = value.match(/^var\((--[a-z0-9-]+)\)$/i);
+  return m ? (vars[m[1]] ?? value) : value;
+}
 
-export const darkRedTheme: ThemeTokens = {
-  colors: {
-    bg:           "#000000",
-    surface:      "#0d0d0d",
-    surfaceRaised:"#181818",
-    accent:       "#b81d24",
-    accentHover:  "#e50914",
-    text:         "#f5f5f5",
-    textMuted:    "#8c8c8c",
-    border:       "#1f1f1f",
-    error:        "#f87171",
-    danger:       "#b81d24",
-    dangerHover:  "#831010",
-    onAccent:     "#ffffff",
-    overlay:      "rgba(0,0,0,0.6)",
-    divider:      "rgba(255,255,255,0.06)",
-    shadow:       "#000",
-    success:      "#22c55e",
-    warning:      "#f59e0b",
-    info:         "#e50914",
-  },
-  radii:   { sm: 6, md: 12, lg: 20 },
-  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
-};
+const px = (v: string): number => parseInt(v, 10);
 
-export const lightBlueTheme: ThemeTokens = {
-  colors: {
-    bg:           "#f0f4f8",
-    surface:      "#f7f9fc",
-    surfaceRaised:"#e2e8f0",
-    accent:       "#3b82f6",
-    accentHover:  "#2563eb",
-    text:         "#0f172a",
-    textMuted:    "#94a3b8",
-    border:       "#cbd5e1",
-    error:        "#dc2626",
-    danger:       "#dc2626",
-    dangerHover:  "#b91c1c",
-    onAccent:     "#ffffff",
-    overlay:      "rgba(0,0,0,0.4)",
-    divider:      "rgba(0,0,0,0.08)",
-    shadow:       "#000",
-    success:      "#22c55e",
-    warning:      "#f59e0b",
-    info:         "#3b82f6",
-  },
-  radii:   { sm: 6, md: 12, lg: 20 },
-  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
-};
+export function deriveTokens(name: ThemeCSSName): ThemeTokens {
+  const v = themeVars[name];
+  return {
+    colors: {
+      bg: v["--bg"],
+      surface: v["--surface"],
+      surfaceRaised: v["--surface-raised"],
+      accent: v["--accent"],
+      accentHover: v["--accent-hover"],
+      text: v["--text"],
+      textMuted: v["--text-muted"],
+      border: v["--border"],
+      error: MOBILE_ERROR[name],
+      danger: resolveVar(v, v["--danger"]),
+      dangerHover: v["--danger-hover"],
+      onAccent: v["--filter-active-text"],
+      overlay: v["--overlay-bg"],
+      divider: v["--glass-border"],
+      shadow: "#000",
+      success: resolveVar(v, v["--success"]),
+      warning: resolveVar(v, v["--warning"]),
+      info: v["--accent"],
+    },
+    radii: { sm: px(v["--radius-sm"]), md: px(v["--radius-md"]), lg: px(v["--radius-lg"]) },
+    spacing: { ...SPACING },
+  };
+}
+
+export const defaultTheme: ThemeTokens = deriveTokens("default");
+export const amoledTheme: ThemeTokens = deriveTokens("amoled");
+export const lightDefaultTheme: ThemeTokens = deriveTokens("light-default");
+export const darkRedTheme: ThemeTokens = deriveTokens("dark-red");
+export const lightBlueTheme: ThemeTokens = deriveTokens("light-blue");
 
 export const themes = {
-  default:        defaultTheme,
-  amoled:         amoledTheme,
-  "dark-red":     darkRedTheme,
+  default: defaultTheme,
+  amoled: amoledTheme,
+  "dark-red": darkRedTheme,
   "light-default": lightDefaultTheme,
-  "light-blue":    lightBlueTheme,
+  "light-blue": lightBlueTheme,
 } as const;
 
 export type ThemeName = keyof typeof themes;
