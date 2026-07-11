@@ -43,7 +43,6 @@ import { useCastSession } from "../../../src/hooks/useCastSession";
 import { useSyncPlay } from "../../../src/hooks/useSyncPlay";
 import { SyncPlayBar } from "../../../src/components/SyncPlayBar";
 import { SyncPlayModal } from "../../../src/components/SyncPlayModal";
-import { formatTime } from "../../../src/lib/formatTime";
 import { ShedScreen, ErrorScreen, LoadingScreen } from "../../../src/components/player/PlayerStatusScreens";
 import { CastControllerScreen } from "../../../src/components/player/CastControllerScreen";
 import { GestureIndicators } from "../../../src/components/player/GestureIndicators";
@@ -829,9 +828,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  playerWrapper: {
-    flex: 1,
-  },
   video: {
     width: "100%",
     height: "100%",
@@ -854,12 +850,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     zIndex: 2,
   },
-  backButton: {
-    color: "#fff",
-    fontSize: 24,
-    fontWeight: "bold",
-    width: 40,
-  },
   title: {
     flex: 1,
     color: "#fff",
@@ -874,10 +864,5 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 20,
     zIndex: 2,
-  },
-  trackButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "700",
   },
 });
