@@ -224,7 +224,8 @@ plain DAC, even without Landlock.
 
 ```bash
 sudo chown -R evey:evey /var/lib/evey
-sudo chown evey-plugin:evey /var/lib/evey/plugins
+# The SERVER owns plugins/ (it extracts installs there); group evey - which
+# evey-plugin belongs to - only reads/execs the installed files:
 sudo chmod 750 /var/lib/evey/plugins
 # owner-only (no group/other) on the secret dirs:
 sudo chmod 700 /var/lib/evey/keys /var/lib/evey/logs /var/lib/evey/backups

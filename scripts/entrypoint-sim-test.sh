@@ -30,13 +30,13 @@ setup='
     useradd -u 1001 -g evey -m -s /usr/sbin/nologin evey-plugin
     mkdir -p /data/plugins /cache
     chown -R evey:evey /data /cache
-    chown evey-plugin:evey /data/plugins
+    chmod 750 /data/plugins
     for spec in ${MEDIA_SPEC:-}; do
         dir="${spec%%=*}"; own="${spec#*=}"
         mkdir -p "$dir"
         chown "$own" "$dir"
     done
-    printf "#!/bin/sh\ngrep -E \"^(Uid|Gid|Groups):\" /proc/self/status\n" > /evey
+    printf "#!/bin/sh\ngrep -E \"^(Uid|Gid|Groups):\" /proc/self/status\necho \"plugins=\$(stat -c \"%%u:%%g %%a\" /data/plugins)\"\n" > /evey
     chmod +x /evey
     exec /entrypoint.sh
 '
@@ -61,11 +61,19 @@ refute_group() { # $1=output $2=gid $3=case
     echo "$1" | grep '^Groups:' | grep -qw "$2" \
         && { echo "FAIL [$3]: supplementary group $2 must not be present"; fail=1; } || true
 }
+# The SERVER must own /data/plugins (it extracts installs there); the plugin
+# uid (1001) only reads via the group. Prod 2026-07-11: the old restore gave
+# the dir to evey-plugin, breaking every plugin install with EACCES.
+assert_plugins_dir() { # $1=output $2=uid:gid $3=case
+    echo "$1" | grep -q "^plugins=$2 750$" \
+        || { echo "FAIL [$3]: /data/plugins must be owned $2 mode 750 (got: $(echo "$1" | grep '^plugins='))"; fail=1; }
+}
 
 echo "--- case A: default PUID/PGID + group_add $RENDER_GID"
 outA=$(run_case --group-add "$RENDER_GID")
 echo "$outA"
 assert_uid "$outA" 1000 A
+assert_plugins_dir "$outA" "1000:1000" A
 assert_group "$outA" "$RENDER_GID" A
 refute_group "$outA" 0 A
 
@@ -73,6 +81,7 @@ echo "--- case B: PUID/PGID remap 1500 + group_add $RENDER_GID"
 outB=$(run_case --group-add "$RENDER_GID" -e PUID=1500 -e PGID=1500)
 echo "$outB"
 assert_uid "$outB" 1500 B
+assert_plugins_dir "$outB" "1500:1500" B
 assert_group "$outB" "$RENDER_GID" B
 refute_group "$outB" 0 B
 
@@ -88,6 +97,7 @@ echo "--- case D: no PUID/PGID env -> media owner auto-adopted"
 outD=$(run_case --group-add "$RENDER_GID" -e MEDIA_SPEC="/media=4242:4242 /media2=4242:4242")
 echo "$outD"
 assert_uid "$outD" 4242 D
+assert_plugins_dir "$outD" "4242:4242" D
 assert_group "$outD" "$RENDER_GID" D
 refute_group "$outD" 0 D
 

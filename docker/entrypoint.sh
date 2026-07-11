@@ -103,13 +103,15 @@ if [ "$(id -u)" = "0" ]; then
     [ "$(id -g evey)" = "$PGID" ] || groupmod -o -g "$PGID" evey
     [ "$(id -u evey)" = "$PUID" ] || usermod -o -u "$PUID" evey
     # Re-own Evey's internal state when the identity changed — /data, /cache
-    # and the (rarely used) home. One-time cost after a PUID change; the
-    # plugin dir owner is restored to evey-plugin exactly as the Dockerfile
-    # set it (0750, plugins must not read the server's secret dirs).
+    # and the (rarely used) home. One-time cost after a PUID change. The
+    # SERVER owns /data/plugins (it extracts installs there; giving it to
+    # evey-plugin broke every install with EACCES in prod 2026-07-11, and
+    # would let a plugin tamper with its own validated files); mode 750 keeps
+    # it group-readable for the dropped plugin uid and closed to others.
     if [ "$(stat -c %u /data)" != "$PUID" ] || [ "$(stat -c %g /data)" != "$PGID" ]; then
         echo "evey: re-owning internal state to ${PUID}:${PGID} (one-time after a PUID/PGID change)"
         chown -R evey:evey /data /cache /home/evey
-        chown evey-plugin:evey /data/plugins
+        chmod 750 /data/plugins
     fi
     # Supplementary groups after the drop: evey's own /etc/group memberships
     # (what --init-groups would grant) PLUS the groups the container runtime

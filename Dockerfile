@@ -178,7 +178,10 @@ RUN groupadd -g 1000 evey \
     && useradd -u 1001 -g evey -m -s /usr/sbin/nologin evey-plugin \
     && mkdir -p /data/transcoding /data/logs /data/plugins /data/keys /data/meili /data/backups /srv /cache \
     && chown -R evey:evey /data /cache \
-    && chown evey-plugin:evey /data/plugins \
+    # The SERVER owns /data/plugins: it extracts uploaded plugins there
+    # (evey-plugin ownership denied it mkdir and let a plugin tamper with its
+    # own validated files). 750 = group evey (which evey-plugin belongs to)
+    # reads/execs the installed files, others get nothing.
     && chmod 750 /data/plugins \
     # Owner-only (no group/other): with the plugin dropped to uid 1001, plain
     # DAC keeps these secret-bearing dirs unreadable to plugins even without
