@@ -9,11 +9,14 @@ import { useServerUrl } from "../../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../../../../src/components/FocusableCard";
 import { musicAlbumHref } from "../../../../src/lib/musicRoutes";
+import { CARD_WIDTH_FEATURED, GRID_GAP } from "../../../../src/lib/tvLayout";
 
 const NUM_COLUMNS = 5;
-const CARD_WIDTH = 220;
+const CARD_WIDTH = CARD_WIDTH_FEATURED;
 const ART_SIZE = CARD_WIDTH;
-const ROW_HEIGHT = ART_SIZE + 60 + 16;
+// Taller label block than LABEL_BLOCK_HEIGHT (40): this grid also shows an
+// optional year line below the title, so it needs more reserved height.
+const ROW_HEIGHT = ART_SIZE + 60 + GRID_GAP;
 
 function coverUri(serverUrl: string, coverArtUrl?: string): string | undefined {
   if (!coverArtUrl) return undefined;

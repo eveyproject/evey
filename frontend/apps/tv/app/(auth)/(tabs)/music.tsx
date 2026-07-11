@@ -16,8 +16,9 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { musicAlbumHref, musicArtistHref } from "../../../src/lib/musicRoutes";
+import { CARD_WIDTH_GRID } from "../../../src/lib/tvLayout";
 
-const CARD_WIDTH = 200;
+const CARD_WIDTH = CARD_WIDTH_GRID;
 const ART_SIZE = CARD_WIDTH;
 const TRACKS_QUERY_LIMIT = 100;
 

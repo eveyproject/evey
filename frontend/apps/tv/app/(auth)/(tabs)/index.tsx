@@ -18,10 +18,11 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
+import { CARD_WIDTH_FEATURED, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
 
-const CARD_WIDTH = 220;
-const CARD_HEIGHT = 330;
-const CARD_TOTAL_WIDTH = CARD_WIDTH + 16; // card + separator
+const CARD_WIDTH = CARD_WIDTH_FEATURED;
+const CARD_HEIGHT = CARD_WIDTH * POSTER_RATIO;
+const CARD_TOTAL_WIDTH = CARD_WIDTH + GRID_GAP; // card + separator
 
 const HERO_COUNT = 5;
 const HERO_INTERVAL = 8000;

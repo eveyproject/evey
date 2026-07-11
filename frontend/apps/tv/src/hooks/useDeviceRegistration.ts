@@ -22,11 +22,11 @@ async function getStableDeviceId(): Promise<string> {
   return id;
 }
 
+// This app only ships to TV devices, so Platform.isTV is always true here -
+// no phone branch needed.
 function deviceName(): string {
-  if (Platform.isTV && Platform.OS === "ios") return "Apple TV";
-  if (Platform.isTV) return "Android TV";
-  if (Platform.OS === "ios") return "iPhone";
-  if (Platform.OS === "android") return "Android";
+  if (Platform.OS === "ios") return "Apple TV";
+  if (Platform.OS === "android") return "Android TV";
   return "TV";
 }
 
@@ -89,7 +89,7 @@ export function useDeviceRegistration() {
           type: "register",
           deviceId,
           name: deviceName(),
-          deviceType: Platform.isTV ? "tv" : "mobile",
+          deviceType: "tv",
         }));
       };
 

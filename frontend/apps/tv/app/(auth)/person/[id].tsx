@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, ScrollView, ActivityIndicator, StyleSheet, Dimensions } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -11,13 +11,14 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { TV_SCREEN_WIDTH, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const POSTER_COLS = 5;
-const POSTER_GAP = 16;
+const POSTER_GAP = GRID_GAP;
 const PAD_H = 48;
-const POSTER_WIDTH = (SCREEN_WIDTH - PAD_H * 2 - POSTER_GAP * (POSTER_COLS - 1)) / POSTER_COLS;
-const POSTER_HEIGHT = POSTER_WIDTH * 1.5;
+// TV screens target a fixed 1920px-wide display - no runtime Dimensions lookup needed.
+const POSTER_WIDTH = (TV_SCREEN_WIDTH - PAD_H * 2 - POSTER_GAP * (POSTER_COLS - 1)) / POSTER_COLS;
+const POSTER_HEIGHT = POSTER_WIDTH * POSTER_RATIO;
 
 interface PersonInfo {
   id?: string;

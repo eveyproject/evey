@@ -6,6 +6,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
@@ -48,6 +49,7 @@ function FocusCtrl({
 
 function TVMusicPlayerImpl() {
   const theme = useTheme();
+  const { t } = useTranslation();
   const serverUrl = useServerUrl();
   const accessToken = useAuthStore((s) => s.accessToken);
 
@@ -134,10 +136,10 @@ function TVMusicPlayerImpl() {
             {[track.artist, track.album].filter(Boolean).join(" · ") || "-"}
           </Text>
         </View>
-        <FocusCtrl name="play-skip-back" size={26} onPress={previous} label="Previous track" />
-        <FocusCtrl name={isPlayingState ? "pause" : "play"} size={32} onPress={togglePlay} label={isPlayingState ? "Pause" : "Play"} hasTVPreferredFocus />
-        <FocusCtrl name="play-skip-forward" size={26} onPress={next} label="Next track" />
-        <FocusCtrl name="close" size={24} onPress={onClose} label="Close player" />
+        <FocusCtrl name="play-skip-back" size={26} onPress={previous} label={t("common.previous")} />
+        <FocusCtrl name={isPlayingState ? "pause" : "play"} size={32} onPress={togglePlay} label={isPlayingState ? t("common.pause") : t("common.play")} hasTVPreferredFocus />
+        <FocusCtrl name="play-skip-forward" size={26} onPress={next} label={t("common.next")} />
+        <FocusCtrl name="close" size={24} onPress={onClose} label={t("common.close")} />
       </View>
     </View>
   );

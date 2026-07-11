@@ -6,11 +6,12 @@ import { useLibraryServiceGetLibrary, useLibraryServiceListMediaItems } from "@e
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
 
 const NUM_COLUMNS = 5;
-const CARD_WIDTH = 200;
-const POSTER_HEIGHT = CARD_WIDTH * 1.5;
-const ROW_HEIGHT = POSTER_HEIGHT + 40 + 16;
+const CARD_WIDTH = CARD_WIDTH_GRID;
+const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
+const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
 const PAGE_SIZE = 30;
 
 function tvLibKeyExtractor(item: V1MediaItem) {

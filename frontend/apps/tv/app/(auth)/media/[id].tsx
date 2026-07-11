@@ -22,10 +22,11 @@ import { FocusableCard } from "../../../src/components/FocusableCard";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
+import { CARD_WIDTH_FEATURED, POSTER_RATIO } from "../../../src/lib/tvLayout";
 
 const HERO_HEIGHT = 420;
-const POSTER_WIDTH = 220;
-const POSTER_HEIGHT = 330;
+const POSTER_WIDTH = CARD_WIDTH_FEATURED;
+const POSTER_HEIGHT = POSTER_WIDTH * POSTER_RATIO;
 
 function formatRuntime(ms?: string): string {
   if (!ms) return "";
