@@ -73,7 +73,7 @@ export function markUnlocked(profileId: string) {
   markProfileUnlocked(profileId);
 }
 
-export function useParentalSettings(profileId: string | null) {
+function useParentalSettings(profileId: string | null) {
   return useParentalServiceGetParentalSettings(profileId ?? "", {
     query: { enabled: !!profileId, staleTime: 60_000 },
   });

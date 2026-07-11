@@ -10,16 +10,6 @@ import {
 export const USERS_QUERY_KEY = getUserServiceListUsersQueryKey();
 export const INVITES_QUERY_KEY = getUserServiceListInviteLinksQueryKey();
 
-export interface LibraryInfo {
-  id: string;
-  name: string;
-}
-
-export interface LibraryAccessData {
-  libraryIds: string[];
-  libraries: LibraryInfo[];
-}
-
 export const BITRATE_OPTIONS = [
   { label: "Unlimited", value: 0 },
   { label: "1 Mbps", value: 1000 },

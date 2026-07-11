@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type SleepTimerKind = "minutes" | "endOfEpisode";
+type SleepTimerKind = "minutes" | "endOfEpisode";
 
 export interface SleepTimerState {
   kind: SleepTimerKind;

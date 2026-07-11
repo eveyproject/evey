@@ -61,7 +61,7 @@ export function markUnlocked(profileId: string) {
   unlockedProfiles.add(profileId);
 }
 
-export function useParentalSettings(profileId: string | null) {
+function useParentalSettings(profileId: string | null) {
   return useQuery<ParentalSettings>({
     queryKey: [`/api/v1/profiles/${profileId}/parental`],
     queryFn: () =>

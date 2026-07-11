@@ -18,9 +18,9 @@
 export type SduiTone = "default" | "accent" | "ok" | "warn" | "muted";
 const TONES: readonly SduiTone[] = ["default", "accent", "ok", "warn", "muted"];
 
-export interface SduiStat { label: string; value: number; max: number }
-export interface SduiRow { cells: string[]; tone: SduiTone; to: string }
-export interface SduiPair { k: string; v: string; tone: SduiTone }
+interface SduiStat { label: string; value: number; max: number }
+interface SduiRow { cells: string[]; tone: SduiTone; to: string }
+interface SduiPair { k: string; v: string; tone: SduiTone }
 
 export type SduiNode =
   | { type: "panel"; title: string; subtitle: string; children: SduiNode[] }

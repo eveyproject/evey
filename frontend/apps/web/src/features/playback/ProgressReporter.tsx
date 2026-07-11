@@ -9,7 +9,7 @@ import { toast } from "@evey/store";
  * user's "continue watching" position freezes where the cast started and the
  * admin panel shows a paused browser while the film plays on the TV.
  */
-export interface CastProgressSource {
+interface CastProgressSource {
   active: boolean;
   /** Absolute position on the media timeline, seconds. */
   positionSec: number;

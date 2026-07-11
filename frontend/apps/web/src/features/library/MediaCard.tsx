@@ -62,8 +62,6 @@ export interface MediaCardProps {
   onRequestAddToCollection?: (mediaId: string) => void;
 }
 
-export { typeLabel };
-
 const formatResolution = (r: string) => (r === "2160p" ? "4K" : r);
 
 export const MediaCard = memo(function MediaCard({

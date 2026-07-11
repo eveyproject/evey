@@ -89,8 +89,6 @@ const sectionsDef: NavSection[] = [
   },
 ];
 
-export { sectionsDef as sections };
-
 function isLinkActive(pathname: string, href: string): boolean {
   if (href === "/admin") return pathname === "/admin" || pathname === "/admin/";
   return pathname === href || pathname.startsWith(href + "/");

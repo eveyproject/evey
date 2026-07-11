@@ -15,7 +15,7 @@ export interface TrickplayCue {
   h: number;
 }
 
-export function parseVTT(text: string): TrickplayCue[] {
+function parseVTT(text: string): TrickplayCue[] {
   const cues: TrickplayCue[] = [];
   const blocks = text.split("\n\n");
   for (const block of blocks) {

@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { Clapperboard, Tv, Film } from "lucide-react";
 
 // Pick a media-kind icon for a posterless item.
-export function posterIconFor(type?: string) {
+function posterIconFor(type?: string) {
   if (
     type === "MEDIA_ITEM_TYPE_SERIES" ||
     type === "MEDIA_ITEM_TYPE_EPISODE" ||

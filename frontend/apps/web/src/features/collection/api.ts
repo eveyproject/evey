@@ -163,4 +163,3 @@ export function addCollectionItem(collectionId: string, mediaItemId: string) {
   return collectionServiceAddCollectionItem(collectionId, { mediaItemId, sortOrder: 0 });
 }
 
-export { getCollectionServiceGetCollectionItemsQueryKey };

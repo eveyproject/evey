@@ -74,5 +74,3 @@ export async function applyServerLanguage(serverUrl: string): Promise<void> {
     // setup/status is best-effort; offline boot just keeps the device default.
   }
 }
-
-export default i18n;

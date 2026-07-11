@@ -28,7 +28,7 @@ interface StreamTokenResponse {
 //   still being built and will serve fine once that finishes.
 // Never surface the server's `message` field (English, technical) to users -
 // the screen picks its own non-technical copy from this code.
-export type ShedReason = "too_many_streams" | "file_not_ready" | null;
+type ShedReason = "too_many_streams" | "file_not_ready" | null;
 
 // expo-video's PlayerError is just `{ message: string }` - ExoPlayer/AVPlayer
 // give no structured HTTP status or response body, so there is no reliable

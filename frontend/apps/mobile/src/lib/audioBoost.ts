@@ -12,9 +12,6 @@ const native: AudioBoostNative | undefined =
     ? (NativeModules.AudioBoost as AudioBoostNative | undefined)
     : undefined;
 
-/** True when >100% amplification is actually available on this platform/build. */
-export const audioBoostSupported = native != null;
-
 /**
  * Apply a VLC-style amplification: 1.0 = 100% (off), 2.0 = 200%. Returns whether
  * the boost is actually active - false where unsupported (iOS for now, or a device

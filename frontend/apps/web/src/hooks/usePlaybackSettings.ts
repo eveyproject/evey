@@ -1,6 +1,6 @@
 import { usePlaybackSettingsServiceGetPlaybackSettings } from "@evey/api";
 
-export interface PlaybackSettings {
+interface PlaybackSettings {
   skipForwardSeconds: number;
   skipBackwardSeconds: number;
 }

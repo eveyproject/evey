@@ -2,7 +2,7 @@
 // Backend may return additional types (legacy/experimental) — those are
 // filtered out of the Customize panel since toggling them has no visual effect.
 
-export const KNOWN_FEED_TYPES = [
+const KNOWN_FEED_TYPES = [
   "resume_playback",
   "next_episode",
   "collections",

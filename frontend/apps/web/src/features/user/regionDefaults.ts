@@ -1,7 +1,7 @@
 // Mirror of internal/pkg/region.DefaultForLocale. Used for UX hints only —
 // the authoritative default lives server-side and is applied via
 // ResolveRegion when a profile is used without an explicit region.
-export const DEFAULT_REGION_FOR_LOCALE: Record<string, string> = {
+const DEFAULT_REGION_FOR_LOCALE: Record<string, string> = {
   en: "GB",
   fr: "FR",
   de: "DE",

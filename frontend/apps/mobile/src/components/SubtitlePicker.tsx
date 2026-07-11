@@ -98,14 +98,6 @@ export function SubtitlePicker({
   );
 }
 
-const IMAGE_SUBTITLE_CODECS = new Set([
-  "pgssub", "hdmv_pgs_subtitle", "dvd_subtitle", "dvbsub", "xsub",
-]);
-
-export function isImageSubtitle(codec?: string): boolean {
-  return IMAGE_SUBTITLE_CODECS.has(codec?.toLowerCase() ?? "");
-}
-
 const styles = StyleSheet.create({
   row: {
     flexDirection: "row",

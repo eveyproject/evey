@@ -39,7 +39,7 @@ import { useTouchGestures } from "./hooks/useTouchGestures";
 import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useDLNA } from "@/hooks/useDLNA";
 
-export type { AudioStream, SubtitleStream, EpisodeNavItem, SeasonNavItem };
+export type { AudioStream, SubtitleStream };
 
 // How long playback must be CONTINUOUSLY stalled before the buffering overlay
 // appears. Micro-stalls (segment boundaries, fast seeks, rendition switches)

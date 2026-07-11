@@ -14,5 +14,4 @@ export const CastButtonNative = safe?.CastButton ?? null;
 export const useCastStateHook = safe?.useCastState ?? (() => null);
 export const useRemoteMediaClientHook = safe?.useRemoteMediaClient ?? (() => null);
 export const useMediaStatusHook = safe?.useMediaStatus ?? (() => null);
-export const MediaStreamType = safe?.MediaStreamType ?? { BUFFERED: "buffered" };
 export const CastStateEnum = safe?.CastState ?? { CONNECTED: "connected" };

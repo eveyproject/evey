@@ -24,12 +24,6 @@ interface UsePlayerGesturesArgs {
   skipBackwardSeconds?: number;
 }
 
-export interface GestureOverlayState {
-  seekFlash: "left" | "right" | null;
-  volumeIndicator: number | null;
-  brightnessIndicator: number | null;
-}
-
 export function usePlayerGestures({
   onSeekBy,
   onTogglePlayPause,

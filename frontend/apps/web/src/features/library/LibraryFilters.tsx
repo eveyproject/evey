@@ -6,7 +6,7 @@ import { FilterChip } from "@/components/ui/FilterChip";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 
 // Resolution bands derived from stream height
-export function getResolutionLabel(height: number): string {
+function getResolutionLabel(height: number): string {
   if (height >= 2160) return "4K";
   if (height >= 1080) return "1080p";
   if (height >= 720) return "720p";
@@ -535,5 +535,3 @@ export function LibraryFiltersPanel({
     </div>
   );
 }
-
-export { countActiveFilters };
