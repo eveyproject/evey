@@ -793,38 +793,12 @@ func TestRefreshToken_AlreadyUsed(t *testing.T) {
 	}
 }
 
-func TestRefreshToken_Reuse_PurgesAllUserTokens(t *testing.T) {
-	d := newAuthTestDeps()
-	ctx := context.Background()
-	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
-
-	reusedToken := "reused-tok"
-	rh := sha256.Sum256([]byte(reusedToken))
-	rhash := hex.EncodeToString(rh[:])
-
-	otherToken := "other-tok"
-	oh := sha256.Sum256([]byte(otherToken))
-	ohash := hex.EncodeToString(oh[:])
-
-	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
-		ID: "rt1", UserID: "u1", TokenHash: rhash,
-		ExpiresAt: time.Now().Add(24 * time.Hour), Used: true,
-	})
-	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
-		ID: "rt2", UserID: "u1", TokenHash: ohash,
-		ExpiresAt: time.Now().Add(24 * time.Hour), Used: false,
-	})
-
-	_, _, err := d.svc.RefreshToken(ctx, reusedToken, "", "")
-	if !errors.Is(err, ErrInvalidCredentials) {
-		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
-	}
-
-	_, errOther := d.refreshTkns.GetByTokenHash(ctx, ohash)
-	if errOther == nil {
-		t.Fatal("reuse detection should purge ALL tokens for the user, but other token still exists")
-	}
-}
+// The old TestRefreshToken_Reuse_PurgesAllUserTokens pinned the opposite
+// contract (replay → purge every session of the user). That purge could only
+// ever fire on multi-tab race losers or interrupted rotations - the Used row
+// lives milliseconds, a real thief hits "not found" - and préprod logs showed
+// it logging the whole account out of every device daily. The replacement
+// contract is TestRefreshToken_ReplayedTokenDoesNotPurgeOtherSessions.
 
 func TestRefreshToken_Expired(t *testing.T) {
 	d := newAuthTestDeps()
@@ -1891,5 +1865,45 @@ func TestImpersonate_UnknownTargetRejected(t *testing.T) {
 	_, err := d.svc.Impersonate(ctx, "usr-admin", "usr-ghost", "")
 	if !errors.Is(err, ErrUserNotFound) {
 		t.Fatalf("expected ErrUserNotFound, got %v", err)
+	}
+}
+
+// A replayed (already-Used) refresh token must NOT nuke the user's other
+// sessions. The Used state is only ever observable for the few milliseconds
+// between the rotation's claim and its cleanup - a genuine thief replaying a
+// stolen token later hits "not found" - so every purge this branch ever fired
+// was a multi-tab race loser or an interrupted rotation, logging the whole
+// account (mobile included) out of every device (préprod, daily since 07-06).
+func TestRefreshToken_ReplayedTokenDoesNotPurgeOtherSessions(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
+
+	usedRaw := "already-rotated-token"
+	usedHash := sha256.Sum256([]byte(usedRaw))
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID:        "rt-used",
+		UserID:    "u1",
+		TokenHash: hex.EncodeToString(usedHash[:]),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+		Used:      true,
+	})
+	// The same user's healthy mobile session.
+	mobileRaw := "mobile-session-token"
+	mobileHash := sha256.Sum256([]byte(mobileRaw))
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID:        "rt-mobile",
+		UserID:    "u1",
+		TokenHash: hex.EncodeToString(mobileHash[:]),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	})
+
+	_, _, err := d.svc.RefreshToken(ctx, usedRaw, "", "")
+	if !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("expected ErrInvalidCredentials, got %v", err)
+	}
+
+	if _, err := d.refreshTkns.GetByTokenHash(ctx, hex.EncodeToString(mobileHash[:])); err != nil {
+		t.Fatalf("the mobile session must survive a replayed web token: %v", err)
 	}
 }
