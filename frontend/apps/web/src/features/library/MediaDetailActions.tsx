@@ -13,6 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast, useAuthStore } from "@evey/store";
 import { ParentalPINDialog } from "@/components/ParentalPINDialog";
 import { useParentalGate, markUnlocked } from "@/hooks/useParentalGate";
+import { useStreamToken } from "@/hooks/useStreamToken";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { DownloadButton } from "../playback/DownloadButton";
@@ -54,8 +55,10 @@ export function MediaDetailActions({
   const [pendingPlayId, setPendingPlayId] = useState<string | null>(null);
   const profileId = useAuthStore((s) => s.profileId);
   const isAdmin = useAuthStore((s) => s.isAdmin);
-  const accessToken = useAuthStore((s) => s.accessToken);
   const navigate = useNavigate();
+  // Local mint for container (season/series) ZIP downloads: a media-scoped
+  // stream token replaces the account JWT that used to ride in the URL.
+  const { fetchStreamToken } = useStreamToken();
 
   const handlePlay = (episodeId: string) => {
     if (needsPin()) {
@@ -167,19 +170,19 @@ export function MediaDetailActions({
         {item.id && item.filePath && streamToken && (
           <DownloadButton mediaId={item.id} title={item.title} token={streamToken} />
         )}
-        {item.id && isSeason && accessToken && (
+        {item.id && isSeason && (
           <DownloadButton
             mediaId={item.id}
             title={`${item.title ?? "season"}.zip`}
-            token={accessToken}
+            mintToken={() => fetchStreamToken(item.id!)}
             label={t("media.detail.downloadSeason")}
           />
         )}
-        {item.id && isSeries && accessToken && (
+        {item.id && isSeries && (
           <DownloadButton
             mediaId={item.id}
             title={`${item.title ?? "series"}.zip`}
-            token={accessToken}
+            mintToken={() => fetchStreamToken(item.id!)}
             label={t("media.detail.downloadSeries")}
           />
         )}

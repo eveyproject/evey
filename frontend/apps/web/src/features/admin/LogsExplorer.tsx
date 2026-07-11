@@ -220,22 +220,51 @@ export function LogsExplorer() {
     },
   });
 
-  // Live tail: open an SSE stream and prepend classified, filtered lines.
+  // Live tail: stream the SSE endpoint over fetch and prepend classified,
+  // filtered lines. fetch (not EventSource) on purpose: EventSource cannot
+  // send headers, which forced the ADMIN access token into the URL - straight
+  // into reverse-proxy logs and browser history. The raw fetch is one of the
+  // sanctioned non-eveyFetch sites (streaming body); the Bearer is re-read on
+  // every (re)connect so a token rotation doesn't kill the tail.
   useEffect(() => {
     if (!live) return;
     setLiveEntries([]);
-    const token = useAuthStore.getState().accessToken;
-    const url = `${getBaseURL()}/api/v1/admin/logs/stream?lines=100${token ? `&token=${encodeURIComponent(token)}` : ""}`;
-    const es = new EventSource(url);
-    es.onmessage = (ev: MessageEvent<string>) => {
-      const entry = parseLogLine(ev.data);
+    const ctrl = new AbortController();
+    const handleLine = (line: string) => {
+      if (!line.startsWith("data:")) return;
+      const entry = parseLogLine(line.slice(5).trimStart());
       if (!entry || !matchClient(entry, filters)) return;
       setLiveEntries((prev) => [entry, ...prev].slice(0, LIVE_CAP));
     };
-    es.onerror = () => {
-      /* browser auto-reconnects; nothing to surface */
-    };
-    return () => es.close();
+    (async () => {
+      while (!ctrl.signal.aborted) {
+        try {
+          const token = useAuthStore.getState().accessToken;
+          const res = await fetch(`${getBaseURL()}/api/v1/admin/logs/stream?lines=100`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+            signal: ctrl.signal,
+          });
+          if (!res.ok || !res.body) throw new Error(`stream http ${res.status}`);
+          const reader = res.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const frames = buf.split("\n\n");
+            buf = frames.pop() ?? "";
+            for (const frame of frames) frame.split("\n").forEach(handleLine);
+          }
+        } catch {
+          /* aborted (toggle off) or transient network error */
+        }
+        if (ctrl.signal.aborted) return;
+        // mirror EventSource's auto-reconnect
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    })();
+    return () => ctrl.abort();
   }, [live, filters]);
 
   const searchEntries = useMemo(() => data?.pages.flatMap((p) => p.entries) ?? [], [data]);
