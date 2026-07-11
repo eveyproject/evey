@@ -91,6 +91,26 @@ plugin:
     title: "安全提示"
     issues: "问题"
     urls: "外部 URL"
+  updateDialog:
+    title: "更新 {{name}}"
+    titleWithVersions: "更新 {{name}}：{{from}} → {{to}}"
+    analyzing: "正在分析候选版本…"
+    previewError: "预览加载失败"
+    applyError: "应用更新失败"
+    hashMismatch: "候选版本的哈希值已不匹配 - 请刷新预览"
+    bannerRequiresAck: "此更新请求新的权限 - 请在应用前查看"
+    bannerSafe: "权限无变化 - 安全更新"
+    tabSlots: "插槽"
+    tabExternalFetch: "外部调用"
+    tabFindings: "发现项"
+    tabSignature: "签名"
+    emptyPermissions: "权限无变化"
+    emptySlots: "插槽无变化"
+    emptyExternalFetch: "外部调用无变化"
+    noFindings: "无发现项"
+    signatureInvalid: "无效"
+    ackLabel: "我已查看新权限，同意授予此插件"
+    apply: "应用更新"
 
 plugins:
   resourceLimits:
@@ -932,6 +952,20 @@ segments:
   lockedHint: "此片段已手动锁定，不会被自动检测覆盖。"
   locked: 已锁定
   propagateSuccess: "已传播到 {{count}} 集"
+  preview: "预览"
+  playerLoading: "正在加载播放器…"
+  selectHint: "（在时间轴上选择一个片段）"
+  timeline: "时间轴"
+  emptyState: "未检测到片段。请在下方添加片段或启动自动检测。"
+  addLabel: "添加："
+  startLabel: "开始 分:秒"
+  endLabel: "结束 分:秒"
+  noChanges: "没有需要保存的更改。"
+  saveError: "保存失败"
+  deleteError: "删除失败"
+  redetectSuccess: "检测已启动。请在 1-2 分钟后刷新。"
+  redetectError: "触发检测失败"
+  propagateError: "传播失败"
 
 seekIndex:
   title: "跳转索引修复"

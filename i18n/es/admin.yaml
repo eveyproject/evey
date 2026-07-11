@@ -91,6 +91,26 @@ plugin:
     title: "Aviso de seguridad"
     issues: "Problemas"
     urls: "URL externas"
+  updateDialog:
+    title: "Actualizar {{name}}"
+    titleWithVersions: "Actualizar {{name}}: {{from}} → {{to}}"
+    analyzing: "Analizando candidato…"
+    previewError: "Error al cargar la vista previa"
+    applyError: "Error al aplicar la actualización"
+    hashMismatch: "El hash del candidato ya no coincide - actualiza la vista previa"
+    bannerRequiresAck: "Esta actualización solicita nuevos permisos - revísalos antes de aplicar"
+    bannerSafe: "Sin cambios de permisos - actualización segura"
+    tabSlots: Slots
+    tabExternalFetch: "Llamadas externas"
+    tabFindings: Hallazgos
+    tabSignature: Firma
+    emptyPermissions: "Sin cambios de permisos"
+    emptySlots: "Sin cambios de slots"
+    emptyExternalFetch: "Sin cambios en llamadas externas"
+    noFindings: "Sin hallazgos"
+    signatureInvalid: "No válida"
+    ackLabel: "He revisado los nuevos permisos y acepto concederlos a este plugin"
+    apply: "Aplicar actualización"
 
 plugins:
   resourceLimits:
@@ -932,6 +952,20 @@ segments:
   lockedHint: "Este segmento está bloqueado manualmente y no será sobreescrito por la detección automática."
   locked: Bloqueado
   propagateSuccess: "Propagado a {{count}} episodio(s)"
+  preview: "Vista previa"
+  playerLoading: "Cargando reproductor…"
+  selectHint: "(Selecciona un segmento en la línea de tiempo)"
+  timeline: "Línea de tiempo"
+  emptyState: "No se detectó ningún segmento. Añade uno abajo o activa la detección automática."
+  addLabel: "Añadir:"
+  startLabel: "Inicio mm:ss"
+  endLabel: "Fin mm:ss"
+  noChanges: "No hay cambios que guardar."
+  saveError: "Error al guardar"
+  deleteError: "Error al eliminar"
+  redetectSuccess: "Detección iniciada. Actualiza en 1-2 minutos."
+  redetectError: "Error al iniciar la detección"
+  propagateError: "Error al propagar"
 
 seekIndex:
   title: "Reparación del índice de búsqueda"

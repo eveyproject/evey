@@ -91,6 +91,26 @@ plugin:
     title: "सुरक्षा नोटिस"
     issues: "समस्याएँ"
     urls: "बाहरी URL"
+  updateDialog:
+    title: "{{name}} अपडेट करें"
+    titleWithVersions: "{{name}} अपडेट करें: {{from}} → {{to}}"
+    analyzing: "उम्मीदवार का विश्लेषण हो रहा है…"
+    previewError: "पूर्वावलोकन लोड करने में विफल"
+    applyError: "अपडेट लागू करने में विफल"
+    hashMismatch: "उम्मीदवार का हैश अब मेल नहीं खाता - पूर्वावलोकन को रीफ्रेश करें"
+    bannerRequiresAck: "यह अपडेट नई अनुमतियां मांगता है - लागू करने से पहले जांचें"
+    bannerSafe: "कोई अनुमति परिवर्तन नहीं - सुरक्षित अपडेट"
+    tabSlots: "स्लॉट"
+    tabExternalFetch: "बाहरी कॉल"
+    tabFindings: "निष्कर्ष"
+    tabSignature: "हस्ताक्षर"
+    emptyPermissions: "कोई अनुमति परिवर्तन नहीं"
+    emptySlots: "कोई स्लॉट परिवर्तन नहीं"
+    emptyExternalFetch: "बाहरी कॉल में कोई परिवर्तन नहीं"
+    noFindings: "कोई निष्कर्ष नहीं"
+    signatureInvalid: "अमान्य"
+    ackLabel: "मैंने नई अनुमतियों की समीक्षा कर ली है और इस प्लगइन को देने के लिए सहमत हूं"
+    apply: "अपडेट लागू करें"
 
 plugins:
   resourceLimits:
@@ -932,6 +952,20 @@ segments:
   lockedHint: "यह सेगमेंट मैन्युअल रूप से लॉक है और स्वचालित पहचान द्वारा अधिलेखित नहीं होगा।"
   locked: लॉक्ड
   propagateSuccess: "{{count}} एपिसोड में प्रचारित"
+  preview: "पूर्वावलोकन"
+  playerLoading: "प्लेयर लोड हो रहा है…"
+  selectHint: "(टाइमलाइन पर एक सेगमेंट चुनें)"
+  timeline: "टाइमलाइन"
+  emptyState: "कोई सेगमेंट नहीं मिला। नीचे एक सेगमेंट जोड़ें या स्वचालित पहचान चलाएं।"
+  addLabel: "जोड़ें:"
+  startLabel: "प्रारंभ mm:ss"
+  endLabel: "अंत mm:ss"
+  noChanges: "सहेजने के लिए कोई बदलाव नहीं।"
+  saveError: "सहेजने में विफल"
+  deleteError: "मिटाने में विफल"
+  redetectSuccess: "पहचान शुरू हुई। 1-2 मिनट में रीफ्रेश करें।"
+  redetectError: "पहचान शुरू करने में विफल"
+  propagateError: "प्रचारित करने में विफल"
 
 seekIndex:
   title: "सीक इंडेक्स मरम्मत"

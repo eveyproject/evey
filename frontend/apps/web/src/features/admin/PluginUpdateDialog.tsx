@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
@@ -34,14 +35,6 @@ interface PreviewResponse {
 type Phase = "previewing" | "reviewing" | "applying" | "error";
 
 type TabKey = "permissions" | "slots" | "externalFetch" | "findings" | "signature";
-
-const TAB_LABELS: Record<TabKey, string> = {
-  permissions: "Permissions",
-  slots: "Slots",
-  externalFetch: "Appels externes",
-  findings: "Alertes",
-  signature: "Signature",
-};
 
 function severityColor(severity?: string): string {
   switch ((severity ?? "").toLowerCase()) {
@@ -97,11 +90,20 @@ export type Props = {
 };
 
 export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onApplied }: Props) {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<Phase>("previewing");
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("permissions");
   const [ackChecked, setAckChecked] = useState(false);
+
+  const tabLabels: Record<TabKey, string> = {
+    permissions: t("admin.plugins.permissions"),
+    slots: t("admin.plugin.updateDialog.tabSlots"),
+    externalFetch: t("admin.plugin.updateDialog.tabExternalFetch"),
+    findings: t("admin.plugin.updateDialog.tabFindings"),
+    signature: t("admin.plugin.updateDialog.tabSignature"),
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -120,7 +122,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
         }
       } catch (err: unknown) {
         if (!cancelled) {
-          const msg = err instanceof Error ? err.message : "Erreur lors du chargement de la prévisualisation";
+          const msg = err instanceof Error ? err.message : t("admin.plugin.updateDialog.previewError");
           setError(msg);
           setPhase("error");
         }
@@ -128,7 +130,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
     }
     void doPreview();
     return () => { cancelled = true; };
-  }, [pluginId, source]);
+  }, [pluginId, source, t]);
 
   async function handleApply() {
     if (!preview?.sourceHash) return;
@@ -148,18 +150,22 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
         (err instanceof Error && (err.message.includes("409") || err.message.toLowerCase().includes("aborted"))) ||
         (typeof err === "object" && err !== null && "status" in err && (err as { status: number }).status === 409);
       const msg = isAborted
-        ? "Le hash du candidat ne correspond plus - actualisez la prévisualisation"
+        ? t("admin.plugin.updateDialog.hashMismatch")
         : err instanceof Error
           ? err.message
-          : "Erreur lors de l'application de la mise à jour";
+          : t("admin.plugin.updateDialog.applyError");
       setError(msg);
       setPhase("reviewing");
     }
   }
 
   const title = preview
-    ? `Mise à jour ${pluginName ?? pluginId} : ${preview.currentVersion ?? "?"} → ${preview.candidateVersion ?? "?"}`
-    : `Mise à jour ${pluginName ?? pluginId}`;
+    ? t("admin.plugin.updateDialog.titleWithVersions", {
+        name: pluginName ?? pluginId,
+        from: preview.currentVersion ?? "?",
+        to: preview.candidateVersion ?? "?",
+      })
+    : t("admin.plugin.updateDialog.title", { name: pluginName ?? pluginId });
 
   const applyDisabled =
     phase === "previewing" ||
@@ -172,7 +178,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
       {phase === "previewing" && (
         <div className="flex flex-col items-center gap-3 py-8">
           <Spinner size="md" />
-          <p className="text-sm text-[var(--text-muted)]">Analyse du candidat en cours…</p>
+          <p className="text-sm text-[var(--text-muted)]">{t("admin.plugin.updateDialog.analyzing")}</p>
         </div>
       )}
 
@@ -189,7 +195,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
               }}
               data-testid="banner-requires-ack"
             >
-              Cette mise à jour demande de nouvelles permissions - vérifiez avant d'appliquer
+              {t("admin.plugin.updateDialog.bannerRequiresAck")}
             </div>
           ) : (
             <div
@@ -201,13 +207,13 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
               }}
               data-testid="banner-safe"
             >
-              Aucun changement de permissions - mise à jour sûre
+              {t("admin.plugin.updateDialog.bannerSafe")}
             </div>
           )}
 
           {/* Tabs */}
           <div className="flex gap-1 border-b border-[var(--border)]">
-            {(Object.keys(TAB_LABELS) as TabKey[]).map((tab) => (
+            {(Object.keys(tabLabels) as TabKey[]).map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -218,7 +224,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
                 }`}
                 onClick={() => setActiveTab(tab)}
               >
-                {TAB_LABELS[tab]}
+                {tabLabels[tab]}
               </button>
             ))}
           </div>
@@ -229,27 +235,27 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
               <DiffList
                 added={preview.permissionsAdded}
                 removed={preview.permissionsRemoved}
-                emptyLabel="Aucun changement de permissions"
+                emptyLabel={t("admin.plugin.updateDialog.emptyPermissions")}
               />
             )}
             {activeTab === "slots" && (
               <DiffList
                 added={preview.slotsAdded}
                 removed={preview.slotsRemoved}
-                emptyLabel="Aucun changement de slots"
+                emptyLabel={t("admin.plugin.updateDialog.emptySlots")}
               />
             )}
             {activeTab === "externalFetch" && (
               <DiffList
                 added={preview.externalFetchAdded}
                 removed={preview.externalFetchRemoved}
-                emptyLabel="Aucun changement d'appels externes"
+                emptyLabel={t("admin.plugin.updateDialog.emptyExternalFetch")}
               />
             )}
             {activeTab === "findings" && (
               <>
                 {(preview.newFindings?.length ?? 0) === 0 ? (
-                  <p className="text-xs text-[var(--text-muted)] py-2">Aucune alerte</p>
+                  <p className="text-xs text-[var(--text-muted)] py-2">{t("admin.plugin.updateDialog.noFindings")}</p>
                 ) : (
                   <ul className="flex flex-col gap-2 text-xs mt-2">
                     {preview.newFindings!.map((f, i) => (
@@ -278,11 +284,11 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
             {activeTab === "signature" && (
               <div className="py-2">
                 {preview.signatureStatus === "signed" || preview.signatureStatus === "SIGNED" ? (
-                  <Badge variant="success">Signé</Badge>
+                  <Badge variant="success">{t("admin.plugins.security.signed")}</Badge>
                 ) : preview.signatureStatus === "invalid" || preview.signatureStatus === "INVALID" ? (
-                  <Badge variant="error">Invalide</Badge>
+                  <Badge variant="error">{t("admin.plugin.updateDialog.signatureInvalid")}</Badge>
                 ) : (
-                  <Badge variant="warning">Non signé</Badge>
+                  <Badge variant="warning">{t("admin.plugins.security.unsigned")}</Badge>
                 )}
               </div>
             )}
@@ -299,7 +305,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
                 data-testid="ack-checkbox"
               />
               <span className="text-[var(--text)]">
-                J'ai examiné les nouvelles permissions et j'accepte de les accorder à ce plugin
+                {t("admin.plugin.updateDialog.ackLabel")}
               </span>
             </label>
           )}
@@ -329,14 +335,14 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
             }}
             data-testid="error-message"
           >
-            {error ?? "Erreur inconnue"}
+            {error ?? t("common.unknownError")}
           </p>
         </div>
       )}
 
       <div className="flex justify-end gap-2 pt-4 border-t border-[var(--border)] mt-2">
         <Button variant="ghost" onClick={onClose} disabled={phase === "applying"}>
-          Annuler
+          {t("common.cancel")}
         </Button>
         <Button
           variant="primary"
@@ -345,7 +351,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
           loading={phase === "applying"}
           data-testid="apply-button"
         >
-          Appliquer la mise à jour
+          {t("admin.plugin.updateDialog.apply")}
         </Button>
       </div>
     </Modal>

@@ -145,6 +145,26 @@ plugin:
     title: Security notice
     issues: Issues
     urls: External URLs
+  updateDialog:
+    title: "Update {{name}}"
+    titleWithVersions: "Update {{name}}: {{from}} → {{to}}"
+    analyzing: "Analyzing candidate..."
+    previewError: Failed to load the preview
+    applyError: Failed to apply the update
+    hashMismatch: The candidate hash no longer matches - refresh the preview
+    bannerRequiresAck: This update requests new permissions - review before applying
+    bannerSafe: No permission changes - safe update
+    tabSlots: Slots
+    tabExternalFetch: External calls
+    tabFindings: Findings
+    tabSignature: Signature
+    emptyPermissions: No permission changes
+    emptySlots: No slot changes
+    emptyExternalFetch: No external call changes
+    noFindings: No findings
+    signatureInvalid: Invalid
+    ackLabel: I have reviewed the new permissions and agree to grant them to this plugin
+    apply: Apply update
 
 plugins:
   title: Plugins
@@ -1000,6 +1020,20 @@ segments:
   lockedHint: This segment is locked manually and will not be overwritten by auto detection.
   locked: Locked
   propagateSuccess: "Propagated to {{count}} episode(s)"
+  preview: Preview
+  playerLoading: "Loading player..."
+  selectHint: "(Select a segment on the timeline)"
+  timeline: Timeline
+  emptyState: "No segment detected. Add a segment below or trigger auto detection."
+  addLabel: "Add:"
+  startLabel: "Start mm:ss"
+  endLabel: "End mm:ss"
+  noChanges: "No changes to save."
+  saveError: "Failed to save"
+  deleteError: "Failed to delete"
+  redetectSuccess: "Detection started. Refresh in 1-2 minutes."
+  redetectError: "Failed to trigger detection"
+  propagateError: "Failed to propagate"
 
 seekIndex:
   title: Seek Index Repair

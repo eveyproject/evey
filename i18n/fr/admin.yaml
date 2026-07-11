@@ -144,6 +144,26 @@ plugin:
     title: "Avis de sécurité"
     issues: "Problèmes"
     urls: "URL externes"
+  updateDialog:
+    title: "Mise à jour {{name}}"
+    titleWithVersions: "Mise à jour {{name}} : {{from}} → {{to}}"
+    analyzing: "Analyse du candidat en cours…"
+    previewError: "Erreur lors du chargement de la prévisualisation"
+    applyError: "Erreur lors de l'application de la mise à jour"
+    hashMismatch: "Le hash du candidat ne correspond plus - actualisez la prévisualisation"
+    bannerRequiresAck: "Cette mise à jour demande de nouvelles permissions - vérifiez avant d'appliquer"
+    bannerSafe: "Aucun changement de permissions - mise à jour sûre"
+    tabSlots: "Slots"
+    tabExternalFetch: "Appels externes"
+    tabFindings: "Alertes"
+    tabSignature: "Signature"
+    emptyPermissions: "Aucun changement de permissions"
+    emptySlots: "Aucun changement de slots"
+    emptyExternalFetch: "Aucun changement d'appels externes"
+    noFindings: "Aucune alerte"
+    signatureInvalid: "Invalide"
+    ackLabel: "J'ai examiné les nouvelles permissions et j'accepte de les accorder à ce plugin"
+    apply: "Appliquer la mise à jour"
 
 plugins:
   resourceLimits:
@@ -999,6 +1019,20 @@ segments:
   lockedHint: "Ce segment est verrouillé manuellement et ne sera pas écrasé par la détection auto."
   locked: Verrouillé
   propagateSuccess: "Propagé sur {{count}} épisode(s)"
+  preview: Aperçu
+  playerLoading: "Chargement du lecteur..."
+  selectHint: "(Sélectionnez un segment sur la timeline)"
+  timeline: Timeline
+  emptyState: "Aucun segment détecté. Ajoutez un segment ci-dessous ou déclenchez la détection auto."
+  addLabel: "Ajouter :"
+  startLabel: "Début mm:ss"
+  endLabel: "Fin mm:ss"
+  noChanges: "Aucune modification à sauvegarder."
+  saveError: "Erreur lors de la sauvegarde"
+  deleteError: "Erreur lors de la suppression"
+  redetectSuccess: "Détection lancée. Actualisez dans 1-2 minutes."
+  redetectError: "Erreur lors du déclenchement de la détection"
+  propagateError: "Erreur lors de la propagation"
 
 seekIndex:
   title: "Réparation de l'index de lecture"

@@ -162,7 +162,7 @@ function AdminMediaSegmentsPage() {
   async function handleSaveAll() {
     const dirty = localSegments.filter((s) => s.isDirty);
     if (dirty.length === 0) {
-      toast.info("Aucune modification à sauvegarder.");
+      toast.info(t("admin.segments.noChanges"));
       return;
     }
     try {
@@ -174,7 +174,7 @@ function AdminMediaSegmentsPage() {
       toast.success(t("admin.segments.save") + " - OK");
     } catch (err) {
       if (import.meta.env.DEV) console.error("[AdminSegments] save error", err);
-      toast.error("Erreur lors de la sauvegarde");
+      toast.error(t("admin.segments.saveError"));
     }
   }
 
@@ -186,17 +186,17 @@ function AdminMediaSegmentsPage() {
       toast.success(t("admin.segments.delete") + " - OK");
     } catch (err) {
       if (import.meta.env.DEV) console.error("[AdminSegments] delete error", err);
-      toast.error("Erreur lors de la suppression");
+      toast.error(t("admin.segments.deleteError"));
     }
   }
 
   async function handleRedetect() {
     try {
       await triggerDetect.mutateAsync();
-      toast.success(t("admin.segments.redetect") + " - Détection lancée. Actualisez dans 1-2 minutes.");
+      toast.success(t("admin.segments.redetectSuccess"));
     } catch (err) {
       if (import.meta.env.DEV) console.error("[AdminSegments] redetect error", err);
-      toast.error("Erreur lors du déclenchement de la détection");
+      toast.error(t("admin.segments.redetectError"));
     }
   }
 
@@ -208,7 +208,7 @@ function AdminMediaSegmentsPage() {
       );
     } catch (err) {
       if (import.meta.env.DEV) console.error("[AdminSegments] propagate error", err);
-      toast.error("Erreur lors de la propagation");
+      toast.error(t("admin.segments.propagateError"));
     }
   }
 
@@ -237,7 +237,7 @@ function AdminMediaSegmentsPage() {
             className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
           >
             <ChevronLeft size={14} />
-            Admin
+            {t("nav.admin")}
           </Link>
         }
       />
@@ -253,7 +253,7 @@ function AdminMediaSegmentsPage() {
           {/* Section A: Mini video player */}
           <Card>
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
-              Aperçu
+              {t("admin.segments.preview")}
             </h2>
             {streamUrl ? (
               <video
@@ -271,7 +271,7 @@ function AdminMediaSegmentsPage() {
               />
             ) : (
               <div className="w-full max-w-2xl h-40 flex items-center justify-center rounded-md bg-black text-[var(--text-muted)] text-sm">
-                Chargement du lecteur...
+                {t("admin.segments.playerLoading")}
               </div>
             )}
 
@@ -294,7 +294,7 @@ function AdminMediaSegmentsPage() {
               </Button>
               {!selectedType && (
                 <span className="text-xs text-[var(--text-muted)] self-center">
-                  (Sélectionnez un segment sur la timeline)
+                  {t("admin.segments.selectHint")}
                 </span>
               )}
             </div>
@@ -303,12 +303,12 @@ function AdminMediaSegmentsPage() {
           {/* Section B: Timeline + editor */}
           <Card>
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
-              Timeline
+              {t("admin.segments.timeline")}
             </h2>
 
             {localSegments.length === 0 && !isLoading ? (
               <div className="py-6 text-center text-sm text-[var(--text-muted)]">
-                Aucun segment détecté. Ajoutez un segment ci-dessous ou déclenchez la détection auto.
+                {t("admin.segments.emptyState")}
               </div>
             ) : (
               <SegmentTimeline
@@ -332,7 +332,7 @@ function AdminMediaSegmentsPage() {
             {/* Add segment dropdown */}
             {availableToAdd.length > 0 && (
               <div className="mt-4 flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-[var(--text-muted)]">Ajouter :</span>
+                <span className="text-xs text-[var(--text-muted)]">{t("admin.segments.addLabel")}</span>
                 {availableToAdd.map((type) => (
                   <button
                     key={type}
@@ -351,7 +351,7 @@ function AdminMediaSegmentsPage() {
           {/* Section C: Action buttons */}
           <Card>
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
-              Actions
+              {t("common.actions")}
             </h2>
             <div className="flex flex-wrap gap-3">
               <Button
@@ -412,6 +412,7 @@ function MmSsInputs({
   segment: MediaSegment;
   onChange: (startMs: number, endMs: number) => void;
 }) {
+  const { t } = useTranslation();
   const [startVal, setStartVal] = useState(msToMmSs(segment.startMs));
   const [endVal, setEndVal] = useState(msToMmSs(segment.endMs));
 
@@ -440,7 +441,7 @@ function MmSsInputs({
   return (
     <div className="mt-3 flex items-center gap-3 flex-wrap">
       <div className="flex items-center gap-1.5">
-        <label htmlFor={`seg-start-${segment.type}`} className="text-xs text-[var(--text-muted)]">Début mm:ss</label>
+        <label htmlFor={`seg-start-${segment.type}`} className="text-xs text-[var(--text-muted)]">{t("admin.segments.startLabel")}</label>
         <input
           id={`seg-start-${segment.type}`}
           className="w-20 px-2 py-1 rounded text-xs font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
@@ -452,7 +453,7 @@ function MmSsInputs({
         />
       </div>
       <div className="flex items-center gap-1.5">
-        <label htmlFor={`seg-end-${segment.type}`} className="text-xs text-[var(--text-muted)]">Fin mm:ss</label>
+        <label htmlFor={`seg-end-${segment.type}`} className="text-xs text-[var(--text-muted)]">{t("admin.segments.endLabel")}</label>
         <input
           id={`seg-end-${segment.type}`}
           className="w-20 px-2 py-1 rounded text-xs font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"

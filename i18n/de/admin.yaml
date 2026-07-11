@@ -91,6 +91,26 @@ plugin:
     title: Sicherheitshinweis
     issues: Probleme
     urls: Externe URLs
+  updateDialog:
+    title: "{{name}} aktualisieren"
+    titleWithVersions: "{{name}} aktualisieren: {{from}} → {{to}}"
+    analyzing: "Kandidat wird analysiert …"
+    previewError: "Vorschau konnte nicht geladen werden"
+    applyError: "Aktualisierung konnte nicht angewendet werden"
+    hashMismatch: "Der Hash des Kandidaten stimmt nicht mehr überein - Vorschau aktualisieren"
+    bannerRequiresAck: "Diese Aktualisierung fordert neue Berechtigungen an - vor dem Anwenden prüfen"
+    bannerSafe: "Keine Berechtigungsänderung - sichere Aktualisierung"
+    tabSlots: Slots
+    tabExternalFetch: "Externe Aufrufe"
+    tabFindings: Befunde
+    tabSignature: Signatur
+    emptyPermissions: "Keine Berechtigungsänderung"
+    emptySlots: "Keine Slot-Änderung"
+    emptyExternalFetch: "Keine Änderung bei externen Aufrufen"
+    noFindings: "Keine Befunde"
+    signatureInvalid: Ungültig
+    ackLabel: "Ich habe die neuen Berechtigungen geprüft und stimme zu, sie diesem Plugin zu gewähren"
+    apply: "Aktualisierung anwenden"
 
 plugins:
   resourceLimits:
@@ -932,6 +952,20 @@ segments:
   lockedHint: Dieses Segment ist manuell gesperrt und wird durch die automatische Erkennung nicht überschrieben.
   locked: Gesperrt
   propagateSuccess: "Auf {{count}} Folge(n) übertragen"
+  preview: Vorschau
+  playerLoading: "Player wird geladen …"
+  selectHint: "(Wähle ein Segment auf der Zeitleiste)"
+  timeline: Timeline
+  emptyState: "Kein Segment erkannt. Füge unten ein Segment hinzu oder starte die automatische Erkennung."
+  addLabel: "Hinzufügen:"
+  startLabel: "Start mm:ss"
+  endLabel: "Ende mm:ss"
+  noChanges: "Keine Änderungen zu speichern."
+  saveError: "Speichern fehlgeschlagen"
+  deleteError: "Löschen fehlgeschlagen"
+  redetectSuccess: "Erkennung gestartet. Aktualisiere in 1-2 Minuten."
+  redetectError: "Erkennung konnte nicht gestartet werden"
+  propagateError: "Übertragen fehlgeschlagen"
 
 seekIndex:
   title: "Seek-Index-Reparatur"

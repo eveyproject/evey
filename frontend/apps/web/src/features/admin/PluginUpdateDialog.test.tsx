@@ -58,7 +58,7 @@ describe("PluginUpdateDialog", () => {
         onApplied={vi.fn()}
       />,
     );
-    expect(screen.getByText("Analyse du candidat en cours…")).toBeInTheDocument();
+    expect(screen.getByText("Analyzing candidate...")).toBeInTheDocument();
   });
 
   it("displays version header after preview", async () => {
@@ -208,7 +208,7 @@ describe("PluginUpdateDialog", () => {
       expect(screen.getByTestId("error-message")).toBeInTheDocument(),
     );
     expect(screen.getByTestId("error-message").textContent).toContain(
-      "hash du candidat ne correspond plus",
+      "candidate hash no longer matches",
     );
   });
 
@@ -261,8 +261,8 @@ describe("PluginUpdateDialog", () => {
         onApplied={vi.fn()}
       />,
     );
-    await waitFor(() => expect(screen.getByText("Annuler")).toBeInTheDocument());
-    await userEvent.click(screen.getByText("Annuler"));
+    await waitFor(() => expect(screen.getByText("Cancel")).toBeInTheDocument());
+    await userEvent.click(screen.getByText("Cancel"));
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
