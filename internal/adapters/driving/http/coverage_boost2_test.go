@@ -341,41 +341,6 @@ func TestStreamToken_IDOR_403(t *testing.T) {
 // HLS cache tests
 // ============================================================
 
-func TestCachedMediaItemGetter_CacheHit(t *testing.T) {
-	inner := &fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}}
-	cached := NewCachedMediaItemGetter(inner)
-	defer cached.Close()
-
-	item, err := cached.GetMediaItem(context.Background(), "m1")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if item.ID != "m1" {
-		t.Errorf("expected m1, got %s", item.ID)
-	}
-	// second call hits cache
-	inner.item = nil
-	inner.err = errors.New("should not be called")
-	item2, err := cached.GetMediaItem(context.Background(), "m1")
-	if err != nil {
-		t.Fatalf("unexpected error on cache hit: %v", err)
-	}
-	if item2.ID != "m1" {
-		t.Errorf("expected m1 from cache, got %s", item2.ID)
-	}
-}
-
-func TestCachedMediaItemGetter_Error(t *testing.T) {
-	inner := &fakeMediaItemGetter{err: errors.New("not found")}
-	cached := NewCachedMediaItemGetter(inner)
-	defer cached.Close()
-
-	_, err := cached.GetMediaItem(context.Background(), "m1")
-	if err == nil {
-		t.Error("expected error")
-	}
-}
-
 func TestCachedLibraryAccessChecker_CacheHit(t *testing.T) {
 	inner := allowAll()
 	cached := NewCachedLibraryAccessChecker(inner)

@@ -35,15 +35,16 @@ type audioServe struct {
 	// audioNormalizeGetter mirrors the video pipeline knob.
 	audioNormalizeGetter func(ctx context.Context) bool
 
-	// segmentWaitTimeout caps how long audioSegmentHandler blocks waiting for
+	// segmentWaitTimeout caps how long serveSegmentFile blocks waiting for
 	// an audio segment to materialise on disk.
 	segmentWaitTimeout time.Duration
 }
 
 // audioRenditionEnabled reports whether the audio-rendition feature flag is on.
-// When off, all three handlers return 404 immediately — the master manifest
-// never advertises EXT-X-MEDIA entries in that case, so well-behaved players
-// won't hit these paths.  Fail-closed for misbehaving or probing clients.
+// When off, the serve paths (playlist/init/segment) return 404 immediately -
+// the master manifest never advertises EXT-X-MEDIA entries in that case, so
+// well-behaved players won't hit them. Fail-closed for misbehaving or probing
+// clients.
 func (h *audioServe) audioRenditionEnabled() bool {
 	return h.cfg != nil && h.cfg.Transcoding.AudioRenditionEnabled
 }
