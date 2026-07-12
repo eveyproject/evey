@@ -22,8 +22,62 @@ nav:
   monitoring: Monitoreo
   analytics: Analítica
   activity: Actividad
+  logs: Logs y depuración
   maintenance: Mantenimiento
   backupRestore: Copia de seguridad y restauración
+
+online:
+  title: Quién está en línea
+  countOne: "{{count}} usuario en línea"
+  countOther: "{{count}} usuarios en línea"
+  empty: Nadie está conectado en este momento.
+  adminBadge: Admin
+  justNow: justo ahora
+  secondsAgo: "hace {{count}}s"
+  minutesAgo: "hace {{count}} min"
+
+logs:
+  title: Logs y depuración
+  subtitle: "Busca y sigue en vivo los logs del servidor (ffmpeg, mkvgo, reproducción...) para diagnosticar problemas reportados por los usuarios."
+  searchPlaceholder: "Buscar en los logs (texto, ruta, id, error...)"
+  live: En vivo
+  advanced: Avanzado
+  copyRaw: Copiar JSON sin procesar
+  error: No se pudieron cargar los logs.
+  empty: Ningún log coincide con estos filtros.
+  truncated: Resultados truncados - acota la búsqueda para ver todo.
+  resultCount_one: "{{count}} entrada"
+  resultCount_other: "{{count}} entradas"
+  liveCount_one: "{{count}} entrada en vivo"
+  liveCount_other: "{{count}} entradas en vivo"
+  sessionId: ID de sesión
+  userId: ID de usuario
+  mediaId: ID de medio
+  level:
+    label: Nivel
+  where:
+    label: Zona
+    all: Todas las zonas
+    player: Reproductor / Transcodificación
+    seek-index: Índice de búsqueda (mkvgo)
+    subtitle: Subtítulos
+    remux: Remux
+    hw-detect: Detección de hardware
+    intro: Detección de intro
+    trickplay: Trickplay
+    qoe: QoE de reproducción
+    chromecast: Chromecast
+    auth: Autenticación
+    infra: Infraestructura
+    other: Otro
+  source:
+    label: Fuente
+    all: Todas las fuentes
+    ffmpeg: ffmpeg
+    mkvgo: mkvgo
+    qoe: QoE (cliente)
+    grpc: gRPC
+    other: Otro
 
 artworks:
   title: Artworks (cache local)
@@ -359,6 +413,13 @@ sessions:
   directPlay: "Reproducción directa"
   directStream: "Stream directo"
   transcode: "Transcodificación"
+  track:
+    video: "Video"
+    audio: "Audio"
+    videoCopied: "copiado"
+    videoTranscoded: "transcodificado"
+    audioCopied: "copiado"
+    audioTranscoded: "transcodificado"
   refreshStatus: "Actualizado {{time}} - actualización automática cada {{seconds}}s"
   sendMessage: "Enviar mensaje"
   messageSent: "Mensaje enviado"
@@ -703,6 +764,13 @@ dashboardStats:
   scanAllLibraries: "Escanear todas las bibliotecas"
   manageLibraries: "Administrar bibliotecas"
   manageUsers: "Administrar usuarios"
+  restartServer: "Reiniciar servidor"
+  restartConfirm: "¿Confirmar reinicio?"
+  restartCancel: "Cancelar"
+  restartHint: "Todos los streams activos se interrumpirán brevemente. El servidor vuelve automáticamente si está supervisado (Docker / systemd)."
+  restartTriggered: "El servidor se está reiniciando…"
+  restartUnavailable: "El reinicio no está disponible en este despliegue."
+  restartFailed: "No se pudo reiniciar el servidor."
   recentActivity: "Actividad reciente"
   viewAll: "Ver todo"
   popularMedia: "Medios populares"

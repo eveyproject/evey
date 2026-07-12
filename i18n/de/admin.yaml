@@ -22,8 +22,62 @@ nav:
   monitoring: Überwachung
   analytics: Analysen
   activity: Aktivität
+  logs: Protokolle & Debug
   maintenance: Wartung
   backupRestore: Sicherung & Wiederherstellung
+
+online:
+  title: Wer ist online
+  countOne: "{{count}} Benutzer online"
+  countOther: "{{count}} Benutzer online"
+  empty: Gerade ist niemand verbunden.
+  adminBadge: Admin
+  justNow: gerade eben
+  secondsAgo: "vor {{count}}s"
+  minutesAgo: "vor {{count}} Min."
+
+logs:
+  title: Protokolle & Debug
+  subtitle: "Serverprotokolle durchsuchen und live verfolgen (ffmpeg, mkvgo, Wiedergabe...), um von Nutzern gemeldete Probleme zu diagnostizieren."
+  searchPlaceholder: "Protokolle durchsuchen (Text, Pfad, ID, Fehler...)"
+  live: Live
+  advanced: Erweitert
+  copyRaw: Rohes JSON kopieren
+  error: Protokolle konnten nicht geladen werden.
+  empty: Kein Protokoll entspricht diesen Filtern.
+  truncated: Ergebnisse gekürzt - Suche eingrenzen für eine vollständige Ansicht.
+  resultCount_one: "{{count}} Eintrag"
+  resultCount_other: "{{count}} Einträge"
+  liveCount_one: "{{count}} Live-Eintrag"
+  liveCount_other: "{{count}} Live-Einträge"
+  sessionId: Sitzungs-ID
+  userId: Benutzer-ID
+  mediaId: Medien-ID
+  level:
+    label: Stufe
+  where:
+    label: Bereich
+    all: Alle Bereiche
+    player: Player / Transkodierung
+    seek-index: Seek-Index (mkvgo)
+    subtitle: Untertitel
+    remux: Remux
+    hw-detect: HW-Erkennung
+    intro: Intro-Erkennung
+    trickplay: Trickplay
+    qoe: Wiedergabe-QoE
+    chromecast: Chromecast
+    auth: Authentifizierung
+    infra: Infrastruktur
+    other: Andere
+  source:
+    label: Quelle
+    all: Alle Quellen
+    ffmpeg: ffmpeg
+    mkvgo: mkvgo
+    qoe: QoE (Client)
+    grpc: gRPC
+    other: Andere
 
 artworks:
   title: Artworks (lokaler Cache)
@@ -359,6 +413,13 @@ sessions:
   directPlay: Direktwiedergabe
   directStream: Direkter Stream
   transcode: Transkodierung
+  track:
+    video: Video
+    audio: Audio
+    videoCopied: kopiert
+    videoTranscoded: transkodiert
+    audioCopied: kopiert
+    audioTranscoded: transkodiert
   refreshStatus: "Aktualisiert {{time}} - automatische Aktualisierung alle {{seconds}}s"
   sendMessage: Nachricht senden
   messageSent: Nachricht gesendet
@@ -703,6 +764,13 @@ dashboardStats:
   scanAllLibraries: Alle Bibliotheken scannen
   manageLibraries: Bibliotheken verwalten
   manageUsers: Benutzer verwalten
+  restartServer: Server neu starten
+  restartConfirm: Neustart bestätigen?
+  restartCancel: Abbrechen
+  restartHint: Alle aktiven Streams werden kurz unterbrochen. Der Server startet automatisch neu, wenn er überwacht wird (Docker / systemd).
+  restartTriggered: Server wird neu gestartet…
+  restartUnavailable: Der Neustart ist in dieser Bereitstellung nicht verfügbar.
+  restartFailed: Der Server konnte nicht neu gestartet werden.
   recentActivity: Letzte Aktivität
   viewAll: Alle anzeigen
   popularMedia: Beliebte Medien
