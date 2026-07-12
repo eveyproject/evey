@@ -331,14 +331,16 @@ func fmp4CompleteMoov(path string) bool {
 // hundred ms (a GOP or more). 500 ms separates the two cleanly.
 const copyDriftToleranceMs = 500
 
-// verifyCopySegmentTimeline is the runtime tripwire for the copy rung's
+// verifySegmentTimeline is the runtime tripwire for the rebase pump's
 // plan<->ffmpeg contract: the published segment stream_<v>_<idx>.m4s must carry
-// a timeline starting at the plan's start for <idx>. Every desync bug of
-// 2026-06-10 (session-relative split grid, off-keyframe seek landings,
-// trimmed-but-mislabeled audio) would have tripped this. Divergence -> ERROR
-// log + metric; the segment is still published (a labeled, observable
+// a timeline starting at the expected position for <idx>. For the COPY rung
+// that oracle is the keyframe plan; for a TRANSCODE-SEEK session it is the
+// linear idx×segment-length position. Every desync bug of 2026-06-10
+// (session-relative split grid, off-keyframe seek landings, trimmed-but-
+// mislabeled audio) would have tripped this. Divergence -> ERROR log + the
+// kind's drift metric; the segment is still published (a labeled, observable
 // degradation beats a stalled player).
-func verifyCopySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedStartMs func(int) (int64, bool)) {
+func verifySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedStartMs func(int) (int64, bool), driftKind string) {
 	if expectedStartMs == nil || tfdtMs < 0 {
 		return
 	}
@@ -359,6 +361,15 @@ func verifyCopySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedSta
 		return
 	}
 	if diff := tfdtMs - want; diff > copyDriftToleranceMs || diff < -copyDriftToleranceMs {
+		if driftKind == "transcode_seek" {
+			metrics.HLSVODTranscodeSeekTimelineDrift.Inc()
+			slog.Error("hls: transcode-seek segment timeline DIVERGES from the expected linear position (rebase contract regression)",
+				slog.String("segment", name),
+				slog.Int64("produced_start_ms", tfdtMs),
+				slog.Int64("expected_start_ms", want),
+				slog.Int64("drift_ms", diff))
+			return
+		}
 		metrics.HLSVODCopyTimelineDrift.Inc()
 		slog.Error("hls: copy segment timeline DIVERGES from the keyframe plan (plan<->ffmpeg contract regression)",
 			slog.String("segment", name),
@@ -376,7 +387,7 @@ func verifyCopySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedSta
 // session wins; per-session inits differ only in edit lists hls.js ignores).
 // Exits on ctx cancel or ffmpeg termination, after a final sweep, and removes
 // privDir.
-func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir string, deltaMs int64, variantIdx int, expectedStartMs func(int) (int64, bool)) {
+func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir string, deltaMs int64, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
 	initName := fmt.Sprintf("stream_%d_init.mp4", variantIdx)
 	segPrefix := fmt.Sprintf("stream_%d_", variantIdx)
 	published := make(map[string]bool, 64)
@@ -431,7 +442,7 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir s
 				}
 				continue
 			}
-			verifyCopySegmentTimeline(name, segPrefix, tfdtMs, expectedStartMs)
+			verifySegmentTimeline(name, segPrefix, tfdtMs, expectedStartMs, driftKind)
 			if err := os.Rename(src, filepath.Join(pubDir, name)); err != nil {
 				slog.Warn("hls: copy rebase publish failed",
 					slog.String("segment", name), slog.Any("err", err))

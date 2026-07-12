@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"runtime/debug"
 	"slices"
 	"sync"
@@ -673,6 +674,23 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		startSec = float64(segs[startSeg].StartMs) / 1000.0
 	}
 
+	// Transcode-seek tripwire: a mid-stream transcode session (no copy plan,
+	// startSeg > 0) re-encodes fixed-length segments, so the rebase pump can be
+	// checked against a linear oracle - segment idx must land at idx×segLen.
+	// Cold transcode (startSeg == 0) is 0-based by construction and needs no
+	// check. Copy sessions already have their plan oracle above.
+	timelineDriftKind := "copy"
+	if videoDecision == "transcode" && startSeg > 0 {
+		segLenMs := int64(math.Round(p.opts.SegmentSeconds * 1000))
+		copyPlanOracle = func(idx int) (int64, bool) {
+			if idx < 0 {
+				return 0, false
+			}
+			return int64(idx) * segLenMs, true
+		}
+		timelineDriftKind = "transcode_seek"
+	}
+
 	outDir, err := p.cache.DirFor(hash)
 	if err != nil {
 		return fmt.Errorf("software: startSession: cache dir: %w", err)
@@ -708,9 +726,11 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		// The exact -ss the probe validated; bookkeeping (StartSec/StartNumber)
 		// reflects its real landing. 0 on cold starts.
 		SeekTargetSec: seekTargetSec,
-		// Plan oracle for the publish pump's timeline tripwire (nil when not
-		// in copy mode).
+		// Plan oracle for the publish pump's timeline tripwire: the copy plan
+		// (copy mode) or the linear transcode-seek oracle set just above; nil
+		// for cold transcode.
 		ExpectedSegmentStartMs: copyPlanOracle,
+		TimelineDriftKind:      timelineDriftKind,
 		// Input pacing: the defining software-flow knob. Keeps the single
 		// sequential encoder near wall-clock so it never races ahead of the
 		// viewer (no abort-and-probe client → no need to burst).

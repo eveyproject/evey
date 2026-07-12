@@ -174,20 +174,49 @@ func TestVerifyCopySegmentTimeline(t *testing.T) {
 
 	base := read()
 	// Aligned (within tolerance: nudge + priming scale skews).
-	verifyCopySegmentTimeline("stream_0_600.m4s", "stream_0_", 1351284, plan)
+	verifySegmentTimeline("stream_0_600.m4s", "stream_0_", 1351284, plan, "copy")
 	if read() != base {
 		t.Fatal("aligned segment must not trip the drift tripwire")
 	}
 	// Unknown index / foreign name / missing tfdt: no-ops.
-	verifyCopySegmentTimeline("stream_0_601.m4s", "stream_0_", 999999, plan)
-	verifyCopySegmentTimeline("other_600.m4s", "stream_0_", 0, plan)
-	verifyCopySegmentTimeline("stream_0_600.m4s", "stream_0_", -1, plan)
+	verifySegmentTimeline("stream_0_601.m4s", "stream_0_", 999999, plan, "copy")
+	verifySegmentTimeline("other_600.m4s", "stream_0_", 0, plan, "copy")
+	verifySegmentTimeline("stream_0_600.m4s", "stream_0_", -1, plan, "copy")
 	if read() != base {
 		t.Fatal("unknown/foreign/empty segments must not trip the tripwire")
 	}
 	// A GOP-sized divergence (the historical bug class) must trip it.
-	verifyCopySegmentTimeline("stream_0_600.m4s", "stream_0_", 1351308+6340, plan)
+	verifySegmentTimeline("stream_0_600.m4s", "stream_0_", 1351308+6340, plan, "copy")
 	if read() != base+1 {
 		t.Fatal("a 6.3s divergence must increment the drift counter")
+	}
+}
+
+// The transcode-seek kind bumps a DISTINCT counter (so an alert points at the
+// right pipeline) against a linear oracle: segment idx expected at idx×segLen.
+func TestVerifySegmentTimeline_TranscodeSeek(t *testing.T) {
+	const segLenMs = 6000
+	linear := func(idx int) (int64, bool) {
+		if idx < 0 {
+			return 0, false
+		}
+		return int64(idx) * segLenMs, true
+	}
+	copyRead := func() float64 { return testutil.ToFloat64(metrics.HLSVODCopyTimelineDrift) }
+	seekRead := func() float64 { return testutil.ToFloat64(metrics.HLSVODTranscodeSeekTimelineDrift) }
+
+	copyBase, seekBase := copyRead(), seekRead()
+	// Aligned segment 100 -> 600000 ms, within tolerance: no trip.
+	verifySegmentTimeline("stream_0_100.m4s", "stream_0_", 600000, linear, "transcode_seek")
+	if seekRead() != seekBase {
+		t.Fatal("aligned transcode-seek segment must not trip")
+	}
+	// A GOP-sized drift bumps the TRANSCODE-SEEK counter, not the copy one.
+	verifySegmentTimeline("stream_0_100.m4s", "stream_0_", 600000+2000, linear, "transcode_seek")
+	if seekRead() != seekBase+1 {
+		t.Fatal("a transcode-seek divergence must increment the transcode-seek counter")
+	}
+	if copyRead() != copyBase {
+		t.Fatal("transcode-seek drift must NOT touch the copy counter")
 	}
 }

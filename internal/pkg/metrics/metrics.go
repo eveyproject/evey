@@ -120,6 +120,18 @@ var (
 		Help: "Copy-rung segments whose produced timeline diverged from the keyframe plan (must be 0).",
 	})
 
+	// HLSVODTranscodeSeekTimelineDrift is the transcode-seek sibling of
+	// HLSVODCopyTimelineDrift: a mid-stream transcode session emits fixed-length
+	// segments, so the same fMP4 rebase pump runs but was previously unverified.
+	// A non-zero value means a rebased transcode-seek segment landed off its
+	// linear expected position (idx × segment length) beyond tolerance. Must
+	// stay at zero; kept separate from the copy counter so an alert points at
+	// the right pipeline.
+	HLSVODTranscodeSeekTimelineDrift = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "evey_hlsvod_transcode_seek_timeline_drift_total",
+		Help: "Transcode-seek segments whose rebased timeline diverged from the expected linear position (must be 0).",
+	})
+
 	// HLSVODSessionsKilled counts session terminations, tagged by reason
 	// (seek_out_of_window, inactivity, close, error). Useful to spot
 	// pathologies - e.g. inactivity kills > 0 means the inactivity timeout
@@ -230,7 +242,7 @@ func init() {
 		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsCompleted, HLSVODSessionsRejected,
-		HLSVODCopyTimelineDrift,
+		HLSVODCopyTimelineDrift, HLSVODTranscodeSeekTimelineDrift,
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
 		QoEIngestEvents, QoEIngestDrops,

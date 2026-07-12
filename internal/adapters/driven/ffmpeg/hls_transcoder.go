@@ -51,7 +51,7 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 //
 //   - copy + fMP4: ALWAYS 0-based → always rebase. Cold copy (StartNumber 0)
 //     is absolute by construction (deltaMs 0, parse-only) but still routes
-//     through the pump so the timeline TRIPWIRE (verifyCopySegmentTimeline)
+//     through the pump so the timeline TRIPWIRE (verifySegmentTimeline)
 //     covers it - the historical numbering-drift bug lived on the cold path.
 //   - transcode SEEK (StartNumber > 0): pre-input `-ss` resets the output PTS
 //     to 0, so the seek segment's tfdt is 0 instead of StartSec → the browser
@@ -129,7 +129,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 	go h.run(processCtx)
 	if rebase {
 		deltaMs := int64(opts.StartSec*1000 + 0.5)
-		go runRebasePump(h.done, processCtx.Done(), opts.OutputDir, pubDir, deltaMs, opts.VariantIndex, opts.ExpectedSegmentStartMs)
+		go runRebasePump(h.done, processCtx.Done(), opts.OutputDir, pubDir, deltaMs, opts.VariantIndex, opts.ExpectedSegmentStartMs, opts.TimelineDriftKind)
 	}
 	return h, nil
 }
