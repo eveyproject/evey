@@ -8,9 +8,12 @@ call site.
 
 ## Tokens - the single source of truth
 
-`frontend/packages/theme/src/tokens.ts` defines colors, radii and spacing for
-every platform. Web consumes them as CSS custom properties, native (RN) reads
-the JS values through `useTheme()`.
+`frontend/packages/theme/src/themeVars.ts` is the single source of truth for
+colors, radii and spacing. The web CSS custom properties are **generated** from
+it (`packages/theme/gen-theme-css.mts` → `apps/web/public/themes/*.css`); the
+React Native client reads `tokens.ts`, which is **derived** from the same
+`themeVars.ts` and exposed through `useTheme()`. Edit `themeVars.ts`, never the
+generated CSS or the derived RN tokens.
 
 - Never hardcode a color. Web: `var(--accent)`, `var(--text-muted)`, etc.
   Native: `theme.colors.accent`.

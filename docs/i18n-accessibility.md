@@ -32,7 +32,8 @@ than showing a blank or a key.
 
 - **One source of truth:** [`/i18n/<locale>/*.yaml`](../i18n) at the repo root,
   split into namespaces (`common`, `auth`, `media`, `player`, `admin`,
-  `errors`, `notifications`, `mobile`). The same catalog drives every surface.
+  `errors`, `notifications`, `mobile`, `downloads`). The same catalog drives
+  every surface.
 - The **server** loads it and serves it at `GET /api/v1/i18n/{locale}`, and uses
   it directly for translated API error messages and notification text.
 - The **web, mobile, and TV apps** load translations from that endpoint
@@ -48,9 +49,6 @@ than showing a blank or a key.
 - **Completeness varies.** English is authoritative and always complete; the
   other five are kept at parity by hand with a check script, but a brand-new
   feature may land in English first and fall back until translated.
-- **Spanish has no accents**, by an existing project convention. It's
-  intentional but it *is* a quality compromise (`configuración` →
-  `configuracion`). Not ideal; noted.
 - **No right-to-left languages yet.** There's no Arabic/Hebrew/Persian, and the
   layout has not been built or tested for RTL - adding one is real work (CSS
   logical properties, `dir` handling), not just a translation file.
@@ -90,8 +88,8 @@ on AT, expect rough edges and please report specifics.
 - **Labelled controls:** icon-only buttons and sliders carry `aria-label` on web
   and `accessibilityLabel`/`accessibilityRole` on mobile (the larger share of
   interactive controls, not all).
-- **Theming:** light, dark, and AMOLED themes ship in-box; more via theme
-  plugins.
+- **Theming:** five themes ship in-box (default dark, AMOLED, dark-red,
+  light-default, light-blue); more via theme plugins.
 - **Android TV:** D-pad focus handling for remote navigation.
 
 ### Honest gaps (not done yet)

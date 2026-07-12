@@ -14,7 +14,7 @@ server itself (`EVEY_DB_USER`, `EVEY_DB_PASSWORD`, `EVEY_DB_HOST`,
 ```
 evey admin reset-password --user <email>     Generate a new password, print it once.
 evey admin rotate-jwt-key                    Regenerate JWT signing key (kills ALL sessions).
-evey admin restore-backup <path>             Restore the database from a pg_dump.gz file.
+evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required).
 evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch index from Postgres (--purge clears orphan docs first; if Meili is down, reports the Postgres fallback and does nothing).
 evey admin migrate up [--no-backup]          Apply pending migrations.
 evey admin migrate down [--no-backup]        Roll back one migration step.
