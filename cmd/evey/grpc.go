@@ -65,7 +65,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// files whose tracks disagree on the delay - the dominant real case),
 		// with the ffmpeg uniform-shift remux as the fallback for layouts the
 		// retime refuses (unknown-size/streamed segments).
-		WithAudioRemuxer(mkvgo.NewAudioRetimer("ffprobe", ffmpeg.NewAudioRemuxer("ffmpeg", "ffprobe"))).
+		WithAudioRemuxer(mkvgo.NewAudioRetimer(ffmpeg.NewAudioRemuxer("ffmpeg", "ffprobe"))).
 		// Scans survive restarts and batch jobs reuse them as phase 1; a job
 		// killed by a redeploy resurfaces as "interrupted" instead of
 		// vanishing (the operator used to believe the batch had finished).

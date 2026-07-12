@@ -3,7 +3,6 @@ package mkvgo
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -12,82 +11,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// A per-track retimer builds one shift entry per LATE audio track, keyed on the
-// real Matroska track number (zipped from the mkvgo Tracks order against the
-// ffprobe stream order), and leaves aligned tracks alone. Proven on a real
-// two-audio-track file whose tracks disagree on the delay - the exact case the
-// uniform ffmpeg remux refuses. Opt-in (needs ffmpeg/ffprobe):
-//
-//	EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/mkvgo/ -run TestAudioRetimer -v
-func TestAudioRetimerIntegration_PerTrackShiftMap(t *testing.T) {
-	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
-		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1")
-	}
-	ctx := t.Context()
-	dir := t.TempDir()
-	// Build a file: video at 0, audio track A late 0.90s, audio track B aligned.
-	src := filepath.Join(dir, "src.mkv")
-	mux := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
-		"-f", "lavfi", "-i", "testsrc2=size=192x108:rate=24",
-		"-itsoffset", "0.900", "-f", "lavfi", "-i", "sine=frequency=300:sample_rate=48000",
-		"-f", "lavfi", "-i", "sine=frequency=500:sample_rate=48000",
-		"-t", "30",
-		"-map", "0:v:0", "-map", "1:a:0", "-map", "2:a:0",
-		"-c:v", "libx264", "-preset", "ultrafast", "-c:a", "ac3", "-f", "matroska", src)
-	if out, err := mux.CombinedOutput(); err != nil {
-		t.Fatalf("fixture: %v\n%s", err, out)
-	}
-	// mkvgo refuses unknown-size (piped) segments, but ffmpeg to a real path
-	// seals the size, so RetimeTracksReplace applies directly.
-
+// The retimer builds one shift entry per LATE audio track (keyed on the
+// Matroska track number that mkvgo's AudioStartDelays reports natively), each
+// the negation of that track's own delay, and leaves aligned tracks alone -
+// the multi-track case the uniform ffmpeg remux refused. Mockable, no ffmpeg.
+func TestAudioRetimer_PerTrackShiftMap(t *testing.T) {
 	var gotShift map[uint64]int64
 	r := &AudioRetimer{
-		ffprobe: "ffprobe",
-		retime: func(ctx context.Context, path string, shift map[uint64]int64, opts ...extmatroska.Options) error {
+		delays: func(_ context.Context, _ string) (map[uint64]int64, error) {
+			return map[uint64]int64{2: 900_000_000, 3: 20_000_000}, nil
+		},
+		retime: func(_ context.Context, _ string, shift map[uint64]int64, _ ...extmatroska.Options) error {
 			gotShift = shift
-			return extmatroska.RetimeTracksReplace(ctx, path, shift, opts...)
+			return nil
 		},
 	}
-
-	bak, skipped, err := r.RemuxAudioDelay(ctx, src)
+	bak, skipped, err := r.RemuxAudioDelay(context.Background(), "movie.mkv")
 	require.NoError(t, err)
 	require.False(t, skipped)
-
-	// Exactly one track shifted (the late one), by ~-0.9s in ns; the aligned
-	// track carries no entry.
 	require.Len(t, gotShift, 1, "only the late track is shifted: %v", gotShift)
-	for _, ns := range gotShift {
-		assert.InDelta(t, -900_000_000, ns, 60_000_000, "shifted back by ~its own delay")
-	}
-	// Backup adopted Evey's convention.
-	assert.Equal(t, src+".mkvgobak", bak)
-	_, statErr := os.Stat(bak)
-	require.NoError(t, statErr, "the .mkvgobak backup exists")
-
-	// Proof: after the retime, BOTH audio tracks start aligned with the video.
-	for _, sel := range []string{"a:0", "a:1"} {
-		out, err := exec.CommandContext(ctx, "ffprobe", "-v", "error",
-			"-select_streams", sel, "-show_entries", "stream=start_time",
-			"-of", "csv=p=0", src).Output()
-		require.NoError(t, err)
-		var start float64
-		if v, ok := parseSeconds(trimLine(string(out))); ok {
-			start = v
-		}
-		assert.InDelta(t, 0, start, retimeDelayFloorSec, "%s aligned after retime", sel)
-	}
+	assert.Equal(t, int64(-900_000_000), gotShift[2], "shifted back by its own delay, negated")
+	assert.Empty(t, bak, "the mock produced no .bak, so no backup is reported")
 }
 
-func trimLine(s string) string {
-	for i, c := range s {
-		if c == '\n' || c == '\r' {
-			return s[:i]
-		}
+func TestAudioRetimer_AlignedSkips(t *testing.T) {
+	called := false
+	r := &AudioRetimer{
+		delays: func(_ context.Context, _ string) (map[uint64]int64, error) {
+			return map[uint64]int64{2: 10_000_000, 3: 0}, nil
+		},
+		retime: func(_ context.Context, _ string, _ map[uint64]int64, _ ...extmatroska.Options) error {
+			called = true
+			return nil
+		},
 	}
-	return s
+	_, skipped, err := r.RemuxAudioDelay(context.Background(), "movie.mkv")
+	require.NoError(t, err)
+	assert.True(t, skipped)
+	assert.False(t, called, "no retime when nothing is above the floor")
 }
 
-// fakeFallback records whether the ffmpeg fallback was invoked.
 type fakeFallback struct{ called []string }
 
 func (f *fakeFallback) RemuxAudioDelay(_ context.Context, p string) (string, bool, error) {
@@ -95,32 +58,40 @@ func (f *fakeFallback) RemuxAudioDelay(_ context.Context, p string) (string, boo
 	return p + ".mkvgobak", false, nil
 }
 
-// A non-Matroska container (MP4/MOV) has no EBML Tracks to retime, so the
-// retimer must defer to the ffmpeg fallback instead of failing on the mkvgo
-// reader. Unit-level (no ffmpeg): the extension gate short-circuits before any
-// probe. mkvgo has no MP4 audio-delay repair yet.
 func TestAudioRetimer_MP4RoutesToFallback(t *testing.T) {
 	dir := t.TempDir()
 	mp4 := filepath.Join(dir, "movie.mp4")
 	require.NoError(t, os.WriteFile(mp4, []byte("not really mp4"), 0o644))
-
 	fb := &fakeFallback{}
-	r := NewAudioRetimer("ffprobe", fb)
+	r := NewAudioRetimer(fb)
 	bak, skipped, err := r.RemuxAudioDelay(context.Background(), mp4)
 	require.NoError(t, err)
 	require.False(t, skipped)
-	assert.Equal(t, []string{mp4}, fb.called, "MP4 deferred to the ffmpeg fallback")
+	assert.Equal(t, []string{mp4}, fb.called)
 	assert.Equal(t, mp4+".mkvgobak", bak)
 }
 
-// Without a fallback, a non-Matroska file is a clean, actionable error rather
-// than a confusing mkvgo-reader failure.
+func TestAudioRetimer_DelaysErrorRoutesToFallback(t *testing.T) {
+	fb := &fakeFallback{}
+	r := &AudioRetimer{
+		delays:   func(_ context.Context, _ string) (map[uint64]int64, error) { return nil, assertErr("boom") },
+		fallback: fb,
+	}
+	_, _, err := r.RemuxAudioDelay(context.Background(), "movie.mkv")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"movie.mkv"}, fb.called)
+}
+
 func TestAudioRetimer_MP4NoFallbackErrors(t *testing.T) {
 	dir := t.TempDir()
 	mp4 := filepath.Join(dir, "movie.mp4")
 	require.NoError(t, os.WriteFile(mp4, []byte("x"), 0o644))
-	r := NewAudioRetimer("ffprobe", nil)
+	r := NewAudioRetimer(nil)
 	_, _, err := r.RemuxAudioDelay(context.Background(), mp4)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not a Matroska")
 }
+
+type assertErr string
+
+func (e assertErr) Error() string { return string(e) }
