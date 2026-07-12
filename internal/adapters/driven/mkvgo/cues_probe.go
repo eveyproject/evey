@@ -46,7 +46,7 @@ func headReader(f *os.File, pos int64) *bufio.Reader {
 // probeCuesPresence reports (hasCues, confirmed). confirmed == false means the
 // probe could not decide and the caller must fall back to a full parse.
 func probeCuesPresence(path string) (bool, bool) {
-	f, err := os.Open(path)
+	f, err := os.Open(path) //nolint:gosec // operator media path
 	if err != nil {
 		return false, false
 	}

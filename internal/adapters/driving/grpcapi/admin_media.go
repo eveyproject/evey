@@ -289,6 +289,7 @@ func (d *adminMediaHandler) ReindexMediaSeekIndex(ctx context.Context, req *evey
 		Mode:       req.GetMode(),
 		DeepVerify: req.GetDeepVerify(),
 		SkipBackup: req.GetSkipBackup(),
+		Resync:     req.GetResync(),
 	}
 	if err := d.seekIndex.StartReindexMedia(ctx, req.GetMediaId(), run); err != nil {
 		span.RecordError(err)

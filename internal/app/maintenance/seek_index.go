@@ -402,16 +402,29 @@ type ReindexRunOptions struct {
 	// for a job the operator is watching, not a persistent archive.
 	// 0 keeps every backup (the historic behaviour).
 	BackupWindow int
+	// Resync repairs a file the strict reindex REFUSED for a corrupted region:
+	// the tolerant rewrite skips the damaged span and resynchronises. Always
+	// rewrites and forces a backup (this repair loses the skipped bytes). Used
+	// for the per-file "repair anyway" action on a file that failed a normal
+	// repair. Overrides Mode/SkipBackup.
+	Resync bool
 }
 
-// reindexOptionsFor maps the operator's choices onto the port options. The
-// standard rewrite keeps a rollback backup unless SkipBackup trades it for a
-// forced deep-verify; the surgical in-place mode cannot produce a backup by
+// reindexOptionsFor maps the operator's choices onto the port options. Resync
+// (the corrupt-file repair) forces the rewrite + a backup regardless of the
+// other choices - it drops bytes, so a rollback copy is mandatory. Otherwise
+// the standard rewrite keeps a rollback backup unless SkipBackup trades it for
+// a forced deep-verify; the surgical in-place mode cannot produce a backup by
 // design (the file is patched, never duplicated). "auto" tries the patch
 // first and falls back to the rewrite when the layout defeats it (streamed
 // clusters, no head-discoverable index slot) - the fallback keeps the
 // rewrite's backup semantics.
 func reindexOptionsFor(run ReindexRunOptions) mkv.ReindexOptions {
+	if run.Resync {
+		// The adapter's resync path forces the rewrite + backup itself; carry
+		// the flag and a deep-verify (the tolerant walk warrants the proof).
+		return mkv.ReindexOptions{Resync: true, KeepBackup: true, DeepVerify: true}
+	}
 	deepVerify := run.DeepVerify || run.SkipBackup
 	switch run.Mode {
 	case mkv.ModeInPlace:
@@ -665,9 +678,22 @@ func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID string
 			s.refreshFileState(bg, path)
 			hasBak := res.BackupPath != ""
 			s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = hasBak })
+			s.logDamagedRanges(path, res.DamagedRanges)
 		}
 		return res.Skipped, nil
 	})
+}
+
+// logDamagedRanges surfaces what a Resync repair dropped so the operator sees
+// exactly what was lost (bytes + approximate presentation time).
+func (s *SeekIndexService) logDamagedRanges(path string, ranges []mkv.DamagedRange) {
+	for _, r := range ranges {
+		s.logger.Warn("seek-index: resync skipped a corrupted region (data lost)",
+			slog.String("path", path),
+			slog.Int64("bytes", r.EndOffset-r.StartOffset),
+			slog.Int64("approx_start_ms", r.ApproxStartMs),
+			slog.Int64("approx_end_ms", r.ApproxEndMs))
+	}
 }
 
 // DeleteBackupMedia removes one media file's reindex backup, reclaiming the

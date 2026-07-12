@@ -558,11 +558,32 @@ function SeekIndexPage() {
                               variant="secondary"
                               className="text-xs"
                               disabled={busy}
-                              loading={repairOne.isPending && repairOne.variables?.mediaId === it.mediaId}
+                              loading={
+                                repairOne.isPending &&
+                                repairOne.variables?.mediaId === it.mediaId &&
+                                !repairOne.variables?.data?.resync
+                              }
                               onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { mode: "auto" } })}
                               data-testid="seek-index-repair-btn"
                             >
                               {t("admin.seekIndex.repair")}
+                            </Button>
+                          )}
+                          {!it.hasIndex && (
+                            <Button
+                              variant="ghost"
+                              className="text-xs"
+                              disabled={busy}
+                              loading={
+                                repairOne.isPending &&
+                                repairOne.variables?.mediaId === it.mediaId &&
+                                repairOne.variables?.data?.resync === true
+                              }
+                              title={t("admin.seekIndex.repairResyncHint")}
+                              onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { resync: true } })}
+                              data-testid="seek-index-repair-resync-btn"
+                            >
+                              {t("admin.seekIndex.repairResync")}
                             </Button>
                           )}
                           {it.hasBackup && (

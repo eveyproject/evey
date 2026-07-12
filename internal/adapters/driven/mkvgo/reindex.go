@@ -31,7 +31,7 @@ const backupSuffix = ".mkvgobak"
 
 // HasBackup reports whether path has a reindex backup it can be rolled back to.
 func (a *Adapter) HasBackup(_ context.Context, path string) (bool, error) {
-	_, err := os.Stat(path + backupSuffix)
+	_, err := os.Stat(path + backupSuffix) //nolint:gosec // operator media path
 	if err == nil {
 		return true, nil
 	}
@@ -48,7 +48,7 @@ func (a *Adapter) DeleteBackup(ctx context.Context, path string) error {
 	defer span.End()
 
 	bak := path + backupSuffix
-	if err := os.Remove(bak); err != nil {
+	if err := os.Remove(bak); err != nil { //nolint:gosec // operator media path
 		if os.IsNotExist(err) {
 			return fmt.Errorf("delete backup: %w at %q", mkv.ErrNoBackup, bak)
 		}
@@ -85,7 +85,7 @@ func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
 	defer span.End()
 
 	bak := path + backupSuffix
-	if _, err := os.Stat(bak); err != nil {
+	if _, err := os.Stat(bak); err != nil { //nolint:gosec // operator media path
 		if os.IsNotExist(err) {
 			return fmt.Errorf("restore: %w at %q", mkv.ErrNoBackup, bak)
 		}
@@ -94,7 +94,7 @@ func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
 	// os.Rename is atomic on the same filesystem (the backup sits beside path),
 	// so the original is swapped back in a single step and the reindexed file is
 	// discarded.
-	if err := os.Rename(bak, path); err != nil {
+	if err := os.Rename(bak, path); err != nil { //nolint:gosec // operator media path
 		return fmt.Errorf("restore: swap backup in: %w", err)
 	}
 	return nil
@@ -170,9 +170,56 @@ func permissionRemedy(err error) error {
 // never have been created); any other failure is logged but never fatal - these
 // are cleanup paths where the caller already holds its real result.
 func removeQuiet(path string) {
-	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) { //nolint:gosec // operator media path
 		slog.Warn("mkvgo: temp cleanup failed", slog.String("path", path), slog.Any("err", err))
 	}
+}
+
+// reindexResync repairs a corrupt file the strict reindex refused: the
+// tolerant rewrite (ops.ReindexReplace with Resync) walks past the damage and
+// resynchronises on the next valid cluster, keeping a backup. The skipped
+// spans are collected and returned so the operator sees what was lost.
+func (a *Adapter) reindexResync(ctx context.Context, path string) (mkv.ReindexResult, error) {
+	srcInfo, err := os.Stat(path) //nolint:gosec // path is an operator's media file from the library catalog, not user input
+	if err != nil {
+		return mkv.ReindexResult{}, fmt.Errorf("reindex resync: stat source: %w", err)
+	}
+	var ranges []mkv.DamagedRange
+	err = ops.ReindexReplace(ctx, path, extmkv.Options{
+		Resync:     true,
+		KeepBackup: true, // this repair drops bytes - a rollback copy is mandatory
+		OnSkip: func(d extmkv.DamagedRange) {
+			ranges = append(ranges, mkv.DamagedRange{
+				StartOffset: d.StartOffset, EndOffset: d.EndOffset,
+				ApproxStartMs: d.ApproxStartMs, ApproxEndMs: d.ApproxEndMs,
+			})
+		},
+	})
+	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			return mkv.ReindexResult{}, permissionRemedy(err)
+		}
+		return mkv.ReindexResult{}, fmt.Errorf("reindex resync: %w", err)
+	}
+	// Adopt Evey's backup convention so rollback/purge/scan see it.
+	bak := path + backupSuffix
+	if rerr := os.Rename(path+mkvgoReplaceBackupSuffix, bak); rerr != nil { //nolint:gosec // operator media path
+		if !os.IsNotExist(rerr) {
+			return mkv.ReindexResult{}, fmt.Errorf("reindex resync: adopt backup name: %w", rerr)
+		}
+		bak = "" // no backup produced (should not happen with KeepBackup)
+	}
+	dstBytes := srcInfo.Size()
+	if di, dErr := os.Stat(path); dErr == nil { //nolint:gosec // operator media path
+		dstBytes = di.Size()
+	}
+	return mkv.ReindexResult{
+		Method:        mkv.ReindexMethodRewrite,
+		BackupPath:    bak,
+		SrcBytes:      srcInfo.Size(),
+		DstBytes:      dstBytes,
+		DamagedRanges: ranges,
+	}, nil
 }
 
 // ReindexInPlace rebuilds path's seek index without ever risking the original.
@@ -193,6 +240,16 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 
 	if !IsEBMLContainer(path) {
 		return mkv.ReindexResult{Skipped: true}, nil
+	}
+
+	// (0) Resync repair: the file was REFUSED by a strict reindex for a
+	// corrupted region. Route straight to the tolerant rewrite - it walks past
+	// the damage, resynchronises on the next valid cluster, and reports every
+	// skipped span. Always rewrites (cannot drop bytes in place) and keeps a
+	// backup (this repair loses the skipped bytes). Runs before the strict
+	// meta read below, which itself can fail on such a file.
+	if opts.Resync {
+		return a.reindexResync(ctx, path)
 	}
 
 	// (1) Bail only when the FILE carries a parseable index. OpenMeta reads the
@@ -216,7 +273,7 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	// rewrite can safely proceed. In ModeInPlace the operator explicitly
 	// refused a rewrite: refusal is surfaced as ErrInPlaceUnsupported.
 	// ModeRewrite never attempts the patch.
-	if srcInfo, statErr := os.Stat(path); statErr != nil && opts.Mode == mkv.ModeInPlace {
+	if srcInfo, statErr := os.Stat(path); statErr != nil && opts.Mode == mkv.ModeInPlace { //nolint:gosec // operator media path
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: stat source: %w", statErr)
 	} else if statErr == nil && opts.Mode != mkv.ModeRewrite {
 		switch inErr := reindexSurgical(ctx, path, opts.DeepVerify); {
@@ -231,7 +288,7 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 				return mkv.ReindexResult{}, fmt.Errorf("reindex: in-place patch left no seek index (contract regression)")
 			}
 			dstBytes := srcInfo.Size()
-			if dstInfo, dErr := os.Stat(path); dErr == nil {
+			if dstInfo, dErr := os.Stat(path); dErr == nil { //nolint:gosec // operator media path
 				dstBytes = dstInfo.Size()
 			}
 			return mkv.ReindexResult{
@@ -270,7 +327,7 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 	srcTracks := len(src.Tracks)
 	srcDurMs := src.DurationMs
 
-	srcInfo, err := os.Stat(path)
+	srcInfo, err := os.Stat(path) //nolint:gosec // operator media path
 	if err != nil {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: stat source: %w", err)
 	}
@@ -351,18 +408,18 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 		}
 	}
 
-	tmpInfo, err := os.Stat(tmp)
+	tmpInfo, err := os.Stat(tmp) //nolint:gosec // operator media path
 	if err != nil {
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: stat output: %w", err)
 	}
 
 	// (5) Atomic swap with a recoverable backup.
 	bak := path + backupSuffix
-	if err := os.Rename(path, bak); err != nil {
+	if err := os.Rename(path, bak); err != nil { //nolint:gosec // operator media path
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: back up original: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
-		if rerr := os.Rename(bak, path); rerr != nil {
+	if err := os.Rename(tmp, path); err != nil { //nolint:gosec // operator media path
+		if rerr := os.Rename(bak, path); rerr != nil { //nolint:gosec // operator media path
 			// Both failed: the original is safe at bak but not at path. Surface
 			// loudly with the backup location so an operator can restore by hand.
 			return mkv.ReindexResult{}, fmt.Errorf("reindex: swap failed AND restore failed, original preserved at %q: swap=%w restore=%w", bak, err, rerr)
@@ -379,7 +436,7 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 		DstBytes:   tmpInfo.Size(),
 	}
 	if !opts.KeepBackup {
-		if err := os.Remove(bak); err != nil {
+		if err := os.Remove(bak); err != nil { //nolint:gosec // operator media path
 			slog.Warn("mkvgo: reindex backup cleanup failed (left in place)",
 				slog.String("backup", bak), slog.Any("err", err))
 		} else {

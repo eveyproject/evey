@@ -119,6 +119,26 @@ type ReindexOptions struct {
 	// either way. Costs one full read; the in-place strategy keeps NO backup,
 	// which is exactly why an operator may want it there.
 	DeepVerify bool
+
+	// Resync repairs a file the strict reindex REFUSED for a corrupted region
+	// (junk between clusters, a size that lies): the tolerant rewrite skips the
+	// damaged span and resynchronises on the next valid cluster, recovering
+	// everything before and after. It ALWAYS rewrites (no in-place patch - you
+	// cannot drop bytes in place) and forces a backup: this is the one repair
+	// that loses data (the skipped span). The lost spans are reported in
+	// ReindexResult.DamagedRanges.
+	Resync bool
+}
+
+// DamagedRange is one span of the source a Resync repair could not carry over
+// (junk/lying size), with the approximate presentation time it maps to - what
+// the operator loses. Mirrors mkvgo's ops.DamagedRange, kept in the domain so
+// the app layer doesn't import the adapter's dependency.
+type DamagedRange struct {
+	StartOffset   int64
+	EndOffset     int64
+	ApproxStartMs int64
+	ApproxEndMs   int64
 }
 
 // ReindexResult reports the outcome of a ReindexInPlace call.
@@ -129,4 +149,6 @@ type ReindexResult struct {
 	Warnings   []string // non-fatal validation warnings on the rebuilt file
 	SrcBytes   int64
 	DstBytes   int64
+	// DamagedRanges lists the spans a Resync repair skipped (empty otherwise).
+	DamagedRanges []DamagedRange
 }

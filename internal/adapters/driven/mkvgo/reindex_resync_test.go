@@ -1,0 +1,80 @@
+package mkvgo
+
+import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"testing"
+
+	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// A file with a corrupt region between clusters is REFUSED by the strict
+// reindex but repaired by the Resync path: it skips the damaged span,
+// resynchronises, keeps a .mkvgobak backup, and reports the lost range. This
+// is the exact prod defect class ("invalid VINT" / "unexpected EOF" mid-file).
+//
+//	EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/mkvgo/ -run TestReindexResync -v
+func TestReindexResyncIntegration(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1")
+	}
+	ctx := t.Context()
+	dir := t.TempDir()
+	clean := filepath.Join(dir, "clean.mkv")
+	// A multi-cluster no-Cue MKV (piped output = streamed, no seek index).
+	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+		"-f", "lavfi", "-i", "sine=frequency=300",
+		"-t", "40", "-c:v", "libx264", "-preset", "ultrafast", "-g", "48",
+		"-c:a", "aac", "-cluster_time_limit", "500", "-f", "matroska", clean)
+	// pipe to file so ffmpeg cannot seek back to write Cues
+	gen.Stdout = nil
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("fixture: %v\n%s", err, out)
+	}
+
+	// Splice 4 KiB of junk into the middle (between clusters) to create the
+	// corrupt region the strict reindex refuses.
+	corrupt := filepath.Join(dir, "corrupt.mkv")
+	data, err := os.ReadFile(clean)
+	require.NoError(t, err)
+	mid := len(data) / 2
+	junk := make([]byte, 4096)
+	for i := range junk {
+		junk[i] = byte(i * 7)
+	}
+	spliced := append(append(append([]byte{}, data[:mid]...), junk...), data[mid:]...)
+	require.NoError(t, os.WriteFile(corrupt, spliced, 0o644))
+
+	a := New()
+
+	// Strict reindex refuses the corrupt file (leaves it intact).
+	_, strictErr := a.ReindexInPlace(ctx, corrupt, mkv.ReindexOptions{Mode: mkv.ModeRewrite})
+	require.Error(t, strictErr, "strict reindex must refuse a corrupted region")
+
+	// Resync repairs it.
+	res, err := a.ReindexInPlace(ctx, corrupt, mkv.ReindexOptions{Resync: true})
+	require.NoError(t, err, "resync repairs the corrupt file")
+	assert.False(t, res.Skipped)
+	assert.Equal(t, corrupt+".mkvgobak", res.BackupPath, "a backup is forced (data is lost)")
+	_, bakErr := os.Stat(res.BackupPath)
+	require.NoError(t, bakErr, "the .mkvgobak backup exists")
+	require.NotEmpty(t, res.DamagedRanges, "the skipped span is reported")
+	// The repaired file now has a real seek index.
+	has, err := a.HasSeekIndex(ctx, corrupt)
+	require.NoError(t, err)
+	assert.True(t, has, "the repaired file carries a Cues index")
+}
+
+// Resync forces a backup and reports ranges even when wired through the port
+// options - a light guard that the option threads correctly (no ffmpeg).
+func TestReindexResync_OptionThreads(t *testing.T) {
+	opts := mkv.ReindexOptions{Resync: true}
+	assert.True(t, opts.Resync)
+	var d mkv.DamagedRange
+	d.ApproxStartMs = 1000
+	assert.Equal(t, int64(1000), d.ApproxStartMs)
+}

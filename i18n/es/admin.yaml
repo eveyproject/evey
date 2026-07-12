@@ -1077,6 +1077,8 @@ seekIndex:
   backupDeleted: "Copia eliminada"
   audioDelayBadge: "Audio +{{sec}}s"
   repair: "Reparar"
+  repairResync: "Reparar de todos modos"
+  repairResyncHint: "Reconstruye el índice omitiendo la región corrupta: recupera todo lo anterior y posterior, solo pierde el tramo dañado (una fracción de segundo). Conserva una copia."
   jobRemuxAudio: "Reparación de audio"
   remuxAudioBtn: "Reparar audio"
   remuxAudioStarted: "Reparación de audio iniciada"

@@ -297,6 +297,13 @@ message ReindexMediaSeekIndexRequest {
   // option for repairing a nearly-full disk. The server compensates by
   // forcing deep_verify on. No effect on "inplace" (never keeps a backup).
   bool skip_backup = 4;
+  // resync repairs a file the strict reindex REFUSED for a corrupted region
+  // (junk between clusters, a lying size): the tolerant rewrite skips the
+  // damaged span and resynchronises, recovering everything before and after.
+  // It ALWAYS rewrites and forces a backup - this is the one repair that loses
+  // data (the skipped span, logged). For the per-file "repair anyway" action
+  // on a file that failed a normal repair. Overrides mode/skip_backup.
+  bool resync = 5;
 }
 
 message ReindexMediaSeekIndexResponse {
