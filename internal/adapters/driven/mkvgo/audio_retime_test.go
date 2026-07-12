@@ -86,3 +86,41 @@ func trimLine(s string) string {
 	}
 	return s
 }
+
+// fakeFallback records whether the ffmpeg fallback was invoked.
+type fakeFallback struct{ called []string }
+
+func (f *fakeFallback) RemuxAudioDelay(_ context.Context, p string) (string, bool, error) {
+	f.called = append(f.called, p)
+	return p + ".mkvgobak", false, nil
+}
+
+// A non-Matroska container (MP4/MOV) has no EBML Tracks to retime, so the
+// retimer must defer to the ffmpeg fallback instead of failing on the mkvgo
+// reader. Unit-level (no ffmpeg): the extension gate short-circuits before any
+// probe. mkvgo has no MP4 audio-delay repair yet.
+func TestAudioRetimer_MP4RoutesToFallback(t *testing.T) {
+	dir := t.TempDir()
+	mp4 := filepath.Join(dir, "movie.mp4")
+	require.NoError(t, os.WriteFile(mp4, []byte("not really mp4"), 0o644))
+
+	fb := &fakeFallback{}
+	r := NewAudioRetimer("ffprobe", fb)
+	bak, skipped, err := r.RemuxAudioDelay(context.Background(), mp4)
+	require.NoError(t, err)
+	require.False(t, skipped)
+	assert.Equal(t, []string{mp4}, fb.called, "MP4 deferred to the ffmpeg fallback")
+	assert.Equal(t, mp4+".mkvgobak", bak)
+}
+
+// Without a fallback, a non-Matroska file is a clean, actionable error rather
+// than a confusing mkvgo-reader failure.
+func TestAudioRetimer_MP4NoFallbackErrors(t *testing.T) {
+	dir := t.TempDir()
+	mp4 := filepath.Join(dir, "movie.mp4")
+	require.NoError(t, os.WriteFile(mp4, []byte("x"), 0o644))
+	r := NewAudioRetimer("ffprobe", nil)
+	_, _, err := r.RemuxAudioDelay(context.Background(), mp4)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a Matroska")
+}

@@ -151,12 +151,28 @@ func (r *AudioRetimer) RemuxAudioDelay(ctx context.Context, path string) (string
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.RemuxAudioDelay")
 	defer span.End()
 
+	// RetimeTracks is Matroska-only (it patches EBML block timecodes). A non-MKV
+	// container (MP4/MOV) has no readable EBML Tracks, so defer to the ffmpeg
+	// fallback rather than fail - mkvgo has no MP4 audio-delay repair yet.
+	if !IsEBMLContainer(path) {
+		if r.fallback != nil {
+			return r.fallback.RemuxAudioDelay(ctx, path)
+		}
+		return "", false, fmt.Errorf("audio-retime: %q is not a Matroska container and no fallback is configured", path)
+	}
+
 	delays, err := r.audioDelaysInOrder(ctx, path)
 	if err != nil {
 		return "", false, err
 	}
 	nums, err := audioTrackNumbers(ctx, path)
 	if err != nil {
+		// Reading the EBML tracks failed on a file that looked like Matroska
+		// by extension (corrupt header, or a mislabeled container): the ffmpeg
+		// fallback works off ffprobe alone.
+		if r.fallback != nil {
+			return r.fallback.RemuxAudioDelay(ctx, path)
+		}
 		return "", false, err
 	}
 	if len(delays) != len(nums) {
