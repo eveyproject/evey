@@ -112,8 +112,8 @@ Configurable via `evey.yaml` key `cosign_policy`:
 
 | Policy | Behavior |
 |---|---|
-| `off` (default) | Signature not checked; `Plugin.Signature` is nil |
-| `warn` | Verification failure is recorded and shown to admin but does not block install |
+| `off` | Signature not checked; `Plugin.Signature` is nil |
+| `warn` (default) | Verification failure is recorded and shown to admin but does not block install; without a configured public key, verification is a no-op |
 | `enforce` | Verification failure blocks install with an error |
 
 Source: `internal/adapters/driven/pluginrunner/cosign.go`.
@@ -129,14 +129,17 @@ Applied to `theme.js` at install time. A pattern that matches causes install to 
 ### 7. Runtime sandbox (Landlock / bubblewrap + seccomp + userspace resource monitor)
 
 > **Default is `landlock`** (`sandbox_mode=auto` resolves to it on the official
-> Docker image): a Landlock LSM filesystem allowlist + Landlock v4 TCP egress
-> filter + the kernel + `LD_PRELOAD` seccomp denylist + `-deny-inet`, all under
-> Docker's default seccomp+AppArmor with zero host changes. See
-> [`docs/plugins.md`](../plugins.md) for the map and
+> Docker image): a Landlock LSM filesystem allowlist + `-restrict-net` (no
+> direct IP egress for any plugin) + the kernel + `LD_PRELOAD` seccomp denylist
+> + `-deny-inet`, all under Docker's default seccomp+AppArmor with zero host
+> changes. See [`docs/plugins.md`](../plugins.md) for the map and
 > [`docs/SECURITY.md`](../SECURITY.md#sandbox-modes) for the full per-mode table.
 
-The confinement layers that apply across **every** mode (subject to host
-capability):
+The confinement layers below apply subject to host capability. The launcher
+(and the kernel seccomp it installs) is used only in **`landlock`** and
+**`basic`** mode: `applySandbox` routes `bubblewrap`/`strict` to a separate
+bwrap code path that never invokes the launcher, so those two modes rely on
+bwrap's own namespace isolation instead (plus the LD_PRELOAD shim in `strict`).
 
 - **UID separation** (`EVEY_PLUGINS_UID_SEPARATION`, default `auto`) - when
   active, each plugin drops to uid 1001 (`evey-plugin`), distinct from the
@@ -145,15 +148,17 @@ capability):
   where DAC is the only secret wall; `on` forces it everywhere; `off` disables
   it. When active, `jwt.key` (`0600`) and `/data/{keys,logs,backups}`
   (owner-only) are DAC-unreadable to a uid-1001 plugin even without Landlock.
-- **Kernel seccomp denylist** - installed by `evey-plugin-launcher` per build
-  arch, pre-`execve`, so it constrains **static/compiled plugin binaries too**
-  (which never load `libevey-sandbox.so`). Blocks `ptrace`, `mount`, `unshare`,
-  `setns`, `bpf`, `kexec`, module load, the setuid family, `capset`, keyring,
-  signalling PID 1, etc. Inherited across `execve` into the plugin and its
-  children. The `LD_PRELOAD` `libevey-sandbox.so` shim applies the same denylist
-  (plus `execve`/`execveat`, so a non-`subprocess` interpreted plugin cannot
-  spawn children) to dynamic plugins as belt-and-suspenders.
-- **`-deny-inet`** - for plugins **without** the `network` permission the
+- **Kernel seccomp denylist (`landlock`/`basic` only)** - installed by
+  `evey-plugin-launcher` per build arch, pre-`execve`, so it constrains
+  **static/compiled plugin binaries too** (which never load
+  `libevey-sandbox.so`). Blocks `ptrace`, `mount`, `unshare`, `setns`, `bpf`,
+  `kexec`, module load, the setuid family, `capset`, keyring, signalling PID 1,
+  etc. Inherited across `execve` into the plugin and its children. **In
+  `bubblewrap`/`strict` this launcher filter does not apply** - `strict` adds
+  only the `LD_PRELOAD` `libevey-sandbox.so` shim (same denylist, plus
+  `execve`/`execveat`, so a non-`subprocess` interpreted plugin cannot spawn
+  children), which is dynamic-plugin-only and does not cover static binaries.
+- **`-deny-inet`** - for **any** plugin, network-permitted or not, the
   launcher EPERMs `socket(AF_INET/AF_INET6)` at the kernel: no IP egress, holding
   even on Landlock ABI <4. `AF_UNIX` stays allowed for the HostService gRPC
   socket.
@@ -166,8 +171,8 @@ What the **filesystem/network backend** adds depends on the mode:
 
 | Mode | FS confinement | Network | Selected when |
 |---|---|---|---|
-| `landlock` | Landlock LSM allowlist (system dirs ro; plugin dir + sock dir rw; `/data` & siblings denied) | Landlock v4 TCP filter (declared ports only) + `-deny-inet` | `sandbox_mode=landlock` (fails closed if absent); `auto` on a Landlock kernel - the official image's normal case |
-| `bubblewrap` | mount whitelist in unshared namespaces (see below) | `--unshare-net` unless `network` perm | `sandbox_mode=bubblewrap`; `auto` where Landlock is absent but the bwrap probe passes (bare-metal / privileged) |
+| `landlock` | Landlock LSM allowlist (system dirs ro; plugin dir + sock dir rw; `/data` & siblings denied) | `-restrict-net` (all IP egress cut, no per-port/per-host filter) + `-deny-inet` | `sandbox_mode=landlock` (fails closed if absent); `auto` on a Landlock kernel - the official image's normal case |
+| `bubblewrap` | mount whitelist in unshared namespaces (see below) | `--unshare-net` always (every plugin, regardless of `network` perm) | `sandbox_mode=bubblewrap`; `auto` where Landlock is absent but the bwrap probe passes (bare-metal / privileged) |
 | `strict` | same as `bubblewrap` + LD_PRELOAD seccomp | same as `bubblewrap` | `sandbox_mode=strict` |
 | `basic` | none (DAC-only; `auto`'s last resort) | `-deny-inet` only | `sandbox_mode=basic`; `auto` when neither Landlock nor bubblewrap is usable |
 
@@ -187,7 +192,7 @@ When `sandbox_mode` is `bubblewrap` or `strict` (opt-in via `evey.yaml`), each p
 - `--unshare-uts` - isolated hostname
 - `--unshare-ipc` - isolated IPC
 - `--unshare-cgroup` - isolated cgroup namespace
-- `--unshare-net` - network namespace isolated **unless** the plugin has the `network` permission
+- `--unshare-net` - network namespace **always** unshared, for every plugin regardless of the `network` permission; direct egress is brokered through the host `Fetch` RPC
 
 **Mount whitelist:**
 
@@ -223,21 +228,18 @@ Note: `--unshare-cgroup` in the bwrap namespace list below creates an isolated c
 
 Source: `internal/adapters/driven/pluginrunner/runner_landlock.go`, `runner_bwrap.go`, `runner_resmon.go`; `cmd/evey-plugin-launcher/{main.go,seccomp_linux.go,landlock_linux.go,droppriv_linux.go}`; `cmd/evey/hardening_linux.go`; `sandbox/sandbox.c`.
 
-### 8. DNS whitelist (V1, best-effort)
+### 8. (retired) DNS whitelist
 
-For plugins with the `network` permission, Evey resolves all concrete hostnames from `external_fetch` at startup and writes a minimal `/etc/hosts` file, which is bind-mounted read-only over `/etc/hosts` inside the sandbox. The plugin's DNS resolver then only resolves whitelisted hostnames.
-
-**V1 limitations (read carefully):**
-
-| Limitation | Impact | V2 plan |
-|---|---|---|
-| Wildcard entries (`*.example.com`) are skipped | Subdomains declared with wildcards are not resolved - plugin effectively has no DNS for them | Enumerate via TLS cert transparency or per-request nftables rules |
-| IP literal bypass | A plugin can `connect()` directly to an IP address - DNS whitelist has no effect | Per-namespace nftables egress filter in V2 |
-| Custom resolvers | A plugin can call a DNS-over-HTTPS resolver that is itself whitelisted, bypassing `/etc/hosts` | Egress proxy enforcement in V2 |
-| SNI trickery | A plugin can connect to a whitelisted IP and send a different SNI header | TLS inspection or egress proxy in V2 |
-| DNS TTL drift | Hostnames resolved at startup may change IPs - `/etc/hosts` is not refreshed at runtime | Periodic re-resolution or per-request enforcement |
-
-Source: `internal/adapters/driven/pluginrunner/runner_dns.go`.
+The V1 `/etc/hosts` DNS whitelist described in earlier revisions of this
+document has been **removed**. `runner_dns.go` no longer exists;
+`buildBwrapCmd` does not bind-mount `/etc/hosts` (see the comment in
+`internal/adapters/driven/pluginrunner/runner_bwrap.go`: "no /etc/hosts
+whitelist is bind-mounted here anymore"). It was replaced by a stricter
+mechanism: direct IP egress is cut entirely for every plugin (`-restrict-net`
++ `-deny-inet` in `landlock`/`basic`, `--unshare-net` in `bubblewrap`/`strict`)
+and network-permitted plugins reach the network only through the host `Fetch`
+broker, which enforces the `external_fetch` allow-list and an SSRF-safe dialer
+host-side (see [Plugin network egress](../SECURITY.md#plugin-network-egress-brokered-since-2026-07-11) in `docs/SECURITY.md`).
 
 ### 9. IPC peer-credential authentication
 
@@ -275,6 +277,7 @@ Plugin frontend modules run inside an `<iframe>` with:
 | `api.metadata` | Plugin may call metadata RPCs: search and write enrichment data. |
 | `notification.sender` | Plugin may publish notification events (web push, email, webhook). |
 | `webhook.receiver` | Plugin may register as a webhook target (receives HTTP POST from external services). |
+| `hardware.gpu` | **Highest-risk permission - admin-only, first-party tier.** Grants the host's DRM render node (`-render-dev`, the real `renderD1xx`, never a card node, never `/dev/dxg`/`/dev/nvidia*`/`/dev/kfd`): a kernel-driver attack surface and a GPU-memory boundary SHARED with the transcoder (cross-process memory leak possible on AMD/Apple/Qualcomm GPUs; a hung GPU can stall transcoding). Without this permission, GPU device nodes are excluded from the Landlock device allowlist entirely (denied regardless of DAC). With it granted, the launcher adds an explicit `IOCTL_DEV` Landlock rule scoped to that one file (ABI v5+); on older Landlock ABIs, ioctls aren't governed by Landlock at all, so read+write access alone already permits GPU command submission. The installer surfaces a loud CRITICAL warning at preview; grant only to trusted, first-party plugins. |
 
 ## External fetch rules
 
@@ -330,13 +333,13 @@ Source: `internal/domain/plugin/slots.go`.
 |---|---|---|
 | `auto` may resolve to `basic` on a host without Landlock and without usable bubblewrap | No **per-path** FS confinement: a plugin can read non-sensitive world-readable files, and `/proc` process listing is visible | Server secrets stay protected (UID separation + `PR_SET_DUMPABLE=0`); kernel seccomp (incl. static binaries) + `-deny-inet` still apply; the resolved mode is logged at first plugin start |
 | All plugins share UID 1001 | A malicious plugin could signal siblings (signalling PID 1 / the server is seccomp-blocked) | `PR_SET_DUMPABLE=0` blocks cross-process `/proc/<pid>/{environ,mem,maps,fd}` reads; Landlock / bubblewrap fully isolate plugin directories from each other |
-| Landlock TCP filter is per-port, not per-host | A network plugin can reach any host on an allowed port | Per-host `external_fetch` allow-list enforced at the HTTP layer; non-network plugins get no IP socket (`-deny-inet`) |
-| DNS whitelist V1 does not block IP literals | Plugin can connect directly to IP addresses | V2: per-namespace nftables egress filter |
+| The `Fetch` broker controls *where* an outbound call can go, not *what* leaves in it | Once a host is on the `external_fetch` allow-list, the broker cannot inspect payload content, so exfiltration to an allow-listed host is still possible | Admins should only whitelist hosts they trust with plugin data; the broker still blocks non-allow-listed destinations and private/reserved IPs |
+| LD_PRELOAD seccomp shim only constrains dynamic (interpreted) plugins | A statically-linked plugin binary in `basic` mode without the launcher present bypasses the shim's denylist entirely | The official image always ships the launcher (kernel seccomp covers static binaries in `landlock`/`basic`); dev images without the launcher binary should not run untrusted plugins |
 | Regex analyzer bypassable by advanced obfuscation | Motivated attacker can hide patterns | Admin Preview + permission review; enforcement boundary is the sandbox + resource monitor + IPC peer-cred, not the analyzer |
 
 ## What V2 will add
 
-- Per-namespace nftables egress filter (blocks IP literal bypass)
+- Container-level nftables egress firewall as an independent layer behind the `Fetch` broker (operator hardening, not a plugin-sandbox gap - direct IP egress is already fully cut for every plugin)
 - Egress proxy for full request-level enforcement
 - seccomp allowlist mode (strict sandbox: only a minimal syscall set allowed)
 - `external_fetch` coverage for wildcard entries via per-request enforcement

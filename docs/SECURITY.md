@@ -87,7 +87,7 @@ Blocked syscalls, grouped by category:
 | Hardware I/O | `ioperm`, `iopl` (LD_PRELOAD shim only) |
 | Swap / memory mgmt | `swapon`, `swapoff` |
 | System control | `syslog`, `reboot`, `settimeofday`, `clock_settime`, `clock_adjtime`, `adjtimex` |
-| Kexec | `kexec_load`, `kexec_file_load` (LD_PRELOAD shim only) |
+| Kexec | `kexec_load` (both filters); `kexec_file_load` (LD_PRELOAD shim only) |
 | Setuid family | `setuid`, `setgid`, `setreuid`, `setregid`, `setresuid`, `setresgid` |
 | Capabilities | `capset` |
 | Keyring | `add_key`, `request_key`, `keyctl` |
@@ -100,7 +100,7 @@ Limits - read this carefully:
 
 - **Denylist, not allowlist.** `open`, `read`, `write`, `connect`, `socket`, `unlink`, `mmap`, `mprotect`, `clone`, etc. are all permitted. (The `strict` mode adds the LD_PRELOAD layer on top of bubblewrap; a true syscall allowlist is still roadmap.)
 - **Filesystem isolation comes from a different layer.** seccomp does not confine paths; that is Landlock (or bubblewrap). On a kernel without Landlock and without bubblewrap, the plugin can read any world-readable file (but not the server's secrets - those are DAC-protected, see §3).
-- **Network confinement.** A non-network plugin is cut off from IP sockets at the kernel (`-deny-inet`); a network plugin is additionally narrowed to its declared egress ports by the Landlock TCP filter where available (ABI v4+).
+- **Network confinement.** Direct IP egress is cut for every plugin, network-permitted or not: `-restrict-net` (no `-net-connect` grants) plus `-deny-inet` block all `AF_INET`/`AF_INET6` sockets at the kernel. There is no per-port or per-host kernel filter. A network-permitted plugin reaches the network only through the host `Fetch` broker over its `AF_UNIX` socket, which enforces the `external_fetch` allow-list host-side.
 - **Fail-closed for interpreted plugins.** If the runner cannot locate `libevey-sandbox.so` and the plugin lacks `subprocess`, [`Runner.Start`](../internal/adapters/driven/pluginrunner/runner.go) refuses to start the plugin and emits a `plugin.error` event. The launcher's kernel seccomp is best-effort (a kernel without seccomp degrades to the other layers).
 
 ### 5. Per-plugin host gRPC socket + SO_PEERCRED auth
@@ -163,10 +163,10 @@ Resolves the best backend the host actually supports, in order: **landlock → b
 
 ### `bubblewrap`
 
-- **Confines:** filesystem + network + process view via 6 unshared namespaces (`--unshare-user/-pid/-uts/-ipc/-cgroup/-net` - `--unshare-net` is now applied to **every** plugin; direct egress is brokered) and a mount whitelist - read-only system dirs, a writable plugin dir + socket dir, a synthetic `/proc` and minimal `/dev`, a tmpfs `/tmp`; `/data`, `/var`, `/home`, `/root`, sibling dirs are simply not mounted. The kernel + LD_PRELOAD seccomp denylist and `-deny-inet` still apply.
+- **Confines:** filesystem + network + process view via 6 unshared namespaces (`--unshare-user/-pid/-uts/-ipc/-cgroup/-net` - `--unshare-net` is applied unconditionally to **every** plugin; direct egress is brokered) and a mount whitelist - read-only system dirs, a writable plugin dir + socket dir, a synthetic `/proc` and minimal `/dev`, a tmpfs `/tmp`; `/data`, `/var`, `/home`, `/root`, sibling dirs are simply not mounted. `applySandbox` routes this mode to `applyBwrapSandbox`, which never invokes the launcher: the launcher's kernel seccomp does **not** apply here, and neither does the LD_PRELOAD shim (that's `strict` only). Syscall confinement comes from the unshared namespaces alone.
 - **Requires:** the `bwrap` binary AND the `mount`/`unshare` syscalls; inside Docker that needs relaxed security, so it is effectively bare-metal (or a privileged container) only.
 - **Selected when:** `sandbox_mode=bubblewrap`, or `auto` on a Landlock-less host where the bwrap probe passes.
-- **Limits:** `--unshare-cgroup` is a cgroup *namespace*, not a resource limit (those come from the userspace monitor). The DNS allowlist (`external_fetch`) is best-effort - see [§ DNS whitelist](#dns-whitelist-v1--best-effort).
+- **Limits:** `--unshare-cgroup` is a cgroup *namespace*, not a resource limit (those come from the userspace monitor). No kernel seccomp denylist applies in this mode (see above); `-deny-inet` is not used either since `--unshare-net` already blocks all IP sockets.
 
 ### `strict`
 
@@ -215,7 +215,7 @@ Mapping per mode (all values reflect host capability - e.g. Landlock requires ke
 | Layer | auto | landlock | basic | bubblewrap | strict |
 |---|---|---|---|---|---|
 | UID separation (1001) - `EVEY_PLUGINS_UID_SEPARATION`, default `auto` | on in basic only | off (set `on` to force) | on | via userns¹ | via userns¹ |
-| Kernel seccomp (launcher, pre-exec, covers static binaries) | yes | yes | yes | yes | yes |
+| Kernel seccomp (launcher, pre-exec, covers static binaries) | yes if resolves to landlock/basic; no if resolves to bubblewrap | yes | yes | no (bwrap has no launcher seccomp; `applySandbox` routes bubblewrap/strict to `applyBwrapSandbox`, which never invokes the launcher) | no (strict adds only the LD_PRELOAD shim on top of bwrap - dynamic plugins only, no kernel seccomp) |
 | LD_PRELOAD seccomp (interpreted plugins) | yes | yes | yes | no | yes |
 | `-deny-inet` (no IP socket for ANY plugin) | yes | yes | yes | n/a (net ns) | n/a (net ns) |
 | Filesystem confinement | resolves to best available | Landlock allowlist | none (DAC-only) | mount whitelist | mount whitelist |
