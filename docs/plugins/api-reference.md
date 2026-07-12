@@ -10,8 +10,12 @@ Every plugin ZIP must contain a `plugin.yaml` at its root.
 name: my-plugin              # required; human-readable name
 version: 1.2.3               # required; semver
 kind: plugin                 # required; must be "plugin" (use "theme" for CSS/JS-only themes)
-language: nodejs             # required for plugins; nodejs | python | go | php | ruby | lua | bash
-entrypoint: index.js         # required for plugins; path relative to ZIP root
+language: nodejs             # required for plugins; nodejs | python | go | php | ruby | lua | bash | sh
+entrypoint: node index.js    # required for plugins; the full command line the interpreter runs -
+                              # the first token is the interpreter, looked up on PATH; the
+                              # remaining tokens are the script/args, path-confined to the ZIP.
+                              # "language" is only used to check the runtime is available and to
+                              # copy SDK stubs - it does NOT launch the entrypoint.
 
 description: "..."           # optional
 author: "..."                # optional
@@ -23,7 +27,7 @@ permissions:
 
 external_fetch:              # required when "network" permission is declared
   - api.themoviedb.org       # see External fetch rules in security-model.md
-  - "*.example.com"
+  - api.example.com          # bare hostname only - no scheme, no wildcard, no literal IP
 
 capabilities:
   - metadata.provider        # see Capabilities section
@@ -170,7 +174,7 @@ Capabilities declare what server-side role the plugin fulfills. They affect whic
 
 ### `metadata.provider`
 
-The plugin can supply enriched metadata for media items. The host will call the plugin's `EnrichMedia(MediaEnrichRequest) → MediaEnrichResponse` gRPC method when metadata is needed.
+The plugin can supply enriched metadata for media items. There is no dedicated enrichment RPC - the `PluginService` the host calls into only exposes `Initialize` / `Shutdown` / `OnEvent` / `HealthCheck` / `GetCapabilities` (`proto/plugin/v1/plugin_api.proto`). A `metadata.provider` plugin receives the relevant events through `OnEvent` and reports its capability via `GetCapabilities`; it does not implement a separate enrichment method.
 
 Required permission: `api.metadata`.
 
@@ -189,6 +193,12 @@ The plugin may publish notifications. The host routes outbound notification even
 ### `webhook.receiver`
 
 The plugin registers as a webhook endpoint. The host forwards matching inbound HTTP POST requests to the plugin via gRPC. No additional permission required beyond the capability declaration.
+
+## Permissions
+
+`public` and `prefs` are **permissions**, not capabilities - they don't change
+which server-side role the plugin fulfills, they grant the plugin's iframe
+extra read/write scopes. Declare them under `permissions` in the manifest.
 
 ### `public`
 

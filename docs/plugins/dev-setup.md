@@ -27,7 +27,7 @@ Pick what your plugin actually uses; you don't need them all.
 | Go | Go ≥ 1.21 | No bundled stubs - generate with `protoc-gen-go` + `protoc-gen-go-grpc`; a compiled Go binary also needs the `native-binary` permission. |
 | Dart / Java / PHP / Ruby / Swift | Per-language toolchain | Stubs are pre-generated in `sdk/<lang>/`. |
 | CSS-only theme | Nothing extra | A theme is a ZIP with `kind: theme` + a `theme.css`. |
-| Theme JS | Nothing extra (the host runs your JS in a constrained ShadowRoot) | The static scanner refuses any access to `document`, `window`, `fetch`, `localStorage`, etc. - see `internal/pkg/themejs/scan.go`. |
+| Theme JS | Nothing extra (the host runs your JS inside a sandboxed `iframe` with `sandbox="allow-scripts"` and a locked-down CSP) | The static scanner refuses any access to `document`, `window`, `fetch`, `localStorage`, etc. - see `internal/pkg/themejs/scan.go`. |
 
 ### Generating stubs for another language
 
@@ -60,7 +60,7 @@ stubs for the languages it ships (`sdk/<lang>/`).
 
 | Tool | Why |
 |---|---|
-| `cosign` (Sigstore) | Sign your plugin ZIP. Required if your target Evey instance runs `EVEY_PLUGINS_COSIGN_POLICY=warn` (default-off in dev, recommended `warn` in shared prod). https://docs.sigstore.dev/cosign/installation/ |
+| `cosign` (Sigstore) | Sign your plugin ZIP. `EVEY_PLUGINS_COSIGN_POLICY` defaults to `warn` (not `off`) - with `warn` and no public key configured, verification is a no-op (a warning is logged, nothing is blocked); set `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` to actually verify signatures, or `enforce` to refuse unsigned uploads. https://docs.sigstore.dev/cosign/installation/ |
 | `pre-commit` | Catch obvious issues before submitting a plugin. |
 | `golangci-lint` | Required if your plugin is in Go and you want linting parity with the host. |
 
@@ -81,7 +81,7 @@ If `make dev` fails on `bwrap`:
 
 ## 3. Scaffold your first plugin
 
-Examples live in `examples/plugins/` and `examples/themes/`. Pick the closest one to your use case (TMDB enricher, Discord notifier, Spotify now-playing, weather, dark theme, etc.) and copy it into a working directory. For the persistence + capability features, see **`examples/plugins/data-demo`** - it uses the per-plugin data store and requests the `public` / `prefs` capabilities + the `admin.nav` slot.
+Examples live in `examples/plugins/` and `examples/themes/`. Pick the closest one to your use case (TMDB enricher, Discord notifier, Spotify now-playing, weather, dark theme, etc.) and copy it into a working directory. For the persistence + permission features, see **`examples/plugins/data-demo`** - it uses the per-plugin data store and requests the `public` / `prefs` permissions + the `admin.nav` slot.
 
 ```sh
 cp -r examples/plugins/discord-notify ~/my-first-plugin
@@ -93,10 +93,10 @@ Edit `plugin.yaml`:
 - `name`: kebab-case, unique
 - `version`: semver - bump on every release
 - `kind`: `plugin` (backend required) or `theme` (frontend-only)
-- `language`: `python3`, `node`, `go`, etc.
+- `language`: `python` | `nodejs` | `go` | `php` | `ruby` | `lua` | `bash` | `sh` (manifest identifier - not the interpreter binary name; `python3`/`node` are not valid `language` values, see `entrypoint` below).
 - `entrypoint`: command line the runtime executes
 - `permissions`: declare every host API you call. The installer rejects calls that aren't declared. See `docs/plugins.md#security-model` for the exhaustive list.
-- `external_fetch`: when you need to talk to a third-party API. The host enforces this list at the DNS resolver level inside the plugin's namespace. Strict format: `https://` only, host concrete on TLD+SLD, at most one wildcard (leftmost). Run the validator with `go test ./internal/pkg/extfetch/...` to check your value matches.
+- `external_fetch`: when you need to talk to a third-party API. Entries are bare hostnames (`api.example.com`) - no scheme required or used (any `https://` prefix is parsed and only the hostname is kept), no wildcards (`*.example.com` is rejected at install: `external_fetch entry %q is a wildcard - use explicit hostnames`), no literal IP addresses (all of them, not just RFC1918). The validator lives in `internal/adapters/driven/pluginrunner/manifest.go` (`validateExternalFetch`); its test coverage is in `internal/adapters/driven/pluginrunner/manifest_test.go` - run `go test ./internal/adapters/driven/pluginrunner/...` to check your value matches.
 
 Frontend module (optional for `kind: plugin`, banned for `kind: theme`):
 
@@ -132,14 +132,14 @@ curl -F "file=@my-first-plugin.zip" \
 
 The installer runs in this order - every step can refuse the install:
 
-1. **ZIP integrity** - extension, total size ≤ 500 MB, per-entry size ≤ 100 MB, compression ratio ≤ 100:1, no symlinks, no path-traversal entries.
-2. **Cosign signature** - only when `EVEY_PLUGINS_COSIGN_POLICY != off`. See section 6.
-3. **Manifest validation** - `plugin.yaml` parsed, schema-checked. Slot whitelist. Permission/capability whitelist. `external_fetch` parser (rejects `*`, RFC1918, http://, etc.).
-4. **Static analyzer** - scans every text file for shell exec, reverse shell, eval, base64-decode-then-exec, obfuscation patterns, runtime install commands, privilege escalation. Critical findings = refuse install. Warning findings (deserialization, obfuscation, native_code) escalate to refuse unless the matching permission is declared.
+1. **Manifest validation** - `plugin.yaml` parsed straight out of the ZIP (before any ZIP-level checks below), schema-checked. Slot whitelist. Permission/capability whitelist. `external_fetch` parser (rejects wildcards and any literal IP address; a scheme prefix like `http://` is accepted but ignored - only the hostname is kept). The declared `language` runtime must be available in the image.
+2. **Permission escalation** (update only) - the installer compares the new manifest against the previous version. Any newly-requested permission/capability/slot/external_fetch host blocks the install with an error the caller must explicitly override (`accept_permission_changes: true` from the frontend). Fresh installs skip this step - there's nothing to compare against.
+3. **Cosign signature** - verified when a signature verifier is configured; a failure only blocks the install when `EVEY_PLUGINS_COSIGN_POLICY=enforce`. See section 6.
+4. **ZIP extraction** - extension, total size ≤ 500 MB, per-entry size ≤ 100 MB, compression ratio ≤ 100:1, no symlinks, no path-traversal entries; files land in a staging dir (upgrades never touch the live version until every later step passes).
 5. **CSS sanitizer** (themes only) - strips `@import`, blocks `url()` non-`data:`, blocks fullscreen overlays, blocks selectors targeting `[type=password]` and `.admin-*`, clamps `z-index` ≤ 999.
 6. **Theme JS scanner** (themes only) - refuses any reference to `document.cookie`, `localStorage`, `fetch`, `eval`, `globalThis`, bracket-notation property access on host globals, `constructor.constructor`, etc. Themes must use only the `evey.theme.*` API.
-7. **Permission escalation** - on update, the installer compares the new manifest against the previous version. Any newly-requested permission/capability/slot/external_fetch host blocks the install with HTTP `428 Precondition Required`. The frontend prompts the admin to ack the diff and resubmits with `accept_permission_changes: true`.
-8. **Persist** - copies files to the plugin directory, writes the row in Postgres, optionally launches the runtime.
+7. **Static analyzer** - scans every text file for shell exec, reverse shell, eval, base64-decode-then-exec, obfuscation patterns, runtime install commands, privilege escalation. Critical findings = refuse install. Warning findings (deserialization, obfuscation, native_code) escalate to refuse unless the matching permission is declared.
+8. **Persist** - swaps the staging dir into place, writes the row in Postgres, optionally launches the runtime.
 
 If any step fails, the admin UI shows the exact reason. Server logs (`docker compose logs evey`) carry the full stack.
 
@@ -196,13 +196,13 @@ Defaults applied to every plugin process:
 
 | Env var | Default | Effect |
 |---|---|---|
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto` = picks best available (normally `landlock`). `landlock` = Landlock LSM allowlist + TCP egress filter + LD_PRELOAD seccomp. `basic` = LD_PRELOAD seccomp + UID drop only (debug). `bubblewrap` = full namespace + bind-mount root readonly + `--unshare-net` unless `network` permission. `strict` = bubblewrap + seccomp allowlist. |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto` = picks best available (normally `landlock`). `landlock` = Landlock LSM allowlist + unconditional TCP egress denial (`-restrict-net` + seccomp `-deny-inet`, no carve-out for the `network` permission) + LD_PRELOAD seccomp. `basic` = LD_PRELOAD seccomp + UID drop only (debug). `bubblewrap` = full namespace + bind-mount root readonly + `--unshare-net` (also unconditional, every plugin, regardless of the `network` permission). `strict` = bubblewrap + seccomp allowlist. |
 | `EVEY_PLUGINS_MEMORY_MB` | 256 | Max RSS. The resource monitor polls `/proc` and stops the plugin past this. `0` disables. |
 | `EVEY_PLUGINS_CPU_NICE` | 10 | `nice` value (0-19) applied at spawn so a plugin can never starve the server of CPU. |
 | `EVEY_PLUGINS_PIDS_MAX` | 64 | Max thread/process count. Prevents fork bombs. `0` disables. |
 | `EVEY_PLUGINS_DISK_MAX_MB` | 100 | Max install-directory size; the monitor measures it every ~30s and stops a plugin past it. `0` disables. |
 
-A plugin that talks to the network needs both `permissions: [network]` and `external_fetch: [<host>...]`. Hosts not in the whitelist NXDOMAIN inside the plugin's namespace; literal IP connect bypasses the DNS layer (V1 limitation, fixed in V2 with nftables).
+A plugin that talks to the network needs both `permissions: [network]` and `external_fetch: [<host>...]`. Direct network egress is cut at the sandbox for every plugin, unconditionally, regardless of its permissions (see the sandbox modes above) - the plugin process itself can never open a socket to the internet. The only way out is the host-side `Fetch` RPC broker: the plugin calls it over the `EVEY_PLUGIN_SOCK` Unix socket, the host checks the target host against `external_fetch`, then dials through an SSRF-safe client (private/reserved IPs rejected at connect time, redirects re-validated against both the resolved IP and the allow-listed host). See `internal/adapters/driving/pluginhost/fetch.go`.
 
 ## 8. Submit a plugin to the official catalog
 
@@ -214,7 +214,7 @@ A plugin that talks to the network needs both `permissions: [network]` and `exte
 |---|---|---|
 | `bwrap: ... permission denied` | Default Docker seccomp blocks `unshare`. | The repo ships a custom seccomp profile (`docker/seccomp.json`). Make sure your compose file applies it. |
 | `forbidden pattern "fetch(" found in theme JS` | Theme JS scanner caught a banned API. | Themes must only call `evey.theme.*`. Read `internal/pkg/themejs/scan.go` to see what's blocked. |
-| `external_fetch host wildcard wildcard middle position` | Wildcard `*` is not the leftmost label, or you have more than one `*`. | Use `*.tmdb.org` or `api.tmdb.org`, not `cdn.*.tmdb.org`. |
+| `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | All wildcards are rejected at install, no exceptions. | Use `api.tmdb.org` (and list every explicit subdomain you need), not `*.tmdb.org` or `cdn.*.tmdb.org`. |
 | `installer: slot "admin.section" not allowed` | Refonte 2-kinds bans plugin frontends in privileged areas. | Pick a non-critical slot from the whitelist or rethink the plugin. |
 | `cosign verify-blob: failed signature` | Public key on the server doesn't match the private key used to sign. | Re-sign with the right key, or update `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
 | Plugin starts then dies with exit 137 | OOM killed by cgroup. | Lower memory usage or increase `EVEY_PLUGINS_MEMORY_MB`. |
