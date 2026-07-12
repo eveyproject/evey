@@ -49,27 +49,39 @@ bits behind `TARGETARCH`.
 
 ## 1. docker-compose.yml
 
-Three services: the Evey server (serves both the API and the web UI on one port),
-Postgres, and Meilisearch. Keep the env **minimal** - only secrets, the DB/search
-connection, storage paths, the JWT key path, and reverse-proxy vars belong here.
-Almost everything else (server name, transcode concurrency, rate limits, log
-level, scan/watcher intervals, backup schedule) is **editable at runtime from
-Admin → Server Config** and should NOT be stuffed into the compose.
+Two services: the Evey server (which serves the API + web UI on one port **and**
+runs Meilisearch embedded - spawned by the entrypoint as the non-root server
+user, loopback-only and memory-capped) and Postgres. Keep the env **minimal** -
+only secrets, the DB connection, storage paths, the JWT key path, and
+reverse-proxy vars belong here. Almost everything else (server name, transcode
+concurrency, rate limits, log level, scan/watcher intervals, backup schedule) is
+**editable at runtime from Admin → Server Config** and should NOT be stuffed into
+the compose.
 
 ```yaml
 services:
   evey:
     image: gravityz/evey:${EVEY_VERSION:-latest}
-    container_name: evey
+    container_name: evey-server
     ports:
       - "9091:9091"
     environment:
       EVEY_DB_HOST: postgres
       EVEY_DB_SSLMODE: disable          # internal Docker network; the bundled Postgres has no TLS
-      EVEY_MEILI_URL: http://meilisearch:7700
+      # Meilisearch embedded (no separate container). Opt out with
+      # EVEY_EMBEDDED_MEILI=false + EVEY_MEILI_URL=http://<host>:7700.
+      EVEY_EMBEDDED_MEILI: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+      # PUID/PGID: unset by default → the entrypoint adopts the owner of your
+      # /media mounts so in-place repairs work; override with `id -u`/`id -g`.
+      # The container starts as root only to apply the mapping, then drops
+      # privileges - the server never runs as root. Refuse even that transient
+      # root with `user: "UID:GID"` and manage ./evey-data ownership yourself.
+      PUID: ${PUID:-}
+      PGID: ${PGID:-}
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
-      EVEY_TRICKPLAY_CACHE_DIR: /cache/trickplay
+      EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
       EVEY_LOG_DIR: /data/logs
       EVEY_BACKUP_DIR: /data/backups
       # Tell Evey its public URL + trust the proxy when you put one in front:
@@ -78,12 +90,13 @@ services:
       # EVEY_FORWARDED_PROTO: "true"
     env_file: .env
     volumes:
-      - ./evey-data:/data        # JWT key, logs, backups, plugins, avatars
-      - evey-cache:/cache        # transcode + trickplay cache (safe to prune)
-      - ${MEDIA_DIR}:/media:ro    # your media, read-only
+      - ./evey-data:/data        # JWT key, logs, backups, plugins, search index
+      - evey-cache:/cache        # transcode cache (safe to prune)
+      # Read-write so the seek-index repair rebuilds files in place; append
+      # `:ro` for a read-only library and accept that those repairs fail.
+      - ${MEDIA_DIR}:/media
     depends_on:
       postgres: { condition: service_healthy }
-      meilisearch: { condition: service_healthy }
     restart: unless-stopped
 
   postgres:
@@ -102,24 +115,16 @@ services:
       retries: 5
     restart: unless-stopped
 
-  meilisearch:
-    image: getmeili/meilisearch:v1.12
-    container_name: evey-meilisearch
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
-      MEILI_NO_ANALYTICS: "true"
-    volumes:
-      - ./meili-data:/meili_data
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
 volumes:
   evey-cache:
 ```
+
+> **External Meilisearch** (a shared search cluster, or Meili on dedicated
+> hardware): set `EVEY_EMBEDDED_MEILI=false` and
+> `EVEY_MEILI_URL=http://<host>:7700`, then run Meilisearch yourself. Give its
+> container a non-root `user:` and a `mem_limit` - the official image runs as
+> root and its resident set (memory-mapped index) looks large but is mostly
+> reclaimable page cache.
 
 `.env` (edit these three; everything else has a sane default):
 

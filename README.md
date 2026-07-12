@@ -17,12 +17,22 @@ Create a directory for Evey (`mkdir evey && cd evey`), drop these two files in i
 services:
   evey:
     image: gravityz/evey:${EVEY_VERSION:-latest}
-    container_name: evey
+    container_name: evey-server
     ports:
       - "9091:9091"
     environment:
       EVEY_DB_HOST: postgres
-      EVEY_MEILI_URL: http://meilisearch:7700
+      # Meilisearch runs embedded in this container: the entrypoint spawns it
+      # as the (non-root) server user, loopback-only and memory-capped - no
+      # separate container. To use an external instance instead, set
+      # EVEY_EMBEDDED_MEILI=false and EVEY_MEILI_URL=http://<host>:7700.
+      EVEY_EMBEDDED_MEILI: "true"
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
+      # Leave PUID/PGID unset: the entrypoint adopts the owner of your media
+      # mounts so in-place repairs work out of the box (override with the
+      # output of `id -u`/`id -g`). The server never runs as root.
+      PUID: ${PUID:-}
+      PGID: ${PGID:-}
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
       EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
       EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
@@ -30,12 +40,13 @@ services:
       EVEY_BACKUP_DIR: /data/backups
     env_file: .env
     volumes:
-      - ./evey-data:/data
+      - ./evey-data:/data          # keys, logs, backups, embedded search index
       - evey-cache:/cache
-      - ${MEDIA_DIR}:/media:ro
+      # Read-write so the repair features (seek-index rebuild) work in place;
+      # append `:ro` for a read-only library and accept that repairs fail.
+      - ${MEDIA_DIR}:/media
     depends_on:
       postgres: { condition: service_healthy }
-      meilisearch: { condition: service_healthy }
     restart: unless-stopped
 
   postgres:
@@ -49,21 +60,6 @@ services:
       - ./postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${EVEY_DB_USER:-evey}"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
-  meilisearch:
-    image: getmeili/meilisearch:v1.12
-    container_name: evey-meilisearch
-    environment:
-      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:?MEILI_MASTER_KEY must be set in .env}
-      MEILI_NO_ANALYTICS: "true"
-    volumes:
-      - ./meili-data:/meili_data
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:7700/health"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -87,6 +83,12 @@ docker compose up -d
 ```
 
 Open `http://<your-ip>:9091`, create your account, add a library. The image serves both the API and the web UI on the same port. Migrations run automatically. A JWT signing key is generated on first start in `./evey-data` - keep that directory safe.
+
+> **ARM (Raspberry Pi, ARM NAS)?** Stable `vX.Y.Z` releases ship a multi-arch
+> image (amd64 + arm64) - the same `docker pull` works, but ARM has no hardware
+> transcoding (direct-play + software only). Details, PUID/PGID, an external
+> Meilisearch, and every other option are in
+> [docs/installation.md](docs/installation.md).
 
 ## Update
 
@@ -117,11 +119,12 @@ Full reference: [docs/configuration.md](docs/configuration.md)
 | Volume | What's inside | Can you delete it? |
 |--------|--------------|-------------------|
 | `postgres-data` | Database | No - you lose all data |
-| `evey-data` | JWT key, logs, backups | No - you lose your signing key |
-| `evey-plugins` | Installed plugins | No - you lose your plugins |
-| `meili-data` | Search index | Yes - rebuilt on next scan |
+| `evey-data` | JWT key, logs, backups, plugins, embedded search index | No - you lose your signing key |
 | `evey-cache` | Transcode + trickplay cache | Yes - regenerated on demand |
-| `caddy-data` | TLS certificates | Depends - Caddy re-requests them |
+
+The embedded Meilisearch index lives under `evey-data` and is rebuilt from the
+database on the next scan if lost. If you run the bundled Caddy reverse proxy,
+its `caddy-data` volume holds the TLS certificates (re-requested if deleted).
 
 ## Apps
 
@@ -176,6 +179,7 @@ works, how to add a language, and the a11y gaps that remain), see
 
 | | |
 |---|---|
+| [Installation & Operations](docs/installation.md) | Full setup, ARM, PUID/PGID, updating |
 | [Configuration](docs/configuration.md) | All env variables |
 | [Languages & Accessibility](docs/i18n-accessibility.md) | i18n + a11y: state & gaps |
 | [Reverse Proxy](docs/reverse-proxy.md) | Caddy, Nginx, Traefik |
