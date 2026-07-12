@@ -680,7 +680,7 @@ serverConfig:
   artworkAutoDownload: Artworks automatisch herunterladen
   artworkRetryDesc: Artworks mit TMDB-Quell-URL aber ohne lokale Kopie erneut herunterladen.
   artworkRetryNow: Jetzt erneut herunterladen
-  artworkRetryDone: Erneuter Download abgeschlossen
+  artworkRetryDone: "Erneuter Download abgeschlossen: {{succeeded}} erfolgreich, {{failed}} fehlgeschlagen."
   artworkRetryStarted: "Artwork-Wiederholung gestartet - läuft im Hintergrund."
 
 remoteAccess:
