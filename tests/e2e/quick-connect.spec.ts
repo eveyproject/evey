@@ -1,7 +1,7 @@
 import { test, expect } from "./fixtures/auth";
 import { setReactInput } from "./scenarios/shared/helpers";
 
-test.describe("Quick Connect — settings tab", () => {
+test.describe("Quick Connect - settings tab", () => {
   test("settings page shows Quick Connect tab", async ({ page }) => {
     await page.goto("/profile/settings", { waitUntil: "domcontentloaded" });
     await expect(page.locator('[data-testid="profile-settings-tab-quick-connect"]')).toBeVisible({ timeout: 15_000 });
@@ -37,7 +37,7 @@ test.describe("Quick Connect — settings tab", () => {
   });
 });
 
-test.describe("Quick Connect — standalone page", () => {
+test.describe("Quick Connect - standalone page", () => {
   test("quickconnect route loads authorize page", async ({ page }) => {
     await page.goto("/quickconnect", { waitUntil: "domcontentloaded" });
     await expect(page.locator('[data-testid="quick-connect-code-input"]')).toBeVisible({ timeout: 15_000 });
@@ -52,11 +52,11 @@ test.describe("Quick Connect — standalone page", () => {
   });
 });
 
-test.describe("Quick Connect — login page", () => {
+test.describe("Quick Connect - login page", () => {
   // Login page renders <QuickConnect /> only if the feature is exposed in the
   // current locale and the SPA managed to call /api/v1/auth/quick-connect/
   // initiate. The legacy assertion grepped for English text "Quick Connect"
-  // and "Expires in Ns" — both are FR-only out of the box. The smoke is
+  // and "Expires in Ns" - both are FR-only out of the box. The smoke is
   // covered by the standalone /quickconnect route above; skip the login-page
   // probe here so the spec doesn't depend on locale-specific microcopy.
   test.skip("login page shows QR code with 120s expiry", async () => { /* see comment above */ });

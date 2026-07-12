@@ -6,7 +6,7 @@ Thanks for helping improve Evey. This doc is the short version; see [DEV.md](DEV
 
 - `master` is the trunk. It must always build and pass tests.
 - Work on short-lived feature branches off `master`. Rebase before merging.
-- Never merge stale branches — pull latest `master` first.
+- Never merge stale branches - pull latest `master` first.
 
 ## Commit style
 
@@ -48,7 +48,7 @@ For proto changes: `make proto-gen`.
 - **Integration (some)**: adapter tests against real Postgres / Meilisearch via Docker.
 - **E2E (few)**: user-facing flows. See [memory/e2e.md](memory/e2e.md).
 
-Hexagonal layering means most logic is unit-testable — prefer that layer.
+Hexagonal layering means most logic is unit-testable - prefer that layer.
 
 ## Dependencies
 
@@ -58,14 +58,14 @@ Do not add dependencies without approval. For JS/TS use pnpm with `--save-exact`
 
 Ops playbooks live in [docs/runbooks/](docs/runbooks/):
 
-- [migration-runbook.md](docs/runbooks/migration-runbook.md) — schema migrations (apply, roll back, recover from dirty state, large-table patterns).
-- [incident-runbook.md](docs/runbooks/incident-runbook.md) — first-response for server/auth/transcode/DB/Meili/cache/plugin outages.
+- [migration-runbook.md](docs/runbooks/migration-runbook.md) - schema migrations (apply, roll back, recover from dirty state, large-table patterns).
+- [incident-runbook.md](docs/runbooks/incident-runbook.md) - first-response for server/auth/transcode/DB/Meili/cache/plugin outages.
 
 Update these whenever you ship a change that alters ops behaviour (new env var, new failure mode, schema change pattern).
 
 ## References
 
-- [DEV.md](DEV.md) — setup, build, run
+- [DEV.md](DEV.md) - setup, build, run
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/adr/](docs/adr/) — decision records
-- [docs/runbooks/](docs/runbooks/) — operations playbooks
+- [docs/adr/](docs/adr/) - decision records
+- [docs/runbooks/](docs/runbooks/) - operations playbooks

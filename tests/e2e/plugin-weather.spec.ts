@@ -34,7 +34,7 @@ async function getAccessToken(page: import("@playwright/test").Page): Promise<st
       return null;
     }
   });
-  if (!tok) throw new Error("no accessToken in localStorage — global-setup didn't run?");
+  if (!tok) throw new Error("no accessToken in localStorage - global-setup didn't run?");
   return tok;
 }
 
@@ -60,7 +60,7 @@ async function uninstallExistingWeather(request: APIRequestContext, token: strin
 
 test.describe("Weather plugin", () => {
   test("uploads, installs, and renders the R3F scene with no console errors", async ({ page, request }) => {
-    expect(fs.existsSync(ZIP_PATH), `weather.zip not found at ${ZIP_PATH} — run scripts/build-test-plugins.sh first`).toBeTruthy();
+    expect(fs.existsSync(ZIP_PATH), `weather.zip not found at ${ZIP_PATH} - run scripts/build-test-plugins.sh first`).toBeTruthy();
     // Auth: read the JWT global-setup persisted in localStorage. We can't
     // hit /refresh because that requires the CSRF double-submit cookie which
     // Playwright's APIRequestContext can't read from the browser context.
@@ -117,7 +117,7 @@ test.describe("Weather plugin", () => {
 
     // 6) Wait a beat for shaders to compile + first frame to draw, then
     // verify the canvas has been sized by R3F. Do NOT call getContext()
-    // here — R3F has already taken either webgl or webgl2 and asking for
+    // here - R3F has already taken either webgl or webgl2 and asking for
     // the OTHER kind triggers a real "context type mismatch" GL error.
     await page.waitForTimeout(2000);
     const dims = await canvas.first().evaluate((c: HTMLCanvasElement) => ({ w: c.width, h: c.height }));
@@ -126,7 +126,7 @@ test.describe("Weather plugin", () => {
 
     // 7) The text overlay must show either the temperature or the
     // "Unavailable" fallback once the Open-Meteo flow resolves.
-    const overlay = frameLocator.locator("text=/[°C°F—]/").or(frameLocator.locator("text=/Unavailable/"));
+    const overlay = frameLocator.locator("text=/[°C°F-]/").or(frameLocator.locator("text=/Unavailable/"));
     await expect(overlay.first()).toBeVisible({ timeout: 12_000 });
 
     // 8) Critical errors must be empty. Filter out known benign noise that
@@ -148,7 +148,7 @@ test.describe("Weather plugin", () => {
       if (/connection to wss?:.*was interrupted/i.test(msg)) return false;
       if (/@vite\/client/i.test(msg)) return false;
       // Firefox sometimes aborts in-flight TMDB poster requests on
-      // re-navigation and reports "Image corrupt or truncated" — unrelated
+      // re-navigation and reports "Image corrupt or truncated" - unrelated
       // to the plugin under test.
       if (/image corrupt or truncated/i.test(msg)) return false;
       if (/image\.tmdb\.org/i.test(msg)) return false;

@@ -106,9 +106,9 @@ for (let i = 0; i < WALKS; i++) {
     }
 
     // Final assertions
-    // 1. No JS errors — the primary signal a fuzzer can catch.
+    // 1. No JS errors - the primary signal a fuzzer can catch.
     expect(jsErrors, `JS errors during walk: ${jsErrors.join(", ")}`).toHaveLength(0);
-    // 2. No 5xx — random clicks must never crash a backend handler.
+    // 2. No 5xx - random clicks must never crash a backend handler.
     expect(serverErrors, `Server 5xx during walk: ${serverErrors.join(", ")}`).toHaveLength(0);
     // The "page not blank" check used to live here but a random walk can
     // legitimately land on the SPA's empty 404 shell (Vite dev server

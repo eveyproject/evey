@@ -1,7 +1,7 @@
 -- Purge duplicate series and seasons that the TV-show scanner created
 -- before the scan-title-based dedup fix. The scanner used to key off
 -- MediaItem.Title, which metadata enrichment overwrites with the
--- enriched/localized title — so every subsequent scan looked up with
+-- enriched/localized title - so every subsequent scan looked up with
 -- the raw FS title, missed the (already-renamed) existing row, and
 -- inserted a new one. Dozens of duplicate series/season rows per
 -- (library, scan_title) accumulated in long-running dev databases.

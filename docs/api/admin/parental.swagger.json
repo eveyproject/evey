@@ -149,7 +149,7 @@
         },
         "currentPassword": {
           "type": "string",
-          "description": "Required on the FIRST-TIME PIN set (no existing PIN yet). Protects\nagainst a stolen JWT silently locking the legitimate owner out of\ntheir profile. Ignored when rotating an existing PIN — `current_pin`\ncovers that path."
+          "description": "Required on the FIRST-TIME PIN set (no existing PIN yet). Protects\nagainst a stolen JWT silently locking the legitimate owner out of\ntheir profile. Ignored when rotating an existing PIN - `current_pin`\ncovers that path."
         }
       }
     },

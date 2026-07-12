@@ -1,4 +1,4 @@
-# Evey Plugin SDK — Dart
+# Evey Plugin SDK - Dart
 
 Proto file for Evey plugin development.
 

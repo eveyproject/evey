@@ -38,40 +38,40 @@ test.beforeAll(async ({ browser }) => {
 for (let i = 0; i < NUM_MEDIA; i++) {
   const label = `media[${i}]`;
 
-  test(`${label} — detail page loads`, async ({ page }) => {
+  test(`${label} - detail page loads`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     await expect(page.locator('[data-testid="media-detail"]')).toBeVisible({ timeout: 10_000 });
   });
 
-  test(`${label} — title visible`, async ({ page }) => {
+  test(`${label} - title visible`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     await expect(page.locator('[data-testid="media-title"]')).toBeVisible({ timeout: 10_000 });
   });
 
-  test(`${label} — title non-empty`, async ({ page }) => {
+  test(`${label} - title non-empty`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     const t = await page.locator('[data-testid="media-title"]').textContent();
     expect(t!.trim().length).toBeGreaterThan(0);
   });
 
-  test(`${label} — no NaN`, async ({ page }) => {
+  test(`${label} - no NaN`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     await page.waitForTimeout(1_000);
     expect(await page.locator("body").textContent()).not.toContain("NaN");
   });
 
-  test(`${label} — no [object Object]`, async ({ page }) => {
+  test(`${label} - no [object Object]`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     await page.waitForTimeout(1_000);
     expect(await page.locator("body").textContent()).not.toContain("[object Object]");
   });
 
-  test(`${label} — no untranslated keys`, async ({ page }) => {
+  test(`${label} - no untranslated keys`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     await page.waitForTimeout(1_000);
@@ -81,7 +81,7 @@ for (let i = 0; i < NUM_MEDIA; i++) {
     expect(keys).toHaveLength(0);
   });
 
-  test(`${label} — favorite button exists`, async ({ page }) => {
+  test(`${label} - favorite button exists`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
@@ -89,7 +89,7 @@ for (let i = 0; i < NUM_MEDIA; i++) {
     await expect(btn.first()).toBeVisible({ timeout: 5_000 });
   });
 
-  test(`${label} — watched button exists`, async ({ page }) => {
+  test(`${label} - watched button exists`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
@@ -97,14 +97,14 @@ for (let i = 0; i < NUM_MEDIA; i++) {
     await expect(btn.first()).toBeVisible({ timeout: 5_000 });
   });
 
-  test(`${label} — edit button exists`, async ({ page }) => {
+  test(`${label} - edit button exists`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, `/media/${mediaIds[i]}`);
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 10_000 });
     await expect(page.locator('button[title*="edit" i]').first()).toBeVisible({ timeout: 5_000 });
   });
 
-  test(`${label} — no JS errors`, async ({ page }) => {
+  test(`${label} - no JS errors`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     const { jsErrors } = await collectErrors(page, async () => {
       await goto(page, `/media/${mediaIds[i]}`);
@@ -113,7 +113,7 @@ for (let i = 0; i < NUM_MEDIA; i++) {
     expect(jsErrors).toHaveLength(0);
   });
 
-  test(`${label} — no 5xx`, async ({ page }) => {
+  test(`${label} - no 5xx`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     const { serverErrors } = await collectErrors(page, async () => {
       await goto(page, `/media/${mediaIds[i]}`);
@@ -122,7 +122,7 @@ for (let i = 0; i < NUM_MEDIA; i++) {
     expect(serverErrors).toHaveLength(0);
   });
 
-  test(`${label} — API returns valid data`, async ({ page }) => {
+  test(`${label} - API returns valid data`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, "/home");
     const token = await getToken(page);
@@ -134,7 +134,7 @@ for (let i = 0; i < NUM_MEDIA; i++) {
     expect(res.body.title?.length).toBeGreaterThan(0);
   });
 
-  test(`${label} — artwork endpoint responds`, async ({ page }) => {
+  test(`${label} - artwork endpoint responds`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, "/home");
     const token = await getToken(page);
@@ -145,7 +145,7 @@ for (let i = 0; i < NUM_MEDIA; i++) {
     expect([200, 404]).toContain(status);
   });
 
-  test(`${label} — chapters endpoint responds`, async ({ page }) => {
+  test(`${label} - chapters endpoint responds`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, "/home");
     const token = await getToken(page);
@@ -156,7 +156,7 @@ for (let i = 0; i < NUM_MEDIA; i++) {
     expect([200, 404]).toContain(status);
   });
 
-  test(`${label} — streams endpoint responds`, async ({ page }) => {
+  test(`${label} - streams endpoint responds`, async ({ page }) => {
     test.skip(!mediaIds[i], "Not enough media");
     await goto(page, "/home");
     const token = await getToken(page);

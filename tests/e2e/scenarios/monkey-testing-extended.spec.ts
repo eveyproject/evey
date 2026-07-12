@@ -26,7 +26,7 @@ for (let i = 0; i < RUNS; i++) {
 
   // Seed stays out of the title (clock-default → cross-process title mismatch);
   // it's in the failure log for replay.
-  test(`monkey-ext #${i + 1} — ${entry}`, async ({ page }) => {
+  test(`monkey-ext #${i + 1} - ${entry}`, async ({ page }) => {
     const result = await runMonkey(page, entry, STEPS, seed);
     const log = `seed=${seed}  (replay: MONKEY_SEED=${seed} MONKEY_RUNS=1)\n${result.steps.join("\n")}`;
     expect(result.jsErrors, `JS:\n${result.jsErrors.join("\n")}\n\nSteps:\n${log}`).toHaveLength(0);

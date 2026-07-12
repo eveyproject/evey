@@ -1,7 +1,7 @@
 name: escape-fs
 kind: plugin
 version: 1.0.0
-description: Red-team probe — filesystem confinement. Passes static analysis, tries to escape at runtime.
+description: Red-team probe - filesystem confinement. Passes static analysis, tries to escape at runtime.
 author: redteam
 language: nodejs
 entrypoint: node main.js

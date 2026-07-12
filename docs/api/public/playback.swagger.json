@@ -63,7 +63,7 @@
           },
           {
             "name": "pagination.cursor",
-            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes.",
+            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` - guarantees no skips/duplicates under concurrent writes.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -886,7 +886,7 @@
         },
         "cursor": {
           "type": "string",
-          "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes."
+          "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` - guarantees no skips/duplicates under concurrent writes."
         }
       }
     },

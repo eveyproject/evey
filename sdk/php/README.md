@@ -1,4 +1,4 @@
-# Evey Plugin SDK — PHP
+# Evey Plugin SDK - PHP
 
 Proto file for Evey plugin development. Generate stubs with:
 

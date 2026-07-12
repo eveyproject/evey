@@ -437,7 +437,7 @@
           },
           {
             "name": "pagination.cursor",
-            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes.",
+            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` - guarantees no skips/duplicates under concurrent writes.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -499,7 +499,7 @@
           },
           {
             "name": "genre",
-            "description": "genre: single-genre filter (kept for the free-text genre input). For\nmulti-select use `genres` below — when both are set, `genres` wins.",
+            "description": "genre: single-genre filter (kept for the free-text genre input). For\nmulti-select use `genres` below - when both are set, `genres` wins.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -682,7 +682,7 @@
           },
           {
             "name": "libraryId",
-            "description": "Scope the search to a single library. Empty = global. Wired by the\nlibrary page so its search box stops behaving like a client-side\nfilter on already-loaded items — the backend now actually limits\nresults to the library. Meilisearch + SQL fallback both filter on\nlibrary_id natively.",
+            "description": "Scope the search to a single library. Empty = global. Wired by the\nlibrary page so its search box stops behaving like a client-side\nfilter on already-loaded items - the backend now actually limits\nresults to the library. Meilisearch + SQL fallback both filter on\nlibrary_id natively.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -842,7 +842,7 @@
           },
           {
             "name": "pagination.cursor",
-            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes.",
+            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` - guarantees no skips/duplicates under concurrent writes.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -855,7 +855,7 @@
     },
     "/api/v1/public/media/{id}": {
       "get": {
-        "summary": "Public, non-sensitive projection of media items (id/title/type/year/poster/\noverview only — never file paths or provider ids). This is the read surface\na plugin may be granted via the `public` permission; regular users may call\nit too. Distinct from GetMediaItem/ListMediaItems, which return sensitive\nserver-side detail and are never exposed to plugin tokens.",
+        "summary": "Public, non-sensitive projection of media items (id/title/type/year/poster/\noverview only - never file paths or provider ids). This is the read surface\na plugin may be granted via the `public` permission; regular users may call\nit too. Distinct from GetMediaItem/ListMediaItems, which return sensitive\nserver-side detail and are never exposed to plugin tokens.",
         "operationId": "LibraryService_GetPublicMediaItem",
         "responses": {
           "200": {
@@ -1502,7 +1502,7 @@
         },
         "cursor": {
           "type": "string",
-          "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes."
+          "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` - guarantees no skips/duplicates under concurrent writes."
         }
       }
     },

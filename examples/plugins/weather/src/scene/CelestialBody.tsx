@@ -1,4 +1,4 @@
-// CelestialBody — renders sun and/or moon as billboard quads in 3D world space.
+// CelestialBody - renders sun and/or moon as billboard quads in 3D world space.
 //
 // Strategy: place each body on a sphere of radius 4 (matching R3F camera setup),
 // billboard-facing the camera, rendered in a dedicated off-screen scene with a

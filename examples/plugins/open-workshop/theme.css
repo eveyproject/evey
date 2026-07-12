@@ -1,10 +1,10 @@
 /*
- * Open Workshop — a complete terminal/homelab theme for Evey.
+ * Open Workshop - a complete terminal/homelab theme for Evey.
  *
  * Demonstrates how far a CSS-only theme can go: palette + monospace + square
  * corners + flat surfaces + amber glow + CRT scanlines + terminal chrome added
  * with ::before/::after on the stable hooks (docs/themes/api-reference.md).
- * No structure is created (a theme can't add real components) — everything
+ * No structure is created (a theme can't add real components) - everything
  * here is cosmetic and passes the CSS sanitizer.
  */
 :root {
@@ -37,7 +37,7 @@
 }
 
 /* CRT scanlines + faint amber vignette on the page background (not an overlay,
-   so it never sits above content — anti-phishing safe). */
+   so it never sits above content - anti-phishing safe). */
 body {
   background-color: #0a0a0a;
   background-image:
@@ -108,7 +108,7 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent), 0 0 18px rgba(255, 184, 77, 0.25);
 }
-/* corner ticks — workshop framing */
+/* corner ticks - workshop framing */
 .evey-poster::before,
 .evey-poster::after {
   content: "";

@@ -4,12 +4,12 @@
 // host/port discovery should find NOTHING.
 //
 // Three stages, each logged as [ESCAPE] <name>: BYPASSED|BLOCKED:
-//   1. local_subnet_disclosure — read our own NICs to learn the 172.x /24
+//   1. local_subnet_disclosure - read our own NICs to learn the 172.x /24
 //      (a local syscall, not egress; surfaces what an attacker would target).
-//   2. dns_resolve_* — docker's embedded DNS (UDP 127.0.0.11). Landlock's
+//   2. dns_resolve_* - docker's embedded DNS (UDP 127.0.0.11). Landlock's
 //      network rule only covers TCP bind/connect, so a successful name
 //      resolution is a known information-disclosure gap worth surfacing.
-//   3. scan_* — sweep the discovered /24 on the service ports and TCP-connect.
+//   3. scan_* - sweep the discovered /24 on the service ports and TCP-connect.
 //      A successful connect = a live internal service reached = BYPASSED.
 //
 // Uses node's built-in net/dns/os; the var is not named "socket", so the

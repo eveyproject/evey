@@ -30,7 +30,7 @@ const MALICIOUS_FIXTURES: Array<{ name: string; expectedCategory: string }> = [
   { name: "python-fstring-eval",     expectedCategory: "obfuscation" },
   // Function.constructor escapes Node vm sandbox
   { name: "js-constructor-escape",   expectedCategory: "sandbox_escape" },
-  // os aliased to _o then m.system() — alias pre-pass resolves to os.system
+  // os aliased to _o then m.system() - alias pre-pass resolves to os.system
   { name: "python-os-alias",         expectedCategory: "shell_exec" },
   // getattr(__builtins__, "exec") bypasses static import restrictions
   { name: "python-getattr-builtin",  expectedCategory: "dynamic_import" },
@@ -40,13 +40,13 @@ const MALICIOUS_FIXTURES: Array<{ name: string; expectedCategory: string }> = [
   { name: "php-combo-realistic",     expectedCategory: "" },
   // Intermediate vars + concat → fixed-point alias resolution catches it
   { name: "php-string-concat-rce-v2",   expectedCategory: "shell_exec" },
-  // __builtins__.__dict__[name] indexing — literal dict-bracket pattern
+  // __builtins__.__dict__[name] indexing - literal dict-bracket pattern
   { name: "python-builtins-dict-access", expectedCategory: "dynamic_import" },
-  // const F = (fn).constructor; F(code) — stored-constructor tracking
+  // const F = (fn).constructor; F(code) - stored-constructor tracking
   { name: "js-constructor-stored",   expectedCategory: "sandbox_escape" },
 ];
 
-test.describe("plugin security — install rejection of malicious fixtures", () => {
+test.describe("plugin security - install rejection of malicious fixtures", () => {
   for (const fixture of MALICIOUS_FIXTURES) {
     test(`refuses ${fixture.name}`, async ({ page }) => {
       const zipPath = path.join(PLUGIN_ZIP_DIR, `${fixture.name}.zip`);

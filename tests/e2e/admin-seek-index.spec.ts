@@ -32,7 +32,7 @@ async function waitJobIdle(request: any, token: string, timeoutMs = 30_000): Pro
 }
 
 // Find a library with no (or few) EBML files so the scan job finishes fast and
-// deterministically — a photos/music library is ideal.
+// deterministically - a photos/music library is ideal.
 async function smallestLibraryId(request: any, token: string): Promise<string> {
   const res = await request.get("/api/v1/libraries", { headers: authHeaders(token) });
   expect(res.ok()).toBeTruthy();

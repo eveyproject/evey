@@ -1,4 +1,4 @@
-# Evey Plugin SDK — Ruby
+# Evey Plugin SDK - Ruby
 
 Proto file for Evey plugin development. Generate stubs with:
 

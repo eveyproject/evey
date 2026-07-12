@@ -1,7 +1,7 @@
 name: redteam-gpu-escalator
 kind: plugin
 version: 1.0.0
-description: "Red-team — declares hardware.gpu, then tries to widen the grant from the render node to the card/control/compute nodes and to spawn GPU tools. All escalation must be denied."
+description: "Red-team - declares hardware.gpu, then tries to widen the grant from the render node to the card/control/compute nodes and to spawn GPU tools. All escalation must be denied."
 author: redteam
 language: nodejs
 entrypoint: node main.js

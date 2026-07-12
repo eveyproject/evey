@@ -15,7 +15,7 @@ const ADMIN_PAGES = [
 // Click each admin nav link from the dashboard
 for (const target of ADMIN_PAGES) {
   const name = target.replace("/admin/", "").replace("/admin", "dashboard");
-  test(`admin nav → ${name} — loads`, async ({ page }) => {
+  test(`admin nav → ${name} - loads`, async ({ page }) => {
     await goto(page, "/admin");
     await page.waitForTimeout(1_000);
     const link = page.locator(`a[href="${target}"], a[href*="${name}"]`).first();
@@ -45,7 +45,7 @@ for (const from of ADMIN_PAGES) {
 }
 
 // Rapid navigation between admin pages
-test("rapid admin page switches — no crash", async ({ page }) => {
+test("rapid admin page switches - no crash", async ({ page }) => {
   const { jsErrors } = await collectErrors(page, async () => {
     for (const p of ADMIN_PAGES.slice(0, 7)) {
       await goto(page, p);

@@ -1,7 +1,7 @@
 name: escape-datastore
 kind: plugin
 version: 1.0.0
-description: Red-team probe — data-store isolation + HostService permission enforcement. Declares NO permissions on purpose.
+description: Red-team probe - data-store isolation + HostService permission enforcement. Declares NO permissions on purpose.
 author: redteam
 language: nodejs
 entrypoint: node main.js

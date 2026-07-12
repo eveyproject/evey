@@ -18,7 +18,7 @@ test.describe("Admin backups", () => {
     if (res.status() === 500) {
       const body = await res.json();
       expect(body.message).toBe("internal error");
-      // This is expected in dev — pg_dump not in container
+      // This is expected in dev - pg_dump not in container
       return;
     }
     expect(res.status()).toBe(201);

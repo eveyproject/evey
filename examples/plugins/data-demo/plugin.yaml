@@ -7,8 +7,8 @@ language: nodejs
 entrypoint: node main.js
 # No permission is needed for the plugin's OWN data store (GetData/SetData/...).
 # These two are GRANTABLE capabilities the admin consents to at install:
-#   public — read-only access to non-sensitive media (title/poster) from the iframe
-#   prefs  — read/write the current user's preferences in this plugin's namespace
+#   public - read-only access to non-sensitive media (title/poster) from the iframe
+#   prefs  - read/write the current user's preferences in this plugin's namespace
 permissions:
   - public
   - prefs

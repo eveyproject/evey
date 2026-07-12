@@ -18,7 +18,7 @@
   "paths": {
     "/api/v1/admin/media/match-orphans": {
       "post": {
-        "summary": "MatchOrphansInLibrary targets only items missing provider IDs (TMDB\nnever matched them at scan time) and queues an async re-enrichment.\nReturns immediately with the count of queued items; the enricher\npool drains them in the background under its existing concurrency\nand rate-limit caps. Idempotent — re-run to pick up the still-\norphaned remainder once any rate limits clear.",
+        "summary": "MatchOrphansInLibrary targets only items missing provider IDs (TMDB\nnever matched them at scan time) and queues an async re-enrichment.\nReturns immediately with the count of queued items; the enricher\npool drains them in the background under its existing concurrency\nand rate-limit caps. Idempotent - re-run to pick up the still-\norphaned remainder once any rate limits clear.",
         "operationId": "AdminMediaService_MatchOrphansInLibrary",
         "responses": {
           "200": {
@@ -82,7 +82,7 @@
     },
     "/api/v1/admin/media/seek-index": {
       "get": {
-        "summary": "ScanSeekIndex returns the cached result of the last completed scan for the\nscope — instant, no disk I/O. scanned_at_ms is 0 when no scan has completed\nyet; kick one with StartSeekIndexScan and poll GetSeekIndexJob. Files\nwithout an index seek/resume slowly because the player has to scan\nlinearly; has_backup reports whether a prior reindex left a restorable\n.mkvgobak.",
+        "summary": "ScanSeekIndex returns the cached result of the last completed scan for the\nscope - instant, no disk I/O. scanned_at_ms is 0 when no scan has completed\nyet; kick one with StartSeekIndexScan and poll GetSeekIndexJob. Files\nwithout an index seek/resume slowly because the player has to scan\nlinearly; has_backup reports whether a prior reindex left a restorable\n.mkvgobak.",
         "operationId": "AdminMediaService_ScanSeekIndex",
         "responses": {
           "200": {
@@ -203,7 +203,7 @@
     },
     "/api/v1/admin/media/seek-index/scan": {
       "post": {
-        "summary": "StartSeekIndexScan kicks a background scan of the library (all libraries\nwhen library_id is empty) and returns immediately. Scanning walks every\nMKV/WebM on disk so it can take minutes on a large/network-mounted library\n— a synchronous call would time out behind a reverse proxy. Read-only.\nFails with RESOURCE_EXHAUSTED if a seek-index job is already running.",
+        "summary": "StartSeekIndexScan kicks a background scan of the library (all libraries\nwhen library_id is empty) and returns immediately. Scanning walks every\nMKV/WebM on disk so it can take minutes on a large/network-mounted library\n- a synchronous call would time out behind a reverse proxy. Read-only.\nFails with RESOURCE_EXHAUSTED if a seek-index job is already running.",
         "operationId": "AdminMediaService_StartSeekIndexScan",
         "responses": {
           "200": {
@@ -479,7 +479,7 @@
         "queued": {
           "type": "integer",
           "format": "int32",
-          "description": "Deprecated: the candidate count is only known once the background scan\nphase completes — always -1 now. Poll GetSeekIndexJob for done/total."
+          "description": "Deprecated: the candidate count is only known once the background scan\nphase completes - always -1 now. Poll GetSeekIndexJob for done/total."
         }
       }
     },
@@ -530,7 +530,7 @@
         "queued": {
           "type": "integer",
           "format": "int32",
-          "description": "Deprecated: always -1 — poll GetSeekIndexJob for done/total."
+          "description": "Deprecated: always -1 - poll GetSeekIndexJob for done/total."
         }
       }
     },
@@ -542,7 +542,7 @@
         },
         "restored": {
           "type": "boolean",
-          "description": "Deprecated: the restore now runs in the background — poll GetSeekIndexJob."
+          "description": "Deprecated: the restore now runs in the background - poll GetSeekIndexJob."
         }
       }
     },
@@ -574,7 +574,7 @@
         "scannedAtMs": {
           "type": "string",
           "format": "int64",
-          "description": "When the last completed scan for this scope finished (unix ms). 0 = no\nscan has completed yet — items/counters are empty, not \"all clean\"."
+          "description": "When the last completed scan for this scope finished (unix ms). 0 = no\nscan has completed yet - items/counters are empty, not \"all clean\"."
         }
       }
     },
@@ -620,7 +620,7 @@
         },
         "readOnly": {
           "type": "boolean",
-          "description": "The failure came from a read-only mount (:ro media volume) — the user\nmust remount read-write before repairing."
+          "description": "The failure came from a read-only mount (:ro media volume) - the user\nmust remount read-write before repairing."
         }
       },
       "description": "SeekIndexJobFailure records one file a job could not process."

@@ -1,7 +1,7 @@
 name: escape-proc
 kind: plugin
 version: 1.0.0
-description: Red-team probe — process isolation. Passes static analysis, tries to see/signal other processes at runtime.
+description: Red-team probe - process isolation. Passes static analysis, tries to see/signal other processes at runtime.
 author: redteam
 language: nodejs
 entrypoint: node main.js

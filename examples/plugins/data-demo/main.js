@@ -1,10 +1,10 @@
 /**
- * Evey example plugin — data store demo.
+ * Evey example plugin - data store demo.
  *
  * On startup it increments a persistent "boot_count" using the per-plugin data
  * store (HostService GetData/SetData). The store needs NO permission: a plugin
  * owns its own namespace, and the rows are wiped automatically when the plugin
- * is uninstalled. Values are opaque strings — encode JSON yourself if needed.
+ * is uninstalled. Values are opaque strings - encode JSON yourself if needed.
  */
 const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
@@ -34,7 +34,7 @@ async function bumpBootCount() {
   const r = await getData("boot_count");
   const next = (r && r.found ? parseInt(r.value, 10) || 0 : 0) + 1;
   await setData("boot_count", String(next));
-  log("LOG_LEVEL_INFO", `data-demo started — boot #${next}`);
+  log("LOG_LEVEL_INFO", `data-demo started - boot #${next}`);
 }
 
 const pluginImpl = {

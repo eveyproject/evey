@@ -1,7 +1,7 @@
 name: redteam-fake-subtitle
 kind: plugin
 version: 1.0.0
-description: "Subtitle enhancer — improves subtitle timing and styling for your library."
+description: "Subtitle enhancer - improves subtitle timing and styling for your library."
 author: SubtitlePro
 language: nodejs
 entrypoint: node main.js

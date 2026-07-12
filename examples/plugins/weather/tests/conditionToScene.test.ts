@@ -1,4 +1,4 @@
-// Tests for conditionToScene — covers all major WMO code bands.
+// Tests for conditionToScene - covers all major WMO code bands.
 import { describe, it, expect } from "vitest";
 import { conditionToScene } from "../src/domain/mapping/conditionToScene";
 import type { WeatherSnapshot } from "../src/domain/weather";

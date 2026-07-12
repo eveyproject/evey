@@ -4,7 +4,7 @@ import { getAccessToken } from "../../helpers/plugin-helpers";
 
 // Themes are listed through `GET /api/v1/plugins/themes` which the host
 // frontend hits via the regular auth middleware. The endpoint is not covered
-// elsewhere in the suite — this spec asserts the response contract
+// elsewhere in the suite - this spec asserts the response contract
 // (200 + `{ themes: [{id, name}] }` shape) and that unauthenticated callers
 // are rejected before they can enumerate installed themes.
 
@@ -36,7 +36,7 @@ test.describe("Admin > Themes list", () => {
     const api = await playwrightRequest.newContext({ ignoreHTTPSErrors: true });
     try {
       const res = await api.get(`${BASE_URL}/api/v1/plugins/themes`);
-      // 4xx (typically 401 from the http auth middleware) — must never be 200
+      // 4xx (typically 401 from the http auth middleware) - must never be 200
       // (would mean themes were listed to an anonymous caller) and must not be
       // 5xx (would mean the endpoint is degraded on missing auth).
       expect(res.status()).toBeGreaterThanOrEqual(400);

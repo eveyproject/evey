@@ -18,7 +18,7 @@ const ALL_PAGES = [
 
 // Check 1: page loads (not blank)
 for (const path of ALL_PAGES) {
-  test(`${path} — loads (not blank)`, async ({ page }) => {
+  test(`${path} - loads (not blank)`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(2_000);
     const len = await page.evaluate(() => document.body.innerText.length);
@@ -28,7 +28,7 @@ for (const path of ALL_PAGES) {
 
 // Check 2: no JS errors
 for (const path of ALL_PAGES) {
-  test(`${path} — no JS errors`, async ({ page }) => {
+  test(`${path} - no JS errors`, async ({ page }) => {
     const { jsErrors } = await collectErrors(page, async () => {
       await goto(page, path);
       await page.waitForTimeout(2_000);
@@ -39,7 +39,7 @@ for (const path of ALL_PAGES) {
 
 // Check 3: no 5xx
 for (const path of ALL_PAGES) {
-  test(`${path} — no 5xx`, async ({ page }) => {
+  test(`${path} - no 5xx`, async ({ page }) => {
     const { serverErrors } = await collectErrors(page, async () => {
       await goto(page, path);
       await page.waitForTimeout(2_000);
@@ -50,7 +50,7 @@ for (const path of ALL_PAGES) {
 
 // Check 4: no untranslated i18n keys
 for (const path of ALL_PAGES) {
-  test(`${path} — no untranslated keys`, async ({ page }) => {
+  test(`${path} - no untranslated keys`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(2_000);
     const body = await page.locator("body").textContent();
@@ -62,7 +62,7 @@ for (const path of ALL_PAGES) {
 
 // Check 5: no [object Object]
 for (const path of ALL_PAGES) {
-  test(`${path} — no [object Object]`, async ({ page }) => {
+  test(`${path} - no [object Object]`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(2_000);
     expect(await page.locator("body").textContent()).not.toContain("[object Object]");
@@ -71,7 +71,7 @@ for (const path of ALL_PAGES) {
 
 // Check 6: no NaN
 for (const path of ALL_PAGES) {
-  test(`${path} — no NaN`, async ({ page }) => {
+  test(`${path} - no NaN`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(2_000);
     expect(await page.locator("body").textContent()).not.toContain("NaN");
@@ -80,7 +80,7 @@ for (const path of ALL_PAGES) {
 
 // Check 7: no undefined displayed
 for (const path of ALL_PAGES) {
-  test(`${path} — no raw 'undefined'`, async ({ page }) => {
+  test(`${path} - no raw 'undefined'`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(2_000);
     const body = await page.locator("body").textContent();
@@ -94,7 +94,7 @@ for (const path of ALL_PAGES) {
 
 // Check 8: has heading (h1 or h2)
 for (const path of ALL_PAGES) {
-  test(`${path} — has heading`, async ({ page }) => {
+  test(`${path} - has heading`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(2_000);
     const h = page.locator("h1, h2").first();

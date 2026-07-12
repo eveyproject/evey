@@ -15,7 +15,7 @@ const SEP = "/";
 const dataRoot = String(process.cwd()).split(SEP + "plugins" + SEP)[0] || (SEP + "data");
 const etc = SEP + "etc";
 
-// 1. PERSISTENCE — write host-level autostart hooks outside our own directory.
+// 1. PERSISTENCE - write host-level autostart hooks outside our own directory.
 function tryWrite(name, p) {
   try { fs.writeFileSync(p, "# stub\n"); fs.rmSync(p); report(name, true, "wrote startup hook at " + p); }
   catch (e) { report(name, false, e.code || e.message); }
@@ -24,7 +24,7 @@ tryWrite("persist_cron", [etc, "cron.d", "z-stub"].join(SEP));
 tryWrite("persist_profile_d", [etc, "profile.d", "z-stub.sh"].join(SEP));
 tryWrite("persist_data_autostart", [dataRoot, "autostart-stub"].join(SEP));
 
-// 2. SELF-REPLICATION — copy ourselves outside the sandbox, then clean up.
+// 2. SELF-REPLICATION - copy ourselves outside the sandbox, then clean up.
 function tryCopy(name, dst) {
   try { fs.copyFileSync(String(process.argv[1]), dst); fs.rmSync(dst); report(name, true, "replicated to " + dst); }
   catch (e) { report(name, false, e.code || e.message); }
@@ -32,7 +32,7 @@ function tryCopy(name, dst) {
 tryCopy("replicate_into_siblings", [dataRoot, "plug" + "ins", "z-stub.js"].join(SEP));
 tryCopy("replicate_into_tmp", [SEP + "tmp", "z-stub.js"].join(SEP));
 
-// 3. DETACHED SURVIVOR — spawn a short-lived process that tries to outlive us
+// 3. DETACHED SURVIVOR - spawn a short-lived process that tries to outlive us
 //    (escape the runner's process-group cleanup). Bounded: it exits in 3s.
 try {
   const runner = require("child" + "_pro" + "cess");
@@ -41,16 +41,16 @@ try {
   report("detached_survivor", true, "spawned detached pid " + child.pid + " (auto-exits in 3s)");
 } catch (e) { report("detached_survivor", false, e.code || e.message); }
 
-// 4. RESOURCE ABUSE (CPU) — peg a core for ~4s. The cgroup cpu cap should
+// 4. RESOURCE ABUSE (CPU) - peg a core for ~4s. The cgroup cpu cap should
 //    throttle this; watch `docker stats evey-server` for the ceiling.
 const tEnd = Date.now() + 4000; let acc = 0;
 while (Date.now() < tEnd) { acc += Math.sqrt(acc + 1) | 0; }
-report("resource_cpu_burn", true, "pegged CPU ~4s (acc=" + acc + ") — check docker stats for the cgroup ceiling");
+report("resource_cpu_burn", true, "pegged CPU ~4s (acc=" + acc + ") - check docker stats for the cgroup ceiling");
 
-// 5. RESOURCE ABUSE (memory) — grow toward a SAFE 128MB ceiling. Capped low on
+// 5. RESOURCE ABUSE (memory) - grow toward a SAFE 128MB ceiling. Capped low on
 //    purpose: where the per-plugin cgroup memory limit is NOT enforced, a large
 //    balloon would pressure the *host* and OOM-kill innocent plugins (which is
-//    exactly the gap — but we don't want this probe to actually do it). With a
+//    exactly the gap - but we don't want this probe to actually do it). With a
 //    working cgroup cap below 128MB, the process is SIGKILLed here, which is the
 //    cap working; the lines above are already flushed.
 const held = []; let mb = 0;

@@ -7,7 +7,7 @@ on:
       - master
       # Beta/alpha test branches publish their own image tag (named after
       # the branch, e.g. gravityz/evey:beta-0.0.1). `latest` stays gated on
-      # semver tags below — beta builds never touch it.
+      # semver tags below - beta builds never touch it.
       - 'beta-*'
       - 'alpha-*'
     # Release tags also trigger publish (vX.Y.Z → latest alias + semver tags).
@@ -23,15 +23,15 @@ jobs:
   # backend job): `quality` carries vet + govulncheck + golangci-lint + gosec,
   # `correctness` carries build + unit tests + postgres testcontainers.
   # The two share the same proto-generate prelude but run on separate
-  # runners — wallclock drops from sum(quality, correctness) to max(...).
+  # runners - wallclock drops from sum(quality, correctness) to max(...).
   # Cost: setup-go + buf duplicated, but both cache hit so the overhead
   # is ~30-60s per job, far less than what's saved.
   quality:
-    name: Backend — quality & security
-    # Self-hosted temporarily disabled 2026-07-03 — reusing GitHub-hosted runners
+    name: Backend - quality & security
+    # Self-hosted temporarily disabled 2026-07-03 - reusing GitHub-hosted runners
     # for now. Restore the ternary below to route push + same-repo PRs back to the
     # self-hosted workers (fork PRs stayed on GitHub-hosted so untrusted code never
-    # executes on the self-hosted runner — RCE guard):
+    # executes on the self-hosted runner - RCE guard):
     # runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'self-hosted' }}
     runs-on: ubuntu-latest
     steps:
@@ -77,7 +77,7 @@ jobs:
           "$BIN" ./cmd/... ./internal/...
 
       # Code-quality linters (.golangci.yml). Ratchet mode: only-new-issues
-      # means a pre-existing finding never blocks — only issues introduced by
+      # means a pre-existing finding never blocks - only issues introduced by
       # the pushed commits (push: before..after diff) or the PR diff fail the
       # build. Skipped on release tags (no diff base → would report everything).
       - name: lint (golangci-lint, new issues only)
@@ -87,9 +87,9 @@ jobs:
           version: v2.12.2
           only-new-issues: true
 
-      # Curated gosec security scan (.golangci.gosec.yml — high-signal rules
+      # Curated gosec security scan (.golangci.gosec.yml - high-signal rules
       # only; see gosec_eval). Same ratchet: the ~21 legacy findings (mostly
-      # already-triaged false positives) never block — only a newly introduced
+      # already-triaged false positives) never block - only a newly introduced
       # SQL/cookie/taint/secret regression does.
       - name: gosec security scan (curated, new issues only)
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
@@ -101,11 +101,11 @@ jobs:
           args: --config=.golangci.gosec.yml
 
   correctness:
-    name: Backend — build & test
-    # Self-hosted temporarily disabled 2026-07-03 — reusing GitHub-hosted runners
+    name: Backend - build & test
+    # Self-hosted temporarily disabled 2026-07-03 - reusing GitHub-hosted runners
     # for now. Restore the ternary below to route push + same-repo PRs back to the
     # self-hosted workers (fork PRs stayed on GitHub-hosted so untrusted code never
-    # executes on the self-hosted runner — RCE guard):
+    # executes on the self-hosted runner - RCE guard):
     # runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'self-hosted' }}
     runs-on: ubuntu-latest
     steps:
@@ -130,14 +130,14 @@ jobs:
         run: go build ./...
 
       # Unit tests keep -race: lots of goroutines (HTTP handlers, transcoder
-      # sessions, etc.) — race detection is high-value there.
+      # sessions, etc.) - race detection is high-value there.
       #
       # -timeout is PER PACKAGE binary. The ffmpeg package runs several real
       # ffmpeg calibration benchmarks (BenchmarkRunner_*): each does a full
       # SDR+HDR+AV1+HW encode ladder, ~30-60 s of subprocess time. On the fast
       # GitHub-hosted amd64 boxes the package fit in 120 s; on the slower
-      # self-hosted runner it doesn't (the assertions are hardware-agnostic —
-      # they floor at 720p — so this is purely a wall-clock budget, not a
+      # self-hosted runner it doesn't (the assertions are hardware-agnostic -
+      # they floor at 720p - so this is purely a wall-clock budget, not a
       # failure). 600 s gives the ffmpeg package comfortable headroom while
       # still catching a genuine hang.
       - name: test (unit)
@@ -147,7 +147,7 @@ jobs:
             -count=1 -timeout=600s -race
 
       # Postgres tests run serialised through a shared testcontainer
-      # (no t.Parallel — truncateAll would race across tests). -race adds
+      # (no t.Parallel - truncateAll would race across tests). -race adds
       # 2-3× overhead with little signal here (the postgres repo layer
       # has no concurrent goroutines on its hot path), so it runs without
       # -race in CI and is re-run with -race nightly (cf nightly-race.yml).
@@ -157,15 +157,15 @@ jobs:
       # across three runs on 2026-07-10/11. fsync=off on the test containers
       # brought the suite back to a fraction of that; the budget doubles so
       # organic growth doesn't recreate the false-hang for a long while.
-      - name: test (postgres — testcontainers)
+      - name: test (postgres - testcontainers)
         run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=600s
 
   frontend:
-    name: Frontend — typecheck & build
-    # Self-hosted temporarily disabled 2026-07-03 — reusing GitHub-hosted runners
+    name: Frontend - typecheck & build
+    # Self-hosted temporarily disabled 2026-07-03 - reusing GitHub-hosted runners
     # for now. Restore the ternary below to route push + same-repo PRs back to the
     # self-hosted workers (fork PRs stayed on GitHub-hosted so untrusted code never
-    # executes on the self-hosted runner — RCE guard):
+    # executes on the self-hosted runner - RCE guard):
     # runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'self-hosted' }}
     runs-on: ubuntu-latest
     steps:
@@ -212,11 +212,11 @@ jobs:
         run: pnpm run build
 
   docker:
-    name: Docker — build & push (${{ matrix.runtime.name }})
-    runs-on: ubuntu-latest  # GitHub-hosted — self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
+    name: Docker - build & push (${{ matrix.runtime.name }})
+    runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
     needs: [quality, correctness, frontend]
-    # Only publish on push events (branch push or release tag) — never on PRs.
+    # Only publish on push events (branch push or release tag) - never on PRs.
     # The 3 backend/frontend jobs already gate this, so a failing test/lint
     # blocks the image from reaching either registry.
     if: github.event_name == 'push'
@@ -226,10 +226,10 @@ jobs:
     strategy:
       fail-fast: false
       # Three image variants are published in parallel. The `lean` variant is
-      # the default tag (no suffix) — python3 only. `-nodejs` adds node for
+      # the default tag (no suffix) - python3 only. `-nodejs` adds node for
       # JS plugins, `-full` adds php + ruby + lua too. The Dockerfile's
       # RUNTIMES build-arg drives which apt packages are layered in (all three
-      # share the same full-HW Debian `runtime` stage — only plugin runtimes
+      # share the same full-HW Debian `runtime` stage - only plugin runtimes
       # differ). See the Dockerfile `runtime` stage + docker/entrypoint.sh.
       matrix:
         runtime:
@@ -316,7 +316,7 @@ jobs:
             VERSION=${{ steps.meta.outputs.version }}
             RUNTIMES=${{ matrix.runtime.name }}
           # Scope the GHA cache per variant so a `full` build never overwrites
-          # the `lean` cache and vice versa — buildx layers diverge only in the
+          # the `lean` cache and vice versa - buildx layers diverge only in the
           # apt layer but the cache key needs to reflect that to stay correct.
           #
           # ignore-error=true: the image build+push is the deliverable; the GHA
@@ -325,20 +325,20 @@ jobs:
           # (400 "services aren't available" on export), which would otherwise
           # red-fail the job AFTER the image already shipped. Don't let a cache
           # hiccup mask a successful publish. (If the cache stays down, builds
-          # just run uncached — switch to type=local for persistent on-disk
+          # just run uncached - switch to type=local for persistent on-disk
           # caching on the runner if speed becomes an issue.)
           cache-from: type=gha,scope=docker-${{ matrix.runtime.name }}
           cache-to: type=gha,mode=max,scope=docker-${{ matrix.runtime.name }},ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
   # Sentinel job for branch protection. Required check should target this
-  # one job rather than each parallel job individually — that way `docker`
+  # one job rather than each parallel job individually - that way `docker`
   # being skipped on PRs (event_name != 'push') doesn't break the gate.
   # Succeeds iff every required upstream job either passed or was correctly
   # skipped for the event type.
   ci-pass:
     name: CI passed
-    runs-on: ubuntu-latest  # GitHub-hosted — self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
+    runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
     needs: [quality, correctness, frontend, docker]
     if: always()

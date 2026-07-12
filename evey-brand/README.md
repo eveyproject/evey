@@ -1,4 +1,4 @@
-# Evey — Brand Kit
+# Evey - Brand Kit
 
 Système d'identité visuelle pour le projet Evey (self-hosted media server).
 
@@ -6,7 +6,7 @@ Système d'identité visuelle pour le projet Evey (self-hosted media server).
 
 ```
 evey-brand/
-├── svg/                          # Vectoriel — source de vérité
+├── svg/                          # Vectoriel - source de vérité
 │   ├── evey-wordmark.svg                    # Logo principal (V rouge sur fond clair)
 │   ├── evey-wordmark-mono.svg               # Sans rouge
 │   ├── evey-wordmark-inverted.svg           # Sur fond noir
@@ -38,7 +38,7 @@ evey-brand/
 
 ## Typo
 
-**Archivo Black** (Google Fonts, OFL) — alternative libre à Arial Black.
+**Archivo Black** (Google Fonts, OFL) - alternative libre à Arial Black.
 Les SVG embarquent les glyphes en `<path>` : aucune dépendance font côté client.
 
 ## Édition
@@ -47,9 +47,9 @@ Pas de `.psd` (format Adobe propriétaire, non reproductible librement).
 
 Pour éditer le système :
 
-1. **Inkscape** (gratuit, libre) — ouvre directement les `.svg`
-2. **Figma** — File > Import > sélectionne le SVG
-3. **Affinity Designer** — ouverture native SVG
+1. **Inkscape** (gratuit, libre) - ouvre directement les `.svg`
+2. **Figma** - File > Import > sélectionne le SVG
+3. **Affinity Designer** - ouverture native SVG
 
 Le SVG est la source. Pour régénérer les PNG après modif :
 ```bash
@@ -83,8 +83,8 @@ Settings → Social preview → upload `social/github-social.png`.
 ## Règles d'usage
 
 - Espace de respiration min. autour du logo = hauteur d'une lettre.
-- La barre horizontale est constitutive du logo — ne pas la supprimer.
-- Le V rouge est constitutif — ne pas le mettre en noir sauf dans la variante mono explicite.
+- La barre horizontale est constitutive du logo - ne pas la supprimer.
+- Le V rouge est constitutif - ne pas le mettre en noir sauf dans la variante mono explicite.
 - Ne pas étirer, déformer, ajouter d'ombre, de dégradé ou de glow.
 - Ne pas modifier l'espacement entre les lettres.
 

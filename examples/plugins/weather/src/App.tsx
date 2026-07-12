@@ -19,7 +19,7 @@ interface AppProps {
 
 export function App({ params, city, temp, units, error, locale }: AppProps) {
   const unitLabel      = units === "fahrenheit" ? "°F" : "°C";
-  const tempStr        = temp !== null ? `${Math.round(temp)}${unitLabel}` : "—";
+  const tempStr        = temp !== null ? `${Math.round(temp)}${unitLabel}` : "-";
   const conditionLabel = translate(params.labelKey, locale);
   const loadingLabel   = translate("loading", locale);
   const unavailLabel   = translate("unavailable", locale);
@@ -52,7 +52,7 @@ export function App({ params, city, temp, units, error, locale }: AppProps) {
       >
         <SceneContext.Provider value={params}>
           <Suspense fallback={null}>
-            {/* Background TRANSPARENT — no opaque skydome. Clouds composite
+            {/* Background TRANSPARENT - no opaque skydome. Clouds composite
             *  over whatever the host page shows. CelestialBody rendered last
             *  at high renderOrder so it sits above the cloud layer. */}
             <Clouds />
@@ -62,7 +62,7 @@ export function App({ params, city, temp, units, error, locale }: AppProps) {
         </SceneContext.Provider>
       </Canvas>
 
-      {/* HTML overlay — top-right, always on top of canvas */}
+      {/* HTML overlay - top-right, always on top of canvas */}
       <div
         style={{
           position: "absolute",
@@ -84,7 +84,7 @@ export function App({ params, city, temp, units, error, locale }: AppProps) {
             textShadow: "0 2px 8px rgba(0,0,0,0.55), 0 1px 3px rgba(0,0,0,0.35)",
           }}
         >
-          {error ? "—" : tempStr}
+          {error ? "-" : tempStr}
         </div>
         <div
           style={{

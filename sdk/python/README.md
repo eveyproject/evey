@@ -1,4 +1,4 @@
-# Evey Plugin SDK — Python
+# Evey Plugin SDK - Python
 
 Pre-generated gRPC stubs for Evey plugin development.
 

@@ -1,4 +1,4 @@
-# Evey Plugin SDK — Swift
+# Evey Plugin SDK - Swift
 
 Proto file for Evey plugin development.
 

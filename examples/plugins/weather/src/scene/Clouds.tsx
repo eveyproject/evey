@@ -1,11 +1,11 @@
-// Cloud system — two-pass: FBM cloud FBO (half-res) + overlay composite.
+// Cloud system - two-pass: FBM cloud FBO (half-res) + overlay composite.
 // The overlay is rendered AFTER the EffectComposer (priority 2) so the HDR
-// bloom pass never touches it — preventing bloom blow-out on cloud pixels.
+// bloom pass never touches it - preventing bloom blow-out on cloud pixels.
 //
 // Palette modes (interpolated smoothly each frame):
-//   day       — standard azure/white
-//   golden    — warm orange/pink when |sunAltitude| < 0.20 (sunrise/sunset)
-//   night     — deep blue/dark when sunAltitude < -0.15
+//   day       - standard azure/white
+//   golden    - warm orange/pink when |sunAltitude| < 0.20 (sunrise/sunset)
+//   night     - deep blue/dark when sunAltitude < -0.15
 import { useRef, useMemo, useEffect } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
@@ -140,7 +140,7 @@ export function Clouds() {
   }), []);
   void tier; // tier still gates whether the FBO pass runs
 
-  // Upscale pass — separate scene + camera, rendered directly to canvas AFTER
+  // Upscale pass - separate scene + camera, rendered directly to canvas AFTER
   // EffectComposer so the HDR bloom never captures cloud pixels.
   const upscaleScene  = useMemo(() => new THREE.Scene(), []);
   const upscaleCamera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), []);
@@ -250,7 +250,7 @@ export function Clouds() {
     const rainTarget = params.precipitation === "rain" ? params.precipIntensity : 0;
     cloudUniforms.uPrecip.value += (rainTarget - cloudUniforms.uPrecip.value) * 0.05;
 
-    // Moonlight halo on cloud pixels — only when the moon is up.
+    // Moonlight halo on cloud pixels - only when the moon is up.
     cloudUniforms.uMoonNDC.value.set(moonStateRef.screenX, moonStateRef.screenY);
     cloudUniforms.uMoonI.value += (moonStateRef.intensity - cloudUniforms.uMoonI.value) * 0.05;
     cloudUniforms.uSpeed.value    = params.cloudSpeed;

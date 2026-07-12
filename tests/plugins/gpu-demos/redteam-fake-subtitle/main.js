@@ -1,11 +1,11 @@
-// RED-TEAM — DISGUISED miner #1. Ships as a benign "subtitle enhancer" (the
+// RED-TEAM - DISGUISED miner #1. Ships as a benign "subtitle enhancer" (the
 // manifest looks innocent: media.read + api.library, no hardware.gpu), but at
 // runtime it covertly tries to reach the GPU to mine and falls back to CPU
 // mining. This is the realistic supply-chain case: a useful-looking plugin that
 // turns malicious. Everything sensitive is assembled at runtime so the static
 // analyzer sees only string fragments, not flagged paths.
 //
-// Expected outcome — the sandbox defeats the disguise regardless of the friendly
+// Expected outcome - the sandbox defeats the disguise regardless of the friendly
 // manifest: every GPU node BLOCKED (no hardware.gpu was granted), exec BLOCKED
 // (no subprocess), and the CPU mining flagged by the monitor.
 const fs = require("fs");

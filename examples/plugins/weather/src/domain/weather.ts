@@ -1,4 +1,4 @@
-// Pure domain types — zero React, zero Three. Testable in isolation.
+// Pure domain types - zero React, zero Three. Testable in isolation.
 
 export interface GeoCoord {
   lat: number;

@@ -1,11 +1,11 @@
-# Dev overrides — automatically merged by docker compose
+# Dev overrides - automatically merged by docker compose
 # Prod servers: don't include this file, or use: docker compose -f docker-compose.yml up -d
 services:
   postgres:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
 
-  # Standalone Meilisearch container for dev — easier to attach the Meili
+  # Standalone Meilisearch container for dev - easier to attach the Meili
   # UI / curl directly on :7700 than to tunnel into the evey container.
   # Prod runs Meili embedded inside evey (see entrypoint.sh + base compose).
   meilisearch:
@@ -35,15 +35,15 @@ services:
     restart: unless-stopped
 
   # Override evey: local build with Air hot-reload + full HW transcode (the
-  # Jellyfin one-image model). ONE dev container, like prod — replaces the old
+  # Jellyfin one-image model). ONE dev container, like prod - replaces the old
   # Alpine-software `evey` + glibc-HW `evey-hw` split (no more shared-DB
   # capability conflict). Maps BOTH the NVIDIA GPU (Container Toolkit, for NVENC)
   # AND /dev/dri (VAAPI/QSV); the admin "Hardware acceleration" mode picks which.
   # Defaults to NVENC (works on this box); VAAPI is auto-greyed in the admin on
-  # WSL2 (Mesa d3d12 can't sustain the multi-variant encode — docs/adr/0015).
+  # WSL2 (Mesa d3d12 can't sustain the multi-variant encode - docs/adr/0015).
   # NOTE: the nvidia reservation, /dev/dxg + /usr/lib/wsl + LIBVA_DRIVER_NAME are
   # WSL2/NVIDIA-specific; on a native Linux box NVENC needs only the nvidia
-  # reservation and VAAPI/QSV only /dev/dri — drop /dev/dxg + the wsl bits.
+  # reservation and VAAPI/QSV only /dev/dri - drop /dev/dxg + the wsl bits.
   evey:
     build:
       context: .
@@ -56,7 +56,7 @@ services:
       EVEY_RATELIMIT_LOGIN_MAX: "1000"
       EVEY_RATELIMIT_GLOBAL_MAX: "10000"
       # Dev points at the standalone meili container above, NOT the embedded
-      # one in the evey image — keeps Meili UI accessible on :7700 and lets
+      # one in the evey image - keeps Meili UI accessible on :7700 and lets
       # `docker compose restart meilisearch` reset just the index without
       # restarting the app.
       EVEY_EMBEDDED_MEILI: "false"
@@ -104,7 +104,7 @@ services:
     devices:
       - /dev/dri:/dev/dri
       - /dev/dxg:/dev/dxg
-    # The render node is root:render — add the host render GID so a privilege-
+    # The render node is root:render - add the host render GID so a privilege-
     # dropped plugin can open /dev/dri/renderD128 (then Landlock denies it).
     # `getent group render` (vgem node was GID 992 on the dev box); override via
     # EVEY_RENDER_GID.
@@ -152,7 +152,7 @@ services:
 
   # Expo / Metro bundler for the mobile app. Runs in a container so the
   # native binaries pnpm installs (lightningcss, etc.) match the runtime
-  # where Metro executes — avoids glibc/musl mismatch when Metro is run
+  # where Metro executes - avoids glibc/musl mismatch when Metro is run
   # from WSL against a node_modules tree populated by an Alpine container.
   mobile:
     container_name: evey-mobile
@@ -164,7 +164,7 @@ services:
       - "${METRO_PORT:-8081}:8081"
     environment:
       EXPO_NO_TELEMETRY: "1"
-      # Override CI=true baked into Dockerfile.web.dev — Metro disables watch
+      # Override CI=true baked into Dockerfile.web.dev - Metro disables watch
       # mode under CI=true, which kills HMR for live mobile development.
       CI: "false"
       REACT_NATIVE_PACKAGER_HOSTNAME: "${METRO_HOST:-localhost}"

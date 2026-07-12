@@ -3,7 +3,7 @@
 // This plugin declares NO permissions. It verifies two boundaries of the
 // per-plugin data store + capability model:
 //   1. The data store is usable for the plugin's OWN namespace with no
-//      permission — and there is NO API field to name another plugin, so a
+//      permission - and there is NO API field to name another plugin, so a
 //      plugin physically cannot reach a sibling's data (isolation by design).
 //   2. Permissioned HostService RPCs (e.g. GetMediaItem needs media.read) stay
 //      DENIED for a plugin that did not declare the permission.
@@ -16,7 +16,7 @@ function report(name, bypassed, detail) {
   console.error("[ESCAPE] " + name + ": " + (bypassed ? "BYPASSED" : "BLOCKED") + " | " + String(detail).slice(0, 160));
 }
 
-// A probe must never crash the runner opaquely — always log + exit 0.
+// A probe must never crash the runner opaquely - always log + exit 0.
 process.on("unhandledRejection", (e) => { report("FATAL_REJECTION", false, String((e && e.message) || e)); process.exit(0); });
 process.on("uncaughtException", (e) => { report("FATAL_EXCEPTION", false, String((e && e.message) || e)); process.exit(0); });
 
@@ -53,12 +53,12 @@ const call = (fn, req) =>
     report("own_data_store_CONTROL", !set.e, set.e ? set.e.message : "set ok");
   }
 
-  // There is no API field to target another plugin's namespace — the closest a
+  // There is no API field to target another plugin's namespace - the closest a
   // hostile plugin can do is craft a weird key; it still lands in its OWN
   // namespace. Document that cross-plugin access has no surface.
   {
     const get = await call("GetData", { key: "../other-plugin/secret" });
-    // "found:false" in OUR namespace — never another plugin's data.
+    // "found:false" in OUR namespace - never another plugin's data.
     report("cross_plugin_data_read", get.r && get.r.found === true, get.e ? get.e.message : ("found=" + (get.r && get.r.found)));
   }
 

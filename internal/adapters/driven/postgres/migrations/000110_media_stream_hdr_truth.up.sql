@@ -6,7 +6,7 @@
 --
 -- dovi_profile / dovi_bl_compat: Dolby Vision configuration record (ffprobe
 -- side_data dv_profile + dv_bl_signal_compatibility_id). NULL = no DoVi.
--- Profile 5 (IPTC2 base layer) MUST always transcode — serving it raw renders
+-- Profile 5 (IPTC2 base layer) MUST always transcode - serving it raw renders
 -- green/purple on any non-DoVi pipeline. Profile 8 with a compatible base
 -- layer (bl_compat 1 = HDR10, 2 = SDR, 4 = HLG) may be served as its base.
 --

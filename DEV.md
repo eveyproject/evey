@@ -1,4 +1,4 @@
-# Evey — Developer Guide
+# Evey - Developer Guide
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@
 ## Quick Start
 
 ```bash
-# First time only — adds evey.test to /etc/hosts
+# First time only - adds evey.test to /etc/hosts
 make setup
 
 # Start everything (postgres, meilisearch, backend with Air, frontend with Vite)
@@ -107,8 +107,8 @@ MONKEY_RUNS=100 npx playwright test scenarios/monkey-testing.spec.ts --timeout=4
 - `golangci-lint` must pass with 0 issues on new code
 
 ### Frontend
-- `eveyFetch` wrapper (never raw `fetch`) — handles token refresh
-- Colors via CSS vars (`var(--accent)`) — never hardcoded hex
+- `eveyFetch` wrapper (never raw `fetch`) - handles token refresh
+- Colors via CSS vars (`var(--accent)`) - never hardcoded hex
 - `useNavigate` from TanStack Router (never `window.location`)
 - `async/await` + `try/catch` (never `.then().catch()`)
 - i18n: all user-visible strings via `useTranslation` / `t()`
@@ -127,7 +127,7 @@ go build -o /tmp/evey-check ./cmd/evey
 # Edit proto files in proto/evey/v1/
 # Then regenerate:
 make proto-gen
-# Generated code lands in gen/evey/v1/ — never edit manually
+# Generated code lands in gen/evey/v1/ - never edit manually
 ```
 
 ## Docker (Production Build)

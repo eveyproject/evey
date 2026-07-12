@@ -95,7 +95,7 @@
           },
           {
             "name": "pagination.cursor",
-            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes.",
+            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` - guarantees no skips/duplicates under concurrent writes.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -166,7 +166,7 @@
           },
           {
             "name": "pagination.cursor",
-            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes.",
+            "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` - guarantees no skips/duplicates under concurrent writes.",
             "in": "query",
             "required": false,
             "type": "string"
@@ -737,7 +737,7 @@
         },
         "cursor": {
           "type": "string",
-          "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` — guarantees no skips/duplicates under concurrent writes."
+          "description": "Opaque keyset cursor returned by a previous PaginationResponse. When\nset, server uses keyset pagination instead of offset and ignores\n`page` - guarantees no skips/duplicates under concurrent writes."
         }
       }
     },
@@ -902,7 +902,7 @@
         "totalBandwidthBytes": {
           "type": "string",
           "format": "int64",
-          "description": "Streaming bytes actually served, integrated from the periodic\nserver-metric samples (real measurement, accumulates from the moment the\nsampler first ran — bounded by EVEY_METRICS_RETENTION_DAYS)."
+          "description": "Streaming bytes actually served, integrated from the periodic\nserver-metric samples (real measurement, accumulates from the moment the\nsampler first ran - bounded by EVEY_METRICS_RETENTION_DAYS)."
         },
         "popularMedia": {
           "type": "array",

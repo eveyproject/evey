@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS playback_qoe_events (
     ts                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     -- Who/what. user_id is null for anonymous/shared link plays; media_item_id
-    -- can stay null when we can't resolve it (defensive — we never want a
+    -- can stay null when we can't resolve it (defensive - we never want a
     -- failing FK to drop the metric).
     user_id             UUID,
     media_item_id       UUID,
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS playback_qoe_events (
     -- Cheap to compute, expensive to derive at dashboard query time across 4M rows.
     device_class        TEXT,
 
-    -- For rate limiting / debugging only — never used for auth.
+    -- For rate limiting / debugging only - never used for auth.
     remote_ip           INET
 );
 

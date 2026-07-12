@@ -18,11 +18,11 @@ if [[ ! -d "${SRC}" ]]; then
   exit 1
 fi
 if ! command -v cosign >/dev/null 2>&1; then
-  echo "ERROR: cosign not in \$PATH — install via 'go install github.com/sigstore/cosign/v2/cmd/cosign@latest'" >&2
+  echo "ERROR: cosign not in \$PATH - install via 'go install github.com/sigstore/cosign/v2/cmd/cosign@latest'" >&2
   exit 1
 fi
 if [[ ! -f "${KEY}" ]]; then
-  echo "ERROR: ${KEY} missing — regenerate with 'COSIGN_PASSWORD= cosign generate-key-pair --output-key-prefix cosign-test'" >&2
+  echo "ERROR: ${KEY} missing - regenerate with 'COSIGN_PASSWORD= cosign generate-key-pair --output-key-prefix cosign-test'" >&2
   exit 1
 fi
 

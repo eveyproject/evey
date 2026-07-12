@@ -1,4 +1,4 @@
-# Security-only golangci-lint profile — runs ONLY gosec, curated to the
+# Security-only golangci-lint profile - runs ONLY gosec, curated to the
 # high-signal rules. Deliberately kept SEPARATE from .golangci.yml so that
 # `make lint` stays noise-free. Used by:
 #   - `make sec-scan`        full curated sweep, on demand
@@ -48,7 +48,7 @@ linters:
       # toolchain: the binary path is resolved from server config at startup
       # and every arg is built internally. G204 fires on these variable-command/
       # variable-args calls structurally (every exec site in the package), but
-      # none takes a command from untrusted input — the real control for the
+      # none takes a command from untrusted input - the real control for the
       # user-derived file-path args is path confinement upstream. Keeping G204
       # here is pure noise (matches the profile's high-signal intent); it stays
       # active everywhere else in internal/.

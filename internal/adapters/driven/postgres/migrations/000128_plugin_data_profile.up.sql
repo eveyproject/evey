@@ -2,14 +2,14 @@
 -- can be scoped to the ACTIVE profile (first-class per-profile plugin prefs).
 --
 -- A profile belongs to exactly one user, so a per-profile row is identified by
--- profile_id ALONE — user_id would be redundant and is left NULL. The three
+-- profile_id ALONE - user_id would be redundant and is left NULL. The three
 -- scopes on this table are therefore mutually exclusive:
 --   * user_id IS NULL AND profile_id IS NULL -> plugin-global (backend)
 --   * user_id set,      profile_id IS NULL   -> per-user (shared across the
 --                                               user's profiles)
 --   * profile_id set                         -> per-profile (user_id NULL)
 -- profile_id cascades on profile delete; deleting a user cascades its profiles,
--- which cascades these rows too — so nothing is orphaned.
+-- which cascades these rows too - so nothing is orphaned.
 ALTER TABLE plugin_data
     ADD COLUMN profile_id TEXT REFERENCES profiles(id) ON DELETE CASCADE;
 

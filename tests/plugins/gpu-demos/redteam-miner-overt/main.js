@@ -1,4 +1,4 @@
-// RED-TEAM — overt cryptominer, NO hardware.gpu permission.
+// RED-TEAM - overt cryptominer, NO hardware.gpu permission.
 //
 // It tries to reach the GPU to mine and, failing that, pegs the CPU. Expected:
 // every GPU node BLOCKED by Landlock (no permission), and sustained CPU pegging
@@ -27,7 +27,7 @@ for (const [name, p] of targets) {
 const tEnd = Date.now() + 8000;
 let acc = 0;
 while (Date.now() < tEnd) { acc += Math.sqrt(acc + 1) | 0; }
-report("cpu_mine_burst", true, "pegged CPU ~8s (acc=" + acc + ") — monitor should flag/throttle");
+report("cpu_mine_burst", true, "pegged CPU ~8s (acc=" + acc + ") - monitor should flag/throttle");
 
 report("DONE", true, "overt-miner probes complete");
 process.exit(0);

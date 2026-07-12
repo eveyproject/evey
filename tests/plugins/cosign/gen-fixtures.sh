@@ -29,17 +29,17 @@ openssl ec -in test.key -pubout -out test.pub 2>/dev/null
 # ECDSA over SHA-256, base64-encoded, no trailing newline.
 sign() { openssl dgst -sha256 -sign "$1" "$2" | base64 | tr -d '\n' > "$3"; }
 
-# 1. VALID — signed with test.key; verifies under test.pub.
+# 1. VALID - signed with test.key; verifies under test.pub.
 ( cd "$work/plugin" && zip -qr "$work/valid.zip" . )
 cp "$work/valid.zip" plugin-valid.zip
 sign test.key plugin-valid.zip plugin-valid.zip.sig
 
-# 2. TAMPERED — the ZIP is modified AFTER signing, so the signature no longer matches.
+# 2. TAMPERED - the ZIP is modified AFTER signing, so the signature no longer matches.
 cp plugin-valid.zip plugin-tampered.zip
 printf 'tamper' >> plugin-tampered.zip
 cp plugin-valid.zip.sig plugin-tampered.zip.sig
 
-# 3. WRONGKEY — signed with a different key the server does not trust.
+# 3. WRONGKEY - signed with a different key the server does not trust.
 openssl ecparam -genkey -name prime256v1 -noout -out "$work/other.key"
 cp plugin-valid.zip plugin-wrongkey.zip
 sign "$work/other.key" plugin-wrongkey.zip plugin-wrongkey.zip.sig

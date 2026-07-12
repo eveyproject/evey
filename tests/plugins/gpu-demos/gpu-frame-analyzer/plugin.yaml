@@ -1,7 +1,7 @@
 name: gpu-frame-analyzer
 kind: plugin
 version: 1.0.0
-description: "Legit GPU example — reads the render node to report GPU capabilities for an admin diagnostics panel. Minimal, read-only GPU use."
+description: "Legit GPU example - reads the render node to report GPU capabilities for an admin diagnostics panel. Minimal, read-only GPU use."
 author: evey-examples
 language: nodejs
 entrypoint: node main.js

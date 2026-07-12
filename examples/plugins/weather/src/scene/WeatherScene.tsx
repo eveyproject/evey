@@ -1,4 +1,4 @@
-// Root scene component — provides SceneParams via React context.
+// Root scene component - provides SceneParams via React context.
 import { createContext, useContext } from "react";
 import type { SceneParams } from "../domain/weather";
 

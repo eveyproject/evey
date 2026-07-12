@@ -8,10 +8,10 @@ import com.facebook.react.bridge.ReactMethod
 import kotlin.math.log10
 
 /**
- * AudioBoost — VLC-style volume amplification above the player's 100% ceiling.
+ * AudioBoost - VLC-style volume amplification above the player's 100% ceiling.
  *
  * expo-video / ExoPlayer clamp `volume` to 1.0, so the >100% zone applies a gain
- * to the global output mix (audio session 0) with a [LoudnessEnhancer] — the
+ * to the global output mix (audio session 0) with a [LoudnessEnhancer] - the
  * simple, battle-tested primitive every "volume booster" app uses. It only ADDS
  * gain (transparent when disabled), so unlike DynamicsProcessing it can never mute
  * the session. gain is linear: 1.0 = 100% (off), 2.0 = 200%. Target gain in
@@ -28,7 +28,7 @@ class AudioBoostModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun setBoost(gain: Double, promise: Promise) {
     try {
-      // At or below 100% there is nothing to amplify — turn the effect off so the
+      // At or below 100% there is nothing to amplify - turn the effect off so the
       // native volume path is untouched (and other apps' audio isn't boosted).
       if (gain <= 1.0) {
         enhancer?.setEnabled(false)
@@ -41,7 +41,7 @@ class AudioBoostModule(reactContext: ReactApplicationContext) :
       fx.setEnabled(true)
       promise.resolve(true)
     } catch (e: Exception) {
-      // Some devices/emulators have no global-session effect support — fail soft
+      // Some devices/emulators have no global-session effect support - fail soft
       // so the player still works, just capped at 100%.
       promise.reject("audio_boost_unavailable", e.message, e)
     }

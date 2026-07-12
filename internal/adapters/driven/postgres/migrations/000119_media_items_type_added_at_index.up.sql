@@ -3,7 +3,7 @@
 --   GROUP BY parent_id
 -- on every home load. Episodes are the bulk of a real library (10k+ rows), and
 -- the only added_at index so far is the partial idx_media_items_latest_child_added_at
--- (type='series' only, migration 000081) — so this filter sequentially scanned
+-- (type='series' only, migration 000081) - so this filter sequentially scanned
 -- every episode row on the single most frequent request. A (type, added_at)
 -- composite turns it into a bounded range scan (equality on type, range on the
 -- recency window) and also serves type-scoped recency reads for movies/albums.

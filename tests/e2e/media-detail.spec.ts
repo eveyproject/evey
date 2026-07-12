@@ -2,12 +2,12 @@ import { test, expect } from "./fixtures/auth";
 import { gotoRandomMovie, gotoRandomSeries } from "./scenarios/shared/helpers";
 
 // MEDIA_ID / SERIES_ID can pin a specific item (CI determinism); otherwise we
-// pick a random one whose detail page loads — the previous hardcoded fallback
+// pick a random one whose detail page loads - the previous hardcoded fallback
 // IDs are 404 against any DB that wasn't the one they were captured from.
 const MOVIE_ID = process.env.MEDIA_ID ?? "";
 const SERIES_ID = process.env.SERIES_ID ?? "";
 
-test.describe("Media Detail — movie", () => {
+test.describe("Media Detail - movie", () => {
   test.beforeEach(async ({ page }) => {
     if (MOVIE_ID) {
       await page.goto(`/media/${MOVIE_ID}`, { waitUntil: "domcontentloaded" });
@@ -114,7 +114,7 @@ test.describe("Media Detail — movie", () => {
   });
 });
 
-test.describe("Media Detail — series", () => {
+test.describe("Media Detail - series", () => {
   test.beforeEach(async ({ page }) => {
     if (SERIES_ID) {
       await page.goto(`/media/${SERIES_ID}`, { waitUntil: "domcontentloaded" });

@@ -38,14 +38,14 @@ linters:
 
   settings:
     exhaustruct:
-      # Scope to the HTTP handler dependency structs ONLY — enabling exhaustruct
+      # Scope to the HTTP handler dependency structs ONLY - enabling exhaustruct
       # globally would flag every legitimate partial literal in the codebase.
       include:
         - 'github.com/evey-project/evey/internal/adapters/driving/http\..*Handler$'
     forbidigo:
       forbid:
         # A postgres repo calling its *sql.DB handle directly (r.db.ExecContext,
-        # …) bypasses any ambient transaction set by TxUnit.Do — so a caller
+        # …) bypasses any ambient transaction set by TxUnit.Do - so a caller
         # wrapping several writes in uow.Do silently loses atomicity. Route every
         # statement through txFromCtx(ctx, r.db), which uses the ambient tx when
         # present and falls back to the raw handle otherwise. (Own-tx repos keep
@@ -61,7 +61,7 @@ linters:
         - fmt.Fprint
         - fmt.Fprintf
         - fmt.Fprintln
-        # defer close — error logged by DB/OS layer already
+        # defer close - error logged by DB/OS layer already
         - (*database/sql.Rows).Close
         - (*os.File).Close
         - (io.Closer).Close
@@ -79,17 +79,17 @@ linters:
         - strconv.ParseFloat
         - strconv.ParseUint
         - strconv.ParseInt
-        # process cleanup — error expected after cancel/kill
+        # process cleanup - error expected after cancel/kill
         - (*os/exec.Cmd).Wait
         - (*os.Process).Kill
         # cleanup / best-effort FS ops
         - os.RemoveAll
         - os.ReadDir
-        # scan helpers — zero-value fallback on parse failure
+        # scan helpers - zero-value fallback on parse failure
         - fmt.Sscan
         # body drain to io.Discard
         - io.Copy
-        # slog handler — multi-handler best-effort
+        # slog handler - multi-handler best-effort
         - (log/slog.Handler).Handle
         # websocket best-effort operations
         - (*golang.org/x/net/websocket.Conn).Close

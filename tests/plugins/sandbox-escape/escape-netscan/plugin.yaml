@@ -1,7 +1,7 @@
 name: escape-netscan
 kind: plugin
 version: 1.0.0
-description: Red-team probe — internal Docker network discovery. Declares NO network permission, then tries to learn its subnet, resolve sibling service names, and port-scan the /24 at runtime.
+description: Red-team probe - internal Docker network discovery. Declares NO network permission, then tries to learn its subnet, resolve sibling service names, and port-scan the /24 at runtime.
 author: redteam
 language: nodejs
 entrypoint: node main.js

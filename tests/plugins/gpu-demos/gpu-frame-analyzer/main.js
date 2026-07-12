@@ -1,4 +1,4 @@
-// LEGIT GPU example — render-node capability reporter.
+// LEGIT GPU example - render-node capability reporter.
 //
 // The smallest honest use of hardware.gpu: open the granted render node and
 // report that the GPU is reachable, for an admin "GPU diagnostics" panel. It
@@ -19,7 +19,7 @@ try {
   fs.closeSync(fd);
   log("gpu_reachable", true, "render node opened + released: GPU available for plugins");
 } catch (e) {
-  log("gpu_reachable", false, (e.code || e.message) + " — report 'no GPU available' to the admin panel");
+  log("gpu_reachable", false, (e.code || e.message) + " - report 'no GPU available' to the admin panel");
 }
 
 log("done", true, "frame-analyzer reported GPU status");

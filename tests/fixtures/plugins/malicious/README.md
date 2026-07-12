@@ -7,7 +7,7 @@ runs `AnalyzePlugin` against every fixture and asserts that at least one
 `Critical` finding is emitted.
 
 If a future change to the analyzer accidentally removes a detection rule, the
-corresponding test case turns red — forcing the author to either restore the
+corresponding test case turns red - forcing the author to either restore the
 coverage or explicitly acknowledge the regression.
 
 ## Fixtures

@@ -13,7 +13,7 @@ The server runs, on the uploaded ZIP (`internal/adapters/driven/pluginrunner/cos
 cosign verify-blob --key <public-key> --signature <zip>.sig --insecure-ignore-tlog <zip>
 ```
 
-`--insecure-ignore-tlog` means **offline, key-based** verification — no Rekor
+`--insecure-ignore-tlog` means **offline, key-based** verification - no Rekor
 transparency log, no network. So you must sign **offline** too (see `--tlog-upload=false` below).
 
 Policy (`evey.yaml: cosign_policy` / env `EVEY_PLUGINS_COSIGN_POLICY`):
@@ -40,7 +40,7 @@ COSIGN_PASSWORD="your-passphrase" cosign generate-key-pair      # -> cosign.key 
 # 2. Build your plugin ZIP (zip the plugin's files, manifest at the root)
 cd my-plugin && zip -r ../my-plugin.zip . && cd ..
 
-# 3. Sign the ZIP OFFLINE (no Rekor — matches the server's --insecure-ignore-tlog)
+# 3. Sign the ZIP OFFLINE (no Rekor - matches the server's --insecure-ignore-tlog)
 COSIGN_PASSWORD="your-passphrase" cosign sign-blob \
   --key cosign.key --tlog-upload=false --yes \
   --output-signature my-plugin.zip.sig my-plugin.zip

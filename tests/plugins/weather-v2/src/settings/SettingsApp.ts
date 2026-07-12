@@ -2,13 +2,13 @@
 // user's profile → Appearance). Lets each user set, PER ACTIVE PROFILE, the
 // home city + temperature unit the weather widget uses. Values are stored in
 // the plugin's OWN per-profile preference store via the host bridge
-// (window.evey.prefs) — nothing leaves the plugin's namespace, and the widget
+// (window.evey.prefs) - nothing leaves the plugin's namespace, and the widget
 // reads the same prefs. Zero runtime deps: vanilla DOM.
 //
 // The city input is DISAMBIGUATED: as the user types we geocode and show the
 // matching places with their region + country ("Brest, Bretagne, France" vs
 // "Brest, Brest Region, Belarus"). The user picks one and we store its
-// COORDINATES — the widget never re-geocodes a bare name and lands on the wrong
+// COORDINATES - the widget never re-geocodes a bare name and lands on the wrong
 // homonym (Open-Meteo ranks by population, so a bare "Brest" resolved to Belarus).
 
 import type { HostBridge, HostInit } from "../domain/ports/HostBridge";
@@ -236,7 +236,7 @@ export class SettingsApp {
   }
 }
 
-// "Brest, Bretagne, France" — name plus whatever region/country we have.
+// "Brest, Bretagne, France" - name plus whatever region/country we have.
 function candidateLabel(c: GeoCandidate): string {
   return [c.name, c.admin1, c.country].filter((v) => v && v.trim()).join(", ");
 }

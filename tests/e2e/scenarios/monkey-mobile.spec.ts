@@ -21,7 +21,7 @@ for (let i = 0; i < RUNS; i++) {
   const entry = ENTRIES[i % ENTRIES.length];
   const seed = (BASE_SEED + i) >>> 0;
   // Seed kept out of the title (clock-default → cross-process mismatch); in the log.
-  test(`mobile-monkey #${i + 1} — ${entry}`, async ({ page }) => {
+  test(`mobile-monkey #${i + 1} - ${entry}`, async ({ page }) => {
     const result = await runMonkey(page, entry, STEPS, seed);
     const log = `seed=${seed}  (replay: MONKEY_SEED=${seed} MONKEY_MOBILE_RUNS=1)\n${result.steps.join("\n")}`;
     expect(result.jsErrors, `JS:\n${result.jsErrors.join("\n")}\n\n${log}`).toHaveLength(0);

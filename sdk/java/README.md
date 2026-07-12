@@ -1,4 +1,4 @@
-# Evey Plugin SDK — Java/Kotlin
+# Evey Plugin SDK - Java/Kotlin
 
 Proto file for Evey plugin development.
 
@@ -19,6 +19,6 @@ protobuf {
 }
 ```
 
-The `.jar` plugin is self-contained — Evey just runs `java -jar plugin.jar`.
+The `.jar` plugin is self-contained - Evey just runs `java -jar plugin.jar`.
 
 Requires JRE 17+ in the container (see `Dockerfile.plugins.example`).

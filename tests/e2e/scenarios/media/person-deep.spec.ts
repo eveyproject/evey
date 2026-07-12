@@ -56,8 +56,8 @@ test.describe("Person > Page content", () => {
     test.skip(!(await gotoPersonFromMedia(page)), "No person");
     await page.waitForTimeout(2_000);
     const body = await page.locator("body").textContent();
-    // look for age pattern: "— XX years old" or "— XX ans"
-    const ageMatch = body!.match(/—\s*(\d+)\s*(years|ans|años|岁|वर्ष)/);
+    // look for age pattern: "- XX years old" or "- XX ans"
+    const ageMatch = body!.match(/-\s*(\d+)\s*(years|ans|años|岁|वर्ष)/);
     if (ageMatch) {
       const age = parseInt(ageMatch[1]);
       expect(age).toBeGreaterThan(0);

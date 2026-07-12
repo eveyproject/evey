@@ -1,4 +1,4 @@
-# Evey plugin runtimes — copy and customize as needed
+# Evey plugin runtimes - copy and customize as needed
 # Usage: replace Dockerfile.dev reference in docker-compose.yml
 #   build:
 #     dockerfile: docker/Dockerfile.plugins.example
@@ -14,7 +14,7 @@ RUN apk add --no-cache ffmpeg curl postgresql-client \
 
 # ── Uncomment the runtimes you need for your plugins ──
 
-# PHP (requires PECL extensions — heavy)
+# PHP (requires PECL extensions - heavy)
 # RUN apk add --no-cache php83 php83-phar php83-openssl php83-json \
 #     && wget -O /usr/local/bin/composer https://getcomposer.org/download/latest-stable/composer.phar \
 #     && chmod +x /usr/local/bin/composer \
@@ -28,10 +28,10 @@ RUN apk add --no-cache ffmpeg curl postgresql-client \
 # RUN apk add --no-cache ruby ruby-dev gcc musl-dev make \
 #     && gem install grpc google-protobuf
 
-# Java/Kotlin (JRE only — plugins ship compiled .jar)
+# Java/Kotlin (JRE only - plugins ship compiled .jar)
 # RUN apk add --no-cache openjdk17-jre
 
-# Swift (no Alpine package — use ubuntu-based image or cross-compile)
+# Swift (no Alpine package - use ubuntu-based image or cross-compile)
 # Not recommended on Alpine.
 
 # Dart

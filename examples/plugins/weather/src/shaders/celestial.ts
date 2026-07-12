@@ -1,11 +1,11 @@
-// Celestial body shaders — sun disk + gaussian halo, and procedural moon with phase.
+// Celestial body shaders - sun disk + gaussian halo, and procedural moon with phase.
 // Both are screen-space quads positioned by the caller via NDC offset uniforms.
 //
 // The PlaneGeometry quad is sized as: width = size / aspect, height = size.
 // With the ortho camera [-1,1]², this produces square pixels because:
 //   1 UV unit in x = size/aspect * (canvas_w/2) px = size * (canvas_h/2) px
 //   1 UV unit in y = size        * (canvas_h/2) px
-// So the UV space is already isotropic — no aspect correction needed in the shader.
+// So the UV space is already isotropic - no aspect correction needed in the shader.
 
 // ─── Shared vertex shader ────────────────────────────────────────────────────
 export const CELESTIAL_VERT = /* glsl */ `
@@ -55,7 +55,7 @@ void main() {
   float flicker = 1.0 + 0.025 * sin(uTime * 2.8) * sin(uTime * 4.7);
   corona *= flicker;
 
-  // Disk drives alpha to 1.0 — the body is fully opaque.
+  // Disk drives alpha to 1.0 - the body is fully opaque.
   float alpha = max(disk, clamp(corona + wideGlow + outerGlow, 0.0, 1.0));
 
   // Color: solid near-white core → warm yellow/orange halo
@@ -63,7 +63,7 @@ void main() {
   vec3 cEdge   = vec3(1.00, 0.85, 0.50);
   vec3 cHalo   = vec3(1.00, 0.72, 0.35);
   vec3 col = mix(cEdge, cCore, disk * limb);
-  // Core override — inside the disk we want no halo color bleed.
+  // Core override - inside the disk we want no halo color bleed.
   col = mix(col, cCore, core);
   col += cEdge * corona * 0.85;
   col += cHalo * wideGlow * 0.90;
@@ -103,7 +103,7 @@ void main() {
   float d = length(p);
 
   float diskR = 0.20;
-  // Smooth shader-side AA — the PNG bleeds RGB past the disc so the
+  // Smooth shader-side AA - the PNG bleeds RGB past the disc so the
   // bilinear filter never reads pure black, and we can do a proper
   // smoothstep without a dark fringe.
   float discAA = smoothstep(diskR + 0.003, diskR - 0.003, d);

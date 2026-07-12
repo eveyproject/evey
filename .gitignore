@@ -33,14 +33,14 @@ testdata/*.mp4
 testdata/*.avi
 testdata/*.ts
 
-# Docker — data locale (bind mounts, ne pas versionner)
+# Docker - data locale (bind mounts, ne pas versionner)
 evey-data/
 postgres-data/
 meili-data/
 caddy-data/
 caddy-config/
 
-# Docker — fichiers locaux non versionnés
+# Docker - fichiers locaux non versionnés
 docker/docker-compose.media.yml
 docker/postgres-data/
 docker/meili-data/
@@ -50,7 +50,7 @@ docker/transcode-cache/
 
 vendor/
 
-# Frontend — dépendances et artefacts
+# Frontend - dépendances et artefacts
 frontend/node_modules/
 frontend/apps/*/node_modules/
 frontend/packages/*/node_modules/
@@ -94,12 +94,12 @@ test-results/
 # Expo
 frontend/apps/mobile/.expo/
 
-# Dev scripts (local only) — except anything referenced from Makefile.
+# Dev scripts (local only) - except anything referenced from Makefile.
 scripts/
 !scripts/build-test-plugins.sh
 !scripts/gen_cosign_fixtures.go
 
-# Cosign test fixtures — private key must never be committed
+# Cosign test fixtures - private key must never be committed
 tests/plugins/cosign/test.key
 text
 
@@ -107,7 +107,7 @@ text
 examples/plugins/*/node_modules/
 examples/plugins/*/dist/
 
-# ML intro-detection training labels (personal: library titles) — never committed
+# ML intro-detection training labels (personal: library titles) - never committed
 ml-trigger.txt
 
 # Android release keystore - never committed (signing secret)

@@ -1,4 +1,4 @@
-// Weather plugin — backend lifecycle stub.
+// Weather plugin - backend lifecycle stub.
 // All weather fetching happens in front.js (CSP connect-src is whitelisted
 // via external_fetch in plugin.yaml). The backend just stays alive so the
 // host treats the plugin as "running" and keeps the frontend slot active.

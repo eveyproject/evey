@@ -50,7 +50,7 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION}" -o /evey 
 # Landlock pre-exec shim used by sandbox_mode=landlock (and auto). Pure Go,
 # CGO-free; lives next to /evey so the runner finds it via os.Executable().
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /evey-plugin-launcher ./cmd/evey-plugin-launcher
-# mkvgo CLI — the pinned library also ships a command; build it so admins can
+# mkvgo CLI - the pinned library also ships a command; build it so admins can
 # inspect/repair media from inside the container (`mkvgo <TAB>` for commands).
 # Version stamped from the go.mod pin so `mkvgo --version` matches the library.
 RUN CGO_ENABLED=0 go build \
@@ -70,27 +70,27 @@ RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so /tmp/sandbox.c
 
 # ── Stage 5: Runtime ──
 # ONE image, the Jellyfin model: a single glibc base whose distro ffmpeg has
-# every HW encoder compiled in (h264/hevc _nvenc, _vaapi, _qsv — all verified in
+# every HW encoder compiled in (h264/hevc _nvenc, _vaapi, _qsv - all verified in
 # Debian trixie's ffmpeg 7.1). No GPU driver is baked; drivers are injected at
 # RUNTIME by whatever the host exposes, so the same image is software-only,
 # NVENC, or VAAPI/QSV depending purely on what compose/runtime maps:
 #   - NVENC: NVIDIA Container Toolkit (`--gpus all` / a compose nvidia device
 #     reservation) + NVIDIA_DRIVER_CAPABILITIES including `video` (set to `all`
-#     below) — without `video` the toolkit injects nvidia-smi/CUDA but NOT
+#     below) - without `video` the toolkit injects nvidia-smi/CUDA but NOT
 #     libnvidia-encode.so and nvenc fails with "Cannot load libnvidia-encode".
 #   - VAAPI / QSV: a mapped /dev/dri (host Mesa/iHD); vainfo + the VA/oneVPL
 #     drivers are installed below.
 # The CGO-free evey + launcher binaries (stage 4, CGO_ENABLED=0) run UNCHANGED on
 # glibc; only ffmpeg + the Landlock shim are glibc-specific (the shim is built in
 # stage 4b). Debian trixie ships ffmpeg 7.x (scale_cuda's `format=` for the
-# 10-bit→nv12 NVENC path) AND postgresql-client-17 (dumps the PG16 server fine —
+# 10-bit→nv12 NVENC path) AND postgresql-client-17 (dumps the PG16 server fine -
 # newer client, older server) straight from the distro, no PGDG repo dance.
 #
 # Three variants share this stage; the RUNTIMES build arg picks which plugin
 # runtimes the image ships (HW transcode is identical across all three):
-#   - lean   (default) : python3 only — covers the majority of community plugins
-#   - nodejs           : + node       — for JS plugins (theme frontends, scrapers)
-#   - full             : + node + php + ruby + lua — kitchen-sink variant
+#   - lean   (default) : python3 only - covers the majority of community plugins
+#   - nodejs           : + node       - for JS plugins (theme frontends, scrapers)
+#   - full             : + node + php + ruby + lua - kitchen-sink variant
 # Build with:  docker build --build-arg RUNTIMES=full .
 # The plugin installer refuses any plugin whose declared `language:` is not
 # present, with a message naming the right variant.
@@ -109,25 +109,25 @@ ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 
 # intel-media-va-driver-non-free (full iHD codec coverage, incl. HEVC/VC1) lives
-# in the `non-free` component — enable it on the deb822 sources before apt.
+# in the `non-free` component - enable it on the deb822 sources before apt.
 RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmware/' \
         /etc/apt/sources.list.d/debian.sources
 
 # Base runtime deps + the full VA/oneVPL driver set so VAAPI and QuickSync work
 # on whatever GPU the host maps at /dev/dri, with no per-machine rebuild:
 #   - mesa-va-drivers               : AMD (radeonsi) + open Intel
-#   - intel-media-va-driver-non-free: iHD — Intel Gen8+ (Broadwell and newer)
+#   - intel-media-va-driver-non-free: iHD - Intel Gen8+ (Broadwell and newer)
 #   - i965-va-driver                : Intel Gen <= 7.5
 #   - libvpl2 + libmfx-gen1.2       : the oneVPL runtime ffmpeg's *_qsv encoders
 #                                     dispatch through (trixie dropped the legacy
-#                                     libmfx1/MediaSDK — oneVPL supersedes it)
-# libva auto-selects the right driver from the GPU's PCI id at runtime —
+#                                     libmfx1/MediaSDK - oneVPL supersedes it)
+# libva auto-selects the right driver from the GPU's PCI id at runtime -
 # LIBVA_DRIVER_NAME is intentionally NOT forced. NVENC needs none of these (CUDA
 # via the toolkit); software needs none either.
 #
 # python3 is bundled in every variant. cosign verifies plugin signatures when
 # EVEY_PLUGINS_COSIGN_POLICY is warn/enforce (copied from the official image
-# below — Debian doesn't package it). Without it, enforce fails closed and blocks
+# below - Debian doesn't package it). Without it, enforce fails closed and blocks
 # EVERY install (the verifier shells out to `cosign verify-blob`).
 RUN apt-get update && apt-get install -y --no-install-recommends \
        ca-certificates curl ffmpeg bubblewrap libcap2-bin libchromaprint-tools \
@@ -151,21 +151,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
        fi \
     && rm -rf /var/lib/apt/lists/*
 
-# cosign — Debian has no apt package; ride the official ko-built image (pinned).
+# cosign - Debian has no apt package; ride the official ko-built image (pinned).
 COPY --from=gcr.io/projectsigstore/cosign:v2.4.1 /ko-app/cosign /usr/local/bin/cosign
 
-# Embedded Meilisearch — copied from the official image so we ride their
+# Embedded Meilisearch - copied from the official image so we ride their
 # release cadence + security patching, no extra download stage to maintain.
 # Pinned to v1.12 so existing /data/meili index volumes upgrade cleanly.
 COPY --from=getmeili/meilisearch:v1.12 /bin/meilisearch /usr/local/bin/meilisearch
 
-# jellyfin-ffmpeg — its `tonemapx` filter tonemaps HDR->SDR in a single AVX2/SIMD
+# jellyfin-ffmpeg - its `tonemapx` filter tonemaps HDR->SDR in a single AVX2/SIMD
 # pass, ~1.8x faster than Debian ffmpeg's zscale float32 chain on the SAME CPU
 # (measured on an old box, 1080p, same file/encoder: 1.56x vs 0.89x realtime). That
 # gap flips 4K HDR software transcode from sub-realtime (buffering, capped to 480p)
-# to playable 1080p — exactly why Jellyfin does 1080p HDR where our zscale path
+# to playable 1080p - exactly why Jellyfin does 1080p HDR where our zscale path
 # stalls. Installed from Jellyfin's OFFICIAL Debian repo (the standalone
-# jellyfin-ffmpeg7 package — leaner than vendoring the whole Jellyfin image) and
+# jellyfin-ffmpeg7 package - leaner than vendoring the whole Jellyfin image) and
 # symlinked AHEAD of Debian's /usr/bin/ffmpeg on PATH; Debian's ffmpeg stays
 # installed as a fallback (drop the symlink to revert). The Go side probes for
 # `tonemapx` at runtime (tonemapxAvailable) and falls back to the zscale chain when
@@ -225,7 +225,7 @@ COPY --from=frontend /app/apps/web/dist /srv
 # for the `evey` maintenance CLI and the `mkvgo` media tool, plus a one-time
 # greeting (banner + both command groups). The `evey` binary is already at /evey;
 # symlink it onto PATH so `evey admin …` works from any cwd. All sourced from the
-# system bashrc — nothing here touches the running server.
+# system bashrc - nothing here touches the running server.
 RUN ln -sf /evey /usr/local/bin/evey
 COPY --from=builder /mkvgo /usr/local/bin/mkvgo
 COPY docker/evey-completion.bash /etc/bash_completion.d/evey
@@ -248,7 +248,7 @@ HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
 
 # No static USER: the entrypoint starts as root just long enough to re-map
 # the evey user to the operator's PUID/PGID (defaults 1000:1000), then
-# re-execs itself unprivileged via setpriv — the server process NEVER runs
+# re-execs itself unprivileged via setpriv - the server process NEVER runs
 # as root. Operators who refuse the transient root can set `user:` in
 # compose; the entrypoint detects the non-root uid and skips the re-map.
 ENTRYPOINT ["/entrypoint.sh"]

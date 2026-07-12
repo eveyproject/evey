@@ -1,6 +1,6 @@
 // Helpers for plugin security e2e tests.
-// Upload goes via the admin API (multipart POST) — the same path the UI calls
-// via eveyFetchRaw — so we validate the real security gate without having to
+// Upload goes via the admin API (multipart POST) - the same path the UI calls
+// via eveyFetchRaw - so we validate the real security gate without having to
 // drive the multi-step review modal through Playwright's file-picker.
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -29,7 +29,7 @@ export async function getAccessToken(page: Page): Promise<string> {
       return null;
     }
   });
-  if (!tok) throw new Error("no accessToken in localStorage — global-setup did not run?");
+  if (!tok) throw new Error("no accessToken in localStorage - global-setup did not run?");
   return tok;
 }
 
@@ -40,7 +40,7 @@ export async function uploadPluginZip(
   zipPath: string,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
   if (!fs.existsSync(zipPath)) {
-    throw new Error(`ZIP not found: ${zipPath} — run tests/e2e/fixtures/plugin-zips/build.sh first`);
+    throw new Error(`ZIP not found: ${zipPath} - run tests/e2e/fixtures/plugin-zips/build.sh first`);
   }
   const zipBytes = fs.readFileSync(zipPath);
   const fileName = path.basename(zipPath);
@@ -54,7 +54,7 @@ export async function uploadPluginZip(
   try {
     body = (await res.json()) as Record<string, unknown>;
   } catch {
-    // non-JSON response — leave body empty
+    // non-JSON response - leave body empty
   }
   return { status: res.status(), body };
 }
@@ -83,7 +83,7 @@ export function assertUploadBlocked(
  * Assert the upload was rejected AND the analyzer flagged the expected category.
  * The server returns a deduplicated `categories: string[]` machine-readable
  * enum list (e.g. ["shell_exec", "sandbox_escape", "native_code"]) alongside
- * the human-readable `issues` strings. We assert against `categories` —
+ * the human-readable `issues` strings. We assert against `categories` -
  * matching enums is robust to wording changes in the issue descriptions.
  * Falls back to a substring scan of `issues` for older server builds that
  * don't emit `categories` yet (so the test stays useful across versions).

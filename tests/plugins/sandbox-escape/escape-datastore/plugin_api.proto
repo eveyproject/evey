@@ -45,7 +45,7 @@ service HostService {
   rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
   rpc SetConfig(SetConfigRequest) returns (SetConfigResponse);
 
-  // Data store — the plugin's own persistent key/value namespace (plugin-global
+  // Data store - the plugin's own persistent key/value namespace (plugin-global
   // scope). Rows live in plugin_data and are wiped when the plugin is
   // uninstalled. No special permission required: a plugin owns its own data.
   rpc GetData(GetDataRequest) returns (GetDataResponse);

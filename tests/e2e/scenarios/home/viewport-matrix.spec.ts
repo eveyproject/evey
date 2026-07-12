@@ -24,7 +24,7 @@ const VIEWPORTS = [
 
 for (const vp of VIEWPORTS) {
   for (const path of PAGES) {
-    test(`${path} @ ${vp.name} — no crash`, async ({ page }) => {
+    test(`${path} @ ${vp.name} - no crash`, async ({ page }) => {
       await page.setViewportSize(vp);
       const { jsErrors } = await collectErrors(page, async () => {
         await goto(page, path);
@@ -39,7 +39,7 @@ for (const vp of VIEWPORTS) {
 const OVERFLOW_PAGES = ["/home", "/library", "/favorites", "/profile", "/admin"];
 for (const vp of VIEWPORTS) {
   for (const path of OVERFLOW_PAGES) {
-    test(`${path} @ ${vp.name} — no horizontal overflow`, async ({ page }) => {
+    test(`${path} @ ${vp.name} - no horizontal overflow`, async ({ page }) => {
       await page.setViewportSize(vp);
       await goto(page, path);
       await page.waitForTimeout(1_500);

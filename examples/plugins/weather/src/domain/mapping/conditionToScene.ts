@@ -1,6 +1,6 @@
 // WMO weather code → SceneParams.
 // Codes: https://open-meteo.com/en/docs (weathercode field)
-// Pure function — no side-effects, no imports from React/Three.
+// Pure function - no side-effects, no imports from React/Three.
 
 import type { WeatherSnapshot, SceneParams } from "../weather";
 import { sunPosition, moonPhase } from "./sunPosition";
@@ -66,7 +66,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
   const b = base(snap, now);
   const code = snap.conditionCode;
 
-  // 0 — Clear sky
+  // 0 - Clear sky
   if (code === 0) {
     return {
       ...b,
@@ -83,7 +83,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 1 — Mainly clear
+  // 1 - Mainly clear
   if (code === 1) {
     return {
       ...b,
@@ -100,7 +100,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 2 — Partly cloudy
+  // 2 - Partly cloudy
   if (code === 2) {
     return {
       ...b,
@@ -117,7 +117,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 3 — Overcast
+  // 3 - Overcast
   if (code === 3) {
     return {
       ...b,
@@ -134,7 +134,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 45, 48 — Fog / depositing rime fog
+  // 45, 48 - Fog / depositing rime fog
   if (code === 45 || code === 48) {
     return {
       ...b,
@@ -151,7 +151,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 51, 53, 55 — Drizzle (light/moderate/dense)
+  // 51, 53, 55 - Drizzle (light/moderate/dense)
   if (code >= 51 && code <= 55) {
     const intensity = code === 51 ? 0.2 : code === 53 ? 0.45 : 0.65;
     return {
@@ -169,7 +169,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 56, 57 — Freezing drizzle
+  // 56, 57 - Freezing drizzle
   if (code === 56 || code === 57) {
     return {
       ...b,
@@ -186,7 +186,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 61, 63, 65 — Rain (slight/moderate/heavy)
+  // 61, 63, 65 - Rain (slight/moderate/heavy)
   if (code >= 61 && code <= 65) {
     const intensity = code === 61 ? 0.30 : code === 63 ? 0.60 : 0.90;
     return {
@@ -204,7 +204,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 66, 67 — Freezing rain
+  // 66, 67 - Freezing rain
   if (code === 66 || code === 67) {
     return {
       ...b,
@@ -221,7 +221,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 71, 73, 75 — Snow fall (slight/moderate/heavy)
+  // 71, 73, 75 - Snow fall (slight/moderate/heavy)
   if (code >= 71 && code <= 75) {
     const intensity = code === 71 ? 0.25 : code === 73 ? 0.55 : 0.85;
     return {
@@ -239,7 +239,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 77 — Snow grains
+  // 77 - Snow grains
   if (code === 77) {
     return {
       ...b,
@@ -256,7 +256,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 80, 81, 82 — Rain showers (slight/moderate/violent)
+  // 80, 81, 82 - Rain showers (slight/moderate/violent)
   if (code >= 80 && code <= 82) {
     const intensity = code === 80 ? 0.40 : code === 81 ? 0.70 : 0.95;
     return {
@@ -274,7 +274,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 85, 86 — Snow showers (slight/heavy)
+  // 85, 86 - Snow showers (slight/heavy)
   if (code === 85 || code === 86) {
     return {
       ...b,
@@ -291,7 +291,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 95 — Thunderstorm (slight/moderate)
+  // 95 - Thunderstorm (slight/moderate)
   if (code === 95) {
     return {
       ...b,
@@ -308,7 +308,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // 96, 99 — Thunderstorm with hail
+  // 96, 99 - Thunderstorm with hail
   if (code === 96 || code === 99) {
     return {
       ...b,
@@ -325,7 +325,7 @@ export function conditionToScene(snap: WeatherSnapshot, now: Date): SceneParams 
     };
   }
 
-  // Fallback — unknown code
+  // Fallback - unknown code
   return {
     ...b,
     cloudCover: 0.50,

@@ -11,7 +11,7 @@
  * - Returns the new context (or null if unknown)
  *
  * The runner collects JS errors, 5xx, unexpected API 4xx (malformed requests
- * from UI actions — 400/405/422), blank pages, and untranslated i18n keys. Each
+ * from UI actions - 400/405/422), blank pages, and untranslated i18n keys. Each
  * action is bounded by ACTION_TIMEOUT_MS so one wedged interaction can't blow
  * the run's budget.
  */
@@ -402,7 +402,7 @@ export interface MonkeyResult {
   untranslatedKeys: string[];
   // Unexpected 4xx on API calls: a UI action that fires a 400/405/422 against
   // /api/ is almost always a real client bug (malformed payload, wrong method,
-  // unparseable param) — exactly the class of drift that made several specs pass
+  // unparseable param) - exactly the class of drift that made several specs pass
   // while silently no-opping. Distinct from the noisy 4xx a random walk
   // legitimately produces (401 auth, 403 RBAC, 404 missing resource, 409
   // conflict, 429 rate-limit), which we deliberately do NOT flag.
@@ -415,7 +415,7 @@ export interface MonkeyResult {
 const API_4XX_FLAG = new Set([400, 405, 422]);
 
 // Known-legitimate flagged 4xx that a random walk can trip without it being a
-// bug. Keep this tight and annotate every entry — an over-broad allowlist
+// bug. Keep this tight and annotate every entry - an over-broad allowlist
 // re-blinds the monkey. (Empty until a real false positive is observed.)
 const API_4XX_ALLOWLIST: Array<{ method?: string; urlIncludes: string; status?: number }> = [];
 
@@ -436,7 +436,7 @@ function stripQuery(url: string): string {
 // Hard ceiling per action. A single chaotic action occasionally wedges on a
 // Playwright default timeout (~30s) and two of those blow the 60s test budget,
 // flaking the whole run. Bound each action so one hang costs seconds, not the
-// run. The wedged operation isn't cancelled — it just stops blocking the walk.
+// run. The wedged operation isn't cancelled - it just stops blocking the walk.
 const ACTION_TIMEOUT_MS = 6_000;
 
 export async function runMonkey(page: Page, startUrl: string, numSteps: number, seed?: number): Promise<MonkeyResult> {
@@ -452,7 +452,7 @@ export async function runMonkey(page: Page, startUrl: string, numSteps: number, 
     seed,
   };
 
-  // The step in flight when a response arrives — lets us point at the action
+  // The step in flight when a response arrives - lets us point at the action
   // that triggered a bad request for replay (responses land async, usually
   // during or just after the step that fired them).
   let currentStep = "START";

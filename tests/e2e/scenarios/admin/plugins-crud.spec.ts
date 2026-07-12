@@ -23,7 +23,7 @@ test.describe("Admin > Plugins", () => {
     await page.waitForTimeout(500);
     await page.keyboard.press("Escape");
     await page.waitForTimeout(300);
-    // modal should be closed — no crash
+    // modal should be closed - no crash
   });
 
   test("plugin list or empty state visible", async ({ page }) => {

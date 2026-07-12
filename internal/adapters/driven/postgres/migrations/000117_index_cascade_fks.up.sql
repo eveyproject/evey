@@ -4,14 +4,14 @@
 -- once PER deleted parent row to find the rows to cascade. Deleting a library
 -- cascades through media_items (9000+ on a real instance), and for each one it
 -- was seq-scanning watch_progress / favorites / transcode_sessions / share_links
--- (and music_track_plays for music libs) — O(parents × child_rows) — which blew
+-- (and music_track_plays for music libs) - O(parents × child_rows) - which blew
 -- the 30s statement timeout, so the whole DELETE rolled back and the library
 -- "wouldn't delete". The same pathology hit user/profile/role deletes
 -- (refresh_tokens, user_roles, syncplay_rooms, plugin_data). A plain btree on
 -- each FK column turns the cascade into index lookups.
 --
 -- Note: existing composite indexes (e.g. watch_progress(profile_id, media_item_id))
--- do NOT help — the cascade looks up by media_item_id, which is not the leading
+-- do NOT help - the cascade looks up by media_item_id, which is not the leading
 -- column there.
 
 -- Library-delete cascade path (library → media_items / music_tracks / library).

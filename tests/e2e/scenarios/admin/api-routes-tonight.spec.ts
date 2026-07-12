@@ -3,11 +3,11 @@ import { test, expect } from "../../fixtures/auth";
 import { getAccessToken } from "../../helpers/plugin-helpers";
 
 // Coverage for two endpoints touched in the 2026-05-28 overnight batch:
-//   * GET /api/v1/push/devices       — ListDevices used to return 501
+//   * GET /api/v1/push/devices       - ListDevices used to return 501
 //                                       (Unimplemented), now returns 200 with
 //                                       an empty list so the profile Devices
 //                                       tab never 5xxes (fix 45b976002).
-//   * GET /api/v1/i18n/{locale}       — backend-served translations, must
+//   * GET /api/v1/i18n/{locale}       - backend-served translations, must
 //                                       resolve every supported locale and
 //                                       include the new keys added tonight
 //                                       (commits a7aba91c2 / 345350234 /
@@ -55,7 +55,7 @@ test.describe("i18n > backend translations contract", () => {
   // resolve every supported locale and surface the keys we shipped tonight.
   const LOCALES = ["en", "de", "es", "fr", "hi", "zh"] as const;
   // A handful of keys added in this batch that the smoke endpoint must serve.
-  // We don't assert exact translations — only presence + a non-empty string.
+  // We don't assert exact translations - only presence + a non-empty string.
   const REQUIRED_KEYS = [
     "auth.settings.parental.pin.changeTitle",
     "auth.settings.parental.pin.currentPin",

@@ -1,6 +1,6 @@
 -- Per-profile play counts for music tracks. Music tracks live in music_tracks
--- (not media_items), so favorites/ratings/watch_progress — all FK'd to
--- media_items — can't capture music taste. This table is the music taste
+-- (not media_items), so favorites/ratings/watch_progress - all FK'd to
+-- media_items - can't capture music taste. This table is the music taste
 -- signal used by the playlist generator.
 CREATE TABLE IF NOT EXISTS music_track_plays (
     profile_id     TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,

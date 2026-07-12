@@ -243,7 +243,7 @@
         "activeSessionsBps": {
           "type": "string",
           "format": "int64",
-          "description": "Theoretical outgoing rate: the summed source bitrate of every active\nplay session — what the server would push if every client pulled at\nfull speed."
+          "description": "Theoretical outgoing rate: the summed source bitrate of every active\nplay session - what the server would push if every client pulled at\nfull speed."
         }
       }
     },

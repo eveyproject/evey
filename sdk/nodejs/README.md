@@ -1,4 +1,4 @@
-# Evey Plugin SDK — Node.js
+# Evey Plugin SDK - Node.js
 
 Proto file for Evey plugin development. Loaded at runtime via `@grpc/proto-loader`.
 

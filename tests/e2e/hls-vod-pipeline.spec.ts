@@ -5,7 +5,7 @@ import { test, expect } from "./fixtures/auth";
 // the new /hls/v2/ URL contract (master → variant → segment + init), and that
 // a programmatic seek lands segment requests around the new position.
 //
-// We don't try to verify <video>.currentTime > 0 — headless Chromium's
+// We don't try to verify <video>.currentTime > 0 - headless Chromium's
 // autoplay policy makes that unreliable, and the network-trace assertions
 // below are a stronger signal anyway: if hls.js fetched a segment, the
 // orchestrator served it and the cache addressed it correctly.
@@ -19,7 +19,7 @@ test.use({
   },
 });
 
-test("HLS VOD pipeline — master, variant, segments + seek all hit /hls/v2/", async ({ page }) => {
+test("HLS VOD pipeline - master, variant, segments + seek all hit /hls/v2/", async ({ page }) => {
   test.setTimeout(180_000);
 
   const hlsRequests: { url: string; status?: number }[] = [];
@@ -86,7 +86,7 @@ test("HLS VOD pipeline — master, variant, segments + seek all hit /hls/v2/", a
   expect(variantBody).toContain("#EXT-X-ENDLIST");
 
   // Programmatic seek to ~5 min in. After this, requests for high-index
-  // segments (≥ 95) must appear — that's the cancel-on-seek path producing
+  // segments (≥ 95) must appear - that's the cancel-on-seek path producing
   // segments around the new position.
   const seekTarget = 300;
   await video.evaluate((v: HTMLVideoElement, t: number) => {

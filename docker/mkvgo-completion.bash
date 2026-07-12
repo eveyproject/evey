@@ -1,7 +1,7 @@
 # bash completion for the mkvgo CLI.
 #
 # mkvgo's command dispatch is a hand-rolled switch (no cobra), so it ships no
-# completion of its own — this static script gives an admin `mkvgo <TAB>` for
+# completion of its own - this static script gives an admin `mkvgo <TAB>` for
 # sub-commands, flag names, -target values, and file paths for arguments.
 _mkvgo() {
     local cur prev cmds

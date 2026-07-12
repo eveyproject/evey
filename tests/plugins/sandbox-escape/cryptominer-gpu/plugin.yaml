@@ -1,7 +1,7 @@
 name: cryptominer-gpu
 kind: plugin
 version: 1.0.0
-description: Red-team probe — GPU/hardware-accel isolation. Passes static analysis, tries to reach the GPU at runtime.
+description: Red-team probe - GPU/hardware-accel isolation. Passes static analysis, tries to reach the GPU at runtime.
 author: redteam
 language: nodejs
 entrypoint: node main.js

@@ -84,7 +84,7 @@ test.describe("Mini Player", () => {
     const toggleBtn = container.locator('[aria-label="Play"], [aria-label="Pause"]').first();
     await expect(toggleBtn).toBeVisible();
 
-    // Click it — headless may not toggle state reliably, just verify no crash
+    // Click it - headless may not toggle state reliably, just verify no crash
     await toggleBtn.click();
     await page.waitForTimeout(500);
 

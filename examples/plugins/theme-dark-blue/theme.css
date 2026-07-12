@@ -60,7 +60,7 @@
 }
 
 /*
- * Stable theming hooks (see docs/themes/api-reference.md) — optional, beyond
+ * Stable theming hooks (see docs/themes/api-reference.md) - optional, beyond
  * the palette. Themes may target these without depending on utility classes.
  */
 .evey-poster {

@@ -1,7 +1,7 @@
 name: python-hello
 kind: plugin
 version: 1.0.0
-description: Example Python plugin — logs media events
+description: Example Python plugin - logs media events
 author: Evey
 language: python
 entrypoint: python3 main.py

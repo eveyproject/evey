@@ -6,12 +6,12 @@ Each ZIP has a detached cosign signature `*.zip.sig` produced with the
 
 ## Why a committed test key?
 
-This keypair is **for fixtures only** — it never signs production plugins.
+This keypair is **for fixtures only** - it never signs production plugins.
 Committing it makes the e2e suite hermetic: anyone who clones the repo can
 run the signed-install path without a one-shot key-generation ceremony.
 
 If you ever wire cosign into a real-prod admin install path, use a
-different key (HSM, Vault, Sigstore Fulcio, etc.) — never reuse this one.
+different key (HSM, Vault, Sigstore Fulcio, etc.) - never reuse this one.
 
 ## Regenerate
 

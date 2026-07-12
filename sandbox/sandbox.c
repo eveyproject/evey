@@ -57,12 +57,12 @@
 #endif
 
 /*
- * Denylist — syscalls with no legitimate use in a plugin context, grouped by
+ * Denylist - syscalls with no legitimate use in a plugin context, grouped by
  * category: exec / process debug / mount / namespace / kernel modules /
  * bpf+perf / hw I/O / swap / system control / kexec / setuid family /
  * capabilities / keyring.
  *
- * Pattern: the DENY(nr) macro emits a self-contained 2-instruction block —
+ * Pattern: the DENY(nr) macro emits a self-contained 2-instruction block -
  * "if syscall == nr return EPERM, else skip to the next check". There are NO
  * hand-computed jump offsets, so adding or removing a syscall is a one-line
  * change that cannot desync the filter. Anything not denied falls through to
@@ -81,7 +81,7 @@ static struct sock_filter filter[] = {
     /* Signals targeting PID/TID 1 (the server runs as PID 1 in the container).
      * A plugin shares the server's UID, so it could otherwise kill(1)/tkill(1)/
      * tgkill(1,...) to DoS it. We deny tkill/tgkill ONLY when args[0]==1, and
-     * deny kill outright below — this still allows raise()/abort() and pthread
+     * deny kill outright below - this still allows raise()/abort() and pthread
      * self-signaling (a plugin's own tid is never 1, since it is a child PID).
      * Offsets are local to this 6-instruction prelude and never need to change
      * when the denylist below grows. */
@@ -96,12 +96,12 @@ static struct sock_filter filter[] = {
     DENY(__NR_execve),
     DENY(__NR_execveat),
 
-    /* process control / debug — trace or read another process's memory */
+    /* process control / debug - trace or read another process's memory */
     DENY(__NR_ptrace),
     DENY(__NR_process_vm_readv),
     DENY(__NR_process_vm_writev),
 
-    /* process signals — kill (any target) has no legitimate plugin use; tkill/
+    /* process signals - kill (any target) has no legitimate plugin use; tkill/
      * tgkill to PID 1 are already denied by the prelude above. */
     DENY(__NR_kill),
 
@@ -180,7 +180,7 @@ static void sandbox_init(void) {
     /*
      * PR_SET_DUMPABLE=0 makes /proc/PID/{environ,mem,maps,fd,...} owned by
      * root and unreadable by same-UID siblings. With seccomp already blocking
-     * ptrace this is mainly about passive /proc reads — a co-resident plugin
+     * ptrace this is mainly about passive /proc reads - a co-resident plugin
      * cannot scrape another plugin's environment variables or memory maps
      * via the filesystem. Also disables coredumps (which could leak memory
      * to disk on a crash).

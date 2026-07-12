@@ -27,7 +27,7 @@ services:
       # (and manage ./evey-data ownership yourself).
       PUID: ${PUID:-}
       PGID: ${PGID:-}
-      # Meilisearch runs embedded inside the evey container — the entrypoint
+      # Meilisearch runs embedded inside the evey container - the entrypoint
       # spawns it before exec'ing the server. Set EVEY_EMBEDDED_MEILI=false
       # AND point EVEY_MEILI_URL at an external instance to opt out (useful
       # for shared search clusters or running Meili on dedicated hardware).
@@ -53,12 +53,12 @@ services:
     # No security_opt overrides: the plugin sandbox uses Landlock (sandbox_mode
     # auto/landlock), which self-confines the plugin's filesystem access from
     # *inside* the process and needs no mount/unshare. It therefore runs under
-    # Docker's DEFAULT seccomp + AppArmor — the baseline container security
+    # Docker's DEFAULT seccomp + AppArmor - the baseline container security
     # stays fully intact (no relaxed profile, no added capability, no
     # privileged mode). On a kernel without Landlock, auto falls back to the
     # best isolation the host allows.
     # Advanced (bare-metal namespace isolation): bubblewrap mode is available but
-    # needs the mount syscall, which the default AppArmor blocks inside Docker —
+    # needs the mount syscall, which the default AppArmor blocks inside Docker -
     # enabling it in a container requires a relaxed seccomp profile (a security
     # downgrade). See "Advanced: bubblewrap mode" in docs/plugins.md.
     # Hardware-accelerated transcoding is opt-in via an overlay file so the
@@ -99,7 +99,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # ── Reverse proxy (optional — use your own if you prefer) ──
+  # ── Reverse proxy (optional - use your own if you prefer) ──
   caddy:
     container_name: evey-caddy
     build:

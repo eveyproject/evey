@@ -1,4 +1,4 @@
-// Snow flake shader — instanced points with drift and rotation.
+// Snow flake shader - instanced points with drift and rotation.
 // Procedural flake using noise-based soft disk with turbulence.
 
 import { NOISE_GLSL } from "./lib/noise";

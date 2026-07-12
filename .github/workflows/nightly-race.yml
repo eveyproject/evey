@@ -1,7 +1,7 @@
-name: Nightly — race & deep vuln
+name: Nightly - race & deep vuln
 
 # Nightly deep-security gate. The commit-CI runs unit tests with -race
-# (cheap, high signal — lots of goroutines) but skips -race on the postgres
+# (cheap, high signal - lots of goroutines) but skips -race on the postgres
 # repo tests (300+ serialised tests through a shared container, -race adds
 # 2-3× overhead with little signal there). This workflow re-runs the
 # postgres tests with -race + a verbose govulncheck pass with call traces.
@@ -10,7 +10,7 @@ name: Nightly — race & deep vuln
 
 on:
   schedule:
-    # 03:17 UTC daily — staggered off the hour to dodge the cron stampede
+    # 03:17 UTC daily - staggered off the hour to dodge the cron stampede
     # GitHub Actions sees at HH:00 (queue can be 10-30 min late).
     - cron: '17 3 * * *'
   workflow_dispatch:
@@ -21,7 +21,7 @@ env:
 jobs:
   postgres-race:
     name: Postgres tests with -race
-    # runs-on: ubuntu-latest  # GitHub-hosted — disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
+    # runs-on: ubuntu-latest  # GitHub-hosted - disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v5
@@ -43,12 +43,12 @@ jobs:
 
       # 300s without -race was just barely enough; with -race the historical
       # baseline is ~600s, give 900s headroom in case a future test adds load.
-      - name: test (postgres — race)
+      - name: test (postgres - race)
         run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=900s -race
 
   vuln-deep:
     name: govulncheck (deep, call traces)
-    # runs-on: ubuntu-latest  # GitHub-hosted — disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
+    # runs-on: ubuntu-latest  # GitHub-hosted - disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v5
@@ -68,7 +68,7 @@ jobs:
       - name: generate proto
         run: buf generate
 
-      # Verbose mode dumps the call traces for each vulnerability — heavier
+      # Verbose mode dumps the call traces for each vulnerability - heavier
       # than the commit-CI run but the surface for a regression here is the
       # whole transitive dep graph, so it's worth the extra time nightly.
       # Self-healing install + full-path invoke (see ci.yml: actions/cache

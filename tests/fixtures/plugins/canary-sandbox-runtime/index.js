@@ -22,7 +22,7 @@ function probe(p) {
   }
 }
 
-// 1. Root listing — what is visible at all?
+// 1. Root listing - what is visible at all?
 try {
   const roots = fs.readdirSync('/');
   console.log(`ROOT_LIST count=${roots.length} dirs=${roots.join(',')}`);

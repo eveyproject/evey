@@ -18,7 +18,7 @@ const ALL_PAGES = [
 ];
 
 for (const path of ALL_PAGES) {
-  test(`${path} mobile — loads`, async ({ page }) => {
+  test(`${path} mobile - loads`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(1_500);
     const len = await page.evaluate(() => document.body.innerText.length);
@@ -27,7 +27,7 @@ for (const path of ALL_PAGES) {
 }
 
 for (const path of ALL_PAGES) {
-  test(`${path} mobile — no JS errors`, async ({ page }) => {
+  test(`${path} mobile - no JS errors`, async ({ page }) => {
     const { jsErrors } = await collectErrors(page, async () => {
       await goto(page, path);
       await page.waitForTimeout(1_500);
@@ -37,7 +37,7 @@ for (const path of ALL_PAGES) {
 }
 
 for (const path of ALL_PAGES) {
-  test(`${path} mobile — no 5xx`, async ({ page }) => {
+  test(`${path} mobile - no 5xx`, async ({ page }) => {
     const { serverErrors } = await collectErrors(page, async () => {
       await goto(page, path);
       await page.waitForTimeout(1_500);
@@ -47,7 +47,7 @@ for (const path of ALL_PAGES) {
 }
 
 for (const path of ALL_PAGES) {
-  test(`${path} mobile — no horizontal overflow`, async ({ page }) => {
+  test(`${path} mobile - no horizontal overflow`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(1_500);
     const overflow = await page.evaluate(() =>
@@ -58,7 +58,7 @@ for (const path of ALL_PAGES) {
 }
 
 for (const path of ALL_PAGES) {
-  test(`${path} mobile — hamburger menu visible`, async ({ page }) => {
+  test(`${path} mobile - hamburger menu visible`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(1_000);
     // On mobile, hamburger should be visible (except player/login)

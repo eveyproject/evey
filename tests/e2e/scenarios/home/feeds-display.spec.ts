@@ -22,7 +22,7 @@ test.describe("Home > Feeds display", () => {
     await page.waitForTimeout(2_000);
     // Only judge images actually in the viewport. Cards in horizontal sliders
     // (and below the fold) use loading="lazy", so off-screen posters never start
-    // loading and report naturalWidth===0 — that's lazy, not broken. Restrict to
+    // loading and report naturalWidth===0 - that's lazy, not broken. Restrict to
     // in-viewport images and wait for those to settle (img.complete is true on
     // both success and error) before counting genuine failures.
     await page

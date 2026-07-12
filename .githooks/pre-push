@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pre-push hook — runs the CI "Backend — quality & security" job locally
+# Pre-push hook - runs the CI "Backend - quality & security" job locally
 # (`make pre-push`: vet + govulncheck + build + gosec ratchet + lint) before
 # letting `git push` proceed, so a regression never reaches GitHub Actions and
 # tanks the pipeline.
@@ -7,10 +7,10 @@
 # Activation (run once, per clone):
 #     make hooks            # sets core.hooksPath to .githooks
 #
-# Bypass (when you know what you're doing — e.g. pushing docs-only):
+# Bypass (when you know what you're doing - e.g. pushing docs-only):
 #     git push --no-verify
 #
-# Heavy race tests (unit + postgres testcontainers) are NOT in this gate —
+# Heavy race tests (unit + postgres testcontainers) are NOT in this gate -
 # they are the separate `correctness` CI job. Run them before a substantial
 # push with:
 #     make ci-local
@@ -21,7 +21,7 @@
 set -e
 
 if ! command -v docker >/dev/null 2>&1; then
-    echo "pre-push: docker not found on PATH — start the dev stack first or bypass with --no-verify." >&2
+    echo "pre-push: docker not found on PATH - start the dev stack first or bypass with --no-verify." >&2
     exit 1
 fi
 
@@ -31,5 +31,5 @@ if ! docker inspect --format '{{.State.Status}}' evey-server >/dev/null 2>&1; th
     exit 1
 fi
 
-echo "pre-push: running make pre-push (~1-2 min) — bypass with 'git push --no-verify'"
+echo "pre-push: running make pre-push (~1-2 min) - bypass with 'git push --no-verify'"
 exec make pre-push

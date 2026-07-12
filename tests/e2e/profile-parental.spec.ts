@@ -75,7 +75,7 @@ test.describe("Profile parental controls", () => {
     expect(settings.enabled).toBe(true);
   });
 
-  test("verify PIN — correct and incorrect", async ({ request, token }) => {
+  test("verify PIN - correct and incorrect", async ({ request, token }) => {
     test.skip(!RUN_PIN_TESTS, "PIN-mutating tests need a fresh per-profile rate-limit bucket; opt-in with E2E_PARENTAL_PIN=1");
     const profileId = await getProfileId(request, token);
 
@@ -98,14 +98,14 @@ test.describe("Profile parental controls", () => {
     test.skip(!RUN_PIN_TESTS, "PIN-mutating tests need a fresh per-profile rate-limit bucket; opt-in with E2E_PARENTAL_PIN=1");
     const profileId = await getProfileId(request, token);
 
-    // Without current PIN — should be rejected.
+    // Without current PIN - should be rejected.
     const failRes = await request.put(`/api/v1/profiles/${profileId}/parental`, {
       headers: { ...authHeaders(token), "Content-Type": "application/json" },
       data: { maxAge: 17, currentPin: "" },
     });
     expect([400, 401, 403]).toContain(failRes.status());
 
-    // With correct current PIN — should succeed.
+    // With correct current PIN - should succeed.
     const okRes = await request.put(`/api/v1/profiles/${profileId}/parental`, {
       headers: { ...authHeaders(token), "Content-Type": "application/json" },
       data: { maxAge: 17, currentPin: "1234" },

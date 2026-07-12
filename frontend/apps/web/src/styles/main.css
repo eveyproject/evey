@@ -17,7 +17,7 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
-/* Z-index scale — single source of truth */
+/* Z-index scale - single source of truth */
 :root {
   --z-raised: 10;
   --z-badge: 20;
@@ -84,7 +84,7 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 
 ::selection {
   /* --accent-subtle is 10-12% opacity by design (badges, hover states),
-     too faint for a text selection — drove a "I can't see what I'm
+     too faint for a text selection - drove a "I can't see what I'm
      selecting" report. Mix the full accent at 35 % so the highlight is
      visible across every theme while staying readable. */
   background: color-mix(in srgb, var(--accent) 35%, transparent);
@@ -188,7 +188,7 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 }
 
 /* Poster placeholder (artwork missing / failed to load): soft, intentional
-   diagonal — a faint accent tint up top fading into a slightly deeper surface,
+   diagonal - a faint accent tint up top fading into a slightly deeper surface,
    so a posterless card reads as designed, not broken. */
 .evey-poster-fallback {
   background: linear-gradient(
@@ -199,7 +199,7 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   );
 }
 
-/* TopBar scroll-driven glass — toggled by data-scrolled attribute, no JS re-render */
+/* TopBar scroll-driven glass - toggled by data-scrolled attribute, no JS re-render */
 .topbar-glass {
   background-color: var(--surface);
   border-color: var(--border);

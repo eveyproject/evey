@@ -1,4 +1,4 @@
-// Port interface — the domain defines the shape, adapters implement it.
+// Port interface - the domain defines the shape, adapters implement it.
 import type { GeoCoord, WeatherSnapshot } from "../weather";
 
 export interface WeatherProvider {

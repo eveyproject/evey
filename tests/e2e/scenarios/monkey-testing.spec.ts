@@ -36,7 +36,7 @@ for (let i = 0; i < RUNS; i++) {
   // both the collector and worker processes; with a clock-derived default seed
   // the two processes compute different titles → "Test not found in the worker".
   // The seed lives in the failure log below for replay instead.
-  test(`monkey #${i + 1} — start:${entry}`, async ({ page }) => {
+  test(`monkey #${i + 1} - start:${entry}`, async ({ page }) => {
     const result = await runMonkey(page, entry, STEPS_PER_RUN, seed);
 
     // Log steps for debugging on failure, prefixed with the replay command.

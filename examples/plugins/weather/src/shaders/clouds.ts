@@ -1,4 +1,4 @@
-// Volumetric clouds — port of vanta.js CLOUDS effect (MIT, Copyright 2020
+// Volumetric clouds - port of vanta.js CLOUDS effect (MIT, Copyright 2020
 // Teng Bao), itself a near-verbatim adaptation of Inigo Quilez "Clouds"
 // Shadertoy XslGRr (https://www.shadertoy.com/view/XslGRr).
 //
@@ -6,7 +6,7 @@
 // Front-to-back compositing with self-shadowing approximation via density
 // gradient toward sun. Rendered into a half-res FBO and upscaled with a
 // 5-tap tent filter. Output is straight RGBA; alpha = cloud accumulation
-// only — the host page background shows through where there are no clouds.
+// only - the host page background shows through where there are no clouds.
 
 export const CLOUDS_VERT = /* glsl */ `
 precision highp float;
@@ -36,7 +36,7 @@ uniform float uCover;       // 0..1
 uniform float uDensity;     // 0..1
 uniform float uPrecip;      // 0..1 rain intensity → darkens dense cloud cores
 uniform vec2  uMoonNDC;     // moon center in NDC (-1..1)
-uniform float uMoonI;       // 0..1 — 0 hides the halo entirely
+uniform float uMoonI;       // 0..1 - 0 hides the halo entirely
 
 varying vec2 vUv;
 
@@ -69,7 +69,7 @@ float shape(float f, vec3 p) {
   float bias = mix(0.45, 0.18, uCover);
   float d    = clamp((raw - bias) * 2.4, 0.0, 1.0);
 
-  // Large-scale presence mask — sinusoidal in x+z so cloud cells alternate
+  // Large-scale presence mask - sinusoidal in x+z so cloud cells alternate
   // with empty sky. uCover raises the presence floor so overcast isn't full
   // of holes.
   float presence = 0.5 + 0.5 * sin(p.x * 0.6 + 1.7) * cos(p.z * 0.4 - 0.9);
@@ -183,7 +183,7 @@ void main() {
   vec3 col = bgcol * (1.0 - res.w) + res.xyz;
   col += 0.2 * uSunGlare * pow(sun, 3.0);
 
-  // Rain — darken the dense cloud cores (storm bellies). Wide smoothstep
+  // Rain - darken the dense cloud cores (storm bellies). Wide smoothstep
   // range plus a tiny dither breaks the visible band the half-res FBO
   // would otherwise show along the mask threshold.
   float coreMask = smoothstep(0.15, 1.05, res.w);
@@ -206,7 +206,7 @@ void main() {
   // shows through where there are no clouds. Clamp top to 0.92 to keep
   // a hint of transparency even on dense cloud cores.
   // Cap below 0.85 so even thick cloud cores let a whisper of background
-  // through — looks like real cumulus, not painted-on fog.
+  // through - looks like real cumulus, not painted-on fog.
   float alpha = clamp(res.w * 1.05, 0.0, 0.82);
   gl_FragColor = vec4(col, alpha);
 }

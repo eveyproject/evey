@@ -9,7 +9,7 @@ test.describe("Admin > Feeds deep", () => {
     // cards until the feeds save button mounts. Locale-independent on purpose.
     //
     // Robustness: the CollapsibleCards mount a beat after the page loads, so the
-    // first pass can see zero collapsed headers — retry across a few attempts and
+    // first pass can see zero collapsed headers - retry across a few attempts and
     // bound each click (an unbounded click on a not-yet-stable header would hang
     // until the test timeout under load).
     await goto(page, "/admin/server-config");
@@ -50,7 +50,7 @@ test.describe("Admin > Feeds deep", () => {
     const disableBtn = page.locator('button[role="switch"][aria-checked="true"]').first();
     test.skip(!(await disableBtn.isVisible({ timeout: 1_000 }).catch(() => false)), "No enabled feeds");
 
-    // remember what's being disabled (bounded — never let a stale locator hang
+    // remember what's being disabled (bounded - never let a stale locator hang
     // the whole test to its timeout; feedName is only used for best-effort cleanup)
     const row = disableBtn.locator("xpath=ancestor::div[@draggable='true']");
     const feedName =

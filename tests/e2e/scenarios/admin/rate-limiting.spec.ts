@@ -2,7 +2,7 @@ import { test, expect } from "../../fixtures/auth";
 import { goto, getToken } from "../shared/helpers";
 
 // Dev environments often raise EVEY_RATELIMIT_LOGIN_MAX above the prod
-// default (10) for ergonomics — and that override usually lives in the
+// default (10) for ergonomics - and that override usually lives in the
 // SERVER container, not in the Playwright runner's env. So we can't trust
 // the runner's view of the limit: it's only meaningful when explicitly set
 // for the runner (CI). When it is NOT set, we probe empirically and skip
@@ -37,12 +37,12 @@ test.describe("Rate limiting > Auth endpoint", () => {
     }, fireCount);
     const has429 = statuses.some((s) => s === 429);
     // When the runner's limit isn't explicitly configured and we never hit a
-    // 429, the server's effective limit is just higher than our probe burst —
+    // 429, the server's effective limit is just higher than our probe burst -
     // skip instead of crying wolf. When it IS configured (CI) we still assert,
     // so a genuinely broken limiter fails the build.
     test.skip(
       !has429 && LOGIN_LIMIT_ENV == null,
-      `No 429 after ${fireCount} login attempts and EVEY_RATELIMIT_LOGIN_MAX is unset for the runner — ` +
+      `No 429 after ${fireCount} login attempts and EVEY_RATELIMIT_LOGIN_MAX is unset for the runner - ` +
         `the server's limit is likely above the prod default. Set EVEY_RATELIMIT_LOGIN_MAX to the server's value to exercise this test.`,
     );
     expect(has429).toBe(true);

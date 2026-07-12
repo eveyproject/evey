@@ -22,7 +22,7 @@ test("redteam-bridge: security layers hold from inside the iframe", async ({ pag
   console.log("RED-TEAM RESULTS:\n" + text.replace(/=/g, " = ").replace(/\)/g, ")\n"));
 
   // Direct API access from the iframe is blocked by CSP (connect-src is the
-  // plugin's external_fetch list — empty here).
+  // plugin's external_fetch list - empty here).
   expect(text).toContain("direct_admin_fetch=BLOCKED");
   expect(text).toContain("direct_prefs_fetch=BLOCKED");
   // The sanctioned, granted path works (own namespace).

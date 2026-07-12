@@ -1,6 +1,6 @@
 # Canary sandbox runtime probe
 
-Not a malicious plugin — a benign canary that probes which host paths are
+Not a malicious plugin - a benign canary that probes which host paths are
 visible from inside the bwrap sandbox at runtime. Used to confirm the C2
 mount whitelist actually blocks (vs just being declared in the bwrap argv).
 
@@ -39,5 +39,5 @@ not a sandbox bypass.
 
 The canary does NOT bind a Unix socket on `EVEY_PLUGIN_SOCK`, so the host
 runtime times out and marks the plugin `PLUGIN_STATE_ERROR` after ~10s.
-That's expected — the goal of this fixture is the file-probe output in
+That's expected - the goal of this fixture is the file-probe output in
 the log, not a long-lived plugin lifecycle.

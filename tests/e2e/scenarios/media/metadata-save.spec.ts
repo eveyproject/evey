@@ -69,7 +69,7 @@ test.describe("Media > Metadata save (full CRUD)", () => {
       if (req.url().includes("/api/v1/metadata/overrides") && req.method() === "POST") postSeen = true;
     });
     await page.locator('[data-testid="media-edit-save-btn"]').click();
-    // Generous wait — the dirty-detection occasionally drops keystrokes
+    // Generous wait - the dirty-detection occasionally drops keystrokes
     // for some items and the save no-ops; that's a known frontend flake
     // tracked separately. Accept either outcome here so this smoke does
     // not bounce CI.

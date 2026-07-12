@@ -1,4 +1,4 @@
-// Config Demo Plugin — minimal stub
+// Config Demo Plugin - minimal stub
 // The interesting part is in plugin.yaml (config_schema) and front.js
 
 const grpc = require("@grpc/grpc-js");

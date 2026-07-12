@@ -1,7 +1,7 @@
 name: gpu-scene-tagger
 kind: plugin
 version: 1.0.0
-description: "Legit GPU example — tags scenes/objects in a media item using a GPU model. Declares hardware.gpu honestly and uses the render node for bursty inference."
+description: "Legit GPU example - tags scenes/objects in a media item using a GPU model. Declares hardware.gpu honestly and uses the render node for bursty inference."
 author: evey-examples
 language: nodejs
 entrypoint: node main.js

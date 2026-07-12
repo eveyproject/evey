@@ -32,4 +32,4 @@ for category, services in MAPPING.items():
             shutil.copy2(src, dest / src.name)
             print(f"  {category}/{src.name}")
         else:
-            print(f"  {category}/{src.name} — NOT FOUND")
+            print(f"  {category}/{src.name} - NOT FOUND")

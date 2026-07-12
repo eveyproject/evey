@@ -16,7 +16,7 @@ const PAGES = [
 ];
 
 for (const path of PAGES) {
-  test(`${path} — click button[0] no crash`, async ({ page }) => {
+  test(`${path} - click button[0] no crash`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(1_500);
     const btn = page.locator("button:visible").first();
@@ -29,7 +29,7 @@ for (const path of PAGES) {
     }
   });
 
-  test(`${path} — click button[1] no crash`, async ({ page }) => {
+  test(`${path} - click button[1] no crash`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(1_500);
     const btn = page.locator("button:visible").nth(1);
@@ -42,7 +42,7 @@ for (const path of PAGES) {
     }
   });
 
-  test(`${path} — click button[2] no crash`, async ({ page }) => {
+  test(`${path} - click button[2] no crash`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(1_500);
     const btn = page.locator("button:visible").nth(2);
@@ -58,7 +58,7 @@ for (const path of PAGES) {
 
 // Select/dropdown interactions
 for (const path of PAGES) {
-  test(`${path} — interact with first select no crash`, async ({ page }) => {
+  test(`${path} - interact with first select no crash`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(1_500);
     const sel = page.locator("select:visible").first();
@@ -77,7 +77,7 @@ for (const path of PAGES) {
 
 // Input interactions
 for (const path of PAGES) {
-  test(`${path} — type in first input no crash`, async ({ page }) => {
+  test(`${path} - type in first input no crash`, async ({ page }) => {
     await goto(page, path);
     await page.waitForTimeout(1_500);
     const input = page.locator("input:visible:not([type='hidden']):not([type='checkbox']):not([type='radio'])").first();

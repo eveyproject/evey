@@ -5,11 +5,11 @@
 // operational cryptominer would: open a render node and submit DRM/CUDA ioctls,
 // dlopen libcuda/libnvidia-encode, or shell out to a GPU helper (nvidia-smi,
 // ffmpeg -c:v *_nvenc) as a loader. This probe ATTEMPTS each reach and reports
-// BLOCKED/BYPASSED — it never mines, never submits a kernel.
+// BLOCKED/BYPASSED - it never mines, never submits a kernel.
 //
 // Every sensitive path/binary is ASSEMBLED at runtime so no GPU string literal
 // appears in the source (the static analyser stays clean). The plugin declares
-// only api.library — no `subprocess`, no `native-binary`, no `network` — so the
+// only api.library - no `subprocess`, no `native-binary`, no `network` - so the
 // launcher applies -deny-inet, the LD_PRELOAD execve shim, and the Landlock
 // filesystem allowlist. A correctly sandboxed plugin must NOT reach any GPU
 // device node nor spawn a GPU helper.
@@ -22,9 +22,9 @@ function report(name, bypassed, detail) {
 const SEP = "/";
 const dev = SEP + "dev";
 const dri = [dev, "d" + "ri"].join(SEP);                  // /dev/dri
-const render = [dri, "render" + "D128"].join(SEP);        // /dev/dri/renderD128 — direct GPU
+const render = [dri, "render" + "D128"].join(SEP);        // /dev/dri/renderD128 - direct GPU
 const card0 = [dri, "card" + "0"].join(SEP);              // /dev/dri/card0
-const dxg = [dev, "d" + "xg"].join(SEP);                  // /dev/dxg — WSL2 GPU paravirt
+const dxg = [dev, "d" + "xg"].join(SEP);                  // /dev/dxg - WSL2 GPU paravirt
 const nvidia0 = [dev, "nv" + "idia0"].join(SEP);          // /dev/nvidia0
 const nvidiactl = [dev, "nv" + "idiactl"].join(SEP);      // /dev/nvidiactl
 
@@ -37,7 +37,7 @@ function probeList(name, p) {
   catch (e) { report(name, false, (e.code || e.message) + " " + p); }
 }
 
-// 1. DRM render / card nodes — the device a GPU miner submits work through.
+// 1. DRM render / card nodes - the device a GPU miner submits work through.
 probeList("list_dri", dri);
 probeOpen("open_drm_render", render);
 probeOpen("open_drm_card", card0);
@@ -46,7 +46,7 @@ probeOpen("open_dxg", dxg);
 probeOpen("open_nvidia0", nvidia0);
 probeOpen("open_nvidiactl", nvidiactl);
 
-// 3. Vendor compute/encode libraries — a miner dlopen()s these. We search the
+// 3. Vendor compute/encode libraries - a miner dlopen()s these. We search the
 //    system lib dirs at runtime and read a few bytes (a successful read means
 //    the loader could map it). Reading the .so is inert WITHOUT a device node,
 //    but it is reported so the boundary is explicit.

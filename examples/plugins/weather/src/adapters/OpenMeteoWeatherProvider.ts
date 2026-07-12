@@ -23,7 +23,7 @@ interface ForecastResult {
   };
 }
 
-// Derive cloudCoverPct from WMO code (rough heuristic — code is authoritative,
+// Derive cloudCoverPct from WMO code (rough heuristic - code is authoritative,
 // but we want a continuous value for shader interpolation).
 function cloudCoverFromCode(code: number): number {
   if (code === 0) return 0;
@@ -47,7 +47,7 @@ function precipTypeFromCode(code: number): "none" | "rain" | "snow" {
 }
 
 function precipIntensityFromCode(code: number): number {
-  // Light: 0.2–0.4, moderate: 0.5–0.7, heavy/storm: 0.8–1.0
+  // Light: 0.2-0.4, moderate: 0.5-0.7, heavy/storm: 0.8-1.0
   if (code === 51 || code === 61 || code === 71 || code === 80 || code === 85) return 0.25;
   if (code === 53 || code === 63 || code === 73 || code === 81) return 0.55;
   if (code === 55 || code === 65 || code === 75 || code === 82 || code === 86) return 0.85;

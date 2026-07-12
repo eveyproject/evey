@@ -1,4 +1,4 @@
-# GPU plugin demos — legit + red-team
+# GPU plugin demos - legit + red-team
 
 Six installable example plugins exercising the `hardware.gpu` permission and its
 hardening (see `docs/plugins.md` and the security audit in memory
@@ -7,7 +7,7 @@ plugin UI; the behaviour is also locked by `TestRedTeamSandboxEscape`
 (`cryptominer-gpu` + `cryptominer-gpu-granted`).
 
 `hardware.gpu` is **admin-only, deny-by-default**, and grants the **DRM render
-node alone** (`/dev/dri/renderD128`) — never the card/control node, `/dev/dxg`,
+node alone** (`/dev/dri/renderD128`) - never the card/control node, `/dev/dxg`,
 `/dev/nvidia*` or `/dev/kfd`. It is for **first-party / trusted plugins only**:
 render access is a per-GPU, not per-tenant, boundary (residual risk: cross-process
 GPU-memory leak on AMD/Apple/Qualcomm, local GPU DoS, kernel driver ioctl surface).
@@ -32,7 +32,7 @@ render node is mapped in (the dev `evey` service maps `/dev/dri`; needs
 
 The two **disguised miners** (`redteam-fake-subtitle`, `redteam-fake-upscaler`)
 are the supply-chain case: a friendly-looking plugin that turns malicious. The
-sandbox defeats the disguise regardless of the manifest text — without
+sandbox defeats the disguise regardless of the manifest text - without
 `hardware.gpu` the GPU is fully denied, and even *with* it the grant is the
 render node alone and mining is detected/killed.
 

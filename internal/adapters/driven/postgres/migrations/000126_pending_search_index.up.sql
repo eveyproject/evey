@@ -1,7 +1,7 @@
 -- Durable outbox for search-index writes that failed while Meilisearch was down.
 --
 -- The resilient search wrapper used to SWALLOW a write when the engine was
--- unreachable, relying on a count-based reconcile to heal later — but that
+-- unreachable, relying on a count-based reconcile to heal later - but that
 -- reconcile can't see set-drift that nets to zero (equal adds+deletes during an
 -- outage), so items silently fell out of search. Instead we now record the
 -- failed write here and a drain worker replays it (re-reading the item from the

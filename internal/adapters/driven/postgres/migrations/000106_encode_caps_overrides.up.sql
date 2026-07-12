@@ -10,7 +10,7 @@
 --
 -- source_class is a short tag mapping source-side dimensions to a
 -- bucket the worker recognises ("1080p", "1440p", "2160p"). We
--- intentionally keep the granularity coarse for Phase C MVP — finer
+-- intentionally keep the granularity coarse for Phase C MVP - finer
 -- buckets (per-codec, per-title) come later if real data justifies it.
 
 CREATE TABLE IF NOT EXISTS transcode_caps_overrides (
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS transcode_caps_overrides (
     expires_at   TIMESTAMPTZ NOT NULL
 );
 
--- Full index on expires_at — the table is tiny (a handful of rows,
+-- Full index on expires_at - the table is tiny (a handful of rows,
 -- bounded by the number of source-class buckets) so we don't need a
 -- partial WHERE here. (An earlier draft used `WHERE expires_at < NOW() +
 -- INTERVAL '1 day'` but NOW() isn't IMMUTABLE and Postgres rejects it

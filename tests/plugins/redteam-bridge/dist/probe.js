@@ -13,7 +13,7 @@
   function add(name, verdict, detail) { lines.push(name + "=" + verdict + (detail ? " (" + detail + ")" : "")); render(); }
 
   // 1+2: direct calls to the evey API from the iframe must be blocked by CSP
-  // (connect-src is the plugin's external_fetch list — empty here).
+  // (connect-src is the plugin's external_fetch list - empty here).
   fetch("/api/v1/admin/plugin-resource-limits")
     .then(function (r) { add("direct_admin_fetch", "BYPASSED", "HTTP " + r.status); })
     .catch(function (e) { add("direct_admin_fetch", "BLOCKED", String(e.name || e).slice(0, 30)); });
@@ -21,7 +21,7 @@
     .then(function (r) { add("direct_prefs_fetch", "BYPASSED", "HTTP " + r.status); })
     .catch(function (e) { add("direct_prefs_fetch", "BLOCKED", String(e.name || e).slice(0, 30)); });
 
-  // 3: the sanctioned, granted path — prefs round-trip in OUR own namespace.
+  // 3: the sanctioned, granted path - prefs round-trip in OUR own namespace.
   window.evey.prefs.set("rt", "42")
     .then(function () { return window.evey.prefs.get("rt"); })
     .then(function (g) { add("bridge_prefs_roundtrip", g && g.found && g.value === "42" ? "OK" : "FAIL", "v=" + (g && g.value)); })

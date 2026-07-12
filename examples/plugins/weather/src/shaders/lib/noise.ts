@@ -31,7 +31,7 @@ float vnoise(vec3 p) {
             dot(_hash3(i + vec3(1,1,1)), f - vec3(1,1,1)), u.x), u.y), u.z);
 }
 
-// Fractional Brownian Motion — 4 octaves
+// Fractional Brownian Motion - 4 octaves
 float fbm4(vec3 p) {
   float v = 0.0;
   float a = 0.5;
@@ -47,7 +47,7 @@ float fbm4(vec3 p) {
   return v;
 }
 
-// Fractional Brownian Motion — 6 octaves (high quality clouds)
+// Fractional Brownian Motion - 6 octaves (high quality clouds)
 float fbm6(vec3 p) {
   float v = 0.0;
   float a = 0.5;

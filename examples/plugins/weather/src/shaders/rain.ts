@@ -1,4 +1,4 @@
-// Rain streak shader — instanced billboard particles.
+// Rain streak shader - instanced billboard particles.
 // Inspired by: rye terrell's rain shader technique,
 // and "Heavy Rain" by sirenian on Shadertoy.
 // Each instance is a thin vertical quad; fragment elongates the streak.

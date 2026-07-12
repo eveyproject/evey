@@ -2,7 +2,7 @@
 --
 -- The prober never populated this column, so every item carried
 -- container_format='' and the playback decision flagged it "container_incompatible"
--- (an empty container matches no client list) — forcing a needless remux/transcode
+-- (an empty container matches no client list) - forcing a needless remux/transcode
 -- on the whole library. That is what broke in-timeline seeking and shifted colors
 -- on the Android player (ExoPlayer direct-plays MKV, but only when the container
 -- is known and declared). New/re-probed items now get it from the prober; this

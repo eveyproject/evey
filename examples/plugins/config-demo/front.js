@@ -1,4 +1,4 @@
-// Config Demo Front — displays the plugin's current configuration
+// Config Demo Front - displays the plugin's current configuration
 (function () {
   var root = document.body;
 

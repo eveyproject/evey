@@ -1,4 +1,4 @@
--- PR 1 — transparent SQL split. Separates four concerns out of the
+-- PR 1 - transparent SQL split. Separates four concerns out of the
 -- 32-column media_items table into 1:1 (or 1:N) sub-tables; the Go
 -- MediaItem struct keeps its flat shape and the repo reassembles every
 -- column on read via LEFT JOIN + jsonb_agg subqueries. Net effect:
@@ -11,7 +11,7 @@
 
 BEGIN;
 
--- 1. media_files (1:1 optional — series/seasons/albums own no file)
+-- 1. media_files (1:1 optional - series/seasons/albums own no file)
 CREATE TABLE media_files (
     media_item_id    TEXT PRIMARY KEY REFERENCES media_items(id) ON DELETE CASCADE,
     file_path        TEXT NOT NULL,
@@ -35,7 +35,7 @@ SELECT id, file_path, file_size, file_fingerprint,
 FROM media_items
 WHERE file_path IS NOT NULL AND file_path != '';
 
--- 2. media_catalog (1:1 optional — created when any catalog field is set)
+-- 2. media_catalog (1:1 optional - created when any catalog field is set)
 CREATE TABLE media_catalog (
     media_item_id  TEXT PRIMARY KEY REFERENCES media_items(id) ON DELETE CASCADE,
     premiere_date  TIMESTAMPTZ,
@@ -83,7 +83,7 @@ WHERE community_rating IS NOT NULL
    OR certifications_by_country != '{}'::jsonb
    OR ratings != '{}'::jsonb;
 
--- 4. media_trailers (1:N — replaces JSONB array)
+-- 4. media_trailers (1:N - replaces JSONB array)
 CREATE TABLE media_trailers (
     id                TEXT PRIMARY KEY,
     media_item_id     TEXT NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,

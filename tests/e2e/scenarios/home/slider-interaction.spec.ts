@@ -36,7 +36,7 @@ test.describe("Home > Slider interaction", () => {
     await page.waitForTimeout(3_000);
     const brokenImages = await page.evaluate(() => {
       // Off-screen slider/below-fold posters use loading="lazy" and never load
-      // (naturalWidth===0) — that's lazy, not broken. Only judge in-viewport imgs.
+      // (naturalWidth===0) - that's lazy, not broken. Only judge in-viewport imgs.
       const inVP = (i: HTMLImageElement) => {
         if (i.offsetParent === null || i.style.display === "none") return false;
         const r = i.getBoundingClientRect();
