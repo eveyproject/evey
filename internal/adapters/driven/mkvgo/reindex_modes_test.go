@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	extmkv "github.com/gravity-zero/mkvgo/mkv"
+	extwriter "github.com/gravity-zero/mkvgo/mkv/writer"
+
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,6 +31,36 @@ func genCuelessMKV(t *testing.T) string {
 	return p
 }
 
+// genCuelessKnownSizeMKV writes a REAL cue-less MKV with a sealed (known)
+// Segment size, built directly with mkvgo's writer - unlike genCuelessMKV's
+// piped ffmpeg output, this one is genuinely in-place-eligible (v0.21.1:
+// ReindexInPlace correctly refuses an unknown-size Segment, since its
+// crash-safety window depends on writing past a declared end that doesn't
+// exist yet). WriteClusterWithCues accumulates into m.Cues as it writes the
+// real cluster bytes; clearing it before Finalize keeps the clusters and the
+// sealed size but drops the Cues element itself - a real encoder's cueless
+// output, minus the "can't seek back" excuse.
+func genCuelessKnownSizeMKV(t *testing.T) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "sealed.mkv")
+	f, err := os.Create(p)
+	require.NoError(t, err)
+	defer f.Close()
+
+	mw := extwriter.NewMKVWriter(f)
+	require.NoError(t, mw.WriteStart())
+	c := &extmkv.Container{Info: extmkv.SegmentInfo{TimecodeScale: 1_000_000}}
+	tracks := []extmkv.Track{{ID: 1, Type: extmkv.VideoTrack, Codec: "h264", Language: "eng", IsDefault: true}}
+	require.NoError(t, mw.WriteMetadata(c, tracks, 3000))
+	for _, ts := range []int64{0, 1000, 2000} {
+		blocks := []extmkv.Block{{TrackNumber: 1, Timecode: ts, Keyframe: true, Data: []byte("frame")}}
+		require.NoError(t, mw.WriteClusterWithCues(ts, 1_000_000, blocks))
+	}
+	mw.Cues = nil // drop the accumulated index: real clusters, no Cues element
+	require.NoError(t, mw.Finalize())
+	return p
+}
+
 // Post-bump (mkvgo v0.17.0) contract of the repair modes: the surgical
 // in-place strategy is live. ModeInPlace patches the file directly (no temp,
 // no backup); ModeAuto prefers it; ModeRewrite still takes the temp+swap
@@ -36,10 +69,10 @@ func TestReindexModes_InPlaceLive(t *testing.T) {
 	a := New()
 	assert.True(t, a.SupportsInPlace(), "post-bump build must advertise in-place")
 
-	p := genCuelessMKV(t)
+	p := genCuelessKnownSizeMKV(t)
 
 	res, err := a.ReindexInPlace(context.Background(), p, mkv.ReindexOptions{Mode: mkv.ModeInPlace})
-	require.NoError(t, err, "v0.17.0 patches even a streamed, SeekHead-less layout in place")
+	require.NoError(t, err, "a known-size, SeekHead-less layout patches in place")
 	assert.Equal(t, mkv.ReindexMethodInPlace, res.Method)
 	assert.Empty(t, res.BackupPath, "in-place never duplicates the file")
 	assert.NoFileExists(t, p+".mkvgobak")
@@ -112,7 +145,7 @@ func TestReindexModes_PermissionDeniedIsActionable(t *testing.T) {
 
 func TestReindexModes_AutoPrefersInPlace(t *testing.T) {
 	a := New()
-	p := genCuelessMKV(t)
+	p := genCuelessKnownSizeMKV(t)
 
 	res, err := a.ReindexInPlace(context.Background(), p, mkv.ReindexOptions{})
 	require.NoError(t, err)

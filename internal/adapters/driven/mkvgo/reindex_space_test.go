@@ -33,7 +33,7 @@ func TestReindex_SpacePreflight(t *testing.T) {
 	})
 
 	t.Run("in-place is never blocked by the guard (no temp copy needed)", func(t *testing.T) {
-		p := genCuelessMKV(t)
+		p := genCuelessKnownSizeMKV(t)
 		stubDiskAvail(t, 0)
 		res, err := a.ReindexInPlace(context.Background(), p, mkv.ReindexOptions{})
 		require.NoError(t, err, "the surgical patch writes no sibling copy - a full disk must not block it")
