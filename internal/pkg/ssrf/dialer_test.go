@@ -147,3 +147,28 @@ func TestNewSafeDialer_BlocksReservedLiterals(t *testing.T) {
 		})
 	}
 }
+
+// The plugin broker fetches UNTRUSTED, plugin-supplied URLs, so its client
+// must never delegate the connection to an env proxy: HTTP(S)_PROXY set on
+// the server would otherwise ship the real (possibly private) destination to
+// the proxy as a literal URL, and the IP filter would never see it. First-
+// party fetchers (enrichers, webhooks) keep honoring a corporate proxy.
+func TestSafeHTTPClientNoProxy_HasNilProxy(t *testing.T) {
+	tr, ok := SafeHTTPClientNoProxy(time.Second).Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("expected *http.Transport")
+	}
+	if tr.Proxy != nil {
+		t.Error("broker client must not route through an env proxy (SSRF filter must apply to the real destination)")
+	}
+}
+
+func TestSafeHTTPClient_HonorsProxyForFirstParty(t *testing.T) {
+	tr, ok := SafeHTTPClient(time.Second).Transport.(*http.Transport)
+	if !ok {
+		t.Fatal("expected *http.Transport")
+	}
+	if tr.Proxy == nil {
+		t.Error("first-party client should still honor an operator-configured proxy")
+	}
+}

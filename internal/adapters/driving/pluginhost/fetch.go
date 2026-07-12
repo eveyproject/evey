@@ -41,8 +41,11 @@ var errFetchRedirectOffList = errors.New("redirect target not in external_fetch 
 
 // errFetchClient is overridable in tests so the allow-list / validation logic
 // can be exercised without real network I/O. Production leaves it nil, which
-// selects the SSRF-safe client.
-var newFetchClient = func() *http.Client { return ssrf.SafeHTTPClient(fetchTimeout) }
+// selects the SSRF-safe client. NoProxy: the broker fetches untrusted,
+// plugin-supplied URLs, so it must never route through an operator's
+// HTTP(S)_PROXY - that would ship the real destination to the proxy and let a
+// private/metadata target slip past the IP filter.
+var newFetchClient = func() *http.Client { return ssrf.SafeHTTPClientNoProxy(fetchTimeout) }
 
 // hostAllowed reports whether host (already lower-cased, no port) is covered by
 // the plugin's external_fetch allow-list. An entry may be a bare host

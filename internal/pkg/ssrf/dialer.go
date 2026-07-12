@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"syscall"
 	"time"
 )
@@ -119,11 +120,28 @@ func safeControl(_, address string, _ syscall.RawConn) error {
 }
 
 // SafeHTTPClient returns an *http.Client with a Transport whose DialContext
-// rejects private/reserved IPs. timeout is the overall request timeout.
+// rejects private/reserved IPs. timeout is the overall request timeout. It
+// honors an operator-configured HTTP(S)_PROXY, which is fine for FIRST-PARTY
+// egress (metadata enrichers, admin-configured webhooks) where the operator
+// chose both the proxy and the destinations.
 func SafeHTTPClient(timeout time.Duration) *http.Client {
+	return safeClient(timeout, http.ProxyFromEnvironment)
+}
+
+// SafeHTTPClientNoProxy is SafeHTTPClient with proxying disabled. Use it for
+// egress on UNTRUSTED, caller-supplied URLs (the plugin fetch broker): with a
+// proxy in play the Transport would ship the real destination to the proxy as
+// a literal URL, so a private/metadata target would bypass the IP filter
+// entirely. Pinning Proxy=nil forces every connection through the safe dialer,
+// which sees - and rejects - the true destination IP.
+func SafeHTTPClientNoProxy(timeout time.Duration) *http.Client {
+	return safeClient(timeout, nil)
+}
+
+func safeClient(timeout time.Duration, proxy func(*http.Request) (*url.URL, error)) *http.Client {
 	dialer := NewSafeDialer()
 	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
+		Proxy: proxy,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return dialer.DialContext(ctx, network, addr)
 		},
