@@ -94,39 +94,40 @@ import (
 
 // infraDeps holds infrastructure adapters and low-level dependencies shared across app services.
 type infraDeps struct {
-	repos             *postgres.Repos
-	searchAdapter     library.SearchIndex
-	searchHealth      httpapi.SearchHealthChecker
-	musicSearch       music.MusicSearchIndex
-	scanner           *filesystem.Scanner
-	prober            *ffmpeg.Prober
-	transcoder        *ffmpeg.Transcoder
-	hwDetector        *ffmpeg.HWDetector
-	trickplayGen      *ffmpeg.TrickplayGenerator
-	introDetector     *ffmpeg.IntroDetector
-	imageConverter    *ffmpeg.ImageConverter
-	mkvAdapter        *mkvgoadapter.Adapter
-	onDemandPackager  *mkvgoadapter.OnDemandPackager
-	bus               *eventbus.InMemoryEventBus
-	hasher            auth.BcryptHasher
-	tokenGen          *auth.JWTGenerator
-	hlsAESSecret      []byte
-	translator        *eveyi18n.Translator
-	metadataHTTP      *http.Client
-	tmdbProvider      *metadataadapter.TMDBProvider
-	imdbProvider      *metadataadapter.IMDBAPIProvider
-	tvmazeProvider    *metadataadapter.TVMazeProvider
-	omdbProvider      *metadataadapter.OMDbProvider
-	artworkDL         *metadataadapter.ArtworkHTTPDownloader
-	personFetcher     *metadataadapter.TMDBPersonFetcher
-	pluginRunner      *pluginrunner.Runner
-	pluginLogger      *pluginrunner.PluginLogger
-	manifestParser    *pluginrunner.YAMLManifestParser
-	pluginInstaller   *pluginrunner.ZipInstaller
-	pluginAnalyzer    *pluginrunner.StaticAnalyzer
-	pluginSigVerifier *pluginrunner.CosignVerifier
-	subScanner        *filesystem.SubtitleScanner
-	tmdbKey           string
+	repos                  *postgres.Repos
+	searchAdapter          library.SearchIndex
+	searchHealth           httpapi.SearchHealthChecker
+	musicSearch            music.MusicSearchIndex
+	scanner                *filesystem.Scanner
+	prober                 *ffmpeg.Prober
+	transcoder             *ffmpeg.Transcoder
+	hwDetector             *ffmpeg.HWDetector
+	trickplayGen           *ffmpeg.TrickplayGenerator
+	introDetector          *ffmpeg.IntroDetector
+	imageConverter         *ffmpeg.ImageConverter
+	mkvAdapter             *mkvgoadapter.Adapter
+	onDemandPackager       *mkvgoadapter.OnDemandPackager
+	onDemandConcatPackager *mkvgoadapter.ConcatPackager
+	bus                    *eventbus.InMemoryEventBus
+	hasher                 auth.BcryptHasher
+	tokenGen               *auth.JWTGenerator
+	hlsAESSecret           []byte
+	translator             *eveyi18n.Translator
+	metadataHTTP           *http.Client
+	tmdbProvider           *metadataadapter.TMDBProvider
+	imdbProvider           *metadataadapter.IMDBAPIProvider
+	tvmazeProvider         *metadataadapter.TVMazeProvider
+	omdbProvider           *metadataadapter.OMDbProvider
+	artworkDL              *metadataadapter.ArtworkHTTPDownloader
+	personFetcher          *metadataadapter.TMDBPersonFetcher
+	pluginRunner           *pluginrunner.Runner
+	pluginLogger           *pluginrunner.PluginLogger
+	manifestParser         *pluginrunner.YAMLManifestParser
+	pluginInstaller        *pluginrunner.ZipInstaller
+	pluginAnalyzer         *pluginrunner.StaticAnalyzer
+	pluginSigVerifier      *pluginrunner.CosignVerifier
+	subScanner             *filesystem.SubtitleScanner
+	tmdbKey                string
 }
 
 // buildInfra creates repos, infrastructure adapters, and low-level dependencies.
@@ -172,6 +173,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	imageConverter := ffmpeg.NewImageConverter("ffmpeg")
 	mkvAdapter := mkvgoadapter.New()
 	onDemandPackager := mkvgoadapter.NewOnDemandPackager()
+	onDemandConcatPackager := mkvgoadapter.NewConcatPackager()
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
 
@@ -279,39 +281,40 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	subScanner := filesystem.NewSubtitleScanner()
 
 	return &infraDeps{
-		repos:             r,
-		searchAdapter:     searchAdapter,
-		searchHealth:      searchHealth,
-		musicSearch:       musicSearch,
-		scanner:           scanner,
-		prober:            prober,
-		transcoder:        transcoder,
-		hwDetector:        hwDetector,
-		trickplayGen:      trickplayGen,
-		introDetector:     introDetector,
-		imageConverter:    imageConverter,
-		mkvAdapter:        mkvAdapter,
-		onDemandPackager:  onDemandPackager,
-		bus:               bus,
-		hasher:            hasher,
-		tokenGen:          tokenGen,
-		hlsAESSecret:      hlsAESSecret,
-		translator:        translator,
-		metadataHTTP:      metadataHTTP,
-		tmdbProvider:      tmdbProvider,
-		imdbProvider:      imdbProvider,
-		tvmazeProvider:    tvmazeProvider,
-		omdbProvider:      omdbProvider,
-		artworkDL:         artworkDownloader,
-		personFetcher:     personFetcher,
-		pluginRunner:      pluginRunner,
-		pluginLogger:      pluginLogger,
-		manifestParser:    manifestParser,
-		pluginInstaller:   pluginInstaller,
-		pluginAnalyzer:    pluginAnalyzer,
-		pluginSigVerifier: pluginSigVerifier,
-		subScanner:        subScanner,
-		tmdbKey:           tmdbKey,
+		repos:                  r,
+		searchAdapter:          searchAdapter,
+		searchHealth:           searchHealth,
+		musicSearch:            musicSearch,
+		scanner:                scanner,
+		prober:                 prober,
+		transcoder:             transcoder,
+		hwDetector:             hwDetector,
+		trickplayGen:           trickplayGen,
+		introDetector:          introDetector,
+		imageConverter:         imageConverter,
+		mkvAdapter:             mkvAdapter,
+		onDemandPackager:       onDemandPackager,
+		onDemandConcatPackager: onDemandConcatPackager,
+		bus:                    bus,
+		hasher:                 hasher,
+		tokenGen:               tokenGen,
+		hlsAESSecret:           hlsAESSecret,
+		translator:             translator,
+		metadataHTTP:           metadataHTTP,
+		tmdbProvider:           tmdbProvider,
+		imdbProvider:           imdbProvider,
+		tvmazeProvider:         tvmazeProvider,
+		omdbProvider:           omdbProvider,
+		artworkDL:              artworkDownloader,
+		personFetcher:          personFetcher,
+		pluginRunner:           pluginRunner,
+		pluginLogger:           pluginLogger,
+		manifestParser:         manifestParser,
+		pluginInstaller:        pluginInstaller,
+		pluginAnalyzer:         pluginAnalyzer,
+		pluginSigVerifier:      pluginSigVerifier,
+		subScanner:             subScanner,
+		tmdbKey:                tmdbKey,
 	}, nil
 }
 
@@ -1395,10 +1398,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// transcoding.snapshot_fastpath=off or EVEY_SNAPSHOT_FASTPATH=off, applied
 		// on restart) so a bad mkvgo keyframe read can be ruled out from the admin
 		// panel without a rebuild.
-		frameExtractor:   snapshotFrameExtractor(ctx, r.ServerCfg, infra),
-		copySeekProber:   infra.prober,
-		onDemandPackager: infra.onDemandPackager,
-		hlsAESSecret:     infra.hlsAESSecret,
+		frameExtractor:         snapshotFrameExtractor(ctx, r.ServerCfg, infra),
+		copySeekProber:         infra.prober,
+		onDemandPackager:       infra.onDemandPackager,
+		onDemandConcatPackager: infra.onDemandConcatPackager,
+		hlsAESSecret:           infra.hlsAESSecret,
 	}, nil
 }
 

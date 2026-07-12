@@ -194,6 +194,7 @@ detail:
   seasonCount: "{{count}} season"
   seasonCount_one: "{{count}} season"
   seasonCount_other: "{{count}} seasons"
+  gaplessPlayback: "Gapless playback"
   episodes: Episodes
   episodeCount: "{{count}} episode"
   episodeCount_one: "{{count}} episode"

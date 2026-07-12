@@ -22,6 +22,7 @@ const ADMIN_PAGES = [
   { path: "/admin/transcode-cache", name: "Transcode Cache" },
   { path: "/admin/api-keys", name: "API Keys" },
   { path: "/admin/backup", name: "Backup" },
+  { path: "/admin/seek-index", name: "Seek Index" },
 ];
 
 for (const pg of ADMIN_PAGES) {

@@ -194,6 +194,7 @@ detail:
   seasonCount: "{{count}} temporada"
   seasonCount_one: "{{count}} temporada"
   seasonCount_other: "{{count}} temporadas"
+  gaplessPlayback: "Reproducción continua"
   episodes: Episodios
   episodeCount: "{{count}} episodio"
   episodeCount_one: "{{count}} episodio"

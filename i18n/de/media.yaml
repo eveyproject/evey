@@ -194,6 +194,7 @@ detail:
   seasonCount: "{{count}} Staffel"
   seasonCount_one: "{{count}} Staffel"
   seasonCount_other: "{{count}} Staffeln"
+  gaplessPlayback: "Nahtlose Wiedergabe"
   episodes: Folgen
   episodeCount: "{{count}} Folge"
   episodeCount_one: "{{count}} Folge"

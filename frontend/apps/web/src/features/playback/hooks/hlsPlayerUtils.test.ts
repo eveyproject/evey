@@ -150,6 +150,21 @@ describe("buildTranscodeHlsUrl", () => {
     expect(url).toContain("subtitleTrack=1");
     expect(url).toContain("startSec=55");
   });
+
+  it("omits gapless by default (today's per-episode master)", () => {
+    const url = buildTranscodeHlsUrl("m1", "tok", 0, null, 0);
+    expect(url).not.toContain("gapless");
+  });
+
+  it("includes gapless=1 when the caller opts in", () => {
+    const url = buildTranscodeHlsUrl("m1", "tok", 0, null, 0, 0, true);
+    expect(url).toContain("gapless=1");
+  });
+
+  it("omits gapless=1 when explicitly false", () => {
+    const url = buildTranscodeHlsUrl("m1", "tok", 0, null, 0, 0, false);
+    expect(url).not.toContain("gapless");
+  });
 });
 
 describe("resolveDefaultAudio", () => {

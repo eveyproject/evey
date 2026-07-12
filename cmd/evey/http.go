@@ -158,17 +158,18 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PasswordResetRL: passwordResetRL,
 		OIDCLoginRL:     oidcLoginRL,
 
-		Translator:           deps.translator,
-		AudioNormalizeGetter: audioNormalizeGetter,
-		UserMaxStreams:       httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
-		UserBitrate:          httpapi.NewUserBitrateAdapter(deps.user.querySvc),
-		ProfilePrefs:         httpapi.NewProfilePrefsAdapter(deps.user.querySvc),
-		FrameExtractor:       deps.frameExtractor,
-		CopySeekProber:       deps.copySeekProber,
-		OnDemandPackager:     deps.onDemandPackager,
-		HLSAESSecret:         deps.hlsAESSecret,
-		IntroDetector:        deps.library.introDetectionSvc,
-		StreamMeter:          deps.engagement.streamMeter,
+		Translator:             deps.translator,
+		AudioNormalizeGetter:   audioNormalizeGetter,
+		UserMaxStreams:         httpapi.NewUserMaxStreamsAdapter(deps.repos.userRepo),
+		UserBitrate:            httpapi.NewUserBitrateAdapter(deps.user.querySvc),
+		ProfilePrefs:           httpapi.NewProfilePrefsAdapter(deps.user.querySvc),
+		FrameExtractor:         deps.frameExtractor,
+		CopySeekProber:         deps.copySeekProber,
+		OnDemandPackager:       deps.onDemandPackager,
+		OnDemandConcatPackager: deps.onDemandConcatPackager,
+		HLSAESSecret:           deps.hlsAESSecret,
+		IntroDetector:          deps.library.introDetectionSvc,
+		StreamMeter:            deps.engagement.streamMeter,
 	}
 
 	srv.RegisterRoutes(mux, gwMux)
@@ -184,6 +185,9 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		// Stop the on-demand plan cache's janitor goroutine (created
 		// unconditionally in wire, independent of the VOD handler).
 		if c, ok := deps.onDemandPackager.(interface{ Close() }); ok {
+			c.Close()
+		}
+		if c, ok := deps.onDemandConcatPackager.(interface{ Close() }); ok {
 			c.Close()
 		}
 	}()

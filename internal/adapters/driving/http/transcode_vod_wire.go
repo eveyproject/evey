@@ -252,6 +252,23 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 				slog.Default().Info("hls vod: on-demand AES-128 key rotation enabled", slog.Int("every_segments", n))
 			}
 		}
+
+		// Track trim: one audio rendition per master instead of every track.
+		// Off by default; only meaningful with the on-demand rung itself on.
+		if resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand_track_trim", "EVEY_HLS_ONDEMAND_TRACK_TRIM") == "on" {
+			h.onDemandTrackTrim = true
+			slog.Default().Info("hls vod: on-demand track trim enabled (single resolved audio track per master; disable with server_config transcoding.hls_ondemand_track_trim=off or EVEY_HLS_ONDEMAND_TRACK_TRIM=off)")
+		}
+
+		// Gapless multi-episode session (mp4.PlanConcat), opt-in per request
+		// (?gapless=1). Off by default; only meaningful with the on-demand rung
+		// itself on (concat v1 has no ffmpeg-audio hybrid mode to fall back to
+		// mid-chain, so it reuses the copy-rung eligibility gates directly).
+		if s.OnDemandConcatPackager != nil &&
+			resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand_concat", "EVEY_HLS_ONDEMAND_CONCAT") == "on" {
+			h.onDemandConcat = s.OnDemandConcatPackager
+			slog.Default().Info("hls vod: gapless multi-episode concat enabled (mp4.PlanConcat, opt-in ?gapless=1; disable with server_config transcoding.hls_ondemand_concat=off or EVEY_HLS_ONDEMAND_CONCAT=off)")
+		}
 	}
 
 	// The selector routes each request: software unless resolveHW confirms the

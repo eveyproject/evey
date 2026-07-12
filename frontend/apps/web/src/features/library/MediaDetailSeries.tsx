@@ -6,7 +6,36 @@ import type { V1MediaItem } from "@evey/api";
 import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Switch } from "@/components/ui/Switch";
+import { getSeriesTrackPrefs, setSeriesTrackPrefs } from "@/hooks/usePlaybackPrefs";
 import { formatDuration } from "./mediaDetailUtils";
+
+// GaplessToggle: "lecture enchaînée" - request the server's concatenated,
+// multi-episode HLS session instead of reloading the player at each episode
+// boundary. Per-series (localStorage), opt-in, off by default. The actual
+// packaging (and its own eligibility/compatibility checks) happens server-side
+// per playback session - this toggle only records the user's intent.
+function GaplessToggle({ seriesId }: { seriesId: string }) {
+  const { t } = useTranslation();
+  const [gapless, setGapless] = useState(() => !!getSeriesTrackPrefs(seriesId)?.gapless);
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-[var(--text-muted)]">{t("media.detail.gaplessPlayback")}</span>
+      <Switch
+        checked={gapless}
+        data-testid="gapless-toggle"
+        label={t("media.detail.gaplessPlayback")}
+        onChange={() => {
+          const next = !gapless;
+          setGapless(next);
+          const cur = getSeriesTrackPrefs(seriesId) ?? {};
+          setSeriesTrackPrefs(seriesId, { ...cur, gapless: next });
+        }}
+      />
+    </div>
+  );
+}
 
 function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
   return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
@@ -145,9 +174,12 @@ export function SeriesSection({ item }: { item: V1MediaItem }) {
 
   return (
     <div className="mt-10">
-      <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.detail.seasons")}</h2>
-        <Badge variant="info">{t("media.detail.seasonCount", { count: seasons.length })}</Badge>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.detail.seasons")}</h2>
+          <Badge variant="info">{t("media.detail.seasonCount", { count: seasons.length })}</Badge>
+        </div>
+        {item.id && <GaplessToggle seriesId={item.id} />}
       </div>
       {seasons.map((s) => (s.id ? <SeasonRow key={s.id} seasonId={s.id} /> : null))}
     </div>

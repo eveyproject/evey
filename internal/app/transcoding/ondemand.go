@@ -53,6 +53,13 @@ type OnDemandOptions struct {
 	// key's URI, which the key endpoint must serve.
 	AESRotateSegments int
 	AESKeys           []OnDemandAESKey
+	// KeepAudioTrack, when non-nil, restricts the packaged presentation's
+	// audio to this single track (the 0-based ordinal among the source's
+	// audio streams - the same numbering ?audioTrack= and the ffmpeg pipeline
+	// use). Video and every subtitle track are always kept; nil packages
+	// every audio track, as before. A trimmed plan is keyed separately in the
+	// packager's cache, so it never aliases the untrimmed one.
+	KeepAudioTrack *int
 }
 
 // OnDemandAESKey is one rotation key: its 16 bytes plus the URI the EXT-X-KEY

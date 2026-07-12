@@ -313,6 +313,52 @@ func TestBuildPlan_EncryptPassesAESOptions(t *testing.T) {
 	assert.Empty(t, pkg2.lastOpts.AESKey, "no AES key when encryption is off")
 }
 
+// --- track trim (transcoding.hls_ondemand_track_trim) ---
+
+func TestBuildPlan_TrackTrimOff_NoRestriction(t *testing.T) {
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h := &hlsVODServe{onDemand: pkg, libSvc: &testFakeStreamsGetter{streams: copyEligibleAV()}}
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem())
+	require.NoError(t, err)
+	assert.Nil(t, pkg.lastOpts.KeepAudioTrack, "flag off: today's untrimmed behaviour")
+}
+
+func TestBuildPlan_TrackTrimOn_ResolvesAudioTrack(t *testing.T) {
+	streams := copyEligibleAV() // one audio track (ordinal 0)
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true, libSvc: &testFakeStreamsGetter{streams: streams}}
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem())
+	require.NoError(t, err)
+	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
+	assert.Equal(t, 0, *pkg.lastOpts.KeepAudioTrack)
+}
+
+func TestBuildPlan_TrackTrimOn_HonoursExplicitAudioTrackQuery(t *testing.T) {
+	w, hgt, lvl, ch := 1920, 1080, 40, 2
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264", Profile: "High", Width: &w, Height: &hgt, Level: &lvl, Keyframes: []int64{0}},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Channels: &ch, IsDefault: true},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Channels: &ch, Language: "fre"},
+	}
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true, libSvc: &testFakeStreamsGetter{streams: streams}}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?audioTrack=1", nil)
+	req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+
+	_, err := h.buildPlan(req, "mi-1", onDemandItem())
+	require.NoError(t, err)
+	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
+	assert.Equal(t, 1, *pkg.lastOpts.KeepAudioTrack, "explicit ?audioTrack= wins over the profile default, same as the ffmpeg pipeline")
+}
+
+func TestBuildPlan_TrackTrimOn_StreamLookupFailsServesUntrimmed(t *testing.T) {
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true, libSvc: &testFakeStreamsGetter{err: fmt.Errorf("boom")}}
+	_, err := h.buildPlan(onDemandReq(), "mi-1", onDemandItem())
+	require.NoError(t, err, "a stream lookup failure must not refuse the plan")
+	assert.Nil(t, pkg.lastOpts.KeepAudioTrack, "best-effort: falls back to every track")
+}
+
 func noopSpan() trace.Span { return trace.SpanFromContext(context.Background()) }
 
 // --- Chromecast cast-token propagation into on-demand manifest URIs ---

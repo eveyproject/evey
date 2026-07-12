@@ -74,6 +74,7 @@ export function buildTranscodeHlsUrl(
   selectedBurnInTrack: number | null,
   startSec: number,
   audioOffsetMs = 0,
+  gapless = false,
 ): string {
   const params = new URLSearchParams();
   if (token) params.set("token", token);
@@ -84,6 +85,10 @@ export function buildTranscodeHlsUrl(
   // shifted input) - the server re-bakes it on every child URL like the
   // codec caps, so the whole session stays coherent.
   if (audioOffsetMs !== 0) params.set("audioOffsetMs", String(Math.trunc(audioOffsetMs)));
+  // Gapless multi-episode session ("lecture enchaînée"): opt-in per request,
+  // server-side fallback to today's per-episode master when the feature is
+  // off / the next episode isn't eligible - never a hard failure client-side.
+  if (gapless) params.set("gapless", "1");
   appendCodecParams(params);
   // VOD pipeline: server precomputes the manifest from the known media
   // duration so hls.js sees a complete VOD stream from t=0 and never

@@ -102,6 +102,22 @@ type hlsVODServe struct {
 	// endpoint. 0 = single key per media (the default).
 	hlsKeyRotateSegments int
 
+	// onDemandConcat serves a gapless multi-episode HLS session (mkvgo's
+	// mp4.PlanConcat) when a master request opts in with ?gapless=1 (behind
+	// transcoding.hls_ondemand_concat). nil = feature off, no behaviour
+	// change - concat is purely additive on top of the single-episode
+	// on-demand rung. See transcode_concat.go.
+	onDemandConcat apptranscoding.ConcatPackager
+
+	// onDemandTrackTrim (transcoding.hls_ondemand_track_trim) restricts the
+	// on-demand master's audio to the single track ?audioTrack=/the profile's
+	// language preference would resolve, instead of packaging every audio
+	// track - a lighter master.m3u8 for a "MULTI" release with many dubs.
+	// Video and subtitles are always kept in full; an explicit ?audioTrack=
+	// switch still re-resolves and re-plans normally. Off by default, no
+	// behaviour change.
+	onDemandTrackTrim bool
+
 	// qoeSink ingests CMCD telemetry from segment requests. Nil when QoE is
 	// disabled (tests, dev without postgres). Record is non-blocking.
 	qoeSink appqoe.EventSink
@@ -244,6 +260,12 @@ func (h *hlsVODServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		// AES-128 key for the on-demand encrypted rung (EXT-X-KEY URI="key").
 		// Access already enforced by commonAuth above.
 		h.serveHLSKey(w, r, mediaID, span)
+	case strings.HasPrefix(file, concatPrefix):
+		// Gapless multi-episode session (mp4.PlanConcat): every prefixed
+		// sub-resource (cc_playlist.m3u8, cc_p0/seg00001.m4s, cc_audio1.m3u8...)
+		// the concatenated master references. 404 when the feature is off / the
+		// chain no longer resolves.
+		h.serveConcatResource(w, r, mediaID, file, item, span)
 	case file == "manifest.mpd" || strings.HasPrefix(file, onDemandPrefix):
 		// On-demand copy rung (mp4.PlanHLS): the DASH manifest entry point and
 		// every prefixed sub-resource (od_playlist.m3u8, od_seg00001.m4s,
@@ -364,6 +386,14 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// Catches the startup CMCD payload (?CMCD=su,sid=...,ot=m) - the first
 	// thing every player sends. Useful for "time to first frame" admin views.
 	h.ingestCMCD(r, mediaID, 0, 0, false, true, false)
+
+	// Gapless multi-episode session: only when the request opts in
+	// (?gapless=1). Falls through (feature off / not requested / chain too
+	// short / incompatible episode) to the normal single-episode paths below,
+	// unchanged.
+	if h.serveConcatMaster(w, r, mediaID, item, streams, span) {
+		return
+	}
 
 	// On-demand copy rung: when the request is video+audio copy-eligible and the
 	// source packages verbatim, serve the whole presentation from mp4.PlanHLS

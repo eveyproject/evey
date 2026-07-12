@@ -16,6 +16,7 @@ package mkvgo
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -237,5 +238,173 @@ func TestOnDemandPackagerIntegration_ChapterMarkers(t *testing.T) {
 	}
 	if !bytes.Contains(videoPlaylist, []byte("Chapter Two")) {
 		t.Errorf("playlist missing second chapter title:\n%s", videoPlaylist)
+	}
+}
+
+// TestOnDemandPackagerIntegration_AudioResync proves E2 end to end: a source
+// with the classic repack mux defect (audio track starting late relative to
+// the video, muxed via -itsoffset like the real dubbed titles
+// cases) is served with its A/V desync CANCELLED IN PRESENTATION - no ffmpeg,
+// nothing written to the source - because Plan wires the real
+// matroska.AudioStartDelays measurement into mp4.Options.AudioPresentationShift.
+func TestOnDemandPackagerIntegration_AudioResync(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not in PATH")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+
+	// clean.mkv: video+audio aligned at 0. delayed.mkv: same content, audio
+	// track re-muxed with a +900ms offset (repack defect), Cues kept so
+	// PlanHLS packages it without a SynthesizeIndex walk in the way.
+	clean := filepath.Join(dir, "clean.mkv")
+	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+		"-t", "20",
+		"-c:v", "libx264", "-g", "48", "-keyint_min", "48", "-pix_fmt", "yuv420p",
+		"-c:a", "aac", "-b:a", "128k",
+		clean)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("clean source generation: %v\n%s", err, out)
+	}
+	delayed := filepath.Join(dir, "delayed.mkv")
+	mux := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-i", clean,
+		"-itsoffset", fmt.Sprintf("%.3f", 0.9), "-i", clean,
+		"-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
+		delayed)
+	if out, err := mux.CombinedOutput(); err != nil {
+		t.Fatalf("delayed remux: %v\n%s", err, out)
+	}
+
+	pkg := NewOnDemandPackager()
+	defer pkg.Close()
+	defaultAudioDelays := pkg.audioDelays // the real matroska.AudioStartDelays wiring
+
+	shifted, err := pkg.Plan(ctx, delayed, apptranscoding.OnDemandOptions{SegmentMs: 6000})
+	if err != nil {
+		t.Fatalf("Plan(delayed): %v", err)
+	}
+	shiftedInit, _, err := shifted.Resource(ctx, "init_a1.mp4")
+	if err != nil {
+		t.Fatalf("Resource(init_a1.mp4) shifted: %v", err)
+	}
+
+	// Control: the same delayed source, but with the audio-delay probe
+	// disabled - the pre-E2 behaviour (desynced copy, no resync).
+	pkg.audioDelays = func(context.Context, string) (map[uint64]int64, error) { return nil, nil }
+	unshifted, err := pkg.Plan(ctx, delayed, apptranscoding.OnDemandOptions{SegmentMs: 6000, URLPrefix: "unshifted_"})
+	if err != nil {
+		t.Fatalf("Plan(delayed, no probe): %v", err)
+	}
+	unshiftedInit, _, err := unshifted.Resource(ctx, "init_a1.mp4")
+	if err != nil {
+		t.Fatalf("Resource(init_a1.mp4) unshifted: %v", err)
+	}
+
+	if bytes.Equal(shiftedInit, unshiftedInit) {
+		t.Error("a real 900ms desync must change the audio init segment's edit list once resync is wired")
+	}
+
+	// Aligned source: the probe measures ~0 and the plan is byte-identical
+	// with or without it wired - no regression on a healthy file.
+	pkg.audioDelays = defaultAudioDelays
+	alignedShifted, err := pkg.Plan(ctx, clean, apptranscoding.OnDemandOptions{SegmentMs: 6000, URLPrefix: "aligned_"})
+	if err != nil {
+		t.Fatalf("Plan(clean): %v", err)
+	}
+	alignedInit, _, err := alignedShifted.Resource(ctx, "init_a1.mp4")
+	if err != nil {
+		t.Fatalf("Resource(init_a1.mp4) aligned: %v", err)
+	}
+	pkg.audioDelays = func(context.Context, string) (map[uint64]int64, error) { return nil, nil }
+	alignedNoProbe, err := pkg.Plan(ctx, clean, apptranscoding.OnDemandOptions{SegmentMs: 6000, URLPrefix: "aligned2_"})
+	if err != nil {
+		t.Fatalf("Plan(clean, no probe): %v", err)
+	}
+	alignedNoProbeInit, _, err := alignedNoProbe.Resource(ctx, "init_a1.mp4")
+	if err != nil {
+		t.Fatalf("Resource(init_a1.mp4) aligned no-probe: %v", err)
+	}
+	if !bytes.Equal(alignedInit, alignedNoProbeInit) {
+		t.Error("an aligned source's audio init must not change when the resync is wired (below the defect floor)")
+	}
+}
+
+// TestOnDemandPackagerIntegration_KeepAudioTrack proves the track-trim wiring
+// end to end: a real 3-audio-track MKV (a "MULTI" release) trimmed to one
+// track advertises exactly ONE audio EXT-X-MEDIA in its master, while the
+// untrimmed plan for the same source advertises all three - and the video
+// still plays (segment 1 is a real fMP4 fragment either way).
+func TestOnDemandPackagerIntegration_KeepAudioTrack(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not in PATH")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+
+	src := filepath.Join(dir, "multi.mkv")
+	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+		"-f", "lavfi", "-i", "sine=frequency=660:sample_rate=48000",
+		"-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000",
+		"-t", "20",
+		"-map", "0:v:0", "-map", "1:a:0", "-map", "2:a:0", "-map", "3:a:0",
+		"-c:v", "libx264", "-g", "48", "-keyint_min", "48", "-pix_fmt", "yuv420p",
+		"-c:a", "aac", "-b:a", "128k",
+		"-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=fre", "-metadata:s:a:2", "language=jpn",
+		src)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("multi-audio source generation failed: %v\n%s", err, out)
+	}
+
+	pkg := NewOnDemandPackager()
+	defer pkg.Close()
+
+	full, err := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{SegmentMs: 6000, URLPrefix: "full_"})
+	if err != nil {
+		t.Fatalf("Plan (untrimmed): %v", err)
+	}
+	fullMaster, _, err := full.Resource(ctx, "master.m3u8")
+	if err != nil {
+		t.Fatalf("Resource(master.m3u8) untrimmed: %v", err)
+	}
+	if got := bytes.Count(fullMaster, []byte("TYPE=AUDIO")); got != 3 {
+		t.Errorf("untrimmed master has %d AUDIO renditions, want 3:\n%s", got, fullMaster)
+	}
+
+	trackIdx := 1 // the French track
+	trimmed, err := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{SegmentMs: 6000, URLPrefix: "trim_", KeepAudioTrack: &trackIdx})
+	if err != nil {
+		t.Fatalf("Plan (trimmed): %v", err)
+	}
+	trimmedMaster, _, err := trimmed.Resource(ctx, "master.m3u8")
+	if err != nil {
+		t.Fatalf("Resource(master.m3u8) trimmed: %v", err)
+	}
+	if got := bytes.Count(trimmedMaster, []byte("TYPE=AUDIO")); got != 1 {
+		t.Errorf("trimmed master has %d AUDIO renditions, want 1:\n%s", got, trimmedMaster)
+	}
+	if !bytes.Contains(trimmedMaster, []byte(`LANGUAGE="fre"`)) {
+		t.Errorf("trimmed master's single audio rendition should be the French track:\n%s", trimmedMaster)
+	}
+
+	// The video still packages fine under the trim - not just the master text.
+	seg, _, err := trimmed.Resource(ctx, "seg00001.m4s")
+	if err != nil {
+		t.Fatalf("Resource(seg00001.m4s) trimmed: %v", err)
+	}
+	if len(seg) < 8 || !bytes.Equal(seg[4:8], []byte("styp")) {
+		t.Errorf("trimmed segment 1 is not a CMAF fragment, got %d bytes", len(seg))
 	}
 }

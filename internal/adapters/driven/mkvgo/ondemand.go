@@ -5,9 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
+	extmatroska "github.com/gravity-zero/mkvgo/matroska"
+	extmkv "github.com/gravity-zero/mkvgo/mkv"
+	"github.com/gravity-zero/mkvgo/mkv/reader"
 	"github.com/gravity-zero/mkvgo/mp4"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -32,13 +36,35 @@ const (
 type OnDemandPackager struct {
 	plans   *pkgcache.TTLCache[apptranscoding.OnDemandPlan]
 	stopper func()
+	// audioDelays measures each Matroska audio track's start delay (native
+	// mkvgo, no ffprobe) so Plan can cancel it in presentation without
+	// touching the source. Injectable for tests; production passes
+	// matroska.AudioStartDelays.
+	audioDelays delaysFunc
+	// trackList lists a Matroska source's tracks in container order (ID+type),
+	// the cheapest possible read (header-only, no Cues/Chapters/Tags), so Plan
+	// can resolve KeepAudioTrack's ordinal to a real track ID. Injectable for
+	// tests; production passes reader.OpenMeta.
+	trackList func(ctx context.Context, path string) ([]extmkv.Track, error)
 }
 
 // NewOnDemandPackager returns a packager with an internal plan cache. Call
 // Close to stop the cache's background janitor.
 func NewOnDemandPackager() *OnDemandPackager {
 	c, stop := pkgcache.NewWithMaxSize[apptranscoding.OnDemandPlan](onDemandCleanup, onDemandPlanMaxSize)
-	return &OnDemandPackager{plans: c, stopper: stop}
+	return &OnDemandPackager{
+		plans: c, stopper: stop,
+		audioDelays: func(ctx context.Context, path string) (map[uint64]int64, error) {
+			return extmatroska.AudioStartDelays(ctx, path)
+		},
+		trackList: func(ctx context.Context, path string) ([]extmkv.Track, error) {
+			c, err := reader.OpenMeta(ctx, path)
+			if err != nil {
+				return nil, err
+			}
+			return c.Tracks, nil
+		},
+	}
 }
 
 // Close stops the plan cache janitor.
@@ -74,6 +100,33 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 	// is the fast-seek path for un-indexed files AND for read-only media where
 	// the on-disk reindex cannot write.
 	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true}
+	// Audio start-delay resync, in presentation only, nothing written: the
+	// same per-track defect the admin retimer repairs on disk (audio_retime.go)
+	// is cancelled here at packaging time for a source the operator hasn't
+	// repaired yet (or can't - a read-only mount). AudioStartDelays is
+	// Matroska-only; best-effort like SynthesizeIndex above - a probe failure
+	// must not refuse the plan, it just serves without the resync.
+	if IsEBMLContainer(srcPath) && p.audioDelays != nil {
+		if delays, derr := p.audioDelays(ctx, srcPath); derr == nil {
+			o.AudioPresentationShift = audioPresentationShift(delays)
+		} else {
+			slog.WarnContext(ctx, "mkvgo on-demand: audio-delay probe failed, serving without resync",
+				slog.String("path", srcPath), slog.Any("err", derr))
+		}
+	}
+	// KeepAudioTrack: a Virtual Edit Layer trim (mp4.Options.KeepTracks) to a
+	// single audio track - video and every subtitle stay. Off by default (nil,
+	// the operator flag gates it), and best-effort like the resync above: a
+	// track-listing failure serves the untrimmed presentation rather than
+	// refusing the plan.
+	if opts.KeepAudioTrack != nil && IsEBMLContainer(srcPath) && p.trackList != nil {
+		if tracks, terr := p.trackList(ctx, srcPath); terr == nil {
+			o.KeepTracks = keepTracksFor(tracks, *opts.KeepAudioTrack)
+		} else {
+			slog.WarnContext(ctx, "mkvgo on-demand: track list failed, serving every track",
+				slog.String("path", srcPath), slog.Any("err", terr))
+		}
+	}
 	if opts.URLPrefix != "" {
 		prefix := opts.URLPrefix
 		o.RewriteURL = func(name string) string { return prefix + name }
@@ -137,7 +190,60 @@ func onDemandCacheKey(srcPath string, opts apptranscoding.OnDemandOptions) strin
 		sum := sha256.Sum256(opts.AESKey)
 		keyTag = hex.EncodeToString(sum[:8]) + ":" + opts.AESKeyURI
 	}
-	return fmt.Sprintf("%s|%d|%d|%d|%s|%s", srcPath, size, mtime, opts.SegmentMs, opts.URLPrefix, keyTag)
+	audioTrackTag := "-"
+	if opts.KeepAudioTrack != nil {
+		audioTrackTag = fmt.Sprintf("a%d", *opts.KeepAudioTrack)
+	}
+	return fmt.Sprintf("%s|%d|%d|%d|%s|%s|%s", srcPath, size, mtime, opts.SegmentMs, opts.URLPrefix, keyTag, audioTrackTag)
+}
+
+// keepTracksFor resolves mp4.Options.KeepTracks for a trimmed plan: the
+// (first) video track and every subtitle track are always kept; the audio
+// set narrows to the ordinal-th audio track in container order (0-based,
+// matching resolveAudioTrack's numbering). An out-of-range ordinal keeps no
+// audio track rather than falling back to "every audio track" - a stale
+// request must not silently defeat the trim.
+func keepTracksFor(tracks []extmkv.Track, audioOrdinal int) []uint64 {
+	var kept []uint64
+	videoKept := false
+	audioIdx := 0
+	for _, t := range tracks {
+		switch t.Type {
+		case extmkv.VideoTrack:
+			if !videoKept {
+				kept = append(kept, t.ID)
+				videoKept = true
+			}
+		case extmkv.AudioTrack:
+			if audioIdx == audioOrdinal {
+				kept = append(kept, t.ID)
+			}
+			audioIdx++
+		case extmkv.SubtitleTrack:
+			kept = append(kept, t.ID)
+		}
+	}
+	return kept
+}
+
+// audioPresentationShift floors AudioStartDelays' raw map to mp4.Options.
+// AudioPresentationShift: only tracks past retimeDelayFloorNs (the same
+// defect floor audio_retime.go applies) are shifted, so codec priming (tens
+// of ms) never moves a healthy file's presentation. The value is passed
+// through UNNEGATED - unlike RetimeTracks' persistent shift, which takes the
+// negated delay, AudioPresentationShift takes AudioStartDelays' sign
+// directly (positive = presented earlier).
+func audioPresentationShift(delays map[uint64]int64) map[uint64]int64 {
+	var shift map[uint64]int64
+	for track, ns := range delays {
+		if ns > retimeDelayFloorNs {
+			if shift == nil {
+				shift = make(map[uint64]int64, len(delays))
+			}
+			shift[track] = ns
+		}
+	}
+	return shift
 }
 
 // ondemandPlan wraps *mp4.HLSPlan to satisfy apptranscoding.OnDemandPlan.

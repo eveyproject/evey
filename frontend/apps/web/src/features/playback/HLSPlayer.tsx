@@ -127,6 +127,12 @@ export function HLSPlayer({
   // shortcut opens the same rich PiP window as the on-screen button instead of
   // the bare-<video> legacy PiP.
   const pipToggleRef = useRef<(() => void) | null>(null);
+  // Gapless multi-episode session ("lecture enchaînée"): per-series opt-in
+  // toggle (set from the series page), read once per mount/series change -
+  // same imperative localStorage pattern as the audio/subtitle series prefs
+  // used below. The server falls back to today's per-episode master whenever
+  // it can't honour it, so a stale/wrong read here is harmless.
+  const gapless = seriesId ? !!getSeriesTrackPrefs(seriesId)?.gapless : false;
   const positionRef = useRef(startPositionMs / 1000);
   const knownDurationSecRef = useRef(knownDurationMs ? knownDurationMs / 1000 : 0);
   knownDurationSecRef.current = knownDurationMs ? knownDurationMs / 1000 : 0;
@@ -279,7 +285,7 @@ export function HLSPlayer({
     } else {
       // Transcode - HLS master playlist, started at the current position.
       castStartSec = positionRef.current > 0 ? Math.floor(positionRef.current) : 0;
-      url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, castStartSec);
+      url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, castStartSec, 0, gapless);
     }
     // Swap in a long-lived cast token. The Chromecast fetches segments on
     // its own and buffers minutes ahead, then goes quiet - the regular
@@ -304,7 +310,7 @@ export function HLSPlayer({
     castBaseUrlRef.current = url;
     castTranscodeOffsetRef.current = castStartSec;
     startCast(url, title);
-  }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex, onCastTokenRequest]);
+  }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex, onCastTokenRequest, gapless]);
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const anyPanelOpenRef = useRef(false);
@@ -416,6 +422,7 @@ export function HLSPlayer({
     startPositionMs, onEnded, setIsBuffering: setIsBufferingDebounced, setFatalError,
     setShedReason,
     audioOffsetMs: appliedAudioOffsetMs,
+    gapless,
   });
 
   useEffect(() => {

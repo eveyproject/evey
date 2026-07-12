@@ -1,8 +1,9 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SeriesSection, SeasonEpisodesSection } from "./MediaDetailSeries";
+import { getSeriesTrackPrefs } from "@/hooks/usePlaybackPrefs";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, params, ...rest }: { children: React.ReactNode; to: string; params?: Record<string, string>; [k: string]: unknown }) => {
@@ -35,6 +36,37 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 }
 
 describe("SeriesSection", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("renders the gapless-playback toggle, off by default", () => {
+    mockListMediaItems.mockReturnValue({
+      data: { items: [{ id: "se1", indexNumber: 1, type: "MEDIA_ITEM_TYPE_SEASON" }] },
+    });
+    mockGetMediaItem.mockReturnValue({ data: { indexNumber: 1, title: "Season 1" } });
+    render(
+      <SeriesSection item={{ id: "s1", type: "MEDIA_ITEM_TYPE_SERIES" } as any} />,
+      { wrapper: Wrapper },
+    );
+    const toggle = screen.getByTestId("gapless-toggle");
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("persists the gapless preference per-series on click", () => {
+    mockListMediaItems.mockReturnValue({
+      data: { items: [{ id: "se1", indexNumber: 1, type: "MEDIA_ITEM_TYPE_SEASON" }] },
+    });
+    mockGetMediaItem.mockReturnValue({ data: { indexNumber: 1, title: "Season 1" } });
+    render(
+      <SeriesSection item={{ id: "s1", type: "MEDIA_ITEM_TYPE_SERIES" } as any} />,
+      { wrapper: Wrapper },
+    );
+    fireEvent.click(screen.getByTestId("gapless-toggle"));
+    expect(screen.getByTestId("gapless-toggle")).toHaveAttribute("aria-checked", "true");
+    expect(getSeriesTrackPrefs("s1")?.gapless).toBe(true);
+  });
+
   it("returns null when no seasons", () => {
     mockListMediaItems.mockReturnValue({ data: { items: [] } });
     const { container } = render(

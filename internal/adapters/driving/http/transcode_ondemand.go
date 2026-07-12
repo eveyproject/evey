@@ -239,6 +239,19 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 			opts.AESKeyURI = "key" // relative to /hls/{id}/ - served by serveHLSKey; not URL-prefixed by mkvgo
 		}
 	}
+	if h.onDemandTrackTrim {
+		// Same resolution the ffmpeg pipeline uses for ?audioTrack=/the
+		// profile's language default (resolveAudioTrack), reused here so both
+		// backends agree on which track a request gets. Best-effort: a lookup
+		// failure serves every audio track rather than failing the plan.
+		if streams, err := h.libSvc.GetMediaStreams(r.Context(), mediaID); err == nil {
+			idx := h.resolveAudioTrack(r, streams)
+			opts.KeepAudioTrack = &idx
+		} else {
+			slog.WarnContext(r.Context(), "hls vod: on-demand track trim: stream lookup failed, serving every track",
+				slog.String("media_id", mediaID), slog.Any("err", err))
+		}
+	}
 	return h.onDemand.Plan(r.Context(), item.File.Path, opts)
 }
 

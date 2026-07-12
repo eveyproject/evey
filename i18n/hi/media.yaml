@@ -194,6 +194,7 @@ detail:
   seasonCount: "{{count}} सीज़न"
   seasonCount_one: "{{count}} सीज़न"
   seasonCount_other: "{{count}} सीज़न"
+  gaplessPlayback: "निर्बाध प्लेबैक"
   episodes: एपिसोड
   episodeCount: "{{count}} एपिसोड"
   episodeCount_one: "{{count}} एपिसोड"

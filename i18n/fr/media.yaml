@@ -194,6 +194,7 @@ detail:
   seasonCount: "{{count}} saison"
   seasonCount_one: "{{count}} saison"
   seasonCount_other: "{{count}} saisons"
+  gaplessPlayback: "Lecture enchaînée"
   episodes: Épisodes
   episodeCount: "{{count}} épisode"
   episodeCount_one: "{{count}} épisode"

@@ -65,6 +65,10 @@ interface UseTranscodePlaybackArgs {
   /** Applied audio resync (ms; positive = audio later). Baked into the
    * stream URL - a change re-creates the HLS session with a shifted encode. */
   audioOffsetMs?: number;
+  /** Gapless multi-episode session ("lecture enchaînée", per-series toggle).
+   * Baked into the stream URL (?gapless=1) - the server falls back to the
+   * normal per-episode master when it can't honour it. */
+  gapless?: boolean;
 }
 
 export function useTranscodePlayback({
@@ -83,6 +87,7 @@ export function useTranscodePlayback({
   onEnded,
   setIsBuffering,
   audioOffsetMs = 0,
+  gapless = false,
   setFatalError,
   setShedReason,
 }: UseTranscodePlaybackArgs) {
@@ -129,6 +134,7 @@ export function useTranscodePlayback({
       selectedBurnInTrack,
       0, // server ignores startSec on the VOD path
       audioOffsetMs,
+      gapless,
     );
 
     if (prefersNativeHLS()) {
@@ -293,7 +299,7 @@ export function useTranscodePlayback({
                 data.details === "levelLoadTimeOut";
               if (isManifestLevel) {
                 const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
-                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs);
+                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs, gapless);
                 hls.loadSource(freshUrl);
                 hls.startLoad();
               } else {
@@ -357,7 +363,7 @@ export function useTranscodePlayback({
       setIsBuffering(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
-  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs]);
+  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless]);
 
   return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight };
 }

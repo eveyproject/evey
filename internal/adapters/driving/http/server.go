@@ -138,6 +138,13 @@ type HTTPServer struct {
 	// copy/transcode pipeline is unchanged).
 	OnDemandPackager apptranscoding.OnDemandPackager
 
+	// OnDemandConcatPackager serves a gapless multi-episode HLS session
+	// (mkvgo's mp4.PlanConcat) when a request opts in with ?gapless=1. Off by
+	// default, opt-in via transcoding.hls_ondemand_concat=on; nil-safe
+	// (feature off → concat is never attempted, per-episode playback
+	// unchanged).
+	OnDemandConcatPackager apptranscoding.ConcatPackager
+
 	// HLSAESSecret is the server secret the on-demand rung derives per-media
 	// AES-128 HLS keys from (HMAC(secret, mediaID)). Only used when
 	// transcoding.hls_ondemand_encrypt is on; empty disables encryption.

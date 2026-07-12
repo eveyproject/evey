@@ -49,6 +49,12 @@ export function setVolumeBoost(boost: number) {
 interface SeriesTrackPrefs {
   audioLang?: string;
   subtitleLang?: string | null;
+  // gapless: "lecture enchaînée" - request the server's concatenated,
+  // multi-episode HLS session (?gapless=1) instead of reloading the player at
+  // each episode boundary. Per-series (some shows/binges want it, others -
+  // anthologies, mixed specials - don't), opt-in, undefined/false = today's
+  // per-episode playback.
+  gapless?: boolean;
 }
 
 export function getSeriesTrackPrefs(seriesId: string): SeriesTrackPrefs | null {
