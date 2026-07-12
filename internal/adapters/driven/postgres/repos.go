@@ -54,6 +54,8 @@ type Repos struct {
 	LibraryAccess              *LibraryAccessRepository
 	Collection                 *CollectionRepository
 	Favorite                   *FavoriteRepository
+	MediaRequest               *MediaRequestRepository
+	MediaRequestAccess         *MediaRequestAccessRepository
 	Photo                      *PhotoRepository
 	UserRating                 *UserRatingRepository
 	MusicTrack                 *MusicTrackRepository
@@ -121,6 +123,8 @@ func NewRepos(db *sql.DB) *Repos {
 		LibraryAccess:              NewLibraryAccessRepository(db),
 		Collection:                 NewCollectionRepository(db),
 		Favorite:                   NewFavoriteRepository(db),
+		MediaRequest:               NewMediaRequestRepository(db),
+		MediaRequestAccess:         NewMediaRequestAccessRepository(db),
 		Photo:                      NewPhotoRepository(db),
 		UserRating:                 NewUserRatingRepository(db),
 		MusicTrack:                 NewMusicTrackRepository(db),

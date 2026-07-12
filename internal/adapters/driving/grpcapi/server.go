@@ -18,6 +18,7 @@ import (
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmedia "github.com/evey-project/evey/internal/app/media"
+	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
 	appmusic "github.com/evey-project/evey/internal/app/music"
@@ -74,6 +75,7 @@ type GRPCServerDeps struct {
 	Collection      *appcollection.Service
 	Playlist        *appplaylist.Service
 	Favorite        *appfavorite.Service
+	MediaRequest    *appmediarequest.Service
 	Backup          *appbackup.Service
 	BackupScheduler *appbackup.Scheduler
 	Cfg             *config.Config
@@ -239,6 +241,8 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{svc: d.Collection, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: d.Favorite, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery})
+	eveyv1.RegisterMediaRequestServiceServer(s.server, &mediaRequestHandler{svc: d.MediaRequest})
+	eveyv1.RegisterAdminMediaRequestServiceServer(s.server, &adminMediaRequestHandler{svc: d.MediaRequest, userQuery: d.UserQuery})
 	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: d.Transcoding})
 	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: d.Backup})
 	if d.BackupScheduler != nil {

@@ -199,6 +199,12 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		// MusicService (destructive / admin-only)
 		"/evey.v1.MusicService/DeleteTrack",
 		"/evey.v1.MusicService/ScanMusicDirectory",
+		// AdminMediaRequestService (operator moderation)
+		"/evey.v1.AdminMediaRequestService/ListRequests",
+		"/evey.v1.AdminMediaRequestService/AnswerRequest",
+		"/evey.v1.AdminMediaRequestService/GetAccessSettings",
+		"/evey.v1.AdminMediaRequestService/SetAccessDefault",
+		"/evey.v1.AdminMediaRequestService/SetUserAccess",
 	}
 
 	require.Len(t, cfg.MethodRoles, len(expectedAdmin), "MethodRoles count mismatch - was a mapping added or removed?")
@@ -308,6 +314,11 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.FavoriteService/AddFavorite":    "own; media-access checked",
 	"/evey.v1.FavoriteService/RemoveFavorite": "own",
 	"/evey.v1.FavoriteService/IsFavorite":     "own",
+	// MediaRequestService (requester-facing; scoped to the caller's own profile/user from JWT claims)
+	"/evey.v1.MediaRequestService/SearchTitles":     "read-only metadata provider search; no owned data",
+	"/evey.v1.MediaRequestService/CreateRequest":    "own; profile/user from claims, policy-gated (ErrDisabled)",
+	"/evey.v1.MediaRequestService/ListMyRequests":   "own; profile from claims, never from request",
+	"/evey.v1.MediaRequestService/GetRequestPolicy": "own; reports whether the caller may request",
 	// FeedService
 	"/evey.v1.FeedService/GetFeedConfig":           "read",
 	"/evey.v1.FeedService/ContinueWatching":        "own; lib-access-filtered",

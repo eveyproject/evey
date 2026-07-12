@@ -53,15 +53,16 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 
 	// Admin MKV/WebM seek-index maintenance (scan/reindex/rollback). The mkvgo
 	// adapter is stateless, and the catalog paginates the library to feed every
-	// file to the scanner. The ffprobe audio-delay prober adds the "audio starts
-	// after video" diagnosis (repack mux defect → constant A/V desync), read
-	// natively by mkvgo (no ffprobe subprocess).
+	// file to the scanner. mkvgo's Diagnose is one head-mostly read per file that
+	// subsumes the index + audio-delay probes and additionally classifies
+	// corruption as truncated (re-acquire the source) vs damaged (resync,
+	// N bytes lost) - the signal that routes each file's repair. No ffprobe.
 	seekIndexSvc := appmaintenance.NewSeekIndexService(
 		mkvgo.New(),
 		seekIndexCatalog{lib: deps.library.querySvc},
 		eveylogger.NewWith(rootLog, "seek-index"),
 	).WithFileStateRefresher(deps.seekIndexFileState).
-		WithAudioDelayProber(mkvgo.NewAudioDelayProber()).
+		WithDiagnoser(mkvgo.New()).
 		// Audio start-delay repair: mkvgo per-track retime (fixes multi-track
 		// files whose tracks disagree on the delay - the dominant real case),
 		// with the ffmpeg uniform-shift remux as the fallback for layouts the
@@ -102,6 +103,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		Collection:             deps.content.collectionSvc,
 		Playlist:               deps.content.playlistSvc,
 		Favorite:               deps.content.favoriteSvc,
+		MediaRequest:           deps.content.mediaRequestSvc,
 		Backup:                 deps.backupSvc,
 		BackupScheduler:        deps.backupScheduler,
 		Cfg:                    cfg,

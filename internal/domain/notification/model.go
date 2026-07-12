@@ -35,12 +35,18 @@ const (
 	TypeBackupFailed   Type = "backup_failed"
 	TypePluginError    Type = "plugin_error"
 	TypeCustom         Type = "custom"
+	// TypeMediaRequest pages operators that a user submitted a media request
+	// (admin-only, like plugin_error). TypeRequestAnswered notifies the
+	// requester of the operator's decision (a personal notification).
+	TypeMediaRequest    Type = "media_request"
+	TypeRequestAnswered Type = "request_answered"
 )
 
 func (t Type) IsValid() bool {
 	switch t {
 	case TypeNewMovie, TypeNewEpisode, TypeNewSeason, TypeNewSeries, TypeNewAlbum,
-		TypeLibraryScanned, TypeBackupFailed, TypePluginError, TypeCustom:
+		TypeLibraryScanned, TypeBackupFailed, TypePluginError, TypeCustom,
+		TypeMediaRequest, TypeRequestAnswered:
 		return true
 	}
 	return false
@@ -55,7 +61,7 @@ func (t Type) IsValid() bool {
 // endpoint can surface them dedicated to admins.
 func (t Type) IsAdminOnly() bool {
 	switch t {
-	case TypeBackupFailed, TypePluginError:
+	case TypeBackupFailed, TypePluginError, TypeMediaRequest:
 		return true
 	}
 	return false
@@ -65,7 +71,7 @@ func (t Type) IsAdminOnly() bool {
 // callers can pass them to repository List/Count exclude filters without
 // hardcoding the values.
 func AdminOnlyTypes() []Type {
-	return []Type{TypeBackupFailed, TypePluginError}
+	return []Type{TypeBackupFailed, TypePluginError, TypeMediaRequest}
 }
 
 type Level string

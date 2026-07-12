@@ -7,6 +7,10 @@ push:
     title: "नया सीज़न: {label}"
   new_series:
     title: "नई सीरीज़: {label}"
+  media_request:
+    title: "नया मीडिया अनुरोध: {title}"
+  request_answered:
+    title: "आपका मीडिया अनुरोध अपडेट किया गया: {title}"
   new_album:
     title: "नया एल्बम: {label}"
   series_with_seasons_and_episodes:

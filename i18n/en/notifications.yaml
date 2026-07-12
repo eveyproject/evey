@@ -7,6 +7,10 @@ push:
     title: "New Season: {label}"
   new_series:
     title: "New Series: {label}"
+  media_request:
+    title: "New media request: {title}"
+  request_answered:
+    title: "Your media request was updated: {title}"
   new_album:
     title: "New Album: {label}"
   series_with_seasons_and_episodes:

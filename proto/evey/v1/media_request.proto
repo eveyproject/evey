@@ -1,0 +1,200 @@
+syntax = "proto3";
+
+package evey.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/evey-project/evey/gen/evey/v1;eveyv1";
+
+// MediaRequestService is the requester-facing surface. Every method is scoped
+// to the caller's own profile via the JWT claims - profile ids are never read
+// from the request body (no IDOR).
+service MediaRequestService {
+  // SearchTitles resolves candidate titles for a media type from the metadata
+  // providers (movie/tv -> TMDB/OMDb/IMDb, music -> MusicBrainz).
+  rpc SearchTitles(SearchTitlesRequest) returns (SearchTitlesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/media-requests/search"
+    };
+  }
+
+  // CreateRequest submits a new request for the caller's profile. Fails with
+  // PermissionDenied when requests are disabled for the caller.
+  rpc CreateRequest(CreateRequestRequest) returns (MediaRequestProto) {
+    option (google.api.http) = {
+      post: "/api/v1/media-requests"
+      body: "*"
+    };
+  }
+
+  // ListMyRequests returns the caller's own requests, newest first.
+  rpc ListMyRequests(ListMyRequestsRequest) returns (ListMyRequestsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/media-requests"
+    };
+  }
+
+  // GetRequestPolicy tells the client whether the caller may submit requests
+  // (drives whether the UI entry point is shown).
+  rpc GetRequestPolicy(GetRequestPolicyRequest) returns (GetRequestPolicyResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/media-requests/policy"
+    };
+  }
+}
+
+// AdminMediaRequestService is the operator moderation surface (admin only).
+service AdminMediaRequestService {
+  // ListRequests returns all requests, optionally filtered by status.
+  rpc ListRequests(AdminListRequestsRequest) returns (AdminListRequestsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/media-requests"
+    };
+  }
+
+  // AnswerRequest records the operator's decision (approved/rejected/later)
+  // and note, and notifies the requester.
+  rpc AnswerRequest(AnswerRequestRequest) returns (MediaRequestProto) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/media-requests/{id}/answer"
+      body: "*"
+    };
+  }
+
+  // GetAccessSettings returns the global default plus every per-user override.
+  rpc GetAccessSettings(GetAccessSettingsRequest) returns (GetAccessSettingsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/media-requests/access"
+    };
+  }
+
+  // SetAccessDefault sets the global default (enabled/disabled).
+  rpc SetAccessDefault(SetAccessDefaultRequest) returns (SetAccessDefaultResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/media-requests/access/default"
+      body: "*"
+    };
+  }
+
+  // SetUserAccess sets or clears a per-user override.
+  rpc SetUserAccess(SetUserAccessRequest) returns (SetUserAccessResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/media-requests/access/user/{user_id}"
+      body: "*"
+    };
+  }
+}
+
+message MediaRequestProto {
+  string id = 1;
+  string profile_id = 2;
+  string user_id = 3;
+  string media_type = 4; // movie | tv | music
+  string provider = 5;   // tmdb | imdb | musicbrainz | ''
+  string provider_id = 6;
+  string title = 7;
+  int32 year = 8;
+  string poster_url = 9;
+  string status = 10; // pending | approved | rejected | later
+  string admin_note = 11;
+  string answered_by = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+  google.protobuf.Timestamp answered_at = 15;
+  // requester_name is populated on the admin moderation view for display.
+  string requester_name = 16;
+}
+
+message TitleCandidate {
+  string provider = 1;
+  string provider_id = 2;
+  string title = 3;
+  int32 year = 4;
+  string poster_url = 5;
+  string overview = 6;
+}
+
+message SearchTitlesRequest {
+  string media_type = 1; // movie | tv | music
+  string query = 2;
+  int32 year = 3; // optional filter, 0 = unset
+}
+
+message SearchTitlesResponse {
+  repeated TitleCandidate results = 1;
+}
+
+message CreateRequestRequest {
+  string media_type = 1;
+  string provider = 2;
+  string provider_id = 3;
+  string title = 4;
+  int32 year = 5;
+  string poster_url = 6;
+}
+
+message ListMyRequestsRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+}
+
+message ListMyRequestsResponse {
+  repeated MediaRequestProto items = 1;
+}
+
+message GetRequestPolicyRequest {}
+
+message GetRequestPolicyResponse {
+  bool can_request = 1;
+}
+
+message AdminListRequestsRequest {
+  repeated string statuses = 1; // empty = all
+  int32 limit = 2;
+  int32 offset = 3;
+}
+
+message AdminListRequestsResponse {
+  repeated MediaRequestProto items = 1;
+}
+
+message AnswerRequestRequest {
+  string id = 1;
+  string status = 2; // approved | rejected | later
+  string note = 3;
+}
+
+message GetAccessSettingsRequest {}
+
+message UserAccessOverride {
+  string user_id = 1;
+  string username = 2;
+  bool enabled = 3;
+}
+
+message GetAccessSettingsResponse {
+  bool default_enabled = 1;
+  repeated UserAccessOverride overrides = 2;
+}
+
+message SetAccessDefaultRequest {
+  bool enabled = 1;
+}
+
+message SetAccessDefaultResponse {}
+
+// AccessMode is the tri-state a per-user override can be set to.
+enum AccessMode {
+  ACCESS_MODE_UNSPECIFIED = 0;
+  ACCESS_MODE_DEFAULT = 1;  // clear the override, fall back to the global default
+  ACCESS_MODE_ENABLED = 2;
+  ACCESS_MODE_DISABLED = 3;
+}
+
+message SetUserAccessRequest {
+  string user_id = 1;
+  AccessMode mode = 2;
+}
+
+message SetUserAccessResponse {}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/evey-project/evey/internal/domain/backup"
 	libevent "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/mediarequest"
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -108,6 +109,8 @@ func (s *CommandService) Register() {
 	s.events.Subscribe("media.item.added", s.handleMediaItemAdded)
 	s.events.Subscribe("backup.failed", s.handleBackupFailed)
 	s.events.Subscribe("plugin.error", s.handlePluginError)
+	s.events.Subscribe("media.request.created", s.handleMediaRequestCreated)
+	s.events.Subscribe("media.request.answered", s.handleRequestAnswered)
 }
 
 func (s *CommandService) Start(ctx context.Context) {
@@ -692,6 +695,95 @@ func (s *CommandService) listAdminTargetProfiles(ctx context.Context) ([]*user.P
 		return s.adminLister.ListAdminProfiles(ctx)
 	}
 	return s.profiles.GetAll(ctx)
+}
+
+// handleMediaRequestCreated pages the operators (admin-only) that a user
+// submitted a new media request.
+func (s *CommandService) handleMediaRequestCreated(parentCtx context.Context, ev shared.Event) {
+	defer func() {
+		if rv := recover(); rv != nil {
+			slog.Error("handleMediaRequestCreated panic recovered", slog.Any("panic", rv))
+		}
+	}()
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+	e, ok := ev.(mediarequest.RequestCreated)
+	if !ok {
+		return
+	}
+	profiles, err := s.listAdminTargetProfiles(ctx)
+	if err != nil {
+		slog.Warn("notification: list admin profiles for media.request.created", slog.Any("err", err))
+		return
+	}
+	title := "New media request: " + e.Title
+	push := pushSpec{
+		key:      "notifications.push.media_request.title",
+		params:   map[string]string{"title": e.Title},
+		fallback: title,
+	}
+	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	for _, p := range profiles {
+		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypeMediaRequest, title,
+			notification.WithNotificationMessage(string(e.MediaType)),
+			notification.WithNotificationLevel(notification.LevelAll),
+			notification.WithNotificationExpiresAt(&expires),
+		)
+		if err != nil {
+			slog.Warn("notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			continue
+		}
+		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
+	}
+	slog.Info("media request notified to admins", slog.String("request_id", e.RequestID), slog.Int("admins", len(profiles)))
+}
+
+// handleRequestAnswered notifies the requester of the operator's decision.
+func (s *CommandService) handleRequestAnswered(parentCtx context.Context, ev shared.Event) {
+	defer func() {
+		if rv := recover(); rv != nil {
+			slog.Error("handleRequestAnswered panic recovered", slog.Any("panic", rv))
+		}
+	}()
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+	e, ok := ev.(mediarequest.RequestAnswered)
+	if !ok {
+		return
+	}
+	// Resolve the requester's profile to localise the push title. Missing
+	// profile (deleted between request and answer) simply skips.
+	locale := ""
+	if all, err := s.profiles.GetAll(ctx); err == nil {
+		for _, p := range all {
+			if p.ID == e.ProfileID {
+				locale = p.Locale
+				break
+			}
+		}
+	}
+	title := "Your media request was updated: " + e.Title
+	push := pushSpec{
+		key:      "notifications.push.request_answered.title",
+		params:   map[string]string{"title": e.Title, "status": string(e.Status)},
+		fallback: title,
+	}
+	msg := "Status: " + string(e.Status)
+	if e.Note != "" {
+		msg += " - " + e.Note
+	}
+	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	n, err := notification.NewNotification(uuid.New().String(), e.ProfileID, notification.TypeRequestAnswered, title,
+		notification.WithNotificationMessage(msg),
+		notification.WithNotificationLevel(notification.LevelAll),
+		notification.WithNotificationExpiresAt(&expires),
+	)
+	if err != nil {
+		slog.Warn("notification build failed", slog.String("profileID", string(e.ProfileID)), slog.Any("err", err))
+		return
+	}
+	s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, locale))
+	slog.Info("media request answer notified", slog.String("request_id", e.RequestID), slog.String("status", string(e.Status)))
 }
 
 func (s *CommandService) MarkRead(ctx context.Context, id, profileID string) error {

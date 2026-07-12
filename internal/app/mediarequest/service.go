@@ -1,0 +1,283 @@
+// Package mediarequest is the application service for user media requests:
+// title search, submission (policy-gated), the requester's own list, and the
+// operator moderation + per-user access surface. Notifications are decoupled -
+// the service only publishes domain events; the notification service reacts.
+package mediarequest
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"strings"
+
+	"github.com/evey-project/evey/internal/domain/mediarequest"
+	"github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+)
+
+// Candidate is a title the requester can pick, resolved from a metadata provider.
+type Candidate struct {
+	Provider   string
+	ProviderID string
+	Title      string
+	Year       *int
+	PosterURL  string
+	Overview   string
+}
+
+// CreateInput carries the picked title into CreateRequest.
+type CreateInput struct {
+	MediaType  mediarequest.MediaType
+	Provider   string
+	ProviderID string
+	Title      string
+	Year       *int
+	PosterURL  string
+}
+
+// Service orchestrates media requests.
+type Service struct {
+	repo      mediarequest.Repository
+	access    mediarequest.Access
+	providers []metadata.MetadataProvider // movie/tv (TMDB/OMDb/IMDb) + music (MusicBrainz)
+	events    shared.EventBus
+}
+
+// NewService builds the media request service.
+func NewService(repo mediarequest.Repository, access mediarequest.Access, providers []metadata.MetadataProvider, events shared.EventBus) *Service {
+	return &Service{repo: repo, access: access, providers: providers, events: events}
+}
+
+// CanRequest resolves the effective policy for a user: an explicit per-user
+// override wins, otherwise the global default.
+func (s *Service) CanRequest(ctx context.Context, userID string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.CanRequest")
+	defer span.End()
+	if v, ok, err := s.access.Override(ctx, userID); err != nil {
+		return false, err
+	} else if ok {
+		return v, nil
+	}
+	return s.access.GlobalDefault(ctx)
+}
+
+// SearchTitles resolves candidate titles for a media type across the providers.
+// Provider errors (e.g. TMDB rejecting a music query) are ignored so one bad
+// provider never sinks the search.
+func (s *Service) SearchTitles(ctx context.Context, mediaType mediarequest.MediaType, query string, year *int) ([]Candidate, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.SearchTitles")
+	defer span.End()
+	if !mediaType.IsValid() {
+		return nil, errors.New("invalid media type")
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, nil
+	}
+	var out []Candidate
+	for _, p := range s.providers {
+		results, err := p.Search(ctx, query, year, string(mediaType))
+		if err != nil {
+			continue
+		}
+		for _, r := range results {
+			out = append(out, toCandidate(p.Name(), r))
+		}
+	}
+	return out, nil
+}
+
+// toCandidate maps a provider result to a UI-facing candidate, picking the
+// provider id that matches the source and the first artwork as the poster.
+func toCandidate(providerName string, r metadata.MetadataResult) Candidate {
+	c := Candidate{
+		Provider: providerName,
+		Title:    r.Title,
+		Year:     r.Year,
+		Overview: r.Overview,
+	}
+	// Prefer the id keyed by the provider's own name, else any known id.
+	if r.ProviderIDs != nil {
+		if v, ok := r.ProviderIDs[providerName]; ok {
+			c.ProviderID = v
+		} else {
+			for _, k := range []string{"tmdb", "imdb", "musicbrainz"} {
+				if v, ok := r.ProviderIDs[k]; ok {
+					c.Provider = k
+					c.ProviderID = v
+					break
+				}
+			}
+		}
+	}
+	if len(r.Artwork) > 0 {
+		c.PosterURL = r.Artwork[0].URL
+	}
+	return c
+}
+
+// CreateRequest submits a request for the given profile/user. Fails closed with
+// ErrDisabled when the policy denies it, and ErrDuplicate when an open request
+// for the same title already exists.
+func (s *Service) CreateRequest(ctx context.Context, profileID shared.ProfileID, userID string, in CreateInput) (*mediarequest.Request, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.CreateRequest")
+	defer span.End()
+
+	allowed, err := s.CanRequest(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, mediarequest.ErrDisabled
+	}
+
+	if in.ProviderID != "" {
+		dupe, dupeErr := s.repo.HasOpenRequest(ctx, string(profileID), in.MediaType, in.ProviderID)
+		if dupeErr != nil {
+			return nil, dupeErr
+		}
+		if dupe {
+			return nil, mediarequest.ErrDuplicate
+		}
+	}
+
+	opts := []mediarequest.Option{}
+	if in.Year != nil {
+		opts = append(opts, mediarequest.WithYear(*in.Year))
+	}
+	if in.PosterURL != "" {
+		opts = append(opts, mediarequest.WithPosterURL(in.PosterURL))
+	}
+	if in.Provider != "" || in.ProviderID != "" {
+		opts = append(opts, mediarequest.WithProvider(in.Provider, in.ProviderID))
+	}
+
+	req, err := mediarequest.NewRequest(id.New("req-"), profileID, userID, in.MediaType, strings.TrimSpace(in.Title), opts...)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.Create(ctx, req); err != nil {
+		return nil, err
+	}
+
+	evt := mediarequest.RequestCreated{
+		RequestID:  req.ID,
+		ProfileID:  req.ProfileID,
+		UserID:     req.UserID,
+		MediaType:  req.MediaType,
+		Title:      req.Title,
+		OccurredAt: req.CreatedAt,
+	}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	return req, nil
+}
+
+// ListMyRequests returns the caller's own requests, newest first.
+func (s *Service) ListMyRequests(ctx context.Context, profileID string, limit, offset int) ([]*mediarequest.Request, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.ListMyRequests")
+	defer span.End()
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	return s.repo.ListByProfile(ctx, profileID, limit, offset)
+}
+
+// ListAll is the operator moderation view, optionally filtered by status.
+func (s *Service) ListAll(ctx context.Context, statuses []mediarequest.Status, limit, offset int) ([]*mediarequest.Request, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.ListAll")
+	defer span.End()
+	if limit <= 0 || limit > 500 {
+		limit = 100
+	}
+	return s.repo.ListAll(ctx, statuses, limit, offset)
+}
+
+// Answer records the operator's decision + note and notifies the requester.
+func (s *Service) Answer(ctx context.Context, requestID string, status mediarequest.Status, note string, answeredBy shared.ProfileID) (*mediarequest.Request, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.Answer")
+	defer span.End()
+	if !status.IsAnswer() {
+		return nil, errors.New("answer requires approved, rejected or later")
+	}
+	req, err := s.repo.GetByID(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+	if err := req.Answer(status, strings.TrimSpace(note), answeredBy); err != nil {
+		return nil, err
+	}
+	if err := s.repo.Update(ctx, req); err != nil {
+		return nil, err
+	}
+	evt := mediarequest.RequestAnswered{
+		RequestID:  req.ID,
+		ProfileID:  req.ProfileID,
+		Title:      req.Title,
+		Status:     req.Status,
+		Note:       req.AdminNote,
+		OccurredAt: *req.AnsweredAt,
+	}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.Warn("publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	return req, nil
+}
+
+// AccessSettings is the operator view of the request policy.
+type AccessSettings struct {
+	DefaultEnabled bool
+	Overrides      map[string]bool // userID -> enabled
+}
+
+// GetAccessSettings returns the global default and every per-user override.
+func (s *Service) GetAccessSettings(ctx context.Context) (AccessSettings, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.GetAccessSettings")
+	defer span.End()
+	def, err := s.access.GlobalDefault(ctx)
+	if err != nil {
+		return AccessSettings{}, err
+	}
+	overrides, err := s.access.ListOverrides(ctx)
+	if err != nil {
+		return AccessSettings{}, err
+	}
+	return AccessSettings{DefaultEnabled: def, Overrides: overrides}, nil
+}
+
+// SetDefault sets the global default policy.
+func (s *Service) SetDefault(ctx context.Context, enabled bool) error {
+	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.SetDefault")
+	defer span.End()
+	return s.access.SetGlobalDefault(ctx, enabled)
+}
+
+// AccessMode is the tri-state a per-user override can take.
+type AccessMode int
+
+const (
+	AccessDefault AccessMode = iota // clear the override
+	AccessEnabled
+	AccessDisabled
+)
+
+// SetUserAccess sets or clears a per-user override.
+func (s *Service) SetUserAccess(ctx context.Context, userID string, mode AccessMode) error {
+	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.SetUserAccess")
+	defer span.End()
+	if userID == "" {
+		return errors.New("user id required")
+	}
+	switch mode {
+	case AccessDefault:
+		return s.access.ClearOverride(ctx, userID)
+	case AccessEnabled:
+		return s.access.SetOverride(ctx, userID, true)
+	case AccessDisabled:
+		return s.access.SetOverride(ctx, userID, false)
+	}
+	return errors.New("invalid access mode")
+}

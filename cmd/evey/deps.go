@@ -17,6 +17,7 @@ import (
 	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
 	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
 	appmedia "github.com/evey-project/evey/internal/app/media"
+	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
 	appmusic "github.com/evey-project/evey/internal/app/music"
@@ -114,6 +115,7 @@ type contentDeps struct {
 	enricher         *appmetadata.Enricher
 	collectionSvc    *appcollection.Service
 	favoriteSvc      *appfavorite.Service
+	mediaRequestSvc  *appmediarequest.Service
 	starRatingSvc    *apprating.Service
 	playlistSvc      *appplaylist.Service
 	playlistGenSvc   *appplaylist.GeneratorService

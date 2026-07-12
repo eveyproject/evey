@@ -42,6 +42,7 @@ import (
 	appfeed "github.com/evey-project/evey/internal/app/feed"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmedia "github.com/evey-project/evey/internal/app/media"
+	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
 	appmusic "github.com/evey-project/evey/internal/app/music"
@@ -633,6 +634,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	}
 
 	favoriteSvc := appfavorite.NewService(r.Favorite)
+
+	// Media requests search movie/tv via the shared metadata providers and
+	// music via MusicBrainz (decorated with the same retry+cache wrapper).
+	mediaRequestProviders := append([]metadata.MetadataProvider{}, metaProviders...)
+	mediaRequestProviders = append(mediaRequestProviders, decorate(metadataadapter.NewMusicBrainzProvider()))
+	mediaRequestSvc := appmediarequest.NewService(r.MediaRequest, r.MediaRequestAccess, mediaRequestProviders, bus)
 	photoScanner := filesystem.NewPhotoScanner()
 	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
 	starRatingSvc := apprating.NewService(r.UserRating)
@@ -1329,6 +1336,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			enricher:         enricher,
 			collectionSvc:    collectionSvc,
 			favoriteSvc:      favoriteSvc,
+			mediaRequestSvc:  mediaRequestSvc,
 			starRatingSvc:    starRatingSvc,
 			playlistSvc:      playlistSvc,
 			playlistGenSvc:   playlistGenSvc,

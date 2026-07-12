@@ -7,6 +7,10 @@ push:
     title: "新季：{label}"
   new_series:
     title: "新剧：{label}"
+  media_request:
+    title: "新的媒体请求：{title}"
+  request_answered:
+    title: "您的媒体请求已更新：{title}"
   new_album:
     title: "新专辑：{label}"
   series_with_seasons_and_episodes:
