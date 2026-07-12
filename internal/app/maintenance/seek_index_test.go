@@ -423,6 +423,83 @@ func (f fakeAudioDelayProber) ProbeMaxAudioStartDelaySec(_ context.Context, p st
 	return d, nil
 }
 
+// fakeDiagnoser answers from a canned map; an unknown path errors so the scan
+// drops it (a file it cannot parse at all).
+type fakeDiagnoser struct {
+	byPath map[string]*mkv.Diagnosis
+}
+
+func (f fakeDiagnoser) Diagnose(_ context.Context, p string) (*mkv.Diagnosis, error) {
+	d, ok := f.byPath[p]
+	if !ok {
+		return nil, os.ErrInvalid
+	}
+	return d, nil
+}
+
+// With a Diagnoser wired, one Diagnose per file replaces the HasSeekIndex +
+// audio-delay probes AND adds the value that routes the repair: a
+// present-but-unusable index (audio-keyed cues) is seen as a defect, and
+// corruption is split into truncated (re-acquire) vs damaged (resync). The
+// reindexer's HasSeekIndex must NOT be consulted - Diagnose is authoritative.
+func TestSeekIndexService_ScanWithDiagnoser(t *testing.T) {
+	dir := t.TempDir()
+	misskeyed := filepath.Join(dir, "misskeyed.mkv") // Cues present but audio-keyed
+	truncated := filepath.Join(dir, "truncated.mkv") // incomplete download
+	damaged := filepath.Join(dir, "damaged.mkv")     // mid-file corruption
+	healthy := filepath.Join(dir, "healthy.mkv")
+	for _, p := range []string{misskeyed, truncated, damaged, healthy} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+
+	// The reindexer would call every file indexed - proving Diagnose overrides it.
+	reidx := &fakeReindexer{hasIndex: map[string]bool{
+		misskeyed: true, truncated: true, damaged: true, healthy: true,
+	}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Title: "Misskeyed", Path: misskeyed},
+		{MediaID: "m2", Title: "Truncated", Path: truncated},
+		{MediaID: "m3", Title: "Damaged", Path: damaged},
+		{MediaID: "m4", Title: "Healthy", Path: healthy},
+	}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
+			misskeyed: {Findings: []mkv.DiagnosisFinding{{Kind: "index-misskeyed"}}},
+			truncated: {Findings: []mkv.DiagnosisFinding{{Kind: "damaged"}}, Truncated: true, DamagedBytes: 4096},
+			damaged:   {Findings: []mkv.DiagnosisFinding{{Kind: "damaged"}}, DamagedBytes: 4096},
+			healthy:   {Healthy: true, AudioDelaysMs: map[uint64]int64{2: 900}},
+		}})
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Empty(t, st.Last.Err)
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.Equal(t, 4, res.Total)
+	byID := map[string]appmaintenance.SeekStatus{}
+	for _, it := range res.Items {
+		byID[it.MediaID] = it
+	}
+
+	// A present-but-unusable index counts as missing (must be reindexed).
+	assert.False(t, byID["m1"].HasIndex, "misskeyed cues are a defect, not a usable index")
+	// Truncated vs damaged split.
+	assert.True(t, byID["m2"].Truncated, "damage running to EOF is a truncated download")
+	assert.False(t, byID["m3"].Truncated)
+	assert.EqualValues(t, 4096, byID["m3"].DamagedBytes, "mid-file damage is resync-repairable")
+	// The healthy file's raw audio delay flows through the same floor as before.
+	assert.InDelta(t, 0.9, byID["m4"].AudioDelaySec, 1e-9)
+	assert.True(t, byID["m4"].HasIndex)
+
+	assert.Equal(t, 1, res.MissingIndex, "only misskeyed lacks a usable index")
+	assert.Equal(t, 1, res.Truncated)
+	assert.Equal(t, 1, res.Damaged, "truncated is counted as truncated, not damaged")
+	assert.Equal(t, 1, res.AudioDelayed)
+	assert.Empty(t, reidx.reindexed, "a scan never mutates files")
+}
+
 // The audio-delay diagnosis is optional and per-file: with a prober wired,
 // scans carry each file's delay and roll up the count above the flag floor; a
 // probe failure keeps the file in the scan with delay 0 (secondary

@@ -199,6 +199,14 @@ message SeekIndexItem {
   // Above ~0.1s = repack mux defect playing as a constant A/V desync on
   // copied audio (transcoded audio auto-cancels it at playback). 0 = aligned.
   double audio_delay_sec = 8;
+  // truncated = the file is an incomplete download whose damage runs to EOF:
+  // no tool recovers the missing tail, a resync only yields a playable prefix.
+  // The remedy is re-acquiring the source, NOT a repair. Only diagnosed scans
+  // set this (older scans leave it false). Repair the source, not the file.
+  bool truncated = 9;
+  // damaged_bytes > 0 = mid-file corruption a resync repair skips past, losing
+  // this many bytes (the file is otherwise repairable in full). 0 = clean.
+  int64 damaged_bytes = 10;
 }
 
 message ScanSeekIndexRequest {
@@ -218,6 +226,10 @@ message ScanSeekIndexResponse {
   int32 audio_delayed = 6;
   // Whether the surgical in-place repair mode is available in this build.
   bool inplace_available = 7;
+  // Count of truncated (incomplete-download) files - these need re-acquiring,
+  // not repairing. Count of files with resync-repairable mid-file damage.
+  int32 truncated = 9;
+  int32 damaged = 10;
   // Live per-filesystem numbers for the un-indexed candidates, so the client
   // can advise for/against backups (their accumulation persists the SUM of
   // the candidates) and flag files whose rewrite temp copy will not fit.

@@ -1076,6 +1076,9 @@ seekIndex:
   deleteBackup: "Delete backup"
   backupDeleted: "Backup deleted"
   audioDelayBadge: "Audio +{{sec}}s"
+  truncatedBadge: "Incomplete download"
+  damagedBadge: "Damaged ~{{size}}"
+  truncatedHint: "This file is an incomplete download: its end is missing and no tool can recover it. Re-acquire the source - a resync would only rebuild a playable prefix, not the whole film."
   repair: Repair
   repairResync: "Repair anyway"
   repairResyncHint: "Rebuild the index skipping the corrupted region: recovers everything before and after, loses only the damaged span (a fraction of a second). Keeps a backup."

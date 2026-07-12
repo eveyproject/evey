@@ -118,6 +118,15 @@ type SeekStatus struct {
 	// Playback with TRANSCODED audio auto-cancels it; the flag tells the
 	// operator the file itself carries the defect. 0 when not probed.
 	AudioDelaySec float64
+	// Truncated → the file is an incomplete download whose damage runs to the
+	// end: no tool can recover the missing tail, a resync would only produce a
+	// playable prefix. The operator must re-acquire the source. Only a
+	// diagnosing scan (WithDiagnoser) can tell this apart from Damaged.
+	Truncated bool
+	// DamagedBytes > 0 → the file has mid-file corruption a resync repair can
+	// skip past, losing this many bytes (repairable in full otherwise). 0 when
+	// clean or not diagnosed.
+	DamagedBytes int64
 }
 
 // ScanResult bundles the per-file statuses with rollup counts.
@@ -127,6 +136,8 @@ type ScanResult struct {
 	MissingIndex int
 	WithBackup   int
 	AudioDelayed int // count with AudioDelaySec > AudioDelayFlagSec
+	Truncated    int // count that are incomplete downloads (re-acquire, not repair)
+	Damaged      int // count with mid-file corruption (resync-repairable)
 }
 
 // Failure records one file a batch job could not process.
@@ -177,6 +188,7 @@ type SeekIndexService struct {
 	fileState  FileStateRefresher // optional; see WithFileStateRefresher
 	audioDelay AudioDelayProber   // optional; see WithAudioDelayProber
 	audioRemux AudioDelayRemuxer  // optional; see WithAudioRemuxer
+	diagnoser  mkv.Diagnoser      // optional; see WithDiagnoser
 	logger     *slog.Logger
 
 	stateDir string // "" = no persistence (WithStateDir enables it)
@@ -223,6 +235,18 @@ func (s *SeekIndexService) WithAudioDelayProber(p AudioDelayProber) *SeekIndexSe
 // Optional and chainable; without it the remux entry points fail cleanly.
 func (s *SeekIndexService) WithAudioRemuxer(r AudioDelayRemuxer) *SeekIndexService {
 	s.audioRemux = r
+	return s
+}
+
+// WithDiagnoser wires mkvgo's one-call triage (ops.Diagnose) into scans. When
+// present it SUBSUMES the stacked HasSeekIndex + audio-delay probes with a
+// single head-mostly read that additionally: catches a present-but-unusable
+// index (audio-keyed or stale cues) as a defect, and classifies corruption as
+// truncated (re-acquire the source) vs damaged (resync-repairable, N bytes
+// lost) - the signal that routes the repair. Optional and chainable; without
+// it scans fall back to the separate HasSeekIndex + AudioDelayProber probes.
+func (s *SeekIndexService) WithDiagnoser(d mkv.Diagnoser) *SeekIndexService {
+	s.diagnoser = d
 	return s
 }
 
@@ -864,6 +888,11 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 		if st.AudioDelaySec > AudioDelayFlagSec {
 			res.AudioDelayed++
 		}
+		if st.Truncated {
+			res.Truncated++
+		} else if st.DamagedBytes > 0 {
+			res.Damaged++
+		}
 	}
 
 	s.mu.Lock()
@@ -882,10 +911,14 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef) (SeekStatu
 			slog.String("path", f.Path), slog.Any("err", statErr))
 		return SeekStatus{}, false
 	}
-	hasIdx, err := s.reindexer.HasSeekIndex(ctx, f.Path)
-	if err != nil {
-		s.logger.Warn("seek-index scan: parse failed, skipping",
-			slog.String("path", f.Path), slog.Any("err", err))
+	st := SeekStatus{
+		MediaID:   f.MediaID,
+		Title:     f.Title,
+		Path:      f.Path,
+		Container: containerOf(f.Path),
+		SizeBytes: fi.Size(),
+	}
+	if !s.diagnose(ctx, f.Path, &st) {
 		return SeekStatus{}, false
 	}
 	hasBak, bakErr := s.reindexer.HasBackup(ctx, f.Path)
@@ -895,28 +928,49 @@ func (s *SeekIndexService) probeFile(ctx context.Context, f MediaRef) (SeekStatu
 		s.logger.Warn("seek-index scan: backup probe failed",
 			slog.String("path", f.Path), slog.Any("err", bakErr))
 	}
-	var delay float64
+	st.HasBackup = hasBak
+	return st, true
+}
+
+// diagnose fills the defect fields of st (HasIndex, AudioDelaySec, Truncated,
+// DamagedBytes). With a Diagnoser wired one head-mostly Diagnose subsumes the
+// HasSeekIndex + audio-delay probes and adds the truncated/damaged split;
+// without one it falls back to the separate probes. Returns false only when
+// the file cannot be parsed at all (skip it from the scan).
+func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekStatus) bool {
+	if s.diagnoser != nil {
+		d, err := s.diagnoser.Diagnose(ctx, path)
+		if err != nil {
+			s.logger.Warn("seek-index scan: diagnose failed, skipping",
+				slog.String("path", path), slog.Any("err", err))
+			return false
+		}
+		st.HasIndex = !d.HasIndexDefect()
+		st.AudioDelaySec = float64(d.MaxAudioDelayMs()) / 1000
+		st.Truncated = d.Truncated
+		st.DamagedBytes = d.DamagedBytes
+		return true
+	}
+
+	hasIdx, err := s.reindexer.HasSeekIndex(ctx, path)
+	if err != nil {
+		s.logger.Warn("seek-index scan: parse failed, skipping",
+			slog.String("path", path), slog.Any("err", err))
+		return false
+	}
+	st.HasIndex = hasIdx
 	if s.audioDelay != nil {
-		d, dErr := s.audioDelay.ProbeMaxAudioStartDelaySec(ctx, f.Path)
+		d, dErr := s.audioDelay.ProbeMaxAudioStartDelaySec(ctx, path)
 		if dErr != nil {
-			// Secondary diagnostics like the backup probe: report "no delay"
-			// rather than dropping the file from the scan.
+			// Secondary diagnostics: report "no delay" rather than dropping
+			// the file from the scan.
 			s.logger.Warn("seek-index scan: audio-delay probe failed",
-				slog.String("path", f.Path), slog.Any("err", dErr))
+				slog.String("path", path), slog.Any("err", dErr))
 		} else {
-			delay = d
+			st.AudioDelaySec = d
 		}
 	}
-	return SeekStatus{
-		MediaID:       f.MediaID,
-		Title:         f.Title,
-		Path:          f.Path,
-		Container:     containerOf(f.Path),
-		HasIndex:      hasIdx,
-		HasBackup:     hasBak,
-		SizeBytes:     fi.Size(),
-		AudioDelaySec: delay,
-	}, true
+	return true
 }
 
 // updateCachedFile mutates the entry for path in every cached scan and fixes
@@ -936,6 +990,7 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 			continue
 		}
 		c.res.MissingIndex, c.res.WithBackup, c.res.AudioDelayed = 0, 0, 0
+		c.res.Truncated, c.res.Damaged = 0, 0
 		for _, it := range c.res.Items {
 			if !it.HasIndex {
 				c.res.MissingIndex++
@@ -945,6 +1000,11 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 			}
 			if it.AudioDelaySec > AudioDelayFlagSec {
 				c.res.AudioDelayed++
+			}
+			if it.Truncated {
+				c.res.Truncated++
+			} else if it.DamagedBytes > 0 {
+				c.res.Damaged++
 			}
 		}
 		s.scans[key] = c

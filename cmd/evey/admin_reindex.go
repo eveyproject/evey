@@ -81,10 +81,17 @@ func adminReindexNoCue(args []string) error {
 	}
 	fmt.Printf("reindex-no-cue\n  root: %s\n  strategy: %s\n  mode: %s\n\n", *root, *modeFlag, runLabel)
 
-	// Phase 1: discover the un-indexed candidates. HasSeekIndex is a head-only
-	// probe, so this walk is fast even on a large, network-mounted tree.
+	// Phase 1: diagnose every EBML file. mkvgo's Diagnose is one head-mostly
+	// read (it walks only when the declared size diverges), so it stays fast on
+	// a large network-mounted tree while telling apart three cases HasSeekIndex
+	// could not: a present-but-unusable index (audio-keyed/stale cues) that
+	// still needs a reindex, mid-file damage a resync can skip past, and a
+	// truncated download whose missing tail NO repair recovers - only
+	// re-acquiring the source. Truncated files are reported apart and left out
+	// of the repair set unless --resync is asked (then a resync recovers the
+	// playable prefix, with a per-file warning it is not the whole film).
 	var scanned, alreadyIndexed int
-	var candidates []string
+	var candidates, truncated []string
 	walkErr := filepath.WalkDir(*root, func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			fmt.Fprintf(os.Stderr, "  ! walk %s: %v\n", path, walkErr)
@@ -94,18 +101,33 @@ func adminReindexNoCue(args []string) error {
 			return nil
 		}
 		scanned++
-		has, err := adapter.HasSeekIndex(ctx, path)
+		diag, err := adapter.Diagnose(ctx, path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  ! read %s: %v\n", path, err)
 			return nil
 		}
-		if has {
+		if diag.Truncated {
+			truncated = append(truncated, path)
+			if *resync {
+				candidates = append(candidates, path) // recover the prefix, with a warning below
+			}
+			if !*apply {
+				fmt.Printf("  incomplete download (re-acquire the source%s): %s\n",
+					map[bool]string{true: "; --resync recovers only the playable prefix", false: ""}[*resync], path)
+			}
+			return nil
+		}
+		if !diag.HasIndexDefect() && diag.DamagedBytes == 0 {
 			alreadyIndexed++
 			return nil
 		}
 		candidates = append(candidates, path)
 		if !*apply {
-			fmt.Printf("  would reindex: %s\n", path)
+			if diag.DamagedBytes > 0 {
+				fmt.Printf("  would repair (mid-file damage, ~%d bytes): %s\n", diag.DamagedBytes, path)
+			} else {
+				fmt.Printf("  would reindex: %s\n", path)
+			}
 		}
 		return nil
 	})
@@ -113,9 +135,17 @@ func adminReindexNoCue(args []string) error {
 		return fmt.Errorf("walk: %w", walkErr)
 	}
 
+	if len(truncated) > 0 {
+		fmt.Printf("\n%d incomplete download(s) found - these cannot be repaired, re-acquire the source:\n", len(truncated))
+		for _, p := range truncated {
+			fmt.Printf("  - %s\n", p)
+		}
+		fmt.Println()
+	}
+
 	if !*apply {
-		fmt.Printf("\nsummary: %d EBML files scanned, %d already indexed, %d without index (dry-run - nothing modified)\n",
-			scanned, alreadyIndexed, len(candidates))
+		fmt.Printf("\nsummary: %d EBML files scanned, %d already indexed, %d to repair, %d truncated (re-acquire) (dry-run - nothing modified)\n",
+			scanned, alreadyIndexed, len(candidates), len(truncated))
 		return nil
 	}
 
@@ -137,9 +167,17 @@ func adminReindexNoCue(args []string) error {
 	fmt.Printf("originals are kept as .mkvgobak%s. Progress updates every %d files:\n\n",
 		map[bool]string{true: "", false: " until each swap, then removed"}[*keepBackup], reindexProgressBatch)
 
+	truncatedSet := make(map[string]bool, len(truncated))
+	for _, p := range truncated {
+		truncatedSet[p] = true
+	}
 	var reindexed, failed, skipped int
 	var lostBytes int64
 	for i, path := range candidates {
+		if truncatedSet[path] {
+			fmt.Fprintf(os.Stderr, "\r  ! %s is an incomplete download: resync recovers the playable prefix only, not the missing tail (re-acquire for the whole film)\n",
+				filepath.Base(path))
+		}
 		res, err := adapter.ReindexInPlace(ctx, path, mkv.ReindexOptions{
 			Mode:       reindexMode,
 			KeepBackup: *keepBackup,
@@ -173,6 +211,9 @@ func adminReindexNoCue(args []string) error {
 
 	fmt.Printf("\nsummary: %d EBML files scanned, %d already indexed, %d reindexed, %d failed, %d skipped (originals safe)\n",
 		scanned, alreadyIndexed, reindexed, failed, skipped)
+	if len(truncated) > 0 {
+		fmt.Printf("%d truncated file(s) are incomplete downloads - re-acquire the source (a resync only rebuilds a playable prefix).\n", len(truncated))
+	}
 	if *resync && lostBytes > 0 {
 		fmt.Printf("resync recovered the files around %d corrupted byte(s) total (the rest is intact; backups kept).\n", lostBytes)
 	}

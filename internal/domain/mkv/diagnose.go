@@ -1,0 +1,69 @@
+package mkv
+
+import "context"
+
+// DiagnosisFinding is one diagnosed defect with its remedy, mirroring mkvgo's
+// ops.Finding. Kind is one of: no-index | index-misskeyed | index-stale-tracks
+// | audio-delay | truncated | damaged | trailing-junk | streamed-size.
+type DiagnosisFinding struct {
+	Kind    string
+	Detail  string
+	Remedy  string
+	Track   uint64
+	DelayMs int64 // audio-delay only: how late this track starts (ms)
+}
+
+// Diagnosis is the one-call triage verdict for a media file, distilled from
+// mkvgo's ops.Diagnose so the UI can route to the right repair without
+// guessing: reindex/resync for an index defect, retime for an audio delay,
+// re-download for a truncated (incomplete) source.
+type Diagnosis struct {
+	Healthy  bool
+	Findings []DiagnosisFinding
+	// Truncated: the damage runs to the end of the file - an incomplete
+	// download whose missing tail no tool can recover. The operator must
+	// re-acquire the source; a resync would only produce a playable prefix.
+	Truncated bool
+	// DamagedBytes is what a resync repair would skip (0 when clean or only an
+	// index/audio defect). Its approximate presentation times are in the
+	// "damaged" findings.
+	DamagedBytes int64
+	// AudioDelaysMs is every audio track's start delay relative to the video
+	// (ms), whether or not it crossed the finding threshold - the raw signal
+	// the audio-remux repair acts on. Keyed by track number.
+	AudioDelaysMs map[uint64]int64
+}
+
+// HasIndexDefect reports whether the diagnosis found a seek-index defect: a
+// missing index, or one that is present but unusable for video seeking
+// (misskeyed onto audio, or referencing tracks the file no longer has). Such a
+// file must be reindexed even though a Cues element physically exists.
+func (d *Diagnosis) HasIndexDefect() bool {
+	for _, f := range d.Findings {
+		switch f.Kind {
+		case "no-index", "index-misskeyed", "index-stale-tracks":
+			return true
+		}
+	}
+	return false
+}
+
+// MaxAudioDelayMs is the largest audio start delay across the file's tracks
+// (ms, 0 when aligned) - the value the audio-delay flag floor is applied to.
+func (d *Diagnosis) MaxAudioDelayMs() int64 {
+	var m int64
+	for _, ns := range d.AudioDelaysMs {
+		if ns > m {
+			m = ns
+		}
+	}
+	return m
+}
+
+// Diagnoser classifies a media file in one head-mostly call (a tolerant walk
+// only when the declared size diverges). Matroska/WebM only; a non-EBML
+// container has no seek-index defect class and reports Healthy. Implemented by
+// the mkvgo adapter.
+type Diagnoser interface {
+	Diagnose(ctx context.Context, path string) (*Diagnosis, error)
+}

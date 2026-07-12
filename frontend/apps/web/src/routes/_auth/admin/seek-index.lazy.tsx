@@ -538,6 +538,19 @@ function SeekIndexPage() {
                             })}
                           </Badge>
                         )}
+                        {it.truncated ? (
+                          <Badge variant="error" className="ml-1.5">
+                            {t("admin.seekIndex.truncatedBadge")}
+                          </Badge>
+                        ) : (
+                          Number(it.damagedBytes ?? 0) > 0 && (
+                            <Badge variant="warning" className="ml-1.5">
+                              {t("admin.seekIndex.damagedBadge", {
+                                size: formatSize(Number(it.damagedBytes ?? 0)),
+                              })}
+                            </Badge>
+                          )
+                        )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap" data-label="">
                         <div className="flex items-center justify-end gap-2">
@@ -579,7 +592,9 @@ function SeekIndexPage() {
                                 repairOne.variables?.mediaId === it.mediaId &&
                                 repairOne.variables?.data?.resync === true
                               }
-                              title={t("admin.seekIndex.repairResyncHint")}
+                              title={t(
+                                it.truncated ? "admin.seekIndex.truncatedHint" : "admin.seekIndex.repairResyncHint",
+                              )}
                               onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { resync: true } })}
                               data-testid="seek-index-repair-resync-btn"
                             >
