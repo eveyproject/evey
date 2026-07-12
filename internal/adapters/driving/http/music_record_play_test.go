@@ -60,7 +60,7 @@ func newRecordPlayMux(t *testing.T, checker LibraryAccessChecker, repo *musicfak
 		svc.WithPlayRepository(plays)
 	}
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), nil)
+	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), nil, nil)
 	return mux, token
 }
 

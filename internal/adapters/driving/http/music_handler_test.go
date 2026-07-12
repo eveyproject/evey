@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -76,7 +77,7 @@ func newMusicTestMuxWithToken(t *testing.T) (*http.ServeMux, string) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appmusic.NewService(repo, bus, nil, nil)
-	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil)
+	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil, nil)
 	return mux, token
 }
 
@@ -144,7 +145,7 @@ func newMusicMux(t *testing.T, isAdmin bool, checker LibraryAccessChecker, repo 
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appmusic.NewService(repo, bus, libRepo, musicfakes.NewFakeMusicScanner())
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), nil)
+	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), nil, nil)
 	return mux, token, svc
 }
 
@@ -279,7 +280,7 @@ func TestServeAlbumArt_FileMissing_404(t *testing.T) {
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, musicfakes.NewFakeMusicScanner())
 	svc.CommandService().WithAlbumArtFetcher(nil, dir)
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil)
+	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/album-art/abcdef0123456789", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -290,14 +291,18 @@ func TestServeAlbumArt_FileMissing_404(t *testing.T) {
 	}
 }
 
-func TestServeAlbumArt_Success(t *testing.T) {
+// newAlbumArtMux writes a fake album art jpeg and wires a mux for it, with
+// imgConverter as the resize dependency (nil disables resizing, matching the
+// pre-resize behavior).
+func newAlbumArtMux(t *testing.T, imgConverter ImageConverter) (mux *http.ServeMux, token, hash string, imgBytes []byte) {
+	t.Helper()
 	dir := t.TempDir()
 	artDir := filepath.Join(dir, "music_album_art")
 	if err := os.MkdirAll(artDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	hash := "abcdef0123456789"
-	imgBytes := []byte("\xff\xd8\xff\xe0fakejpeg")
+	hash = "abcdef0123456789"
+	imgBytes = []byte("\xff\xd8\xff\xe0fakejpeg")
 	if err := os.WriteFile(filepath.Join(artDir, hash+".jpg"), imgBytes, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -305,12 +310,17 @@ func TestServeAlbumArt_Success(t *testing.T) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	tokenGen := auth.NewJWTGenerator(key, time.Minute)
-	token, _ := tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1"})
+	token, _ = tokenGen.GenerateAccessToken(domainuser.Claims{UserID: "u1"})
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, musicfakes.NewFakeMusicScanner())
 	// WithAlbumArtFetcher sets albumArtDir = filepath.Join(dataDir, "music_album_art")
 	svc.CommandService().WithAlbumArtFetcher(nil, dir)
-	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil)
+	mux = http.NewServeMux()
+	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil, imgConverter)
+	return mux, token, hash, imgBytes
+}
+
+func TestServeAlbumArt_Success(t *testing.T) {
+	mux, token, hash, imgBytes := newAlbumArtMux(t, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/album-art/"+hash, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -327,6 +337,73 @@ func TestServeAlbumArt_Success(t *testing.T) {
 	}
 	if w.Body.Len() != len(imgBytes) {
 		t.Errorf("body length = %d, want %d", w.Body.Len(), len(imgBytes))
+	}
+}
+
+// A client that requests no width, or one with no imgConverter wired at all,
+// must still get the original full-res jpeg unchanged - the resize path is
+// additive, not a replacement.
+func TestServeAlbumArt_NoWidth_FullResUnchanged(t *testing.T) {
+	conv := &fakeImageConverter{}
+	mux, token, hash, imgBytes := newAlbumArtMux(t, conv)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/album-art/"+hash, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Content-Type"); got != "image/jpeg" {
+		t.Errorf("Content-Type = %q, want image/jpeg", got)
+	}
+	if w.Body.Len() != len(imgBytes) {
+		t.Errorf("body length = %d, want %d (should be the untouched original)", w.Body.Len(), len(imgBytes))
+	}
+	if conv.resizeCalled != 0 {
+		t.Errorf("resize should not be called without ?w=, got %d calls", conv.resizeCalled)
+	}
+}
+
+func TestServeAlbumArt_WithWidth_ServesResizedWebP(t *testing.T) {
+	conv := &fakeImageConverter{}
+	mux, token, hash, _ := newAlbumArtMux(t, conv)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/album-art/"+hash+"?w=200", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Content-Type"); got != "image/webp" {
+		t.Errorf("Content-Type = %q, want image/webp", got)
+	}
+	if !strings.Contains(w.Header().Get("Cache-Control"), "max-age=2592000") {
+		t.Errorf("Cache-Control missing max-age=2592000: %q", w.Header().Get("Cache-Control"))
+	}
+	if conv.resizeCalled != 1 {
+		t.Errorf("expected ResizeAndConvertToWebP called once, got %d", conv.resizeCalled)
+	}
+}
+
+// A resize failure must fall back to the full-res original, not error out.
+func TestServeAlbumArt_ResizeFails_FallsBackToOriginal(t *testing.T) {
+	conv := &fakeImageConverter{failErr: errors.New("resize failed")}
+	mux, token, hash, imgBytes := newAlbumArtMux(t, conv)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/album-art/"+hash+"?w=200", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (body=%s)", w.Code, w.Body.String())
+	}
+	if got := w.Header().Get("Content-Type"); got != "image/jpeg" {
+		t.Errorf("Content-Type = %q, want image/jpeg (fallback)", got)
+	}
+	if w.Body.Len() != len(imgBytes) {
+		t.Errorf("body length = %d, want %d (fallback original)", w.Body.Len(), len(imgBytes))
 	}
 }
 
@@ -419,7 +496,7 @@ func newMusicMuxWithLister(t *testing.T, repo *musicfakes.FakeMusicTrackReposito
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appmusic.NewService(repo, bus, nil, musicfakes.NewFakeMusicScanner())
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), libLister)
+	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), libLister, nil)
 	return mux, token
 }
 

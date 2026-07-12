@@ -25,17 +25,18 @@ import (
 )
 
 type musicHandler struct {
-	svc        *appmusic.Service
-	libChecker LibraryAccessChecker
-	libLister  MediaArchiveSource // may be nil; used for path confinement (fail-open)
+	svc          *appmusic.Service
+	libChecker   LibraryAccessChecker
+	libLister    MediaArchiveSource // may be nil; used for path confinement (fail-open)
+	imgConverter ImageConverter     // may be nil; ?w= resize is skipped when unset
 }
 
 var albumArtHashRe = regexp.MustCompile(`^[a-f0-9]{16,128}$`)
 
-func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource) {
+func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource, imgConverter ImageConverter) {
 	authMw := httpAuthMiddleware(tokenGen)
 	adminMw := httpAdminMiddleware(tokenGen)
-	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister}
+	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister, imgConverter: imgConverter}
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", authMw(h.getTrackArt))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", authMw(h.streamTrack))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/download", authMw(ratelimit.MiddlewareFunc(rl, h.downloadTrack)))
@@ -65,9 +66,43 @@ func (h *musicHandler) serveAlbumArt(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Content-Type", "image/jpeg")
 	w.Header().Set("Cache-Control", "public, max-age=2592000")
+	// ?w= is optional: a client that omits it (or an unparseable/out-of-bounds
+	// value, snapped to 0 by parseRequestedWidth) keeps getting the original
+	// full-res JPEG, same as before this endpoint supported resizing.
+	if requestedWidth := parseRequestedWidth(r); requestedWidth > 0 && h.imgConverter != nil {
+		if variantPath := h.resizeAlbumArt(r.Context(), path, requestedWidth); variantPath != "" {
+			w.Header().Set("Content-Type", "image/webp")
+			http.ServeFile(w, r, variantPath)
+			return
+		}
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
 	http.ServeFile(w, r, path)
+}
+
+// resizeAlbumArt returns the path to a cached (or freshly generated) WebP
+// variant of src at width, reusing the exact cache/regenerate rules as
+// artwork resizing (handleArtwork): reuse an existing non-empty variant,
+// regenerate a missing/empty one under a bounded timeout, and never hand back
+// a 0-byte file. Returns "" on any failure so the caller falls back to the
+// full-res original.
+func (h *musicHandler) resizeAlbumArt(ctx context.Context, src string, width int) string {
+	variantPath := buildVariantPath(src, width)
+	if fi, statErr := os.Stat(variantPath); statErr != nil || fi.Size() == 0 {
+		ctx10, cancel := context.WithTimeout(ctx, artworkResizeTimeout)
+		defer cancel()
+		if resErr := h.imgConverter.ResizeAndConvertToWebP(ctx10, src, variantPath, width, 80); resErr != nil {
+			slog.Warn("album art resize", slog.String("src", src), slog.Int("width", width), slog.Any("err", resErr))
+			removeVariant(variantPath)
+			return ""
+		}
+	}
+	if fi, statErr := os.Stat(variantPath); statErr != nil || fi.Size() == 0 {
+		removeVariant(variantPath)
+		return ""
+	}
+	return variantPath
 }
 
 func (h *musicHandler) fetchMissingArt(w http.ResponseWriter, r *http.Request) {

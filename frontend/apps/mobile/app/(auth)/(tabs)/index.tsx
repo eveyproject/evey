@@ -52,6 +52,11 @@ function MusicLibraryRow({ libraryId, name }: { libraryId: string; name: string 
   const albums = (data ?? []).slice(0, 20);
   if (!isLoading && albums.length === 0) return null;
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
+  // The album card is 120dp - decoding the full-res original for a strip of
+  // up to 20 thumbnails is the exact cost /api/v1/music/album-art/{hash}?w=
+  // exists to avoid. 185 is the smallest resize bucket the endpoint supports,
+  // still crisp at ~1.5x the card size.
+  const artQuery = `?w=185${tokenParam ? `&${tokenParam.slice(1)}` : ""}`;
   return (
     <View style={{ marginVertical: 8 }}>
       <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700", marginHorizontal: 16, marginBottom: 8 }}>{name}</Text>
@@ -70,11 +75,12 @@ function MusicLibraryRow({ libraryId, name }: { libraryId: string; name: string 
                   // The server returns a relative path like /api/v1/...; web's
                   // CSS background-url resolves that against the current origin
                   // automatically but expo-image refuses relative URIs, so we
-                  // have to prefix the active server explicitly.
+                  // have to prefix the active server explicitly. ?w= only
+                  // applies to our own album-art endpoint, not external URLs.
                   source={{
                     uri: /^https?:/i.test(a.coverArtUrl)
                       ? `${a.coverArtUrl}${tokenParam}`
-                      : `${serverUrl ?? ""}${a.coverArtUrl}${tokenParam}`,
+                      : `${serverUrl ?? ""}${a.coverArtUrl}${artQuery}`,
                   }}
                   style={{ width: "100%", height: "100%" }}
                   contentFit="cover"
