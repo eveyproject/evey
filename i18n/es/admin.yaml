@@ -15,6 +15,7 @@ nav:
   seekIndex: "Índice Cue"
   usersAccess: Usuarios y acceso
   users: Usuarios
+  mediaRequests: Solicitudes de contenido
   integrations: Integraciones
   plugins: Plugins
   webhooks: Webhooks
@@ -319,6 +320,40 @@ users:
   maxDevicesPerProfileHelp: "Número máximo de dispositivos que un perfil puede registrar. 0 = ilimitado."
   profilesTitle: "Perfiles"
   noProfiles: "Este usuario aún no tiene perfiles."
+
+mediaRequests:
+  title: Solicitudes de contenido
+  subtitle: Revisa las solicitudes enviadas por los usuarios y gestiona quién puede solicitar contenido.
+  tabQueue: Cola
+  tabAccess: Acceso
+  filterAll: Todas
+  filterPending: Pendientes
+  filterApproved: Aprobadas
+  filterRejected: Rechazadas
+  filterLater: Más tarde
+  empty: Ninguna solicitud coincide con este filtro.
+  approve: Aprobar
+  reject: Rechazar
+  later: Más tarde
+  notePlaceholder: "Nota opcional para el solicitante…"
+  requestedBy: "Solicitado por {{name}}"
+  answeredNote: "Nota: {{note}}"
+  approveFailed: No se pudo aprobar la solicitud.
+  rejectFailed: No se pudo rechazar la solicitud.
+  laterFailed: No se pudo posponer la solicitud.
+  accessDefaultLabel: Permitir solicitudes por defecto para todos los usuarios
+  accessDefaultDesc: Los usuarios nuevos y los que no tienen una excepción siguen este ajuste.
+  accessDefaultUpdated: Acceso por defecto actualizado.
+  accessDefaultFailed: No se pudo actualizar el acceso por defecto.
+  accessOverridesTitle: Excepciones por usuario
+  accessModeDefault: Por defecto
+  accessModeEnabled: Activado
+  accessModeDisabled: Desactivado
+  accessOverrideUpdated: "Acceso actualizado para {{name}}."
+  accessOverrideFailed: No se pudo actualizar el acceso.
+  addOverride: Añadir excepción
+  selectUser: "Seleccionar un usuario…"
+  noOverrides: Aún no hay excepciones por usuario.
 
 libraries:
   title: "Bibliotecas"

@@ -1,0 +1,25 @@
+title: Solicitudes de contenido
+subtitle: Busca una película, serie o artista y pide a un administrador que lo añada a la biblioteca.
+tabSearch: Buscar
+tabMine: Mis solicitudes
+typeMovie: Película
+typeSeries: Serie
+typeMusic: Música
+searchPlaceholder: "Buscar un título…"
+searchPrompt: "Escribe un título y pulsa Intro para buscar."
+noResults: No se encontraron resultados.
+searchFailed: "Error en la búsqueda."
+request: Solicitar
+requesting: "Enviando…"
+requested: Solicitado
+requestSubmitted: Solicitud enviada.
+requestFailed: No se pudo enviar la solicitud.
+noRequests: Todavía no has solicitado nada.
+statusPending: Pendiente
+statusApproved: Aprobada
+statusRejected: Rechazada
+statusLater: Más tarde
+adminNote: "Nota: {{note}}"
+disabledTitle: Las solicitudes están desactivadas
+disabledDesc: El administrador ha desactivado las solicitudes de contenido para tu cuenta.
+year: "({{year}})"

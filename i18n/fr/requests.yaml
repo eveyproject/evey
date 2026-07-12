@@ -1,0 +1,25 @@
+title: Demandes de média
+subtitle: "Recherchez un film, une série ou un artiste et demandez à un administrateur de l'ajouter à la bibliothèque."
+tabSearch: Recherche
+tabMine: Mes demandes
+typeMovie: Film
+typeSeries: Série
+typeMusic: Musique
+searchPlaceholder: "Rechercher un titre…"
+searchPrompt: "Saisissez un titre et appuyez sur Entrée pour rechercher."
+noResults: Aucun résultat trouvé.
+searchFailed: "Échec de la recherche."
+request: Demander
+requesting: "Envoi en cours…"
+requested: Demandé
+requestSubmitted: Demande envoyée.
+requestFailed: "Impossible d'envoyer la demande."
+noRequests: "Vous n'avez encore rien demandé."
+statusPending: En attente
+statusApproved: Acceptée
+statusRejected: Refusée
+statusLater: Plus tard
+adminNote: "Note : {{note}}"
+disabledTitle: Les demandes sont désactivées
+disabledDesc: "L'administrateur a désactivé les demandes de média pour votre compte."
+year: "({{year}})"

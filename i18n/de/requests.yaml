@@ -1,0 +1,25 @@
+title: Medienanfragen
+subtitle: Suche nach einem Film, einer Serie oder einem Künstler und bitte einen Administrator, ihn zur Bibliothek hinzuzufügen.
+tabSearch: Suche
+tabMine: Meine Anfragen
+typeMovie: Film
+typeSeries: Serie
+typeMusic: Musik
+searchPlaceholder: "Titel suchen…"
+searchPrompt: "Titel eingeben und Enter drücken, um zu suchen."
+noResults: Keine Ergebnisse gefunden.
+searchFailed: Suche fehlgeschlagen.
+request: Anfragen
+requesting: "Wird gesendet…"
+requested: Angefragt
+requestSubmitted: Anfrage gesendet.
+requestFailed: Anfrage konnte nicht gesendet werden.
+noRequests: Du hast noch nichts angefragt.
+statusPending: Ausstehend
+statusApproved: Genehmigt
+statusRejected: Abgelehnt
+statusLater: Später
+adminNote: "Hinweis: {{note}}"
+disabledTitle: Anfragen sind deaktiviert
+disabledDesc: Der Administrator hat Medienanfragen für dein Konto deaktiviert.
+year: "({{year}})"

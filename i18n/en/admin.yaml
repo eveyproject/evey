@@ -14,6 +14,7 @@ nav:
   seekIndex: "Cue Index"
   usersAccess: Users & Access
   users: Users
+  mediaRequests: Media Requests
   integrations: Integrations
   plugins: Plugins
   webhooks: Webhooks
@@ -319,6 +320,40 @@ users:
   maxDevicesPerProfileHelp: "Maximum devices a profile can register. 0 = unlimited."
   profilesTitle: Profiles
   noProfiles: This user has no profiles yet.
+
+mediaRequests:
+  title: Media Requests
+  subtitle: Review requests submitted by users and manage who can request media.
+  tabQueue: Queue
+  tabAccess: Access
+  filterAll: All
+  filterPending: Pending
+  filterApproved: Approved
+  filterRejected: Rejected
+  filterLater: Later
+  empty: No requests match this filter.
+  approve: Approve
+  reject: Reject
+  later: Later
+  notePlaceholder: "Optional note for the requester..."
+  requestedBy: "Requested by {{name}}"
+  answeredNote: "Note: {{note}}"
+  approveFailed: Failed to approve the request.
+  rejectFailed: Failed to reject the request.
+  laterFailed: Failed to postpone the request.
+  accessDefaultLabel: Allow requests by default for all users
+  accessDefaultDesc: New users and users without an override follow this setting.
+  accessDefaultUpdated: Default access updated.
+  accessDefaultFailed: Failed to update the default access.
+  accessOverridesTitle: Per-user overrides
+  accessModeDefault: Default
+  accessModeEnabled: Enabled
+  accessModeDisabled: Disabled
+  accessOverrideUpdated: "Access updated for {{name}}."
+  accessOverrideFailed: Failed to update access.
+  addOverride: Add override
+  selectUser: "Select a user..."
+  noOverrides: No per-user overrides yet.
 
 libraries:
   title: Libraries

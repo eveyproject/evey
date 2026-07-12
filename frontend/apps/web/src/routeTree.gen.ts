@@ -21,6 +21,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as WatchMediaIdRouteImport } from './routes/watch.$mediaId'
 import { Route as AuthSyncplayRouteImport } from './routes/_auth/syncplay'
 import { Route as AuthSearchRouteImport } from './routes/_auth/search'
+import { Route as AuthRequestsRouteImport } from './routes/_auth/requests'
 import { Route as AuthQuickconnectRouteImport } from './routes/_auth/quickconnect'
 import { Route as AuthHomeRouteImport } from './routes/_auth/home'
 import { Route as AuthFavoritesRouteImport } from './routes/_auth/favorites'
@@ -55,6 +56,7 @@ import { Route as AuthAdminSeekIndexRouteImport } from './routes/_auth/admin/see
 import { Route as AuthAdminRemoteAccessRouteImport } from './routes/_auth/admin/remote-access'
 import { Route as AuthAdminQoeRouteImport } from './routes/_auth/admin/qoe'
 import { Route as AuthAdminPluginsRouteImport } from './routes/_auth/admin/plugins'
+import { Route as AuthAdminMediaRequestsRouteImport } from './routes/_auth/admin/media-requests'
 import { Route as AuthAdminLogsRouteImport } from './routes/_auth/admin/logs'
 import { Route as AuthAdminLibrariesRouteImport } from './routes/_auth/admin/libraries'
 import { Route as AuthAdminFeedsRouteImport } from './routes/_auth/admin/feeds'
@@ -133,6 +135,13 @@ const AuthSearchRoute = AuthSearchRouteImport.update({
   path: '/search',
   getParentRoute: () => AuthRoute,
 } as any).lazy(() => import('./routes/_auth/search.lazy').then((d) => d.Route))
+const AuthRequestsRoute = AuthRequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
+  getParentRoute: () => AuthRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/requests.lazy').then((d) => d.Route),
+)
 const AuthQuickconnectRoute = AuthQuickconnectRouteImport.update({
   id: '/quickconnect',
   path: '/quickconnect',
@@ -371,6 +380,13 @@ const AuthAdminPluginsRoute = AuthAdminPluginsRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/plugins.lazy').then((d) => d.Route),
 )
+const AuthAdminMediaRequestsRoute = AuthAdminMediaRequestsRouteImport.update({
+  id: '/media-requests',
+  path: '/media-requests',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/media-requests.lazy').then((d) => d.Route),
+)
 const AuthAdminLogsRoute = AuthAdminLogsRouteImport.update({
   id: '/logs',
   path: '/logs',
@@ -474,6 +490,7 @@ export interface FileRoutesByFullPath {
   '/favorites': typeof AuthFavoritesRoute
   '/home': typeof AuthHomeRoute
   '/quickconnect': typeof AuthQuickconnectRoute
+  '/requests': typeof AuthRequestsRoute
   '/search': typeof AuthSearchRoute
   '/syncplay': typeof AuthSyncplayRoute
   '/watch/$mediaId': typeof WatchMediaIdRoute
@@ -486,6 +503,7 @@ export interface FileRoutesByFullPath {
   '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/logs': typeof AuthAdminLogsRoute
+  '/admin/media-requests': typeof AuthAdminMediaRequestsRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/qoe': typeof AuthAdminQoeRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
@@ -532,6 +550,7 @@ export interface FileRoutesByTo {
   '/favorites': typeof AuthFavoritesRoute
   '/home': typeof AuthHomeRoute
   '/quickconnect': typeof AuthQuickconnectRoute
+  '/requests': typeof AuthRequestsRoute
   '/search': typeof AuthSearchRoute
   '/syncplay': typeof AuthSyncplayRoute
   '/watch/$mediaId': typeof WatchMediaIdRoute
@@ -544,6 +563,7 @@ export interface FileRoutesByTo {
   '/admin/feeds': typeof AuthAdminFeedsRoute
   '/admin/libraries': typeof AuthAdminLibrariesRoute
   '/admin/logs': typeof AuthAdminLogsRoute
+  '/admin/media-requests': typeof AuthAdminMediaRequestsRoute
   '/admin/plugins': typeof AuthAdminPluginsRoute
   '/admin/qoe': typeof AuthAdminQoeRoute
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
@@ -593,6 +613,7 @@ export interface FileRoutesById {
   '/_auth/favorites': typeof AuthFavoritesRoute
   '/_auth/home': typeof AuthHomeRoute
   '/_auth/quickconnect': typeof AuthQuickconnectRoute
+  '/_auth/requests': typeof AuthRequestsRoute
   '/_auth/search': typeof AuthSearchRoute
   '/_auth/syncplay': typeof AuthSyncplayRoute
   '/watch/$mediaId': typeof WatchMediaIdRoute
@@ -605,6 +626,7 @@ export interface FileRoutesById {
   '/_auth/admin/feeds': typeof AuthAdminFeedsRoute
   '/_auth/admin/libraries': typeof AuthAdminLibrariesRoute
   '/_auth/admin/logs': typeof AuthAdminLogsRoute
+  '/_auth/admin/media-requests': typeof AuthAdminMediaRequestsRoute
   '/_auth/admin/plugins': typeof AuthAdminPluginsRoute
   '/_auth/admin/qoe': typeof AuthAdminQoeRoute
   '/_auth/admin/remote-access': typeof AuthAdminRemoteAccessRoute
@@ -654,6 +676,7 @@ export interface FileRouteTypes {
     | '/favorites'
     | '/home'
     | '/quickconnect'
+    | '/requests'
     | '/search'
     | '/syncplay'
     | '/watch/$mediaId'
@@ -666,6 +689,7 @@ export interface FileRouteTypes {
     | '/admin/feeds'
     | '/admin/libraries'
     | '/admin/logs'
+    | '/admin/media-requests'
     | '/admin/plugins'
     | '/admin/qoe'
     | '/admin/remote-access'
@@ -712,6 +736,7 @@ export interface FileRouteTypes {
     | '/favorites'
     | '/home'
     | '/quickconnect'
+    | '/requests'
     | '/search'
     | '/syncplay'
     | '/watch/$mediaId'
@@ -724,6 +749,7 @@ export interface FileRouteTypes {
     | '/admin/feeds'
     | '/admin/libraries'
     | '/admin/logs'
+    | '/admin/media-requests'
     | '/admin/plugins'
     | '/admin/qoe'
     | '/admin/remote-access'
@@ -772,6 +798,7 @@ export interface FileRouteTypes {
     | '/_auth/favorites'
     | '/_auth/home'
     | '/_auth/quickconnect'
+    | '/_auth/requests'
     | '/_auth/search'
     | '/_auth/syncplay'
     | '/watch/$mediaId'
@@ -784,6 +811,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/feeds'
     | '/_auth/admin/libraries'
     | '/_auth/admin/logs'
+    | '/_auth/admin/media-requests'
     | '/_auth/admin/plugins'
     | '/_auth/admin/qoe'
     | '/_auth/admin/remote-access'
@@ -915,6 +943,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof AuthSearchRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/requests': {
+      id: '/_auth/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof AuthRequestsRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/quickconnect': {
@@ -1155,6 +1190,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminPluginsRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/media-requests': {
+      id: '/_auth/admin/media-requests'
+      path: '/media-requests'
+      fullPath: '/admin/media-requests'
+      preLoaderRoute: typeof AuthAdminMediaRequestsRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/logs': {
       id: '/_auth/admin/logs'
       path: '/logs'
@@ -1252,6 +1294,7 @@ interface AuthAdminRouteChildren {
   AuthAdminFeedsRoute: typeof AuthAdminFeedsRoute
   AuthAdminLibrariesRoute: typeof AuthAdminLibrariesRoute
   AuthAdminLogsRoute: typeof AuthAdminLogsRoute
+  AuthAdminMediaRequestsRoute: typeof AuthAdminMediaRequestsRoute
   AuthAdminPluginsRoute: typeof AuthAdminPluginsRoute
   AuthAdminQoeRoute: typeof AuthAdminQoeRoute
   AuthAdminRemoteAccessRoute: typeof AuthAdminRemoteAccessRoute
@@ -1278,6 +1321,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminFeedsRoute: AuthAdminFeedsRoute,
   AuthAdminLibrariesRoute: AuthAdminLibrariesRoute,
   AuthAdminLogsRoute: AuthAdminLogsRoute,
+  AuthAdminMediaRequestsRoute: AuthAdminMediaRequestsRoute,
   AuthAdminPluginsRoute: AuthAdminPluginsRoute,
   AuthAdminQoeRoute: AuthAdminQoeRoute,
   AuthAdminRemoteAccessRoute: AuthAdminRemoteAccessRoute,
@@ -1304,6 +1348,7 @@ interface AuthRouteChildren {
   AuthFavoritesRoute: typeof AuthFavoritesRoute
   AuthHomeRoute: typeof AuthHomeRoute
   AuthQuickconnectRoute: typeof AuthQuickconnectRoute
+  AuthRequestsRoute: typeof AuthRequestsRoute
   AuthSearchRoute: typeof AuthSearchRoute
   AuthSyncplayRoute: typeof AuthSyncplayRoute
   AuthCollectionsCollectionIdRoute: typeof AuthCollectionsCollectionIdRoute
@@ -1332,6 +1377,7 @@ const AuthRouteChildren: AuthRouteChildren = {
   AuthFavoritesRoute: AuthFavoritesRoute,
   AuthHomeRoute: AuthHomeRoute,
   AuthQuickconnectRoute: AuthQuickconnectRoute,
+  AuthRequestsRoute: AuthRequestsRoute,
   AuthSearchRoute: AuthSearchRoute,
   AuthSyncplayRoute: AuthSyncplayRoute,
   AuthCollectionsCollectionIdRoute: AuthCollectionsCollectionIdRoute,

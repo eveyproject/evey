@@ -9,7 +9,7 @@ const services = [
   "favorite", "rating", "parental", "playback_settings", "remote_access",
   "server_config", "backup", "backup_schedule", "push", "transcode_cache", "share",
   "library_access", "collection", "music", "photo", "playlist", "syncplay",
-  "plugin_prefs", "presence",
+  "plugin_prefs", "presence", "media_request",
 ];
 
 export default defineConfig(

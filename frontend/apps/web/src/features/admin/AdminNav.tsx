@@ -22,6 +22,7 @@ import {
   Image,
   ScanSearch,
   ScrollText,
+  Inbox,
   type LucideIcon,
 } from "lucide-react";
 import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
@@ -62,6 +63,7 @@ const sectionsDef: NavSection[] = [
     titleKey: "admin.nav.usersAccess",
     links: [
       { href: "/admin/users", labelKey: "admin.nav.users", icon: Users },
+      { href: "/admin/media-requests", labelKey: "admin.nav.mediaRequests", icon: Inbox },
     ],
   },
   {

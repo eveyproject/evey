@@ -25,12 +25,16 @@ vi.mock("@/features/admin/AdminNav", () => ({
   ),
 }));
 
+vi.mock("@evey/api", () => ({
+  useMediaRequestServiceGetRequestPolicy: () => ({ data: { canRequest: false } }),
+}));
+
 vi.mock("lucide-react", () => {
   const Icon = ({ size }: { size?: number }) => <span data-size={size} />;
   return {
     Home: Icon, Library: Icon, Heart: Icon, Music2: Icon, Images: Icon,
     Settings: Icon, PanelLeftClose: Icon, PanelLeft: Icon, ArrowLeft: Icon,
-    Headphones: Icon,
+    Headphones: Icon, Inbox: Icon,
   };
 });
 

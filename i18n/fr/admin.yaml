@@ -14,6 +14,7 @@ nav:
   seekIndex: "Index Cue"
   usersAccess: Utilisateurs et accès
   users: Utilisateurs
+  mediaRequests: Demandes de média
   integrations: Intégrations
   plugins: Plugins
   webhooks: Webhooks
@@ -318,6 +319,40 @@ users:
   maxDevicesPerProfileHelp: "Nombre maximum d'appareils enregistrés par profil. 0 = illimité."
   profilesTitle: "Profils"
   noProfiles: "Cet utilisateur n'a pas encore de profil."
+
+mediaRequests:
+  title: Demandes de média
+  subtitle: "Passez en revue les demandes soumises par les utilisateurs et gérez qui peut faire une demande."
+  tabQueue: File d'attente
+  tabAccess: Accès
+  filterAll: Toutes
+  filterPending: En attente
+  filterApproved: Acceptées
+  filterRejected: Refusées
+  filterLater: Plus tard
+  empty: Aucune demande ne correspond à ce filtre.
+  approve: Accepter
+  reject: Refuser
+  later: Plus tard
+  notePlaceholder: "Note optionnelle pour le demandeur…"
+  requestedBy: "Demandé par {{name}}"
+  answeredNote: "Note : {{note}}"
+  approveFailed: "Échec de l'acceptation de la demande."
+  rejectFailed: "Échec du refus de la demande."
+  laterFailed: "Échec du report de la demande."
+  accessDefaultLabel: Autoriser les demandes par défaut pour tous les utilisateurs
+  accessDefaultDesc: "Les nouveaux utilisateurs et ceux sans dérogation suivent ce réglage."
+  accessDefaultUpdated: "Accès par défaut mis à jour."
+  accessDefaultFailed: "Échec de la mise à jour de l'accès par défaut."
+  accessOverridesTitle: Dérogations par utilisateur
+  accessModeDefault: Défaut
+  accessModeEnabled: Activé
+  accessModeDisabled: Désactivé
+  accessOverrideUpdated: "Accès mis à jour pour {{name}}."
+  accessOverrideFailed: "Échec de la mise à jour de l'accès."
+  addOverride: Ajouter une dérogation
+  selectUser: "Sélectionner un utilisateur…"
+  noOverrides: Aucune dérogation par utilisateur pour le moment.
 
 libraries:
   title: "Bibliothèques"

@@ -15,6 +15,7 @@ nav:
   seekIndex: "Cue-Index"
   usersAccess: Benutzer & Zugriff
   users: Benutzer
+  mediaRequests: Medienanfragen
   integrations: Integrationen
   plugins: Plugins
   webhooks: Webhooks
@@ -319,6 +320,40 @@ users:
   maxDevicesPerProfileHelp: "Maximale Anzahl Geräte pro Profil. 0 = unbegrenzt."
   profilesTitle: "Profile"
   noProfiles: "Dieser Benutzer hat noch keine Profile."
+
+mediaRequests:
+  title: Medienanfragen
+  subtitle: Prüfe die von Nutzern eingereichten Anfragen und lege fest, wer Anfragen stellen darf.
+  tabQueue: Warteschlange
+  tabAccess: Zugriff
+  filterAll: Alle
+  filterPending: Ausstehend
+  filterApproved: Genehmigt
+  filterRejected: Abgelehnt
+  filterLater: Später
+  empty: Keine Anfragen entsprechen diesem Filter.
+  approve: Genehmigen
+  reject: Ablehnen
+  later: Später
+  notePlaceholder: "Optionale Notiz für den Anfragenden…"
+  requestedBy: "Angefragt von {{name}}"
+  answeredNote: "Hinweis: {{note}}"
+  approveFailed: Anfrage konnte nicht genehmigt werden.
+  rejectFailed: Anfrage konnte nicht abgelehnt werden.
+  laterFailed: Anfrage konnte nicht verschoben werden.
+  accessDefaultLabel: Anfragen standardmäßig für alle Benutzer erlauben
+  accessDefaultDesc: Neue Benutzer und Benutzer ohne Sonderregelung folgen dieser Einstellung.
+  accessDefaultUpdated: Standardzugriff aktualisiert.
+  accessDefaultFailed: Standardzugriff konnte nicht aktualisiert werden.
+  accessOverridesTitle: Sonderregelungen pro Benutzer
+  accessModeDefault: Standard
+  accessModeEnabled: Aktiviert
+  accessModeDisabled: Deaktiviert
+  accessOverrideUpdated: "Zugriff für {{name}} aktualisiert."
+  accessOverrideFailed: Zugriff konnte nicht aktualisiert werden.
+  addOverride: Sonderregelung hinzufügen
+  selectUser: "Benutzer auswählen…"
+  noOverrides: Noch keine Sonderregelungen pro Benutzer.
 
 libraries:
   title: Bibliotheken

@@ -3,6 +3,7 @@ import { router, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
+import { useMediaRequestServiceGetRequestPolicy } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useDrawer } from "../providers/DrawerProvider";
 
@@ -20,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/(auth)/(tabs)/library", labelKey: "common.nav.libraries", icon: "library-outline", activeIcon: "library" },
   { href: "/(auth)/(tabs)/photos", labelKey: "common.nav.photos", icon: "images-outline", activeIcon: "images" },
   { href: "/(auth)/(tabs)/favorites", labelKey: "media.favorites.title", icon: "heart-outline", activeIcon: "heart" },
+  { href: "/(auth)/(tabs)/requests", labelKey: "requests.title", icon: "mail-unread-outline", activeIcon: "mail-open" },
   { href: "/(auth)/(tabs)/music", labelKey: "common.nav.music", icon: "musical-notes-outline", activeIcon: "musical-notes" },
   { href: "/(auth)/syncplay", labelKey: "common.nav.syncplay", icon: "people-outline", activeIcon: "people" },
   { href: "/(auth)/downloads", labelKey: "downloads.title", icon: "download-outline", activeIcon: "download" },
@@ -31,6 +33,10 @@ export function SideDrawer() {
   const { isOpen, close, translateX } = useDrawer();
   const pathname = usePathname();
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  const { data: requestPolicy } = useMediaRequestServiceGetRequestPolicy();
+  const navItems = requestPolicy?.canRequest
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter((item) => item.href !== "/(auth)/(tabs)/requests");
 
   if (!isOpen) return null;
 
@@ -66,7 +72,7 @@ export function SideDrawer() {
         {/* Nav items - scrollable so they survive landscape's compressed
             height. The user/logout entries live in the topbar UserMenu now. */}
         <ScrollView style={styles.nav} contentContainerStyle={styles.navContent} showsVerticalScrollIndicator={false}>
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = isActive(item.href);
             return (
               <Pressable

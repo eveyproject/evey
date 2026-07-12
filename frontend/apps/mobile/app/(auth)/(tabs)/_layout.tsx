@@ -60,6 +60,7 @@ export default function TabsLayout() {
       <Stack.Screen name="photos" options={sharedOptions} />
       <Stack.Screen name="music" options={sharedOptions} />
       <Stack.Screen name="favorites" options={sharedOptions} />
+      <Stack.Screen name="requests" options={sharedOptions} />
       <Stack.Screen name="settings" options={sharedOptions} />
     </Stack>
   );

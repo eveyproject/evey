@@ -1,8 +1,8 @@
-import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X, Users, Plus } from "lucide-react";
+import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X, Users, Plus, Inbox, ChevronRight } from "lucide-react";
 import type React from "react";
-import { createLazyFileRoute } from "@tanstack/react-router";
+import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
-import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles } from "@evey/api";
+import { useUserServiceGetCurrentUser, useUserServiceUpdateUser, useUserServiceListProfiles, useMediaRequestServiceGetRequestPolicy } from "@evey/api";
 import { useParentalServiceGetParentalSettings, parentalServiceUpdateParentalSettings, getParentalServiceGetParentalSettingsQueryKey } from "@evey/api";
 import { getUserServiceGetCurrentUserQueryKey, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { eveyFetchRaw } from "@evey/api";
@@ -200,12 +200,23 @@ function ProfileCard() {
 function SettingsPage() {
   const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>("appearance");
+  const { data: requestPolicy } = useMediaRequestServiceGetRequestPolicy();
 
   return (
     <div className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 min-w-0">
       <h1 className="text-2xl font-bold text-[var(--text)]">{t("auth.settings.title")}</h1>
 
       <ProfileCard />
+
+      {requestPolicy?.canRequest && (
+        <Link to="/requests" className="block">
+          <Card className="flex items-center gap-3 hover:bg-[var(--surface-raised)] transition-colors-fast">
+            <Inbox size={18} className="text-[var(--text-muted)]" />
+            <span className="flex-1 text-sm font-medium text-[var(--text)]">{t("common.nav.requests")}</span>
+            <ChevronRight size={16} className="text-[var(--text-muted)]" />
+          </Card>
+        </Link>
+      )}
 
       {/* Tab bar: horizontally scrollable on narrow screens so every tab stays
           reachable, with an inset fade + snap so partially-cut tabs read as

@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
+import { useMediaRequestServiceGetRequestPolicy } from "@evey/api";
 import { EveyWordmark, EveyMark } from "@/components/ui/EveyLogo";
 import {
   Home,
@@ -12,13 +13,14 @@ import {
   Settings,
   ArrowLeft,
   Headphones,
+  Inbox,
 } from "lucide-react";
 import { AdminNav } from "@/features/admin/AdminNav";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 
 const COLLAPSED_KEY = "evey-sidebar-collapsed";
 
-const navItems = [
+const baseNavItems = [
   { to: "/home" as const, labelKey: "common.nav.home", icon: Home },
   { to: "/library" as const, labelKey: "common.nav.libraries", icon: Library },
   { to: "/photos" as const, labelKey: "common.nav.photos", icon: Images },
@@ -27,12 +29,19 @@ const navItems = [
   { to: "/syncplay" as const, labelKey: "common.nav.syncplay", icon: Headphones },
 ];
 
+const requestsNavItem = { to: "/requests" as const, labelKey: "common.nav.requests", icon: Inbox };
+
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { t } = useTranslation();
   const { location } = useRouterState();
   const pathname = location.pathname;
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const isOnAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
+  const { data: requestPolicy } = useMediaRequestServiceGetRequestPolicy();
+  const navItems = useMemo(
+    () => (requestPolicy?.canRequest ? [...baseNavItems, requestsNavItem] : baseNavItems),
+    [requestPolicy?.canRequest],
+  );
 
   const [collapsed, setCollapsed] = useState(true);
 

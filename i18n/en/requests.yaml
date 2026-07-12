@@ -1,0 +1,25 @@
+title: Media Requests
+subtitle: Search for a movie, series or artist and ask an admin to add it to the library.
+tabSearch: Search
+tabMine: My Requests
+typeMovie: Movie
+typeSeries: Series
+typeMusic: Music
+searchPlaceholder: Search a title...
+searchPrompt: Type a title and press Enter to search.
+noResults: No results found.
+searchFailed: Search failed.
+request: Request
+requesting: Requesting...
+requested: Requested
+requestSubmitted: Request submitted.
+requestFailed: Could not submit the request.
+noRequests: You haven't requested anything yet.
+statusPending: Pending
+statusApproved: Approved
+statusRejected: Rejected
+statusLater: Later
+adminNote: "Note: {{note}}"
+disabledTitle: Requests are disabled
+disabledDesc: The administrator has disabled media requests for your account.
+year: "({{year}})"

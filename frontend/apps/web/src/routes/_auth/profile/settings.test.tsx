@@ -17,6 +17,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceUpdateUser: (...args: unknown[]) => mockUpdateUser(...args),
   useUserServiceUpdateProfile: (...args: unknown[]) => mockUpdateProfile(...args),
   useParentalServiceGetParentalSettings: (...args: unknown[]) => mockGetParentalSettings(...args),
+  useMediaRequestServiceGetRequestPolicy: () => ({ data: { canRequest: false } }),
   parentalServiceUpdateParentalSettings: vi.fn(() => Promise.resolve({})),
   getParentalServiceGetParentalSettingsQueryKey: () => ["/api/v1/parental"],
   getUserServiceGetCurrentUserQueryKey: () => ["/api/v1/users/me"],
@@ -49,6 +50,8 @@ vi.mock("@evey/store", () => ({
 
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,
+  Link: ({ children, to, className }: { children: React.ReactNode; to: string; className?: string }) =>
+    React.createElement("a", { href: to, className }, children),
 }));
 
 vi.mock("@/features/user/ThemeSettings", () => ({

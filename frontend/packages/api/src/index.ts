@@ -32,7 +32,14 @@ export * from "./generated/photo-service/photo-service";
 export * from "./generated/playlist-service/playlist-service";
 export * from "./generated/sync-play-service/sync-play-service";
 export * from "./generated/presence-service/presence-service";
+export * from "./generated/media-request-service/media-request-service";
+export * from "./generated/admin-media-request-service/admin-media-request-service";
 export type { V1OnlineUser, V1ListOnlineResponse } from "./generated/presence.schemas";
+export type {
+  V1MediaRequestProto, V1TitleCandidate, V1UserAccessOverride,
+  MediaRequestServiceSearchTitlesParams, AdminMediaRequestServiceListRequestsParams,
+} from "./generated/media_request.schemas";
+export { V1AccessMode } from "./generated/media_request.schemas";
 // Schema types
 export type { V1LoginRequest, V1AuthResponse, V1User, V1Profile, V1APIKey, V1InviteLink, UserServiceUpdateUserBody } from "./generated/user.schemas";
 export type { V1UserLibraryAccess, V1LibraryRef, LibraryAccessServiceSetUserLibraryAccessBody } from "./generated/library_access.schemas";
