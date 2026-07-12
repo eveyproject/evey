@@ -420,6 +420,18 @@ case $- in
         # `?` is a quick synonym for the cheat-sheet (aliases only expand here).
         alias '?'='evey_help' 2>/dev/null
 
+        # zsh-style completion, everywhere the same readline runs (the real
+        # prompt AND the launcher's inline command line): first Tab lists the
+        # candidates and completes the common prefix, further Tabs cycle
+        # through them (Shift-Tab backwards), so a --root path drills down
+        # one directory level per Tab like oh-my-zsh.
+        bind 'set show-all-if-ambiguous on' 2>/dev/null
+        bind 'set menu-complete-display-prefix on' 2>/dev/null
+        bind 'set colored-stats on' 2>/dev/null
+        bind 'set mark-symlinked-directories on' 2>/dev/null
+        bind '"\t": menu-complete' 2>/dev/null
+        bind '"\e[Z": menu-complete-backward' 2>/dev/null
+
         # Brand the prompt.
         if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
             PS1='\[\033[38;2;220;38;38m\]evey\[\033[0m\] \[\033[38;2;136;145;163m\]▸\[\033[0m\] '
