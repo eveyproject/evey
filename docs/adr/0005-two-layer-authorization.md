@@ -28,7 +28,7 @@ The interceptor is the only authorization code the `/evey.v1.Admin*Service/*` ha
 
 ### Layer 2 - Handler resource check: "can you touch THIS row"
 
-For user-scoped resources the handler runs an owner / library-access check against `claims.UserID`, using helpers like `checkLibraryAccess(ctx, libraryID)`, `requirePlaylistOwner(ctx, playlistID)`, etc. This layer cannot be promoted to the interceptor because the resource identifier is inside the request proto, not in the method name - the interceptor has no way to resolve `media_item_id → library_id → granted?` without decoding each proto.
+For user-scoped resources the handler runs an owner / library-access check against `claims.UserID` - either a handler helper like `checkLibraryAccess(ctx, libraryID)`, or a delegation to the app service that raises a typed ownership error (e.g. playlists return `appplaylist.ErrNotOwner` when `claims.UserID` isn't the owner). This layer cannot be promoted to the interceptor because the resource identifier is inside the request proto, not in the method name - the interceptor has no way to resolve `media_item_id → library_id → granted?` without decoding each proto.
 
 Admins skip Layer 2 by design: they're trusted to operate on any library.
 

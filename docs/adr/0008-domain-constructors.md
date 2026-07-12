@@ -48,7 +48,7 @@ Parameters the aggregate cannot exist without (ID, owner refs like `LibraryID`, 
 ```go
 user.WithProfileLocale("fr")
 user.WithProfilePreferences(prefs)
-plugin.WithPluginPermissions([]string{"api.library"})
+user.WithProfileMaxRating("PG-13")
 ```
 
 Options are discoverable in godoc (`grep "^func With"` lists them all) and IDE autocomplete surfaces them. A missing option is a meaningful default; a missing positional param is a compile error.
@@ -103,3 +103,15 @@ Deferred (explicit exceptions):
 - `internal/domain/*/model.go` - the 15+ `NewX` functions
 - Commits 2026-04-18/19 (the sweep): `feat(<aggregate>): NewX constructor + ID required in Validate`
 - [ADR-0001](0001-hexagonal-architecture.md) - why the domain layer owns these invariants
+
+## Update (2026-07-12)
+
+The "Deferred" exception for `feed.AdminConfig` / `feed.ProfileConfig` no
+longer holds: both aggregates adopted the options pattern -
+`NewFeedAdminConfig(feedType, opts ...AdminConfigOption)` and
+`NewFeedProfileConfig(feedType, profileID, opts ...ProfileConfigOption)`
+(`internal/domain/feed/model.go`). The earlier "adds noise for zero benefit"
+call was reversed once feed grew enough optional fields to justify it. The rest
+of the ADR stands; note that `plugin.Plugin` uses the `NewPluginFromManifest(id,
+sourceHash, manifest)` variant (permissions come from the manifest), not a
+`With*` options list.

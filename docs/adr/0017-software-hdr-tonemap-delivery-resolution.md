@@ -96,3 +96,16 @@ quality than scaling in the encoded domain.
   make the pipeline fast *and* re-measure the cap against it.
 - **Per-title content-class ladders.** Orthogonal and deferred (a separate
   bandwidth optimisation), not a fix for the tone-map cost.
+
+## Update (2026-07-12)
+
+The `SingleVariant` default was **reversed** after field experience. Contrary to
+the Consequences note above, `SingleVariant` now defaults to **false**
+(`internal/config/config.go`: `envBool("EVEY_TRANSCODING_SINGLE_VARIANT",
+false)`): multi-variant - which shares ONE decode across every rung - is the
+stable default for the weak-NAS target, and single-variant is opt-in via
+`EVEY_TRANSCODING_SINGLE_VARIANT=1` on hosts powerful enough to re-decode per
+rung. On a decode-bound box, single-variant re-decodes the 4K source for each
+rung and thrashes down to the 360p floor, so it is exactly the wrong default
+there. The tone-map-at-delivery-resolution decision itself (the core of this
+ADR) is unchanged; only the ladder-mode default flipped.

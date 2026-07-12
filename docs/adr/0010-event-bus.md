@@ -107,4 +107,31 @@ The test is mechanical: `go doc` on an event struct should work across domain li
 
 ## Amendment (2026-05-23)
 
-Reference paths corrected: the interfaces live in `internal/domain/shared/event.go` (not `event_bus.go`), and the implementation moved out of `internal/adapters/driven/eventbus/` to `internal/pkg/eventbus/eventbus.go`. The design (typed events, per-subscriber recover, detached ctx, no persistence) is unchanged.
+Reference paths corrected: the interfaces live in `internal/domain/shared/event.go` (not `event_bus.go`), and the implementation moved out of `internal/adapters/driven/eventbus/` to `internal/pkg/eventbus/eventbus.go`. The design (typed events, detached ctx, no persistence) is unchanged.
+
+## Update (2026-07-12)
+
+The dispatcher was rewritten since the original Decision; several statements
+above no longer describe the code. What actually runs (`internal/pkg/eventbus/eventbus.go`):
+
+- **Not "goroutine-per-subscriber".** It's a **bounded worker pool** (default
+  `runtime.NumCPU()*2`, `New` → `NewWithPoolSize`) draining a single **bounded
+  queue** of `dispatchJob`s. Publish enqueues; the pool delivers.
+- **The bus DOES recover panics centrally.** `callHandler` wraps each subscriber
+  in `defer recover()`, and `dispatch` retries a panicking handler up to
+  `MaxRetries` (default 3) with backoff. A subscriber's own `defer recover()` is
+  therefore optional now, not required - the "the bus does not swallow panics at
+  the dispatcher level" and "every subscriber defers its own recover" statements
+  (and the 2026-05-23 amendment's "per-subscriber recover ... unchanged") are
+  superseded.
+- **The `EventBus` interface returns a subscription id and supports
+  unsubscribe.** The real signatures are `Subscribe(eventName string, handler
+  func(ctx, Event)) string` and `Unsubscribe(id string)` - the snippet in the
+  Decision omits both.
+- **Back-pressure is drop-on-full, not "catch up minutes later".** When the
+  queue is full the event is **dropped** and `eventsDroppedTotal` is
+  incremented; there is no buffering that lets a slow subscriber catch up later.
+  Durable workflows must still go through the database, as the Consequences say.
+
+The rest of the ADR (typed struct events, `EventName()` as the stable contract,
+detached ctx, no persistence, no cross-domain non-event imports) still holds.
