@@ -379,7 +379,7 @@ func libraryPaths(db *sql.DB) []string {
 	if db == nil {
 		return nil
 	}
-	rows, err := db.Query(`SELECT paths FROM libraries`)
+	rows, err := db.Query(`SELECT paths FROM libraries ORDER BY created_at, id`)
 	if err != nil {
 		return nil
 	}
@@ -468,9 +468,9 @@ func checkDisk(path string) (checkResult, bool) {
 	detail := fmt.Sprintf("%.0f%% used", pct)
 	switch {
 	case pct >= 98:
-		return checkResult{name, "FAIL", detail, "nearly full; ingest/transcode will fail"}, true
+		return checkResult{name, "FAIL", detail, "past the 98% mark; ingest/transcode will fail"}, true
 	case pct >= 90:
-		return checkResult{name, "WARN", detail, "getting full"}, true
+		return checkResult{name, "WARN", detail, "past the 90% mark; free up space before it hits 98% and fails"}, true
 	default:
 		return checkResult{name, "ok", detail, ""}, true
 	}

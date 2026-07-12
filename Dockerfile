@@ -230,8 +230,8 @@ RUN ln -sf /evey /usr/local/bin/evey
 COPY --from=builder /mkvgo /usr/local/bin/mkvgo
 COPY docker/evey-completion.bash /etc/bash_completion.d/evey
 COPY docker/mkvgo-completion.bash /etc/bash_completion.d/mkvgo
-COPY docker/evey-motd.sh /etc/evey/motd.sh
-RUN printf '\n# Evey admin shell: CLI completion + one-time greeting\nfor _f in /etc/bash_completion.d/evey /etc/bash_completion.d/mkvgo; do [ -r "$_f" ] && . "$_f"; done\n[ -r /etc/evey/motd.sh ] && . /etc/evey/motd.sh\n' >> /etc/bash.bashrc
+COPY docker/evey-shell.sh /etc/evey/shell.sh
+RUN printf '\n# Evey admin shell: CLI completion + interactive launcher\nfor _f in /etc/bash_completion.d/evey /etc/bash_completion.d/mkvgo; do [ -r "$_f" ] && . "$_f"; done\n[ -r /etc/evey/shell.sh ] && . /etc/evey/shell.sh\n' >> /etc/bash.bashrc
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
