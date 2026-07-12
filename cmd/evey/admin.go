@@ -94,7 +94,9 @@ Media maintenance subcommands:
                                     fixing slow resume. Dry-run by default; pass --apply to rewrite.
                                     Each rewrite is validated + cross-checked and keeps a .mkvgobak
                                     backup. --limit N for a cautious first run; --keep-backup=false
-                                    to drop backups. LONG: rewrites each file in full (hours on a
+                                    to drop backups. --resync repairs files with a CORRUPTED region
+                                    the strict pass refuses (skips the damage, keeps the rest; reports
+                                    the lost bytes). LONG: rewrites each file in full (hours on a
                                     large library); shows a progress bar while applying.
   validate-streaming --root <dir>   Report each MKV/WebM file's streaming-readiness
                                     (Cues index, keyframe cues, DefaultDuration…) -

@@ -38,6 +38,7 @@ func adminReindexNoCue(args []string) error {
 	limit := flags.Int("limit", 0, "stop after rewriting N files (0 = no limit; for a cautious first run)")
 	modeFlag := flags.String("mode", "auto", "repair strategy: auto (surgical patch when the layout allows, rewrite otherwise), inplace (patch ONLY, no backup, refuses defeated layouts), rewrite (always rebuild + swap)")
 	deepVerify := flags.Bool("deep-verify", false, "prove every rebuilt cue lands on a real video keyframe before committing (full read per file); forced on when --keep-backup=false")
+	resync := flags.Bool("resync", false, "repair files with a CORRUPTED region (junk between clusters, a lying size) that the strict reindex refuses: skip the damaged span and resynchronise, recovering everything before and after. Always rewrites + keeps a backup (this loses the skipped bytes); the lost spans are reported")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -137,11 +138,13 @@ func adminReindexNoCue(args []string) error {
 		map[bool]string{true: "", false: " until each swap, then removed"}[*keepBackup], reindexProgressBatch)
 
 	var reindexed, failed, skipped int
+	var lostBytes int64
 	for i, path := range candidates {
 		res, err := adapter.ReindexInPlace(ctx, path, mkv.ReindexOptions{
 			Mode:       reindexMode,
 			KeepBackup: *keepBackup,
 			DeepVerify: verify,
+			Resync:     *resync, // repair corrupted regions instead of refusing them
 		})
 		switch {
 		case err != nil:
@@ -154,6 +157,12 @@ func adminReindexNoCue(args []string) error {
 			for _, w := range res.Warnings {
 				fmt.Fprintf(os.Stderr, "\r      validation warning (%s): %s\n", filepath.Base(path), w)
 			}
+			for _, r := range res.DamagedRanges {
+				n := r.EndOffset - r.StartOffset
+				lostBytes += n
+				fmt.Fprintf(os.Stderr, "\r      resync skipped a corrupted region (%s): %d bytes lost around %s\n",
+					filepath.Base(path), n, formatApproxMs(r.ApproxStartMs))
+			}
 		}
 		done := i + 1
 		if done%reindexProgressBatch == 0 || done == total {
@@ -164,8 +173,20 @@ func adminReindexNoCue(args []string) error {
 
 	fmt.Printf("\nsummary: %d EBML files scanned, %d already indexed, %d reindexed, %d failed, %d skipped (originals safe)\n",
 		scanned, alreadyIndexed, reindexed, failed, skipped)
+	if *resync && lostBytes > 0 {
+		fmt.Printf("resync recovered the files around %d corrupted byte(s) total (the rest is intact; backups kept).\n", lostBytes)
+	}
 	fmt.Printf("note: rewritten files changed on disk - re-scan the library so it re-probes them.\n")
 	return nil
+}
+
+// formatApproxMs renders a presentation time as HH:MM:SS for the resync report.
+func formatApproxMs(ms int64) string {
+	if ms < 0 {
+		ms = 0
+	}
+	s := ms / 1000
+	return fmt.Sprintf("%02d:%02d:%02d", s/3600, (s%3600)/60, s%60)
 }
 
 // reindexProgressBatch is how many files are processed between progress-bar
