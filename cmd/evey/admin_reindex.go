@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	"github.com/evey-project/evey/internal/domain/mkv"
@@ -79,12 +80,11 @@ func adminReindexNoCue(args []string) error {
 	}
 	fmt.Printf("reindex-no-cue\n  root: %s\n  strategy: %s\n  mode: %s\n\n", *root, *modeFlag, runLabel)
 
-	var scanned, alreadyIndexed, noIndex, reindexed, failed int
-	stop := false
+	// Phase 1: discover the un-indexed candidates. HasSeekIndex is a head-only
+	// probe, so this walk is fast even on a large, network-mounted tree.
+	var scanned, alreadyIndexed int
+	var candidates []string
 	walkErr := filepath.WalkDir(*root, func(path string, d fs.DirEntry, walkErr error) error {
-		if stop {
-			return filepath.SkipAll
-		}
 		if walkErr != nil {
 			fmt.Fprintf(os.Stderr, "  ! walk %s: %v\n", path, walkErr)
 			return nil // keep scanning the rest of the tree
@@ -96,45 +96,15 @@ func adminReindexNoCue(args []string) error {
 		has, err := adapter.HasSeekIndex(ctx, path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  ! read %s: %v\n", path, err)
-			failed++
 			return nil
 		}
 		if has {
 			alreadyIndexed++
 			return nil
 		}
-		noIndex++
+		candidates = append(candidates, path)
 		if !*apply {
 			fmt.Printf("  would reindex: %s\n", path)
-			return nil
-		}
-		res, err := adapter.ReindexInPlace(ctx, path, mkv.ReindexOptions{
-			Mode:       reindexMode,
-			KeepBackup: *keepBackup,
-			DeepVerify: verify,
-		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "  ! reindex %s: %v (original untouched)\n", path, err)
-			failed++
-			return nil
-		}
-		if res.Skipped { // gained an index between the scan and the rewrite
-			alreadyIndexed++
-			noIndex--
-			return nil
-		}
-		reindexed++
-		bak := res.BackupPath
-		if bak == "" {
-			bak = "(removed)"
-		}
-		fmt.Printf("  reindexed: %s  (%d -> %d bytes, backup: %s)\n", path, res.SrcBytes, res.DstBytes, bak)
-		for _, w := range res.Warnings {
-			fmt.Printf("      validation warning: %s\n", w)
-		}
-		if *limit > 0 && reindexed >= *limit {
-			fmt.Printf("  (--limit %d reached, stopping)\n", *limit)
-			stop = true
 		}
 		return nil
 	})
@@ -142,12 +112,77 @@ func adminReindexNoCue(args []string) error {
 		return fmt.Errorf("walk: %w", walkErr)
 	}
 
-	fmt.Printf("\nsummary: %d EBML files scanned, %d already indexed, %d without index", scanned, alreadyIndexed, noIndex)
-	if *apply {
-		fmt.Printf(", %d reindexed, %d failed (originals safe)\n", reindexed, failed)
-		fmt.Printf("note: rewritten files changed on disk - re-scan the library so it re-probes them.\n")
-	} else {
-		fmt.Printf(" (dry-run - nothing modified)\n")
+	if !*apply {
+		fmt.Printf("\nsummary: %d EBML files scanned, %d already indexed, %d without index (dry-run - nothing modified)\n",
+			scanned, alreadyIndexed, len(candidates))
+		return nil
 	}
+
+	// --limit caps a cautious first run to the first N files.
+	if *limit > 0 && len(candidates) > *limit {
+		fmt.Printf("  (--limit %d: repairing the first %d of %d candidates)\n", *limit, *limit, len(candidates))
+		candidates = candidates[:*limit]
+	}
+
+	// Phase 2: repair, with a progress bar. This is the long part: every file
+	// is rewritten in full, so a whole library can take hours. The progress
+	// bar refreshes every reindexProgressBatch files.
+	total := len(candidates)
+	if total == 0 {
+		fmt.Printf("\nsummary: %d EBML files scanned, %d already indexed, 0 without index - nothing to do\n", scanned, alreadyIndexed)
+		return nil
+	}
+	fmt.Printf("repairing %d file(s) - this is a LONG operation: each file is rewritten in full and a large library can take hours.\n", total)
+	fmt.Printf("originals are kept as .mkvgobak%s. Progress updates every %d files:\n\n",
+		map[bool]string{true: "", false: " until each swap, then removed"}[*keepBackup], reindexProgressBatch)
+
+	var reindexed, failed, skipped int
+	for i, path := range candidates {
+		res, err := adapter.ReindexInPlace(ctx, path, mkv.ReindexOptions{
+			Mode:       reindexMode,
+			KeepBackup: *keepBackup,
+			DeepVerify: verify,
+		})
+		switch {
+		case err != nil:
+			failed++
+			fmt.Fprintf(os.Stderr, "\r  ! reindex %s: %v (original untouched)\n", filepath.Base(path), err)
+		case res.Skipped: // gained an index between the scan and the rewrite
+			skipped++
+		default:
+			reindexed++
+			for _, w := range res.Warnings {
+				fmt.Fprintf(os.Stderr, "\r      validation warning (%s): %s\n", filepath.Base(path), w)
+			}
+		}
+		done := i + 1
+		if done%reindexProgressBatch == 0 || done == total {
+			renderReindexProgress(done, total, reindexed, failed, filepath.Base(path))
+		}
+	}
+	fmt.Println() // close the progress line
+
+	fmt.Printf("\nsummary: %d EBML files scanned, %d already indexed, %d reindexed, %d failed, %d skipped (originals safe)\n",
+		scanned, alreadyIndexed, reindexed, failed, skipped)
+	fmt.Printf("note: rewritten files changed on disk - re-scan the library so it re-probes them.\n")
 	return nil
+}
+
+// reindexProgressBatch is how many files are processed between progress-bar
+// refreshes - the "batch of 5" cadence.
+const reindexProgressBatch = 5
+
+// renderReindexProgress overwrites a single terminal line with a bar, the
+// done/total count and the current file. Carriage-return only (no newline) so
+// it updates in place; failures/warnings print above it with their own \r + \n.
+func renderReindexProgress(done, total, reindexed, failed int, current string) {
+	const width = 30
+	filled := min(done*width/total, width)
+	bar := strings.Repeat("=", filled) + strings.Repeat(" ", width-filled)
+	pct := done * 100 / total
+	name := current
+	if len(name) > 40 {
+		name = name[:37] + "..."
+	}
+	fmt.Printf("\r  [%s] %3d%%  %d/%d  (%d ok, %d failed)  %-40s", bar, pct, done, total, reindexed, failed, name)
 }

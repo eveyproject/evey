@@ -11,7 +11,7 @@ nav:
   libraries: Libraries
   transcoding: Transcoding
   artworks: Artworks Cache
-  seekIndex: Seek Index
+  seekIndex: "Cue Index"
   usersAccess: Users & Access
   users: Users
   integrations: Integrations
@@ -1036,9 +1036,14 @@ segments:
   propagateError: "Failed to propagate"
 
 seekIndex:
-  title: Seek Index Repair
-  description: "MKV/WebM files muxed without a seek index (Cues) seek and resume slowly - the player has to read them linearly. Scanning is read-only; repairing rebuilds the index in place and keeps the original as a .mkvgobak backup you can roll back to."
+  title: "Cue Index Repair"
+  description: "MKV/WebM files muxed without a Cue index seek and resume slowly. Scanning is read-only; repairing rebuilds the index in place (and can also fix delayed audio) and keeps the original as a .mkvgobak backup you can roll back to. Repairing the whole library is a long operation - it rewrites files and can take hours."
   readOnlyNote: "Repairing writes to your media folders. If they are mounted read-only (:ro in docker-compose), remount them read-write and restart the containers first - scanning still works."
+  alsoAudio: "Also repair delayed audio ({{count}})"
+  alsoAudioHint: "Remuxes each flagged file so its audio lands back on the video. Adds time - the audio files are rewritten too."
+  keepBackups: "Keep backups"
+  keepBackupsHint: "A .mkvgobak of every repaired file survives the job so you can roll back anytime - costs one extra copy per file on disk."
+  keepBackupsOffHint: "No backup is left behind: only the last {{n}} are kept during the run and removed at the end, and each repair is deep-verified in exchange. Choose this on a tight disk."
   library: Library
   allLibraries: All libraries
   scan: Scan
@@ -1072,30 +1077,12 @@ seekIndex:
   backupDeleted: "Backup deleted"
   audioDelayBadge: "Audio +{{sec}}s"
   repair: Repair
-  repairMode: "Repair method"
-  repairModeInplace: "Surgical (in-place, no duplicate)"
-  repairModeStandard: "Standard (rebuilt copy + rollback backup)"
-  repairModeInplaceHint: "Patches the index into the file. No duplicate on disk, no backup: mkvgo verifies the result and rolls the patch back automatically if it does not check out."
-  repairModeStandardHint: "Rebuilds the file next to the original, validates it, then swaps it in and keeps the original as a .mkvgobak backup."
-  repairModeAuto: "Auto (surgical when possible, rebuild otherwise) - recommended"
-  repairModeAutoHint: "Tries the surgical patch (fast, no copy) and falls back to the full rebuild automatically when the file layout requires it."
-  keepBackup: "Keep a .mkvgobak backup per repaired file"
-  keepBackupHint: "Every rebuild keeps the original as .mkvgobak: safe, but doubles the space used per repaired file until purged."
-  keepBackupOffHint: "Without backups, deep verification is enforced: a file is only swapped in after a full re-read. The disk never holds more than one temporary copy at a time."
-  backupWindow: "Only keep the last {{n}} backups (rolling purge)"
-  backupWindowHint: "As the repair advances, the oldest backup is deleted automatically and the job's end removes the rest: the volume never holds more than {{n}} extra copies and finishes clean."
-  backupWindowOffHint: "Every backup is kept until you purge them - the volume must hold one extra copy per repaired file."
   jobRemuxAudio: "Audio repair"
   remuxAudioBtn: "Fix audio"
-  remuxAudioAll: "Fix audio ({{count}})"
   remuxAudioStarted: "Audio repair started"
-  remuxAudioAllConfirmTitle: "Repair delayed audio"
-  remuxAudioAllConfirm: "Remux {{count}} file(s) whose audio starts late? Streams are copied bit-for-bit with the audio shifted back onto the video, the result is re-probed to prove the delay is gone, and each original is kept as a .mkvgobak backup."
   volumeLine: "{{root}} - {{free}} free for {{missing}} to repair ({{count}} files)"
   volumeBackupsRisky: "backups discouraged: keeping one copy per repaired file would overflow this volume"
   volumeTempRisky: "too full for the largest file ({{largest}}): its rewrite will be refused"
-  deepVerify: "Deep verification (full read)"
-  deepVerifyHint: "Proves every rebuilt cue lands on a real video keyframe before the change is committed. Slower (reads the whole file); recommended with the surgical mode, which keeps no backup."
   rollback: Roll back
   startFailed: Could not start the operation
   scanStarted: Scan started - it runs in the background, progress shows below
@@ -1116,7 +1103,7 @@ seekIndex:
   jobCompletedFailures: "{{kind}} finished - {{done}} file(s) processed, {{failed}} failed"
   jobReadOnlyHint: "Some files are on a read-only volume. Remount your media folders read-write (remove :ro in docker-compose) and restart the containers, then retry."
   scannedAt: "Scanned {{date}}"
-  repairAllConfirmTitle: Repair library seek indexes
-  repairAllConfirm: "Rebuild the seek index of {{count}} file(s) in the background? Each file is validated then swapped atomically; originals are kept as .mkvgobak backups."
+  repairAllConfirmTitle: "Repair the library"
+  repairAllConfirm: "Repair {{count}} file(s) in the background? Each file is validated then swapped atomically; missing indexes are rebuilt and (if selected) delayed audio is fixed. This is a LONG operation - it rewrites files one by one and can take hours on a large library."
   rollbackAllConfirmTitle: Restore originals from backups
   rollbackAllConfirm: "Restore {{count}} file(s) from their .mkvgobak backups? This undoes prior repairs in the selected scope."

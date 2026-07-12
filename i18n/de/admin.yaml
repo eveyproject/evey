@@ -12,7 +12,7 @@ nav:
   libraries: Bibliotheken
   transcoding: Transkodierung
   artworks: Artwork-Cache
-  seekIndex: Seek-Index
+  seekIndex: "Cue-Index"
   usersAccess: Benutzer & Zugriff
   users: Benutzer
   integrations: Integrationen
@@ -1036,9 +1036,14 @@ segments:
   propagateError: "Übertragen fehlgeschlagen"
 
 seekIndex:
-  title: "Seek-Index-Reparatur"
-  description: "MKV/WebM-Dateien ohne Seek-Index (Cues) springen und setzen nur langsam fort - der Player muss sie linear durchlesen. Der Scan ist schreibgeschützt; die Reparatur baut den Index direkt in der Datei neu auf und behält das Original als .mkvgobak-Sicherung, die jederzeit wiederherstellbar ist."
+  title: "Cue-Index-Reparatur"
+  description: "Ohne Cue-Index gemuxte MKV/WebM-Dateien spulen und setzen langsam fort. Der Scan ist schreibgeschützt; die Reparatur baut den Index vor Ort neu auf (und kann auch verzögertes Audio korrigieren) und behält das Original als .mkvgobak-Sicherung. Die gesamte Bibliothek zu reparieren ist ein langer Vorgang - Dateien werden neu geschrieben, das kann Stunden dauern."
   readOnlyNote: "Die Reparatur schreibt in deine Medienordner. Sind sie schreibgeschützt eingebunden (:ro in docker-compose), binde sie zuerst beschreibbar ein und starte die Container neu - der Scan funktioniert trotzdem."
+  alsoAudio: "Auch verzögertes Audio reparieren ({{count}})"
+  alsoAudioHint: "Remuxt jede markierte Datei, damit ihr Audio wieder zum Video passt. Kostet Zeit - die Audiodateien werden ebenfalls neu geschrieben."
+  keepBackups: "Sicherungen behalten"
+  keepBackupsHint: "Ein .mkvgobak jeder reparierten Datei bleibt nach dem Auftrag erhalten, sodass du jederzeit zurückrollen kannst - kostet eine zusätzliche Kopie pro Datei auf der Festplatte."
+  keepBackupsOffHint: "Keine Sicherung bleibt zurück: Nur die letzten {{n}} bleiben während des Laufs erhalten und werden am Ende entfernt, dafür wird jede Reparatur tief verifiziert. Bei knappem Speicher wählen."
   library: "Bibliothek"
   allLibraries: "Alle Bibliotheken"
   scan: "Scannen"
@@ -1072,30 +1077,12 @@ seekIndex:
   backupDeleted: "Sicherung gelöscht"
   audioDelayBadge: "Audio +{{sec}}s"
   repair: "Reparieren"
-  repairMode: "Reparaturmethode"
-  repairModeInplace: "Chirurgisch (in-place, ohne Duplikat)"
-  repairModeStandard: "Standard (neu aufgebaute Kopie + Rollback-Sicherung)"
-  repairModeInplaceHint: "Schreibt den Index direkt in die Datei. Keine Kopie auf der Festplatte, kein Backup: mkvgo prüft das Ergebnis und macht den Patch automatisch rückgängig, wenn er nicht stimmt."
-  repairModeStandardHint: "Baut die Datei neben dem Original neu auf, validiert sie und tauscht sie aus; das Original bleibt als .mkvgobak-Backup erhalten."
-  repairModeAuto: "Auto (chirurgisch wenn möglich, sonst Neuaufbau) - empfohlen"
-  repairModeAutoHint: "Versucht den chirurgischen Patch (schnell, ohne Kopie) und weicht automatisch auf den vollständigen Neuaufbau aus, wenn die Dateistruktur es erfordert."
-  keepBackup: "Pro reparierter Datei ein .mkvgobak-Backup behalten"
-  keepBackupHint: "Jeder Neuaufbau behält das Original als .mkvgobak: sicher, verdoppelt aber den belegten Platz pro reparierter Datei bis zur Bereinigung."
-  keepBackupOffHint: "Ohne Backup wird die Tiefenprüfung erzwungen: eine Datei wird erst nach vollständigem Wiedereinlesen getauscht. Die Platte trägt höchstens eine temporäre Kopie gleichzeitig."
-  backupWindow: "Nur die letzten {{n}} Sicherungen behalten (rollierende Bereinigung)"
-  backupWindowHint: "Während die Reparatur voranschreitet, wird die älteste Sicherung automatisch gelöscht, am Ende des Auftrags auch der Rest: Das Volume hält nie mehr als {{n}} zusätzliche Kopien und bleibt am Ende ohne."
-  backupWindowOffHint: "Alle Sicherungen bleiben bis zur manuellen Bereinigung erhalten - das Volume muss eine zusätzliche Kopie pro reparierter Datei aufnehmen."
   jobRemuxAudio: "Audio-Reparatur"
   remuxAudioBtn: "Audio reparieren"
-  remuxAudioAll: "Audio reparieren ({{count}})"
   remuxAudioStarted: "Audio-Reparatur gestartet"
-  remuxAudioAllConfirmTitle: "Verzögertes Audio reparieren"
-  remuxAudioAllConfirm: "{{count}} Datei(en) remuxen, deren Audio verspätet startet? Die Streams werden bitgenau kopiert, das Audio auf das Video zurückgeschoben, das Ergebnis erneut geprüft, und jedes Original bleibt als .mkvgobak-Sicherung erhalten."
   volumeLine: "{{root}} - {{free}} frei für {{missing}} zu reparieren ({{count}} Dateien)"
   volumeBackupsRisky: "Backups nicht ratsam: eine Kopie pro reparierter Datei würde dieses Volume überlaufen lassen"
   volumeTempRisky: "zu voll für die größte Datei ({{largest}}): ihr Neuaufbau wird abgelehnt"
-  deepVerify: "Tiefe Überprüfung (vollständiges Lesen)"
-  deepVerifyHint: "Beweist, dass jeder neu erstellte Indexpunkt auf ein echtes Video-Keyframe zeigt, bevor die Änderung übernommen wird. Langsamer (liest die ganze Datei); empfohlen im chirurgischen Modus, der kein Backup behält."
   rollback: "Wiederherstellen"
   startFailed: "Vorgang konnte nicht gestartet werden"
   scanStarted: "Scan gestartet - läuft im Hintergrund, Fortschritt unten"
@@ -1116,7 +1103,7 @@ seekIndex:
   jobCompletedFailures: "{{kind}} abgeschlossen - {{done}} Datei(en) verarbeitet, {{failed}} fehlgeschlagen"
   jobReadOnlyHint: "Einige Dateien liegen auf einem schreibgeschützten Volume. Binde die Medienordner lese-schreibbar ein (:ro aus docker-compose entfernen), starte die Container neu und versuche es erneut."
   scannedAt: "Gescannt am {{date}}"
-  repairAllConfirmTitle: "Seek-Indizes der Bibliothek reparieren"
-  repairAllConfirm: "Den Seek-Index von {{count}} Datei(en) im Hintergrund neu aufbauen? Jede Datei wird validiert und atomar ausgetauscht; Originale bleiben als .mkvgobak-Sicherungen erhalten."
+  repairAllConfirmTitle: "Bibliothek reparieren"
+  repairAllConfirm: "{{count}} Datei(en) im Hintergrund reparieren? Jede Datei wird validiert und atomar getauscht; fehlende Indizes werden neu gebaut und (falls gewählt) verzögertes Audio korrigiert. Das ist ein LANGER Vorgang - Dateien werden einzeln neu geschrieben, das kann bei einer großen Bibliothek Stunden dauern."
   rollbackAllConfirmTitle: "Originale aus Sicherungen wiederherstellen"
   rollbackAllConfirm: "{{count}} Datei(en) aus ihren .mkvgobak-Sicherungen wiederherstellen? Das macht vorherige Reparaturen in diesem Bereich rückgängig."

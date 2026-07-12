@@ -324,7 +324,9 @@ func (d *adminMediaHandler) ReindexLibrarySeekIndex(ctx context.Context, req *ev
 		SkipBackup:   req.GetSkipBackup(),
 		BackupWindow: int(req.GetBackupWindow()),
 	}
-	if err := d.seekIndex.StartReindexLibrary(ctx, req.GetLibraryId(), run); err != nil {
+	// One entry point: StartRepairLibrary is a pure reindex batch when
+	// include_audio is false, and folds the audio remux in when true.
+	if err := d.seekIndex.StartRepairLibrary(ctx, req.GetLibraryId(), run, req.GetIncludeAudio()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, d.seekIndexError(ctx, "reindex library seek index", err)

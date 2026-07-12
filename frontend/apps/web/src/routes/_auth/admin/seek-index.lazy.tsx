@@ -16,7 +16,6 @@ import {
   useAdminMediaServiceDeleteSeekIndexBackup,
   useAdminMediaServicePurgeSeekIndexBackups,
   useAdminMediaServiceRemuxAudioMedia,
-  useAdminMediaServiceRemuxAudioLibrary,
 } from "@evey/api";
 import type {
   V1SeekIndexItem,
@@ -204,28 +203,24 @@ function SeekIndexPage() {
   const queryClient = useQueryClient();
   const [libraryId, setLibraryId] = useState("");
   const [onlyAttention, setOnlyAttention] = useState(true);
-  const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | "purge" | "remuxAudio" | null>(null);
-  // Repair strategy: "auto" (surgical patch when the file layout allows it,
-  // full rewrite otherwise) is the recommended default; "inplace" restricts
-  // to the patch (no rewrite ever), "rewrite" always rebuilds. The surgical
-  // choices are only offered when the build ships the strategy.
-  const [repairMode, setRepairMode] = useState<"auto" | "inplace" | "rewrite">("auto");
-  // Deep verify proves every rebuilt cue lands on a real video keyframe before
-  // the change is committed (a full read of the file); a failure rolls the
-  // in-place patch back. Default ON with "inplace", which keeps no backup.
-  const [deepVerify, setDeepVerify] = useState(true);
-  // Rewrites keep a .mkvgobak per repaired file by default. Turning it off
-  // trades the rollback copy for an enforced deep-verify - the option for a
-  // nearly-full volume, where one PERSISTENT copy per repaired file would
-  // not fit. Irrelevant to "inplace" (never duplicates the file).
-  const [keepBackup, setKeepBackup] = useState(true);
-  // Rolling window: the sweep purges the oldest backup as it advances and
-  // drains the rest when the job ends, so the volume never holds more than
-  // BACKUP_WINDOW extra copies and finishes with none. Default ON: unbounded
-  // accumulation is the surprising behaviour on a whole-library sweep.
-  const [rollingBackups, setRollingBackups] = useState(true);
-  const skipBackup = repairMode !== "inplace" && !keepBackup;
-  const effectiveDeepVerify = deepVerify || skipBackup;
+  const [confirmBatch, setConfirmBatch] = useState<"repair" | "rollback" | "purge" | null>(null);
+  // "Repair all" exposes just two independent choices; the rest is decided for
+  // the operator as the safe default. Strategy is always "auto" (surgical
+  // patch when the layout allows, full rewrite otherwise) - the per-file
+  // power modes are not worth a whole-library toggle.
+  //
+  // keepBackups ON  -> a .mkvgobak per repaired file survives the job (roll
+  //                    back anytime, costs one extra copy per file on disk).
+  // keepBackups OFF -> a rolling window keeps only the last few backups during
+  //                    the run and drains them at the end: the volume finishes
+  //                    with none, and each repair is deep-verified in exchange
+  //                    for the lost post-run rollback. Pre-set from the live
+  //                    volume space so a tight disk defaults to OFF.
+  const [keepBackups, setKeepBackups] = useState(true);
+  // alsoAudio folds the audio-delay remux of every flagged file into the same
+  // job. Independent of keepBackups. Default ON: "repair all" should fix every
+  // defect the scan found, not just the index.
+  const [alsoAudio, setAlsoAudio] = useState(true);
 
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -246,7 +241,6 @@ function SeekIndexPage() {
     query: { retry: false },
   });
   const hasScan = Number(scan.data?.scannedAtMs ?? 0) > 0;
-  const inplaceAvailable = scan.data?.inplaceAvailable === true;
   const result = hasScan ? scan.data : undefined;
   const items = result?.items ?? [];
   const missing = result?.missingIndex ?? 0;
@@ -328,12 +322,6 @@ function SeekIndexPage() {
       onError: onStartError,
     },
   });
-  const remuxAudioLib = useAdminMediaServiceRemuxAudioLibrary({
-    mutation: {
-      onSuccess: onStarted("admin.seekIndex.remuxAudioStarted"),
-      onError: onStartError,
-    },
-  });
   // Synchronous (an unlink server-side): refresh the cached scan directly
   // instead of the job-completion path the batch mutations rely on.
   const deleteBackup = useAdminMediaServiceDeleteSeekIndexBackup({
@@ -392,16 +380,16 @@ function SeekIndexPage() {
           <>
             <Button
               variant="secondary"
-              disabled={missing === 0 || busy}
+              disabled={(missing === 0 && delayedAudio === 0) || busy}
               onClick={() => {
-                // Pre-set the safe choice from the live volume numbers; the
-                // operator can still override it in the dialog.
-                setKeepBackup(!backupsRisky);
+                // Pre-set the safe choices; the operator can still flip them.
+                setKeepBackups(!backupsRisky);
+                setAlsoAudio(delayedAudio > 0);
                 setConfirmBatch("repair");
               }}
               data-testid="seek-index-repair-all-btn"
             >
-              {t("admin.seekIndex.repairAll", { count: missing })}
+              {t("admin.seekIndex.repairAll", { count: missing + delayedAudio })}
             </Button>
             <Button
               variant="secondary"
@@ -410,14 +398,6 @@ function SeekIndexPage() {
               data-testid="seek-index-rollback-all-btn"
             >
               {t("admin.seekIndex.rollbackAll", { count: withBackup })}
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={delayedAudio === 0 || busy}
-              onClick={() => setConfirmBatch("remuxAudio")}
-              data-testid="seek-index-remux-audio-all-btn"
-            >
-              {t("admin.seekIndex.remuxAudioAll", { count: delayedAudio })}
             </Button>
             <Button
               variant="ghost"
@@ -579,7 +559,7 @@ function SeekIndexPage() {
                               className="text-xs"
                               disabled={busy}
                               loading={repairOne.isPending && repairOne.variables?.mediaId === it.mediaId}
-                              onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { mode: repairMode, deepVerify: effectiveDeepVerify, skipBackup } })}
+                              onClick={() => it.mediaId && repairOne.mutate({ mediaId: it.mediaId, data: { mode: "auto" } })}
                               data-testid="seek-index-repair-btn"
                             >
                               {t("admin.seekIndex.repair")}
@@ -628,9 +608,7 @@ function SeekIndexPage() {
             ? t("admin.seekIndex.rollbackAllConfirmTitle")
             : confirmBatch === "purge"
               ? t("admin.seekIndex.purgeAllConfirmTitle")
-              : confirmBatch === "remuxAudio"
-                ? t("admin.seekIndex.remuxAudioAllConfirmTitle")
-                : t("admin.seekIndex.repairAllConfirmTitle")
+              : t("admin.seekIndex.repairAllConfirmTitle")
         }
       >
         <p className="text-sm text-[var(--text-muted)] mb-4">
@@ -638,9 +616,7 @@ function SeekIndexPage() {
             ? t("admin.seekIndex.rollbackAllConfirm", { count: withBackup })
             : confirmBatch === "purge"
               ? t("admin.seekIndex.purgeAllConfirm", { count: withBackup })
-              : confirmBatch === "remuxAudio"
-                ? t("admin.seekIndex.remuxAudioAllConfirm", { count: delayedAudio })
-                : t("admin.seekIndex.repairAllConfirm", { count: missing })}
+              : t("admin.seekIndex.repairAllConfirm", { count: missing })}
         </p>
         {confirmBatch === "repair" && repairVolumes.length > 0 && (
           <ul className="mb-4 flex flex-col gap-1" data-testid="seek-index-volumes">
@@ -671,66 +647,32 @@ function SeekIndexPage() {
           </ul>
         )}
         {confirmBatch === "repair" && (
-          <div className="mb-4">
-            <Select
-              label={t("admin.seekIndex.repairMode")}
-              value={repairMode}
-              onChange={(v) => setRepairMode(v === "inplace" ? "inplace" : v === "rewrite" ? "rewrite" : "auto")}
-              options={[
-                { value: "auto", label: t("admin.seekIndex.repairModeAuto") },
-                ...(inplaceAvailable
-                  ? [{ value: "inplace", label: t("admin.seekIndex.repairModeInplace") }]
-                  : []),
-                { value: "rewrite", label: t("admin.seekIndex.repairModeStandard") },
-              ]}
-              data-testid="seek-index-repair-mode"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              {repairMode === "auto"
-                ? t("admin.seekIndex.repairModeAutoHint")
-                : repairMode === "inplace"
-                  ? t("admin.seekIndex.repairModeInplaceHint")
-                  : t("admin.seekIndex.repairModeStandardHint")}
-            </p>
-            {repairMode !== "inplace" && (
-              <div className="mt-3">
+          <div className="mb-4 flex flex-col gap-3">
+            {delayedAudio > 0 && (
+              <div>
                 <Checkbox
-                  label={t("admin.seekIndex.keepBackup")}
-                  checked={keepBackup}
-                  onChange={setKeepBackup}
-                  data-testid="seek-index-keep-backup"
+                  label={t("admin.seekIndex.alsoAudio", { count: delayedAudio })}
+                  checked={alsoAudio}
+                  onChange={setAlsoAudio}
+                  data-testid="seek-index-also-audio"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {keepBackup
-                    ? t("admin.seekIndex.keepBackupHint")
-                    : t("admin.seekIndex.keepBackupOffHint")}
+                  {t("admin.seekIndex.alsoAudioHint")}
                 </p>
               </div>
             )}
-            {repairMode !== "inplace" && keepBackup && (
-              <div className="mt-3">
-                <Checkbox
-                  label={t("admin.seekIndex.backupWindow", { n: BACKUP_WINDOW })}
-                  checked={rollingBackups}
-                  onChange={setRollingBackups}
-                  data-testid="seek-index-backup-window"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {rollingBackups
-                    ? t("admin.seekIndex.backupWindowHint", { n: BACKUP_WINDOW })
-                    : t("admin.seekIndex.backupWindowOffHint")}
-                </p>
-              </div>
-            )}
-            <div className="mt-3">
+            <div>
               <Checkbox
-                label={t("admin.seekIndex.deepVerify")}
-                checked={effectiveDeepVerify}
-                disabled={skipBackup}
-                onChange={setDeepVerify}
-                data-testid="seek-index-deep-verify"
+                label={t("admin.seekIndex.keepBackups")}
+                checked={keepBackups}
+                onChange={setKeepBackups}
+                data-testid="seek-index-keep-backups"
               />
-              <p className="mt-1 text-xs text-muted-foreground">{t("admin.seekIndex.deepVerifyHint")}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {keepBackups
+                  ? t("admin.seekIndex.keepBackupsHint")
+                  : t("admin.seekIndex.keepBackupsOffHint", { n: BACKUP_WINDOW })}
+              </p>
             </div>
           </div>
         )}
@@ -739,21 +681,21 @@ function SeekIndexPage() {
             {t("common.cancel")}
           </Button>
           <Button
-            loading={repairLib.isPending || rollbackLib.isPending || purgeLib.isPending || remuxAudioLib.isPending}
+            loading={repairLib.isPending || rollbackLib.isPending || purgeLib.isPending}
             onClick={() => {
               if (confirmBatch === "rollback") rollbackLib.mutate({ data: libraryId ? { libraryId } : {} });
               else if (confirmBatch === "purge") purgeLib.mutate({ data: libraryId ? { libraryId } : {} });
-              else if (confirmBatch === "remuxAudio") remuxAudioLib.mutate({ data: libraryId ? { libraryId } : {} });
               else
+                // Strategy fixed to auto; when backups are not kept, a rolling
+                // window (drained at job end) protects the run and deep-verify
+                // proves each repair in place of the lost post-run rollback.
                 repairLib.mutate({
                   data: {
                     ...(libraryId ? { libraryId } : {}),
-                    mode: repairMode,
-                    deepVerify: effectiveDeepVerify,
-                    skipBackup,
-                    ...(repairMode !== "inplace" && keepBackup && rollingBackups
-                      ? { backupWindow: BACKUP_WINDOW }
-                      : {}),
+                    mode: "auto",
+                    includeAudio: alsoAudio,
+                    deepVerify: !keepBackups,
+                    ...(keepBackups ? {} : { backupWindow: BACKUP_WINDOW }),
                   },
                 });
               setConfirmBatch(null);

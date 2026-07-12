@@ -749,3 +749,90 @@ func TestSeekIndexService_RemuxAudioMedia(t *testing.T) {
 	require.Error(t, bare.StartRemuxAudioLibrary(context.Background(), ""), "unconfigured remuxer is a clean error")
 	require.Error(t, bare.StartRemuxAudioMedia(context.Background(), "m1"))
 }
+
+// The combined "repair all" job reindexes un-indexed files AND remuxes
+// audio-delayed files in a single pass when includeAudio is set; with it
+// unset it behaves exactly like a reindex batch. A file carrying BOTH defects
+// is only reindexed this run (its true original backup must not be clobbered
+// by a second swap) - its audio is caught on the next run.
+func TestSeekIndexService_RepairLibrary_Combined(t *testing.T) {
+	dir := t.TempDir()
+	noIndex := filepath.Join(dir, "noindex.mkv")   // reindex only
+	delayed := filepath.Join(dir, "delayed.mkv")   // remux only
+	both := filepath.Join(dir, "both.mkv")         // reindex this run, audio deferred
+	healthy := filepath.Join(dir, "healthy.mkv")   // untouched
+	for _, p := range []string{noIndex, delayed, both, healthy} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{
+		hasIndex:  map[string]bool{noIndex: false, delayed: true, both: false, healthy: true},
+		hasBackup: map[string]bool{},
+	}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Path: noIndex}, {MediaID: "m2", Path: delayed},
+		{MediaID: "m3", Path: both}, {MediaID: "m4", Path: healthy},
+	}}
+	remux := &fakeAudioRemuxer{}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{delayed: 0.9, both: 0.9}}).
+		WithAudioRemuxer(remux)
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "",
+		appmaintenance.ReindexRunOptions{}, true))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, 3, st.Last.Total, "2 reindex candidates + 1 audio-only")
+	assert.Zero(t, st.Last.Failed)
+	assert.ElementsMatch(t, []string{noIndex, both}, reidx.reindexed, "both un-indexed files reindexed")
+	assert.Equal(t, []string{delayed}, remux.remuxed, "only the audio-ONLY file remuxed; the both-defect file's audio is deferred")
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	assert.Zero(t, res.MissingIndex)
+}
+
+// Without includeAudio the combined entry point is a pure reindex batch.
+func TestSeekIndexService_RepairLibrary_IndexOnly(t *testing.T) {
+	dir := t.TempDir()
+	noIndex := filepath.Join(dir, "n.mkv")
+	delayed := filepath.Join(dir, "d.mkv")
+	for _, p := range []string{noIndex, delayed} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{noIndex: false, delayed: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: noIndex}, {MediaID: "m2", Path: delayed}}}
+	remux := &fakeAudioRemuxer{}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{delayed: 0.9}}).
+		WithAudioRemuxer(remux)
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "",
+		appmaintenance.ReindexRunOptions{}, false))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, 1, st.Last.Total)
+	assert.Equal(t, []string{noIndex}, reidx.reindexed)
+	assert.Empty(t, remux.remuxed, "audio untouched when includeAudio is false")
+}
+
+// includeAudio with no remuxer wired quietly degrades to a reindex-only batch
+// (a build without ffmpeg) rather than failing the whole repair.
+func TestSeekIndexService_RepairLibrary_AudioWantedButUnavailable(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "n.mkv")
+	require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	reidx := &fakeReindexer{hasIndex: map[string]bool{p: false}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: p}}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil) // no remuxer
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, true))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, []string{p}, reidx.reindexed)
+}

@@ -162,12 +162,11 @@ describe("SeekIndexPage", () => {
     const Page = await getPage();
     render(React.createElement(Page));
     fireEvent.click(screen.getByTestId("seek-index-repair-btn"));
-    // The repair carries the operator choices in the request body; "auto"
-    // (patch when possible, rewrite otherwise) is the default strategy and
-    // backups are kept unless explicitly declined.
+    // The per-file repair uses the safe default strategy ("auto": patch when
+    // possible, rewrite otherwise) with a backup kept.
     expect(repairOneMutate).toHaveBeenCalledWith({
       mediaId: "mi-1",
-      data: { mode: "auto", deepVerify: true, skipBackup: false },
+      data: { mode: "auto" },
     });
   });
 
@@ -186,10 +185,10 @@ describe("SeekIndexPage", () => {
     fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
-    // Library sweeps default to the rolling backup window: at most 5
-    // .mkvgobak copies on the volume at any moment during the batch.
+    // Default: keep backups (space is fine), embark the audio repair, no
+    // deep-verify (a backup exists), no rolling window.
     expect(repairLibMutate).toHaveBeenCalledWith({
-      data: { mode: "auto", deepVerify: true, skipBackup: false, backupWindow: 5 },
+      data: { mode: "auto", includeAudio: true, deepVerify: false },
     });
     expect(rollbackLibMutate).not.toHaveBeenCalled();
   });
@@ -216,13 +215,14 @@ describe("SeekIndexPage", () => {
     render(React.createElement(Page));
     fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-    // Evey pre-set the safe choice itself: no backups, deep-verify enforced.
-    expect(screen.getByTestId("seek-index-keep-backup")).not.toBeChecked();
+    // Evey pre-set the safe choice itself: backups off -> rolling window
+    // drained at the end, deep-verify enforced in exchange.
+    expect(screen.getByTestId("seek-index-keep-backups")).not.toBeChecked();
     expect(screen.getByTestId("seek-index-volumes")).toHaveTextContent("backups discouraged");
     expect(screen.getByTestId("seek-index-volumes")).toHaveTextContent("too full for the largest file");
     fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
     expect(repairLibMutate).toHaveBeenCalledWith({
-      data: { mode: "auto", deepVerify: true, skipBackup: true },
+      data: { mode: "auto", includeAudio: true, deepVerify: true, backupWindow: 5 },
     });
   });
 
@@ -232,13 +232,12 @@ describe("SeekIndexPage", () => {
     render(React.createElement(Page));
     fireEvent.click(screen.getByTestId("seek-index-repair-all-btn"));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
-    fireEvent.click(screen.getByTestId("seek-index-keep-backup"));
-    // The rollback copy is gone, so the full-read proof is not optional.
-    expect(screen.getByTestId("seek-index-deep-verify")).toBeChecked();
-    expect(screen.getByTestId("seek-index-deep-verify")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("seek-index-keep-backups"));
+    // The rollback copy is gone, so the batch enforces the full-read proof
+    // and a rolling window that drains at the end.
     fireEvent.click(screen.getByTestId("seek-index-confirm-batch-btn"));
     expect(repairLibMutate).toHaveBeenCalledWith({
-      data: { mode: "auto", deepVerify: true, skipBackup: true },
+      data: { mode: "auto", includeAudio: true, deepVerify: true, backupWindow: 5 },
     });
   });
 

@@ -478,6 +478,129 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 		}, epilogue)
 }
 
+// rollingBackups is the job-local sliding window of kept .mkvgobak paths
+// (oldest first). Zero max means "keep every backup".
+type rollingBackups struct {
+	window []string
+	max    int
+}
+
+// reindexStep reindexes one file and folds the result into the cached scan,
+// advancing the rolling backup window when one is configured. Shared by the
+// reindex-only and combined-repair batches so their per-file semantics stay
+// identical.
+func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv.ReindexOptions, rb *rollingBackups) (bool, error) {
+	res, err := s.reindexer.ReindexInPlace(bg, path, opts)
+	if err != nil {
+		return false, err
+	}
+	if res.Skipped {
+		return true, nil
+	}
+	s.refreshFileState(bg, path)
+	hasBak := res.BackupPath != ""
+	s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = hasBak })
+	if hasBak && rb != nil && rb.max > 0 {
+		rb.window = append(rb.window, path)
+		if len(rb.window) > rb.max {
+			s.purgeRolledBackup(bg, rb.window[0])
+			rb.window = rb.window[1:]
+		}
+	}
+	return false, nil
+}
+
+// drainRollingBackups purges whatever the sliding window still holds at the
+// end of a job (so it finishes with none). No-op when the window is unused.
+func (s *SeekIndexService) drainRollingBackups(bg context.Context, rb *rollingBackups) {
+	if rb == nil {
+		return
+	}
+	for _, p := range rb.window {
+		s.purgeRolledBackup(bg, p)
+	}
+}
+
+// missingIndexItems is the un-indexed subset used by the space preflight.
+func missingIndexItems(items []SeekStatus) []SeekStatus {
+	var out []SeekStatus
+	for _, it := range items {
+		if !it.HasIndex {
+			out = append(out, it)
+		}
+	}
+	return out
+}
+
+// StartRepairLibrary is the "repair all" entry point: it reindexes every
+// un-indexed file and, when includeAudio is set and a remuxer is wired, also
+// repairs the audio start-delay of the flagged files - all in one job. A file
+// carrying BOTH defects is only reindexed this run: remuxing it too would
+// rename its fresh .mkvgobak (the true original) out from under itself, so its
+// audio is left for the next run, when the index defect is gone. Backup and
+// preflight semantics match StartReindexLibrary.
+func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID string, run ReindexRunOptions, includeAudio bool) error {
+	opts := reindexOptionsFor(run)
+	syncPreflight := opts.KeepBackup && run.BackupWindow <= 0
+	cacheHit := false
+	if syncPreflight {
+		if scan, _, ok := s.CachedScan(libraryID); ok {
+			cacheHit = true
+			if err := s.backupSpacePreflight(missingIndexItems(scan.Items)); err != nil {
+				return err
+			}
+		}
+	}
+	if !s.tryStart(JobReindex, libraryID) {
+		return ErrJobRunning
+	}
+	doAudio := includeAudio && s.audioRemux != nil
+	go func() {
+		defer s.recoverJob()
+		bg := context.Background()
+		scan, _, ok := s.CachedScan(libraryID)
+		if !ok {
+			var err error
+			if scan, err = s.scanAndCache(bg, libraryID); err != nil {
+				s.finish(err)
+				return
+			}
+			if syncPreflight && !cacheHit {
+				if err := s.backupSpacePreflight(missingIndexItems(scan.Items)); err != nil {
+					s.finish(err)
+					return
+				}
+			}
+		}
+		var idx, aud []string
+		reindexing := map[string]bool{}
+		for _, it := range scan.Items {
+			if !it.HasIndex {
+				idx = append(idx, it.Path)
+				reindexing[it.Path] = true
+			}
+		}
+		if doAudio {
+			for _, it := range scan.Items {
+				if it.AudioDelaySec > AudioDelayFlagSec && !reindexing[it.Path] {
+					aud = append(aud, it.Path)
+				}
+			}
+		}
+		s.setPhase(PhaseProcessing, len(idx)+len(aud))
+		rb := &rollingBackups{max: run.BackupWindow}
+		s.processFiles(bg, JobReindex, idx, func(bg context.Context, path string) (bool, error) {
+			return s.reindexStep(bg, path, opts, rb)
+		})
+		s.drainRollingBackups(bg, rb)
+		if len(aud) > 0 {
+			s.processFiles(bg, JobRemuxAudio, aud, s.remuxAudioFile)
+		}
+		s.finish(nil)
+	}()
+	return nil
+}
+
 // purgeRolledBackup deletes one media file's backup as it leaves the rolling
 // window (or at the end-of-job drain) and folds the deletion into the cached
 // scan. Best-effort: a failure only leaves that one backup behind,

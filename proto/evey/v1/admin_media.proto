@@ -340,6 +340,11 @@ message ReindexLibrarySeekIndexRequest {
   // remainder - the volume never holds more than N extra copies and finishes
   // with none. 0 keeps every backup. Ignored with skip_backup or "inplace".
   int32 backup_window = 5;
+  // include_audio also repairs the audio start-delay of every flagged file in
+  // the same job (needs the ffmpeg remuxer wired; ignored otherwise). A file
+  // that also lacks an index is only reindexed this run - its audio waits for
+  // the next, so its true original backup is never clobbered.
+  bool include_audio = 6;
 }
 
 message ReindexLibrarySeekIndexResponse {
