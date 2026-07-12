@@ -74,6 +74,8 @@ Two seccomp filters apply nearly the same denylist (they differ only on the sign
 1. **Kernel-applied (the primary layer).** The [`evey-plugin-launcher`](../cmd/evey-plugin-launcher) shim is prepended to the plugin argv and installs the BPF filter ([`seccomp_linux.go`](../cmd/evey-plugin-launcher/seccomp_linux.go)) **right before `execve`**, per build arch. The filter is inherited across `execve` into the plugin and into any child it later spawns. Because it is installed by the launcher and not via `LD_PRELOAD`, it **also constrains static/compiled plugin binaries** - which never load `libevey-sandbox.so` and used to bypass the shim entirely. An arch mismatch in the `seccomp_data` ABI field is `SECCOMP_RET_KILL_PROCESS` (foils i386/x32 syscall-number confusion).
 2. **LD_PRELOAD (belt-and-suspenders for dynamic plugins).** [`sandbox/sandbox.c`](../sandbox/sandbox.c) is a tiny constructor preloaded into interpreted plugins; same denylist, plus it sets `PR_SET_DUMPABLE=0` on the plugin itself.
 
+**Which of the two runs depends on the sandbox mode** (see the per-mode table below): the launcher's kernel filter is applied in `landlock` and `basic`; the LD_PRELOAD shim is applied in `strict` and `basic`. `bubblewrap`/`strict` do **not** run the launcher, so a **static** plugin binary under plain `bubblewrap` gets no syscall denylist at all - its containment there is the bwrap namespaces + filesystem isolation, not seccomp.
+
 Blocked syscalls, grouped by category:
 
 | Category | Syscalls blocked |
@@ -144,7 +146,7 @@ At startup the server calls `prctl(PR_SET_DUMPABLE, 0)` ([`cmd/evey/hardening_li
 
 ## Sandbox modes
 
-`sandbox_mode` is configured via `evey.yaml` or `EVEY_PLUGINS_SANDBOX_MODE` (default `auto`). It selects the **filesystem + network confinement** backend; UID separation, the kernel/LD_PRELOAD seccomp denylist, `-deny-inet`, and the userspace resource monitor apply across all modes (subject to host capability). The runner picks the backend in [`applySandbox`](../internal/adapters/driven/pluginrunner/runner.go); `auto` resolves once at first plugin start ([`resolveAutoMode`](../internal/adapters/driven/pluginrunner/runner_landlock.go)).
+`sandbox_mode` is configured via `evey.yaml` or `EVEY_PLUGINS_SANDBOX_MODE` (default `auto`). It selects the confinement **backend**, and the syscall/egress mechanism is backend-specific: `landlock` and `basic` run the plugin through the launcher, which installs the kernel seccomp denylist + `-deny-inet`; `bubblewrap`/`strict` instead isolate the network with a namespace (`--unshare-net`) and have no launcher seccomp (`strict` adds only the dynamic-only LD_PRELOAD shim). What DOES apply across every mode: UID separation, the userspace resource monitor, and the fact that **direct IP egress is cut** (by `-deny-inet` or `--unshare-net`) so a network plugin reaches out only through the host `Fetch` broker. The runner picks the backend in [`applySandbox`](../internal/adapters/driven/pluginrunner/runner.go); `auto` resolves once at first plugin start ([`resolveAutoMode`](../internal/adapters/driven/pluginrunner/runner_landlock.go)).
 
 ### `auto` (default)
 
