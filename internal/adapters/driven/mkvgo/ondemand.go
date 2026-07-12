@@ -50,7 +50,8 @@ func (p *OnDemandPackager) Close() {
 
 // Plan returns a cached-or-freshly-built plan for srcPath. It fails (and the
 // caller falls back to ffmpeg) when the source cannot be packaged verbatim -
-// an unsupported codec, or a Matroska with no Cues seek index.
+// an unsupported codec. A Matroska with a missing or misskeyed Cues index is
+// now served too (SynthesizeIndex), not refused.
 func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.OnDemandPlan")
 	defer span.End()
@@ -63,7 +64,16 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 	// ChapterMarkers is hardcoded on: per mp4.Options docs, it is additive and
 	// byte-identical for a chapterless source (no re-cut, no decode either way),
 	// so there is no reason to gate it behind an option.
-	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true}
+	//
+	// SynthesizeIndex serves a source whose Cues are missing or key the wrong
+	// tracks (the Highwaymen/Eli defect) by walking its clusters ONCE
+	// (structure-only) to build the video index in memory - instead of
+	// refusing the plan and falling back to a full ffmpeg transcode. It costs
+	// nothing on a healthy file (the walk only fires when no usable video cue
+	// exists) and the resulting plan is cached, so the walk is paid once. This
+	// is the fast-seek path for un-indexed files AND for read-only media where
+	// the on-disk reindex cannot write.
+	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true}
 	if opts.URLPrefix != "" {
 		prefix := opts.URLPrefix
 		o.RewriteURL = func(name string) string { return prefix + name }
