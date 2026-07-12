@@ -124,9 +124,15 @@ static struct sock_filter filter[] = {
     DENY(__NR_bpf),
     DENY(__NR_perf_event_open),
 
-    /* hardware I/O */
+    /* hardware I/O - x86-only syscalls (I/O port space); they do not exist on
+       arm64 and other portless arches, so guard them or the build won't compile
+       there (there is no such syscall to deny in the first place). */
+#ifdef __NR_ioperm
     DENY(__NR_ioperm),
+#endif
+#ifdef __NR_iopl
     DENY(__NR_iopl),
+#endif
 
     /* swap / memory mgmt */
     DENY(__NR_swapon),

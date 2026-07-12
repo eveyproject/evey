@@ -18,6 +18,35 @@ Evey **outside Docker** (systemd / bare metal), see
 - **Recommended:** a reverse proxy for HTTPS - Evey serves plain HTTP only. See
   [reverse-proxy.md](reverse-proxy.md).
 
+### Architecture (x86-64 and ARM64)
+
+Stable releases (`vX.Y.Z` tags) publish a **multi-arch** image for both
+`linux/amd64` and `linux/arm64`; `docker pull`/`compose up` picks the right one
+automatically, no flag needed. Pre-release tags (`-alpha`/`-beta`) and per-branch
+builds are **amd64-only** - pin a stable `vX.Y.Z` in `EVEY_VERSION` for an ARM
+host (a Raspberry Pi, an ARM NAS, an Ampere VPS).
+
+Two things to know on ARM:
+
+- **No hardware transcoding on a Synology-class ARM (Realtek) NAS.** Evey wires
+  exactly three accel backends - Intel QSV, VAAPI, and NVENC. QSV and the Intel
+  VAAPI drivers are x86-only (deliberately not installed on the arm64 image);
+  NVENC is NVIDIA. Evey does **not** wire the ARM-native video encoders (the
+  Raspberry Pi V4L2 M2M / Rockchip RKMPP VPUs), so on an ARM board there is no
+  hardware encode path. In practice ARM = **direct play** (the client plays the
+  file as-is, near-zero cost) plus **software transcode** on the CPU. On a weak
+  ARM core, keep `transcoding.max_video_sessions` low (1-2, in Admin → Server
+  Config) and lean on direct play.
+- **HDR tone-mapping is on the fast path on ARM too.** The bundled arm64
+  jellyfin-ffmpeg ships the SIMD `tonemapx` filter (NEON), just like the amd64
+  build ships its AVX2 variant - so HDR→SDR tone-mapping is hardware-SIMD, not the
+  slow zscale chain. (Evey probes `tonemapx` at runtime and falls back to zscale
+  only if a build ever lacks it.)
+
+If you build the image yourself for an unpublished arch, `docker buildx build
+--platform linux/arm64` works out of the box - the Dockerfile guards the x86-only
+bits behind `TARGETARCH`.
+
 ## 1. docker-compose.yml
 
 Three services: the Evey server (serves both the API and the web UI on one port),

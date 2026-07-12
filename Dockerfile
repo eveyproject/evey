@@ -97,6 +97,11 @@ RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so /tmp/sandbox.c
 FROM debian:trixie-slim AS runtime
 
 ARG RUNTIMES=lean
+# Set automatically by buildx per target platform ("amd64" | "arm64"). Used to
+# skip the x86-only Intel GPU driver packages and the AVX2 tonemapx assertion
+# on arm64, where neither exists - the multi-arch (stable-release) build would
+# otherwise fail at those steps. amd64 behaviour is byte-identical.
+ARG TARGETARCH
 
 # Tell the NVIDIA Container Toolkit to inject the full driver stack (incl.
 # libnvidia-encode for NVENC) when a GPU is reserved; harmless when none is.
@@ -128,8 +133,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
        ca-certificates curl ffmpeg bubblewrap libcap2-bin libchromaprint-tools \
        postgresql-client-17 unzip wget python3 \
        vainfo libva2 libva-drm2 mesa-va-drivers \
-       intel-media-va-driver-non-free i965-va-driver \
-       libvpl2 libmfx-gen1.2 \
+    # Intel VAAPI/QSV drivers (iHD/i965 + oneVPL) are x86-only - no arm64 package
+    # exists in the archive, so install them only on amd64. On arm64 the host's
+    # own VAAPI (mesa: a mapped Mali/Rockchip GPU) is used if present; Synology-
+    # class ARM has no usable HW encoder, so it falls back to software transcode.
+    && if [ "$TARGETARCH" = "amd64" ]; then \
+         apt-get install -y --no-install-recommends \
+           intel-media-va-driver-non-free i965-va-driver libvpl2 libmfx-gen1.2; \
+       fi \
     && if [ "$RUNTIMES" = "nodejs" ] || [ "$RUNTIMES" = "full" ]; then \
          apt-get install -y --no-install-recommends nodejs npm \
          && ([ -e /usr/bin/node ] || ln -sf /usr/bin/nodejs /usr/bin/node); \
@@ -171,6 +182,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends gnupg \
     && ln -sf /usr/lib/jellyfin-ffmpeg/ffmpeg  /usr/local/bin/ffmpeg \
     && ln -sf /usr/lib/jellyfin-ffmpeg/ffprobe /usr/local/bin/ffprobe \
     && /usr/local/bin/ffmpeg -hide_banner -version >/dev/null \
+    # tonemapx ships in BOTH the amd64 (AVX2) and arm64 (NEON) jellyfin-ffmpeg
+    # builds (verified: `.S. tonemapx` is present on aarch64), so assert it on
+    # every arch - a build missing it is a broken ffmpeg layer we want to catch.
+    # The Go side still probes tonemapxAvailable at runtime and falls back to
+    # the zscale chain if a future build ever drops it.
     && /usr/local/bin/ffmpeg -hide_banner -filters | grep -q tonemapx
 
 RUN groupadd -g 1000 evey \
