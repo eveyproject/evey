@@ -667,6 +667,9 @@ type fakeAudioRemuxer struct {
 	mu       sync.Mutex
 	remuxed  []string
 	failWith map[string]error
+	// registers, when set, records each backup so a fake reindexer sharing the
+	// map can DeleteBackup it (the combined job drains audio backups too).
+	registers map[string]bool
 }
 
 func (f *fakeAudioRemuxer) RemuxAudioDelay(_ context.Context, p string) (string, bool, error) {
@@ -675,6 +678,9 @@ func (f *fakeAudioRemuxer) RemuxAudioDelay(_ context.Context, p string) (string,
 	}
 	f.mu.Lock()
 	f.remuxed = append(f.remuxed, p)
+	if f.registers != nil {
+		f.registers[p] = true
+	}
 	f.mu.Unlock()
 	return p + ".mkvgobak", false, nil
 }
@@ -835,4 +841,42 @@ func TestSeekIndexService_RepairLibrary_AudioWantedButUnavailable(t *testing.T) 
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Equal(t, []string{p}, reidx.reindexed)
+}
+
+// In a combined "repair all" that does NOT keep backups (a rolling window),
+// the AUDIO repair backups must be drained at job end too - they used to
+// survive the window that only covered the index step (the "125 backups"
+// surprise). After the job, zero backup remains and the cache reflects it.
+func TestSeekIndexService_RepairLibrary_AudioBackupsHonorWindow(t *testing.T) {
+	dir := t.TempDir()
+	noIndex := filepath.Join(dir, "n.mkv")
+	delayed := filepath.Join(dir, "d.mkv")
+	for _, p := range []string{noIndex, delayed} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	shared := map[string]bool{}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{noIndex: false, delayed: true}, hasBackup: shared}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{{MediaID: "m1", Path: noIndex}, {MediaID: "m2", Path: delayed}}}
+	remux := &fakeAudioRemuxer{registers: shared}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithAudioDelayProber(fakeAudioDelayProber{delays: map[string]float64{delayed: 0.9}}).
+		WithAudioRemuxer(remux)
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+
+	// BackupWindow > 0 == "don't keep backups": rolling + drain.
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "",
+		appmaintenance.ReindexRunOptions{BackupWindow: 2}, true))
+	st := waitIdle(t, svc)
+	require.NotNil(t, st.Last)
+	assert.Equal(t, 2, st.Last.Total, "1 reindex + 1 audio")
+	assert.Zero(t, st.Last.Failed)
+	assert.Equal(t, []string{delayed}, remux.remuxed, "the audio file was repaired")
+
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	for _, it := range res.Items {
+		assert.False(t, it.HasBackup, "no backup survives the drain, audio included: %s", it.Path)
+	}
+	assert.Zero(t, res.WithBackup)
 }

@@ -232,19 +232,35 @@ var ErrRemuxUnavailable = errors.New("audio remux is not available in this build
 
 // remuxAudioFile is the shared per-file step of both remux entry points.
 func (s *SeekIndexService) remuxAudioFile(bg context.Context, path string) (bool, error) {
+	return s.remuxAudioStep(bg, path, nil)
+}
+
+// remuxAudioStep repairs one file's audio delay and folds the result into the
+// cached scan, advancing the rolling backup window when one is configured -
+// so a combined "repair all" that is NOT keeping backups drains the audio
+// backups too (they used to persist regardless of the operator's choice).
+func (s *SeekIndexService) remuxAudioStep(bg context.Context, path string, rb *rollingBackups) (bool, error) {
 	bak, skipped, err := s.audioRemux.RemuxAudioDelay(bg, path)
 	if err != nil {
 		return false, err
 	}
-	if !skipped {
-		// The video stream and its keyframe TIMES are copied untouched;
-		// refresh the fingerprint so the next scan keeps the stream records
-		// instead of re-probing (same rationale as the reindex path).
-		s.refreshFileState(bg, path)
-		hasBak := bak != ""
-		s.updateCachedFile(path, func(st *SeekStatus) { st.AudioDelaySec = 0; st.HasBackup = hasBak })
+	if skipped {
+		return true, nil
 	}
-	return skipped, nil
+	// The video stream and its keyframe TIMES are copied untouched; refresh
+	// the fingerprint so the next scan keeps the stream records instead of
+	// re-probing (same rationale as the reindex path).
+	s.refreshFileState(bg, path)
+	hasBak := bak != ""
+	s.updateCachedFile(path, func(st *SeekStatus) { st.AudioDelaySec = 0; st.HasBackup = hasBak })
+	if hasBak && rb != nil && rb.max > 0 {
+		rb.window = append(rb.window, path)
+		if len(rb.window) > rb.max {
+			s.purgeRolledBackup(bg, rb.window[0])
+			rb.window = rb.window[1:]
+		}
+	}
+	return false, nil
 }
 
 // StartRemuxAudioLibrary kicks a background job that repairs every file the
@@ -588,14 +604,19 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 			}
 		}
 		s.setPhase(PhaseProcessing, len(idx)+len(aud))
+		// One rolling window shared across both phases: index and audio
+		// backups roll and drain together, so declining backups leaves NONE
+		// on the volume (the audio backups used to survive the drain).
 		rb := &rollingBackups{max: run.BackupWindow}
 		s.processFiles(bg, JobReindex, idx, func(bg context.Context, path string) (bool, error) {
 			return s.reindexStep(bg, path, opts, rb)
 		})
-		s.drainRollingBackups(bg, rb)
 		if len(aud) > 0 {
-			s.processFiles(bg, JobRemuxAudio, aud, s.remuxAudioFile)
+			s.processFiles(bg, JobRemuxAudio, aud, func(bg context.Context, path string) (bool, error) {
+				return s.remuxAudioStep(bg, path, rb)
+			})
 		}
+		s.drainRollingBackups(bg, rb)
 		s.finish(nil)
 	}()
 	return nil
