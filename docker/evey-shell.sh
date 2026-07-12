@@ -5,14 +5,14 @@
 #  - REAL bash underneath: the prompt is branded `evey ▸`, native `evey` /
 #    `mkvgo` Tab-completion works, any command / pipe / glob runs. Short admin
 #    verbs (doctor, migrate, reindex-search, ...) map 1:1 to `evey admin <verb>`.
-#  - The launcher is a menu tree you never fall out of:
+#  - The launcher is a menu tree:
 #      main (evey / mkvgo / shell) -> submenu -> options
-#    Enter drills in; an option needing a value opens an inline editable
-#    command line right there (the example lands pre-typed; edit or retype it
-#    entirely, Tab completes paths, Enter runs, an emptied line cancels).
-#    Tab anywhere opens that same line seeded with the highlighted example.
-#    A run redraws the screen as logo / rule / output / rule / menu, landing
-#    back in the submenu it started from - the logo never scrolls away.
+#    Enter drills in; ready-to-run options run in place (screen laid out
+#    logo / rule / output / rule / menu). An option needing a value lands
+#    PRE-TYPED on the real prompt - full completion (verbs, flags, paths,
+#    --user emails) - and once that command finishes the launcher reopens
+#    by itself in the submenu it came from (PROMPT_COMMAND hook). Tab
+#    anywhere hands the highlighted example to the prompt the same way.
 #    q/Esc backs up one level (options -> submenu -> main -> plain shell).
 #    `menu` reopens it, `?` prints a static cheat-sheet, `exit` leaves.
 #  - No tty (piped / logs / non-interactive): a plain list, no key capture.
@@ -97,14 +97,15 @@ _evey_load_admin_menu() {
 # native completion (`mkvgo <Tab>`) and the free-form row.
 _evey_load_mkvgo_menu() {
     local version; version=$(mkvgo --version 2>/dev/null | awk '{print $2}'); [ -n "$version" ] || version='?'
-    mkvgo_labels=(   'info' 'probe' 'validate' 'verify' 'playability' 'analyze' 'keyframes' \
+    mkvgo_labels=(   'info' 'probe' 'diagnose' 'validate' 'verify' 'playability' 'analyze' 'keyframes' \
                      'reindex' 'reindex-inplace' 'salvage' 'to-mp4' 'mkvgo <cmd>' '← back' )
-    mkvgo_prefills=( 'mkvgo info ' 'mkvgo probe ' 'mkvgo validate ' 'mkvgo verify ' \
+    mkvgo_prefills=( 'mkvgo info ' 'mkvgo probe ' 'mkvgo diagnose ' 'mkvgo validate ' 'mkvgo verify ' \
                      'mkvgo playability -target chrome ' 'mkvgo analyze ' 'mkvgo keyframes ' \
                      'mkvgo reindex ' 'mkvgo reindex-inplace ' 'mkvgo salvage ' 'mkvgo to-mp4 ' \
                      'mkvgo ' '' )
     mkvgo_descs=(    'tracks, codecs, duration' \
                      'deep structure probe (-json for machines)' \
+                     'one-call triage with a remedy per finding' \
                      'structural validation' \
                      'deep A/V integrity check' \
                      'direct-play report for a browser target' \
@@ -121,7 +122,7 @@ _evey_load_mkvgo_menu() {
 # Follow-up options for one admin verb (keyed by NAME, not list position).
 # option_kinds[i]: "run" executes as-is, "prompt" opens the inline line to
 # fill a value. Returns 1 for anything that has no options screen.
-_evey_load_options() {
+_evey_load_admin_options() {
     option_labels=(); option_commands=(); option_kinds=()
     case "$1" in
         doctor)
@@ -180,6 +181,44 @@ _evey_load_options() {
     esac
 }
 
+# Follow-up options for one mkvgo sub-command (flags verified against the
+# binary's usage strings). All need a file -> every option is prompt-kind.
+_evey_load_mkvgo_options() {
+    option_labels=(); option_commands=(); option_kinds=()
+    case "$1" in
+        info|probe|diagnose|validate|keyframes)
+            option_labels=('<file>'      '-json <file>')
+            option_commands=("mkvgo $1 " "mkvgo $1 -json ")
+            option_kinds=(  'prompt'     'prompt') ;;
+        verify|analyze)
+            option_labels=('<file>')
+            option_commands=("mkvgo $1 ")
+            option_kinds=(  'prompt') ;;
+        playability)
+            option_labels=('-target chrome <file>' '-target safari <file>' '-target chromecast-gen3 <file>' '-target <other> <file>')
+            option_commands=('mkvgo playability -target chrome ' 'mkvgo playability -target safari ' \
+                             'mkvgo playability -target chromecast-gen3 ' 'mkvgo playability -target ')
+            option_kinds=(  'prompt' 'prompt' 'prompt' 'prompt') ;;
+        reindex)
+            option_labels=('<in> [out] (new file, verified)' '--replace <file> (swap in, keeps backup)' '--resync --replace <file> (repairs corrupted)' '--deep-verify <in> [out]')
+            option_commands=('mkvgo reindex ' 'mkvgo reindex --replace ' 'mkvgo reindex --resync --replace ' 'mkvgo reindex --deep-verify ')
+            option_kinds=(  'prompt' 'prompt' 'prompt' 'prompt') ;;
+        reindex-inplace)
+            option_labels=('<file> (crash-safe journal)' '--deep-verify <file>')
+            option_commands=('mkvgo reindex-inplace ' 'mkvgo reindex-inplace --deep-verify ')
+            option_kinds=(  'prompt' 'prompt') ;;
+        salvage)
+            option_labels=('<in> <out>' '--dry-run <in> (damage map only)')
+            option_commands=('mkvgo salvage ' 'mkvgo salvage --dry-run ')
+            option_kinds=(  'prompt' 'prompt') ;;
+        to-mp4)
+            option_labels=('<in> <out>' '--faststart <in> <out>')
+            option_commands=('mkvgo to-mp4 ' 'mkvgo to-mp4 --faststart ')
+            option_kinds=(  'prompt' 'prompt') ;;
+        *)  return 1 ;;
+    esac
+}
+
 # `?` -> a quick, non-modal reference.
 evey_help() {
     local W R S D G Z; _evey_palette
@@ -233,19 +272,35 @@ _evey_run_command() {
     _EVEY_SKIP_BANNER=1
 }
 
-# The inline command line: the example lands PRE-TYPED and fully editable
-# (readline: arrows, backspace, Tab completes paths) right under the menu -
-# no dropping out to a bare prompt. Enter runs it; an emptied line cancels.
-# Returns 0 if a command ran, 1 on cancel.
-_evey_prompt_command() {
+# Hand a command to the REAL prompt (red `evey ▸`, FULL programmable
+# completion: verbs, flags, paths, --user emails), pre-typed and editable.
+# The DSR reply (\e[0n) triggers the bound macro once the prompt is drawn.
+# $2 = the launcher level the prompt hook reopens at once the command ran.
+# _EVEY_RESUME counts the prompts still to pass before reopening: the prompt
+# that carries the pre-typed text must be skipped, so 2 from a plain call. A
+# hand-off made from INSIDE the hook is already inside that prompt's
+# PROMPT_COMMAND, so only the post-command one is left -> 1.
+_evey_handoff_command() {
     local W R S D G Z; _evey_palette
-    local line
-    printf '  %sedit freely · Enter runs · emptied line cancels%s\n' "$D" "$Z"
-    if ! IFS= read -e -r -p '  evey ▸ ' -i "$1" line; then printf '\n'; return 1; fi
-    [ -n "${line//[[:space:]]/}" ] || return 1
-    history -s "$line"
-    _evey_run_command "$line"
-    return 0
+    _EVEY_RESUME_LEVEL="$2"
+    if [ -n "${_EVEY_IN_HOOK:-}" ]; then _EVEY_RESUME=1; else _EVEY_RESUME=2; fi
+    printf '  %srun it, edit it, or type something else - the menu comes back after%s\n' "$D" "$Z"
+    [ -n "$1" ] || return 0     # empty prefill: a bare prompt, same comeback
+    history -s "$1"
+    bind "\"\033[0n\": \"$1\"" 2>/dev/null && printf '\033[5n'
+}
+
+# PROMPT_COMMAND hook: reopen the launcher (framed by a rule) at the level it
+# was handed off from, once the handed-off command has run.
+_evey_prompt_hook() {
+    [ -n "${_EVEY_RESUME:-}" ] || return 0
+    if [ "$_EVEY_RESUME" -gt 1 ]; then _EVEY_RESUME=$((_EVEY_RESUME - 1)); return 0; fi
+    unset _EVEY_RESUME
+    local level="${_EVEY_RESUME_LEVEL:-main}"; unset _EVEY_RESUME_LEVEL
+    _evey_rule
+    _EVEY_IN_HOOK=1
+    evey_menu "$level"
+    unset _EVEY_IN_HOOK
 }
 
 # `menu` -> the launcher. See the header comment for the full behaviour.
@@ -269,7 +324,7 @@ evey_menu() {
     fi
 
     local main_sel=0 admin_sel=0 mkvgo_sel=0 option_sel=0 i
-    local level=main option_verb=''
+    local level="${1:-main}" option_verb='' option_source=admin
     local main_count=${#main_labels[@]} admin_count=${#admin_labels[@]} mkvgo_count=${#mkvgo_labels[@]}
 
     # Row painters; $1 = row index. The selected row gets the ► mark. The
@@ -334,7 +389,7 @@ evey_menu() {
             _evey_navigate _evey_paint_main_row "$main_count" main_sel
 
             if [ "$REPLY" = back ]; then break; fi
-            if [ "$REPLY" = edit ]; then _evey_prompt_command '' || true; continue; fi
+            if [ "$REPLY" = edit ]; then _evey_handoff_command '' main; break; fi
             case "${main_labels[main_sel]}" in
                 evey)  level=admin ;;
                 mkvgo) level=mkvgo ;;
@@ -347,36 +402,46 @@ evey_menu() {
             _evey_navigate _evey_paint_admin_row "$admin_count" admin_sel
 
             if [ "$REPLY" = back ] || [ "$admin_sel" -eq $((admin_count-1)) ]; then level=main; continue; fi
-            if [ "$REPLY" = edit ]; then _evey_prompt_command "${admin_prefills[admin_sel]}" || true; continue; fi
+            if [ "$REPLY" = edit ]; then _evey_handoff_command "${admin_prefills[admin_sel]}" admin; break; fi
             option_verb="${admin_labels[admin_sel]}"
-            if _evey_load_options "$option_verb"; then option_sel=0; level=options
-            else _evey_prompt_command "${admin_prefills[admin_sel]}" || true; fi ;;
+            option_source=admin
+            if _evey_load_admin_options "$option_verb"; then option_sel=0; level=options
+            else _evey_handoff_command "${admin_prefills[admin_sel]}" admin; break; fi ;;
         mkvgo)
             _evey_paint_banner
-            printf '  %smkvgo%s · ↑/↓ move · Enter fill the file · Tab edit · q/Esc back%s\n' "$W" "$D" "$Z"
+            printf '  %smkvgo%s · ↑/↓ move · Enter options · Tab type/edit · q/Esc back%s\n' "$W" "$D" "$Z"
             for ((i=0; i<mkvgo_count; i++)); do _evey_paint_mkvgo_row "$i"; done
             _evey_navigate _evey_paint_mkvgo_row "$mkvgo_count" mkvgo_sel
 
             if [ "$REPLY" = back ] || [ "$mkvgo_sel" -eq $((mkvgo_count-1)) ]; then level=main; continue; fi
-            _evey_prompt_command "${mkvgo_prefills[mkvgo_sel]}" || true ;;   # run or cancel: stay here
+            if [ "$REPLY" = edit ]; then _evey_handoff_command "${mkvgo_prefills[mkvgo_sel]}" mkvgo; break; fi
+            option_verb="${mkvgo_labels[mkvgo_sel]}"
+            option_source=mkvgo
+            if _evey_load_mkvgo_options "$option_verb"; then option_sel=0; level=options
+            else _evey_handoff_command "${mkvgo_prefills[mkvgo_sel]}" mkvgo; break; fi ;;
         options)
-            _evey_load_options "$option_verb"
+            local option_crumb=evey
+            if [ "$option_source" = mkvgo ]; then
+                _evey_load_mkvgo_options "$option_verb"; option_crumb=mkvgo
+            else
+                _evey_load_admin_options "$option_verb"
+            fi
             local option_count=${#option_labels[@]}
-            printf '  %sevey ▸ %s%s · ↑/↓ move · Enter run/fill · Tab edit · q/Esc back%s\n' \
-                "$W" "$option_verb" "$D" "$Z"
+            printf '  %s%s ▸ %s%s · ↑/↓ move · Enter run/fill · Tab edit · q/Esc back%s\n' \
+                "$W" "$option_crumb" "$option_verb" "$D" "$Z"
             for ((i=0; i<option_count; i++)); do _evey_paint_option_row "$i"; done
             _evey_navigate _evey_paint_option_row "$option_count" option_sel
 
             case "$REPLY" in
-                back) level=admin ;;
-                edit) _evey_prompt_command "${option_commands[option_sel]}" && level=admin ;;
+                back) level="$option_source" ;;
+                edit) _evey_handoff_command "${option_commands[option_sel]}" "$option_source"; break ;;
                 enter)
                     if [ "${option_kinds[option_sel]}" = run ]; then
                         history -s "${option_commands[option_sel]}"
                         _evey_run_command "${option_commands[option_sel]}"
-                        level=admin
+                        level="$option_source"
                     else
-                        _evey_prompt_command "${option_commands[option_sel]}" && level=admin
+                        _evey_handoff_command "${option_commands[option_sel]}" "$option_source"; break
                     fi ;;
             esac ;;
         esac
@@ -431,6 +496,11 @@ case $- in
         bind 'set mark-symlinked-directories on' 2>/dev/null
         bind '"\t": menu-complete' 2>/dev/null
         bind '"\e[Z": menu-complete-backward' 2>/dev/null
+
+        # Reopen the launcher after a handed-off command finishes (see
+        # _evey_handoff_command / _evey_prompt_hook), preserving any
+        # PROMPT_COMMAND a base image may have set.
+        PROMPT_COMMAND="_evey_prompt_hook${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 
         # Brand the prompt.
         if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
