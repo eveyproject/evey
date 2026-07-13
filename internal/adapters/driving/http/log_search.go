@@ -293,16 +293,15 @@ func lineInWindow(line string, f logSearchFilter) bool {
 // without unmarshalling the whole record.
 func logLineTime(line string) (time.Time, bool) {
 	const key = `"time":"`
-	i := strings.Index(line, key)
-	if i < 0 {
+	_, rest, found := strings.Cut(line, key)
+	if !found {
 		return time.Time{}, false
 	}
-	rest := line[i+len(key):]
-	j := strings.IndexByte(rest, '"')
-	if j < 0 {
+	raw, _, found := strings.Cut(rest, `"`)
+	if !found {
 		return time.Time{}, false
 	}
-	ts, err := time.Parse(time.RFC3339Nano, rest[:j])
+	ts, err := time.Parse(time.RFC3339Nano, raw)
 	if err != nil {
 		return time.Time{}, false
 	}

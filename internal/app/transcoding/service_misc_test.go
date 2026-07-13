@@ -65,17 +65,13 @@ func TestService_SetMaxConcurrent_NoRaceWithReaders(t *testing.T) {
 	svc := apptranscode.NewService(nil, nil, nil, nil, nil, 2)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
-		wg.Add(1)
-		go func(n int) {
-			defer wg.Done()
-			svc.SetMaxConcurrent(n%4 + 1)
-		}(i)
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for i := range 8 {
+		wg.Go(func() {
+			svc.SetMaxConcurrent(i%4 + 1)
+		})
+		wg.Go(func() {
 			_ = svc.MaxConcurrent() // the read StartTranscode performs
-		}()
+		})
 	}
 	wg.Wait()
 }

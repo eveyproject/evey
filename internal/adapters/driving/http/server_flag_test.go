@@ -7,6 +7,7 @@ import "testing"
 // ("true"/"false"). The two never met:
 //   - transcoding.hls_ondemand = "false"  did NOT disable it ("false" != "off")
 //   - transcoding.hls_ondemand_concat = "true" did NOT enable it ("true" != "on")
+//
 // An operator could believe a path was off while it ran, or on while it was
 // ignored. Accept the usual spellings, and keep the unset value on the default.
 func TestFlagEnabled(t *testing.T) {

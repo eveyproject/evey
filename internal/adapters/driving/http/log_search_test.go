@@ -260,7 +260,7 @@ func TestSearchLogs_WindowSurvivesVerboseRecentLines(t *testing.T) {
 	// Noise: far more recent lines than the scan budget allows.
 	noise := make([]string, 0, logScanLineBudget+10)
 	noise = append(noise, target)
-	for i := 0; i < logScanLineBudget+5; i++ {
+	for range logScanLineBudget + 5 {
 		noise = append(noise, `{"time":"2026-07-07T09:00:00Z","level":"INFO","msg":"grpc unary"}`)
 	}
 	writeLog(t, dir, "evey-2026-07-07.log", noise...)
