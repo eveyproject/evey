@@ -476,6 +476,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		bus, cfg.Transcoding.MaxConcurrent,
 		apptranscoding.WithCacheStore(filesystem.NewCacheStore(cfg.Transcoding.CacheDir)),
 	)
+	// The cap the service will actually enforce. Logged because it is taken by
+	// VALUE here: main.go must have hydrated cfg from the DB overrides BEFORE
+	// buildServices, or the operator's saved setting is silently ignored.
+	slog.Info("transcoding: max concurrent jobs", slog.Int("max", transcodingSvc.MaxConcurrent()))
 
 	mkvSvc := appmkv.NewService(infra.mkvAdapter, infra.mkvAdapter)
 	collectionSvc := appcollection.NewService(r.Collection, r.Collection, postgres.NewCollectionSmartQuerier(db), r.MediaItem)

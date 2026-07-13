@@ -2,6 +2,7 @@ package transcoding_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	apptranscode "github.com/evey-project/evey/internal/app/transcoding"
@@ -54,4 +55,27 @@ func TestService_DetectHardware_DelegatesToDetector(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, devices, 1)
 	assert.Equal(t, "nvidia", devices[0].Type)
+}
+
+// SetMaxConcurrent is called from the admin PUT handler while StartTranscode
+// reads the same field on request goroutines - an unsynchronised int shared
+// across goroutines. Run with -race: this is a genuine data race, not a
+// theoretical one (the admin panel really does flip it under live playback).
+func TestService_SetMaxConcurrent_NoRaceWithReaders(t *testing.T) {
+	svc := apptranscode.NewService(nil, nil, nil, nil, nil, 2)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			svc.SetMaxConcurrent(n%4 + 1)
+		}(i)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = svc.MaxConcurrent() // the read StartTranscode performs
+		}()
+	}
+	wg.Wait()
 }

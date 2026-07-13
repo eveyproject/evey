@@ -25,13 +25,17 @@ var ErrMaxConcurrent = errors.New("max concurrent transcodes reached")
 type PlaybackGauge interface{ Active() int }
 
 type Service struct {
-	transcoder    transcoding.Transcoder
-	hwDetector    transcoding.HWDetector
-	jobs          transcoding.TranscodeJobRepository
-	profiles      transcoding.TranscodeProfileRepository
-	events        shared.EventBus
-	cache         transcoding.CacheStore
-	maxConcurrent int
+	transcoder transcoding.Transcoder
+	hwDetector transcoding.HWDetector
+	jobs       transcoding.TranscodeJobRepository
+	profiles   transcoding.TranscodeProfileRepository
+	events     shared.EventBus
+	cache      transcoding.CacheStore
+
+	// maxConcurrent is flipped live by the admin PUT while request goroutines
+	// read it in StartTranscode - guard it, and go through MaxConcurrent().
+	maxConcurrentMu sync.RWMutex
+	maxConcurrent   int
 
 	// playback, when wired, drives background pre-emption: running jobs are
 	// SIGSTOPped while live playback encodes and resumed once it goes idle.
@@ -101,7 +105,7 @@ func (s *Service) StartTranscode(ctx context.Context, job *transcoding.Transcode
 		}
 	}
 
-	if s.maxConcurrent > 0 && running >= s.maxConcurrent {
+	if maxConc := s.MaxConcurrent(); maxConc > 0 && running >= maxConc {
 		job.Status = transcoding.Queued
 		if err := s.jobs.Create(ctx, job); err != nil {
 			span.RecordError(err)
@@ -292,8 +296,18 @@ func (s *Service) DeleteProfile(ctx context.Context, id string) error {
 }
 
 func (s *Service) SetMaxConcurrent(n int) {
+	s.maxConcurrentMu.Lock()
 	s.maxConcurrent = n
+	s.maxConcurrentMu.Unlock()
 	slog.Info("transcoding: updated max concurrent", slog.Int("max", n))
+}
+
+// MaxConcurrent is the live cap. Read it through here, never the field: the
+// admin panel flips it while requests are in flight.
+func (s *Service) MaxConcurrent() int {
+	s.maxConcurrentMu.RLock()
+	defer s.maxConcurrentMu.RUnlock()
+	return s.maxConcurrent
 }
 
 // SuperviseBackgroundPreemption blocks until ctx is cancelled. While live

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
+	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	"github.com/evey-project/evey/internal/config"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
@@ -102,30 +103,34 @@ func run() error {
 
 	eveylogger.StartCleanup(ctx, cfg.Log.Dir, cfg.Log.RetentionDays)
 
-	deps, err := buildServices(ctx, cfg, db, rootLog)
-	if err != nil {
-		return err
-	}
+	// Hydrate cfg from the persisted admin settings BEFORE building the services.
+	// Services take config by VALUE in their constructors (e.g. NewService(...,
+	// cfg.Transcoding.MaxConcurrent, ...)), so anything built before this ran was
+	// seeded with the ENV default and never saw the operator's setting again: the
+	// panel showed the saved value (it re-reads cfg) while the server kept
+	// behaving on the default, silently, from the next restart on. Same shape as
+	// the HW-gate bug. The store needs only the DB handle, so it can be built here.
+	cfgStore := httpapi.NewServerConfigStore(postgres.NewServerConfigRepository(db))
 
 	// load RemoteAccess persisted settings from DB
-	if raw, err2 := deps.cfgStore.Get(ctx, httpapi.RemoteAccessConfigKey); err2 == nil && raw != "" {
+	if raw, err2 := cfgStore.Get(ctx, httpapi.RemoteAccessConfigKey); err2 == nil && raw != "" {
 		if err := json.Unmarshal([]byte(raw), &cfg.RemoteAccess); err != nil {
 			slog.Warn("unmarshal remote access config", slog.Any("err", err))
 		}
 	}
 
 	// load server settings overrides from DB
-	loadOverride(ctx, deps.cfgStore, "server.name", parseStr, &cfg.Server.Name)
-	loadOverride(ctx, deps.cfgStore, "transcoding.max_concurrent", parseInt, &cfg.Transcoding.MaxConcurrent)
-	loadOverride(ctx, deps.cfgStore, "transcoding.hw_accel_enabled", parseBool, &cfg.Transcoding.HWAccelEnabled)
-	loadOverride(ctx, deps.cfgStore, "transcoding.hw_mode", parseStr, &cfg.Transcoding.HWMode)
-	loadOverride(ctx, deps.cfgStore, "transcoding.software_av1_max_height", parseInt, &cfg.Transcoding.SoftwareAV1MaxHeightOverride)
-	loadOverride(ctx, deps.cfgStore, "transcoding.av1_enabled", parseBool, &cfg.Transcoding.AV1Enabled)
-	loadOverride(ctx, deps.cfgStore, "transcoding.av1_max_height", parseInt, &cfg.Transcoding.AV1MaxHeight)
-	loadOverride(ctx, deps.cfgStore, "ratelimit.login_max", parseInt, &cfg.Server.LoginRateLimitMax)
-	loadOverride(ctx, deps.cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
-	loadOverride(ctx, deps.cfgStore, "log.level", parseStr, &cfg.Log.Level)
-	loadOverride(ctx, deps.cfgStore, "intro_providers.skip_preview_enabled", parseBool, &cfg.Metadata.SkipPreviewEnabled)
+	loadOverride(ctx, cfgStore, "server.name", parseStr, &cfg.Server.Name)
+	loadOverride(ctx, cfgStore, "transcoding.max_concurrent", parseInt, &cfg.Transcoding.MaxConcurrent)
+	loadOverride(ctx, cfgStore, "transcoding.hw_accel_enabled", parseBool, &cfg.Transcoding.HWAccelEnabled)
+	loadOverride(ctx, cfgStore, "transcoding.hw_mode", parseStr, &cfg.Transcoding.HWMode)
+	loadOverride(ctx, cfgStore, "transcoding.software_av1_max_height", parseInt, &cfg.Transcoding.SoftwareAV1MaxHeightOverride)
+	loadOverride(ctx, cfgStore, "transcoding.av1_enabled", parseBool, &cfg.Transcoding.AV1Enabled)
+	loadOverride(ctx, cfgStore, "transcoding.av1_max_height", parseInt, &cfg.Transcoding.AV1MaxHeight)
+	loadOverride(ctx, cfgStore, "ratelimit.login_max", parseInt, &cfg.Server.LoginRateLimitMax)
+	loadOverride(ctx, cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
+	loadOverride(ctx, cfgStore, "log.level", parseStr, &cfg.Log.Level)
+	loadOverride(ctx, cfgStore, "intro_providers.skip_preview_enabled", parseBool, &cfg.Metadata.SkipPreviewEnabled)
 	// The admin toggle persists the MODE only (settings_handler flips the gate in
 	// memory and returns the mode string), so derive the gate from the mode here.
 	// Loading the two independently lets them disagree: the panel shows hardware
@@ -134,6 +139,11 @@ func run() error {
 	cfg.Transcoding.HWAccelEnabled = domaintranscoding.HWGateEnabled(
 		cfg.Transcoding.HWMode, cfg.Transcoding.HWAccelEnabled, cfg.Transcoding.HWBackend)
 	eveylogger.SetLevel(cfg.Log.Level) // apply any DB override to the live logger
+
+	deps, err := buildServices(ctx, cfg, db, rootLog)
+	if err != nil {
+		return err
+	}
 
 	startMetricsCollector(ctx, db, deps.media.hlsVODOrch, deps.repos.mediaItemRepo)
 
