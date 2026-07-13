@@ -412,3 +412,24 @@ func TestRebakeDASHManifestURIs_CastToken(t *testing.T) {
 		t.Error("already-queried media attr should be untouched")
 	}
 }
+
+// The mkvgo packager rung must NOT inherit the ffmpeg copy rung's preconditions.
+// planHLSVideoEligible funnelled through isCopyRequest, which additionally
+// requires (a) a wired copyProducer and (b) enough free cache to hold a full
+// copy of the source. mkvgo is STATELESS - it packages on the fly and writes
+// ZERO bytes to the cache (verified: serving a 12 MB od_ segment left the cache
+// dir at 0 entries). So a small cache, or an operator disabling the ffmpeg copy
+// rung, silently pushed copy-eligible titles all the way to a TRANSCODE - the
+// most expensive path - on exactly the weak-NAS boxes those guards exist to
+// protect.
+func TestPlanHLSVideoEligible_IndependentOfFFmpegCopyRung(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
+	// Operator disabled the ffmpeg copy/remux rung (transcoding.remux_copy=off).
+	// mkvgo needs nothing from it.
+	h.copyProducer = nil
+
+	d := decisionFor(h, onDemandReq(), onDemandItem(), copyEligibleAV())
+	assert.True(t, h.planHLSVideoEligible(d, onDemandItem(), copyEligibleAV()),
+		"mkvgo packages without ffmpeg: a disabled copy rung must not disable it")
+}

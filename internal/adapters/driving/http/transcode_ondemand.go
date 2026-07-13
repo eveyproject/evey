@@ -334,7 +334,14 @@ func (h *hlsVODServe) planHLSVideoEligible(decision domaintranscoding.PlaybackDe
 	if h.onDemand == nil || item == nil || item.File == nil || item.File.Path == "" {
 		return false
 	}
-	return h.isCopyRequest(decision, streams, sourceBytesOf(item))
+	// Deliberately NOT isCopyRequest: that gate also demands a wired ffmpeg
+	// copyProducer and enough free cache to hold a full copy of the source. The
+	// packager is stateless - it muxes on the fly and writes nothing to the cache
+	// - so neither applies. Funnelling through it sent copy-eligible titles to a
+	// TRANSCODE whenever the cache was tight or the operator had turned the ffmpeg
+	// copy rung off: the most expensive path, on the weak boxes those guards
+	// exist to protect.
+	return videoCopyEligible(decision, streams)
 }
 
 // audioAllCopyEligible reports whether every audio track can be served verbatim

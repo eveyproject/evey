@@ -791,10 +791,17 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 // copy-eligible - sourceCopyVideoCodec returns "" unless it is H.264 8-bit SDR
 // with a known level (so the master can advertise an accurate avc1.PPCCLL).
 // When false, the request routes through the selector exactly as before.
+// videoCopyEligible reports whether the SOURCE itself can ride a copy rung: the
+// decision says copy and the video codec is one we can carry verbatim. This is
+// the only part the mkvgo packager shares with the ffmpeg copy rung - everything
+// else below (a wired copyProducer, the disk guard) is about ffmpeg WRITING
+// segments, which the packager never does.
+func videoCopyEligible(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
+	return decision.VideoDecision == "copy" && sourceCopyVideoCodec(streams) != ""
+}
+
 func (h *hlsVODServe) isCopyRequest(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream, sourceBytes int64) bool {
-	if h.copyProducer == nil ||
-		decision.VideoDecision != "copy" ||
-		sourceCopyVideoCodec(streams) == "" {
+	if h.copyProducer == nil || !videoCopyEligible(decision, streams) {
 		return false
 	}
 	// Disk guard: the copy rung's segments duplicate ~the source size on disk over
