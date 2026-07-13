@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from "react";
+import { startPlayback } from "./hlsPlayerUtils";
 
 export interface MediaSessionParams {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -100,7 +101,8 @@ export function useMediaSession({
     };
 
     set("play", () => {
-      void video()?.play();
+      const v = video();
+      if (v) void startPlayback(v);
     });
     set("pause", () => video()?.pause());
     set("seekbackward", (d) => {

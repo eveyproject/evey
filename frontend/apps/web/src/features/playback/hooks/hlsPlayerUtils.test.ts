@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { startPlayback } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -319,5 +320,60 @@ describe("computeNativeHLSPreference", () => {
 
   it("never native when the element can't play HLS at all", () => {
     expect(computeNativeHLSPreference(false, UA.safariMac, "MacIntel", 0, true)).toBe(false);
+  });
+});
+
+// Browsers block SOUNDED autoplay, never a muted one. So a refused start is
+// retried muted and the mute lifted straight away - the policy gates play(), not
+// muted. Stopping at the muted start (as the player once did) is how a title
+// opened in a fresh browser played as a silent film with no clue why.
+describe("startPlayback", () => {
+  function fakeVideo(opts: {
+    soundedAutoplay: boolean;   // does the browser allow a sounded play()?
+    pauseOnUnmute?: boolean;    // does it re-pause when we lift the mute?
+  }): HTMLVideoElement {
+    const v = {
+      muted: false,
+      paused: true,
+      play: vi.fn(async () => {
+        if (!v.muted && !opts.soundedAutoplay) throw new DOMException("blocked", "NotAllowedError");
+        v.paused = false;
+      }),
+    };
+    // Lifting the mute on a media the browser deems autoplaying can re-pause it.
+    Object.defineProperty(v, "muted", {
+      get: () => v._muted,
+      set: (next: boolean) => {
+        v._muted = next;
+        if (!next && !v.paused && opts.pauseOnUnmute) v.paused = true;
+      },
+    });
+    v._muted = false;
+    return v as unknown as HTMLVideoElement;
+  }
+
+  it("plays with sound outright when the browser allows it", async () => {
+    const video = fakeVideo({ soundedAutoplay: true });
+
+    await expect(startPlayback(video)).resolves.toBe(true);
+    expect(video.muted).toBe(false);
+    expect(video.paused).toBe(false);
+    expect(video.play).toHaveBeenCalledTimes(1); // no muted detour needed
+  });
+
+  it("blocked autoplay: starts muted, then gets the sound back", async () => {
+    const video = fakeVideo({ soundedAutoplay: false });
+
+    await expect(startPlayback(video)).resolves.toBe(true);
+    expect(video.paused, "it must actually be playing").toBe(false);
+    expect(video.muted, "the mute is a means, not the end state").toBe(false);
+  });
+
+  it("browser re-pauses on unmute: stays muted and PLAYING rather than dead", async () => {
+    const video = fakeVideo({ soundedAutoplay: false, pauseOnUnmute: true });
+
+    await expect(startPlayback(video)).resolves.toBe(true);
+    expect(video.paused, "muted playback beats no playback").toBe(false);
+    expect(video.muted).toBe(true);
   });
 });

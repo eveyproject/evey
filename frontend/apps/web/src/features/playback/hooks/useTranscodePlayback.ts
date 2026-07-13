@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Hls from "hls.js";
-import { buildTranscodeHlsUrl, prefersNativeHLS } from "./hlsPlayerUtils";
+import { buildTranscodeHlsUrl, prefersNativeHLS, startPlayback } from "./hlsPlayerUtils";
 
 // Mirrors the server's shed contract (HTTP 503 on a refused playback start):
 // - too_many_streams: the box can't prepare one more stream because of OTHER
@@ -157,10 +157,7 @@ export function useTranscodePlayback({
       function onLoadedMetadata() {
         if (initialSeekSec > 0) video!.currentTime = initialSeekSec;
         if (!wasPausedRef.current) {
-          video!.play().catch(() => {
-            video!.muted = true;
-            void video!.play().catch(() => { /* user gesture required */ });
-          });
+          void startPlayback(video!);
         }
       }
       function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
@@ -249,13 +246,9 @@ export function useTranscodePlayback({
       } else if (video.currentTime !== 0) {
         video.currentTime = 0;
       }
-      // Browsers block unmuted autoplay until the user has interacted with
-      // the page. Fall back to a muted start so playback begins; the player
-      // UI surfaces the muted state and the user unmutes with one click.
-      video.play().catch(() => {
-        video.muted = true;
-        void video.play().catch(() => { /* user gesture required */ });
-      });
+      // Sound or nothing: a browser that blocks the autoplay leaves the video
+      // paused and unmuted, and the controls' play button starts it on one click.
+      void startPlayback(video);
     });
 
     let retries = 0;
@@ -341,12 +334,18 @@ export function useTranscodePlayback({
 
     function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
     function handleEnded() { onEnded?.(); }
-    function handleWaiting() { setIsBuffering(true); }
+    // A PAUSED player is not buffering. The browser fires `waiting` on pause too
+    // (and on a seek while paused), and no `playing` follows to clear it - so the
+    // "Buffering…" overlay sat in the middle of the screen for as long as you were
+    // paused. Only ever spin for a stall during PLAYBACK.
+    function handleWaiting() { if (!video!.paused) setIsBuffering(true); }
     function handlePlaying() { setIsBuffering(false); }
+    function handlePause() { setIsBuffering(false); }
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("ended", handleEnded);
     video.addEventListener("waiting", handleWaiting);
     video.addEventListener("playing", handlePlaying);
+    video.addEventListener("pause", handlePause);
 
     return () => {
       wasPausedRef.current = video.paused;
@@ -354,6 +353,7 @@ export function useTranscodePlayback({
       video.removeEventListener("ended", handleEnded);
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("playing", handlePlaying);
+      video.removeEventListener("pause", handlePause);
       hls.destroy();
       hlsRef.current = null;
       // Clear any in-flight buffering spinner when the instance is torn down

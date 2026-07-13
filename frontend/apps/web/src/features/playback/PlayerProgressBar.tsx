@@ -14,7 +14,6 @@ export interface PlayerProgressBarProps {
   mediaId?: string;
   mediaType?: string;
   onSeek: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onChapterSeek: (timeSec: number) => void;
 }
 
 export function PlayerProgressBar({
@@ -26,7 +25,6 @@ export function PlayerProgressBar({
   mediaId,
   mediaType,
   onSeek,
-  onChapterSeek,
 }: PlayerProgressBarProps) {
   const { t } = useTranslation();
   const seekBarRef = useRef<HTMLDivElement | null>(null);
@@ -129,12 +127,10 @@ export function PlayerProgressBar({
         className="absolute left-0 h-1 rounded group-hover:h-1.5 transition-all bg-[var(--accent)]"
         style={{ width: effectiveDuration > 0 ? `${(displayTime / effectiveDuration) * 100}%` : "0%" }}
       />
-      <ChapterMarkers
-        chapters={chapters}
-        durationSec={effectiveDuration}
-        currentTimeSec={absoluteTime}
-        onSeek={onChapterSeek}
-      />
+      {/* Notches only: the seek input below owns every click, so clicking mid-bar
+          seeks THERE instead of snapping to the chapter start. Jumping to a chapter
+          is the chapters panel's job. */}
+      <ChapterMarkers chapters={chapters} durationSec={effectiveDuration} />
       <input
         type="range"
         min={0}

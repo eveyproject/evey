@@ -244,3 +244,43 @@ export function resolveDefaultSubtitle(
   const match = subtitleStreams.find((s) => matchLang(s.language, s.title, prefLang));
   return match?.trackIndex ?? null;
 }
+
+// startPlayback begins playback and gets the sound back on.
+//
+// Browsers only block SOUNDED autoplay: play() is refused until the viewer has
+// interacted with the page, but a MUTED play() is always allowed. So when the
+// sounded start is refused, start muted - then lift the mute straight away, which
+// is the only part the policy does not gate. The viewer gets, at worst, a few
+// silent frames.
+//
+// The player used to stop at the muted start and never lift it, which is how a
+// title opened in a fresh browser played as a silent film with no clue why.
+//
+// A browser may still object to the unmute (Firefox can re-pause a media it
+// considers autoplaying with sound). If it does, keep it muted and PLAYING rather
+// than dropping the viewer into a dead player: the volume control shows the muted
+// state, and one click brings the sound back.
+export async function startPlayback(video: HTMLVideoElement): Promise<boolean> {
+  try {
+    await video.play();
+    return true; // sounded autoplay allowed - nothing to work around
+  } catch {
+    // fall through to the muted start
+  }
+
+  video.muted = true;
+  try {
+    await video.play();
+  } catch {
+    video.muted = false; // hard block: needs a real gesture, don't leave it muted
+    return false;
+  }
+
+  video.muted = false;
+  if (video.paused) {
+    // The browser answered the unmute by pausing. Muted playback beats none.
+    video.muted = true;
+    await video.play().catch(() => { /* nothing left to try */ });
+  }
+  return !video.paused;
+}

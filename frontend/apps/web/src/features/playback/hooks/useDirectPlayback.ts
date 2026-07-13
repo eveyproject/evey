@@ -123,7 +123,9 @@ export function useDirectPlayback({
       setTranscodeMode(true);
     }
     function handleTimeUpdate() { positionRef.current = video!.currentTime; }
-    function handleWaiting() { setIsBuffering(true); }
+    // A PAUSED player is not buffering - see useTranscodePlayback: the browser
+    // fires `waiting` on pause too, with no `playing` to clear it.
+    function handleWaiting() { if (!video!.paused) setIsBuffering(true); }
     function handlePlaying() { setIsBuffering(false); }
     video.addEventListener("timeupdate", handleTimeUpdate);
     video.addEventListener("ended", handleEnded);
@@ -132,6 +134,7 @@ export function useDirectPlayback({
     video.addEventListener("waiting", handleWaiting);
     video.addEventListener("playing", handlePlaying);
     video.addEventListener("canplaythrough", handlePlaying);
+    video.addEventListener("pause", handlePlaying);
 
     return () => {
       if (canPlayTimer !== null) clearTimeout(canPlayTimer);
@@ -142,6 +145,7 @@ export function useDirectPlayback({
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("playing", handlePlaying);
       video.removeEventListener("canplaythrough", handlePlaying);
+      video.removeEventListener("pause", handlePlaying);
     };
   }, [streamInfo, startPositionMs, onEnded, transcodeMode]);
 }

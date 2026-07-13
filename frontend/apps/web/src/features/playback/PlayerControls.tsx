@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, SkipBack, SkipForward, Pause, Play, Minimize, Maximize, PictureInPicture, PictureInPicture2, ChevronFirst, ChevronLast, Loader, MoreHorizontal, Cast } from "lucide-react";
 import { PlayOnPicker } from "./PlayOnPicker";
+import { startPlayback } from "./hooks/hlsPlayerUtils";
 import { useTranslation } from "react-i18next";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import { PlayerVolumeControl } from "./PlayerVolumeControl";
@@ -259,7 +260,9 @@ function PlayerControlsInner({
     }
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) void video.play();
+    // A play() still in flight rejects with AbortError the moment a pause()
+    // interrupts it - expected, not an error worth surfacing.
+    if (video.paused) void startPlayback(video);
     else video.pause();
   }
 
