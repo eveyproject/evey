@@ -322,3 +322,50 @@ func TestHWRouteUsable_MatchesEffectiveCodec_AV1Fallback(t *testing.T) {
 		t.Error("route side must agree: this session runs on the GPU")
 	}
 }
+
+// A source that needs HDR tone-mapping on a backend that cannot tone-map on the
+// GPU is encoded in SOFTWARE: the tonemap filter (tonemapx) runs on the CPU and
+// the encoder follows it there. Routing such a request to the HARDWARE producer
+// anyway made the ladder inherit the GPU ceiling - so the manifest advertised a
+// 2160p rung for what is really a libx264 encode capped at software_hdr_max_height.
+//
+// Observed on a real 4K Dolby Vision title (dev box, NVENC, hw_tonemap=false):
+// the master advertised 3840x2160, the player asked for it, ffmpeg started
+// `-c:v libx264 scale=3840:-2 tonemapx`, and the segment 503'd after 5 s. The
+// player then collapsed to the bottom 480p rung - which is exactly what the
+// operator saw: slow to start, then stuck in 480p.
+func TestHWRouteUsable_HDRWithoutHWTonemap_RoutesSoftware(t *testing.T) {
+	// NVENC encodes fine, but has no modelled GPU tone-map (libplacebo path).
+	// Mirrors the dev box's real calibration: NVENC encodes, decodes 10-bit HEVC,
+	// but has NO GPU tone-map. This is what made the 4K rung look producible.
+	nvencNoTonemap := domaintranscoding.EncodeCapability{
+		HWBackend:        "nvenc",
+		HWCodecs:         []string{"h264", "hevc"},
+		HWDecodeCodecs:   []string{"h264", "hevc"},
+		HW10BitTranscode: true,
+		HWTonemap:        false,
+		HWMaxHeight:      2160,
+	}
+	h := &hlsVODServe{
+		capability:     func() domaintranscoding.EncodeCapability { return nvencNoTonemap },
+		hwAccelEnabled: func() bool { return true },
+		av1Enabled:     func() bool { return false },
+	}
+	src := apptranscoding.SourceDims{Codec: "hevc", TenBit: true}
+
+	hdr := domaintranscoding.PlaybackDecision{
+		VideoCodec:       "h264",
+		VideoDecision:    "transcode",
+		TranscodeReasons: []string{"hdr_tonemapping_needed"},
+	}
+	if h.hwRouteUsable(hdr, src) {
+		t.Error("HDR source + no GPU tone-map must route SOFTWARE: the encode is libx264, " +
+			"so the ladder must take the software ceiling, not the GPU one")
+	}
+
+	// Same host, an SDR source: nothing to tone-map, the GPU path stands.
+	sdr := domaintranscoding.PlaybackDecision{VideoCodec: "h264", VideoDecision: "transcode"}
+	if !h.hwRouteUsable(sdr, apptranscoding.SourceDims{Codec: "h264"}) {
+		t.Error("an SDR source must still ride the GPU")
+	}
+}

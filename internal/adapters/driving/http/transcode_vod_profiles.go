@@ -93,6 +93,17 @@ func (h *hlsVODServe) resolveHW(outputCodec, sourceCodec string, sourceTenBit, h
 // host is ENCODED as H.264, so the route must be resolved for H.264 too.
 func (h *hlsVODServe) hwRouteUsable(decision domaintranscoding.PlaybackDecision, src apptranscoding.SourceDims) bool {
 	hwTonemap := h.hwTonemapWanted(decision)
+	// A source that must be tone-mapped on a backend that cannot do it on the GPU
+	// is encoded in SOFTWARE: tonemapx runs on the CPU and the encoder follows it
+	// there (see BuildFFmpegArgs). Routing it to the hardware producer anyway made
+	// the LADDER inherit the GPU ceiling - so the master advertised a 2160p rung
+	// for what is really a libx264 encode, capped by SoftwareHDRMaxHeight. The
+	// player asked for that rung, ffmpeg tried `-c:v libx264 scale=3840:-2
+	// tonemapx`, the segment 503'd, and playback collapsed to the bottom rung.
+	// The route must follow the silicon that actually runs the encode.
+	if !hwTonemap && slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed") {
+		return false
+	}
 	codec := decision.VideoCodec
 	_, _, _, usable := h.resolveHW(codec, src.Codec, src.TenBit, hwTonemap)
 	if strings.EqualFold(codec, "av1") && ((h.av1Enabled != nil && !h.av1Enabled()) || !usable) {
