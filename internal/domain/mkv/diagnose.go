@@ -3,8 +3,9 @@ package mkv
 import "context"
 
 // DiagnosisFinding is one diagnosed defect with its remedy, mirroring mkvgo's
-// ops.Finding. Kind is one of: no-index | index-misskeyed | index-stale-tracks
-// | audio-delay | truncated | damaged | trailing-junk | streamed-size.
+// ops.Finding. Kind is one of: no-index | index-misskeyed | index-sparse |
+// index-stale-tracks | audio-delay | truncated | damaged | trailing-junk |
+// streamed-size.
 type DiagnosisFinding struct {
 	Kind    string
 	Detail  string
@@ -36,12 +37,13 @@ type Diagnosis struct {
 
 // HasIndexDefect reports whether the diagnosis found a seek-index defect: a
 // missing index, or one that is present but unusable for video seeking
-// (misskeyed onto audio, or referencing tracks the file no longer has). Such a
-// file must be reindexed even though a Cues element physically exists.
+// (misskeyed onto audio, too sparse to land a seek near its target, or
+// referencing tracks the file no longer has). Such a file must be reindexed
+// even though a Cues element physically exists.
 func (d *Diagnosis) HasIndexDefect() bool {
 	for _, f := range d.Findings {
 		switch f.Kind {
-		case "no-index", "index-misskeyed", "index-stale-tracks":
+		case "no-index", "index-misskeyed", "index-sparse", "index-stale-tracks":
 			return true
 		}
 	}

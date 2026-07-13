@@ -12,7 +12,8 @@ import (
 )
 
 // The native prober reports the max audio start delay without ffprobe.
-//   EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/mkvgo/ -run TestNativeAudioDelayProber -v
+//
+//	EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/mkvgo/ -run TestNativeAudioDelayProber -v
 func TestNativeAudioDelayProberIntegration(t *testing.T) {
 	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
 		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1")

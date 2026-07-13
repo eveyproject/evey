@@ -518,7 +518,12 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 			if !res.Skipped {
 				s.refreshFileState(bg, path)
 				hasBak := res.BackupPath != ""
-				s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = hasBak })
+				s.updateCachedFile(path, func(st *SeekStatus) {
+					st.HasIndex = true
+					st.HasBackup = hasBak
+					st.DamagedBytes = 0
+					st.Truncated = false
+				})
 				if hasBak && run.BackupWindow > 0 {
 					window = append(window, path)
 					if len(window) > run.BackupWindow {
@@ -552,7 +557,12 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 	}
 	s.refreshFileState(bg, path)
 	hasBak := res.BackupPath != ""
-	s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = hasBak })
+	s.updateCachedFile(path, func(st *SeekStatus) {
+		st.HasIndex = true
+		st.HasBackup = hasBak
+		st.DamagedBytes = 0
+		st.Truncated = false
+	})
 	if hasBak && rb != nil && rb.max > 0 {
 		rb.window = append(rb.window, path)
 		if len(rb.window) > rb.max {
@@ -574,11 +584,32 @@ func (s *SeekIndexService) drainRollingBackups(bg context.Context, rb *rollingBa
 	}
 }
 
-// missingIndexItems is the un-indexed subset used by the space preflight.
-func missingIndexItems(items []SeekStatus) []SeekStatus {
+// needsReindex reports whether it belongs in a reindex/repair batch: when its
+// index is missing/unusable, and - only under Resync, the operator's
+// explicit consent to trade bytes for playability - also when it has real
+// mid-file corruption a healthy index doesn't excuse (PlanHLS refuses such a
+// file outright, however good its Cues are). Truncated is excluded from
+// BOTH: its damage runs to EOF, unrecoverable by any reindex or resync, index
+// or no index - a real attempt on one (proven against a real truncated file,
+// no index) fails a verify step and reports a spurious failure for a file
+// the operator can only fix by re-acquiring the source, never by repairing.
+func needsReindex(it SeekStatus, resync bool) bool {
+	if it.Truncated {
+		return false
+	}
+	if !it.HasIndex {
+		return true
+	}
+	return resync && it.DamagedBytes > 0
+}
+
+// reindexCandidates is the subset of items a reindex/repair batch will act
+// on, shared by the space preflight and the batch's own selection so the two
+// never drift apart.
+func reindexCandidates(items []SeekStatus, resync bool) []SeekStatus {
 	var out []SeekStatus
 	for _, it := range items {
-		if !it.HasIndex {
+		if needsReindex(it, resync) {
 			out = append(out, it)
 		}
 	}
@@ -599,7 +630,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 	if syncPreflight {
 		if scan, _, ok := s.CachedScan(libraryID); ok {
 			cacheHit = true
-			if err := s.backupSpacePreflight(missingIndexItems(scan.Items)); err != nil {
+			if err := s.backupSpacePreflight(reindexCandidates(scan.Items, opts.Resync)); err != nil {
 				return err
 			}
 		}
@@ -619,7 +650,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 				return
 			}
 			if syncPreflight && !cacheHit {
-				if err := s.backupSpacePreflight(missingIndexItems(scan.Items)); err != nil {
+				if err := s.backupSpacePreflight(reindexCandidates(scan.Items, opts.Resync)); err != nil {
 					s.finish(err)
 					return
 				}
@@ -628,7 +659,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 		var idx, aud []string
 		reindexing := map[string]bool{}
 		for _, it := range scan.Items {
-			if !it.HasIndex {
+			if needsReindex(it, opts.Resync) {
 				idx = append(idx, it.Path)
 				reindexing[it.Path] = true
 			}
@@ -701,7 +732,12 @@ func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID string
 		if !res.Skipped {
 			s.refreshFileState(bg, path)
 			hasBak := res.BackupPath != ""
-			s.updateCachedFile(path, func(st *SeekStatus) { st.HasIndex = true; st.HasBackup = hasBak })
+			s.updateCachedFile(path, func(st *SeekStatus) {
+				st.HasIndex = true
+				st.HasBackup = hasBak
+				st.DamagedBytes = 0
+				st.Truncated = false
+			})
 			s.logDamagedRanges(path, res.DamagedRanges)
 		}
 		return res.Skipped, nil

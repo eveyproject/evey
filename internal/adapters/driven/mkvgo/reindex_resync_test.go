@@ -24,14 +24,15 @@ func TestReindexResyncIntegration(t *testing.T) {
 	ctx := t.Context()
 	dir := t.TempDir()
 	clean := filepath.Join(dir, "clean.mkv")
-	// A multi-cluster no-Cue MKV (piped output = streamed, no seek index).
-	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
-		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
-		"-f", "lavfi", "-i", "sine=frequency=300",
-		"-t", "40", "-c:v", "libx264", "-preset", "ultrafast", "-g", "48",
-		"-c:a", "aac", "-cluster_time_limit", "500", "-f", "matroska", clean)
-	// pipe to file so ffmpeg cannot seek back to write Cues
-	gen.Stdout = nil
+	// A multi-cluster no-Cue MKV: ffmpeg writes to its OWN stdout ("-f matroska
+	// -"), which the shell redirects to clean - a real pipe, so ffmpeg cannot
+	// seek back to write Cues (unlike passing `clean` as ffmpeg's own output
+	// argument, which hands it a seekable file and gets a real Cues element
+	// mkvgo can always rediscover, defeating this fixture's whole premise).
+	gen := exec.CommandContext(ctx, "sh", "-c",
+		"ffmpeg -hide_banner -v error -y -f lavfi -i testsrc2=size=320x180:rate=24 "+
+			"-f lavfi -i sine=frequency=300 -t 40 -c:v libx264 -preset ultrafast -g 48 "+
+			"-c:a aac -cluster_time_limit 500 -f matroska - > "+clean)
 	if out, err := gen.CombinedOutput(); err != nil {
 		t.Fatalf("fixture: %v\n%s", err, out)
 	}

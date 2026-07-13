@@ -100,9 +100,10 @@ func (a *Adapter) RestoreBackup(ctx context.Context, path string) error {
 	return nil
 }
 
-// HasSeekIndex reports whether the EBML file at path already has a Cues index.
-// It first tries the head-SeekHead probe (a few KB of reads - what makes a
-// whole-library scan feasible); only undecidable files pay the full parse.
+// HasSeekIndex reports whether the EBML file at path already has a Cues index
+// that can serve a video seek. It first tries the head-SeekHead probe (a few
+// KB of reads - what makes a whole-library scan feasible); only undecidable
+// files pay the full parse.
 func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.HasSeekIndex")
 	defer span.End()
@@ -114,17 +115,17 @@ func (a *Adapter) HasSeekIndex(ctx context.Context, path string) (bool, error) {
 		return false, nil
 	}
 	// A probe positive only proves a Cues ELEMENT sits at the SeekHead offset.
-	// Repacks in the wild ship an EMPTY/garbage Cues body (phantom index):
-	// ffmpeg then scans the whole file on any -ss and native players report the
-	// stream unseekable - exactly the files a repair must flag. Confirm through
-	// OpenMeta, which parses the element's REAL content without the cluster
-	// walk (the full reader.Open synthesizes cue points from the walk, so its
-	// Cues are non-empty even when the file's index is unusable).
-	c, err := reader.OpenMeta(ctx, path, reader.WithCues())
+	// Repacks in the wild ship an EMPTY/garbage Cues body (phantom index), or
+	// one keyed onto the audio track only (every seek then lands mid-GOP) -
+	// exactly the files a repair must flag. Confirm through CueHealth, which
+	// judges the video-keyed cues alone (the ones a video seek actually uses),
+	// not raw Cues presence: a non-empty index that never names a video
+	// keyframe is functionally no index at all.
+	ch, err := ops.CueHealth(ctx, path)
 	if err != nil {
 		return false, fmt.Errorf("mkvgo has-seek-index: %w", err)
 	}
-	return len(c.Cues) > 0, nil
+	return ch.VideoCues > 0, nil
 }
 
 // rewriteHeadroomBytes is the safety margin demanded on top of the source

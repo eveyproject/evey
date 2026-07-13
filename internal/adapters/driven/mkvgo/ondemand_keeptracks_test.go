@@ -19,8 +19,8 @@ import (
 func TestKeepTracksFor(t *testing.T) {
 	tracks := []extmkv.Track{
 		{ID: 1, Type: extmkv.VideoTrack},
-		{ID: 2, Type: extmkv.AudioTrack},   // audio ordinal 0
-		{ID: 3, Type: extmkv.AudioTrack},   // audio ordinal 1
+		{ID: 2, Type: extmkv.AudioTrack}, // audio ordinal 0
+		{ID: 3, Type: extmkv.AudioTrack}, // audio ordinal 1
 		{ID: 4, Type: extmkv.SubtitleTrack},
 		{ID: 5, Type: extmkv.SubtitleTrack},
 	}

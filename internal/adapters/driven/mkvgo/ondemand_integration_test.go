@@ -417,8 +417,9 @@ func TestOnDemandPackagerIntegration_KeepAudioTrack(t *testing.T) {
 // on-demand plan fail. The handler then logged "on-demand plan build failed,
 // falling back to ffmpeg" and RE-ENCODED THE VIDEO, which was perfectly
 // copy-eligible. Proven live on a real HEVC/bt709 + TrueHD title:
-//   err=mkvgo PlanHLS ".../S01E06.mkv": mp4: track 3: codec "truehd" cannot be
-//   remuxed to MP4 (set Options.SkipUnsupported to drop it)
+//
+//	err=mkvgo PlanHLS ".../S01E06.mkv": mp4: track 3: codec "truehd" cannot be
+//	remuxed to MP4 (set Options.SkipUnsupported to drop it)
 //
 // The admin remux path already passes SkipUnsupported (adapter.go); the serving
 // path did not. Evey re-encodes the audio it can't carry anyway (hybrid rung),

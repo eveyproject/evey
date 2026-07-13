@@ -56,6 +56,17 @@ func validCues(t *testing.T, clusterPos uint64) []byte {
 	return elem(t, extmkv.IDCues, cp)
 }
 
+// videoTrackElem builds a Tracks element declaring track 1 as video - the
+// track validCues' CuePoints target. HasSeekIndex now judges video-keyed
+// cues specifically (CueHealth's VideoCues), so a fixture asserting "this
+// index reports as usable" needs a real track for its cues to key onto, not
+// just an unattributed CueTrack number.
+func videoTrackElem(t *testing.T) []byte {
+	t.Helper()
+	entry := append(uintElem(t, extmkv.IDTrackNumber, 1, 1), uintElem(t, extmkv.IDTrackType, extmkv.TrackTypeVideo, 1)...)
+	return elem(t, extmkv.IDTracks, elem(t, extmkv.IDTrackEntry, entry))
+}
+
 func writeFixture(t *testing.T, name string, segChildren ...[]byte) string {
 	t.Helper()
 	var seg bytes.Buffer
@@ -72,14 +83,15 @@ func writeFixture(t *testing.T, name string, segChildren ...[]byte) string {
 
 func TestHasSeekIndex_FastPath_SeekHeadListsCues(t *testing.T) {
 	void := elem(t, extmkv.IDVoid, make([]byte, 32))
+	tracks := videoTrackElem(t)
 	// Fixed-width entries keep the SeekHead/Cues lengths stable across rewrites.
 	placeholderSH := elem(t, extmkv.IDSeekHead, seekEntry(t, extmkv.IDCues, 0))
-	cuesPos := uint64(len(placeholderSH) + len(void))
+	cuesPos := uint64(len(placeholderSH) + len(tracks) + len(void))
 	clusterPos := cuesPos + uint64(len(validCues(t, 0)))
 	cues := validCues(t, clusterPos)
 	sh := elem(t, extmkv.IDSeekHead, seekEntry(t, extmkv.IDCues, cuesPos))
 	cluster := elem(t, extmkv.IDCluster, []byte("garbage a full cluster walk would reject"))
-	path := writeFixture(t, "indexed.mkv", sh, void, cues, cluster)
+	path := writeFixture(t, "indexed.mkv", sh, tracks, void, cues, cluster)
 
 	has, err := New().HasSeekIndex(context.Background(), path)
 	if err != nil {
@@ -112,7 +124,7 @@ func TestHasSeekIndex_FastPath_CuesAtHead(t *testing.T) {
 	clusterPos := uint64(len(validCues(t, 0)))
 	cues := validCues(t, clusterPos)
 	cluster := elem(t, extmkv.IDCluster, []byte("garbage"))
-	path := writeFixture(t, "cueshead.mkv", cues, cluster)
+	path := writeFixture(t, "cueshead.mkv", videoTrackElem(t), cues, cluster)
 
 	has, err := New().HasSeekIndex(context.Background(), path)
 	if err != nil {

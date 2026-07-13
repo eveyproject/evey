@@ -840,10 +840,10 @@ func TestSeekIndexService_RemuxAudioMedia(t *testing.T) {
 // by a second swap) - its audio is caught on the next run.
 func TestSeekIndexService_RepairLibrary_Combined(t *testing.T) {
 	dir := t.TempDir()
-	noIndex := filepath.Join(dir, "noindex.mkv")   // reindex only
-	delayed := filepath.Join(dir, "delayed.mkv")   // remux only
-	both := filepath.Join(dir, "both.mkv")         // reindex this run, audio deferred
-	healthy := filepath.Join(dir, "healthy.mkv")   // untouched
+	noIndex := filepath.Join(dir, "noindex.mkv") // reindex only
+	delayed := filepath.Join(dir, "delayed.mkv") // remux only
+	both := filepath.Join(dir, "both.mkv")       // reindex this run, audio deferred
+	healthy := filepath.Join(dir, "healthy.mkv") // untouched
 	for _, p := range []string{noIndex, delayed, both, healthy} {
 		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
 	}
@@ -918,6 +918,96 @@ func TestSeekIndexService_RepairLibrary_AudioWantedButUnavailable(t *testing.T) 
 	st := waitIdle(t, svc)
 	require.NotNil(t, st.Last)
 	assert.Equal(t, []string{p}, reidx.reindexed)
+}
+
+// A file with a HEALTHY index but real mid-file corruption (Diagnose already
+// proved it: DamagedBytes > 0) is unplayable in practice (mkvgo's PlanHLS
+// refuses to synthesize a plan for it) yet was never selected by ANY repair
+// batch, because selection only ever looked at HasIndex - DamagedBytes/
+// Truncated were reporting-only. Resync mode is the operator's explicit
+// consent to trade bytes for playability (same bar as everywhere else this
+// repair runs), so it - and only it - now also picks up these files. The
+// default (non-Resync) batch must stay exactly as safe as before: it never
+// touches a file whose index is already fine, whatever else is wrong with it.
+func TestSeekIndexService_RepairLibrary_ResyncIncludesDamagedIndexedFiles(t *testing.T) {
+	dir := t.TempDir()
+	damaged := filepath.Join(dir, "damaged.mkv")     // healthy index, mid-file corruption
+	truncated := filepath.Join(dir, "truncated.mkv") // healthy index, damage runs to EOF
+	healthy := filepath.Join(dir, "healthy.mkv")
+	for _, p := range []string{damaged, truncated, healthy} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{damaged: true, truncated: true, healthy: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Path: damaged}, {MediaID: "m2", Path: truncated}, {MediaID: "m3", Path: healthy},
+	}}
+	diag := fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
+		damaged:   {Healthy: false, Findings: []mkv.DiagnosisFinding{{Kind: "damaged"}}, DamagedBytes: 4096},
+		truncated: {Healthy: false, Findings: []mkv.DiagnosisFinding{{Kind: "damaged"}}, DamagedBytes: 4096, Truncated: true},
+		healthy:   {Healthy: true},
+	}}
+
+	// Default (non-Resync) repair: never touches an already-indexed file,
+	// damaged or not - the existing, always-safe behavior must not regress.
+	svcDefault := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithDiagnoser(diag)
+	require.NoError(t, svcDefault.StartScan(context.Background(), ""))
+	waitIdle(t, svcDefault)
+	require.NoError(t, svcDefault.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, false))
+	waitIdle(t, svcDefault)
+	assert.Empty(t, reidx.reindexed, "non-Resync repair must not touch an already-indexed file")
+
+	// Explicit Resync repair: the operator has opted into trading bytes for
+	// playability - the damaged-but-indexed file is now in scope. The
+	// truncated file stays out: its tail is unrecoverably gone, re-acquiring
+	// the source is the only real fix (existing, unchanged philosophy).
+	reidx2 := &fakeReindexer{hasIndex: map[string]bool{damaged: true, truncated: true, healthy: true}}
+	cat2 := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Path: damaged}, {MediaID: "m2", Path: truncated}, {MediaID: "m3", Path: healthy},
+	}}
+	svcResync := appmaintenance.NewSeekIndexService(reidx2, cat2, nil).WithDiagnoser(diag)
+	require.NoError(t, svcResync.StartScan(context.Background(), ""))
+	waitIdle(t, svcResync)
+	require.NoError(t, svcResync.StartRepairLibrary(context.Background(), "",
+		appmaintenance.ReindexRunOptions{Resync: true}, false))
+	waitIdle(t, svcResync)
+	assert.Equal(t, []string{damaged}, reidx2.reindexed,
+		"Resync repair must pick up the damaged-but-indexed file, and only that one")
+}
+
+// A truncated file with NO index at all (missing tail AND no Cues - a real
+// combination: found against an actual truncated file in the library) must
+// stay out of the batch just as much as a truncated-but-indexed one. The old
+// selection (`!HasIndex` alone, no Truncated check) picked it up regardless,
+// and a real repair attempt on one failed a verify step ("cue mismatch") -
+// harmless (the file is left intact) but a spurious failure for something
+// only re-acquiring the source can actually fix.
+func TestSeekIndexService_RepairLibrary_ExcludesTruncatedEvenWithoutIndex(t *testing.T) {
+	dir := t.TempDir()
+	truncNoIndex := filepath.Join(dir, "trunc_noindex.mkv")
+	healthy := filepath.Join(dir, "healthy.mkv")
+	for _, p := range []string{truncNoIndex, healthy} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{truncNoIndex: false, healthy: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Path: truncNoIndex}, {MediaID: "m2", Path: healthy},
+	}}
+	diag := fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
+		truncNoIndex: {Findings: []mkv.DiagnosisFinding{{Kind: "no-index"}, {Kind: "damaged"}}, DamagedBytes: 16, Truncated: true},
+		healthy:      {Healthy: true},
+	}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).WithDiagnoser(diag)
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+
+	// Both modes: a truncated file is never a candidate, index or no index.
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{}, false))
+	waitIdle(t, svc)
+	assert.Empty(t, reidx.reindexed, "truncated-without-index must not be reindexed even in the default mode")
+
+	require.NoError(t, svc.StartRepairLibrary(context.Background(), "", appmaintenance.ReindexRunOptions{Resync: true}, false))
+	waitIdle(t, svc)
+	assert.Empty(t, reidx.reindexed, "truncated-without-index must not be reindexed under Resync either")
 }
 
 // In a combined "repair all" that does NOT keep backups (a rolling window),
