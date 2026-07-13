@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -60,6 +61,17 @@ type Runner struct {
 	media         MediaLister
 	activeStreams func() int
 	logger        *slog.Logger
+
+	// servedBytes is the running total of bytes every viewer has pulled this
+	// run - which is exactly what the server had to push. It is the honest
+	// measure of served throughput: the simulated viewers reach the server
+	// over loopback, so no NIC counter would see this traffic. Reset at the
+	// start of each run (only one runs at a time).
+	servedBytes atomic.Int64
+
+	// counters is where the resource sampler reads CPU/memory/disk from. nil
+	// means the server's own cgroup; tests inject a modelled machine.
+	counters counterSource
 
 	mu              sync.Mutex
 	running         bool
@@ -175,6 +187,20 @@ func (r *Runner) finish(report Report) {
 		"shared_cache_viewers", report.SharedCacheViewers,
 		"skipped_candidates", report.SkippedCandidates,
 		"duration_ms", report.EndedAt.Sub(report.StartedAt).Milliseconds(),
+		"cpu_pct_avg", int(report.Resources.CPUPercentAvg),
+		"cpu_pct_peak", int(report.Resources.CPUPercentPeak),
+		"mem_used_mb", report.Resources.MemUsedBytesAvg/(1<<20),
+		"mem_limit_mb", report.Resources.MemLimitBytes/(1<<20),
+		"disk_read_mbps", report.Resources.DiskReadBytesPerSecAvg/(1<<20),
+		"served_mbps", report.Resources.ServedBytesPerSecAvg*8/1e6,
+	}
+	if report.HasPerViewerCost {
+		args = append(args,
+			"per_viewer_cpu_pct", int(report.PerViewerCost.CPUPercentAvg),
+			"per_viewer_mem_mb", report.PerViewerCost.MemUsedBytesAvg/(1<<20),
+			"per_viewer_disk_read_kbps", report.PerViewerCost.DiskReadBytesPerSecAvg/(1<<10),
+			"per_viewer_served_mbps", report.PerViewerCost.ServedBytesPerSecAvg*8/1e6,
+		)
 	}
 	for _, vt := range sortedKeys(report.ViewerMix) {
 		args = append(args, "mix_"+vt, report.ViewerMix[vt])
@@ -213,7 +239,10 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		"max_duration", cfg.MaxDuration.String(),
 	)
 
-	candidates, err := r.media.ListLoadTestCandidates(runCtx, cfg.MaxViewers)
+	// Ask for far more titles than viewers. The pool multiplies them by start
+	// position anyway, and a generous list is what lets an ineligible title be
+	// skipped without costing a viewer.
+	candidates, err := r.media.ListLoadTestCandidates(runCtx, candidatePoolSize)
 	if err != nil {
 		r.finish(Report{
 			Scenario: cfg.Scenario, Mode: cfg.Mode, StopReason: StopError,
@@ -230,6 +259,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		})
 		return
 	}
+	pool := newCandidatePool(candidates, cfg.MaxDuration)
 
 	isFlash := cfg.Mode == ModeFlash
 	isEndurance := cfg.Mode == ModeEndurance
@@ -242,7 +272,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	ramp := rampState{viewerTypeBySlot: map[int]viewerType{}}
 
 	r.setStatus("ramping", ramp.tier)
-	if ok, detail := r.spawnInitialViewers(isFlash, viewerCtx, cfg, candidates, events, &wg, &ramp); !ok {
+	if ok, detail := r.spawnInitialViewers(isFlash, viewerCtx, cfg, pool, events, &wg, &ramp); !ok {
 		cancelViewers()
 		wg.Wait()
 		r.finish(Report{
@@ -268,8 +298,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	// exactly "obtained its first segment and was never shed".
 	flash := flashState{served: map[int]bool{}, shed: map[int]bool{}}
 
-	slo := sloTracker{ms: cfg.SegmentSLOMs, locked: cfg.SegmentSLOMs > 0}
-
+	slo := newSLOTracker(cfg.SegmentSLOMs)
 	samples := sampleState{
 		tierSegments:    map[int][]int{},
 		tierTTFF:        map[int][]int{},
@@ -278,6 +307,20 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 
 	rampTicker := time.NewTicker(cfg.RampEvery)
 	defer rampTicker.Stop()
+
+	// The resource sampler is what lets the run name its own bottleneck. It
+	// samples the server's cgroup (ffmpeg included) on its own cadence,
+	// independent of the ramp, and discards each tier's warm-up so a tier is
+	// only ever judged in steady state.
+	r.servedBytes.Store(0)
+	src := r.counters
+	if src == nil {
+		src = cgroupSource{fsRoot: cfg.fsRoot()}
+	}
+	sampler := newResourceSampler(src)
+	res := newResourceState(cfg.resourceWarmup(), time.Now())
+	resTicker := time.NewTicker(cfg.resourceSampleEvery())
+	defer resTicker.Stop()
 
 	var stopReason StopReason
 	var stopDetail string
@@ -290,6 +333,25 @@ runLoop:
 			stopReason, stopDetail, sustained = r.cancelVerdict(runCtx, isEndurance, ramp.tier, cfg)
 			break runLoop
 
+		case <-resTicker.C:
+			// Stamp the sample when the counters are READ, not when the ticker
+			// fired. The run loop may have been busy draining viewer events, and
+			// dating a read against an older tick would divide a larger CPU delta
+			// by a smaller wall-clock delta - inflating the percentage enough to
+			// fake a saturation verdict.
+			now := time.Now()
+			sample, ok := sampler.sample(r.servedBytes.Load(), now)
+			if !ok {
+				continue
+			}
+			if reason, detail := res.observe(ramp.tier, sample, now); reason != "" {
+				// A saturated resource IS the capacity verdict: the tier that
+				// broke it is one too many, so the sustained count is the tier
+				// below.
+				stopReason, stopDetail, sustained = reason, detail, max(ramp.tier-1, 0)
+				break runLoop
+			}
+
 		case <-flashWindowC:
 			// The observation window is over: tally who made it. A refusal
 			// mid-window never broke this loop (see evAdmissionFull below),
@@ -299,7 +361,7 @@ runLoop:
 			break runLoop
 
 		case ev := <-events:
-			if reason, detail, sust, stop := r.handleViewerEvent(ev, isFlash, viewerCtx, cfg, candidates, events, &wg, &ramp, &flash, &slo, &samples); stop {
+			if reason, detail, sust, stop := r.handleViewerEvent(ev, isFlash, viewerCtx, cfg, pool, events, &wg, &ramp, &flash, slo, &samples); stop {
 				stopReason, stopDetail, sustained = reason, detail, sust
 				break runLoop
 			}
@@ -310,7 +372,7 @@ runLoop:
 				// nothing left to do but wait for flashWindowC.
 				continue
 			}
-			if reason, detail, sust, stop := r.advanceRamp(isEndurance, viewerCtx, cfg, candidates, events, &wg, &ramp); stop {
+			if reason, detail, sust, stop := r.advanceRamp(isEndurance, viewerCtx, cfg, pool, events, &wg, &ramp); stop {
 				stopReason, stopDetail, sustained = reason, detail, sust
 				break runLoop
 			}
@@ -334,6 +396,7 @@ runLoop:
 	}
 
 	segSamples, ttffSamples, mix, p95ByType := samples.reportFields(sampleTier, &ramp)
+	perViewer, hasPerViewer := res.perViewerCost(sampleTier)
 
 	r.finish(Report{
 		Scenario:           cfg.Scenario,
@@ -345,10 +408,15 @@ runLoop:
 		TTFFMsP95:          percentile(ttffSamples, 95),
 		SegmentMsP50:       percentile(segSamples, 50),
 		SegmentMsP95:       percentile(segSamples, 95),
-		SegmentSLOMs:       slo.ms,
+		SegmentSLOMs:       slo.worstBudget(),
+		SegmentSLOMsByType: slo.budgets(),
 		Samples:            len(segSamples),
 		SharedCacheViewers: ramp.sharedCacheViewers,
 		SkippedCandidates:  ramp.skippedCandidates,
+		Resources:          res.stats(sampleTier),
+		ResourceBaseline:   res.baseline,
+		PerViewerCost:      perViewer,
+		HasPerViewerCost:   hasPerViewer,
 		ViewerMix:          mix,
 		SegmentMsP95ByType: p95ByType,
 		StartedAt:          startedAt,
@@ -357,47 +425,47 @@ runLoop:
 }
 
 // rampState is the ramp's own bookkeeping across every spawn attempt: which
-// tier it's at, which candidate is next, how many viewers had to fork (share
-// a candidate) or got retried after a skipped candidate, and each slot's
-// assigned viewer type.
+// tier it's at, how many viewers replayed a title at another position, how
+// many candidates were skipped as ineligible, and each slot's assigned viewer
+// type.
 type rampState struct {
 	tier               int
-	nextCandidate      int
 	sharedCacheViewers int
 	skippedCandidates  int
-	viewerTypeBySlot   map[int]viewerType
+	// consecutiveSkips counts ineligible candidates since the last viewer that
+	// actually started streaming. Once it reaches the number of distinct
+	// titles, every title has been tried and none is mkvgo-eligible: keep
+	// retrying and the run would burn the whole pool one HTTP request at a
+	// time. Any successful viewer resets it.
+	consecutiveSkips int
+	viewerTypeBySlot map[int]viewerType
 }
 
-// spawnNext tries to fill the next ramp slot (ramp.tier+1). mkvgo-typed
-// slots only ever take a fresh distinct candidate (never share); transcode-
-// typed slots fall back to forking (audioOffsetMs) once distinct candidates
-// run out. It returns false with an explanatory detail (naming the type
-// that couldn't be filled) when the slot can't be filled at all.
-func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, candidates []MediaCandidate, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (bool, string) {
+// spawnNext tries to fill the next ramp slot (ramp.tier+1) with the pool's
+// next (title, start position) assignment. Reusing a title is normal and
+// expected once the library is exhausted - the viewer is simply placed further
+// into the file - so the only way this fails is a pool with nothing left at
+// all, which is a library that cannot even fill titles x positions viewers.
+func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, pool *candidatePool, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (bool, string) {
 	slot := ramp.tier + 1
 	vt := scenarioViewerType(cfg.Scenario, slot)
 
-	var media MediaCandidate
-	forked := false
-	switch {
-	case ramp.nextCandidate < len(candidates):
-		media = candidates[ramp.nextCandidate]
-		ramp.nextCandidate++
-	case vt == viewerTypeTranscode:
-		media = candidates[ramp.tier%len(candidates)]
-		forked = true
-	case vt == viewerTypeMkvgo:
-		return false, "no more mkvgo-eligible titles"
-	default:
-		return false, fmt.Sprintf("no more distinct media available for %s viewers", vt)
+	asg, ok := pool.take()
+	if !ok {
+		return false, fmt.Sprintf("media pool exhausted (%d titles x %d start positions)", len(pool.candidates), len(startPositions))
 	}
+	// A transcode-typed viewer replaying a title must fork the server's
+	// decision hash, or it would attach to the session an earlier viewer
+	// already drives instead of costing the server a new encode. The mkvgo
+	// path is stateless, so a distinct start position is enough there.
+	forked := asg.round > 0 && vt == viewerTypeTranscode
 	ramp.tier++
 	ramp.viewerTypeBySlot[ramp.tier] = vt
-	if forked {
+	if asg.round > 0 {
 		ramp.sharedCacheViewers++
 	}
 	wg.Add(1)
-	go r.runViewer(viewerCtx, cfg, ramp.tier, vt, media, forked, events, wg)
+	go r.runViewer(viewerCtx, cfg, ramp.tier, vt, asg, forked, events, wg)
 	return true, ""
 }
 
@@ -406,17 +474,16 @@ func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, candidates []M
 // available candidates) at once (no ramp at all). It reports whether the
 // run has anything to observe; on failure the caller finishes the run
 // immediately with StopLibraryLimit.
-func (r *Runner) spawnInitialViewers(isFlash bool, viewerCtx context.Context, cfg Config, candidates []MediaCandidate, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (bool, string) {
-	// flashTarget is min(MaxViewers, available candidates): the flash slam
-	// spawns every one of them at once, with no ramp at all. Every other
-	// mode spawns exactly the first slot here and lets the ramp ticker add
-	// the rest.
+func (r *Runner) spawnInitialViewers(isFlash bool, viewerCtx context.Context, cfg Config, pool *candidatePool, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (bool, string) {
+	// flashTarget is min(MaxViewers, pool capacity): the flash slam spawns
+	// every one of them at once, with no ramp at all. Every other mode spawns
+	// exactly the first slot here and lets the ramp ticker add the rest.
 	flashTarget := 1
 	if isFlash {
-		flashTarget = min(cfg.MaxViewers, len(candidates))
+		flashTarget = min(cfg.MaxViewers, pool.capacity())
 	}
 	for range flashTarget {
-		if ok, detail := r.spawnNext(viewerCtx, cfg, candidates, events, wg, ramp); !ok {
+		if ok, detail := r.spawnNext(viewerCtx, cfg, pool, events, wg, ramp); !ok {
 			if isFlash && ramp.tier > 0 {
 				// Some viewers already launched; the flash slam is smaller
 				// than intended but still valid - fall through and let it
@@ -462,37 +529,90 @@ func (f *flashState) verdict(tier int) (sustained int, detail string) {
 	return served, detail
 }
 
-// sloTracker holds the rolling segment-fetch latency window used to evaluate
-// the SLO, and the SLO target itself once it's known.
+// sloTracker evaluates the segment-fetch latency budget PER VIEWER TYPE.
+//
+// The budget is a stream's own #EXT-X-TARGETDURATION: a segment that takes
+// longer to arrive than it takes to play is a stall, whatever the path. But
+// the paths do not share a segment length - mkvgo packages on keyframe
+// boundaries (~6-11s), while the ffmpeg ladder emits 3s segments - so a single
+// budget locked from whichever stream happened to start first would judge one
+// path against the other's yardstick. In a mixed scenario, slot 1 is mkvgo,
+// and every transcode viewer would then be measured against an ~11s budget
+// that is nearly impossible to breach: the run would climb until the library
+// ran dry, and report no stall at all. Each type carries its own budget.
+//
+// An operator-pinned SegmentSLOMs overrides all of them: an explicit budget is
+// an explicit budget.
 type sloTracker struct {
+	pinned int
+	byType map[viewerType]*typeSLO
+}
+
+type typeSLO struct {
 	ms     int
 	locked bool
 	ring   []int
 }
 
-// lockTarget adopts the stream's own detected target duration as the SLO
-// the first time a viewer reports one, unless the operator already pinned
-// an explicit SegmentSLOMs.
-func (s *sloTracker) lockTarget(ms int) {
-	if !s.locked {
-		s.ms = ms
-		s.locked = true
+func newSLOTracker(pinnedMs int) *sloTracker {
+	return &sloTracker{pinned: pinnedMs, byType: map[viewerType]*typeSLO{}}
+}
+
+func (s *sloTracker) forType(vt viewerType) *typeSLO {
+	t, ok := s.byType[vt]
+	if !ok {
+		t = &typeSLO{ms: s.pinned, locked: s.pinned > 0}
+		s.byType[vt] = t
+	}
+	return t
+}
+
+// lockTarget adopts a stream's own detected target duration as the budget for
+// that viewer type, the first time a viewer of that type reports one.
+func (s *sloTracker) lockTarget(vt viewerType, ms int) {
+	t := s.forType(vt)
+	if !t.locked {
+		t.ms = ms
+		t.locked = true
 	}
 }
 
-// observe records one more segment-fetch sample and reports whether the
-// rolling p95 over the last sloWindowSize samples just breached the SLO.
-// p95 is only meaningful when breached is true.
-func (s *sloTracker) observe(ms int) (breached bool, p95 int) {
-	s.ring = append(s.ring, ms)
-	if len(s.ring) > sloWindowSize {
-		s.ring = s.ring[len(s.ring)-sloWindowSize:]
+// observe records one more segment-fetch sample for its viewer type and
+// reports whether that type's rolling p95 just breached ITS budget. p95 and
+// sloMs are only meaningful when breached is true.
+func (s *sloTracker) observe(vt viewerType, ms int) (breached bool, p95, sloMs int) {
+	t := s.forType(vt)
+	t.ring = append(t.ring, ms)
+	if len(t.ring) > sloWindowSize {
+		t.ring = t.ring[len(t.ring)-sloWindowSize:]
 	}
-	if s.ms <= 0 || len(s.ring) < minSLOSamples {
-		return false, 0
+	if t.ms <= 0 || len(t.ring) < minSLOSamples {
+		return false, 0, t.ms
 	}
-	p95 = percentile(s.ring, 95)
-	return p95 > s.ms, p95
+	p95 = percentile(t.ring, 95)
+	return p95 > t.ms, p95, t.ms
+}
+
+// budgets reports each type's budget, so the report can say what each path was
+// actually judged against instead of a single blended number.
+func (s *sloTracker) budgets() map[string]int {
+	out := make(map[string]int, len(s.byType))
+	for vt, t := range s.byType {
+		if t.ms > 0 {
+			out[string(vt)] = t.ms
+		}
+	}
+	return out
+}
+
+// worstBudget is the single number the legacy SegmentSLOMs field carries: the
+// loosest budget in play. Callers that care about correctness read budgets().
+func (s *sloTracker) worstBudget() int {
+	worst := 0
+	for _, t := range s.byType {
+		worst = max(worst, t.ms)
+	}
+	return worst
 }
 
 // sampleState collects the raw TTFF/segment-fetch samples the run measures,
@@ -551,7 +671,7 @@ func (r *Runner) cancelVerdict(runCtx context.Context, isEndurance bool, tier in
 // reports whether the run must stop and, if so, the verdict; endurance's
 // held plateau at MaxViewers is the one case where firing again is a
 // deliberate no-op (stop is false and the caller does nothing further).
-func (r *Runner) advanceRamp(isEndurance bool, viewerCtx context.Context, cfg Config, candidates []MediaCandidate, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (reason StopReason, detail string, sustained int, stop bool) {
+func (r *Runner) advanceRamp(isEndurance bool, viewerCtx context.Context, cfg Config, pool *candidatePool, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState) (reason StopReason, detail string, sustained int, stop bool) {
 	if ramp.tier >= cfg.MaxViewers {
 		if isEndurance {
 			// Hold the plateau: verdicts (SLO/admission) above stay fully
@@ -561,7 +681,7 @@ func (r *Runner) advanceRamp(isEndurance bool, viewerCtx context.Context, cfg Co
 		}
 		return StopMaxViewers, fmt.Sprintf("reached configured max of %d viewers cleanly", ramp.tier), ramp.tier, true
 	}
-	if ok, d := r.spawnNext(viewerCtx, cfg, candidates, events, wg, ramp); !ok {
+	if ok, d := r.spawnNext(viewerCtx, cfg, pool, events, wg, ramp); !ok {
 		return StopLibraryLimit, d, ramp.tier, true
 	}
 	r.logger.Info("loadtest tier advanced", "viewers", ramp.tier)
@@ -575,12 +695,14 @@ func (r *Runner) advanceRamp(isEndurance bool, viewerCtx context.Context, cfg Co
 // between flash's own lenient handling (a refusal or an SLO blip sheds one
 // viewer and keeps observing the rest) and every other mode's fail-fast
 // handling (a refusal ends the run immediately).
-func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx context.Context, cfg Config, candidates []MediaCandidate, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState, flash *flashState, slo *sloTracker, samples *sampleState) (reason StopReason, detail string, sustained int, stop bool) {
+func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx context.Context, cfg Config, pool *candidatePool, events chan viewerEvent, wg *sync.WaitGroup, ramp *rampState, flash *flashState, slo *sloTracker, samples *sampleState) (reason StopReason, detail string, sustained int, stop bool) {
 	switch ev.kind {
 	case evTargetDuration:
-		slo.lockTarget(ev.ms)
+		slo.lockTarget(ev.vt, ev.ms)
 
 	case evTTFF:
+		// A viewer got its first segment: the library is not a dead end.
+		ramp.consecutiveSkips = 0
 		samples.tierTTFF[ramp.tier] = append(samples.tierTTFF[ramp.tier], ev.ms)
 		if isFlash {
 			flash.served[ev.slot] = true
@@ -592,7 +714,7 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 			samples.perTypeSegments[ev.vt] = map[int][]int{}
 		}
 		samples.perTypeSegments[ev.vt][ramp.tier] = append(samples.perTypeSegments[ev.vt][ramp.tier], ev.ms)
-		if breached, p95 := slo.observe(ev.ms); breached {
+		if breached, p95, sloMs := slo.observe(ev.vt, ev.ms); breached {
 			if isFlash {
 				// A flash slam is designed to overload; a global latency
 				// blip doesn't end the measurement, it's one of the reasons
@@ -600,7 +722,7 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 				flash.sloBreachSeen = true
 				return "", "", 0, false
 			}
-			return StopSLOBreach, fmt.Sprintf("p95 segment fetch %dms exceeds %dms SLO at %d viewers", p95, slo.ms, ramp.tier), max(ramp.tier-1, 0), true
+			return StopSLOBreach, fmt.Sprintf("%s viewers: p95 segment fetch %dms exceeds their %dms budget at %d viewers", ev.vt, p95, sloMs, ramp.tier), max(ramp.tier-1, 0), true
 		}
 
 	case evAdmissionFull:
@@ -625,12 +747,16 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 		return StopError, ev.detail, max(ramp.tier-1, 0), true
 
 	case evCandidateSkipped:
-		// This slot never became a real viewer: give it back and
-		// immediately retry the same slot (same type) against the next
-		// distinct candidate.
+		// This slot never became a real viewer: give it back and immediately
+		// retry the same slot (same type) against the next assignment. A skip
+		// costs a candidate, never a viewer - the ramp keeps climbing.
 		ramp.skippedCandidates++
+		ramp.consecutiveSkips++
+		if ramp.consecutiveSkips >= len(pool.candidates) {
+			return StopLibraryLimit, fmt.Sprintf("no mkvgo-eligible title in the library (%d tried, all served by the transcoder)", ramp.skippedCandidates), max(ramp.tier-1, 0), true
+		}
 		ramp.tier--
-		if ok, d := r.spawnNext(viewerCtx, cfg, candidates, events, wg, ramp); !ok {
+		if ok, d := r.spawnNext(viewerCtx, cfg, pool, events, wg, ramp); !ok {
 			return StopLibraryLimit, d, ramp.tier, true
 		}
 		r.setStatus("ramping", ramp.tier)

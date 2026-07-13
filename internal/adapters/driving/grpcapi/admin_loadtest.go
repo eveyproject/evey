@@ -96,6 +96,11 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			SkippedCandidates:  int32(r.SkippedCandidates),
 			StartedAt:          timestamppb.New(r.StartedAt),
 			EndedAt:            timestamppb.New(r.EndedAt),
+			Resources:          loadTestResourcesToProto(r.Resources),
+			ResourceBaseline:   loadTestSampleToProto(r.ResourceBaseline),
+		}
+		if r.HasPerViewerCost {
+			out.LastReport.PerViewerCost = loadTestResourcesToProto(r.PerViewerCost)
 		}
 		if len(r.ViewerMix) > 0 {
 			out.LastReport.ViewerMix = make(map[string]int32, len(r.ViewerMix))
@@ -109,8 +114,46 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 				out.LastReport.SegmentMsP95ByType[k] = int32(v)
 			}
 		}
+		if len(r.SegmentSLOMsByType) > 0 {
+			out.LastReport.SegmentSloMsByType = make(map[string]int32, len(r.SegmentSLOMsByType))
+			for k, v := range r.SegmentSLOMsByType {
+				out.LastReport.SegmentSloMsByType[k] = int32(v)
+			}
+		}
 	}
 	return out
+}
+
+func loadTestResourcesToProto(s apploadtest.ResourceStats) *eveyv1.LoadTestResources {
+	if s.Samples == 0 {
+		return nil
+	}
+	return &eveyv1.LoadTestResources{
+		CpuPercentAvg:       s.CPUPercentAvg,
+		CpuPercentPeak:      s.CPUPercentPeak,
+		MemUsedBytesAvg:     s.MemUsedBytesAvg,
+		MemUsedBytesMax:     s.MemUsedBytesMax,
+		MemLimitBytes:       s.MemLimitBytes,
+		DiskReadBytesPerSec: s.DiskReadBytesPerSecAvg,
+		ServedBytesPerSec:   s.ServedBytesPerSecAvg,
+		Samples:             int32(s.Samples),
+	}
+}
+
+// loadTestSampleToProto carries the pre-viewer baseline, which is a single
+// reading rather than a tier's worth of samples.
+func loadTestSampleToProto(s apploadtest.ResourceSample) *eveyv1.LoadTestResources {
+	if s.MemLimitBytes == 0 && s.CPUPercent == 0 {
+		return nil
+	}
+	return &eveyv1.LoadTestResources{
+		CpuPercentAvg:       s.CPUPercent,
+		MemUsedBytesAvg:     s.MemUsedBytes,
+		MemLimitBytes:       s.MemLimitBytes,
+		DiskReadBytesPerSec: s.DiskReadBytesPerSec,
+		ServedBytesPerSec:   s.ServedBytesPerSec,
+		Samples:             1,
+	}
 }
 
 // bearerFromContext extracts the raw bearer of the calling request from the

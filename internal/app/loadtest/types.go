@@ -120,16 +120,70 @@ type Config struct {
 	// Mode is "" (ramp, the default), ModeFlash, ModeSeek or ModeEndurance.
 	// It is the HOW; Scenario stays the WHO.
 	Mode string
+
+	// FSRoot overrides the filesystem root the resource sampler reads its
+	// counters from (/sys/fs/cgroup, /proc). Empty means the real one; tests
+	// stage a fake tree here.
+	FSRoot string
+	// ResourceWarmup overrides how long a tier's samples are discarded as
+	// start-up transients. Zero means resourceWarmup. Tests shrink it; an
+	// operator has no reason to.
+	ResourceWarmup time.Duration
+	// ResourceSampleEvery overrides the resource sampling cadence. Zero means
+	// resourceSampleEvery. Tests shrink it; an operator has no reason to.
+	ResourceSampleEvery time.Duration
+}
+
+func (c Config) fsRoot() string {
+	if c.FSRoot == "" {
+		return "/"
+	}
+	return c.FSRoot
+}
+
+func (c Config) resourceWarmup() time.Duration {
+	if c.ResourceWarmup <= 0 {
+		return resourceWarmup
+	}
+	return c.ResourceWarmup
+}
+
+func (c Config) resourceSampleEvery() time.Duration {
+	if c.ResourceSampleEvery <= 0 {
+		return resourceSampleEvery
+	}
+	return c.ResourceSampleEvery
 }
 
 // Defaults applied when the corresponding Config field is left at its zero
 // value.
 const (
-	DefaultMaxViewers           = 12
-	DefaultRampEvery            = 8 * time.Second
-	DefaultMaxDuration          = 4 * time.Minute
-	DefaultEnduranceMaxDuration = 30 * time.Minute
+	DefaultMaxViewers = 12
+
+	// DefaultRampEvery is how long a tier is held before the next viewer
+	// joins, and it is the single most important number in the whole test: it
+	// must be long enough for the tier to reach STEADY STATE, or the run
+	// measures start-up transients instead of what a viewer actually costs.
+	// A joining viewer pays an ffmpeg cold start (up to ~25s worst case, see
+	// transcode_vod_wire.go), then bursts segments to fill its buffer, then
+	// finally settles into real-time pacing. resourceWarmup covers that
+	// transient; the rest of the tier is the measurement window.
+	DefaultRampEvery = 60 * time.Second
+
+	// DefaultMaxDuration must be long enough for the ramp to actually reach
+	// MaxViewers (MaxViewers x RampEvery), plus room to spare. A run cut short
+	// by the clock reports a viewer count that measures the timeout, not the
+	// server.
+	DefaultMaxDuration          = 30 * time.Minute
+	DefaultEnduranceMaxDuration = 45 * time.Minute
 )
+
+// candidatePoolSize is how many titles the runner asks the library for. It is
+// deliberately far above any plausible MaxViewers: the pool multiplies titles
+// by start position, and a generous list is what lets an ineligible title be
+// skipped without costing a viewer. Listing a few hundred rows is free next to
+// the run itself.
+const candidatePoolSize = 300
 
 func (c Config) withDefaults() (Config, error) {
 	switch c.Mode {
@@ -167,9 +221,18 @@ const (
 	// X-Evey-Error: too_many_streams. This is the server's own capacity
 	// verdict, not a load test error.
 	StopAdmissionFull StopReason = "admission_full"
-	// StopLibraryLimit: the media pool ran out of distinct items to point
-	// another viewer at (natural scenario), or ran out entirely
-	// (transcode scenario with zero candidates).
+	// StopCPUSaturated: the server's CPU sat at its ceiling long enough that
+	// it had nothing left to give another viewer. This is a capacity verdict
+	// and it names the bottleneck.
+	StopCPUSaturated StopReason = "cpu_saturated"
+	// StopMemorySaturated: the server's memory reached its limit; the next
+	// viewer risks the OOM killer rather than a slowdown.
+	StopMemorySaturated StopReason = "memory_saturated"
+	// StopLibraryLimit: the media pool is empty or holds nothing the scenario
+	// can use (e.g. an mkvgo run against a library where every title is
+	// transcoded). NOT a capacity verdict, and no longer reachable just
+	// because the library is smaller than MaxViewers - the pool replays a
+	// title at a different start position instead.
 	StopLibraryLimit StopReason = "library_limit"
 	// StopMaxViewers: the ramp reached Config.MaxViewers cleanly.
 	StopMaxViewers StopReason = "max_viewers"
@@ -199,8 +262,15 @@ type Report struct {
 
 	TTFFMsP50, TTFFMsP95       int
 	SegmentMsP50, SegmentMsP95 int
-	SegmentSLOMs               int
-	Samples                    int
+	// SegmentSLOMs is the loosest budget in play, kept for callers that want a
+	// single number. It is NOT what any given viewer was judged against.
+	SegmentSLOMs int
+	// SegmentSLOMsByType is the latency budget each path was actually judged
+	// against, e.g. {"mkvgo": 11000, "transcode": 3000}. The paths do not share
+	// a segment length, so they cannot share a budget: mkvgo packages on
+	// keyframe boundaries while the ffmpeg ladder emits 3s segments.
+	SegmentSLOMsByType map[string]int
+	Samples            int
 
 	// SharedCacheViewers counts viewers that reused an already-in-flight
 	// media item (via a forked audio-resync param) because the library ran
@@ -212,6 +282,21 @@ type Report struct {
 	// (missing X-Evey-Served-By: mkvgo). Each skip is retried against the
 	// next distinct candidate without counting as a sustained viewer.
 	SkippedCandidates int
+
+	// Resources is what the server consumed at the sustained tier: the answer
+	// to "what did those N viewers cost", and the evidence behind a
+	// StopCPUSaturated / StopMemorySaturated verdict.
+	Resources ResourceStats
+	// ResourceBaseline is what the server consumed BEFORE the first viewer
+	// joined. An operator reads the per-viewer cost against this floor, not
+	// against zero.
+	ResourceBaseline ResourceSample
+	// PerViewerCost is what ONE more viewer costs in steady state, measured
+	// as the slope across tiers rather than a naive total/viewers (which
+	// would charge the idle server's own consumption to the viewers).
+	// HasPerViewerCost is false when fewer than two tiers were measured.
+	PerViewerCost    ResourceStats
+	HasPerViewerCost bool
 
 	// ViewerMix is the viewer-type composition of the sustained tier, e.g.
 	// {"mkvgo": 4, "transcode": 1}. Populated for every scenario (a pure

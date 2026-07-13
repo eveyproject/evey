@@ -1101,21 +1101,40 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// cfg.Server.Port is the gRPC listener; the HTTP gateway the viewers must
 	// hit lives on Port+1 (the same derivation main.go uses for httpSrv).
 	loadTestBaseURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.Server.Port+1)
+	// loadTestMinTitleDuration is the floor for a title to be worth pointing a
+	// simulated viewer at. A viewer plays in real time for the whole run, so a
+	// shorter title loops back on itself and is then served from the page cache,
+	// which measures nothing. Episodes and films clear this; trailers and clips
+	// do not. The runner narrows it further against the run's own duration (see
+	// usableFraction) when it decides where a REPLAYED viewer may start.
+	const loadTestMinTitleDuration = 10 * time.Minute
 	loadTestRunner := apploadtest.New(
 		&http.Client{Timeout: 30 * time.Second},
 		loadTestMediaListerFunc(func(ctx context.Context, limit int) ([]apploadtest.MediaCandidate, error) {
+			// Over-fetch: rows without a playable file (series, seasons) and
+			// clips too short to pace against are both dropped below, and the
+			// runner wants a deep pool - it reuses a title at a fresh start
+			// position rather than ever stopping on "no more titles", so a
+			// generous list is what keeps the LIBRARY from being the verdict.
 			items, err := libQuerySvc.ListMediaItems(ctx, library.ListMediaItemsFilter{Limit: limit * 3})
 			if err != nil {
 				return nil, err
 			}
 			out := make([]apploadtest.MediaCandidate, 0, limit)
 			for _, it := range items {
-				if it == nil || it.File == nil || it.File.Duration.Milliseconds() < 120_000 {
-					continue // a viewer needs at least ~2 minutes to pace against
+				if it == nil || it.File == nil {
+					continue
+				}
+				// A viewer plays in real time for the whole run, so a title
+				// shorter than a few minutes would loop back on itself and be
+				// served from the page cache. The runner applies the run's own
+				// duration on top of this floor (see usableFraction).
+				if it.File.Duration.Milliseconds() < loadTestMinTitleDuration.Milliseconds() {
+					continue
 				}
 				out = append(out, apploadtest.MediaCandidate{
 					ID:          string(it.ID),
-					DurationSec: int(it.File.Duration.Milliseconds() / 1000),
+					DurationSec: int(it.File.Duration.Seconds()),
 				})
 				if len(out) >= limit {
 					break

@@ -211,7 +211,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "balanced" },
+        data: { scenario: "balanced", maxViewers: 12 },
       }),
     );
   });
@@ -238,7 +238,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "light" },
+        data: { scenario: "light", maxViewers: 12 },
       }),
     );
   });
@@ -254,7 +254,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "mkvgo" },
+        data: { scenario: "mkvgo", maxViewers: 12 },
       }),
     );
   });
@@ -303,6 +303,76 @@ describe("LoadTestCard", () => {
     expect(report.textContent).toMatch(/2 of them served/i);
     // The idle controls stay reachable so the operator can relaunch a test.
     expect(screen.getByTestId("load-test-idle")).toBeTruthy();
+  });
+
+  // A viewer count on its own says nothing about WHY the server stopped there.
+  // When a resource ran out, that IS the answer: the panel must name it, show
+  // the consumption behind it, and say what one more viewer would have cost.
+  it("names the bottleneck and reports what the viewers cost", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "balanced",
+        sustainedViewers: 7,
+        stopReason: "cpu_saturated",
+        stopDetail: "CPU saturated at 96% with 8 viewers",
+        resources: {
+          cpuPercentAvg: 78,
+          cpuPercentPeak: 91,
+          memUsedBytesAvg: 2 * 1024 * 1024 * 1024,
+          memLimitBytes: 8 * 1024 * 1024 * 1024,
+          diskReadBytesPerSec: 12 * 1024 * 1024,
+          servedBytesPerSec: 5 * 1024 * 1024,
+          samples: 40,
+        },
+        perViewerCost: {
+          cpuPercentAvg: 11,
+          memUsedBytesAvg: 64 * 1024 * 1024,
+          diskReadBytesPerSec: 2 * 1024 * 1024,
+          servedBytesPerSec: 700 * 1024,
+          samples: 20,
+        },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const stopReason = screen.getByTestId("load-test-stop-reason");
+    expect(stopReason.textContent).toMatch(/CPU/i);
+
+    // What it consumed while holding those viewers.
+    const resources = screen.getByTestId("load-test-resources");
+    expect(resources.textContent).toContain("78");
+    expect(resources.textContent).toContain("91"); // peak
+    expect(resources.textContent).toContain("2.0 Go");
+    expect(resources.textContent).toContain("8.0 Go"); // the limit it is measured against
+
+    // And what one more viewer would have cost.
+    const perViewer = screen.getByTestId("load-test-per-viewer");
+    expect(perViewer.textContent).toContain("11");
+    expect(perViewer.textContent).toContain("64 Mo");
+
+    // A resource DID give out, so no "raise the ceiling" hint.
+    expect(screen.queryByTestId("load-test-no-bottleneck")).toBeNull();
+  });
+
+  // The opposite case: the ramp hit the operator's own ceiling without any
+  // resource giving out. That is not a capacity result, and the panel must not
+  // let it pass for one.
+  it("says so when nothing saturated and the ceiling was simply reached", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 12,
+        stopReason: "max_viewers",
+        resources: { cpuPercentAvg: 20, cpuPercentPeak: 25, samples: 30 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    expect(screen.getByTestId("load-test-no-bottleneck")).toBeTruthy();
   });
 
   it("renders the viewer mix composition when the server reports it", async () => {

@@ -209,11 +209,26 @@ type LoadTestScenario = "transcode" | "natural" | "mkvgo" | "light" | "balanced"
 type LoadTestStopReason =
   | "slo_breach"
   | "admission_full"
+  | "cpu_saturated"
+  | "memory_saturated"
   | "library_limit"
   | "max_viewers"
   | "cancelled"
   | "token_expired"
   | "error";
+
+// What the server was actually spending. Read from its own cgroup, so every
+// ffmpeg it spawned is already counted.
+interface LoadTestResources {
+  cpuPercentAvg?: number;
+  cpuPercentPeak?: number;
+  memUsedBytesAvg?: number;
+  memUsedBytesMax?: number;
+  memLimitBytes?: number;
+  diskReadBytesPerSec?: number;
+  servedBytesPerSec?: number;
+  samples?: number;
+}
 
 interface LoadTestReport {
   scenario?: LoadTestScenario;
@@ -236,6 +251,15 @@ interface LoadTestReport {
   // {"mkvgo": 4, "transcode": 1} - keyed the same as segmentMsP95ByType.
   viewerMix?: Record<string, number>;
   segmentMsP95ByType?: Record<string, number>;
+  // segmentSloMsByType: the latency budget each path was JUDGED against. The
+  // paths don't share a segment length, so they can't share a budget.
+  segmentSloMsByType?: Record<string, number>;
+  // resources: what the box consumed while sustaining that viewer count - the
+  // evidence behind a cpu_saturated / memory_saturated verdict.
+  resources?: LoadTestResources;
+  // perViewerCost: what ONE more viewer costs, as a slope across tiers.
+  perViewerCost?: LoadTestResources;
+  resourceBaseline?: LoadTestResources;
 }
 
 interface LoadTestStatus {
@@ -257,12 +281,35 @@ const ACTIVE_STREAMS_STATUSES = [409, 423, 500];
 const STOP_REASON_KEYS: Partial<Record<LoadTestStopReason, string>> = {
   slo_breach: "admin.loadtest.stopReason.sloBreach",
   admission_full: "admin.loadtest.stopReason.admissionFull",
+  cpu_saturated: "admin.loadtest.stopReason.cpuSaturated",
+  memory_saturated: "admin.loadtest.stopReason.memorySaturated",
   library_limit: "admin.loadtest.stopReason.libraryLimit",
   max_viewers: "admin.loadtest.stopReason.maxViewers",
   cancelled: "admin.loadtest.stopReason.cancelled",
   token_expired: "admin.loadtest.stopReason.tokenExpired",
   error: "admin.loadtest.stopReason.error",
 };
+
+// A run that ended because a RESOURCE ran out has found the machine's real
+// ceiling; anything else means the ramp was stopped by something other than
+// capacity (the operator's own limit, the clock, an error).
+const BOTTLENECK_REASONS: LoadTestStopReason[] = [
+  "cpu_saturated",
+  "memory_saturated",
+  "slo_breach",
+  "admission_full",
+];
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1 << 30) return `${(bytes / (1 << 30)).toFixed(1)} Go`;
+  if (bytes >= 1 << 20) return `${Math.round(bytes / (1 << 20))} Mo`;
+  return `${Math.round(bytes / (1 << 10))} Ko`;
+}
+
+// Throughput is quoted in bits per second, the way a network link is.
+function formatMbps(bytesPerSec: number): string {
+  return `${((bytesPerSec * 8) / 1e6).toFixed(1)} Mb/s`;
+}
 
 // Noun form of each scenario for the report headline ("...in {{scenario}}.").
 const SCENARIO_NOUN_KEYS: Record<LoadTestScenario, string> = {
@@ -340,6 +387,11 @@ function LoadTestCard() {
   // matters to an operator - "how many different humans, with a realistic
   // device mix, can this host hold" - so it's the default, not a pure lane.
   const [scenario, setScenario] = useState<LoadTestScenario>("balanced");
+  // The ceiling the ramp is allowed to climb to. It is NOT a capacity setting:
+  // the run stops on whichever resource gives out first, and only falls back on
+  // this number when nothing did. Set it above what the box can plausibly hold,
+  // or the test reports the operator's own limit instead of the machine's.
+  const [maxViewers, setMaxViewers] = useState(12);
 
   const statusQuery = useQuery<LoadTestStatus>({
     queryKey: LOAD_TEST_QUERY_KEY,
@@ -352,7 +404,11 @@ function LoadTestCard() {
 
   const start = useMutation({
     mutationFn: () =>
-      eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "POST", data: { scenario } }),
+      eveyFetch<LoadTestStatus>({
+        url: LOAD_TEST_URL,
+        method: "POST",
+        data: { scenario, maxViewers },
+      }),
     onSuccess: (data) => {
       qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
       void qc.invalidateQueries({ queryKey: LOAD_TEST_QUERY_KEY });
@@ -429,13 +485,49 @@ function LoadTestCard() {
                 {t("admin.loadtest.segmentLine", {
                   p50: Math.round(report.segmentMsP50 ?? 0),
                   p95: Math.round(report.segmentMsP95 ?? 0),
-                  slo: Math.round(report.segmentSloMs ?? 0),
                 })}
               </p>
               {report.segmentMsP95ByType && Object.keys(report.segmentMsP95ByType).length > 0 && (
                 <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-segment-by-type">
                   {t("admin.loadtest.segmentByTypeLine", {
                     parts: mixParts(t, report.segmentMsP95ByType, "admin.loadtest.segmentByTypePart", "ms"),
+                  })}
+                </p>
+              )}
+              {/* Each path is judged against its OWN segment length: mkvgo packages
+                  on keyframe boundaries, the ffmpeg ladder emits 3s segments. A
+                  single shared budget would measure one path with the other's
+                  yardstick - and the looser one always wins. */}
+              {report.segmentSloMsByType && Object.keys(report.segmentSloMsByType).length > 0 && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-slo-by-type">
+                  {t("admin.loadtest.sloByTypeLine", {
+                    parts: mixParts(t, report.segmentSloMsByType, "admin.loadtest.segmentByTypePart", "ms"),
+                  })}
+                </p>
+              )}
+
+              {/* What those viewers actually COST the box, and therefore what ran
+                  out first. A viewer count without the resource behind it says
+                  nothing about WHY the server stopped there. */}
+              {(report.resources?.samples ?? 0) > 0 && (
+                <p className="text-sm text-[var(--text)]" data-testid="load-test-resources">
+                  {t("admin.loadtest.resourcesLine", {
+                    cpu: Math.round(report.resources?.cpuPercentAvg ?? 0),
+                    cpuPeak: Math.round(report.resources?.cpuPercentPeak ?? 0),
+                    mem: formatBytes(report.resources?.memUsedBytesAvg ?? 0),
+                    memLimit: formatBytes(report.resources?.memLimitBytes ?? 0),
+                    disk: formatMbps(report.resources?.diskReadBytesPerSec ?? 0),
+                    net: formatMbps(report.resources?.servedBytesPerSec ?? 0),
+                  })}
+                </p>
+              )}
+              {(report.perViewerCost?.samples ?? 0) > 0 && (
+                <p className="text-sm text-[var(--text)]" data-testid="load-test-per-viewer">
+                  {t("admin.loadtest.perViewerLine", {
+                    cpu: Math.round(report.perViewerCost?.cpuPercentAvg ?? 0),
+                    mem: formatBytes(report.perViewerCost?.memUsedBytesAvg ?? 0),
+                    disk: formatMbps(report.perViewerCost?.diskReadBytesPerSec ?? 0),
+                    net: formatMbps(report.perViewerCost?.servedBytesPerSec ?? 0),
                   })}
                 </p>
               )}
@@ -449,13 +541,29 @@ function LoadTestCard() {
                   {t("admin.loadtest.skippedCandidatesLine", { count: report.skippedCandidates })}
                 </p>
               )}
-              <p className="text-sm text-[var(--text)]" data-testid="load-test-stop-reason">
+              {/* The verdict. When a resource gave out, THAT is the answer the
+                  operator came for - the viewer count above is only its
+                  consequence. When it didn't, say so plainly rather than let a
+                  ceiling that was never reached pass for a capacity result. */}
+              <p
+                className={
+                  report.stopReason && BOTTLENECK_REASONS.includes(report.stopReason)
+                    ? "text-sm font-medium text-[var(--text)]"
+                    : "text-sm text-[var(--text-muted)]"
+                }
+                data-testid="load-test-stop-reason"
+              >
                 {t(
                   (report.stopReason && STOP_REASON_KEYS[report.stopReason]) ??
                     "admin.loadtest.stopReason.error",
                 )}
                 {report.stopDetail ? ` (${report.stopDetail})` : ""}
               </p>
+              {report.stopReason === "max_viewers" && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-no-bottleneck">
+                  {t("admin.loadtest.noBottleneckHint")}
+                </p>
+              )}
             </div>
           )}
 
@@ -507,6 +615,22 @@ function LoadTestCard() {
                     size={16}
                   />
                 </div>
+              </div>
+              <div className="flex flex-col gap-1 w-40">
+                <label htmlFor="load-test-max-viewers" className="text-sm font-medium text-[var(--text-muted)]">
+                  {t("admin.loadtest.maxViewersLabel")}
+                </label>
+                <input
+                  id="load-test-max-viewers"
+                  type="number"
+                  min={1}
+                  max={64}
+                  value={maxViewers}
+                  onChange={(e) => setMaxViewers(Math.min(64, Math.max(1, Number(e.target.value) || 1)))}
+                  disabled={start.isPending}
+                  data-testid="load-test-max-viewers-input"
+                  className="w-full px-3 py-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+                />
               </div>
               <Button
                 loading={start.isPending}

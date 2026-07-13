@@ -51,7 +51,7 @@ const (
 // buffer-filling burst, then real-time-paced segment fetches until ctx is
 // cancelled. It never panics the run: any panic is recovered and reported as
 // a viewer error.
-func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt viewerType, media MediaCandidate, forked bool, events chan<- viewerEvent, wg *sync.WaitGroup) {
+func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt viewerType, asg assignment, forked bool, events chan<- viewerEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -60,7 +60,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		}
 	}()
 
-	masterURL := buildMasterURL(cfg, vt, media, forked, tierAtSpawn)
+	masterURL := buildMasterURL(cfg, vt, asg.media, forked, tierAtSpawn)
 	masterBase, parseErr := url.Parse(masterURL)
 	if parseErr != nil {
 		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: "invalid master url"})
@@ -116,7 +116,10 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	}
 	sendEvent(ctx, events, viewerEvent{kind: evTargetDuration, vt: vt, slot: tierAtSpawn, ms: targetMs})
 
-	idx := 0
+	// Start where the pool placed this viewer. Two viewers on one title read
+	// different offsets, so neither is served the other's bytes from the page
+	// cache - which is what makes a title reusable without faking the numbers.
+	idx := startSegmentIndex(asg.startFrac, len(segments))
 	consecutiveFail := 0
 	fetchNext := func(isFirst bool) (stop bool) {
 		segURL := segments[idx]
@@ -206,6 +209,17 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 // seekEveryTicks is how many regular pace ticks (i.e. segment-durations)
 // elapse between two seeks in ModeSeek: "every 10x segment-duration".
 const seekEveryTicks = 10
+
+// startSegmentIndex maps a start fraction of the title onto a segment index,
+// clamped so the last segment is never a valid start (a viewer placed there
+// would immediately wrap around to the beginning of the file).
+func startSegmentIndex(startFrac float64, segCount int) int {
+	if segCount <= 1 || startFrac <= 0 {
+		return 0
+	}
+	idx := int(startFrac * float64(segCount))
+	return min(max(idx, 0), segCount-1)
+}
 
 // buildMasterURL constructs the master playlist request a real player would
 // issue. forked viewers (a transcode-typed viewer reusing a media item
@@ -303,6 +317,10 @@ func (r *Runner) fetchOnce(ctx context.Context, rawURL, token string) (status in
 
 	b, readErr := io.ReadAll(resp.Body)
 	elapsedMs = int(time.Since(start).Milliseconds())
+	// Every byte read here is a byte the server had to produce and push, so
+	// this is where served throughput is tallied - playlists included, exactly
+	// like a real player's traffic.
+	r.servedBytes.Add(int64(len(b)))
 	if readErr != nil {
 		return resp.StatusCode, resp.Header, nil, elapsedMs, readErr
 	}

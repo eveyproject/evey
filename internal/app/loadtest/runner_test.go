@@ -63,6 +63,10 @@ type serverState struct {
 
 	segCount     int
 	targetDurRaw string
+	// targetDurFn overrides targetDurRaw per request, so a test can give the
+	// mkvgo path and the transcode path DIFFERENT segment lengths - which is
+	// what they really have (keyframe-aligned vs a fixed 3s ladder).
+	targetDurFn func(rawQuery string) string
 
 	masterHits int
 
@@ -81,6 +85,16 @@ type serverState struct {
 	servedByFn func(mediaID, resource string, segIdx int) bool
 
 	fetches []fetchRecord
+}
+
+// viewersAdmitted is how many simulated viewers have started a stream: each one
+// fetches the master playlist exactly once on startup. A test that models
+// resource cost drives it off THIS rather than off elapsed time, so the modelled
+// load stays locked to the ramp instead of racing it.
+func (s *serverState) viewersAdmitted() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.masterHits
 }
 
 func (s *serverState) servedBy(mediaID, resource string, segIdx int) bool {
@@ -172,11 +186,18 @@ func (s *serverState) serveMaster(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dir := strings.TrimSuffix(r.URL.Path, "master.m3u8")
+	// The variant URIs carry the master's own query, exactly like Evey's do:
+	// the decision (vd/ad, codec caps) has to survive from the master down to
+	// every sub-resource, or the variant would be negotiated all over again.
+	suffix := ""
+	if r.URL.RawQuery != "" {
+		suffix = "?" + r.URL.RawQuery
+	}
 	bandwidths := []int{100_000, 200_000, 300_000}
 	var b strings.Builder
 	b.WriteString("#EXTM3U\n")
 	for i, bw := range bandwidths {
-		fmt.Fprintf(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%d\n%sv%d.m3u8\n", bw, dir, i)
+		fmt.Fprintf(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%d\n%sv%d.m3u8%s\n", bw, dir, i, suffix)
 	}
 	if s.servedBy(mediaID, "master", -1) {
 		w.Header().Set(headerServedBy, servedByMkvgo)
@@ -190,6 +211,9 @@ func (s *serverState) serveVariant(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	segCount := s.segCount
 	targetDur := s.targetDurRaw
+	if s.targetDurFn != nil {
+		targetDur = s.targetDurFn(r.URL.RawQuery)
+	}
 	s.mu.Unlock()
 
 	path := r.URL.Path
@@ -344,7 +368,10 @@ func TestRunner_SLOBreachStopsAtPriorTier(t *testing.T) {
 	}
 }
 
-func TestRunner_NaturalScenarioLibraryLimitStopsCleanly(t *testing.T) {
+// A library smaller than MaxViewers is not a capacity verdict and must never
+// end the ramp: the pool replays each title at a distinct start position. Only
+// the SERVER (SLO, admission) or the configured ceiling may stop a run.
+func TestRunner_ShortLibraryDoesNotStopTheRamp(t *testing.T) {
 	st := newServerState()
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
@@ -352,21 +379,63 @@ func TestRunner_NaturalScenarioLibraryLimitStopsCleanly(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 5, RampEvery: 40 * time.Millisecond, MaxDuration: 3 * time.Second,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	report := waitForReport(t, r, 3*time.Second)
-	if report.StopReason != StopLibraryLimit {
-		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopLibraryLimit, report.StopDetail)
+	report := waitForReport(t, r, 5*time.Second)
+	if report.StopReason != StopMaxViewers {
+		t.Fatalf("stop reason = %s, want %s (detail=%q): 2 titles must still carry 5 viewers", report.StopReason, StopMaxViewers, report.StopDetail)
 	}
-	if report.SustainedViewers != 2 {
-		t.Fatalf("sustained viewers = %d, want 2", report.SustainedViewers)
+	if report.SustainedViewers != 5 {
+		t.Fatalf("sustained viewers = %d, want 5", report.SustainedViewers)
 	}
-	if report.SharedCacheViewers != 0 {
-		t.Fatalf("natural scenario must never share media, got %d shared viewers", report.SharedCacheViewers)
+	// Viewers 3..5 replay titles the first two already hold, at another offset.
+	if report.SharedCacheViewers != 3 {
+		t.Fatalf("replayed viewers = %d, want 3 (2 distinct titles, 5 viewers)", report.SharedCacheViewers)
+	}
+}
+
+// The pool exhausts every distinct title before replaying any of them: titles
+// are spread before they are stacked, so a run only ever reuses a file once it
+// has nothing fresh left.
+func TestPool_SpreadsTitlesBeforeStackingThem(t *testing.T) {
+	pool := newCandidatePool(manyCandidates(3), time.Minute)
+
+	seen := make([]string, 0, 6)
+	for range 6 {
+		asg, ok := pool.take()
+		if !ok {
+			t.Fatalf("pool exhausted early after %d takes", len(seen))
+		}
+		seen = append(seen, asg.media.ID)
+		if len(seen) <= 3 && asg.startFrac != 0 {
+			t.Fatalf("take %d: startFrac = %v, want 0 (a fresh title always starts at the beginning)", len(seen), asg.startFrac)
+		}
+		if len(seen) > 3 && asg.startFrac <= 0 {
+			t.Fatalf("take %d (%s): a replayed title must start further in, got startFrac=%v", len(seen), asg.media.ID, asg.startFrac)
+		}
+	}
+	// First three takes are the three distinct titles, in order; the next three
+	// replay them.
+	if seen[0] == seen[1] || seen[1] == seen[2] || seen[0] == seen[2] {
+		t.Fatalf("first three takes reused a title before exhausting the library: %v", seen)
+	}
+}
+
+// A title shorter than the run has no runway: a viewer placed anywhere but the
+// start would wrap around and re-read bytes another viewer already pulled
+// through the page cache.
+func TestPool_ShortTitleHasNoUsableRunway(t *testing.T) {
+	if got := usableFraction(600, 30*time.Minute); got != 0 {
+		t.Fatalf("usableFraction(10min title, 30min run) = %v, want 0", got)
+	}
+	// A 2h film during a 15min run is usable up to ~87%.
+	got := usableFraction(7200, 15*time.Minute)
+	if got < 0.86 || got > 0.88 {
+		t.Fatalf("usableFraction(2h title, 15min run) = %v, want ~0.875", got)
 	}
 }
 
@@ -553,9 +622,62 @@ func TestRunner_PacesSegmentFetchesInRealTime(t *testing.T) {
 	}
 }
 
+// Each path is judged against ITS OWN segment length. mkvgo packages on
+// keyframe boundaries (long segments), the ffmpeg ladder emits short ones; a
+// single budget locked from whichever stream started first would judge the
+// transcode path against mkvgo's far looser yardstick, and a real stall would
+// go unreported. In a mixed scenario slot 1 is always mkvgo, so that is exactly
+// what used to happen.
+func TestRunner_SLOBudgetIsPerViewerType(t *testing.T) {
+	st := newServerState()
+	st.segCount = 40
+	// mkvgo: 1000ms segments (a generous budget). transcode: 50ms segments.
+	st.targetDurFn = func(rawQuery string) string {
+		if strings.Contains(rawQuery, "vd=transcode") {
+			return "0.05"
+		}
+		return "1.0"
+	}
+	// Every segment takes 150ms to arrive: fine against mkvgo's 1000ms budget,
+	// a stall against the transcode path's 50ms one.
+	st.segmentHook = func(_ string, _ int) (int, map[string]string, time.Duration) {
+		return 0, nil, 150 * time.Millisecond
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
+		MaxViewers: 6, RampEvery: 400 * time.Millisecond, MaxDuration: 10 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 10*time.Second)
+	if report.StopReason != StopSLOBreach {
+		t.Fatalf("stop reason = %s, want %s (detail=%q): the transcode path stalled against its own budget", report.StopReason, StopSLOBreach, report.StopDetail)
+	}
+	if !strings.Contains(report.StopDetail, string(viewerTypeTranscode)) {
+		t.Fatalf("stop detail = %q, want it to name the transcode viewers as the ones that stalled", report.StopDetail)
+	}
+	// Each path carries its own budget, and they are not the same number.
+	if got := report.SegmentSLOMsByType[string(viewerTypeTranscode)]; got != 50 {
+		t.Fatalf("transcode budget = %dms, want 50ms (its own segment length)", got)
+	}
+	if got := report.SegmentSLOMsByType[string(viewerTypeMkvgo)]; got != 1000 {
+		t.Fatalf("mkvgo budget = %dms, want 1000ms (its own segment length)", got)
+	}
+}
+
 // --- mkvgo scenario -------------------------------------------------------
 
-func TestRunner_MkvgoSkipsIneligibleCandidateAndCountsIt(t *testing.T) {
+// An ineligible title must cost a candidate, never a viewer: the ramp retries
+// the slot against the next assignment and keeps climbing. A library smaller
+// than MaxViewers is NOT a capacity verdict - the pool reuses each eligible
+// title at a different start position instead of giving up.
+func TestRunner_MkvgoSkipsIneligibleCandidateAndKeepsClimbing(t *testing.T) {
 	st := newServerState()
 	st.servedByFn = func(mediaID, resource string, _ int) bool {
 		if resource == "master" && mediaID == "m1" {
@@ -566,27 +688,67 @@ func TestRunner_MkvgoSkipsIneligibleCandidateAndCountsIt(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
+	// Only 2 of the 3 titles are mkvgo-eligible, yet 5 viewers are asked for:
+	// the pool must reach 5 by replaying those 2 titles at distinct positions.
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 5, RampEvery: 40 * time.Millisecond, MaxDuration: 3 * time.Second,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	report := waitForReport(t, r, 3*time.Second)
-	if report.StopReason != StopLibraryLimit {
-		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopLibraryLimit, report.StopDetail)
+	report := waitForReport(t, r, 5*time.Second)
+	if report.StopReason != StopMaxViewers {
+		t.Fatalf("stop reason = %s, want %s (detail=%q): a short library must not end the run", report.StopReason, StopMaxViewers, report.StopDetail)
 	}
-	if report.SustainedViewers != 2 {
-		t.Fatalf("sustained viewers = %d, want 2", report.SustainedViewers)
+	if report.SustainedViewers != 5 {
+		t.Fatalf("sustained viewers = %d, want 5", report.SustainedViewers)
 	}
-	if report.SkippedCandidates != 1 {
-		t.Fatalf("skipped candidates = %d, want 1", report.SkippedCandidates)
+	if report.SkippedCandidates < 1 {
+		t.Fatalf("skipped candidates = %d, want >= 1 (m1 is never mkvgo-served)", report.SkippedCandidates)
 	}
-	if report.StopDetail == "" {
-		t.Fatalf("expected an explicit stop detail")
+}
+
+// Two viewers sharing a title must not read the same bytes: the second one
+// starts further into the file. Identical start offsets would let the OS page
+// cache serve the second viewer for free and flatter the I/O measurement.
+func TestRunner_ReusedTitleStartsAtADistinctPosition(t *testing.T) {
+	st := newServerState()
+	st.segCount = 100
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	// One single title, three viewers: they can only differ by start position.
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
+		MaxViewers: 3, RampEvery: 60 * time.Millisecond, MaxDuration: 5 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	report := waitForReport(t, r, 5*time.Second)
+	if report.SustainedViewers != 3 {
+		t.Fatalf("sustained viewers = %d, want 3 (one title, three start positions)", report.SustainedViewers)
+	}
+
+	// Three mkvgo viewers on one title issue identical URLs, so they can only be
+	// told apart by WHICH segments they asked for. If they all started at 0 they
+	// would only ever touch the first handful of a 100-segment file (a burst of
+	// 3 plus a few paced fetches). A segment fetched deep into the file proves a
+	// viewer was placed there instead.
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	deepest := -1
+	for _, f := range st.fetches {
+		if idx, ok := segIndexFromPath(f.path); ok && idx > deepest {
+			deepest = idx
+		}
+	}
+	if deepest < 20 {
+		t.Fatalf("deepest segment fetched = %d of 100: every viewer read from the start of the file, so reused titles are re-reading the same bytes", deepest)
 	}
 }
 
@@ -1039,7 +1201,7 @@ func TestRunner_SeekModeJumpsNonSequentiallyAndRecordsTTFF(t *testing.T) {
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 	wg.Add(1)
-	go r.runViewer(ctx, cfg, 1, viewerTypeNatural, MediaCandidate{ID: "m0"}, false, events, &wg)
+	go r.runViewer(ctx, cfg, 1, viewerTypeNatural, assignment{media: MediaCandidate{ID: "m0"}}, false, events, &wg)
 
 	time.Sleep(2200 * time.Millisecond)
 	cancel()
@@ -1092,7 +1254,7 @@ func TestRunner_SeekModeIsDeterministicAcrossRuns(t *testing.T) {
 		var wg sync.WaitGroup
 		ctx, cancel := context.WithCancel(context.Background())
 		wg.Add(1)
-		go r.runViewer(ctx, cfg, 3, viewerTypeNatural, MediaCandidate{ID: "m0"}, false, events, &wg)
+		go r.runViewer(ctx, cfg, 3, viewerTypeNatural, assignment{media: MediaCandidate{ID: "m0"}}, false, events, &wg)
 
 		time.Sleep(1500 * time.Millisecond)
 		cancel()

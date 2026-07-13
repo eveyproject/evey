@@ -315,4 +315,35 @@ message LoadTestReport {
   map<string, int32> segment_ms_p95_by_type = 16;
   // mode is the behavior axis this run used (see StartLoadTestRequest.mode).
   string mode = 17;
+  // segment_slo_ms_by_type is the latency budget each path was JUDGED against.
+  // The paths do not share a segment length (mkvgo packages on keyframe
+  // boundaries, the ffmpeg ladder emits 3s segments), so they cannot share a
+  // budget. segment_slo_ms above is only the loosest of these.
+  map<string, int32> segment_slo_ms_by_type = 18;
+  // resources is what the server CONSUMED while sustaining that viewer count -
+  // the evidence behind a cpu_saturated / memory_saturated stop_reason.
+  LoadTestResources resources = 19;
+  // per_viewer_cost is what ONE more viewer costs, measured as the slope across
+  // tiers rather than a naive total/viewers (which would charge the idle
+  // server's own consumption to the viewers). Absent when fewer than two tiers
+  // were measured.
+  LoadTestResources per_viewer_cost = 20;
+  // resource_baseline is what the server consumed BEFORE the first viewer
+  // joined: the floor the per-viewer cost is read against.
+  LoadTestResources resource_baseline = 21;
+}
+
+// LoadTestResources is what the box was actually spending. The figures come
+// from the server's own cgroup, so every ffmpeg it spawned is already counted;
+// served_bytes_per_sec is tallied by the viewers themselves (they reach the
+// server over loopback, where no NIC counter would see the traffic).
+message LoadTestResources {
+  double cpu_percent_avg = 1;
+  double cpu_percent_peak = 2;
+  int64 mem_used_bytes_avg = 3;
+  int64 mem_used_bytes_max = 4;
+  int64 mem_limit_bytes = 5;
+  int64 disk_read_bytes_per_sec = 6;
+  int64 served_bytes_per_sec = 7;
+  int32 samples = 8;
 }
