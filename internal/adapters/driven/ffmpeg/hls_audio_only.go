@@ -61,6 +61,16 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	// when the source carries 44.1 kHz or 96 kHz PCM tracks.
 	args = append(args, "-ar", "48000")
 
+	// Land on the VIDEO's timeline. A video with B-frames is presented late by
+	// has_b_frames/fps (MP4 forbids a negative DTS); muxed, ffmpeg shifted both
+	// streams together, but a separate rendition starts at 0 and would run early
+	// by exactly that much. -output_ts_offset shifts the OUTPUT stamps - what the
+	// player reads - rather than the input, so the decoded content is unchanged
+	// and only its position on the timeline moves.
+	if opts.VideoCompositionDelay > 0 {
+		args = append(args, "-output_ts_offset", fmt.Sprintf("%.3f", opts.VideoCompositionDelay))
+	}
+
 	if opts.AudioNormalize {
 		args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 	}
@@ -97,6 +107,12 @@ func needsAudioFMP4Rebase(o transcoding.AudioProcessOpts) bool {
 // pipeline for stream_0.m3u8). Cleanup is the caller's responsibility (same
 // contract as HLSTranscoder.Start: the caller removes OutputDir at teardown).
 func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.AudioProcessOpts) (transcoding.HLSProcessHandle, error) {
+	// Probe (cached) the video's composition delay here - once per session, before
+	// the args are built - so BuildFFmpegAudioOnlyArgs stays pure. Mirrors how
+	// Start() resolves AudioStartDelaySec for the muxed pipeline.
+	if opts.VideoCompositionDelay == 0 {
+		opts.VideoCompositionDelay = VideoCompositionDelaySec(ctx, audioDelayProbeBinary, opts.FilePath)
+	}
 	// Seeked sessions write into a private subdir; the rebase pump shifts each
 	// fragment's tfdt/sidx by the session's absolute start and atomically renames
 	// into the cache dir - the rename is the publish point SegmentCache.IsReady

@@ -1283,3 +1283,36 @@ func TestBuildFFmpegAudioOnlyArgs_ScalesBitrateToChannels(t *testing.T) {
 		t.Errorf("expected bitrate scaled to 384k for 5.1, got: %s", joined)
 	}
 }
+
+// The audio rendition must land on the SAME timeline as the video.
+//
+// A video with B-frames cannot have a negative DTS in MP4, so its first frame is
+// PRESENTED at has_b_frames/fps - measured: 42 ms (1 B-frame @ 23.976) and 83 ms
+// (2 B-frames). Muxed, ffmpeg shifted both streams together. Split into its own
+// rendition, the audio starts at 0 and therefore runs EARLY by exactly that
+// amount - past the ~45 ms audibility threshold for early audio (ITU-R BT.1359),
+// which is how the operator heard it.
+//
+// So the audio-only session must offset its output by the video's composition
+// delay. -output_ts_offset shifts the OUTPUT timestamps (what the player reads),
+// unlike -itsoffset which shifts the input.
+func TestBuildFFmpegAudioOnlyArgs_OffsetsByVideoCompositionDelay(t *testing.T) {
+	args := ffmpeg.BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
+		FilePath:              "/media/x.mkv",
+		AudioCodec:            "aac",
+		AudioBitrate:          128,
+		VideoCompositionDelay: 0.042, // 1 B-frame at 23.976 fps
+	})
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "-output_ts_offset 0.042") {
+		t.Errorf("audio must be shifted onto the video's timeline, got: %s", joined)
+	}
+
+	// No B-frames (or unknown): nothing to compensate, args stay as they were.
+	plain := ffmpeg.BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
+		FilePath: "/media/x.mkv", AudioCodec: "aac", AudioBitrate: 128,
+	})
+	if strings.Contains(strings.Join(plain, " "), "-output_ts_offset") {
+		t.Error("a source with no composition delay must not be shifted")
+	}
+}

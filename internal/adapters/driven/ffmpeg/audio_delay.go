@@ -14,6 +14,8 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -206,4 +208,78 @@ func parseProbeSeconds(s string) (float64, bool) {
 		return 0, false
 	}
 	return v, true
+}
+
+// videoCompositionDelayCache memoises the probe per (path,size,mtime), like the
+// audio start-delay cache above: the value is a property of the file.
+var videoCompositionDelayCache sync.Map
+
+// VideoCompositionDelaySec is the seconds by which the source's VIDEO is
+// presented late once packaged as MP4: has_b_frames / fps.
+//
+// MP4 forbids a negative DTS, so a stream with B-frames has its first frame
+// PRESENTED at that offset (measured on real files: 42 ms for 1 B-frame, 83 ms
+// for 2, at 23.976 fps - matching ffprobe's has_b_frames exactly). The muxed
+// pipeline shifted audio and video together and stayed in sync; an audio
+// rendition served as its own stream starts at 0 and runs EARLY by this much.
+//
+// Best-effort: any probe failure returns 0 (no shift), which is the pre-feature
+// behaviour - a rendition must never fail to start because a probe did.
+func VideoCompositionDelaySec(ctx context.Context, ffprobeBinary, filePath string) float64 {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return 0
+	}
+	key := fmt.Sprintf("%s|%d|%d", filePath, fi.Size(), fi.ModTime().UnixNano())
+	if v, ok := videoCompositionDelayCache.Load(key); ok {
+		return v.(float64)
+	}
+	d := probeVideoCompositionDelaySec(ctx, ffprobeBinary, filePath)
+	videoCompositionDelayCache.Store(key, d)
+	return d
+}
+
+func probeVideoCompositionDelaySec(ctx context.Context, binary, filePath string) float64 {
+	out, err := exec.CommandContext(ctx, binary,
+		"-v", "quiet",
+		"-select_streams", "v:0",
+		"-print_format", "json",
+		"-show_entries", "stream=has_b_frames,avg_frame_rate",
+		filePath,
+	).Output()
+	if err != nil {
+		return 0
+	}
+	var parsed struct {
+		Streams []struct {
+			HasBFrames   int    `json:"has_b_frames"`
+			AvgFrameRate string `json:"avg_frame_rate"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(out, &parsed); err != nil || len(parsed.Streams) == 0 {
+		return 0
+	}
+	s := parsed.Streams[0]
+	if s.HasBFrames <= 0 {
+		return 0 // no reorder → the first frame is presented at 0
+	}
+	fps := parseFPS(s.AvgFrameRate)
+	if fps <= 0 {
+		return 0
+	}
+	return float64(s.HasBFrames) / fps
+}
+
+// parseFPS reads ffprobe's "24000/1001" rational. Returns 0 when unusable.
+func parseFPS(raw string) float64 {
+	num, den, ok := strings.Cut(strings.TrimSpace(raw), "/")
+	if !ok {
+		return 0
+	}
+	n, err1 := strconv.ParseFloat(num, 64)
+	d, err2 := strconv.ParseFloat(den, 64)
+	if err1 != nil || err2 != nil || d == 0 {
+		return 0
+	}
+	return n / d
 }

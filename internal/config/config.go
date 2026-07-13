@@ -359,16 +359,16 @@ type TranscodingConfig struct {
 	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch language
 	// without re-fetching the video stream.
 	//
-	// OFF by default again: the separate audio rendition starts at PTS 0 while
-	// the video starts LATER (B-frame reorder on a transcode, native PTS on a
-	// copy), so the audio runs 42-83 ms EARLY - audible. Muxed, both streams came
-	// out of one ffmpeg and stayed aligned. Measured on a real title: muxed video
-	// 0.083 / audio 0.062 (21 ms, the AAC priming, inaudible); renditions video
-	// 0.083 / audio 0.000.
+	// ON by default: it gates the HYBRID on-demand rung - a copy-eligible video
+	// packaged by mkvgo (no ffmpeg, nothing written to the cache) while its
+	// non-browser audio (AC-3/E-AC-3, very common) is re-encoded on the side. This
+	// is the biggest win on a weak NAS, and the common case for a browser.
 	//
-	// This also gates the HYBRID on-demand rung (mkvgo video + re-encoded audio),
-	// which is a real win - turning it back on requires offsetting the audio by
-	// the video's start PTS first. Until then, correctness wins.
+	// The A/V desync this once caused is fixed: served as its own stream the audio
+	// started at 0 while the video is presented late by has_b_frames/fps (MP4
+	// forbids a negative DTS) - 42 ms for 1 B-frame, 83 ms for 2, past the ~45 ms
+	// threshold for EARLY audio. The audio session now offsets its output by that
+	// delay (VideoCompositionDelay). Opt out: EVEY_HLS_AUDIO_RENDITION_ENABLED=false.
 	AudioRenditionEnabled bool
 
 	// Encode-calibration bench sample sources. The bench measures the host's
@@ -657,7 +657,7 @@ func Load() (*Config, error) {
 			SoftwareMaxHeightOverride:    envInt("EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT", 0),
 			SoftwareHDRMaxHeightOverride: envInt("EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT", 0),
 			TrickplayCacheDir:            envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
-			AudioRenditionEnabled:        envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
+			AudioRenditionEnabled:        envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", true),
 			BenchSDRSamplePath:           envStr("EVEY_BENCH_SDR_SAMPLE", ""),
 			BenchSDRSampleURL:            envStr("EVEY_BENCH_SDR_SAMPLE_URL", ""),
 			BenchSDRSampleSHA256:         envStr("EVEY_BENCH_SDR_SAMPLE_SHA256", ""),

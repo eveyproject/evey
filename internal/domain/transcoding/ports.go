@@ -82,6 +82,14 @@ type AudioProcessOpts struct {
 	StartSec         float64 // for mid-stream rafale; 0 for cold start
 	StartNumber      int     // ffmpeg -start_number; floor(StartSec/3) for rafale
 	AudioNormalize   bool    // insert loudnorm filter
+
+	// VideoCompositionDelay is the seconds by which the VIDEO's first frame is
+	// presented late - has_b_frames/fps, because MP4 forbids a negative DTS. The
+	// muxed pipeline shifted audio and video together; a separate audio rendition
+	// starts at 0 and would therefore run EARLY by exactly this much (measured:
+	// 42 ms for 1 B-frame, 83 ms for 2, at 23.976 fps). Past the ~45 ms threshold
+	// for early audio, that is audible. 0 = nothing to compensate.
+	VideoCompositionDelay float64
 }
 
 // HLSProcessHandle controls a running HLS transcode.

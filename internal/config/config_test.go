@@ -578,20 +578,19 @@ func TestWarnValidate_PluginsResourceLimitsZeroAccepted(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// Audio renditions stay OFF by default: served as a separate stream, the audio
-// starts at PTS 0 while the video starts LATER (B-frame reorder on a transcode,
-// native PTS on a copy), so the audio runs 42-83 ms EARLY - audible. Muxed, both
-// come out of one ffmpeg and stay aligned. Re-enabling requires offsetting the
-// audio by the video's start PTS first.
-func TestAudioRenditionDisabledByDefault(t *testing.T) {
+// Audio renditions are ON by default: they gate the hybrid mkvgo rung (video
+// packaged with zero ffmpeg + audio re-encoded on the side). The A/V desync that
+// once forced them off is fixed - the audio session is offset by the video's
+// composition delay (has_b_frames/fps).
+func TestAudioRenditionEnabledByDefault(t *testing.T) {
 	t.Setenv("EVEY_DB_URL", "postgres://x/y")
 	cfg, err := Load()
 	require.NoError(t, err)
-	assert.False(t, cfg.Transcoding.AudioRenditionEnabled,
-		"audio renditions desync A/V by 42-83ms - must stay off until the audio is offset")
+	assert.True(t, cfg.Transcoding.AudioRenditionEnabled,
+		"audio renditions gate the hybrid mkvgo rung - on by default now the A/V offset is applied")
 
-	t.Setenv("EVEY_HLS_AUDIO_RENDITION_ENABLED", "true")
-	on, err := Load()
+	t.Setenv("EVEY_HLS_AUDIO_RENDITION_ENABLED", "false")
+	off, err := Load()
 	require.NoError(t, err)
-	assert.True(t, on.Transcoding.AudioRenditionEnabled, "operators must still be able to opt in")
+	assert.False(t, off.Transcoding.AudioRenditionEnabled, "operators must be able to opt out")
 }
