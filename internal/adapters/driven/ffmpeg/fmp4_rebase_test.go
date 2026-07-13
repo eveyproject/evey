@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/evey-project/evey/internal/domain/transcoding"
+
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
 	"github.com/evey-project/evey/internal/pkg/metrics"
@@ -218,5 +220,21 @@ func TestVerifySegmentTimeline_TranscodeSeek(t *testing.T) {
 	}
 	if copyRead() != copyBase {
 		t.Fatal("transcode-seek drift must NOT touch the copy counter")
+	}
+}
+
+// A SEEKED audio-only session must rebase its fMP4 timestamps exactly like the
+// copy-seek video path does. movenc always writes tfdt session-relative, so a
+// `-ss 1800 -start_number 600` audio session emits tfdt=0 on its first fragment:
+// hls.js would then place 30-minutes-in audio at the very start of the timeline,
+// against a video segment correctly sitting at 1800 s - silent A/V desync.
+func TestNeedsAudioFMP4Rebase(t *testing.T) {
+	cold := transcoding.AudioProcessOpts{StartNumber: 0, StartSec: 0}
+	if needsAudioFMP4Rebase(cold) {
+		t.Error("a cold audio session (start 0) needs no rebase - tfdt is already absolute")
+	}
+	seeked := transcoding.AudioProcessOpts{StartNumber: 600, StartSec: 1800}
+	if !needsAudioFMP4Rebase(seeked) {
+		t.Error("a seeked audio session MUST be rebased, or its audio lands at t=0")
 	}
 }

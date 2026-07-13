@@ -12,9 +12,12 @@ import (
 )
 
 // AudioSegmentOrchestrator manages audio-only ffmpeg sessions for HLS EXT-X-MEDIA
-// renditions. One session per AudioFingerprint (keyed by fp.Hash()). Unlike the
-// video SegmentOrchestrator it does not support multi-rafale per hash, CMCD
-// throttling, or LRU eviction - audio sessions are lightweight and short-lived.
+// renditions. Sessions are keyed by (AudioFingerprint.Hash(), start segment):
+// a seek spawns ffmpeg AT the requested position instead of waiting for a
+// session pinned to t=0 to encode its way there. Unlike the video
+// SegmentOrchestrator there is no CMCD throttling - audio sessions are
+// lightweight - but the same seek semantics apply, because a player that seeks
+// needs its audio as promptly as its video.
 type AudioSegmentOrchestrator struct {
 	cache      *SegmentCache
 	transcoder transcoding.AudioProcess
@@ -26,7 +29,25 @@ type AudioSegmentOrchestrator struct {
 	shutdownCancel context.CancelFunc
 
 	mu       sync.Mutex
-	sessions map[string]*audioSession // keyed by AudioFingerprint.Hash()
+	sessions map[string]*audioSession // keyed by sessionKey(hash, startSeg)
+}
+
+// audioSessionLookahead is how far AHEAD of a session's start segment that
+// session is still considered the right one to wait on. ffmpeg audio-only runs
+// far faster than realtime, so a request a little ahead of the live frontier is
+// served in well under a second - but a request FAR ahead (a seek) must not wait
+// for the encoder to walk there. 40 segments = 2 minutes of audio.
+const audioSessionLookahead = 40
+
+// maxAudioSessionsPerHash bounds concurrent ffmpeg processes for one rendition
+// (a viewer scrubbing repeatedly would otherwise spawn one per seek). The oldest
+// is evicted past the cap.
+const maxAudioSessionsPerHash = 3
+
+// sessionKey namespaces a session by its start segment so a seek's session and
+// the cold-start one coexist instead of aliasing.
+func audioSessionKey(hash string, startSeg int) string {
+	return fmt.Sprintf("%s:%d", hash, startSeg)
 }
 
 type audioSession struct {
@@ -35,6 +56,8 @@ type audioSession struct {
 	handle    transcoding.HLSProcessHandle
 	teardown  func() // idempotent; release SegmentCache pending refcount
 	startedAt time.Time
+	startSeg  int    // segment this ffmpeg was started at (-ss / -start_number)
+	hash      string // AudioFingerprint.Hash(), without the start-segment suffix
 }
 
 // NewAudioSegmentOrchestrator wires the segment cache and audio process together.
@@ -76,8 +99,8 @@ func (o *AudioSegmentOrchestrator) EnsureAudioSegment(ctx context.Context, fp Au
 		return nil
 	}
 
-	// Ensure exactly one ffmpeg is running for this fingerprint.
-	if err := o.ensureSession(ctx, fp, audioHash); err != nil {
+	// Ensure an ffmpeg session is running that will actually reach this segment.
+	if err := o.ensureSession(ctx, fp, audioHash, segIdx); err != nil {
 		return err
 	}
 
@@ -86,17 +109,19 @@ func (o *AudioSegmentOrchestrator) EnsureAudioSegment(ctx context.Context, fp Au
 	return o.cache.Wait(ctx, key, true, audioSegmentTimeout)
 }
 
-// ensureSession spawns a new audio ffmpeg session for audioHash if none exists.
-// Concurrent callers that arrive while a spawn is in progress all wait on the
-// same mu lock and will find the session already populated when they proceed.
-func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFingerprint, audioHash string) error {
+// ensureSession guarantees a live ffmpeg session that will reach segIdx. A
+// session started at or just before segIdx (within audioSessionLookahead) is
+// ridden as-is; anything else - notably a seek far ahead of the live frontier -
+// spawns its own ffmpeg AT that position. Concurrent callers serialise on mu and
+// find the session already populated when they proceed.
+func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFingerprint, audioHash string, segIdx int) error {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 
-	if _, ok := o.sessions[audioHash]; ok {
-		// Session already live - nothing to spawn.
+	if o.coveringSessionLocked(audioHash, segIdx) {
 		return nil
 	}
+	o.evictOldestLocked(audioHash)
 
 	outputDir, err := o.cache.DirFor(audioHash)
 	if err != nil {
@@ -112,9 +137,12 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 		AudioCodec:       fp.AudioCodec,
 		AudioBitrate:     int(fp.AudioBitrate),
 		MaxAudioChannels: fp.MaxAudioChannels,
-		StartSec:         0,
-		StartNumber:      0,
-		AudioNormalize:   fp.AudioNormalize,
+		// Seek: ffmpeg both decodes from here (-ss) and numbers its output from
+		// here (-start_number), so segment N on disk is always source second
+		// N*ManifestSegmentSeconds - the invariant the playlist addresses.
+		StartSec:       float64(segIdx) * ManifestSegmentSeconds,
+		StartNumber:    segIdx,
+		AudioNormalize: fp.AudioNormalize,
 	}
 
 	// Use the orchestrator's long-lived context so the ffmpeg process survives
@@ -132,13 +160,17 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 		handle:    handle,
 		teardown:  teardown,
 		startedAt: time.Now(),
+		startSeg:  segIdx,
+		hash:      audioHash,
 	}
-	o.sessions[audioHash] = sess
+	sessKey := audioSessionKey(audioHash, segIdx)
+	o.sessions[sessKey] = sess
 
 	o.logger.Info("audio_orchestrator: session spawned",
 		slog.String("hash", audioHash),
 		slog.String("media_id", fp.MediaID),
 		slog.Int("track", fp.SourceTrackIdx),
+		slog.Int("start_seg", segIdx),
 		slog.String("codec", fp.AudioCodec))
 
 	// Reap goroutine: remove the session when ffmpeg exits (naturally or via cancel).
@@ -155,7 +187,7 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 		}
 
 		o.mu.Lock()
-		delete(o.sessions, audioHash)
+		delete(o.sessions, sessKey)
 		o.mu.Unlock()
 
 		sess.mu.Lock()
@@ -172,6 +204,48 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 	}()
 
 	return nil
+}
+
+// coveringSessionLocked reports whether a live session for this hash will reach
+// segIdx soon enough to just wait on it: it must have started AT or BEFORE the
+// segment (ffmpeg only moves forward) and no more than audioSessionLookahead
+// behind it. A session further back is a cold-start ffmpeg grinding towards a
+// seek target minutes away - waiting on it is what made a seek take 30 s.
+// Caller holds o.mu.
+func (o *AudioSegmentOrchestrator) coveringSessionLocked(audioHash string, segIdx int) bool {
+	for _, sess := range o.sessions {
+		if sess.hash != audioHash || sess.startSeg > segIdx {
+			continue
+		}
+		if segIdx-sess.startSeg <= audioSessionLookahead {
+			return true
+		}
+	}
+	return false
+}
+
+// evictOldestLocked stops the oldest session for this hash once the per-hash cap
+// is reached, so repeated scrubbing can't pile up ffmpeg processes. Caller holds
+// o.mu; the reap goroutine removes the map entry when the process exits.
+func (o *AudioSegmentOrchestrator) evictOldestLocked(audioHash string) {
+	var oldest *audioSession
+	live := 0
+	for _, sess := range o.sessions {
+		if sess.hash != audioHash {
+			continue
+		}
+		live++
+		if oldest == nil || sess.startedAt.Before(oldest.startedAt) {
+			oldest = sess
+		}
+	}
+	if live < maxAudioSessionsPerHash || oldest == nil || oldest.handle == nil {
+		return
+	}
+	o.logger.Debug("audio_orchestrator: evicting oldest session (per-hash cap)",
+		slog.String("hash", audioHash),
+		slog.Int("start_seg", oldest.startSeg))
+	_ = oldest.handle.Stop() // reap goroutine unblocks on Done() and cleans up
 }
 
 // ActiveCount returns the number of live audio ffmpeg sessions. Useful for

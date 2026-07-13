@@ -57,6 +57,13 @@ func (f *fakeAudioProcess) StartAudioOnly(_ context.Context, opts transcoding.Au
 
 func (f *fakeAudioProcess) startCount() int { return int(f.count.Load()) }
 
+// optsAt returns the opts captured by the i-th StartAudioOnly call.
+func (f *fakeAudioProcess) optsAt(i int) transcoding.AudioProcessOpts {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.opts[i]
+}
+
 // audioFakeHandle controls a simulated ffmpeg audio session.
 type audioFakeHandle struct {
 	mu      sync.Mutex
@@ -299,4 +306,53 @@ func TestAudioOrchestrator_Close_StopsAllSessions(t *testing.T) {
 
 	require.NoError(t, o.Close())
 	assert.Equal(t, 0, o.ActiveCount())
+}
+
+// A seek must start ffmpeg AT the requested position. The session used to be
+// pinned to StartSec 0, so seeking to t=1800s meant re-encoding 30 minutes of
+// audio before the segment appeared - the video (packaged by mkvgo, stateless)
+// was there in 50 ms while the audio timed out. Measured on the hybrid rung:
+// cold seek to segment 600 = HTTP 503 after 30 s.
+func TestAudioOrchestrator_DeepSeek_StartsAtRequestedPosition(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		// ffmpeg writes from its own start segment onwards.
+		writeAudioSegment(t, cache, fp, opts.StartNumber)
+		return newAudioFakeHandle()
+	}
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 600))
+
+	opts := proc.optsAt(0)
+	assert.Equal(t, 600, opts.StartNumber, "ffmpeg must start numbering at the seeked segment")
+	assert.InDelta(t, 1800.0, opts.StartSec, 0.001, "ffmpeg must -ss to the seeked position (600 * 3s)")
+}
+
+// A session already covering the requested segment is reused: playback walking
+// forward from a seek must not respawn ffmpeg on every segment.
+func TestAudioOrchestrator_ForwardPlayback_ReusesSession(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		// The live session produces its start segment and the ones just after.
+		for i := opts.StartNumber; i <= opts.StartNumber+3; i++ {
+			writeAudioSegment(t, cache, fp, i)
+		}
+		return newAudioFakeHandle()
+	}
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 600))
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 601))
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 602))
+
+	assert.Equal(t, 1, proc.startCount(), "forward playback must ride the live session")
 }

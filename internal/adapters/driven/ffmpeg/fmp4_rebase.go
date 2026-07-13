@@ -387,9 +387,11 @@ func verifySegmentTimeline(name, segPrefix string, tfdtMs int64, expectedStartMs
 // session wins; per-session inits differ only in edit lists hls.js ignores).
 // Exits on ctx cancel or ffmpeg termination, after a final sweep, and removes
 // privDir.
-func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir string, deltaMs int64, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
-	initName := fmt.Sprintf("stream_%d_init.mp4", variantIdx)
-	segPrefix := fmt.Sprintf("stream_%d_", variantIdx)
+// namePrefix selects the rung's filenames: "stream" for the video variants,
+// "audio" for the EXT-X-MEDIA renditions (which seek exactly the same way).
+func runRebasePump(done <-chan struct{}, stop <-chan struct{}, privDir, pubDir string, deltaMs int64, namePrefix string, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
+	initName := fmt.Sprintf("%s_%d_init.mp4", namePrefix, variantIdx)
+	segPrefix := fmt.Sprintf("%s_%d_", namePrefix, variantIdx)
 	published := make(map[string]bool, 64)
 	failures := make(map[string]int, 4)
 	var initTS map[uint32]uint32

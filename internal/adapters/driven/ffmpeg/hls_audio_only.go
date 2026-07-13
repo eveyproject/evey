@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime/debug"
@@ -80,17 +81,44 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	return args
 }
 
+// needsAudioFMP4Rebase reports whether this audio session's fragments must have
+// their timestamps shifted to absolute time. movenc writes tfdt session-relative
+// ALWAYS (see fmp4_rebase.go), so a seeked session (-ss / -start_number > 0)
+// emits tfdt=0 on its first fragment: the player would drop 30-minutes-in audio
+// at the start of the timeline while the video sits correctly at the seek point.
+// A cold session starts at 0, where session-relative already IS absolute.
+func needsAudioFMP4Rebase(o transcoding.AudioProcessOpts) bool {
+	return o.StartNumber > 0 || o.StartSec > 0
+}
+
 // StartAudioOnly spawns an ffmpeg audio-only HLS rendition and returns a
 // handle that satisfies HLSProcessHandle. Ready is signalled once the
 // audio_T.m3u8 playlist file appears on disk (same heuristic as the video
 // pipeline for stream_0.m3u8). Cleanup is the caller's responsibility (same
 // contract as HLSTranscoder.Start: the caller removes OutputDir at teardown).
 func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.AudioProcessOpts) (transcoding.HLSProcessHandle, error) {
+	// Seeked sessions write into a private subdir; the rebase pump shifts each
+	// fragment's tfdt/sidx by the session's absolute start and atomically renames
+	// into the cache dir - the rename is the publish point SegmentCache.IsReady
+	// observes, so no reader ever sees a pre-rebase (t=0) fragment.
+	pubDir := opts.OutputDir
+	rebase := needsAudioFMP4Rebase(opts)
+	if rebase {
+		priv := filepath.Join(pubDir, fmt.Sprintf(".rebase_audio_%d_%d_%d",
+			opts.SourceTrackIdx, opts.StartNumber, time.Now().UnixNano()))
+		if err := os.MkdirAll(priv, 0o755); err != nil {
+			return nil, fmt.Errorf("audio rebase dir: %w", err)
+		}
+		opts.OutputDir = priv
+	}
+
 	args := BuildFFmpegAudioOnlyArgs(opts)
 	slog.Info("hls: ffmpeg audio-only start",
 		slog.String("media_path", opts.FilePath),
 		slog.Int("track_idx", opts.SourceTrackIdx),
 		slog.String("codec", opts.AudioCodec),
+		slog.Int("start_seg", opts.StartNumber),
+		slog.Bool("rebase", rebase),
 		slog.String("args", strings.Join(args, " ")))
 
 	processCtx, cancel := context.WithCancel(ctx)
@@ -121,6 +149,13 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 	}()
 
 	go h.run(processCtx)
+	if rebase {
+		// variantIdx = the audio track: the pump's segment matcher and metrics
+		// are per-rendition. No expected-start tripwire on audio (the video
+		// pipeline's copy plan supplies one; audio has no such plan).
+		deltaMs := int64(opts.StartSec*1000 + 0.5)
+		go runRebasePump(h.done, processCtx.Done(), opts.OutputDir, pubDir, deltaMs, "audio", opts.SourceTrackIdx, nil, "audio")
+	}
 	return h, nil
 }
 
