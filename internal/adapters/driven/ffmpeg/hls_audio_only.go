@@ -45,8 +45,14 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	encoder := resolveAudioEncoder(opts.AudioCodec)
 	args = append(args, "-c:a", encoder)
 
+	// Scale the (stereo-sized) base to the channel target with the SAME rule as
+	// the muxed ladder (audioOutputArgsSingle): a 5.1 track kept at the stereo
+	// base would ship 6 channels at 128 kbps. Deterministic in
+	// (AudioBitrate, MaxAudioChannels) - both hashed into the AudioFingerprint -
+	// so a given fingerprint still yields the same bytes.
 	if opts.AudioBitrate > 0 {
-		args = append(args, "-b:a", fmt.Sprintf("%dk", opts.AudioBitrate))
+		args = append(args, "-b:a",
+			fmt.Sprintf("%dk", scaledAudioBitrateKbps(int64(opts.AudioBitrate), opts.MaxAudioChannels)))
 	}
 
 	args = append(args, "-ac", resolveAudioChannels(opts.MaxAudioChannels))

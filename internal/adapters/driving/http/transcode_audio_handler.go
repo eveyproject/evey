@@ -232,25 +232,60 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 }
 
 // buildAudioFingerprint constructs the AudioFingerprint for an HTTP request.
-// AudioCodec and AudioBitrate are hardcoded to "aac" / 128 kbps for the MVP -
-// the decision pipeline doesn't yet expose a per-rendition codec choice on the
-// audio path. A full passthrough / transcode decision mirroring the video
-// pipeline is tracked as a TODO below.
+// AudioCodec is "aac" (safe on every client) and AudioBitrate carries the
+// STEREO BASE - BuildFFmpegAudioOnlyArgs scales it to the channel count with the
+// same rule as the muxed ladder (~64 kbps/channel beyond stereo, 5.1 -> 384k).
+//
+// MaxAudioChannels comes from the requested SOURCE track: ffmpeg reads 0 as
+// `-ac 2`, so leaving it unset would downmix a 5.1 AC-3 track to stereo. The
+// muxed path this rung replaces preserves the layout, and the hybrid rung is
+// meant to serve the source's audio, not a quietly degraded one. Both fields are
+// hashed, so a channel change forks the cache instead of aliasing.
 //
 // TODO(audio-rendition): wire MakePlaybackDecisionWithPrefs result for the
 // audio-only path so passthrough is chosen when the source codec is AC-3 /
-// E-AC-3 and the client advertises support.  For now AAC 128 kbps is safe for
-// all clients (hls.js / Safari / mobile).
+// E-AC-3 and the client advertises support.
 func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, trackIdx int) apptranscoding.AudioFingerprint {
 	return apptranscoding.AudioFingerprint{
 		MediaID:          mediaID,
 		SourcePath:       item.File.Path,
 		SourceTrackIdx:   trackIdx,
 		AudioCodec:       "aac",
-		AudioBitrate:     128,
+		AudioBitrate:     128, // stereo base; scaled to MaxAudioChannels at arg-build
 		AudioNormalize:   h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
-		MaxAudioChannels: 0, // 0 = passthrough channel count
+		MaxAudioChannels: h.sourceAudioChannels(r.Context(), mediaID, trackIdx),
 	}
+}
+
+// sourceAudioChannels returns the channel count of the trackIdx-th AUDIO stream
+// (the `ffmpeg -map 0:a:N` numbering buildAudioRenditions advertises). Returns 0
+// - ffmpeg's stereo default, the previous behaviour - when the streams can't be
+// read or the source never reported a channel count, so an unknown layout is
+// never guessed.
+func (h *audioServe) sourceAudioChannels(ctx context.Context, mediaID string, trackIdx int) int {
+	if h.libSvc == nil {
+		return 0
+	}
+	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
+	if err != nil {
+		slog.Warn("audio rendition: stream lookup failed, defaulting to stereo",
+			slog.String("media_id", mediaID), slog.Any("err", err))
+		return 0
+	}
+	audioIdx := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != domainlibrary.Audio {
+			continue
+		}
+		if audioIdx == trackIdx {
+			if s.Channels == nil || *s.Channels <= 0 {
+				return 0
+			}
+			return *s.Channels
+		}
+		audioIdx++
+	}
+	return 0
 }
 
 // buildAudioRenditions converts the raw media streams into the

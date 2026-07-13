@@ -1263,3 +1263,23 @@ func TestBuildFFmpegArgs_LegacyInterlacedAnamorphic(t *testing.T) {
 	assert.Contains(t, joined, "trunc(", "anamorphic height expression present")
 	assert.NotContains(t, joined, "deint=interlaced", "deint=all replaces the flag-gated mode")
 }
+
+// The audio-rendition path must scale the bitrate to the channel count the same
+// way the muxed ladder does (audioOutputArgsSingle). Serving a 5.1 track at the
+// stereo base would ship a 6-channel AAC at 128 kbps - the hybrid mkvgo rung is
+// meant to preserve the source's audio, not quietly degrade it.
+func TestBuildFFmpegAudioOnlyArgs_ScalesBitrateToChannels(t *testing.T) {
+	args := ffmpeg.BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
+		FilePath:         "/media/x.mkv",
+		AudioCodec:       "aac",
+		AudioBitrate:     128, // stereo base, as the ladder carries it
+		MaxAudioChannels: 6,   // 5.1 source
+	})
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "-ac 6") {
+		t.Errorf("expected 6 channels preserved, got: %s", joined)
+	}
+	if !strings.Contains(joined, "-b:a 384k") { // 6 * 64 kbps, same rule as the muxed path
+		t.Errorf("expected bitrate scaled to 384k for 5.1, got: %s", joined)
+	}
+}

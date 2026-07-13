@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -109,4 +111,32 @@ func TestBuildAudioRenditions_FiltersAudioOnly(t *testing.T) {
 	assert.Equal(t, "en", renditions[0].LanguageCode)
 	assert.Equal(t, 1, renditions[1].SourceTrackIdx)
 	assert.Equal(t, "fr", renditions[1].LanguageCode)
+}
+
+// The hybrid mkvgo rung (video copied by the packager + audio re-encoded here)
+// must carry the SOURCE's channel layout: MaxAudioChannels 0 makes ffmpeg emit
+// `-ac 2`, silently downmixing a 5.1 AC-3 track to stereo. The muxed ffmpeg path
+// it replaces preserves 5.1, so the fingerprint has to derive the channel count
+// from the requested track instead of hardcoding the stereo default.
+func TestBuildAudioFingerprint_DerivesChannelsFromSourceTrack(t *testing.T) {
+	six := 6
+	two := 2
+	item, _ := testMediaItemWithAudioStreams()
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: "video", Codec: "h264"},
+		{StreamType: "audio", Codec: "aac", Language: "en", Channels: &two}, // audio idx 0
+		{StreamType: "audio", Codec: "ac3", Language: "fr", Channels: &six}, // audio idx 1 (5.1)
+	}
+	h := buildAudioServe(t, true, &testFakeStreamsGetter{item: item, streams: streams}, nil, nil, nil)
+	r := httptest.NewRequest(http.MethodGet, "/hls/audio_1.m3u8", nil)
+
+	fp := h.buildAudioFingerprint(r, "m1", item, 1) // the 5.1 French track
+	if fp.MaxAudioChannels != 6 {
+		t.Errorf("MaxAudioChannels = %d, want 6 (source 5.1 must not be downmixed)", fp.MaxAudioChannels)
+	}
+
+	fpStereo := h.buildAudioFingerprint(r, "m1", item, 0)
+	if fpStereo.MaxAudioChannels != 2 {
+		t.Errorf("MaxAudioChannels = %d, want 2 for the stereo track", fpStereo.MaxAudioChannels)
+	}
 }
