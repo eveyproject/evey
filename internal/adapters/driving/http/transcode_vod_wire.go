@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
@@ -63,12 +64,37 @@ func (a copyItemReaderAdapter) GetByID(ctx context.Context, id shared.MediaItemI
 // has already built, and constructs the software producer + the selector that
 // routes each request between them. Returns nil if a prerequisite is missing so
 // the caller skips route registration cleanly.
-// resolveServerFlag returns the effective value of an operational (non-secret)
-// flag: a server_config DB row wins, else the process env var, else "". Mirrors
-// cmd/evey.resolveFlag so transcode toggles are flippable from
-// /admin/server-config (a restart is still required - flags are read at boot).
-// Both the dotted DB key (canonical) and the raw env-var name are accepted as
-// DB keys. cfgRepo may be nil (pure-env fallback).
+// flagEnabled reads an operator flag's raw value against a default.
+//
+// The raw string used to be compared to the literals "on"/"off", while the admin
+// panel persists every other boolean with strconv.FormatBool ("true"/"false") -
+// so the two never met: `hls_ondemand = "false"` did NOT disable it, and
+// `hls_ondemand_concat = "true"` did NOT enable it. An operator could believe a
+// path was off while it ran. Accept the spellings people actually write; anything
+// unparseable keeps the code's default rather than silently flipping a path.
+func flagEnabled(raw string, defaultOn bool) bool {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "on", "true", "1", "yes", "enabled":
+		return true
+	case "off", "false", "0", "no", "disabled":
+		return false
+	default:
+		return defaultOn
+	}
+}
+
+// serverFlagEnabled resolves an operator flag (DB override, then env) against a
+// default. Prefer this over comparing resolveServerFlag's raw string.
+func serverFlagEnabled(cfgRepo shared.ServerConfigRepository, dbKey, envVar string, defaultOn bool) bool {
+	return flagEnabled(resolveServerFlag(cfgRepo, dbKey, envVar), defaultOn)
+}
+
+// resolveServerFlag returns the effective RAW value of an operational (non-secret)
+// flag: a server_config DB row wins, else the process env var, else "". Both the
+// dotted DB key (canonical) and the raw env-var name are accepted as DB keys.
+// cfgRepo may be nil (pure-env fallback). For booleans, go through
+// serverFlagEnabled - comparing this string by hand is how "true" ended up not
+// meaning "on".
 func resolveServerFlag(cfgRepo shared.ServerConfigRepository, dbKey, envVar string) string {
 	if cfgRepo != nil {
 		ctx := context.Background()
@@ -209,7 +235,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// segment within ~60 ms) + a clean user listen test (start, deep seeks,
 	// seek-back). A request still only routes here when it is copy-eligible
 	// AND keyframe-backfilled (isCopyRequest → sourceCopyVideoCodec).
-	if resolveServerFlag(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY") != "off" {
+	if serverFlagEnabled(s.ServerCfgRepo, "transcoding.remux_copy", "EVEY_REMUX_COPY", true) {
 		softwareCopy := apptranscoding.NewSoftwareProducer(
 			cache,
 			s.HLSTranscoder,
@@ -232,7 +258,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// can't package, requests fall through to the copy producer / transcode
 	// ladder exactly as before.
 	if s.OnDemandPackager != nil &&
-		resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand", "EVEY_HLS_ONDEMAND") != "off" {
+		serverFlagEnabled(s.ServerCfgRepo, "transcoding.hls_ondemand", "EVEY_HLS_ONDEMAND", true) {
 		h.onDemand = s.OnDemandPackager
 		slog.Default().Info("hls vod: on-demand copy rung enabled (mp4.PlanHLS, default; disable with server_config transcoding.hls_ondemand=off or EVEY_HLS_ONDEMAND=off)")
 
@@ -240,7 +266,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		// Off by default; needs the derivation secret. Only meaningful with the
 		// rung enabled, hence nested.
 		if len(s.HLSAESSecret) > 0 &&
-			resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand_encrypt", "EVEY_HLS_ONDEMAND_ENCRYPT") == "on" {
+			serverFlagEnabled(s.ServerCfgRepo, "transcoding.hls_ondemand_encrypt", "EVEY_HLS_ONDEMAND_ENCRYPT", false) {
 			h.onDemandEncrypt = true
 			h.hlsAESSecret = s.HLSAESSecret
 			slog.Default().Info("hls vod: on-demand AES-128 encryption enabled (HLS only; no DASH manifest)")
@@ -255,17 +281,20 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 
 		// Track trim: one audio rendition per master instead of every track.
 		// Off by default; only meaningful with the on-demand rung itself on.
-		if resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand_track_trim", "EVEY_HLS_ONDEMAND_TRACK_TRIM") == "on" {
+		if serverFlagEnabled(s.ServerCfgRepo, "transcoding.hls_ondemand_track_trim", "EVEY_HLS_ONDEMAND_TRACK_TRIM", false) {
 			h.onDemandTrackTrim = true
 			slog.Default().Info("hls vod: on-demand track trim enabled (single resolved audio track per master; disable with server_config transcoding.hls_ondemand_track_trim=off or EVEY_HLS_ONDEMAND_TRACK_TRIM=off)")
 		}
 
-		// Gapless multi-episode session (mp4.PlanConcat), opt-in per request
-		// (?gapless=1). Off by default; only meaningful with the on-demand rung
-		// itself on (concat v1 has no ffmpeg-audio hybrid mode to fall back to
-		// mid-chain, so it reuses the copy-rung eligibility gates directly).
+		// Gapless multi-episode session (mp4.PlanConcat), opt-in PER REQUEST
+		// (?gapless=1) - and the web player already ships the toggle that sends
+		// it, in 6 languages. The server gate was opt-in too, so that toggle did
+		// nothing: default it ON, like the rung it rides on. Still bounded - an
+		// episode that isn't fully copy-eligible just falls back to the normal
+		// per-episode master (concat v1 has no mid-chain ffmpeg-audio hybrid, so
+		// it reuses the copy-rung eligibility gates directly).
 		if s.OnDemandConcatPackager != nil &&
-			resolveServerFlag(s.ServerCfgRepo, "transcoding.hls_ondemand_concat", "EVEY_HLS_ONDEMAND_CONCAT") == "on" {
+			serverFlagEnabled(s.ServerCfgRepo, "transcoding.hls_ondemand_concat", "EVEY_HLS_ONDEMAND_CONCAT", true) {
 			h.onDemandConcat = s.OnDemandConcatPackager
 			slog.Default().Info("hls vod: gapless multi-episode concat enabled (mp4.PlanConcat, opt-in ?gapless=1; disable with server_config transcoding.hls_ondemand_concat=off or EVEY_HLS_ONDEMAND_CONCAT=off)")
 		}
