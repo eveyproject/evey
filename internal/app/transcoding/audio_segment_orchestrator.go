@@ -109,6 +109,35 @@ func (o *AudioSegmentOrchestrator) EnsureAudioSegment(ctx context.Context, fp Au
 	return o.cache.Wait(ctx, key, true, audioSegmentTimeout)
 }
 
+// audioInitTimeout bounds the wait for the init. ffmpeg publishes it as soon as
+// the muxer opens, so this only fires on a broken session.
+const audioInitTimeout = 30 * time.Second
+
+// EnsureAudioInit guarantees the rendition's fMP4 init (ftyp+moov) is on disk.
+// The init describes the CODEC, not a position - every session publishes the same
+// bytes at startup - so any live session will do.
+//
+// It must NOT route through EnsureAudioSegment(fp, 0), as it once did: a deep
+// resume's session starts at the viewer's position and never writes segment 0, so
+// the wait timed out, the init 503'd, and the title played with no sound.
+func (o *AudioSegmentOrchestrator) EnsureAudioInit(ctx context.Context, fp AudioFingerprint) error {
+	audioHash := fp.Hash()
+	key := SegmentKey{
+		DecisionHash: audioHash,
+		VariantIdx:   fp.SourceTrackIdx,
+		IsInit:       true,
+		Kind:         KindAudio,
+	}
+
+	if o.cache.IsReady(key, true) {
+		return nil
+	}
+	if err := o.ensureSessionForInit(fp, audioHash); err != nil {
+		return err
+	}
+	return o.cache.Wait(ctx, key, true, audioInitTimeout)
+}
+
 // ensureSession guarantees a live ffmpeg session that will reach segIdx. A
 // session started at or just before segIdx (within audioSessionLookahead) is
 // ridden as-is; anything else - notably a seek far ahead of the live frontier -
@@ -121,11 +150,32 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 	if o.coveringSessionLocked(audioHash, segIdx) {
 		return nil
 	}
+	return o.spawnSessionLocked(fp, audioHash, segIdx)
+}
+
+// ensureSessionForInit guarantees SOME live session for this rendition, without
+// caring where it starts: every ffmpeg publishes the same init at startup. Only
+// when the rendition has no session at all is one started, at t=0.
+func (o *AudioSegmentOrchestrator) ensureSessionForInit(fp AudioFingerprint, audioHash string) error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	for _, sess := range o.sessions {
+		if sess.hash == audioHash {
+			return nil
+		}
+	}
+	return o.spawnSessionLocked(fp, audioHash, 0)
+}
+
+// spawnSessionLocked starts one ffmpeg audio session at segIdx and registers it.
+// Caller holds o.mu and has already decided no existing session fits.
+func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audioHash string, segIdx int) error {
 	o.evictOldestLocked(audioHash)
 
 	outputDir, err := o.cache.DirFor(audioHash)
 	if err != nil {
-		return fmt.Errorf("EnsureAudioSegment: cache dir: %w", err)
+		return fmt.Errorf("audio session: cache dir: %w", err)
 	}
 
 	teardown := o.cache.RegisterSession(audioHash)
@@ -152,7 +202,7 @@ func (o *AudioSegmentOrchestrator) ensureSession(ctx context.Context, fp AudioFi
 	if err != nil {
 		cancel()
 		teardown()
-		return fmt.Errorf("EnsureAudioSegment: start audio: %w", err)
+		return fmt.Errorf("audio session: start audio: %w", err)
 	}
 
 	sess := &audioSession{
@@ -245,7 +295,7 @@ func (o *AudioSegmentOrchestrator) evictOldestLocked(audioHash string) {
 	o.logger.Debug("audio_orchestrator: evicting oldest session (per-hash cap)",
 		slog.String("hash", audioHash),
 		slog.Int("start_seg", oldest.startSeg))
-	_ = oldest.handle.Stop() // reap goroutine unblocks on Done() and cleans up
+	_ = oldest.handle.Stop() //nolint:errcheck // best-effort: the reap goroutine unblocks on Done() and cleans up
 }
 
 // ActiveCount returns the number of live audio ffmpeg sessions. Useful for

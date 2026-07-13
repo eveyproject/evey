@@ -24,12 +24,18 @@ import (
 // It never actually spawns ffmpeg - it just records calls and
 // optionally returns a preset error.
 type fakeAudioEnsurer struct {
-	calls []int
-	err   error
+	calls     []int // segment indices requested
+	initCalls int
+	err       error
 }
 
 func (f *fakeAudioEnsurer) EnsureAudioSegment(_ context.Context, _ apptranscoding.AudioFingerprint, segIdx int) error {
 	f.calls = append(f.calls, segIdx)
+	return f.err
+}
+
+func (f *fakeAudioEnsurer) EnsureAudioInit(_ context.Context, _ apptranscoding.AudioFingerprint) error {
+	f.initCalls++
 	return f.err
 }
 
@@ -138,5 +144,33 @@ func TestBuildAudioFingerprint_DerivesChannelsFromSourceTrack(t *testing.T) {
 	fpStereo := h.buildAudioFingerprint(r, "m1", item, 0)
 	if fpStereo.MaxAudioChannels != 2 {
 		t.Errorf("MaxAudioChannels = %d, want 2 for the stereo track", fpStereo.MaxAudioChannels)
+	}
+}
+
+// The rendition must not emit more channels than a browser can decode. Deriving
+// the count from the SOURCE alone (my fix for the stereo downmix) went too far the
+// other way: a Dolby Atmos 7.1 track yielded `-ac 8`, the SourceBuffer refused the
+// stream, and the title never started at all. 5.1 (6ch) is the real ceiling.
+func TestBuildAudioFingerprint_CapsChannelsAtSurround(t *testing.T) {
+	eight := 8 // 7.1 Atmos source
+	six := 6
+	item, _ := testMediaItemWithAudioStreams()
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: "video", Codec: "h264"},
+		{StreamType: "audio", Codec: "truehd", Channels: &eight}, // audio idx 0: 7.1
+		{StreamType: "audio", Codec: "ac3", Channels: &six},      // audio idx 1: 5.1
+	}
+	h := buildAudioServe(t, true, &testFakeStreamsGetter{item: item, streams: streams}, nil, nil, nil)
+	r := httptest.NewRequest(http.MethodGet, "/hls/audio_0.m3u8", nil)
+
+	fp := h.buildAudioFingerprint(r, "m1", item, 0)
+	if fp.MaxAudioChannels > 6 {
+		t.Errorf("MaxAudioChannels = %d for a 7.1 source: no browser decodes AAC 7.1 - "+
+			"the stream is refused and playback never starts", fp.MaxAudioChannels)
+	}
+
+	// 5.1 IS decodable: it must survive untouched (the bug this replaced).
+	if got := h.buildAudioFingerprint(r, "m1", item, 1).MaxAudioChannels; got != 6 {
+		t.Errorf("MaxAudioChannels = %d for a 5.1 source, want 6 (must not be downmixed)", got)
 	}
 }

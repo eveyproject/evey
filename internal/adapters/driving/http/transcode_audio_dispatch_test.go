@@ -121,6 +121,22 @@ func TestDispatchAudioSegment_InitAudioNil_404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
+// The init must be asked for as an INIT, never as segment 0. A viewer resuming deep
+// into a title (another browser, last position 1h35) has one audio session, started
+// at their position, that never writes segment 0: asking for it there made the init
+// time out and the title play with a picture and no sound.
+func TestDispatchAudioSegment_Init_NeverAsksForSegmentZero(t *testing.T) {
+	item, streams := testMediaItemWithAudioStreams()
+	libSvc := &testFakeStreamsGetter{item: item, streams: streams}
+	ensurer := &fakeAudioEnsurer{}
+	h := buildVODHandlerWithAudio(t, libSvc, allowAll(), testFakeParentalChecker{}, ensurer)
+
+	doAudioDispatchRequest(h, "m1", "audio_0_init.mp4")
+
+	assert.Equal(t, 1, ensurer.initCalls, "the init must be requested as an init")
+	assert.Empty(t, ensurer.calls, "the init must not hinge on any media segment")
+}
+
 // audio_0_init.mp4 with wired audioServe but ensurer failing → 503.
 func TestDispatchAudioSegment_Init_OrchestratorError_503(t *testing.T) {
 	item, streams := testMediaItemWithAudioStreams()

@@ -356,3 +356,73 @@ func TestAudioOrchestrator_ForwardPlayback_ReusesSession(t *testing.T) {
 
 	assert.Equal(t, 1, proc.startCount(), "forward playback must ride the live session")
 }
+
+// writeAudioInit creates the audio_T_init.mp4 file for the given fingerprint,
+// simulating what ffmpeg publishes as soon as it starts - at ANY position.
+func writeAudioInit(t *testing.T, cache *SegmentCache, fp AudioFingerprint) {
+	t.Helper()
+	key := SegmentKey{
+		DecisionHash: fp.Hash(),
+		VariantIdx:   fp.SourceTrackIdx,
+		IsInit:       true,
+		Kind:         KindAudio,
+	}
+	path := cache.Path(key, true)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, fmp4Init(), 0o644))
+}
+
+// A viewer reopening a title from another browser resumes at their last position -
+// say 1h35, audio segment 1908 - and the player asks for the audio init FIRST.
+//
+// The init (ftyp+moov, under a kilobyte) describes the codec and is byte-identical
+// whatever position the encoder was started at. It must therefore never hinge on
+// segment 0, which on a deep resume NO session will ever produce: the one session
+// that matters starts at 1908 and runs forward.
+//
+// It used to hinge on it - the handler asked for segment 0 purely as a pretext to
+// spawn a session, then waited for it. On a deep resume that wait timed out, the
+// init 503'd, and the browser played the title with a picture but NO SOUND.
+func TestAudioOrchestrator_EnsureAudioInit_DoesNotHingeOnSegmentZero(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+
+	// ffmpeg publishes its init at startup - and, started at a deep seek, never
+	// writes segment 0.
+	proc := newFakeAudioProcess()
+	proc.onStart = func(_ transcoding.AudioProcessOpts) *audioFakeHandle {
+		writeAudioInit(t, cache, fp)
+		return newAudioFakeHandle()
+	}
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, o.EnsureAudioInit(ctx, fp),
+		"the init must be served off any live session, not off segment 0")
+}
+
+// And it must ride the session the resume already spawned rather than starting a
+// second ffmpeg at t=0 to transcode an hour and a half of audio nobody asked for.
+func TestAudioOrchestrator_EnsureAudioInit_RidesTheSeekSession(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		writeAudioInit(t, cache, fp)
+		writeAudioSegment(t, cache, fp, opts.StartNumber)
+		return newAudioFakeHandle()
+	}
+
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 1908))
+	require.NoError(t, o.EnsureAudioInit(context.Background(), fp))
+
+	assert.Equal(t, 1, proc.startCount(), "the init must ride the live session, not spawn a second ffmpeg")
+}

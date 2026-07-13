@@ -19,6 +19,7 @@ import (
 // without spinning up a real ffmpeg process.
 type AudioSegmentEnsurer interface {
 	EnsureAudioSegment(ctx context.Context, fp apptranscoding.AudioFingerprint, segIdx int) error
+	EnsureAudioInit(ctx context.Context, fp apptranscoding.AudioFingerprint) error
 }
 
 // audioServe groups the shared dependencies for the three audio-rendition
@@ -149,11 +150,13 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 
 	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx)
 
-	// Init segment is produced alongside segment 0 by the fMP4 muxer.
-	// Trigger EnsureAudioSegment(0) so the session is spawned.
+	// The init describes the codec, not a position: it is served off whatever
+	// session is live. Asking for segment 0 here (as this once did) makes every
+	// deep resume mute - the session a resume spawns starts at the viewer's
+	// position and never writes segment 0.
 	waitCtx, cancel := context.WithTimeout(r.Context(), h.segmentWaitTimeout)
 	defer cancel()
-	if err := h.audioOrch.EnsureAudioSegment(waitCtx, fp, 0); err != nil {
+	if err := h.audioOrch.EnsureAudioInit(waitCtx, fp); err != nil {
 		slog.Warn("audio rendition: ensure init failed",
 			slog.String("media_id", mediaID),
 			slog.Int("track_idx", trackIdx),
@@ -257,6 +260,10 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	}
 }
 
+// maxRenditionChannels is the highest channel count a browser will decode as AAC
+// (5.1). A 7.1 source is folded down to it rather than shipped un-decodable.
+const maxRenditionChannels = 6
+
 // sourceAudioChannels returns the channel count of the trackIdx-th AUDIO stream
 // (the `ffmpeg -map 0:a:N` numbering buildAudioRenditions advertises). Returns 0
 // - ffmpeg's stereo default, the previous behaviour - when the streams can't be
@@ -280,6 +287,13 @@ func (h *audioServe) sourceAudioChannels(ctx context.Context, mediaID string, tr
 		if audioIdx == trackIdx {
 			if s.Channels == nil || *s.Channels <= 0 {
 				return 0
+			}
+			// Cap at 5.1: no browser decodes AAC 7.1 in MSE (Chrome tops out at
+			// 5.1). Emitting `-ac 8` for a Dolby Atmos 7.1 source made the
+			// SourceBuffer refuse the stream and the title never started - the
+			// opposite failure to the stereo downmix this derivation replaced.
+			if *s.Channels > maxRenditionChannels {
+				return maxRenditionChannels
 			}
 			return *s.Channels
 		}
