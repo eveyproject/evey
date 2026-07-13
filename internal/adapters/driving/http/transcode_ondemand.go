@@ -8,8 +8,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -165,10 +167,25 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 	h.servePlanResourceData(w, r, plan, name, span)
 }
 
+// packagerVersion is the mkvgo version that produced these bytes, read from the
+// build's dependency list. Stamped into every sub-resource URI: the packaged
+// bytes are immutable for a given packager, not across packager versions.
+var packagerVersion = sync.OnceValue(func() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	for _, dep := range info.Deps {
+		if dep.Path == "github.com/gravity-zero/mkvgo" {
+			return dep.Version
+		}
+	}
+	return "dev"
+})
+
 // servePlanResourceData writes one plan resource (name is canonical). Playlists
-// and manifests are marked no-cache (a re-scan can change them); media segments
-// and init segments are immutable (byte-identical across builds), so they get a
-// long immutable cache lifetime.
+// are no-cache (a re-scan can change them); segments and inits are immutable for
+// a year, keyed by packager version.
 func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Request, plan apptranscoding.OnDemandPlan, name string, span trace.Span) {
 	data, contentType, err := plan.Resource(r.Context(), name)
 	if err != nil {
@@ -186,23 +203,26 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", contentType)
 	if strings.HasSuffix(name, ".m3u8") || strings.HasSuffix(name, ".mpd") {
 		w.Header().Set("Cache-Control", "no-cache")
-		// mkvgo emits BARE sub-resource URIs (od_playlist.m3u8, od_seg*.m4s,
-		// od_init.mp4, the AES key, DASH segment templates). A same-origin
-		// browser authenticates those via the evey_hls cookie, but a cookie-less
-		// second device (Chromecast) can only use the query token it was handed
-		// on the master URL. When THIS request carried a query token, bake it
-		// into every sub-resource URI so the cast device authenticates them;
-		// cookie/Bearer clients keep bare URIs (token stays out of their URLs).
+		// mkvgo emits BARE sub-resource URIs; this bakes two things into them.
+		//
+		// The packager version, always: sub-resources are cached `immutable` for a
+		// year, which only holds while the same packager produces them (0.22.1
+		// rewrote every init). Without it, a viewer keeps the old bytes for a year
+		// and the upgrade never reaches them.
+		//
+		// The query token, when the request carried one: a cookie-less Chromecast
+		// has nothing else to authenticate sub-resources with.
+		suffix := "?v=" + url.QueryEscape(packagerVersion())
 		if tok := RawTokenFromContext(r.Context()); tok != "" && TokenFromQuery(r.Context()) {
-			suffix := "?token=" + url.QueryEscape(tok)
+			suffix += "&token=" + url.QueryEscape(tok)
 			if rq := r.URL.RawQuery; rq != "" {
 				suffix += "&" + rq
 			}
-			if strings.HasSuffix(name, ".mpd") {
-				data = []byte(rebakeDASHManifestURIs(string(data), suffix))
-			} else {
-				data = []byte(rebakeManifestURIs(string(data), suffix))
-			}
+		}
+		if strings.HasSuffix(name, ".mpd") {
+			data = []byte(rebakeDASHManifestURIs(string(data), suffix))
+		} else {
+			data = []byte(rebakeManifestURIs(string(data), suffix))
 		}
 	} else {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
