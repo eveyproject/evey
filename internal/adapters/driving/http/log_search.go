@@ -59,8 +59,15 @@ type logSearchResult struct {
 // Scan/retain budgets keep a search bounded on a busy instance with large
 // rotated logs. We scan newest files first; once the line budget is hit we
 // stop and flag truncated so the UI can tell the operator to narrow the query.
+//
+// Lines OUTSIDE an explicit [Since,Until] window are skipped for free (they
+// are not the work the operator asked for) and only bounded by the much
+// larger read budget. Without that, a verbose day - a busy instance writes
+// well past logScanLineBudget lines a day - burns the whole scan budget on
+// recent noise and makes any older window return nothing at all.
 const (
 	logScanLineBudget = 300_000
+	logReadLineBudget = 5_000_000
 	logRetainCap      = 5_000
 	logScannerMaxLine = 2 << 20 // 2 MiB: ffmpeg arg lines can be long
 )
@@ -79,25 +86,43 @@ func searchLogs(dir string, f logSearchFilter) (logSearchResult, error) {
 		matches []logSearchEntry
 		total   int
 		scanned int
+		read    int
 		trunc   bool
 	)
+	windowed := !f.Since.IsZero() || !f.Until.IsZero()
 
 scan:
 	// Files are processed newest-first; within a file we walk lines newest-first
 	// (bottom-up) so that when the scan budget is hit, the budget was spent on
 	// the freshest data - exactly what a debug view wants.
 	for _, path := range files {
+		// A file last written before Since holds nothing the window wants.
+		// An unreadable mtime is never a reason to skip: fall through and
+		// let the line filter decide.
+		if mt, ok := fileModTime(path); ok && !f.Since.IsZero() && mt.Before(f.Since) {
+			continue
+		}
 		lines, err := readFileLines(path)
 		if err != nil {
 			continue
 		}
 		for _, raw := range slices.Backward(lines) {
+			if read >= logReadLineBudget {
+				trunc = true
+				break scan
+			}
+			read++
 			if scanned >= logScanLineBudget {
 				trunc = true
 				break scan
 			}
 			line := strings.TrimSpace(raw)
 			if line == "" {
+				continue
+			}
+			// Out-of-window lines cost nothing but the read budget, so a
+			// verbose recent stretch can't starve an older window.
+			if windowed && !lineInWindow(line, f) {
 				continue
 			}
 			scanned++
@@ -244,6 +269,54 @@ func firstField(rec map[string]any, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+// lineInWindow is the cheap [Since,Until] pre-filter run BEFORE the full JSON
+// parse, so skipping a line the operator did not ask for stays near-free. It
+// reads the leading "time" field slog always writes first; a line whose stamp
+// can't be read is kept (the real parse + matchLog decide).
+func lineInWindow(line string, f logSearchFilter) bool {
+	ts, ok := logLineTime(line)
+	if !ok {
+		return true
+	}
+	if !f.Since.IsZero() && ts.Before(f.Since) {
+		return false
+	}
+	if !f.Until.IsZero() && ts.After(f.Until) {
+		return false
+	}
+	return true
+}
+
+// logLineTime pulls the RFC3339 "time" value out of a raw slog JSON line
+// without unmarshalling the whole record.
+func logLineTime(line string) (time.Time, bool) {
+	const key = `"time":"`
+	i := strings.Index(line, key)
+	if i < 0 {
+		return time.Time{}, false
+	}
+	rest := line[i+len(key):]
+	j := strings.IndexByte(rest, '"')
+	if j < 0 {
+		return time.Time{}, false
+	}
+	ts, err := time.Parse(time.RFC3339Nano, rest[:j])
+	if err != nil {
+		return time.Time{}, false
+	}
+	return ts, true
+}
+
+// fileModTime is the file's last write; ok is false when it can't be stat'd,
+// so callers keep the file rather than skip it on a missing mtime.
+func fileModTime(path string) (time.Time, bool) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return info.ModTime(), true
 }
 
 func matchLog(e logSearchEntry, f logSearchFilter) bool {

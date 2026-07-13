@@ -247,3 +247,31 @@ func indexOf(s, sub string) int {
 	}
 	return -1
 }
+
+// A verbose recent file must not make an OLDER explicit time window
+// unreachable: lines outside [Since,Until] are not the work the operator
+// asked for, so they must not spend the scan budget. Without this, a busy
+// instance (300k+ lines/day) makes `since=<yesterday>` return nothing at
+// all - which is exactly what blocked the 2026-07-13 playback incident.
+func TestSearchLogs_WindowSurvivesVerboseRecentLines(t *testing.T) {
+	dir := t.TempDir()
+	// The target: one line inside the wanted window.
+	target := `{"time":"2026-07-07T02:00:00Z","level":"WARN","msg":"the line we need"}`
+	// Noise: far more recent lines than the scan budget allows.
+	noise := make([]string, 0, logScanLineBudget+10)
+	noise = append(noise, target)
+	for i := 0; i < logScanLineBudget+5; i++ {
+		noise = append(noise, `{"time":"2026-07-07T09:00:00Z","level":"INFO","msg":"grpc unary"}`)
+	}
+	writeLog(t, dir, "evey-2026-07-07.log", noise...)
+
+	since, _ := time.Parse(time.RFC3339, "2026-07-07T01:00:00Z")
+	until, _ := time.Parse(time.RFC3339, "2026-07-07T03:00:00Z")
+	res, err := searchLogs(dir, logSearchFilter{Since: since, Until: until, Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Total != 1 || len(res.Entries) != 1 || res.Entries[0].Msg != "the line we need" {
+		t.Fatalf("windowed search drowned by recent noise: total=%d entries=%d", res.Total, len(res.Entries))
+	}
+}
