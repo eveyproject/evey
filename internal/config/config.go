@@ -356,10 +356,16 @@ type TranscodingConfig struct {
 	AV1MaxHeight      int
 	TrickplayCacheDir string
 	// AudioRenditionEnabled exposes source audio tracks as HLS-native
-	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch
-	// language without re-fetching the video stream. Off by default
-	// during the rollout - flip to true to opt in. When off, the
-	// pipeline stays muxed audio+video as before (backward compatible).
+	// renditions (#EXT-X-MEDIA TYPE=AUDIO) so players can switch language
+	// without re-fetching the video stream.
+	//
+	// ON by default: it is also what unlocks the HYBRID on-demand rung - a
+	// copy-eligible video packaged by mkvgo (no ffmpeg at all) while its
+	// non-browser audio (AC-3/E-AC-3, very common) is re-encoded on the side.
+	// With it off, such a title falls all the way back to a full ffmpeg
+	// pipeline and re-encodes video it never needed to touch.
+	// Opt out with EVEY_HLS_AUDIO_RENDITION_ENABLED=false (muxed audio+video,
+	// the pre-feature behaviour).
 	AudioRenditionEnabled bool
 
 	// Encode-calibration bench sample sources. The bench measures the host's
@@ -648,7 +654,7 @@ func Load() (*Config, error) {
 			SoftwareMaxHeightOverride:    envInt("EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT", 0),
 			SoftwareHDRMaxHeightOverride: envInt("EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT", 0),
 			TrickplayCacheDir:            envStr("EVEY_TRICKPLAY_CACHE_DIR", "/cache/trickplay"),
-			AudioRenditionEnabled:        envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", false),
+			AudioRenditionEnabled:        envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", true),
 			BenchSDRSamplePath:           envStr("EVEY_BENCH_SDR_SAMPLE", ""),
 			BenchSDRSampleURL:            envStr("EVEY_BENCH_SDR_SAMPLE_URL", ""),
 			BenchSDRSampleSHA256:         envStr("EVEY_BENCH_SDR_SAMPLE_SHA256", ""),

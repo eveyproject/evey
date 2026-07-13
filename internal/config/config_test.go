@@ -577,3 +577,19 @@ func TestWarnValidate_PluginsResourceLimitsZeroAccepted(t *testing.T) {
 	err := cfg.WarnValidate()
 	require.NoError(t, err)
 }
+
+// Audio renditions are ON by default: it is what lets a copy-eligible video ride
+// the mkvgo on-demand rung while its non-browser audio (AC-3/E-AC-3) is re-encoded
+// separately. With it off, such a title falls all the way back to a full ffmpeg
+// pipeline. Opting out stays possible with EVEY_HLS_AUDIO_RENDITION_ENABLED=false.
+func TestAudioRenditionEnabledByDefault(t *testing.T) {
+	t.Setenv("EVEY_DB_URL", "postgres://x/y")
+	cfg, err := Load()
+	require.NoError(t, err)
+	assert.True(t, cfg.Transcoding.AudioRenditionEnabled, "audio renditions must default to ON")
+
+	t.Setenv("EVEY_HLS_AUDIO_RENDITION_ENABLED", "false")
+	off, err := Load()
+	require.NoError(t, err)
+	assert.False(t, off.Transcoding.AudioRenditionEnabled, "operators must be able to opt out")
+}
