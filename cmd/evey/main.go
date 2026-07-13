@@ -15,6 +15,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	"github.com/evey-project/evey/internal/config"
+	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -125,6 +126,13 @@ func run() error {
 	loadOverride(ctx, deps.cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
 	loadOverride(ctx, deps.cfgStore, "log.level", parseStr, &cfg.Log.Level)
 	loadOverride(ctx, deps.cfgStore, "intro_providers.skip_preview_enabled", parseBool, &cfg.Metadata.SkipPreviewEnabled)
+	// The admin toggle persists the MODE only (settings_handler flips the gate in
+	// memory and returns the mode string), so derive the gate from the mode here.
+	// Loading the two independently lets them disagree: the panel shows hardware
+	// on (the mode is persisted) while every restart resets the gate to its env
+	// default and quietly sends all transcodes back to software.
+	cfg.Transcoding.HWAccelEnabled = domaintranscoding.HWGateEnabled(
+		cfg.Transcoding.HWMode, cfg.Transcoding.HWAccelEnabled, cfg.Transcoding.HWBackend)
 	eveylogger.SetLevel(cfg.Log.Level) // apply any DB override to the live logger
 
 	startMetricsCollector(ctx, db, deps.media.hlsVODOrch, deps.repos.mediaItemRepo)

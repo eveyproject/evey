@@ -97,3 +97,16 @@ func HWModeFromEnv(accelEnabled bool, backend string) HWMode {
 	}
 	return HWModeAuto
 }
+
+// HWGateEnabled reports whether the legacy master gate (Transcoding.HWAccelEnabled,
+// which the VOD handler routes on) should be on, given the PERSISTED mode and the
+// bootstrap env knobs.
+//
+// The admin panel persists only transcoding.hw_mode - the toggle's "on" is the mode
+// leaving "off" - so the gate has to be derived from it at boot. Reading the two
+// independently lets them disagree: an operator who enabled the GPU sees the panel
+// still checked (the mode IS persisted) while every restart quietly resets the gate
+// to its env default and sends all transcodes back to software.
+func HWGateEnabled(explicitMode string, envAccelEnabled bool, backend string) bool {
+	return ResolveHWMode(explicitMode, envAccelEnabled, backend) != HWModeOff
+}
