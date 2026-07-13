@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -129,4 +130,41 @@ func TestTrickplayWorkers_AdaptiveVsNonAdaptive(t *testing.T) {
 	nonAdaptive := TrickplayWorkers(false)
 	// non-adaptive uses 50% cores vs adaptive 25%, so non-adaptive >= adaptive
 	assert.GreaterOrEqual(t, nonAdaptive, adaptive, "non-adaptive should use at least as many workers as adaptive")
+}
+
+// Trickplay thumbnails of an HDR / Dolby Vision source must be tone-mapped.
+// The filter graph was select,scale,showinfo,tile - no colour handling at all -
+// so a PQ (or DoVi P5, whose base layer is PQ-ish) source was sampled as if it
+// were SDR: washed-out, dull, green/purple-tinted tiles. The player already
+// tone-maps these files correctly; the scrubbing strip did not, which is why the
+// thumbnails don't match the picture. Reported on a real DoVi P5 title.
+func TestTrickplayFilter_TonemapsHDRSources(t *testing.T) {
+	base := "select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,10)',scale=320:-1,showinfo,tile=5x5"
+
+	// SDR: untouched - no needless colour pass on the vast majority of files.
+	if got := trickplayFilter(base, trickplayColour{}); got != base {
+		t.Errorf("SDR filter must be unchanged:\n got %q\nwant %q", got, base)
+	}
+
+	for _, tc := range []struct {
+		name string
+		col  trickplayColour
+	}{
+		{"HDR10 (PQ)", trickplayColour{Transfer: "smpte2084"}},
+		{"HLG", trickplayColour{Transfer: "arib-std-b67"}},
+		// DoVi P5 tags NOTHING in the container (color_transfer=unknown): the
+		// only signal is the DOVI configuration record. Missed → washed out.
+		{"Dolby Vision P5, untagged container", trickplayColour{DoVi: true}},
+	} {
+		got := trickplayFilter(base, tc.col)
+		if !strings.Contains(got, "tonemap") {
+			t.Errorf("%s: filter must tone-map, got %q", tc.name, got)
+		}
+		if !strings.Contains(got, "setparams") {
+			t.Errorf("%s: filter must tag the colour metadata first (rips under-tag), got %q", tc.name, got)
+		}
+		if !strings.Contains(got, "tile=5x5") {
+			t.Errorf("%s: the tiling must survive, got %q", tc.name, got)
+		}
+	}
 }

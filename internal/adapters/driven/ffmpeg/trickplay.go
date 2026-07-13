@@ -132,10 +132,10 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	// Expression: pick the first frame, then any frame whose time is at
 	// least N seconds after the previously selected - yields one thumb
 	// per ~N seconds of source while honoring keyframe placement.
-	vf := fmt.Sprintf(
+	vf := trickplayFilter(fmt.Sprintf(
 		"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,%d)',scale=%d:-1,showinfo,tile=%dx%d",
 		interval, width, tileWidth, tileHeight,
-	)
+	), g.probeColour(ctx, filePath))
 	cmd := exec.CommandContext(ctx, "nice", "-n", "19", g.binary,
 		"-nostdin",
 		"-threads", strconv.Itoa(threads),
@@ -252,4 +252,79 @@ func (g *TrickplayGenerator) DecodePacketToJPEG(ctx context.Context, packet []by
 		return nil, fmt.Errorf("ffmpeg decode keyframe packet (%s): %w", inFmt, err)
 	}
 	return out, nil
+}
+
+// trickplayColour is what the thumbnail pass needs to know about the source's
+// colour. Zero value = SDR.
+type trickplayColour struct {
+	Transfer string // color_transfer as ffprobe reports it ("smpte2084", "arib-std-b67", ...)
+	DoVi     bool   // a DOVI configuration record is present
+}
+
+func (c trickplayColour) isHDR() bool {
+	switch strings.ToLower(strings.TrimSpace(c.Transfer)) {
+	case "smpte2084", "arib-std-b67":
+		return true
+	}
+	// Dolby Vision P5 tags NOTHING in the container (color_transfer=unknown):
+	// its base layer is still PQ-ish, so sampling it as SDR washes the picture
+	// out. The DOVI configuration record is the only signal.
+	return c.DoVi
+}
+
+// trickplayFilter tone-maps the thumbnail pass when the source is HDR/DoVi.
+//
+// The graph used to be select,scale,showinfo,tile - no colour handling - so an
+// HDR source was sampled as if it were SDR and the strip came out washed out and
+// tinted, while the player (which DOES tone-map) showed the right picture. Tag
+// the colour metadata first: rips under-tag, and a DoVi P5 container tags nothing
+// at all. Same curve as the playback path (bt2390, desat=0, peak 100 -> bt709).
+func trickplayFilter(base string, col trickplayColour) string {
+	if !col.isHDR() {
+		return base // the vast majority of files: no needless colour pass
+	}
+	trc := "smpte2084"
+	if strings.EqualFold(col.Transfer, "arib-std-b67") {
+		trc = "arib-std-b67"
+	}
+	return fmt.Sprintf(
+		"setparams=color_primaries=bt2020:color_trc=%s:colorspace=bt2020nc,%s,tonemapx=tonemap=bt2390:desat=0:peak=100:t=bt709:m=bt709:p=bt709:format=yuv420p",
+		trc, base,
+	)
+}
+
+// probeColour reads the source's transfer curve and DoVi presence. Best-effort:
+// on any failure it returns the zero value (SDR), i.e. today's behaviour - a
+// thumbnail pass must never fail because a probe did.
+func (g *TrickplayGenerator) probeColour(ctx context.Context, filePath string) trickplayColour {
+	out, err := exec.CommandContext(ctx, "nice", "-n", "19", g.probeBinary,
+		"-v", "quiet",
+		"-select_streams", "v:0",
+		"-print_format", "json",
+		"-show_entries", "stream=color_transfer:stream_side_data=side_data_type",
+		filePath,
+	).Output()
+	if err != nil {
+		return trickplayColour{}
+	}
+	var parsed struct {
+		Streams []struct {
+			ColorTransfer string `json:"color_transfer"`
+			SideDataList  []struct {
+				SideDataType string `json:"side_data_type"`
+			} `json:"side_data_list"`
+		} `json:"streams"`
+	}
+	if err := json.Unmarshal(out, &parsed); err != nil || len(parsed.Streams) == 0 {
+		return trickplayColour{}
+	}
+	s := parsed.Streams[0]
+	col := trickplayColour{Transfer: s.ColorTransfer}
+	for _, sd := range s.SideDataList {
+		if strings.Contains(strings.ToLower(sd.SideDataType), "dovi") ||
+			strings.Contains(strings.ToLower(sd.SideDataType), "dolby vision") {
+			col.DoVi = true
+		}
+	}
+	return col
 }
