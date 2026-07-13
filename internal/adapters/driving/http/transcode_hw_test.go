@@ -369,3 +369,35 @@ func TestHWRouteUsable_HDRWithoutHWTonemap_RoutesSoftware(t *testing.T) {
 		t.Error("an SDR source must still ride the GPU")
 	}
 }
+
+// Audio renditions are only safe when the VIDEO IS COPIED.
+//
+// The rendition is offset by the source's composition delay (has_b_frames/fps),
+// which holds when the video is copied bit-for-bit. On a TRANSCODE the delay is
+// the ENCODER's, not the source's - proven: a source with has_b_frames=0 comes
+// out of libx264 with its first frame presented at 0.083 s. The offset would be
+// computed as 0 and the audio would run 83 ms early again.
+//
+// And a transcode never needs the split anyway: the video is already going
+// through ffmpeg, so the audio rides along in the same process and stays in sync
+// by construction. Renditions exist for the HYBRID rung (mkvgo video + separate
+// audio), which is a copy.
+func TestAudioRenditionsOnlyWhenVideoIsCopied(t *testing.T) {
+	h := &hlsVODServe{audioRenditionEnabled: true}
+
+	copyDec := domaintranscoding.PlaybackDecision{VideoDecision: "copy", AudioDecision: "transcode"}
+	if !h.audioRenditionsFor(copyDec) {
+		t.Error("video COPY + audio transcode is the hybrid rung: renditions must be on")
+	}
+
+	transcodeDec := domaintranscoding.PlaybackDecision{VideoDecision: "transcode", AudioDecision: "transcode"}
+	if h.audioRenditionsFor(transcodeDec) {
+		t.Error("a TRANSCODED video must keep its audio muxed: the encoder's own reorder " +
+			"delay is not the source's, so the rendition offset would be wrong")
+	}
+
+	off := &hlsVODServe{audioRenditionEnabled: false}
+	if off.audioRenditionsFor(copyDec) {
+		t.Error("the operator opt-out must still win")
+	}
+}

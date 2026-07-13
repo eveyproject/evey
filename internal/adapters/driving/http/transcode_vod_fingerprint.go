@@ -90,7 +90,7 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 	// audio playlist handlers agree on the same SourceTrackIdx
 	// numbering (audio-index, matches `ffmpeg -map 0:a:N`).
 	var audioRenditions []apptranscoding.AudioRendition
-	if h.audioRenditionEnabled {
+	if h.audioRenditionsFor(decision) {
 		audioRenditions = buildAudioRenditions(streams)
 	}
 
@@ -215,7 +215,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	// tested video-only ladder (hasAudio) and forks the cache (atrack=-1 in Hash())
 	// so muxed and video-only segments for the same media never alias.
 	videoAudioTrack := audioTrack
-	if h.audioRenditionEnabled {
+	if h.audioRenditionsFor(decision) {
 		videoAudioTrack = -1
 	}
 

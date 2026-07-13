@@ -94,7 +94,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 
 	// Hybrid: video from the packager, audio re-encoded by Evey's rendition
 	// pipeline. Only possible when that pipeline is wired and enabled.
-	if !h.audioRenditionEnabled || h.audio == nil {
+	if !h.audioRenditionsFor(decision) || h.audio == nil {
 		return false
 	}
 	master, err := h.buildHybridMaster(r, mediaID, item, streams)
