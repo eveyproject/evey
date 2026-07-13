@@ -1101,6 +1101,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// cfg.Server.Port is the gRPC listener; the HTTP gateway the viewers must
 	// hit lives on Port+1 (the same derivation main.go uses for httpSrv).
 	loadTestBaseURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.Server.Port+1)
+	// The path real viewers come through: the reverse proxy, with its TLS and
+	// buffering. The runner probes it once and falls back to the loopback above
+	// when it isn't reachable from in here (no proxy deployed, or a public
+	// hostname the container can't resolve).
+	loadTestPublicURL := cfg.EffectiveBaseURL()
 	// loadTestMinTitleDuration is the floor for a title to be worth pointing a
 	// simulated viewer at. A viewer plays in real time for the whole run, so a
 	// shorter title loops back on itself and is then served from the page cache,
@@ -1108,8 +1113,27 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// do not. The runner narrows it further against the run's own duration (see
 	// usableFraction) when it decides where a REPLAYED viewer may start.
 	const loadTestMinTitleDuration = 10 * time.Minute
+	// loadTestMaxConns sizes the harness's own connection pool. It must exceed
+	// any audience the climb can reach, or the test throttles itself.
+	const loadTestMaxConns = 2048
 	loadTestRunner := apploadtest.New(
-		&http.Client{Timeout: 30 * time.Second},
+		&http.Client{
+			Timeout: 30 * time.Second,
+			// Go's default transport keeps only TWO idle connections per host.
+			// With hundreds of simulated viewers hammering one origin, every
+			// request past those two pays a fresh TCP (and TLS) handshake, and
+			// the HARNESS becomes the bottleneck - the run would measure its own
+			// connection churn and blame the server. A real audience is hundreds
+			// of separate clients each holding their own keep-alive; these pools
+			// are what reproduces that.
+			Transport: &http.Transport{
+				Proxy:               http.ProxyFromEnvironment,
+				MaxIdleConns:        loadTestMaxConns,
+				MaxIdleConnsPerHost: loadTestMaxConns,
+				MaxConnsPerHost:     0, // never queue a viewer behind another
+				IdleConnTimeout:     90 * time.Second,
+			},
+		},
 		loadTestMediaListerFunc(func(ctx context.Context, limit int) ([]apploadtest.MediaCandidate, error) {
 			// Over-fetch: rows without a playable file (series, seasons) and
 			// clips too short to pace against are both dropped below, and the
@@ -1135,6 +1159,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 				out = append(out, apploadtest.MediaCandidate{
 					ID:          string(it.ID),
 					DurationSec: int(it.File.Duration.Seconds()),
+					// The path lets the run measure how fast this box READS its
+					// media - the ceiling that actually decides a direct-play
+					// server's capacity, and the one the kernel cannot report when
+					// the library sits on a network share or a 9p/virtiofs mount.
+					Path: it.File.Path,
 				})
 				if len(out) >= limit {
 					break
@@ -1315,6 +1344,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		keyframeOnDemand:   keyframeOnDemand,
 		loadTestRunner:     loadTestRunner,
 		loadTestBaseURL:    loadTestBaseURL,
+		loadTestPublicURL:  loadTestPublicURL,
 		library: libraryDeps{
 			cmdSvc:            libCmdSvc,
 			querySvc:          libQuerySvc,

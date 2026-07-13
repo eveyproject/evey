@@ -26,6 +26,22 @@ func NewJWTGenerator(privateKey *rsa.PrivateKey, accessTTL time.Duration) *JWTGe
 }
 
 func (g *JWTGenerator) GenerateAccessToken(claims user.Claims) (string, error) {
+	return g.GenerateAccessTokenWithTTL(claims, g.accessTTL)
+}
+
+// GenerateAccessTokenWithTTL mints an access token with an explicit lifetime
+// instead of the configured one.
+//
+// This exists for server-side work that OUTLIVES the request that asked for it:
+// the built-in load test runs for many minutes, and borrowing the caller's
+// browser token means the run dies mid-flight with a 401 the moment that token
+// expires - reporting a capacity verdict that is really just an expiry. Such a
+// token carries the same claims (same user, same permissions, same epoch), so a
+// revoked session still kills it; only the lifetime differs.
+func (g *JWTGenerator) GenerateAccessTokenWithTTL(claims user.Claims, ttl time.Duration) (string, error) {
+	if ttl <= 0 {
+		ttl = g.accessTTL
+	}
 	now := time.Now()
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
 		"sub":         claims.UserID,
@@ -37,7 +53,7 @@ func (g *JWTGenerator) GenerateAccessToken(claims user.Claims) (string, error) {
 		"epoch":       claims.TokenEpoch,
 		"imp_by":      claims.ImpersonatedBy,
 		"iat":         now.Unix(),
-		"exp":         now.Add(g.accessTTL).Unix(),
+		"exp":         now.Add(ttl).Unix(),
 	})
 	return token.SignedString(g.privateKey)
 }

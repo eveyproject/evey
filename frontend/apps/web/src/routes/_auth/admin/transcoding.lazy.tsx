@@ -211,6 +211,9 @@ type LoadTestStopReason =
   | "admission_full"
   | "cpu_saturated"
   | "memory_saturated"
+  | "throughput_saturated"
+  | "startup_too_slow"
+  | "server_failing"
   | "library_limit"
   | "max_viewers"
   | "cancelled"
@@ -260,6 +263,31 @@ interface LoadTestReport {
   // perViewerCost: what ONE more viewer costs, as a slope across tiers.
   perViewerCost?: LoadTestResources;
   resourceBaseline?: LoadTestResources;
+  // throughputCeilingBytesPerSec: the byte rate the server could not exceed. On
+  // a media server this is the usual ceiling - how fast it can READ the films -
+  // and no CPU or memory gauge can see it.
+  throughputCeilingBytesPerSec?: number;
+  diskReadStarved?: boolean;
+  // diskReadCeilingBytesPerSec: how fast this box reads its media - every disk
+  // the library spans, read at once. The kernel cannot report this when the
+  // library sits on a network share or a 9p mount, so the run measures it itself
+  // rather than printing a misleading zero.
+  diskReadCeilingBytesPerSec?: number;
+  // slowestDiskBytesPerSec: what the WEAKEST drive delivered. Several disks are
+  // not one big disk - each saturates on its own, and the film a viewer picks
+  // decides which.
+  slowestDiskBytesPerSec?: number;
+  disksProbed?: number;
+  // storageCollapsesAtReaders: how many concurrent readers the storage takes
+  // before it FALLS OVER (throughput halves, a single read takes seconds). On a
+  // direct-play server this is roughly the number of people who can watch at
+  // once before the storage - not the CPU, not Evey - makes playback crawl.
+  storageCollapsesAtReaders?: number;
+  // endpoint: the origin the viewers actually hit (the reverse proxy when it was
+  // reachable, the server's own loopback otherwise). Runs against different
+  // endpoints are not comparable.
+  endpoint?: string;
+  viaProxy?: boolean;
 }
 
 interface LoadTestStatus {
@@ -283,6 +311,9 @@ const STOP_REASON_KEYS: Partial<Record<LoadTestStopReason, string>> = {
   admission_full: "admin.loadtest.stopReason.admissionFull",
   cpu_saturated: "admin.loadtest.stopReason.cpuSaturated",
   memory_saturated: "admin.loadtest.stopReason.memorySaturated",
+  throughput_saturated: "admin.loadtest.stopReason.throughputSaturated",
+  startup_too_slow: "admin.loadtest.stopReason.startupTooSlow",
+  server_failing: "admin.loadtest.stopReason.serverFailing",
   library_limit: "admin.loadtest.stopReason.libraryLimit",
   max_viewers: "admin.loadtest.stopReason.maxViewers",
   cancelled: "admin.loadtest.stopReason.cancelled",
@@ -296,6 +327,9 @@ const STOP_REASON_KEYS: Partial<Record<LoadTestStopReason, string>> = {
 const BOTTLENECK_REASONS: LoadTestStopReason[] = [
   "cpu_saturated",
   "memory_saturated",
+  "throughput_saturated",
+  "startup_too_slow",
+  "server_failing",
   "slo_breach",
   "admission_full",
 ];
@@ -387,11 +421,6 @@ function LoadTestCard() {
   // matters to an operator - "how many different humans, with a realistic
   // device mix, can this host hold" - so it's the default, not a pure lane.
   const [scenario, setScenario] = useState<LoadTestScenario>("balanced");
-  // The ceiling the ramp is allowed to climb to. It is NOT a capacity setting:
-  // the run stops on whichever resource gives out first, and only falls back on
-  // this number when nothing did. Set it above what the box can plausibly hold,
-  // or the test reports the operator's own limit instead of the machine's.
-  const [maxViewers, setMaxViewers] = useState(12);
 
   const statusQuery = useQuery<LoadTestStatus>({
     queryKey: LOAD_TEST_QUERY_KEY,
@@ -403,11 +432,14 @@ function LoadTestCard() {
   const report = status?.lastReport;
 
   const start = useMutation({
+    // No viewer ceiling is sent, and that is the point: the run climbs until a
+    // RESOURCE gives out. A number picked here would just cap the answer, and
+    // the whole question is how far this machine actually goes.
     mutationFn: () =>
       eveyFetch<LoadTestStatus>({
         url: LOAD_TEST_URL,
         method: "POST",
-        data: { scenario, maxViewers },
+        data: { scenario },
       }),
     onSuccess: (data) => {
       qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
@@ -463,9 +495,17 @@ function LoadTestCard() {
                   scenario: t(SCENARIO_NOUN_KEYS[report.scenario ?? "balanced"]),
                 })}
               </p>
-              {predicted !== undefined && (
+              {/* The calibration predicts TRANSCODE streams, so it may only be
+                  compared against the transcode viewers this run actually held.
+                  Showing "~2 predicted" next to 61 direct-play viewers compares
+                  an encoder budget to a file server and reads as a wild miss,
+                  when the two numbers simply measure different things. */}
+              {predicted !== undefined && (report.viewerMix?.transcode ?? 0) > 0 && (
                 <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-predicted">
-                  {t("admin.loadtest.predictedLine", { count: predicted })}
+                  {t("admin.loadtest.predictedLine", {
+                    count: predicted,
+                    measured: report.viewerMix?.transcode ?? 0,
+                  })}
                 </p>
               )}
               {report.viewerMix && Object.keys(report.viewerMix).length > 0 && (
@@ -521,6 +561,47 @@ function LoadTestCard() {
                   })}
                 </p>
               )}
+              {/* Several disks are not one big disk: the weakest decides how bad
+                  it gets when viewers land on films that live there. */}
+              {(report.disksProbed ?? 0) > 1 && (report.slowestDiskBytesPerSec ?? 0) > 0 && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-slowest-disk">
+                  {t("admin.loadtest.slowestDiskLine", {
+                    rate: formatMbps(report.slowestDiskBytesPerSec ?? 0),
+                  })}
+                </p>
+              )}
+              {/* Only when it IS the verdict. The run notices a flat throughput
+                  curve at some point in almost every climb (a tier that gained
+                  nothing over a smaller one), but if the server ultimately gave
+                  out for another reason, announcing "the throughput is the
+                  bottleneck" contradicts the verdict two lines below. */}
+              {report.stopReason === "throughput_saturated" && (report.throughputCeilingBytesPerSec ?? 0) > 0 && (
+                <p className="text-sm font-medium text-[var(--text)]" data-testid="load-test-throughput-ceiling">
+                  {t("admin.loadtest.throughputCeilingLine", {
+                    rate: formatMbps(report.throughputCeilingBytesPerSec ?? 0),
+                  })}
+                </p>
+              )}
+              {/* The single most actionable line in the report when it fires:
+                  storage that serialises (a 9p/virtiofs mount on one channel, an
+                  over-subscribed NFS export, a disk thrashing between streams)
+                  looks perfectly healthy on every gauge, and quietly decides how
+                  many people can watch. */}
+              {(report.storageCollapsesAtReaders ?? 0) > 0 && (
+                <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-storage-collapse">
+                  {t("admin.loadtest.storageCollapseLine", {
+                    count: report.storageCollapsesAtReaders ?? 0,
+                  })}
+                </p>
+              )}
+              {(report.diskReadCeilingBytesPerSec ?? 0) > 0 && (
+                <p className="text-sm text-[var(--text)]" data-testid="load-test-disk-ceiling">
+                  {t("admin.loadtest.diskCeilingLine", {
+                    rate: formatMbps(report.diskReadCeilingBytesPerSec ?? 0),
+                    count: report.disksProbed ?? 1,
+                  })}
+                </p>
+              )}
               {(report.perViewerCost?.samples ?? 0) > 0 && (
                 <p className="text-sm text-[var(--text)]" data-testid="load-test-per-viewer">
                   {t("admin.loadtest.perViewerLine", {
@@ -553,11 +634,14 @@ function LoadTestCard() {
                 }
                 data-testid="load-test-stop-reason"
               >
+                {/* The verdict, and only the verdict. stopDetail is the server's
+                    own diagnostic string - English, technical, and written for a
+                    log line; every figure it carries is already on screen above,
+                    translated. */}
                 {t(
                   (report.stopReason && STOP_REASON_KEYS[report.stopReason]) ??
                     "admin.loadtest.stopReason.error",
                 )}
-                {report.stopDetail ? ` (${report.stopDetail})` : ""}
               </p>
               {report.stopReason === "max_viewers" && (
                 <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-no-bottleneck">
@@ -569,6 +653,9 @@ function LoadTestCard() {
 
           <div className="flex flex-col gap-2" data-testid="load-test-idle">
             <p className="text-sm text-[var(--text-muted)]">{t("admin.loadtest.idleDescription")}</p>
+            <p className="text-sm text-[var(--text-muted)]" data-testid="load-test-no-ceiling">
+              {t("admin.loadtest.noCeilingLine")}
+            </p>
             <p className="text-xs text-[var(--color-warning)]">{t("admin.loadtest.idleWarning")}</p>
 
             {blockedByActiveStreams ? (
@@ -615,22 +702,6 @@ function LoadTestCard() {
                     size={16}
                   />
                 </div>
-              </div>
-              <div className="flex flex-col gap-1 w-40">
-                <label htmlFor="load-test-max-viewers" className="text-sm font-medium text-[var(--text-muted)]">
-                  {t("admin.loadtest.maxViewersLabel")}
-                </label>
-                <input
-                  id="load-test-max-viewers"
-                  type="number"
-                  min={1}
-                  max={64}
-                  value={maxViewers}
-                  onChange={(e) => setMaxViewers(Math.min(64, Math.max(1, Number(e.target.value) || 1)))}
-                  disabled={start.isPending}
-                  data-testid="load-test-max-viewers-input"
-                  className="w-full px-3 py-2 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
-                />
               </div>
               <Button
                 loading={start.isPending}

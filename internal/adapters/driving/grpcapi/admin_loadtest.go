@@ -12,6 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
 	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
 )
 
@@ -27,21 +28,22 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 	if d.calibrationSvc != nil && d.calibrationSvc.IsBenchmarking() {
 		return nil, status.Error(codes.FailedPrecondition, "a calibration benchmark is running; wait for it to finish")
 	}
-	token := bearerFromContext(ctx)
-	if token == "" {
-		return nil, status.Error(codes.Unauthenticated, "no bearer token on the request")
-	}
-
 	cfg := apploadtest.Config{
-		BaseURL:    d.loadTestBaseURL,
-		Token:      token,
-		Scenario:   req.GetScenario(),
-		MaxViewers: int(req.GetMaxViewers()),
-		Mode:       req.GetMode(),
+		BaseURL:       d.loadTestBaseURL,
+		PublicBaseURL: d.loadTestPublicURL,
+		Scenario:      req.GetScenario(),
+		MaxViewers:    int(req.GetMaxViewers()),
+		Mode:          req.GetMode(),
 	}
 	if secs := req.GetDurationSec(); secs > 0 {
 		cfg.MaxDuration = time.Duration(secs) * time.Second
 	}
+
+	token, err := d.loadTestCredential(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Token = token
 	// The run outlives this RPC by design: bind it to the server's lifetime,
 	// not the HTTP request's (the runner's MaxDuration walls it regardless).
 	if err := d.loadTest.Start(context.WithoutCancel(ctx), cfg); err != nil {
@@ -55,6 +57,43 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 		}
 	}
 	return loadTestStatusToProto(d.loadTest.Status()), nil
+}
+
+// loadTestTokenSlack is how much longer than the run itself the synthetic
+// viewers' credential must live. The run is walled by its own MaxDuration, so
+// the token only has to outlast it - never the other way round.
+const loadTestTokenSlack = 10 * time.Minute
+
+// loadTestCredential mints the token the synthetic viewers authenticate with.
+//
+// It deliberately does NOT reuse the caller's bearer: that token is a browser
+// session credential with a short life, while a load test ramps for many
+// minutes. Borrowing it means the run dies mid-ramp on a 401 and reports the
+// expiry as though the server had run out of capacity - a measurement that is
+// worse than none. The minted token carries the SAME claims (same user, same
+// permissions, same epoch), so revoking the admin's session still kills it.
+//
+// Falls back to the caller's bearer when no minter is wired, which keeps the
+// RPC working in a test harness that never built one.
+func (d *adminSystemHandler) loadTestCredential(ctx context.Context, cfg apploadtest.Config) (string, error) {
+	claims := interceptors.ClaimsFromContext(ctx)
+	if d.loadTestToken != nil && claims != nil {
+		ttl := cfg.MaxDuration
+		if ttl <= 0 {
+			ttl = apploadtest.DefaultEnduranceMaxDuration // the longest a run can be
+		}
+		token, err := d.loadTestToken.GenerateAccessTokenWithTTL(*claims, ttl+loadTestTokenSlack)
+		if err != nil {
+			return "", status.Error(codes.Internal, "could not mint a load test credential")
+		}
+		return token, nil
+	}
+
+	token := bearerFromContext(ctx)
+	if token == "" {
+		return "", status.Error(codes.Unauthenticated, "no bearer token on the request")
+	}
+	return token, nil
 }
 
 func (d *adminSystemHandler) GetLoadTestStatus(_ context.Context, _ *eveyv1.GetLoadTestStatusRequest) (*eveyv1.LoadTestStatus, error) {
@@ -81,23 +120,31 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 	}
 	if r := s.LastReport; r != nil {
 		out.LastReport = &eveyv1.LoadTestReport{
-			Scenario:           r.Scenario,
-			Mode:               r.Mode,
-			SustainedViewers:   int32(r.SustainedViewers),
-			StopReason:         string(r.StopReason),
-			StopDetail:         r.StopDetail,
-			TtffMsP50:          int32(r.TTFFMsP50),
-			TtffMsP95:          int32(r.TTFFMsP95),
-			SegmentMsP50:       int32(r.SegmentMsP50),
-			SegmentMsP95:       int32(r.SegmentMsP95),
-			SegmentSloMs:       int32(r.SegmentSLOMs),
-			Samples:            int32(r.Samples),
-			SharedCacheViewers: int32(r.SharedCacheViewers),
-			SkippedCandidates:  int32(r.SkippedCandidates),
-			StartedAt:          timestamppb.New(r.StartedAt),
-			EndedAt:            timestamppb.New(r.EndedAt),
-			Resources:          loadTestResourcesToProto(r.Resources),
-			ResourceBaseline:   loadTestSampleToProto(r.ResourceBaseline),
+			Scenario:                     r.Scenario,
+			Mode:                         r.Mode,
+			SustainedViewers:             int32(r.SustainedViewers),
+			StopReason:                   string(r.StopReason),
+			StopDetail:                   r.StopDetail,
+			TtffMsP50:                    int32(r.TTFFMsP50),
+			TtffMsP95:                    int32(r.TTFFMsP95),
+			SegmentMsP50:                 int32(r.SegmentMsP50),
+			SegmentMsP95:                 int32(r.SegmentMsP95),
+			SegmentSloMs:                 int32(r.SegmentSLOMs),
+			Samples:                      int32(r.Samples),
+			SharedCacheViewers:           int32(r.ReplayedTitleViewers),
+			SkippedCandidates:            int32(r.SkippedCandidates),
+			StartedAt:                    timestamppb.New(r.StartedAt),
+			EndedAt:                      timestamppb.New(r.EndedAt),
+			Resources:                    loadTestResourcesToProto(r.Resources),
+			ResourceBaseline:             loadTestSampleToProto(r.ResourceBaseline),
+			ThroughputCeilingBytesPerSec: r.ThroughputCeilingBytesPerSec,
+			DiskReadCeilingBytesPerSec:   r.DiskReadBytesPerSecCeiling,
+			SlowestDiskBytesPerSec:       r.SlowestDiskBytesPerSec,
+			DisksProbed:                  int32(r.DisksProbed),
+			StorageCollapsesAtReaders:    int32(r.StorageCollapsesAtReaders),
+			DiskReadStarved:              r.DiskReadStarved,
+			Endpoint:                     r.Endpoint,
+			ViaProxy:                     r.ViaProxy,
 		}
 		if r.HasPerViewerCost {
 			out.LastReport.PerViewerCost = loadTestResourcesToProto(r.PerViewerCost)

@@ -203,4 +203,7 @@ type appDeps struct {
 	// loadTestBaseURL is the loopback origin its synthetic viewers hit.
 	loadTestRunner  *apploadtest.Runner
 	loadTestBaseURL string
+	// loadTestPublicURL is the reverse-proxy origin real viewers come through.
+	// Used when reachable; the loopback is the fallback.
+	loadTestPublicURL string
 }

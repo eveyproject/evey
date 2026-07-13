@@ -331,6 +331,44 @@ message LoadTestReport {
   // resource_baseline is what the server consumed BEFORE the first viewer
   // joined: the floor the per-viewer cost is read against.
   LoadTestResources resource_baseline = 21;
+  // throughput_ceiling_bytes_per_sec is the byte rate the server could not
+  // exceed, set when stop_reason is throughput_saturated. On a media server this
+  // is the usual ceiling - not the CPU, not the RAM, but how fast it can READ
+  // the films - and no CPU or memory gauge can see it.
+  int64 throughput_ceiling_bytes_per_sec = 22;
+  // disk_read_starved: the server pushed real traffic while the kernel's I/O
+  // counter barely moved. Either the page cache served everything, or the media
+  // do not live on a block device (a network share, a 9p/virtiofs mount) where
+  // per-cgroup I/O accounting is simply blind. Zero read is NOT the same as no
+  // disk activity, and the panel must not present it as a fact.
+  bool disk_read_starved = 23;
+  // endpoint is the origin the viewers actually hit (the reverse proxy when it
+  // was reachable, the server's own loopback otherwise). Runs against different
+  // endpoints are not comparable.
+  string endpoint = 24;
+  bool via_proxy = 25;
+  // disk_read_ceiling_bytes_per_sec is how fast this box can READ its media,
+  // measured directly by the run (several files, scattered offsets, read at
+  // once - the shape of load an audience creates). On a direct-play server this
+  // is usually the real ceiling, and the kernel cannot report it when the
+  // library sits on anything but a plain block device.
+  int64 disk_read_ceiling_bytes_per_sec = 26;
+  // slowest_disk_bytes_per_sec is what the WEAKEST drive delivered. A library
+  // spread over several disks is not one big disk: each drive saturates on its
+  // own, and the film a viewer picks decides which. This is what sets how bad it
+  // gets when viewers happen to land on that drive.
+  int64 slowest_disk_bytes_per_sec = 27;
+  // disks_probed is how many distinct drives the library was found to span.
+  int32 disks_probed = 28;
+  // storage_collapses_at_readers is the number of concurrent readers past which
+  // the storage stops merely plateauing and FALLS OVER - throughput halves or
+  // worse, and a single read starts taking seconds. Zero when it never did.
+  //
+  // When it is not zero it is the most important number in the report: on a
+  // direct-play server it is roughly how many people can watch at once before
+  // the STORAGE - not the CPU, not Evey - makes playback crawl. No CPU or memory
+  // gauge shows any of this.
+  int32 storage_collapses_at_readers = 29;
 }
 
 // LoadTestResources is what the box was actually spending. The figures come

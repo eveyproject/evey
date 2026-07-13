@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
+	"github.com/evey-project/evey/internal/domain/user"
 	"log/slog"
 	"math"
 	"runtime"
@@ -100,6 +101,15 @@ type adminSystemHandler struct {
 	// synthetic viewers hit.
 	loadTest        loadTestRunner
 	loadTestBaseURL string
+	// loadTestPublicURL is the reverse-proxy origin real viewers come through.
+	// Preferred when reachable; the loopback is the fallback.
+	loadTestPublicURL string
+	// loadTestToken mints the credential the synthetic viewers authenticate
+	// with. It must OUTLIVE the run: a load test lasts many minutes, and the
+	// caller's own browser token expires long before that - borrowing it means
+	// the run dies on a 401 mid-ramp and reports an expiry as if it were a
+	// capacity verdict. nil falls back to the caller's bearer.
+	loadTestToken loadTestTokenMinter
 
 	// last meter sample, to derive the served rate between dashboard polls.
 	meterMu        sync.Mutex
@@ -112,6 +122,14 @@ type loadTestRunner interface {
 	Start(ctx context.Context, cfg apploadtest.Config) error
 	Status() apploadtest.Status
 	Cancel()
+}
+
+// loadTestTokenMinter forges a credential for the synthetic viewers that lives
+// as long as the run does. Same claims as the admin who launched it (same user,
+// same permissions, same epoch - revoking the session still kills it); only the
+// lifetime differs.
+type loadTestTokenMinter interface {
+	GenerateAccessTokenWithTTL(claims user.Claims, ttl time.Duration) (string, error)
 }
 
 // streamingRate derives the measured streaming bits/s since the previous

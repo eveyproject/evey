@@ -2,8 +2,10 @@ package loadtest
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -44,6 +46,10 @@ const (
 	outcomeOK fetchOutcome = iota
 	outcomeTokenExpired
 	outcomeAdmissionFull
+	// outcomeServerStalled: the request timed out with no answer at all. A
+	// server that stops answering IS a saturated server - the most emphatic
+	// capacity signal there is - so this must never be filed as a harness error.
+	outcomeServerStalled
 	outcomeOtherFail
 )
 
@@ -73,7 +79,10 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, slot: tierAtSpawn, detail: "401 on master playlist"})
 		return
 	case outcomeAdmissionFull:
-		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "too_many_streams on master playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "server refused the stream (503) on the master playlist"})
+		return
+	case outcomeServerStalled:
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "server stopped answering: the master playlist timed out"})
 		return
 	case outcomeOtherFail:
 		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: fmt.Sprintf("master playlist fetch failed (status=%d, err=%v)", status, err)})
@@ -102,7 +111,10 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, slot: tierAtSpawn, detail: "401 on variant playlist"})
 		return
 	case outcomeAdmissionFull:
-		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "too_many_streams on variant playlist"})
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "server refused the stream (503) on the variant playlist"})
+		return
+	case outcomeServerStalled:
+		sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "server stopped answering: the variant playlist timed out"})
 		return
 	case outcomeOtherFail:
 		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: fmt.Sprintf("variant playlist fetch failed (status=%d, err=%v)", status, err)})
@@ -146,7 +158,10 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 			sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, slot: tierAtSpawn, detail: "401 on segment fetch"})
 			return true
 		case outcomeAdmissionFull:
-			sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "too_many_streams on segment fetch"})
+			sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "server refused the stream (503) on a segment"})
+			return true
+		case outcomeServerStalled:
+			sendEvent(ctx, events, viewerEvent{kind: evAdmissionFull, vt: vt, slot: tierAtSpawn, detail: "server stopped answering: a segment fetch timed out"})
 			return true
 		default:
 			consecutiveFail++
@@ -255,16 +270,31 @@ func buildMasterURL(cfg Config, vt viewerType, media MediaCandidate, forked bool
 
 // classify maps a fetch's status/header/error into the outcome the run loop
 // or viewer cares about.
+//
+// EVERY 503 is a capacity answer, not a harness error. The server says "I can't
+// serve this right now" - whether it names the reason (too_many_streams), throttles
+// the profile, or just gives up under load. Demanding a particular header before
+// believing it meant a real refusal read as "an error interrupted the test", which
+// threw away the very measurement the run existed to take. (file_not_ready is the
+// one exception, and it never reaches here: fetchWithRetry retries it first.)
 func classify(status int, header http.Header, err error) fetchOutcome {
 	if err != nil {
+		// A request that timed out waiting for headers means the server never
+		// answered. That is not a failure of the test - it is the loudest
+		// possible statement that the box has run out of capacity, and the run
+		// must report it as such instead of "an error interrupted the test".
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return outcomeServerStalled
+		}
 		return outcomeOtherFail
 	}
-	switch {
-	case status == http.StatusOK:
+	switch status {
+	case http.StatusOK:
 		return outcomeOK
-	case status == http.StatusUnauthorized:
+	case http.StatusUnauthorized:
 		return outcomeTokenExpired
-	case status == http.StatusServiceUnavailable && header.Get(headerEveyError) == errCodeTooManyStreams:
+	case http.StatusServiceUnavailable, http.StatusTooManyRequests:
 		return outcomeAdmissionFull
 	default:
 		return outcomeOtherFail
@@ -330,7 +360,16 @@ func (r *Runner) fetchOnce(ctx context.Context, rawURL, token string) (status in
 // sendEvent forwards ev to the run loop, giving up only if ctx has already
 // ended (the run loop is buffered generously, so this practically never
 // blocks in steady state).
+//
+// A viewer whose context is already cancelled says NOTHING. It has been shed -
+// by the bisection narrowing the audience, or by the run ending - and its
+// in-flight requests are failing precisely BECAUSE it was cancelled. Reporting
+// those failures would turn a routine shed into a StopError and kill the run,
+// or worse, blame the server for a latency the harness itself caused.
 func sendEvent(ctx context.Context, events chan<- viewerEvent, ev viewerEvent) {
+	if ctx.Err() != nil {
+		return
+	}
 	select {
 	case events <- ev:
 	case <-ctx.Done():

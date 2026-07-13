@@ -35,6 +35,10 @@ var ErrUnknownMode = errors.New("loadtest: unknown mode")
 type MediaCandidate struct {
 	ID          string
 	DurationSec int
+	// Path is where the file actually lives, so the run can measure how fast
+	// this box reads its media (see diskbench.go). Empty is tolerated: the disk
+	// probe is simply skipped.
+	Path string
 }
 
 // MediaLister supplies the pool of media the load test can pick viewers'
@@ -93,16 +97,28 @@ const (
 // Config configures one load test run.
 type Config struct {
 	// BaseURL is the server's own loopback origin (e.g. http://127.0.0.1:8080),
-	// supplied by the parent. Viewers hit real HTTP endpoints on it.
+	// supplied by the parent. Viewers hit real HTTP endpoints on it. Always
+	// reachable, and it measures the SERVER alone.
 	BaseURL string
+	// PublicBaseURL is the origin real viewers actually come through - the
+	// reverse proxy (Caddy), with its TLS, HTTP/2 and buffering. Optional. When
+	// set AND reachable, the run uses it instead of the loopback, which is a
+	// truer picture of what a household experiences: the proxy is part of the
+	// delivery path, and its own limits are part of the answer. When it cannot
+	// be reached (no proxy deployed, a public hostname the box can't resolve
+	// from inside), the run silently falls back to BaseURL rather than failing -
+	// a measurement of the server alone beats no measurement.
+	PublicBaseURL string
 	// Token is the bearer token used by every simulated viewer. It is a real
 	// credential exercising the real auth path, not a bypass.
 	Token string
 	// Scenario is ScenarioTranscode or ScenarioNatural.
 	Scenario string
-	// MaxViewers caps how far the ramp will go. Defaults to 12: a weak NAS
-	// is the target hardware, so the default stays conservative and an
-	// admin who wants more has to ask for it explicitly.
+	// MaxViewers caps how far the climb will go. ZERO MEANS NO CEILING: the
+	// run climbs until a resource actually gives out, which is the only number
+	// worth reporting. A ceiling is an operator's own limit, not the machine's,
+	// and a run that stops there has measured nothing about the server - the
+	// report says so explicitly when it happens.
 	MaxViewers int
 	// RampEvery is both the cadence at which a new viewer joins and the
 	// minimum observation window given to each tier before advancing.
@@ -125,13 +141,15 @@ type Config struct {
 	// counters from (/sys/fs/cgroup, /proc). Empty means the real one; tests
 	// stage a fake tree here.
 	FSRoot string
-	// ResourceWarmup overrides how long a tier's samples are discarded as
-	// start-up transients. Zero means resourceWarmup. Tests shrink it; an
-	// operator has no reason to.
-	ResourceWarmup time.Duration
 	// ResourceSampleEvery overrides the resource sampling cadence. Zero means
 	// resourceSampleEvery. Tests shrink it; an operator has no reason to.
 	ResourceSampleEvery time.Duration
+
+	// FastHold / MeasureHold override the climb's per-phase observation windows
+	// (see climb.go). Zero means the real ones. Tests shrink them so a whole
+	// climb runs in milliseconds; an operator has no reason to touch them.
+	FastHold    time.Duration
+	MeasureHold time.Duration
 }
 
 func (c Config) fsRoot() string {
@@ -139,13 +157,6 @@ func (c Config) fsRoot() string {
 		return "/"
 	}
 	return c.FSRoot
-}
-
-func (c Config) resourceWarmup() time.Duration {
-	if c.ResourceWarmup <= 0 {
-		return resourceWarmup
-	}
-	return c.ResourceWarmup
 }
 
 func (c Config) resourceSampleEvery() time.Duration {
@@ -158,25 +169,33 @@ func (c Config) resourceSampleEvery() time.Duration {
 // Defaults applied when the corresponding Config field is left at its zero
 // value.
 const (
-	DefaultMaxViewers = 12
+	// DefaultMaxViewers is ZERO: no ceiling. The climb stops when a RESOURCE
+	// gives out, not when it reaches a number someone picked in advance. A
+	// direct-play viewer can cost the server almost nothing, so any hardcoded
+	// cap would just be a cap on the answer.
+	DefaultMaxViewers = 0
 
-	// DefaultRampEvery is how long a tier is held before the next viewer
-	// joins, and it is the single most important number in the whole test: it
-	// must be long enough for the tier to reach STEADY STATE, or the run
-	// measures start-up transients instead of what a viewer actually costs.
-	// A joining viewer pays an ffmpeg cold start (up to ~25s worst case, see
-	// transcode_vod_wire.go), then bursts segments to fill its buffer, then
-	// finally settles into real-time pacing. resourceWarmup covers that
-	// transient; the rest of the tier is the measurement window.
-	DefaultRampEvery = 60 * time.Second
+	// DefaultRampEvery is unused by the adaptive climb (which sets its own hold
+	// per phase - see climb.go) and kept only for ModeFlash's observation
+	// window.
+	DefaultRampEvery = 5 * time.Second
 
-	// DefaultMaxDuration must be long enough for the ramp to actually reach
-	// MaxViewers (MaxViewers x RampEvery), plus room to spare. A run cut short
-	// by the clock reports a viewer count that measures the timeout, not the
-	// server.
-	DefaultMaxDuration          = 30 * time.Minute
+	// DefaultMaxDuration walls the whole run. The climb is fast (batches while
+	// the box is idle, a bisection near the ceiling), so this is a backstop
+	// rather than a schedule.
+	DefaultMaxDuration          = 20 * time.Minute
 	DefaultEnduranceMaxDuration = 45 * time.Minute
 )
+
+// defaultFlashViewers is how big a flash slam is when the operator didn't say.
+// The climb discovers its own size; a slam cannot, so it needs a number - and
+// "everything in the pool" would be thousands of viewers at once.
+const defaultFlashViewers = 20
+
+// endpointProbeTimeout bounds the one-shot check of the reverse proxy before a
+// run commits to it. Short: it is a local hop, and a slow answer here means the
+// proxy is not a sane place to send hundreds of viewers.
+const endpointProbeTimeout = 3 * time.Second
 
 // candidatePoolSize is how many titles the runner asks the library for. It is
 // deliberately far above any plausible MaxViewers: the pool multiplies titles
@@ -221,6 +240,22 @@ const (
 	// X-Evey-Error: too_many_streams. This is the server's own capacity
 	// verdict, not a load test error.
 	StopAdmissionFull StopReason = "admission_full"
+	// StopThroughputSaturated: adding viewers stopped adding throughput. The box
+	// is already pushing as many bytes per second as it can pull, so every new
+	// viewer just takes a slice of the same pie. On a media server this is the
+	// usual ceiling - not the CPU, not the RAM, but how fast it can READ the
+	// films - and no CPU or memory gauge can see it.
+	StopThroughputSaturated StopReason = "throughput_saturated"
+	// StopServerFailing: the server stopped serving a viewer altogether under
+	// this load - repeated failed fetches, connections it could not honour. It
+	// is the box giving out, not the harness misbehaving, so it is a capacity
+	// verdict and the climb narrows around it like any other.
+	StopServerFailing StopReason = "server_failing"
+	// StopStartupTooSlow: the server still feeds its existing viewers, but a
+	// NEW one now waits seconds for its first frame. To the person holding the
+	// remote that is indistinguishable from a broken app, so it is a capacity
+	// verdict like any other.
+	StopStartupTooSlow StopReason = "startup_too_slow"
 	// StopCPUSaturated: the server's CPU sat at its ceiling long enough that
 	// it had nothing left to give another viewer. This is a capacity verdict
 	// and it names the bottleneck.
@@ -272,10 +307,60 @@ type Report struct {
 	SegmentSLOMsByType map[string]int
 	Samples            int
 
-	// SharedCacheViewers counts viewers that reused an already-in-flight
-	// media item (via a forked audio-resync param) because the library ran
-	// out of distinct candidates. Only non-zero for transcode-typed viewers.
-	SharedCacheViewers int
+	// ReplayedTitleViewers counts viewers of the sustained tier that were
+	// placed on a title another viewer was already watching, at a DIFFERENT
+	// position. They are not served from any cache - the mkvgo path packages
+	// each segment from the source on request - but they do read a file the
+	// operating system may already be holding in memory, which is what
+	// DiskReadStarved below is about.
+	ReplayedTitleViewers int
+
+	// Endpoint is the origin the viewers actually hit: the reverse proxy when it
+	// was reachable (real delivery path, TLS and all), the server's own loopback
+	// otherwise. Two runs are not comparable across different endpoints.
+	Endpoint string
+	// ViaProxy is true when Endpoint was the reverse proxy rather than the
+	// server's loopback.
+	ViaProxy bool
+
+	// DiskReadBytesPerSecCeiling is how fast this box can READ its media - every
+	// disk the library spans, read at once. This is the number that decides a
+	// direct-play server's capacity, and the kernel cannot report it when the
+	// library sits on anything but a plain block device. Zero when no file could
+	// be probed.
+	DiskReadBytesPerSecCeiling int64
+	// SlowestDiskBytesPerSec is what the WEAKEST drive delivered. On a library
+	// spread over several disks, this is what decides how bad it gets when
+	// viewers happen to pick films that live on that one: four drives are not
+	// one big drive, they each saturate on their own.
+	SlowestDiskBytesPerSec int64
+	// DisksProbed is how many distinct drives the library was found to span.
+	DisksProbed int
+	// StorageCollapsesAtReaders is the number of concurrent readers past which
+	// the storage stops merely plateauing and FALLS OVER - throughput halves or
+	// worse, and a single read starts taking seconds. Zero when it never did.
+	//
+	// When it is not zero, it is the most important number in the whole report:
+	// on a direct-play server it is roughly how many people can watch at once
+	// before the STORAGE - not the CPU, not Evey - makes playback crawl. A 9p or
+	// virtiofs mount multiplexed over one channel, an over-subscribed NFS export
+	// or a spinning disk thrashing between streams all do this, and no CPU or
+	// memory gauge shows any of it.
+	StorageCollapsesAtReaders int
+
+	// ThroughputCeilingBytesPerSec is the byte rate the server could not exceed,
+	// set when StopThroughputSaturated. It is the number an operator acts on:
+	// the storage path (disk, array, or the protocol in front of it) delivers
+	// this much and no more.
+	ThroughputCeilingBytesPerSec int64
+
+	// DiskReadStarved is true when the server pushed real traffic while
+	// reading essentially NOTHING from disk: every byte came from the OS page
+	// cache. The viewer count is still valid, but it was measured on a machine
+	// whose storage was never asked to work - so it says nothing about what
+	// happens when the library is too big to sit in RAM. The library is simply
+	// too small (or too repeatedly read) to exercise the disk.
+	DiskReadStarved bool
 
 	// SkippedCandidates counts media items an mkvgo-typed viewer tried and
 	// abandoned because the server didn't actually serve them via mkvgo

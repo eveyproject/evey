@@ -44,7 +44,7 @@ func TestStreamingRateLimit_PerProfileIsolationAnd503(t *testing.T) {
 	lim := ratelimit.NewWithBurst(3, 0) // 3 tokens, no refill → deterministic
 	defer lim.Stop()
 	served := 0
-	h := streamingRateLimit(lim, func(w http.ResponseWriter, _ *http.Request) {
+	h := streamingRateLimit(lim, nil, func(w http.ResponseWriter, _ *http.Request) {
 		served++
 		w.WriteHeader(http.StatusOK)
 	})
@@ -76,7 +76,7 @@ func TestStreamingRateLimit_PerProfileIsolationAnd503(t *testing.T) {
 // A nil limiter is a transparent pass-through (no-RL deployment / tests).
 func TestStreamingRateLimit_NilIsPassthrough(t *testing.T) {
 	served := 0
-	h := streamingRateLimit(nil, func(w http.ResponseWriter, _ *http.Request) {
+	h := streamingRateLimit(nil, nil, func(w http.ResponseWriter, _ *http.Request) {
 		served++
 		w.WriteHeader(http.StatusOK)
 	})

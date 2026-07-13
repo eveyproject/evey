@@ -149,9 +149,19 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		CfgStore:  deps.cfgStore,
 		ServerCtx: ctx,
 
-		LoginRL:         loginRL,
-		GlobalRL:        globalRL,
-		StreamingRL:     streamingRL,
+		LoginRL:     loginRL,
+		GlobalRL:    globalRL,
+		StreamingRL: streamingRL,
+		// While the built-in load test runs, the per-profile streaming limiter
+		// stands down: every simulated viewer carries the same credential, so
+		// they would all throttle each other in one bucket and the run would
+		// measure the limiter instead of the server.
+		LoadTestActive: func() bool {
+			if deps.loadTestRunner == nil {
+				return false
+			}
+			return deps.loadTestRunner.Status().Running
+		},
 		AdminHeavyRL:    adminHeavyRL,
 		SnapshotRL:      snapshotRL,
 		AdminWriteRL:    adminWriteRL,

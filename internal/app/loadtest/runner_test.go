@@ -69,6 +69,10 @@ type serverState struct {
 	targetDurFn func(rawQuery string) string
 
 	masterHits int
+	// arrivals counts streams offered since the audience was last rebuilt, and
+	// lastEpoch is the audience they belong to (see admit).
+	arrivals  int
+	lastEpoch int64
 
 	// masterHook lets a test deny/redirect a master playlist request. A
 	// zero status means "serve the default playlist". rawQuery lets a test
@@ -91,12 +95,6 @@ type serverState struct {
 // fetches the master playlist exactly once on startup. A test that models
 // resource cost drives it off THIS rather than off elapsed time, so the modelled
 // load stays locked to the ramp instead of racing it.
-func (s *serverState) viewersAdmitted() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.masterHits
-}
-
 func (s *serverState) servedBy(mediaID, resource string, segIdx int) bool {
 	s.mu.Lock()
 	fn := s.servedByFn
@@ -109,6 +107,129 @@ func (s *serverState) servedBy(mediaID, resource string, segIdx int) bool {
 
 func newServerState() *serverState {
 	return &serverState{segCount: 8, targetDurRaw: "0.05"}
+}
+
+// audience is a late-bound view of how many viewers are CURRENTLY streaming.
+//
+// A fake server that models capacity must react to the live audience, not to a
+// cumulative request count: the climb sheds viewers while bisecting, and a
+// counter that only ever goes up would keep the fake server pinned at its peak
+// long after the load came back down. The runner needs the server's URL and the
+// server needs the runner, so the link is closed after both exist.
+type audience struct {
+	mu sync.Mutex
+	r  *Runner
+}
+
+func (a *audience) bind(r *Runner) {
+	a.mu.Lock()
+	a.r = r
+	a.mu.Unlock()
+}
+
+func (a *audience) size() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.r == nil {
+		return 0
+	}
+	return a.r.Status().Viewers
+}
+
+// epoch changes when the run REBUILDS its audience from scratch - the one moment
+// every session the server was holding ends at once.
+func (a *audience) epoch() int64 {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.r == nil {
+		return 0
+	}
+	return a.r.audienceEpoch.Load()
+}
+
+// transcodes is how many of the live audience are on the transcode path - the
+// ones that actually cost an encoder.
+func (a *audience) transcodes() int {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.r == nil {
+		return 0
+	}
+	return int(a.r.liveTranscodeViewers.Load())
+}
+
+// refuseBeyond models Evey's admission control: the server holds exactly
+// `capacity` concurrent sessions and refuses anything past that outright.
+//
+// Admission is decided on ESTABLISHED sessions, in arrival order - not on how
+// many viewers the runner happens to have in flight. That distinction matters:
+// a batch of ten arrives near-simultaneously, and a server that refused based on
+// the batch's size would turn away clients it has room for. When the bisection
+// later sheds viewers, their sessions free up, which is what the resync below
+// reflects.
+func (s *serverState) refuseBeyond(a *audience, capacity int) {
+	s.masterHook = func(_ int, _, _ string) (int, map[string]string) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if !s.admit(a, a.size(), capacity) {
+			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
+		}
+		return 0, nil
+	}
+}
+
+// admit decides one incoming stream, modelling a server that holds `capacity`
+// concurrent sessions.
+//
+// Sessions are counted as ARRIVALS SINCE THE AUDIENCE WAS LAST REBUILT, clamped
+// by how many viewers are actually alive. Both halves matter:
+//
+//   - counting arrivals (rather than reading the live headcount) gets the ORDER
+//     right when a batch lands at once: each viewer of the batch sees a headcount
+//     that already includes all its siblings, so a headcount test would refuse
+//     clients the server has room for. Arrivals queue up one admission each.
+//   - clamping by the live audience hands back the slots of viewers the run has
+//     shed, which arrivals alone would never notice.
+//
+// Caller holds s.mu.
+func (s *serverState) admit(a *audience, live int, capacity int) bool {
+	if e := a.epoch(); e != s.lastEpoch {
+		s.arrivals = 0 // the audience was rebuilt: every old session is gone
+		s.lastEpoch = e
+	}
+	s.arrivals++
+	return min(s.arrivals, live) <= capacity
+}
+
+// refuseTranscodeBeyond models a server with a limited ENCODER pool: it admits
+// direct-play viewers freely and refuses transcodes past `capacity`.
+func (s *serverState) refuseTranscodeBeyond(a *audience, _ string, capacity int) {
+	s.masterHook = func(_ int, _, rawQuery string) (int, map[string]string) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if !strings.Contains(rawQuery, "vd=transcode") {
+			return 0, nil // direct play costs the encoder nothing
+		}
+		// Encoder slots are freed by TRANSCODE viewers going away, so that is
+		// what the live count must be measured against - not the headcount, which
+		// direct-play viewers inflate for free.
+		if !s.admit(a, a.transcodes(), capacity) {
+			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
+		}
+		return 0, nil
+	}
+}
+
+// stallBeyond models a server that keeps admitting viewers past its real
+// capacity but can no longer feed them in time: segments arrive slower than
+// they play, which is what a buffering player looks like.
+func (s *serverState) stallBeyond(a *audience, capacity int, slow time.Duration) {
+	s.segmentHook = func(_ string, _ int) (int, map[string]string, time.Duration) {
+		if a.size() > capacity {
+			return 0, nil, slow
+		}
+		return 0, nil, 0
+	}
 }
 
 func (s *serverState) record(r *http.Request) {
@@ -292,27 +413,27 @@ func waitForReport(t *testing.T, r *Runner, timeout time.Duration) *Report {
 
 // --- tests --------------------------------------------------------------
 
+// A server that refuses the 4th stream holds 3. The climb must find that exact
+// number - overshooting in batches, then bisecting back down to it - and report
+// the server's own refusal as the reason.
 func TestRunner_AdmissionFullStopsRampAtSustainedTier(t *testing.T) {
 	st := newServerState()
-	st.masterHook = func(hitNum int, _, _ string) (int, map[string]string) {
-		if hitNum == 4 {
-			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
-		}
-		return 0, nil
-	}
+	aud := &audience{}
+	st.refuseBeyond(aud, 3)
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 6, RampEvery: 40 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	report := waitForReport(t, r, 3*time.Second)
+	report := waitForReport(t, r, 20*time.Second)
 	if report.StopReason != StopAdmissionFull {
 		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopAdmissionFull, report.StopDetail)
 	}
@@ -324,47 +445,38 @@ func TestRunner_AdmissionFullStopsRampAtSustainedTier(t *testing.T) {
 	}
 }
 
+// A server that keeps ADMITTING viewers past its capacity but can no longer
+// feed them in time is just as full - the players buffer. The climb must land
+// on the last count that streamed smoothly.
 func TestRunner_SLOBreachStopsAtPriorTier(t *testing.T) {
 	st := newServerState()
 	st.targetDurRaw = "0.1" // 100ms auto SLO
-	var tier atomic.Int32
-	st.masterHook = func(hitNum int, _, _ string) (int, map[string]string) {
-		tier.Store(int32(hitNum))
-		return 0, nil
-	}
-	st.segmentHook = func(_ string, _ int) (int, map[string]string, time.Duration) {
-		n := tier.Load()
-		if n <= 3 {
-			return 0, nil, time.Duration(n) * 10 * time.Millisecond
-		}
-		// Comfortably beyond the 100ms SLO. RampEvery below is large enough
-		// that even two such fetches (the SLO breach check can require the
-		// 2nd-highest of a full 20-sample window) land well before the next
-		// tier's ramp tick, so the breach is unambiguously attributed to
-		// this tier and not the next one.
-		return 0, nil, 200 * time.Millisecond
-	}
+	aud := &audience{}
+	st.stallBeyond(aud, 3, 200*time.Millisecond) // comfortably beyond the 100ms budget
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
+	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 8, RampEvery: 700 * time.Millisecond, MaxDuration: 8 * time.Second,
+		MaxViewers: 8, RampEvery: 700 * time.Millisecond, FastHold: 700 * time.Millisecond, MeasureHold: 1200 * time.Millisecond, MaxDuration: 30 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	report := waitForReport(t, r, 8*time.Second)
+	report := waitForReport(t, r, 30*time.Second)
 	if report.StopReason != StopSLOBreach {
 		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopSLOBreach, report.StopDetail)
 	}
 	if report.SustainedViewers != 3 {
 		t.Fatalf("sustained viewers = %d, want 3", report.SustainedViewers)
 	}
-	if report.SegmentSLOMs != 100 {
-		t.Fatalf("segment SLO ms = %d, want 100 (auto-detected)", report.SegmentSLOMs)
+	// The budget is HALF the segment's own duration (100ms segments -> 50ms):
+	// a player that only just keeps up never fills its buffer.
+	if report.SegmentSLOMs != 50 {
+		t.Fatalf("segment SLO ms = %d, want 50 (half the 100ms segment duration)", report.SegmentSLOMs)
 	}
 }
 
@@ -379,7 +491,7 @@ func TestRunner_ShortLibraryDoesNotStopTheRamp(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 5, RampEvery: 40 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -393,8 +505,8 @@ func TestRunner_ShortLibraryDoesNotStopTheRamp(t *testing.T) {
 		t.Fatalf("sustained viewers = %d, want 5", report.SustainedViewers)
 	}
 	// Viewers 3..5 replay titles the first two already hold, at another offset.
-	if report.SharedCacheViewers != 3 {
-		t.Fatalf("replayed viewers = %d, want 3 (2 distinct titles, 5 viewers)", report.SharedCacheViewers)
+	if report.ReplayedTitleViewers != 3 {
+		t.Fatalf("replayed viewers = %d, want 3 (2 distinct titles, 5 viewers)", report.ReplayedTitleViewers)
 	}
 }
 
@@ -447,7 +559,7 @@ func TestRunner_TranscodeScenarioForksBeyondLibrary(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioTranscode,
-		MaxViewers: 4, RampEvery: 40 * time.Millisecond, MaxDuration: 3 * time.Second,
+		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 3 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -460,8 +572,8 @@ func TestRunner_TranscodeScenarioForksBeyondLibrary(t *testing.T) {
 	if report.SustainedViewers != 4 {
 		t.Fatalf("sustained viewers = %d, want 4", report.SustainedViewers)
 	}
-	if report.SharedCacheViewers != 2 {
-		t.Fatalf("shared cache viewers = %d, want 2", report.SharedCacheViewers)
+	if report.ReplayedTitleViewers != 2 {
+		t.Fatalf("shared cache viewers = %d, want 2", report.ReplayedTitleViewers)
 	}
 
 	st.mu.Lock()
@@ -490,7 +602,7 @@ func TestRunner_CancelStopsAndReportsPartial(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(20)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 20, RampEvery: 60 * time.Millisecond, MaxDuration: 10 * time.Second,
+		MaxViewers: 20, RampEvery: 60 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 10 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -528,7 +640,7 @@ func TestRunner_TokenExpiredStopsImmediately(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "expired", Scenario: ScenarioNatural,
-		MaxViewers: 3, RampEvery: 50 * time.Millisecond, MaxDuration: 2 * time.Second,
+		MaxViewers: 3, RampEvery: 50 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 2 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -562,7 +674,7 @@ func TestRunner_StartRefusesWhenAlreadyRunning(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 5, RampEvery: 500 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 500 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("first Start: %v", err)
@@ -584,7 +696,7 @@ func TestRunner_PacesSegmentFetchesInRealTime(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 1, RampEvery: 5 * time.Second, MaxDuration: 2 * time.Second,
+		MaxViewers: 1, RampEvery: 5 * time.Second, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 2 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -649,25 +761,26 @@ func TestRunner_SLOBudgetIsPerViewerType(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
-		MaxViewers: 6, RampEvery: 400 * time.Millisecond, MaxDuration: 10 * time.Second,
+		MaxViewers: 6, RampEvery: 400 * time.Millisecond, FastHold: time.Second, MeasureHold: 2 * time.Second, MaxDuration: 30 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	report := waitForReport(t, r, 10*time.Second)
+	report := waitForReport(t, r, 30*time.Second)
 	if report.StopReason != StopSLOBreach {
 		t.Fatalf("stop reason = %s, want %s (detail=%q): the transcode path stalled against its own budget", report.StopReason, StopSLOBreach, report.StopDetail)
 	}
 	if !strings.Contains(report.StopDetail, string(viewerTypeTranscode)) {
 		t.Fatalf("stop detail = %q, want it to name the transcode viewers as the ones that stalled", report.StopDetail)
 	}
-	// Each path carries its own budget, and they are not the same number.
-	if got := report.SegmentSLOMsByType[string(viewerTypeTranscode)]; got != 50 {
-		t.Fatalf("transcode budget = %dms, want 50ms (its own segment length)", got)
+	// Each path carries its own budget - half its OWN segment length, so a
+	// player has room to build a buffer rather than merely keep pace.
+	if got := report.SegmentSLOMsByType[string(viewerTypeTranscode)]; got != 25 {
+		t.Fatalf("transcode budget = %dms, want 25ms (half its 50ms segments)", got)
 	}
-	if got := report.SegmentSLOMsByType[string(viewerTypeMkvgo)]; got != 1000 {
-		t.Fatalf("mkvgo budget = %dms, want 1000ms (its own segment length)", got)
+	if got := report.SegmentSLOMsByType[string(viewerTypeMkvgo)]; got != 500 {
+		t.Fatalf("mkvgo budget = %dms, want 500ms (half its 1000ms segments)", got)
 	}
 }
 
@@ -693,7 +806,7 @@ func TestRunner_MkvgoSkipsIneligibleCandidateAndKeepsClimbing(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 5, RampEvery: 40 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -724,7 +837,7 @@ func TestRunner_ReusedTitleStartsAtADistinctPosition(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 3, RampEvery: 60 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 3, RampEvery: 60 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -766,13 +879,15 @@ func TestRunner_MkvgoFirstSegmentWithoutHeaderCountsAsFailure(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 1, RampEvery: 5 * time.Second, MaxDuration: 2 * time.Second,
+		MaxViewers: 1, RampEvery: 5 * time.Second, FastHold: 600 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	time.Sleep(300 * time.Millisecond)
+	// Long enough for the tier to leave its warm-up (samples taken while it
+	// settles are discarded) and stream a few real segments.
+	time.Sleep(1500 * time.Millisecond)
 	r.Cancel()
 	report := waitForReport(t, r, 2*time.Second)
 
@@ -795,7 +910,7 @@ func TestRunner_LogsFinalReport(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, logger)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 2, RampEvery: 40 * time.Millisecond, MaxDuration: 3 * time.Second,
+		MaxViewers: 2, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 3 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -819,7 +934,7 @@ func TestRunner_LogsFinalReport(t *testing.T) {
 	for _, key := range []string{
 		"scenario", "sustained_viewers", "stop_reason", "stop_detail",
 		"ttff_ms_p50", "ttff_ms_p95", "segment_ms_p50", "segment_ms_p95",
-		"segment_slo_ms", "samples", "shared_cache_viewers", "skipped_candidates", "duration_ms",
+		"segment_slo_ms", "samples", "replayed_title_viewers", "skipped_candidates", "duration_ms",
 	} {
 		if _, ok := found[key]; !ok {
 			t.Errorf("report log missing key %q, got %v", key, found)
@@ -853,7 +968,7 @@ func TestRunner_BalancedMixAlternatesTypes(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
-		MaxViewers: 6, RampEvery: 40 * time.Millisecond, MaxDuration: 4 * time.Second,
+		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 4 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -884,7 +999,7 @@ func TestRunner_LightMixIsMostlyMkvgo(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioLight,
-		MaxViewers: 5, RampEvery: 40 * time.Millisecond, MaxDuration: 4 * time.Second,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 4 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -902,34 +1017,30 @@ func TestRunner_LightMixIsMostlyMkvgo(t *testing.T) {
 	}
 }
 
+// The scarce resource on a real box is the ENCODER, not the headcount:
+// direct-play viewers are nearly free. A server with room for 2 transcodes must
+// therefore be found to hold 3 viewers in the heavy mix (1 direct-play + 2
+// transcodes), and the report must show that composition.
 func TestRunner_HeavyMixAdmissionFullOnTranscodePool(t *testing.T) {
 	st := newServerState()
-	var transcodeHits atomic.Int32
-	st.masterHook = func(_ int, _, rawQuery string) (int, map[string]string) {
-		if !strings.Contains(rawQuery, "vd=transcode") {
-			return 0, nil
-		}
-		if transcodeHits.Add(1) == 3 {
-			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
-		}
-		return 0, nil
-	}
+	aud := &audience{}
+	st.refuseTranscodeBeyond(aud, ScenarioHeavy, 2)
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
+	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioHeavy,
-		MaxViewers: 8, RampEvery: 40 * time.Millisecond, MaxDuration: 4 * time.Second,
+		MaxViewers: 8, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
 	// heavy pattern is [mkvgo, transcode, transcode, transcode, transcode]:
-	// slot1=mkvgo, slot2=transcode(1st), slot3=transcode(2nd),
-	// slot4=transcode(3rd, denied) -> sustained=3 (slots 1-3).
-	report := waitForReport(t, r, 4*time.Second)
+	// rank1=mkvgo, rank2+rank3=the 2 encoder slots, rank4 would need a 3rd.
+	report := waitForReport(t, r, 20*time.Second)
 	if report.StopReason != StopAdmissionFull {
 		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopAdmissionFull, report.StopDetail)
 	}
@@ -995,7 +1106,7 @@ func TestRunner_PinnedScenario_OneTranscodeThenMkvgo(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: "mkvgo+1",
-		MaxViewers: 4, RampEvery: 40 * time.Millisecond, MaxDuration: 3 * time.Second,
+		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 3 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1071,7 +1182,7 @@ func TestRunner_FlashDoesNotStopOnAdmissionRefusalsAndCountsSurvivors(t *testing
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
-		MaxViewers: 5, RampEvery: 100 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	start := time.Now()
 	if err := r.Start(context.Background(), cfg); err != nil {
@@ -1109,7 +1220,7 @@ func TestRunner_FlashLaunchesAllViewersInSameWindow(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
-		MaxViewers: 5, RampEvery: 300 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 300 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1169,7 +1280,7 @@ func TestRunner_FlashPlusMkvgoStillRequiresTheHeader(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo, Mode: ModeFlash,
-		MaxViewers: 1, RampEvery: 30 * time.Millisecond, MaxDuration: 3 * time.Second,
+		MaxViewers: 1, RampEvery: 30 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1293,28 +1404,25 @@ func TestRunner_SeekModeIsDeterministicAcrossRuns(t *testing.T) {
 
 func TestRunner_SeekModeVerdictsUnchanged(t *testing.T) {
 	st := newServerState()
-	st.masterHook = func(hitNum int, _, _ string) (int, map[string]string) {
-		if hitNum == 4 {
-			return http.StatusServiceUnavailable, map[string]string{headerEveyError: errCodeTooManyStreams}
-		}
-		return 0, nil
-	}
+	aud := &audience{}
+	st.refuseBeyond(aud, 3)
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeSeek,
-		MaxViewers: 6, RampEvery: 40 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	// Seek mode keeps the normal ramp's verdicts: an admission refusal still
-	// stops the run at the prior sustained tier, exactly like ScenarioNatural
-	// without a mode.
-	report := waitForReport(t, r, 3*time.Second)
+	// Seek mode keeps the normal climb's verdicts: the server refusing the 4th
+	// stream still settles the answer at 3, exactly like ScenarioNatural with no
+	// mode - scrubbing the timeline changes the load, not the arithmetic.
+	report := waitForReport(t, r, 20*time.Second)
 	if report.StopReason != StopAdmissionFull {
 		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopAdmissionFull, report.StopDetail)
 	}
@@ -1333,7 +1441,7 @@ func TestRunner_EnduranceHoldsPlateauThenCompletes(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeEndurance,
-		MaxViewers: 2, RampEvery: 100 * time.Millisecond, MaxDuration: 1500 * time.Millisecond,
+		MaxViewers: 2, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 1500 * time.Millisecond,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1370,7 +1478,7 @@ func TestRunner_EnduranceSLOBreachDuringHoldStillStops(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeEndurance,
-		MaxViewers: 2, RampEvery: 80 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 2, RampEvery: 80 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1385,5 +1493,140 @@ func TestRunner_EnduranceSLOBreachDuringHoldStillStops(t *testing.T) {
 	report := waitForReport(t, r, 5*time.Second)
 	if report.StopReason != StopSLOBreach {
 		t.Fatalf("stop reason = %s, want %s (detail=%q): endurance must keep SLO verdicts active during the hold", report.StopReason, StopSLOBreach, report.StopDetail)
+	}
+}
+
+// A server can keep its existing viewers perfectly fed and still take many
+// seconds to let a NEW one start watching. To the person holding the remote,
+// that IS the server being full - so it must end the climb.
+func TestRunner_SlowStartupIsACapacityVerdict(t *testing.T) {
+	st := newServerState()
+	st.segCount = 40
+	// Long segments (10s -> a 5s streaming budget), so the slow FIRST segment
+	// below breaches the STARTUP budget and nothing else. This test is about a
+	// server that feeds its regulars fine and still makes newcomers wait.
+	st.targetDurRaw = "10"
+	aud := &audience{}
+	// Past 3 viewers, the FIRST segment of any newcomer crawls; everything
+	// already streaming stays fast.
+	st.segmentHook = func(_ string, segIdx int) (int, map[string]string, time.Duration) {
+		if aud.size() > 3 && segIdx == 0 {
+			return 0, nil, time.Duration(startupBudgetMs+500) * time.Millisecond
+		}
+		return 0, nil, 0
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(12)}, zeroActive, testLogger())
+	aud.bind(r)
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
+		// The holds must outlast the slow startup they are meant to catch: a tier
+		// judged before its newcomers have even received a first frame would be
+		// declared healthy on no evidence.
+		MaxViewers: 10, FastHold: 8 * time.Second, MeasureHold: 10 * time.Second, MaxDuration: 90 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 90*time.Second)
+	if report.StopReason != StopStartupTooSlow {
+		t.Fatalf("stop reason = %s, want %s (detail=%q): a newcomer waiting seconds for its first frame is a full server", report.StopReason, StopStartupTooSlow, report.StopDetail)
+	}
+	if report.SustainedViewers >= 10 {
+		t.Fatalf("sustained = %d: the climb ignored the startup budget", report.SustainedViewers)
+	}
+}
+
+// EVERY 503 is the server saying "not right now" - a capacity answer, not a
+// harness failure. Insisting on a particular header before believing it meant a
+// real refusal (a rate limiter, a throttle, a load shed) got filed as "an error
+// interrupted the test", throwing the measurement away.
+func TestRunner_AnyServiceUnavailableIsACapacityAnswer(t *testing.T) {
+	st := newServerState()
+	aud := &audience{}
+	// A 503 with NO Evey error header - what a generic throttle returns.
+	st.masterHook = func(_ int, _, _ string) (int, map[string]string) {
+		if aud.size() > 3 {
+			return http.StatusServiceUnavailable, nil
+		}
+		return 0, nil
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
+	aud.bind(r)
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
+		MaxViewers: 8, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 20*time.Second)
+	if report.StopReason == StopError {
+		t.Fatalf("a 503 was reported as an error (%q): the server refusing IS the measurement", report.StopDetail)
+	}
+	if report.StopReason != StopAdmissionFull {
+		t.Fatalf("stop reason = %s, want %s", report.StopReason, StopAdmissionFull)
+	}
+}
+
+// A server that stops answering altogether is the loudest capacity signal there
+// is. Reporting the client timeout as "an error interrupted the test" threw away
+// the very number the run existed to find.
+func TestRunner_ServerThatStopsAnsweringIsSaturatedNotBroken(t *testing.T) {
+	st := newServerState()
+	aud := &audience{}
+	// Past 3 viewers the server simply never answers.
+	st.masterHook = func(_ int, _, _ string) (int, map[string]string) {
+		if aud.size() > 3 {
+			time.Sleep(2 * time.Second) // longer than the client's timeout below
+		}
+		return 0, nil
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{Timeout: 300 * time.Millisecond}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
+	aud.bind(r)
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
+		MaxViewers: 8, FastHold: 400 * time.Millisecond, MeasureHold: 800 * time.Millisecond, MaxDuration: 30 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	report := waitForReport(t, r, 30*time.Second)
+	if report.StopReason == StopError {
+		t.Fatalf("a server that stopped answering was reported as an error (%q): that IS saturation", report.StopDetail)
+	}
+	if report.StopReason != StopAdmissionFull {
+		t.Fatalf("stop reason = %s, want %s (detail=%q)", report.StopReason, StopAdmissionFull, report.StopDetail)
+	}
+	if report.SustainedViewers != 3 {
+		t.Fatalf("sustained = %d, want 3", report.SustainedViewers)
+	}
+}
+
+// A run whose viewers never touch the disk (every byte from the OS page cache)
+// must SAY so: the viewer count stands, but it says nothing about a library too
+// big to sit in RAM.
+func TestReport_FlagsAServerThatNeverTouchedItsDisk(t *testing.T) {
+	starved := diskReadStarved(ResourceStats{
+		Samples:                10,
+		ServedBytesPerSecAvg:   50 << 20, // 50 MiB/s out the door
+		DiskReadBytesPerSecAvg: 1 << 20,  // 1 MiB/s off the disk
+	})
+	if !starved {
+		t.Fatalf("50 MiB/s served against 1 MiB/s read means the page cache is doing the work; the report must say so")
+	}
+	if diskReadStarved(ResourceStats{Samples: 10, ServedBytesPerSecAvg: 50 << 20, DiskReadBytesPerSecAvg: 40 << 20}) {
+		t.Fatalf("a server reading most of what it serves off the disk is not starved")
 	}
 }

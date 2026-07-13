@@ -85,19 +85,20 @@ func TestRunner_CPUSaturationStopsTheRunAndNamesTheBottleneck(t *testing.T) {
 	// 92% saturation line, so the server sustains 3. Driving the load off the
 	// admitted-viewer count (not off elapsed time) locks the CPU curve to the
 	// ramp, whatever the scheduler does under -race.
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
+	// The load must follow the LIVE audience, which rises AND falls as the
+	// bisection sheds viewers - a cumulative request counter would keep the fake
+	// machine pinned at its peak forever.
 	machine := &modelledMachine{
 		cores: 1, cpuPctPerViewer: 25,
 		memPerViewer: 64 << 20, memLimit: 8 << 30,
 		diskPerViewer: 5 << 20,
-		viewers:       st.viewersAdmitted,
+		viewers:       func() int { return r.Status().Viewers },
 	}
-
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
 	r.counters = machine
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 8, RampEvery: 600 * time.Millisecond, MaxDuration: 30 * time.Second,
-		ResourceWarmup: 50 * time.Millisecond, ResourceSampleEvery: 50 * time.Millisecond,
+		MaxViewers: 8, RampEvery: 600 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 30 * time.Second, ResourceSampleEvery: 50 * time.Millisecond,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -141,18 +142,16 @@ func TestRunner_MemorySaturationIsItsOwnVerdict(t *testing.T) {
 
 	// Idle floor is 256 MiB; each viewer adds 256 MiB against a 1 GiB limit, so
 	// the 3rd viewer crosses 90%. The CPU stays cold throughout.
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
 	machine := &modelledMachine{
 		cores: 16, cpuPctPerViewer: 1,
 		memPerViewer: 256 << 20, memLimit: 1 << 30,
-		viewers: st.viewersAdmitted,
+		viewers: func() int { return r.Status().Viewers },
 	}
-
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(8)}, zeroActive, testLogger())
 	r.counters = machine
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 8, RampEvery: 600 * time.Millisecond, MaxDuration: 30 * time.Second,
-		ResourceWarmup: 50 * time.Millisecond, ResourceSampleEvery: 50 * time.Millisecond,
+		MaxViewers: 8, RampEvery: 600 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 30 * time.Second, ResourceSampleEvery: 50 * time.Millisecond,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -174,19 +173,17 @@ func TestRunner_IdleMachineReachesMaxViewersAndStillReportsResources(t *testing.
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
 	machine := &modelledMachine{
 		cores: 8, cpuPctPerViewer: 2,
 		memPerViewer: 32 << 20, memLimit: 16 << 30,
 		diskPerViewer: 2 << 20,
-		viewers:       st.viewersAdmitted,
+		viewers:       func() int { return r.Status().Viewers },
 	}
-
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
 	r.counters = machine
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 3, RampEvery: 400 * time.Millisecond, MaxDuration: 30 * time.Second,
-		ResourceWarmup: 50 * time.Millisecond, ResourceSampleEvery: 50 * time.Millisecond,
+		MaxViewers: 3, RampEvery: 400 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 30 * time.Second, ResourceSampleEvery: 50 * time.Millisecond,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -328,5 +325,93 @@ func TestResourceState_SingleSpikeIsNotSaturation(t *testing.T) {
 	// Alternating hot/cool never reaches saturationSamples in a row.
 	if rs.cpuOverRun >= saturationSamples {
 		t.Fatalf("alternating spikes counted as sustained saturation")
+	}
+}
+
+// The ceiling of a media server is usually neither its CPU nor its RAM: it is
+// how fast it can READ the films. That bottleneck is invisible to every gauge -
+// the CPU idles, memory sits still - and shows up only as the bytes-out curve
+// going flat while viewers keep arriving. The run must catch it and name it.
+func TestResourceState_FlatThroughputIsTheStorageCeiling(t *testing.T) {
+	rs := newResourceState(0, time.Now())
+	at := time.Now()
+
+	// 10 viewers pull 100 MB/s. 20 viewers pull... still 100 MB/s: the storage
+	// is already giving everything it has, and the newcomers only take a slice
+	// of the same pie.
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(10, ResourceSample{CPUPercent: 12, ServedBytesPerSec: 100 << 20}, at)
+	}
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(20, ResourceSample{CPUPercent: 12, ServedBytesPerSec: 100 << 20}, at)
+	}
+
+	plateaued, ceiling := rs.throughputPlateaued(20)
+	if !plateaued {
+		t.Fatalf("doubling the viewers without pushing a single extra byte is a saturated storage path; the run must say so")
+	}
+	if ceiling != 100<<20 {
+		t.Fatalf("ceiling = %d, want 100 MiB/s (what the box could not exceed)", ceiling)
+	}
+}
+
+// A tier that genuinely serves MORE data has not hit any ceiling, however busy
+// the box looks.
+func TestResourceState_GrowingThroughputIsNotAPlateau(t *testing.T) {
+	rs := newResourceState(0, time.Now())
+	at := time.Now()
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(10, ResourceSample{ServedBytesPerSec: 100 << 20}, at)
+	}
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(20, ResourceSample{ServedBytesPerSec: 190 << 20}, at)
+	}
+	if plateaued, _ := rs.throughputPlateaued(20); plateaued {
+		t.Fatalf("throughput nearly doubled with the viewers: nothing is saturated")
+	}
+}
+
+// Storage that SERIALISES is invisible to every gauge: the CPU idles, memory sits
+// still, and the disk looks fine at low concurrency. It only shows up as viewers
+// pile on - throughput falls away, a single read starts taking seconds - and it
+// is what actually decides how many people can watch. The probe must catch it.
+func TestDiskProbe_DetectsStorageThatCollapsesUnderConcurrency(t *testing.T) {
+	// A 9p mount multiplexed over one channel, measured for real: it peaks at 4
+	// readers and falls off a cliff by 16.
+	d := &DiskThroughput{Levels: []DiskLevel{
+		{Readers: 1, BytesPerSec: 253 << 20, WorstReadMs: 4},
+		{Readers: 4, BytesPerSec: 388 << 20, WorstReadMs: 21},
+		{Readers: 16, BytesPerSec: 60 << 20, WorstReadMs: 2287},
+	}}
+	summarise(d)
+
+	if d.BestReaders != 4 {
+		t.Fatalf("best width = %d readers, want 4", d.BestReaders)
+	}
+	if d.CollapsesAt != 16 {
+		t.Fatalf("collapse not detected (got %d, want 16): throughput fell to a sixth and a single read took 2.3s", d.CollapsesAt)
+	}
+}
+
+// A healthy disk PLATEAUS - the same throughput however many readers pile on -
+// and that must never be reported as a collapse. Crying wolf here would send an
+// operator hunting a storage problem that doesn't exist.
+func TestDiskProbe_APlateauIsNotACollapse(t *testing.T) {
+	d := &DiskThroughput{Levels: []DiskLevel{
+		{Readers: 1, BytesPerSec: 400 << 20, WorstReadMs: 3},
+		{Readers: 4, BytesPerSec: 900 << 20, WorstReadMs: 6},
+		{Readers: 16, BytesPerSec: 880 << 20, WorstReadMs: 12},
+	}}
+	summarise(d)
+
+	if d.CollapsesAt != 0 {
+		t.Fatalf("a disk that holds its throughput as readers pile on has not collapsed (got %d)", d.CollapsesAt)
+	}
+	if d.BytesPerSec != 900<<20 {
+		t.Fatalf("best = %d, want 900 MiB/s", d.BytesPerSec/(1<<20))
 	}
 }

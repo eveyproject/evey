@@ -118,6 +118,14 @@ type GRPCServerDeps struct {
 	// Unimplemented). LoadTestBaseURL is the loopback origin viewers hit.
 	LoadTest        *apploadtest.Runner
 	LoadTestBaseURL string
+	// LoadTestPublicURL is the reverse-proxy origin (Caddy) real viewers come
+	// through. The runner prefers it when reachable - that is the true delivery
+	// path - and falls back to the loopback otherwise.
+	LoadTestPublicURL string
+	// LoadTestTokens mints the synthetic viewers' credential so it outlives the
+	// run. Without it the run borrows the caller's browser token and dies on a
+	// 401 mid-ramp, reporting an expiry as if it were a capacity limit.
+	LoadTestTokens loadTestTokenMinter
 
 	// StreamMeter exposes the cumulative streaming bytes served (HLS/direct/
 	// download) for the dashboard's measured bandwidth. Optional.
@@ -176,24 +184,26 @@ func (s *GRPCServer) RegisterServices() {
 		srvCtx = context.Background()
 	}
 	eveyv1.RegisterAdminSystemServiceServer(s.server, &adminSystemHandler{
-		userCmd:         d.UserAuth,
-		userQuery:       d.UserQuery,
-		transcodingSvc:  d.Transcoding,
-		activitySvc:     d.ActivityQuery,
-		hlsManager:      hlsMgr,
-		libLister:       d.LibQuery,
-		streamMeter:     d.StreamMeter,
-		version:         d.Version,
-		calibrationSvc:  calibrationProviderOrNil(d.CalibrationSvc),
-		videoLimiter:    videoLimiterOrNil(d.VideoLimiter),
-		startTime:       s.startTime,
-		ffmpegPath:      s.ffmpegPath,
-		translator:      d.Translator,
-		smtpConfigured:  d.SMTPConfigured,
-		serverCfgSvc:    d.ServerCfgSvc,
-		restartFn:       d.RestartFn,
-		loadTest:        loadTestOrNil(d.LoadTest),
-		loadTestBaseURL: d.LoadTestBaseURL,
+		userCmd:           d.UserAuth,
+		userQuery:         d.UserQuery,
+		transcodingSvc:    d.Transcoding,
+		activitySvc:       d.ActivityQuery,
+		hlsManager:        hlsMgr,
+		libLister:         d.LibQuery,
+		streamMeter:       d.StreamMeter,
+		version:           d.Version,
+		calibrationSvc:    calibrationProviderOrNil(d.CalibrationSvc),
+		videoLimiter:      videoLimiterOrNil(d.VideoLimiter),
+		startTime:         s.startTime,
+		ffmpegPath:        s.ffmpegPath,
+		translator:        d.Translator,
+		smtpConfigured:    d.SMTPConfigured,
+		serverCfgSvc:      d.ServerCfgSvc,
+		restartFn:         d.RestartFn,
+		loadTest:          loadTestOrNil(d.LoadTest),
+		loadTestBaseURL:   d.LoadTestBaseURL,
+		loadTestPublicURL: d.LoadTestPublicURL,
+		loadTestToken:     d.LoadTestTokens,
 	})
 	if d.Presence != nil {
 		eveyv1.RegisterPresenceServiceServer(s.server, &presenceHandler{tracker: d.Presence})

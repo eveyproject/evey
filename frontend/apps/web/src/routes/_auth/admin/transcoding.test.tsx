@@ -211,7 +211,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "balanced", maxViewers: 12 },
+        data: { scenario: "balanced" },
       }),
     );
   });
@@ -238,7 +238,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "light", maxViewers: 12 },
+        data: { scenario: "light" },
       }),
     );
   });
@@ -254,7 +254,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "mkvgo", maxViewers: 12 },
+        data: { scenario: "mkvgo" },
       }),
     );
   });
@@ -356,10 +356,11 @@ describe("LoadTestCard", () => {
     expect(screen.queryByTestId("load-test-no-bottleneck")).toBeNull();
   });
 
-  // The opposite case: the ramp hit the operator's own ceiling without any
-  // resource giving out. That is not a capacity result, and the panel must not
-  // let it pass for one.
-  it("says so when nothing saturated and the ceiling was simply reached", async () => {
+  // The opposite case: the run stopped without any resource giving out (an
+  // explicit ceiling passed through the API or CLI - the panel itself never
+  // sends one). That is not a capacity result, and the panel must not let it
+  // pass for one.
+  it("says so when nothing saturated and the run simply stopped", async () => {
     mockLoadTestStatus = {
       running: false,
       lastReport: {
@@ -454,12 +455,52 @@ describe("LoadTestCard", () => {
     });
     mockLoadTestStatus = {
       running: false,
-      lastReport: { scenario: "transcode", sustainedViewers: 3, stopReason: "slo_breach" },
+      lastReport: {
+        scenario: "transcode",
+        sustainedViewers: 3,
+        stopReason: "slo_breach",
+        viewerMix: { transcode: 3 },
+      },
     };
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
 
     const predicted = screen.getByTestId("load-test-predicted");
-    expect(predicted.textContent).toContain("4");
+    expect(predicted.textContent).toContain("4"); // the calibration's prediction
+    expect(predicted.textContent).toContain("3"); // the transcodes actually held
+  });
+
+  // The calibration predicts ENCODER capacity. Putting "~2 predicted" beside a
+  // direct-play result compares an encoder budget to a file server: the numbers
+  // measure different things, and showing them together reads as a wild miss.
+  it("hides the calibration prediction when the run held no transcodes", async () => {
+    mockGetSystemInfo.mockReturnValue({
+      data: {
+        videoSessions: {
+          ...measured.videoSessions,
+          pools: [
+            {
+              pool: "cpu",
+              budgetUsed: 0.431,
+              budgetTotal: 1,
+              classes: [{ ladderClass: "software", rungFits: [{ height: 1080, cost: 0.431, maxStreams: 2 }] }],
+            },
+          ],
+        },
+      },
+    });
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 61,
+        stopReason: "slo_breach",
+        viewerMix: { mkvgo: 61 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    expect(screen.queryByTestId("load-test-predicted")).toBeNull();
   });
 });

@@ -50,13 +50,6 @@ const (
 // slow enough that the sampling itself costs nothing measurable.
 const resourceSampleEvery = 2 * time.Second
 
-// resourceWarmup is how long after a viewer joins its tier's samples are
-// DISCARDED. A joining viewer pays an ffmpeg cold start and then bursts
-// segments to fill its buffer; sampling through that transient would measure
-// the start-up, not the steady state. Everything after it is the measurement
-// window.
-const resourceWarmup = 30 * time.Second
-
 // ResourceSample is one instantaneous reading of what the server is consuming.
 type ResourceSample struct {
 	CPUPercent          float64
@@ -175,6 +168,98 @@ func newResourceState(warmup time.Duration, startedAt time.Time) *resourceState 
 		tierStartedAt: startedAt,
 		warmup:        warmup,
 	}
+}
+
+// settling reports that the tier is still in its warm-up window: viewers that
+// just joined are burst-filling their buffers, and the latency they see (and
+// impose) is a start-up transient, not what the tier costs in steady state.
+// Judging a tier on those samples condemns tiers that would have held.
+func (rs *resourceState) settling(now time.Time) bool {
+	return now.Sub(rs.tierStartedAt) < rs.warmup
+}
+
+// startTier begins a new tier's warm-up RIGHT NOW, rather than whenever the
+// next resource sample happens to land.
+//
+// The sampler ticks every couple of seconds; leaving it to notice the change
+// means the tier's first seconds are judged with no warm-up at all - and those
+// are exactly the seconds when requests issued under the PREVIOUS (overloaded)
+// tier are still landing. A tier stepped back down from an overload would
+// inherit its slow fetches and be condemned for a stall it never had.
+func (rs *resourceState) startTier(tier int, now time.Time) {
+	rs.lastTier = tier
+	rs.tierStartedAt = now
+	rs.cpuOverRun, rs.memOverRun = 0, 0
+}
+
+// setWarmup changes how much of a tier is discarded as transient. The climb
+// hunts on a short hold (where a long warm-up would leave no samples at all)
+// and judges on a long one, so the warm-up follows the phase.
+func (rs *resourceState) setWarmup(d time.Duration) { rs.warmup = d }
+
+// throughputGainThreshold is how much more data a tier must push, relative to
+// the best any smaller tier managed, for the extra viewers to count as actually
+// being served. Below it, the server is handing out the same bytes to more
+// people - which is what a saturated SOURCE looks like.
+const throughputGainThreshold = 1.05
+
+// minPlateauBytesPerSec is the floor below which a flat throughput curve proves
+// nothing: a server dribbling a few hundred KB/s has not hit its storage
+// ceiling, it is being held back by something else entirely.
+const minPlateauBytesPerSec = 8 << 20 // 8 MiB/s
+
+// throughputPlateaued reports that adding viewers has stopped adding
+// throughput: the box is already pushing as many bytes per second as it can
+// pull, and every new viewer just takes a slice of the same pie.
+//
+// This is the bottleneck no CPU or memory gauge can see. A media server's real
+// ceiling is usually neither: it is how fast it can READ the films. When the CPU
+// sits at 12%, memory at a third, and the bytes-out curve goes flat, the answer
+// is the storage path - the disk, the array, or the protocol in front of it -
+// and the run must say so rather than climb until something else breaks.
+//
+// It deliberately does not care WHICH storage: a network mount, a spinning disk
+// or an over-subscribed SSD all present the same way, and the per-second figure
+// the report carries is the number an operator can act on.
+func (rs *resourceState) throughputPlateaued(tier int) (bool, int64) {
+	cur := rs.stats(tier)
+	if cur.Samples == 0 || cur.ServedBytesPerSecAvg <= 0 {
+		return false, 0
+	}
+	var best int64
+	for t, samples := range rs.byTier {
+		if t >= tier || len(samples) == 0 {
+			continue
+		}
+		best = max(best, rs.stats(t).ServedBytesPerSecAvg)
+	}
+	// A plateau only means something once real data is moving. Below this, the
+	// run is measuring noise - and calling a trickle "the storage ceiling" would
+	// blame the disk for whatever else is actually wrong.
+	if best < minPlateauBytesPerSec {
+		return false, 0
+	}
+	if float64(cur.ServedBytesPerSecAvg) < float64(best)*throughputGainThreshold {
+		return true, best
+	}
+	return false, 0
+}
+
+// tierLoad is how hard the server was working at a tier: the most-loaded
+// resource, as a fraction of its own ceiling (0..1). It is what tells the climb
+// whether it can afford a big stride or should tread carefully - a box at 5% of
+// its CPU is nowhere near its limit, and discovering that ten viewers at a time
+// would waste everyone's evening.
+func (rs *resourceState) tierLoad(tier int) float64 {
+	s := rs.stats(tier)
+	if s.Samples == 0 {
+		return 0
+	}
+	load := s.CPUPercentAvg / 100
+	if s.MemLimitBytes > 0 {
+		load = max(load, float64(s.MemUsedBytesAvg)/float64(s.MemLimitBytes))
+	}
+	return min(load, 1)
 }
 
 // observe records one sample against the current tier and reports whether a

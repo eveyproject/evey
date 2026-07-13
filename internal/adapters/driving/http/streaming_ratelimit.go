@@ -33,11 +33,22 @@ func streamingRateLimitKey(r *http.Request) string {
 // legitimate viewing (even a profile streaming on several devices with heavy
 // seeking stays well under the ceiling). nil limiter = disabled (pass-through),
 // so tests and a no-RL deployment behave exactly as before.
-func streamingRateLimit(limiter *ratelimit.Limiter, next http.HandlerFunc) http.HandlerFunc {
+//
+// loadTestActive suspends it. The built-in load test authenticates every one of
+// its simulated viewers with the SAME credential, so they all land in ONE
+// profile's bucket and throttle each other - the run would measure this limiter
+// rather than the server, reporting stalls and 503s that a real audience (one
+// bucket per profile) would never see. Suspending it costs no protection: the
+// load test is admin-only and refuses to start while anything real is playing.
+func streamingRateLimit(limiter *ratelimit.Limiter, loadTestActive func() bool, next http.HandlerFunc) http.HandlerFunc {
 	if limiter == nil {
 		return next
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
+		if loadTestActive != nil && loadTestActive() {
+			next(w, r)
+			return
+		}
 		if !limiter.Allow(streamingRateLimitKey(r)) {
 			w.Header().Set("Retry-After", "2")
 			http.Error(w, `{"message":"streaming rate limit exceeded, retry"}`, http.StatusServiceUnavailable)

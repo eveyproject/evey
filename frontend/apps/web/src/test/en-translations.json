@@ -175,7 +175,7 @@
   "admin.loadtest.mixType.mkvgo": "direct play (mkvgo)",
   "admin.loadtest.mixType.natural": "natural playback",
   "admin.loadtest.mixType.transcode": "transcoding",
-  "admin.loadtest.predictedLine": "predicted by calibration: ~{{count}} streams",
+  "admin.loadtest.predictedLine": "Transcoding: {{measured}} streams held, ~{{count}} predicted by calibration (calibration only ever predicts transcodes, never direct play).",
   "admin.loadtest.reportHeadline_one": "This server sustains {{count}} simultaneous viewer in {{scenario}}.",
   "admin.loadtest.reportHeadline_other": "This server sustains {{count}} simultaneous viewers in {{scenario}}.",
   "admin.loadtest.runningElapsed": "elapsed {{elapsed}}",
@@ -1671,8 +1671,16 @@
   "admin.loadtest.sloByTypeLine": "Stall threshold, one per playback path: {{parts}}",
   "admin.loadtest.resourcesLine": "Consumed at that tier: CPU {{cpu}}% (peak {{cpuPeak}}%), memory {{mem}} of {{memLimit}}, disk read {{disk}}, served {{net}}.",
   "admin.loadtest.perViewerLine": "Cost of one more viewer: {{cpu}}% CPU, {{mem}} memory, {{disk}} disk read, {{net}} throughput.",
-  "admin.loadtest.maxViewersLabel": "Max viewers",
   "admin.loadtest.noBottleneckHint": "No resource ran out: the box likely holds more. Raise the ceiling and run again.",
   "admin.loadtest.stopReason.cpuSaturated": "The CPU saturated: that is what limits this server.",
-  "admin.loadtest.stopReason.memorySaturated": "Memory saturated: that is what limits this server."
+  "admin.loadtest.stopReason.memorySaturated": "Memory saturated: that is what limits this server.",
+  "admin.loadtest.noCeilingLine": "The run climbs until a resource gives out - there is no viewer ceiling.",
+  "admin.loadtest.throughputCeilingLine": "Throughput flattened at {{rate}}: the server cannot read the media any faster. That is the bottleneck.",
+  "admin.loadtest.stopReason.throughputSaturated": "Throughput flattened out: the server cannot read the media any faster. That is the bottleneck.",
+  "admin.loadtest.stopReason.startupTooSlow": "Starting a new stream became too slow: the server is full, even though it keeps feeding the others.",
+  "admin.loadtest.stopReason.serverFailing": "The server stopped serving viewers under this load.",
+  "admin.loadtest.diskCeilingLine_one": "Media read throughput, measured on this server: {{rate}} (across {{count}} disk).",
+  "admin.loadtest.diskCeilingLine_other": "Media read throughput, measured on this server: {{rate}} ({{count}} disks read in parallel).",
+  "admin.loadtest.slowestDiskLine": "The slowest drive only gives {{rate}}: viewers landing on a film that lives there are the first to suffer.",
+  "admin.loadtest.storageCollapseLine": "Warning: the storage collapses past {{count}} concurrent reads - throughput falls away and a single read starts taking seconds. It is the storage, not the server, that caps how many people can watch."
 }

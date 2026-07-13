@@ -3,11 +3,20 @@ services:
   evey:
     container_name: evey-server
     image: gravityz/evey:${EVEY_VERSION:-latest}
-    deploy:
-      resources:
-        limits:
-          memory: ${EVEY_MEMORY_LIMIT:-4g}
-          cpus: '${EVEY_CPU_LIMIT:-4}'
+    # No CPU or memory limit by default: the server gets the whole machine, the
+    # way Docker behaves out of the box. A hard 4g/4-core cap used to be the
+    # default here, which silently throttled Evey on any host bigger than a
+    # small NAS - and made the built-in load test measure the cap instead of the
+    # hardware. Evey already sizes itself to what it finds (GOMEMLIMIT follows
+    # the cgroup limit when there IS one, else host RAM; worker pools follow the
+    # CPU quota, else the core count), so capping it is an operator's choice,
+    # not a default. To cap it, uncomment and set the two variables:
+    #
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: ${EVEY_MEMORY_LIMIT:-4g}
+    #       cpus: '${EVEY_CPU_LIMIT:-4}'
     logging:
       driver: "json-file"
       options:

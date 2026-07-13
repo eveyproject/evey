@@ -75,3 +75,26 @@ func parsePinnedScenario(scenario string) (pinned int, ok bool) {
 	}
 	return n, true
 }
+
+// scenarioSpawnsEncoders reports whether a scenario ever puts a viewer on the
+// transcode path, i.e. whether the run will start an ffmpeg at all.
+//
+// It decides how long a tier must be held before it can be judged. An encoder
+// pays a cold start (up to ~25s worst case) before it reaches steady state, so a
+// run that starts one has to wait it out. A pure direct-play run never starts
+// one: its viewers burst a few segments to fill their buffers and are then in
+// steady state within seconds. Waiting an encoder's warm-up on a run that has no
+// encoder is dead time - and across a bisection's several tiers, it is most of
+// the run's wall clock.
+//
+// ScenarioNatural is treated as if it might: the server decides each viewer's
+// path, and it may well pick a transcode.
+func scenarioSpawnsEncoders(scenario string) bool {
+	if scenario == ScenarioMkvgo {
+		return false
+	}
+	if pinned, ok := parsePinnedScenario(scenario); ok {
+		return pinned > 0
+	}
+	return true
+}

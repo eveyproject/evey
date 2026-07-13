@@ -256,7 +256,13 @@ type HTTPServer struct {
 	GlobalRL *ratelimit.Limiter
 	// StreamingRL is the per-profile request-rate limiter for the high-frequency
 	// streaming routes (HLS segments/playlists). nil = disabled (pass-through).
-	StreamingRL     *ratelimit.Limiter
+	StreamingRL *ratelimit.Limiter
+	// LoadTestActive reports whether the built-in load test is running. While it
+	// is, StreamingRL stands down: every simulated viewer carries the same
+	// credential, so they would all throttle each other inside one profile's
+	// bucket and the run would measure the limiter instead of the server. nil =
+	// never active.
+	LoadTestActive  func() bool
 	AdminHeavyRL    *ratelimit.Limiter
 	AdminWriteRL    *ratelimit.Limiter
 	PasswordResetRL *ratelimit.Limiter
@@ -443,7 +449,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			// few seconds per stream) - the DoS vector the GlobalRL was wrong for
 			// (its per-IP 429 would 1) false-positive a multi-profile household
 			// and 2) stall hls.js).
-			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, s.StreamMeter.Middleware(vodHandler.serveHTTP))))
+			mux.HandleFunc("GET /api/v1/media/{id}/hls/{file}", streamAuth(streamingRateLimit(s.StreamingRL, s.LoadTestActive, s.StreamMeter.Middleware(vodHandler.serveHTTP))))
 			// Predictive warm-up: the player POSTs at ~85% progress of an
 			// episode so the next ep's transcode is pre-spawned and the
 			// autoplay handoff feels instant. Auth-required (logged-in user
