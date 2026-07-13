@@ -254,7 +254,7 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 		SourcePath:       item.File.Path,
 		SourceTrackIdx:   trackIdx,
 		AudioCodec:       "aac",
-		AudioBitrate:     128, // stereo base; scaled to MaxAudioChannels at arg-build
+		AudioBitrate:     domaintranscoding.AudioRenditionBaseKbps, // scaled to the channel count at arg-build
 		AudioNormalize:   h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
 		MaxAudioChannels: h.sourceAudioChannels(r.Context(), mediaID, trackIdx),
 	}

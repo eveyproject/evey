@@ -140,6 +140,19 @@ streamInfo:
   language: Langue
   sampleRate: Fréquence d'échantillonnage
   transcodeReasons: Raisons du transcodage
+  decisionCopy: copié
+  decisionTranscode: transcodé
+  reason:
+    video_codec_unsupported: Codec vidéo non lisible par ce lecteur
+    audio_codec_unsupported: Codec audio non lisible par ce lecteur
+    hdr_tonemapping_needed: HDR converti en SDR (tone-mapping)
+    container_incompatible: Conteneur non lisible en l'état (remis en HLS)
+    resolution_exceeded: Résolution au-dessus de la limite du lecteur
+    bitrate_exceeded: Débit au-dessus de la limite autorisée
+    audio_channels_exceeded: Trop de canaux audio pour ce lecteur
+    subtitle_burn_in: Sous-titres incrustés dans l'image
+    audio_resync_requested: Resynchronisation audio demandée
+    decision_pinned: Choix figé pour cette session
 jumpToChapter: "Aller au chapitre : {{chapter}}"
 cast:
   noDevices: Aucun appareil de diffusion trouvé sur le réseau du serveur.

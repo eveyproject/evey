@@ -24,6 +24,27 @@ function formatPlayMethod(method?: string): string {
   }
 }
 
+// 23.976023976023978 is a true value and a useless one to read. Show what a human
+// says: 23.976, 24, 25, 30.
+function formatFrameRate(fps?: number): string | null {
+  if (!fps || !Number.isFinite(fps) || fps <= 0) return null;
+  const rounded = Math.round(fps * 1000) / 1000;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(3)} fps`;
+}
+
+// Per-stream bitrate is often absent from the probe (the container only carries a
+// total). Deriving video ≈ total − audio beats showing a bare "-": it is the number
+// the viewer actually wants, and it is honest about being an estimate.
+function deriveVideoBitrate(total?: string, audio?: string): { value: string; estimated: boolean } | null {
+  const t = Number(total);
+  if (!Number.isFinite(t) || t <= 0) return null;
+  const a = Number(audio);
+  if (Number.isFinite(a) && a > 0 && a < t) {
+    return { value: formatBitrate(String(t - a)), estimated: true };
+  }
+  return { value: formatBitrate(String(t)), estimated: true };
+}
+
 function formatChannels(ch?: number): string {
   if (!ch) return "";
   if (ch === 1) return "Mono";
@@ -42,10 +63,35 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Section({ title }: { title: string }) {
+// The decision belongs to its stream, not to a lonely row at the bottom of the
+// section - you could not tell at a glance whether "transcode" applied to the video
+// or the audio. It rides the section header now, colour-coded: copied = untouched
+// (good), transcoded = re-encoded (costly).
+function DecisionBadge({ decision }: { decision?: string }) {
+  const { t } = useTranslation();
+  if (!decision) return null;
+  const isCopy = decision === "copy";
   return (
-    <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-[var(--accent)]">
-      {title}
+    <span
+      className="ml-2 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[10px] font-semibold uppercase tracking-normal"
+      style={{
+        backgroundColor: isCopy ? "var(--success)" : "var(--warning)",
+        color: "var(--bg)",
+        opacity: 0.9,
+      }}
+    >
+      {isCopy
+        ? t("player.streamInfo.decisionCopy", { defaultValue: "copié" })
+        : t("player.streamInfo.decisionTranscode", { defaultValue: "transcodé" })}
+    </span>
+  );
+}
+
+function Section({ title, decision }: { title: string; decision?: string }) {
+  return (
+    <div className="flex items-center px-3 pt-2.5 pb-1 text-xs font-semibold uppercase tracking-wider text-[var(--accent)]">
+      <span>{title}</span>
+      <DecisionBadge decision={decision} />
     </div>
   );
 }
@@ -103,16 +149,23 @@ export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelP
 
           {videoStream && (
             <>
-              <Section title={t("player.streamInfo.video")} />
+              <Section title={t("player.streamInfo.video")} decision={streamInfo.videoDecision} />
               <InfoRow label={t("player.streamInfo.codec")} value={(videoStream.codec ?? "-").toUpperCase()} />
               {videoStream.width && videoStream.height && (
                 <InfoRow label={t("player.streamInfo.resolution")} value={`${videoStream.width}×${videoStream.height}`} />
               )}
-              {videoStream.bitrate && (
-                <InfoRow label={t("player.streamInfo.bitrate")} value={formatBitrate(videoStream.bitrate)} />
-              )}
-              {videoStream.frameRate && (
-                <InfoRow label={t("player.streamInfo.framerate")} value={`${videoStream.frameRate} fps`} />
+              {(() => {
+                const explicit = videoStream.bitrate ? formatBitrate(videoStream.bitrate) : null;
+                if (explicit && explicit !== "-") {
+                  return <InfoRow label={t("player.streamInfo.bitrate")} value={explicit} />;
+                }
+                const derived = deriveVideoBitrate(streamInfo.bitrate, audioStream?.bitrate);
+                return derived ? (
+                  <InfoRow label={t("player.streamInfo.bitrate")} value={`≈ ${derived.value}`} />
+                ) : null;
+              })()}
+              {formatFrameRate(videoStream.frameRate) && (
+                <InfoRow label={t("player.streamInfo.framerate")} value={formatFrameRate(videoStream.frameRate)!} />
               )}
               {videoStream.profile && (
                 <InfoRow label={t("player.streamInfo.profile")} value={videoStream.profile} />
@@ -120,15 +173,12 @@ export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelP
               {videoStream.pixelFormat && (
                 <InfoRow label={t("player.streamInfo.pixelFormat")} value={videoStream.pixelFormat} />
               )}
-              {streamInfo.videoDecision && (
-                <InfoRow label={t("player.streamInfo.decision")} value={streamInfo.videoDecision} />
-              )}
             </>
           )}
 
           {audioStream && (
             <>
-              <Section title={t("player.streamInfo.audio")} />
+              <Section title={t("player.streamInfo.audio")} decision={streamInfo.audioDecision} />
               <InfoRow label={t("player.streamInfo.codec")} value={(audioStream.codec ?? "-").toUpperCase()} />
               {audioStream.channels && (
                 <InfoRow label={t("player.streamInfo.channels")} value={formatChannels(audioStream.channels)} />
@@ -136,14 +186,18 @@ export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelP
               {audioStream.language && (
                 <InfoRow label={t("player.streamInfo.language")} value={audioStream.language} />
               )}
-              {audioStream.bitrate && (
-                <InfoRow label={t("player.streamInfo.bitrate")} value={formatBitrate(audioStream.bitrate)} />
+              {/* The SERVED rate, not the source's: a Matroska track rarely declares
+                  one, so this row used to sit at "-" on every re-encoded track even
+                  though we picked the figure ourselves. Falls back to the source when
+                  the track is copied. */}
+              {(streamInfo.audioBitrate ?? audioStream.bitrate) && (
+                <InfoRow
+                  label={t("player.streamInfo.bitrate")}
+                  value={formatBitrate(streamInfo.audioBitrate ?? audioStream.bitrate)}
+                />
               )}
               {audioStream.sampleRate && (
                 <InfoRow label={t("player.streamInfo.sampleRate")} value={`${audioStream.sampleRate} Hz`} />
-              )}
-              {streamInfo.audioDecision && (
-                <InfoRow label={t("player.streamInfo.decision")} value={streamInfo.audioDecision} />
               )}
             </>
           )}
@@ -151,9 +205,20 @@ export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelP
           {streamInfo.transcodeReasons && streamInfo.transcodeReasons.length > 0 && (
             <>
               <Section title={t("player.streamInfo.transcodeReasons")} />
-              <div className="px-3 py-1.5 text-xs text-[var(--text-muted)]">
-                {streamInfo.transcodeReasons.join(", ")}
-              </div>
+              <ul className="px-3 py-1.5 space-y-1">
+                {streamInfo.transcodeReasons.map((reason) => (
+                  <li key={reason} className="flex gap-1.5 text-xs text-[var(--text-muted)]">
+                    <span aria-hidden className="text-[var(--warning)]">•</span>
+                    {/* Raw reasons are snake_case enum values: translate, and fall back to
+                        a readable form rather than leaking `hdr_tonemapping_needed`. */}
+                    <span>
+                      {t(`player.streamInfo.reason.${reason}`, {
+                        defaultValue: reason.replace(/_/g, " "),
+                      })}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </>
           )}
         </div>

@@ -28,11 +28,17 @@ type PlaybackDecision struct {
 }
 
 var DefaultWebProfile = ClientProfile{
-	VideoCodecs:      []string{"h264", "vp9"},
-	AudioCodecs:      []string{"aac", "mp3", "opus", "flac"},
-	Containers:       []string{"mp4", "webm"},
-	MaxWidth:         3840,
-	MaxHeight:        2160,
-	SupportsHDR:      false,
-	MaxAudioChannels: 8,
+	VideoCodecs: []string{"h264", "vp9"},
+	AudioCodecs: []string{"aac", "mp3", "opus", "flac"},
+	Containers:  []string{"mp4", "webm"},
+	MaxWidth:    3840,
+	MaxHeight:   2160,
+	SupportsHDR: false,
+	// 6 (5.1), not 8: no browser decodes AAC 7.1 in MSE - Chrome tops out at 5.1.
+	// Claiming 8 makes the pipeline emit `-ac 8`, the SourceBuffer refuses the
+	// stream, and the title never starts (seen on a real Dolby Atmos 7.1 source:
+	// the audio came out `aac 8ch 7.1 @422k` and playback never began). A client
+	// that genuinely decodes more declares it itself (MediaCaps); this is only the
+	// default for one that declares nothing.
+	MaxAudioChannels: 6,
 }

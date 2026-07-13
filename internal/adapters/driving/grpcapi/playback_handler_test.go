@@ -17,6 +17,7 @@ import (
 	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
@@ -1329,4 +1330,72 @@ func TestPlaybackHandler_GetNextUp_LibraryAccessFilter(t *testing.T) {
 		assert.Contains(t, ids, "mi-nup-ok", "admin must see the allowed-library next-up item")
 		assert.Contains(t, ids, "mi-nup-no", "admin must see the forbidden-library next-up item (no filter for admins)")
 	})
+}
+
+// The audio bitrate row in the player's stream-info panel read "-" on a title whose
+// audio we were re-encoding: a Matroska track rarely declares a bitrate, so the
+// source probe has none - yet we are the ones choosing the figure.
+//
+// It must be the figure we actually hand the encoder, scaled to the channels being
+// served. Quoting the unscaled base would tell a viewer 192 kbps while their 5.1
+// track is encoded at 384 - a wrong number is worse than a dash.
+func TestServedAudioBitrateBps(t *testing.T) {
+	i64 := func(v int64) *int64 { return &v }
+	i := func(v int) *int { return &v }
+
+	tests := []struct {
+		name        string
+		decision    transcoding.PlaybackDecision
+		srcChannels *int
+		srcBitrate  *int64
+		want        int64
+	}{
+		{
+			name:        "hybrid rung (video copied), 5.1: the rendition base scaled to 6 channels",
+			decision:    transcoding.PlaybackDecision{AudioDecision: "transcode", VideoDecision: "copy", MaxAudioChannels: 6},
+			srcChannels: i(6),
+			want:        384_000, // 6 x 64k - NOT the 128k base
+		},
+		{
+			name:        "hybrid rung, stereo: the rendition base, unscaled",
+			decision:    transcoding.PlaybackDecision{AudioDecision: "transcode", VideoDecision: "copy", MaxAudioChannels: 6},
+			srcChannels: i(2),
+			want:        128_000,
+		},
+		{
+			name:        "full transcode, stereo: the ladder rung's own base",
+			decision:    transcoding.PlaybackDecision{AudioDecision: "transcode", VideoDecision: "transcode", AudioBitrate: 192, MaxAudioChannels: 6},
+			srcChannels: i(2),
+			want:        192_000,
+		},
+		{
+			name:        "7.1 source is served as 5.1: scaled to the CAP, not the source",
+			decision:    transcoding.PlaybackDecision{AudioDecision: "transcode", VideoDecision: "copy", MaxAudioChannels: 6},
+			srcChannels: i(8),
+			want:        384_000,
+		},
+		{
+			name:       "audio copied: the source's own rate",
+			decision:   transcoding.PlaybackDecision{AudioDecision: "copy", VideoDecision: "copy"},
+			srcBitrate: i64(640_000),
+			want:       640_000,
+		},
+		{
+			name:     "audio copied, source declares nothing: unknown, row hides",
+			decision: transcoding.PlaybackDecision{AudioDecision: "copy", VideoDecision: "copy"},
+			want:     0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			streams := []*library.MediaStream{{
+				StreamType: library.Audio,
+				Channels:   tc.srcChannels,
+				Bitrate:    tc.srcBitrate,
+			}}
+			d := tc.decision
+			assert.Equal(t, tc.want, servedAudioBitrateBps(&d, streams))
+		})
+	}
 }

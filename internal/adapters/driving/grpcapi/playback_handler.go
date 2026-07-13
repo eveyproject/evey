@@ -263,6 +263,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	// so the source bitrate is what's served. A transcode that only copies video
 	// (VideoBitrate == 0) also falls back to source - video dominates the total.
 	resp.Bitrate = servedBitrateBps(decision.PlayMethod, decision.VideoBitrate, decision.AudioBitrate, sourceBitrateBps(item))
+	resp.AudioBitrate = servedAudioBitrateBps(decision, streams)
 
 	return resp, nil
 }
@@ -309,6 +310,56 @@ func servedBitrateBps(playMethod string, videoKbps, audioKbps, sourceBps int64) 
 		return sourceBps
 	}
 	return (videoKbps + audioKbps) * 1000
+}
+
+// servedAudioBitrateBps is the audio bitrate actually delivered. Matroska rarely
+// declares one per track, so the panel read "-" - yet on a transcode we choose the
+// figure ourselves. Two paths, two bases: video copied -> the standalone rendition's
+// base; video transcoded -> the ladder rung's. Both scaled by the same domain rule,
+// so the panel quotes what the encoder is handed. A copied track keeps the source's
+// rate; 0 = unknown, and the row hides.
+func servedAudioBitrateBps(d *transcoding.PlaybackDecision, streams []*library.MediaStream) int64 {
+	if d.AudioDecision != "transcode" {
+		return sourceAudioBitrateBps(streams)
+	}
+
+	base := d.AudioBitrate
+	if d.VideoDecision == "copy" {
+		base = transcoding.AudioRenditionBaseKbps
+	}
+	if base <= 0 {
+		return sourceAudioBitrateBps(streams)
+	}
+	return transcoding.ServedAudioBitrateKbps(base, servedAudioChannels(d, streams)) * 1000
+}
+
+// servedAudioChannels is the channel count the encoder will actually target: the
+// source's own, capped by what the client accepts (a 7.1 source served as 5.1).
+func servedAudioChannels(d *transcoding.PlaybackDecision, streams []*library.MediaStream) int {
+	ch := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != library.Audio || s.Channels == nil {
+			continue
+		}
+		ch = *s.Channels
+		break
+	}
+	if d.MaxAudioChannels > 0 && (ch == 0 || ch > d.MaxAudioChannels) {
+		return d.MaxAudioChannels
+	}
+	return ch
+}
+
+func sourceAudioBitrateBps(streams []*library.MediaStream) int64 {
+	for _, s := range streams {
+		if s == nil || s.StreamType != library.Audio {
+			continue
+		}
+		if s.Bitrate != nil && *s.Bitrate > 0 {
+			return *s.Bitrate
+		}
+	}
+	return 0
 }
 
 // clampSessionField bounds a client-supplied descriptive session field (codec

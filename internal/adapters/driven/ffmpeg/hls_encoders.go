@@ -126,28 +126,11 @@ func resolveAudioEncoder(codec string) string {
 	return "aac"
 }
 
-// scaledAudioBitrateKbps scales the ladder's per-rung audio bitrate (sized
-// for stereo) to the transcode's channel target: ~64 kbps per channel beyond
-// stereo (5.1 → 384k), capped at 512k. Deterministic in (base, maxChannels) -
-// both hashed - so a given fingerprint always yields the same audio bytes.
-const (
-	stereoChannels      = 2
-	audioKbpsPerChannel = 64  // ~64 kbps/channel beyond stereo (5.1 -> 384k)
-	maxAudioBitrateKbps = 512 // hard cap on the scaled audio bitrate
-)
-
+// scaledAudioBitrateKbps scales a rung's stereo-quoted audio bitrate to the
+// channel target. The rule lives in the domain so the stream-info panel quotes
+// the same number we hand the encoder.
 func scaledAudioBitrateKbps(base int64, maxChannels int) int64 {
-	if maxChannels <= stereoChannels {
-		return base
-	}
-	scaled := int64(maxChannels) * audioKbpsPerChannel
-	if scaled < base {
-		return base
-	}
-	if scaled > maxAudioBitrateKbps {
-		return maxAudioBitrateKbps
-	}
-	return scaled
+	return transcoding.ServedAudioBitrateKbps(base, maxChannels)
 }
 
 // resolveAudioChannels returns the -ac value. Zero MaxAudioChannels preserves

@@ -105,6 +105,11 @@ message StreamInfo {
   string video_codec = 11;
   string audio_codec = 12;
   string resolution = 13;
+  // Audio bitrate actually served, in bits per second. A Matroska container
+  // rarely carries a per-track bitrate, so the source probe usually has none -
+  // but on a transcode we know it exactly: it is what we ask the encoder for.
+  // 0 when unknown (audio copied from a source that declares no bitrate).
+  int64 audio_bitrate = 14;
 }
 
 message WatchProgress {
