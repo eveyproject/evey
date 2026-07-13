@@ -99,7 +99,13 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 	// exists) and the resulting plan is cached, so the walk is paid once. This
 	// is the fast-seek path for un-indexed files AND for read-only media where
 	// the on-disk reindex cannot write.
-	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true}
+	// SkipUnsupported: a codec MP4 cannot carry (TrueHD, LPCM, Vorbis - routine in
+	// a Blu-ray remux) makes PlanHLS fail HARD, which took the whole plan down and
+	// sent a perfectly copy-eligible VIDEO to a full ffmpeg re-encode. Dropping the
+	// track is exactly right here: Evey re-encodes any audio it can't carry anyway
+	// (the hybrid rung), so the packager never needed to carry it. The admin remux
+	// path has always passed this (adapter.go); the serving path had not.
+	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true, SkipUnsupported: true}
 	// Audio start-delay resync, in presentation only, nothing written: the
 	// same per-track defect the admin retimer repairs on disk (audio_retime.go)
 	// is cancelled here at packaging time for a source the operator hasn't

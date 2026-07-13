@@ -408,3 +408,54 @@ func TestOnDemandPackagerIntegration_KeepAudioTrack(t *testing.T) {
 		t.Errorf("trimmed segment 1 is not a CMAF fragment, got %d bytes", len(seg))
 	}
 }
+
+// One un-portable audio track must NOT kill the whole plan.
+//
+// mp4.PlanHLS fails hard on a codec it cannot carry ("track N: codec %q cannot
+// be remuxed to MP4 (set Options.SkipUnsupported to drop it)"), so a single
+// TrueHD / LPCM / Vorbis track - routine in a Blu-ray remux - made the entire
+// on-demand plan fail. The handler then logged "on-demand plan build failed,
+// falling back to ffmpeg" and RE-ENCODED THE VIDEO, which was perfectly
+// copy-eligible. Proven live on a real HEVC/bt709 + TrueHD title:
+//   err=mkvgo PlanHLS ".../S01E06.mkv": mp4: track 3: codec "truehd" cannot be
+//   remuxed to MP4 (set Options.SkipUnsupported to drop it)
+//
+// The admin remux path already passes SkipUnsupported (adapter.go); the serving
+// path did not. Evey re-encodes the audio it can't carry anyway (hybrid rung),
+// so mkvgo dropping the track is exactly right.
+func TestOnDemandPackagerIntegration_UnportableAudioTrackIsDropped(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not in PATH")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// H.264 video (carriable) + TrueHD audio (NOT carriable to MP4).
+	dir := t.TempDir()
+	src := filepath.Join(dir, "truehd.mkv")
+	gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
+		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
+		"-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+		"-t", "10",
+		"-c:v", "libx264", "-g", "48", "-keyint_min", "48", "-pix_fmt", "yuv420p",
+		"-strict", "-2", // truehd is flagged experimental in ffmpeg
+		"-c:a", "truehd", "-ac", "2",
+		src)
+	if out, err := gen.CombinedOutput(); err != nil {
+		t.Fatalf("ffmpeg truehd source generation failed: %v\n%s", err, out)
+	}
+
+	pkg := NewOnDemandPackager()
+	defer pkg.Close()
+
+	plan, err := pkg.Plan(ctx, src, apptranscoding.OnDemandOptions{SegmentMs: 6000, URLPrefix: "od_"})
+	if err != nil {
+		t.Fatalf("Plan must drop the un-portable audio track, not fail: %v", err)
+	}
+	if n := plan.NumSegments(); n <= 0 {
+		t.Fatalf("NumSegments = %d, want > 0 (video must still be packaged)", n)
+	}
+}

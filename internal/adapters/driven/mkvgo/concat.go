@@ -67,7 +67,9 @@ func (p *ConcatPackager) Plan(ctx context.Context, sources []string, opts apptra
 	// ChapterMarkers is additive/byte-identical on a chapterless part, and
 	// SynthesizeIndex lets an un-indexed part join the session instead of
 	// refusing the whole chain over one file's missing Cues.
-	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true}
+	// SkipUnsupported: same reason as the on-demand packager (ondemand.go) - one
+	// TrueHD/LPCM/Vorbis track must not fail the whole chain's plan.
+	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true, SkipUnsupported: true}
 	if opts.URLPrefix != "" {
 		prefix := opts.URLPrefix
 		o.RewriteURL = func(name string) string {
