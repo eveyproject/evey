@@ -63,6 +63,9 @@ type serverState struct {
 
 	segCount     int
 	targetDurRaw string
+	// audioRendition: declare a demuxed audio track in the master, the way Evey's
+	// direct-play path does.
+	audioRendition bool
 	// targetDurFn overrides targetDurRaw per request, so a test can give the
 	// mkvgo path and the transcode path DIFFERENT segment lengths - which is
 	// what they really have (keyframe-aligned vs a fixed 3s ladder).
@@ -107,6 +110,14 @@ func (s *serverState) servedBy(mediaID, resource string, segIdx int) bool {
 
 func newServerState() *serverState {
 	return &serverState{segCount: 8, targetDurRaw: "0.05"}
+}
+
+// newDemuxedServerState is a server whose master carries a separate audio
+// rendition - what Evey actually serves on the direct-play path.
+func newDemuxedServerState() *serverState {
+	st := newServerState()
+	st.audioRendition = true
+	return st
 }
 
 // audience is a late-bound view of how many viewers are CURRENTLY streaming.
@@ -317,8 +328,14 @@ func (s *serverState) serveMaster(w http.ResponseWriter, r *http.Request) {
 	bandwidths := []int{100_000, 200_000, 300_000}
 	var b strings.Builder
 	b.WriteString("#EXTM3U\n")
+	// A DEMUXED audio rendition, exactly like Evey's direct-play master: a real
+	// player pulls this playlist ALONGSIDE the video one, so a simulated viewer
+	// that ignores it measures a client nobody runs.
+	if s.audioRendition {
+		fmt.Fprintf(&b, "#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"aud\",NAME=\"VF\",DEFAULT=YES,URI=\"%sa1.m3u8%s\"\n", dir, suffix)
+	}
 	for i, bw := range bandwidths {
-		fmt.Fprintf(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%d\n%sv%d.m3u8%s\n", bw, dir, i, suffix)
+		fmt.Fprintf(&b, "#EXT-X-STREAM-INF:BANDWIDTH=%d,AUDIO=\"aud\"\n%sv%d.m3u8%s\n", bw, dir, i, suffix)
 	}
 	if s.servedBy(mediaID, "master", -1) {
 		w.Header().Set(headerServedBy, servedByMkvgo)
@@ -1628,5 +1645,53 @@ func TestReport_FlagsAServerThatNeverTouchedItsDisk(t *testing.T) {
 	}
 	if diskReadStarved(ResourceStats{Samples: 10, ServedBytesPerSecAvg: 50 << 20, DiskReadBytesPerSecAvg: 40 << 20}) {
 		t.Fatalf("a server reading most of what it serves off the disk is not starved")
+	}
+}
+
+// A real player pulls the VIDEO and its AUDIO for every moment of playback -
+// Evey's direct-play path demuxes them into separate renditions. A simulated
+// viewer that only fetched the video was costing the server about half of what a
+// real one does, and never exercised the packager's single-walk path: the run was
+// measuring a client nobody runs.
+func TestRunner_ViewerPullsItsAudioRenditionToo(t *testing.T) {
+	st := newDemuxedServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
+		MaxViewers: 1, FastHold: time.Second, MeasureHold: time.Second, MaxDuration: 6 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	time.Sleep(1500 * time.Millisecond)
+	r.Cancel()
+	waitForReport(t, r, 5*time.Second)
+
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	var videoSegs, audioSegs, audioPlaylists int
+	for _, f := range st.fetches {
+		switch {
+		case strings.HasSuffix(f.path, "a1.m3u8"):
+			audioPlaylists++
+		case strings.Contains(f.path, "a1-seg"):
+			audioSegs++
+		case strings.HasSuffix(f.path, ".ts"):
+			videoSegs++
+		}
+	}
+	if audioPlaylists == 0 {
+		t.Fatalf("the viewer never fetched the audio rendition's playlist: it is ignoring EXT-X-MEDIA")
+	}
+	if audioSegs == 0 {
+		t.Fatalf("the viewer fetched %d video segments and NO audio segment: a real player pulls both", videoSegs)
+	}
+	// Both renditions, roughly in step: the server must produce them from the
+	// same window, which is the whole point of measuring this way.
+	if videoSegs == 0 || audioSegs < videoSegs/2 {
+		t.Fatalf("video=%d audio=%d segments: the two renditions are not being pulled together", videoSegs, audioSegs)
 	}
 }

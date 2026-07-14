@@ -98,12 +98,12 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		return
 	}
 
-	variants, err := parseMasterPlaylist(body, masterBase)
+	master, err := parseMasterPlaylist(body, masterBase)
 	if err != nil {
 		sendEvent(ctx, events, viewerEvent{kind: evViewerError, vt: vt, slot: tierAtSpawn, detail: "unparsable master playlist"})
 		return
 	}
-	chosen := pickMedianVariant(variants)
+	chosen := pickMedianVariant(master.variants)
 
 	status, header, body, _, err = r.fetchWithRetry(ctx, chosen.uri.String(), cfg.Token)
 	switch classify(status, header, err) {
@@ -128,6 +128,27 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	}
 	sendEvent(ctx, events, viewerEvent{kind: evTargetDuration, vt: vt, slot: tierAtSpawn, ms: targetMs})
 
+	// The AUDIO the player will actually listen to.
+	//
+	// Evey's direct-play path DEMUXES the source: the video and each audio track
+	// are separate renditions, on separate playlists. A real player therefore
+	// fetches TWO segments for every moment of playback - and the server, to
+	// answer them, has to produce both from the same window of the source. A
+	// simulated viewer that only ever pulled the video was costing the server
+	// roughly half of what a real one does, and never exercised that path at all:
+	// the run was measuring a client nobody runs.
+	var audioSegments []*url.URL
+	if a, ok := pickAudioRendition(master.audio); ok {
+		st, hdr, ab, _, aerr := r.fetchWithRetry(ctx, a.uri.String(), cfg.Token)
+		if classify(st, hdr, aerr) == outcomeOK {
+			if _, segs, perr := parseVariantPlaylist(ab, a.uri); perr == nil {
+				audioSegments = segs
+			}
+		}
+		// A failure here is not fatal: the viewer still exercises the video path,
+		// and the run says what it measured rather than dying on a rendition.
+	}
+
 	// Start where the pool placed this viewer. Two viewers on one title read
 	// different offsets, so neither is served the other's bytes from the page
 	// cache - which is what makes a title reusable without faking the numbers.
@@ -135,9 +156,33 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	consecutiveFail := 0
 	fetchNext := func(isFirst bool) (stop bool) {
 		segURL := segments[idx]
+		// The audio of the SAME moment, pulled alongside - which is what a player
+		// does, and what makes the server produce both renditions from one read of
+		// the window. hls.js issues the two requests in parallel, so this one goes
+		// out first and is collected after the video's, rather than serialising
+		// them into a slower, gentler load than the real thing.
+		var audioDone chan int64
+		if len(audioSegments) > 0 {
+			audioURL := audioSegments[idx%len(audioSegments)]
+			audioDone = make(chan int64, 1)
+			go func() {
+				st, _, _, ms, aerr := r.fetchWithRetry(ctx, audioURL.String(), cfg.Token)
+				if st == http.StatusOK && aerr == nil {
+					audioDone <- int64(ms)
+					return
+				}
+				audioDone <- -1
+			}()
+		}
 		idx = (idx + 1) % len(segments)
 
 		status, header, _, elapsedMs, err := r.fetchWithRetry(ctx, segURL.String(), cfg.Token)
+		if audioDone != nil {
+			// Wait for the audio too: a viewer is not "served" until it has both.
+			// Its bytes are already counted (fetchOnce tallies every response), so
+			// this only holds the pacing honest.
+			<-audioDone
+		}
 		outcome := classify(status, header, err)
 		// Defense in depth: the first segment of an mkvgo-typed viewer must
 		// also carry the header, or a silent fallback to transcode on the

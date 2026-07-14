@@ -16,16 +16,57 @@ type variant struct {
 	uri       *url.URL
 }
 
-// parseMasterPlaylist reads an HLS master playlist and resolves every
-// variant URI against base (the URL the playlist was fetched from).
-func parseMasterPlaylist(body []byte, base *url.URL) ([]variant, error) {
-	var variants []variant
+// audioRendition is one #EXT-X-MEDIA:TYPE=AUDIO entry: a separate playlist the
+// player must pull ALONGSIDE the video.
+//
+// Ignoring these is not a small omission. Evey's direct-play path demuxes the
+// source - the video and each audio track are separate renditions - so a real
+// player fetches TWO segments per moment, from two playlists. A simulated viewer
+// that only pulls the video costs the server roughly half what a real one does,
+// and never exercises the packager's single-walk path at all. The measurement
+// would be of a client nobody runs.
+type audioRendition struct {
+	groupID   string
+	name      string
+	isDefault bool
+	uri       *url.URL
+}
+
+// masterPlaylist is what a player gets from the master: the video ladder, and
+// the audio renditions it must pull in parallel.
+type masterPlaylist struct {
+	variants []variant
+	audio    []audioRendition
+}
+
+// parseMasterPlaylist reads an HLS master playlist and resolves every variant
+// and audio-rendition URI against base (the URL the playlist was fetched from).
+func parseMasterPlaylist(body []byte, base *url.URL) (masterPlaylist, error) {
+	var out masterPlaylist
 	scanner := bufio.NewScanner(bytes.NewReader(body))
 	var pendingBandwidth int
 	havePending := false
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		switch {
+		case strings.HasPrefix(line, "#EXT-X-MEDIA:"):
+			if !strings.Contains(line, "TYPE=AUDIO") {
+				continue // subtitles and closed captions: a player pulls them only when enabled
+			}
+			raw := parseAttrString(line, "URI")
+			if raw == "" {
+				continue // an audio group carried inside the video segments has no URI
+			}
+			ref, err := url.Parse(raw)
+			if err != nil {
+				return masterPlaylist{}, fmt.Errorf("loadtest: parse audio rendition uri %q: %w", raw, err)
+			}
+			out.audio = append(out.audio, audioRendition{
+				groupID:   parseAttrString(line, "GROUP-ID"),
+				name:      parseAttrString(line, "NAME"),
+				isDefault: strings.Contains(line, "DEFAULT=YES"),
+				uri:       base.ResolveReference(ref),
+			})
 		case strings.HasPrefix(line, "#EXT-X-STREAM-INF:"):
 			pendingBandwidth = parseAttrInt(line, "BANDWIDTH")
 			havePending = true
@@ -37,19 +78,35 @@ func parseMasterPlaylist(body []byte, base *url.URL) ([]variant, error) {
 			}
 			ref, err := url.Parse(line)
 			if err != nil {
-				return nil, fmt.Errorf("loadtest: parse variant uri %q: %w", line, err)
+				return masterPlaylist{}, fmt.Errorf("loadtest: parse variant uri %q: %w", line, err)
 			}
-			variants = append(variants, variant{bandwidth: pendingBandwidth, uri: base.ResolveReference(ref)})
+			out.variants = append(out.variants, variant{bandwidth: pendingBandwidth, uri: base.ResolveReference(ref)})
 			havePending = false
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("loadtest: scan master playlist: %w", err)
+		return masterPlaylist{}, fmt.Errorf("loadtest: scan master playlist: %w", err)
 	}
-	if len(variants) == 0 {
-		return nil, fmt.Errorf("loadtest: master playlist has no variants")
+	if len(out.variants) == 0 {
+		return masterPlaylist{}, fmt.Errorf("loadtest: master playlist has no variants")
 	}
-	return variants, nil
+	return out, nil
+}
+
+// pickAudioRendition returns the audio track a player would actually play: the
+// one flagged DEFAULT, else the first. A player pulls exactly ONE - never every
+// language - which is precisely why the packager cannot wait for all of them to
+// be collected before releasing a window.
+func pickAudioRendition(renditions []audioRendition) (audioRendition, bool) {
+	if len(renditions) == 0 {
+		return audioRendition{}, false
+	}
+	for _, r := range renditions {
+		if r.isDefault {
+			return r, true
+		}
+	}
+	return renditions[0], true
 }
 
 // pickMedianVariant returns the middle-quality variant of the ladder, sorted
@@ -119,4 +176,24 @@ func parseAttrInt(line, attr string) int {
 		return 0
 	}
 	return v
+}
+
+// parseAttrString extracts a quoted string attribute (e.g. URI="audio.m3u8")
+// from an HLS tag line. Returns "" if absent.
+func parseAttrString(line, attr string) string {
+	idx := strings.Index(line, attr+"=")
+	if idx < 0 {
+		return ""
+	}
+	rest := line[idx+len(attr)+1:]
+	if strings.HasPrefix(rest, `"`) {
+		if end := strings.Index(rest[1:], `"`); end >= 0 {
+			return rest[1 : 1+end]
+		}
+		return ""
+	}
+	if end := strings.IndexAny(rest, ",\r\n"); end >= 0 {
+		return rest[:end]
+	}
+	return rest
 }
