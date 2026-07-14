@@ -222,11 +222,30 @@ func (rs *resourceState) startTier(tier int, now time.Time) {
 // and judges on a long one, so the warm-up follows the phase.
 func (rs *resourceState) setWarmup(d time.Duration) { rs.warmup = d }
 
-// throughputGainThreshold is how much more data a tier must push, relative to
-// the best any smaller tier managed, for the extra viewers to count as actually
-// being served. Below it, the server is handing out the same bytes to more
-// people - which is what a saturated SOURCE looks like.
-const throughputGainThreshold = 1.05
+// minGainFraction is the share of the EXPECTED throughput gain a tier must
+// actually deliver for its extra viewers to count as served.
+//
+// It is a fraction of the expected gain, not a flat percentage, and that
+// distinction is the whole point. Viewers are paced in real time: each pulls its
+// title's bitrate and no more, so N+1 viewers move (N+1)/N times the bytes of N
+// viewers. The gain a single extra viewer can possibly produce is therefore 1/N,
+// and it SHRINKS as the audience grows.
+//
+// A flat 5% threshold (what this used to be) is thus arithmetically unreachable
+// past 20 viewers: going from 21 to 22 can only ever add 1/21 = 4.76% of
+// throughput, which is less than 5% no matter how idle the machine is. The run
+// declared "throughput plateaued - the server cannot read the media any faster",
+// blamed the storage, and stopped - on a box at 25% CPU, 36% memory and 48% of
+// its measured disk bandwidth. It did so at the same ~21 viewers on a one-disk
+// dev box and a two-disk production server, because the number was never coming
+// from the hardware: it was coming from this constant.
+//
+// Measured against the expected gain instead, the test asks the only question
+// that means anything: when the audience grew by this much, did the throughput
+// grow with it? Half of the expected gain is the bar - generous enough to absorb
+// a lighter film in the mix, unforgiving of a server that has genuinely stopped
+// scaling.
+const minGainFraction = 0.5
 
 // minPlateauBytesPerSec is the floor below which a flat throughput curve proves
 // nothing: a server dribbling a few hundred KB/s has not hit its storage
@@ -248,23 +267,37 @@ const minPlateauBytesPerSec = 8 << 20 // 8 MiB/s
 // the report carries is the number an operator can act on.
 func (rs *resourceState) throughputPlateaued(tier int) (bool, int64) {
 	cur := rs.stats(tier)
-	if cur.Samples == 0 || cur.ServedBytesPerSecAvg <= 0 {
+	if cur.Samples == 0 || cur.ServedBytesPerSecAvg <= 0 || tier <= 0 {
 		return false, 0
 	}
-	var best int64
+	// The reference is the tier that pushed the most, and HOW MANY viewers it
+	// took to do it: the gain expected of the current tier is only meaningful
+	// relative to the headcount that produced the figure being compared against.
+	var (
+		best     int64
+		bestTier int
+	)
 	for t, samples := range rs.byTier {
-		if t >= tier || len(samples) == 0 {
+		if t <= 0 || t >= tier || len(samples) == 0 {
 			continue
 		}
-		best = max(best, rs.stats(t).ServedBytesPerSecAvg)
+		if served := rs.stats(t).ServedBytesPerSecAvg; served > best {
+			best, bestTier = served, t
+		}
 	}
 	// A plateau only means something once real data is moving. Below this, the
 	// run is measuring noise - and calling a trickle "the storage ceiling" would
 	// blame the disk for whatever else is actually wrong.
-	if best < minPlateauBytesPerSec {
+	if best < minPlateauBytesPerSec || bestTier <= 0 {
 		return false, 0
 	}
-	if float64(cur.ServedBytesPerSecAvg) < float64(best)*throughputGainThreshold {
+	// Real-time pacing means throughput should scale with the headcount: going
+	// from bestTier to tier viewers should move tier/bestTier times the bytes.
+	// Demand at least half of that. A server still scaling clears this easily; a
+	// server that has stopped scaling cannot.
+	expectedGain := float64(tier)/float64(bestTier) - 1
+	required := float64(best) * (1 + expectedGain*minGainFraction)
+	if float64(cur.ServedBytesPerSecAvg) < required {
 		return true, best
 	}
 	return false, 0

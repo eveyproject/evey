@@ -382,6 +382,68 @@ func TestResourceState_GrowingThroughputIsNotAPlateau(t *testing.T) {
 	}
 }
 
+// THE REGRESSION. Straight from a production run: 21 viewers moved 511 Mb/s, and
+// 22 viewers moved 535 Mb/s - the server scaling perfectly, on a box at 25% CPU,
+// 36% memory and half its measured disk bandwidth.
+//
+// The old rule demanded a flat 5% more throughput from any tier, and one extra
+// viewer out of 21 can only ever add 1/21 = 4.76%. So the run called it a
+// plateau, blamed the storage, and stopped - and it stopped at the same ~21
+// viewers on a one-disk dev box and a two-disk production server, because the
+// number was coming from the threshold, not from the hardware.
+//
+// A single viewer joining a large audience CANNOT move the needle 5%. Any rule
+// that requires it to is measuring its own arithmetic.
+func TestResourceState_OneMoreViewerInALargeAudienceIsNotAPlateau(t *testing.T) {
+	rs := newResourceState(0, time.Now())
+	at := time.Now()
+
+	const perViewer = 24 << 20 // each viewer pulls its bitrate, and no more
+
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(21, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 21 * perViewer}, at)
+	}
+	// The 22nd viewer is served exactly as well as the other 21: +4.76%.
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(22, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 22 * perViewer}, at)
+	}
+
+	if plateaued, ceiling := rs.throughputPlateaued(22); plateaued {
+		t.Fatalf("22 viewers each served their full bitrate is a server that is SCALING, not one that plateaued "+
+			"(reported ceiling %d MiB/s). This is the bug that pinned every machine to ~21 viewers.", ceiling>>20)
+	}
+}
+
+// The fix must not blunt the detector: a server that takes on 50% more viewers
+// and moves barely any extra data HAS stopped scaling, and saying so is the
+// entire job. Only half the expected gain is required - this delivers a tenth of
+// it.
+func TestResourceState_ManyMoreViewersWithoutTheBytesIsStillAPlateau(t *testing.T) {
+	rs := newResourceState(0, time.Now())
+	at := time.Now()
+
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(20, ResourceSample{ServedBytesPerSec: 500 << 20}, at)
+	}
+	// 30 viewers should move ~750 MiB/s. They move 525: the newcomers are eating
+	// the same pie, not being served.
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(30, ResourceSample{ServedBytesPerSec: 525 << 20}, at)
+	}
+
+	plateaued, ceiling := rs.throughputPlateaued(30)
+	if !plateaued {
+		t.Fatal("half again as many viewers for 5% more bytes is a saturated source; the run must still catch it")
+	}
+	if ceiling != 500<<20 {
+		t.Fatalf("ceiling = %d MiB/s, want 500", ceiling>>20)
+	}
+}
+
 // Storage that SERIALISES is invisible to every gauge: the CPU idles, memory sits
 // still, and the disk looks fine at low concurrency. It only shows up as viewers
 // pile on - throughput falls away, a single read starts taking seconds - and it
