@@ -165,10 +165,19 @@ ci-arch:
 # pushes skip it (no 20s tax); transcode pushes REQUIRE the dev container (an
 # explicit failure, never a silent skip - a gate that silently no-ops is worse
 # than no gate). Force it on any push with TRANSCODE_ITEST=1.
+#
+# go.mod and go.sum are IN the list, and that is not belt-and-braces: the
+# direct-play packager is a LIBRARY (mkvgo). Bumping it rewrites how every
+# segment is cut and muxed without touching a single file of ours - the exact
+# change this gate exists to catch, and the one it would wave through if it
+# only watched our own paths.
 TRANSCODE_PATHS := internal/app/transcoding internal/domain/transcoding \
   internal/adapters/driven/ffmpeg \
+  internal/adapters/driven/mkvgo \
   internal/adapters/driving/http/transcode_handler_vod.go \
   internal/adapters/driving/http/transcode_audio_handler.go \
+  internal/adapters/driving/http/transcode_ondemand.go \
+  go.mod go.sum \
   docker/Dockerfile docker/Dockerfile.dev
 
 transcode-itest-gate:
