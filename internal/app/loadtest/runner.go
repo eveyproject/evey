@@ -614,6 +614,7 @@ runLoop:
 		ReplayedTitleViewers:         replayed,
 		DiskReadStarved:              diskReadStarved(sustainedRes),
 		ReadAmplification:            readAmplification(sustainedRes),
+		AppReadAmplification:         appReadAmplification(sustainedRes),
 		DiskReadBytesPerSecCeiling:   disk.TotalBytesPerSec,
 		SlowestDiskBytesPerSec:       disk.slowest(),
 		DisksProbed:                  len(disk.Disks),
@@ -1234,4 +1235,15 @@ func readAmplification(s ResourceStats) float64 {
 		return 0
 	}
 	return float64(s.DiskReadBytesPerSecAvg) / float64(s.ServedBytesPerSecAvg)
+}
+
+// appReadAmplification is how many bytes the server ASKED the filesystem for per
+// byte it served. Set against readAmplification (what the disk delivered), it
+// separates a greedy packager from a kernel reading ahead - two problems with
+// nothing in common but their symptom.
+func appReadAmplification(s ResourceStats) float64 {
+	if s.Samples == 0 || s.ServedBytesPerSecAvg <= 0 || s.AppReadBytesPerSecAvg <= 0 {
+		return 0
+	}
+	return float64(s.AppReadBytesPerSecAvg) / float64(s.ServedBytesPerSecAvg)
 }

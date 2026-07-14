@@ -66,6 +66,13 @@ func (m *modelledMachine) diskReadBytes() int64 {
 	return disk
 }
 
+// A modelled machine whose code asks for exactly what the disk delivers: the
+// readahead tax is a property of real kernels, not of this model.
+func (m *modelledMachine) appReadBytes() int64 {
+	_, disk := m.integrate()
+	return disk
+}
+
 func (m *modelledMachine) memory() (used, limit int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -450,5 +457,41 @@ func TestReport_ReadAmplificationExposesWastedBandwidth(t *testing.T) {
 		ServedBytesPerSecAvg:   100 << 20,
 	}); blind != 0 {
 		t.Fatalf("a blind I/O counter must not yield an amplification ratio, got %.2f", blind)
+	}
+}
+
+// Reporting only what the DISK delivered says "the server reads 2.5x what it
+// serves" without saying whether the CODE is greedy or the KERNEL is guessing.
+// Those have entirely different fixes, and only both figures together tell them
+// apart.
+func TestReport_SeparatesAGreedyPackagerFromAGuessingKernel(t *testing.T) {
+	// The code asks for 1.3x and the disk delivers 2.6x: the packager is nearly
+	// optimal and the kernel is reading ahead into data nobody wanted.
+	stats := ResourceStats{
+		Samples:                20,
+		ServedBytesPerSecAvg:   100 << 20,
+		AppReadBytesPerSecAvg:  130 << 20,
+		DiskReadBytesPerSecAvg: 260 << 20,
+	}
+	app, disk := appReadAmplification(stats), readAmplification(stats)
+	if app < 1.25 || app > 1.35 {
+		t.Fatalf("app amplification = %.2f, want ~1.3 (what the packager asked for)", app)
+	}
+	if disk < 2.55 || disk > 2.65 {
+		t.Fatalf("disk amplification = %.2f, want ~2.6 (what the hardware paid)", disk)
+	}
+	if disk <= app {
+		t.Fatalf("the disk cannot deliver less than the code asked for")
+	}
+
+	// A blind block counter (a 9p or network mount) must not produce a disk
+	// figure - but the app figure still works, which is exactly why it is worth
+	// having.
+	blind := ResourceStats{Samples: 20, ServedBytesPerSecAvg: 100 << 20, AppReadBytesPerSecAvg: 130 << 20}
+	if readAmplification(blind) != 0 {
+		t.Fatalf("a blind block counter must not yield a disk amplification")
+	}
+	if a := appReadAmplification(blind); a < 1.25 || a > 1.35 {
+		t.Fatalf("the app figure must still work where the block counter is blind, got %.2f", a)
 	}
 }

@@ -922,6 +922,7 @@ loadtest:
   slowestDiskLine: "El disco más lento solo da {{rate}}: los espectadores que caen en una película alojada ahí son los primeros en sufrir."
   storageCollapseLine: "Atención: el almacenamiento se desploma más allá de {{count}} lecturas simultáneas: el caudal se hunde y una sola lectura pasa a tardar segundos. Es el almacenamiento, no el servidor, lo que limita cuánta gente puede ver."
   readAmplificationLine: "Atención: el servidor lee {{ratio}} veces más bytes del disco de los que sirve. Satura su almacenamiento con datos que descarta: reducir a la mitad esta proporción duplicaría la audiencia, con el mismo hardware."
+  appAmplificationLine: "De los cuales {{app}}x los pide el propio servidor: lo que exceda es el núcleo leyendo por adelantado datos que nadie pidió."
   servedFromCacheLine: "Atención: el disco apenas se leyó: todo se sirvió desde la caché del sistema. La biblioteca cabe en RAM, cosa que no ocurrirá en uso real: este número de espectadores está sobreestimado, a veces varias veces."
   throughputCeilingLine: "El caudal se estancó en {{rate}}: el servidor no puede leer los medios más rápido. Ese es el cuello de botella."
   noBottleneckHint: "Ningún recurso se saturó: el servidor probablemente aguanta más. Sube el límite y vuelve a lanzarlo."

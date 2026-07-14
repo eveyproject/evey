@@ -922,6 +922,7 @@ loadtest:
   slowestDiskLine: "Das langsamste Laufwerk liefert nur {{rate}}: Zuschauer, die dort einen Film wählen, leiden zuerst."
   storageCollapseLine: "Achtung: Der Speicher bricht ab {{count}} gleichzeitigen Lesevorgängen ein - der Durchsatz stürzt ab und ein einzelner Lesevorgang dauert Sekunden. Nicht der Server, sondern der Speicher begrenzt die Zuschauerzahl."
   readAmplificationLine: "Achtung: Der Server liest {{ratio}}-mal mehr Bytes von der Festplatte, als er ausliefert. Er lastet den Speicher mit Daten aus, die er verwirft - eine Halbierung dieses Verhältnisses würde die Zuschauerzahl verdoppeln, auf derselben Hardware."
+  appAmplificationLine: "Davon {{app}}x vom Server selbst angefordert: alles darüber liest der Kernel im Voraus, ohne dass es jemand wollte."
   servedFromCacheLine: "Achtung: Die Festplatte wurde kaum gelesen - alles kam aus dem Cache des Betriebssystems. Die Bibliothek passt in den RAM, im echten Betrieb aber nicht: Diese Zuschauerzahl ist zu hoch, teils um ein Vielfaches."
   throughputCeilingLine: "Der Durchsatz stagnierte bei {{rate}}: Der Server kann die Medien nicht schneller lesen. Das ist der Engpass."
   noBottleneckHint: "Keine Ressource war ausgelastet: Der Server schafft vermutlich mehr. Grenze anheben und erneut testen."

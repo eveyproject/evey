@@ -56,7 +56,11 @@ type ResourceSample struct {
 	MemUsedBytes        int64
 	MemLimitBytes       int64
 	DiskReadBytesPerSec int64
-	ServedBytesPerSec   int64
+	// AppReadBytesPerSec is what the server ASKED the filesystem for, as opposed
+	// to what the disk delivered (DiskReadBytesPerSec). The difference is the
+	// kernel's readahead.
+	AppReadBytesPerSec int64
+	ServedBytesPerSec  int64
 }
 
 // ResourceStats is what a whole tier consumed: the average is what a viewer
@@ -66,6 +70,7 @@ type ResourceStats struct {
 	MemUsedBytesAvg, MemUsedBytesMax int64
 	MemLimitBytes                    int64
 	DiskReadBytesPerSecAvg           int64
+	AppReadBytesPerSecAvg            int64
 	ServedBytesPerSecAvg             int64
 	Samples                          int
 }
@@ -79,8 +84,21 @@ type counterSource interface {
 	cpuUsageUsec() int64
 	// memory is current usage and the ceiling it is measured against.
 	memory() (used, limit int64)
-	// diskReadBytes is cumulative bytes read from disk.
+	// diskReadBytes is cumulative bytes the BLOCK LAYER actually fetched - what
+	// the hardware really did.
 	diskReadBytes() int64
+	// appReadBytes is cumulative bytes the server ASKED FOR through read()
+	// syscalls - what the code actually wants, page cache or not.
+	//
+	// The two are not the same number, and the gap is the whole point. The kernel
+	// reads AHEAD: it fetches 128 KiB windows whether or not anyone wanted them.
+	// On sequential reads that is free (the next read is already in memory); on
+	// scattered ones - twenty viewers, twenty films, twenty offsets - it is waste
+	// that no application-level measurement can see. Reporting only the block
+	// layer says "the server reads 2.5x what it serves" without saying whether
+	// that is the CODE being greedy or the KERNEL guessing wrong - and those two
+	// have entirely different fixes.
+	appReadBytes() int64
 	// cpuAllowance is how many cores may actually be used - the denominator
 	// of the CPU percentage.
 	cpuAllowance() float64
@@ -96,6 +114,7 @@ type resourceSampler struct {
 	lastAt        time.Time
 	lastCPUUsec   int64
 	lastDiskRead  int64
+	lastAppRead   int64
 	lastServed    int64
 	hasPrevSample bool
 }
@@ -110,12 +129,15 @@ func newResourceSampler(src counterSource) *resourceSampler {
 func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSample, bool) {
 	cpuUsec := s.src.cpuUsageUsec()
 	diskRead := s.src.diskReadBytes()
+	appRead := s.src.appReadBytes()
 	memUsed, memLimit := s.src.memory()
 
 	prevAt, prevCPU, prevDisk, prevServed := s.lastAt, s.lastCPUUsec, s.lastDiskRead, s.lastServed
+	prevApp := s.lastAppRead
 	had := s.hasPrevSample
 
 	s.lastAt, s.lastCPUUsec, s.lastDiskRead, s.lastServed = now, cpuUsec, diskRead, servedTotal
+	s.lastAppRead = appRead
 	s.hasPrevSample = true
 
 	if !had {
@@ -137,6 +159,9 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	}
 	if diskRead > 0 && prevDisk > 0 {
 		out.DiskReadBytesPerSec = int64(float64(diskRead-prevDisk) / elapsed)
+	}
+	if appRead > 0 && prevApp > 0 {
+		out.AppReadBytesPerSec = int64(float64(appRead-prevApp) / elapsed)
 	}
 	if servedTotal >= prevServed {
 		out.ServedBytesPerSec = int64(float64(servedTotal-prevServed) / elapsed)
@@ -309,11 +334,12 @@ func (rs *resourceState) stats(tier int) ResourceStats {
 		return ResourceStats{}
 	}
 	var out ResourceStats
-	var cpuSum, memSum, diskSum, servedSum float64
+	var cpuSum, memSum, diskSum, appSum, servedSum float64
 	for _, s := range samples {
 		cpuSum += s.CPUPercent
 		memSum += float64(s.MemUsedBytes)
 		diskSum += float64(s.DiskReadBytesPerSec)
+		appSum += float64(s.AppReadBytesPerSec)
 		servedSum += float64(s.ServedBytesPerSec)
 		out.CPUPercentPeak = max(out.CPUPercentPeak, s.CPUPercent)
 		out.MemUsedBytesMax = max(out.MemUsedBytesMax, s.MemUsedBytes)
@@ -323,6 +349,7 @@ func (rs *resourceState) stats(tier int) ResourceStats {
 	out.CPUPercentAvg = cpuSum / n
 	out.MemUsedBytesAvg = int64(memSum / n)
 	out.DiskReadBytesPerSecAvg = int64(diskSum / n)
+	out.AppReadBytesPerSecAvg = int64(appSum / n)
 	out.ServedBytesPerSecAvg = int64(servedSum / n)
 	out.Samples = len(samples)
 	return out
@@ -380,6 +407,7 @@ type cgroupSource struct{ fsRoot string }
 
 func (c cgroupSource) cpuUsageUsec() int64         { return readCPUUsageUsec(c.fsRoot) }
 func (c cgroupSource) diskReadBytes() int64        { return readDiskReadBytes(c.fsRoot) }
+func (c cgroupSource) appReadBytes() int64         { return readAppReadBytes(c.fsRoot) }
 func (c cgroupSource) memory() (used, limit int64) { return readMemory(c.fsRoot) }
 func (c cgroupSource) cpuAllowance() float64       { return cpuAllowance(c.fsRoot) }
 
@@ -511,4 +539,33 @@ func parseMeminfoKB(line string) int64 {
 		return 0
 	}
 	return kb * 1024
+}
+
+// readAppReadBytes returns the bytes the server has asked the filesystem for
+// through read() syscalls (/proc/self/io: rchar), page cache included.
+//
+// This is the number the CODE is responsible for. Set against the block layer's
+// (readDiskReadBytes), it separates two very different problems: a packager that
+// reads more than it serves, and a kernel that reads ahead into data nobody
+// wanted. It also works where the block counter cannot - a library on a network
+// share or a 9p mount, where io.stat reports a confident zero.
+func readAppReadBytes(fsRoot string) int64 {
+	f, err := os.Open(filepath.Join(fsRoot, "proc/self/io"))
+	if err != nil {
+		return 0
+	}
+	defer func() { _ = f.Close() }()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		field, value, ok := strings.Cut(scanner.Text(), ": ")
+		if ok && field == "rchar" {
+			v, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
+			if err != nil {
+				return 0
+			}
+			return v
+		}
+	}
+	return 0
 }

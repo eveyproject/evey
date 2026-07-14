@@ -348,15 +348,27 @@ type Report struct {
 	// memory gauge shows any of it.
 	StorageCollapsesAtReaders int
 
-	// ReadAmplification is how many bytes the server READ from disk for every
-	// byte it SERVED, at the sustained tier. One is perfect. Anything much above
-	// one means the box is saturating its storage on data it then throws away -
-	// and since a direct-play server's ceiling IS its read bandwidth, halving the
-	// amplification doubles the audience on the very same hardware.
-	//
+	// ReadAmplification is how many bytes the DISK delivered for every byte
+	// served, at the sustained tier. This is what the hardware actually paid.
 	// Zero when the kernel could not account the reads (a library on a network
 	// share or a 9p/virtiofs mount, where per-cgroup I/O accounting is blind).
 	ReadAmplification float64
+	// AppReadAmplification is how many bytes the SERVER ASKED FOR for every byte
+	// served - the packager's own appetite, page cache or not.
+	//
+	// The two together name the culprit, and they have entirely different fixes:
+	//
+	//   - app 1.0, disk 1.0  -> nothing to win.
+	//   - app 2.5, disk 2.5  -> the CODE reads data it does not serve (the
+	//     packager traverses tracks it then discards). Fix it in the packager.
+	//   - app 1.3, disk 2.6  -> the KERNEL is reading ahead into data nobody
+	//     asked for. The code is nearly optimal; the fix is in how the file is
+	//     read (fadvise, read sizes), not in what it reads.
+	//
+	// Reporting only the disk figure says "the server reads 2.5x what it serves"
+	// and leaves an operator - or a packager author - guessing which of the two
+	// they are looking at.
+	AppReadAmplification float64
 
 	// ThroughputCeilingBytesPerSec is the byte rate the server could not exceed,
 	// set when StopThroughputSaturated. It is the number an operator acts on:

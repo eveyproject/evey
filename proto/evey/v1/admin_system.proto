@@ -360,13 +360,22 @@ message LoadTestReport {
   int64 slowest_disk_bytes_per_sec = 27;
   // disks_probed is how many distinct drives the library was found to span.
   int32 disks_probed = 28;
-  // read_amplification is how many bytes the server READ from disk for every
-  // byte it SERVED. One is perfect. Anything much above one means the box is
-  // saturating its storage on data it then throws away - and since a direct-play
-  // server's ceiling IS its read bandwidth, halving the amplification doubles the
-  // audience on the very same hardware. Zero when the kernel could not account
-  // the reads (a library on a network share or a 9p/virtiofs mount).
+  // read_amplification is how many bytes the DISK delivered per byte served -
+  // what the hardware actually paid. Zero when the kernel cannot account the
+  // reads (a library on a network share or a 9p/virtiofs mount).
   double read_amplification = 30;
+  // app_read_amplification is how many bytes the SERVER ASKED FOR per byte
+  // served - the packager's own appetite, page cache or not.
+  //
+  // The pair names the culprit, and the two have entirely different fixes:
+  //   app 1.3 / disk 1.3 -> the code reads what it serves; nothing to win.
+  //   app 2.5 / disk 2.5 -> the CODE traverses data it discards. Fix the packager.
+  //   app 1.3 / disk 2.6 -> the KERNEL reads ahead into data nobody wanted. The
+  //                         code is near-optimal; the fix is in HOW the file is
+  //                         read, not in what it reads.
+  // The disk figure alone leaves an operator guessing which of the three they
+  // are looking at.
+  double app_read_amplification = 31;
   // storage_collapses_at_readers is the number of concurrent readers past which
   // the storage stops merely plateauing and FALLS OVER - throughput halves or
   // worse, and a single read starts taking seconds. Zero when it never did.

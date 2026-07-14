@@ -899,6 +899,7 @@ loadtest:
   slowestDiskLine: "Le disque le plus lent ne donne que {{rate}} : les spectateurs qui tombent sur un film qui y vit sont les premiers à souffrir."
   storageCollapseLine: "Attention : le stockage s'effondre au-delà de {{count}} lectures simultanées - le débit s'écroule et une simple lecture prend des secondes. C'est le stockage, pas le serveur, qui limite le nombre de spectateurs."
   readAmplificationLine: "Attention : le serveur lit {{ratio}} fois plus d'octets sur le disque qu'il n'en sert. Il sature son stockage avec des données qu'il jette - diviser ce rapport par deux doublerait le nombre de spectateurs, sur le même matériel."
+  appAmplificationLine: "Dont {{app}}x demandé par le serveur lui-même : au-delà, c'est le noyau qui lit d'avance des données que personne n'a réclamées."
   servedFromCacheLine: "Attention : le disque n'a presque rien lu - tout a été servi depuis la mémoire cache du système. La bibliothèque tient en RAM, ce qui ne sera pas le cas en usage réel : ce nombre de spectateurs est surestimé, parfois d'un facteur plusieurs."
   throughputCeilingLine: "Le débit a plafonné à {{rate}} : le serveur ne peut pas lire les médias plus vite. C'est lui, le goulot."
   noBottleneckHint: "Aucune ressource n'a saturé : la machine tient probablement davantage. Relancez avec un plafond plus haut."

@@ -287,6 +287,10 @@ interface LoadTestReport {
   // four means three quarters of the storage bandwidth is spent on data the
   // server throws away - and on a direct-play box, read bandwidth IS the ceiling.
   readAmplification?: number;
+  // appReadAmplification: what the SERVER asked for, per byte served. Set against
+  // readAmplification (what the DISK delivered), it says whether the code is
+  // greedy or the kernel is reading ahead - two problems with different fixes.
+  appReadAmplification?: number;
   // endpoint: the origin the viewers actually hit (the reverse proxy when it was
   // reachable, the server's own loopback otherwise). Runs against different
   // endpoints are not comparable.
@@ -610,6 +614,16 @@ function LoadTestCard() {
                 <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-read-amplification">
                   {t("admin.loadtest.readAmplificationLine", {
                     ratio: (report.readAmplification ?? 0).toFixed(1),
+                  })}
+                </p>
+              )}
+              {/* Which of the two is to blame. A code that asks for little while
+                  the disk delivers a lot is a kernel reading ahead, not a greedy
+                  packager - and the fix is somewhere else entirely. */}
+              {(report.appReadAmplification ?? 0) > 0 && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-app-amplification">
+                  {t("admin.loadtest.appAmplificationLine", {
+                    app: (report.appReadAmplification ?? 0).toFixed(1),
                   })}
                 </p>
               )}
