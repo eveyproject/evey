@@ -45,12 +45,19 @@ import (
 // box can hold.
 //
 // So the probe sweeps, and the report says where it breaks.
-var diskBenchLevels = []int{1, 4, 16}
+//
+// The sweep reaches 32 because a REAL audience does. Stopping at 16 while the
+// box holds 21 viewers means the widest number ever measured is narrower than
+// the load being explained - and the peak, which lands at 1 or 4 readers on a
+// spinning disk, then gets reported as "the disk's speed". An operator reads
+// that as headroom. It is not headroom: it is a figure his workload can never
+// reach.
+var diskBenchLevels = []int{1, 4, 8, 16, 32}
 
 const (
 	// diskBenchReadersPerDisk is the widest level - how many files may be read
 	// at once from ONE disk.
-	diskBenchReadersPerDisk = 16
+	diskBenchReadersPerDisk = 32
 	// diskBenchBytesPerReader is how much each reader pulls at each level. Large
 	// enough to outrun readahead and any small cache, short enough that sweeping
 	// three levels stays within a few seconds.
@@ -62,7 +69,10 @@ const (
 	diskBenchMaxDisks = 8
 	// diskBenchTimeout bounds the whole probe: on a truly crawling mount it must
 	// not hold the run hostage - a partial measurement is still an answer.
-	diskBenchTimeout = 25 * time.Second
+	// Sized for the target box (a weak NAS on spinning rust), not the dev rig:
+	// the full sweep pulls 16 MiB x (1+4+16+32) = 848 MiB per disk, which is
+	// about nine seconds at 100 MB/s.
+	diskBenchTimeout = 45 * time.Second
 )
 
 // DiskLevel is what a disk delivered at ONE concurrency width.
@@ -125,6 +135,56 @@ type DiskProbe struct {
 	// known, permissions, a vanished file) - the report then omits the figure
 	// rather than inventing one.
 	Measured bool
+}
+
+// bestWidth is the width at which the drives, together, gave the most.
+func (p DiskProbe) bestWidth() int {
+	width := 0
+	for _, d := range p.Disks {
+		width = max(width, d.BestReaders)
+	}
+	return width
+}
+
+// atWidth is what the drives give TOGETHER when `readers` viewers are pulling at
+// once - measured at the widest sampled level that does not exceed the audience,
+// so the answer is a floor rather than a flattering extrapolation.
+//
+// This, and not TotalBytesPerSec, is the number an audience of that size is up
+// against. The peak is measured at whatever width the disk happens to like (1 or
+// 4 readers on spinning rust, sequential, readahead doing the work), and quoting
+// it next to a 21-viewer workload invents headroom out of thin air: the operator
+// reads "1151 of 2872 Mb/s" and concludes he is at 40% of his disk, when he is in
+// fact at its knees. The gap between these two figures is not spare capacity, it
+// is the price of the seeks.
+// An audience of 21 spread over 2 disks does NOT put 21 readers on each drive:
+// it puts about 11 on each. The load a single spindle feels is the audience
+// DIVIDED by the drives it is spread across, which is the whole point of running
+// a library on several disks - and reading the curve at the wrong width would
+// invent a collapse as readily as it invents headroom.
+func (p DiskProbe) atWidth(readers int) int64 {
+	if readers <= 0 || len(p.Disks) == 0 {
+		return 0
+	}
+	perDisk := (readers + len(p.Disks) - 1) / len(p.Disks)
+	var total int64
+	for _, d := range p.Disks {
+		if len(d.Levels) == 0 {
+			continue
+		}
+		// Levels are sorted narrowest first: walk to the widest sampled level
+		// that the drive actually faces, and quote that. Never extrapolate past
+		// what was measured.
+		at := d.Levels[0].BytesPerSec
+		for _, lvl := range d.Levels {
+			if lvl.Readers > perDisk {
+				break
+			}
+			at = lvl.BytesPerSec
+		}
+		total += at
+	}
+	return total
 }
 
 // measureDiskThroughput sweeps every disk the library spans, at several

@@ -897,6 +897,7 @@ loadtest:
   noCeilingLine: "The run climbs until a resource gives out - there is no viewer ceiling."
   diskCeilingLine_one: "Media read throughput, measured on this server: {{rate}} (across {{count}} disk)."
   diskCeilingLine_other: "Media read throughput, measured on this server: {{rate}} ({{count}} disks read in parallel)."
+  diskAtAudienceLine: "But with {{viewers}} viewers, that same storage gives only {{rate}} (peak {{peak}}, reached at just {{readers}} readers). It is not running out of bytes, it is running out of heads: the disk is on its knees, not at 40%."
   slowestDiskLine: "The slowest drive only gives {{rate}}: viewers landing on a film that lives there are the first to suffer."
   storageCollapseLine: "Warning: the storage collapses past {{count}} concurrent reads - throughput falls away and a single read starts taking seconds. It is the storage, not the server, that caps how many people can watch."
   readAmplificationLine: "Warning: the server reads {{ratio}}x more bytes from disk than it serves. It saturates its storage on data it throws away - halving this ratio would double the audience, on the very same hardware."

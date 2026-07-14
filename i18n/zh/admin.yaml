@@ -919,6 +919,7 @@ loadtest:
   noCeilingLine: "测试会持续加压，直到某项资源饱和为止 - 观众数没有上限。"
   diskCeilingLine_one: "媒体读取速率：{{rate}}（共 {{count}} 块磁盘）。"
   diskCeilingLine_other: "媒体读取速率：{{rate}}（并行读取 {{count}} 块磁盘）。"
+  diskAtAudienceLine: "但在 {{viewers}} 名观众下，同样的存储只能提供 {{rate}}（峰值 {{peak}}，仅在 {{readers}} 个读取器时达到）。缺的不是字节，而是磁头：磁盘已经到极限，而非只用了 40%。"
   slowestDiskLine: "最慢的磁盘只有 {{rate}}：选到存放在该盘上影片的观众最先受影响。"
   storageCollapseLine: "警告：并发读取超过 {{count}} 个后存储会崩塌——吞吐量骤降，单次读取要耗时数秒。限制观众数量的是存储，而非服务器。"
   readAmplificationLine: "警告：服务器从磁盘读取的字节数是其实际发送量的 {{ratio}} 倍。它把存储带宽耗在了随后丢弃的数据上——把这个比值减半，同样的硬件就能承载一倍的观众。"

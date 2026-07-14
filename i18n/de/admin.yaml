@@ -919,6 +919,7 @@ loadtest:
   noCeilingLine: "Der Test steigert die Last, bis eine Ressource ausgelastet ist - es gibt keine Zuschauergrenze."
   diskCeilingLine_one: "Gemessener Medien-Lesedurchsatz: {{rate}} (auf {{count}} Laufwerk)."
   diskCeilingLine_other: "Gemessener Medien-Lesedurchsatz: {{rate}} ({{count}} Laufwerke parallel gelesen)."
+  diskAtAudienceLine: "Bei {{viewers}} Zuschauern liefert derselbe Speicher jedoch nur noch {{rate}} (Spitze {{peak}}, erreicht bei nur {{readers}} Lesern). Es fehlen nicht die Bytes, sondern die Köpfe: die Platte ist am Limit, nicht bei 40 %."
   slowestDiskLine: "Das langsamste Laufwerk liefert nur {{rate}}: Zuschauer, die dort einen Film wählen, leiden zuerst."
   storageCollapseLine: "Achtung: Der Speicher bricht ab {{count}} gleichzeitigen Lesevorgängen ein - der Durchsatz stürzt ab und ein einzelner Lesevorgang dauert Sekunden. Nicht der Server, sondern der Speicher begrenzt die Zuschauerzahl."
   readAmplificationLine: "Achtung: Der Server liest {{ratio}}-mal mehr Bytes von der Festplatte, als er ausliefert. Er lastet den Speicher mit Daten aus, die er verwirft - eine Halbierung dieses Verhältnisses würde die Zuschauerzahl verdoppeln, auf derselben Hardware."

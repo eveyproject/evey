@@ -896,6 +896,7 @@ loadtest:
   noCeilingLine: "Le test monte en charge jusqu'à ce qu'une ressource sature - il n'y a pas de plafond de spectateurs."
   diskCeilingLine_one: "Débit de lecture des médias, mesuré sur ce serveur : {{rate}} (sur {{count}} disque)."
   diskCeilingLine_other: "Débit de lecture des médias, mesuré sur ce serveur : {{rate}} ({{count}} disques lus en parallèle)."
+  diskAtAudienceLine: "Mais avec {{viewers}} spectateurs, ce même stockage ne donne plus que {{rate}} (pic {{peak}}, atteint à seulement {{readers}} lecteurs). Ce ne sont pas les octets qui manquent, ce sont les têtes de lecture : le disque est à genoux, pas à 40 %."
   slowestDiskLine: "Le disque le plus lent ne donne que {{rate}} : les spectateurs qui tombent sur un film qui y vit sont les premiers à souffrir."
   storageCollapseLine: "Attention : le stockage s'effondre au-delà de {{count}} lectures simultanées - le débit s'écroule et une simple lecture prend des secondes. C'est le stockage, pas le serveur, qui limite le nombre de spectateurs."
   readAmplificationLine: "Attention : le serveur lit {{ratio}} fois plus d'octets sur le disque qu'il n'en sert. Il sature son stockage avec des données qu'il jette - diviser ce rapport par deux doublerait le nombre de spectateurs, sur le même matériel."

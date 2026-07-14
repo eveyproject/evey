@@ -329,6 +329,20 @@ type Report struct {
 	// library sits on anything but a plain block device. Zero when no file could
 	// be probed.
 	DiskReadBytesPerSecCeiling int64
+	// DiskCeilingAtReaders is the concurrency width at which that ceiling was
+	// reached. It is meaningless on its own and indispensable next to the figure
+	// above: a peak measured at 4 sequential readers says nothing about what 21
+	// scrubbing viewers will get.
+	DiskCeilingAtReaders int
+	// DiskReadBytesPerSecAtAudience is what the same storage delivered at the
+	// concurrency the sustained audience actually imposes on it. THIS is the
+	// number the run is up against; the ceiling above is the number the hardware
+	// gives under laboratory conditions it will never see in production.
+	//
+	// Reporting only the ceiling is how a saturated disk gets read as 40% busy.
+	// The two together say whether the run stopped because the storage ran out of
+	// bytes, or because it ran out of heads.
+	DiskReadBytesPerSecAtAudience int64
 	// SlowestDiskBytesPerSec is what the WEAKEST drive delivered. On a library
 	// spread over several disks, this is what decides how bad it gets when
 	// viewers happen to pick films that live on that one: four drives are not

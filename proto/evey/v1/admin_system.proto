@@ -353,6 +353,17 @@ message LoadTestReport {
   // is usually the real ceiling, and the kernel cannot report it when the
   // library sits on anything but a plain block device.
   int64 disk_read_ceiling_bytes_per_sec = 26;
+  // disk_ceiling_at_readers is the concurrency width at which that ceiling was
+  // reached. Indispensable next to the figure above: a peak measured at 4
+  // sequential readers says nothing about what 21 scrubbing viewers will get.
+  int32 disk_ceiling_at_readers = 32;
+  // disk_read_at_audience_bytes_per_sec is what the SAME storage delivered at the
+  // concurrency the sustained audience actually imposes on it. This is the figure
+  // the run was competing against; the ceiling above is what the hardware gives
+  // under laboratory conditions production never sees.
+  //
+  // Reporting only the ceiling is how a disk at its knees gets read as 40% busy.
+  int64 disk_read_at_audience_bytes_per_sec = 33;
   // slowest_disk_bytes_per_sec is what the WEAKEST drive delivered. A library
   // spread over several disks is not one big disk: each drive saturates on its
   // own, and the film a viewer picks decides which. This is what sets how bad it

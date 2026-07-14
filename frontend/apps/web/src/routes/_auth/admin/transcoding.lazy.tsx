@@ -273,6 +273,13 @@ interface LoadTestReport {
   // library sits on a network share or a 9p mount, so the run measures it itself
   // rather than printing a misleading zero.
   diskReadCeilingBytesPerSec?: number;
+  // diskCeilingAtReaders / diskReadAtAudienceBytesPerSec: the ceiling above is
+  // measured at whatever width the hardware likes (1 or 4 sequential readers on
+  // spinning rust). An audience of 21 never sees it. Quoting the peak alone next
+  // to the bytes actually read is how a saturated disk reads as 40% busy - so the
+  // report quotes the curve at the width the audience imposes too.
+  diskCeilingAtReaders?: number;
+  diskReadAtAudienceBytesPerSec?: number;
   // slowestDiskBytesPerSec: what the WEAKEST drive delivered. Several disks are
   // not one big disk - each saturates on its own, and the film a viewer picks
   // decides which.
@@ -642,6 +649,26 @@ function LoadTestCard() {
                   })}
                 </p>
               )}
+              {/* The line that dissolves the contradiction. The ceiling above is a
+                  laboratory figure; THIS is what the drives give at the width this
+                  audience imposes on them. When it is far below the ceiling, the
+                  server is not sitting on idle bandwidth - it has run out of heads,
+                  not out of bytes, and no amount of read-amplification work will
+                  buy back what the seeks are eating. Only shown when the two
+                  actually diverge: repeating a number the operator just read
+                  teaches him nothing. */}
+              {(report.diskReadAtAudienceBytesPerSec ?? 0) > 0 &&
+                (report.diskReadAtAudienceBytesPerSec ?? 0) <
+                  (report.diskReadCeilingBytesPerSec ?? 0) * 0.9 && (
+                  <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-at-audience">
+                    {t("admin.loadtest.diskAtAudienceLine", {
+                      rate: formatMbps(report.diskReadAtAudienceBytesPerSec ?? 0),
+                      viewers: report.sustainedViewers ?? 0,
+                      peak: formatMbps(report.diskReadCeilingBytesPerSec ?? 0),
+                      readers: report.diskCeilingAtReaders ?? 0,
+                    })}
+                  </p>
+                )}
               {(report.perViewerCost?.samples ?? 0) > 0 && (
                 <p className="text-sm text-[var(--text)]" data-testid="load-test-per-viewer">
                   {t("admin.loadtest.perViewerLine", {

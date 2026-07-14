@@ -457,6 +457,54 @@ describe("LoadTestCard", () => {
     expect(screen.getByTestId("load-test-app-amplification").textContent).toContain("1.3");
   });
 
+  // The peak is measured at whatever width the hardware likes - 4 sequential
+  // readers on spinning rust. Quoting it alone next to a 21-viewer run tells the
+  // operator he is at 40% of his disk when he is at its knees, and sends him
+  // hunting for a bottleneck that isn't there. The report must say what the same
+  // storage gives at the width the audience actually imposes.
+  it("says what the storage gives at the audience's width, not just at its peak", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 21,
+        stopReason: "throughput_saturated",
+        diskReadCeilingBytesPerSec: 359_000_000, // ~2872 Mb/s, at 4 readers
+        diskCeilingAtReaders: 4,
+        diskReadAtAudienceBytesPerSec: 144_000_000, // ~1151 Mb/s, at 21 viewers
+        disksProbed: 2,
+        viewerMix: { mkvgo: 21 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    const line = screen.getByTestId("load-test-disk-at-audience");
+    expect(line.textContent).toContain("21");
+    expect(line.textContent).toContain("4");
+  });
+
+  // Storage that holds its throughput as viewers pile on has nothing to explain,
+  // and repeating a figure the operator just read teaches him nothing. Say it
+  // only when the two genuinely diverge.
+  it("stays quiet when the storage holds up under the audience", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 21,
+        stopReason: "throughput_saturated",
+        diskReadCeilingBytesPerSec: 359_000_000,
+        diskCeilingAtReaders: 16,
+        diskReadAtAudienceBytesPerSec: 350_000_000, // barely below the peak
+        disksProbed: 2,
+        viewerMix: { mkvgo: 21 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.queryByTestId("load-test-disk-at-audience")).toBeNull();
+  });
+
   // A library on a network share (9p, NFS) has no block layer to account, so the
   // server reports zero rather than a lie. Zero must render nothing at all.
   it("hides the app figure when the kernel could not account the reads", async () => {

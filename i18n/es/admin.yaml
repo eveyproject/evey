@@ -919,6 +919,7 @@ loadtest:
   noCeilingLine: "La prueba sube la carga hasta que un recurso se satura - no hay límite de espectadores."
   diskCeilingLine_one: "Velocidad de lectura de los medios: {{rate}} (en {{count}} disco)."
   diskCeilingLine_other: "Velocidad de lectura de los medios: {{rate}} ({{count}} discos leídos en paralelo)."
+  diskAtAudienceLine: "Pero con {{viewers}} espectadores, ese mismo almacenamiento solo entrega {{rate}} (pico {{peak}}, alcanzado con apenas {{readers}} lectores). No le faltan bytes, le faltan cabezales: el disco está de rodillas, no al 40 %."
   slowestDiskLine: "El disco más lento solo da {{rate}}: los espectadores que caen en una película alojada ahí son los primeros en sufrir."
   storageCollapseLine: "Atención: el almacenamiento se desploma más allá de {{count}} lecturas simultáneas: el caudal se hunde y una sola lectura pasa a tardar segundos. Es el almacenamiento, no el servidor, lo que limita cuánta gente puede ver."
   readAmplificationLine: "Atención: el servidor lee {{ratio}} veces más bytes del disco de los que sirve. Satura su almacenamiento con datos que descarta: reducir a la mitad esta proporción duplicaría la audiencia, con el mismo hardware."
