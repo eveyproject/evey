@@ -283,6 +283,10 @@ interface LoadTestReport {
   // direct-play server this is roughly the number of people who can watch at
   // once before the storage - not the CPU, not Evey - makes playback crawl.
   storageCollapsesAtReaders?: number;
+  // readAmplification: bytes READ from disk per byte SERVED. One is perfect;
+  // four means three quarters of the storage bandwidth is spent on data the
+  // server throws away - and on a direct-play box, read bandwidth IS the ceiling.
+  readAmplification?: number;
   // endpoint: the origin the viewers actually hit (the reverse proxy when it was
   // reachable, the server's own loopback otherwise). Runs against different
   // endpoints are not comparable.
@@ -587,6 +591,28 @@ function LoadTestCard() {
                   over-subscribed NFS export, a disk thrashing between streams)
                   looks perfectly healthy on every gauge, and quietly decides how
                   many people can watch. */}
+              {/* The result is a MIRAGE when the disk barely moved: the operating
+                  system served everything from RAM, so the run measured the page
+                  cache rather than the server. It happens whenever the library is
+                  small enough to sit in memory (a dev box, a test library) - and
+                  the viewer count it produces can be several times the truth. The
+                  report must say so, loudly, or an operator plans capacity on a
+                  number that will not survive contact with a real library. */}
+              {report.diskReadStarved && (
+                <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-starved">
+                  {t("admin.loadtest.servedFromCacheLine")}
+                </p>
+              )}
+              {/* The most actionable line in the report when it fires. A
+                  direct-play server's ceiling IS its read bandwidth, so bytes
+                  read and thrown away are viewers thrown away. */}
+              {(report.readAmplification ?? 0) >= 1.5 && (
+                <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-read-amplification">
+                  {t("admin.loadtest.readAmplificationLine", {
+                    ratio: (report.readAmplification ?? 0).toFixed(1),
+                  })}
+                </p>
+              )}
               {(report.storageCollapsesAtReaders ?? 0) > 0 && (
                 <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-storage-collapse">
                   {t("admin.loadtest.storageCollapseLine", {

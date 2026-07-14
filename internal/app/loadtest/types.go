@@ -348,6 +348,16 @@ type Report struct {
 	// memory gauge shows any of it.
 	StorageCollapsesAtReaders int
 
+	// ReadAmplification is how many bytes the server READ from disk for every
+	// byte it SERVED, at the sustained tier. One is perfect. Anything much above
+	// one means the box is saturating its storage on data it then throws away -
+	// and since a direct-play server's ceiling IS its read bandwidth, halving the
+	// amplification doubles the audience on the very same hardware.
+	//
+	// Zero when the kernel could not account the reads (a library on a network
+	// share or a 9p/virtiofs mount, where per-cgroup I/O accounting is blind).
+	ReadAmplification float64
+
 	// ThroughputCeilingBytesPerSec is the byte rate the server could not exceed,
 	// set when StopThroughputSaturated. It is the number an operator acts on:
 	// the storage path (disk, array, or the protocol in front of it) delivers

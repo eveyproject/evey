@@ -216,7 +216,10 @@ func (r *Runner) finish(report Report) {
 		"cpu_pct_peak", int(report.Resources.CPUPercentPeak),
 		"mem_used_mb", report.Resources.MemUsedBytesAvg / (1 << 20),
 		"mem_limit_mb", report.Resources.MemLimitBytes / (1 << 20),
-		"disk_read_mbps", report.Resources.DiskReadBytesPerSecAvg / (1 << 20),
+		// Named for the unit it actually carries: this one is MEBIbytes, while
+		// served/ceiling below are megaBITS. Mixing the two silently is how a
+		// 4x read amplification hides in plain sight in a log line.
+		"disk_read_mib_per_sec", report.Resources.DiskReadBytesPerSecAvg / (1 << 20),
 		"media_read_ceiling_mbps", report.DiskReadBytesPerSecCeiling * 8 / 1e6,
 		"slowest_disk_mbps", report.SlowestDiskBytesPerSec * 8 / 1e6,
 		"disks_probed", report.DisksProbed,
@@ -610,6 +613,7 @@ runLoop:
 		ViaProxy:                     viaProxy,
 		ReplayedTitleViewers:         replayed,
 		DiskReadStarved:              diskReadStarved(sustainedRes),
+		ReadAmplification:            readAmplification(sustainedRes),
 		DiskReadBytesPerSecCeiling:   disk.TotalBytesPerSec,
 		SlowestDiskBytesPerSec:       disk.slowest(),
 		DisksProbed:                  len(disk.Disks),
@@ -1211,4 +1215,23 @@ func (r *Runner) dropViewer(ramp *rampState, slot int) {
 	// The audience is now a subset with a hole where this viewer was, so the
 	// scenario's mix no longer holds. The next judged tier gets a clean rebuild.
 	ramp.audienceIntact = false
+}
+
+// readAmplification is how many bytes the server pulled off the disk for every
+// byte it handed to a viewer.
+//
+// On a direct-play server this is the number that decides everything, and no
+// gauge anywhere reports it. The ceiling of such a box IS its read bandwidth:
+// if it reads four bytes to serve one, three quarters of that bandwidth is spent
+// on data it throws away, and the audience it can hold is a quarter of what the
+// hardware could give. Halving the amplification doubles the viewers, on exactly
+// the same disks.
+//
+// Zero when the reads could not be accounted (see diskReadStarved) - a ratio
+// computed from a blind counter would be worse than no ratio at all.
+func readAmplification(s ResourceStats) float64 {
+	if s.Samples == 0 || s.ServedBytesPerSecAvg <= 0 || s.DiskReadBytesPerSecAvg <= 0 {
+		return 0
+	}
+	return float64(s.DiskReadBytesPerSecAvg) / float64(s.ServedBytesPerSecAvg)
 }

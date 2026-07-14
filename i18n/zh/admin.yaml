@@ -921,6 +921,8 @@ loadtest:
   diskCeilingLine_other: "媒体读取速率：{{rate}}（并行读取 {{count}} 块磁盘）。"
   slowestDiskLine: "最慢的磁盘只有 {{rate}}：选到存放在该盘上影片的观众最先受影响。"
   storageCollapseLine: "警告：并发读取超过 {{count}} 个后存储会崩塌——吞吐量骤降，单次读取要耗时数秒。限制观众数量的是存储，而非服务器。"
+  readAmplificationLine: "警告：服务器从磁盘读取的字节数是其实际发送量的 {{ratio}} 倍。它把存储带宽耗在了随后丢弃的数据上——把这个比值减半，同样的硬件就能承载一倍的观众。"
+  servedFromCacheLine: "警告：磁盘几乎没有读取——所有内容都由系统缓存提供。媒体库能装进内存，而实际使用中并非如此：这个观众数被高估了，有时高出数倍。"
   throughputCeilingLine: "吞吐量在 {{rate}} 处停止增长：服务器无法更快地读取媒体。这就是瓶颈。"
   noBottleneckHint: "没有任何资源被耗尽：这台服务器很可能还能承载更多。请调高上限后重新测试。"
   sharedCacheLine_one: "其中 {{count}} 个直接由共享缓存提供。"

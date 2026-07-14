@@ -415,3 +415,40 @@ func TestDiskProbe_APlateauIsNotACollapse(t *testing.T) {
 		t.Fatalf("best = %d, want 900 MiB/s", d.BytesPerSec/(1<<20))
 	}
 }
+
+// A direct-play server's ceiling IS its read bandwidth. If it reads four bytes
+// to serve one, three quarters of that bandwidth goes on data it throws away -
+// and the audience it holds is a quarter of what the hardware could give. No
+// gauge anywhere reports this, and it is invisible in the raw figures: the disk
+// looks busy, which looks like the disk being the limit.
+func TestReport_ReadAmplificationExposesWastedBandwidth(t *testing.T) {
+	// Measured on a real box: 221 MiB/s read off the disks, 57 MiB/s handed to
+	// viewers.
+	got := readAmplification(ResourceStats{
+		Samples:                20,
+		DiskReadBytesPerSecAvg: 221 << 20,
+		ServedBytesPerSecAvg:   57 << 20,
+	})
+	if got < 3.8 || got > 4.0 {
+		t.Fatalf("read amplification = %.2f, want ~3.9 (221 MiB/s read for 57 MiB/s served)", got)
+	}
+
+	// A server that reads exactly what it serves is doing the best it can.
+	if perfect := readAmplification(ResourceStats{
+		Samples:                20,
+		DiskReadBytesPerSecAvg: 100 << 20,
+		ServedBytesPerSecAvg:   100 << 20,
+	}); perfect < 0.99 || perfect > 1.01 {
+		t.Fatalf("a server reading exactly what it serves has an amplification of 1, got %.2f", perfect)
+	}
+
+	// A counter the kernel could not account (network share, 9p) must NOT produce
+	// a ratio: a number derived from a blind counter is worse than no number.
+	if blind := readAmplification(ResourceStats{
+		Samples:                20,
+		DiskReadBytesPerSecAvg: 0,
+		ServedBytesPerSecAvg:   100 << 20,
+	}); blind != 0 {
+		t.Fatalf("a blind I/O counter must not yield an amplification ratio, got %.2f", blind)
+	}
+}

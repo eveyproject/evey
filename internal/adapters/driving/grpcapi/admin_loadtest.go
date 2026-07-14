@@ -142,6 +142,7 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			SlowestDiskBytesPerSec:       r.SlowestDiskBytesPerSec,
 			DisksProbed:                  int32(r.DisksProbed),
 			StorageCollapsesAtReaders:    int32(r.StorageCollapsesAtReaders),
+			ReadAmplification:            r.ReadAmplification,
 			DiskReadStarved:              r.DiskReadStarved,
 			Endpoint:                     r.Endpoint,
 			ViaProxy:                     r.ViaProxy,

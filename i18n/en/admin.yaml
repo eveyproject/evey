@@ -899,6 +899,8 @@ loadtest:
   diskCeilingLine_other: "Media read throughput, measured on this server: {{rate}} ({{count}} disks read in parallel)."
   slowestDiskLine: "The slowest drive only gives {{rate}}: viewers landing on a film that lives there are the first to suffer."
   storageCollapseLine: "Warning: the storage collapses past {{count}} concurrent reads - throughput falls away and a single read starts taking seconds. It is the storage, not the server, that caps how many people can watch."
+  readAmplificationLine: "Warning: the server reads {{ratio}}x more bytes from disk than it serves. It saturates its storage on data it throws away - halving this ratio would double the audience, on the very same hardware."
+  servedFromCacheLine: "Warning: the disk barely moved - everything was served from the operating system's cache. The library fits in RAM, which it will not in real use: this viewer count is overstated, sometimes several times over."
   throughputCeilingLine: "Throughput flattened at {{rate}}: the server cannot read the media any faster. That is the bottleneck."
   noBottleneckHint: "No resource ran out: the box likely holds more. Raise the ceiling and run again."
   sharedCacheLine_one: "{{count}} of them served straight from the shared cache."

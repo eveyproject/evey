@@ -376,6 +376,46 @@ describe("LoadTestCard", () => {
     expect(screen.getByTestId("load-test-no-bottleneck")).toBeTruthy();
   });
 
+  // A run whose disk barely moved measured the OS page cache, not the server:
+  // the library fitted in RAM. The viewer count it produces can be several times
+  // the truth (measured: 61 on a dev box whose disk read 11 Mb/s while serving
+  // 2032), and an operator planning capacity on it is planning on a mirage.
+  it("warns when the result was served from cache rather than disk", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 61,
+        stopReason: "throughput_saturated",
+        diskReadStarved: true,
+        viewerMix: { mkvgo: 61 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.getByTestId("load-test-disk-starved")).toBeTruthy();
+  });
+
+  // A server that reads four bytes to serve one is throwing away three quarters
+  // of its storage bandwidth - and on a direct-play box, read bandwidth IS the
+  // ceiling, so it is throwing away three quarters of its audience.
+  it("warns when the server reads far more than it serves", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 21,
+        stopReason: "throughput_saturated",
+        readAmplification: 3.9,
+        viewerMix: { mkvgo: 21 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    const warn = screen.getByTestId("load-test-read-amplification");
+    expect(warn.textContent).toContain("3.9");
+  });
+
   it("renders the viewer mix composition when the server reports it", async () => {
     mockLoadTestStatus = {
       running: false,
