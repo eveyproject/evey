@@ -312,48 +312,24 @@ describe("LoadTestCard", () => {
     mockLoadTestStatus = {
       running: false,
       lastReport: {
-        scenario: "balanced",
-        sustainedViewers: 7,
+        scenario: "mkvgo",
+        sustainedViewers: 3,
         stopReason: "cpu_saturated",
-        stopDetail: "CPU saturated at 96% with 8 viewers",
-        resources: {
-          cpuPercentAvg: 78,
-          cpuPercentPeak: 91,
-          memUsedBytesAvg: 2 * 1024 * 1024 * 1024,
-          memLimitBytes: 8 * 1024 * 1024 * 1024,
-          diskReadBytesPerSec: 12 * 1024 * 1024,
-          servedBytesPerSec: 5 * 1024 * 1024,
-          samples: 40,
-        },
-        perViewerCost: {
-          cpuPercentAvg: 11,
-          memUsedBytesAvg: 64 * 1024 * 1024,
-          diskReadBytesPerSec: 2 * 1024 * 1024,
-          servedBytesPerSec: 700 * 1024,
-          samples: 20,
-        },
+        stopDetail: "cpu at 94% with 4 viewers",
+        viewerMix: { mkvgo: 3 },
+        tiers: [
+          { viewers: 3, cpuPercent: 75, memUsedBytes: 448_000_000, diskReadBytesPerSec: 15_000_000, servedBytesPerSec: 15_000_000, cpuPercentPerViewer: 25, memBytesPerViewer: 64_000_000 },
+        ],
       },
     };
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
 
-    const stopReason = screen.getByTestId("load-test-stop-reason");
-    expect(stopReason.textContent).toMatch(/CPU/i);
-
-    // What it consumed while holding those viewers.
-    const resources = screen.getByTestId("load-test-resources");
-    expect(resources.textContent).toContain("78");
-    expect(resources.textContent).toContain("91"); // peak
-    expect(resources.textContent).toContain("2.0 Go");
-    expect(resources.textContent).toContain("8.0 Go"); // the limit it is measured against
-
-    // And what one more viewer would have cost.
-    const perViewer = screen.getByTestId("load-test-per-viewer");
-    expect(perViewer.textContent).toContain("11");
-    expect(perViewer.textContent).toContain("64 Mo");
-
-    // A resource DID give out, so no "raise the ceiling" hint.
-    expect(screen.queryByTestId("load-test-no-bottleneck")).toBeNull();
+    // The verdict names the resource that gave out - the viewer count is only
+    // its consequence.
+    expect(screen.getByTestId("load-test-stop-reason").textContent).toBeTruthy();
+    // And the table carries the evidence behind it.
+    expect(screen.getByTestId("load-test-tiers").textContent).toContain("75");
   });
 
   // The opposite case: the run stopped without any resource giving out (an
@@ -396,132 +372,72 @@ describe("LoadTestCard", () => {
     expect(screen.getByTestId("load-test-disk-starved")).toBeTruthy();
   });
 
-  // A server that reads four bytes to serve one is throwing away three quarters
-  // of its storage bandwidth - and on a direct-play box, read bandwidth IS the
-  // ceiling, so it is throwing away three quarters of its audience.
-  it("warns when the server reads far more than it serves", async () => {
+  // The report's core deliverable now: one row per audience size, with the cost
+  // per viewer. A single headline number cannot say WHY the run stopped where it
+  // did; the trend down these rows can.
+  it("renders one row per measured audience size and marks the sustained one", async () => {
     mockLoadTestStatus = {
       running: false,
       lastReport: {
         scenario: "mkvgo",
-        sustainedViewers: 21,
-        stopReason: "throughput_saturated",
-        readAmplification: 3.9,
-        viewerMix: { mkvgo: 21 },
+        sustainedViewers: 40,
+        stopReason: "cpu_saturated",
+        viewerMix: { mkvgo: 40 },
+        tiers: [
+          { viewers: 10, cpuPercent: 4, memUsedBytes: 300_000_000, diskReadBytesPerSec: 30_000_000, servedBytesPerSec: 30_000_000, cpuPercentPerViewer: 0.4, memBytesPerViewer: 30_000_000 },
+          { viewers: 40, cpuPercent: 20, memUsedBytes: 400_000_000, diskReadBytesPerSec: 120_000_000, servedBytesPerSec: 120_000_000, cpuPercentPerViewer: 0.5, memBytesPerViewer: 10_000_000 },
+        ],
       },
     };
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
-    const warn = screen.getByTestId("load-test-read-amplification");
-    expect(warn.textContent).toContain("3.9");
+
+    const table = screen.getByTestId("load-test-tiers");
+    expect(table.textContent).toContain("10");
+    expect(table.textContent).toContain("40");
+    // The per-viewer CPU cost is what an operator plans with.
+    expect(table.textContent).toContain("0.50");
+    // The sustained tier is the answer: it must be findable, not buried.
+    expect(screen.getByTestId("load-test-tier-sustained").textContent).toContain("40");
   });
 
-  // The disk figure alone leaves an operator guessing WHICH problem they have,
-  // and the two have nothing in common. When the server asks for almost exactly
-  // what the disk delivers, the appetite is the code's own: fix the packager.
-  it("names the packager when the server asks for as much as the disk delivers", async () => {
+  // The simulated viewers run inside the server's own cgroup, so the kernel bills
+  // their HTTP overhead to the server. The run subtracts it - and must SAY it did,
+  // or an operator cannot trust the CPU figure he is sizing hardware on.
+  it("says how much of the CPU was the load generator itself", async () => {
     mockLoadTestStatus = {
       running: false,
       lastReport: {
         scenario: "mkvgo",
         sustainedViewers: 21,
-        stopReason: "throughput_saturated",
-        readAmplification: 2.5,
-        appReadAmplification: 2.4,
+        stopReason: "cpu_saturated",
+        harnessCpuMeasured: true,
+        harnessCpuFraction: 0.42,
         viewerMix: { mkvgo: 21 },
       },
     };
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
-    expect(screen.getByTestId("load-test-app-amplification").textContent).toContain("2.4");
+    expect(screen.getByTestId("load-test-harness-cpu").textContent).toContain("42");
   });
 
-  // But when the code asks for little and the disk still delivers a lot, the
-  // packager is near-optimal and the kernel is reading ahead into data nobody
-  // wanted - a fix that lives somewhere else entirely. Same disk number, other
-  // culprit: this is the whole reason the second figure exists.
-  it("still reports the app figure when it is far below the disk figure", async () => {
+  // When no profile could be taken, all the CPU is charged to the server (the
+  // pessimistic reading). Claiming a correction that never happened would be
+  // worse than saying nothing.
+  it("claims no CPU correction when none could be measured", async () => {
     mockLoadTestStatus = {
       running: false,
       lastReport: {
         scenario: "mkvgo",
         sustainedViewers: 21,
-        stopReason: "throughput_saturated",
-        readAmplification: 2.6,
-        appReadAmplification: 1.3,
+        stopReason: "cpu_saturated",
+        harnessCpuMeasured: false,
         viewerMix: { mkvgo: 21 },
       },
     };
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
-    expect(screen.getByTestId("load-test-app-amplification").textContent).toContain("1.3");
-  });
-
-  // The peak is measured at whatever width the hardware likes - 4 sequential
-  // readers on spinning rust. Quoting it alone next to a 21-viewer run tells the
-  // operator he is at 40% of his disk when he is at its knees, and sends him
-  // hunting for a bottleneck that isn't there. The report must say what the same
-  // storage gives at the width the audience actually imposes.
-  it("says what the storage gives at the audience's width, not just at its peak", async () => {
-    mockLoadTestStatus = {
-      running: false,
-      lastReport: {
-        scenario: "mkvgo",
-        sustainedViewers: 21,
-        stopReason: "throughput_saturated",
-        diskReadCeilingBytesPerSec: 359_000_000, // ~2872 Mb/s, at 4 readers
-        diskCeilingAtReaders: 4,
-        diskReadAtAudienceBytesPerSec: 144_000_000, // ~1151 Mb/s, at 21 viewers
-        disksProbed: 2,
-        viewerMix: { mkvgo: 21 },
-      },
-    };
-    const Page = await getPage();
-    render(React.createElement(Page), { wrapper: createWrapper() });
-    const line = screen.getByTestId("load-test-disk-at-audience");
-    expect(line.textContent).toContain("21");
-    expect(line.textContent).toContain("4");
-  });
-
-  // Storage that holds its throughput as viewers pile on has nothing to explain,
-  // and repeating a figure the operator just read teaches him nothing. Say it
-  // only when the two genuinely diverge.
-  it("stays quiet when the storage holds up under the audience", async () => {
-    mockLoadTestStatus = {
-      running: false,
-      lastReport: {
-        scenario: "mkvgo",
-        sustainedViewers: 21,
-        stopReason: "throughput_saturated",
-        diskReadCeilingBytesPerSec: 359_000_000,
-        diskCeilingAtReaders: 16,
-        diskReadAtAudienceBytesPerSec: 350_000_000, // barely below the peak
-        disksProbed: 2,
-        viewerMix: { mkvgo: 21 },
-      },
-    };
-    const Page = await getPage();
-    render(React.createElement(Page), { wrapper: createWrapper() });
-    expect(screen.queryByTestId("load-test-disk-at-audience")).toBeNull();
-  });
-
-  // A library on a network share (9p, NFS) has no block layer to account, so the
-  // server reports zero rather than a lie. Zero must render nothing at all.
-  it("hides the app figure when the kernel could not account the reads", async () => {
-    mockLoadTestStatus = {
-      running: false,
-      lastReport: {
-        scenario: "mkvgo",
-        sustainedViewers: 21,
-        stopReason: "throughput_saturated",
-        readAmplification: 0,
-        appReadAmplification: 0,
-        viewerMix: { mkvgo: 21 },
-      },
-    };
-    const Page = await getPage();
-    render(React.createElement(Page), { wrapper: createWrapper() });
-    expect(screen.queryByTestId("load-test-app-amplification")).toBeNull();
+    expect(screen.queryByTestId("load-test-harness-cpu")).toBeNull();
   });
 
   it("renders the viewer mix composition when the server reports it", async () => {

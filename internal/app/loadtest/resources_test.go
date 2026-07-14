@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	pprofprofile "github.com/google/pprof/profile"
 )
 
 // modelledMachine is a counterSource whose load is a FUNCTION OF THE VIEWERS,
@@ -21,6 +23,7 @@ type modelledMachine struct {
 	cores           float64
 	cpuPctPerViewer float64
 	memPerViewer    int64
+	cacheBytes      int64
 	memLimit        int64
 	diskPerViewer   int64 // bytes/sec per viewer
 	viewers         func() int
@@ -73,11 +76,14 @@ func (m *modelledMachine) appReadBytes() int64 {
 	return disk
 }
 
-func (m *modelledMachine) memory() (used, limit int64) {
+func (m *modelledMachine) memory() (used, cache, limit int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	base := int64(256 << 20) // an idle server's own footprint
-	return base + m.memPerViewer*int64(m.viewers()), m.memLimit
+	// The page cache grows with every film read and is NOT consumption: a
+	// modelled machine says so, so a test can prove the report ignores it.
+	cache = m.cacheBytes
+	return base + m.memPerViewer*int64(m.viewers()), cache, m.memLimit
 }
 
 // A saturated CPU is a capacity verdict: the run stops there, names the CPU as
@@ -237,8 +243,12 @@ func TestCgroupSource_ReadsQuotaUsageMemoryAndIO(t *testing.T) {
 		"cpu.max":        "200000 100000\n", // 2 cores
 		"cpu.stat":       "usage_usec 4200000\nuser_usec 1\n",
 		"memory.current": "1073741824\n",
-		"memory.max":     "4294967296\n",
-		"io.stat":        "8:0 rbytes=1000 wbytes=5 rios=1\n8:16 rbytes=2000 wbytes=5 rios=1\n",
+		// memory.stat is what readMemory actually trusts: memory.current lumps the
+		// page cache in with the process's own memory, and a load test fills that
+		// cache with films.
+		"memory.stat": "anon 805306368\nfile 3221225472\nkernel 268435456\nslab 12345\n",
+		"memory.max":  "4294967296\n",
+		"io.stat":     "8:0 rbytes=1000 wbytes=5 rios=1\n8:16 rbytes=2000 wbytes=5 rios=1\n",
 	})
 	src := cgroupSource{fsRoot: root}
 
@@ -248,9 +258,19 @@ func TestCgroupSource_ReadsQuotaUsageMemoryAndIO(t *testing.T) {
 	if got := src.cpuUsageUsec(); got != 4_200_000 {
 		t.Fatalf("cpuUsageUsec = %d, want 4200000", got)
 	}
-	used, limit := src.memory()
-	if used != 1<<30 || limit != 4<<30 {
-		t.Fatalf("memory = (%d, %d), want (1GiB, 4GiB)", used, limit)
+	// anon (768 MiB) + kernel (256 MiB) = 1 GiB genuinely held. The 3 GiB of
+	// `file` is page cache - films the kernel will hand straight back - and must
+	// NOT be counted as consumption, or a load test reports a server at its
+	// memory ceiling when it is nowhere near it.
+	used, cache, limit := src.memory()
+	if used != 1<<30 {
+		t.Fatalf("memory used = %d MiB, want 1024 (anon+kernel, NOT the page cache)", used>>20)
+	}
+	if cache != 3<<30 {
+		t.Fatalf("memory cache = %d MiB, want 3072 (reported, but apart from consumption)", cache>>20)
+	}
+	if limit != 4<<30 {
+		t.Fatalf("memory limit = %d, want 4GiB", limit)
 	}
 	// Disk reads sum across every block device the container touched.
 	if got := src.diskReadBytes(); got != 3000 {
@@ -273,7 +293,7 @@ func TestCgroupSource_UnlimitedMemoryFallsBackToMachineRAM(t *testing.T) {
 		t.Fatalf("write meminfo: %v", err)
 	}
 
-	_, limit := cgroupSource{fsRoot: root}.memory()
+	_, _, limit := cgroupSource{fsRoot: root}.memory()
 	if limit != 16_000_000*1024 {
 		t.Fatalf("limit = %d, want the machine's total RAM (16000000 kB)", limit)
 	}
@@ -555,5 +575,129 @@ func TestReport_SeparatesAGreedyPackagerFromAGuessingKernel(t *testing.T) {
 	}
 	if a := appReadAmplification(blind); a < 1.25 || a > 1.35 {
 		t.Fatalf("the app figure must still work where the block counter is blind, got %.2f", a)
+	}
+}
+
+// A load test reads films by the gigabyte, and the kernel caches every one of
+// them. memory.current counts that cache, so a naive reading reports 4.3 GB
+// "used" by 21 viewers on a packager measured at under a megabyte each - and an
+// operator plans his hardware around films sitting in reclaimable cache.
+//
+// The cache is not consumption. It must be reported apart, and it must never
+// count toward saturation.
+func TestResources_PageCacheIsNotConsumption(t *testing.T) {
+	machine := &modelledMachine{
+		cores: 4, cpuPctPerViewer: 0.1,
+		memPerViewer: 1 << 20, // 1 MiB per viewer: what the packager really holds
+		cacheBytes:   4 << 30, // 4 GiB of films sitting in cache
+		memLimit:     8 << 30, // on an 8 GiB box
+		viewers:      func() int { return 21 },
+	}
+
+	sampler := newResourceSampler(machine)
+	at := time.Now()
+	_, _ = sampler.sample(0, at) // baseline: no previous reading to diff against
+
+	s, ok := sampler.sample(1<<20, at.Add(time.Second))
+	if !ok {
+		t.Fatal("no sample")
+	}
+
+	// 256 MiB idle + 21 MiB of viewers. NOT 4 GiB.
+	if s.MemUsedBytes > 512<<20 {
+		t.Errorf("MemUsedBytes = %d MiB: the page cache is being charged as consumption", s.MemUsedBytes>>20)
+	}
+	if s.MemCacheBytes != 4<<30 {
+		t.Errorf("MemCacheBytes = %d MiB, want 4096 (reported, but apart)", s.MemCacheBytes>>20)
+	}
+	// The cache alone is half the box. If it counted toward the limit, this run
+	// would report memory pressure that does not exist.
+	if float64(s.MemUsedBytes)/float64(s.MemLimitBytes)*100 >= memSaturationPercent {
+		t.Error("a server holding 277 MiB on an 8 GiB box is not memory-saturated; the cache must not count")
+	}
+}
+
+// The load generator lives in the server's cgroup: its goroutines open the
+// connections, drain the loopback traffic and throw it away, and the kernel bills
+// all of it to the same CPU counter as the packager. Billing that to the server
+// makes a viewer look several times more expensive than it is.
+//
+// The split is what the pprof label buys: samples carrying it are the harness's,
+// everything else is the server's.
+func TestCPUSplit_ChargesTheHarnessToTheHarness(t *testing.T) {
+	t.Parallel()
+
+	prof := &pprofprofile.Profile{
+		SampleType: []*pprofprofile.ValueType{
+			{Type: "samples", Unit: "count"},
+			{Type: "cpu", Unit: "nanoseconds"},
+		},
+		Sample: []*pprofprofile.Sample{
+			// The server packaging films: 750ms of CPU, unlabelled.
+			{Value: []int64{75, 750_000_000}},
+			// The harness pretending to watch them: 250ms, labelled.
+			{
+				Value: []int64{25, 250_000_000},
+				Label: map[string][]string{harnessLabelKey: {harnessLabelVal}},
+			},
+		},
+	}
+
+	split := splitByLabel(prof)
+	if !split.Measured {
+		t.Fatal("a profile with samples must be measured")
+	}
+	if got := split.HarnessFraction; got < 0.24 || got > 0.26 {
+		t.Errorf("HarnessFraction = %.3f, want ~0.25", got)
+	}
+	if got := split.serverShare(); got < 0.74 || got > 0.76 {
+		t.Errorf("serverShare = %.3f, want ~0.75", got)
+	}
+}
+
+// It must weigh samples by CPU TIME, not by count. A profile where the harness
+// takes many cheap samples and the server takes few expensive ones would
+// otherwise credit the harness with most of the CPU - and hand the operator a
+// server that looks free.
+func TestCPUSplit_WeighsByCPUTimeNotSampleCount(t *testing.T) {
+	t.Parallel()
+
+	prof := &pprofprofile.Profile{
+		SampleType: []*pprofprofile.ValueType{
+			{Type: "samples", Unit: "count"},
+			{Type: "cpu", Unit: "nanoseconds"},
+		},
+		Sample: []*pprofprofile.Sample{
+			// One server sample worth 900ms.
+			{Value: []int64{1, 900_000_000}},
+			// Nine harness samples worth 100ms in total.
+			{
+				Value: []int64{9, 100_000_000},
+				Label: map[string][]string{harnessLabelKey: {harnessLabelVal}},
+			},
+		},
+	}
+
+	split := splitByLabel(prof)
+	if got := split.HarnessFraction; got > 0.11 {
+		t.Errorf("HarnessFraction = %.3f, want ~0.10 - counting SAMPLES instead of nanoseconds would give 0.90", got)
+	}
+}
+
+// An unmeasured split must not silently zero the server's CPU. When no profile
+// could be taken, everything is charged to the server: the pessimistic reading,
+// which is the only safe one for someone sizing hardware.
+func TestCPUSplit_UnmeasuredChargesEverythingToTheServer(t *testing.T) {
+	t.Parallel()
+
+	var none cpuSplit
+	if none.Measured {
+		t.Fatal("a zero split is not a measurement")
+	}
+	if got := none.serverShare(); got != 1 {
+		t.Errorf("serverShare = %v, want 1 (charge it all to the server when unknown)", got)
+	}
+	if got := splitByLabel(&pprofprofile.Profile{}); got.Measured {
+		t.Error("an empty profile is not a measurement")
 	}
 }

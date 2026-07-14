@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -21,12 +22,12 @@ import (
 // to push, independent of any NIC counter (the simulated viewers talk to the
 // server over loopback).
 //
-// Honest limitation, stated once here rather than hidden: the simulated
-// viewers run inside that same cgroup, so their own HTTP overhead is included
-// in the CPU figure. A client that reads a response and throws it away is
-// cheap next to an encoder, and the run records a pre-viewer baseline so an
-// operator can see the floor, but the CPU cost per viewer is an upper bound,
-// not a laboratory measurement.
+// The simulated viewers run inside that same cgroup, so their own HTTP overhead
+// lands in the same CPU counter as the server's work. That is not a footnote to
+// be confessed and moved past: it is the difference between "a viewer costs 1.2%
+// of CPU" and "a viewer costs 0.2%", and an operator sizing a NAS on the first
+// figure buys six times the machine he needs. The run therefore MEASURES the
+// harness rather than assuming it is negligible - see harnesscpu.go.
 
 // Saturation thresholds. These are what turn "it got slow" into "the CPU ran
 // out": a resource this close to its ceiling has nothing left to give a new
@@ -52,8 +53,13 @@ const resourceSampleEvery = 2 * time.Second
 
 // ResourceSample is one instantaneous reading of what the server is consuming.
 type ResourceSample struct {
-	CPUPercent          float64
-	MemUsedBytes        int64
+	CPUPercent   float64
+	MemUsedBytes int64
+	// MemCacheBytes is the page cache the run accumulated by reading films. It
+	// is NOT consumption: the kernel hands it straight back under pressure. It is
+	// reported so an operator can see why "memory used" on a naive gauge climbs
+	// to fill the box during a load test, and ignore it.
+	MemCacheBytes       int64
 	MemLimitBytes       int64
 	DiskReadBytesPerSec int64
 	// AppReadBytesPerSec is what the server ASKED the filesystem for, as opposed
@@ -68,6 +74,7 @@ type ResourceSample struct {
 type ResourceStats struct {
 	CPUPercentAvg, CPUPercentPeak    float64
 	MemUsedBytesAvg, MemUsedBytesMax int64
+	MemCacheBytesAvg                 int64
 	MemLimitBytes                    int64
 	DiskReadBytesPerSecAvg           int64
 	AppReadBytesPerSecAvg            int64
@@ -83,7 +90,9 @@ type counterSource interface {
 	// cpuUsageUsec is cumulative CPU time consumed, in microseconds.
 	cpuUsageUsec() int64
 	// memory is current usage and the ceiling it is measured against.
-	memory() (used, limit int64)
+	// memory returns what the process genuinely holds (anon+kernel), the page
+	// cache it has accumulated, and the ceiling. Cache is NOT consumption.
+	memory() (used, cache, limit int64)
 	// diskReadBytes is cumulative bytes the BLOCK LAYER actually fetched - what
 	// the hardware really did.
 	diskReadBytes() int64
@@ -130,7 +139,7 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	cpuUsec := s.src.cpuUsageUsec()
 	diskRead := s.src.diskReadBytes()
 	appRead := s.src.appReadBytes()
-	memUsed, memLimit := s.src.memory()
+	memUsed, memCache, memLimit := s.src.memory()
 
 	prevAt, prevCPU, prevDisk, prevServed := s.lastAt, s.lastCPUUsec, s.lastDiskRead, s.lastServed
 	prevApp := s.lastAppRead
@@ -150,6 +159,7 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 
 	out := ResourceSample{
 		MemUsedBytes:  memUsed,
+		MemCacheBytes: memCache,
 		MemLimitBytes: memLimit,
 	}
 	if cpuUsec > 0 && prevCPU > 0 && s.ncpu > 0 {
@@ -361,16 +371,57 @@ func (rs *resourceState) observe(tier int, s ResourceSample, now time.Time) (sat
 }
 
 // stats folds a tier's samples into the averages and peaks the report carries.
+// tiers lists every tier that was actually measured, smallest first. It is what
+// lets the report show the CLIMB rather than only its last rung: an operator
+// reading one row per audience size can see the cost per viewer hold steady (the
+// server is scaling) or bend upward (it is not), which a single final number
+// hides completely.
+func (rs *resourceState) tiers() []int {
+	out := make([]int, 0, len(rs.byTier))
+	for t, samples := range rs.byTier {
+		if t > 0 && len(samples) > 0 {
+			out = append(out, t)
+		}
+	}
+	sort.Ints(out)
+	return out
+}
+
+// tierCosts turns the measured tiers into the report's table, one row per
+// audience size. serverShare scales every CPU figure down to the server's own
+// contribution, so the table never charges the load generator's overhead to the
+// machine an operator is trying to size.
+func (rs *resourceState) tierCosts(serverShare float64) []TierCost {
+	tiers := rs.tiers()
+	out := make([]TierCost, 0, len(tiers))
+	for _, t := range tiers {
+		s := rs.stats(t)
+		cpu := s.CPUPercentAvg * serverShare
+		out = append(out, TierCost{
+			Viewers:             t,
+			CPUPercent:          cpu,
+			MemUsedBytes:        s.MemUsedBytesAvg,
+			DiskReadBytesPerSec: s.DiskReadBytesPerSecAvg,
+			ServedBytesPerSec:   s.ServedBytesPerSecAvg,
+			CPUPercentPerViewer: cpu / float64(t),
+			MemBytesPerViewer:   s.MemUsedBytesAvg / int64(t),
+			Samples:             s.Samples,
+		})
+	}
+	return out
+}
+
 func (rs *resourceState) stats(tier int) ResourceStats {
 	samples := rs.byTier[tier]
 	if len(samples) == 0 {
 		return ResourceStats{}
 	}
 	var out ResourceStats
-	var cpuSum, memSum, diskSum, appSum, servedSum float64
+	var cpuSum, memSum, cacheSum, diskSum, appSum, servedSum float64
 	for _, s := range samples {
 		cpuSum += s.CPUPercent
 		memSum += float64(s.MemUsedBytes)
+		cacheSum += float64(s.MemCacheBytes)
 		diskSum += float64(s.DiskReadBytesPerSec)
 		appSum += float64(s.AppReadBytesPerSec)
 		servedSum += float64(s.ServedBytesPerSec)
@@ -381,6 +432,7 @@ func (rs *resourceState) stats(tier int) ResourceStats {
 	n := float64(len(samples))
 	out.CPUPercentAvg = cpuSum / n
 	out.MemUsedBytesAvg = int64(memSum / n)
+	out.MemCacheBytesAvg = int64(cacheSum / n)
 	out.DiskReadBytesPerSecAvg = int64(diskSum / n)
 	out.AppReadBytesPerSecAvg = int64(appSum / n)
 	out.ServedBytesPerSecAvg = int64(servedSum / n)
@@ -438,11 +490,11 @@ func formatMemDetail(used, limit int64, tier int) string {
 // tests point it at a staged tree.
 type cgroupSource struct{ fsRoot string }
 
-func (c cgroupSource) cpuUsageUsec() int64         { return readCPUUsageUsec(c.fsRoot) }
-func (c cgroupSource) diskReadBytes() int64        { return readDiskReadBytes(c.fsRoot) }
-func (c cgroupSource) appReadBytes() int64         { return readAppReadBytes(c.fsRoot) }
-func (c cgroupSource) memory() (used, limit int64) { return readMemory(c.fsRoot) }
-func (c cgroupSource) cpuAllowance() float64       { return cpuAllowance(c.fsRoot) }
+func (c cgroupSource) cpuUsageUsec() int64                { return readCPUUsageUsec(c.fsRoot) }
+func (c cgroupSource) diskReadBytes() int64               { return readDiskReadBytes(c.fsRoot) }
+func (c cgroupSource) appReadBytes() int64                { return readAppReadBytes(c.fsRoot) }
+func (c cgroupSource) memory() (used, cache, limit int64) { return readMemory(c.fsRoot) }
+func (c cgroupSource) cpuAllowance() float64              { return cpuAllowance(c.fsRoot) }
 
 // cpuAllowance is how many cores the server may actually use: the cgroup quota
 // when one is set, else every core on the machine. This is the denominator of
@@ -485,13 +537,50 @@ func readCPUUsageUsec(fsRoot string) int64 {
 	return 0
 }
 
-// readMemory returns the cgroup's current usage and its limit. An unlimited
-// cgroup ("max") falls back to the machine's total RAM, which IS the real
-// ceiling in that case.
-func readMemory(fsRoot string) (used, limit int64) {
-	if raw, err := os.ReadFile(filepath.Join(fsRoot, "sys/fs/cgroup/memory.current")); err == nil {
-		if v, err := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 64); err == nil {
-			used = v
+// readMemory returns what the server actually COSTS in memory, its page cache,
+// and its ceiling. An unlimited cgroup ("max") falls back to the machine's total
+// RAM, which IS the real ceiling in that case.
+//
+// `used` is the cgroup's ANONYMOUS memory - heap, stacks, the bytes the process
+// genuinely holds - and never memory.current, which is a trap for exactly this
+// measurement: it counts the PAGE CACHE of every media file the run has read.
+// A load test reads films by the gigabyte, so memory.current climbs to whatever
+// the box will let the cache grow to and then reports it as consumption. One run
+// showed 4.3 GB "used" by 21 viewers on a packager measured at under a megabyte
+// per viewer. It was the films, sitting in cache, reclaimable the instant anyone
+// wanted the RAM back - so it is `cache` here, reported apart, and it never
+// counts toward saturation.
+func readMemory(fsRoot string) (used, cache, limit int64) {
+	if raw, err := os.ReadFile(filepath.Join(fsRoot, "sys/fs/cgroup/memory.stat")); err == nil {
+		for line := range strings.Lines(string(raw)) {
+			key, val, ok := strings.Cut(strings.TrimSpace(line), " ")
+			if !ok {
+				continue
+			}
+			v, err := strconv.ParseInt(val, 10, 64)
+			if err != nil {
+				continue
+			}
+			switch key {
+			case "anon":
+				used += v
+			// The kernel's own structures for this cgroup are a real cost the
+			// process imposes, unlike the file cache.
+			case "kernel":
+				used += v
+			case "file":
+				cache = v
+			}
+		}
+	}
+	if used == 0 {
+		// No memory.stat (cgroup v1, or an unreadable one): memory.current is a
+		// poor answer, but a wrong number here is better than none - the report
+		// would otherwise claim the server uses no memory at all.
+		if raw, err := os.ReadFile(filepath.Join(fsRoot, "sys/fs/cgroup/memory.current")); err == nil {
+			if v, err := strconv.ParseInt(strings.TrimSpace(string(raw)), 10, 64); err == nil {
+				used = v
+			}
 		}
 	}
 	if raw, err := os.ReadFile(filepath.Join(fsRoot, "sys/fs/cgroup/memory.max")); err == nil {
@@ -508,7 +597,7 @@ func readMemory(fsRoot string) (used, limit int64) {
 			limit = total
 		}
 	}
-	return used, limit
+	return used, cache, limit
 }
 
 // readDiskReadBytes returns the cgroup's cumulative bytes read from disk,

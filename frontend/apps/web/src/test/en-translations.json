@@ -1686,5 +1686,13 @@
   "admin.loadtest.readAmplificationLine": "Warning: the server reads {{ratio}}x more bytes from disk than it serves. It saturates its storage on data it throws away - halving this ratio would double the audience, on the very same hardware.",
   "admin.loadtest.servedFromCacheLine": "Warning: the disk barely moved - everything was served from the operating system's cache. The library fits in RAM, which it will not in real use: this viewer count is overstated, sometimes several times over.",
   "admin.loadtest.appAmplificationLine": "Of which {{app}}x is asked for by the server itself: anything beyond that is the kernel reading ahead into data nobody wanted.",
-  "admin.loadtest.diskAtAudienceLine": "But with {{viewers}} viewers, that same storage gives only {{rate}} (peak {{peak}}, reached at just {{readers}} readers). It is not running out of bytes, it is running out of heads: the disk is on its knees, not at 40%."
+  "admin.loadtest.diskAtAudienceLine": "But with {{viewers}} viewers, that same storage gives only {{rate}} (peak {{peak}}, reached at just {{readers}} readers). It is not running out of bytes, it is running out of heads: the disk is on its knees, not at 40%.",
+  "admin.loadtest.table.viewers": "Viewers",
+  "admin.loadtest.table.cpu": "CPU",
+  "admin.loadtest.table.mem": "Memory",
+  "admin.loadtest.table.disk": "Disk read",
+  "admin.loadtest.table.served": "Served",
+  "admin.loadtest.table.perViewer": "Per viewer",
+  "admin.loadtest.table.perViewerCell": "{{cpu}}% CPU · {{mem}}",
+  "admin.loadtest.harnessCpuLine": "{{pct}}% of the measured CPU was the load generator itself: it has been subtracted from the figures above."
 }

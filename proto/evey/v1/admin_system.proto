@@ -364,6 +364,21 @@ message LoadTestReport {
   //
   // Reporting only the ceiling is how a disk at its knees gets read as 40% busy.
   int64 disk_read_at_audience_bytes_per_sec = 33;
+  // tiers is one row per audience size the run measured, smallest first: the
+  // climb itself, not just the rung it stopped on. Read the per-viewer cost down
+  // the rows and it either holds steady (the server is scaling) or bends upward
+  // (it is not) - which a single headline figure cannot say.
+  repeated LoadTestTierCost tiers = 34;
+  // harness_cpu_fraction is the share of the measured CPU burned by the load
+  // GENERATOR rather than by the server. Every CPU figure above already has it
+  // subtracted. harness_cpu_measured is false when no profile could be taken, in
+  // which case all the CPU is charged to the server (the pessimistic reading).
+  double harness_cpu_fraction = 35;
+  bool harness_cpu_measured = 36;
+  // mem_cache_bytes is the page cache the run accumulated by reading films. NOT
+  // consumption: the kernel hands it straight back. Reported so an operator can
+  // see why a naive memory gauge climbs to fill the box during a load test.
+  int64 mem_cache_bytes = 37;
   // slowest_disk_bytes_per_sec is what the WEAKEST drive delivered. A library
   // spread over several disks is not one big disk: each drive saturates on its
   // own, and the film a viewer picks decides which. This is what sets how bad it
@@ -396,6 +411,24 @@ message LoadTestReport {
   // the STORAGE - not the CPU, not Evey - makes playback crawl. No CPU or memory
   // gauge shows any of this.
   int32 storage_collapses_at_readers = 29;
+}
+
+// LoadTestTierCost is what ONE audience size cost the server: one row of the
+// report's table. Every CPU figure is the SERVER's share - the load generator's
+// own overhead has already been subtracted - and mem_used_bytes is anonymous
+// memory, never the page cache of the films being read.
+message LoadTestTierCost {
+  int32 viewers = 1;
+  double cpu_percent = 2;
+  int64 mem_used_bytes = 3;
+  int64 disk_read_bytes_per_sec = 4;
+  int64 served_bytes_per_sec = 5;
+  // cpu_percent_per_viewer / mem_bytes_per_viewer: this row's cost divided by its
+  // headcount. The TREND down the table is what says whether the server is still
+  // scaling.
+  double cpu_percent_per_viewer = 6;
+  int64 mem_bytes_per_viewer = 7;
+  int32 samples = 8;
 }
 
 // LoadTestResources is what the box was actually spending. The figures come

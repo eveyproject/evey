@@ -214,8 +214,26 @@ func (r *Runner) finish(report Report) {
 		"duration_ms", report.EndedAt.Sub(report.StartedAt).Milliseconds(),
 		"cpu_pct_avg", int(report.Resources.CPUPercentAvg),
 		"cpu_pct_peak", int(report.Resources.CPUPercentPeak),
+		// The server's ANONYMOUS memory - what it genuinely holds. The page cache
+		// of the films is reported apart (mem_cache_mb) and is not consumption:
+		// the kernel hands it straight back. Conflating the two once reported
+		// 4.3 GB "used" by a packager measured at under a megabyte per viewer.
 		"mem_used_mb", report.Resources.MemUsedBytesAvg / (1 << 20),
+		"mem_cache_mb", report.Resources.MemCacheBytesAvg / (1 << 20),
 		"mem_limit_mb", report.Resources.MemLimitBytes / (1 << 20),
+		// How much of the CPU above was the load GENERATOR rather than the server.
+		// Unmeasured means everything was charged to the server (the pessimistic
+		// reading), which the operator deserves to know.
+		"cpu_harness_pct", int(report.HarnessCPUFraction * 100),
+		"cpu_harness_measured", report.HarnessCPUMeasured,
+		// Two amplifications, because they have different fixes: what the DISK
+		// delivered per byte served, and what the CODE asked for. A gap between
+		// them is the kernel reading ahead, not a greedy packager.
+		"read_amplification_disk", report.ReadAmplification,
+		"read_amplification_app", report.AppReadAmplification,
+		"app_read_mib_per_sec", report.Resources.AppReadBytesPerSecAvg / (1 << 20),
+		"disk_ceiling_at_readers", report.DiskCeilingAtReaders,
+		"disk_at_audience_mbps", report.DiskReadBytesPerSecAtAudience * 8 / 1e6,
 		// Named for the unit it actually carries: this one is MEBIbytes, while
 		// served/ceiling below are megaBITS. Mixing the two silently is how a
 		// 4x read amplification hides in plain sight in a log line.
@@ -243,6 +261,23 @@ func (r *Runner) finish(report Report) {
 	// read back a whole run with curl + `docker logs`, no admin panel
 	// required.
 	r.logger.Info("loadtest: report", args...)
+
+	// The climb itself, one line per audience size. The panel shows this as a
+	// table; the logs keep it too, because the SHAPE of the per-viewer cost down
+	// the rows is what says whether the server was still scaling when it stopped -
+	// and that is the question a single headline figure can never answer.
+	for _, t := range report.Tiers {
+		r.logger.Info("loadtest: tier cost",
+			"viewers", t.Viewers,
+			"cpu_pct", int(t.CPUPercent),
+			"cpu_pct_per_viewer", fmt.Sprintf("%.2f", t.CPUPercentPerViewer),
+			"mem_mb", t.MemUsedBytes/(1<<20),
+			"mem_mb_per_viewer", t.MemBytesPerViewer/(1<<20),
+			"disk_read_mib_per_sec", t.DiskReadBytesPerSec/(1<<20),
+			"served_mbps", t.ServedBytesPerSec*8/1e6,
+			"samples", t.Samples,
+		)
+	}
 
 	r.mu.Lock()
 	r.running = false
@@ -434,6 +469,39 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	resTicker := time.NewTicker(cfg.resourceSampleEvery())
 	defer resTicker.Stop()
 
+	// Measure, once, how much of the CPU is the load generator rather than the
+	// server. Without it the report bills the harness's own HTTP overhead to the
+	// server and tells an operator a viewer costs several times what it does.
+	// It runs on its own goroutine so the climb never waits on it.
+	var splitMu sync.Mutex
+	var split cpuSplit
+	if cfg.ProfileHarnessCPU {
+		go func() {
+			// Wait for a real audience: profiling an empty server measures the
+			// sampler and nothing else.
+			for r.liveViewers.Load() < harnessProfileMinViewers {
+				select {
+				case <-runCtx.Done():
+					return
+				case <-time.After(200 * time.Millisecond):
+				}
+			}
+			s, err := profileCPUSplit(runCtx, cfg.harnessProfileFor())
+			if err != nil {
+				// Another profile is already running (a live /debug/pprof pull, say).
+				// The run is worth more than the figure: carry on without it.
+				r.logger.Info("loadtest: cpu split not measured", "err", err)
+				return
+			}
+			splitMu.Lock()
+			split = s
+			splitMu.Unlock()
+			r.logger.Info("loadtest: cpu split",
+				"harness_pct", int(s.HarnessFraction*100),
+				"server_pct", int(s.serverShare()*100))
+		}()
+	}
+
 	var stopReason StopReason
 	var stopDetail string
 	var sustained int
@@ -596,6 +664,18 @@ runLoop:
 	replayed := ramp.replayedByTier[sampleTier]
 	sustainedRes := res.stats(sampleTier)
 
+	// Charge the load generator's own CPU back to the load generator. Everything
+	// the report says about CPU - the tier table, the per-viewer cost, the
+	// headline figure - is the SERVER's share from here on.
+	splitMu.Lock()
+	cpu := split
+	splitMu.Unlock()
+	serverShare := cpu.serverShare()
+	sustainedRes.CPUPercentAvg *= serverShare
+	sustainedRes.CPUPercentPeak *= serverShare
+	perViewer.CPUPercentAvg *= serverShare
+	tiers := res.tierCosts(serverShare)
+
 	r.finish(Report{
 		Scenario:                   cfg.Scenario,
 		Mode:                       cfg.Mode,
@@ -615,6 +695,9 @@ runLoop:
 		DiskReadStarved:            diskReadStarved(sustainedRes),
 		ReadAmplification:          readAmplification(sustainedRes),
 		AppReadAmplification:       appReadAmplification(sustainedRes),
+		Tiers:                      tiers,
+		HarnessCPUFraction:         cpu.HarnessFraction,
+		HarnessCPUMeasured:         cpu.Measured,
 		DiskReadBytesPerSecCeiling: disk.TotalBytesPerSec,
 		DiskCeilingAtReaders:       disk.bestWidth(),
 		// Read the storage curve at the width THIS audience imposes, not at the
@@ -738,7 +821,12 @@ func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, pool *candidat
 	ramp.cancelBySlot[slot] = cancel
 
 	wg.Add(1)
-	go r.runViewer(vCtx, cfg, slot, vt, asg, forked, events, wg)
+	// Tagged as the load generator's own work, so the CPU profile can bill this
+	// goroutine (and the audio fetch it spawns) to the harness rather than to the
+	// server it is pretending to watch.
+	go withHarnessLabel(vCtx, func(ctx context.Context) {
+		r.runViewer(ctx, cfg, slot, vt, asg, forked, events, wg)
+	})
 	return true, ""
 }
 

@@ -150,6 +150,33 @@ type Config struct {
 	// climb runs in milliseconds; an operator has no reason to touch them.
 	FastHold    time.Duration
 	MeasureHold time.Duration
+
+	// ProfileHarnessCPU turns on the one measurement that separates the server's
+	// CPU from the load generator's (see harnesscpu.go). On by default for a real
+	// run: without it, the harness's own HTTP overhead is billed to the server and
+	// a viewer looks several times more expensive than it is. Tests leave it off -
+	// a CPU profile in a unit test measures the test.
+	ProfileHarnessCPU bool
+	// HarnessProfileFor is how long that profile runs. Zero means the default.
+	HarnessProfileFor time.Duration
+}
+
+// TierCost is what ONE audience size cost the server: one row of the report's
+// table. Every CPU figure is the SERVER's share - the load generator's own
+// overhead has already been subtracted (see harnesscpu.go) - and MemUsedBytes is
+// anonymous memory, never the page cache of the films being read.
+type TierCost struct {
+	Viewers             int
+	CPUPercent          float64
+	MemUsedBytes        int64
+	DiskReadBytesPerSec int64
+	ServedBytesPerSec   int64
+	// CPUPercentPerViewer / MemBytesPerViewer are this row's cost divided by its
+	// headcount - the figure an operator actually plans with, and the one whose
+	// TREND down the table says whether the server is still scaling.
+	CPUPercentPerViewer float64
+	MemBytesPerViewer   int64
+	Samples             int
 }
 
 func (c Config) fsRoot() string {
@@ -164,6 +191,13 @@ func (c Config) resourceSampleEvery() time.Duration {
 		return resourceSampleEvery
 	}
 	return c.ResourceSampleEvery
+}
+
+func (c Config) harnessProfileFor() time.Duration {
+	if c.HarnessProfileFor <= 0 {
+		return harnessProfileWindow
+	}
+	return c.HarnessProfileFor
 }
 
 // Defaults applied when the corresponding Config field is left at its zero
@@ -418,6 +452,27 @@ type Report struct {
 	// HasPerViewerCost is false when fewer than two tiers were measured.
 	PerViewerCost    ResourceStats
 	HasPerViewerCost bool
+
+	// Tiers is one row per audience size the run actually measured, smallest
+	// first: the climb itself, not just the rung it stopped on.
+	//
+	// A single final number cannot say WHY the run stopped where it did. The
+	// table can: read the per-viewer cost down the rows and it either holds
+	// steady (the server is scaling, and the ceiling is elsewhere) or it bends
+	// upward (the server is starting to struggle, and the ceiling is real).
+	Tiers []TierCost
+
+	// HarnessCPUFraction is the share of the measured CPU burned by the load
+	// GENERATOR - the simulated viewers draining loopback traffic - rather than by
+	// the server. HarnessCPUMeasured is false when no profile could be taken, in
+	// which case every CPU figure here is the pessimistic reading (all of it
+	// charged to the server).
+	//
+	// It is not a detail. A run measured 25% CPU for 21 viewers; billing the
+	// harness to the server makes a viewer look several times more expensive than
+	// it is, and sizes an operator's NAS accordingly.
+	HarnessCPUFraction float64
+	HarnessCPUMeasured bool
 
 	// ViewerMix is the viewer-type composition of the sustained tier, e.g.
 	// {"mkvgo": 4, "transcode": 1}. Populated for every scenario (a pure

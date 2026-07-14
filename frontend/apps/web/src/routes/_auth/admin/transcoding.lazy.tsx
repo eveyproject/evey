@@ -280,6 +280,24 @@ interface LoadTestReport {
   // report quotes the curve at the width the audience imposes too.
   diskCeilingAtReaders?: number;
   diskReadAtAudienceBytesPerSec?: number;
+  // tiers: one row per audience size the run measured - the climb itself. Every
+  // cpu figure is the SERVER's share (the load generator's own overhead has been
+  // subtracted), and memUsedBytes is anonymous memory, never the page cache.
+  tiers?: {
+    viewers?: number;
+    cpuPercent?: number;
+    memUsedBytes?: number;
+    diskReadBytesPerSec?: number;
+    servedBytesPerSec?: number;
+    cpuPercentPerViewer?: number;
+    memBytesPerViewer?: number;
+    samples?: number;
+  }[];
+  // harnessCpuFraction: how much of the measured CPU was the load GENERATOR, not
+  // the server. Already subtracted from every figure above; shown so the operator
+  // knows the correction happened.
+  harnessCpuFraction?: number;
+  harnessCpuMeasured?: boolean;
   // slowestDiskBytesPerSec: what the WEAKEST drive delivered. Several disks are
   // not one big disk - each saturates on its own, and the film a viewer picks
   // decides which.
@@ -561,121 +579,94 @@ function LoadTestCard() {
                 </p>
               )}
 
-              {/* What those viewers actually COST the box, and therefore what ran
-                  out first. A viewer count without the resource behind it says
-                  nothing about WHY the server stopped there. */}
-              {(report.resources?.samples ?? 0) > 0 && (
-                <p className="text-sm text-[var(--text)]" data-testid="load-test-resources">
-                  {t("admin.loadtest.resourcesLine", {
-                    cpu: Math.round(report.resources?.cpuPercentAvg ?? 0),
-                    cpuPeak: Math.round(report.resources?.cpuPercentPeak ?? 0),
-                    mem: formatBytes(report.resources?.memUsedBytesAvg ?? 0),
-                    memLimit: formatBytes(report.resources?.memLimitBytes ?? 0),
-                    disk: formatMbps(report.resources?.diskReadBytesPerSec ?? 0),
-                    net: formatMbps(report.resources?.servedBytesPerSec ?? 0),
+              {/* What those viewers actually COST the box, one row per audience
+                  size the run measured - the climb itself, not just the rung it
+                  stopped on. A single headline figure cannot say WHY the run
+                  stopped where it did; the trend down the per-viewer columns can:
+                  it either holds steady (the server was still scaling, and the
+                  ceiling is elsewhere) or it bends upward (the server was starting
+                  to struggle, and the ceiling is real).
+
+                  Everything finer - read amplification, the storage curve, the
+                  per-disk breakdown - lives in the logs. It belongs to whoever is
+                  debugging the server, not to whoever is sizing it. */}
+              {(report.tiers?.length ?? 0) > 0 && (
+                <div className="overflow-x-auto" data-testid="load-test-tiers">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--text-muted)]">
+                        <th className="py-1 pr-3 font-medium">{t("admin.loadtest.table.viewers")}</th>
+                        <th className="py-1 pr-3 font-medium">{t("admin.loadtest.table.cpu")}</th>
+                        <th className="py-1 pr-3 font-medium">{t("admin.loadtest.table.mem")}</th>
+                        <th className="py-1 pr-3 font-medium">{t("admin.loadtest.table.disk")}</th>
+                        <th className="py-1 pr-3 font-medium">{t("admin.loadtest.table.served")}</th>
+                        <th className="py-1 font-medium">{t("admin.loadtest.table.perViewer")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(report.tiers ?? []).map((tier) => {
+                        /* The row the whole run exists to produce: the audience the
+                           server actually sustained. Bold, so the eye lands on the
+                           answer and not on the search that found it. */
+                        const sustained = tier.viewers === report.sustainedViewers;
+                        return (
+                          <tr
+                            key={tier.viewers}
+                            className={
+                              sustained
+                                ? "border-b border-[var(--border)] font-semibold text-[var(--text)]"
+                                : "border-b border-[var(--border)] text-[var(--text-muted)]"
+                            }
+                            data-testid={sustained ? "load-test-tier-sustained" : undefined}
+                          >
+                            <td className="py-1 pr-3">{tier.viewers ?? 0}</td>
+                            <td className="py-1 pr-3">{Math.round(tier.cpuPercent ?? 0)}%</td>
+                            <td className="py-1 pr-3">{formatBytes(tier.memUsedBytes ?? 0)}</td>
+                            <td className="py-1 pr-3">{formatMbps(tier.diskReadBytesPerSec ?? 0)}</td>
+                            <td className="py-1 pr-3">{formatMbps(tier.servedBytesPerSec ?? 0)}</td>
+                            <td className="py-1">
+                              {t("admin.loadtest.table.perViewerCell", {
+                                cpu: (tier.cpuPercentPerViewer ?? 0).toFixed(2),
+                                mem: formatBytes(tier.memBytesPerViewer ?? 0),
+                              })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {/* Without this, every CPU figure in the table is a lie by a factor
+                  of several: the simulated viewers run inside the server's own
+                  cgroup, and the kernel bills their HTTP overhead to the server.
+                  The run measures that share and subtracts it - and says so, because
+                  an operator who does not know the correction was applied cannot
+                  trust the number he is sizing his hardware on. */}
+              {report.harnessCpuMeasured && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-harness-cpu">
+                  {t("admin.loadtest.harnessCpuLine", {
+                    pct: Math.round((report.harnessCpuFraction ?? 0) * 100),
                   })}
                 </p>
               )}
-              {/* Several disks are not one big disk: the weakest decides how bad
-                  it gets when viewers land on films that live there. */}
-              {(report.disksProbed ?? 0) > 1 && (report.slowestDiskBytesPerSec ?? 0) > 0 && (
-                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-slowest-disk">
-                  {t("admin.loadtest.slowestDiskLine", {
-                    rate: formatMbps(report.slowestDiskBytesPerSec ?? 0),
-                  })}
-                </p>
-              )}
-              {/* Only when it IS the verdict. The run notices a flat throughput
-                  curve at some point in almost every climb (a tier that gained
-                  nothing over a smaller one), but if the server ultimately gave
-                  out for another reason, announcing "the throughput is the
-                  bottleneck" contradicts the verdict two lines below. */}
-              {report.stopReason === "throughput_saturated" && (report.throughputCeilingBytesPerSec ?? 0) > 0 && (
-                <p className="text-sm font-medium text-[var(--text)]" data-testid="load-test-throughput-ceiling">
-                  {t("admin.loadtest.throughputCeilingLine", {
-                    rate: formatMbps(report.throughputCeilingBytesPerSec ?? 0),
-                  })}
-                </p>
-              )}
-              {/* The single most actionable line in the report when it fires:
-                  storage that serialises (a 9p/virtiofs mount on one channel, an
-                  over-subscribed NFS export, a disk thrashing between streams)
-                  looks perfectly healthy on every gauge, and quietly decides how
-                  many people can watch. */}
               {/* The result is a MIRAGE when the disk barely moved: the operating
                   system served everything from RAM, so the run measured the page
                   cache rather than the server. It happens whenever the library is
                   small enough to sit in memory (a dev box, a test library) - and
-                  the viewer count it produces can be several times the truth. The
-                  report must say so, loudly, or an operator plans capacity on a
-                  number that will not survive contact with a real library. */}
+                  the viewer count it produces can be several times the truth. */}
               {report.diskReadStarved && (
                 <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-starved">
                   {t("admin.loadtest.servedFromCacheLine")}
                 </p>
               )}
-              {/* The most actionable line in the report when it fires. A
-                  direct-play server's ceiling IS its read bandwidth, so bytes
-                  read and thrown away are viewers thrown away. */}
-              {(report.readAmplification ?? 0) >= 1.5 && (
-                <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-read-amplification">
-                  {t("admin.loadtest.readAmplificationLine", {
-                    ratio: (report.readAmplification ?? 0).toFixed(1),
-                  })}
-                </p>
-              )}
-              {/* Which of the two is to blame. A code that asks for little while
-                  the disk delivers a lot is a kernel reading ahead, not a greedy
-                  packager - and the fix is somewhere else entirely. */}
-              {(report.appReadAmplification ?? 0) > 0 && (
-                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-app-amplification">
-                  {t("admin.loadtest.appAmplificationLine", {
-                    app: (report.appReadAmplification ?? 0).toFixed(1),
-                  })}
-                </p>
-              )}
+              {/* Storage that SERIALISES is invisible to every gauge and quietly
+                  decides how many people can watch. It stays: it is not a detail,
+                  it is a hardware verdict. */}
               {(report.storageCollapsesAtReaders ?? 0) > 0 && (
                 <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-storage-collapse">
                   {t("admin.loadtest.storageCollapseLine", {
                     count: report.storageCollapsesAtReaders ?? 0,
-                  })}
-                </p>
-              )}
-              {(report.diskReadCeilingBytesPerSec ?? 0) > 0 && (
-                <p className="text-sm text-[var(--text)]" data-testid="load-test-disk-ceiling">
-                  {t("admin.loadtest.diskCeilingLine", {
-                    rate: formatMbps(report.diskReadCeilingBytesPerSec ?? 0),
-                    count: report.disksProbed ?? 1,
-                  })}
-                </p>
-              )}
-              {/* The line that dissolves the contradiction. The ceiling above is a
-                  laboratory figure; THIS is what the drives give at the width this
-                  audience imposes on them. When it is far below the ceiling, the
-                  server is not sitting on idle bandwidth - it has run out of heads,
-                  not out of bytes, and no amount of read-amplification work will
-                  buy back what the seeks are eating. Only shown when the two
-                  actually diverge: repeating a number the operator just read
-                  teaches him nothing. */}
-              {(report.diskReadAtAudienceBytesPerSec ?? 0) > 0 &&
-                (report.diskReadAtAudienceBytesPerSec ?? 0) <
-                  (report.diskReadCeilingBytesPerSec ?? 0) * 0.9 && (
-                  <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-at-audience">
-                    {t("admin.loadtest.diskAtAudienceLine", {
-                      rate: formatMbps(report.diskReadAtAudienceBytesPerSec ?? 0),
-                      viewers: report.sustainedViewers ?? 0,
-                      peak: formatMbps(report.diskReadCeilingBytesPerSec ?? 0),
-                      readers: report.diskCeilingAtReaders ?? 0,
-                    })}
-                  </p>
-                )}
-              {(report.perViewerCost?.samples ?? 0) > 0 && (
-                <p className="text-sm text-[var(--text)]" data-testid="load-test-per-viewer">
-                  {t("admin.loadtest.perViewerLine", {
-                    cpu: Math.round(report.perViewerCost?.cpuPercentAvg ?? 0),
-                    mem: formatBytes(report.perViewerCost?.memUsedBytesAvg ?? 0),
-                    disk: formatMbps(report.perViewerCost?.diskReadBytesPerSec ?? 0),
-                    net: formatMbps(report.perViewerCost?.servedBytesPerSec ?? 0),
                   })}
                 </p>
               )}

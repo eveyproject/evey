@@ -34,6 +34,10 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 		Scenario:      req.GetScenario(),
 		MaxViewers:    int(req.GetMaxViewers()),
 		Mode:          req.GetMode(),
+		// A real run measures how much of its own CPU is the load generator's.
+		// Without it the report charges the harness's HTTP overhead to the server
+		// and an operator sizes his hardware for a cost that isn't there.
+		ProfileHarnessCPU: true,
 	}
 	if secs := req.GetDurationSec(); secs > 0 {
 		cfg.MaxDuration = time.Duration(secs) * time.Second
@@ -146,6 +150,10 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			AppReadAmplification:          r.AppReadAmplification,
 			DiskCeilingAtReaders:          int32(r.DiskCeilingAtReaders), //nolint:gosec // a concurrency width, bounded by the probe's own sweep
 			DiskReadAtAudienceBytesPerSec: r.DiskReadBytesPerSecAtAudience,
+			HarnessCpuFraction:            r.HarnessCPUFraction,
+			HarnessCpuMeasured:            r.HarnessCPUMeasured,
+			MemCacheBytes:                 r.Resources.MemCacheBytesAvg,
+			Tiers:                         tierCosts(r.Tiers),
 			DiskReadStarved:               r.DiskReadStarved,
 			Endpoint:                      r.Endpoint,
 			ViaProxy:                      r.ViaProxy,
@@ -219,4 +227,22 @@ func bearerFromContext(ctx context.Context) string {
 		return ""
 	}
 	return strings.TrimPrefix(vals[0], "Bearer ")
+}
+
+// tierCosts maps the run's per-audience-size table onto the wire.
+func tierCosts(in []apploadtest.TierCost) []*eveyv1.LoadTestTierCost {
+	out := make([]*eveyv1.LoadTestTierCost, 0, len(in))
+	for _, t := range in {
+		out = append(out, &eveyv1.LoadTestTierCost{
+			Viewers:             int32(t.Viewers), //nolint:gosec // an audience size, bounded by the run itself
+			CpuPercent:          t.CPUPercent,
+			MemUsedBytes:        t.MemUsedBytes,
+			DiskReadBytesPerSec: t.DiskReadBytesPerSec,
+			ServedBytesPerSec:   t.ServedBytesPerSec,
+			CpuPercentPerViewer: t.CPUPercentPerViewer,
+			MemBytesPerViewer:   t.MemBytesPerViewer,
+			Samples:             int32(t.Samples), //nolint:gosec // a sample count
+		})
+	}
+	return out
 }
