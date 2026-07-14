@@ -416,6 +416,66 @@ describe("LoadTestCard", () => {
     expect(warn.textContent).toContain("3.9");
   });
 
+  // The disk figure alone leaves an operator guessing WHICH problem they have,
+  // and the two have nothing in common. When the server asks for almost exactly
+  // what the disk delivers, the appetite is the code's own: fix the packager.
+  it("names the packager when the server asks for as much as the disk delivers", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 21,
+        stopReason: "throughput_saturated",
+        readAmplification: 2.5,
+        appReadAmplification: 2.4,
+        viewerMix: { mkvgo: 21 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.getByTestId("load-test-app-amplification").textContent).toContain("2.4");
+  });
+
+  // But when the code asks for little and the disk still delivers a lot, the
+  // packager is near-optimal and the kernel is reading ahead into data nobody
+  // wanted - a fix that lives somewhere else entirely. Same disk number, other
+  // culprit: this is the whole reason the second figure exists.
+  it("still reports the app figure when it is far below the disk figure", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 21,
+        stopReason: "throughput_saturated",
+        readAmplification: 2.6,
+        appReadAmplification: 1.3,
+        viewerMix: { mkvgo: 21 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.getByTestId("load-test-app-amplification").textContent).toContain("1.3");
+  });
+
+  // A library on a network share (9p, NFS) has no block layer to account, so the
+  // server reports zero rather than a lie. Zero must render nothing at all.
+  it("hides the app figure when the kernel could not account the reads", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 21,
+        stopReason: "throughput_saturated",
+        readAmplification: 0,
+        appReadAmplification: 0,
+        viewerMix: { mkvgo: 21 },
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.queryByTestId("load-test-app-amplification")).toBeNull();
+  });
+
   it("renders the viewer mix composition when the server reports it", async () => {
     mockLoadTestStatus = {
       running: false,
