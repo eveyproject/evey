@@ -92,6 +92,67 @@ func TestAudioRetimer_MP4NoFallbackErrors(t *testing.T) {
 	assert.Contains(t, err.Error(), "not a Matroska")
 }
 
+type refusingFallback struct{ err error }
+
+func (f *refusingFallback) RemuxAudioDelay(_ context.Context, _ string) (string, bool, error) {
+	return "", false, f.err
+}
+
+// THE PROD BLIND SPOT (2026-07-14): 64 files logged only the ffmpeg fallback's
+// "tracks disagree on the delay" refusal - mkvgo's own reason for handing the
+// file over had been swallowed, so the logs could not say whether the primary
+// engine ever ran, or why it refused. When BOTH engines refuse, the error must
+// carry BOTH refusals.
+func TestAudioRetimer_DoubleRefusalCarriesBothReasons(t *testing.T) {
+	fb := &refusingFallback{err: assertErr("audio-remux: the 2 audio tracks disagree on the delay")}
+	r := &AudioRetimer{
+		delays: func(_ context.Context, _ string) (map[uint64]int64, error) {
+			return map[uint64]int64{2: 900_000_000}, nil
+		},
+		retime: func(_ context.Context, _ string, _ map[uint64]int64, _ ...extmatroska.Options) error {
+			return assertErr("retime: unknown-size segment")
+		},
+		fallback: fb,
+	}
+	_, _, err := r.RemuxAudioDelay(context.Background(), "movie.mkv")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown-size segment", "mkvgo's own refusal must survive the fallback")
+	assert.Contains(t, err.Error(), "disagree on the delay", "the fallback's refusal stays too")
+}
+
+// A fallback that SUCCEEDS still repairs the file: mkvgo's refusal is then
+// irrelevant and must not surface as an error.
+func TestAudioRetimer_RetimeRefusalFallbackSuccessIsClean(t *testing.T) {
+	fb := &fakeFallback{}
+	r := &AudioRetimer{
+		delays: func(_ context.Context, _ string) (map[uint64]int64, error) {
+			return map[uint64]int64{2: 900_000_000}, nil
+		},
+		retime: func(_ context.Context, _ string, _ map[uint64]int64, _ ...extmatroska.Options) error {
+			return assertErr("retime: unknown-size segment")
+		},
+		fallback: fb,
+	}
+	bak, skipped, err := r.RemuxAudioDelay(context.Background(), "movie.mkv")
+	require.NoError(t, err)
+	require.False(t, skipped)
+	assert.Equal(t, "movie.mkv.mkvgobak", bak)
+}
+
+// Same for the delays-measurement path: when measuring fails AND the fallback
+// fails, neither reason may vanish.
+func TestAudioRetimer_DelaysErrorThenFallbackErrorCarriesBoth(t *testing.T) {
+	fb := &refusingFallback{err: assertErr("ffprobe exploded")}
+	r := &AudioRetimer{
+		delays:   func(_ context.Context, _ string) (map[uint64]int64, error) { return nil, assertErr("ebml header: EOF") },
+		fallback: fb,
+	}
+	_, _, err := r.RemuxAudioDelay(context.Background(), "movie.mkv")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ebml header: EOF")
+	assert.Contains(t, err.Error(), "ffprobe exploded")
+}
+
 type assertErr string
 
 func (e assertErr) Error() string { return string(e) }

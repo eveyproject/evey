@@ -98,7 +98,7 @@ func (r *AudioRetimer) RemuxAudioDelay(ctx context.Context, path string) (string
 		// Reading the tracks/delays failed (corrupt header, mislabeled
 		// container): the ffmpeg fallback works off ffprobe alone.
 		if r.fallback != nil {
-			return r.fallback.RemuxAudioDelay(ctx, path)
+			return r.deferToFallback(ctx, path, fmt.Errorf("measure delays: %w", err))
 		}
 		return "", false, fmt.Errorf("audio-retime: measure delays: %w", err)
 	}
@@ -132,8 +132,22 @@ func (r *AudioRetimer) RemuxAudioDelay(ctx context.Context, path string) (string
 	case r.fallback != nil:
 		// Layout mkvgo refuses (unknown-size/streamed segment, ...): the ffmpeg
 		// remux can still handle a uniform delay. Its own guards apply.
-		return r.fallback.RemuxAudioDelay(ctx, path)
+		return r.deferToFallback(ctx, path, err)
 	default:
 		return "", false, fmt.Errorf("audio-retime: %w", err)
 	}
+}
+
+// deferToFallback hands the file to the ffmpeg remux after mkvgo refused it -
+// and, when the fallback refuses TOO, surfaces BOTH refusals. A 2026-07-14 prod
+// run logged 64 files with only the understudy's answer ("the tracks disagree
+// on the delay"); mkvgo's own reason had been swallowed here, so the logs could
+// not even say whether the per-track engine had run. An error that names one
+// engine when two declined is a diagnosis nobody can act on.
+func (r *AudioRetimer) deferToFallback(ctx context.Context, path string, mkvgoErr error) (string, bool, error) {
+	bak, skipped, fbErr := r.fallback.RemuxAudioDelay(ctx, path)
+	if fbErr != nil {
+		return "", false, fmt.Errorf("audio-retime: %w; ffmpeg fallback: %w", mkvgoErr, fbErr)
+	}
+	return bak, skipped, nil
 }
