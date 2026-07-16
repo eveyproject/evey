@@ -928,6 +928,7 @@ loadtest:
   coldCacheToggle: "Kalter Cache: den Speicher messen, nicht den RAM"
   coldCacheHint: "Wirft die Bibliothek während des gesamten Laufs fortlaufend aus dem System-Cache. Näher am echten Betrieb, wenn die Bibliothek nicht in den Arbeitsspeicher passt - erwarten Sie eine niedrigere, ehrlichere Zuschauerzahl."
   coldCacheLine: "Die Bibliothek wurde während des gesamten Laufs aus dem System-Cache verdrängt: Diese Zahlen messen den Speicher, nicht den RAM. Niemals mit einem warmen Lauf vergleichen."
+  coldCacheStillStarvedLine: "Achtung: Der Festplattenzähler hat fast nichts gesehen, obwohl der Cache durchgehend geleert wurde. Auf diesem Mount sieht der Kernel die Lesezugriffe nicht (Netzwerk- oder 9p/virtiofs-Pfad), oder ein Cache außerhalb dieses Systems (VM-Host, NAS-Controller) fängt sie ab. Diese Zahlen messen diesen Übertragungsweg, nicht die Festplatten."
   throughputCeilingLine: "Der Durchsatz stagnierte bei {{rate}}: Der Server kann die Medien nicht schneller lesen. Das ist der Engpass."
   noBottleneckHint: "Keine Ressource war ausgelastet: Der Server schafft vermutlich mehr. Grenze anheben und erneut testen."
   sharedCacheLine_one: "{{count}} davon direkt aus dem gemeinsamen Cache bedient."

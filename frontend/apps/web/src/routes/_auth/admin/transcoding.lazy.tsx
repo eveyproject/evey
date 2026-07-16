@@ -672,9 +672,16 @@ function LoadTestCard() {
                   {t("admin.loadtest.coldCacheLine")}
                 </p>
               )}
+              {/* Same signal, two different truths. Warm run: the disk sat idle
+                  because the RAM served everything - the count is overstated.
+                  Cold run: the cache WAS being evicted, so a silent disk means
+                  the kernel cannot see the reads at all (a network/9p mount, or
+                  a cache outside this OS - a VM host, a NAS controller). Telling
+                  the operator "your library fits in RAM" on a run that spent its
+                  whole life evicting it would contradict the line above. */}
               {report.diskReadStarved && (
                 <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-starved">
-                  {t("admin.loadtest.servedFromCacheLine")}
+                  {t(report.coldCache ? "admin.loadtest.coldCacheStillStarvedLine" : "admin.loadtest.servedFromCacheLine")}
                 </p>
               )}
               {/* Storage that SERIALISES is invisible to every gauge and quietly

@@ -291,6 +291,25 @@ describe("LoadTestCard", () => {
     expect(screen.getByTestId("load-test-cold-cache").textContent).toMatch(/storage, not the RAM/i);
   });
 
+  it("does not tell a cold run that its library fits in RAM: a silent disk then means unaccountable reads", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 9,
+        stopReason: "slo_breach",
+        coldCache: true,
+        diskReadStarved: true,
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const starved = screen.getByTestId("load-test-disk-starved").textContent ?? "";
+    expect(starved).toMatch(/cannot see the reads|outside this system/i);
+    expect(starved).not.toMatch(/fits in RAM/i);
+  });
+
   it("shows the running state (viewers, phase, elapsed) while polling, with a cancel button", async () => {
     mockLoadTestStatus = { running: true, phase: "ramping", viewers: 3, elapsedMs: 15_000 };
     const Page = await getPage();

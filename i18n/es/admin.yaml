@@ -928,6 +928,7 @@ loadtest:
   coldCacheToggle: "Caché fría: medir el almacenamiento, no la RAM"
   coldCacheHint: "Expulsa continuamente la biblioteca de la caché del sistema durante toda la prueba. Más cercano al uso real cuando la biblioteca no cabe en memoria: espere un número de espectadores más bajo y más honesto."
   coldCacheLine: "La biblioteca fue expulsada de la caché del sistema durante toda la prueba: estas cifras miden el almacenamiento, no la RAM. Nunca las compare con una prueba en caliente."
+  coldCacheStillStarvedLine: "Atención: el contador de disco apenas vio nada, pese a que la caché se expulsó continuamente. En este montaje el kernel no ve las lecturas (ruta de red o 9p/virtiofs), o una caché externa a este sistema (host de VM, controladora NAS) las absorbe. Estas cifras miden esa ruta de entrega, no los discos."
   throughputCeilingLine: "El caudal se estancó en {{rate}}: el servidor no puede leer los medios más rápido. Ese es el cuello de botella."
   noBottleneckHint: "Ningún recurso se saturó: el servidor probablemente aguanta más. Sube el límite y vuelve a lanzarlo."
   sharedCacheLine_one: "{{count}} de ellos servidos directamente desde la caché compartida."

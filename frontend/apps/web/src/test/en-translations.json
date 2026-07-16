@@ -1688,6 +1688,7 @@
   "admin.loadtest.coldCacheToggle": "Cold cache: measure the storage, not the RAM",
   "admin.loadtest.coldCacheHint": "Keeps evicting the library from the system's cache for the whole run. Closer to real use when the library is too big to sit in memory - expect a lower, more honest viewer count.",
   "admin.loadtest.coldCacheLine": "The library was evicted from the system's cache throughout: these figures measure the storage, not the RAM. Never compare them with a warm run.",
+  "admin.loadtest.coldCacheStillStarvedLine": "Warning: the disk counter still saw almost nothing, despite the cache being evicted throughout. On this mount the kernel cannot see the reads (a network or 9p/virtiofs path), or a cache outside this system (a VM host, a NAS controller) is absorbing them. These figures measure that delivery path, not the disks.",
   "admin.loadtest.appAmplificationLine": "Of which {{app}}x is asked for by the server itself: anything beyond that is the kernel reading ahead into data nobody wanted.",
   "admin.loadtest.diskAtAudienceLine": "But with {{viewers}} viewers, that same storage gives only {{rate}} (peak {{peak}}, reached at just {{readers}} readers). It is not running out of bytes, it is running out of heads: the disk is on its knees, not at 40%.",
   "admin.loadtest.table.viewers": "Viewers",
