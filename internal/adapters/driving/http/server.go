@@ -270,6 +270,11 @@ type HTTPServer struct {
 	// SnapshotRL caps the frame-extraction route - each request spawns an
 	// ffmpeg, so it must not ride the generous global limiter.
 	SnapshotRL *ratelimit.Limiter
+	// PlayerEventRL caps the playback-error beacon: a decode-error storm on a
+	// broken stream can fire dozens of client events per minute, and each
+	// accepted one becomes a log line. The client throttles itself too; this
+	// is the belt to that suspender. nil = route not registered.
+	PlayerEventRL *ratelimit.Limiter
 
 	// i18n
 	Translator *i18n.Translator
@@ -355,6 +360,13 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// Artwork is public (non-sensitive): no auth required.
 	mux.HandleFunc("GET /api/v1/media/{id}/artwork/{artType}", mh)
 	mux.HandleFunc("POST /api/v1/media/{id}/stream", streamAuth(mh))
+	// Playback-error beacon: the player posts what IT saw (decode errors,
+	// recovery loops, element-level MediaError) so a client-side failure leaves
+	// a server-side trace. Registered regardless of the transcoding pipeline -
+	// direct play fails too.
+	if s.PlayerEventRL != nil {
+		mux.HandleFunc("POST /api/v1/media/{id}/player-event", auth(ratelimit.MiddlewareFunc(s.PlayerEventRL, playerEventHandler(slog.Default()))))
+	}
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
 	// Public share download: no auth - the uuid token is the capability.

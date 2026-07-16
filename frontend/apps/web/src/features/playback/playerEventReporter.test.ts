@@ -1,0 +1,69 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const mockEveyFetch = vi.fn(() => Promise.resolve(undefined));
+vi.mock("@evey/api", () => ({ eveyFetch: (...args: unknown[]) => mockEveyFetch(...args) }));
+
+import { createPlayerEventReporter } from "./playerEventReporter";
+
+// The beacon must be loud enough to diagnose an incident and quiet enough to
+// never become one: a broken stream fires the same decode error dozens of
+// times a second, and each accepted event is a server log line.
+describe("playerEventReporter", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockEveyFetch.mockClear();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("posts the event with its full context", () => {
+    const report = createPlayerEventReporter("media-1");
+    report({ type: "hls_media_error", details: "bufferAppendError", fatal: true, code: 3, variant: 2, segment: 1023, posSec: 3066.5 });
+
+    expect(mockEveyFetch).toHaveBeenCalledWith({
+      url: "/api/v1/media/media-1/player-event",
+      method: "POST",
+      data: {
+        type: "hls_media_error",
+        details: "bufferAppendError",
+        fatal: true,
+        code: 3,
+        variant: 2,
+        segment: 1023,
+        posSec: 3066.5,
+      },
+    });
+  });
+
+  it("dedupes identical consecutive events inside the window, and lets them through after it", () => {
+    const report = createPlayerEventReporter("media-1");
+    report({ type: "hls_media_error", details: "bufferAppendError" });
+    report({ type: "hls_media_error", details: "bufferAppendError" });
+    report({ type: "hls_media_error", details: "bufferAppendError" });
+    expect(mockEveyFetch).toHaveBeenCalledTimes(1);
+
+    // A DIFFERENT event goes through immediately - it is new information.
+    report({ type: "hls_fatal", details: "fragParsingError" });
+    expect(mockEveyFetch).toHaveBeenCalledTimes(2);
+
+    // The same event again after the window: the error is persisting, which
+    // is itself worth one more line.
+    vi.advanceTimersByTime(6_000);
+    report({ type: "hls_fatal", details: "fragParsingError" });
+    expect(mockEveyFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops at the per-session budget: the first events carry all the value", () => {
+    const report = createPlayerEventReporter("media-1");
+    for (let i = 0; i < 100; i++) {
+      report({ type: "hls_media_error", details: `err-${i}` });
+    }
+    expect(mockEveyFetch.mock.calls.length).toBeLessThanOrEqual(20);
+  });
+
+  it("never throws when the POST fails: telemetry must not break playback", async () => {
+    mockEveyFetch.mockReturnValueOnce(Promise.reject(new Error("429")));
+    const report = createPlayerEventReporter("media-1");
+    expect(() => report({ type: "hls_fatal" })).not.toThrow();
+    await vi.runAllTimersAsync();
+  });
+});

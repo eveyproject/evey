@@ -83,6 +83,11 @@ func classifyWhere(component, msg string) string {
 		return whereInfra
 	case "seek_index", "seek-index":
 		return whereSeekIndex
+	case "player_client":
+		// The playback-error beacon: what the PLAYER saw. It belongs with the
+		// server's own player lines - an operator investigating an incident
+		// must find both under one filter.
+		return wherePlayer
 	case "qoe_sink":
 		return whereQoE
 	case "scheduler", "webhook", "backup-scheduler", "grpc", "watcher", "metrics_sampler":

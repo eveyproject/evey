@@ -40,6 +40,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	// Snapshot/frame extraction spawns one ffmpeg per request: burst covers an
 	// admin thumbnail grid, the 1/s refill caps sustained spawn abuse.
 	snapshotRL := ratelimit.NewWithBurst(30, 60.0)
+	// Playback-error beacon: each accepted event is one log line. Burst covers
+	// a genuine error storm's first wave; the refill caps a hostile or looping
+	// client at a rate the log files shrug off.
+	playerEventRL := ratelimit.NewWithBurst(20, 30.0)
 	go func() {
 		<-ctx.Done()
 		loginRL.Stop()
@@ -164,6 +168,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		},
 		AdminHeavyRL:    adminHeavyRL,
 		SnapshotRL:      snapshotRL,
+		PlayerEventRL:   playerEventRL,
 		AdminWriteRL:    adminWriteRL,
 		PasswordResetRL: passwordResetRL,
 		OIDCLoginRL:     oidcLoginRL,

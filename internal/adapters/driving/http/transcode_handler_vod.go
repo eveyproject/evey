@@ -435,10 +435,19 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	w.Header().Set("Cache-Control", "no-cache")
 	_, _ = w.Write([]byte(out))
 
+	// The decision hash rides the log line: it names the ffmpeg sessions and
+	// the cache directory this master's segments resolve to. During the
+	// 2026-07-15 incident, correlating "master served, 3 profiles" with the
+	// sessions that actually ran took inference - one field ends that.
+	fpHash := ""
+	if fp, fpErr := h.buildFingerprint(r, mediaID, item, streams); fpErr == nil {
+		fpHash = fp.Hash()
+	}
 	slog.Info("hls-vod: master served",
 		slog.String("media_id", mediaID),
 		slog.Int("profiles", len(in.Profiles)),
 		slog.Int("segments_per_variant", in.SegmentCount()),
+		slog.String("fp", fpHash),
 	)
 }
 

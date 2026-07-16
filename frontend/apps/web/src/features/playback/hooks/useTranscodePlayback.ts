@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Hls from "hls.js";
 import { buildTranscodeHlsUrl, prefersNativeHLS, startPlayback } from "./hlsPlayerUtils";
+import { createPlayerEventReporter } from "../playerEventReporter";
 
 // Mirrors the server's shed contract (HTTP 503 on a refused playback start):
 // - too_many_streams: the box can't prepare one more stream because of OTHER
@@ -92,6 +93,11 @@ export function useTranscodePlayback({
   setShedReason,
 }: UseTranscodePlaybackArgs) {
   const [transcodeStartTime, setTranscodeStartTime] = useState(startPositionMs / 1000);
+  // The playback-error beacon: what THIS player sees (decode errors, recovery
+  // loops, element-level MediaError) becomes a server-side log line. One
+  // reporter per media so its dedupe/budget spans the whole viewing, not one
+  // hls.js instance (audio/quality switches rebuild the instance).
+  const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   const [hlsLevels, setHlsLevels] = useState<number[]>([]);
   // Height (px) of the rung hls.js is actually playing right now. Surfaced so the
   // settings panel can show "Auto (1080p)" instead of a redundant bare "Auto".
@@ -162,14 +168,29 @@ export function useTranscodePlayback({
       }
       function onTimeUpdate() { positionRef.current = transcodeOffsetRef.current + video!.currentTime; }
       function handleEnded() { onEnded?.(); }
+      // Native HLS has no hls.js to observe: the element-level MediaError is
+      // the ONLY error signal this path will ever get. Same beacon.
+      function onNativeError() {
+        const err = video!.error;
+        if (!err) return;
+        reportPlayerEvent({
+          type: "video_element_error",
+          details: err.message || "",
+          fatal: true,
+          code: err.code,
+          posSec: transcodeOffsetRef.current + (video!.currentTime || 0),
+        });
+      }
       video.addEventListener("loadedmetadata", onLoadedMetadata);
       video.addEventListener("timeupdate", onTimeUpdate);
       video.addEventListener("ended", handleEnded);
+      video.addEventListener("error", onNativeError);
       return () => {
         wasPausedRef.current = video.paused;
         video.removeEventListener("loadedmetadata", onLoadedMetadata);
         video.removeEventListener("timeupdate", onTimeUpdate);
         video.removeEventListener("ended", handleEnded);
+        video.removeEventListener("error", onNativeError);
         video.src = "";
       };
     }
@@ -254,6 +275,22 @@ export function useTranscodePlayback({
     let retries = 0;
     let consecutive404 = 0;
     hls.on(Hls.Events.ERROR, (_, data) => {
+      // Beacon every MEDIA error (fatal or not - the non-fatal ones are the
+      // first symptom of a garbled stream) and every fatal error of any type.
+      // The 2026-07-15 rainbow incident left zero server-side trace; this line
+      // is what makes the next one diagnosable from the admin logs.
+      if (data.fatal || data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        const sn = data.frag?.sn;
+        reportPlayerEvent({
+          type: data.fatal ? "hls_fatal" : "hls_media_error",
+          details: data.details,
+          fatal: data.fatal,
+          code: data.response?.code ?? 0,
+          variant: data.frag?.level ?? 0,
+          segment: typeof sn === "number" ? sn : 0,
+          posSec: transcodeOffsetRef.current + (video.currentTime || 0),
+        });
+      }
       if (!data.fatal) return;
       if (import.meta.env.DEV) console.warn("[player] HLS fatal error:", data.type, data.details, data.response?.code);
       if (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.response?.code === 503) {
@@ -341,11 +378,26 @@ export function useTranscodePlayback({
     function handleWaiting() { if (!video!.paused) setIsBuffering(true); }
     function handlePlaying() { setIsBuffering(false); }
     function handlePause() { setIsBuffering(false); }
+    // The element-level MediaError is the decoder's own verdict (code 3 =
+    // MEDIA_ERR_DECODE - the "rainbow screen" family): report it even when
+    // hls.js swallows or recovers the underlying event.
+    function handleVideoError() {
+      const err = video!.error;
+      if (!err) return;
+      reportPlayerEvent({
+        type: "video_element_error",
+        details: err.message || "",
+        fatal: true,
+        code: err.code,
+        posSec: transcodeOffsetRef.current + (video!.currentTime || 0),
+      });
+    }
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("ended", handleEnded);
     video.addEventListener("waiting", handleWaiting);
     video.addEventListener("playing", handlePlaying);
     video.addEventListener("pause", handlePause);
+    video.addEventListener("error", handleVideoError);
 
     return () => {
       wasPausedRef.current = video.paused;
@@ -354,6 +406,7 @@ export function useTranscodePlayback({
       video.removeEventListener("waiting", handleWaiting);
       video.removeEventListener("playing", handlePlaying);
       video.removeEventListener("pause", handlePause);
+      video.removeEventListener("error", handleVideoError);
       hls.destroy();
       hlsRef.current = null;
       // Clear any in-flight buffering spinner when the instance is torn down
