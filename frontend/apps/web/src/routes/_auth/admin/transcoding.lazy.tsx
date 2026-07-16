@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Spinner } from "@/components/ui/Spinner";
 import { EncodeCalibrationCard } from "@/features/admin/EncodeCalibrationCard";
 
@@ -268,6 +269,10 @@ interface LoadTestReport {
   // and no CPU or memory gauge can see it.
   throughputCeilingBytesPerSec?: number;
   diskReadStarved?: boolean;
+  // coldCache: the run kept evicting the library from the page cache, so the
+  // figures measure the STORAGE rather than the RAM. A warm and a cold run of
+  // the same box are two different answers - never compare them as one.
+  coldCache?: boolean;
   // diskReadCeilingBytesPerSec: how fast this box reads its media - every disk
   // the library spans, read at once. The kernel cannot report this when the
   // library sits on a network share or a 9p mount, so the run measures it itself
@@ -454,6 +459,10 @@ function LoadTestCard() {
   // matters to an operator - "how many different humans, with a realistic
   // device mix, can this host hold" - so it's the default, not a pure lane.
   const [scenario, setScenario] = useState<LoadTestScenario>("balanced");
+  // Cold cache: keep evicting the library from the page cache so the run
+  // measures the storage, not the RAM. Off by default - the warm figure is
+  // today's truth on this box; cold is the day the library outgrows memory.
+  const [coldCache, setColdCache] = useState(false);
 
   const statusQuery = useQuery<LoadTestStatus>({
     queryKey: LOAD_TEST_QUERY_KEY,
@@ -472,7 +481,7 @@ function LoadTestCard() {
       eveyFetch<LoadTestStatus>({
         url: LOAD_TEST_URL,
         method: "POST",
-        data: { scenario },
+        data: { scenario, coldCache },
       }),
     onSuccess: (data) => {
       qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
@@ -655,6 +664,14 @@ function LoadTestCard() {
                   cache rather than the server. It happens whenever the library is
                   small enough to sit in memory (a dev box, a test library) - and
                   the viewer count it produces can be several times the truth. */}
+              {/* A cold-cache run measured the storage on purpose: say so, or
+                  its (lower) figure gets compared against a warm run's as if
+                  the server had regressed. */}
+              {report.coldCache && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-cold-cache">
+                  {t("admin.loadtest.coldCacheLine")}
+                </p>
+              )}
               {report.diskReadStarved && (
                 <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-starved">
                   {t("admin.loadtest.servedFromCacheLine")}
@@ -769,6 +786,17 @@ function LoadTestCard() {
                 {t("admin.loadtest.startButton")}
               </Button>
             </div>
+            {/* Cold cache: measure the storage instead of the RAM. On a box
+                whose library fits in memory, the default (warm) run overstates
+                the viewer count - its own report warns about it. */}
+            <Checkbox
+              label={t("admin.loadtest.coldCacheToggle")}
+              checked={coldCache}
+              onChange={setColdCache}
+              disabled={start.isPending}
+              data-testid="load-test-cold-cache-toggle"
+            />
+            <p className="text-xs text-[var(--text-muted)]">{t("admin.loadtest.coldCacheHint")}</p>
           </div>
         </>
       )}

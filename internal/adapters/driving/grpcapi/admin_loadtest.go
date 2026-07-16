@@ -34,6 +34,11 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 		Scenario:      req.GetScenario(),
 		MaxViewers:    int(req.GetMaxViewers()),
 		Mode:          req.GetMode(),
+		// Keep evicting the library from the page cache, so the run measures
+		// the storage rather than the RAM (a library that fits in memory
+		// otherwise overstates the viewer count, sometimes by a factor of
+		// several).
+		ColdCache: req.GetColdCache(),
 		// A real run measures how much of its own CPU is the load generator's.
 		// Without it the report charges the harness's HTTP overhead to the server
 		// and an operator sizes his hardware for a cost that isn't there.
@@ -155,6 +160,7 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			MemCacheBytes:                 r.Resources.MemCacheBytesAvg,
 			Tiers:                         tierCosts(r.Tiers),
 			DiskReadStarved:               r.DiskReadStarved,
+			ColdCache:                     r.ColdCache,
 			Endpoint:                      r.Endpoint,
 			ViaProxy:                      r.ViaProxy,
 		}

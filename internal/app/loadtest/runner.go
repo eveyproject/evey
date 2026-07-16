@@ -79,6 +79,10 @@ type Runner struct {
 	// means the server's own cgroup; tests inject a modelled machine.
 	counters counterSource
 
+	// evictFile drops one file from the OS page cache (cold-cache mode). The
+	// real one is posix_fadvise; tests record the calls instead.
+	evictFile func(path string) error
+
 	// liveViewers is the audience size RIGHT NOW, updated as each viewer is
 	// spawned or shed rather than once per tier. Status() reads it, so a caller
 	// polling mid-resize sees the audience actually in flight instead of the
@@ -123,6 +127,7 @@ func New(httpClient *http.Client, media MediaLister, activeStreams func() int, l
 		media:         media,
 		activeStreams: activeStreams,
 		logger:        logger,
+		evictFile:     evictFromCache,
 		status:        Status{Phase: "idle"},
 	}
 }
@@ -213,6 +218,10 @@ func (r *Runner) finish(report Report) {
 		"samples", report.Samples,
 		"replayed_title_viewers", report.ReplayedTitleViewers,
 		"disk_read_starved", report.DiskReadStarved,
+		// Whether the library was being evicted from the page cache throughout.
+		// A warm and a cold run of the same box are two different answers, and a
+		// log line that doesn't say which one this was invites comparing them.
+		"cold_cache", report.ColdCache,
 		"skipped_candidates", report.SkippedCandidates,
 		"duration_ms", report.EndedAt.Sub(report.StartedAt).Milliseconds(),
 		"cpu_pct_avg", int(report.Resources.CPUPercentAvg),
@@ -339,6 +348,24 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	}
 	pool := newCandidatePool(candidates, cfg.MaxDuration)
 
+	// Cold-cache mode: drop the library from the page cache before anything is
+	// measured - the disk probe below then reads cold storage too - and note
+	// whether the eviction actually landed. A run that claims "cold cache"
+	// while every byte still came from RAM would be the exact lie this mode
+	// exists to kill, so an eviction that cannot work (no paths, wrong OS)
+	// downgrades the run to warm and says so.
+	coldCache := false
+	if cfg.ColdCache {
+		evicted := r.evictLibrary(candidates)
+		coldCache = evicted > 0
+		if coldCache {
+			r.logger.Info("loadtest: cold cache on - the library is evicted from the page cache for the whole run",
+				"files", evicted, "every", cfg.resourceSampleEvery().String())
+		} else {
+			r.logger.Warn("loadtest: cold cache requested but no file could be evicted; measuring with a warm cache")
+		}
+	}
+
 	// Measure what this box can actually read off its storage, BEFORE putting it
 	// under load. On a direct-play server this is usually the real ceiling, and
 	// the kernel's own I/O counters can't see it when the library lives on a
@@ -388,6 +415,14 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	defer cancelViewers()
 	events := make(chan viewerEvent, 256)
 	var wg sync.WaitGroup
+
+	// Keep the cache cold for the whole run: a single up-front eviction would
+	// let the first viewer re-warm it for everyone behind. The cadence rides
+	// the resource sampler's - fast enough that no tier gets to build a warm
+	// working set, cheap enough (one fadvise per file) to cost nothing.
+	if coldCache {
+		go r.keepEvicting(viewerCtx, candidates, cfg.resourceSampleEvery())
+	}
 
 	ramp := rampState{
 		viewerTypeBySlot: map[int]viewerType{},
@@ -724,6 +759,7 @@ runLoop:
 		ViaProxy:                   viaProxy,
 		ReplayedTitleViewers:       replayed,
 		DiskReadStarved:            diskReadStarved(sustainedRes),
+		ColdCache:                  coldCache,
 		ReadAmplification:          readAmplification(sustainedRes),
 		AppReadAmplification:       appReadAmplification(sustainedRes),
 		Tiers:                      tiers,
@@ -749,6 +785,38 @@ runLoop:
 		StartedAt:                     startedAt,
 		EndedAt:                       time.Now(),
 	})
+}
+
+// evictLibrary drops every candidate file from the OS page cache and reports
+// how many evictions actually landed. A file with no known path, or one the
+// kernel refuses, is skipped silently - partial cold is still colder than warm,
+// and the caller only cares whether ANY of it worked.
+func (r *Runner) evictLibrary(candidates []MediaCandidate) int {
+	evicted := 0
+	for _, c := range candidates {
+		if c.Path == "" {
+			continue
+		}
+		if err := r.evictFile(c.Path); err == nil {
+			evicted++
+		}
+	}
+	return evicted
+}
+
+// keepEvicting re-drops the library from the page cache on a fixed cadence
+// until the run ends, so no tier gets to quietly rebuild a warm working set.
+func (r *Runner) keepEvicting(ctx context.Context, candidates []MediaCandidate, every time.Duration) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			r.evictLibrary(candidates)
+		}
+	}
 }
 
 // rampState is the ramp's own bookkeeping across every spawn attempt: which

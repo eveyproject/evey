@@ -211,7 +211,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "balanced" },
+        data: { scenario: "balanced", coldCache: false },
       }),
     );
   });
@@ -238,7 +238,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "light" },
+        data: { scenario: "light", coldCache: false },
       }),
     );
   });
@@ -254,9 +254,41 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "mkvgo" },
+        data: { scenario: "mkvgo", coldCache: false },
       }),
     );
+  });
+
+  it("sends coldCache when the cold-cache toggle is on, and reports it back", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    fireEvent.click(screen.getByTestId("load-test-cold-cache-toggle"));
+    fireEvent.click(screen.getByTestId("load-test-start-btn"));
+
+    await waitFor(() =>
+      expect(mockEveyFetch).toHaveBeenCalledWith({
+        url: "/api/v1/admin/load-test",
+        method: "POST",
+        data: { scenario: "balanced", coldCache: true },
+      }),
+    );
+  });
+
+  it("says when a report was measured cold, so it is never compared with a warm run", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 9,
+        stopReason: "slo_breach",
+        coldCache: true,
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    expect(screen.getByTestId("load-test-cold-cache").textContent).toMatch(/storage, not the RAM/i);
   });
 
   it("shows the running state (viewers, phase, elapsed) while polling, with a cancel button", async () => {

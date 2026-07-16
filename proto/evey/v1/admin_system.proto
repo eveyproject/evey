@@ -274,6 +274,13 @@ message StartLoadTestRequest {
   // duration_sec bounds the run; 0 = mode default (4min ramp/flash/seek,
   // 30min endurance).
   int32 duration_sec = 4;
+  // cold_cache keeps evicting the library's files from the OS page cache for
+  // the whole run, so the server's reads hit the actual storage. A box whose
+  // library fits in RAM otherwise measures its memory bus and overstates the
+  // viewer count, sometimes by a factor of several. Cold measures the day the
+  // library dwarfs the RAM; warm (the default) measures today. Both are true,
+  // and the report says which one was measured.
+  bool cold_cache = 5;
 }
 
 message GetLoadTestStatusRequest {}
@@ -411,6 +418,11 @@ message LoadTestReport {
   // the STORAGE - not the CPU, not Evey - makes playback crawl. No CPU or memory
   // gauge shows any of this.
   int32 storage_collapses_at_readers = 29;
+  // cold_cache is true when the run kept evicting the library from the page
+  // cache (and the eviction actually landed): the figures were measured
+  // against the storage, not the RAM. A warm and a cold run of the same box
+  // are two different answers - never compare them as one.
+  bool cold_cache = 38;
 }
 
 // LoadTestTierCost is what ONE audience size cost the server: one row of the

@@ -572,6 +572,84 @@ func TestRunner_AHerdOfRestartingViewersIsNotAStartupVerdict(t *testing.T) {
 	}
 }
 
+// Cold-cache mode exists because a dev box lies: when the whole library sits
+// in the page cache, the disk never works and the viewer count comes out
+// several times too high (the report itself warns about it). With ColdCache
+// on, the run keeps evicting the library's files from the page cache - once
+// before the disk probe, then continuously - so the server's reads hit the
+// actual storage, the way they would when the library dwarfs the RAM.
+func TestRunner_ColdCacheKeepsEvictingTheLibrary(t *testing.T) {
+	st := newServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	candidates := manyCandidates(3)
+	for i := range candidates {
+		candidates[i].Path = fmt.Sprintf("/library/m%d.mkv", i)
+	}
+
+	var mu sync.Mutex
+	evicted := map[string]int{}
+	r := New(&http.Client{}, fakeMediaLister{candidates: candidates}, zeroActive, testLogger())
+	r.evictFile = func(path string) error {
+		mu.Lock()
+		evicted[path]++
+		mu.Unlock()
+		return nil
+	}
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, ColdCache: true,
+		MaxViewers: 3, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond,
+		MaxDuration: 10 * time.Second, ResourceSampleEvery: 50 * time.Millisecond,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	report := waitForReport(t, r, 10*time.Second)
+
+	if !report.ColdCache {
+		t.Fatalf("the report must say the run measured a cold cache: the two numbers are not comparable")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, c := range candidates {
+		if evicted[c.Path] < 2 {
+			t.Fatalf("%s evicted %d time(s), want at least 2 (once up front, then continuously): a single eviction lets the first viewer re-warm the cache for everyone else", c.Path, evicted[c.Path])
+		}
+	}
+}
+
+// And without the flag, the run must not touch the cache at all: measuring the
+// warm-cache figure is the default, and it is a valid figure - it is the report
+// that says which one was measured.
+func TestRunner_WarmCacheRunNeverEvicts(t *testing.T) {
+	st := newServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	candidates := manyCandidates(2)
+	for i := range candidates {
+		candidates[i].Path = fmt.Sprintf("/library/m%d.mkv", i)
+	}
+	evictions := 0
+	r := New(&http.Client{}, fakeMediaLister{candidates: candidates}, zeroActive, testLogger())
+	r.evictFile = func(string) error { evictions++; return nil }
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
+		MaxViewers: 2, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	report := waitForReport(t, r, 5*time.Second)
+	if report.ColdCache {
+		t.Fatalf("report claims cold cache on a default run")
+	}
+	if evictions != 0 {
+		t.Fatalf("%d evictions on a run that never asked for them", evictions)
+	}
+}
+
 // A library smaller than MaxViewers is not a capacity verdict and must never
 // end the ramp: the pool replays each title at a distinct start position. Only
 // the SERVER (SLO, admission) or the configured ceiling may stop a run.

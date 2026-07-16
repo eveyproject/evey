@@ -39,6 +39,8 @@ func adminLoadTest(args []string) error {
 	maxViewers := fs.Int("max-viewers", 0, "cap the ramp (0 = server default, 12)")
 	mode := fs.String("mode", "", "ramp (default) | flash (everyone at once) | seek (viewers jump around) | endurance (hold the tier, default 30min)")
 	durationSec := fs.Int("duration", 0, "bound the run in seconds (0 = mode default)")
+	coldCache := fs.Bool("cold-cache", false,
+		"keep evicting the library from the OS page cache, so the run measures the storage instead of the RAM (a library that fits in memory otherwise overstates the viewer count)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -75,7 +77,7 @@ func adminLoadTest(args []string) error {
 	defer stop()
 
 	start, err := loadTestReq(ctx, client, http.MethodPost, base, token,
-		map[string]any{"scenario": *scenario, "max_viewers": *maxViewers, "mode": *mode, "duration_sec": *durationSec})
+		map[string]any{"scenario": *scenario, "max_viewers": *maxViewers, "mode": *mode, "duration_sec": *durationSec, "cold_cache": *coldCache})
 	if err != nil {
 		return fmt.Errorf("start load-test (is the server running on :%d?): %w", cfg.Server.Port+1, err)
 	}
@@ -255,6 +257,9 @@ func printReport(r *eveyv1.LoadTestReport) {
 		return
 	}
 	fmt.Fprintf(os.Stderr, "\n  scenario           %s\n", r.GetScenario())
+	if r.GetColdCache() {
+		fmt.Fprintf(os.Stderr, "  page cache         evicted throughout - the figures measure the STORAGE, not the RAM\n")
+	}
 	fmt.Fprintf(os.Stderr, "  sustained viewers  %d\n", r.GetSustainedViewers())
 	fmt.Fprintf(os.Stderr, "  stopped because    %s", r.GetStopReason())
 	if d := r.GetStopDetail(); d != "" {

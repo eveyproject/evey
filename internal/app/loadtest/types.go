@@ -136,6 +136,15 @@ type Config struct {
 	// Mode is "" (ramp, the default), ModeFlash, ModeSeek or ModeEndurance.
 	// It is the HOW; Scenario stays the WHO.
 	Mode string
+	// ColdCache keeps evicting the library's files from the OS page cache for
+	// the whole run, so the server's reads hit the actual storage. On a box
+	// whose library fits in RAM, a default (warm) run measures the memory bus
+	// and overstates the viewer count "sometimes by a factor of several" - its
+	// own report says so. Cold-cache mode measures the day the library dwarfs
+	// the RAM, which is what a growing library eventually does. Neither figure
+	// is wrong; they answer different days, and the report says which one was
+	// measured.
+	ColdCache bool
 
 	// FSRoot overrides the filesystem root the resource sampler reads its
 	// counters from (/sys/fs/cgroup, /proc). Empty means the real one; tests
@@ -431,6 +440,13 @@ type Report struct {
 	// happens when the library is too big to sit in RAM. The library is simply
 	// too small (or too repeatedly read) to exercise the disk.
 	DiskReadStarved bool
+
+	// ColdCache is true when the run kept evicting the library from the page
+	// cache (and at least one eviction actually landed): the figures were
+	// measured against the storage, not the RAM. A warm and a cold run of the
+	// same box are two different answers, and they must never be compared as
+	// if they were one.
+	ColdCache bool
 
 	// SkippedCandidates counts media items an mkvgo-typed viewer tried and
 	// abandoned because the server didn't actually serve them via mkvgo
