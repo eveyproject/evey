@@ -184,14 +184,26 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 // audience recovers is how a healthy tier gets condemned.
 const minJudgeSamples = 3
 
-// regimeResumeFraction is the share of the reference per-viewer throughput a
-// freshly resized audience must regain before its tier's measurement window
-// opens. Viewers restarting after a rebuild pull a fraction of their regime
-// for many seconds; samples taken then measure the restart, not the tier.
-// Half is deliberately loose: a genuine plateau still clears it (N viewers'
-// worth of bytes over N+k heads stays well above half), while a restarting
-// audience - at a tenth of its regime - does not.
-const regimeResumeFraction = 0.5
+// regimeResumeFraction / regimeBurstCeiling bound, as multiples of the
+// reference per-viewer throughput, the band a freshly resized audience must
+// come back INTO before its tier's measurement window opens. The gate is
+// two-sided because the transient is:
+//
+//   - BELOW the band, the viewers are still restarting - a rebuilt audience
+//     pulls a fraction of its regime for many seconds, and samples taken then
+//     condemned every tier above 21 in the 2026-07-14 run;
+//   - ABOVE it, they are burst-filling their buffers all at once - more than
+//     twice any regime, and a window that opened on "at least half the
+//     reference" quoted 468 Mb/s at tier 21 against a 217 Mb/s regime in the
+//     2026-07-16 run.
+//
+// The bounds are deliberately loose: a genuine plateau stays inside them (N
+// viewers' worth of bytes over N+k heads is well above half), while a restart
+// (a tenth of the regime) and a burst (double it and more) do not.
+const (
+	regimeResumeFraction = 0.5
+	regimeBurstCeiling   = 1.5
+)
 
 // regimeWaitCapFactor bounds how long the window waits for the regime, as a
 // multiple of the tier's warm-up, measured from the tier's start. An audience
@@ -448,13 +460,17 @@ func (rs *resourceState) observe(tier int, s ResourceSample, now time.Time) (sat
 		return "", ""
 	}
 	if !rs.regimeOpen {
-		// The audience is still climbing back after the resize: its samples
-		// describe the restart, not the tier. The window opens when the
-		// per-viewer rate has regained the neighbourhood of the last measured
-		// regime - or at the hard cap, past which the failure to resume IS the
-		// tier's evidence and gets measured like anything else.
+		// The audience is not yet back at its regime after the resize: below
+		// the band its viewers are still restarting, above it they are
+		// burst-filling their buffers, and either way the samples describe the
+		// transient, not the tier. The window opens when the per-viewer rate is
+		// back INSIDE the neighbourhood of the last measured regime - or at the
+		// hard cap, past which the failure to resume IS the tier's evidence and
+		// gets measured like anything else.
+		perViewer := float64(s.ServedBytesPerSec) / float64(tier)
 		switch {
-		case float64(s.ServedBytesPerSec)/float64(tier) >= rs.regimeRefPerViewer*regimeResumeFraction:
+		case perViewer >= rs.regimeRefPerViewer*regimeResumeFraction &&
+			perViewer <= rs.regimeRefPerViewer*regimeBurstCeiling:
 			rs.regimeOpen = true
 		case now.Sub(rs.tierStartedAt) >= regimeWaitCapFactor*rs.warmup:
 			rs.regimeOpen = true

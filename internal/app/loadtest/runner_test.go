@@ -497,6 +497,81 @@ func TestRunner_SLOBreachStopsAtPriorTier(t *testing.T) {
 	}
 }
 
+// THE 2026-07-16 RESIDUAL. Between measured tiers the run may REBUILD its
+// audience: every viewer restarts at once and their first fetches all land
+// together - a herd no real audience produces. A household's 21st viewer joins
+// 20 ESTABLISHED ones; it does not start alongside them. Judging the startup
+// budget on that herd condemned tier 21 on a box whose organic joins started in
+// half a second, and handed the run a ceiling that was really the harness's own
+// restart colliding with the storage.
+//
+// A first fetch only measures "startup" when the viewer actually JOINED an
+// existing audience - so viewers respawned by a rebuild are marked as the herd,
+// and their timings neither feed the verdict nor the report's percentiles. An
+// organic newcomer's slow start remains exactly what the verdict exists to
+// catch.
+func TestRunner_AHerdOfRestartingViewersIsNotAStartupVerdict(t *testing.T) {
+	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
+	pool := newCandidatePool(manyCandidates(3), time.Minute)
+	slo := newSLOTracker(0)
+	samples := sampleState{
+		tierSegments:    map[int][]int{},
+		tierTTFF:        map[int][]int{},
+		perTypeSegments: map[viewerType]map[int][]int{},
+	}
+	flash := flashState{served: map[int]bool{}, shed: map[int]bool{}}
+	ramp := rampState{
+		tier:             21,
+		viewerTypeBySlot: map[int]viewerType{},
+		cancelBySlot:     map[int]context.CancelFunc{},
+		roundBySlot:      map[int]int{},
+		replayedByTier:   map[int]int{},
+		herdBySlot:       map[int]bool{},
+		audienceIntact:   true,
+	}
+	for slot := 1; slot <= 21+startupMinSamples; slot++ {
+		ramp.cancelBySlot[slot] = func() {}
+	}
+	cl := &climb{phase: phaseBisect, target: 21}
+	res := newResourceState(0, time.Now().Add(-time.Minute))
+	events := make(chan viewerEvent, 8)
+	var wg sync.WaitGroup
+
+	sendTTFF := func(slot, ms int) {
+		t.Helper()
+		if _, _, _, stop := r.handleViewerEvent(
+			viewerEvent{kind: evTTFF, vt: viewerTypeMkvgo, slot: slot, ms: ms},
+			false, context.Background(), Config{}, pool, events, &wg,
+			&ramp, &flash, slo, &samples, cl, res,
+		); stop {
+			t.Fatalf("a TTFF event must never stop the run outright")
+		}
+	}
+
+	// The rebuild herd: 21 respawned viewers all report a first fetch far over
+	// the startup budget - because they all started at once, not because the
+	// server is slow to admit anyone.
+	for slot := 1; slot <= 21; slot++ {
+		ramp.herdBySlot[slot] = true
+		sendTTFF(slot, startupBudgetMs*2)
+	}
+	if cl.broke != "" {
+		t.Fatalf("the rebuild herd's TTFF became a %s verdict: a household's viewers never all start at once", cl.broke)
+	}
+	if got := len(samples.tierTTFF[21]); got != 0 {
+		t.Fatalf("%d herd TTFF samples recorded: they would poison the report's startup percentiles", got)
+	}
+
+	// Organic newcomers - viewers actually joining that audience - waiting this
+	// long IS the startup verdict.
+	for slot := 22; slot <= 21+startupMinSamples; slot++ {
+		sendTTFF(slot, startupBudgetMs*2)
+	}
+	if cl.broke != StopStartupTooSlow {
+		t.Fatalf("broke = %q, want %s: a slow organic join is the real thing", cl.broke, StopStartupTooSlow)
+	}
+}
+
 // A library smaller than MaxViewers is not a capacity verdict and must never
 // end the ramp: the pool replays each title at a distinct start position. Only
 // the SERVER (SLO, admission) or the configured ceiling may stop a run.

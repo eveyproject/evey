@@ -394,6 +394,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		cancelBySlot:     map[int]context.CancelFunc{},
 		roundBySlot:      map[int]int{},
 		replayedByTier:   map[int]int{},
+		herdBySlot:       map[int]bool{},
 		audienceIntact:   true,
 	}
 	// Zero the live audience BEFORE the first viewer spawns: spawnNext counts
@@ -636,8 +637,14 @@ runLoop:
 				ramp.audienceIntact = true
 				// Every session the server was holding is now over.
 				r.audienceEpoch.Add(1)
+				// The viewers about to repopulate this audience all start at
+				// once: a herd whose first fetches must not feed the startup
+				// verdict (see evTTFF).
+				ramp.rebuilding = true
 			}
-			if ok, d := r.resizeTo(cl.target, viewerCtx, cfg, pool, events, &wg, &ramp); !ok {
+			ok, d := r.resizeTo(cl.target, viewerCtx, cfg, pool, events, &wg, &ramp)
+			ramp.rebuilding = false
+			if !ok {
 				// The pool cannot supply another viewer. Whatever held so far is
 				// the answer we have.
 				stopReason, stopDetail, sustained = StopLibraryLimit, d, cl.lo
@@ -779,6 +786,15 @@ type rampState struct {
 	consecutiveSkips int
 	viewerTypeBySlot map[int]viewerType
 
+	// rebuilding is true while resizeTo is repopulating a REBUILT audience;
+	// herdBySlot marks the viewers spawned that way. Their first fetches all
+	// land together - a start no real audience produces - so their TTFF must
+	// never feed the startup verdict, nor the report's startup percentiles.
+	// A viewer that organically joins an established audience is unmarked:
+	// its first fetch is exactly what the startup verdict measures.
+	rebuilding bool
+	herdBySlot map[int]bool
+
 	// cancelBySlot lets the ramp take viewers AWAY, not just add them - which
 	// is what makes the bisection possible at all. Each viewer owns a context
 	// derived from the run's, so shedding one leaves the others untouched.
@@ -800,6 +816,7 @@ func (r *Runner) shedTo(ramp *rampState, target int) {
 		}
 		cancel()
 		delete(ramp.cancelBySlot, slot)
+		delete(ramp.herdBySlot, slot)
 		ramp.tier--
 		r.liveViewers.Add(-1)
 		if ramp.viewerTypeBySlot[slot] == viewerTypeTranscode {
@@ -838,6 +855,9 @@ func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, pool *candidat
 	}
 	ramp.viewerTypeBySlot[slot] = vt
 	ramp.roundBySlot[slot] = asg.round
+	if ramp.rebuilding {
+		ramp.herdBySlot[slot] = true
+	}
 
 	// Its own context, so the bisection can shed THIS viewer without touching
 	// any other.
@@ -1144,11 +1164,24 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 	case evTTFF:
 		// A viewer got its first segment: the library is not a dead end.
 		ramp.consecutiveSkips = 0
-		samples.tierTTFF[ramp.tier] = append(samples.tierTTFF[ramp.tier], ev.ms)
 		if isFlash {
+			// The whole point of a flash slam is everyone starting at once: the
+			// herd IS the measurement there.
+			samples.tierTTFF[ramp.tier] = append(samples.tierTTFF[ramp.tier], ev.ms)
 			flash.served[ev.slot] = true
 			break
 		}
+		// A first-fetch timing only counts when the viewer joined an EXISTING
+		// audience. After a REBUILD every viewer restarts at once and their
+		// first fetches all land together - a herd no real audience produces: a
+		// household's 21st viewer joins 20 ESTABLISHED ones, it does not start
+		// alongside them. Judging the startup budget on the herd condemns a
+		// tier whose organic joins are instant, and hands the run a ceiling
+		// that is really its own restart colliding with the storage.
+		if ramp.herdBySlot[ev.slot] {
+			return "", "", 0, false
+		}
+		samples.tierTTFF[ramp.tier] = append(samples.tierTTFF[ramp.tier], ev.ms)
 		// Startup is judged on its own. A server can be feeding its existing
 		// viewers perfectly well and still take six seconds to let a new one
 		// start watching - which, to the person holding the remote, IS the
@@ -1231,8 +1264,15 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 		if ramp.consecutiveSkips >= len(pool.candidates) {
 			return StopLibraryLimit, fmt.Sprintf("no mkvgo-eligible title in the library (%d tried, all served by the transcoder)", ramp.skippedCandidates), cl.lo, true
 		}
+		// The replacement inherits the herd flag: a retry spawned into a still
+		// recovering rebuild starts alongside it, it does not "join" anything.
+		wasHerd := ramp.herdBySlot[ev.slot]
 		r.dropViewer(ramp, ev.slot)
-		if ok, d := r.spawnNext(viewerCtx, cfg, pool, events, wg, ramp); !ok {
+		prevRebuilding := ramp.rebuilding
+		ramp.rebuilding = wasHerd
+		ok, d := r.spawnNext(viewerCtx, cfg, pool, events, wg, ramp)
+		ramp.rebuilding = prevRebuilding
+		if !ok {
 			return StopLibraryLimit, d, cl.lo, true
 		}
 	}
@@ -1339,6 +1379,7 @@ func (r *Runner) dropViewer(ramp *rampState, slot int) {
 	}
 	cancel()
 	delete(ramp.cancelBySlot, slot)
+	delete(ramp.herdBySlot, slot)
 	ramp.tier--
 	r.liveViewers.Add(-1)
 	if ramp.viewerTypeBySlot[slot] == viewerTypeTranscode {

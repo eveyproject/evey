@@ -526,6 +526,50 @@ func TestResourceState_ARestartingAudienceIsNotMeasured(t *testing.T) {
 	}
 }
 
+// The regime gate must be TWO-sided. After a rebuild every viewer burst-fills
+// its buffer at once: for the first seconds the audience pulls MORE per viewer
+// than any regime does - the 2026-07-16 dev run quoted 468 Mb/s at tier 21
+// against a 217 Mb/s regime at 20 - and a window that opens on "at least half
+// the reference" opens right into that burst. Above the band is as unsettled
+// as below it.
+func TestResourceState_AJoinBurstDoesNotOpenTheWindow(t *testing.T) {
+	start := time.Now()
+	rs := newResourceState(10*time.Second, start)
+	const perViewer = int64(3 << 20)
+
+	rs.startTier(20, start, true)
+	at := start.Add(11 * time.Second)
+	for range 5 {
+		rs.observe(20, ResourceSample{ServedBytesPerSec: 20 * perViewer, DiskReadBytesPerSec: 20 * perViewer}, at)
+		at = at.Add(2 * time.Second)
+	}
+
+	// Rebuild at 21: everyone restarts and burst-fills, at three times the
+	// regime, still inside the cap.
+	t2 := at
+	rs.startTier(21, t2, true)
+	at = t2.Add(11 * time.Second)
+	for range 3 {
+		rs.observe(21, ResourceSample{ServedBytesPerSec: 3 * 21 * perViewer, DiskReadBytesPerSec: 3 * 21 * perViewer}, at)
+		at = at.Add(2 * time.Second)
+	}
+	if got := rs.stats(21).Samples; got != 0 {
+		t.Fatalf("recorded %d burst samples: a tier's throughput must not be quoted from its own join burst", got)
+	}
+
+	// The burst subsides into the regime: from here the samples are the tier's.
+	for range 5 {
+		rs.observe(21, ResourceSample{ServedBytesPerSec: 21 * perViewer, DiskReadBytesPerSec: 21 * perViewer}, at)
+		at = at.Add(2 * time.Second)
+	}
+	if got := rs.stats(21).Samples; got == 0 {
+		t.Fatalf("no samples recorded once the burst subsided into the regime")
+	}
+	if avg := rs.stats(21).ServedBytesPerSecAvg; avg > 21*perViewer*11/10 {
+		t.Fatalf("tier 21 avg served = %d, want ~%d: the join burst leaked into the tier's record", avg, 21*perViewer)
+	}
+}
+
 // If the audience NEVER regains its regime, that failure IS the tier's evidence:
 // past a hard cap the samples count, dip or not, and the degraded throughput is
 // judged for what it is. The gate delays the window, it never blinds the run.
