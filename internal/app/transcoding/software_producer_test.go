@@ -582,8 +582,19 @@ func TestSoftwareProducer_DistinctVariantCapEvictsLRURung(t *testing.T) {
 	fp := threeRungFingerprint(t)
 	hash := fp.Hash()
 
+	// The cap's LRU choice is about ESTABLISHED rungs (the newborn shield has
+	// its own test below): age each spawn past the shield before the next.
+	ageAll := func() {
+		p.mu.Lock()
+		for _, s := range p.sessions[hash] {
+			s.spawnedAt = s.spawnedAt.Add(-time.Hour)
+		}
+		p.mu.Unlock()
+	}
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0)) // rung 0 (oldest)
+	ageAll()
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 0)) // rung 1
+	ageAll()
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 2, 0)) // rung 2 -> evicts LRU rung 0
 
 	p.mu.Lock()
@@ -597,6 +608,61 @@ func TestSoftwareProducer_DistinctVariantCapEvictsLRURung(t *testing.T) {
 	assert.True(t, variants[1] && variants[2], "the two most-recent rungs survive")
 }
 
+// THE PERPETUAL SPINNER (2026-07-15, 22:42-22:44 prod). The player was blocked
+// on variant 3's segment 0; requests for other rungs kept spawning encoders,
+// each spawn crossed a cap, and the eviction killed the very session the
+// player was waiting on - before it had produced a single byte. The retry
+// respawned it, which evicted the next sibling, whose waiter retried... every
+// encoder died at half of its first segment and nothing was ever delivered.
+//
+// A NEWBORN session - one that has not yet delivered its first segment - is
+// exactly the thing an active Wait depends on. It is shielded from cap
+// eviction for a grace window: keeping it over-cap is safe because the pause
+// machinery (pauseSiblingsBehind / pauseOtherVariants) already SIGSTOPs the
+// non-requested encoders, so the cap's CPU intent holds; only the kill turns
+// overload into livelock.
+func TestSoftwareProducer_ANewbornEncoderIsNotEvictedBeforeItsFirstDelivery(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := swTestOpts()
+	opts.MaxSessionsPerHash = 2
+	opts.MaxConcurrentVariantsPerHash = 2
+	opts.NewbornEvictionShield = time.Minute
+	p := NewSoftwareProducer(cache, proc, stubSource{path: "/m.mkv"}, opts, discardLogger())
+	defer p.Close()
+
+	fp := threeRungFingerprint(t)
+	hash := fp.Hash()
+
+	// The prod shape: three rungs probed within seconds, none has delivered.
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 2, 0))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 1, 0))
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 0))
+
+	p.mu.Lock()
+	variants := map[int]bool{}
+	for _, s := range p.sessions[hash] {
+		variants[s.variantIdx] = true
+	}
+	p.mu.Unlock()
+	for v := 0; v <= 2; v++ {
+		assert.True(t, variants[v], "rung %d's newborn encoder must survive its siblings' spawns: killing it is the 2026-07-15 spinner", v)
+	}
+	assert.Equal(t, 3, p.ActiveSessionCount(), "newborns ride over the cap (paused), they are not killed")
+
+	// Once the grace window has passed, the caps bite again: the shield delays
+	// eviction, it never repeals the bound.
+	p.mu.Lock()
+	for _, s := range p.sessions[hash] {
+		s.spawnedAt = time.Now().Add(-2 * opts.NewbornEvictionShield)
+		s.lastAccess = time.Now().Add(-2 * opts.NewbornEvictionShield)
+	}
+	p.mu.Unlock()
+	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 2, 500))
+
+	assert.Less(t, p.ActiveSessionCount(), 4, "past the grace window the caps evict again")
+}
+
 func TestSoftwareProducer_MaxSessionsPerHashEvictsLRU(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
@@ -607,11 +673,23 @@ func TestSoftwareProducer_MaxSessionsPerHashEvictsLRU(t *testing.T) {
 
 	fp := minimalFingerprint(t)
 	hash := fp.Hash()
+	// ageAll pushes every live session past the newborn shield: this test is
+	// about the cap's LRU choice among ESTABLISHED encoders, not about the
+	// shield (which has its own test above).
+	ageAll := func() {
+		p.mu.Lock()
+		for _, s := range p.sessions[hash] {
+			s.spawnedAt = s.spawnedAt.Add(-time.Hour)
+		}
+		p.mu.Unlock()
+	}
 	// Three DESCENDING positions: each is below every existing start, so each
 	// spawns its own encoder. The 3rd crosses MaxSessionsPerHash=2 → the LRU
 	// (the oldest-touched, segment 300) is evicted.
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 300))
+	ageAll()
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 200))
+	ageAll()
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), fp, 0, 100))
 
 	assert.Equal(t, 3, proc.startCount(), "three distinct lower positions each spawn an encoder")

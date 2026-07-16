@@ -113,11 +113,22 @@ func (p *SoftwareProducer) evictLRUIfFullLocked(hash string) *swSession {
 	var victim *swSession
 	victimIdx := -1
 	var oldest time.Time
+	now := time.Now()
 	for i := range list[:len(list)-1] {
 		s := list[i]
 		s.mu.Lock()
 		la := s.lastAccess
+		newborn := p.newbornLocked(s, now)
 		s.mu.Unlock()
+		if newborn {
+			// A session that has not yet delivered its first segment is what
+			// an active Wait depends on: killing it turns overload into the
+			// 2026-07-15 perpetual-spinner livelock (kill → waiter retries →
+			// respawn → kills the next sibling → ...). It rides over the cap
+			// for the grace window instead - SIGSTOPped by the pause machinery,
+			// so it costs memory, not CPU.
+			continue
+		}
 		if victim == nil || la.Before(oldest) {
 			victim = s
 			victimIdx = i
@@ -131,6 +142,12 @@ func (p *SoftwareProducer) evictLRUIfFullLocked(hash string) *swSession {
 	return victim
 }
 
+// newbornLocked reports that s has not yet delivered its first segment and is
+// still inside its eviction-shield window. Caller must hold s.mu.
+func (p *SoftwareProducer) newbornLocked(s *swSession, now time.Time) bool {
+	return s.frontier <= s.startSeg && now.Sub(s.spawnedAt) < p.opts.NewbornEvictionShield
+}
+
 // evictExcessVariantsLocked enforces MaxConcurrentVariantsPerHash: if the hash now
 // has more DISTINCT live rungs than the cap, it drops the least-recently-used rungs
 // (never keepVariant, the one just spawned) and returns every session of those
@@ -140,9 +157,18 @@ func (p *SoftwareProducer) evictLRUIfFullLocked(hash string) *swSession {
 func (p *SoftwareProducer) evictExcessVariantsLocked(hash string, keepVariant int) []*swSession {
 	list := p.sessions[hash]
 	newest := map[int]time.Time{} // most-recent access per distinct rung
+	shielded := map[int]bool{}    // rung holds a newborn: see newbornLocked
+	now := time.Now()
 	for _, s := range list {
 		s.mu.Lock()
 		la, v := s.lastAccess, s.variantIdx
+		if p.newbornLocked(s, now) {
+			// A rung whose encoder has not yet delivered its first segment is
+			// what an active Wait depends on - killing it is the 2026-07-15
+			// spinner livelock. The rung rides over the cap (SIGSTOPped) for
+			// the grace window instead.
+			shielded[v] = true
+		}
 		s.mu.Unlock()
 		if la.After(newest[v]) {
 			newest[v] = la
@@ -156,7 +182,7 @@ func (p *SoftwareProducer) evictExcessVariantsLocked(hash string, keepVariant in
 		lru, have := -1, false
 		var lruTime time.Time
 		for v, t := range newest {
-			if v == keepVariant {
+			if v == keepVariant || shielded[v] {
 				continue
 			}
 			if _, gone := evict[v]; gone {

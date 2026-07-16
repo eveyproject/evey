@@ -162,6 +162,27 @@ type SoftwareProducerOptions struct {
 	// distinct position then evicts the first - the pre-fix behaviour).
 	MaxSessionsPerHash int
 
+	// NewbornEvictionShield is how long a freshly-spawned encoder that has NOT
+	// yet delivered its first segment is protected from cap eviction
+	// (MaxSessionsPerHash / MaxConcurrentVariantsPerHash).
+	//
+	// A newborn is exactly what an active SegmentCache.Wait depends on: killing
+	// it turns overload into LIVELOCK. On 2026-07-15 a player blocked on one
+	// rung's segment 0 watched its encoder die to a sibling's spawn, retried,
+	// respawned it - which evicted the sibling, whose waiter retried in turn.
+	// Every encoder was killed at half of its first segment; N encoders did
+	// more work than any single admitted one and delivered nothing, for two
+	// minutes ("perpetual spinner").
+	//
+	// Riding over the cap for the grace window is safe: pauseSiblingsBehind /
+	// pauseOtherVariants SIGSTOP every non-requested encoder, so the cap's CPU
+	// intent holds - the shield only defers the KILL. Once a session has
+	// delivered (its frontier moved past its start) or the window has passed,
+	// the caps bite exactly as before. Default 60s: past the segment wait
+	// timeout, so a slow first segment gets a second wait cycle on the same
+	// encoder instead of a fresh spawn.
+	NewbornEvictionShield time.Duration
+
 	// MaxConcurrentVariantsPerHash bounds how many DISTINCT rungs (variantIdx) may
 	// have a live encoder for one film at once - the anti-thrash ceiling on a weak
 	// NAS where each rung is its own full 4K decode (the software path never shares
@@ -228,6 +249,9 @@ func (o SoftwareProducerOptions) withDefaults() SoftwareProducerOptions {
 	if out.MaxConcurrentVariantsPerHash <= 0 {
 		out.MaxConcurrentVariantsPerHash = 2
 	}
+	if out.NewbornEvictionShield <= 0 {
+		out.NewbornEvictionShield = 60 * time.Second
+	}
 	if out.SeekReachWindowSegs <= 0 {
 		out.SeekReachWindowSegs = 16
 	}
@@ -268,7 +292,14 @@ type swSession struct {
 	// by mu; initialised to startSeg.
 	frontier   int
 	lastAccess time.Time
-	paused     bool
+	// spawnedAt is when this encoder started. Together with "frontier still at
+	// startSeg" it defines a NEWBORN - a session that has not yet delivered its
+	// first segment and is therefore exactly what an active Wait depends on.
+	// Newborns are shielded from cap eviction for NewbornEvictionShield (see
+	// the option doc: killing them turns overload into the 2026-07-15
+	// perpetual-spinner livelock). Guarded by mu (tests age it).
+	spawnedAt time.Time
+	paused    bool
 	// pausedSince is when this session was most recently SIGSTOPped (zero when
 	// running). Set by sweepPause/pauseEach, cleared by resumeIfPaused. Drives
 	// the KillPausedAfter sweep: a session paused continuously past that
@@ -789,6 +820,7 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		startSeg:          startSeg,
 		frontier:          startSeg,
 		lastAccess:        time.Now(),
+		spawnedAt:         time.Now(),
 		useFMP4:           fp.UseFMP4,
 		teardown:          teardown,
 		cancelCtx:         cancel,
@@ -823,12 +855,23 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 	// outside the lock - killSession reacquires p.mu.
 	victim := p.evictLRUIfFullLocked(hash)
 	variantVictims := p.evictExcessVariantsLocked(hash, variantIdx)
+	liveCount := len(p.sessions[hash])
+	overCap := liveCount > p.opts.MaxSessionsPerHash
 	p.mu.Unlock()
 
 	if victim != nil {
 		p.logger.Info("software: per-hash cap reached, evicting LRU encoder",
 			slog.String("hash", hash), slog.Int("cap", p.opts.MaxSessionsPerHash))
 		p.killSession(victim, "lru_cap")
+	} else if overCap {
+		// Every older sibling is a newborn an active Wait may depend on:
+		// keeping them (paused) over the cap for the grace window is what
+		// prevents the 2026-07-15 kill/respawn livelock. Logged because an
+		// operator watching the encoder count deserves to know the cap is
+		// deliberately, temporarily exceeded.
+		p.logger.Info("software: per-hash cap exceeded, newborn encoders kept until first delivery",
+			slog.String("hash", hash), slog.Int("cap", p.opts.MaxSessionsPerHash),
+			slog.Int("live", liveCount))
 	}
 	for _, v := range variantVictims {
 		p.logger.Info("software: distinct-variant cap reached, evicting LRU rung's encoder",
