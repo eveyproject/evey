@@ -438,17 +438,40 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// The decision hash rides the log line: it names the ffmpeg sessions and
 	// the cache directory this master's segments resolve to. During the
 	// 2026-07-15 incident, correlating "master served, 3 profiles" with the
-	// sessions that actually ran took inference - one field ends that.
-	fpHash := ""
-	if fp, fpErr := h.buildFingerprint(r, mediaID, item, streams); fpErr == nil {
-		fpHash = fp.Hash()
-	}
+	// sessions that actually ran took inference - one field ends that. Same
+	// value the manifest just sealed into its URIs.
 	slog.Info("hls-vod: master served",
 		slog.String("media_id", mediaID),
 		slog.Int("profiles", len(in.Profiles)),
 		slog.Int("segments_per_variant", in.SegmentCount()),
-		slog.String("fp", fpHash),
+		slog.String("fp", in.FingerprintHash),
 	)
+}
+
+// refuseStaleFP compares the fp the manifest sealed into this URL against the
+// decision hash of THIS moment. A mismatch means the ladder reshaped since the
+// player fetched its master (capability flap, admission pin gone cold): the
+// URL's index now names a DIFFERENT rendition, and serving it would hand the
+// decoder a stranger's bytes - the 2026-07-15 rainbow screen. Refuse with 410;
+// the player refetches the master and rebuilds coherently. A URL with no fp
+// (pre-feature client, cached link) is served as before: degrade open.
+//
+// The WARN is as valuable as the refusal: it is the direct detector of a
+// ladder that moved under a live player, which previously left no trace.
+func (h *hlsVODServe) refuseStaleFP(w http.ResponseWriter, r *http.Request, currentFP, mediaID, file string) bool {
+	sealed := r.URL.Query().Get("fp")
+	if sealed == "" || currentFP == "" || sealed == currentFP {
+		return false
+	}
+	slog.Warn("hls-vod: stale rendition URL refused (the ladder moved under a live player)",
+		slog.String("media_id", mediaID),
+		slog.String("file", file),
+		slog.String("sealed_fp", sealed),
+		slog.String("current_fp", currentFP),
+	)
+	w.Header().Set("X-Evey-Error", "stale_rendition")
+	http.Error(w, `{"message":"this URL belongs to a reshaped playback session; refetch the master playlist"}`, http.StatusGone)
+	return true
 }
 
 func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
@@ -462,6 +485,10 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	in, err := h.buildManifestInput(r, mediaID, item, streams)
 	if err != nil {
 		h.writeManifestErr(w, span, err, mediaID)
+		return
+	}
+	if h.refuseStaleFP(w, r, in.FingerprintHash, mediaID, file) {
+		span.SetStatus(codes.Error, "stale rendition url")
 		return
 	}
 	if profileIdx < 0 || profileIdx >= len(in.Profiles) {
@@ -610,6 +637,13 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	fp, err := h.buildFingerprint(r, mediaID, item, streams)
 	if err != nil {
 		h.writeManifestErr(w, span, err, mediaID)
+		return
+	}
+	// The seal check runs BEFORE any producer/cache work: a stale URL must not
+	// spawn a rafale for a ladder the player is no longer holding, and above
+	// all must not serve bytes from a rendition its init segment never named.
+	if h.refuseStaleFP(w, r, fp.Hash(), mediaID, file) {
+		span.SetStatus(codes.Error, "stale rendition url")
 		return
 	}
 

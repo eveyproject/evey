@@ -137,6 +137,17 @@ type ManifestInput struct {
 	// stateless video from PlanHLS + transcoded AAC audio). Empty preserves the
 	// stream_N.m3u8 default bit-for-bit.
 	VideoPlaylistURI string
+
+	// FingerprintHash seals the decision hash of the moment this manifest was
+	// built into every URI it emits (fp=…). Variant and segment URLs name a
+	// LADDER INDEX (stream_2), and the server re-derives the ladder on every
+	// request: if it reshapes mid-play (a capability flap, an admission pin
+	// gone cold), the same URL silently maps to a DIFFERENT rendition and the
+	// player concatenates a stranger's bytes onto its init segment - the
+	// 2026-07-15 rainbow screen. With the hash sealed in, a request whose fp no
+	// longer matches is refused (410) and the player refetches a coherent
+	// master instead. Empty emits no fp param (no check, pre-feature shape).
+	FingerprintHash string
 }
 
 // AudioRendition describes a single source audio track exposed as an
@@ -648,6 +659,11 @@ func querySuffix(in ManifestInput) string {
 	q := url.Values{}
 	if in.StreamToken != "" {
 		q.Set("token", in.StreamToken)
+	}
+	if in.FingerprintHash != "" {
+		// The rendition identity seal - see the field doc. Rides every URI the
+		// manifest emits, exactly like the decision inputs below.
+		q.Set("fp", in.FingerprintHash)
 	}
 	q.Set("audioTrack", fmt.Sprintf("%d", in.AudioTrack))
 	if in.SubtitleBurnInTrack >= 0 {

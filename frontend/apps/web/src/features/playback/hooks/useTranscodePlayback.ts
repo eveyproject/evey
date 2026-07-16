@@ -344,7 +344,14 @@ export function useTranscodePlayback({
           })();
           return;
         }
-        if (data.response?.code === 404) {
+        // 404: the session's segments are gone (cache eviction, restart).
+        // 410: the server refused a STALE rendition URL - the ladder reshaped
+        // under this player (capability flap, admission change) and our URLs
+        // no longer name the renditions we think they do. Serving them anyway
+        // is how the 2026-07-15 rainbow screen happened; the cure is the same
+        // as the 404's: rebuild the player at the current position, which
+        // refetches a coherent master with fresh sealed URLs.
+        if (data.response?.code === 404 || data.response?.code === 410) {
           consecutive404++;
           if (consecutive404 >= 2) {
             hls.destroy();
@@ -356,6 +363,13 @@ export function useTranscodePlayback({
           const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
           if (seekPos > 0) {
             setTranscodeStartTime(seekPos);
+          } else {
+            // At position 0 the state setter is a no-op (same value, no
+            // re-render): refetch the master in place instead, 401-style. The
+            // fresh master carries freshly sealed URLs.
+            const freshUrl = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, selectedBurnInTrack, 0, audioOffsetMs, gapless);
+            hls.loadSource(freshUrl);
+            hls.startLoad();
           }
           return;
         }

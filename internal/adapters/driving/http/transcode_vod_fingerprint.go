@@ -135,7 +135,24 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		// background enrichment flips copy-eligibility mid-play.
 		PinnedVideoDecision: pinnedVideoDecision(r, decision),
 		PinnedAudioDecision: pinnedAudioDecision(r, decision),
+		// Seal this moment's decision hash into every URI the manifest emits.
+		// stream_N is a ladder INDEX; if the ladder reshapes mid-play the same
+		// URL silently maps to another rendition (the 2026-07-15 rainbow). A
+		// later request whose fp no longer matches is refused with 410 instead
+		// of serving a stranger's bytes. Best-effort: an unbuildable
+		// fingerprint leaves the param off (no seal, pre-feature behaviour).
+		FingerprintHash: h.currentFPHash(r, mediaID, item, streams),
 	}, nil
+}
+
+// currentFPHash is the decision hash of this very request - the value the
+// manifests seal into their URIs and the stale-URL check compares against.
+func (h *hlsVODServe) currentFPHash(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) string {
+	fp, err := h.buildFingerprint(r, mediaID, item, streams)
+	if err != nil {
+		return ""
+	}
+	return fp.Hash()
 }
 
 // audioOffsetMsQuery parses the user's audio resync request (ms; positive =
