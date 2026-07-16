@@ -291,6 +291,34 @@ describe("LoadTestCard", () => {
     expect(screen.getByTestId("load-test-cold-cache").textContent).toMatch(/storage, not the RAM/i);
   });
 
+  it("keeps the card lean: what-is-measured behind the info button, metrology folded under a details block", async () => {
+    mockLoadTestStatus = {
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 9,
+        stopReason: "slo_breach",
+        viewerMix: { mkvgo: 9 },
+        harnessCpuMeasured: true,
+        harnessCpuFraction: 0.14,
+      },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    // The two-line explanation of what the test measures lives behind the
+    // info button next to the heading, not as standing paragraphs.
+    expect(screen.getByRole("button", { name: "Load test" })).toBeTruthy();
+    expect(screen.queryByTestId("load-test-no-ceiling")).toBeNull();
+
+    // The secondary lines (mix, harness correction) sit inside the fold.
+    const details = screen.getByTestId("load-test-details");
+    expect(details.contains(screen.getByTestId("load-test-viewer-mix"))).toBe(true);
+    expect(details.contains(screen.getByTestId("load-test-harness-cpu"))).toBe(true);
+    // The verdict does not: it IS the answer.
+    expect(details.contains(screen.getByTestId("load-test-stop-reason"))).toBe(false);
+  });
+
   it("does not tell a cold run that its library fits in RAM: a silent disk then means unaccountable reads", async () => {
     mockLoadTestStatus = {
       running: false,

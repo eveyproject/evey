@@ -18,6 +18,7 @@ import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { Spinner } from "@/components/ui/Spinner";
 import { EncodeCalibrationCard } from "@/features/admin/EncodeCalibrationCard";
 
@@ -505,7 +506,15 @@ function LoadTestCard() {
 
   return (
     <div className="flex flex-col gap-3 pt-3 mt-2 border-t border-[var(--border)]" data-testid="load-test-card">
-      <h4 className="text-sm font-semibold text-[var(--text)]">{t("admin.loadtest.heading")}</h4>
+      {/* The what-does-this-measure explanation lives behind the info button,
+          not as standing paragraphs: it is read once, the card is used often. */}
+      <h4 className="text-sm font-semibold text-[var(--text)] flex items-center gap-1">
+        {t("admin.loadtest.heading")}
+        <InfoTooltip label={t("admin.loadtest.heading")}>
+          <span className="block">{t("admin.loadtest.idleDescription")}</span>
+          <span className="block mt-1.5">{t("admin.loadtest.noCeilingLine")}</span>
+        </InfoTooltip>
+      </h4>
 
       {running && status ? (
         <div className="flex flex-col gap-2" data-testid="load-test-running">
@@ -531,29 +540,63 @@ function LoadTestCard() {
         <>
           {report && (
             <div className="flex flex-col gap-1.5" data-testid="load-test-report">
+              {/* The answer, then the verdict, then anything that changes how to
+                  READ the answer (cold cache, blind disk, collapsing storage).
+                  Everything else is metrology and lives folded below the table:
+                  an operator sizing a machine needs three lines, not fifteen. */}
               <p className="text-xl font-bold text-[var(--text)]">
                 {t("admin.loadtest.reportHeadline", {
                   count: report.sustainedViewers ?? 0,
                   scenario: t(SCENARIO_NOUN_KEYS[report.scenario ?? "balanced"]),
                 })}
               </p>
-              {/* The calibration predicts TRANSCODE streams, so it may only be
-                  compared against the transcode viewers this run actually held.
-                  Showing "~2 predicted" next to 61 direct-play viewers compares
-                  an encoder budget to a file server and reads as a wild miss,
-                  when the two numbers simply measure different things. */}
-              {predicted !== undefined && (report.viewerMix?.transcode ?? 0) > 0 && (
-                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-predicted">
-                  {t("admin.loadtest.predictedLine", {
-                    count: predicted,
-                    measured: report.viewerMix?.transcode ?? 0,
-                  })}
+              {/* The verdict. When a resource gave out, THAT is the answer the
+                  operator came for - the viewer count above is only its
+                  consequence. stopDetail stays in the logs: it is the server's
+                  own diagnostic string, English and technical. */}
+              <p
+                className={
+                  report.stopReason && BOTTLENECK_REASONS.includes(report.stopReason)
+                    ? "text-sm font-medium text-[var(--text)]"
+                    : "text-sm text-[var(--text-muted)]"
+                }
+                data-testid="load-test-stop-reason"
+              >
+                {t(
+                  (report.stopReason && STOP_REASON_KEYS[report.stopReason]) ??
+                    "admin.loadtest.stopReason.error",
+                )}
+              </p>
+              {report.stopReason === "max_viewers" && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-no-bottleneck">
+                  {t("admin.loadtest.noBottleneckHint")}
                 </p>
               )}
-              {report.viewerMix && Object.keys(report.viewerMix).length > 0 && (
-                <p className="text-sm text-[var(--text)]" data-testid="load-test-viewer-mix">
-                  {t("admin.loadtest.viewerMixLine", {
-                    parts: mixParts(t, report.viewerMix, "admin.loadtest.mixPart", "count"),
+              {/* A cold-cache run measured the storage on purpose: say so, or
+                  its (lower) figure gets compared against a warm run's as if
+                  the server had regressed. */}
+              {report.coldCache && (
+                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-cold-cache">
+                  {t("admin.loadtest.coldCacheLine")}
+                </p>
+              )}
+              {/* Same signal, two different truths. Warm run: the disk sat idle
+                  because the RAM served everything - the count is overstated.
+                  Cold run: the cache WAS being evicted, so a silent disk means
+                  the kernel cannot see the reads at all (a network/9p mount, or
+                  a cache outside this OS - a VM host, a NAS controller). */}
+              {report.diskReadStarved && (
+                <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-starved">
+                  {t(report.coldCache ? "admin.loadtest.coldCacheStillStarvedLine" : "admin.loadtest.servedFromCacheLine")}
+                </p>
+              )}
+              {/* Storage that SERIALISES is invisible to every gauge and quietly
+                  decides how many people can watch. It stays: it is not a detail,
+                  it is a hardware verdict. */}
+              {(report.storageCollapsesAtReaders ?? 0) > 0 && (
+                <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-storage-collapse">
+                  {t("admin.loadtest.storageCollapseLine", {
+                    count: report.storageCollapsesAtReaders ?? 0,
                   })}
                 </p>
               )}
@@ -562,31 +605,12 @@ function LoadTestCard() {
                   p50: Math.round(report.ttffMsP50 ?? 0),
                   p95: Math.round(report.ttffMsP95 ?? 0),
                 })}
-              </p>
-              <p className="text-sm text-[var(--text-muted)]">
+                {" · "}
                 {t("admin.loadtest.segmentLine", {
                   p50: Math.round(report.segmentMsP50 ?? 0),
                   p95: Math.round(report.segmentMsP95 ?? 0),
                 })}
               </p>
-              {report.segmentMsP95ByType && Object.keys(report.segmentMsP95ByType).length > 0 && (
-                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-segment-by-type">
-                  {t("admin.loadtest.segmentByTypeLine", {
-                    parts: mixParts(t, report.segmentMsP95ByType, "admin.loadtest.segmentByTypePart", "ms"),
-                  })}
-                </p>
-              )}
-              {/* Each path is judged against its OWN segment length: mkvgo packages
-                  on keyframe boundaries, the ffmpeg ladder emits 3s segments. A
-                  single shared budget would measure one path with the other's
-                  yardstick - and the looser one always wins. */}
-              {report.segmentSloMsByType && Object.keys(report.segmentSloMsByType).length > 0 && (
-                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-slo-by-type">
-                  {t("admin.loadtest.sloByTypeLine", {
-                    parts: mixParts(t, report.segmentSloMsByType, "admin.loadtest.segmentByTypePart", "ms"),
-                  })}
-                </p>
-              )}
 
               {/* What those viewers actually COST the box, one row per audience
                   size the run measured - the climb itself, not just the rung it
@@ -652,92 +676,77 @@ function LoadTestCard() {
                   The run measures that share and subtracts it - and says so, because
                   an operator who does not know the correction was applied cannot
                   trust the number he is sizing his hardware on. */}
-              {report.harnessCpuMeasured && (
-                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-harness-cpu">
-                  {t("admin.loadtest.harnessCpuLine", {
-                    pct: Math.round((report.harnessCpuFraction ?? 0) * 100),
-                  })}
-                </p>
-              )}
-              {/* The result is a MIRAGE when the disk barely moved: the operating
-                  system served everything from RAM, so the run measured the page
-                  cache rather than the server. It happens whenever the library is
-                  small enough to sit in memory (a dev box, a test library) - and
-                  the viewer count it produces can be several times the truth. */}
-              {/* A cold-cache run measured the storage on purpose: say so, or
-                  its (lower) figure gets compared against a warm run's as if
-                  the server had regressed. */}
-              {report.coldCache && (
-                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-cold-cache">
-                  {t("admin.loadtest.coldCacheLine")}
-                </p>
-              )}
-              {/* Same signal, two different truths. Warm run: the disk sat idle
-                  because the RAM served everything - the count is overstated.
-                  Cold run: the cache WAS being evicted, so a silent disk means
-                  the kernel cannot see the reads at all (a network/9p mount, or
-                  a cache outside this OS - a VM host, a NAS controller). Telling
-                  the operator "your library fits in RAM" on a run that spent its
-                  whole life evicting it would contradict the line above. */}
-              {report.diskReadStarved && (
-                <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-starved">
-                  {t(report.coldCache ? "admin.loadtest.coldCacheStillStarvedLine" : "admin.loadtest.servedFromCacheLine")}
-                </p>
-              )}
-              {/* Storage that SERIALISES is invisible to every gauge and quietly
-                  decides how many people can watch. It stays: it is not a detail,
-                  it is a hardware verdict. */}
-              {(report.storageCollapsesAtReaders ?? 0) > 0 && (
-                <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-storage-collapse">
-                  {t("admin.loadtest.storageCollapseLine", {
-                    count: report.storageCollapsesAtReaders ?? 0,
-                  })}
-                </p>
-              )}
-              {(report.sharedCacheViewers ?? 0) > 0 && (
-                <p className="text-sm text-[var(--text-muted)]">
-                  {t("admin.loadtest.sharedCacheLine", { count: report.sharedCacheViewers })}
-                </p>
-              )}
-              {(report.skippedCandidates ?? 0) > 0 && (
-                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-skipped">
-                  {t("admin.loadtest.skippedCandidatesLine", { count: report.skippedCandidates })}
-                </p>
-              )}
-              {/* The verdict. When a resource gave out, THAT is the answer the
-                  operator came for - the viewer count above is only its
-                  consequence. When it didn't, say so plainly rather than let a
-                  ceiling that was never reached pass for a capacity result. */}
-              <p
-                className={
-                  report.stopReason && BOTTLENECK_REASONS.includes(report.stopReason)
-                    ? "text-sm font-medium text-[var(--text)]"
-                    : "text-sm text-[var(--text-muted)]"
-                }
-                data-testid="load-test-stop-reason"
-              >
-                {/* The verdict, and only the verdict. stopDetail is the server's
-                    own diagnostic string - English, technical, and written for a
-                    log line; every figure it carries is already on screen above,
-                    translated. */}
-                {t(
-                  (report.stopReason && STOP_REASON_KEYS[report.stopReason]) ??
-                    "admin.loadtest.stopReason.error",
-                )}
-              </p>
-              {report.stopReason === "max_viewers" && (
-                <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-no-bottleneck">
-                  {t("admin.loadtest.noBottleneckHint")}
-                </p>
-              )}
+              {/* The metrology: real, but secondary. Per-path breakdowns, the
+                  calibration cross-check, the harness correction - the lines an
+                  operator reads once and a debugger reads often. Folded, so the
+                  card stays three lines and a table. (A <details> keeps its
+                  content in the DOM, so nothing here hides from tests or a
+                  ctrl-F.) */}
+              <details className="text-sm" data-testid="load-test-details">
+                <summary className="cursor-pointer select-none text-xs text-[var(--text-muted)] hover:text-[var(--text)]">
+                  {t("admin.loadtest.detailsSummary")}
+                </summary>
+                <div className="flex flex-col gap-1.5 pt-2">
+                  {predicted !== undefined && (report.viewerMix?.transcode ?? 0) > 0 && (
+                    <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-predicted">
+                      {t("admin.loadtest.predictedLine", {
+                        count: predicted,
+                        measured: report.viewerMix?.transcode ?? 0,
+                      })}
+                    </p>
+                  )}
+                  {report.viewerMix && Object.keys(report.viewerMix).length > 0 && (
+                    <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-viewer-mix">
+                      {t("admin.loadtest.viewerMixLine", {
+                        parts: mixParts(t, report.viewerMix, "admin.loadtest.mixPart", "count"),
+                      })}
+                    </p>
+                  )}
+                  {report.segmentMsP95ByType && Object.keys(report.segmentMsP95ByType).length > 0 && (
+                    <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-segment-by-type">
+                      {t("admin.loadtest.segmentByTypeLine", {
+                        parts: mixParts(t, report.segmentMsP95ByType, "admin.loadtest.segmentByTypePart", "ms"),
+                      })}
+                    </p>
+                  )}
+                  {/* Each path is judged against its OWN segment length: mkvgo
+                      packages on keyframe boundaries, the ffmpeg ladder emits 3s
+                      segments. A single shared budget would measure one path with
+                      the other's yardstick - and the looser one always wins. */}
+                  {report.segmentSloMsByType && Object.keys(report.segmentSloMsByType).length > 0 && (
+                    <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-slo-by-type">
+                      {t("admin.loadtest.sloByTypeLine", {
+                        parts: mixParts(t, report.segmentSloMsByType, "admin.loadtest.segmentByTypePart", "ms"),
+                      })}
+                    </p>
+                  )}
+                  {(report.sharedCacheViewers ?? 0) > 0 && (
+                    <p className="text-xs text-[var(--text-muted)]">
+                      {t("admin.loadtest.sharedCacheLine", { count: report.sharedCacheViewers })}
+                    </p>
+                  )}
+                  {(report.skippedCandidates ?? 0) > 0 && (
+                    <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-skipped">
+                      {t("admin.loadtest.skippedCandidatesLine", { count: report.skippedCandidates })}
+                    </p>
+                  )}
+                  {/* Without this, every CPU figure in the table is a lie by a
+                      factor of several: the simulated viewers run inside the
+                      server's own cgroup. The run measures that share and
+                      subtracts it - and says so. */}
+                  {report.harnessCpuMeasured && (
+                    <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-harness-cpu">
+                      {t("admin.loadtest.harnessCpuLine", {
+                        pct: Math.round((report.harnessCpuFraction ?? 0) * 100),
+                      })}
+                    </p>
+                  )}
+                </div>
+              </details>
             </div>
           )}
 
           <div className="flex flex-col gap-2" data-testid="load-test-idle">
-            <p className="text-sm text-[var(--text-muted)]">{t("admin.loadtest.idleDescription")}</p>
-            <p className="text-sm text-[var(--text-muted)]" data-testid="load-test-no-ceiling">
-              {t("admin.loadtest.noCeilingLine")}
-            </p>
             <p className="text-xs text-[var(--color-warning)]">{t("admin.loadtest.idleWarning")}</p>
 
             {blockedByActiveStreams ? (
