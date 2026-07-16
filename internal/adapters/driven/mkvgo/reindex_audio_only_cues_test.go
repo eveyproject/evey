@@ -9,6 +9,8 @@ import (
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	extwriter "github.com/gravity-zero/mkvgo/mkv/writer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/evey-project/evey/internal/domain/mkv"
 )
 
 // genAudioOnlyCuedMKV writes a real MKV whose Cues element exists and is
@@ -62,4 +64,27 @@ func TestHasSeekIndex_AudioOnlyCues_False(t *testing.T) {
 	if has {
 		t.Error("an index keyed only on the audio track cannot serve a video seek - must not be reported as already indexed")
 	}
+}
+
+// THE 2026-07-14 PROD LOOP. The scan flagged 140 files "no usable index"; the
+// repair batch then skipped 129 of them as "already indexed" - and the panel's
+// count never moved, run after run. Same file, two judges: the scan asks
+// CueHealth "can a video seek USE this index?", the repair's skip check only
+// counted raw Cues entries. A phantom index (empty, audio-keyed, or not
+// reachable through the SeekHead) passes the second and fails the first,
+// forever. The repair must judge with the scan's yardstick: skip only what the
+// scan itself would call indexed.
+func TestReindexInPlace_AudioOnlyCues_RepairsInsteadOfSkipping(t *testing.T) {
+	a := New()
+	p := genAudioOnlyCuedMKV(t)
+
+	res, err := a.ReindexInPlace(context.Background(), p, mkv.ReindexOptions{})
+	require.NoError(t, err)
+	if res.Skipped {
+		t.Fatal("an index no video seek can use must be rebuilt, not skipped as \"already indexed\" - this is the scan/repair loop that pinned 129 files")
+	}
+
+	has, err := a.HasSeekIndex(context.Background(), p)
+	require.NoError(t, err)
+	require.True(t, has, "after the repair, the scan's own judge must be satisfied - otherwise the loop just comes back")
 }

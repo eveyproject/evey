@@ -262,7 +262,21 @@ func (a *Adapter) ReindexInPlace(ctx context.Context, path string, opts mkv.Rein
 		return mkv.ReindexResult{}, fmt.Errorf("reindex: open source meta: %w", err)
 	}
 	if len(meta.Cues) > 0 {
-		return mkv.ReindexResult{Skipped: true}, nil // already indexed - nothing to do
+		// Presence is not usability. A phantom index - an empty body, entries
+		// keyed only on the audio track, a Cues element the SeekHead never
+		// names - counts as "indexed" by a raw entry count while the scan's
+		// judge (CueHealth: the video-keyed cues a seek actually uses) keeps
+		// flagging the file. That disagreement pinned 129 production files in
+		// a sterile loop: flagged by every scan, skipped as "already indexed"
+		// by every repair, forever. Skip only what the scan itself would call
+		// indexed.
+		ch, chErr := ops.CueHealth(ctx, path)
+		if chErr != nil {
+			return mkv.ReindexResult{}, fmt.Errorf("reindex: cue health: %w", chErr)
+		}
+		if ch.VideoCues > 0 {
+			return mkv.ReindexResult{Skipped: true}, nil // usable index - nothing to do
+		}
 	}
 
 	// (2) Surgical in-place first (Mode auto/inplace): needs write access to
