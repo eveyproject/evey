@@ -179,16 +179,54 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	return out, true
 }
 
+// minJudgeSamples is the least evidence a MEASURED tier may be judged on. One
+// or two samples is a snapshot, not a regime - and a snapshot taken while an
+// audience recovers is how a healthy tier gets condemned.
+const minJudgeSamples = 3
+
+// regimeResumeFraction is the share of the reference per-viewer throughput a
+// freshly resized audience must regain before its tier's measurement window
+// opens. Viewers restarting after a rebuild pull a fraction of their regime
+// for many seconds; samples taken then measure the restart, not the tier.
+// Half is deliberately loose: a genuine plateau still clears it (N viewers'
+// worth of bytes over N+k heads stays well above half), while a restarting
+// audience - at a tenth of its regime - does not.
+const regimeResumeFraction = 0.5
+
+// regimeWaitCapFactor bounds how long the window waits for the regime, as a
+// multiple of the tier's warm-up, measured from the tier's start. An audience
+// that NEVER comes back is the tier's own verdict, and the run must measure
+// that failure rather than wait forever. (A zero warm-up - unit tests - makes
+// the cap zero too: the gate is then inert by construction.)
+const regimeWaitCapFactor = 3
+
 // resourceState accumulates samples per tier, skipping each tier's warm-up,
 // and tracks how close to saturation the machine currently is.
 type resourceState struct {
 	byTier map[int][]ResourceSample
+
+	// measured[t] records that tier t was held under a FULL measurement window.
+	// Only such tiers may anchor a throughput verdict, appear in the report's
+	// table, or feed the per-viewer slope: a FAST hold is hunting, not evidence -
+	// its samples sit inside a ten-viewer join burst that pulls several times any
+	// regime and burns CPU no steady state ever will.
+	measured map[int]bool
 
 	// tierStartedAt is when the current tier gained its viewer; samples before
 	// tierStartedAt+warmup are start-up transients, not steady state.
 	tierStartedAt time.Time
 	warmup        time.Duration
 	lastTier      int
+
+	// The regime gate. After a resize - and above all after a REBUILD, where the
+	// whole audience restarts at once - the fixed warm-up is not enough: the
+	// viewers may still be climbing back to their per-viewer rate when it
+	// expires, and every sample taken then describes the restart, not the tier.
+	// The gate keeps the window shut until the audience has actually resumed
+	// (or a hard cap passes), using the last measured regime as the yardstick.
+	curTierMeasured    bool
+	regimeOpen         bool
+	regimeRefPerViewer float64
 
 	// baseline is what the server consumed BEFORE any viewer joined - the
 	// floor an operator must subtract to read a per-viewer cost honestly.
@@ -200,17 +238,21 @@ type resourceState struct {
 func newResourceState(warmup time.Duration, startedAt time.Time) *resourceState {
 	return &resourceState{
 		byTier:        map[int][]ResourceSample{},
+		measured:      map[int]bool{},
 		tierStartedAt: startedAt,
 		warmup:        warmup,
+		regimeOpen:    true,
 	}
 }
 
-// settling reports that the tier is still in its warm-up window: viewers that
-// just joined are burst-filling their buffers, and the latency they see (and
-// impose) is a start-up transient, not what the tier costs in steady state.
-// Judging a tier on those samples condemns tiers that would have held.
+// settling reports that the tier is not yet in a measurable state: either
+// still inside its warm-up window, or - for a measured tier - its audience has
+// not resumed the regime after the resize. Viewers that just (re)joined are
+// burst-filling or recovering, and the latency they see (and impose) is a
+// transient, not what the tier costs in steady state. Judging a tier on those
+// samples condemns tiers that would have held.
 func (rs *resourceState) settling(now time.Time) bool {
-	return now.Sub(rs.tierStartedAt) < rs.warmup
+	return now.Sub(rs.tierStartedAt) < rs.warmup || !rs.regimeOpen
 }
 
 // startTier begins a new tier's warm-up RIGHT NOW, rather than whenever the
@@ -221,10 +263,46 @@ func (rs *resourceState) settling(now time.Time) bool {
 // are exactly the seconds when requests issued under the PREVIOUS (overloaded)
 // tier are still landing. A tier stepped back down from an overload would
 // inherit its slow fetches and be condemned for a stall it never had.
-func (rs *resourceState) startTier(tier int, now time.Time) {
+//
+// measuredHold says whether the hold about to start is a full measurement
+// window (BISECT/CONFIRM/SETTLE) rather than a FAST hunt. A measured hold
+// starts the tier's record afresh - the tier number may have been visited on a
+// FAST hold, and a join burst must never sit inside a measured tier's stats -
+// and arms the regime gate against the best regime measured so far.
+func (rs *resourceState) startTier(tier int, now time.Time, measuredHold bool) {
 	rs.lastTier = tier
 	rs.tierStartedAt = now
 	rs.cpuOverRun, rs.memOverRun = 0, 0
+	rs.curTierMeasured = measuredHold
+	rs.regimeOpen = true
+	rs.regimeRefPerViewer = 0
+	if !measuredHold {
+		return
+	}
+	delete(rs.byTier, tier)
+	rs.measured[tier] = true
+	if ref := rs.regimeReference(tier); ref > 0 {
+		rs.regimeRefPerViewer = ref
+		rs.regimeOpen = false
+	}
+}
+
+// regimeReference is the per-viewer rate of the best-served tier measured so
+// far - the yardstick a freshly resized audience must climb back to before its
+// own window opens. Any measured tier will do (the bisection walks down as
+// well as up); zero when nothing has been measured yet, which leaves the gate
+// open: the first measured tier IS the first regime.
+func (rs *resourceState) regimeReference(excluding int) float64 {
+	var best float64
+	for t := range rs.byTier {
+		if t <= 0 || t == excluding || !rs.measured[t] || len(rs.byTier[t]) == 0 {
+			continue
+		}
+		if pv := float64(rs.stats(t).ServedBytesPerSecAvg) / float64(t); pv > best {
+			best = pv
+		}
+	}
+	return best
 }
 
 // setWarmup changes how much of a tier is discarded as transient. The climb
@@ -277,24 +355,22 @@ const minPlateauBytesPerSec = 8 << 20 // 8 MiB/s
 // the report carries is the number an operator can act on.
 func (rs *resourceState) throughputPlateaued(tier int) (bool, int64) {
 	cur := rs.stats(tier)
-	if cur.Samples == 0 || cur.ServedBytesPerSecAvg <= 0 || tier <= 0 {
+	// Only a tier measured under a full window may be judged, and only against
+	// references measured the same way: a FAST hold's samples sit inside a join
+	// burst that pulls several times any regime, and a verdict comparing a
+	// regime against a burst measures the burst.
+	if cur.Samples == 0 || cur.ServedBytesPerSecAvg <= 0 || tier <= 0 || !rs.measured[tier] {
 		return false, 0
 	}
-	// The reference is the tier that pushed the most, and HOW MANY viewers it
-	// took to do it: the gain expected of the current tier is only meaningful
-	// relative to the headcount that produced the figure being compared against.
-	var (
-		best     int64
-		bestTier int
-	)
-	for t, samples := range rs.byTier {
-		if t <= 0 || t >= tier || len(samples) == 0 {
-			continue
-		}
-		if served := rs.stats(t).ServedBytesPerSecAvg; served > best {
-			best, bestTier = served, t
-		}
+	// A verdict that names the storage needs the storage to have DONE something.
+	// When the disk counter sat at (nearly) zero - every byte from the page
+	// cache, or reads the kernel cannot see (9p, network shares) - "the server
+	// cannot read the media any faster" is a fabrication, whatever the curve
+	// looks like. Whatever limits the box then, it was not seen on the storage.
+	if diskReadStarved(cur) {
+		return false, 0
 	}
+	best, bestTier := rs.bestMeasuredServed(tier)
 	// A plateau only means something once real data is moving. Below this, the
 	// run is measuring noise - and calling a trickle "the storage ceiling" would
 	// blame the disk for whatever else is actually wrong.
@@ -311,6 +387,25 @@ func (rs *resourceState) throughputPlateaued(tier int) (bool, int64) {
 		return true, best
 	}
 	return false, 0
+}
+
+// bestMeasuredServed is the highest served throughput among the tiers BELOW
+// `tier` that were measured under a full window, and the headcount that
+// produced it: the reference a plateau verdict compares against. The gain
+// expected of the current tier is only meaningful relative to the headcount
+// that produced the figure being compared against.
+func (rs *resourceState) bestMeasuredServed(tier int) (int64, int) {
+	var best int64
+	bestTier := 0
+	for t, samples := range rs.byTier {
+		if t <= 0 || t >= tier || !rs.measured[t] || len(samples) == 0 {
+			continue
+		}
+		if served := rs.stats(t).ServedBytesPerSecAvg; served > best {
+			best, bestTier = served, t
+		}
+	}
+	return best, bestTier
 }
 
 // tierLoad is how hard the server was working at a tier: the most-loaded
@@ -336,10 +431,14 @@ func (rs *resourceState) tierLoad(tier int) float64 {
 // saturation: a tier is only ever judged once it has settled.
 func (rs *resourceState) observe(tier int, s ResourceSample, now time.Time) (saturated StopReason, detail string) {
 	if tier != rs.lastTier {
-		// The ramp moved: this tier is in transition, warm up again.
+		// The ramp moved without startTier (a spawn/shed outside a tier
+		// boundary): this tier is in transition, warm up again - as an
+		// unmeasured hold, since nothing armed a measurement window for it.
 		rs.lastTier = tier
 		rs.tierStartedAt = now
 		rs.cpuOverRun, rs.memOverRun = 0, 0
+		rs.curTierMeasured = false
+		rs.regimeOpen = true
 	}
 	if tier == 0 {
 		rs.baseline = s
@@ -347,6 +446,21 @@ func (rs *resourceState) observe(tier int, s ResourceSample, now time.Time) (sat
 	}
 	if now.Sub(rs.tierStartedAt) < rs.warmup {
 		return "", ""
+	}
+	if !rs.regimeOpen {
+		// The audience is still climbing back after the resize: its samples
+		// describe the restart, not the tier. The window opens when the
+		// per-viewer rate has regained the neighbourhood of the last measured
+		// regime - or at the hard cap, past which the failure to resume IS the
+		// tier's evidence and gets measured like anything else.
+		switch {
+		case float64(s.ServedBytesPerSec)/float64(tier) >= rs.regimeRefPerViewer*regimeResumeFraction:
+			rs.regimeOpen = true
+		case now.Sub(rs.tierStartedAt) >= regimeWaitCapFactor*rs.warmup:
+			rs.regimeOpen = true
+		default:
+			return "", ""
+		}
 	}
 	rs.byTier[tier] = append(rs.byTier[tier], s)
 
@@ -370,16 +484,20 @@ func (rs *resourceState) observe(tier int, s ResourceSample, now time.Time) (sat
 	return "", ""
 }
 
-// stats folds a tier's samples into the averages and peaks the report carries.
-// tiers lists every tier that was actually measured, smallest first. It is what
-// lets the report show the CLIMB rather than only its last rung: an operator
-// reading one row per audience size can see the cost per viewer hold steady (the
-// server is scaling) or bend upward (it is not), which a single final number
-// hides completely.
+// tiers lists every tier measured under a full window, smallest first. It is
+// what lets the report show the CLIMB rather than only its last rung: an
+// operator reading one row per audience size can see the cost per viewer hold
+// steady (the server is scaling) or bend upward (it is not), which a single
+// final number hides completely.
+//
+// FAST holds are excluded deliberately: their samples sit inside a join burst,
+// and one row at 61% CPU (the burst) next to rows at 1-9% (regimes) makes the
+// whole table - above all the per-viewer column an operator sizes a machine
+// with - unusable.
 func (rs *resourceState) tiers() []int {
 	out := make([]int, 0, len(rs.byTier))
 	for t, samples := range rs.byTier {
-		if t > 0 && len(samples) > 0 {
+		if t > 0 && rs.measured[t] && len(samples) > 0 {
 			out = append(out, t)
 		}
 	}
@@ -448,7 +566,9 @@ func (rs *resourceState) stats(tier int) ResourceStats {
 func (rs *resourceState) perViewerCost(sustainedTier int) (ResourceStats, bool) {
 	lo, hi := 0, 0
 	for tier := 1; tier <= sustainedTier; tier++ {
-		if len(rs.byTier[tier]) == 0 {
+		// Only tiers measured under a full window carry a cost worth reading a
+		// slope from; a FAST hold's samples are a join burst.
+		if !rs.measured[tier] || len(rs.byTier[tier]) == 0 {
 			continue
 		}
 		if lo == 0 {

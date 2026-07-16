@@ -94,7 +94,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	// alone" measurement - abandon it cleanly, no error, no data point; the
 	// run loop retries the same slot against the next distinct candidate.
 	if vt == viewerTypeMkvgo && header.Get(headerServedBy) != servedByMkvgo {
-		sendEvent(ctx, events, viewerEvent{kind: evCandidateSkipped, vt: vt, slot: tierAtSpawn, detail: "master not served by mkvgo"})
+		sendEvent(ctx, events, viewerEvent{kind: evCandidateSkipped, vt: vt, slot: tierAtSpawn, mediaID: asg.media.ID, detail: "master not served by mkvgo"})
 		return
 	}
 

@@ -44,6 +44,12 @@ type candidatePool struct {
 	candidates  []MediaCandidate
 	assignments []assignment
 	taken       int
+	// dead titles are never handed out again. Mkvgo eligibility is a property
+	// of the TITLE (how the server decides to serve it), not of the start
+	// position: a title skipped at one offset will be skipped at every other,
+	// and retrying it - above all when the climb rebuilds its audience - burns
+	// candidates and inflates the skip count for nothing.
+	dead map[string]bool
 }
 
 // newCandidatePool lays out every assignment the run may hand out, breadth
@@ -73,14 +79,26 @@ func newCandidatePool(candidates []MediaCandidate, runDuration time.Duration) *c
 // capacity is how many viewers this pool can place in total.
 func (p *candidatePool) capacity() int { return len(p.assignments) }
 
-// take hands out the next assignment.
+// take hands out the next assignment, skipping titles marked ineligible.
 func (p *candidatePool) take() (assignment, bool) {
-	if p.taken >= len(p.assignments) {
-		return assignment{}, false
+	for p.taken < len(p.assignments) {
+		asg := p.assignments[p.taken]
+		p.taken++
+		if p.dead[asg.media.ID] {
+			continue
+		}
+		return asg, true
 	}
-	asg := p.assignments[p.taken]
-	p.taken++
-	return asg, true
+	return assignment{}, false
+}
+
+// markIneligible retires a title from the pool for the rest of the run: the
+// server has shown it will not serve it the way this scenario measures.
+func (p *candidatePool) markIneligible(mediaID string) {
+	if p.dead == nil {
+		p.dead = map[string]bool{}
+	}
+	p.dead[mediaID] = true
 }
 
 // startFracFor places round N of a title at startPositions[N], scaled down to

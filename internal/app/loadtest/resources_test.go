@@ -365,14 +365,17 @@ func TestResourceState_FlatThroughputIsTheStorageCeiling(t *testing.T) {
 
 	// 10 viewers pull 100 MB/s. 20 viewers pull... still 100 MB/s: the storage
 	// is already giving everything it has, and the newcomers only take a slice
-	// of the same pie.
+	// of the same pie. Both tiers measured under full windows, disk visibly
+	// delivering the bytes - the honest version of this verdict.
+	rs.startTier(10, at, true)
 	for range 5 {
 		at = at.Add(time.Second)
-		rs.observe(10, ResourceSample{CPUPercent: 12, ServedBytesPerSec: 100 << 20}, at)
+		rs.observe(10, ResourceSample{CPUPercent: 12, ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: 100 << 20}, at)
 	}
+	rs.startTier(20, at, true)
 	for range 5 {
 		at = at.Add(time.Second)
-		rs.observe(20, ResourceSample{CPUPercent: 12, ServedBytesPerSec: 100 << 20}, at)
+		rs.observe(20, ResourceSample{CPUPercent: 12, ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: 100 << 20}, at)
 	}
 
 	plateaued, ceiling := rs.throughputPlateaued(20)
@@ -389,13 +392,15 @@ func TestResourceState_FlatThroughputIsTheStorageCeiling(t *testing.T) {
 func TestResourceState_GrowingThroughputIsNotAPlateau(t *testing.T) {
 	rs := newResourceState(0, time.Now())
 	at := time.Now()
+	rs.startTier(10, at, true)
 	for range 5 {
 		at = at.Add(time.Second)
-		rs.observe(10, ResourceSample{ServedBytesPerSec: 100 << 20}, at)
+		rs.observe(10, ResourceSample{ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: 100 << 20}, at)
 	}
+	rs.startTier(20, at, true)
 	for range 5 {
 		at = at.Add(time.Second)
-		rs.observe(20, ResourceSample{ServedBytesPerSec: 190 << 20}, at)
+		rs.observe(20, ResourceSample{ServedBytesPerSec: 190 << 20, DiskReadBytesPerSec: 190 << 20}, at)
 	}
 	if plateaued, _ := rs.throughputPlateaued(20); plateaued {
 		t.Fatalf("throughput nearly doubled with the viewers: nothing is saturated")
@@ -420,14 +425,16 @@ func TestResourceState_OneMoreViewerInALargeAudienceIsNotAPlateau(t *testing.T) 
 
 	const perViewer = 24 << 20 // each viewer pulls its bitrate, and no more
 
+	rs.startTier(21, at, true)
 	for range 5 {
 		at = at.Add(time.Second)
-		rs.observe(21, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 21 * perViewer}, at)
+		rs.observe(21, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 21 * perViewer, DiskReadBytesPerSec: 21 * perViewer}, at)
 	}
 	// The 22nd viewer is served exactly as well as the other 21: +4.76%.
+	rs.startTier(22, at, true)
 	for range 5 {
 		at = at.Add(time.Second)
-		rs.observe(22, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 22 * perViewer}, at)
+		rs.observe(22, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 22 * perViewer, DiskReadBytesPerSec: 22 * perViewer}, at)
 	}
 
 	if plateaued, ceiling := rs.throughputPlateaued(22); plateaued {
@@ -444,15 +451,17 @@ func TestResourceState_ManyMoreViewersWithoutTheBytesIsStillAPlateau(t *testing.
 	rs := newResourceState(0, time.Now())
 	at := time.Now()
 
+	rs.startTier(20, at, true)
 	for range 5 {
 		at = at.Add(time.Second)
-		rs.observe(20, ResourceSample{ServedBytesPerSec: 500 << 20}, at)
+		rs.observe(20, ResourceSample{ServedBytesPerSec: 500 << 20, DiskReadBytesPerSec: 500 << 20}, at)
 	}
 	// 30 viewers should move ~750 MiB/s. They move 525: the newcomers are eating
 	// the same pie, not being served.
+	rs.startTier(30, at, true)
 	for range 5 {
 		at = at.Add(time.Second)
-		rs.observe(30, ResourceSample{ServedBytesPerSec: 525 << 20}, at)
+		rs.observe(30, ResourceSample{ServedBytesPerSec: 525 << 20, DiskReadBytesPerSec: 525 << 20}, at)
 	}
 
 	plateaued, ceiling := rs.throughputPlateaued(30)
@@ -461,6 +470,171 @@ func TestResourceState_ManyMoreViewersWithoutTheBytesIsStillAPlateau(t *testing.
 	}
 	if ceiling != 500<<20 {
 		t.Fatalf("ceiling = %d MiB/s, want 500", ceiling>>20)
+	}
+}
+
+// THE 2026-07-14 REGRESSION, part one. Between two judged tiers the run REBUILDS
+// its audience: every viewer restarts at once, and for the first seconds past the
+// fixed warm-up the audience is still climbing back to its regime. The dev run
+// measured tier 22 at 50 Mb/s against tier 21's established 512 Mb/s - not
+// because the server collapsed, but because the window opened while the viewers
+// were still coming back. Every tier above 21 was condemned the same way, so the
+// "plateau" was the measurement, not the machine.
+//
+// The window must not open on a fixed clock: it opens when the audience has
+// actually RESUMED - its per-viewer rate back in the neighbourhood of the last
+// measured regime - or after a hard cap, whichever comes first.
+func TestResourceState_ARestartingAudienceIsNotMeasured(t *testing.T) {
+	start := time.Now()
+	rs := newResourceState(10*time.Second, start)
+	const perViewer = int64(3 << 20)
+
+	// Tier 21, measured in steady state: 21 viewers, each at its bitrate.
+	rs.startTier(21, start, true)
+	at := start.Add(11 * time.Second)
+	for range 5 {
+		rs.observe(21, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 21 * perViewer, DiskReadBytesPerSec: 21 * perViewer}, at)
+		at = at.Add(2 * time.Second)
+	}
+
+	// The audience is rebuilt at 22: everyone restarts. Past the fixed warm-up
+	// the viewers are still recovering, pulling a tenth of their regime.
+	t2 := at
+	rs.startTier(22, t2, true)
+	at = t2.Add(11 * time.Second)
+	for range 3 {
+		rs.observe(22, ResourceSample{CPUPercent: 2, ServedBytesPerSec: 21 * perViewer / 10, DiskReadBytesPerSec: 21 * perViewer / 10}, at)
+		at = at.Add(2 * time.Second)
+	}
+	if got := rs.stats(22).Samples; got != 0 {
+		t.Fatalf("recorded %d samples while the audience was still restarting: a tier measured mid-recovery condemns a server that is fine", got)
+	}
+
+	// The audience reaches its regime: from here the samples are the tier's own.
+	for range 5 {
+		rs.observe(22, ResourceSample{CPUPercent: 26, ServedBytesPerSec: 22 * perViewer, DiskReadBytesPerSec: 22 * perViewer}, at)
+		at = at.Add(2 * time.Second)
+	}
+	if got := rs.stats(22).Samples; got == 0 {
+		t.Fatalf("no samples recorded once the audience was back at its regime")
+	}
+	if avg := rs.stats(22).ServedBytesPerSecAvg; avg < 22*perViewer*9/10 {
+		t.Fatalf("tier 22 avg served = %d, want ~%d: the restart dip leaked into the tier's record", avg, 22*perViewer)
+	}
+	if plateaued, _ := rs.throughputPlateaued(22); plateaued {
+		t.Fatalf("22 viewers each served their full bitrate is a server that is scaling; its restart transient must not be its measurement")
+	}
+}
+
+// If the audience NEVER regains its regime, that failure IS the tier's evidence:
+// past a hard cap the samples count, dip or not, and the degraded throughput is
+// judged for what it is. The gate delays the window, it never blinds the run.
+func TestResourceState_ARegimeThatNeverResumesIsMeasuredAnyway(t *testing.T) {
+	start := time.Now()
+	rs := newResourceState(10*time.Second, start)
+	const perViewer = int64(3 << 20)
+
+	rs.startTier(21, start, true)
+	at := start.Add(11 * time.Second)
+	for range 5 {
+		rs.observe(21, ResourceSample{ServedBytesPerSec: 21 * perViewer, DiskReadBytesPerSec: 21 * perViewer}, at)
+		at = at.Add(2 * time.Second)
+	}
+
+	// Tier 31 genuinely cannot feed its viewers: throughput stays at a tenth of
+	// the regime, forever.
+	t2 := at
+	rs.startTier(31, t2, true)
+	at = t2.Add(11 * time.Second)
+	for range 20 { // well past any reasonable cap
+		rs.observe(31, ResourceSample{ServedBytesPerSec: 21 * perViewer / 10, DiskReadBytesPerSec: 21 * perViewer / 10}, at)
+		at = at.Add(2 * time.Second)
+	}
+	if rs.stats(31).Samples == 0 {
+		t.Fatalf("a tier whose audience never regains its regime must still be measured past the cap - that failure IS the evidence")
+	}
+	if plateaued, _ := rs.throughputPlateaued(31); !plateaued {
+		t.Fatalf("31 viewers moving a tenth of 21's bytes, disk visibly delivering: the plateau must still be caught")
+	}
+}
+
+// THE 2026-07-14 REGRESSION, part two. The reference tier itself was rotten: 21
+// was only ever observed on a FAST hold, seconds after a ten-viewer batch joined.
+// A join burst pulls far more than any regime (buffer filling) and burns CPU no
+// steady state ever will - the dev run's table showed 61% CPU at 21 viewers
+// against 1-9% everywhere else, and its 512 Mb/s became the bar every honest
+// tier was condemned against.
+//
+// A tier that was never measured under a full window must neither anchor a
+// throughput verdict nor appear in the table an operator sizes a machine with.
+func TestResourceState_AFastTierNeverAnchorsTheVerdict(t *testing.T) {
+	start := time.Now()
+	rs := newResourceState(0, start)
+	const perViewer = int64(3 << 20)
+
+	// Tier 21 on a FAST hold, mid join-burst: three times the regime rate.
+	rs.startTier(21, start, false)
+	at := start.Add(time.Second)
+	for range 2 {
+		rs.observe(21, ResourceSample{CPUPercent: 61, ServedBytesPerSec: 3 * 21 * perViewer, DiskReadBytesPerSec: 3 * 21 * perViewer}, at)
+		at = at.Add(2 * time.Second)
+	}
+
+	// Tier 31, measured for real: every viewer at its full bitrate.
+	rs.startTier(31, at, true)
+	for range 5 {
+		rs.observe(31, ResourceSample{CPUPercent: 9, ServedBytesPerSec: 31 * perViewer, DiskReadBytesPerSec: 31 * perViewer}, at)
+		at = at.Add(2 * time.Second)
+	}
+
+	// 31 honest viewers move fewer bytes than 21's join-burst did. That is not a
+	// plateau: the reference was never a regime.
+	if plateaued, _ := rs.throughputPlateaued(31); plateaued {
+		t.Fatalf("a FAST join-burst became the throughput reference: 31 viewers at full bitrate condemned against 21's burst")
+	}
+	// And the burst must not sit in the operator's table either: 61% CPU at 21
+	// next to 9% at 31 is the incoherence that made the whole report unusable.
+	costs := rs.tierCosts(1)
+	if len(costs) != 1 || costs[0].Viewers != 31 {
+		rows := make([]int, 0, len(costs))
+		for _, c := range costs {
+			rows = append(rows, c.Viewers)
+		}
+		t.Fatalf("tier table rows = %v, want exactly [31]: only tiers measured under a full window belong in it", rows)
+	}
+}
+
+// THE 2026-07-14 REGRESSION, part three. The report's verdict was "the server
+// cannot read the media any faster" while its own disk column read 0.0: every
+// byte had come from the page cache (or the kernel simply cannot see the reads -
+// 9p, network shares). A verdict that names the storage must be backed by the
+// storage having actually done something.
+func TestResourceState_AStarvedDiskCannotBeTheStorageCeiling(t *testing.T) {
+	build := func(diskPerSec int64) *resourceState {
+		rs := newResourceState(0, time.Now())
+		at := time.Now()
+		rs.startTier(10, at, true)
+		for range 5 {
+			at = at.Add(time.Second)
+			rs.observe(10, ResourceSample{ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: diskPerSec}, at)
+		}
+		rs.startTier(20, at, true)
+		for range 5 {
+			at = at.Add(time.Second)
+			rs.observe(20, ResourceSample{ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: diskPerSec}, at)
+		}
+		return rs
+	}
+
+	// The same flat curve with the disk actually delivering the bytes is a real
+	// storage ceiling, and the run must keep saying so.
+	if plateaued, _ := build(100 << 20).throughputPlateaued(20); !plateaued {
+		t.Fatalf("a flat curve with the disk at full tilt IS the storage ceiling; the guard must not blunt the detector")
+	}
+	// With the disk at zero: same curve, no storage verdict. Whatever limits
+	// this box, it is not something the storage was seen doing.
+	if plateaued, _ := build(0).throughputPlateaued(20); plateaued {
+		t.Fatalf("the disk read nothing and the verdict still blamed the storage - the exact lie of the 2026-07-14 report")
 	}
 }
 

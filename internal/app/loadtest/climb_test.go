@@ -203,6 +203,79 @@ func TestClimb_DirectPlayDoesNotWaitForAnEncoderThatNeverStarts(t *testing.T) {
 	}
 }
 
+// THE 21-VIEWER REGRESSION, second act. Straight from a dev run: the climb held
+// 21 on a FAST hold, then 31, 26, 23 and 22 all broke under full windows, so the
+// bisection converged and the run stood behind 21 - a tier it had only ever
+// observed for a few seconds, in the middle of a ten-viewer join burst. The
+// report's headline CPU for "21 viewers" was 61% (the spawn burst), against 1-9%
+// for every bigger tier, and the per-viewer column an operator sizes a machine
+// with was garbage.
+//
+// The answer the run stands behind must ALWAYS have been measured under a full
+// window. If it only ever held a FAST hold, the climb owes it one real
+// measurement before calling it the ceiling.
+func TestClimb_TheAnswerIsNeverLeftOnFastEvidence(t *testing.T) {
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	measuredAnswer := false
+	var reason StopReason
+	done := false
+	for range 200 {
+		if c.phase != phaseFast && c.target == 21 {
+			measuredAnswer = true
+		}
+		// The machine holds exactly 21: every bigger tier breaks, in ANY phase.
+		if c.target > 21 {
+			c.tierBroke(StopCPUSaturated, "cpu")
+		}
+		// A working box (load between the growth ceiling and the caution floor),
+		// so the FAST stride stays at 10 and the climb walks 1, 11, 21, 31 - the
+		// production shape.
+		outcome, r, _ := c.next(0, 0.6)
+		if outcome == climbDone {
+			reason, done = r, true
+			break
+		}
+	}
+	if !done {
+		t.Fatalf("climb did not converge")
+	}
+	if c.lo != 21 {
+		t.Fatalf("sustained = %d, want 21", c.lo)
+	}
+	if !measuredAnswer {
+		t.Fatalf("the verdict tier (21) was never held under a full measurement window: the report's resource figures for the answer come from a %v join-burst sample", fastHold)
+	}
+	if reason != StopCPUSaturated {
+		t.Fatalf("reason = %s, want %s (the verdict must survive the final measurement)", reason, StopCPUSaturated)
+	}
+}
+
+// And the counterpart: if the answer FAILS its own final measurement, it was
+// never the answer. The climb must resume the search below it rather than
+// report a tier it just watched break.
+func TestClimb_AnAnswerThatFailsItsOwnMeasurementIsNotTheAnswer(t *testing.T) {
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	for range 200 {
+		// The machine really holds 20. A FAST hold is too short to notice 21
+		// struggling (it only breaks past 30 there), but any full window sees
+		// the truth.
+		if (c.phase == phaseFast && c.target > 30) || (c.phase != phaseFast && c.target > 20) {
+			c.tierBroke(StopCPUSaturated, "cpu")
+		}
+		outcome, _, _ := c.next(0, 0.6)
+		if outcome == climbDone {
+			if c.lo > 20 {
+				t.Fatalf("sustained = %d, want <= 20: the run stood behind a tier that broke under its own final measurement", c.lo)
+			}
+			if c.lo < 19 {
+				t.Fatalf("sustained = %d, want ~20: the search below the disproven answer gave up too much", c.lo)
+			}
+			return
+		}
+	}
+	t.Fatalf("climb did not converge")
+}
+
 // Once the bisection has broken a tier under a FULL measurement window, that IS
 // the proof. Spending another whole window "confirming" it re-learns what was
 // just measured, and a measurement window is the single most expensive thing the

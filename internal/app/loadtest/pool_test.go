@@ -1,6 +1,26 @@
 package loadtest
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
+
+// A title the server refuses to serve the scenario's way is refused at EVERY
+// start position: once marked, the pool must never offer it again - not on the
+// next spawn, and above all not when the climb rebuilds its whole audience.
+func TestPool_AnIneligibleTitleIsNeverOfferedAgain(t *testing.T) {
+	pool := newCandidatePool(manyCandidates(3), time.Minute)
+	pool.markIneligible("m1")
+	for range pool.capacity() {
+		asg, ok := pool.take()
+		if !ok {
+			break
+		}
+		if asg.media.ID == "m1" {
+			t.Fatalf("the pool handed out m1 (round %d) after it was marked ineligible", asg.round)
+		}
+	}
+}
 
 // A library spread over several disks must be handed out ROUND-ROBIN: viewer 1
 // on disk A, viewer 2 on disk B. Serving them in database order piles the whole

@@ -54,8 +54,11 @@ type viewerEvent struct {
 	// spawn time. Only ModeFlash's verdict needs it (to bucket TTFF/shed
 	// outcomes per viewer, since flash has no meaningful "tier" ordering);
 	// every other mode ignores it.
-	slot   int
-	detail string
+	slot int
+	// mediaID identifies the candidate an evCandidateSkipped event is about,
+	// so the pool can retire the title instead of re-offering it forever.
+	mediaID string
+	detail  string
 }
 
 // Runner drives one load test at a time against the server's own HTTP stack.
@@ -573,6 +576,20 @@ runLoop:
 				continue
 			}
 
+			// A measured tier may still be short of evidence when its hold
+			// expires: the regime gate (see resources.go) holds samples back
+			// until the audience has actually resumed after the resize, and a
+			// slow recovery can eat most of the window. One or two samples is a
+			// snapshot, not a regime - so the hold stretches, within a hard
+			// bound, until the tier has something to be judged ON. A tier that
+			// already broke needs no more evidence.
+			if cl.phase != phaseFast && cl.broke == "" && ramp.tier > 0 &&
+				res.stats(ramp.tier).Samples < minJudgeSamples &&
+				time.Since(res.tierStartedAt) < 2*cl.holdFor() {
+				holdTimer.Reset(min(2*cfg.resourceSampleEvery(), cl.holdFor()))
+				continue
+			}
+
 			// A tier that pushed no more bytes than a smaller one already did has
 			// found the storage ceiling: the viewers are there, the server just
 			// can't feed them any faster.
@@ -633,7 +650,14 @@ runLoop:
 			// otherwise requests issued under the previous (overloaded) tier are
 			// still landing, and the smaller tier is condemned for them.
 			slo.startTier()
-			res.startTier(ramp.tier, time.Now())
+			if cl.phase != phaseFast {
+				// A measured hold judges this tier on its OWN fetches: the tier
+				// number may have been visited on a FAST hold before, and the
+				// join-burst latencies from back then must not sit inside the
+				// percentiles the report quotes for it.
+				samples.resetTier(ramp.tier)
+			}
+			res.startTier(ramp.tier, time.Now(), cl.phase != phaseFast)
 			// Snapshot how many of THIS audience are replaying a title, so the
 			// report can say it for the tier that ends up being the answer.
 			ramp.replayedByTier[ramp.tier] = ramp.replayedInAudience()
@@ -1043,6 +1067,17 @@ type sampleState struct {
 	perTypeSegments map[viewerType]map[int][]int
 }
 
+// resetTier drops a tier's segment-latency samples before a measured hold: the
+// tier number may have been visited before (a FAST pass), and those fetches
+// happened inside a join burst that must not colour the tier's percentiles.
+// TTFF is kept - joining is the only thing it ever measures.
+func (s *sampleState) resetTier(tier int) {
+	delete(s.tierSegments, tier)
+	for _, byTier := range s.perTypeSegments {
+		delete(byTier, tier)
+	}
+}
+
 // reportFields reads back the samples at sampleTier - the tier the run's
 // verdict settled on - into the shapes Report needs.
 func (s *sampleState) reportFields(sampleTier int, ramp *rampState) (segSamples, ttffSamples []int, mix, p95ByType map[string]int) {
@@ -1187,7 +1222,10 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 	case evCandidateSkipped:
 		// This slot never became a real viewer: give it back and immediately
 		// retry against the next assignment. A skip costs a candidate, never a
-		// viewer - the ramp keeps climbing.
+		// viewer - the ramp keeps climbing. The title itself is retired: mkvgo
+		// eligibility is a property of the title, not the start position, and
+		// re-offering it at every rebuild would re-skip it forever.
+		pool.markIneligible(ev.mediaID)
 		ramp.skippedCandidates++
 		ramp.consecutiveSkips++
 		if ramp.consecutiveSkips >= len(pool.candidates) {
