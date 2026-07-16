@@ -42,6 +42,21 @@ type Service struct {
 	playback   PlaybackGauge
 	pauseMu    sync.Mutex
 	pausedJobs map[string]bool // jobIDs WE paused, so we only resume ours
+
+	// Hardware-detection hysteresis. Detection is not a lookup: it spawns one
+	// probe ffmpeg per encoder to prove the silicon really encodes, and
+	// GetSystemInfo (polled by the admin panel) calls it. On 2026-07-15 those
+	// probes ran repeatedly WHILE the box choked on a 4K software transcode -
+	// each round failed under load ("real-encode probe failed"), polluting the
+	// logs and stealing CPU at the worst moment. A GPU does not come and go:
+	// the matrix is cached for hwDetectTTL, and the mutex additionally
+	// serializes concurrent detections (two panel tabs = one probe run).
+	// Failures are never cached - a transient under-load refusal must not
+	// stick for a whole TTL.
+	hwDetectMu   sync.Mutex
+	hwDetectAt   time.Time
+	hwDetectDevs []transcoding.HWDevice
+	hwDetectTTL  time.Duration
 }
 
 type Option func(*Service)
@@ -49,6 +64,20 @@ type Option func(*Service)
 func WithCacheStore(cs transcoding.CacheStore) Option {
 	return func(s *Service) { s.cache = cs }
 }
+
+// WithHWDetectTTL overrides how long a hardware-detection result is served
+// from cache (see the hwDetect* fields). Zero keeps the default.
+func WithHWDetectTTL(d time.Duration) Option {
+	return func(s *Service) {
+		if d > 0 {
+			s.hwDetectTTL = d
+		}
+	}
+}
+
+// defaultHWDetectTTL: long enough that panel polling never storms the box with
+// probe encodes, short enough that a driver fix shows up without a restart.
+const defaultHWDetectTTL = 10 * time.Minute
 
 // SetPlaybackGauge wires the live-playback gauge after construction - wire.go
 // builds the session limiter after this service. Pair with
@@ -72,6 +101,7 @@ func NewService(
 		events:        events,
 		maxConcurrent: maxConcurrent,
 		pausedJobs:    make(map[string]bool),
+		hwDetectTTL:   defaultHWDetectTTL,
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -385,12 +415,28 @@ func (s *Service) resumePaused(ctx context.Context) {
 func (s *Service) DetectHardware(ctx context.Context) ([]transcoding.HWDevice, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.transcoding.DetectHardware")
 	defer span.End()
+
+	// Hysteresis: detection spawns one probe ffmpeg per encoder, and this is
+	// called by the panel-polled GetSystemInfo. Serve the cached matrix inside
+	// the TTL; the mutex also collapses concurrent callers onto one probe run.
+	// See the hwDetect* field doc for the 2026-07-15 probe storm this ends.
+	s.hwDetectMu.Lock()
+	defer s.hwDetectMu.Unlock()
+	if !s.hwDetectAt.IsZero() && time.Since(s.hwDetectAt) < s.hwDetectTTL {
+		return s.hwDetectDevs, nil
+	}
+
 	devices, err := s.hwDetector.DetectDevices(ctx)
 	if err != nil {
+		// Never cache a failure: a probe refused under load must not stick a
+		// wrong matrix for a whole TTL.
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		return devices, err
 	}
-	return devices, err
+	s.hwDetectDevs = devices
+	s.hwDetectAt = time.Now()
+	return devices, nil
 }
 
 func (s *Service) GetCacheInfo(ctx context.Context) (*transcoding.CacheInfo, error) {
