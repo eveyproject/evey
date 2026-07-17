@@ -90,6 +90,18 @@ type AudioProcessOpts struct {
 	// 42 ms for 1 B-frame, 83 ms for 2, at 23.976 fps). Past the ~45 ms threshold
 	// for early audio, that is audible. 0 = nothing to compensate.
 	VideoCompositionDelay float64
+
+	// ReadRate paces ffmpeg's input to N× real-time (`-readrate N`, pre-`-i`) so a
+	// single long-lived audio rendition doesn't decode-and-re-encode the WHOLE
+	// remaining track flat-out the instant it starts (and again on every seek).
+	// The AC-3/E-AC-3→AAC chain is CPU-bound; UNPACED it bursts one full core per
+	// client on a weak NAS. Pacing spreads that fixed work across playback instead
+	// of a startup spike. `-readrate` gates INPUT reading only - the encoded output
+	// is byte-identical, so the audio segment cache/fingerprint is unaffected.
+	// 0 (default) = no pacing, byte-for-byte and CPU-profile identical to before.
+	// Paired with a full-speed initial burst (appendCopyPacingBurst) so cold start
+	// and seeks still fill the player's buffer instantly before the cap engages.
+	ReadRate float64
 }
 
 // HLSProcessHandle controls a running HLS transcode.

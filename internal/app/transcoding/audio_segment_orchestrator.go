@@ -44,6 +44,21 @@ const audioSessionLookahead = 40
 // is evicted past the cap.
 const maxAudioSessionsPerHash = 3
 
+// audioRenditionReadRate paces the audio-only ffmpeg input to N× real-time.
+// UNPACED (the old 0), each session decodes AC-3/E-AC-3 and re-encodes AAC for
+// the WHOLE remaining track flat-out the instant it starts - and again on every
+// seek - spiking ~a full core per client on a weak NAS (measured ~25-30% CPU for
+// audio alone). 8× is the SAME loose pace the video copy rung uses
+// (SoftwareProducer.copyReadRate): fast enough to keep "far faster than realtime"
+// true - the audioSessionLookahead promise that a request just ahead of the
+// frontier lands in well under a second, and that seeks fill instantly - yet
+// bounded so the CPU-bound re-encode spreads across playback instead of a startup
+// spike. Do NOT drop toward ~1.5×: that would break the lookahead assumption and
+// re-introduce the buffering-spinner regression documented in copyReadRate.
+// `-readrate` gates INPUT reading only, so segments stay byte-identical and the
+// audio cache/fingerprint is untouched.
+const audioRenditionReadRate = 8
+
 // sessionKey namespaces a session by its start segment so a seek's session and
 // the cold-start one coexist instead of aliasing.
 func audioSessionKey(hash string, startSeg int) string {
@@ -193,6 +208,9 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		StartSec:       float64(segIdx) * ManifestSegmentSeconds,
 		StartNumber:    segIdx,
 		AudioNormalize: fp.AudioNormalize,
+		// Bound the CPU-bound AC-3/E-AC-3→AAC re-encode so it doesn't burst a full
+		// core per client on start/seek. See audioRenditionReadRate.
+		ReadRate: audioRenditionReadRate,
 	}
 
 	// Use the orchestrator's long-lived context so the ffmpeg process survives

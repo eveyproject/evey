@@ -333,6 +333,29 @@ func TestAudioOrchestrator_DeepSeek_StartsAtRequestedPosition(t *testing.T) {
 	assert.InDelta(t, 1800.0, opts.StartSec, 0.001, "ffmpeg must -ss to the seeked position (600 * 3s)")
 }
 
+// Every spawned audio session must carry the input-pacing rate: unpaced, the
+// AC-3/E-AC-3→AAC re-encode bursts a full core per client on start/seek. The
+// orchestrator is the single caller that sets it, so the wiring is asserted here.
+func TestAudioOrchestrator_SpawnsSessionWithReadRatePacing(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+
+	proc := newFakeAudioProcess()
+	proc.onStart = func(opts transcoding.AudioProcessOpts) *audioFakeHandle {
+		writeAudioSegment(t, cache, fp, opts.StartNumber)
+		return newAudioFakeHandle()
+	}
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+
+	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 0))
+
+	opts := proc.optsAt(0)
+	assert.Equal(t, float64(audioRenditionReadRate), opts.ReadRate,
+		"audio session must be input-paced so the CPU-bound re-encode does not burst a full core per client")
+	assert.Positive(t, opts.ReadRate, "pacing must be enabled (non-zero), not left at the old unpaced 0")
+}
+
 // A session already covering the requested segment is reused: playback walking
 // forward from a seek must not respawn ffmpeg on every segment.
 func TestAudioOrchestrator_ForwardPlayback_ReusesSession(t *testing.T) {

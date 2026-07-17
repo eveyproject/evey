@@ -1124,6 +1124,38 @@ func TestBuildFFmpegAudioOnlyArgs_PlaylistPath(t *testing.T) {
 		"last arg must be the playlist output path")
 }
 
+// The audio rendition must honour input pacing: ReadRate>0 emits `-readrate N`
+// plus a full-speed `-readrate_initial_burst`, both BEFORE `-i` (input options),
+// so the single long-lived AC-3/E-AC-3→AAC re-encode is bounded to N× real-time
+// instead of bursting a full core per client. ReadRate 0 (default) must emit
+// neither flag - byte-for-byte and CPU-profile identical to the pre-pacing path.
+func TestBuildFFmpegAudioOnlyArgs_ReadRatePacing(t *testing.T) {
+	base := transcoding.AudioProcessOpts{
+		FilePath:       "/media/movie.mkv",
+		OutputDir:      "/tmp/audio",
+		SourceTrackIdx: 0,
+		AudioCodec:     "aac",
+		AudioBitrate:   128,
+	}
+
+	off := strings.Join(ffmpeg.BuildFFmpegAudioOnlyArgs(base), " ")
+	assert.NotContains(t, off, "-readrate", "ReadRate 0 must not pace the input")
+
+	paced := base
+	paced.ReadRate = 8
+	on := ffmpeg.BuildFFmpegAudioOnlyArgs(paced)
+	joined := strings.Join(on, " ")
+	assert.Contains(t, joined, "-readrate 8", "ReadRate 8 must emit `-readrate 8`")
+	assert.Contains(t, joined, "-readrate_initial_burst 30",
+		"paced audio must keep a full-speed initial burst so cold start/seek fill instantly")
+
+	// Both are input options and MUST precede -i.
+	assert.Less(t, strings.Index(joined, "-readrate"), strings.Index(joined, "-i "),
+		"-readrate must precede -i")
+	assert.Less(t, strings.Index(joined, "-readrate_initial_burst"), strings.Index(joined, "-i "),
+		"-readrate_initial_burst must precede -i")
+}
+
 // Event-mode HLS flags must be present (consistent with video pipeline).
 func TestBuildFFmpegAudioOnlyArgs_HLSEventModeFlags(t *testing.T) {
 	opts := transcoding.AudioProcessOpts{

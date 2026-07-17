@@ -36,7 +36,15 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	if opts.StartSec > 0 {
 		args = append(args, "-ss", fmt.Sprintf("%.3f", opts.StartSec))
 	}
-	args = appendInputModifiers(args, 0) // audio rendition is light; no input pacing
+	// Pace the input like the copy rung does (readrate + full-speed initial burst).
+	// This is a SINGLE long-lived ffmpeg re-encoding the whole remaining audio track
+	// to EOF: left unpaced (readRate 0) it decodes AC-3/E-AC-3 and re-encodes AAC
+	// flat-out on start and on every seek, spiking ~a full core per client on a weak
+	// NAS. `-readrate` bounds that to N× real-time so the same fixed work spreads
+	// across playback; the burst keeps startup/seek instant. ReadRate 0 stays
+	// byte-identical AND CPU-profile-identical to the pre-pacing behaviour.
+	args = appendInputModifiers(args, opts.ReadRate)
+	args = appendCopyPacingBurst(args, opts.ReadRate)
 	args = append(args, "-i", opts.FilePath)
 
 	// Suppress all video streams; only the selected audio track is muxed.
