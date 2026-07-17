@@ -54,20 +54,30 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	encoder := resolveAudioEncoder(opts.AudioCodec)
 	args = append(args, "-c:a", encoder)
 
-	// Scale the (stereo-sized) base to the channel target with the SAME rule as
-	// the muxed ladder (audioOutputArgsSingle): a 5.1 track kept at the stereo
-	// base would ship 6 channels at 128 kbps. Deterministic in
-	// (AudioBitrate, MaxAudioChannels) - both hashed into the AudioFingerprint -
-	// so a given fingerprint still yields the same bytes.
-	if opts.AudioBitrate > 0 {
-		args = append(args, "-b:a",
-			fmt.Sprintf("%dk", scaledAudioBitrateKbps(int64(opts.AudioBitrate), opts.MaxAudioChannels)))
-	}
+	// Passthrough (wasm-audio path): the coded AC-3/E-AC-3 samples are muxed into
+	// fMP4 VERBATIM for a client that decodes them itself (ac3go wasm). ffmpeg
+	// REFUSES `-c:a copy` alongside a re-encode arg (`-b:a`, `-ac`, `-ar`, `-af`),
+	// and they would be meaningless on a stream copy anyway, so the copy path
+	// emits none of them - only the timeline shift (`-output_ts_offset`) and the
+	// HLS muxer, both of which operate on the container, not the samples.
+	isCopy := encoder == "copy"
 
-	args = append(args, "-ac", resolveAudioChannels(opts.MaxAudioChannels))
-	// 48 kHz is the HLS/CMAF standard sample rate; avoids resampler surprises
-	// when the source carries 44.1 kHz or 96 kHz PCM tracks.
-	args = append(args, "-ar", "48000")
+	if !isCopy {
+		// Scale the (stereo-sized) base to the channel target with the SAME rule as
+		// the muxed ladder (audioOutputArgsSingle): a 5.1 track kept at the stereo
+		// base would ship 6 channels at 128 kbps. Deterministic in
+		// (AudioBitrate, MaxAudioChannels) - both hashed into the AudioFingerprint -
+		// so a given fingerprint still yields the same bytes.
+		if opts.AudioBitrate > 0 {
+			args = append(args, "-b:a",
+				fmt.Sprintf("%dk", scaledAudioBitrateKbps(int64(opts.AudioBitrate), opts.MaxAudioChannels)))
+		}
+
+		args = append(args, "-ac", resolveAudioChannels(opts.MaxAudioChannels))
+		// 48 kHz is the HLS/CMAF standard sample rate; avoids resampler surprises
+		// when the source carries 44.1 kHz or 96 kHz PCM tracks.
+		args = append(args, "-ar", "48000")
+	}
 
 	// Land on the VIDEO's timeline. A video with B-frames is presented late by
 	// has_b_frames/fps (MP4 forbids a negative DTS); muxed, ffmpeg shifted both
@@ -79,7 +89,11 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		args = append(args, "-output_ts_offset", fmt.Sprintf("%.3f", opts.VideoCompositionDelay))
 	}
 
-	if opts.AudioNormalize {
+	// loudnorm is a filter (re-encode); it cannot run on a stream copy. A
+	// passthrough rendition is served verbatim regardless of the normalize knob -
+	// the wasm-audio path never re-encodes, so audio normalization simply does
+	// not apply to it (the AudioFingerprint below drops it too for AC-3 copy).
+	if opts.AudioNormalize && !isCopy {
 		args = append(args, "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
 	}
 

@@ -33,6 +33,8 @@ import {
 import { buildTranscodeHlsUrl, getSelectedBurnInTrack, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
+import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
+import { canWasmDecodeAC3, isWasmDecodableAudioCodec } from "@/utils/codec";
 import { useSubtitleManager } from "./hooks/useSubtitleManager";
 import { usePlayerKeyboard } from "./hooks/usePlayerKeyboard";
 import { useTouchGestures } from "./hooks/useTouchGestures";
@@ -408,12 +410,33 @@ export function HLSPlayer({
   const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(0);
   const [audioOffsetMs, setAudioOffsetMs] = useState(0);
   const [appliedAudioOffsetMs, setAppliedAudioOffsetMs] = useState(0);
+  // wasm-audio fallback latch: set when the client-side AC-3 decode path can't
+  // run (wasm load / decode / no server audio URI), which re-negotiates the
+  // stream against the normal muxed/AAC master. Reset per media.
+  const [wasmAudioDisabled, setWasmAudioDisabled] = useState(false);
   useEffect(() => {
     setSubtitleOffsetMs(0);
     setAudioOffsetMs(0);
     setAppliedAudioOffsetMs(0);
     setShedReason(null);
+    setWasmAudioDisabled(false);
   }, [mediaId]);
+
+  // The wasm-audio path applies when: we're on the HLS/transcode pipeline, the
+  // browser can't decode AC-3/E-AC-3 natively but runs WebAssembly, and the
+  // SELECTED audio track is AC-3/E-AC-3. The video then plays video-only (the
+  // server drops the audio from the master) and WasmAudioEngine decodes the
+  // AC-3 rendition client-side, in sync. A failure latches wasmAudioDisabled and
+  // the whole thing falls back to the server's AAC transcode.
+  const selectedAudioCodec = useMemo(
+    () => audioStreams.find((s) => s.trackIndex === currentTrackIndex)?.codec,
+    [audioStreams, currentTrackIndex],
+  );
+  const wasmAudioActive =
+    transcodeMode &&
+    !wasmAudioDisabled &&
+    canWasmDecodeAC3() &&
+    isWasmDecodableAudioCodec(selectedAudioCodec);
 
   const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
@@ -423,6 +446,20 @@ export function HLSPlayer({
     setShedReason,
     audioOffsetMs: appliedAudioOffsetMs,
     gapless,
+    wasmAudio: wasmAudioActive,
+  });
+
+  // Client-side AC-3/E-AC-3 decode (ac3go wasm) for browsers without native
+  // support. Runs alongside hls.js: the video plays video-only, this engine
+  // decodes the out-of-band AC-3 rendition and plays it in sync. A fatal error
+  // latches the fallback, which re-requests the muxed/AAC master.
+  useWasmAudioPlayback({
+    videoRef,
+    mediaId,
+    currentTrackIndex,
+    streamTokenRef,
+    active: wasmAudioActive,
+    onFallback: () => setWasmAudioDisabled(true),
   });
 
   useEffect(() => {

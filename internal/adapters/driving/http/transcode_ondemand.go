@@ -146,6 +146,142 @@ func (h *hlsVODServe) buildHybridMaster(r *http.Request, mediaID string, item *d
 	return h.manifestGen.Master(in)
 }
 
+// wasmAudioRequested reports whether the client asked for the browser wasm-audio
+// path (?wasmAudio=1). Such a client decodes the AC-3/E-AC-3 audio itself
+// (ac3go wasm) from a rendition it fetches out of band, so the master it gets
+// must be VIDEO-ONLY - MSE cannot decode the ec-3 an in-master group would carry.
+func wasmAudioRequested(r *http.Request) bool {
+	return r != nil && r.URL.Query().Get("wasmAudio") == "1"
+}
+
+// serveWasmAudioMaster serves the VIDEO-ONLY master for a browser wasm-audio
+// client (?wasmAudio=1) whose SELECTED audio track is AC-3/E-AC-3. That client
+// can't put ec-3 through MSE but runs the ac3go wasm decoder, so it plays the
+// video muted via hls.js and decodes the audio itself from a rendition it
+// fetches OUT OF BAND (named by the master's #EVEY-AUDIO-URI tag). Backend
+// choice, preferring the zero-ffmpeg packager and falling back so every source
+// is covered:
+//   - audio: mkvgo's plan rendition (od_audio{k}.m3u8) when the plan builds,
+//     else the ffmpeg AC-3 copy rendition (audio_{k}.m3u8?wasmAudio=1);
+//   - video: mkvgo's copy playlist (od_playlist.m3u8) when copy-eligible, else
+//     the ffmpeg video-only ladder (stream_N, made audio-free by the fingerprint).
+// Returns true once it has written a response; false to fall through to the
+// normal master paths (feature not applicable, or the selected track isn't AC-3).
+func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) bool {
+	if h.onDemand == nil || !wasmAudioRequested(r) || item == nil || item.File == nil || item.File.Path == "" {
+		return false
+	}
+	audioTrack := h.resolveAudioTrack(r, streams)
+	if c := strings.ToLower(sourceAudioCodec(streams, audioTrack)); c != "ac3" && c != "eac3" {
+		return false // nothing for the wasm decoder to do - use the normal paths
+	}
+
+	decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
+	videoCopy := h.planHLSVideoEligible(decision, item, streams)
+
+	// Prefer mkvgo's plan for the AC-3 audio rendition (no ffmpeg). Building it
+	// also warms the cache the od_audio* sub-requests hit. A plan failure routes
+	// the audio to the ffmpeg copy rendition instead - the source is still served.
+	_, planErr := h.buildPlan(r, mediaID, item)
+	useMkvgoAudio := planErr == nil
+	useMkvgoVideo := videoCopy && planErr == nil
+
+	master, err := h.buildWasmAudioMaster(r, mediaID, item, streams, useMkvgoVideo, useMkvgoAudio, audioTrack)
+	if err != nil {
+		slog.Warn("hls-vod: wasm-audio master failed, falling back",
+			slog.String("media_id", mediaID), slog.Any("err", err))
+		return false
+	}
+	setCORSHeaders(w, r, "")
+	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
+	w.Header().Set("Cache-Control", "no-cache")
+	servedBy := "ffmpeg"
+	if useMkvgoVideo {
+		servedBy = "mkvgo"
+	}
+	w.Header().Set("X-Evey-Served-By", servedBy)
+	_, _ = w.Write([]byte(master))
+	slog.Info("hls-vod: wasm-audio master served",
+		slog.String("media_id", mediaID),
+		slog.Int("audio_track", audioTrack),
+		slog.Bool("mkvgo_video", useMkvgoVideo),
+		slog.Bool("mkvgo_audio", useMkvgoAudio))
+	return true
+}
+
+// buildWasmAudioMaster renders the VIDEO-ONLY master for the wasm-audio path
+// (see serveWasmAudioMaster). No audio group rides the master - the AC-3/E-AC-3
+// rendition is named by a custom #EVEY-AUDIO-URI tag the client reads and hls.js
+// ignores. useMkvgoVideo points the single video variant at the packager's copy
+// playlist; otherwise the ffmpeg video-only ladder is kept. useMkvgoAudio picks
+// the audio rendition URI (mkvgo's od_audio{k} vs the ffmpeg audio_{k} copy).
+func (h *hlsVODServe) buildWasmAudioMaster(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, useMkvgoVideo, useMkvgoAudio bool, audioTrack int) (string, error) {
+	in, err := h.buildManifestInput(r, mediaID, item, streams)
+	if err != nil {
+		return "", err
+	}
+	// Video-only master: drop any AAC rendition group and switch Master() to the
+	// no-audio-group shape. WasmAudio marks the (ffmpeg) video segments audio-free
+	// (the fingerprint reads it) and, when the audio is the ffmpeg copy rendition,
+	// bakes wasmAudio=1 into its URI via the shared query suffix.
+	in.AudioRenditions = nil
+	in.ExternalAudio = true
+	in.WasmAudio = true
+
+	if useMkvgoVideo {
+		dims := sourceDimsOf(streams)
+		videoKbps := item.File.Bitrate / 1000
+		if videoKbps <= 0 {
+			if sec := item.File.Duration.Seconds(); sec > 0 && item.File.Size > 0 {
+				videoKbps = int64(float64(item.File.Size) * 8 / sec / 1000)
+			}
+		}
+		if videoKbps <= 0 {
+			videoKbps = 5000
+		}
+		in.Profiles = []domaintranscoding.HLSProfile{{
+			Name:         "od-copy",
+			Width:        dims.Width,
+			Height:       dims.Height,
+			VideoBitrate: videoKbps,
+			AudioBitrate: 0,
+			Copy:         true,
+		}}
+		in.VideoPlaylistURI = onDemandPrefix + "playlist.m3u8"
+	}
+	// else: keep buildManifestInput's ffmpeg profiles (stream_N). ExternalAudio
+	// makes the master video-only and the fingerprint makes the segments audio-free.
+
+	if useMkvgoAudio {
+		// mkvgo's own rendition under the od_ prefix. The rendition index is
+		// 1-based AMONG THE AUDIO TRACKS PRESENT IN THE PLAN: with track-trim on
+		// the plan keeps only the resolved track and renumbers it to audio1;
+		// without trim every track survives and the k-th is audio{k+1}. Getting
+		// this wrong 404s the rendition (wasm falls back to AAC).
+		//
+		// ?audioTrack is threaded so the sub-resource requests
+		// (serveOnDemandResource -> buildPlan -> resolveAudioTrack) rebuild the
+		// SAME trimmed plan/track; servePlanResourceData re-bakes this request's
+		// RawQuery onto the segment URIs the playlist lists, so it propagates.
+		// Harmless with trim off (buildPlan ignores it, cache key unchanged).
+		idx := audioTrack + 1
+		if h.onDemandTrackTrim {
+			idx = 1
+		}
+		uri := fmt.Sprintf("%saudio%d.m3u8?audioTrack=%d", onDemandPrefix, idx, audioTrack)
+		if in.StreamToken != "" {
+			uri += "&token=" + url.QueryEscape(in.StreamToken)
+		}
+		in.ExternalAudioURI = uri
+	} else {
+		// ffmpeg AC-3 copy rendition: audio_{ord}.m3u8 with the full decision
+		// suffix (QuerySuffixFor already carries wasmAudio=1 since WasmAudio is set)
+		// so its init/segment requests resolve to the same passthrough bytes.
+		in.ExternalAudioURI = fmt.Sprintf("audio_%d.m3u8%s", audioTrack, apptranscoding.QuerySuffixFor(in))
+	}
+	return h.manifestGen.Master(in)
+}
+
 // serveOnDemandResource handles a routed `od_<name>` sub-resource request (a
 // playlist, init, segment, subtitle) or the top-level `manifest.mpd`. The plan
 // is rebuilt (cache hit) from the source alone; access was already enforced by

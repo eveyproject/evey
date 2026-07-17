@@ -192,6 +192,78 @@ func TestManifestGenerator_Master_AudioRendition_CodecAndSanitize(t *testing.T) 
 	assert.Contains(t, out, `NAME="Director's cut"`)
 }
 
+func TestManifestGenerator_Master_ExternalAudio_VideoOnly(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.ChosenVideoCodec = "h264"
+	in.ChosenAudioCodec = "ac3" // source is AC-3, decoded client-side by wasm
+	// ExternalAudio wins even if AudioRenditions were populated: no in-master
+	// audio group must be emitted (MSE can't decode the ec-3 the wasm path serves
+	// out of band).
+	in.AudioRenditions = []AudioRendition{{SourceTrackIdx: 0, LanguageCode: "eng", Name: "English"}}
+	in.ExternalAudio = true
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	// No audio group, no per-variant AUDIO= tie: the master is pure video.
+	assert.NotContains(t, out, "#EXT-X-MEDIA:", "video-only master must emit no audio rendition group")
+	assert.NotContains(t, out, "AUDIO=", "video-only variant must not reference an audio group")
+	// CODECS lists the video codec ALONE - no mp4a/ac-3/ec-3 audio codec that the
+	// video-only segments don't carry (Safari would refuse the master otherwise).
+	assert.Contains(t, out, `CODECS="avc1.640028"`)
+	assert.NotContains(t, out, "mp4a", "video-only CODECS must not advertise an audio codec")
+	assert.NotContains(t, out, "ac-3")
+	assert.NotContains(t, out, "ec-3")
+	// The video variant is still there.
+	assert.Contains(t, out, "stream_0.m3u8")
+}
+
+func TestManifestGenerator_Master_ExternalAudio_AudioURITag(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.ChosenVideoCodec = "h264"
+	in.ExternalAudio = true
+	in.ExternalAudioURI = "od_audio1.m3u8?token=abc"
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	// The custom tag names the out-of-band AC-3 rendition; hls.js ignores it.
+	assert.Contains(t, out, `#EVEY-AUDIO-URI:"od_audio1.m3u8?token=abc"`)
+	// No tag when ExternalAudio is off even if a URI was set by mistake.
+	in2 := baseInput(single360p, 10.0)
+	in2.ExternalAudioURI = "od_audio1.m3u8"
+	out2, err := g.Master(in2)
+	require.NoError(t, err)
+	assert.NotContains(t, out2, "#EVEY-AUDIO-URI")
+}
+
+func TestManifestGenerator_Master_WasmAudio_QueryParam(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput(single360p, 10.0)
+	in.WasmAudio = true
+	out, err := g.Master(in)
+	require.NoError(t, err)
+	// wasmAudio=1 rides every emitted URI so the segment fingerprint matches.
+	assert.Contains(t, out, "wasmAudio=1")
+}
+
+func TestManifestGenerator_Master_ExternalAudio_CopyRungVideoOnlyCodecs(t *testing.T) {
+	g := NewManifestGenerator()
+	in := baseInput([]transcoding.HLSProfile{
+		{Name: "src", Width: 1920, Height: 1080, VideoBitrate: 8000, AudioBitrate: 0, Copy: true},
+	}, 10.0)
+	in.ChosenVideoCodec = "h264"
+	in.CopyVideoCodec = "avc1.640028"
+	in.ExternalAudio = true
+	out, err := g.Master(in)
+	require.NoError(t, err)
+
+	// A video-COPY rung under ExternalAudio advertises its exact source codec with
+	// NO trailing audio codec appended.
+	assert.Contains(t, out, `CODECS="avc1.640028"`)
+	assert.NotContains(t, out, "mp4a")
+}
+
 func TestManifestGenerator_Master_TokenInQuery(t *testing.T) {
 	g := NewManifestGenerator()
 	in := baseInput(single360p, 10.0)

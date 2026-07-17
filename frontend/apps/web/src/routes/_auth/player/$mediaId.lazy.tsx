@@ -202,6 +202,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
         language: s.language,
         title: s.title,
         isDefault: s.isDefault,
+        codec: s.codec,
       })) ?? [];
 
   const subtitleStreams: SubtitleStream[] =

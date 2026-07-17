@@ -70,6 +70,10 @@ interface UseTranscodePlaybackArgs {
    * Baked into the stream URL (?gapless=1) - the server falls back to the
    * normal per-episode master when it can't honour it. */
   gapless?: boolean;
+  /** wasm-audio path: request a VIDEO-ONLY master (?wasmAudio=1) whose AC-3/
+   * E-AC-3 audio is decoded client-side (WasmAudioEngine). Toggling it off (the
+   * fallback) rebuilds hls.js against the normal muxed/AAC master. */
+  wasmAudio?: boolean;
 }
 
 export function useTranscodePlayback({
@@ -89,6 +93,7 @@ export function useTranscodePlayback({
   setIsBuffering,
   audioOffsetMs = 0,
   gapless = false,
+  wasmAudio = false,
   setFatalError,
   setShedReason,
 }: UseTranscodePlaybackArgs) {
@@ -141,6 +146,7 @@ export function useTranscodePlayback({
       0, // server ignores startSec on the VOD path
       audioOffsetMs,
       gapless,
+      wasmAudio,
     );
 
     if (prefersNativeHLS()) {
@@ -329,7 +335,7 @@ export function useTranscodePlayback({
                 data.details === "levelLoadTimeOut";
               if (isManifestLevel) {
                 const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
-                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs, gapless);
+                const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs, gapless, wasmAudio);
                 hls.loadSource(freshUrl);
                 hls.startLoad();
               } else {
@@ -367,7 +373,7 @@ export function useTranscodePlayback({
             // At position 0 the state setter is a no-op (same value, no
             // re-render): refetch the master in place instead, 401-style. The
             // fresh master carries freshly sealed URLs.
-            const freshUrl = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, selectedBurnInTrack, 0, audioOffsetMs, gapless);
+            const freshUrl = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, selectedBurnInTrack, 0, audioOffsetMs, gapless, wasmAudio);
             hls.loadSource(freshUrl);
             hls.startLoad();
           }
@@ -430,7 +436,7 @@ export function useTranscodePlayback({
       setIsBuffering(false);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
-  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless]);
+  }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless, wasmAudio]);
 
   return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight };
 }

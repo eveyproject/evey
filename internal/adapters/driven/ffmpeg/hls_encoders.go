@@ -116,6 +116,11 @@ func resolveAudioEncoder(codec string) string {
 	switch strings.ToLower(codec) {
 	case "", "aac":
 		return "aac"
+	case "copy":
+		// Passthrough: the source audio is muxed into fMP4 verbatim, no re-encode.
+		// Used by the browser wasm-audio path to serve AC-3/E-AC-3 the client
+		// decodes itself (ac3go wasm) - zero audio CPU on the server.
+		return "copy"
 	case "ac3":
 		return "ac3"
 	case "eac3":

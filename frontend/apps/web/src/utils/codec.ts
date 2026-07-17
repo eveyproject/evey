@@ -50,6 +50,48 @@ export const canDisplayHdr = (() => {
   }
 })();
 
+// canWasmDecodeAC3 reports whether this browser should decode AC-3/E-AC-3 in
+// WebAssembly (the ac3go decoder) rather than natively. True only when the
+// browser CANNOT play those codecs itself AND can run WebAssembly: Chrome,
+// Firefox and Edge (which gate Dolby decoding off by default) get the wasm path;
+// Safari, which decodes AC-3 natively, keeps the native path. Deliberately kept
+// OUT of getBrowserCapabilities().audioCodecs - advertising ac3/eac3 there would
+// make the server COPY the audio into the MUXED stream, which MSE then rejects.
+// The wasm path is signalled by a separate `?wasmAudio=1` flag instead, so the
+// server serves it as an out-of-band rendition the wasm engine decodes.
+let _wasmAC3: boolean | undefined;
+export function canWasmDecodeAC3(): boolean {
+  if (_wasmAC3 !== undefined) return _wasmAC3;
+  if (typeof window === "undefined" || typeof WebAssembly === "undefined") {
+    return (_wasmAC3 = false);
+  }
+  const v = document.createElement("video");
+  // "" means "cannot play" - both the plain element and MSE must lack it, or we
+  // keep the cheaper native path.
+  const nativeAC3 =
+    v.canPlayType('audio/mp4; codecs="ac-3"') !== "" ||
+    v.canPlayType('video/mp4; codecs="ac-3"') !== "" ||
+    v.canPlayType('audio/mp4; codecs="ec-3"') !== "" ||
+    v.canPlayType('video/mp4; codecs="ec-3"') !== "";
+  return (_wasmAC3 = !nativeAC3);
+}
+
+// isWasmDecodableAudioCodec reports whether a source audio codec is one the
+// ac3go wasm decoder handles (AC-3 / E-AC-3, in every spelling the prober and
+// RFC/MIME forms use).
+export function isWasmDecodableAudioCodec(codec: string | undefined): boolean {
+  switch ((codec ?? "").toLowerCase()) {
+    case "ac3":
+    case "ac-3":
+    case "eac3":
+    case "e-ac-3":
+    case "ec-3":
+      return true;
+    default:
+      return false;
+  }
+}
+
 export interface BrowserCapabilities {
   videoCodecs: string[];
   audioCodecs: string[];

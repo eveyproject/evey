@@ -128,7 +128,14 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		// codec lists: it MUST be re-baked into the variant/segment URLs or the
 		// segment-time makeDecision silently downgrades an HDR copy rung to a
 		// tonemapped h264 transcode that contradicts the master's CODECS.
-		HDRCapable:    r != nil && r.URL.Query().Get("hdr") == "1",
+		HDRCapable: r != nil && r.URL.Query().Get("hdr") == "1",
+		// wasm-audio path: propagate wasmAudio=1 into every variant/segment URI.
+		// The segment's fingerprint is sealed VIDEO-ONLY (videoAudioTrack=-1 when
+		// wasmAudio), so a segment request that lost the flag would re-derive a
+		// MUXED fingerprint, mismatch the sealed fp, and 410 - breaking the ffmpeg
+		// video-transcode wasm path (the video never loads). Baking it here keeps
+		// the variant playlists' segment URIs self-consistent with the master.
+		WasmAudio:     wasmAudioRequested(r),
 		AudioOffsetMs: audioOffsetMsQuery(r),
 		// The playback's FIRST playlist stamps its decision; children inherit
 		// the stamp verbatim so the whole session stays on one plan even if
@@ -232,7 +239,12 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	// tested video-only ladder (hasAudio) and forks the cache (atrack=-1 in Hash())
 	// so muxed and video-only segments for the same media never alias.
 	videoAudioTrack := audioTrack
-	if h.audioRenditionsFor(decision) {
+	// Same video-only requirement for the wasm-audio path: the AC-3/E-AC-3 audio
+	// is served as a SEPARATE rendition (mkvgo od_audio* or ffmpeg audio_*) and
+	// decoded client-side, so the ffmpeg video segments must carry no audio track
+	// (atrack=-1 forks the cache off the muxed ladder). Harmless when the video is
+	// served by mkvgo instead (this ffmpeg fingerprint is then unused).
+	if h.audioRenditionsFor(decision) || wasmAudioRequested(r) {
 		videoAudioTrack = -1
 	}
 

@@ -188,6 +188,43 @@ func TestBuildHybridMaster(t *testing.T) {
 	assert.NotContains(t, master, "stream_0.m3u8", "video is NOT served by the ffmpeg pipeline")
 }
 
+// The wasm-audio master must name the mkvgo audio rendition CORRECTLY: without
+// track-trim the k-th audio track is audio{k+1}; with trim the plan keeps only
+// the resolved track and renumbers it to audio1. And ?audioTrack must ride the
+// URI so the sub-resource rebuilds the same trimmed plan. Guards the review's
+// HIGH finding (wrong index → 404 → silent fallback; missing param → wrong lang).
+func TestBuildWasmAudioMaster_AudioRenditionURI(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.manifestGen = apptranscoding.NewManifestGenerator()
+	dur, err := shared.NewDurationMs(60000)
+	require.NoError(t, err)
+	item := &domainlibrary.MediaItem{File: &domainlibrary.MediaFile{Path: "/m.mkv", Size: 1 << 20, Duration: dur, Bitrate: 4_000_000}}
+	ch := func(n int) *int { return &n }
+	vw, vh, lvl := 1920, 1080, 40
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264", Profile: "High", Width: &vw, Height: &vh, Level: &lvl, Keyframes: []int64{0, 6000, 12000}},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: ch(6), IsDefault: true},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "ac3", Channels: ch(6)},
+	}
+	mkReq := func() *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?wasmAudio=1&audioTrack=1&videoCodecs=h264&audioCodecs=aac&containers=mp4", nil)
+		return req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	}
+
+	// Trim OFF: audioTrack=1 (2nd audio track) → the 2nd rendition, od_audio2.
+	h.onDemandTrackTrim = false
+	off, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1)
+	require.NoError(t, err)
+	assert.Contains(t, off, `#EVEY-AUDIO-URI:"od_audio2.m3u8?audioTrack=1`, "untrimmed: k-th track is audio{k+1} and ?audioTrack rides along")
+
+	// Trim ON: the plan keeps one track, renumbered to audio1, whatever the ordinal.
+	h.onDemandTrackTrim = true
+	on, err := h.buildWasmAudioMaster(mkReq(), "m1", item, streams, true, true, 1)
+	require.NoError(t, err)
+	assert.Contains(t, on, `#EVEY-AUDIO-URI:"od_audio1.m3u8?audioTrack=1`, "trimmed: the kept track is renumbered to audio1")
+	assert.NotContains(t, on, "od_audio2.m3u8", "a trimmed plan has no audio2 to reference")
+}
+
 func TestServeOnDemandResource_Segment(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{

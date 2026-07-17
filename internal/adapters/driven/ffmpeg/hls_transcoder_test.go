@@ -987,6 +987,32 @@ func TestBuildFFmpegAudioOnlyArgs_ContainsVN(t *testing.T) {
 	assert.Contains(t, joined, "-vn", "-vn must suppress the video stream")
 }
 
+// A passthrough (AudioCodec="copy") rendition muxes the source AC-3/E-AC-3
+// verbatim for the wasm-audio path: -c:a copy, and NONE of the re-encode args
+// (-b:a/-ac/-ar/-af) - ffmpeg refuses those alongside a stream copy.
+func TestBuildFFmpegAudioOnlyArgs_CopyPassthrough(t *testing.T) {
+	opts := transcoding.AudioProcessOpts{
+		FilePath:         "/media/movie.mkv",
+		OutputDir:        "/tmp/audio",
+		SourceTrackIdx:   0,
+		AudioCodec:       "copy",
+		AudioBitrate:     192, // must be ignored on a copy
+		MaxAudioChannels: 6,   // must be ignored on a copy
+		AudioNormalize:   true, // loudnorm cannot run on a copy
+	}
+	args := ffmpeg.BuildFFmpegAudioOnlyArgs(opts)
+	joined := strings.Join(args, " ")
+	assert.Contains(t, joined, "-c:a copy", "passthrough must stream-copy the audio")
+	assert.Contains(t, joined, "-vn", "-vn still suppresses video")
+	assert.Contains(t, joined, "0:a:0", "still maps the selected audio track")
+	assert.NotContains(t, joined, "-b:a", "no bitrate arg on a stream copy")
+	assert.NotContains(t, joined, "-ac ", "no channel arg on a stream copy")
+	assert.NotContains(t, joined, "-ar ", "no sample-rate arg on a stream copy")
+	assert.NotContains(t, joined, "loudnorm", "loudnorm cannot run on a stream copy")
+	// The fMP4 HLS muxer is still emitted (container work, not sample work).
+	assert.Contains(t, joined, "-hls_segment_type fmp4")
+}
+
 // The -map selector must reference the correct 0-indexed audio stream.
 func TestBuildFFmpegAudioOnlyArgs_MapTrackIndex(t *testing.T) {
 	cases := []struct {

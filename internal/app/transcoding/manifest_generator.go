@@ -104,6 +104,36 @@ type ManifestInput struct {
 	// working without change.
 	AudioRenditions []AudioRendition
 
+	// ExternalAudio switches the master to VIDEO-ONLY: video variants with no
+	// muxed audio, no `#EXT-X-MEDIA:TYPE=AUDIO` group, and a CODECS attribute
+	// that lists only the video codec. Used by the browser wasm-audio path,
+	// where the AC-3/E-AC-3 audio is decoded client-side (ac3go wasm) from a
+	// rendition the player fetches OUT OF BAND (mkvgo's od_audio{k}.m3u8) - so
+	// the audio must NOT ride the master at all, or MSE would reject the
+	// undecodable ec-3 group. Mutually exclusive with AudioRenditions (that
+	// path keeps the in-master AAC group for native players); when both are set
+	// ExternalAudio wins and no group is emitted. Empty (false) is the
+	// pre-feature behaviour, bit-for-bit.
+	ExternalAudio bool
+
+	// ExternalAudioURI, when ExternalAudio is set, is emitted in the master as a
+	// custom `#EVEY-AUDIO-URI:"<uri>"` tag. It names the AC-3/E-AC-3 audio
+	// rendition the wasm client fetches OUT OF BAND - either mkvgo's own
+	// (od_audio{k}.m3u8) or the ffmpeg copy rendition (audio_{k}.m3u8?wasmAudio=1),
+	// whichever the server chose. hls.js ignores the unknown tag (video-only
+	// playback); the wasm engine reads it, staying agnostic of which backend
+	// packaged the audio. Empty emits no tag.
+	ExternalAudioURI string
+
+	// WasmAudio bakes `wasmAudio=1` into every URI this manifest emits. It is a
+	// decision input on the AUDIO rendition path (like the codec lists on the
+	// video path): it flips buildAudioFingerprint from the AAC re-encode to an
+	// AC-3/E-AC-3 stream COPY, and forks the segment cache. The audio playlist
+	// MUST carry it so its init/segment requests resolve to the same passthrough
+	// bytes the playlist was built for - dropping it would serve AAC segments
+	// under an AC-3 init. Empty = the AAC rendition path, unchanged.
+	WasmAudio bool
+
 	// HDRCapable mirrors the request's `hdr=1` client capability into every
 	// baked URL. The master decision (copy rung vs tonemap) reads this flag;
 	// without re-baking it, the variant/segment requests re-derive the decision
@@ -228,6 +258,14 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// switch.
 	b.WriteString("#EXT-X-INDEPENDENT-SEGMENTS\n")
 
+	// wasm-audio path: name the out-of-band AC-3/E-AC-3 rendition the client
+	// decodes itself. A custom tag hls.js ignores (so it plays the master as
+	// video-only) while the wasm engine reads it - keeping the client agnostic of
+	// whether mkvgo or ffmpeg packaged the audio (see field doc).
+	if in.ExternalAudio && in.ExternalAudioURI != "" {
+		fmt.Fprintf(&b, "#EVEY-AUDIO-URI:%q\n", in.ExternalAudioURI)
+	}
+
 	// When audio is served as a SEPARATE rendition it is always transcoded to AAC
 	// (transcode_audio_handler hardcodes mp4a), so the variant CODECS must
 	// advertise mp4a - not the decision's possibly-ac3/eac3 muxed codec. Otherwise
@@ -237,7 +275,16 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	if len(in.AudioRenditions) > 0 {
 		effectiveAudioCodec = "aac"
 	}
-	codecs := codecsAttr(in.ChosenVideoCodec, effectiveAudioCodec)
+	// Video-only master (wasm-audio path): the CODECS attribute must list the
+	// video codec ALONE - advertising any audio codec makes Safari/hls.js
+	// validate the master against an audio track the video-only segments don't
+	// carry and refuse the stream.
+	var codecs string
+	if in.ExternalAudio {
+		codecs = videoCodecAttr(strings.ToLower(in.ChosenVideoCodec))
+	} else {
+		codecs = codecsAttr(in.ChosenVideoCodec, effectiveAudioCodec)
+	}
 	suffix := querySuffix(in)
 
 	// Audio rendition path: emit one #EXT-X-MEDIA per source audio
@@ -247,7 +294,7 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 	// identical when in.AudioRenditions is empty - every existing
 	// caller, test and client falls through to the muxed path below.
 	audioGroup := ""
-	if len(in.AudioRenditions) > 0 {
+	if len(in.AudioRenditions) > 0 && !in.ExternalAudio {
 		audioGroup = "aud"
 		for i, r := range in.AudioRenditions {
 			def := "NO"
@@ -295,7 +342,12 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		rungCodecs := codecs
 		videoRangeAttr := ""
 		if p.Copy && in.CopyVideoCodec != "" {
-			rungCodecs = in.CopyVideoCodec + "," + audioCodecAttr(strings.ToLower(effectiveAudioCodec))
+			// Video-only master carries no audio codec in CODECS (see above).
+			if in.ExternalAudio {
+				rungCodecs = in.CopyVideoCodec
+			} else {
+				rungCodecs = in.CopyVideoCodec + "," + audioCodecAttr(strings.ToLower(effectiveAudioCodec))
+			}
 			if in.CopyVideoRange != "" {
 				videoRangeAttr = ",VIDEO-RANGE=" + in.CopyVideoRange
 			}
@@ -694,6 +746,11 @@ func querySuffix(in ManifestInput) string {
 	}
 	if in.PinnedAudioDecision != "" {
 		q.Set("ad", in.PinnedAudioDecision)
+	}
+	if in.WasmAudio {
+		// Audio-rendition decision input: keeps the passthrough (AC-3 copy)
+		// segments/init aligned with the playlist that named them (see field doc).
+		q.Set("wasmAudio", "1")
 	}
 	if encoded := q.Encode(); encoded != "" {
 		return "?" + encoded

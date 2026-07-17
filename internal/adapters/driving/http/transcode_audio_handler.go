@@ -56,7 +56,7 @@ func (h *audioServe) audioRenditionEnabled() bool {
 // /api/v1/media/{id}/hls/master.m3u8, so the dispatcher is the actual
 // production code path.
 func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int) {
-	if !h.audioRenditionEnabled() {
+	if !h.audioRenditionEnabled() && !wasmAudioRequested(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -111,6 +111,9 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		AudioRenditions:     audioRenditions,
 		// Same re-bake rule as buildManifestInput: hdr is a decision input.
 		HDRCapable: r.URL.Query().Get("hdr") == "1",
+		// wasm-audio passthrough: bake wasmAudio=1 into the segment/init URIs so
+		// their fingerprint matches this playlist's copy init (see field doc).
+		WasmAudio: wasmAudioRequested(r),
 	}
 
 	out, err := h.manifestGen.AudioPlaylist(in, trackIdx)
@@ -130,7 +133,7 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 }
 
 func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int) {
-	if !h.audioRenditionEnabled() {
+	if !h.audioRenditionEnabled() && !wasmAudioRequested(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -184,7 +187,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 }
 
 func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx, segIdx int) {
-	if !h.audioRenditionEnabled() {
+	if !h.audioRenditionEnabled() && !wasmAudioRequested(r) {
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
@@ -249,6 +252,26 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 // audio-only path so passthrough is chosen when the source codec is AC-3 /
 // E-AC-3 and the client advertises support.
 func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, trackIdx int) apptranscoding.AudioFingerprint {
+	// wasm-audio passthrough (realises the TODO above): a Chrome/Firefox-class
+	// client that runs the ac3go wasm decoder asks (?wasmAudio=1) for the source
+	// AC-3/E-AC-3 served VERBATIM instead of re-encoded to AAC. AudioCodec="copy"
+	// makes BuildFFmpegAudioOnlyArgs stream-copy it (no -b:a/-ac/-ar/-af, no
+	// loudnorm) - zero audio CPU on the server. Distinct AudioCodec forks the
+	// segment cache, so the AAC and passthrough renditions never alias. Gated on
+	// the source actually being AC-3/E-AC-3; anything else keeps the AAC path.
+	if wasmAudioRequested(r) {
+		if c := strings.ToLower(h.sourceAudioCodecForTrack(r.Context(), mediaID, trackIdx)); c == "ac3" || c == "eac3" {
+			return apptranscoding.AudioFingerprint{
+				MediaID:        mediaID,
+				SourcePath:     item.File.Path,
+				SourceTrackIdx: trackIdx,
+				AudioCodec:     "copy",
+				// A stream copy takes no bitrate/channel/normalize input - they are
+				// left zero so the arg builder emits a pure passthrough and the hash
+				// stays stable.
+			}
+		}
+	}
 	return apptranscoding.AudioFingerprint{
 		MediaID:          mediaID,
 		SourcePath:       item.File.Path,
@@ -258,6 +281,31 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 		AudioNormalize:   h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
 		MaxAudioChannels: h.sourceAudioChannels(r.Context(), mediaID, trackIdx),
 	}
+}
+
+// sourceAudioCodecForTrack returns the codec of the trackIdx-th AUDIO stream
+// (the `ffmpeg -map 0:a:N` numbering buildAudioRenditions advertises), lowercased
+// and empty when the streams can't be read. Mirrors sourceAudioChannels so the
+// passthrough gate reads the same track numbering the rest of the audio path uses.
+func (h *audioServe) sourceAudioCodecForTrack(ctx context.Context, mediaID string, trackIdx int) string {
+	if h.libSvc == nil {
+		return ""
+	}
+	streams, err := h.libSvc.GetMediaStreams(ctx, mediaID)
+	if err != nil {
+		return ""
+	}
+	audioIdx := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != domainlibrary.Audio {
+			continue
+		}
+		if audioIdx == trackIdx {
+			return s.Codec
+		}
+		audioIdx++
+	}
+	return ""
 }
 
 // maxRenditionChannels is the highest channel count a browser will decode as AAC

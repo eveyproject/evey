@@ -75,12 +75,18 @@ export function buildTranscodeHlsUrl(
   startSec: number,
   audioOffsetMs = 0,
   gapless = false,
+  wasmAudio = false,
 ): string {
   const params = new URLSearchParams();
   if (token) params.set("token", token);
   params.set("audioTrack", String(audioTrack));
   if (selectedBurnInTrack !== null) params.set("subtitleTrack", String(selectedBurnInTrack));
   if (startSec > 0) params.set("startSec", String(startSec));
+  // wasm-audio path: ask the server for a VIDEO-ONLY master whose AC-3/E-AC-3
+  // audio the client decodes itself (ac3go wasm). Named in the master's
+  // #EVEY-AUDIO-URI tag, fetched out of band by WasmAudioEngine - never muxed
+  // into the stream hls.js appends, which MSE couldn't decode.
+  if (wasmAudio) params.set("wasmAudio", "1");
   // Audio resync: a decision input (forces the audio to re-encode with a
   // shifted input) - the server re-bakes it on every child URL like the
   // codec caps, so the whole session stays coherent.

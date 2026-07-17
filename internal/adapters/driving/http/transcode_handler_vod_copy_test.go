@@ -484,3 +484,36 @@ func TestBuildFingerprint_BitmapBurnIn_ThreadsCodecAndForcesTranscode(t *testing
 	// And the threaded codec actually activates the builder's burn-in gate.
 	assert.True(t, domaintranscoding.IsImageSubtitle(fp.SubtitleBurnInCodec), "the threaded codec must be recognised as a bitmap subtitle")
 }
+
+// The wasm-audio path serves VIDEO-ONLY ffmpeg segments (the AC-3/E-AC-3 audio is
+// decoded client-side from a separate rendition). The video fingerprint must
+// therefore drop the audio track (AudioTrack = -1) whenever the request carries
+// ?wasmAudio=1, and fork the cache off the muxed fingerprint - otherwise a
+// variant playlist's segment URI, sealed video-only, would re-derive a muxed
+// fingerprint and 410. Guards the ffmpeg video-transcode wasm-audio path.
+func TestBuildFingerprint_WasmAudio_ForcesVideoOnly(t *testing.T) {
+	h := newCopyTestHandler(t)
+	ch := func(n int) *int { return &n }
+	w, hgt, level := 1920, 1080, 40
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "hevc", Profile: "Main", Width: &w, Height: &hgt, Level: &level, Keyframes: []int64{0, 6000, 12000}},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "eac3", Channels: ch(6), IsDefault: true},
+	}
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur}}
+	mk := func(q string) apptranscoding.DecisionFingerprint {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0.m3u8?"+q, nil)
+		req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+		fp, err := h.buildFingerprint(req, "m1", item, streams)
+		require.NoError(t, err)
+		return fp
+	}
+
+	base := "videoCodecs=h264&audioCodecs=aac&containers=mp4&audioTrack=0"
+	muxed := mk(base)
+	wasm := mk(base + "&wasmAudio=1")
+
+	assert.Equal(t, 0, muxed.AudioTrack, "muxed path keeps the selected audio track")
+	assert.Equal(t, -1, wasm.AudioTrack, "wasm-audio path drops the audio track (video-only segments)")
+	assert.NotEqual(t, muxed.Hash(), wasm.Hash(), "video-only must fork the segment cache off the muxed fingerprint")
+}

@@ -4,4 +4,5 @@ export type AudioStream = {
   language?: string;
   title?: string;
   isDefault?: boolean;
+  codec?: string;     // source codec (ac3/eac3/aac/...) - drives the wasm-audio path
 };

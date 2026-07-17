@@ -307,7 +307,11 @@ func securityHeadersMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss:")
+		// 'wasm-unsafe-eval' lets the player compile the ac3go WebAssembly decoder
+		// (the browser AC-3/E-AC-3 path) - the narrow token that permits Wasm
+		// compilation ONLY, without opening general eval() the way 'unsafe-eval'
+		// would (Chrome 97+/Firefox 102+). Everything else stays 'self'.
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss:")
 		if httpsOnly || r.TLS != nil {
 			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		}

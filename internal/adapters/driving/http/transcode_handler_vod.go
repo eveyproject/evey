@@ -395,6 +395,14 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		return
 	}
 
+	// Browser wasm-audio path (?wasmAudio=1 + selected AC-3/E-AC-3 track): a
+	// VIDEO-ONLY master whose audio the client decodes itself (ac3go wasm) from an
+	// out-of-band rendition. Checked before the plan master so the AC-3 audio
+	// stays out of MSE. Falls through when not applicable.
+	if h.serveWasmAudioMaster(w, r, mediaID, item, streams, span) {
+		return
+	}
+
 	// On-demand copy rung: when the request is video+audio copy-eligible and the
 	// source packages verbatim, serve the whole presentation from mp4.PlanHLS
 	// (stateless, byte-identical, DASH included) instead of the ffmpeg pipeline.
