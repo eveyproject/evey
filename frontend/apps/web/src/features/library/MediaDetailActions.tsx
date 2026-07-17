@@ -24,6 +24,7 @@ import { AddToPlaylistModal } from "../playlist/AddToPlaylistModal";
 import { PlaySeriesButton, PlaySeasonButton } from "./MediaDetailSeries";
 import { TrailerSection } from "./MediaDetailTrailer";
 import { MetadataEditPanel } from "./MediaDetailEdit";
+import { hasMediaFile } from "./mediaDetailUtils";
 
 interface MediaDetailActionsProps {
   item: V1MediaItem;
@@ -167,7 +168,7 @@ export function MediaDetailActions({
             </Button>
           )
         )}
-        {item.id && item.filePath && streamToken && (
+        {item.id && hasMediaFile(item) && streamToken && (
           <DownloadButton mediaId={item.id} title={item.title} token={streamToken} />
         )}
         {item.id && isSeason && (

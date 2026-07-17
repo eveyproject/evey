@@ -10,7 +10,7 @@ import { useAuthStore } from "@evey/store";
 import { slugify } from "@/utils/slugify";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useStreamToken } from "@/hooks/useStreamToken";
-import { formatDuration, formatSeriesRuntime } from "./mediaDetailUtils";
+import { formatDuration, formatSeriesRuntime, hasMediaFile } from "./mediaDetailUtils";
 import { MediaDetailHero } from "./MediaDetailHero";
 import { MediaDetailActions } from "./MediaDetailActions";
 import { CastCarousel } from "./MediaDetailCast";
@@ -34,11 +34,17 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const isEpisode = item.type === "MEDIA_ITEM_TYPE_EPISODE";
   const { streamToken, fetchStreamToken } = useStreamToken();
 
+  // Fetch the stream token whenever the item is a real file - NOT gated on
+  // item.filePath, which is admin-only (redacted for non-admins). Gating on
+  // filePath here starved every non-admin of a stream token, which in turn hid
+  // the download button (it needs the token). hasMediaFile uses fileSize, which
+  // every viewer receives. See hasMediaFile.
+  const itemHasFile = hasMediaFile(item);
   useEffect(() => {
-    if (item.id && item.filePath) {
+    if (item.id && itemHasFile) {
       fetchStreamToken(item.id).catch((err) => console.warn("fetchStreamToken failed", err));
     }
-  }, [item.id, item.filePath, fetchStreamToken]);
+  }, [item.id, itemHasFile, fetchStreamToken]);
 
   const { data: parentItem } = useLibraryServiceGetMediaItem(
     item.parentId ?? "",

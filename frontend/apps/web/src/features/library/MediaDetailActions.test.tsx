@@ -169,8 +169,18 @@ describe("MediaDetailActions", () => {
     expect(screen.getByTestId("download-btn")).toBeInTheDocument();
   });
 
-  it("hides download button when no filePath", () => {
-    const item = { ...baseItem, filePath: undefined };
+  // A non-admin viewer never receives item.filePath (the server path is redacted
+  // for non-admins), but does receive fileSize. The download button must show for
+  // them - gating it on filePath (the old behaviour) hid it from every non-admin.
+  it("shows download button for a non-admin (filePath redacted, fileSize present)", () => {
+    const item = { ...baseItem, filePath: undefined, fileSize: "1073741824" };
+    render(<MediaDetailActions {...defaultProps} item={item} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("download-btn")).toBeInTheDocument();
+  });
+
+  it("hides download button for a container (no file at all)", () => {
+    // No filePath AND no real fileSize (proto sends a container's zero as "0").
+    const item = { ...baseItem, filePath: undefined, fileSize: "0" };
     render(<MediaDetailActions {...defaultProps} item={item} />, { wrapper: Wrapper });
     expect(screen.queryByTestId("download-btn")).not.toBeInTheDocument();
   });
