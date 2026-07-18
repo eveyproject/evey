@@ -178,6 +178,32 @@ var swBenchLadder = []int{720, 1080, 1440}
 // fails, the heavier ones can't possibly pass either. Saves
 // seconds on weak hosts.
 
+// swBenchLadderSpec is one declarative software probe ladder: the class label
+// (shared with the domain's Derive grouping - transcoding.LadderSoftware...), the
+// encoder, the realtime-margin multiplier applied to the base margin, the floor to
+// fall back to when no rung passes, and whether it runs on the 10-bit HDR sample
+// through the production tonemap. The boot benchmark WALKS this table instead of a
+// hand-written bench function per class, so adding a ladder, changing a margin, or
+// swapping an encoder is a DATA edit here (the plan's "ladder déclaratif").
+type swBenchLadderSpec struct {
+	label      string
+	encoder    string
+	marginMult float64 // effective margin = base margin × marginMult
+	floor      int     // returned height when no rung passes
+	hdr        bool    // true ⇒ probe on the HDR sample with the tonemap pre-filter
+}
+
+// swBenchLadderSpecs is the software half of the bench ladder, as data. HDR is
+// heavier (10-bit decode + tonemap) so it floors higher (480); AV1 (libsvtav1) is
+// several times heavier than x264 and must clear a higher margin, with floor 0
+// meaning "not viable ⇒ hardware-only". The hardware ladder stays separate
+// (benchHardware) because it probes per-device, not per-declared-encoder.
+var swBenchLadderSpecs = []swBenchLadderSpec{
+	{label: transcoding.LadderSoftware, encoder: "libx264", marginMult: 1, floor: 720},
+	{label: transcoding.LadderSoftwareHDR, encoder: "libx264", marginMult: 1, floor: 480, hdr: true},
+	{label: transcoding.LadderSoftwareAV1, encoder: "libsvtav1", marginMult: av1RealtimeMarginMultiplier, floor: 0},
+}
+
 // Run executes the full benchmark and returns a fully-populated
 // EncodeCapability. Best-effort: a partial failure (HW probe crashed,
 // sample unreadable) downgrades the calibration rather than aborting it.
@@ -192,18 +218,13 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 
 	sample, fallback := r.resolveSample()
 
-	swMax, swSamples := r.benchSoftware(ctx, sample, fallback)
-	// HDR->SDR is much heavier than the plain 8-bit software bench (10-bit decode
-	// + tonemap), so probe it separately -> the HDR ladder caps to what the host
-	// actually sustains for HDR (honest on a weak NAS; HW tonemap is moot when the
-	// GPU can't do it, which is the common weak-box case).
-	hdrSample, hdrFallback := r.resolveHDRSample()
-	swHDRMax, hdrSamples := r.benchSoftwareHDR(ctx, hdrSample, hdrFallback)
-
-	// AV1 software (libsvtav1) ceiling - its own number because AV1 is several
-	// times heavier than libx264; 0 on hosts that can't sustain it (the common
-	// weak-NAS case), which keeps AV1 output hardware-only via the handler gate.
-	swAV1Max, av1Samples := r.benchSoftwareAV1(ctx, sample, fallback)
+	// Walk the declarative software ladder table (plain SDR, HDR->SDR tonemap,
+	// AV1). Each spec names its encoder, margin and floor; the HDR spec pulls the
+	// 10-bit sample + tonemap pre-filter. Probing HDR separately keeps the HDR cap
+	// honest on a weak NAS (10-bit decode + tonemap it can't hide), and AV1 gets
+	// its own far-higher margin so it stays hardware-only unless the box has real
+	// spare capacity. Returns one ceiling per label + every rung's samples.
+	swCeilings, swSamples := r.benchSoftwareLadders(ctx, sample, fallback)
 
 	// detected lists every accelerator the host advertises. Skipped entirely
 	// when HW is disabled (mode=off): probing the GPU - including the real-encode
@@ -253,9 +274,9 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 	}
 
 	cap := transcoding.EncodeCapability{
-		SoftwareMaxHeight:    swMax,
-		SoftwareHDRMaxHeight: swHDRMax,
-		SoftwareAV1MaxHeight: swAV1Max,
+		SoftwareMaxHeight:    swCeilings[transcoding.LadderSoftware],
+		SoftwareHDRMaxHeight: swCeilings[transcoding.LadderSoftwareHDR],
+		SoftwareAV1MaxHeight: swCeilings[transcoding.LadderSoftwareAV1],
 		HWMaxHeight:          hwMax,
 		HWBackend:            hwBackend,
 		HWCodecs:             hwCodecs,
@@ -278,7 +299,7 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		// HDR cap floored to 480p instead of guessing. Includes the hardware ladder
 		// (Ladder=="hw") when a GPU backend was probed, so the panel shows the HW
 		// fps too, not just software.
-		BenchSamples: append(append(append(swSamples, hdrSamples...), av1Samples...), hwSamples...),
+		BenchSamples: append(swSamples, hwSamples...),
 	}
 	r.logger.Info("benchmark: complete",
 		slog.Int("software_max_height", cap.SoftwareMaxHeight),
@@ -608,27 +629,53 @@ func (r *BenchmarkRunner) ffmpegBin() string {
 	return "ffmpeg"
 }
 
-// benchSoftware probes the libx264 veryfast ceiling under the SAME
-// pipeline shape the production HLS transcoder runs. That shape depends
-// on the orchestrator mode:
-//   - single-variant (the runtime default): decode the source once +
-//     encode ONE rung at height h. Each ABR rung is its own on-demand
-//     session, so the per-stream pressure is decode + 1 encode.
-//   - multi-variant (legacy, opt-out): one ffmpeg decodes once, splits
-//     N ways via filter_complex, and encodes every rung at or below h in
-//     parallel (`buildMultiVariantArgs` var_stream_map).
+// benchSoftwareLadders walks the declarative swBenchLadderSpecs table and probes
+// each software ladder (plain SDR, HDR->SDR, AV1) under the SAME pipeline shape the
+// production HLS transcoder runs. That shape depends on the orchestrator mode:
+//   - single-variant (the runtime default): decode the source once + encode ONE
+//     rung at height h. Each ABR rung is its own on-demand session, so the
+//     per-stream pressure is decode + 1 encode.
+//   - multi-variant (legacy, opt-out): one ffmpeg decodes once, splits N ways via
+//     filter_complex, and encodes every rung at or below h in parallel.
 //
-// Benching the wrong shape skews the cap hard: in multi-variant mode
-// "decode + one encode" would overshoot; in single-variant mode the
-// cumulative parallel ladder undershoots (it charges the host for N
-// encodes it never runs concurrently for one stream). r.singleVariant
-// selects the matching shape.
-//
-// Highest passing rung wins. Returns 720 minimum (universal floor) even
-// if every probe fails - guarantees the host can at least serve a 720p
-// stream.
-func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
-	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software", "libx264", r.margin, 720)
+// Benching the wrong shape skews the cap hard, so r.singleVariant selects the
+// matching shape (handled inside benchSoftwareLadder). Returns one ceiling per
+// spec label (the highest passing rung, or the spec's floor) plus every rung's
+// samples concatenated in table order. The HDR spec is probed on the 10-bit HDR
+// sample with the production tonemap pre-filter (resolved lazily, once).
+func (r *BenchmarkRunner) benchSoftwareLadders(ctx context.Context, sdrSample string, sdrFallback bool) (map[string]int, []transcoding.BenchRungSample) {
+	ceilings := make(map[string]int, len(swBenchLadderSpecs))
+	var samples []transcoding.BenchRungSample
+	var hdrSample string
+	var hdrFallback, hdrResolved bool
+
+	for _, spec := range swBenchLadderSpecs {
+		sample, fallback := sdrSample, sdrFallback
+		preFilter := func(int) string { return "" }
+		if spec.hdr {
+			// HDR->SDR is much heavier than the plain 8-bit bench (10-bit decode +
+			// tonemap): probe it on the real 10-bit sample so the cap is honest on a
+			// weak NAS. Resolve the HDR sample lazily and once.
+			if !hdrResolved {
+				hdrSample, hdrFallback = r.resolveHDRSample()
+				hdrResolved = true
+			}
+			sample, fallback = hdrSample, hdrFallback
+			// Tonemap at the ladder-TOP resolution (downscale folded into the
+			// linearizing zscale), matching the production scale-first runtime.
+			useTonemapx := tonemapxAvailable(r.ffmpegPath)
+			preFilter = func(topH int) string {
+				o := hdr.DefaultToneMapOptions()
+				o.DstWidth = topH * 16 / 9
+				o.UseTonemapx = useTonemapx
+				return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o)
+			}
+		}
+		ceiling, s := r.benchSoftwareLadder(ctx, sample, fallback, preFilter, spec.label, spec.encoder, r.margin*spec.marginMult, spec.floor)
+		ceilings[spec.label] = ceiling
+		samples = append(samples, s...)
+	}
+	return ceilings, samples
 }
 
 // av1RealtimeMarginMultiplier raises the realtime margin the AV1 software ladder
@@ -639,41 +686,6 @@ func (r *BenchmarkRunner) benchSoftware(ctx context.Context, sample string, fall
 // default 1.2 base). A box that merely scrapes realtime AV1 is kept hardware-only
 // rather than handed an AV1 rung that stutters on every fresh play/seek.
 const av1RealtimeMarginMultiplier = 2.0
-
-// benchSoftwareAV1 probes the libsvtav1 (AV1 software) ceiling under the same
-// pipeline shape as benchSoftware, at the production svtAV1Preset. AV1 software
-// is several times heavier than libx264, so this almost always pins LOWER (often
-// to nothing on a weak NAS). Floor 0 - NOT 720: a host that can't sustain even
-// 720p AV1 software has no viable AV1 software path, and 0 is exactly what the
-// handler's effectiveVideoCodec gate reads to keep AV1 hardware-only there.
-func (r *BenchmarkRunner) benchSoftwareAV1(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
-	return r.benchSoftwareLadder(ctx, sample, fallback, func(int) string { return "" }, "software-av1", "libsvtav1", r.margin*av1RealtimeMarginMultiplier, 0)
-}
-
-// benchSoftwareHDR probes the software ceiling for HDR->SDR content: the SAME
-// multi-variant pipeline PLUS the production zscale tonemap (hable), on a real
-// 10-bit HDR sample. It therefore measures the two costs benchSoftware (an
-// 8-bit, no-tonemap bench) is blind to - 10-bit HEVC decode AND the heavy
-// tonemap - i.e. the honest HDR ceiling. It inherently captures decode-bound
-// hosts: if 4K HEVC10 decode alone blows realtime, even the lowest rung fails.
-// Floor 480p (HDR is heavier than the SDR 720p floor; a box that can't sustain
-// 480p HDR leans on the runtime throttle rather than being offered nothing).
-func (r *BenchmarkRunner) benchSoftwareHDR(ctx context.Context, sample string, fallback bool) (int, []transcoding.BenchRungSample) {
-	// Tonemap at the ladder-TOP resolution (the downscale folded into the
-	// linearizing zscale), matching the production scale-first runtime
-	// (hls_transcoder buildMultiVariantArgs tonemaps the shared feed at the top
-	// rung, then per-rung scales DOWN). Measuring tonemap@4K - the old geometry -
-	// understated the box: the runtime now does ~2× the throughput, so the cap
-	// must be re-derived against the same scale-first chain or it pins the host
-	// far below what it can sustain. The synthetic HDR sample is 16:9.
-	useTonemapx := tonemapxAvailable(r.ffmpegPath)
-	return r.benchSoftwareLadder(ctx, sample, fallback, func(topH int) string {
-		o := hdr.DefaultToneMapOptions()
-		o.DstWidth = topH * 16 / 9
-		o.UseTonemapx = useTonemapx
-		return hdr.BuildToneMapFilter(&hdr.HDRInfo{IsHDR: true}, o)
-	}, "software-hdr", "libx264", r.margin, 480)
-}
 
 // probeRungs returns the rungs a software probe encodes when the ladder top is
 // at index i. In single-variant mode that is just rung i (decode + 1 encode at
