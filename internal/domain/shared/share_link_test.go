@@ -52,7 +52,8 @@ func TestShareLink_Validate(t *testing.T) {
 	})
 	t.Run("negative max views rejected", func(t *testing.T) {
 		l := valid()
-		l.MaxViews = intPtr(-1)
+		neg := -1
+		l.MaxViews = &neg
 		assert.Error(t, l.Validate())
 	})
 	t.Run("constructor rejects invalid", func(t *testing.T) {
