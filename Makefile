@@ -158,8 +158,8 @@ ci-local-frontend:
 # govulncheck + build + gosec ratchet + general lint), run by the git pre-push
 # hook so a red `quality` pipeline never surprises you again. No -race tests
 # here (that's the separate `correctness` job - use `make ci-local` for those).
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec ci-local-lint ci-arch transcode-itest-gate
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + gosec + lint + arch guards + transcode contract)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec ci-local-lint ci-arch repo-itest-gate transcode-itest-gate
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + gosec + lint + arch guards + repo suite + transcode contract)."
 
 # ci-arch: the static architecture guards (TxUnit bypass, etc.) that need NO DB -
 # they only regex the source tree, so they run in milliseconds. Their sibling
@@ -183,6 +183,45 @@ ci-arch:
 # segment is cut and muxed without touching a single file of ours - the exact
 # change this gate exists to catch, and the one it would wave through if it
 # only watched our own paths.
+# repo-itest-gate: run the REAL Postgres repository suite (testcontainers) when
+# the outgoing changes touch domain invariants or the postgres adapter. Those
+# two move together: a `Validate()` added to an aggregate is enforced by every
+# repo `Create`, so a fixture that was legal yesterday starts failing - a class
+# of break NO host-side check in this gate can see (it compiles, it vets, it
+# lints; it only fails against a live database). Shipped exactly that way once:
+# the ShareLink invariant landed green locally and broke CI on a DeleteExpired
+# fixture whose link expired before it was created.
+#
+# Costs ~2-3 min (testcontainers boot + suite) and only on the pushes that can
+# trigger it. Force it on any push with REPO_ITEST=1; skip with REPO_ITEST=0.
+REPO_PATHS := internal/domain internal/adapters/driven/postgres
+
+repo-itest-gate:
+	@if [ "$(REPO_ITEST)" = "0" ]; then \
+	  echo "→ repo suite skipped (REPO_ITEST=0)"; exit 0; \
+	fi; \
+	base=$$(git merge-base @{u} HEAD 2>/dev/null || git rev-parse 'HEAD~10' 2>/dev/null || git rev-parse HEAD); \
+	if [ "$(REPO_ITEST)" = "1" ] || ! git diff --quiet $$base -- $(REPO_PATHS) 2>/dev/null; then \
+	  echo "→ domain/postgres touched - running the real-Postgres repository suite"; \
+	  $(MAKE) --no-print-directory repo-itest; \
+	else \
+	  echo "→ repo suite skipped (no domain/postgres change in this push)"; \
+	fi
+
+# repo-itest: the postgres package against a REAL Postgres (testcontainers).
+# Runs in the test image because it needs the docker socket - the dev container
+# has none. Same invocation as the CI `correctness` job, minus -race.
+repo-itest: test-image
+	docker run --rm \
+	  -v $(PWD):/app \
+	  -v /var/run/docker.sock:/var/run/docker.sock \
+	  -v evey-go-mod:/go/pkg/mod \
+	  -v evey-go-build:/root/.cache/go-build \
+	  --add-host=host.docker.internal:host-gateway \
+	  -w /app \
+	  evey-test \
+	  sh -c 'go test ./internal/adapters/driven/postgres/... -count=1 -timeout=600s'
+
 TRANSCODE_PATHS := internal/app/transcoding internal/domain/transcoding \
   internal/adapters/driven/ffmpeg \
   internal/adapters/driven/mkvgo \

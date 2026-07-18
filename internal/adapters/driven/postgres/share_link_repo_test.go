@@ -208,8 +208,10 @@ func TestShareLinkRepo_DeleteExpired(t *testing.T) {
 		Token:       "sl6-tok",
 		MediaItemID: item.ID,
 		CreatedBy:   u.ID,
-		ExpiresAt:   time.Now().Add(-1 * time.Hour).UTC().Truncate(time.Millisecond),
-		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
+		// An expired link as it really occurs: created legitimately (expiry
+		// after creation, so it passes Validate) and simply overtaken by time.
+		ExpiresAt: time.Now().Add(-1 * time.Hour).UTC().Truncate(time.Millisecond),
+		CreatedAt: time.Now().Add(-2 * time.Hour).UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, repo.Create(ctx, link))
 
