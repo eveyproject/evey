@@ -271,6 +271,10 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
 			slog.Warn("login attempt Record", slog.String("username", username), slog.Any("err", recErr))
 		}
+		// Per-attempt log (username only, never the password) so a
+		// credential-stuffing run is searchable, not just inferable from the
+		// rate-limit store's aggregate.
+		slog.Warn("login failed", slog.String("username", username), slog.String("reason", "unknown_user"))
 		return "", "", ErrInvalidCredentials
 	}
 	// Verify BEFORE the CanLogin gate so a disabled account costs the same bcrypt
@@ -286,6 +290,7 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 		if recErr := s.loginAttempts.Record(ctx, username, s.loginMaxFails, s.loginWindow); recErr != nil {
 			slog.Warn("login attempt Record", slog.String("username", username), slog.Any("err", recErr))
 		}
+		slog.Warn("login failed", slog.String("username", username), slog.String("reason", "bad_password"))
 		return "", "", ErrInvalidCredentials
 	}
 	if resetErr := s.loginAttempts.Reset(ctx, username); resetErr != nil {

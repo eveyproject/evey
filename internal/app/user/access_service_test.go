@@ -450,7 +450,7 @@ func TestAuthorizeByShortCode_NotFound(t *testing.T) {
 
 func TestCreateAPIKey_Happy(t *testing.T) {
 	d := newAccessTestDeps()
-	key := &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "test-key", KeyHash: "fakehash"}
+	key := &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "test-key", KeyHash: "fakehash", Permissions: []string{"media:read"}}
 	err := d.svc.CreateAPIKey(context.Background(), key)
 	if err != nil {
 		t.Fatal(err)
@@ -476,7 +476,7 @@ func TestCreateAPIKey_ValidationError(t *testing.T) {
 func TestCreateAPIKey_RepoError(t *testing.T) {
 	d := newAccessTestDeps()
 	d.apiKeys.Err = errors.New("fail")
-	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "test", KeyHash: "h"})
+	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "test", KeyHash: "h", Permissions: []string{"media:read"}})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -485,7 +485,7 @@ func TestCreateAPIKey_RepoError(t *testing.T) {
 func TestCreateAPIKey_EventPublishError_NonFatal(t *testing.T) {
 	d := newAccessTestDeps()
 	d.events.PublishErr = errors.New("bus down")
-	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "k", KeyHash: "fakehash"})
+	err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "k", KeyHash: "fakehash", Permissions: []string{"media:read"}})
 	if err != nil {
 		t.Fatalf("event error should be non-fatal, got %v", err)
 	}
@@ -859,7 +859,7 @@ func TestCreateAPIKey_PublishError_EmitsWarning(t *testing.T) {
 
 	d := newAccessTestDeps()
 	d.events.PublishErr = errors.New("bus down")
-	if err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "k", KeyHash: "h"}); err != nil {
+	if err := d.svc.CreateAPIKey(context.Background(), &user.APIKeyModel{ID: "k1", UserID: "u1", Name: "k", KeyHash: "h", Permissions: []string{"media:read"}}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(read(), "publish event") {
