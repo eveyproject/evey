@@ -250,3 +250,61 @@ func TestAccessToken_EpochRoundTrip(t *testing.T) {
 		t.Errorf("zero-value epoch: want 0, got %d", lc.TokenEpoch)
 	}
 }
+
+// tokenExp decodes the "exp" claim without validating the token (parity with
+// TestGenerateRefreshToken, which does the same for the refresh token).
+func tokenExp(t *testing.T, key *rsa.PrivateKey, tokenStr string) time.Time {
+	t.Helper()
+	parsed, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
+		return &key.PublicKey, nil
+	})
+	require.NoError(t, err)
+	claims := parsed.Claims.(jwt.MapClaims)
+	exp, ok := claims["exp"].(float64)
+	require.True(t, ok, "exp claim must be present and numeric")
+	return time.Unix(int64(exp), 0)
+}
+
+// A custom TTL must drive the minted exp, not the generator's configured
+// accessTTL - this is the whole point of GenerateAccessTokenWithTTL (the load
+// test needs a token that outlives the request that requested it).
+func TestGenerateAccessTokenWithTTL_CustomTTL(t *testing.T) {
+	t.Parallel()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	gen := auth.NewJWTGenerator(key, 15*time.Minute)
+
+	const customTTL = 2 * time.Hour
+	before := time.Now()
+	token, err := gen.GenerateAccessTokenWithTTL(user.Claims{UserID: "u1", Username: "u"}, customTTL)
+	require.NoError(t, err)
+
+	exp := tokenExp(t, key, token)
+	wantExp := before.Add(customTTL)
+	assert.WithinDuration(t, wantExp, exp, 5*time.Second,
+		"exp must track the custom TTL (%s), not the generator's configured accessTTL (15m)", customTTL)
+}
+
+// A non-positive TTL (zero or negative) must fall back to the generator's
+// configured accessTTL rather than minting an already-expired (or
+// zero-lifetime) token.
+func TestGenerateAccessTokenWithTTL_NonPositiveFallsBackToAccessTTL(t *testing.T) {
+	t.Parallel()
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	const accessTTL = 15 * time.Minute
+	gen := auth.NewJWTGenerator(key, accessTTL)
+
+	for _, ttl := range []time.Duration{0, -1 * time.Hour} {
+		before := time.Now()
+		token, err := gen.GenerateAccessTokenWithTTL(user.Claims{UserID: "u1", Username: "u"}, ttl)
+		require.NoError(t, err)
+
+		exp := tokenExp(t, key, token)
+		wantExp := before.Add(accessTTL)
+		assert.WithinDuration(t, wantExp, exp, 5*time.Second,
+			"non-positive ttl=%s must fall back to accessTTL (15m)", ttl)
+	}
+}
