@@ -449,6 +449,28 @@ describe("HLSPlayer: server load-shed (503) overlays", () => {
     expect(screen.queryByText("Too many streams right now")).not.toBeInTheDocument();
   });
 
+  it("a transient 503 on a FRAGMENT retries instead of showing a shed overlay or failing", async () => {
+    renderPlayer({ ...DEFAULT_STREAM_INFO, playMethod: "PLAY_METHOD_TRANSCODE" }, { streamToken: "test-token" });
+    // A deep seek's audio rebase encoder is still spinning up: the segment
+    // handler returns a plain 503 ("not yet ready, retry") with NO shed body and
+    // NO X-Evey-Error header. hls.js reports it as a fatal fragLoadError - it
+    // must NOT be treated as a capacity shed, it must retry.
+    const handlers = hlsEventListeners[MockHls.Events.ERROR] ?? [];
+    act(() => {
+      for (const h of handlers) {
+        h(MockHls.Events.ERROR, {
+          fatal: true,
+          type: MockHls.ErrorTypes.NETWORK_ERROR,
+          details: "fragLoadError",
+          response: { code: 503 },
+        });
+      }
+    });
+    expect(screen.queryByText("Too many streams right now")).not.toBeInTheDocument();
+    expect(screen.queryByText("This video is getting ready")).not.toBeInTheDocument();
+    expect(screen.queryByText("Playback failed")).not.toBeInTheDocument();
+  });
+
   function fireFatal404() {
     const handlers = hlsEventListeners[MockHls.Events.ERROR] ?? [];
     for (const h of handlers) {

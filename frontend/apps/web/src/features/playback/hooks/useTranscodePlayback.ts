@@ -30,20 +30,30 @@ interface ShedErrorData {
 // in case a custom loader (or a future hls.js version) starts forwarding the
 // body directly under that field.
 function extractShedReason(data: ShedErrorData): ShedReason {
+  // A genuine load-shed carries the explicit X-Evey-Error header (the server's
+  // shed contract in writeShed). Unlike the JSON body, that header is readable
+  // even for a FRAGMENT error, where hls.js's default loader never forwards the
+  // body - so a real file_not_ready shed on a segment is still recognised.
+  const xhr = data.networkDetails as { getResponseHeader?: (name: string) => string | null } | undefined;
+  const header = xhr?.getResponseHeader?.("X-Evey-Error");
+  if (header === "too_many_streams" || header === "file_not_ready") return header;
+
   const raw = data.response?.text || (data.networkDetails as { responseText?: string } | undefined)?.responseText;
   if (raw) {
     try {
       const parsed = JSON.parse(raw) as { code?: string };
       if (parsed.code === "too_many_streams" || parsed.code === "file_not_ready") return parsed.code;
     } catch {
-      // Not our JSON shape (e.g. a proxy's plain-text 503 page) - fall through
-      // to the default below.
+      // Not our JSON shape (e.g. a proxy's plain-text 503 page) - no explicit
+      // shed signal.
     }
   }
-  // No parseable body: default to the "too many streams" framing. It's the
-  // more common shed cause, and its "try again shortly" copy reads fine
-  // either way.
-  return "too_many_streams";
+  // No X-Evey-Error header and no known body code: this 503 carries no shed
+  // signal. It is NOT necessarily a shed - a segment handler returns a plain
+  // 503 ("not yet ready, retry") while a deep seek's encoder spins up. Return
+  // null and let the caller decide (retry a fragment, default-shed a stream
+  // start).
+  return null;
 }
 
 interface UseTranscodePlaybackArgs {
@@ -300,12 +310,26 @@ export function useTranscodePlayback({
       if (!data.fatal) return;
       if (import.meta.env.DEV) console.warn("[player] HLS fatal error:", data.type, data.details, data.response?.code);
       if (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.response?.code === 503) {
-        // Server-side load shed (SegmentOrchestrator refusing to start a new
-        // stream) - not a transient network blip, so don't burn the generic
-        // retry budget below. Surface a typed, non-technical reason instead;
-        // the UI decides its own copy from it and offers a manual retry.
-        setShedReason(extractShedReason(data));
-        return;
+        const shed = extractShedReason(data);
+        const isFragment = data.details === "fragLoadError" || data.details === "fragLoadTimeOut";
+        if (shed) {
+          // Explicit server load-shed (X-Evey-Error / body code): surface a
+          // typed, non-technical reason and offer a manual retry, without
+          // burning the generic retry budget below.
+          setShedReason(shed);
+          return;
+        }
+        if (!isFragment) {
+          // A 503 on STREAM START (manifest/level) with no explicit code: keep
+          // the "too many streams" default framing - its "try again shortly"
+          // copy reads fine either way, and the box is genuinely refusing.
+          setShedReason("too_many_streams");
+          return;
+        }
+        // A 503 on a FRAGMENT with no shed signal is the segment handler's
+        // transient "not yet ready, retry" - e.g. a deep seek whose audio
+        // rebase encoder is still spinning up. Fall through to the generic
+        // retry/backoff below instead of killing playback with a shed overlay.
       }
       retries++;
       if (retries > 20) {

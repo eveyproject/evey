@@ -84,6 +84,10 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	originMatches := strings.TrimRight(origin, "/") == allowed
 	if rawTok != "" || originMatches {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
+		// Expose the shed contract headers so a cross-origin player (e.g.
+		// Chromecast token-auth) can read the load-shed reason / Retry-After off
+		// a 503, exactly as a same-origin player already can.
+		w.Header().Set("Access-Control-Expose-Headers", "X-Evey-Error, Retry-After")
 		// Credentials (cookies) only when the origin is our own configured
 		// frontend - token-auth requests carry their own bearer and must NOT
 		// piggy-back on cookie-based session auth across arbitrary origins.
