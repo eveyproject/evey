@@ -25,13 +25,31 @@ export const Route = createLazyFileRoute("/_auth/requests")({
 });
 
 type MediaType = "movie" | "tv" | "music";
+// The search scopes the UI offers: movies and series are ONE scope searched
+// together (two provider queries merged), music stays its own scope.
+type SearchScope = "video" | "music";
 type Tab = "search" | "mine";
 
-const TYPES: { key: MediaType; labelKey: string; icon: React.ReactNode }[] = [
-  { key: "movie", labelKey: "requests.typeMovie", icon: <Film size={15} /> },
-  { key: "tv", labelKey: "requests.typeSeries", icon: <Tv size={15} /> },
+const SCOPES: { key: SearchScope; labelKey: string; icon: React.ReactNode }[] = [
+  { key: "video", labelKey: "requests.typeVideo", icon: <Film size={15} /> },
   { key: "music", labelKey: "requests.typeMusic", icon: <Music size={15} /> },
 ];
+
+// A search candidate tagged with the concrete request type it will be
+// submitted as - needed once movies and series share one result grid.
+type TaggedCandidate = V1TitleCandidate & { requestType: MediaType };
+
+// interleave merges two ranked lists preserving each one's own order
+// (movie[0], tv[0], movie[1], tv[1], ...) so neither type buries the other -
+// each provider list arrives sorted by its own relevance.
+function interleave<T>(a: T[], b: T[]): T[] {
+  const out: T[] = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    if (i < a.length) out.push(a[i]);
+    if (i < b.length) out.push(b[i]);
+  }
+  return out;
+}
 
 const statusVariant: Record<string, "default" | "success" | "warning" | "error"> = {
   pending: "default",
@@ -40,21 +58,49 @@ const statusVariant: Record<string, "default" | "success" | "warning" | "error">
   later: "warning",
 };
 
-function candidateKey(c: { provider?: string; providerId?: string }) {
-  return `${c.provider ?? ""}:${c.providerId ?? ""}`;
+// candidateKey includes the media type: with movies and series in one grid,
+// a TMDB movie id and a TMDB tv id can collide numerically.
+function candidateKey(c: { mediaType?: string; provider?: string; providerId?: string }) {
+  return `${c.mediaType ?? ""}:${c.provider ?? ""}:${c.providerId ?? ""}`;
 }
 
 function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [mediaType, setMediaType] = useState<MediaType>("movie");
+  const [scope, setScope] = useState<SearchScope>("video");
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
 
-  const { data, isFetching, isError } = useMediaRequestServiceSearchTitles(
-    { mediaType, query: submittedQuery },
-    { query: { enabled: submittedQuery.trim().length > 0 } },
+  // Video scope fires BOTH provider searches and merges them; the server's
+  // SearchTitles contract stays single-type. Music keeps its own single query.
+  const searchEnabled = submittedQuery.trim().length > 0;
+  const movieQ = useMediaRequestServiceSearchTitles(
+    { mediaType: "movie", query: submittedQuery },
+    { query: { enabled: searchEnabled && scope === "video" } },
   );
+  const tvQ = useMediaRequestServiceSearchTitles(
+    { mediaType: "tv", query: submittedQuery },
+    { query: { enabled: searchEnabled && scope === "video" } },
+  );
+  const musicQ = useMediaRequestServiceSearchTitles(
+    { mediaType: "music", query: submittedQuery },
+    { query: { enabled: searchEnabled && scope === "music" } },
+  );
+
+  const isFetching = scope === "video" ? movieQ.isFetching || tvQ.isFetching : musicQ.isFetching;
+  // One failing type must not sink the other's results: error only when
+  // nothing at all can be shown.
+  const isError = scope === "video" ? movieQ.isError && tvQ.isError : musicQ.isError;
+
+  const results: TaggedCandidate[] = useMemo(() => {
+    if (scope === "music") {
+      return (musicQ.data?.results ?? []).map((r) => ({ ...r, requestType: "music" as const }));
+    }
+    return interleave<TaggedCandidate>(
+      (movieQ.data?.results ?? []).map((r) => ({ ...r, requestType: "movie" as const })),
+      (tvQ.data?.results ?? []).map((r) => ({ ...r, requestType: "tv" as const })),
+    );
+  }, [scope, movieQ.data, tvQ.data, musicQ.data]);
 
   const createRequest = useMediaRequestServiceCreateRequest({
     mutation: {
@@ -75,10 +121,10 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
     setSubmittedQuery(query.trim());
   }
 
-  function handleRequest(candidate: V1TitleCandidate) {
+  function handleRequest(candidate: TaggedCandidate) {
     createRequest.mutate({
       data: {
-        mediaType,
+        mediaType: candidate.requestType,
         provider: candidate.provider,
         providerId: candidate.providerId,
         title: candidate.title,
@@ -88,25 +134,23 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
     });
   }
 
-  const results = data?.results ?? [];
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex gap-2">
-        {TYPES.map((tp) => (
+        {SCOPES.map((sc) => (
           <button
-            key={tp.key}
+            key={sc.key}
             type="button"
-            onClick={() => { setMediaType(tp.key); setSubmittedQuery(""); }}
+            onClick={() => { setScope(sc.key); setSubmittedQuery(""); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium transition-colors-fast"
             style={{
-              backgroundColor: mediaType === tp.key ? "var(--accent)" : "var(--surface-raised)",
-              color: mediaType === tp.key ? "var(--filter-active-text)" : "var(--text-muted)",
+              backgroundColor: scope === sc.key ? "var(--accent)" : "var(--surface-raised)",
+              color: scope === sc.key ? "var(--filter-active-text)" : "var(--text-muted)",
             }}
-            aria-pressed={mediaType === tp.key}
+            aria-pressed={scope === sc.key}
           >
-            {tp.icon}
-            {t(tp.labelKey)}
+            {sc.icon}
+            {t(sc.labelKey)}
           </button>
         ))}
       </div>
@@ -144,18 +188,27 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
       ) : (
         <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {results.map((r) => {
-            const key = candidateKey(r);
+            const key = candidateKey({ ...r, mediaType: r.requestType });
             const alreadyRequested = requestedKeys.has(key);
             return (
               <li key={key} className="flex flex-col gap-2">
                 <div
-                  className="aspect-[2/3] rounded-[var(--radius-md)] overflow-hidden flex items-center justify-center text-xs text-[var(--text-muted)]"
+                  className="relative aspect-[2/3] rounded-[var(--radius-md)] overflow-hidden flex items-center justify-center text-xs text-[var(--text-muted)]"
                   style={{ backgroundColor: "var(--surface-raised)" }}
                 >
                   {r.posterUrl ? (
                     <img src={r.posterUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
                     "-"
+                  )}
+                  {scope === "video" && (
+                    <span
+                      className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-medium"
+                      style={{ backgroundColor: "var(--overlay-bg)", color: "var(--text)" }}
+                    >
+                      {r.requestType === "tv" ? <Tv size={11} aria-hidden="true" /> : <Film size={11} aria-hidden="true" />}
+                      {t(r.requestType === "tv" ? "requests.typeSeries" : "requests.typeMovie")}
+                    </span>
                   )}
                 </div>
                 <div className="flex flex-col gap-1">

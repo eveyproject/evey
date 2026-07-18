@@ -51,6 +51,17 @@ func mapSearchResult(item tmdbSearchItem, mediaType string, genreMap map[int]str
 		}
 	}
 
+	// The search poster: consumers that render candidates straight from Search
+	// (media-request grid, identify pickers) have no detail round-trip to fall
+	// back on. w500 like the collection mapper - a grid thumbnail, not hero art.
+	if item.PosterPath != "" {
+		result.Artwork = []domain.ArtworkResult{{
+			Type:     domain.ArtworkTypePoster,
+			URL:      "https://image.tmdb.org/t/p/w500" + item.PosterPath,
+			Provider: "tmdb",
+		}}
+	}
+
 	return result
 }
 

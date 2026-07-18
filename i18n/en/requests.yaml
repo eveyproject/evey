@@ -2,6 +2,7 @@ title: Media Requests
 subtitle: Search for a movie, series or artist and ask an admin to add it to the library.
 tabSearch: Search
 tabMine: My Requests
+typeVideo: Movies & series
 typeMovie: Movie
 typeSeries: Series
 typeMusic: Music

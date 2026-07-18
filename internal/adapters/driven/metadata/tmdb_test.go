@@ -385,6 +385,25 @@ func TestSearch_YearFallbackWithoutYear(t *testing.T) {
 	assert.Equal(t, 2, calls) // first with year (empty), second without
 }
 
+// Search results must carry their poster: the media-request search grid (and
+// any identify UI) renders candidates straight from Search, without a detail
+// round-trip per row - an empty Artwork left every candidate coverless.
+// w500 like the collection mapper: these are grid thumbnails, not hero art.
+func TestMapSearchResult_PosterArtwork(t *testing.T) {
+	r := mapSearchResult(tmdbSearchItem{ID: 603, Title: "Matrix", PosterPath: "/abc.jpg"}, "movie", movieGenres)
+	require.Len(t, r.Artwork, 1)
+	assert.Equal(t, "poster", r.Artwork[0].Type)
+	assert.Equal(t, "https://image.tmdb.org/t/p/w500/abc.jpg", r.Artwork[0].URL)
+	assert.Equal(t, "tmdb", r.Artwork[0].Provider)
+
+	rTV := mapSearchResult(tmdbSearchItem{ID: 1, Name: "Show", PosterPath: "/tv.jpg"}, "tv", nil)
+	require.Len(t, rTV.Artwork, 1)
+	assert.Equal(t, "https://image.tmdb.org/t/p/w500/tv.jpg", rTV.Artwork[0].URL)
+
+	rNone := mapSearchResult(tmdbSearchItem{ID: 2, Title: "Bare"}, "movie", nil)
+	assert.Empty(t, rNone.Artwork, "no poster_path → no artwork, never the bare CDN base URL")
+}
+
 func TestMapSearchResult_NoDateNoRating(t *testing.T) {
 	item := tmdbSearchItem{
 		ID:    1,

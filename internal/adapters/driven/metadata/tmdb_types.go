@@ -60,6 +60,7 @@ type tmdbSearchItem struct {
 	VoteCount     int     `json:"vote_count"`
 	Popularity    float64 `json:"popularity"`
 	GenreIDs      []int   `json:"genre_ids"`
+	PosterPath    string  `json:"poster_path"`
 }
 
 type tmdbCollection struct {
