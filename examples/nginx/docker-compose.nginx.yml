@@ -9,8 +9,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      EVEY_DOMAIN: ${EVEY_DOMAIN:-media.example.com}
     volumes:
-      - ./examples/nginx/evey.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./examples/nginx/evey.conf.template:/etc/nginx/templates/default.conf.template:ro
       - nginx-certs:/etc/ssl
     depends_on:
       evey:

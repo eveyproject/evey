@@ -60,24 +60,31 @@ Two rules of thumb:
 - Avoid `'unsafe-inline'` in `script-src`: the app does not need it (only
   `style-src` does), and it defeats most of the XSS protection a CSP provides.
 
-## Caddy (bundled)
-
-The repo ships [`docker/Caddyfile`](../docker/Caddyfile) (built into an image by
-[`docker/Dockerfile.caddy`](../docker/Dockerfile.caddy)): it gets automatic
-HTTPS for your domain and proxies everything to `evey:9091`, with the streaming
-exceptions already set. Add a `caddy` service to your compose (see the `caddy`
-service in the repo [`docker-compose.yml`](../docker-compose.yml)) and set your
-domain:
+Every bundled example reads the domain from **one place**: `EVEY_DOMAIN` in
+your `.env`. Set it once; Caddy, Nginx and Traefik all pick it up.
 
 ```env
 EVEY_DOMAIN=media.example.com
 ```
 
+## Caddy (bundled)
+
+The repo ships [`docker/Caddyfile`](../docker/Caddyfile) (built into an image by
+[`docker/Dockerfile.caddy`](../docker/Dockerfile.caddy)): it gets automatic
+HTTPS for `EVEY_DOMAIN` and proxies everything to `evey:9091`, with the
+streaming exceptions already set. It also curates the canonical security
+headers/CSP from the section above (and strips the app's own CSP so exactly
+one reaches the browser). Add a `caddy` service to your compose (see the
+`caddy` service in the repo [`docker-compose.yml`](../docker-compose.yml)).
+
 ## Nginx
 
-Use [`examples/nginx/evey.conf`](../examples/nginx/evey.conf) (a ready compose is
-at [`examples/nginx/docker-compose.nginx.yml`](../examples/nginx/docker-compose.nginx.yml)).
-It proxies to `evey:9091` with streaming buffering disabled - no frontend build step.
+Use [`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template)
+(a ready compose is at
+[`examples/nginx/docker-compose.nginx.yml`](../examples/nginx/docker-compose.nginx.yml)).
+The nginx image renders it at startup with `EVEY_DOMAIN` substituted -
+certificates must exist under the matching file names. It proxies to
+`evey:9091` with streaming buffering disabled - no frontend build step.
 
 ## Traefik
 
