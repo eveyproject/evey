@@ -148,16 +148,6 @@ func writeTooManyStreams(w http.ResponseWriter, retryAfterSec int, technicalMsg 
 	writeShed(w, ErrCodeTooManyStreams, retryAfterSec, technicalMsg)
 }
 
-// admissionPinKey identifies a stream for the admission shaper. Coarser than
-// the decision-fingerprint hash on purpose: burn-in/audio variants of the same
-// title share one pinned ceiling (their video ladder is the same shape), while
-// distinct titles or codecs never collide. It must be derivable identically at
-// manifest- and segment-time from the request alone.
-func (h *hlsVODServe) admissionPinKey(item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision) string {
-	ec, _, _, _, _ := h.effectiveVideoCodec(decision, streams)
-	return string(item.ID) + "|" + ec + "|" + decision.VideoDecision
-}
-
 // videoAdmissionOf adapts the limiter to the handler's narrow probe, keeping a
 // TRUE-nil func when no limiter is wired (tests, hand-built servers).
 func videoAdmissionOf(l *apptranscoding.VideoSessionLimiter) func(string, apptranscoding.LadderClass, int) bool {

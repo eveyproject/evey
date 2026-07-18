@@ -1,16 +1,12 @@
 package httpapi
 
-// transcode_vod_plan.go resolves the per-request playback plan ONCE - the
-// single entry point in front of what used to be a scattered makeDecision /
-// profilesForDecision / buildFingerprint dance re-run by every consumer.
-// This is the first, delegating step of the PlaybackPlanResolver seam
-// (internal/app/transcoding/playback_plan.go): the resolution still lives in
-// the http adapter and delegates to the existing helpers, but there is now
-// exactly one place that runs it, and every consumer (manifest input, shed
-// probe, stale-URL seal, producer pick, segment key) reads the same values
-// by construction. Within a request the cache-hash invariant stops being a
-// discipline and becomes a data flow; absorbing the helpers into an
-// app-layer resolver is now a move, not a rewrite.
+// transcode_vod_plan.go - the http side of the PlaybackPlanResolver seam
+// (internal/app/transcoding/playback_plan.go): marshal the *http.Request into
+// a transport-free PlaybackRequest, hand it to the app-layer PlanResolver,
+// and serve off the returned immutable PlaybackPlan. Every consumer of a
+// request (manifest input, shed probe, stale-URL seal, producer pick, segment
+// key) reads the same single resolution - the cache-hash invariant within a
+// request is a data flow, not a discipline.
 //
 // It is also the segment hot path's diet: one request used to re-derive the
 // decision up to three times (bound check + fingerprint + producer pick),
@@ -26,36 +22,93 @@ import (
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-// requestPlan is the resolved plan: the app-layer PlaybackPlan projection
-// plus the adapter-side values the serving path still consumes directly.
+// requestPlan is the resolved plan: the app-layer PlaybackPlan plus the
+// convenience views the serving path reads directly.
 type requestPlan struct {
-	// Plan is the app-layer seam object - the projection a future app-layer
-	// PlaybackPlanResolver will return. Populated here (from the same single
-	// resolution) so the eventual absorption changes where it is computed,
-	// not what. Note: the ladder path only ever bills the two ffmpeg
-	// packagers; the zero-process mkvgo paths (od_/cc_ resources, plan
-	// master) are dispatched before this resolver runs.
+	// Plan is the app-layer resolution - decision, class, shaped ladder,
+	// effective codec/hw route, packager, fingerprint (+hash). Note: the
+	// ladder path only ever bills the two ffmpeg packagers; the zero-process
+	// mkvgo paths (od_/cc_ resources, plan master) are dispatched before this
+	// resolver runs.
 	Plan apptranscoding.PlaybackPlan
 
-	// Decision / Profiles / AudioTrack are the raw resolution inputs shared
-	// verbatim with the fingerprint and the manifest input.
+	// Decision / Profiles / AudioTrack / FP / FPHash are views of the same
+	// single resolution (Decision and Ladder aliased off Plan, AudioTrack the
+	// adapter-resolved request pin the marshalling fed in).
 	Decision   domaintranscoding.PlaybackDecision
 	Profiles   []domaintranscoding.HLSProfile
 	AudioTrack int
-	// FP is the full decision fingerprint (the cache key object); FPHash its
-	// hash, computed once - the value sealed into URLs, probed by admission,
-	// and addressing the segment cache.
-	FP     apptranscoding.DecisionFingerprint
-	FPHash string
-	// IsCopy is the ffmpeg copy-rung routing bit (isCopyRequest): every
-	// consumer reads it here instead of re-deriving decision + disk guard.
+	FP         apptranscoding.DecisionFingerprint
+	FPHash     string
+	// IsCopy is the ffmpeg copy-rung routing bit: every consumer (bound
+	// check, shed, producer pick) reads it here instead of re-deriving.
 	IsCopy bool
 }
 
-// resolvePlan computes the whole per-request plan. Side-effect order matches
-// the legacy call sequence exactly: the decision first, then the ladder
-// shaping (which creates/refreshes the admission pin and freezes the ladder),
-// then the fingerprint (which binds its hash to that pin).
+// planResolver assembles the app-layer resolver from the handler's live
+// fields, per call: hand-built test handlers mutate fields after
+// construction, and dynamic toggles (capability, hw flags) must be read
+// fresh. Assembly is a plain struct literal - no allocation beyond the
+// resolver itself.
+func (h *hlsVODServe) planResolver() *apptranscoding.PlanResolver {
+	pr := &apptranscoding.PlanResolver{
+		Capability:            h.capability,
+		HWAccelEnabled:        h.hwAccelEnabled,
+		AV1Enabled:            h.av1Enabled,
+		AV1MaxHeight:          h.av1MaxHeight,
+		HWTonemapEnabled:      h.hwTonemapEnabled,
+		AudioNormalize:        h.audioNormalizeGetter,
+		CapOverride:           h.capOverride,
+		ComplexityRepo:        h.complexityRepo,
+		ClassLookup:           h.classLookup,
+		ClassLookupTTL:        mediaLookupTTL,
+		Selector:              h.selector,
+		CopyProducer:          h.copyProducer,
+		AdmissionRoute:        h.admissionRoute,
+		AdmissionPinnedClass:  h.admissionPinnedClass,
+		AdmissionBind:         h.admissionBind,
+		AdmissionFrozenLadder: h.admissionFrozenLadder,
+		AdmissionFreezeLadder: h.admissionFreezeLadder,
+		UseFMP4:               h.useFMP4,
+		AudioRenditionEnabled: h.audioRenditionEnabled,
+	}
+	if h.cache != nil {
+		pr.FreeBytes = h.cache.FreeBytes
+	}
+	// Assign the interface field only from a non-nil pointer: a typed-nil
+	// *SegmentOrchestrator boxed into the interface would defeat the
+	// resolver's nil check.
+	if h.orchestrator != nil {
+		pr.Orchestrator = h.orchestrator
+	}
+	return pr
+}
+
+// marshalPlaybackRequest reads everything decision-relevant off the
+// *http.Request + resolved media into the transport-free PlaybackRequest.
+// This is the ONLY place query params become plan inputs - anything read
+// here must also be baked into the child URLs (the cache-hash invariant
+// across requests).
+func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, prefs apptranscoding.TranscodingPreferences, audioTrack int) apptranscoding.PlaybackRequest {
+	return apptranscoding.PlaybackRequest{
+		MediaID:             mediaID,
+		SourcePath:          sourcePathOf(item),
+		Container:           containerOf(item),
+		Streams:             streams,
+		Client:              parseClientCapabilities(r, r.URL.Query().Get("hdr") == "1"),
+		Prefs:               prefs,
+		AudioTrack:          audioTrack,
+		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),
+		AudioOffsetMs:       audioOffsetMsQuery(r),
+		PinnedVideoDecision: r.URL.Query().Get("vd"),
+		PinnedAudioDecision: r.URL.Query().Get("ad"),
+		WasmAudio:           wasmAudioRequested(r),
+		SourceBytes:         sourceBytesOf(item),
+	}
+}
+
+// resolvePlan marshals the request and resolves the whole per-request plan
+// through the app-layer resolver.
 func (h *hlsVODServe) resolvePlan(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (*requestPlan, error) {
 	if item == nil || item.File == nil {
 		return nil, errors.New("resolvePlan: nil item")
@@ -63,38 +116,27 @@ func (h *hlsVODServe) resolvePlan(r *http.Request, mediaID string, item *domainl
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
 	audioTrack := h.resolveAudioTrackWith(r, streams, prefs)
-	decision := h.makeDecisionWith(r.Context(), streams, item.File.ContainerFormat, item.File.Path, r, prefs, audioTrack)
-	profiles := h.profilesForDecision(r.Context(), item, streams, decision)
-	fp, err := h.buildFingerprintWith(r, mediaID, item, streams, decision, profiles, audioTrack)
+	req := h.marshalPlaybackRequest(r, mediaID, item, streams, prefs, audioTrack)
+	plan, err := h.planResolver().Resolve(r.Context(), req)
 	if err != nil {
 		return nil, err
 	}
-	fpHash := fp.Hash()
-	isCopy := h.isCopyRequest(decision, streams, sourceBytesOf(item))
-
-	packager := apptranscoding.PackagerTranscodeFFmpeg
-	if isCopy {
-		packager = apptranscoding.PackagerCopyFFmpeg
-	}
 	return &requestPlan{
-		Plan: apptranscoding.PlaybackPlan{
-			Decision: decision,
-			// The class the spawn will be billed as - read from the
-			// fingerprint, whose hw fields already follow the pinned route
-			// (a spilled stream is tagged software).
-			Class:           apptranscoding.LadderClassOf(fp),
-			Ladder:          profiles,
-			VideoCodec:      fp.VideoCodec,
-			HWAccel:         fp.HWAccel,
-			Packager:        packager,
-			FingerprintHash: fpHash,
-			WasmAudio:       wasmAudioRequested(r),
-		},
-		Decision:   decision,
-		Profiles:   profiles,
+		Plan:       plan,
+		Decision:   plan.Decision,
+		Profiles:   plan.Ladder,
 		AudioTrack: audioTrack,
-		FP:         fp,
-		FPHash:     fpHash,
-		IsCopy:     isCopy,
+		FP:         plan.Fingerprint,
+		FPHash:     plan.FingerprintHash,
+		IsCopy:     plan.Packager == apptranscoding.PackagerCopyFFmpeg,
 	}, nil
+}
+
+// itemID is string(item.ID), nil-safe - the MediaID the resolver keys the
+// admission pin and complexity lookup on.
+func itemID(item *domainlibrary.MediaItem) string {
+	if item == nil {
+		return ""
+	}
+	return string(item.ID)
 }

@@ -841,69 +841,21 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 	return h.producerForDecision(decision, streams, item, h.isCopyRequest(decision, streams, sourceBytesOf(item)))
 }
 
-// producerForDecision picks the producer for an already-resolved decision, so
-// the producer chosen for a segment matches the one the ladder was shaped for
-// (and thus the cache hash). Falls back to the orchestrator field when no
-// selector is wired (hand-built test handlers); returns nil only when neither
-// is set.
+// producerForDecision picks the producer for an already-resolved decision -
+// see PlanResolver.ProducerFor.
 func (h *hlsVODServe) producerForDecision(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream, item *domainlibrary.MediaItem, isCopy bool) apptranscoding.StreamProducer {
-	if h.selector != nil {
-		if isCopy {
-			return h.copyProducer
-		}
-		// Admission spill: a stream pinned to the software route spawns on the
-		// software producer regardless of the hw gate - the producer must be
-		// the one the ladder was shaped for (see profilesForDecision).
-		if h.admissionPinnedClass != nil {
-			if cls, ok := h.admissionPinnedClass(h.admissionPinKey(item, streams, decision)); ok && cls != apptranscoding.LadderClassHW {
-				if sw := h.selector.Software(); sw != nil {
-					return sw
-				}
-			}
-		}
-		return h.selector.For(decision, sourceDimsOf(streams))
-	}
-	if h.orchestrator != nil {
-		return h.orchestrator
-	}
-	return nil
+	return h.planResolver().ProducerFor(itemID(item), streams, decision, isCopy)
 }
 
-// isCopyRequest reports whether this request should be served as a video-COPY
-// (remux) rung rather than transcoded. Three conditions, all required: the copy
-// path is wired (EVEY_REMUX_COPY=on → copyProducer non-nil), the decision did
-// NOT require a video transcode (VideoDecision=="copy"), and the source is
-// copy-eligible - sourceCopyVideoCodec returns "" unless it is H.264 8-bit SDR
-// with a known level (so the master can advertise an accurate avc1.PPCCLL).
-// When false, the request routes through the selector exactly as before.
-// videoCopyEligible reports whether the SOURCE itself can ride a copy rung: the
-// decision says copy and the video codec is one we can carry verbatim. This is
-// the only part the mkvgo packager shares with the ffmpeg copy rung - everything
-// else below (a wired copyProducer, the disk guard) is about ffmpeg WRITING
-// segments, which the packager never does.
+// videoCopyEligible / isCopyRequest - the copy-rung routing moved to the app
+// layer (VideoCopyEligible / PlanResolver.IsCopy); wrappers for the adapter's
+// remaining call sites and tests.
 func videoCopyEligible(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream) bool {
-	return decision.VideoDecision == "copy" && sourceCopyVideoCodec(streams) != ""
+	return apptranscoding.VideoCopyEligible(decision, streams)
 }
 
 func (h *hlsVODServe) isCopyRequest(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream, sourceBytes int64) bool {
-	if h.copyProducer == nil || !videoCopyEligible(decision, streams) {
-		return false
-	}
-	// Disk guard: the copy rung's segments duplicate ~the source size on disk over
-	// the session (video copied 1:1 + a smaller AAC track), and the unpaced copy
-	// produces them well ahead of the viewer. If the cache filesystem can't fit it
-	// with headroom, fall back to the segment-bounded transcode ladder rather than
-	// risk ENOSPC on a small box. Fail-OPEN when the size is unknown or
-	// statfs fails - keeps today's behaviour and the mux still fails gracefully
-	// downstream. (master- and segment-time both reach this with the same
-	// item.File.Size; a free-space flip between them is a rare, bounded 503-retry,
-	// not a cache aliasing - the copy hash never collides with a transcode hash.)
-	if sourceBytes > 0 {
-		if free, err := h.cache.FreeBytes(); err == nil && free < sourceBytes+sourceBytes/10 {
-			return false
-		}
-	}
-	return true
+	return h.planResolver().IsCopy(decision, streams, sourceBytes)
 }
 
 // durationMissingError is the specific 503 we return when a media file's

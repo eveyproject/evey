@@ -516,7 +516,7 @@ func (h *hlsVODServe) audioAllCopyEligible(ctx context.Context, decision domaint
 		if s == nil || s.StreamType != "audio" {
 			continue
 		}
-		if !audioCopyCodecs[strings.ToLower(s.Codec)] {
+		if !apptranscoding.AudioCopyCodecAllowed(strings.ToLower(s.Codec)) {
 			return false
 		}
 	}

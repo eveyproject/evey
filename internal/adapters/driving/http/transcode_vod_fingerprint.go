@@ -6,11 +6,8 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/http"
-	"slices"
 	"strconv"
-	"strings"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -259,218 +256,25 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 	return rp.FP, nil
 }
 
-// buildFingerprintWith assembles the fingerprint from an already-computed
-// (decision, profiles, audioTrack) triple - the tail of the plan resolution.
-func (h *hlsVODServe) buildFingerprintWith(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision, profiles []domaintranscoding.HLSProfile, audioTrack int) (apptranscoding.DecisionFingerprint, error) {
-	if item == nil || item.File == nil {
-		return apptranscoding.DecisionFingerprint{}, errors.New("buildFingerprint: nil item")
-	}
-	subBurnIn := parseIntQuery(r, "subtitleTrack", -1)
-
-	// When the audio-rendition feature is on, the audio is served as a SEPARATE
-	// HLS rendition (audio_T.m3u8 / audio_T_*.m4s) and the video segments MUST be
-	// video-only. Otherwise stream_0 keeps muxing the audio track while the master
-	// also advertises the separate audio group with DEFAULT=YES - hls.js then
-	// appends audio twice (muxed-in-stream_0 + audio_0), which throws
-	// bufferAppendError on any seek. Signalling "no audio" with track -1 reuses the
-	// tested video-only ladder (hasAudio) and forks the cache (atrack=-1 in Hash())
-	// so muxed and video-only segments for the same media never alias.
-	videoAudioTrack := audioTrack
-	// Same video-only requirement for the wasm-audio path: the AC-3/E-AC-3 audio
-	// is served as a SEPARATE rendition (mkvgo od_audio* or ffmpeg audio_*) and
-	// decoded client-side, so the ffmpeg video segments must carry no audio track
-	// (atrack=-1 forks the cache off the muxed ladder). Harmless when the video is
-	// served by mkvgo instead (this ffmpeg fingerprint is then unused).
-	if h.audioRenditionsFor(decision) || wasmAudioRequested(r) {
-		videoAudioTrack = -1
-	}
-
-	fpProfiles := make([]apptranscoding.ProfileFingerprint, len(profiles))
-	for i, p := range profiles {
-		// Single, reflection-guarded projection (TestProfileFingerprintOf_CopiesEveryField).
-		fpProfiles[i] = apptranscoding.ProfileFingerprintOf(p)
-	}
-
-	hwTonemap := h.hwTonemapWanted(decision)
-	// Capability gate: AV1 falls back to H.264 when the host can't encode it (no
-	// HW AV1, no calibrated AV1 software ceiling). videoCodec is what the segments
-	// actually carry - the cache key MUST use it, not the raw decision codec.
-	videoCodec, hwAccel, hwDevice, hwFeatures, hwUsable := h.effectiveVideoCodec(decision, streams)
-	// Admission spill: a hw stream pinned to the software route (GPU pool was
-	// full) must be FINGERPRINTED as software - the fingerprint describes the
-	// bytes the software producer will make, and LadderClassOf(fp) is what the
-	// spawn bills (CPU pool, not GPU). AV1 rides hardware only, so a spilled
-	// AV1 stream carries the H.264 the software encoder will actually produce.
-	if hwUsable && h.admissionPinnedClass != nil {
-		if cls, ok := h.admissionPinnedClass(h.admissionPinKey(item, streams, decision)); ok && cls != apptranscoding.LadderClassHW {
-			hwAccel, hwDevice, hwFeatures, hwUsable = "", "", nil, false
-			if strings.EqualFold(videoCodec, "av1") {
-				videoCodec = "h264"
-			}
-		}
-	}
-	srcAudio := sourceAudioCodec(streams, audioTrack)
-	audioCopy := audioCopyEligible(decision,
-		h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
-		len(fpProfiles), srcAudio)
-	fp := apptranscoding.DecisionFingerprint{
-		MediaID:    mediaID,
-		SourcePath: item.File.Path,
-		VideoCodec: videoCodec,
-		// The SOURCE codec (excluded from Hash - derivable from MediaID): the
-		// copy builder tags the fMP4 sample entry from it (-tag:v hvc1).
-		SourceVideoCodec: sourceVideoCodec(streams),
-		// Legacy-codec corrections (B3): idet content verdict + anamorphic SAR,
-		// both hashed conditionally so progressive/square titles keep their
-		// cache. No-ops on modern progressive sources.
-		DeinterlaceAll: sourceDeinterlaceAll(streams),
-		SourceSAR:      sourceSAR(streams),
-		// The codec the segments actually carry (source codec on passthrough).
-		// The builder only reads it on the transcode branch; here it keeps the
-		// hash truthful per served bytes.
-		AudioCodec:          servedAudioCodec(audioCopy, srcAudio, decision),
-		AudioTrack:          videoAudioTrack,
-		SubtitleBurnInTrack: subBurnIn,
-		SubtitleBurnInCodec: sourceSubtitleCodec(streams, subBurnIn),
-		// HDR->SDR tonemap is needed whenever the decision flagged it (HDR source +
-		// non-HDR client, or Dolby Vision). Baked into the fingerprint so it (a)
-		// enters the cache hash - tonemapped vs not are different bytes - and (b)
-		// reaches the orchestrator/builder, which has no source streams to detect it.
-		HDRTonemap:       slices.Contains(decision.TranscodeReasons, "hdr_tonemapping_needed"),
-		AudioNormalize:   h.audioNormalizeGetter != nil && h.audioNormalizeGetter(r.Context()),
-		MaxAudioChannels: decision.MaxAudioChannels,
-		// Audio passthrough eligibility - see audioCopyEligible (shared with
-		// buildManifestInput so the master CODECS always matches the bytes).
-		AudioCopy: audioCopy,
-		// User audio resync (ms) - hashed conditionally (non-zero only) and
-		// threaded to the builder as a net input shift with the source-delay
-		// cancel. makeDecision already forced audio transcode when non-zero.
-		AudioOffsetMs:    audioOffsetMsQuery(r),
-		ForceSidecarSubs: decision.SubtitleDecision == "external",
-		UseFMP4:          h.useFMP4,
-		HWAccel:          hwAccel,
-		HWDevice:         hwDevice,
-		HWFeatures:       hwFeatures,
-		// GPU tone-mapping for this request (only when the HW path is actually
-		// taken). Excluded from Hash() like HWAccel - a HW- vs software-tonemapped
-		// segment is interchangeable in the addressable cache.
-		HWTonemap: hwTonemap && hwUsable,
-		Profiles:  fpProfiles,
-	}
-	// Tell the admission shaper which session this pin shaped: while that
-	// session holds a limiter slot, the pinned ceiling must not move (see
-	// VideoAdmissionShaper - the cache-hash invariant, live edition).
-	if h.admissionBind != nil {
-		h.admissionBind(h.admissionPinKey(item, streams, decision), fp.Hash())
-	}
-	return fp, nil
-}
-
+// makeDecision is the decision wrapper for the call sites without a resolved
+// plan (on-demand master paths, prewarm, tests): it loads the prefs, resolves
+// the audio track, marshals the request and delegates to the app-layer
+// resolver's Decide - the same core the plan resolution runs.
 func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, r *http.Request) domaintranscoding.PlaybackDecision {
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := loadProfilePrefs(ctx, h.profilePrefs, claims.ProfileID)
-	return h.makeDecisionWith(ctx, streams, container, sourcePath, r, prefs, h.resolveAudioTrackWith(r, streams, prefs))
-}
-
-// makeDecisionWith is makeDecision with the profile prefs and the resolved
-// audio track already in hand (the plan resolution loads/derives each once).
-func (h *hlsVODServe) makeDecisionWith(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, r *http.Request, prefs apptranscoding.TranscodingPreferences, audioTrack int) domaintranscoding.PlaybackDecision {
-	// Inject the selected subtitle track so the decision only burns (and so only
-	// denies the copy rung) when the user actually plays this bitmap subtitle -
-	// not whenever the file merely carries one. Mirrors the subtitleTrack param
-	// the fingerprint (buildFingerprint) and the burn-in filter already consume.
-	prefs.SubtitleBurnInTrack = parseIntQuery(r, "subtitleTrack", -1)
-	// Inject the audio track the request will actually serve, so the audio
-	// copy-vs-transcode decision is made on THAT track (the default may be DTS
-	// while the user plays an AAC track, or vice-versa). Mirrors the audioTrack
-	// resolution the fingerprint and the ffmpeg -map already use.
-	prefs.AudioTrack = audioTrack
-	hdrCapable := r.URL.Query().Get("hdr") == "1"
-	client := parseClientCapabilities(r, hdrCapable)
-	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, container, client, 0, prefs, sourcePath)
-	if d == nil {
-		return domaintranscoding.PlaybackDecision{}
+	req := apptranscoding.PlaybackRequest{
+		SourcePath:          sourcePath,
+		Container:           container,
+		Streams:             streams,
+		Client:              parseClientCapabilities(r, r.URL.Query().Get("hdr") == "1"),
+		Prefs:               prefs,
+		AudioTrack:          h.resolveAudioTrackWith(r, streams, prefs),
+		SubtitleBurnInTrack: parseIntQuery(r, "subtitleTrack", -1),
+		AudioOffsetMs:       audioOffsetMsQuery(r),
+		PinnedVideoDecision: r.URL.Query().Get("vd"),
+		PinnedAudioDecision: r.URL.Query().Get("ad"),
+		WasmAudio:           wasmAudioRequested(r),
 	}
-	// User audio resync: shifting audio requires re-encoding it from a
-	// time-shifted input, so a non-zero offset forces the audio decision to
-	// transcode (a copied track cannot be shifted). The offset itself rides
-	// the fingerprint (cache fork) and every baked URL.
-	if audioOffsetMsQuery(r) != 0 && d.AudioDecision != "transcode" {
-		d.AudioDecision = "transcode"
-		d.TranscodeReasons = append(d.TranscodeReasons, "audio_resync_requested")
-		if d.AudioCodec == "" {
-			d.AudioCodec = "aac"
-		}
-	}
-	// Mid-play decision pinning. The first playlist of a playback stamps the
-	// then-current video decision into every child URL (vd=..., see
-	// buildManifestInput/querySuffix); this honors it on the follow-up polls.
-	// Background enrichment can flip copy-eligibility BETWEEN two polls of a
-	// live EVENT playlist - measured in prod ("a beta tester", 2026-07-07): the
-	// keyframe backfill indexed the file 22 min into a TRANSCODE playback,
-	// the same playlist URL switched to the copy plan, and the source-h264
-	// segments under the transcode init rendered as green garbage on the
-	// Chromecast's hardware decoder. Pinning "transcode" always holds (a
-	// re-encode is always serveable). Pinning "copy" cannot be forced - if
-	// the fresh decision no longer says copy the plan is structurally gone
-	// (keyframes wiped) and a re-encode is the only serveable output - so a
-	// broken copy pin flips WITH a warning instead of 500ing the session.
-	switch r.URL.Query().Get("vd") {
-	case "transcode":
-		if d.VideoDecision == "copy" {
-			d.VideoDecision = "transcode"
-			d.TranscodeReasons = append(d.TranscodeReasons, "decision_pinned")
-			if d.VideoCodec == "" {
-				d.VideoCodec = "h264"
-			}
-		}
-	case "copy":
-		if d.VideoDecision != "copy" {
-			slog.Warn("hls-vod: pinned copy decision no longer serveable, session flips to transcode mid-play (player may need a restart)",
-				slog.String("path", r.URL.Path),
-				slog.String("reasons", strings.Join(d.TranscodeReasons, ",")))
-		}
-	}
-	// Audio-side pin, same contract as vd: "transcode" always holds; a broken
-	// "copy" pin (loudnorm toggled on, codec no longer passthrough-eligible)
-	// flips WITH a warning - the session's audio codec changes mid-play and
-	// the player may need a restart, but a re-encode is always serveable.
-	switch r.URL.Query().Get("ad") {
-	case "transcode":
-		if d.AudioDecision != "transcode" {
-			d.AudioDecision = "transcode"
-			d.TranscodeReasons = append(d.TranscodeReasons, "decision_pinned")
-			if d.AudioCodec == "" {
-				d.AudioCodec = "aac"
-			}
-		}
-	case "copy":
-		if d.AudioDecision != "copy" {
-			slog.Warn("hls-vod: pinned audio copy decision no longer serveable, session flips to transcoded audio mid-play",
-				slog.String("path", r.URL.Path),
-				slog.String("reasons", strings.Join(d.TranscodeReasons, ",")))
-		}
-	}
-	// A transcoded rung is SDR BY CONTRACT - the master only advertises
-	// VIDEO-RANGE on the COPY rung. An HDR-capable client (hdr=1) legitimately
-	// suppresses the decision-level tonemap for the raw-serve paths, but when
-	// the copy rung is UNAVAILABLE (keyframes/HDR truth not yet backfilled,
-	// non-wired codec/profile, copy producer off) this request still
-	// re-encodes - and a PQ source x264-encoded without tonemapping renders
-	// washed-out (proven on prod bytes: SATAVG 3.1 untonemapped vs the same
-	// segment tonemapped). Re-add the tonemap for any HDR source that will
-	// NOT be served as a raw copy. The disk guard can still flip copy→ladder
-	// at serve time without re-adding it - accepted bounded edge (hashing
-	// FreeBytes would be worse).
-	servedAsRawCopy := d.VideoDecision == "copy" && h.copyProducer != nil && sourceCopyVideoCodec(streams) != ""
-	if !servedAsRawCopy &&
-		!slices.Contains(d.TranscodeReasons, "hdr_tonemapping_needed") &&
-		sourceIsHDR(streams) {
-		d.TranscodeReasons = append(d.TranscodeReasons, "hdr_tonemapping_needed")
-		d.VideoDecision = "transcode"
-		if d.VideoCodec == "" {
-			d.VideoCodec = "h264"
-		}
-	}
-	return *d
+	return h.planResolver().Decide(ctx, req)
 }

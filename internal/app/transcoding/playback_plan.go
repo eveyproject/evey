@@ -7,35 +7,24 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-// SEAM IN MIGRATION - the first, delegating step is wired. See
-// docs/playback-serving.md ("Known seam").
+// THE SEAM IS WIRED. See docs/playback-serving.md.
 //
 // The request-handling brain of the HLS read path - the copy/transcode
 // decision plus its request-time pins, the ABR ladder shaping, the admission
-// route/ceiling, the decision fingerprint, and the choice of packager (mkvgo copy
-// vs ffmpeg transcode) - is spread across ~8 transcode_vod_*.go files in the http
-// DRIVING adapter. Correctness rests on every request re-deriving byte-identical
-// inputs ("the cache-hash invariant, held by discipline"). The frozen ladder
-// (VideoAdmissionShaper.FreezeLadder) made part of that structural; the target:
+// route/ceiling, the decision fingerprint, and the packager routing - lives in
+// PlanResolver (playback_plan_resolver.go), the concrete PlaybackPlanResolver.
+// Each request is resolved ONCE:
 //
 //   PlaybackPlanResolver.Resolve(req) -> immutable PlaybackPlan
 //
-// resolved ONCE per stream in the APP layer, then read verbatim by manifest- and
-// segment-time. The http adapter shrinks back to marshalling a *http.Request into
-// a PlaybackRequest and serving off the returned plan. Benefits: the whole flow
-// reads from one place; the URLs<->bytes invariant is guaranteed by construction
-// (one resolution, not N that must agree); wiring a new codec/packager/container
-// is one change in the resolver, not a sweep across the adapter.
-//
-// Migration status (additive and incremental):
-//   - DONE: the http adapter resolves the whole plan ONCE per request and
-//     populates this PlaybackPlan from that single resolution
-//     (http/transcode_vod_plan.go, resolvePlan) - one entry point delegating
-//     to the existing helpers, every consumer reading the same values.
-//   - NEXT: absorb the helpers one at a time into an app-layer resolver
-//     implementing PlaybackPlanResolver below; the adapter then only
-//     marshals PlaybackRequest. Nothing else changes runtime behaviour until
-//     that resolver is wired in cmd/evey/wire.go.
+// The http adapter marshals the *http.Request into a PlaybackRequest
+// (http/transcode_vod_plan.go: marshalPlaybackRequest + resolvePlan) and
+// serves off the returned plan; manifest- and segment-time read the same
+// resolution, so within a request the URLs<->bytes invariant holds by
+// construction (one resolution, not N that must agree). Wiring a new
+// codec/packager/container is one change in the resolver, not a sweep across
+// the adapter. Across requests the invariant still rests on URL baking
+// (querySuffix) plus the shaper's frozen ladder / StreamPlan pins.
 
 // PlaybackRequest is the marshalled, transport-free input to plan resolution:
 // everything the http adapter reads off the *http.Request and the media, with no
@@ -61,6 +50,10 @@ type PlaybackRequest struct {
 	PinnedVideoDecision string // "", "copy", or "transcode" (the vd= URL pin)
 	PinnedAudioDecision string // "", "copy", or "transcode" (the ad= URL pin)
 	WasmAudio           bool   // the ?wasmAudio=1 client opt-in for browser AC-3 decode
+
+	// SourceBytes is the on-disk size of the source file (0 = unknown), read
+	// by the copy-rung disk guard - fail-open on 0.
+	SourceBytes int64
 }
 
 // PackagerKind names which engine produces the media bytes for a plan - the
@@ -104,6 +97,10 @@ type PlaybackPlan struct {
 	// FingerprintHash is the DecisionFingerprint.Hash() addressing the cache and
 	// the ffmpeg session for this plan. The stable identity every segment resolves.
 	FingerprintHash string
+	// Fingerprint is the full cache-key object behind FingerprintHash: the
+	// serving path still hands it to the producers (EnsureSegmentRange,
+	// Manifest) and reads per-rung facts (Profiles, UseFMP4) off it.
+	Fingerprint DecisionFingerprint
 	// WasmAudio is true when the AC-3/E-AC-3 audio is served as an out-of-band
 	// rendition for the browser wasm decoder (the master is video-only).
 	WasmAudio bool

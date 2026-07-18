@@ -131,20 +131,21 @@ stream token, for HLS and DASH alike, including cookie-less Chromecast.
 - **Graceful degradation** - a safe fallback at every step: 720p default capability,
   hw→software spill, copy→transcode, mkvgo→ffprobe.
 
-## Known seam: the decision brain lives in the http adapter
+## The decision brain: the app-layer PlanResolver
 
-The request-handling brain - decision pins, ladder shaping, fingerprint
-assembly, packager choice - is spread across the `transcode_vod_*.go` files in the
-**http** adapter, not the app layer. The first migration step is wired: each
-request now resolves its whole plan **once** (`resolvePlan` in
-`http/transcode_vod_plan.go`, delegating to the existing helpers) and every
-consumer - manifest input, shed probe, stale-URL seal, producer pick, segment
-key - reads that single resolution, so *within a request* the cache-hash
-invariant holds by construction (and the segment hot path went from ~5 profile
-prefs fetches to 1). The remaining step is absorbing the helpers into an
-app-layer resolver - see
-[`internal/app/transcoding/playback_plan.go`](../internal/app/transcoding/playback_plan.go)
-for the `PlaybackPlan` / `PlaybackPlanResolver` seam and its migration status.
-Across requests the invariant still rests on URL baking: **every input to
-the decision must be baked into the child URLs**, or a mid-play poll can flip the
+The request-handling brain - decision pins, ladder shaping, hardware routing,
+fingerprint assembly, copy-rung routing, producer pick - lives in the app
+layer: `PlanResolver` (`app/transcoding/playback_plan_resolver.go`), the
+concrete `PlaybackPlanResolver`
+([`playback_plan.go`](../internal/app/transcoding/playback_plan.go)). Each
+request is resolved **once**: the http adapter marshals the `*http.Request`
+into a transport-free `PlaybackRequest` (`http/transcode_vod_plan.go`) and
+serves off the returned immutable `PlaybackPlan`. Every consumer - manifest
+input, shed probe, stale-URL seal, producer pick, segment key - reads that
+single resolution, so *within a request* the cache-hash invariant holds by
+construction (and the segment hot path went from ~5 profile prefs fetches
+to 1). The source-fact helpers (codec, HDR, SAR, ten-bit…) live alongside in
+`app/transcoding/source_facts.go`; the adapter keeps thin aliases. Across
+requests the invariant still rests on URL baking: **every input to the
+decision must be baked into the child URLs**, or a mid-play poll can flip the
 plan under the player (`querySuffix` in `manifest_generator.go`).
