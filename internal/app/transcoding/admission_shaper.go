@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
 // StreamPlan is the IMMUTABLE admission decision for one stream: the ladder class
@@ -77,7 +79,15 @@ type streamPin struct {
 	// CeilingFor call asks about (stability - see StreamPlan's doc); only a pin
 	// that goes cold AND unheld is superseded, and then a NEW plan is minted
 	// against the newly-requested class. Never mutated in place.
-	plan     StreamPlan
+	plan StreamPlan
+	// ladder is the frozen shaped ABR ladder EMITTED ONCE for this stream (see
+	// FreezeLadder/FrozenLadder). nil until the first shaping freezes it. While the
+	// pin is fresh-or-held, every manifest- and segment-time call reads THIS ladder
+	// verbatim instead of re-deriving it from mutable inputs (complexity class,
+	// capability, CMCD/av1 caps) that could drift mid-stream and break the
+	// cache-hash invariant. Superseded together with the plan when the pin goes
+	// cold and unheld.
+	ladder   []transcoding.HLSProfile
 	lastSeen time.Time
 	// boundHashes are the decision-fingerprint hashes built under this pin
 	// (several can share one: audio tracks x subtitle burn-ins x offsets of
@@ -266,6 +276,55 @@ func (s *VideoAdmissionShaper) PlanFor(key string) (StreamPlan, bool) {
 	}
 	pin.lastSeen = s.now()
 	return pin.plan, true
+}
+
+// FreezeLadder records the shaped ABR ladder emitted for key's stream onto its
+// live pin, so subsequent manifest-/segment-time shaping reads it verbatim rather
+// than re-deriving it. A no-op when no pin exists for key (a copy request, or a
+// refused stream took no slot) or the ladder is empty - nothing to freeze. Stores
+// a COPY so a caller mutating its slice afterwards can't corrupt the frozen plan.
+// Idempotent-friendly: re-freezing an identical ladder is harmless; the pin's
+// plan (class+ceiling) is immutable, so the ladder shaped under it is stable too.
+func (s *VideoAdmissionShaper) FreezeLadder(key string, ladder []transcoding.HLSProfile) {
+	if s == nil || len(ladder) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pin, ok := s.pins[key]
+	if !ok {
+		return
+	}
+	frozen := make([]transcoding.HLSProfile, len(ladder))
+	copy(frozen, ladder)
+	pin.ladder = frozen
+}
+
+// FrozenLadder returns the ladder frozen for key's stream, refreshing the pin's
+// freshness like PlanFor. It answers ONLY while the pin is authoritative - fresh,
+// or cold but still held by a live session - matching GrantRoute's stability
+// contract exactly: an abandoned (cold + unheld) stream returns nothing so its
+// retry re-derives against the budget of its moment. A COPY is returned so the
+// caller can shape it further (the CMCD/av1 caps already folded in) without
+// touching the stored plan. ok=false when no pin, no frozen ladder, or cold+unheld.
+func (s *VideoAdmissionShaper) FrozenLadder(key string) ([]transcoding.HLSProfile, bool) {
+	if s == nil {
+		return nil, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pin, ok := s.pins[key]
+	if !ok || len(pin.ladder) == 0 {
+		return nil, false
+	}
+	now := s.now()
+	if now.Sub(pin.lastSeen) >= s.pinFreshFor && !s.anyBoundHeld(pin) {
+		return nil, false // cold and unheld: let the caller re-derive (GrantRoute supersedes)
+	}
+	pin.lastSeen = now
+	out := make([]transcoding.HLSProfile, len(pin.ladder))
+	copy(out, pin.ladder)
+	return out, true
 }
 
 // Bind records the decision-fingerprint hash a caller built under key's pin,

@@ -138,6 +138,23 @@ func (h *hlsVODServe) hwTonemapWanted(decision domaintranscoding.PlaybackDecisio
 // Caps the ladder to the source resolution so we never advertise a 4K rung
 // for a 1080p source.
 func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision) []domaintranscoding.HLSProfile {
+	// Read-verbatim (Étape 2): a live stream's ABR ladder is shaped ONCE and
+	// frozen on its admission pin; return it unchanged so the manifest and every
+	// segment shape the SAME ladder BY CONSTRUCTION - immune to a mid-stream drift
+	// of the mutable inputs below (complexity class, capability, CMCD/av1 caps)
+	// that would otherwise desync a player's URLs from the cached bytes. Copy
+	// rungs take no admission pin (never frozen); their single source-res rung is
+	// stable regardless. streamKey is set only on the freezable (transcode) path,
+	// and gates the freeze at the tail.
+	isCopy := h.isCopyRequest(decision, streams, sourceBytesOf(item))
+	var streamKey string
+	if !isCopy && h.admissionFrozenLadder != nil {
+		streamKey = h.admissionPinKey(item, streams, decision)
+		if frozen, ok := h.admissionFrozenLadder(streamKey); ok {
+			return frozen
+		}
+	}
+
 	class := domaintranscoding.ClassFilmNormal
 	if h.complexityRepo != nil && item != nil {
 		resolved := false
@@ -172,7 +189,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 
 	var laddered []domaintranscoding.HLSProfile
 	switch {
-	case h.isCopyRequest(decision, streams, sourceBytesOf(item)):
+	case isCopy:
 		// Copy/remux rung: a single source-resolution rung, no transcode ladder
 		// (the player never ABR-switches a copy stream). Same producer the
 		// segment path resolves, so manifest- and segment-time shaping agree.
@@ -226,8 +243,7 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 	// shaper, so the manifest a player holds and every segment it fetches
 	// shape the same ladder - the cache-hash invariant that rules this whole
 	// function. Copy requests are exempt: they never take a capacity slot.
-	if h.admissionRoute != nil && len(laddered) > 0 &&
-		!h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
+	if h.admissionRoute != nil && len(laddered) > 0 && !isCopy {
 		natural := h.ladderClassFor(decision, streams)
 		softwareShape := func() []domaintranscoding.HLSProfile {
 			if h.selector == nil {
@@ -254,6 +270,13 @@ func (h *hlsVODServe) profilesForDecision(ctx context.Context, item *domainlibra
 				laddered = domaintranscoding.CapLadderToHeight(laddered, g.Ceiling)
 			}
 		}
+	}
+	// Freeze this shaped ladder on the admission pin (created by admissionRoute
+	// just above) so every later manifest-/segment-time call reads it verbatim.
+	// No-op when no pin was created (nothing fit ⇒ refused, or admission unwired):
+	// FreezeLadder finds no pin and does nothing, and the next call re-derives.
+	if streamKey != "" && h.admissionFreezeLadder != nil {
+		h.admissionFreezeLadder(streamKey, laddered)
 	}
 	return laddered
 }

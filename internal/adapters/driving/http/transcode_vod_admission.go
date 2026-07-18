@@ -192,3 +192,19 @@ func admissionBindOf(s *apptranscoding.VideoAdmissionShaper) func(string, string
 	}
 	return s.Bind
 }
+
+// frozenLadderOf / freezeLadderOf adapt the shaper's read-verbatim ladder freeze
+// the same TRUE-nil way, so a handler built without a shaper keeps re-deriving.
+func frozenLadderOf(s *apptranscoding.VideoAdmissionShaper) func(string) ([]domaintranscoding.HLSProfile, bool) {
+	if s == nil {
+		return nil
+	}
+	return s.FrozenLadder
+}
+
+func freezeLadderOf(s *apptranscoding.VideoAdmissionShaper) func(string, []domaintranscoding.HLSProfile) {
+	if s == nil {
+		return nil
+	}
+	return s.FreezeLadder
+}

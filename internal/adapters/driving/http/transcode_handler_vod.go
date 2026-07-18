@@ -80,6 +80,15 @@ type hlsVODServe struct {
 	// admissionBind reports the fingerprint hash built under a pin so the
 	// shaper can freeze the ceiling while that session holds a slot. Optional.
 	admissionBind func(key, fingerprintHash string)
+	// admissionFrozenLadder / admissionFreezeLadder read-verbatim the shaped ABR
+	// ladder EMITTED ONCE for a stream: profilesForDecision freezes its output on
+	// the admission pin and every later manifest-/segment-time call reads it back
+	// verbatim, so a mid-stream drift of the mutable shaping inputs (complexity
+	// class, capability, CMCD/av1 caps) cannot desync the manifest's ladder from
+	// the segments' - the cache-hash invariant made structural rather than
+	// discipline-held. Both optional (nil ⇒ always re-derive, the prior behaviour).
+	admissionFrozenLadder func(key string) ([]domaintranscoding.HLSProfile, bool)
+	admissionFreezeLadder func(key string, ladder []domaintranscoding.HLSProfile)
 
 	// onDemand serves the copy rung straight from mkvgo's mp4.PlanHLS -
 	// zero-storage, stateless, byte-identical HLS + DASH - when wired (behind

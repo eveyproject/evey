@@ -194,6 +194,85 @@ func TestAdmissionShaper_PlanHash_StableWhileLive_ChangesOnlyOnSupersession(t *t
 	assert.Equal(t, StreamPlan{Class: LadderClassSoftware, Ceiling: 1440}.Hash(), g3.PlanHash)
 }
 
+// ============================================================================
+// Frozen ladder (Étape 2 read-verbatim): the shaped ladder is emitted once and
+// read back verbatim while the stream is live, so a mid-stream drift of the
+// mutable shaping inputs (complexity, capability, CMCD/av1 caps) cannot break the
+// cache-hash invariant. Lifecycle matches the pin exactly.
+// ============================================================================
+
+func ladderProfiles(heights ...int) []transcoding.HLSProfile {
+	out := make([]transcoding.HLSProfile, len(heights))
+	for i, h := range heights {
+		out[i] = transcoding.HLSProfile{Height: h, Width: h * 16 / 9}
+	}
+	return out
+}
+
+func TestAdmissionShaper_FrozenLadder_ReturnedWhileFresh_IsACopy(t *testing.T) {
+	shaper, _, _ := shaperFixture(t)
+	require.True(t, shaper.GrantRoute("s1", LadderClassSoftware, ladder, nil).OK)
+
+	src := ladderProfiles(1440, 1080, 720)
+	shaper.FreezeLadder("s1", src)
+	src[0].Height = 99 // mutate the caller's slice after freezing
+
+	got, ok := shaper.FrozenLadder("s1")
+	require.True(t, ok)
+	assert.Equal(t, []int{1440, 1080, 720}, heightsOf(got), "FreezeLadder stores a copy, immune to caller mutation")
+
+	got[1].Height = 42 // mutate the returned slice
+	got2, _ := shaper.FrozenLadder("s1")
+	assert.Equal(t, 1080, got2[1].Height, "FrozenLadder returns a copy, immune to reader mutation")
+}
+
+func TestAdmissionShaper_FrozenLadder_NoPinOrNoLadder(t *testing.T) {
+	shaper, _, _ := shaperFixture(t)
+
+	// No pin at all: freeze is a no-op, read is empty.
+	shaper.FreezeLadder("ghost", ladderProfiles(1080))
+	_, ok := shaper.FrozenLadder("ghost")
+	assert.False(t, ok, "no pin => nothing frozen")
+
+	// Pin exists but nothing frozen yet.
+	require.True(t, shaper.GrantRoute("s1", LadderClassSoftware, ladder, nil).OK)
+	_, ok = shaper.FrozenLadder("s1")
+	assert.False(t, ok, "a pin with no frozen ladder returns false")
+}
+
+func TestAdmissionShaper_FrozenLadder_ColdUnheld_ReturnsFalse(t *testing.T) {
+	shaper, _, clock := shaperFixture(t)
+	require.True(t, shaper.GrantRoute("s1", LadderClassSoftware, ladder, nil).OK)
+	shaper.FreezeLadder("s1", ladderProfiles(1080, 720))
+
+	*clock = clock.Add(defaultPinFreshFor) // cold, and no session bound to it
+
+	_, ok := shaper.FrozenLadder("s1")
+	assert.False(t, ok, "an abandoned (cold + unheld) stream re-derives, it does not read a stale frozen ladder")
+}
+
+func TestAdmissionShaper_FrozenLadder_ColdButHeld_StaysFrozen(t *testing.T) {
+	shaper, limiter, clock := shaperFixture(t)
+	require.True(t, shaper.GrantRoute("s1", LadderClassSoftware, ladder, nil).OK)
+	shaper.FreezeLadder("s1", ladderProfiles(1080, 720))
+
+	require.True(t, limiter.TryAcquire("s1-hash", LadderClassSoftware, 1080))
+	shaper.Bind("s1", "s1-hash")
+	*clock = clock.Add(10 * time.Minute) // paused: cold, but its session still holds a slot
+
+	got, ok := shaper.FrozenLadder("s1")
+	require.True(t, ok, "a held stream's ladder is frozen, cold or not")
+	assert.Equal(t, []int{1080, 720}, heightsOf(got))
+}
+
+func heightsOf(ps []transcoding.HLSProfile) []int {
+	out := make([]int, len(ps))
+	for i, p := range ps {
+		out[i] = p.Height
+	}
+	return out
+}
+
 func countOf(xs []string, want string) int {
 	n := 0
 	for _, x := range xs {
