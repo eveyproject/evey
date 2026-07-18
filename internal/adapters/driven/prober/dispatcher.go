@@ -36,12 +36,13 @@ type metaReader interface {
 type Dispatcher struct {
 	fallback library.StreamProber
 	meta     metaReader
-	// mkvEnabled / mp4Enabled gate each fast-path independently at runtime (nil
-	// == always on). Two flags, not one: the EBML path is validated against
-	// ffprobe on real files and can ship enabled, while the newer mp4 path stays
-	// off until its own real-file parity check passes (cf parity_realfile_test).
-	// When a gate returns false the dispatcher is a pure pass-through for that
-	// container family.
+	// mkvEnabled / mp4Enabled gate each fast-path independently (nil == always
+	// on). Both container families are validated field-equivalent against ffprobe
+	// on the real library - EBML, and MP4 via parity_realfile_test - so production
+	// wires BOTH gates to nil (always on) with ffprobe as the safety net (see
+	// wire.go). The two func hooks remain only as a per-family kill switch for
+	// tests/debugging; there is no production env toggle. When a gate returns
+	// false the dispatcher is a pure pass-through for that container family.
 	mkvEnabled func() bool
 	mp4Enabled func() bool
 }
