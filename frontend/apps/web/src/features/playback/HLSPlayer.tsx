@@ -587,11 +587,18 @@ export function HLSPlayer({
     }
   }, [selectedBurnInTrack, subtitleStreams, transcodeMode, setCurrentSubtitle, setTranscodeStartTime, setPreferredSubtitleLang, seriesId, getSeriesTrackPrefs, setSeriesTrackPrefs]);
 
+  // Live cast state for the keyboard shortcuts, refreshed render-time (same
+  // pattern as lastCastPosRef): while casting, space/k must toggle the TV.
+  const castKeyboardRef = useRef<{ connected: boolean; isPaused: boolean; playPause: () => void } | null>(null);
+  castKeyboardRef.current = castConnected
+    ? { connected: true, isPaused: castPlayback.isPaused, playPause: castPlayPause }
+    : null;
+
   usePlayerKeyboard({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef,
     playbackSpeedRef, subtitleStreamsRef, currentSubtitleRef, anyPanelOpenRef,
     closePanelRef, onCloseRef, setPlaybackSpeed, onSubtitleChange: handleSubtitleChange,
-    setShowShortcuts, showActionFlash, pipToggleRef,
+    setShowShortcuts, showActionFlash, pipToggleRef, castRef: castKeyboardRef,
   });
 
   const { overlayTime, overlayDuration } = useOverlayTime({
@@ -632,7 +639,14 @@ export function HLSPlayer({
     if (castConnected) {
       wasPlayingBeforeCast.current = !video.paused;
       if (!video.paused) video.pause();
-      return;
+      // Structural guard, belt over the keyboard routing: while the cast is
+      // live, ANY play attempt on the local element (OS media keys,
+      // MediaSession, a stray autoplay) is immediately re-paused. Two
+      // streams at once - with the local one uncontrollable because the UI
+      // is cast-bound - is never a valid state.
+      const onPlay = () => video.pause();
+      video.addEventListener("play", onPlay);
+      return () => video.removeEventListener("play", onPlay);
     }
     if (lastCastPosRef.current > 0) {
       seekRef.current(lastCastPosRef.current);

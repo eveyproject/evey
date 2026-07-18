@@ -17,6 +17,11 @@ interface UsePlayerKeyboardArgs {
   // PlayerControls' Document-PiP-aware toggle. When present the "p" shortcut
   // uses it; otherwise it falls back to the legacy bare-<video> PiP.
   pipToggleRef: React.MutableRefObject<(() => void) | null>;
+  // Live cast session, updated render-time by the host. While connected the
+  // space/k toggle drives the TV, never the local video: the handoff paused
+  // the local element, and waking it plays BOTH streams at once with no way
+  // to pause the local one (its controls are cast-bound).
+  castRef: React.MutableRefObject<{ connected: boolean; isPaused: boolean; playPause: () => void } | null>;
   onCloseRef: React.MutableRefObject<(() => void) | undefined>;
   setPlaybackSpeed: (s: number) => void;
   // Burn-in-aware subtitle selector (same handler the settings panel uses), so
@@ -40,6 +45,7 @@ export function usePlayerKeyboard({
   anyPanelOpenRef,
   closePanelRef,
   pipToggleRef,
+  castRef,
   onCloseRef,
   setPlaybackSpeed,
   onSubtitleChange,
@@ -87,8 +93,14 @@ export function usePlayerKeyboard({
           }
           break;
         case " ":
-        case "k":
+        case "k": {
           e.preventDefault();
+          const cast = castRef.current;
+          if (cast?.connected) {
+            cast.playPause();
+            showActionFlashRef.current(cast.isPaused ? "play" : "pause");
+            break;
+          }
           if (video.paused) {
             video.play().catch((err) => console.warn("video.play failed", err));
             showActionFlashRef.current("play");
@@ -97,6 +109,7 @@ export function usePlayerKeyboard({
             showActionFlashRef.current("pause");
           }
           break;
+        }
         case "ArrowLeft":
         case "j":
           e.preventDefault();

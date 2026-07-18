@@ -34,6 +34,7 @@ function defaultArgs(video: HTMLVideoElement) {
     anyPanelOpenRef: { current: false },
     closePanelRef: { current: vi.fn() },
     pipToggleRef: { current: null as (() => void) | null },
+    castRef: { current: null as { connected: boolean; isPaused: boolean; playPause: () => void } | null },
     onCloseRef: { current: vi.fn() },
     setPlaybackSpeed: vi.fn(),
     onSubtitleChange: vi.fn(),
@@ -79,6 +80,52 @@ describe("usePlayerKeyboard", () => {
 
       expect(video.pause).toHaveBeenCalled();
       expect(args.showActionFlash).toHaveBeenCalledWith("pause");
+    });
+  });
+
+  // While a cast session is live the LOCAL video is paused by the handoff;
+  // space must toggle the TV, never wake the local element - pressing it used
+  // to start a second, uncontrollable local playback next to the cast.
+  describe("play/pause while casting", () => {
+    it("routes Space to the cast toggle and never touches the local video", () => {
+      const playPause = vi.fn();
+      const args = makeArgs(video, {
+        castRef: { current: { connected: true, isPaused: true, playPause } },
+      });
+      renderHook(() => usePlayerKeyboard(args));
+
+      pressKey(" ");
+
+      expect(playPause).toHaveBeenCalledTimes(1);
+      expect(video.play).not.toHaveBeenCalled();
+      expect(video.pause).not.toHaveBeenCalled();
+      expect(args.showActionFlash).toHaveBeenCalledWith("play");
+    });
+
+    it("flashes pause when the cast is playing (k)", () => {
+      const playPause = vi.fn();
+      const args = makeArgs(video, {
+        castRef: { current: { connected: true, isPaused: false, playPause } },
+      });
+      renderHook(() => usePlayerKeyboard(args));
+
+      pressKey("k");
+
+      expect(playPause).toHaveBeenCalledTimes(1);
+      expect(args.showActionFlash).toHaveBeenCalledWith("pause");
+    });
+
+    it("keeps driving the local video when the cast ref is disconnected", () => {
+      const playPause = vi.fn();
+      const args = makeArgs(video, {
+        castRef: { current: { connected: false, isPaused: true, playPause } },
+      });
+      renderHook(() => usePlayerKeyboard(args));
+
+      pressKey(" ");
+
+      expect(playPause).not.toHaveBeenCalled();
+      expect(video.play).toHaveBeenCalled();
     });
   });
 
