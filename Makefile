@@ -49,7 +49,7 @@ build:
 # In CI/Docker the `wasmbuild` stage does the same. Runs in the evey-server
 # container (Go toolchain + module cache).
 wasm-decoder:
-	docker exec evey-server sh -c 'cd /app \
+	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app \
 	  && GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o frontend/apps/web/public/wasm/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
 	  && cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" frontend/apps/web/public/wasm/wasm_exec.js'
 	@echo "✅ ac3go.wasm + wasm_exec.js rebuilt in frontend/apps/web/public/wasm/"
@@ -72,7 +72,7 @@ test: test-image
 # B-frame MKV, asserting served segments match the keyframe plan (timeline
 # AND audio content correlation).
 transcode-itest:
-	docker exec evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ -run Integration -count=1 -v -timeout=300s'
+	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ -run Integration -count=1 -v -timeout=300s'
 
 test-image:
 	docker build -t evey-test -f docker/Dockerfile.test .
@@ -232,13 +232,13 @@ clean:
 # evey-server must be up for these targets to work - start the stack first
 # with `make dev` if it isn't.
 migrate-up:
-	@docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate up'
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go run ./cmd/evey admin migrate up'
 
 migrate-down:
-	@docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate down'
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go run ./cmd/evey admin migrate down'
 
 migrate-version:
-	@docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate version'
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go run ./cmd/evey admin migrate version'
 
 # ── Dev (uses docker-compose.yml + docker-compose.override.yml) ───────────────
 

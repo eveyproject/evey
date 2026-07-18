@@ -1,14 +1,6 @@
 module github.com/evey-project/evey
 
-go 1.26.3
-
-// Pin the build toolchain to 1.26.5 to pull the patched stdlib (GO-2026-5856
-// crypto/tls ECH privacy leak; supersedes the 1.26.4 pin for GO-2026-5037
-// crypto/x509, GO-2026-5039 net/textproto). CI runners (GOTOOLCHAIN=auto)
-// honor this and scan/build with 1.26.5; the golang:1.26.3 Docker images
-// (GOTOOLCHAIN=local) keep building with their bundled 1.26.3 since the `go`
-// directive stays at 1.26.3. Drop once the base images move to >=1.26.5.
-toolchain go1.26.5
+go 1.26.5
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0

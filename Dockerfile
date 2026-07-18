@@ -1,5 +1,5 @@
 # ── Stage 1: Go modules (shared cache for protogen + builder) ──
-FROM golang:1.26.3-alpine AS gomod
+FROM golang:1.26.5-alpine AS gomod
 
 RUN apk add --no-cache gcc musl-dev linux-headers
 WORKDIR /src
