@@ -81,6 +81,9 @@ with `pnpm generate` in that package, run inside the `evey-web` container).
 
 ## Golden path 4 - touch the transcoding pipeline (read this twice)
 
+> Full flow (mental model, reading order, patterns, cost split, where to
+> improve): [docs/playback-serving.md](playback-serving.md).
+
 The player is VITAL and the plan↔ffmpeg contract is subtle: three audible
 desyncs shipped in one day once, invisible to every unit suite.
 

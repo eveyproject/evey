@@ -71,6 +71,8 @@ Wire graphs live in `cmd/evey/wire.go` (and friends). Tests bypass adapters by i
 ## Further reading
 
 - [DEV.md](../DEV.md) - build, run, migrations, proto generation
+- [docs/CODEBASE_MAP.md](CODEBASE_MAP.md) - which files to touch for common changes
+- [docs/playback-serving.md](playback-serving.md) - the HLS video-serving read path, in depth (decision, ladder, fingerprint, CMAF/HLS/DASH, mkvgo vs ffmpeg)
 - [docs/api/](api/) - generated API reference
 - [docs/adr/](adr/) - architectural decision records
 
