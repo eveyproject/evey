@@ -22,6 +22,15 @@ func ctxWithTx(ctx context.Context, tx *sql.Tx) context.Context {
 	return context.WithValue(ctx, txCtxKey{}, tx)
 }
 
+// detachTx returns a context with any ambient transaction removed, so
+// txFromCtx falls back to the pooled *sql.DB. Used by read-only fan-out queries
+// that run in concurrent goroutines: database/sql forbids concurrent use of a
+// single *sql.Tx, so those goroutines must each take their own pooled
+// connection rather than share the caller's transaction.
+func detachTx(ctx context.Context) context.Context {
+	return context.WithValue(ctx, txCtxKey{}, (*sql.Tx)(nil))
+}
+
 // txFromCtx returns the ambient tx if set, otherwise fallback.
 func txFromCtx(ctx context.Context, fallback dbExecutor) dbExecutor {
 	if v := ctx.Value(txCtxKey{}); v != nil {
