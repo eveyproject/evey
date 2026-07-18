@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -166,6 +167,16 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 			audioURL := audioSegments[idx%len(audioSegments)]
 			audioDone = make(chan int64, 1)
 			go func() {
+				// This detached goroutine is NOT covered by runViewer's own
+				// defer/recover (that guards only the goroutine that installed it);
+				// an unrecovered panic here would crash the whole server. Recover
+				// and unblock the receiver with a failure sentinel.
+				defer func() {
+					if rec := recover(); rec != nil {
+						slog.Error("load-test audio fetch goroutine panicked", slog.Any("panic", rec))
+						audioDone <- -1
+					}
+				}()
 				st, _, _, ms, aerr := r.fetchWithRetry(ctx, audioURL.String(), cfg.Token)
 				if st == http.StatusOK && aerr == nil {
 					audioDone <- int64(ms)

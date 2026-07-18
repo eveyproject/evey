@@ -100,6 +100,29 @@ func TestClientInfoUnary_XForwardedForTakesPrecedence(t *testing.T) {
 	assert.Equal(t, "10.0.0.99", interceptors.ClientIPFromCtx(captured))
 }
 
+func TestClientInfoUnary_SpoofedXFFFromUntrustedPeerIgnored(t *testing.T) {
+	interceptor := interceptors.ClientInfoUnary()
+	// A client speaking gRPC directly (a PUBLIC peer, not a trusted proxy) sets
+	// x-forwarded-for to spoof its source IP. It must be ignored and the real
+	// peer address used, so the per-IP rate limiters can't be evaded.
+	md := metadata.Pairs("x-forwarded-for", "1.2.3.4")
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+	ctx = peer.NewContext(ctx, &peer.Peer{
+		Addr: &net.TCPAddr{IP: net.ParseIP("203.0.113.7"), Port: 40000}, // TEST-NET-3, untrusted
+	})
+
+	var captured context.Context
+	handler := func(ctx context.Context, req any) (any, error) {
+		captured = ctx
+		return "ok", nil
+	}
+
+	info := &grpc.UnaryServerInfo{FullMethod: "/test/Method"}
+	_, err := interceptor(ctx, nil, info, handler)
+	require.NoError(t, err)
+	assert.Equal(t, "203.0.113.7", interceptors.ClientIPFromCtx(captured), "spoofed XFF from an untrusted peer must be ignored")
+}
+
 func TestClientInfoStream(t *testing.T) {
 	interceptor := interceptors.ClientInfoStream()
 

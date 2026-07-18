@@ -141,6 +141,11 @@ func isTrustedProxy(ip net.IP) bool {
 	return false
 }
 
+// IsTrustedProxy reports whether ip is within the configured trusted-proxy set.
+// Exposed for non-HTTP boundaries (the gRPC client-IP resolver) that must apply
+// the same trust rule before honoring proxy-supplied IP headers.
+func IsTrustedProxy(ip net.IP) bool { return isTrustedProxy(ip) }
+
 func ClientIP(r *http.Request) string { return clientIP(r) }
 
 func clientIP(r *http.Request) string {

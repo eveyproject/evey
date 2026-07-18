@@ -2,6 +2,7 @@ package loadtest
 
 import (
 	"context"
+	"log/slog"
 	"math/rand/v2"
 	"os"
 	"sort"
@@ -216,6 +217,11 @@ func measureDiskThroughput(ctx context.Context, candidates []MediaCandidate, rng
 			wg.Add(1)
 			go func(device uint64, paths []string) {
 				defer wg.Done()
+				defer func() {
+					if rec := recover(); rec != nil {
+						slog.Error("load-test disk device goroutine panicked", slog.Any("panic", rec))
+					}
+				}()
 				lvl := readDiskAtWidth(benchCtx, paths, readers, rng)
 				if lvl.BytesPerSec > 0 {
 					curves[device].Levels = append(curves[device].Levels, lvl)
@@ -284,6 +290,11 @@ func readDiskAtWidth(ctx context.Context, paths []string, readers int, rng *rand
 		offset := rng.Int64N(1 << 30)
 		go func(path string, offset int64) {
 			defer wg.Done()
+			defer func() {
+				if rec := recover(); rec != nil {
+					slog.Error("load-test disk reader goroutine panicked", slog.Any("panic", rec))
+				}
+			}()
 			n, slowest := readChunks(ctx, path, offset)
 			mu.Lock()
 			total += n

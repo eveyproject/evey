@@ -22,6 +22,13 @@ import (
 // fingerprint format mirrors the scanner (filesystem/scanner.go: "<size>-<mtimeNs>")
 // so change-detection agrees. No-op when no row matches the path.
 func (r *MediaItemRepository) RefreshFileState(ctx context.Context, path string, size int64, modTime time.Time) error {
+	// Bound the UPDATE like every sibling repo method: this runs from a
+	// background job on a context.Background()-derived ctx with no deadline of
+	// its own, and a stalled UPDATE would block the goroutine forever - wedging
+	// the seek-index job state machine (running stays true, every later job is
+	// refused with ErrJobRunning).
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
 	fingerprint := fmt.Sprintf("%d-%d", size, modTime.UnixNano())
 	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE media_files SET file_size = $1, mod_time = $2, file_fingerprint = $3 WHERE file_path = $4`,

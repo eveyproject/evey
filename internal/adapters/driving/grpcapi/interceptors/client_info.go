@@ -8,6 +8,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
+
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 )
 
 type userAgentKey struct{}
@@ -62,26 +64,35 @@ func firstMD(md metadata.MD, keys ...string) string {
 }
 
 func resolveClientIP(ctx context.Context, md metadata.MD) string {
-	// The gateway annotator resolves the real client IP (trusted-proxy aware);
-	// prefer it over the raw x-forwarded-for chain / gateway peer.
-	if ip := firstMD(md, "x-real-ip"); ip != "" {
-		return ip
+	// The immediate peer decides trust: proxy-supplied IP headers (x-real-ip,
+	// x-forwarded-for) are only honored when the request actually arrived from a
+	// trusted proxy (the reverse proxy, or the in-process HTTP->gRPC gateway).
+	// Otherwise a client speaking gRPC directly could set x-forwarded-for to any
+	// value and evade the per-IP rate limiters (login, password reset, quick
+	// connect) - the exact bypass the HTTP layer's clientIP() already guards.
+	peerIP := ""
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		if host, _, err := net.SplitHostPort(p.Addr.String()); err == nil {
+			peerIP = host
+		} else {
+			peerIP = p.Addr.String()
+		}
 	}
-	if vals := md.Get("x-forwarded-for"); len(vals) > 0 {
-		parts := strings.Split(vals[0], ",")
-		ip := strings.TrimSpace(parts[0])
-		if ip != "" {
+	// An unparseable peer address (nil) means an in-process transport (the
+	// gateway/bufconn) - local and trusted. A parseable peer must be in the
+	// trusted-proxy set for its forwarded headers to count.
+	parsed := net.ParseIP(peerIP)
+	if parsed == nil || ratelimit.IsTrustedProxy(parsed) {
+		if ip := firstMD(md, "x-real-ip"); ip != "" {
 			return ip
 		}
-	}
-	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
-		host, _, err := net.SplitHostPort(p.Addr.String())
-		if err == nil {
-			return host
+		if vals := md.Get("x-forwarded-for"); len(vals) > 0 {
+			if ip := strings.TrimSpace(strings.Split(vals[0], ",")[0]); ip != "" {
+				return ip
+			}
 		}
-		return p.Addr.String()
 	}
-	return ""
+	return peerIP
 }
 
 func UserAgentFromCtx(ctx context.Context) string {
