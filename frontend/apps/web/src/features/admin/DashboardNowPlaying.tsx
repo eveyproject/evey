@@ -1,6 +1,6 @@
 import { Avatar } from "@/components/ui/Avatar";
 import { useState } from "react";
-import { Cast, Film, Play, Pause, Square, MessageSquare, Send } from "lucide-react";
+import { Cast, Film, Music, Play, Pause, Square, MessageSquare, Send } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -11,7 +11,7 @@ import {
   getAdminSessionServiceListActiveSessionsQueryKey,
 } from "@evey/api";
 import type { V1ActiveSession } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useAuthStore } from "@evey/store";
 import { Badge } from "@/components/ui/Badge";
 import { AdminTrickplayThumbnail } from "./AdminTrickplayThumbnail";
 import { Spinner } from "@/components/ui/Spinner";
@@ -58,6 +58,30 @@ function formatBandwidth(bps: number): string {
   return `${bps} bps`;
 }
 
+// NowPlayingAlbumArt renders a music session's album cover (auth'd via a token
+// query param, since an <img> can't send a bearer header), the square-art
+// counterpart of the video trickplay thumbnail.
+function NowPlayingAlbumArt({ coverArtUrl }: { coverArtUrl?: string }) {
+  const token = useAuthStore((s) => s.accessToken);
+  const src = coverArtUrl ? `${coverArtUrl}${token ? `?token=${encodeURIComponent(token)}` : ""}` : "";
+  return (
+    <div className="relative w-full aspect-video bg-[var(--overlay-scrim)] flex items-center justify-center overflow-hidden">
+      {src ? (
+        <>
+          <div
+            className="absolute inset-0 bg-cover bg-center blur-xl opacity-40 scale-110"
+            style={{ backgroundImage: `url(${src})` }}
+            aria-hidden="true"
+          />
+          <img src={src} alt="" className="relative h-full aspect-square object-cover rounded shadow-lg" />
+        </>
+      ) : (
+        <Music size={40} strokeWidth={1.5} className="text-[var(--text-muted)]" aria-hidden="true" />
+      )}
+    </div>
+  );
+}
+
 function NowPlayingCard({ session }: { session: V1ActiveSession }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -87,12 +111,16 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
 
   return (
     <div className="rounded-[var(--radius-lg)] overflow-hidden bg-[var(--surface)] border border-[var(--border)]">
-      <AdminTrickplayThumbnail
-        mediaId={session.mediaItemId ?? ""}
-        positionMs={positionMs}
-        mediaType={session.mediaType}
-        fullWidth
-      />
+      {session.mediaType === "track" ? (
+        <NowPlayingAlbumArt coverArtUrl={session.coverArtUrl} />
+      ) : (
+        <AdminTrickplayThumbnail
+          mediaId={session.mediaItemId ?? ""}
+          positionMs={positionMs}
+          mediaType={session.mediaType}
+          fullWidth
+        />
+      )}
       <div className="px-3 pt-1.5 pb-1">
         <div className="h-1.5 rounded-full bg-[var(--border)]">
           <div

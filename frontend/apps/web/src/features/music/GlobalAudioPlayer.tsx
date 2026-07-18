@@ -46,6 +46,21 @@ function MiniTrackArt({ trackID, coverArtURL }: { trackID: string; coverArtURL?:
   );
 }
 
+// A stable id for this tab's music playback, so the admin "En cours de lecture"
+// panel tracks one session per player (not one per track).
+const nowPlayingSessionId = `music-${crypto.randomUUID()}`;
+
+// nowPlayingDeviceName is the short client label shown on the admin card.
+function nowPlayingDeviceName(): string {
+  if (typeof navigator === "undefined") return "Navigateur";
+  const ua = navigator.userAgent;
+  if (/Firefox\//.test(ua)) return "Firefox";
+  if (/Edg\//.test(ua)) return "Edge";
+  if (/Chrome\//.test(ua)) return "Chrome";
+  if (/Safari\//.test(ua)) return "Safari";
+  return "Navigateur";
+}
+
 export function GlobalAudioPlayer() {
   const { t } = useTranslation();
   const playing = useMusicPlayerStore((s) => s.playing);
@@ -155,6 +170,54 @@ export function GlobalAudioPlayer() {
       void audio.play().catch(() => { /* autoplay may be blocked */ });
     }
   }, [externallyPaused, playing?.ID]);
+
+  // Report this playback to the admin "En cours de lecture" panel every ~10s
+  // while a track is loaded, and apply any remote command it queues back
+  // (play/pause/stop) - the same channel the video ProgressReporter uses. When
+  // playback stops the client stops beating and the server's TTL evicts the
+  // session, so no explicit teardown call is needed.
+  const nowPlayingIdRef = useRef<string | undefined>(playing?.ID);
+  nowPlayingIdRef.current = playing?.ID;
+  useEffect(() => {
+    if (!playing?.ID) return;
+    let cancelled = false;
+    async function beat() {
+      const audio = audioRef.current;
+      try {
+        const res = await eveyFetchRaw({
+          url: "/api/v1/music/nowplaying",
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: nowPlayingSessionId,
+            trackId: nowPlayingIdRef.current,
+            deviceName: nowPlayingDeviceName(),
+            positionMs: Math.floor((audio?.currentTime ?? 0) * 1000),
+            isPaused: audio ? audio.paused : true,
+          }),
+        });
+        if (cancelled) return;
+        const data = (await res.json().catch(() => null)) as { remoteCommand?: string } | null;
+        const cmd = data?.remoteCommand;
+        if (!cmd) return;
+        const el = audioRef.current;
+        if (cmd === "pause") {
+          el?.pause();
+          setIsPlaying(false);
+        } else if (cmd === "play") {
+          void el?.play().catch(() => { /* autoplay may be blocked */ });
+        } else if (cmd === "stop") {
+          close();
+        }
+      } catch { /* best-effort telemetry, never disrupt playback */ }
+    }
+    void beat();
+    const iv = setInterval(() => void beat(), 10_000);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+    };
+  }, [playing?.ID, close]);
 
   if (!playing) return null;
 
