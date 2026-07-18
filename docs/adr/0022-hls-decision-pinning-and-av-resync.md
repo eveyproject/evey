@@ -1,6 +1,6 @@
 # ADR 0022 - HLS decision pinning and A/V resync
 
-Date: 2026-07-09
+Date: 2026-07-09 (amended 2026-07-19: fp seal / 410 refusal, decision moved to the app-layer PlanResolver)
 Status: accepted (implemented incrementally over 2026-07-07..09)
 
 ## Context
@@ -9,9 +9,10 @@ The HLS VOD pipeline chooses, per playback, how to serve each track: the video
 can be REMUXED (`-c:v copy`, the "copy rung") or re-encoded ("transcode"), and
 the audio likewise. That choice - the *decision* - depends on the media, the
 client's declared codec/HDR capabilities, and the active profile's preferences.
-It is computed in `makeDecision` (`internal/adapters/driving/http/transcode_handler_vod.go`)
-and its cache identity is the `DecisionFingerprint`
-(`internal/app/transcoding/segment_cache.go`).
+It is computed once per request by the app-layer resolver
+(`PlanResolver.Resolve`, `internal/app/transcoding/playback_plan_resolver.go`;
+the http adapter only marshals the request) and its cache identity is the
+`DecisionFingerprint` (`internal/app/transcoding/segment_cache.go`).
 
 Three distinct production incidents shaped this subsystem, and the invariants
 below exist specifically to prevent each from recurring:
@@ -49,6 +50,28 @@ RULE for anyone adding a decision input: it MUST (a) enter `DecisionFingerprint.
 so different bytes get a different cache key, and (b) ride `querySuffix` so the
 whole session stays coherent across polls. Miss (a) and two byte-streams alias
 in the cache; miss (b) and the decision flips under the player.
+
+### 1b. The decision hash is SEALED into every URI, and a stale seal is refused (amendment, 2026-07-15 incident)
+
+Pins protect the *decision*; they do not protect the *ladder shape*. `stream_N`
+is a ladder INDEX: when the shaped ladder changed mid-play (capability flap,
+admission pin gone cold), the same URL silently mapped to a *different*
+rendition and the player decoded a stranger's bytes - on-screen, a full-frame
+rainbow. Two mechanisms close this:
+
+- The manifest seals the current `DecisionFingerprint.Hash()` into every URI it
+  emits (`fp=`). A later request whose freshly-derived hash no longer matches
+  is refused with **HTTP 410** and `X-Evey-Error: stale_rendition` - the player
+  refetches the master and rebuilds coherently. A URL with no `fp=` (cached
+  link, pre-feature client) is served as before: degrade open. The WARN log
+  that accompanies each refusal is the direct detector of "the ladder moved
+  under a live player", which previously left no trace (see the incident
+  runbook).
+- The shaped ladder itself is **frozen on the stream's admission pin**
+  (`VideoAdmissionShaper.FreezeLadder`): shaped once, read verbatim by every
+  later manifest- and segment-time call, so within a live stream the ladder
+  cannot drift in the first place. The 410 seal remains the backstop for
+  cross-stream staleness (a pin that expired and re-derived differently).
 
 ### 2. Source audio start-delay is cancelled with a second, shifted input
 

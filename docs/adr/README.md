@@ -25,6 +25,8 @@ Structural decisions for Evey. New ADRs are numbered sequentially and never rewr
 | [0019](0019-token-epoch-revocation.md) | Token-epoch revocation for stateless JWTs | 2026-06-14 | Accepted |
 | [0020](0020-hls-native-audio-rendition.md) | HLS-native audio rendition (EXT-X-MEDIA) for multi-language switching | 2026-06-14 | Accepted |
 | [0021](0021-plugins-on-tv.md) | Plugins on TV: WebView portage now, native SDUI renderer later | 2026-07-09 | Accepted |
-| [0022](0022-hls-decision-pinning-and-av-resync.md) | HLS decision pinning (vd=/ad=) and A/V resync (source-delay cancel + user offset) | 2026-07-09 | Accepted |
+| [0022](0022-hls-decision-pinning-and-av-resync.md) | HLS decision pinning (vd=/ad=) and A/V resync (source-delay cancel + user offset) | 2026-07-09 (amended 2026-07-19) | Accepted |
+| [0023](0023-refresh-rotation-grace.md) | Refresh-token rotation grace window (sibling sessions for multi-tab race losers) | 2026-07-18 | Accepted |
+| [0024](0024-playback-plan-resolver.md) | App-layer PlaybackPlan resolver (one resolution per request) | 2026-07-18 | Accepted |
 
 See also [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for the high-level picture.

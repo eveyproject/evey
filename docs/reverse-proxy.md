@@ -27,6 +27,39 @@ read/write timeout**, or playback and scans stall:
 
 All the example configs below already handle this. If you write your own, don't forget.
 
+## Security headers & CSP - read this if your proxy sets its own
+
+Evey already emits a Content-Security-Policy. If your proxy passes it through,
+you're done. Many setups instead strip it (`header_down -Content-Security-Policy`
+in Caddy) and curate their own - that's fine, but then **your** policy must keep
+these tokens or features break silently:
+
+| Token | Directive | Breaks without it |
+| --- | --- | --- |
+| `'wasm-unsafe-eval'` | `script-src` | Browser AC-3/E-AC-3 playback (the ac3go WebAssembly decoder can't compile → the film plays muted). This is the narrow token that permits Wasm compilation only - NOT general `eval()`. |
+| `https://www.gstatic.com` | `script-src` (+ `frame-src`) | The Google Cast sender SDK never loads → no cast button for anyone. It is the only way a browser can discover Chromecasts on the user's own LAN. |
+| `blob:` | `media-src` | MSE playback (hls.js attaches the stream via a blob URL). |
+| `blob:` | `worker-src` | hls.js silently falls back to main-thread demuxing (choppier on mobile). |
+
+A known-good policy for a curating proxy:
+
+```
+default-src 'self'; img-src 'self' https: data: blob:; media-src 'self' blob:;
+style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com;
+connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:;
+frame-src https://www.gstatic.com
+```
+
+Two rules of thumb:
+
+- **Exactly one CSP header must reach the browser.** With two (e.g. the app's
+  AND your proxy's, or Caddy's AND Nginx Proxy Manager's "Advanced" snippet),
+  browsers enforce the *intersection* - the strictest wins and the failure is
+  silent. Check with `curl -sI https://your.domain | grep -ci content-security-policy`
+  → must print `1`.
+- Avoid `'unsafe-inline'` in `script-src`: the app does not need it (only
+  `style-src` does), and it defeats most of the XSS protection a CSP provides.
+
 ## Caddy (bundled)
 
 The repo ships [`docker/Caddyfile`](../docker/Caddyfile) (built into an image by

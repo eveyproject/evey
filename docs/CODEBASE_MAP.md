@@ -87,11 +87,14 @@ with `pnpm generate` in that package, run inside the `evey-web` container).
 The player is VITAL and the plan↔ffmpeg contract is subtle: three audible
 desyncs shipped in one day once, invisible to every unit suite.
 
-- Decision layer: `internal/adapters/driving/http/transcode_handler_vod.go`
-  (`makeDecision`). RULE: every input of the decision must be baked into the
-  child URLs (`querySuffix` in `internal/app/transcoding/manifest_generator.go`)
-  or a mid-play playlist poll can flip the decision under the player (that
-  class of bug rendered green frames on Chromecast once).
+- Decision layer: `internal/app/transcoding/playback_plan_resolver.go`
+  (`PlanResolver.Resolve` - decision, ladder, fingerprint resolved ONCE per
+  request; the http adapter only marshals a `PlaybackRequest`, see
+  `http/transcode_vod_plan.go`). RULE: every input of the decision must be
+  baked into the child URLs (`querySuffix` in
+  `internal/app/transcoding/manifest_generator.go`) or a mid-play playlist
+  poll can flip the decision under the player (that class of bug rendered
+  green frames on Chromecast once). ADRs 0022 + 0024.
 - Cache identity: `DecisionFingerprint` in `internal/app/transcoding/segment_cache.go`
   - different bytes MUST mean different `Hash()`. New dimensions are hashed
   conditionally (only when non-default) so existing caches are not orphaned.

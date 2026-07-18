@@ -133,6 +133,21 @@ works** (real CUDA passthrough); **VAAPI/QSV do not** - the d3d12 VA driver
 crashes on Evey's multi-variant encode. Evey detects WSL and greys VAAPI/QSV in
 the admin. Validate VAAPI/QSV on a native Linux host.
 
+## Browser AC-3 / E-AC-3 audio (WebAssembly decoder)
+
+Most browsers cannot decode AC-3/E-AC-3 natively (licensing), which classically
+forces an audio re-encode on the server. Evey instead ships a WebAssembly
+decoder to the browser: the master playlist goes video-only, the AC-3 track is
+served as an out-of-band rendition (copied, not re-encoded), and the client
+decodes it to PCM clock-locked to the video. Zero server CPU spent on the
+audio when the source packages verbatim.
+
+- Browsers that DO decode AC-3 natively (Safari-class) are excluded by
+  capability detection, not by name - they get regular passthrough.
+- **Reverse-proxy requirement**: the CSP reaching the browser must include
+  `'wasm-unsafe-eval'` in `script-src`, or the decoder cannot compile and the
+  film plays muted. See [reverse-proxy.md](reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own).
+
 ## Verify
 
 Open **Admin → Server configuration → Encode calibration**: it shows the

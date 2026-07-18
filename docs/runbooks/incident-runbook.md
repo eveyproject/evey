@@ -64,6 +64,31 @@ docker exec evey-server df -h /cache
 - **HW accel misconfigured**: set `EVEY_TRANSCODING_HW_ACCEL_ENABLED=false` to force software, restart, confirm the regression is HW-related before re-enabling.
 - **Too many concurrent transcodes**: `EVEY_TRANSCODING_MAX_CONCURRENT` (default `2`). Raise cautiously if the box has cores.
 
+### 3b. `stale_rendition` 410s / player refetches its master mid-play
+
+**Symptom**: player briefly stalls then recovers; logs show
+`hls-vod: stale rendition URL refused (the ladder moved under a live player)`
+and requests answered `410 Gone` with `X-Evey-Error: stale_rendition`.
+
+**What it means**: this is a *protection firing*, not the failure itself. Every
+manifest URI carries the decision hash it was built under (`fp=`). A 410 means
+a player presented a URL from a session whose ABR ladder has since been
+reshaped - serving it would hand the decoder bytes from a different rendition
+(the "rainbow screen" incident class, ADR 0022 §1b). The refusal forces a clean
+master refetch instead.
+
+**Diagnose**: the WARN carries `sealed_fp` vs `current_fp` and the media id.
+- A **burst right after a deploy/restart or an admin recalibration** is
+  expected: live sessions outlived a capability change. No action; players
+  resync within one poll.
+- A **steady drip during normal operation** means something keeps reshaping
+  ladders under live streams - look for capability flapping
+  (`docker logs evey-server | grep -iE 'calibrat|capability'`), an admission
+  shaper churning under load, or a CMCD cap override oscillating.
+- Players that **loop on 410 without recovering** are holding a cached master
+  (old app build, aggressive proxy caching of `.m3u8`). Verify the proxy does
+  not cache manifests (`Cache-Control: no-cache` must pass through).
+
 ## 4. Database connection refused / errors
 
 **Symptom**: server logs contain `dial tcp ... connect: connection refused`, `pq: ...`, or queries time out.
