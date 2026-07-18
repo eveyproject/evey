@@ -500,6 +500,43 @@ func TestSeekIndexService_ScanWithDiagnoser(t *testing.T) {
 	assert.Empty(t, reidx.reindexed, "a scan never mutates files")
 }
 
+// A .mkv that is really MP4/MOV (mkvgo's wrong-container finding) has no
+// Matroska seek index to build: it must be kept OUT of the missing-index bucket
+// (so "Repair all" never wastes a doomed reindex on it) and surfaced in its own
+// wrong-container count instead.
+func TestSeekIndexService_WrongContainer(t *testing.T) {
+	dir := t.TempDir()
+	fake := filepath.Join(dir, "reallymp4.mkv")
+	healthy := filepath.Join(dir, "ok.mkv")
+	for _, p := range []string{fake, healthy} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{fake: false, healthy: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Title: "FakeMkv", Path: fake},
+		{MediaID: "m2", Title: "Ok", Path: healthy},
+	}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
+			fake:    {Findings: []mkv.DiagnosisFinding{{Kind: "wrong-container", Remedy: "rename/remux"}}},
+			healthy: {Healthy: true},
+		}})
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	byID := map[string]appmaintenance.SeekStatus{}
+	for _, it := range res.Items {
+		byID[it.MediaID] = it
+	}
+	assert.True(t, byID["m1"].WrongContainer, "the disguised MP4 must be flagged wrong-container")
+	assert.True(t, byID["m1"].HasIndex, "wrong-container is kept out of the reindex list (no Cues to build)")
+	assert.Equal(t, 1, res.WrongContainer)
+	assert.Equal(t, 0, res.MissingIndex, "a wrong-container file is NOT a missing-index file")
+	assert.Empty(t, reidx.reindexed, "a scan never reindexes")
+}
+
 // The audio-delay diagnosis is optional and per-file: with a prober wired,
 // scans carry each file's delay and roll up the count above the flag floor; a
 // probe failure keeps the file in the scan with delay 0 (secondary

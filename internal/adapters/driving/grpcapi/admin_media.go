@@ -193,6 +193,7 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 	out.AudioDelayed = int32(res.AudioDelayed)
 	out.Truncated = int32(res.Truncated)
 	out.Damaged = int32(res.Damaged)
+	out.WrongContainer = int32(res.WrongContainer)
 	out.InplaceAvailable = d.seekIndex.SupportsInPlace()
 	out.ScannedAtMs = at.UnixMilli()
 	for _, it := range res.Items {
@@ -205,8 +206,9 @@ func (d *adminMediaHandler) ScanSeekIndex(ctx context.Context, req *eveyv1.ScanS
 			SizeBytes:     it.SizeBytes,
 			Container:     it.Container,
 			AudioDelaySec: it.AudioDelaySec,
-			Truncated:     it.Truncated,
-			DamagedBytes:  it.DamagedBytes,
+			Truncated:      it.Truncated,
+			DamagedBytes:   it.DamagedBytes,
+			WrongContainer: it.WrongContainer,
 		})
 	}
 	// Live per-volume numbers (free space vs candidate sizes) so the client

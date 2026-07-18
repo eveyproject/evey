@@ -50,6 +50,20 @@ func (d *Diagnosis) HasIndexDefect() bool {
 	return false
 }
 
+// WrongContainer reports that the file's extension lies about its content: a
+// .mkv whose bytes are really ISO base media (MP4/MOV). mkvgo (>= v0.25.0)
+// returns this as a structured finding instead of erroring. It has no seek-index
+// defect class to repair - a Matroska reindex would fail - so the remedy is to
+// rename/remux, not reindex. The scan routes it to its own actionable bucket.
+func (d *Diagnosis) WrongContainer() bool {
+	for _, f := range d.Findings {
+		if f.Kind == "wrong-container" {
+			return true
+		}
+	}
+	return false
+}
+
 // MaxAudioDelayMs is the largest audio start delay across the file's tracks
 // (ms, 0 when aligned) - the value the audio-delay flag floor is applied to.
 func (d *Diagnosis) MaxAudioDelayMs() int64 {

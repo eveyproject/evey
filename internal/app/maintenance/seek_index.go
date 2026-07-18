@@ -127,6 +127,11 @@ type SeekStatus struct {
 	// skip past, losing this many bytes (repairable in full otherwise). 0 when
 	// clean or not diagnosed.
 	DamagedBytes int64
+	// WrongContainer → a .mkv whose bytes are really MP4/MOV. There is no
+	// seek-index to build (its sample table IS its index); the remedy is to
+	// rename/remux, not reindex. Kept out of the missing-index bucket so a
+	// "Repair all" never wastes a doomed Matroska reindex on it.
+	WrongContainer bool
 }
 
 // ScanResult bundles the per-file statuses with rollup counts.
@@ -138,6 +143,7 @@ type ScanResult struct {
 	AudioDelayed int // count with AudioDelaySec > AudioDelayFlagSec
 	Truncated    int // count that are incomplete downloads (re-acquire, not repair)
 	Damaged      int // count with mid-file corruption (resync-repairable)
+	WrongContainer int // count that are MP4/MOV mislabelled .mkv (rename/remux, not reindex)
 }
 
 // Failure records one file a batch job could not process.
@@ -929,6 +935,9 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 		} else if st.DamagedBytes > 0 {
 			res.Damaged++
 		}
+		if st.WrongContainer {
+			res.WrongContainer++
+		}
 	}
 
 	s.mu.Lock()
@@ -981,7 +990,11 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 				slog.String("path", path), slog.Any("err", err))
 			return false
 		}
-		st.HasIndex = !d.HasIndexDefect()
+		st.WrongContainer = d.WrongContainer()
+		// A mislabelled MP4 has no Matroska seek index to build and a reindex
+		// would fail on it; treat it as "has index" so it never lands in the
+		// reindex list, and surface it through its own WrongContainer flag instead.
+		st.HasIndex = st.WrongContainer || !d.HasIndexDefect()
 		st.AudioDelaySec = float64(d.MaxAudioDelayMs()) / 1000
 		st.Truncated = d.Truncated
 		st.DamagedBytes = d.DamagedBytes
@@ -1026,7 +1039,7 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 			continue
 		}
 		c.res.MissingIndex, c.res.WithBackup, c.res.AudioDelayed = 0, 0, 0
-		c.res.Truncated, c.res.Damaged = 0, 0
+		c.res.Truncated, c.res.Damaged, c.res.WrongContainer = 0, 0, 0
 		for _, it := range c.res.Items {
 			if !it.HasIndex {
 				c.res.MissingIndex++
@@ -1041,6 +1054,9 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 				c.res.Truncated++
 			} else if it.DamagedBytes > 0 {
 				c.res.Damaged++
+			}
+			if it.WrongContainer {
+				c.res.WrongContainer++
 			}
 		}
 		s.scans[key] = c

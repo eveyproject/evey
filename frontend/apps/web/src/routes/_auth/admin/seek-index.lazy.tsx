@@ -246,6 +246,7 @@ function SeekIndexPage() {
   const missing = result?.missingIndex ?? 0;
   const withBackup = result?.withBackup ?? 0;
   const delayedAudio = result?.audioDelayed ?? 0;
+  const wrongContainer = result?.wrongContainer ?? 0;
   // Per-filesystem numbers for the candidates: Evey pre-sets the safe backup
   // choice itself (a nearly-full volume must not accumulate one copy per
   // repaired file) and flags files whose rewrite temp copy will not fit.
@@ -342,7 +343,7 @@ function SeekIndexPage() {
   });
 
   const visible = onlyAttention
-    ? items.filter((it) => !it.hasIndex || it.hasBackup || audioDelayed(it))
+    ? items.filter((it) => !it.hasIndex || it.hasBackup || audioDelayed(it) || it.wrongContainer)
     : items;
   const busy = running || startScan.isPending;
 
@@ -459,6 +460,16 @@ function SeekIndexPage() {
                 {delayedAudio}
               </dd>
             </Card>
+            {wrongContainer > 0 && (
+              <Card>
+                <dt className="text-xs font-medium mb-1 text-[var(--text-muted)]">
+                  {t("admin.seekIndex.statsWrongContainer")}
+                </dt>
+                <dd className="text-xl font-bold text-[var(--text)]" data-testid="seek-index-wrong-container-count">
+                  {wrongContainer}
+                </dd>
+              </Card>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -550,6 +561,11 @@ function SeekIndexPage() {
                               })}
                             </Badge>
                           )
+                        )}
+                        {it.wrongContainer && (
+                          <span title={t("admin.seekIndex.wrongContainerHint")} className="ml-1.5 inline-block">
+                            <Badge variant="error">{t("admin.seekIndex.wrongContainerBadge")}</Badge>
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap" data-label="">

@@ -207,6 +207,10 @@ message SeekIndexItem {
   // damaged_bytes > 0 = mid-file corruption a resync repair skips past, losing
   // this many bytes (the file is otherwise repairable in full). 0 = clean.
   int64 damaged_bytes = 10;
+  // wrong_container = a .mkv whose bytes are really MP4/MOV. It has no Matroska
+  // seek index to build; the remedy is rename/remux, not reindex. Kept out of
+  // the missing-index bucket so "Repair all" never wastes a doomed reindex on it.
+  bool wrong_container = 11;
 }
 
 message ScanSeekIndexRequest {
@@ -230,6 +234,8 @@ message ScanSeekIndexResponse {
   // not repairing. Count of files with resync-repairable mid-file damage.
   int32 truncated = 9;
   int32 damaged = 10;
+  // Count of .mkv files that are really MP4/MOV - rename/remux, not reindex.
+  int32 wrong_container = 11;
   // Live per-filesystem numbers for the un-indexed candidates, so the client
   // can advise for/against backups (their accumulation persists the SUM of
   // the candidates) and flag files whose rewrite temp copy will not fit.

@@ -141,6 +141,38 @@ describe("SeekIndexPage", () => {
     expect(screen.getByText("Audio +0.9s")).toBeInTheDocument();
   });
 
+  it("a wrong-container file shows the badge and a wrong-container rollup count", async () => {
+    const wc = {
+      ...scanned,
+      data: {
+        ...scanned.data,
+        items: [
+          ...scanned.data.items,
+          {
+            mediaId: "mi-5",
+            title: "Movie E",
+            path: "/media/e.mkv",
+            hasIndex: true,
+            hasBackup: false,
+            sizeBytes: "5242880",
+            container: "mkv",
+            wrongContainer: true,
+          },
+        ],
+        total: 5,
+        wrongContainer: 1,
+      },
+    };
+    mockScan.mockReturnValue(wc);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    // a wrong-container file is NOT missing an index (nothing to rebuild): it
+    // must surface its own badge (plus the rollup card, so >= 2 occurrences),
+    // never a repair button.
+    expect(screen.getAllByText("Wrong container").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByTestId("seek-index-wrong-container-count")).toHaveTextContent("1");
+  });
+
   it("a cached response with scannedAtMs 0 is treated as no scan yet", async () => {
     const Page = await getPage();
     render(React.createElement(Page));
