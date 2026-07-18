@@ -42,6 +42,18 @@ plugin-zips:
 build:
 	go build -o bin/$(BINARY) ./cmd/evey
 
+# wasm-decoder: (re)build the ac3go WebAssembly decoder (browser AC-3/E-AC-3
+# path) from the pinned module (go.mod `tool` directive) into the web app's
+# public dir. The .wasm + Go runtime shim are build artifacts (git-ignored) - run
+# this after pulling or after bumping the ac3go pin (go get -tool ...@version).
+# In CI/Docker the `wasmbuild` stage does the same. Runs in the evey-server
+# container (Go toolchain + module cache).
+wasm-decoder:
+	docker exec evey-server sh -c 'cd /app \
+	  && GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o frontend/apps/web/public/wasm/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
+	  && cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" frontend/apps/web/public/wasm/wasm_exec.js'
+	@echo "✅ ac3go.wasm + wasm_exec.js rebuilt in frontend/apps/web/public/wasm/"
+
 test: test-image
 	docker run --rm \
 	  -v $(PWD):/app \

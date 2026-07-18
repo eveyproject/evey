@@ -59,15 +59,24 @@ export interface WasmAudioEngineOptions {
   leadCompensationSec?: number;
 }
 
-// channelSourceMap maps each Web Audio output channel to the decoder channel it
-// reads from. 5.1 only; every other layout is identity (pass-through). Exported
-// for unit testing.
-export function channelSourceMap(channels: number): number[] {
+// outputMix maps each Web Audio OUTPUT channel to the decoder source channels to
+// sum into it (each a [sourceIndex, gain] tap). It puts the decoder's layout
+// into Web Audio's "speakers" order, and folds 7.1 down to 5.1: Web Audio only
+// applies its speaker down-mix (the one that keeps the centre on a stereo output)
+// up to 5.1 - an 8-channel buffer falls back to "discrete", which on a stereo
+// device drops every channel past L/R, i.e. the dialogue. Folding to 5.1 keeps
+// the browser's correct down-mix AND preserves the 7.1 back-channel content
+// (mixed into the surrounds) instead of dropping it. Exported for unit testing.
+//   5.1 decoder L,C,R,Ls,Rs,LFE          -> WA L,R,C,LFE,SL,SR
+//   7.1 decoder L,R,C,LFE,BL,BR,SL,SR     -> WA 5.1, SL=SL+BL, SR=SR+BR
+export function outputMix(channels: number): Array<Array<[number, number]>> {
   if (channels === 6) {
-    // decoder L,C,R,Ls,Rs,LFE (0..5)  ->  WA L,R,C,LFE,Ls,Rs
-    return [0, 2, 1, 5, 3, 4];
+    return [[[0, 1]], [[2, 1]], [[1, 1]], [[5, 1]], [[3, 1]], [[4, 1]]];
   }
-  return Array.from({ length: channels }, (_, i) => i);
+  if (channels === 8) {
+    return [[[0, 1]], [[1, 1]], [[2, 1]], [[3, 1]], [[6, 1], [4, 1]], [[7, 1], [5, 1]]];
+  }
+  return Array.from({ length: channels }, (_, i) => [[i, 1]] as Array<[number, number]>);
 }
 
 export class WasmAudioEngine {
@@ -533,13 +542,21 @@ export class WasmAudioEngine {
   private scheduleDecoded(idx: number, seg: Segment, d: DecodedSegment): void {
     const ctx = this.ctx;
     if (!ctx || !this.gain) return;
-    const map = channelSourceMap(d.channels);
-    const buffer = ctx.createBuffer(d.channels, d.frames, d.sampleRate);
-    for (let co = 0; co < d.channels; co++) {
-      const src = map[co];
+    const mix = outputMix(d.channels);
+    const ch = d.channels;
+    const buffer = ctx.createBuffer(mix.length, d.frames, d.sampleRate);
+    for (let co = 0; co < mix.length; co++) {
       const out = buffer.getChannelData(co);
-      for (let f = 0; f < d.frames; f++) {
-        out[f] = d.pcm[f * d.channels + src];
+      const taps = mix[co];
+      if (taps.length === 1) {
+        const src = taps[0][0];
+        for (let f = 0; f < d.frames; f++) out[f] = d.pcm[f * ch + src];
+      } else {
+        for (let f = 0; f < d.frames; f++) {
+          let s = 0;
+          for (let t = 0; t < taps.length; t++) s += d.pcm[f * ch + taps[t][0]] * taps[t][1];
+          out[f] = s;
+        }
       }
     }
     const source = ctx.createBufferSource();

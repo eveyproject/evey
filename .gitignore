@@ -112,3 +112,7 @@ ml-trigger.txt
 
 # Android release keystore - never committed (signing secret)
 **/release.keystore
+
+# ac3go WebAssembly decoder - built from the pinned module (go.mod tool), not committed.
+frontend/apps/web/public/wasm/ac3go.wasm
+frontend/apps/web/public/wasm/wasm_exec.js

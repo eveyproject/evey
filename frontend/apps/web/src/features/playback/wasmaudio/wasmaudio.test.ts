@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { extractAudioURI, injectToken } from "./useWasmAudioPlayback";
-import { channelSourceMap } from "./WasmAudioEngine";
+import { outputMix } from "./WasmAudioEngine";
 import { isWasmDecodableAudioCodec } from "@/utils/codec";
 
 describe("extractAudioURI", () => {
@@ -41,15 +41,23 @@ describe("injectToken", () => {
   });
 });
 
-describe("channelSourceMap", () => {
-  it("remaps 5.1 from decoder L,C,R,Ls,Rs,LFE to Web Audio L,R,C,LFE,Ls,Rs", () => {
-    // WA[0]=L<-0, WA[1]=R<-2, WA[2]=C<-1, WA[3]=LFE<-5, WA[4]=Ls<-3, WA[5]=Rs<-4
-    expect(channelSourceMap(6)).toEqual([0, 2, 1, 5, 3, 4]);
+describe("outputMix", () => {
+  it("remaps 5.1 decoder L,C,R,Ls,Rs,LFE to Web Audio L,R,C,LFE,SL,SR", () => {
+    expect(outputMix(6)).toEqual([[[0, 1]], [[2, 1]], [[1, 1]], [[5, 1]], [[3, 1]], [[4, 1]]]);
   });
-  it("passes stereo/mono and other layouts through unchanged", () => {
-    expect(channelSourceMap(2)).toEqual([0, 1]);
-    expect(channelSourceMap(1)).toEqual([0]);
-    expect(channelSourceMap(8)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  it("folds 7.1 decoder L,R,C,LFE,BL,BR,SL,SR to 5.1 (SL=SL+BL, SR=SR+BR)", () => {
+    const m = outputMix(8);
+    expect(m).toHaveLength(6); // folded to 5.1 so the browser can down-mix (keeps centre on stereo)
+    expect(m[0]).toEqual([[0, 1]]); // L
+    expect(m[1]).toEqual([[1, 1]]); // R
+    expect(m[2]).toEqual([[2, 1]]); // C
+    expect(m[3]).toEqual([[3, 1]]); // LFE
+    expect(m[4]).toEqual([[6, 1], [4, 1]]); // SL <- SL + BL
+    expect(m[5]).toEqual([[7, 1], [5, 1]]); // SR <- SR + BR
+  });
+  it("passes stereo/mono and other layouts through unchanged (identity taps)", () => {
+    expect(outputMix(2)).toEqual([[[0, 1]], [[1, 1]]]);
+    expect(outputMix(1)).toEqual([[[0, 1]]]);
   });
 });
 

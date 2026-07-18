@@ -18,6 +18,13 @@ COPY proto/ proto/
 COPY buf.gen.yaml buf.gen.local.yaml buf.yaml buf.lock ./
 RUN buf generate --template buf.gen.local.yaml
 
+# ── Stage 2b: Build the ac3go WebAssembly decoder (browser AC-3/E-AC-3 path) ──
+# Built from the pinned module (go.mod `tool` directive), not committed. The web
+# player loads it from /wasm/ac3go.wasm to decode AC-3/E-AC-3 client-side.
+FROM gomod AS wasmbuild
+RUN GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -o /out/ac3go.wasm github.com/gravity-zero/ac3go/cmd/ac3go-wasm \
+    && cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" /out/wasm_exec.js
+
 # ── Stage 3: Build frontend ──
 FROM node:22-alpine AS frontend
 
@@ -34,6 +41,9 @@ COPY frontend/patches/ patches/
 RUN npm install -g pnpm@10.33.0 && pnpm install --frozen-lockfile
 COPY frontend/ .
 COPY --from=protogen /src/gen/evey/v1/ /gen/evey/v1/
+# The ac3go wasm decoder + Go runtime shim are built (not committed); place them
+# in the web app's public dir so vite build ships them at /wasm/.
+COPY --from=wasmbuild /out/ac3go.wasm /out/wasm_exec.js apps/web/public/wasm/
 RUN cd packages/api \
     && npx orval --config orval.config.ts \
     && cd ../.. \
