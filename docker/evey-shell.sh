@@ -45,14 +45,31 @@ _evey_banner() {
     printf '  %s██╔══╝  %s╚██╗ ██╔╝%s██╔══╝  %s  ╚██╔╝  %s\n' "$W" "$R" "$W" "$W" "$Z"
     printf '  %s███████╗%s ╚████╔╝ %s███████╗%s   ██║   %s\n' "$W" "$R" "$W" "$W" "$Z"
     printf '  %s╚══════╝%s  ╚═══╝  %s╚══════╝%s   ╚═╝   %s\n' "$W" "$R" "$W" "$W" "$Z"
-    printf '  %sadmin shell%s   %s·%s   %stab-completion on%s   %s·%s   type %smenu%s %sto come back%s\n\n' \
-        "$D" "$Z" "$D" "$Z" "$G" "$Z" "$D" "$Z" "$R" "$Z" "$D" "$Z"
+    if _evey_narrow; then
+        printf '  %sadmin shell%s %s·%s type %smenu%s\n\n' "$D" "$Z" "$D" "$Z" "$R" "$Z"
+    else
+        printf '  %sadmin shell%s   %s·%s   %stab-completion on%s   %s·%s   type %smenu%s %sto come back%s\n\n' \
+            "$D" "$Z" "$D" "$Z" "$G" "$Z" "$D" "$Z" "$R" "$Z" "$D" "$Z"
+    fi
 }
 
-# The horizontal separator drawn around command output.
+# Terminal width, cheap (no fork): bash keeps COLUMNS current on resize in
+# interactive shells (checkwinsize). Fallback for odd environments.
+_evey_cols() {
+    printf '%s' "${COLUMNS:-$(tput cols 2>/dev/null || echo 80)}"
+}
+
+# Narrow screen (phone SSH)? The long taglines/hints get short variants.
+_evey_narrow() { [ "$(_evey_cols)" -lt 68 ]; }
+
+# The horizontal separator drawn around command output, clipped to the
+# terminal so it never wraps on a narrow screen (phone SSH).
 _evey_rule() {
     local W R S D G Z; _evey_palette
-    printf '  %s────────────────────────────────────────────────────────%s\n' "$D" "$Z"
+    local width=$(( $(_evey_cols) - 4 )); [ "$width" -gt 56 ] && width=56; [ "$width" -lt 8 ] && width=8
+    local line=''
+    while [ "${#line}" -lt "$width" ]; do line="${line}─"; done
+    printf '  %s%s%s\n' "$D" "$line" "$Z"
 }
 
 # ---------------------------------------------------------------------------
@@ -284,7 +301,11 @@ _evey_handoff_command() {
     local W R S D G Z; _evey_palette
     _EVEY_RESUME_LEVEL="$2"
     if [ -n "${_EVEY_IN_HOOK:-}" ]; then _EVEY_RESUME=1; else _EVEY_RESUME=2; fi
-    printf '  %srun it, edit it, or type something else - the menu comes back after%s\n' "$D" "$Z"
+    if _evey_narrow; then
+        printf '  %srun/edit it - menu comes back after%s\n' "$D" "$Z"
+    else
+        printf '  %srun it, edit it, or type something else - the menu comes back after%s\n' "$D" "$Z"
+    fi
     [ -n "$1" ] || return 0     # empty prefill: a bare prompt, same comeback
     history -s "$1"
     bind "\"\033[0n\": \"$1\"" 2>/dev/null && printf '\033[5n'
@@ -329,27 +350,42 @@ evey_menu() {
 
     # Row painters; $1 = row index. The selected row gets the ► mark. The
     # nav row pads to 22 ('←' is 3 UTF-8 bytes and %-*s counts bytes).
+    #
+    # EVERY row is clipped to the terminal width: the in-place repaint below
+    # moves the cursor up by the LOGICAL row count, so one logical row MUST
+    # occupy exactly one physical line. On a narrow terminal (phone SSH,
+    # Termux portrait) an unclipped description wraps, the cursor-up lands
+    # mid-list, and every keypress reprints the whole menu further down -
+    # the "menu re-printing in a loop" bug.
+    _evey_clip_desc() {
+        # $1 = columns already used by mark+label+space; prints the clipped
+        # description for $2 (or nothing when the screen is too narrow).
+        local avail=$(( $(_evey_cols) - $1 - 1 ))
+        if [ "$avail" -lt 8 ]; then printf ''; else printf '%s' "${2:0:avail}"; fi
+    }
     _evey_paint_main_row() {
         local i="$1" mark col
         if [ "$i" -eq "$main_sel" ]; then mark="${R}►${Z} "; col="$W"; else mark="  "; col="$D"; fi
-        printf '%s%s%-20s%s %s%s%s\n' "$mark" "$col" "${main_labels[i]}" "$Z" "$D" "${main_descs[i]}" "$Z"
+        printf '%s%s%-20s%s %s%s%s\n' "$mark" "$col" "${main_labels[i]}" "$Z" "$D" "$(_evey_clip_desc 23 "${main_descs[i]}")" "$Z"
     }
     _evey_paint_admin_row() {
         local i="$1" mark col width=20
         if [ "$i" -eq "$admin_sel" ]; then mark="${R}►${Z} "; col="$W"; else mark="  "; col="$D"; fi
         [ "$i" -eq $((admin_count-1)) ] && width=22
-        printf '%s%s%-*s%s %s%s%s\n' "$mark" "$col" "$width" "${admin_labels[i]}" "$Z" "$D" "${admin_descs[i]}" "$Z"
+        printf '%s%s%-*s%s %s%s%s\n' "$mark" "$col" "$width" "${admin_labels[i]}" "$Z" "$D" "$(_evey_clip_desc 23 "${admin_descs[i]}")" "$Z"
     }
     _evey_paint_mkvgo_row() {
         local i="$1" mark col width=20
         if [ "$i" -eq "$mkvgo_sel" ]; then mark="${R}►${Z} "; col="$W"; else mark="  "; col="$D"; fi
         [ "$i" -eq $((mkvgo_count-1)) ] && width=22
-        printf '%s%s%-*s%s %s%s%s\n' "$mark" "$col" "$width" "${mkvgo_labels[i]}" "$Z" "$D" "${mkvgo_descs[i]}" "$Z"
+        printf '%s%s%-*s%s %s%s%s\n' "$mark" "$col" "$width" "${mkvgo_labels[i]}" "$Z" "$D" "$(_evey_clip_desc 23 "${mkvgo_descs[i]}")" "$Z"
     }
     _evey_paint_option_row() {
-        local i="$1" mark col
+        local i="$1" mark col label
         if [ "$i" -eq "$option_sel" ]; then mark="${R}►${Z} "; col="$W"; else mark="  "; col="$D"; fi
-        printf '%s%s%s%s\n' "$mark" "$col" "${option_labels[i]}" "$Z"
+        label="${option_labels[i]}"
+        label="${label:0:$(( $(_evey_cols) - 4 ))}"
+        printf '%s%s%s%s\n' "$mark" "$col" "$label" "$Z"
     }
 
     # Banner for a fresh screen - skipped once right after a run, whose own
@@ -384,7 +420,11 @@ evey_menu() {
         case "$level" in
         main)
             _evey_paint_banner
-            printf '  %s↑/↓ move · Enter open · Tab type a command · q/Esc drop to shell%s\n' "$D" "$Z"
+            if _evey_narrow; then
+                printf '  %s↑/↓ · Enter · Tab cmd · q/Esc shell%s\n' "$D" "$Z"
+            else
+                printf '  %s↑/↓ move · Enter open · Tab type a command · q/Esc drop to shell%s\n' "$D" "$Z"
+            fi
             for ((i=0; i<main_count; i++)); do _evey_paint_main_row "$i"; done
             _evey_navigate _evey_paint_main_row "$main_count" main_sel
 
@@ -397,7 +437,11 @@ evey_menu() {
             esac ;;
         admin)
             _evey_paint_banner
-            printf '  %sevey%s · ↑/↓ move · Enter options · Tab type/edit · q/Esc back%s\n' "$W" "$D" "$Z"
+            if _evey_narrow; then
+                printf '  %sevey%s · ↑/↓ · Enter · q back%s\n' "$W" "$D" "$Z"
+            else
+                printf '  %sevey%s · ↑/↓ move · Enter options · Tab type/edit · q/Esc back%s\n' "$W" "$D" "$Z"
+            fi
             for ((i=0; i<admin_count; i++)); do _evey_paint_admin_row "$i"; done
             _evey_navigate _evey_paint_admin_row "$admin_count" admin_sel
 
@@ -409,7 +453,11 @@ evey_menu() {
             else _evey_handoff_command "${admin_prefills[admin_sel]}" admin; break; fi ;;
         mkvgo)
             _evey_paint_banner
-            printf '  %smkvgo%s · ↑/↓ move · Enter options · Tab type/edit · q/Esc back%s\n' "$W" "$D" "$Z"
+            if _evey_narrow; then
+                printf '  %smkvgo%s · ↑/↓ · Enter · q back%s\n' "$W" "$D" "$Z"
+            else
+                printf '  %smkvgo%s · ↑/↓ move · Enter options · Tab type/edit · q/Esc back%s\n' "$W" "$D" "$Z"
+            fi
             for ((i=0; i<mkvgo_count; i++)); do _evey_paint_mkvgo_row "$i"; done
             _evey_navigate _evey_paint_mkvgo_row "$mkvgo_count" mkvgo_sel
 
@@ -427,8 +475,13 @@ evey_menu() {
                 _evey_load_admin_options "$option_verb"
             fi
             local option_count=${#option_labels[@]}
-            printf '  %s%s ▸ %s%s · ↑/↓ move · Enter run/fill · Tab edit · q/Esc back%s\n' \
-                "$W" "$option_crumb" "$option_verb" "$D" "$Z"
+            if _evey_narrow; then
+                printf '  %s%s ▸ %s%s · ↑/↓ · Enter · q back%s\n' \
+                    "$W" "$option_crumb" "$option_verb" "$D" "$Z"
+            else
+                printf '  %s%s ▸ %s%s · ↑/↓ move · Enter run/fill · Tab edit · q/Esc back%s\n' \
+                    "$W" "$option_crumb" "$option_verb" "$D" "$Z"
+            fi
             for ((i=0; i<option_count; i++)); do _evey_paint_option_row "$i"; done
             _evey_navigate _evey_paint_option_row "$option_count" option_sel
 
