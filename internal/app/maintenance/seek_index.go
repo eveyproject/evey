@@ -132,6 +132,11 @@ type SeekStatus struct {
 	// rename/remux, not reindex. Kept out of the missing-index bucket so a
 	// "Repair all" never wastes a doomed Matroska reindex on it.
 	WrongContainer bool
+	// TrailingJunk → surplus bytes lie past the declared Segment end, but the
+	// media itself is complete (leftover junk, or a crashed in-place-repair
+	// journal). Harmless: any reindex rewrite drops them. Distinct from Damaged
+	// so a whole file is never shown as corrupt just for carrying tail junk.
+	TrailingJunk bool
 }
 
 // ScanResult bundles the per-file statuses with rollup counts.
@@ -144,6 +149,7 @@ type ScanResult struct {
 	Truncated    int // count that are incomplete downloads (re-acquire, not repair)
 	Damaged      int // count with mid-file corruption (resync-repairable)
 	WrongContainer int // count that are MP4/MOV mislabelled .mkv (rename/remux, not reindex)
+	TrailingJunk int // count carrying surplus bytes past the Segment end (harmless, a rewrite drops them)
 }
 
 // Failure records one file a batch job could not process.
@@ -529,6 +535,7 @@ func (s *SeekIndexService) StartReindexLibrary(_ context.Context, libraryID stri
 					st.HasBackup = hasBak
 					st.DamagedBytes = 0
 					st.Truncated = false
+					st.TrailingJunk = false
 				})
 				if hasBak && run.BackupWindow > 0 {
 					window = append(window, path)
@@ -568,6 +575,7 @@ func (s *SeekIndexService) reindexStep(bg context.Context, path string, opts mkv
 		st.HasBackup = hasBak
 		st.DamagedBytes = 0
 		st.Truncated = false
+		st.TrailingJunk = false
 	})
 	if hasBak && rb != nil && rb.max > 0 {
 		rb.window = append(rb.window, path)
@@ -743,6 +751,7 @@ func (s *SeekIndexService) StartReindexMedia(ctx context.Context, mediaID string
 				st.HasBackup = hasBak
 				st.DamagedBytes = 0
 				st.Truncated = false
+				st.TrailingJunk = false
 			})
 			s.logDamagedRanges(path, res.DamagedRanges)
 		}
@@ -938,6 +947,9 @@ func (s *SeekIndexService) scanAndCache(ctx context.Context, libraryID string) (
 		if st.WrongContainer {
 			res.WrongContainer++
 		}
+		if st.TrailingJunk {
+			res.TrailingJunk++
+		}
 	}
 
 	s.mu.Lock()
@@ -998,6 +1010,7 @@ func (s *SeekIndexService) diagnose(ctx context.Context, path string, st *SeekSt
 		st.AudioDelaySec = float64(d.MaxAudioDelayMs()) / 1000
 		st.Truncated = d.Truncated
 		st.DamagedBytes = d.DamagedBytes
+		st.TrailingJunk = d.TrailingJunk()
 		return true
 	}
 
@@ -1040,6 +1053,7 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 		}
 		c.res.MissingIndex, c.res.WithBackup, c.res.AudioDelayed = 0, 0, 0
 		c.res.Truncated, c.res.Damaged, c.res.WrongContainer = 0, 0, 0
+		c.res.TrailingJunk = 0
 		for _, it := range c.res.Items {
 			if !it.HasIndex {
 				c.res.MissingIndex++
@@ -1057,6 +1071,9 @@ func (s *SeekIndexService) updateCachedFile(path string, mut func(*SeekStatus)) 
 			}
 			if it.WrongContainer {
 				c.res.WrongContainer++
+			}
+			if it.TrailingJunk {
+				c.res.TrailingJunk++
 			}
 		}
 		s.scans[key] = c

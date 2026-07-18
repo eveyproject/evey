@@ -48,7 +48,15 @@ func (a *Adapter) Diagnose(ctx context.Context, path string) (*mkv.Diagnosis, er
 	}
 	if d.Damage != nil {
 		out.Truncated = d.Damage.TruncatedTail
-		out.DamagedBytes = d.Damage.BytesSkipped
+		// Since mkvgo v0.25 the salvage walk counts surplus bytes past the
+		// declared Segment end (trailing junk) in BytesSkipped too, yet that
+		// media is complete - only a mid-Segment "damaged" finding means a
+		// resync repair has something to skip. Relaying the raw byte count would
+		// mislabel a whole file with trailing junk as corrupt. Its trailing-junk
+		// finding is copied above and surfaced via Diagnosis.TrailingJunk().
+		if out.Damaged() {
+			out.DamagedBytes = d.Damage.BytesSkipped
+		}
 	}
 	return out, nil
 }

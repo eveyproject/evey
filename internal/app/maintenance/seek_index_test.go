@@ -537,6 +537,47 @@ func TestSeekIndexService_WrongContainer(t *testing.T) {
 	assert.Empty(t, reidx.reindexed, "a scan never reindexes")
 }
 
+// Trailing junk (surplus bytes past the Segment end) is complete media: the
+// scan flags it on its own axis, keeps it in the "has index" set (nothing to
+// reindex), rolls up its own count, and never confuses it with a damaged file.
+func TestSeekIndexService_TrailingJunk(t *testing.T) {
+	dir := t.TempDir()
+	junky := filepath.Join(dir, "junky.mkv")
+	damaged := filepath.Join(dir, "damaged.mkv")
+	healthy := filepath.Join(dir, "ok.mkv")
+	for _, p := range []string{junky, damaged, healthy} {
+		require.NoError(t, os.WriteFile(p, []byte("x"), 0o644))
+	}
+	reidx := &fakeReindexer{hasIndex: map[string]bool{junky: true, damaged: true, healthy: true}}
+	cat := fakeCatalog{files: []appmaintenance.MediaRef{
+		{MediaID: "m1", Title: "Junky", Path: junky},
+		{MediaID: "m2", Title: "Damaged", Path: damaged},
+		{MediaID: "m3", Title: "Ok", Path: healthy},
+	}}
+	svc := appmaintenance.NewSeekIndexService(reidx, cat, nil).
+		WithDiagnoser(fakeDiagnoser{byPath: map[string]*mkv.Diagnosis{
+			junky:   {Findings: []mkv.DiagnosisFinding{{Kind: "trailing-junk", Detail: "8192 byte(s) beyond the declared Segment end"}}},
+			damaged: {Findings: []mkv.DiagnosisFinding{{Kind: "damaged"}}, DamagedBytes: 4096},
+			healthy: {Healthy: true},
+		}})
+
+	require.NoError(t, svc.StartScan(context.Background(), ""))
+	waitIdle(t, svc)
+	res, _, ok := svc.CachedScan("")
+	require.True(t, ok)
+	byID := map[string]appmaintenance.SeekStatus{}
+	for _, it := range res.Items {
+		byID[it.MediaID] = it
+	}
+	assert.True(t, byID["m1"].TrailingJunk, "surplus tail bytes must raise trailing-junk")
+	assert.True(t, byID["m1"].HasIndex, "trailing junk carries a valid index - nothing to reindex")
+	assert.Zero(t, byID["m1"].DamagedBytes, "trailing junk is not damage")
+	assert.False(t, byID["m2"].TrailingJunk, "a mid-Segment damaged file is not trailing junk")
+	assert.Equal(t, 1, res.TrailingJunk, "only the junky file counts")
+	assert.Equal(t, 1, res.Damaged, "the damaged file counts on its own axis")
+	assert.Empty(t, reidx.reindexed, "a scan never reindexes")
+}
+
 // The audio-delay diagnosis is optional and per-file: with a prober wired,
 // scans carry each file's delay and roll up the count above the flag floor; a
 // probe failure keeps the file in the scan with delay 0 (secondary

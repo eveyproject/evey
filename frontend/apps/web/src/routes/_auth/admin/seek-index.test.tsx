@@ -173,6 +173,43 @@ describe("SeekIndexPage", () => {
     expect(screen.getByTestId("seek-index-wrong-container-count")).toHaveTextContent("1");
   });
 
+  it("a trailing-junk file shows a rollup count and its own badge, never a damaged badge", async () => {
+    const tj = {
+      ...scanned,
+      data: {
+        ...scanned.data,
+        items: [
+          ...scanned.data.items,
+          {
+            mediaId: "mi-6",
+            title: "Movie F",
+            path: "/media/f.mkv",
+            hasIndex: true,
+            hasBackup: false,
+            sizeBytes: "6291456",
+            container: "mkv",
+            trailingJunk: true,
+            // complete media: the surplus tail is NOT damage - damagedBytes stays 0
+            damagedBytes: "0",
+          },
+        ],
+        total: 5,
+        trailingJunk: 1,
+      },
+    };
+    mockScan.mockReturnValue(tj);
+    const Page = await getPage();
+    render(React.createElement(Page));
+    // The rollup card is always visible; the trailing-junk file itself is low
+    // priority (media is fine) so its row sits behind the attention filter, like
+    // a damaged-but-seekable file.
+    expect(screen.getByTestId("seek-index-trailing-junk-count")).toHaveTextContent("1");
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(screen.getAllByText("Trailing bytes").length).toBeGreaterThanOrEqual(2);
+    // it must never be mislabelled as corrupt
+    expect(screen.queryByText(/damaged/i)).not.toBeInTheDocument();
+  });
+
   it("a cached response with scannedAtMs 0 is treated as no scan yet", async () => {
     const Page = await getPage();
     render(React.createElement(Page));

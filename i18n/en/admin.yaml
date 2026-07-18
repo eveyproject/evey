@@ -1124,6 +1124,7 @@ seekIndex:
   statsBackup: With backup
   statsAudioDelay: "Delayed audio"
   statsWrongContainer: "Wrong container"
+  statsTrailingJunk: "Trailing bytes"
   onlyAttention: Only show files needing attention
   emptyTitle: No scan yet
   emptyDescription: Pick a library and scan to find MKV/WebM files without a seek index.
@@ -1150,6 +1151,8 @@ seekIndex:
   truncatedHint: "This file is an incomplete download: its end is missing and no tool can recover it. Re-acquire the source - a resync would only rebuild a playable prefix, not the whole film."
   wrongContainerBadge: "Wrong container"
   wrongContainerHint: "This .mkv is really an MP4/MOV file: it has no Matroska index to build. Rename or remux it to .mp4 (a reindex would fail)."
+  trailingJunkBadge: "Trailing bytes"
+  trailingJunkHint: "Surplus bytes remain PAST the declared Segment end - the media is complete and plays fine. Harmless: any reindex (rewrite) drops them. No re-download or resync needed."
   repair: Repair
   repairResync: "Repair anyway"
   repairResyncHint: "Rebuild the index skipping the corrupted region: recovers everything before and after, loses only the damaged span (a fraction of a second). Keeps a backup."

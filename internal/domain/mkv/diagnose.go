@@ -64,6 +64,37 @@ func (d *Diagnosis) WrongContainer() bool {
 	return false
 }
 
+// TrailingJunk reports surplus bytes lying entirely PAST the declared Segment
+// end: a valid, complete file with extra tail bytes (leftover junk, or a
+// crashed in-place-repair journal). Since mkvgo v0.25 this is its own verdict,
+// split out of the truncated/damaged pair: the media is whole, so the remedy is
+// a harmless rewrite (any reindex drops them), NOT a re-download or a resync
+// that would imply lost content. It carries no seek-index defect - the file
+// stays out of the reindex bucket and surfaces only through this flag.
+func (d *Diagnosis) TrailingJunk() bool {
+	for _, f := range d.Findings {
+		if f.Kind == "trailing-junk" {
+			return true
+		}
+	}
+	return false
+}
+
+// Damaged reports mid-Segment corruption a resync repair can skip past (losing
+// the damaged span). It is distinct from TrailingJunk: surplus bytes past the
+// declared end also inflate the salvage walk's BytesSkipped since v0.25, so a
+// caller must not treat that byte count as damage unless this finding is
+// present - a complete file with trailing junk has BytesSkipped > 0 yet nothing
+// to repair.
+func (d *Diagnosis) Damaged() bool {
+	for _, f := range d.Findings {
+		if f.Kind == "damaged" {
+			return true
+		}
+	}
+	return false
+}
+
 // MaxAudioDelayMs is the largest audio start delay across the file's tracks
 // (ms, 0 when aligned) - the value the audio-delay flag floor is applied to.
 func (d *Diagnosis) MaxAudioDelayMs() int64 {

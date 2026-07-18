@@ -1702,5 +1702,8 @@
   "admin.loadtest.harnessCpuLine": "{{pct}}% of the measured CPU was the load generator itself: it has been subtracted from the figures above.",
   "admin.seekIndex.wrongContainerBadge": "Wrong container",
   "admin.seekIndex.wrongContainerHint": "This .mkv is really an MP4/MOV file: it has no Matroska index to build. Rename or remux it to .mp4 (a reindex would fail).",
+  "admin.seekIndex.trailingJunkBadge": "Trailing bytes",
+  "admin.seekIndex.trailingJunkHint": "Surplus bytes remain PAST the declared Segment end - the media is complete and plays fine. Harmless: any reindex (rewrite) drops them. No re-download or resync needed.",
+  "admin.seekIndex.statsTrailingJunk": "Trailing bytes",
   "admin.seekIndex.statsWrongContainer": "Wrong container"
 }
