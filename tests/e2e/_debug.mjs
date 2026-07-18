@@ -8,7 +8,8 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const STORAGE_STATE = "/home/gravity/side_projects/evey/tests/e2e/.auth-state.json";
+const BASE_URL = process.env.BASE_URL ?? "https://evey.test";
+const STORAGE_STATE = path.join(__dirname, ".auth-state.json");
 
 (async () => {
   const browser = await firefox.launch();
@@ -25,7 +26,7 @@ const STORAGE_STATE = "/home/gravity/side_projects/evey/tests/e2e/.auth-state.js
   });
   page.on("pageerror", (e) => console.log("[FF pageerror]", e.message));
 
-  await page.goto("https://evey.test/home", { waitUntil: "domcontentloaded" });
+  await page.goto(`${BASE_URL}/home`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(8000);
 
   const iframes = page.locator("iframe");
