@@ -65,15 +65,20 @@ func TestAnalyzeFrameRateModeIntegration_CFRAndVFR(t *testing.T) {
 		t.Errorf("cfr source classified as %q, want %q", mode, "cfr")
 	}
 
-	// A VFR source: frame count varies over time (a select filter that drops
-	// frames irregularly), muxed with -fps_mode vfr so the real, uneven
-	// presentation timestamps land in the container instead of being
-	// resampled back to a constant grid.
+	// A GENUINELY variable source: keep an irregular subset of frames (n%3==0 OR
+	// n%7==0) so the gaps between kept frames vary (1, 2, 3 source-frame
+	// periods), muxed with -fps_mode vfr so those real, uneven presentation
+	// timestamps land in the container instead of being resampled to a constant
+	// grid. mkvgo >= v0.25.1 classifies VFR from the FRACTION of out-of-tolerance
+	// deltas (outlier-robust: a couple of dropped frames on an otherwise constant
+	// track stay "cfr"), so the fixture must vary a meaningful share of its frame
+	// durations - here ~46% - not just a lone glitch. -bf 0 keeps the block
+	// timecodes measuring frame durations, not B-frame reorder jitter.
 	vfr := filepath.Join(dir, "vfr.mkv")
 	genVFR := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
 		"-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
-		"-t", "5", "-vf", "select='mod(n\\,3)+1'", "-vsync", "0",
-		"-c:v", "libx264", "-fps_mode", "vfr", "-pix_fmt", "yuv420p",
+		"-t", "6", "-vf", "select='not(mod(n\\,3))+not(mod(n\\,7))'",
+		"-c:v", "libx264", "-bf", "0", "-fps_mode", "vfr", "-pix_fmt", "yuv420p",
 		vfr)
 	if out, genErr := genVFR.CombinedOutput(); genErr != nil {
 		t.Fatalf("ffmpeg VFR source generation failed: %v\n%s", genErr, out)
