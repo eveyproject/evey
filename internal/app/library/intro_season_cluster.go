@@ -41,10 +41,10 @@ type clusterParams struct {
 func defaultClusterParams(n int) clusterParams {
 	kMin := max((n+1)/2, 3)
 	return clusterParams{
-		// 12/32 bits, NOT Jellyfin's 6/32: tested 6/32 on this library and it
-		// broke cluster formation (e.g. Billions lost its intro entirely) because
-		// our cross-episode fingerprints are noisier than Jellyfin's clean
-		// same-source library - FRENCH dubs / repacks differ enough that the
+		// 12/32 bits, NOT the 6/32 some detectors use: tested 6/32 on a real
+		// library and it broke cluster formation (a long-running series lost its
+		// intro entirely) because cross-episode fingerprints from mixed sources
+		// are noisy - dubs / repacks differ enough that the
 		// theme exceeds 6 bits/frame across episodes. 12/32 is calibrated for that
 		// noise; tightening it didn't sharpen the fused end anyway (the fusion's
 		// scene-cut/silence votes dominate the boundary).

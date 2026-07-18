@@ -31,7 +31,7 @@ interface Props {
 }
 
 /**
- * Jellyfin-style "Identify on TMDB" workflow for orphans the parser can't
+ * Classic "Identify on TMDB" workflow for orphans the parser can't
  * clean (typos in filenames: "Greyhoud", "Snowpiercier", "Oprhan", …).
  * The admin types the real title, picks the right TMDB result from a
  * preview list, and the backend re-enriches the item with that tmdb_id.

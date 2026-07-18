@@ -31,7 +31,7 @@ type OrchestratorOptions struct {
 	// force_key_frames cadence. Exposed for tests.
 	SegmentSeconds float64
 
-	// ThrottleEnabled toggles the pause-when-ahead policy (Plex pattern).
+	// ThrottleEnabled toggles the pause-when-ahead policy.
 	// When ffmpeg has produced ThrottlePauseAhead segments more than the
 	// client's high-water request, SIGSTOP the process; SIGCONT when the
 	// client catches back up to within ThrottleResumeBelow segments.
@@ -41,7 +41,7 @@ type OrchestratorOptions struct {
 	ThrottleEnabled bool
 
 	// ThrottlePauseAhead is the buffer (in segments) above which ffmpeg
-	// gets paused. Default 10 = 30s buffer at 3s segments. Plex docs cite
+	// gets paused. Default 10 = 30s buffer at 3s segments. Field reports cite
 	// 30-45s as the empirical sweet spot.
 	ThrottlePauseAhead int
 
@@ -101,7 +101,7 @@ type OrchestratorOptions struct {
 	// per (fingerprint, variantIdx) pair instead of one multi-variant rafale per
 	// fingerprint. Each spawn produces only the requested ABR rung (1 encode),
 	// saving the N-1 encodes of rungs the client never watches. Like
-	// Jellyfin/Plex's on-demand single-variant model.
+	// the on-demand single-variant model mature media servers converge on.
 	//
 	// FLAG OFF (default): behaviour is byte-identical to the pre-flag multi-variant
 	// path - the existing tests prove this invariant.

@@ -29,7 +29,7 @@ func (t *HLSTranscoder) Start(ctx context.Context, opts transcoding.HLSProcessOp
 	// before any per-variant fan-out - so BuildFFmpegArgs stays pure.
 	opts.AudioStartDelaySec = audioStartDelayFor(ctx, opts)
 	// Per-variant HW: one single-output ffmpeg per ABR rung behind a composite
-	// handle, instead of one multi-output process. Matches how Jellyfin/Plex
+	// handle, instead of one multi-output process. Matches how mature servers
 	// drive HW - the multi-encode-in-one-process graph crashes fragile VA
 	// drivers (and the WSL d3d12 shim) and a single rung's failure shouldn't
 	// take the others down. Software keeps the single-process multi-variant
@@ -620,7 +620,7 @@ func buildCopyVideoArgs(opts transcoding.HLSProcessOpts) []string {
 		args = append(args, "-c:v", "copy", "-avoid_negative_ts", "make_zero")
 		args = append(args, copyVideoTagArgs(opts)...)
 	case opts.StartSec > 0:
-		// Jellyfin's exact recipe for HLS video transcode (verified
+		// the field-proven recipe for HLS video transcode (verified
 		// against EncodingHelper.cs in master, 2025): pre-input -ss
 		// (accurate_seek default) + libx264 + force_key_frames every 5s
 		// + copyts/avoid_negative_ts/start_at_zero so the segments

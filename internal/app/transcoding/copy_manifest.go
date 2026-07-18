@@ -10,7 +10,7 @@ import (
 // the keyframe-aligned segment plan. Variable #EXTINF (keyframe boundaries are
 // irregular, unlike the transcode ladder's fixed cadence), a shared #EXT-X-MAP
 // init, and #EXT-X-ENDLIST (every boundary is known up front from the plan, so
-// the client can seek anywhere immediately - the Jellyfin VOD model).
+// the client can seek anywhere immediately - the static VOD model).
 //
 // Pure + deterministic in segs. The segment filenames (stream_0_NNN.m4s) match
 // what the paced copy session writes and what serveSegment addresses by index,

@@ -5,7 +5,7 @@
 
 ## Context
 
-A user watching a film wants to switch audio track (original → dubbed, or to a commentary track) without re-fetching the video. In the muxed model - audio baked into every video variant - switching language means a fresh transcode session of the *whole* stream, re-downloading video the client already has. Plex solves this with a separate "EAE" audio-extraction service; Jellyfin re-muxes.
+A user watching a film wants to switch audio track (original → dubbed, or to a commentary track) without re-fetching the video. In the muxed model - audio baked into every video variant - switching language means a fresh transcode session of the *whole* stream, re-downloading video the client already has. Mainstream servers either run a dedicated audio-extraction service or re-mux the whole stream.
 
 We want per-language audio switching that:
 
@@ -35,6 +35,6 @@ This sits above the audio *codec* decisions (audio-copy of a source AAC track, m
 
 ## Consequences
 
-- **Positive:** language switching with zero video re-fetch, through standard HLS that native clients drive themselves - a differentiator vs Plex's EAE service. No per-switch server cost.
+- **Positive:** language switching with zero video re-fetch, through standard HLS that native clients drive themselves - a differentiator over dedicated audio-extraction services. No per-switch server cost.
 - **Cost:** a second segment-production path to maintain alongside the muxed one; the manifest generator carries both shapes. Contributors adding audio-codec support (passthrough, TrueHD/Atmos → E-AC-3 JOC) need to understand the rendition-group model, hence this ADR. The flag-off default means the path only exercises in installs that enable it - keep the muxed path as the safe fallback.
 - Web clients without native HLS audio-group switching fall back to the muxed behaviour; the feature targets Safari/AVPlayer/tvOS/cast first.

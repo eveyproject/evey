@@ -50,7 +50,7 @@ func (q *FeedQuerier) ContinueWatching(ctx context.Context, profileID string, li
 			  AND mi.type = 'movie'
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
-			  -- Mirror Jellyfin's MinResumePct=5: don't surface a film the user
+			  -- MinResumePct=5 (the classic resume floor): don't surface a film the user
 			  -- only sampled for a few seconds. Items with unknown duration
 			  -- bypass the gate so we don't silently drop legitimate progress.
 			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
@@ -137,7 +137,7 @@ func (q *FeedQuerier) ResumePlayback(ctx context.Context, profileID string, limi
 			WHERE wp.profile_id = $1
 			  AND wp.position_ms > 0
 			  AND wp.completed = FALSE
-			  -- Mirror Jellyfin's MinResumePct=5: don't surface zaps.
+			  -- MinResumePct=5 (the classic resume floor): don't surface zaps.
 			  AND (mf.duration_ms IS NULL OR mf.duration_ms = 0
 			       OR wp.position_ms * 100 >= mf.duration_ms * 5)
 		),

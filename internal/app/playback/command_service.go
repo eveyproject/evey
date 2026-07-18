@@ -33,8 +33,8 @@ type MediaItemDurationGetter interface {
 }
 
 // CompletedThresholdNumerator/Denominator define the watched fraction at
-// which a media item flips to completed=true. 9/10 = 90%, matching the
-// Jellyfin default and the watch_history analyzer's existing assumption.
+// which a media item flips to completed=true. 9/10 = 90%, the de-facto
+// standard threshold and the watch_history analyzer's existing assumption.
 const (
 	CompletedThresholdNumerator   = 9
 	CompletedThresholdDenominator = 10
@@ -43,8 +43,8 @@ const (
 // MinAutoResumeDurationMs is the floor below which a mid-stream progress
 // report is not persisted. Items shorter than 5 minutes (trailers, music
 // videos, intros, sound effects) flooding "Continue Watching" with a few
-// seconds of progress is noise, not signal - Jellyfin uses the same
-// threshold (MinResumeDurationSec=300). Completion at 90% still writes
+// seconds of progress is noise, not signal - 300 s is the classic floor
+// for this exact reason. Completion at 90% still writes
 // through (so the row exists and "watched" counts), only intermediate
 // position updates are dropped for short items.
 const MinAutoResumeDurationMs int64 = 300_000
@@ -392,7 +392,7 @@ func (s *CommandService) ReportProgress(ctx context.Context, profileID, mediaIte
 	if !completed {
 		decision := s.classifyProgress(ctx, mediaItemID, positionMs)
 		completed = decision.completed
-		// Short items don't get a mid-stream progress row (Jellyfin parity).
+		// Short items don't get a mid-stream progress row (see the floor above).
 		if decision.skipPersist {
 			return nil
 		}
@@ -545,8 +545,8 @@ func (s *CommandService) MarkAsUnwatched(ctx context.Context, profileID, mediaIt
 	}
 	// Delete instead of upsert because Upsert keeps completed sticky-true:
 	// writing a Completed=false row would not actually flip the flag back.
-	// Deleting the row makes the item appear never-watched, matching the
-	// Jellyfin semantics callers expect.
+	// Deleting the row makes the item appear never-watched - the semantics
+	// callers expect from "mark as unwatched".
 	if err := s.progress.Delete(ctx, profileID, mediaItemID); err != nil {
 		return fmt.Errorf("CommandService.MarkAsUnwatched: %w", err)
 	}

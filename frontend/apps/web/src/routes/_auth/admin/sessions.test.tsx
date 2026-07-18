@@ -118,7 +118,7 @@ describe("SessionsPage", () => {
   });
 
   it("renders per-track decision badges with codecs and engine (copy rung)", async () => {
-    // a beta tester-style copy rung: video copied (mkvgo), audio transcoded (ffmpeg).
+    // Hybrid copy rung: video copied (mkvgo), audio transcoded (ffmpeg).
     const copyRung = {
       ...mockSession,
       playMethod: "transcode",

@@ -18,8 +18,8 @@ import (
 )
 
 // tidbUserAgent identifies Evey to the upstream so anonymous traffic is
-// attributable and not lumped in with generic bots. Mirrors the official
-// Jellyfin plugin's habit of sending a named UA.
+// attributable and not lumped in with generic bots - the convention the
+// service's existing clients follow.
 const tidbUserAgent = "Evey/intro-detection (+https://github.com/evey-project/evey)"
 
 // TIDBClient is an HTTP client for theintrodb.org's `/v3/media` endpoint.

@@ -30,7 +30,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 const mockKeys = [
   { id: "key1", name: "Home Assistant", key: "evey_abcdef1234", createdAt: "2025-01-01T00:00:00Z", lastUsedAt: "2025-06-15T12:00:00Z" },
-  { id: "key2", name: "Plex Sync", key: "evey_xyz9876543", createdAt: "2025-03-10T00:00:00Z", lastUsedAt: undefined },
+  { id: "key2", name: "Backup Sync", key: "evey_xyz9876543", createdAt: "2025-03-10T00:00:00Z", lastUsedAt: undefined },
 ];
 
 function createWrapper() {
@@ -66,7 +66,7 @@ describe("APIKeySettings", () => {
     const { APIKeySettings } = await import("./APIKeySettings");
     render(React.createElement(APIKeySettings), { wrapper: createWrapper() });
     expect(screen.getByText("Home Assistant")).toBeInTheDocument();
-    expect(screen.getByText("Plex Sync")).toBeInTheDocument();
+    expect(screen.getByText("Backup Sync")).toBeInTheDocument();
     expect(screen.getByText(/evey_••••••••1234/)).toBeInTheDocument();
   });
 

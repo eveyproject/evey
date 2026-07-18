@@ -16,7 +16,7 @@ import (
 )
 
 // blurhashComponents is the (x, y) tuple the encoder uses to generate the
-// compact placeholder. 4×3 is the Wolt / Jellyfin default for landscape-ish
+// compact placeholder. 4×3 is the blurhash reference default for landscape-ish
 // covers and produces strings ~30 characters long - small enough to ship
 // in every list response, blurry enough to read as a colour-only preview.
 const (

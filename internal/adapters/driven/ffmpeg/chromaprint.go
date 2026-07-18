@@ -16,7 +16,7 @@ import (
 //
 // Chromaprint fingerprints are fixed-rate (~8 frames/second, each frame
 // = uint32). Comparing two fingerprints by sliding XOR + popcount is the
-// standard "intro detection by audio match" approach used by Jellyfin
+// standard "intro detection by audio match" approach
 // Intro Skipper, MusicBrainz, and Acoustid. Robust to bitrate, codec,
 // language track, and minor mix differences.
 type Chromaprinter struct {

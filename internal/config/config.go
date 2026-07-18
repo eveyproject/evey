@@ -312,7 +312,7 @@ type TranscodingConfig struct {
 	// than letting the player wait out the full segment timeout. Default 5s.
 	HWFirstSegmentTimeout time.Duration
 	// HWPerVariant, when true, makes the HW transcode path spawn one single-
-	// output ffmpeg per ABR rung (the Jellyfin/Plex model) instead of a single
+	// output ffmpeg per ABR rung (one-encoder-per-rung model) instead of a single
 	// multi-output process. Avoids the multi-encode-in-one-process graph that
 	// crashes fragile VA drivers and isolates per-rung failures. Off by default;
 	// software always uses the single-process multi-variant graph regardless.

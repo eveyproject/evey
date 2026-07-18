@@ -521,7 +521,7 @@ func TestReportProgress_ExplicitCompletedAlwaysWins(t *testing.T) {
 func TestReportProgressBySession_ShortItemMidStream_NoProgressRow(t *testing.T) {
 	t.Parallel()
 	// 2-minute trailer: a pause at 0:15 must NOT clutter "Continue Watching"
-	// with a 2-minute-trailer entry. Jellyfin uses MinResumeDurationSec=300.
+	// with a 2-minute-trailer entry (the 300 s floor, see MinAutoResumeDurationMs).
 	cmd, pr, _, ur, pfr := setupCmdWithDurations(map[string]int64{"trailer": 120_000})
 	ctx := context.Background()
 	seedUserProfile(ctx, ur, pfr, nil)
@@ -722,7 +722,7 @@ func TestMarkAsUnwatched_DeletesProgressRow(t *testing.T) {
 	require.NoError(t, cmd.MarkAsUnwatched(ctx, "p1", "m1"))
 
 	// MarkAsUnwatched deletes the row entirely - the item appears
-	// never-watched again, matching the Jellyfin semantics the gRPC
+	// never-watched again, matching the semantics the gRPC
 	// handler relies on (NotFound → empty WatchProgress).
 	_, err := pr.GetByProfileAndMedia(ctx, "p1", "m1")
 	assert.ErrorIs(t, err, shared.ErrNotFound)

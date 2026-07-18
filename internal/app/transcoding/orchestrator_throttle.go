@@ -12,7 +12,7 @@ import (
 )
 
 // throttleLoop applies pause-when-ahead to every live session on a ticker.
-// Pattern lifted from Plex's transcode pipeline (audit competitors_big): when
+// Pause-when-ahead pattern (standard in mature transcode pipelines): when
 // ffmpeg has produced ThrottlePauseAhead segments more than the client's
 // high-water, SIGSTOP it - we burn 0 CPU until the client catches up.
 // Hysteresis (ResumeBelow strictly less than PauseAhead) prevents flapping.

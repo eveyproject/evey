@@ -40,7 +40,7 @@ type hlsVODServe struct {
 
 	// selector routes each request to the software or hardware StreamProducer.
 	// The software producer is the long-lived, input-paced, single-rendition
-	// Jellyfin model (sane on a weak NAS with hw_accel off); the hardware
+	// paced single-encoder model (sane on a weak NAS with hw_accel off); the hardware
 	// producer is the multi-session burst-ahead orchestrator (a GPU
 	// parallelises rungs cheaply). The selector's For(decision, src) decides -
 	// it reuses resolveHW so the manifest, the fingerprint, and the routing
@@ -56,7 +56,7 @@ type hlsVODServe struct {
 
 	// copyProducer serves the H.264 video-COPY (remux) rung when wired (behind
 	// EVEY_REMUX_COPY=on): a dedicated SoftwareProducer in copy mode - the
-	// Jellyfin remux, one paced `-c:v copy` + AAC session, seek = restart. nil =
+	// paced remux, one `-c:v copy` + AAC session, seek = restart. nil =
 	// the copy path is off and every request routes through the selector
 	// (transcode) exactly as before. Interface-typed because both producers
 	// satisfy it; only copy requests (isCopyRequest) are routed here.

@@ -106,8 +106,8 @@ func LadderFor(c ContentClass) []HLSProfile {
 // can't keep up with a 2160p H.264 rung on a 4K HEVC source - the whole
 // pipeline (which produces every variant in a single ffmpeg via
 // var_stream_map) gets bottlenecked by the heaviest rung. Capping to
-// 1080p (maxHeight=1080) is what every other OSS player (Jellyfin,
-// Stash, Navidrome) does when no HW accelerator is available.
+// 1080p (maxHeight=1080) is what the OSS field converges on when no HW
+// accelerator is available.
 //
 // maxHeight=0 ⇒ no cap.
 // Always returns at least one rung (the lowest).

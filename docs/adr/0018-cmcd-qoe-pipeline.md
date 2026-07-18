@@ -5,7 +5,7 @@
 
 ## Context
 
-Evey's player and transcoder need a feedback signal: is the client starving, buffering, or comfortably ahead? Without it the encoder cannot pace its rafales (pause when the client is ahead, prefetch when the buffer is fat), the per-title ladder cannot learn, and the admin has no QoE dashboard - only Plex/Jellyfin closed-source "Insights" do this.
+Evey's player and transcoder need a feedback signal: is the client starving, buffering, or comfortably ahead? Without it the encoder cannot pace its rafales (pause when the client is ahead, prefetch when the buffer is fat), the per-title ladder cannot learn, and the admin has no QoE dashboard - only closed-source commercial "insights" dashboards do this.
 
 Three approaches were considered:
 

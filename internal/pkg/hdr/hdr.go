@@ -170,7 +170,8 @@ func BuildToneMapFilter(info *HDRInfo, opts ToneMapOptions) string {
 		// same CPU (old box, 1080p, same file/encoder: 1.56x vs 0.89x realtime).
 		// bt2390 is the ITU-R EETF (tonemapx's recommended HDR10 curve). Scale
 		// BEFORE the tonemap so it runs at the delivery resolution, and tag the
-		// frame's colour metadata first (mirrors Jellyfin - some rips under-tag).
+		// frame's colour metadata first (mirrors jellyfin-ffmpeg's own pipeline
+		// defaults - some rips under-tag).
 		scale := ""
 		if opts.DstWidth > 0 {
 			scale = fmt.Sprintf("scale=%d:-2,", opts.DstWidth)

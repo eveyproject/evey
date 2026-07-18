@@ -79,7 +79,7 @@ COPY sandbox/sandbox.c /tmp/sandbox.c
 RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so /tmp/sandbox.c
 
 # ── Stage 5: Runtime ──
-# ONE image, the Jellyfin model: a single glibc base whose distro ffmpeg has
+# ONE image: a single glibc base whose distro ffmpeg has
 # every HW encoder compiled in (h264/hevc _nvenc, _vaapi, _qsv - all verified in
 # Debian trixie's ffmpeg 7.1). No GPU driver is baked; drivers are injected at
 # RUNTIME by whatever the host exposes, so the same image is software-only,
@@ -173,8 +173,8 @@ COPY --from=getmeili/meilisearch:v1.12 /bin/meilisearch /usr/local/bin/meilisear
 # pass, ~1.8x faster than Debian ffmpeg's zscale float32 chain on the SAME CPU
 # (measured on an old box, 1080p, same file/encoder: 1.56x vs 0.89x realtime). That
 # gap flips 4K HDR software transcode from sub-realtime (buffering, capped to 480p)
-# to playable 1080p - exactly why Jellyfin does 1080p HDR where our zscale path
-# stalls. Installed from Jellyfin's OFFICIAL Debian repo (the standalone
+# to playable 1080p where the portable zscale path stalls. Installed from the
+# jellyfin-ffmpeg project's OFFICIAL Debian repo (the standalone
 # jellyfin-ffmpeg7 package - leaner than vendoring the whole Jellyfin image) and
 # symlinked AHEAD of Debian's /usr/bin/ffmpeg on PATH; Debian's ffmpeg stays
 # installed as a fallback (drop the symlink to revert). The Go side probes for

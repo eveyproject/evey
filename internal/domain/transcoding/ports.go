@@ -58,7 +58,7 @@ type HLSProcess interface {
 // BELOW the true keyframe time; -ss seeks to the point at-or-before the
 // timestamp, so an exact-or-low target lands one keyframe early (proven in a
 // jellyfin-ffmpeg7 harness: 1 ms below → previous keyframe; +50 ms → correct,
-// robust to ~1-frame index error; Jellyfin uses +0.5 s for the same quirk).
+// robust to ~1-frame index error; other players use up to +0.5 s for the same quirk).
 // Shared between the ffmpeg arg builder (-ss emission) and the copy producer's
 // seek-landing probe so both reason about the SAME effective seek target.
 const CopySeekNudgeSec = 0.05
@@ -259,7 +259,7 @@ type HLSProcessOpts struct {
 	// PerVariantHW, when true AND HWAccel is set AND there is more than one
 	// profile, makes the transcoder spawn ONE single-output ffmpeg per variant
 	// (behind one composite handle) instead of a single multi-output process.
-	// This matches how Jellyfin/Plex drive HW (avoids the multi-encode-in-one-
+	// This matches how mature media servers drive HW (avoids the multi-encode-in-one-
 	// process graph that crashes fragile VA drivers and isolates per-rung
 	// failures). Software always uses the single-process multi-variant graph.
 	PerVariantHW bool

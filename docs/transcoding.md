@@ -20,7 +20,7 @@ EVEY_TRANSCODING_HW_ACCEL_ENABLED=false
 
 Evey ships **one image** whose ffmpeg has NVENC, VAAPI, and QSV all compiled in.
 No GPU driver is baked into the image - you inject the driver at runtime by
-mapping the device, exactly like Jellyfin. The same image is software-only,
+mapping the device - no privileged mode needed. The same image is software-only,
 NVENC, or VAAPI/QSV depending purely on what you map. See
 [ADR-0015](adr/0015-hardware-acceleration.md) for the rationale.
 
@@ -78,13 +78,13 @@ EVEY_TRANSCODING_HW_ACCEL_ENABLED=true
 EVEY_TRANSCODING_HW_MODE=auto
 # Fast-fail a wedged GPU to software after this delay (default 5s).
 EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT=5s
-# Spawn one ffmpeg per ABR rung on the HW path (Jellyfin/Plex model) instead of
+# Spawn one ffmpeg per ABR rung on the HW path (one-encoder-per-rung) instead of
 # one multi-output process - isolates per-rung failures and avoids the
 # multi-encode graph that crashes fragile VA drivers. Off by default; software
 # always uses the single-process graph. See docs/adr/0015.
 EVEY_TRANSCODING_HW_PER_VARIANT=false
 # Encode only the one ABR rung the client is actually requesting (on-demand,
-# the Jellyfin/Plex model) instead of one ffmpeg producing the whole ladder.
+# one-encoder-per-rung) instead of one ffmpeg producing the whole ladder.
 # OFF by default (=0, the multi-variant ladder) - and that IS the right setting
 # for a weak NAS: multi-variant shares ONE decode of the source across every
 # rung. Single-variant (=1) re-decodes the source PER rung, so when the player

@@ -346,7 +346,7 @@ export default function PlayerScreen() {
   const knownDuration = media?.durationMs ? Number(media.durationMs) / 1000 : 0;
   const effectiveDuration = knownDuration > 0 ? knownDuration : duration;
 
-  // Mirror Jellyfin's behaviour: mark the item as watched once playback
+  // Standard resume semantics: mark the item as watched once playback
   // crosses the MaxResumePct threshold (90%). The server only marks
   // Completed=true on explicit MarkAsWatched calls - without this the user
   // had to manually toggle "watched" after every episode.

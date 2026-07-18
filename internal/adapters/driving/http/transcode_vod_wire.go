@@ -197,7 +197,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	}
 
 	// Build the software producer: ONE long-lived, input-paced (-readrate 1.5),
-	// single-rendition ffmpeg per DecisionHash - the Jellyfin model for a weak
+	// single-rendition ffmpeg per DecisionHash - the sane model for a weak
 	// NAS with hw_accel off (no multi-session burst-ahead, no global capacity
 	// cap, no per-segment deadline kill). It shares the addressable SegmentCache
 	// with the orchestrator (segments are encoder-agnostic), and resolves the
@@ -217,8 +217,8 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		)
 	}
 
-	// Copy/remux rung = a dedicated SoftwareProducer in copy mode: the Jellyfin
-	// remux model - one paced `-c:v copy` + AAC session, seek = restart at the
+	// Copy/remux rung = a dedicated SoftwareProducer in copy mode: the paced
+	// remux model - one `-c:v copy` + AAC session, seek = restart at the
 	// plan's keyframe. A distinct instance from the transcode `software` above
 	// (copyPlanner is per-instance) sharing the same cache; the Copy flag in the
 	// fingerprint keeps copy and transcode segments from aliasing.

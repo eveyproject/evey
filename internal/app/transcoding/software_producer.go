@@ -15,7 +15,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
-// SoftwareProducer is the software-transcode StreamProducer: the Jellyfin
+// SoftwareProducer is the software-transcode StreamProducer: the classic
 // model. For a given DecisionHash it runs a small, bounded set of long-lived
 // ffmpeg encoders, each input-paced with `-readrate` so it stays near
 // wall-clock and never races the whole film ahead of the viewer.
@@ -67,7 +67,7 @@ type SoftwareProducer struct {
 	logger  *slog.Logger
 	opts    SoftwareProducerOptions
 
-	// copyPlanner gates COPY MODE (the Jellyfin-style paced video-copy rung).
+	// copyPlanner gates COPY MODE (the paced video-copy remux rung).
 	// nil = pure transcode, byte-identical to before - every copy-mode divergence
 	// is behind a `copyPlanner != nil` check. When set (a dedicated copy instance
 	// wired for the remux rung), startSession emits `-c:v copy` and maps a segment
@@ -387,7 +387,7 @@ func NewSoftwareProducer(
 // Pure in its inputs (base, src, decision, capacity) so the ladder is identical
 // at manifest-time and segment-time - the cache-hash invariant.
 // SetCopyMode enables the video-COPY rung on this producer instance (the
-// Jellyfin-style remux: one -c:v copy session per live position, seek =
+// Paced remux: one -c:v copy session per live position, seek =
 // restart). Call ONCE before first use - the wiring builds a DEDICATED copy
 // instance for the remux path, distinct from the transcode instance the selector
 // returns, so the two never share a manifest. nil planner = pure transcode.
@@ -477,7 +477,7 @@ func (p *SoftwareProducer) Manifest(ctx context.Context, fp DecisionFingerprint)
 }
 
 func (p *SoftwareProducer) Profiles(base []transcoding.HLSProfile, src SourceDims, decision transcoding.PlaybackDecision, capacity transcoding.EncodeCapability) []transcoding.HLSProfile {
-	// Copy mode = the Jellyfin remux: ONE rung at the source resolution with the
+	// Copy mode = the paced remux: ONE rung at the source resolution with the
 	// video copied (the handler advertises the source avc1.PPCCLL) and audio→AAC.
 	// No transcode ladder - direct-play quality is the single rendition.
 	if p.copyPlanner != nil {

@@ -30,7 +30,7 @@ type SourceDims struct {
 // StreamProducer is the seam between the HTTP handler and the machine that
 // actually produces HLS segments. Two implementations exist:
 //
-//   - SoftwareProducer: the Jellyfin model - ONE long-lived, input-paced
+//   - SoftwareProducer: the paced model - ONE long-lived, input-paced
 //     (`-readrate`) ffmpeg per DecisionHash, single-rendition, restart-on-seek,
 //     no capacity rejection (the client waits), idle GC. The sane software
 //     path for a weak NAS with hw_accel off.

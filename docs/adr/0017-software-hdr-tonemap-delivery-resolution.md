@@ -8,7 +8,7 @@
 On a weak NAS (a old iGPU-era box: no HEVC hardware decoder, no 10-bit VAAPI
 VPP - `scale_vaapi` aborts `-22` on a `p010` surface, so hardware acceleration
 is off for this content), playing a 4K HEVC 10-bit HDR title collapsed the ABR
-ladder to 360p. Jellyfin, configured **with hardware acceleration disabled**
+ladder to 360p. A reference open-source server, configured **with hardware acceleration disabled**
 (full software) on the *same* box, sustained ~1080p at ~8 Mbit with correct
 colours and only minor buffering. So the box is capable; our software pipeline
 was simply far less efficient.
@@ -21,7 +21,7 @@ Main 10 HDR10 sample (`ffmpeg` 7.1.4, the production container):
    3840×2160 frame *before* the downscale - 8.3 M px/frame of float math and
    memory bandwidth on the dominant stage. Folding the resize into the first
    (linearizing) `zscale` so the float pipeline runs at 1080p measured **36 →
-   75-83 fps (≈2.1-2.3×)** - and matches Jellyfin's scale-before-tonemap order.
+   75-83 fps (≈2.1-2.3×)** - and matches the reference scale-before-tonemap order.
 2. **Multi-variant fan-out.** One ffmpeg process tone-mapped once at 4K then
    `split` into N parallel `libx264` encodes. Single 1080p vs the 4-rung burst
    measured **67 vs 26 fps (≈2.58×)**.
@@ -66,10 +66,10 @@ quality than scaling in the encoded domain.
 ## Consequences
 
 - **~2× throughput on the dominant stage**, multiplicative with single-variant -
-  enough to lift such a box off the 360p floor toward Jellyfin parity (~1080p
+  enough to lift such a box off the 360p floor toward reference parity (~1080p
   with occasional dips). The hard floor that remains is the **4K HEVC 10-bit
   software *decode*** itself, which touches every pixel once regardless of
-  filter order - Jellyfin has the same limit, hence its minor buffering too.
+  filter order - the reference server has the same limit, hence its minor buffering too.
 - **The cap is data-driven, not hand-tuned.** After the bench change, calibration
   must be re-run on the deployment host so `software_hdr_max_height` reflects the
   faster chain; until then the ladder stays capped at the stale value. The cap is
@@ -89,7 +89,7 @@ quality than scaling in the encoded domain.
   Considered, because the box *does* expose an h264 VAAPI encoder. Rejected for
   this box/release: HW is off and the calibration found no usable HW encode
   ceiling, and the missing decoupled pipeline is a larger change in the vital
-  player path; the all-software efficiency fix alone closes the gap to Jellyfin.
+  player path; the all-software efficiency fix alone closes the gap to the reference.
   Kept as future work (and the natural complement to ADR-0015).
 - **Just raise the resolution cap.** Rejected: dishonest - it would advertise
   rungs the slow pipeline could not sustain, starving the player. The fix is to

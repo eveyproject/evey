@@ -21,7 +21,7 @@ three counts:
 2. **Shared-state bleed.** The two containers shared one DB and stepped on each
    other's persisted encode capability (the calibration cache), causing 30 s
    segment-timeout loops until a per-container backend pin was bolted on.
-3. **It's not how the field does it.** Jellyfin/Plex/Emby ship ONE image and
+3. **It's not how the field does it.** The mainstream media servers all ship ONE image and
    inject the GPU driver at runtime.
 
 We also learned (the hard way, on the WSL2 dev box) that VAAPI/QSV through
@@ -30,7 +30,7 @@ multi-variant encode** - a single `ffmpeg` process running `split=3 → 3×
 scale_vaapi → 3× h264_vaapi` segfaults in `d3d12_drv_video.so`, and even three
 separate single-output processes crash. NVENC (a real CUDA passthrough) is
 unaffected. This is a WSL/d3d12 limitation, not an Evey bug, and it is
-officially unsupported by Jellyfin/Plex/Emby alike.
+officially unsupported across the field.
 
 ## Decision
 
@@ -39,7 +39,7 @@ officially unsupported by Jellyfin/Plex/Emby alike.
 A single glibc runtime image (`Dockerfile`'s last stage, `runtime`, on
 **Debian trixie**) whose **distro ffmpeg (7.1) already has `nvenc + vaapi + qsv`
 compiled in**. The image bakes **no GPU driver**. Drivers come at run time,
-exactly like Jellyfin:
+exactly like the field standard:
 
 (Debian trixie, rebased from Ubuntu 24.04 on 2026-06-02: trixie ships ffmpeg 7.x
 *and* `postgresql-client-17` - which dumps the PG16 server fine - straight from
@@ -110,7 +110,7 @@ segfault. WSL HW = NVENC only; validate VAAPI/QSV on a native Linux host.
 
 - **One artifact** for every backend; no per-GPU rebuild, no sibling-container
   cache bleed (the backend pin from the interim design is subsumed by the mode).
-- Operators get a Jellyfin-grade "pick your acceleration" control with a real
+- Operators get a first-class "pick your acceleration" control with a real
   software escape hatch, and playback survives a broken GPU by design.
 - **Dev mirrors prod**: ONE `evey` dev container (Debian + Air hot-reload, the
   same full-HW image model) maps both the NVIDIA GPU and `/dev/dri`, defaulting
@@ -124,7 +124,7 @@ By default Evey transcodes the **whole ABR ladder in one ffmpeg process**
 (`split` → N encoders) - efficient (decode once, encode N) and rock-solid on
 software, but HW-fragile: a multi-encode graph stresses even native VAAPI
 drivers under load (intel/media-driver #207, #1342) and hard-crashes the d3d12
-shim. Jellyfin/Plex/Emby instead run **one ffmpeg per variant** (single output).
+shim. Mainstream servers instead run **one ffmpeg per variant** (single output).
 
 `EVEY_TRANSCODING_HW_PER_VARIANT=true` switches the **HW** path to that model:
 one single-output ffmpeg per rung behind a composite handle, while software

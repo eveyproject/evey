@@ -80,7 +80,7 @@ export default function QuickConnectScreen() {
       }
     }
 
-    // 3s matches Jellyfin's mobile clients - short enough for snappy
+    // 3s poll - short enough for snappy
     // authorize→tab handoff, long enough not to hammer the server when 50
     // devices are sitting on the screen. Web uses SSE so it's instant; we
     // can't on mobile.

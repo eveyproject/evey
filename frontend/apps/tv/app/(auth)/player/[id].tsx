@@ -150,7 +150,7 @@ export default function PlayerScreen() {
     return () => stopSession();
   }, [stopSession]);
 
-  // Mirror Jellyfin's MaxResumePct=90: trigger MarkAsWatched once
+  // MaxResumePct=90 (the standard watched ceiling): trigger MarkAsWatched once
   // playback crosses 90%. The server's ReportProgressBySession path
   // hardcodes Completed=false so without this fix the user has to
   // manually toggle "watched" after every episode.

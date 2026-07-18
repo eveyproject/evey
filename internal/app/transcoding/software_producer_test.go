@@ -787,7 +787,7 @@ func TestSoftwareProducer_ProfilesCopyModeIsSingleSourceRung(t *testing.T) {
 	require.Greater(t, len(p.Profiles(base, src, transcoding.PlaybackDecision{}, capability)), 1)
 
 	// Copy mode → exactly ONE rung at the source resolution with Copy=true (the
-	// Jellyfin remux: direct-play quality, no transcode ladder). The planner is
+	// paced remux: direct-play quality, no transcode ladder). The planner is
 	// never called by Profiles - only its presence flips the branch.
 	p.SetCopyMode(NewCopyPlanner(nil, nil), nil)
 	copyProfiles := p.Profiles(base, src, transcoding.PlaybackDecision{}, capability)

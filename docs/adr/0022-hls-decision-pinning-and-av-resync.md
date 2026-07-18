@@ -16,7 +16,7 @@ and its cache identity is the `DecisionFingerprint`
 Three distinct production incidents shaped this subsystem, and the invariants
 below exist specifically to prevent each from recurring:
 
-1. **Green frames on Chromecast (2026-07-07, "a beta tester").** A live EVENT
+1. **Green frames on Chromecast (2026-07-07).** A live EVENT
    playlist is polled repeatedly. Background keyframe enrichment landed
    *mid-viewing*, so between two polls the *same* playlist URL flipped from
    transcode to the copy rung. The source-h264 segments were then served under

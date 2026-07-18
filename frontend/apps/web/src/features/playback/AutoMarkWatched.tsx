@@ -23,7 +23,7 @@ interface AutoMarkWatchedProps {
 const THRESHOLD = 0.9;
 
 /**
- * Mirror of Jellyfin's MaxResumePct=90: once playback crosses 90% of the
+ * MaxResumePct=90, the standard watched ceiling: once playback crosses 90% of the
  * media's runtime, fire MarkAsWatched once. The server's
  * ReportProgressBySession path always sends Completed=false, so without
  * this the user has to manually toggle "watched" after every episode.

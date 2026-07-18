@@ -116,3 +116,9 @@ ml-trigger.txt
 # ac3go WebAssembly decoder - built from the pinned module (go.mod tool), not committed.
 frontend/apps/web/public/wasm/ac3go.wasm
 frontend/apps/web/public/wasm/wasm_exec.js
+
+# Local benchmark data (real library titles) - never tracked
+bench/
+
+# Claude local tooling - never tracked
+.claude/

@@ -524,8 +524,8 @@ func selectedAudioSpec(specs []StreamSpec, prefs TranscodingPreferences) *Stream
 // evaluateSubtitle decides how the subtitle stream s (subtitle-relative index
 // subIdx) is delivered. Burn-in is the only destructive path - it overlays onto
 // decoded frames, so it forces a video transcode (forceBurnVideoTranscode) and
-// denies the copy/remux rung. To match Jellyfin (which gates burn on the
-// SELECTED SubtitleStreamIndex, not on existence), burn fires ONLY when this is
+// denies the copy/remux rung. Burn is gated on the SELECTED track (not on
+// mere existence), so it fires ONLY when this is
 // the selected track (subIdx == prefs.SubtitleBurnInTrack) and it is a bitmap
 // sub. An unselected bitmap track is a no-op - not burnt, and not deliverable as
 // a sidecar - so a Blu-ray rip that merely CARRIES a PGS track still gets its

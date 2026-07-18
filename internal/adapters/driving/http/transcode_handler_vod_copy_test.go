@@ -266,7 +266,7 @@ func TestAudioCopyEligibilityAndServedCodec(t *testing.T) {
 }
 
 // Mid-play decision pinning - regression lock for the prod "green frames on
-// Chromecast" incident (2026-07-07, "a beta tester"): a playback started as
+// Chromecast" incident (2026-07-07): a playback started as
 // TRANSCODE; ~22 min in, the keyframe backfill worker indexed the file, the
 // copy rung became eligible, and the next EVENT-playlist poll of the SAME
 // URLs flipped the served bitstream to the source h264 under the transcode

@@ -134,7 +134,7 @@ func (pr *PlanResolver) Decide(ctx context.Context, req PlaybackRequest) transco
 	// then-current video decision into every child URL (vd=..., see
 	// buildManifestInput/querySuffix); this honors it on the follow-up polls.
 	// Background enrichment can flip copy-eligibility BETWEEN two polls of a
-	// live EVENT playlist - measured in prod ("a beta tester", 2026-07-07): the
+	// live EVENT playlist - measured in prod (2026-07-07): the
 	// keyframe backfill indexed the file 22 min into a TRANSCODE playback,
 	// the same playlist URL switched to the copy plan, and the source-h264
 	// segments under the transcode init rendered as green garbage on the
