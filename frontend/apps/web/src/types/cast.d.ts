@@ -74,6 +74,8 @@ declare namespace chrome.cast {
     class LoadRequest {
       constructor(mediaInfo: MediaInfo);
       autoplay: boolean;
+      /** Position (seconds) the receiver starts playback at. */
+      currentTime: number;
     }
 
     const StreamType: { BUFFERED: string };

@@ -276,17 +276,23 @@ export function HLSPlayer({
     // Build a URL the Chromecast can fetch independently (absolute, with token)
     let url: string;
     // Resume the cast at the local player's current ABSOLUTE position rather
-    // than restarting from 0. Only applies to transcode (the server bakes the
-    // start offset into the HLS stream); direct play hands the receiver the
-    // full file, which it can seek on its own.
+    // than restarting from 0. Transcode: the server bakes the offset into the
+    // HLS stream (castStartSec, the receiver's timeline then starts there).
+    // Direct play: the receiver gets the whole file and owns the absolute
+    // timeline, so the resume must ride the LoadRequest (castResumeSec) -
+    // nothing else ever seeks it, and omitting it restarted every
+    // direct-play cast at 0.
     let castStartSec = 0;
+    let castResumeSec = 0;
+    const resumeAtSec = positionRef.current > 0 ? Math.floor(positionRef.current) : 0;
     if (streamInfo.directPlayUrl) {
       // Direct play - append token if not already present
       const hasToken = streamInfo.directPlayUrl.includes("token=");
       url = hasToken ? streamInfo.directPlayUrl : `${streamInfo.directPlayUrl}${streamInfo.directPlayUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(streamTokenRef.current)}`;
+      castResumeSec = resumeAtSec;
     } else {
       // Transcode - HLS master playlist, started at the current position.
-      castStartSec = positionRef.current > 0 ? Math.floor(positionRef.current) : 0;
+      castStartSec = resumeAtSec;
       url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, castStartSec, 0, gapless);
     }
     // Swap in a long-lived cast token. The Chromecast fetches segments on
@@ -311,7 +317,7 @@ export function HLSPlayer({
     // by hand would diverge).
     castBaseUrlRef.current = url;
     castTranscodeOffsetRef.current = castStartSec;
-    startCast(url, title);
+    startCast(url, title, castResumeSec);
   }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex, onCastTokenRequest, gapless]);
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);

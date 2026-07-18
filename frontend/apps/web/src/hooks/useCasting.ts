@@ -17,8 +17,14 @@ const error: typeof console.error = DEV ? console.error.bind(console) : () => {}
 // loadChromecastMedia builds a MediaInfo + LoadRequest and hands it to an
 // existing Cast session. Shared by the initial startCast and by castReload
 // (the seek-by-reload path) so the HLS/mp4 content-type handling stays in
-// one place.
-async function loadChromecastMedia(session: cast.framework.CastSession, absoluteUrl: string, title?: string): Promise<void> {
+// one place. Exported for tests.
+//
+// startAtSec seeks the receiver to that position at load - the DIRECT-PLAY
+// resume path: the receiver owns the file's whole timeline and nobody else
+// will ever seek it, so omitting it restarted every direct-play cast at 0.
+// A transcode cast passes 0: its start offset is baked into the stream
+// server-side (startSec=) and the receiver's timeline begins there already.
+export async function loadChromecastMedia(session: cast.framework.CastSession, absoluteUrl: string, title?: string, startAtSec = 0): Promise<void> {
   const chrome = window.chrome;
   const isHls = absoluteUrl.includes("m3u8");
   const contentType = isHls ? "application/x-mpegurl" : "video/mp4";
@@ -37,7 +43,10 @@ async function loadChromecastMedia(session: cast.framework.CastSession, absolute
   mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
   mediaInfo.metadata.title = title ?? "";
   const loadRequest = new chrome.cast.media.LoadRequest(mediaInfo);
+  // Always autoplay: casting while the LOCAL player is paused must still
+  // start playback on the TV - the handoff pauses the local element anyway.
   loadRequest.autoplay = true;
+  if (startAtSec > 0) loadRequest.currentTime = startAtSec;
   await session.loadMedia(loadRequest);
 }
 
@@ -279,8 +288,10 @@ export function useCasting() {
     };
   }, []);
 
-  const startCast = useCallback(async (streamUrl: string, title?: string) => {
-    log(TAG, "startCast - url:", streamUrl, "title:", title);
+  // startAtSec: initial receiver position for DIRECT PLAY (see
+  // loadChromecastMedia); transcode casts pass 0 (offset baked in the URL).
+  const startCast = useCallback(async (streamUrl: string, title?: string, startAtSec = 0) => {
+    log(TAG, "startCast - url:", streamUrl, "title:", title, "startAtSec:", startAtSec);
 
     const origin = localStorage.getItem("cast_base_url") || window.location.origin;
     const absoluteUrl = streamUrl.startsWith("http")
@@ -308,7 +319,7 @@ export function useCasting() {
 
         log(TAG, "Loading media...", { url: absoluteUrl });
         try {
-          await loadChromecastMedia(session, absoluteUrl, title);
+          await loadChromecastMedia(session, absoluteUrl, title, startAtSec);
         } catch (loadErr) {
           // A session exists (the user picked a device) but the receiver
           // couldn't load the stream. Falling through to server-side LAN
