@@ -76,14 +76,19 @@ let sdkLoaded = false;
 let sdkReady = false;
 const readyCallbacks: Array<() => void> = [];
 
-const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+// Only iOS is a hard no for the Cast sender SDK (WebKit-only, no Cast
+// surface). Android Chrome supports it fully - skipping all mobile here is
+// what used to leave Android users with no cast button. Every other
+// non-Chromium browser (desktop or Android Firefox) self-reports through
+// __onGCastApiAvailable(false), so no UA gate is needed for them.
+const isIOSBrowser = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 function ensureCastSdk() {
   if (sdkLoaded) return;
   sdkLoaded = true;
 
-  if (isMobileBrowser) {
-    log(TAG, "Mobile browser detected - skipping Cast SDK (unsupported)");
+  if (isIOSBrowser) {
+    log(TAG, "iOS browser detected - skipping Cast SDK (unsupported)");
     return;
   }
   log(TAG, "Injecting Cast sender SDK script...");
@@ -145,8 +150,9 @@ export function useCasting() {
   const controllerRef = useRef<any>(null);
   const remotePlayerRef = useRef<any>(null);
   // Whether the Google Cast sender SDK actually initialized. False on
-  // Firefox/Safari/mobile (no SDK) - the UI uses this to hide the cast
-  // button for users who have no working native-cast path.
+  // Firefox/Safari/iOS (no SDK) - the UI uses this to hide the cast
+  // button for users who have no working native-cast path. Chromium
+  // desktop AND Android Chrome both initialize it.
   const [castSdkReady, setCastSdkReady] = useState(sdkReady);
 
   useEffect(() => {

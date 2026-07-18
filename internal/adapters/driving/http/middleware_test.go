@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -50,6 +51,36 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 	}
 	if w.Header().Get("Referrer-Policy") != "strict-origin-when-cross-origin" {
 		t.Error("missing Referrer-Policy")
+	}
+}
+
+// The CSP must allow BOTH the ac3go wasm decoder ('wasm-unsafe-eval') and the
+// Google Cast sender SDK (script-src https://www.gstatic.com). Tightening the
+// policy for the wasm path once silently broke Chromecast for every user:
+// cast_sender.js was refused, castSdkReady stayed false, and no cast button
+// ever appeared. This test pins the two directives together so neither can
+// regress the other.
+func TestSecurityHeadersMiddleware_CSPAllowsWasmAndCastSDK(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+	h := securityHeadersMiddleware(false, next)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	csp := w.Header().Get("Content-Security-Policy")
+	scriptSrc := ""
+	for directive := range strings.SplitSeq(csp, ";") {
+		if d := strings.TrimSpace(directive); strings.HasPrefix(d, "script-src ") {
+			scriptSrc = d
+		}
+	}
+	if scriptSrc == "" {
+		t.Fatalf("no script-src directive in CSP %q", csp)
+	}
+	if !strings.Contains(scriptSrc, "'wasm-unsafe-eval'") {
+		t.Errorf("script-src must keep 'wasm-unsafe-eval' (ac3go wasm decoder), got %q", scriptSrc)
+	}
+	if !strings.Contains(scriptSrc, "https://www.gstatic.com") {
+		t.Errorf("script-src must allow https://www.gstatic.com (Cast sender SDK), got %q", scriptSrc)
 	}
 }
 

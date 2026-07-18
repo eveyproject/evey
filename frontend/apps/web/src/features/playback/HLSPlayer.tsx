@@ -260,13 +260,13 @@ export function HLSPlayer({
     castSdkReady, connected: castConnected, deviceName: castDeviceName,
     castPlayback, startCast, stopCast, castPlayPause, castSeek, castReload, castSetVolume, castSetMuted,
   } = useCasting();
-  // Cast button visibility. The native Google Cast SDK (castSdkReady)
-  // works for any user on Chrome/Chromium. The server-side DLNA/cast
-  // path only discovers devices on the *server's* LAN, so it's only
-  // meaningful for the admin (the operator, guaranteed-local) - exposing
-  // it to remote users just yields a confusing empty device list.
-  const isAdmin = useAuthStore((s) => s.isAdmin);
-  const castAvailable = castSdkReady || isAdmin;
+  // Cast button visibility: native Google Cast SDK only. Casting targets
+  // each USER's own devices, discovered by THEIR browser on THEIR LAN -
+  // which only the SDK can do. The server-side cast/DLNA path discovers
+  // the *server's* LAN instead (the operator's living room, and usually
+  // nothing at all from a Docker bridge), so it never gates the button:
+  // showing it on that basis just yields a confusing empty device list.
+  const castAvailable = castSdkReady;
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {
@@ -780,7 +780,12 @@ export function HLSPlayer({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <video ref={(el) => { videoRef.current = el; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
+      {/* disableRemotePlayback kills the browser's built-in cast of the raw
+          <video> (on Android Chrome it hijacks the tap into a Google page
+          while the film keeps playing locally, and it can't cast an MSE
+          stream anyway). All casting goes through Evey's own button, which
+          hands the receiver a URL it can fetch itself. */}
+      <video ref={(el) => { videoRef.current = el; if (el) el.disableRemotePlayback = true; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
 
       {/* Top-right cluster: Watch together, then the cast icon to its right.
           Fades with the control bars (auto-hide) so it doesn't stay pinned
