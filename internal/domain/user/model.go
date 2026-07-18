@@ -384,6 +384,13 @@ func (k *APIKeyModel) Validate() error {
 	if k.KeyHash == "" {
 		return errors.New("API key hash is required")
 	}
+	// An empty scope list used to mean "allow-all" at the interceptor: a key
+	// minted with no scopes was a fully unrestricted credential. Require at least
+	// one scope so a new key is always bounded (defense in depth alongside the
+	// interceptor's deny-by-default on admin methods).
+	if len(k.Permissions) == 0 {
+		return errors.New("API key requires at least one scope (an unscoped key would be unrestricted)")
+	}
 	return nil
 }
 

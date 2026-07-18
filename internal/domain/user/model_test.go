@@ -550,11 +550,12 @@ func TestAPIKeyModel_Validate(t *testing.T) {
 		key     user.APIKeyModel
 		wantErr string
 	}{
-		{"valid", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "CI", KeyHash: "h"}, ""},
-		{"no ID", user.APIKeyModel{UserID: "u1", Name: "CI", KeyHash: "h"}, "API key ID is required"},
-		{"no user ID", user.APIKeyModel{ID: "ak-1", UserID: "", Name: "CI", KeyHash: "h"}, "API key user ID is required"},
-		{"no name", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "", KeyHash: "h"}, "API key name is required"},
-		{"no hash", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "CI", KeyHash: ""}, "API key hash is required"},
+		{"valid", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "CI", KeyHash: "h", Permissions: []string{"media:read"}}, ""},
+		{"no ID", user.APIKeyModel{UserID: "u1", Name: "CI", KeyHash: "h", Permissions: []string{"media:read"}}, "API key ID is required"},
+		{"no user ID", user.APIKeyModel{ID: "ak-1", UserID: "", Name: "CI", KeyHash: "h", Permissions: []string{"media:read"}}, "API key user ID is required"},
+		{"no name", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "", KeyHash: "h", Permissions: []string{"media:read"}}, "API key name is required"},
+		{"no hash", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "CI", KeyHash: "", Permissions: []string{"media:read"}}, "API key hash is required"},
+		{"no scopes", user.APIKeyModel{ID: "ak-1", UserID: "u1", Name: "CI", KeyHash: "h"}, "API key requires at least one scope (an unscoped key would be unrestricted)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -692,6 +693,15 @@ func TestNewAPIKey(t *testing.T) {
 		_, err := user.NewAPIKey("ak-1", "u1", "CI", "")
 		if err == nil {
 			t.Fatal("expected error on empty hash")
+		}
+	})
+
+	t.Run("empty scopes rejected", func(t *testing.T) {
+		t.Parallel()
+		// A key with no scopes would be an unrestricted credential - refuse it.
+		_, err := user.NewAPIKey("ak-1", "u1", "CI", "hash")
+		if err == nil {
+			t.Fatal("expected error: an unscoped API key must be refused")
 		}
 	})
 }

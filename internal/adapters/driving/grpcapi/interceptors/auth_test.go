@@ -509,6 +509,69 @@ func TestAPIKeyScope_Denied(t *testing.T) {
 	assert.Equal(t, codes.PermissionDenied, status.Code(err))
 }
 
+// An API key belonging to an admin user must NOT reach admin infra/ops RPCs
+// unless the key explicitly carries the scope that RPC maps to. Admin methods
+// are JWT-only by default (deny-by-default): forgetting to enumerate a new
+// admin RPC can no longer expose it (RestartServer, arbitrary-file MKV
+// attachment R/W, session kill, webhook CRUD, ...) to every admin API key, and
+// an empty-scope "legacy allow-all" key gets NO admin reach at all.
+func TestAPIKey_AdminMethodsDenyByDefault(t *testing.T) {
+	adminKeyInterceptor := func(perms []string) grpc.UnaryServerInterceptor {
+		tokenGen := fakes.NewFakeTokenGenerator()
+		apiKeyRepo := fakes.NewFakeAPIKeyRepository()
+		userRepo := fakes.NewFakeUserRepository()
+		apiKeyRepo.Create(context.Background(), &user.APIKeyModel{
+			ID: "ak-admin", UserID: "usr-admin", KeyHash: apiKeyHash("evey_adminkey"),
+			Name: "admin-key", Permissions: perms,
+		})
+		userRepo.Create(context.Background(), &user.User{
+			ID: "usr-admin", Username: "root", Enabled: true, IsAdmin: true,
+		})
+		return interceptors.NewAuthInterceptor(tokenGen).WithAPIKeys(apiKeyRepo, userRepo).Unary()
+	}
+
+	// Admin infra/ops RPCs with NO API-key scope mapping: blocked even for an
+	// admin key, whatever its scopes.
+	denied := []string{
+		"/evey.v1.AdminSystemService/RestartServer",
+		"/evey.v1.MKVService/ExtractAttachment",
+		"/evey.v1.MKVService/ListAttachments",
+		"/evey.v1.AdminSessionService/KillSession",
+		"/evey.v1.AdminMediaService/DeleteMediaItem",
+		"/evey.v1.WebhookService/CreateWebhook",
+		"/evey.v1.AdminMediaService/RemuxAudioLibrary",
+	}
+	for _, scopes := range [][]string{nil, {auth.ScopeAdminRead}, {auth.ScopeMediaWrite}} {
+		ic := adminKeyInterceptor(scopes)
+		for _, method := range denied {
+			_, err := ic(ctxWithAPIKey("evey_adminkey"), nil, &grpc.UnaryServerInfo{FullMethod: method}, nopHandler)
+			require.Error(t, err, "admin key (scopes=%v) must be denied on %s", scopes, method)
+			assert.Equal(t, codes.PermissionDenied, status.Code(err), method)
+		}
+	}
+
+	// An admin RPC that DOES map to an API-key scope stays reachable - but only
+	// with that scope, never via an empty-scope allow-all key.
+	statsMethod := "/evey.v1.ActivityService/GetServerStats" // -> ScopeAdminRead
+	_, err := adminKeyInterceptor([]string{auth.ScopeAdminRead})(ctxWithAPIKey("evey_adminkey"), nil, &grpc.UnaryServerInfo{FullMethod: statsMethod}, nopHandler)
+	require.NoError(t, err, "an admin key holding admin:read may call an admin:read RPC")
+	_, err = adminKeyInterceptor(nil)(ctxWithAPIKey("evey_adminkey"), nil, &grpc.UnaryServerInfo{FullMethod: statsMethod}, nopHandler)
+	require.Error(t, err, "an empty-scope key must NOT allow-all onto an admin RPC")
+	assert.Equal(t, codes.PermissionDenied, status.Code(err))
+}
+
+// The deny-by-default guard is scoped to API keys: a browser/app JWT for an
+// admin user still reaches every admin RPC (that is the whole point of
+// InternalMethods/deny-by-default - restrict KEYS, not the admin themselves).
+func TestJWTAdmin_ReachesAdminInfraMethods(t *testing.T) {
+	ai, tokenGen := setupInterceptor()
+	token, _ := tokenGen.GenerateAccessToken(user.Claims{UserID: "a1", Username: "root", IsAdmin: true})
+	for _, method := range []string{"/evey.v1.AdminSystemService/RestartServer", "/evey.v1.MKVService/ExtractAttachment"} {
+		_, err := ai.Unary()(ctxWithToken(token), nil, &grpc.UnaryServerInfo{FullMethod: method}, nopHandler)
+		require.NoError(t, err, "a JWT admin must still reach %s", method)
+	}
+}
+
 func TestEnforceRBAC_ContextClaims(t *testing.T) {
 	ai, tokenGen := setupInterceptor()
 	interceptor := ai.Unary()

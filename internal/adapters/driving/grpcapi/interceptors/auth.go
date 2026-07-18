@@ -127,27 +127,40 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 
 	isAPIKey := IsAPIKeyAuth(ctx)
 
-	// Block API keys from internal methods (infra/ops/auth - browser-only)
-	if isAPIKey && authpkg.InternalMethods[method] {
-		slog.Warn("api key blocked on internal method", slog.String("method", method), slog.String("user", claims.UserID))
-		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.internal_method")
-	}
-
 	role, exists := i.rbac.MethodRoles[method]
-	if exists && role == RoleAdmin {
-		if !claims.IsAdmin {
-			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
-		}
+	isAdminMethod := exists && role == RoleAdmin
+	if isAdminMethod && !claims.IsAdmin {
+		return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 
-	// Enforce API key scopes. Empty scopes = allow-all (legacy keys).
-	// A key with scopes is authorized for a method if it holds either the coarse
-	// scope (APIKeyScopeFor, colon notation) or the fine-grained legacy permission
-	// (MethodPermissions, dot notation).
-	if isAPIKey && len(claims.Permissions) > 0 {
+	if isAPIKey {
+		// 1. Hard block list: auth / session / user-lifecycle / infra RPCs are
+		//    never reachable by an API key, even one whose user is admin.
+		if authpkg.InternalMethods[method] {
+			slog.Warn("api key blocked on internal method", slog.String("method", method), slog.String("user", claims.UserID))
+			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.internal_method")
+		}
+
 		scope, hasScope := authpkg.APIKeyScopeFor[method]
 		perm, hasPerm := authpkg.MethodPermissions[method]
-		if hasScope || hasPerm {
+
+		// 2. Deny-by-default for admin RPCs: an admin method is JWT-only unless it
+		//    explicitly maps to an API-key scope. New admin RPCs are internal by
+		//    construction - forgetting to enumerate one can no longer expose it to
+		//    admin API keys (RestartServer, arbitrary-file MKV attachment R/W,
+		//    session kill, webhook CRUD, ...).
+		if isAdminMethod && !hasScope && !hasPerm {
+			slog.Warn("api key blocked on unscoped admin method", slog.String("method", method), slog.String("user", claims.UserID))
+			return i.translatedErr(ctx, codes.PermissionDenied, "errors.auth.internal_method")
+		}
+
+		// 3. Enforce the scope when the method maps to one. Admin methods ALWAYS
+		//    enforce it, so an empty-scope "legacy allow-all" key gets no admin
+		//    reach; non-admin methods keep the legacy empty-scope allow-all for the
+		//    key owner's own domain resources. A key holding either the coarse
+		//    scope (APIKeyScopeFor, colon notation) or the fine-grained permission
+		//    (MethodPermissions, dot notation) is authorized.
+		if (hasScope || hasPerm) && (isAdminMethod || len(claims.Permissions) > 0) {
 			ok := (hasScope && claims.HasPermission(scope)) || (hasPerm && claims.HasPermission(perm))
 			if !ok {
 				slog.Warn("api key scope denied", slog.String("method", method), slog.String("required_scope", scope), slog.String("required_perm", perm))

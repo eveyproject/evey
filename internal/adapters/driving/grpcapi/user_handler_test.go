@@ -376,7 +376,8 @@ func TestCreateAPIKey_Success(t *testing.T) {
 	ctx := userCtx("usr-1", "prf-1")
 
 	resp, err := env.handler.CreateAPIKey(ctx, &eveyv1.CreateAPIKeyRequest{
-		Name: "my-key",
+		Name:   "my-key",
+		Scopes: []string{"media:read"},
 	})
 	if err != nil {
 		t.Fatalf("CreateAPIKey: %v", err)
@@ -392,12 +393,22 @@ func TestCreateAPIKey_Success(t *testing.T) {
 	}
 }
 
+func TestCreateAPIKey_EmptyScopesRejected(t *testing.T) {
+	env := setupUserHandler()
+	ctx := userCtx("usr-1", "prf-1")
+
+	// A key with no scopes would be an unrestricted credential: refuse it at the
+	// boundary rather than mint an allow-all key.
+	_, err := env.handler.CreateAPIKey(ctx, &eveyv1.CreateAPIKeyRequest{Name: "no-scopes"})
+	assertCode(t, err, codes.InvalidArgument)
+}
+
 func TestListAPIKeys_Success(t *testing.T) {
 	env := setupUserHandler()
 	ctx := userCtx("usr-1", "prf-1")
 
-	_, _ = env.handler.CreateAPIKey(ctx, &eveyv1.CreateAPIKeyRequest{Name: "key1"})
-	_, _ = env.handler.CreateAPIKey(ctx, &eveyv1.CreateAPIKeyRequest{Name: "key2"})
+	_, _ = env.handler.CreateAPIKey(ctx, &eveyv1.CreateAPIKeyRequest{Name: "key1", Scopes: []string{"media:read"}})
+	_, _ = env.handler.CreateAPIKey(ctx, &eveyv1.CreateAPIKeyRequest{Name: "key2", Scopes: []string{"media:read"}})
 
 	resp, err := env.handler.ListAPIKeys(ctx, &eveyv1.ListAPIKeysRequest{})
 	if err != nil {
@@ -883,7 +894,7 @@ func TestRevokeAPIKey_OwnerSuccess(t *testing.T) {
 	env := setupUserHandler()
 	ctx := userCtx("usr-1", "prf-1")
 
-	created, _ := env.handler.CreateAPIKey(ctx, &eveyv1.CreateAPIKeyRequest{Name: "my-key"})
+	created, _ := env.handler.CreateAPIKey(ctx, &eveyv1.CreateAPIKeyRequest{Name: "my-key", Scopes: []string{"media:read"}})
 	_, err := env.handler.RevokeAPIKey(ctx, &eveyv1.RevokeAPIKeyRequest{Id: created.Id})
 	if err != nil {
 		t.Fatalf("RevokeAPIKey: %v", err)
@@ -898,7 +909,7 @@ func TestRevokeAPIKey_OwnerSuccess(t *testing.T) {
 func TestRevokeAPIKey_NonOwnerDenied(t *testing.T) {
 	env := setupUserHandler()
 	ctxOwner := userCtx("usr-1", "prf-1")
-	created, _ := env.handler.CreateAPIKey(ctxOwner, &eveyv1.CreateAPIKeyRequest{Name: "key1"})
+	created, _ := env.handler.CreateAPIKey(ctxOwner, &eveyv1.CreateAPIKeyRequest{Name: "key1", Scopes: []string{"media:read"}})
 
 	ctxOther := userCtx("usr-2", "prf-2")
 	_, err := env.handler.RevokeAPIKey(ctxOther, &eveyv1.RevokeAPIKeyRequest{Id: created.Id})
