@@ -142,6 +142,7 @@ streamInfo:
   transcodeReasons: Transcode reasons
   decisionCopy: copied
   decisionTranscode: transcoded
+  decisionWasm: client-decoded
   reason:
     video_codec_unsupported: Video codec this player cannot decode
     audio_codec_unsupported: Audio codec this player cannot decode

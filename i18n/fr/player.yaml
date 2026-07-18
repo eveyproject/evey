@@ -142,6 +142,7 @@ streamInfo:
   transcodeReasons: Raisons du transcodage
   decisionCopy: copié
   decisionTranscode: transcodé
+  decisionWasm: décodé client
   reason:
     video_codec_unsupported: Codec vidéo non lisible par ce lecteur
     audio_codec_unsupported: Codec audio non lisible par ce lecteur

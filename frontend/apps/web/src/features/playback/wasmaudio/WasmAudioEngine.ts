@@ -33,7 +33,7 @@ const RESYNC_THRESHOLD_SEC = 0.3;
 // picture (decoder has no output latency; the display + hls.js pipeline does).
 // Delaying the audio by roughly the output latency lines them up. Tunable.
 const DEFAULT_LEAD_COMP_SEC = 0.1;
-const SCHEDULE_TICK_MS = 200;
+const SCHEDULE_TICK_MS = 100;
 
 interface Segment {
   url: string; // resolved, absolute
@@ -81,16 +81,27 @@ export class WasmAudioEngine {
   private gain: GainNode | null = null;
 
   private segments: Segment[] = [];
-  private nextSegIdx = 0;
 
   private anchored = false;
   private anchorCtx = 0;
   private anchorMedia = 0;
   private anchorRate = 1;
 
+  // Decode is DECOUPLED from scheduling: pump() decodes segments ahead into
+  // decodedCache (even while the video is still buffering its first frames), so
+  // the audio is ready the instant the picture starts and does not lag it.
+  // scheduleWindow() then wires the already-decoded segments onto the clock.
+  private decodedCache = new Map<number, DecodedSegment>();
+  private inflight = new Set<number>();
+  private scheduledIdx = new Set<number>();
   private activeSources = new Set<AudioBufferSourceNode>();
+  // Stall gate: the last observed currentTime. The audio only plays while the
+  // picture is genuinely ADVANCING; a frozen currentTime (startup buffering, a
+  // mid-play stall) freezes the audio too, instead of letting it run - and loop
+  // on re-sync - ahead of a stalled picture.
+  private lastCt = -1;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private filling = false;
+  private pumping = false;
   private destroyed = false;
   private started = false;
   // Fallback tripwire: true once ANY segment has been scheduled. Until then, a
@@ -288,16 +299,23 @@ export class WasmAudioEngine {
   private attachVideoEvents(): void {
     const v = this.video;
     this.on(v, "seeking", () => {
-      this.flushSources();
+      this.clearScheduled();
       this.anchored = false;
     });
-    this.on(v, "seeked", () => this.resync());
+    this.on(v, "seeked", () => {
+      // Re-baseline the stall gate at the new position and warm the cache there;
+      // the tick re-anchors once the picture is advancing again.
+      this.lastCt = v.currentTime;
+      void this.pump(v.currentTime);
+    });
+    // Pause: suspend immediately (the tick keeps it frozen and, being paused,
+    // preserves the anchor + sources for a seamless resume).
     this.on(v, "pause", () => {
       void this.ctx?.suspend();
     });
+    // Resume: unfreeze immediately; the tick re-anchors/re-schedules as needed.
     this.on(v, "playing", () => {
-      void this.ctx?.resume();
-      if (!this.anchored) this.reanchor();
+      if (!v.paused) void this.ctx?.resume();
     });
     this.on(v, "ratechange", () => {
       // A non-1x playback rate changes the media/wall-clock slope; re-anchor so
@@ -319,20 +337,21 @@ export class WasmAudioEngine {
     return this.anchorCtx + (mediaTime - this.anchorMedia) / this.anchorRate;
   }
 
-  private reanchor(): void {
+  private reanchor(ct: number): void {
     if (!this.ctx) return;
     this.anchorCtx = this.ctx.currentTime;
-    this.anchorMedia = this.video.currentTime;
+    this.anchorMedia = ct;
     this.anchorRate = this.video.playbackRate || 1;
     this.anchored = true;
-    this.nextSegIdx = this.segmentIndexAt(this.video.currentTime);
   }
 
+  // resync drops the current schedule and unanchors; the next advancing tick
+  // re-anchors at the fresh position and re-schedules from the (pre-decoded)
+  // cache. Used on seek / large drift.
   private resync(): void {
     if (this.destroyed) return;
-    this.flushSources();
-    this.reanchor();
-    void this.fill();
+    this.clearScheduled();
+    this.anchored = false;
   }
 
   private segmentIndexAt(mediaTime: number): number {
@@ -345,7 +364,7 @@ export class WasmAudioEngine {
     return idx;
   }
 
-  private flushSources(): void {
+  private clearScheduled(): void {
     for (const s of this.activeSources) {
       try {
         s.onended = null;
@@ -355,52 +374,90 @@ export class WasmAudioEngine {
       }
     }
     this.activeSources.clear();
+    this.scheduledIdx.clear();
   }
 
   private startScheduling(): void {
-    if (!this.video.paused) this.reanchor();
-    this.timer = setInterval(() => {
-      if (this.destroyed) return;
-      if (this.video.paused) return;
-      if (!this.anchored) {
-        this.reanchor();
-      } else {
-        // Drift watchdog: only a seek/stall exceeds the threshold; the natural
-        // drift is negligible and left alone (a re-anchor is audible).
-        const audioMedia = this.anchorMedia + ((this.ctx?.currentTime ?? 0) - this.anchorCtx) * this.anchorRate;
-        if (Math.abs(this.video.currentTime - audioMedia) > RESYNC_THRESHOLD_SEC) {
-          this.resync();
-          return;
-        }
-      }
-      void this.fill();
-    }, SCHEDULE_TICK_MS);
+    this.lastCt = this.video.currentTime;
+    void this.pump(this.video.currentTime); // start decoding immediately, don't wait a tick
+    this.timer = setInterval(() => this.tick(), SCHEDULE_TICK_MS);
   }
 
-  private async fill(): Promise<void> {
-    if (this.filling || this.destroyed || !this.ctx || !this.anchored) return;
-    this.filling = true;
+  private tick(): void {
+    if (this.destroyed || !this.ctx) return;
+    const ct = this.video.currentTime;
+    // Decode ahead ALWAYS (even paused/stalled) so start/resume is instant.
+    void this.pump(ct);
+
+    // "Advancing" = the picture's clock actually moved since last tick. A frozen
+    // currentTime (buffering, stall) or a paused element is NOT advancing.
+    const advancing = !this.video.paused && ct > this.lastCt + 1e-3;
+    this.lastCt = ct;
+
+    if (this.video.paused) {
+      // Pause: freeze the audio clock seamlessly and KEEP the anchor + scheduled
+      // sources, so resume continues exactly where it stopped (both clocks froze
+      // together, so the mapping still holds).
+      if (this.ctx.state === "running") void this.ctx.suspend();
+      return;
+    }
+    if (!advancing) {
+      // Playing but the picture is STALLED (buffering, esp. a cold transcode
+      // start): freeze the audio AND drop the schedule/anchor. Recovery may jump
+      // currentTime, and letting the audio run - and loop on re-sync - ahead of a
+      // frozen frame is exactly the startup "audio loops while waiting" glitch.
+      if (this.ctx.state === "running") void this.ctx.suspend();
+      if (this.anchored || this.activeSources.size > 0) {
+        this.anchored = false;
+        this.clearScheduled();
+      }
+      return;
+    }
+
+    if (this.ctx.state === "suspended") void this.ctx.resume();
+    if (!this.anchored) {
+      this.reanchor(ct);
+    } else {
+      // Drift watchdog: only a seek/stall exceeds the threshold; natural drift is
+      // negligible and left alone (a re-anchor is audible).
+      const audioMedia = this.anchorMedia + (this.ctx.currentTime - this.anchorCtx) * this.anchorRate;
+      if (Math.abs(ct - audioMedia) > RESYNC_THRESHOLD_SEC) {
+        this.resync();
+        return;
+      }
+    }
+    this.scheduleWindow(ct);
+  }
+
+  // pump decodes every not-yet-decoded segment inside the look-ahead window into
+  // decodedCache, and evicts segments left well behind the playhead. Runs
+  // regardless of the anchor/stall state so the buffer is warm before playback.
+  private async pump(ct: number): Promise<void> {
+    if (this.pumping || this.destroyed || !this.worker) return;
+    this.pumping = true;
     try {
-      const fillUntil = this.video.currentTime + BUFFER_AHEAD_SEC;
-      while (
-        !this.destroyed &&
-        this.nextSegIdx < this.segments.length &&
-        this.segments[this.nextSegIdx].start < fillUntil
-      ) {
-        const seg = this.segments[this.nextSegIdx];
-        this.nextSegIdx++;
-        // Skip a segment already wholly in the past (fast-forward / resync).
-        if (seg.start + seg.dur <= this.video.currentTime - 0.05) continue;
+      // Evict played-out segments (memory bound).
+      for (const idx of this.decodedCache.keys()) {
+        const s = this.segments[idx];
+        if (s && s.start + s.dur < ct - 4) this.decodedCache.delete(idx);
+      }
+      const start = this.segmentIndexAt(ct);
+      for (let idx = start; idx < this.segments.length; idx++) {
+        if (this.destroyed) return;
+        const seg = this.segments[idx];
+        if (seg.start > ct + BUFFER_AHEAD_SEC) break;
+        if (seg.start + seg.dur <= ct - 0.05) continue; // wholly past
+        if (this.decodedCache.has(idx) || this.inflight.has(idx)) continue;
+        this.inflight.add(idx);
         try {
-          const decoded = await this.decodeSegment(seg);
-          if (this.destroyed || !this.anchored) return;
-          this.scheduleDecoded(seg, decoded);
+          const d = await this.decodeSegment(seg);
+          if (this.destroyed) return;
+          this.decodedCache.set(idx, d);
+          this.decodeFailStreak = 0;
         } catch (err) {
-          // A single bad segment once playback is going must not kill it (skip
-          // it). But if NOTHING has ever scheduled and decodes keep failing, the
-          // stream is undecodable - fall back to the AAC transcode. Keyed on
-          // everScheduled, not segments[0], so a deep resume (which starts
-          // mid-file) is covered too.
+          // A single bad segment once playback is going must not kill it. But if
+          // NOTHING has ever scheduled and decodes keep failing, the stream is
+          // undecodable - fall back to the AAC transcode.
           if (!this.everScheduled) {
             this.decodeFailStreak++;
             if (this.decodeFailStreak >= 3) {
@@ -409,14 +466,33 @@ export class WasmAudioEngine {
             }
           }
           console.warn("[WasmAudioEngine] segment decode failed, skipping:", err);
+        } finally {
+          this.inflight.delete(idx);
         }
       }
     } finally {
-      this.filling = false;
+      this.pumping = false;
     }
   }
 
-  private scheduleDecoded(seg: Segment, d: DecodedSegment): void {
+  // scheduleWindow wires every already-decoded, not-yet-scheduled segment in the
+  // look-ahead window onto the AudioContext clock. Segments still decoding are
+  // picked up on a later tick once pump() has them.
+  private scheduleWindow(ct: number): void {
+    if (!this.anchored) return;
+    const start = this.segmentIndexAt(ct);
+    for (let idx = start; idx < this.segments.length; idx++) {
+      const seg = this.segments[idx];
+      if (seg.start > ct + BUFFER_AHEAD_SEC) break;
+      if (this.scheduledIdx.has(idx)) continue;
+      if (seg.start + seg.dur <= ct - 0.05) continue; // wholly past
+      const d = this.decodedCache.get(idx);
+      if (!d) continue; // not decoded yet - a later tick schedules it
+      this.scheduleDecoded(idx, seg, d);
+    }
+  }
+
+  private scheduleDecoded(idx: number, seg: Segment, d: DecodedSegment): void {
     const ctx = this.ctx;
     if (!ctx || !this.gain) return;
     const map = channelSourceMap(d.channels);
@@ -449,6 +525,7 @@ export class WasmAudioEngine {
       source.start(now, into);
     }
     this.activeSources.add(source);
+    this.scheduledIdx.add(idx);
     this.everScheduled = true;
     source.onended = () => {
       this.activeSources.delete(source);
@@ -465,7 +542,7 @@ export class WasmAudioEngine {
     anchored: boolean;
     ctxState: string;
     segments: number;
-    nextSegIdx: number;
+    decoded: number;
   } {
     const audioMediaTime = this.anchored
       ? this.anchorMedia + ((this.ctx?.currentTime ?? 0) - this.anchorCtx) * this.anchorRate
@@ -478,7 +555,7 @@ export class WasmAudioEngine {
       anchored: this.anchored,
       ctxState: this.ctx?.state ?? "none",
       segments: this.segments.length,
-      nextSegIdx: this.nextSegIdx,
+      decoded: this.decodedCache.size,
     };
   }
 
@@ -489,7 +566,9 @@ export class WasmAudioEngine {
     this.destroyed = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    this.flushSources();
+    this.clearScheduled();
+    this.decodedCache.clear();
+    this.inflight.clear();
     for (const [ev, fn] of this.boundHandlers) this.video.removeEventListener(ev, fn);
     this.boundHandlers.length = 0;
     this.gestureUnlock?.();

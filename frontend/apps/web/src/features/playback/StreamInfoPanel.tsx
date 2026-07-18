@@ -71,18 +71,24 @@ function DecisionBadge({ decision }: { decision?: string }) {
   const { t } = useTranslation();
   if (!decision) return null;
   const isCopy = decision === "copy";
+  // "wasm": the AC-3/E-AC-3 audio is NOT transcoded - it is served untouched and
+  // decoded in the browser (ac3go WebAssembly). Distinct accent badge so the
+  // panel does not mislabel it "transcodé".
+  const isWasm = decision === "wasm";
   return (
     <span
       className="ml-2 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[10px] font-semibold uppercase tracking-normal"
       style={{
-        backgroundColor: isCopy ? "var(--success)" : "var(--warning)",
+        backgroundColor: isWasm ? "var(--accent)" : isCopy ? "var(--success)" : "var(--warning)",
         color: "var(--bg)",
         opacity: 0.9,
       }}
     >
-      {isCopy
-        ? t("player.streamInfo.decisionCopy", { defaultValue: "copié" })
-        : t("player.streamInfo.decisionTranscode", { defaultValue: "transcodé" })}
+      {isWasm
+        ? t("player.streamInfo.decisionWasm", { defaultValue: "décodé client" })
+        : isCopy
+          ? t("player.streamInfo.decisionCopy", { defaultValue: "copié" })
+          : t("player.streamInfo.decisionTranscode", { defaultValue: "transcodé" })}
     </span>
   );
 }
@@ -100,12 +106,15 @@ interface StreamInfoPanelProps {
   streamInfo?: V1StreamInfo;
   open: boolean;
   onToggle: () => void;
+  // wasmAudioActive: the audio is decoded client-side (ac3go WebAssembly), not
+  // transcoded server-side, so the audio section shows a "décodé client" badge.
+  wasmAudioActive?: boolean;
 }
 
 // StreamInfoPanel surfaces the playback decision the backend already returns
 // (play method, codecs, transcode reasons) - visibility the mobile app has but the
 // web player lacked. Mirrors the SettingsPanel popover chrome.
-export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelProps) {
+export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }: StreamInfoPanelProps) {
   const { t } = useTranslation();
 
   function toggle(e: React.MouseEvent) {
@@ -178,7 +187,7 @@ export function StreamInfoPanel({ streamInfo, open, onToggle }: StreamInfoPanelP
 
           {audioStream && (
             <>
-              <Section title={t("player.streamInfo.audio")} decision={streamInfo.audioDecision} />
+              <Section title={t("player.streamInfo.audio")} decision={wasmAudioActive ? "wasm" : streamInfo.audioDecision} />
               <InfoRow label={t("player.streamInfo.codec")} value={(audioStream.codec ?? "-").toUpperCase()} />
               {audioStream.channels && (
                 <InfoRow label={t("player.streamInfo.channels")} value={formatChannels(audioStream.channels)} />

@@ -53,6 +53,8 @@ interface PlayerControlsProps {
   onCastSetVolume?: (level: number) => void;
   onCastSetMuted?: (muted: boolean) => void;
   streamInfo?: V1StreamInfo;
+  /** True when the AC-3/E-AC-3 audio is decoded client-side (ac3go wasm). */
+  wasmAudioActive?: boolean;
   /** True while the HLS pipeline is stalled waiting for segments. */
   isBuffering?: boolean;
   /** True when the video element is actively playing (not paused / not yet started). */
@@ -88,6 +90,7 @@ function PlayerControlsInner({
   onCastSetVolume,
   onCastSetMuted,
   streamInfo,
+  wasmAudioActive,
   isBuffering,
   isPlaying,
 }: PlayerControlsProps) {
@@ -666,6 +669,7 @@ function PlayerControlsInner({
           {streamInfo && (
             <StreamInfoPanel
               streamInfo={streamInfo}
+              wasmAudioActive={wasmAudioActive}
               open={openPanel === "streaminfo"}
               onToggle={() => setOpenPanel(openPanel === "streaminfo" ? null : "streaminfo")}
             />

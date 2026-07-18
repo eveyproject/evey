@@ -983,6 +983,7 @@ export function HLSPlayer({
       >
         <PlayerControls
           streamInfo={streamInfo}
+          wasmAudioActive={wasmAudioActive}
           onClose={onClose}
           onAudioChange={handleAudioChange}
           onQualityChange={handleQualityChange}
