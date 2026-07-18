@@ -134,6 +134,66 @@ func TestAdmissionShaper_BindIsIdempotentAndBounded(t *testing.T) {
 	assert.Equal(t, 1, countOf(shaper.pins["s1"].boundHashes, "same-hash"), "idempotent")
 }
 
+// ============================================================================
+// StreamPlan reification (Étape 2): the granted decision is an immutable value
+// with its own content hash, minted once and replaced (never mutated) on
+// supersession.
+// ============================================================================
+
+func TestStreamPlan_Hash_IdentityAndDistinctness(t *testing.T) {
+	t.Parallel()
+	base := StreamPlan{Class: LadderClassSoftware, Ceiling: 1080}
+	assert.Equal(t, base.Hash(), StreamPlan{Class: LadderClassSoftware, Ceiling: 1080}.Hash(),
+		"the same (class, ceiling) hashes identically")
+	assert.NotEqual(t, base.Hash(), StreamPlan{Class: LadderClassSoftware, Ceiling: 1440}.Hash(),
+		"a different ceiling is a different plan")
+	assert.NotEqual(t, base.Hash(), StreamPlan{Class: LadderClassHW, Ceiling: 1080}.Hash(),
+		"a different route (class) is a different plan")
+}
+
+func TestAdmissionShaper_PlanFor_ReturnsLivePlanMatchingGrant(t *testing.T) {
+	shaper, _, _ := shaperFixture(t)
+
+	g := shaper.GrantRoute("s1", LadderClassSoftware, ladder, nil)
+	require.True(t, g.OK)
+
+	plan, ok := shaper.PlanFor("s1")
+	require.True(t, ok, "a live stream has a readable plan")
+	assert.Equal(t, LadderClassSoftware, plan.Class)
+	assert.Equal(t, g.Ceiling, plan.Ceiling)
+	assert.Equal(t, g.PlanHash, plan.Hash(), "the grant's PlanHash IS the stored plan's hash")
+
+	_, ok = shaper.PlanFor("never-admitted")
+	assert.False(t, ok, "no plan for a stream that was never admitted")
+}
+
+// The immutability property that makes the cache-hash invariant structural: a
+// live plan's hash never changes across grants; only a supersession (cold +
+// unheld, budget changed) mints a NEW plan with a NEW hash. The plan is never
+// mutated in place.
+func TestAdmissionShaper_PlanHash_StableWhileLive_ChangesOnlyOnSupersession(t *testing.T) {
+	shaper, limiter, clock := shaperFixture(t)
+	require.True(t, limiter.TryAcquire("hash-first", LadderClassSoftware, 1440), "first viewer holds 0.530")
+
+	g1 := shaper.GrantRoute("s2", LadderClassSoftware, ladder, nil)
+	require.Equal(t, 1080, g1.Ceiling, "forced to 1080 by the first viewer's load")
+
+	// While fresh, every re-grant returns the SAME immutable plan/hash - even
+	// after the budget frees entirely.
+	limiter.Release("hash-first")
+	g2 := shaper.GrantRoute("s2", LadderClassSoftware, ladder, nil)
+	assert.Equal(t, g1.PlanHash, g2.PlanHash, "a live plan's hash is frozen; it is never mutated")
+	assert.Equal(t, 1080, g2.Ceiling)
+
+	// Cold and unheld: the plan is superseded by a NEW one against the now-empty
+	// budget - a different ceiling, hence a different hash.
+	*clock = clock.Add(defaultPinFreshFor)
+	g3 := shaper.GrantRoute("s2", LadderClassSoftware, ladder, nil)
+	require.Equal(t, 1440, g3.Ceiling, "the retry sees the budget of its moment")
+	assert.NotEqual(t, g1.PlanHash, g3.PlanHash, "supersession mints a new plan identity")
+	assert.Equal(t, StreamPlan{Class: LadderClassSoftware, Ceiling: 1440}.Hash(), g3.PlanHash)
+}
+
 func countOf(xs []string, want string) int {
 	n := 0
 	for _, x := range xs {
