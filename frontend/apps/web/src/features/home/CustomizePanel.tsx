@@ -12,6 +12,7 @@ import { useAuthStore, toast } from "@evey/store";
 import { X, GripVertical, RotateCcw } from "lucide-react";
 import { FEED_LABEL_KEYS, isKnownFeedType, isPluginFeedType, pluginIdFromFeedType, pluginFeedType } from "./feedTypes";
 import { Switch } from "@/components/ui/Switch";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface HomePlugin {
   id: string;
@@ -51,6 +52,9 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
   const profileId = useAuthStore((s) => s.profileId);
   const queryClient = useQueryClient();
   const panelRef = useRef<HTMLDivElement>(null);
+  // aria-modal claims focus is trapped; actually trap it so Tab can't escape to
+  // the page behind the slide-over while it is open.
+  useFocusTrap(panelRef, open);
   const { data } = useFeedServiceGetFeedConfig({ profileId: profileId ?? undefined });
   const { data: librariesData } = useLibraryServiceListLibraries();
   const libraryNames = new Map(

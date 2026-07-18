@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { memo, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Search, Radio, ChevronRight, Copy, SlidersHorizontal, AlertTriangle } from "lucide-react";
@@ -91,7 +91,11 @@ function matchClient(e: LogEntry, f: FilterParams): boolean {
   return true;
 }
 
-function LogRow({ entry }: { entry: LogEntry }) {
+// Memoised: in live-tail mode every incoming SSE line replaces the whole
+// entries array (up to LIVE_CAP=1000). Each row's `entry` object is stable once
+// created, so memo lets an unchanged row skip re-render instead of re-rendering
+// all ~1000 on every tick.
+const LogRow = memo(function LogRow({ entry }: { entry: LogEntry }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const copy = useCallback(
@@ -177,7 +181,7 @@ function LogRow({ entry }: { entry: LogEntry }) {
       )}
     </div>
   );
-}
+});
 
 export function LogsExplorer() {
   const { t } = useTranslation();

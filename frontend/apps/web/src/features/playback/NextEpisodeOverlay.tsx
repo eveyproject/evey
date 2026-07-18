@@ -50,13 +50,24 @@ export function NextEpisodeOverlay({
     };
   }, [ended, cancelled, nextEpisode]);
 
+  // Fire the advance exactly once per next-episode cycle. onPlayNow's identity
+  // is not guaranteed stable by every caller, so without this guard any
+  // re-render after countdown hit 0 would re-run the effect and navigate twice.
+  const firedRef = useRef(false);
+  useEffect(() => {
+    firedRef.current = false;
+  }, [nextEpisode?.id]);
+
   const handlePlayNow = useCallback(() => {
+    if (firedRef.current) return;
+    firedRef.current = true;
     if (intervalRef.current) clearInterval(intervalRef.current);
     if (nextEpisode) onPlayNow(nextEpisode.id);
   }, [nextEpisode, onPlayNow]);
 
   useEffect(() => {
-    if (countdown <= 0 && nextEpisode && !cancelled) {
+    if (countdown <= 0 && nextEpisode && !cancelled && !firedRef.current) {
+      firedRef.current = true;
       if (intervalRef.current) clearInterval(intervalRef.current);
       onPlayNow(nextEpisode.id);
     }

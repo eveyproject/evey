@@ -237,7 +237,7 @@ function AdminMediaSegmentsPage() {
             className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
           >
             <ChevronLeft size={14} />
-            {t("nav.admin")}
+            {t("common.nav.admin")}
           </Link>
         }
       />

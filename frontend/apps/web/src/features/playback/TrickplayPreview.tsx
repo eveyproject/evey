@@ -100,7 +100,11 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
           }
         }
       } catch {
-        cueCache.set(mediaId, []);
+        // A transient failure (network blip, sprite sheet still generating
+        // server-side) must NOT permanently disable previews for this item:
+        // drop the in-flight guard so a later hover can retry instead of being
+        // blacklisted for the whole page session.
+        fetchedIds.delete(mediaId);
       }
     })();
   }, [mediaId, hasTrickplay]);

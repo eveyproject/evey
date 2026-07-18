@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMusicPlayerStore } from "@evey/store";
 import type { V1Trailer } from "@evey/api";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: string }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, open);
   const pauseMusic = useMusicPlayerStore((s) => s.pauseExternal);
   const resumeMusic = useMusicPlayerStore((s) => s.resumeExternal);
 
@@ -68,6 +71,7 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
           onClick={() => setOpen(false)}
         >
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label={t("media.detail.trailer")}

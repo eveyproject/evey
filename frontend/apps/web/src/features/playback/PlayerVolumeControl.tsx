@@ -64,7 +64,7 @@ export function PlayerVolumeControl({ volume, muted, onToggleMute, onVolumeChang
       <span
         className={[
           "hidden sm:block tabular-nums text-[11px] w-9 text-right select-none",
-          boosted ? "text-amber-400 font-medium" : "text-white/60",
+          boosted ? "text-[var(--warning)] font-medium" : "text-[var(--text-muted)]",
         ].join(" ")}
         aria-hidden="true"
       >

@@ -1,6 +1,6 @@
 import { TriangleAlert } from "lucide-react";
 import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { libraryServiceGetMediaItem, libraryServiceListMediaItems } from "@evey/api";
@@ -193,37 +193,47 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     }
   }, [router, mediaId]);
 
-  const audioStreams: AudioStream[] =
-    streamInfo?.mediaStreams
-      ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO")
-      .map((s, i) => ({
-        index: s.index ?? 0,
-        trackIndex: i,
-        language: s.language,
-        title: s.title,
-        isDefault: s.isDefault,
-        codec: s.codec,
-      })) ?? [];
-
-  const subtitleStreams: SubtitleStream[] =
-    streamInfo?.mediaStreams
-      ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
-      .map((s, i) => {
-        const codec = s.codec?.toLowerCase() ?? "";
-        const burnIn = IMAGE_SUBTITLE_CODECS.has(codec);
-        return {
+  // Memoise so these arrays keep a stable identity across re-renders driven by
+  // unrelated state (share dialog, syncplay ws, season selection): they flow
+  // into PlayerProvider, whose own value memo exists precisely to avoid churning
+  // every player consumer, and a fresh array every render defeats it.
+  const audioStreams: AudioStream[] = useMemo(
+    () =>
+      streamInfo?.mediaStreams
+        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO")
+        .map((s, i) => ({
           index: s.index ?? 0,
           trackIndex: i,
           language: s.language,
           title: s.title,
           isDefault: s.isDefault,
-          isForced: s.isForced,
-          isExternal: s.isExternal,
-          externalPath: s.externalPath,
           codec: s.codec,
-          burnIn,
-        };
-      }) ?? [];
+        })) ?? [],
+    [streamInfo?.mediaStreams],
+  );
+
+  const subtitleStreams: SubtitleStream[] = useMemo(
+    () =>
+      streamInfo?.mediaStreams
+        ?.filter((s) => s.type === "MEDIA_STREAM_TYPE_SUBTITLE")
+        .map((s, i) => {
+          const codec = s.codec?.toLowerCase() ?? "";
+          const burnIn = IMAGE_SUBTITLE_CODECS.has(codec);
+          return {
+            index: s.index ?? 0,
+            trackIndex: i,
+            language: s.language,
+            title: s.title,
+            isDefault: s.isDefault,
+            isForced: s.isForced,
+            isExternal: s.isExternal,
+            externalPath: s.externalPath,
+            codec: s.codec,
+            burnIn,
+          };
+        }) ?? [],
+    [streamInfo?.mediaStreams],
+  );
 
   const { data: chapters } = useChapters(mediaId);
   const startPositionMs = progress?.positionMs ? Number(progress.positionMs) : 0;
@@ -253,18 +263,29 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     enabled: !!selectedSeasonId,
   });
 
-  const seasons = [...(seasonsData?.items ?? [])]
-    .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
-    .map((s) => ({ id: s.id!, title: s.title ?? `Season ${s.indexNumber}`, indexNumber: s.indexNumber }));
+  const seasons = useMemo(
+    () =>
+      [...(seasonsData?.items ?? [])]
+        .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
+        .map((s) => ({ id: s.id!, title: s.title ?? `Season ${s.indexNumber}`, indexNumber: s.indexNumber })),
+    [seasonsData?.items],
+  );
 
-  const episodes = [...(episodesData?.items ?? [])]
-    .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
-    .map((ep) => ({ id: ep.id!, title: ep.title ?? `Episode ${ep.indexNumber}`, indexNumber: ep.indexNumber }));
+  const episodes = useMemo(
+    () =>
+      [...(episodesData?.items ?? [])]
+        .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
+        .map((ep) => ({ id: ep.id!, title: ep.title ?? `Episode ${ep.indexNumber}`, indexNumber: ep.indexNumber })),
+    [episodesData?.items],
+  );
 
-  function handleEpisodeChange(episodeId: string) {
-    usePlayerStore.getState().stop();
-    void router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
-  }
+  const handleEpisodeChange = useCallback(
+    (episodeId: string) => {
+      usePlayerStore.getState().stop();
+      void router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
+    },
+    [router],
+  );
 
   const handleEnded = useCallback(() => {
     handleClose();
