@@ -82,6 +82,11 @@ func TestSecurityHeadersMiddleware_CSPAllowsWasmAndCastSDK(t *testing.T) {
 	if !strings.Contains(scriptSrc, "https://www.gstatic.com") {
 		t.Errorf("script-src must allow https://www.gstatic.com (Cast sender SDK), got %q", scriptSrc)
 	}
+	// Plugin frontends are inlined into a srcdoc iframe, which inherits THIS
+	// policy - without the token every plugin UI silently renders blank.
+	if !strings.Contains(scriptSrc, "'unsafe-inline'") {
+		t.Errorf("script-src must keep 'unsafe-inline' (plugin srcdoc bundles), got %q", scriptSrc)
+	}
 }
 
 func TestApiCacheMiddleware_DefaultNoStore(t *testing.T) {

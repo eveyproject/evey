@@ -16,8 +16,12 @@
     <meta property="og:image" content="/social/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="/social/og-image.png" />
-    <link id="theme-link" rel="stylesheet" href="/themes/default.css" media="print" onload="this.media='all'" />
-    <noscript><link rel="stylesheet" href="/themes/default.css" /></noscript>
+    <!-- Loaded normally, NOT with the media="print" + onload="this.media='all'"
+         trick: that inline event handler is a CSP violation (script-src-attr),
+         so under any policy without 'unsafe-inline' the stylesheet stayed
+         media="print" and the theme never applied. It is a small same-origin
+         file - the render-blocking cost is negligible next to a broken theme. -->
+    <link id="theme-link" rel="stylesheet" href="/themes/default.css" />
   </head>
   <body>
     <div id="root"></div>

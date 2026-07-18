@@ -36,6 +36,7 @@ these tokens or features break silently:
 
 | Token | Directive | Breaks without it |
 | --- | --- | --- |
+| `'unsafe-inline'` | `script-src` | Every plugin UI (blank iframe). A plugin bundle is fetched with the user's token and inlined into a `srcdoc` iframe, and a srcdoc document inherits the embedder's policy. The iframe's `sandbox="allow-scripts"` (opaque origin, no parent DOM/cookie access) is what bounds the plugin meanwhile. |
 | `'wasm-unsafe-eval'` | `script-src` | Browser AC-3/E-AC-3 playback (the ac3go WebAssembly decoder can't compile → the film plays muted). This is the narrow token that permits Wasm compilation only - NOT general `eval()`. |
 | `https://www.gstatic.com` | `script-src` (+ `frame-src`) | The Google Cast sender SDK never loads → no cast button for anyone. It is the only way a browser can discover Chromecasts on the user's own LAN. |
 | `blob:` | `media-src` | MSE playback (hls.js attaches the stream via a blob URL). |
@@ -45,20 +46,26 @@ A known-good policy for a curating proxy:
 
 ```
 default-src 'self'; img-src 'self' https: data: blob:; media-src 'self' blob:;
-style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com;
+style-src 'self' 'unsafe-inline';
+script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com;
 connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:;
 frame-src https://www.gstatic.com
 ```
 
-Two rules of thumb:
+Rules of thumb:
 
 - **Exactly one CSP header must reach the browser.** With two (e.g. the app's
   AND your proxy's, or Caddy's AND Nginx Proxy Manager's "Advanced" snippet),
   browsers enforce the *intersection* - the strictest wins and the failure is
   silent. Check with `curl -sI https://your.domain | grep -ci content-security-policy`
   → must print `1`.
-- Avoid `'unsafe-inline'` in `script-src`: the app does not need it (only
-  `style-src` does), and it defeats most of the XSS protection a CSP provides.
+- **Keep the policy on ONE line.** A CSP split across lines in a proxy config
+  is a classic silent corruption: the join swallows the characters at the seam
+  (`...gstatic.com; connect-src` became `...gstaticonnect-src` once, which
+  disabled the Cast SDK and merged two directives).
+- `'unsafe-inline'` in `script-src` is a real cost, and it is currently
+  load-bearing (plugin UIs, see the table). Dropping it is only safe on a
+  deployment that runs no plugin frontends.
 
 Every bundled example reads the domain from **one place**: `EVEY_DOMAIN` in
 your `.env`. Set it once; Caddy, Nginx and Traefik all pick it up.
@@ -99,4 +106,4 @@ docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.
 1. Add a proxy host: your domain → `evey:9091`, enable **WebSocket support**.
 2. SSL tab: request a Let's Encrypt certificate.
 3. Advanced tab: paste the streaming `location` blocks from
-   [`examples/nginx/evey.conf`](../examples/nginx/evey.conf) so playback isn't buffered.
+   [`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template) so playback isn't buffered.
