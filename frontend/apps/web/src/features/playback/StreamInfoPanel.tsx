@@ -211,11 +211,20 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
             </>
           )}
 
-          {streamInfo.transcodeReasons && streamInfo.transcodeReasons.length > 0 && (
+          {(() => {
+            // On the wasm-audio path the audio is decoded client-side, NOT
+            // transcoded - so the "audio codec unsupported / channels exceeded"
+            // reasons (which merely routed the audio off direct-play into the
+            // wasm path) would read as a transcode that isn't happening. Drop
+            // them; the video/container reasons that remain are real.
+            const reasons = (streamInfo.transcodeReasons ?? []).filter(
+              (r) => !(wasmAudioActive && (r === "audio_codec_unsupported" || r === "audio_channels_exceeded")),
+            );
+            return reasons.length > 0 ? (
             <>
               <Section title={t("player.streamInfo.transcodeReasons")} />
               <ul className="px-3 py-1.5 space-y-1">
-                {streamInfo.transcodeReasons.map((reason) => (
+                {reasons.map((reason) => (
                   <li key={reason} className="flex gap-1.5 text-xs text-[var(--text-muted)]">
                     <span aria-hidden className="text-[var(--warning)]">•</span>
                     {/* Raw reasons are snake_case enum values: translate, and fall back to
@@ -229,7 +238,8 @@ export function StreamInfoPanel({ streamInfo, open, onToggle, wasmAudioActive }:
                 ))}
               </ul>
             </>
-          )}
+            ) : null;
+          })()}
         </div>
       )}
     </div>

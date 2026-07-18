@@ -116,6 +116,10 @@ export class WasmAudioEngine {
 
   private readonly boundHandlers: Array<[string, EventListener]> = [];
   private gestureUnlock: (() => void) | null = null;
+  // Armed = allowed to attempt an AudioContext resume. Disarmed after a refused
+  // (autoplay-blocked) resume so the tick can't spam the console; re-armed on a
+  // successful resume or a user gesture. See resumeCtx().
+  private ctxRetry = true;
 
   constructor(video: HTMLVideoElement, playlistUrl: string, opts: WasmAudioEngineOptions = {}) {
     this.video = video;
@@ -269,12 +273,34 @@ export class WasmAudioEngine {
     // autoplay muted without one, so arm a one-shot gesture unlock that resumes
     // the context; also resume whenever the video plays.
     const unlock = () => {
-      void ctx.resume();
+      this.ctxRetry = true; // a real gesture: re-arm and resume within it
+      this.resumeCtx();
     };
     const events = ["pointerdown", "keydown", "touchstart"];
     events.forEach((ev) => window.addEventListener(ev, unlock, { passive: true }));
     this.gestureUnlock = () => events.forEach((ev) => window.removeEventListener(ev, unlock));
-    if (!this.video.paused) void ctx.resume();
+    this.resumeCtx();
+  }
+
+  // resumeCtx attempts to resume a suspended context, then DISARMS itself until
+  // the resume actually lands or a gesture re-arms it. Autoplay-blocked resume()
+  // calls each log "AudioContext couldn't start automatically", and the tick
+  // would call this constantly - so we try ONCE, and only retry after it
+  // succeeds (a previously-unlocked context we suspended for a stall/pause) or a
+  // user gesture. When autoplay IS allowed, or the page already has activation
+  // (the click that opened the player), the one attempt succeeds immediately.
+  private resumeCtx(): void {
+    const ctx = this.ctx;
+    if (!ctx || ctx.state !== "suspended" || !this.ctxRetry) return;
+    this.ctxRetry = false;
+    ctx
+      .resume()
+      .then(() => {
+        if (ctx.state === "running") this.ctxRetry = true; // re-arm for next cycle
+      })
+      .catch(() => {
+        /* refused for lack of a gesture - stay disarmed until unlock() */
+      });
   }
 
   // Volume/mute mirror the <video> element: the wasm-audio path serves a
@@ -306,7 +332,7 @@ export class WasmAudioEngine {
       // Re-baseline the stall gate at the new position and warm the cache there;
       // the tick re-anchors once the picture is advancing again.
       this.lastCt = v.currentTime;
-      void this.pump(v.currentTime);
+      void this.pump();
     });
     // Pause: suspend immediately (the tick keeps it frozen and, being paused,
     // preserves the anchor + sources for a seamless resume).
@@ -315,7 +341,7 @@ export class WasmAudioEngine {
     });
     // Resume: unfreeze immediately; the tick re-anchors/re-schedules as needed.
     this.on(v, "playing", () => {
-      if (!v.paused) void this.ctx?.resume();
+      if (!v.paused) this.resumeCtx();
     });
     this.on(v, "ratechange", () => {
       // A non-1x playback rate changes the media/wall-clock slope; re-anchor so
@@ -379,7 +405,7 @@ export class WasmAudioEngine {
 
   private startScheduling(): void {
     this.lastCt = this.video.currentTime;
-    void this.pump(this.video.currentTime); // start decoding immediately, don't wait a tick
+    void this.pump(); // start decoding immediately, don't wait a tick
     this.timer = setInterval(() => this.tick(), SCHEDULE_TICK_MS);
   }
 
@@ -387,7 +413,7 @@ export class WasmAudioEngine {
     if (this.destroyed || !this.ctx) return;
     const ct = this.video.currentTime;
     // Decode ahead ALWAYS (even paused/stalled) so start/resume is instant.
-    void this.pump(ct);
+    void this.pump();
 
     // "Advancing" = the picture's clock actually moved since last tick. A frozen
     // currentTime (buffering, stall) or a paused element is NOT advancing.
@@ -414,7 +440,8 @@ export class WasmAudioEngine {
       return;
     }
 
-    if (this.ctx.state === "suspended") void this.ctx.resume();
+    this.resumeCtx();
+    if (this.ctx.state === "suspended") return; // not unlocked yet - wait for a gesture
     if (!this.anchored) {
       this.reanchor(ct);
     } else {
@@ -429,30 +456,41 @@ export class WasmAudioEngine {
     this.scheduleWindow(ct);
   }
 
-  // pump decodes every not-yet-decoded segment inside the look-ahead window into
-  // decodedCache, and evicts segments left well behind the playhead. Runs
-  // regardless of the anchor/stall state so the buffer is warm before playback.
-  private async pump(ct: number): Promise<void> {
+  // pump keeps the look-ahead window decoded into decodedCache. It re-reads the
+  // LIVE playhead on every iteration and always decodes the first missing segment
+  // FROM THE CURRENT position - so a resume or seek that moves the playhead (even
+  // one that lands after the engine already started pre-decoding from 0) switches
+  // the decode to the new position after at most one in-flight segment, instead
+  // of grinding through a stale window first (the deep-resume "no sound for
+  // several seconds" bug). Runs regardless of anchor/stall so the buffer is warm.
+  private async pump(): Promise<void> {
     if (this.pumping || this.destroyed || !this.worker) return;
     this.pumping = true;
     try {
-      // Evict played-out segments (memory bound).
-      for (const idx of this.decodedCache.keys()) {
-        const s = this.segments[idx];
-        if (s && s.start + s.dur < ct - 4) this.decodedCache.delete(idx);
-      }
-      const start = this.segmentIndexAt(ct);
-      for (let idx = start; idx < this.segments.length; idx++) {
-        if (this.destroyed) return;
-        const seg = this.segments[idx];
-        if (seg.start > ct + BUFFER_AHEAD_SEC) break;
-        if (seg.start + seg.dur <= ct - 0.05) continue; // wholly past
-        if (this.decodedCache.has(idx) || this.inflight.has(idx)) continue;
-        this.inflight.add(idx);
+      while (!this.destroyed) {
+        const ct = this.video.currentTime;
+        // Evict played-out segments (memory bound).
+        for (const idx of this.decodedCache.keys()) {
+          const s = this.segments[idx];
+          if (s && s.start + s.dur < ct - 4) this.decodedCache.delete(idx);
+        }
+        // First not-yet-decoded segment in the window, measured from the LIVE ct.
+        let target = -1;
+        for (let idx = this.segmentIndexAt(ct); idx < this.segments.length; idx++) {
+          const seg = this.segments[idx];
+          if (seg.start > ct + BUFFER_AHEAD_SEC) break;
+          if (seg.start + seg.dur <= ct - 0.05) continue; // wholly past
+          if (this.decodedCache.has(idx) || this.inflight.has(idx)) continue;
+          target = idx;
+          break;
+        }
+        if (target < 0) break; // window fully decoded
+        const seg = this.segments[target];
+        this.inflight.add(target);
         try {
           const d = await this.decodeSegment(seg);
           if (this.destroyed) return;
-          this.decodedCache.set(idx, d);
+          this.decodedCache.set(target, d);
           this.decodeFailStreak = 0;
         } catch (err) {
           // A single bad segment once playback is going must not kill it. But if
@@ -467,7 +505,7 @@ export class WasmAudioEngine {
           }
           console.warn("[WasmAudioEngine] segment decode failed, skipping:", err);
         } finally {
-          this.inflight.delete(idx);
+          this.inflight.delete(target);
         }
       }
     } finally {
