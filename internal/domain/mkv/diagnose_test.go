@@ -22,6 +22,19 @@ func TestWrongContainer(t *testing.T) {
 	}
 }
 
+func TestMaxAudioDelayMs(t *testing.T) {
+	// Multiple tracks: the result must be the MAX, not the first/last/any entry
+	// (map iteration order is random, so a "return any" mutant would survive a
+	// single-entry test).
+	d := &Diagnosis{AudioDelaysMs: map[uint64]int64{1: 200, 2: 900, 3: 50}}
+	if got := d.MaxAudioDelayMs(); got != 900 {
+		t.Fatalf("MaxAudioDelayMs = %d, want 900 (the maximum across tracks)", got)
+	}
+	if got := (&Diagnosis{}).MaxAudioDelayMs(); got != 0 {
+		t.Fatalf("no tracks must yield 0, got %d", got)
+	}
+}
+
 func TestTrailingJunk(t *testing.T) {
 	// Surplus bytes past the declared Segment end: the media is complete, so
 	// this is trailing-junk (harmless rewrite), NOT damaged (resync) nor

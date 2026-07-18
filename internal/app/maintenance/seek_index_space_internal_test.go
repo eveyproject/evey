@@ -184,3 +184,17 @@ func TestBackupShortfalls(t *testing.T) {
 	require.Len(t, short, 1)
 	assert.Equal(t, "/short", short[0].Root)
 }
+
+// Pin the exact comparison (MissingBytes+headroom > FreeBytes): a strict '>'
+// means an exact fit is NOT a shortfall, and the headroom addition must count.
+// A mutant flipping '>' to '>=' or dropping volumeHeadroomBytes survives the
+// far-from-boundary cases above but dies here.
+func TestBackupShortfalls_Boundary(t *testing.T) {
+	free := int64(1<<30) + volumeHeadroomBytes
+	short := backupShortfalls([]SeekVolume{
+		{Root: "/exact", FreeBytes: free, MissingBytes: 1 << 30, MissingFiles: 1},     // sum == free: fits, not short
+		{Root: "/over", FreeBytes: free, MissingBytes: (1 << 30) + 1, MissingFiles: 1}, // sum == free+1: short
+	})
+	require.Len(t, short, 1)
+	assert.Equal(t, "/over", short[0].Root)
+}

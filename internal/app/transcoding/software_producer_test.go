@@ -663,6 +663,33 @@ func TestSoftwareProducer_ANewbornEncoderIsNotEvictedBeforeItsFirstDelivery(t *t
 	assert.Less(t, p.ActiveSessionCount(), 4, "past the grace window the caps evict again")
 }
 
+// newbornLocked gates the eviction shield on BOTH conditions: not-yet-delivered
+// (frontier <= startSeg) AND within the time window. The eviction tests above
+// only ever flip the time condition, so a mutant dropping the frontier check
+// would survive. Exercise the frontier axis directly.
+func TestSoftwareProducer_NewbornLockedRequiresBothFrontierAndTime(t *testing.T) {
+	cache, _ := newTestCache(t)
+	opts := swTestOpts()
+	opts.NewbornEvictionShield = time.Minute
+	p := NewSoftwareProducer(cache, newFakeProcess(), stubSource{path: "/m.mkv"}, opts, discardLogger())
+	defer p.Close()
+	now := time.Now()
+
+	// Undelivered (frontier == startSeg) AND fresh -> a shielded newborn.
+	fresh := &swSession{startSeg: 100, frontier: 100, spawnedAt: now}
+	assert.True(t, p.newbornLocked(fresh, now), "undelivered + fresh is a shielded newborn")
+
+	// Delivered its first segment (frontier > startSeg) but still time-fresh ->
+	// NOT a newborn: the shield only protects a session an active Wait still
+	// depends on, and this is the case the time-only tests never cover.
+	delivered := &swSession{startSeg: 100, frontier: 101, spawnedAt: now}
+	assert.False(t, p.newbornLocked(delivered, now), "a first delivery ends the shield even while time-fresh")
+
+	// Undelivered but past the window -> the grace has expired.
+	old := &swSession{startSeg: 100, frontier: 100, spawnedAt: now.Add(-2 * opts.NewbornEvictionShield)}
+	assert.False(t, p.newbornLocked(old, now), "past the shield window the newborn grace ends")
+}
+
 func TestSoftwareProducer_MaxSessionsPerHashEvictsLRU(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
