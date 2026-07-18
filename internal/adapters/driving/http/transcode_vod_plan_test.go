@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -13,6 +14,7 @@ import (
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
+	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
 )
 
 // countingPrefsGetter counts how many times the profile preferences are
@@ -69,6 +71,31 @@ func TestServeMaster_LoadsProfilePrefsOnce(t *testing.T) {
 
 	assert.Equal(t, int32(1), prefs.calls.Load(),
 		"one master request must load the profile prefs exactly once")
+}
+
+// Across a playback burst the prefs are cached too: N segment requests from
+// the same profile inside the TTL window fetch the profile prefs ONCE, not
+// once per request - the last per-segment Postgres round-trip gone.
+func TestSegmentBurst_LoadsProfilePrefsOnceAcrossRequests(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
+	prefs := &countingPrefsGetter{}
+	h.profilePrefs = prefs
+	prefsCache, _ := pkgcache.NewWithMaxSize[apptranscoding.TranscodingPreferences](0, mediaLookupMax)
+	h.prefsLookup = prefsCache
+
+	for seg := range 3 {
+		w := doVODRequest(h, "m1", "stream_0_00"+strconv.Itoa(seg)+".m4s")
+		require.Equal(t, http.StatusServiceUnavailable, w.Code)
+	}
+
+	assert.Equal(t, int32(1), prefs.calls.Load(),
+		"a burst of segment requests must load the profile prefs once, not once per request")
 }
 
 // resolvePlan's app-layer projection (apptranscoding.PlaybackPlan) must be

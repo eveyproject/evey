@@ -114,7 +114,7 @@ func (h *hlsVODServe) resolvePlan(r *http.Request, mediaID string, item *domainl
 		return nil, errors.New("resolvePlan: nil item")
 	}
 	claims := HTTPClaimsFromContext(r.Context())
-	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
+	prefs := h.profilePrefsFor(r.Context(), claims.ProfileID)
 	audioTrack := h.resolveAudioTrackWith(r, streams, prefs)
 	req := h.marshalPlaybackRequest(r, mediaID, item, streams, prefs, audioTrack)
 	plan, err := h.planResolver().Resolve(r.Context(), req)

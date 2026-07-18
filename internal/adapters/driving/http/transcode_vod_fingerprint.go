@@ -24,7 +24,7 @@ func (h *hlsVODServe) resolveAudioTrack(r *http.Request, streams []*domainlibrar
 		return t
 	}
 	claims := HTTPClaimsFromContext(r.Context())
-	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
+	prefs := h.profilePrefsFor(r.Context(), claims.ProfileID)
 	return h.audioTrackFromPrefs(streams, prefs)
 }
 
@@ -262,7 +262,7 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 // resolver's Decide - the same core the plan resolution runs.
 func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, r *http.Request) domaintranscoding.PlaybackDecision {
 	claims := HTTPClaimsFromContext(r.Context())
-	prefs := loadProfilePrefs(ctx, h.profilePrefs, claims.ProfileID)
+	prefs := h.profilePrefsFor(ctx, claims.ProfileID)
 	req := apptranscoding.PlaybackRequest{
 		SourcePath:          sourcePath,
 		Container:           container,

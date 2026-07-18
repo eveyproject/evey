@@ -208,6 +208,29 @@ type hlsVODServe struct {
 	// keep the direct fetch path).
 	mediaLookup *pkgcache.TTLCache[cachedMediaLookup]
 	classLookup *pkgcache.TTLCache[domaintranscoding.ContentClass]
+	// prefsLookup caches the per-profile transcoding preferences (up to 2 DB
+	// round-trips per load) for the same burst window: during playback every
+	// segment request re-resolves the plan, and the prefs behind it are
+	// stable across a burst. Same 10 s staleness tolerance as mediaLookup -
+	// a preference change converges one burst later. Keyed by profile ID;
+	// cached values are SHARED between requests: treat them as immutable
+	// (consumers mutate their own value copy only).
+	prefsLookup *pkgcache.TTLCache[apptranscoding.TranscodingPreferences]
+}
+
+// profilePrefsFor resolves the profile's transcoding preferences through the
+// short-TTL cache. Nil-safe (hand-built test handlers keep the direct fetch);
+// an empty profile ID short-circuits to defaults without touching the cache.
+func (h *hlsVODServe) profilePrefsFor(ctx context.Context, profileID string) apptranscoding.TranscodingPreferences {
+	if profileID == "" || h.prefsLookup == nil {
+		return loadProfilePrefs(ctx, h.profilePrefs, profileID)
+	}
+	if p, ok := h.prefsLookup.Get(profileID); ok {
+		return p
+	}
+	p := loadProfilePrefs(ctx, h.profilePrefs, profileID)
+	h.prefsLookup.Set(profileID, p, mediaLookupTTL)
+	return p
 }
 
 // cachedMediaLookup is one mediaLookup entry: the item and its streams as

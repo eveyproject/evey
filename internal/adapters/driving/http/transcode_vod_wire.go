@@ -118,6 +118,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	// cap bounds memory, expiry is checked on Get).
 	mediaLookup, _ := pkgcache.NewWithMaxSize[cachedMediaLookup](0, mediaLookupMax)
 	classLookup, _ := pkgcache.NewWithMaxSize[domaintranscoding.ContentClass](0, mediaLookupMax)
+	prefsLookup, _ := pkgcache.NewWithMaxSize[apptranscoding.TranscodingPreferences](0, mediaLookupMax)
 	h := &hlsVODServe{
 		keyframeWarmer:       s.KeyframeWarmer,
 		videoAdmission:       videoAdmissionOf(s.VideoLimiter),
@@ -128,6 +129,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		admissionFreezeLadder: freezeLadderOf(s.VideoAdmissionShaper),
 		mediaLookup:          mediaLookup,
 		classLookup:          classLookup,
+		prefsLookup:          prefsLookup,
 		tokens:               s.TokenGen,
 		libSvc:               libSvc,
 		libraryAccess:        libAccess,
