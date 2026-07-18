@@ -79,7 +79,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 30s
+      # Must cover a migration boot: the pre-migration pg_dump of a NAS-sized
+      # catalogue can take minutes. See the HEALTHCHECK note in the Dockerfile.
+      start_period: 300s
     depends_on:
       postgres:
         condition: service_healthy

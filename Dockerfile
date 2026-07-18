@@ -253,7 +253,14 @@ ENV EVEY_IMAGE_RUNTIMES=${RUNTIMES}
 
 EXPOSE 9091
 
-HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
+# start-period covers the SLOWEST legitimate boot, not the typical one: a
+# release carrying a schema migration first writes a full pre-migration
+# pg_dump of the catalogue (keyframe arrays included), and on a NAS-sized
+# library that alone can outlast a 30s window - the server was then declared
+# unhealthy while it was correctly working, and `docker compose up` aborted
+# the dependency chain. Failures inside the window don't count, so a generous
+# value costs nothing on a fast boot.
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=300s \
     CMD curl -sf http://localhost:9091/healthz || exit 1
 
 # No static USER: the entrypoint starts as root just long enough to re-map
