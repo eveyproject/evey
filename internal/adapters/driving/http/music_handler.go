@@ -3,6 +3,7 @@ package httpapi
 import (
 	"archive/zip"
 	"context"
+	"encoding/json"
 	"fmt"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"io"
@@ -29,18 +30,20 @@ type musicHandler struct {
 	libChecker   LibraryAccessChecker
 	libLister    MediaArchiveSource // may be nil; used for path confinement (fail-open)
 	imgConverter ImageConverter     // may be nil; ?w= resize is skipped when unset
+	nowPlaying   *appmusic.NowPlayingRegistry // may be nil; "En cours de lecture" heartbeat
 }
 
 var albumArtHashRe = regexp.MustCompile(`^[a-f0-9]{16,128}$`)
 
-func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource, imgConverter ImageConverter) {
+func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource, imgConverter ImageConverter, nowPlaying *appmusic.NowPlayingRegistry) {
 	authMw := httpAuthMiddleware(tokenGen)
 	adminMw := httpAdminMiddleware(tokenGen)
-	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister, imgConverter: imgConverter}
+	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister, imgConverter: imgConverter, nowPlaying: nowPlaying}
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", authMw(h.getTrackArt))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", authMw(h.streamTrack))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/download", authMw(ratelimit.MiddlewareFunc(rl, h.downloadTrack)))
 	mux.HandleFunc("POST /api/v1/music/tracks/{id}/played", authMw(h.recordPlay))
+	mux.HandleFunc("POST /api/v1/music/nowplaying", authMw(h.nowPlayingHeartbeat))
 	mux.HandleFunc("GET /api/v1/music/albums/download", authMw(ratelimit.MiddlewareFunc(rl, h.downloadAlbum)))
 	mux.HandleFunc("GET /api/v1/music/album-art/{hash}", authMw(h.serveAlbumArt))
 	mux.HandleFunc("POST /api/v1/admin/music/fetch-missing-art", adminMw(h.fetchMissingArt))
@@ -319,6 +322,42 @@ func (h *musicHandler) recordPlay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// nowPlayingHeartbeat records the caller's live music playback so it shows in
+// the admin "En cours de lecture" panel, and returns any queued remote command
+// (play/pause/stop) the same way the video ProgressReporter receives one. Called
+// every ~10s while a track plays, and once with stopped=true when playback ends.
+func (h *musicHandler) nowPlayingHeartbeat(w http.ResponseWriter, r *http.Request) {
+	if h.nowPlaying == nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	claims := HTTPClaimsFromContext(r.Context())
+	if claims == nil || claims.ProfileID == "" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	var body struct {
+		SessionID  string `json:"sessionId"`
+		TrackID    string `json:"trackId"`
+		DeviceName string `json:"deviceName"`
+		PositionMs int64  `json:"positionMs"`
+		IsPaused   bool   `json:"isPaused"`
+		Stopped    bool   `json:"stopped"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<11)).Decode(&body); err != nil || body.SessionID == "" {
+		http.Error(w, `{"message":"invalid body"}`, http.StatusBadRequest)
+		return
+	}
+	if body.Stopped {
+		h.nowPlaying.Remove(body.SessionID)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	cmd := h.nowPlaying.Heartbeat(body.SessionID, claims.ProfileID, claims.Username, body.TrackID, body.DeviceName, body.PositionMs, body.IsPaused)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"remoteCommand": cmd})
 }
 
 func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {

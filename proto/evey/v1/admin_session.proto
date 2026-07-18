@@ -83,6 +83,9 @@ message ActiveSession {
   // Chromecast): the media actually plays THERE, not on device_name. The
   // panel shows it as the real playback target.
   string cast_device_name = 26;
+  // Album cover URL for music sessions (media_type "track"); empty for video,
+  // which the panel renders from a trickplay thumbnail instead.
+  string cover_art_url = 27;
 }
 
 message ListActiveSessionsRequest {}

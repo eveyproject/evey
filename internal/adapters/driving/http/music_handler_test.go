@@ -77,7 +77,7 @@ func newMusicTestMuxWithToken(t *testing.T) (*http.ServeMux, string) {
 	repo := musicfakes.NewFakeMusicTrackRepository()
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appmusic.NewService(repo, bus, nil, nil)
-	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil, nil)
+	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil, nil, nil)
 	return mux, token
 }
 
@@ -145,7 +145,7 @@ func newMusicMux(t *testing.T, isAdmin bool, checker LibraryAccessChecker, repo 
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appmusic.NewService(repo, bus, libRepo, musicfakes.NewFakeMusicScanner())
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), nil, nil)
+	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), nil, nil, nil)
 	return mux, token, svc
 }
 
@@ -280,7 +280,7 @@ func TestServeAlbumArt_FileMissing_404(t *testing.T) {
 	svc := appmusic.NewService(repo, sharedfakes.NewFakeEventBus(), nil, musicfakes.NewFakeMusicScanner())
 	svc.CommandService().WithAlbumArtFetcher(nil, dir)
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil, nil)
+	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/album-art/abcdef0123456789", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -315,7 +315,7 @@ func newAlbumArtMux(t *testing.T, imgConverter ImageConverter) (mux *http.ServeM
 	// WithAlbumArtFetcher sets albumArtDir = filepath.Join(dataDir, "music_album_art")
 	svc.CommandService().WithAlbumArtFetcher(nil, dir)
 	mux = http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil, imgConverter)
+	registerMusicRoutes(mux, svc, tokenGen, allowAll(), nil, ratelimit.New(10000), nil, imgConverter, nil)
 	return mux, token, hash, imgBytes
 }
 
@@ -496,7 +496,7 @@ func newMusicMuxWithLister(t *testing.T, repo *musicfakes.FakeMusicTrackReposito
 	bus := sharedfakes.NewFakeEventBus()
 	svc := appmusic.NewService(repo, bus, nil, musicfakes.NewFakeMusicScanner())
 	mux := http.NewServeMux()
-	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), libLister, nil)
+	registerMusicRoutes(mux, svc, tokenGen, checker, nil, ratelimit.New(10000), libLister, nil, nil)
 	return mux, token
 }
 

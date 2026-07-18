@@ -120,6 +120,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		ShareSvc:               deps.media.shareSvc,
 		BioEnricher:            deps.content.enricher,
 		Music:                  deps.media.musicSvc,
+		MusicNowPlaying:        deps.media.musicNowPlaying,
 		Photo:                  deps.media.photoSvc,
 		SyncplayHub:            deps.media.syncPlayHub,
 		StarRating:             deps.content.starRatingSvc,

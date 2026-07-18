@@ -180,7 +180,8 @@ type HTTPServer struct {
 	FavoriteSvc    *appfavorite.Service
 
 	// Music
-	MusicSvc *appmusic.Service
+	MusicSvc         *appmusic.Service
+	MusicNowPlaying  *appmusic.NowPlayingRegistry // "En cours de lecture" heartbeat registry
 
 	// Rating
 	UserRatingRepo domainlibrary.UserRatingRepository
@@ -595,7 +596,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// Ratings, popular, analytics, filter → gRPC (grpcapi/rating_handler, activity_handler, library_handler)
 	registerLogsRoute(mux, s.LogDir, s.TokenGen)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
-	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.GlobalRL, s.LibQuerySvc, s.ImageConverter)
+	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.GlobalRL, s.LibQuerySvc, s.ImageConverter, s.MusicNowPlaying)
 	if s.CollectionSvc != nil {
 		registerCollectionRoutes(mux, s.CollectionSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo, s.BaseURL(), s.GlobalRL)
 	}

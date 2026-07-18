@@ -653,6 +653,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	musicScanner := filesystem.NewMusicScanner()
 	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
 	musicSvc.WithPlayRepository(r.MusicPlay)
+	musicNowPlaying := appmusic.NewNowPlayingRegistry()
 	// Same in-process fast-path as the library scan: .m4a (AAC) reads channels /
 	// sample rate / esds bitrate head-only via mkvgo, while .flac/.mp3 (not
 	// ISO-BMFF/EBML) and ALAC (dropped sample entry) fall through to ffprobe. The
@@ -1377,6 +1378,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			mkvSvc:           mkvSvc,
 			mkvAdapter:       infra.mkvAdapter,
 			musicSvc:         musicSvc,
+			musicNowPlaying:  musicNowPlaying,
 			photoSvc:         photoSvc,
 			photoTranscoder:  ffmpeg.NewPhotoTranscoder("ffmpeg"),
 			subtitleSvc:      subtitleSvc,

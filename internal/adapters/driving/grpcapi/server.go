@@ -96,6 +96,7 @@ type GRPCServerDeps struct {
 	ShareSvc        *appmedia.ShareService        // optional
 	BioEnricher     appmetadata.PeopleBioEnricher // optional
 	Music           *appmusic.Service             // optional
+	MusicNowPlaying *appmusic.NowPlayingRegistry  // optional; "En cours de lecture" music sessions
 	Photo           *appphoto.Service             // optional
 	PushEnabled     bool                          // optional
 	VAPIDPubKey     string
@@ -243,6 +244,8 @@ func (s *GRPCServer) RegisterServices() {
 		playbackCmd: d.PlaybackCmd,
 		playbackQry: d.PlaybackQuery,
 		hlsManager:  hlsMgr,
+		musicNow:    d.MusicNowPlaying,
+		musicSvc:    d.Music,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, cmd: d.ActivityCmd, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})

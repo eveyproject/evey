@@ -7,6 +7,7 @@ import (
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
+	appmusic "github.com/evey-project/evey/internal/app/music"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -36,6 +37,8 @@ type adminSessionHandler struct {
 	playbackCmd *appplayback.CommandService
 	playbackQry *appplayback.QueryService
 	hlsManager  HLSSessionRemover
+	musicNow    *appmusic.NowPlayingRegistry // may be nil; live music sessions
+	musicSvc    *appmusic.Service            // may be nil; enriches a music session's track
 }
 
 func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAuditLogRequest) (*eveyv1.GetAuditLogResponse, error) {
@@ -118,7 +121,50 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 		}
 		resp.Sessions = append(resp.Sessions, as)
 	}
+	d.appendMusicSessions(ctx, resp)
 	return resp, nil
+}
+
+// appendMusicSessions folds the live in-memory music sessions into the response,
+// enriching each with its track's display metadata. A session whose track can no
+// longer be resolved (deleted, or the music service is unwired) is skipped rather
+// than shown as a blank card.
+func (d *adminSessionHandler) appendMusicSessions(ctx context.Context, resp *eveyv1.ListActiveSessionsResponse) {
+	if d.musicNow == nil || d.musicSvc == nil {
+		return
+	}
+	for _, ms := range d.musicNow.List() {
+		track, err := d.musicSvc.GetTrack(ctx, ms.TrackID)
+		if err != nil || track == nil {
+			continue
+		}
+		title := track.Title
+		if track.Artist != "" {
+			title = track.Artist + " - " + track.Title
+		}
+		durationMs := int64(track.Duration * 1000)
+		var progress float64
+		if durationMs > 0 {
+			progress = float64(ms.PositionMs) / float64(durationMs) * 100
+		}
+		resp.Sessions = append(resp.Sessions, &eveyv1.ActiveSession{
+			SessionId:   ms.SessionID,
+			ProfileId:   ms.ProfileID,
+			ProfileName: ms.ProfileName,
+			MediaTitle:  title,
+			MediaType:   "track",
+			MediaItemId: ms.TrackID,
+			Progress:    progress,
+			DurationMs:  durationMs,
+			PositionMs:  ms.PositionMs,
+			StartedAt:   timestamppb.New(ms.StartedAt),
+			DeviceName:  ms.DeviceName,
+			PlayMethod:  "DirectStream",
+			AudioCodec:  track.MimeType,
+			IsPaused:    ms.IsPaused,
+			CoverArtUrl: track.CoverArtURL,
+		})
+	}
 }
 
 func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillSessionRequest) (*eveyv1.KillSessionResponse, error) {
@@ -187,6 +233,12 @@ func (d *adminSessionHandler) SendSessionCommand(ctx context.Context, req *eveyv
 	if req.SessionId == "" || req.Command == "" {
 		span.SetStatus(otelcodes.Error, "session_id and command required")
 		return nil, status.Error(codes.InvalidArgument, "session_id and command required")
+	}
+	// A music session lives in the in-memory registry, not play_sessions: route
+	// its command there. SetCommand reports whether the id was a live music
+	// session, so a video session falls through to the DB path below.
+	if d.musicNow != nil && d.musicNow.SetCommand(req.SessionId, req.Command) {
+		return &eveyv1.SendSessionCommandResponse{}, nil
 	}
 	if err := d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, req.Command); err != nil {
 		span.RecordError(err)

@@ -109,7 +109,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		PlaylistGenSvc: deps.content.playlistGenSvc,
 		FavoriteSvc:    deps.content.favoriteSvc,
 
-		MusicSvc: deps.media.musicSvc,
+		MusicSvc:        deps.media.musicSvc,
+		MusicNowPlaying: deps.media.musicNowPlaying,
 
 		UserRatingRepo: deps.repos.userRatingRepo,
 		StarRatingSvc:  deps.content.starRatingSvc,
