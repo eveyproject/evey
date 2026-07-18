@@ -225,6 +225,14 @@ func (s *CalibrationService) preference() domaintranscoding.HWPreference {
 	return s.HWMode().Preference()
 }
 
+// derivePolicy is the DerivePolicy that turns raw bench evidence into delivery
+// ceilings. The production defaults today; kept as a seam so a future admin-tunable
+// margin/floor is a one-line change here rather than threading config everywhere.
+// Operator ceiling OVERRIDES stay out of it - they are a Current()-time overlay.
+func (s *CalibrationService) derivePolicy() domaintranscoding.DerivePolicy {
+	return domaintranscoding.DefaultDerivePolicy()
+}
+
 // SetHWMode applies a new admin-selected HW mode and re-benches so the change
 // takes effect immediately (no restart). The caller is responsible for
 // persisting the mode string (server_settings); this only drives the in-process
@@ -328,10 +336,25 @@ func (s *CalibrationService) EnsureCalibrated(ctx context.Context) error {
 				persisted.HWMaxHeight = 0
 				persisted.HWFeatures = nil
 			}
+			// Re-derive the ceilings from the persisted PROOF under the current
+			// policy: a policy change (PolicyVersion bump, a new margin/floor)
+			// re-caps this host from its last bench without re-benching. In-memory
+			// only, matching the HW-revalidation strip above - boot never re-persists.
+			// Safe against a persisted HW demotion: disableHW clears HWBackend
+			// (⇒ Derive yields hw ceiling 0), and codec/feature demotions pass
+			// through Report() unchanged. ONLY when there is proof: a row persisted
+			// before BenchSamples existed carries ceilings but no samples - its
+			// ceilings ARE the only evidence, so keep them verbatim and let the next
+			// bench populate samples (matching the BenchSamples "re-bench to
+			// populate" contract) rather than flooring a working host to 720p.
+			if len(persisted.BenchSamples) > 0 {
+				persisted = domaintranscoding.Derive(persisted.Report(), s.derivePolicy())
+			}
 			s.logger.Info("calibration: using persisted capability",
 				slog.Int("software_max_height", persisted.SoftwareMaxHeight),
 				slog.Int("hw_max_height", persisted.HWMaxHeight),
 				slog.String("hw_backend", persisted.HWBackend),
+				slog.Int("policy_version", persisted.PolicyVersion),
 				slog.Time("benchmarked_at", persisted.BenchmarkedAt))
 			s.current.Store(&persisted)
 			s.notifyCapabilityChange()
@@ -402,16 +425,27 @@ func (s *CalibrationService) benchAndPersist(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("calibration: benchmark failed: %w", err)
 	}
-	// Run() should always return at least the 720p floor - defensive
-	// guard against a future runner change that returns 0.
-	if cap.SoftwareMaxHeight <= 0 {
-		cap.SoftwareMaxHeight = 720
-	}
 	if cap.BenchmarkedAt.IsZero() {
 		cap.BenchmarkedAt = time.Now().UTC()
 	}
 	if cap.CPUSignature == "" {
 		cap.CPUSignature = sysinfo.CPUSignature()
+	}
+	// The runner MEASURES (proof: BenchSamples, SourceRate, HW facts); the policy
+	// that turns fps into delivery ceilings lives in the domain's Derive, in one
+	// pure place. Deriving here (rather than trusting the ceilings the runner also
+	// computes) makes the ceilings a projection of the proof + PolicyVersion, so a
+	// policy change re-caps every host on the next boot without re-benching. Only
+	// when there IS proof: a runner that returns bare ceilings without samples (a
+	// legacy path, a test double) has no evidence to derive from - trust its
+	// ceilings as the only signal rather than flooring everything.
+	if len(cap.BenchSamples) > 0 {
+		cap = domaintranscoding.Derive(cap.Report(), s.derivePolicy())
+	}
+	// Derive already floors software to the policy's SoftwareFloor (720); keep a
+	// belt against a future policy with a zero floor wedging every viewer.
+	if cap.SoftwareMaxHeight <= 0 {
+		cap.SoftwareMaxHeight = 720
 	}
 
 	// Hold currentMu across BOTH the DB persist and the in-memory store so this

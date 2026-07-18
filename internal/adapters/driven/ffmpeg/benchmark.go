@@ -269,6 +269,10 @@ func (r *BenchmarkRunner) Run(ctx context.Context, pref transcoding.HWPreference
 		CPUSignature:         sysinfo.CPUSignature(),
 		BenchmarkedAt:        time.Now().UTC(),
 		BenchmarkDurationMs:  time.Since(start).Milliseconds(),
+		// SourceRate is the fps the samples were measured against - proof the
+		// domain's Derive needs to RE-derive each rung's pass/fail under a
+		// (possibly changed) policy margin, instead of the bench-time one.
+		SourceRate: r.sourceRate(),
 		// Per-rung evidence (fps vs realtime threshold) behind the ceilings above,
 		// surfaced in the admin calibration API so the operator can see WHY the
 		// HDR cap floored to 480p instead of guessing. Includes the hardware ladder

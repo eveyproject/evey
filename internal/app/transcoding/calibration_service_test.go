@@ -126,6 +126,60 @@ func TestCalibration_EnsureCalibrated_CachedMatch_SkipsBench(t *testing.T) {
 	assert.Equal(t, 1440, svc.Current().SoftwareMaxHeight, "Current() must reflect the persisted cap")
 }
 
+func TestCalibration_EnsureCalibrated_ReDerivesFromPersistedProof(t *testing.T) {
+	// A persisted capability carries PROOF (bench samples). Its stored ceiling is
+	// stale (1440) but its evidence only sustains 1080. On boot we must re-derive
+	// the ceiling from the proof under the current policy - no re-bench - and stamp
+	// PolicyVersion. This is the payoff of the proof/policy split: a policy change
+	// (or a stale row) re-caps every host from its last bench deterministically.
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight: 1440, // stale ceiling not backed by the evidence below
+			CPUSignature:      hostSig,
+			SourceRate:        24,
+			BenchSamples: []domaintranscoding.BenchRungSample{
+				{Ladder: domaintranscoding.LadderSoftware, Height: 720, FPS: 100, Passing: true},
+				{Ladder: domaintranscoding.LadderSoftware, Height: 1080, FPS: 50, Passing: true},
+				{Ladder: domaintranscoding.LadderSoftware, Height: 1440, FPS: 10, Passing: false},
+			},
+		},
+	}
+	runner := &fakeBenchmarkRunner{}
+	svc := NewCalibrationService(repo, runner, nil)
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	assert.Zero(t, runner.calls.Load(), "re-derivation must NOT re-bench")
+	cur := svc.Current()
+	assert.Equal(t, 1080, cur.SoftwareMaxHeight, "ceiling re-derived from the persisted proof, not the stale stored value")
+	assert.Equal(t, domaintranscoding.PolicyVersion, cur.PolicyVersion, "the current policy version must be stamped on re-derive")
+}
+
+func TestCalibration_EnsureCalibrated_LegacyRowNoSamples_KeepsCeilings(t *testing.T) {
+	// A row persisted before BenchSamples existed has ceilings but NO proof. Its
+	// ceilings are the only evidence, so re-derivation must be skipped and the
+	// stored values kept verbatim - never floored to 720p on a host that really
+	// sustains more. PolicyVersion stays 0 (unstamped) since nothing was derived.
+	hostSig := hostCPUSig(t)
+	repo := &fakeCapabilityRepo{
+		stored: &domaintranscoding.EncodeCapability{
+			SoftwareMaxHeight:    1440,
+			SoftwareHDRMaxHeight: 1080,
+			CPUSignature:         hostSig,
+			// no BenchSamples, no SourceRate, no PolicyVersion
+		},
+	}
+	runner := &fakeBenchmarkRunner{}
+	svc := NewCalibrationService(repo, runner, nil)
+	require.NoError(t, svc.EnsureCalibrated(context.Background()))
+
+	assert.Zero(t, runner.calls.Load(), "matching sig must skip the bench")
+	cur := svc.Current()
+	assert.Equal(t, 1440, cur.SoftwareMaxHeight, "legacy ceiling kept verbatim (no proof to re-derive from)")
+	assert.Equal(t, 1080, cur.SoftwareHDRMaxHeight)
+	assert.Zero(t, cur.PolicyVersion, "nothing derived => PolicyVersion left unstamped")
+}
+
 func TestCalibration_SoftwareCapOverrides_ForceCurrentCeilings(t *testing.T) {
 	// An operator override raises the software / HDR ceilings past what the
 	// benchmark calibrated, so Current() must reflect the override regardless of

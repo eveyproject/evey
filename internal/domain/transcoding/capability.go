@@ -142,6 +142,23 @@ type EncodeCapability struct {
 	// Empty when loaded from a calibration persisted before this field existed
 	// (re-bench to populate). omitempty so old rows round-trip unchanged.
 	BenchSamples []BenchRungSample `json:"bench_samples,omitempty"`
+
+	// SourceRate is the source frame-rate (fps) the BenchSamples were measured
+	// against - PROOF, not policy. Derive needs it to RE-derive the pass/fail of
+	// each rung under a possibly-different policy margin (required = SourceRate ×
+	// margin) instead of the bench-time one baked into BenchRungSample.RequiredFPS.
+	// 0 on rows persisted before this field existed: Derive then trusts the stored
+	// Passing flag, reproducing the old ceiling exactly. omitempty for round-trip.
+	SourceRate int `json:"source_rate,omitempty"`
+
+	// PolicyVersion is the transcoding.PolicyVersion of the Derive policy that
+	// produced this capability's DERIVED fields (the ceilings). It is stamped by
+	// Derive, never by the raw benchmark. On boot, a persisted capability whose
+	// PolicyVersion differs from the current one is re-derived from its own proof
+	// (BenchSamples) without re-benching, so a policy change in a release re-caps
+	// every host deterministically. 0 on pre-Derive rows (treated as stale ⇒
+	// re-derived on next load). omitempty for round-trip.
+	PolicyVersion int `json:"policy_version,omitempty"`
 }
 
 // BenchRungSample is one resolution rung the boot benchmark measured: the
