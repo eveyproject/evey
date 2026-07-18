@@ -1724,7 +1724,14 @@ func TestGenerateTokensForUser_WithLongTTL(t *testing.T) {
 
 // --- Security fixes ---
 
-func TestRefreshToken_TOCTOU_ConcurrentReplayRejected(t *testing.T) {
+// Concurrent refreshes with the SAME token are the multi-tab race (N tabs,
+// one shared HttpOnly cookie): under the rotation grace EVERY racer succeeds
+// - one wins the claim, the others are recognised as grace-window losers and
+// issued their own DISTINCT sibling session. What the old TOCTOU contract
+// protected against (a replayed token minting sessions unboundedly over time)
+// is now bounded by the grace window instead:
+// TestRefreshToken_ReplayAfterGrace_Rejected pins that side.
+func TestRefreshToken_ConcurrentMultiTabRefresh_AllGetDistinctSessions(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()
 	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
@@ -1736,24 +1743,26 @@ func TestRefreshToken_TOCTOU_ConcurrentReplayRejected(t *testing.T) {
 
 	const goroutines = 10
 	results := make([]error, goroutines)
+	tokens := make([]string, goroutines)
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
 	for i := range goroutines {
 		go func(i int) {
 			defer wg.Done()
-			_, _, results[i] = d.svc.RefreshToken(ctx, refresh, "", "")
+			_, tokens[i], results[i] = d.svc.RefreshToken(ctx, refresh, "", "")
 		}(i)
 	}
 	wg.Wait()
 
-	successes := 0
-	for _, err := range results {
-		if err == nil {
-			successes++
+	seen := make(map[string]bool, goroutines)
+	for i, err := range results {
+		if err != nil {
+			t.Fatalf("racer %d must get a session within the rotation grace, got: %v", i, err)
 		}
-	}
-	if successes != 1 {
-		t.Fatalf("expected exactly 1 successful refresh, got %d", successes)
+		if tokens[i] == "" || seen[tokens[i]] {
+			t.Fatalf("racer %d must get its own DISTINCT refresh token", i)
+		}
+		seen[tokens[i]] = true
 	}
 }
 

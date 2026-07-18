@@ -448,7 +448,7 @@ func (s *CommandService) Impersonate(ctx context.Context, adminUserID, targetUse
 func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfileID, pinToken string, ttlOverride ...time.Duration) (string, string, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.RefreshToken")
 	defer span.End()
-	rt, err := s.validateRefreshToken(ctx, token)
+	rt, graced, err := s.validateRefreshToken(ctx, token)
 	if err != nil {
 		return "", "", err
 	}
@@ -533,28 +533,33 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 	}
 
 	// Every rejection above leaves the refresh token usable; from here the
-	// rotation is committed - ATOMICALLY when a unit of work is wired: claim,
-	// replacement insert and old-row cleanup all land or none do. A crash
-	// mid-rotation can then never leave a claimed-but-unreplaced row behind,
-	// which the client's still-stored token would replay into a logout.
-	// Deleting the claimed row inside the same transaction also means the
-	// Used=true state is never visible to a concurrent lookup: a multi-tab
-	// race loser reads "token not found", exactly like a late replay.
+	// rotation is committed - ATOMICALLY when a unit of work is wired: claim
+	// and replacement insert both land or neither does. A crash mid-rotation
+	// can then never leave a claimed-but-unreplaced row behind, which the
+	// client's still-stored token would replay into a logout.
+	//
+	// The claimed row is deliberately KEPT (not deleted): its used_at stamp is
+	// what lets a multi-tab race loser presenting the same token within the
+	// grace window be recognised and issued a sibling session instead of a
+	// 401 that kills its tab. The rows are swept by DeleteExpired once the
+	// grace has long passed.
 	var newRefresh string
 	rotate := func(ctx context.Context) error {
-		if markErr := s.markRefreshTokenUsed(ctx, rt); markErr != nil {
-			return markErr
+		if !graced {
+			if markErr := s.markRefreshTokenUsed(ctx, rt); markErr != nil {
+				if !errors.Is(markErr, ErrInvalidCredentials) {
+					return markErr
+				}
+				// Lost the claim to a concurrent rotation that committed
+				// between our validate and this claim - milliseconds ago,
+				// squarely within the grace. Fall through and issue the
+				// sibling session, exactly like the graced path.
+			}
 		}
 		var genErr error
 		newRefresh, genErr = s.generateAndStoreRefreshToken(ctx, string(u.ID), activeProfileID, ttlOverride...)
 		if genErr != nil {
 			return fmt.Errorf("CommandService.RefreshToken: %w", genErr)
-		}
-		// Drop the just-claimed (Used) row now that its replacement is in
-		// place. Keeping it would only delay the eventual DeleteExpired sweep
-		// and let stale rows accumulate.
-		if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
-			return fmt.Errorf("cleanup claimed refresh token: %w", delErr)
 		}
 		return nil
 	}
@@ -571,31 +576,34 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 	return accessToken, newRefresh, nil
 }
 
+// refreshRotationGrace is how long a just-rotated refresh token remains
+// exchangeable for a SIBLING session. Multiple tabs share one HttpOnly
+// refresh cookie; when they refresh concurrently, the losers present a token
+// that was rotated milliseconds earlier - rejecting them 401-kills their tab
+// (every call fails until a manual reload). Within the grace each loser gets
+// its own fresh token pair instead. Kept short: a stolen token replayed
+// PAST the grace is still rejected, and the earlier design already dropped
+// replay-triggered session purges as daily false positives (see
+// validateRefreshToken) - this closes the UX hole that decision left open.
+const refreshRotationGrace = 30 * time.Second
+
 // validateRefreshToken performs the hash-lookup + reuse/expiry gating (it does
-// NOT consume the token; see markRefreshTokenUsed) +
-// atomic claim (MarkUsedIfNotUsed). Any failure path returns
-// ErrInvalidCredentials. A replayed (already-Used) token is rejected WITHOUT
-// purging the user's other sessions: the Used state is only observable during
-// the few milliseconds between the rotation's claim and its cleanup (the row
-// is deleted right after the replacement lands), so a genuine thief replaying
-// a stolen token later always hits "not found" - every purge this branch used
-// to fire was a multi-tab race loser or an interrupted rotation, and it logged
-// the whole account out of every device (préprod: daily false positives).
-func (s *CommandService) validateRefreshToken(ctx context.Context, token string) (*user.RefreshToken, error) {
+// NOT consume the token; see markRefreshTokenUsed). Any failure path returns
+// ErrInvalidCredentials. The bool reports a GRACED token: one already rotated
+// within refreshRotationGrace - a multi-tab race loser, entitled to a sibling
+// session (the caller must then skip the claim). A rotation older than the
+// grace is a genuine replay and is rejected WITHOUT purging the user's other
+// sessions: every purge this branch used to fire was a multi-tab race loser
+// or an interrupted rotation, and it logged the whole account out of every
+// device (préprod: daily false positives).
+func (s *CommandService) validateRefreshToken(ctx context.Context, token string) (*user.RefreshToken, bool, error) {
 	h := sha256.Sum256([]byte(token))
 	hash := hex.EncodeToString(h[:])
 
 	rt, err := s.refreshTkns.GetByTokenHash(ctx, hash)
 	if err != nil {
 		slog.Info("refresh rejected: token not found", slog.String("tokenPrefix", safeTokenPrefix(token)))
-		return nil, ErrInvalidCredentials
-	}
-
-	if rt.Used {
-		slog.Info("refresh rejected: token already rotated (race loser or interrupted rotation)",
-			slog.String("userID", string(rt.UserID)),
-			slog.String("tokenID", rt.ID))
-		return nil, ErrInvalidCredentials
+		return nil, false, ErrInvalidCredentials
 	}
 
 	if rt.IsExpired() {
@@ -606,10 +614,25 @@ func (s *CommandService) validateRefreshToken(ctx context.Context, token string)
 		if delErr := s.refreshTkns.DeleteByID(ctx, rt.ID); delErr != nil {
 			slog.Warn("delete refresh token failed", slog.String("tokenID", rt.ID), slog.Any("err", delErr))
 		}
-		return nil, ErrInvalidCredentials
+		return nil, false, ErrInvalidCredentials
 	}
 
-	return rt, nil
+	if rt.Used {
+		// nil UsedAt (legacy row claimed before the column existed) fails
+		// closed: no timestamp, no grace.
+		if rt.UsedAt != nil && time.Since(*rt.UsedAt) <= refreshRotationGrace {
+			slog.Info("refresh: rotated token within grace, issuing sibling session (multi-tab race loser)",
+				slog.String("userID", string(rt.UserID)),
+				slog.String("tokenID", rt.ID))
+			return rt, true, nil
+		}
+		slog.Info("refresh rejected: token rotated outside the grace window (replay or long-stale client)",
+			slog.String("userID", string(rt.UserID)),
+			slog.String("tokenID", rt.ID))
+		return nil, false, ErrInvalidCredentials
+	}
+
+	return rt, false, nil
 }
 
 // markRefreshTokenUsed consumes the (already validated) refresh token. Split

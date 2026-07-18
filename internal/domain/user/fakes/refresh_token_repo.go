@@ -76,6 +76,8 @@ func (r *FakeRefreshTokenRepository) MarkUsedIfNotUsed(_ context.Context, id str
 		return false, nil
 	}
 	t.Used = true
+	now := time.Now()
+	t.UsedAt = &now
 	return true, nil
 }
 
@@ -117,7 +119,10 @@ func (r *FakeRefreshTokenRepository) DeleteExpired(_ context.Context) error {
 	defer r.mu.Unlock()
 	now := time.Now()
 	for id, t := range r.items {
-		if t.ExpiresAt.Before(now) {
+		// Mirrors the SQL sweep: expired rows, plus rotated rows once the
+		// grace window has long passed (they are only retained so a multi-tab
+		// race loser can be recognised - see the app-layer grace).
+		if t.ExpiresAt.Before(now) || (t.Used && t.UsedAt != nil && now.Sub(*t.UsedAt) > 10*time.Minute) {
 			delete(r.items, id)
 		}
 	}

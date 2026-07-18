@@ -60,10 +60,11 @@ func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, hash string
 	defer cancel()
 	t := &user.RefreshToken{}
 	var profileID sql.NullString
+	var usedAt sql.NullTime
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT id, user_id, token_hash, device_name, client_ip, used, expires_at, created_at, profile_id
+		`SELECT id, user_id, token_hash, device_name, client_ip, used, used_at, expires_at, created_at, profile_id
 		 FROM refresh_tokens WHERE token_hash = $1`, hash,
-	).Scan(&t.ID, &t.UserID, &t.TokenHash, &t.DeviceName, &t.ClientIP, &t.Used, &t.ExpiresAt, &t.CreatedAt, &profileID)
+	).Scan(&t.ID, &t.UserID, &t.TokenHash, &t.DeviceName, &t.ClientIP, &t.Used, &usedAt, &t.ExpiresAt, &t.CreatedAt, &profileID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -72,6 +73,10 @@ func (r *RefreshTokenRepository) GetByTokenHash(ctx context.Context, hash string
 	if profileID.Valid {
 		pid := shared.ProfileID(profileID.String)
 		t.ProfileID = &pid
+	}
+	if usedAt.Valid {
+		ua := usedAt.Time
+		t.UsedAt = &ua
 	}
 	return t, nil
 }
@@ -82,7 +87,7 @@ func (r *RefreshTokenRepository) MarkUsedIfNotUsed(ctx context.Context, id strin
 	span.SetAttributes(attribute.String("refresh_token.id", id))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE WHERE id = $1 AND used = FALSE`, id)
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE, used_at = NOW() WHERE id = $1 AND used = FALSE`, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -132,7 +137,10 @@ func (r *RefreshTokenRepository) DeleteExpired(ctx context.Context) error {
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM refresh_tokens WHERE expires_at < NOW()`)
+	// Rotated rows are retained for the app-layer rotation grace (a multi-tab
+	// race loser must find them to be recognised); sweep them once the grace
+	// has LONG passed - 10 min is safely above the 30 s window.
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM refresh_tokens WHERE expires_at < NOW() OR (used AND used_at < NOW() - INTERVAL '10 minutes')`)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

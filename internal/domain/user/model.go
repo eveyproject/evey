@@ -162,6 +162,11 @@ type RefreshToken struct {
 	// for legacy tokens (pre-binding), which fall back to the default profile.
 	ProfileID *shared.ProfileID
 	Used      bool
+	// UsedAt is when the token was rotated (claimed). It bounds the rotation
+	// grace window: a just-rotated token presented again within the grace is a
+	// multi-tab race loser and gets a sibling session; past it, a replay. nil
+	// on unused rows and on legacy rows claimed before the column existed.
+	UsedAt    *time.Time
 	ExpiresAt time.Time
 	CreatedAt time.Time
 }
