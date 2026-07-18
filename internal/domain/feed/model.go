@@ -28,7 +28,29 @@ const (
 	TypeNextEpisode      Type = "next_episode"
 )
 
-func (t Type) IsValid() bool { return t != "" }
+// knownTypes is the set of built-in feed types. Dynamic feeds (library:<id>,
+// plugin:<id>) are validated by their prefix in IsValid, not this set.
+var knownTypes = map[Type]bool{
+	TypeContinueWatching: true,
+	TypeRecentlyAdded:    true,
+	TypeRecommended:      true,
+	TypeUpNext:           true,
+	TypeMostPopular:      true,
+	TypeCollections:      true,
+	TypeResumePlayback:   true,
+	TypeNextEpisode:      true,
+}
+
+// IsValid reports whether t is a known built-in feed type or a well-formed
+// dynamic one (library:<id> / plugin:<id>). A bare non-empty string is no
+// longer accepted: a typo'd type ("reccently_added") must fail construction
+// rather than silently persist a feed that renders nothing.
+func (t Type) IsValid() bool {
+	if knownTypes[t] {
+		return true
+	}
+	return (t.IsLibrary() && t.LibraryID() != "") || (t.IsPlugin() && t.PluginID() != "")
+}
 
 func (t Type) IsLibrary() bool {
 	return strings.HasPrefix(string(t), "library:")

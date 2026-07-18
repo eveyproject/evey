@@ -48,15 +48,17 @@ func (s *ShareService) Create(ctx context.Context, mediaItemID, createdBy string
 		return nil, ErrShareDurationRange
 	}
 	now := s.now()
-	link := &shared.ShareLink{
-		ID:          uuid.New().String(),
-		Token:       uuid.New().String(),
-		MediaItemID: shared.MediaItemID(mediaItemID),
-		CreatedBy:   shared.UserID(createdBy),
-		ExpiresAt:   now.Add(duration),
-		MaxViews:    maxViews,
-		ViewCount:   0,
-		CreatedAt:   now,
+	link, err := shared.NewShareLink(
+		uuid.New().String(),
+		uuid.New().String(),
+		shared.MediaItemID(mediaItemID),
+		shared.UserID(createdBy),
+		now.Add(duration),
+		maxViews,
+		now,
+	)
+	if err != nil {
+		return nil, err
 	}
 	if err := s.repo.Create(ctx, link); err != nil {
 		return nil, err

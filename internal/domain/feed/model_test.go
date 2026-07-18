@@ -16,6 +16,15 @@ func TestType_IsValid(t *testing.T) {
 	if !feed.TypeRecentlyAdded.IsValid() {
 		t.Error("recently_added should be valid")
 	}
+	if feed.Type("reccently_added").IsValid() {
+		t.Error("a typo'd/unknown built-in type must be invalid, not accepted as any non-empty string")
+	}
+	if !feed.LibraryType("lib-1").IsValid() {
+		t.Error("a well-formed library:<id> type should be valid")
+	}
+	if feed.Type("library:").IsValid() {
+		t.Error("library: with no id must be invalid")
+	}
 }
 
 func TestType_IsPlugin(t *testing.T) {

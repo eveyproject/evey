@@ -26,6 +26,41 @@ func TestShareLink_IsExpired(t *testing.T) {
 
 func intPtr(v int) *int { return &v }
 
+func TestShareLink_Validate(t *testing.T) {
+	now := time.Now()
+	valid := func() ShareLink {
+		return ShareLink{ID: "sl-1", Token: "tok", MediaItemID: "mi-1", CreatedBy: "usr-1", ExpiresAt: now.Add(time.Hour), CreatedAt: now}
+	}
+	t.Run("valid", func(t *testing.T) {
+		l := valid()
+		assert.NoError(t, l.Validate())
+	})
+	t.Run("empty token rejected", func(t *testing.T) {
+		l := valid()
+		l.Token = ""
+		assert.Error(t, l.Validate())
+	})
+	t.Run("non-expiring rejected", func(t *testing.T) {
+		l := valid()
+		l.ExpiresAt = time.Time{}
+		assert.Error(t, l.Validate())
+	})
+	t.Run("expiry before creation rejected", func(t *testing.T) {
+		l := valid()
+		l.ExpiresAt = now.Add(-time.Hour)
+		assert.Error(t, l.Validate())
+	})
+	t.Run("negative max views rejected", func(t *testing.T) {
+		l := valid()
+		l.MaxViews = intPtr(-1)
+		assert.Error(t, l.Validate())
+	})
+	t.Run("constructor rejects invalid", func(t *testing.T) {
+		_, err := NewShareLink("", "tok", "mi-1", "usr-1", now.Add(time.Hour), nil, now)
+		assert.Error(t, err)
+	})
+}
+
 func TestShareLink_IsViewLimitReached(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -26,6 +26,9 @@ func (r *ShareLinkRepo) Create(ctx context.Context, link *shared.ShareLink) erro
 	ctx, span := tracing.StartSpan(ctx, "postgres.share_link.Create")
 	defer span.End()
 	span.SetAttributes(attribute.String("share_link.id", link.ID))
+	if err := link.Validate(); err != nil {
+		return fmt.Errorf("invalid share link: %w", err)
+	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
