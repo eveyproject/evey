@@ -23,24 +23,46 @@ import (
 // absent, the server resolves the best match using the profile's language
 // preferences (AudioLanguages → Locale → server language → IsDefault → 0).
 func (h *hlsVODServe) resolveAudioTrack(r *http.Request, streams []*domainlibrary.MediaStream) int {
-	if r.URL.Query().Has("audioTrack") {
-		t := parseIntQuery(r, "audioTrack", 0)
-		// Honour the explicit choice, but bound it against the real audio-stream
-		// count: an out-of-range ?audioTrack=99 would otherwise become `-map 0:a:99`
-		// and fail the whole ffmpeg session per request. Out-of-range falls through
-		// to the language-based default (a valid index).
-		nAudio := 0
-		for _, s := range streams {
-			if s.StreamType == domainlibrary.Audio {
-				nAudio++
-			}
-		}
-		if t >= 0 && t < nAudio {
-			return t
-		}
+	if t, ok := explicitAudioTrack(r, streams); ok {
+		return t
 	}
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
+	return h.audioTrackFromPrefs(streams, prefs)
+}
+
+// resolveAudioTrackWith is resolveAudioTrack with the profile prefs already
+// loaded - the plan resolution loads them once and threads them here.
+func (h *hlsVODServe) resolveAudioTrackWith(r *http.Request, streams []*domainlibrary.MediaStream, prefs apptranscoding.TranscodingPreferences) int {
+	if t, ok := explicitAudioTrack(r, streams); ok {
+		return t
+	}
+	return h.audioTrackFromPrefs(streams, prefs)
+}
+
+// explicitAudioTrack honours a valid ?audioTrack= choice, bounded against the
+// real audio-stream count: an out-of-range ?audioTrack=99 would otherwise
+// become `-map 0:a:99` and fail the whole ffmpeg session per request.
+// Out-of-range reports false so the caller falls through to the
+// language-based default (a valid index).
+func explicitAudioTrack(r *http.Request, streams []*domainlibrary.MediaStream) (int, bool) {
+	if !r.URL.Query().Has("audioTrack") {
+		return 0, false
+	}
+	t := parseIntQuery(r, "audioTrack", 0)
+	nAudio := 0
+	for _, s := range streams {
+		if s.StreamType == domainlibrary.Audio {
+			nAudio++
+		}
+	}
+	if t >= 0 && t < nAudio {
+		return t, true
+	}
+	return 0, false
+}
+
+func (h *hlsVODServe) audioTrackFromPrefs(streams []*domainlibrary.MediaStream, prefs apptranscoding.TranscodingPreferences) int {
 	srvLang := "en"
 	if h.serverLang != nil {
 		srvLang = h.serverLang()
@@ -57,15 +79,29 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 	if item == nil || item.File == nil {
 		return apptranscoding.ManifestInput{}, errors.New("buildManifestInput: nil item")
 	}
+	rp, err := h.resolvePlan(r, mediaID, item, streams)
+	if err != nil {
+		return apptranscoding.ManifestInput{}, err
+	}
+	return h.buildManifestInputWith(r, mediaID, item, streams, rp)
+}
+
+// buildManifestInputWith is buildManifestInput reading an already-resolved
+// plan: the decision, ladder, audio track and sealed fingerprint hash all
+// come from the SAME resolution the caller's other steps consumed.
+func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) (apptranscoding.ManifestInput, error) {
+	if item == nil || item.File == nil {
+		return apptranscoding.ManifestInput{}, errors.New("buildManifestInput: nil item")
+	}
 
 	if item.File.Duration.Milliseconds() <= 0 {
 		return apptranscoding.ManifestInput{}, &durationMissingError{mediaID: mediaID}
 	}
 
-	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, item.File.Path, r)
-	profiles := h.profilesForDecision(r.Context(), item, streams, decision)
+	decision := rp.Decision
+	profiles := rp.Profiles
 
-	audioTrack := h.resolveAudioTrack(r, streams)
+	audioTrack := rp.AudioTrack
 	subBurnIn := parseIntQuery(r, "subtitleTrack", -1)
 
 	token := RawTokenFromContext(r.Context())
@@ -146,20 +182,10 @@ func (h *hlsVODServe) buildManifestInput(r *http.Request, mediaID string, item *
 		// stream_N is a ladder INDEX; if the ladder reshapes mid-play the same
 		// URL silently maps to another rendition (the 2026-07-15 rainbow). A
 		// later request whose fp no longer matches is refused with 410 instead
-		// of serving a stranger's bytes. Best-effort: an unbuildable
-		// fingerprint leaves the param off (no seal, pre-feature behaviour).
-		FingerprintHash: h.currentFPHash(r, mediaID, item, streams),
+		// of serving a stranger's bytes. The plan's hash IS this request's
+		// fingerprint hash - sealed and compared values are one resolution.
+		FingerprintHash: rp.FPHash,
 	}, nil
-}
-
-// currentFPHash is the decision hash of this very request - the value the
-// manifests seal into their URIs and the stale-URL check compares against.
-func (h *hlsVODServe) currentFPHash(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) string {
-	fp, err := h.buildFingerprint(r, mediaID, item, streams)
-	if err != nil {
-		return ""
-	}
-	return fp.Hash()
 }
 
 // audioOffsetMsQuery parses the user's audio resync request (ms; positive =
@@ -219,15 +245,26 @@ func pinnedVideoDecision(r *http.Request, decision domaintranscoding.PlaybackDec
 
 // buildFingerprint reproduces the DecisionFingerprint from a segment-time
 // request. Must match exactly what was produced at manifest time, or the
-// cache lookup misses on every segment. Hence shared helpers.
+// cache lookup misses on every segment. Hence one shared resolution: this
+// wrapper resolves the whole plan and hands back its fingerprint - kept for
+// the call sites (prewarm, tests) that want the fingerprint alone.
 func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream) (apptranscoding.DecisionFingerprint, error) {
 	if item == nil || item.File == nil {
 		return apptranscoding.DecisionFingerprint{}, errors.New("buildFingerprint: nil item")
 	}
-	decision := h.makeDecision(r.Context(), streams, item.File.ContainerFormat, item.File.Path, r)
-	profiles := h.profilesForDecision(r.Context(), item, streams, decision)
+	rp, err := h.resolvePlan(r, mediaID, item, streams)
+	if err != nil {
+		return apptranscoding.DecisionFingerprint{}, err
+	}
+	return rp.FP, nil
+}
 
-	audioTrack := h.resolveAudioTrack(r, streams)
+// buildFingerprintWith assembles the fingerprint from an already-computed
+// (decision, profiles, audioTrack) triple - the tail of the plan resolution.
+func (h *hlsVODServe) buildFingerprintWith(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, decision domaintranscoding.PlaybackDecision, profiles []domaintranscoding.HLSProfile, audioTrack int) (apptranscoding.DecisionFingerprint, error) {
+	if item == nil || item.File == nil {
+		return apptranscoding.DecisionFingerprint{}, errors.New("buildFingerprint: nil item")
+	}
 	subBurnIn := parseIntQuery(r, "subtitleTrack", -1)
 
 	// When the audio-rendition feature is on, the audio is served as a SEPARATE
@@ -332,6 +369,12 @@ func (h *hlsVODServe) buildFingerprint(r *http.Request, mediaID string, item *do
 func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, r *http.Request) domaintranscoding.PlaybackDecision {
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := loadProfilePrefs(ctx, h.profilePrefs, claims.ProfileID)
+	return h.makeDecisionWith(ctx, streams, container, sourcePath, r, prefs, h.resolveAudioTrackWith(r, streams, prefs))
+}
+
+// makeDecisionWith is makeDecision with the profile prefs and the resolved
+// audio track already in hand (the plan resolution loads/derives each once).
+func (h *hlsVODServe) makeDecisionWith(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, r *http.Request, prefs apptranscoding.TranscodingPreferences, audioTrack int) domaintranscoding.PlaybackDecision {
 	// Inject the selected subtitle track so the decision only burns (and so only
 	// denies the copy rung) when the user actually plays this bitmap subtitle -
 	// not whenever the file merely carries one. Mirrors the subtitleTrack param
@@ -341,7 +384,7 @@ func (h *hlsVODServe) makeDecision(ctx context.Context, streams []*domainlibrary
 	// copy-vs-transcode decision is made on THAT track (the default may be DTS
 	// while the user plays an AAC track, or vice-versa). Mirrors the audioTrack
 	// resolution the fingerprint and the ffmpeg -map already use.
-	prefs.AudioTrack = h.resolveAudioTrack(r, streams)
+	prefs.AudioTrack = audioTrack
 	hdrCapable := r.URL.Query().Get("hdr") == "1"
 	client := parseClientCapabilities(r, hdrCapable)
 	d := apptranscoding.MakePlaybackDecisionWithPrefs(ctx, streams, container, client, 0, prefs, sourcePath)

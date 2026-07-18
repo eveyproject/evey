@@ -52,22 +52,19 @@ func fingerprintHeights(fp apptranscoding.DecisionFingerprint) []int {
 // shedIfHostFull probes the limiter and, when this stream cannot be admitted,
 // writes the shed response and reports true. probeHeight says how generous the
 // probe is. It never sheds a request the copy rung would serve for free, and
-// it tells a still-indexing source apart from a genuinely full host.
+// it tells a still-indexing source apart from a genuinely full host. Reads
+// the caller's resolved plan - the same decision/fingerprint the manifest is
+// about to be built from.
 //
 // Advisory by construction: two viewers can both pass the probe and race at
 // spawn. That is fine - the loser is shed at the segment, which remains the
 // authoritative gate.
-func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, probeHeights func(apptranscoding.DecisionFingerprint) []int) bool {
+func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan, probeHeights func(apptranscoding.DecisionFingerprint) []int) bool {
 	if h.videoAdmission == nil {
 		return false
 	}
-	decision := h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r)
-	if h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
+	if rp.IsCopy {
 		return false // remuxed, never encoded: no capacity slot is taken
-	}
-	fp, fpErr := h.buildFingerprint(r, mediaID, item, streams)
-	if fpErr != nil {
-		return false
 	}
 	// Price in the class this session will actually be billed as (GPU vs CPU
 	// pool, HDR/AV1 software tables). Probe EVERY candidate height rather than
@@ -77,13 +74,13 @@ func (h *hlsVODServe) shedIfHostFull(w http.ResponseWriter, r *http.Request, med
 	// The class is read from the fingerprint itself: its hw fields already
 	// follow the pinned route (a spilled stream is tagged software), so this
 	// is exactly what the spawn's TryAcquire will charge.
-	class := apptranscoding.LadderClassOf(fp)
-	for _, ph := range probeHeights(fp) {
-		if h.videoAdmission(fp.Hash(), class, ph) {
+	class := apptranscoding.LadderClassOf(rp.FP)
+	for _, ph := range probeHeights(rp.FP) {
+		if h.videoAdmission(rp.FPHash, class, ph) {
 			return false
 		}
 	}
-	if copyBlockedOnlyByMissingIndex(decision, streams) {
+	if copyBlockedOnlyByMissingIndex(rp.Decision, streams) {
 		if h.keyframeWarmer != nil {
 			go h.keyframeWarmer(context.WithoutCancel(r.Context()), mediaID, sourcePathOf(item))
 		}

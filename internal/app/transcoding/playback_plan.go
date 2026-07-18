@@ -7,16 +7,16 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 )
 
-// PROPOSAL / SCAFFOLD - not wired yet. See docs/playback-serving.md ("Known seam").
+// SEAM IN MIGRATION - the first, delegating step is wired. See
+// docs/playback-serving.md ("Known seam").
 //
-// Today the request-handling brain of the HLS read path - the copy/transcode
+// The request-handling brain of the HLS read path - the copy/transcode
 // decision plus its request-time pins, the ABR ladder shaping, the admission
 // route/ceiling, the decision fingerprint, and the choice of packager (mkvgo copy
 // vs ffmpeg transcode) - is spread across ~8 transcode_vod_*.go files in the http
 // DRIVING adapter. Correctness rests on every request re-deriving byte-identical
 // inputs ("the cache-hash invariant, held by discipline"). The frozen ladder
-// (VideoAdmissionShaper.FreezeLadder) made part of that structural; this is the
-// natural completion:
+// (VideoAdmissionShaper.FreezeLadder) made part of that structural; the target:
 //
 //   PlaybackPlanResolver.Resolve(req) -> immutable PlaybackPlan
 //
@@ -27,10 +27,15 @@ import (
 // (one resolution, not N that must agree); wiring a new codec/packager/container
 // is one change in the resolver, not a sweep across the adapter.
 //
-// Migration is additive and incremental: implement Resolve by DELEGATING to the
-// existing helpers (makeDecision, profilesForDecision, buildFingerprint) first -
-// same behaviour, one entry point - then absorb them one at a time. Nothing here
-// changes runtime behaviour until a resolver is wired in cmd/evey/wire.go.
+// Migration status (additive and incremental):
+//   - DONE: the http adapter resolves the whole plan ONCE per request and
+//     populates this PlaybackPlan from that single resolution
+//     (http/transcode_vod_plan.go, resolvePlan) - one entry point delegating
+//     to the existing helpers, every consumer reading the same values.
+//   - NEXT: absorb the helpers one at a time into an app-layer resolver
+//     implementing PlaybackPlanResolver below; the adapter then only
+//     marshals PlaybackRequest. Nothing else changes runtime behaviour until
+//     that resolver is wired in cmd/evey/wire.go.
 
 // PlaybackRequest is the marshalled, transport-free input to plan resolution:
 // everything the http adapter reads off the *http.Request and the media, with no
@@ -87,7 +92,8 @@ type PlaybackPlan struct {
 	// Class is the ladder class the video encode is billed as (cpu vs gpu pool).
 	Class LadderClass
 	// Ladder is the shaped ABR ladder, frozen: source/capability/CMCD/av1 caps and
-	// the admission ceiling already folded in. Empty for a copy rung (single rung).
+	// the admission ceiling already folded in. A copy rung carries its single
+	// source-resolution profile (the player never ABR-switches a copy stream).
 	Ladder []transcoding.HLSProfile
 	// VideoCodec is what the segments actually carry (AV1 already gated back to
 	// h264 when unsupported); HWAccel is the resolved hardware route ("" = software).

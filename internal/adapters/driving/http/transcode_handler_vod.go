@@ -420,15 +420,24 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 		return
 	}
 
+	// From here on the ffmpeg ladder serves this master: resolve the playback
+	// plan ONCE - decision, shaped ladder, fingerprint - and let the shed
+	// probe and the manifest input read the same resolution.
+	rp, err := h.resolvePlan(r, mediaID, item, streams)
+	if err != nil {
+		h.writeManifestErr(w, span, err, mediaID)
+		return
+	}
+
 	// Tell a viewer the host is full BEFORE their player parses a ladder it can
 	// never fetch - the only signal a native mobile/TV player ever sees. Probed
 	// against the CHEAPEST rung: a master is refused only when no quality at
 	// all fits, never merely because the tallest one does not.
-	if h.shedIfHostFull(w, r, mediaID, item, streams, fingerprintHeights) {
+	if h.shedIfHostFull(w, r, mediaID, item, streams, rp, fingerprintHeights) {
 		return
 	}
 
-	in, err := h.buildManifestInput(r, mediaID, item, streams)
+	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
 	if err != nil {
 		h.writeManifestErr(w, span, err, mediaID)
 		return
@@ -499,12 +508,21 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// switches renditions). Helps the dashboard count switch frequency.
 	h.ingestCMCD(r, mediaID, profileIdx, 0, false, false, true)
 
-	in, err := h.buildManifestInput(r, mediaID, item, streams)
+	// One plan resolution serves everything below: the stale-URL seal, the
+	// copy-rung gate, the producer pick, the shed probe and the pre-warm all
+	// read the same decision/fingerprint by construction.
+	rp, err := h.resolvePlan(r, mediaID, item, streams)
 	if err != nil {
 		h.writeManifestErr(w, span, err, mediaID)
 		return
 	}
-	if h.refuseStaleFP(w, r, in.FingerprintHash, mediaID, file) {
+
+	in, err := h.buildManifestInputWith(r, mediaID, item, streams, rp)
+	if err != nil {
+		h.writeManifestErr(w, span, err, mediaID)
+		return
+	}
+	if h.refuseStaleFP(w, r, rp.FPHash, mediaID, file) {
 		span.SetStatus(codes.Error, "stale rendition url")
 		return
 	}
@@ -526,15 +544,10 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// serveVariant would call it on the transcode path where copyPlanner is nil
 	// and 500. Gating on the copy decision makes transcode fall through to the
 	// precalculated manifest, unchanged.
-	if h.isCopyRequest(h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r), streams, sourceBytesOf(item)) {
-		if producer := h.producerForRequest(r.Context(), r, streams, item); producer != nil {
+	if rp.IsCopy {
+		if producer := h.producerForDecision(rp.Decision, streams, item, rp.IsCopy); producer != nil {
 			if mp, ok := producer.(apptranscoding.ManifestProvider); ok {
-				fp, fpErr := h.buildFingerprint(r, mediaID, item, streams)
-				if fpErr != nil {
-					h.writeManifestErr(w, span, fpErr, mediaID)
-					return
-				}
-				data, mErr := mp.Manifest(r.Context(), fp)
+				data, mErr := mp.Manifest(r.Context(), rp.FP)
 				if mErr != nil {
 					span.RecordError(mErr)
 					span.SetStatus(codes.Error, "copy manifest")
@@ -573,7 +586,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// at spawn. That is fine; the loser is shed at the segment, as before.
 	// Probe with the rung actually requested: that is what the session about to
 	// spawn will encode.
-	if h.shedIfHostFull(w, r, mediaID, item, streams, func(fp apptranscoding.DecisionFingerprint) []int {
+	if h.shedIfHostFull(w, r, mediaID, item, streams, rp, func(fp apptranscoding.DecisionFingerprint) []int {
 		if profileIdx >= 0 && profileIdx < len(fp.Profiles) {
 			return []int{fp.Profiles[profileIdx].Height}
 		}
@@ -596,10 +609,8 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// without this hint ffmpeg only starts when the .m4s request arrives.
 	// PreWarm runs in a goroutine bound to the orchestrator's shutdownCtx
 	// so Close() cancels every in-flight pre-warm (clean test teardown).
-	if fp, fpErr := h.buildFingerprint(r, mediaID, item, streams); fpErr == nil {
-		if producer := h.producerForRequest(r.Context(), r, streams, item); producer != nil {
-			producer.PreWarm(fp, profileIdx, 0)
-		}
+	if producer := h.producerForDecision(rp.Decision, streams, item, rp.IsCopy); producer != nil {
+		producer.PreWarm(rp.FP, profileIdx, 0)
 	}
 }
 
@@ -610,6 +621,21 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	var segmentIdx int
 	if !isInit {
 		segmentIdx, _ = strconv.Atoi(m[2])
+	}
+
+	// Resolve the playback plan ONCE, fingerprint included, BEFORE resolving
+	// the producer: the fingerprint's shaping creates/refreshes the admission
+	// pin (route + ceiling), and the producer choice must read that same pin.
+	// Resolving the producer first left a hole on a cold-pin segment request
+	// (a player arriving without a prior master, or right after a restart):
+	// the producer was picked on the natural route while the fingerprint
+	// spilled to software - correct bytes and billing, but the wrong machine
+	// ran the session. Every consumer below (bound check, seal, producer,
+	// segment key) reads this same resolution.
+	rp, err := h.resolvePlan(r, mediaID, item, streams)
+	if err != nil {
+		h.writeManifestErr(w, span, err, mediaID)
+		return
 	}
 
 	// Bound segmentIdx against the media duration so a forged stream_N_99999.m4s
@@ -627,8 +653,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// len(segs) (software_producer startSession) with no ffmpeg -ss spawn, so it
 	// needs no pre-bound here.
 	if !isInit && item.File != nil {
-		if durMs := item.File.Duration.Milliseconds(); durMs > 0 &&
-			!h.isCopyRequest(h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r), streams, sourceBytesOf(item)) {
+		if durMs := item.File.Duration.Milliseconds(); durMs > 0 && !rp.IsCopy {
 			const segMs = int64(apptranscoding.ManifestSegmentSeconds * 1000)
 			maxSeg := int((durMs + segMs - 1) / segMs) // ceil = exact transcode segment count
 			if segmentIdx >= maxSeg {
@@ -644,22 +669,11 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// Sink is non-blocking; an absent payload is the no-op common case.
 	h.ingestCMCD(r, mediaID, variantIdx, segmentIdx, isInit, false, false)
 
-	// Build the fingerprint BEFORE resolving the producer: the fingerprint's
-	// shaping creates/refreshes the admission pin (route + ceiling), and the
-	// producer choice must read that same pin. Resolving the producer first
-	// left a hole on a cold-pin segment request (a player arriving without a
-	// prior master, or right after a restart): the producer was picked on the
-	// natural route while the fingerprint spilled to software - correct bytes
-	// and billing, but the wrong machine ran the session.
-	fp, err := h.buildFingerprint(r, mediaID, item, streams)
-	if err != nil {
-		h.writeManifestErr(w, span, err, mediaID)
-		return
-	}
+	fp := rp.FP
 	// The seal check runs BEFORE any producer/cache work: a stale URL must not
 	// spawn a rafale for a ladder the player is no longer holding, and above
 	// all must not serve bytes from a rendition its init segment never named.
-	if h.refuseStaleFP(w, r, fp.Hash(), mediaID, file) {
+	if h.refuseStaleFP(w, r, rp.FPHash, mediaID, file) {
 		span.SetStatus(codes.Error, "stale rendition url")
 		return
 	}
@@ -668,7 +682,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// EnsureSegmentRange calls, the client-hint, and the wait budget all target
 	// the same machine - and the same one the ladder was shaped for. Falls back
 	// to the orchestrator when no selector is wired (degenerate setups).
-	producer := h.producerForRequest(r.Context(), r, streams, item)
+	producer := h.producerForDecision(rp.Decision, streams, item, rp.IsCopy)
 	if producer == nil {
 		span.SetStatus(codes.Error, "no stream producer wired")
 		http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
@@ -724,9 +738,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 			// served by the zero-cost copy rung (never a capacity slot) the moment
 			// the index lands: nudge the on-demand walk and say so, instead of
 			// telling this viewer the host is full because of everyone else.
-			// Recomputed only on this rare shed path (the decision is a pure
-			// function of the same inputs the segment route already resolved).
-			if copyBlockedOnlyByMissingIndex(h.makeDecision(r.Context(), streams, containerOf(item), sourcePathOf(item), r), streams) {
+			if copyBlockedOnlyByMissingIndex(rp.Decision, streams) {
 				if h.keyframeWarmer != nil {
 					go h.keyframeWarmer(context.WithoutCancel(r.Context()), mediaID, sourcePathOf(item))
 				}
@@ -757,7 +769,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	}
 
 	key := apptranscoding.SegmentKey{
-		DecisionHash: fp.Hash(),
+		DecisionHash: rp.FPHash,
 		VariantIdx:   variantIdx,
 		SegmentIdx:   segmentIdx,
 		IsInit:       isInit,
@@ -815,15 +827,28 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 }
 
 // producerForRequest resolves the StreamProducer (software vs hardware) for the
-// current request. It recomputes the decision + source dims the same way the
-// manifest/fingerprint path does, so the producer chosen for a segment matches
-// the one the ladder was shaped for (and thus the cache hash). Falls back to
-// the orchestrator field when no selector is wired (hand-built test handlers);
-// returns nil only when neither is set.
+// current request. Wrapper for the call sites without a resolved plan (prewarm
+// of the NEXT episode, tests): it recomputes the decision the same way the
+// manifest/fingerprint path does, then delegates to producerForDecision.
 func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, streams []*domainlibrary.MediaStream, item *domainlibrary.MediaItem) apptranscoding.StreamProducer {
+	if h.selector == nil {
+		if h.orchestrator != nil {
+			return h.orchestrator
+		}
+		return nil
+	}
+	decision := h.makeDecision(ctx, streams, containerOf(item), sourcePathOf(item), r)
+	return h.producerForDecision(decision, streams, item, h.isCopyRequest(decision, streams, sourceBytesOf(item)))
+}
+
+// producerForDecision picks the producer for an already-resolved decision, so
+// the producer chosen for a segment matches the one the ladder was shaped for
+// (and thus the cache hash). Falls back to the orchestrator field when no
+// selector is wired (hand-built test handlers); returns nil only when neither
+// is set.
+func (h *hlsVODServe) producerForDecision(decision domaintranscoding.PlaybackDecision, streams []*domainlibrary.MediaStream, item *domainlibrary.MediaItem, isCopy bool) apptranscoding.StreamProducer {
 	if h.selector != nil {
-		decision := h.makeDecision(ctx, streams, containerOf(item), sourcePathOf(item), r)
-		if h.isCopyRequest(decision, streams, sourceBytesOf(item)) {
+		if isCopy {
 			return h.copyProducer
 		}
 		// Admission spill: a stream pinned to the software route spawns on the

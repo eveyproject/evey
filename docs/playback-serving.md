@@ -133,14 +133,18 @@ stream token, for HLS and DASH alike, including cookie-less Chromecast.
 
 ## Known seam: the decision brain lives in the http adapter
 
-Today the request-handling brain - decision pins, ladder shaping, fingerprint
+The request-handling brain - decision pins, ladder shaping, fingerprint
 assembly, packager choice - is spread across the `transcode_vod_*.go` files in the
-**http** adapter, not the app layer, and correctness relies on every request
-re-deriving the same fingerprint ("by discipline"). The frozen ladder (step 4) made
-part of that structural; the natural completion is an app-layer use case that
-resolves everything **once** into an immutable plan - see
+**http** adapter, not the app layer. The first migration step is wired: each
+request now resolves its whole plan **once** (`resolvePlan` in
+`http/transcode_vod_plan.go`, delegating to the existing helpers) and every
+consumer - manifest input, shed probe, stale-URL seal, producer pick, segment
+key - reads that single resolution, so *within a request* the cache-hash
+invariant holds by construction (and the segment hot path went from ~5 profile
+prefs fetches to 1). The remaining step is absorbing the helpers into an
+app-layer resolver - see
 [`internal/app/transcoding/playback_plan.go`](../internal/app/transcoding/playback_plan.go)
-for the proposed `PlaybackPlan` / `PlaybackPlanResolver` seam. Until then, treat
-this document as the map, and remember the cache-hash invariant: **every input to
+for the `PlaybackPlan` / `PlaybackPlanResolver` seam and its migration status.
+Across requests the invariant still rests on URL baking: **every input to
 the decision must be baked into the child URLs**, or a mid-play poll can flip the
 plan under the player (`querySuffix` in `manifest_generator.go`).

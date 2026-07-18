@@ -1,0 +1,132 @@
+package httpapi
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
+)
+
+// countingPrefsGetter counts how many times the profile preferences are
+// fetched - each call is a Postgres round-trip on the segment hot path.
+type countingPrefsGetter struct{ calls atomic.Int32 }
+
+func (c *countingPrefsGetter) GetProfilePreferences(_ context.Context, _ string) (map[string]string, error) {
+	c.calls.Add(1)
+	return map[string]string{}, nil
+}
+
+// A segment request must resolve its playback plan ONCE: decision, ladder,
+// fingerprint and producer all read the same resolution, and the profile
+// preferences behind them are fetched a single time. Before the plan
+// refactor the segment path re-derived the decision up to three times
+// (bound check + fingerprint + producer pick), each pulling the prefs from
+// Postgres again - ~7 fetches per segment, every few seconds, per viewer.
+func TestServeSegment_LoadsProfilePrefsOnce(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
+	prefs := &countingPrefsGetter{}
+	h.profilePrefs = prefs
+
+	w := doVODRequest(h, "m1", "stream_0_000.m4s")
+	// Cache miss → 503 after the wait budget; the request still ran the whole
+	// plan resolution + producer path, which is what we count.
+	require.Equal(t, http.StatusServiceUnavailable, w.Code)
+
+	assert.Equal(t, int32(1), prefs.calls.Load(),
+		"one segment request must load the profile prefs exactly once")
+}
+
+// The manifest path too: one master request = one prefs fetch. The old
+// buildManifestInput derived the decision twice (once directly, once inside
+// the sealed fingerprint hash), doubling every input fetch.
+func TestServeMaster_LoadsProfilePrefsOnce(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
+	prefs := &countingPrefsGetter{}
+	h.profilePrefs = prefs
+
+	w := doVODRequest(h, "m1", "master.m3u8")
+	require.Equal(t, http.StatusOK, w.Code)
+
+	assert.Equal(t, int32(1), prefs.calls.Load(),
+		"one master request must load the profile prefs exactly once")
+}
+
+// resolvePlan's app-layer projection (apptranscoding.PlaybackPlan) must be
+// coherent with the fingerprint the very same resolution produced - it is
+// the object a future app-layer resolver will return, so its fields cannot
+// drift from what the adapter actually serves.
+func TestResolvePlan_PopulatesPlaybackPlan(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur},
+	}
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item}, allowAll(), testFakeParentalChecker{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0_000.m4s", nil)
+	req = withHTTPClaims(req, testClaims(false))
+
+	rp, err := h.resolvePlan(req, "m1", item, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, rp.FP.Hash(), rp.FPHash, "cached hash must be the fingerprint's")
+	assert.Equal(t, rp.FPHash, rp.Plan.FingerprintHash)
+	assert.Equal(t, rp.Decision, rp.Plan.Decision)
+	assert.Equal(t, rp.Profiles, rp.Plan.Ladder)
+	assert.Equal(t, rp.FP.VideoCodec, rp.Plan.VideoCodec)
+	assert.Equal(t, rp.FP.HWAccel, rp.Plan.HWAccel)
+	assert.Equal(t, apptranscoding.LadderClassOf(rp.FP), rp.Plan.Class)
+	assert.False(t, rp.IsCopy)
+	assert.Equal(t, apptranscoding.PackagerTranscodeFFmpeg, rp.Plan.Packager,
+		"a transcode resolution bills the ffmpeg transcode packager")
+	assert.True(t, rp.Plan.NeedsVideoEncode(), "a transcode plan spends encode")
+}
+
+// A copy-eligible request resolves to the ffmpeg-copy packager and is
+// flagged IsCopy - the routing bit every consumer (bound check, shed,
+// producer pick) reads instead of re-deriving.
+func TestResolvePlan_CopyRequest(t *testing.T) {
+	dur, _ := shared.NewDurationMs(60_000)
+	item := &domainlibrary.MediaItem{
+		ID:        "m1",
+		LibraryID: "lib1",
+		File:      &domainlibrary.MediaFile{Path: "/test.mkv", Duration: dur, ContainerFormat: "matroska"},
+	}
+	streams := copyEligibleStreams()
+	h, _ := buildVODHandler(t, &testFakeStreamsGetter{item: item, streams: streams}, allowAll(), testFakeParentalChecker{})
+	copyProd := apptranscoding.NewSoftwareProducer(h.cache, nil, nil, apptranscoding.SoftwareProducerOptions{}, nil)
+	copyProd.SetCopyMode(apptranscoding.NewCopyPlanner(nil, nil), nil)
+	h.copyProducer = copyProd
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/stream_0_000.m4s", nil)
+	req = withHTTPClaims(req, testClaims(false))
+
+	rp, err := h.resolvePlan(req, "m1", item, streams)
+	require.NoError(t, err)
+
+	assert.True(t, rp.IsCopy)
+	assert.Equal(t, apptranscoding.PackagerCopyFFmpeg, rp.Plan.Packager)
+	assert.False(t, rp.Plan.NeedsVideoEncode(), "a copy plan never spends encode")
+	assert.True(t, rp.Plan.UsesFFmpeg(), "the ffmpeg copy rung still spawns a process")
+}
