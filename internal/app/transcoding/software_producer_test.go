@@ -645,7 +645,7 @@ func TestSoftwareProducer_ANewbornEncoderIsNotEvictedBeforeItsFirstDelivery(t *t
 		variants[s.variantIdx] = true
 	}
 	p.mu.Unlock()
-	for v := 0; v <= 2; v++ {
+	for v := range 3 {
 		assert.True(t, variants[v], "rung %d's newborn encoder must survive its siblings' spawns: killing it is the 2026-07-15 spinner", v)
 	}
 	assert.Equal(t, 3, p.ActiveSessionCount(), "newborns ride over the cap (paused), they are not killed")

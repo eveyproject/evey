@@ -351,7 +351,7 @@ func TestAudioOrchestrator_SpawnsSessionWithReadRatePacing(t *testing.T) {
 	require.NoError(t, o.EnsureAudioSegment(context.Background(), fp, 0))
 
 	opts := proc.optsAt(0)
-	assert.Equal(t, float64(audioRenditionReadRate), opts.ReadRate,
+	assert.InDelta(t, float64(audioRenditionReadRate), opts.ReadRate, 1e-9,
 		"audio session must be input-paced so the CPU-bound re-encode does not burst a full core per client")
 	assert.Positive(t, opts.ReadRate, "pacing must be enabled (non-zero), not left at the old unpaced 0")
 }
