@@ -61,15 +61,24 @@ var _ transcoding.Classifier = (*ComplexityClassifier)(nil)
 // Classify samples the file and returns the metrics. Total wallclock ~10-30s
 // for a typical 1080p film on the dev box; bounded by an internal 90s
 // timeout so a degenerate file doesn't pin a worker forever.
-func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, durationSec float64) (transcoding.ComplexityMetrics, error) {
+func (c *ComplexityClassifier) Classify(ctx context.Context, filePath string, durationSec float64, known transcoding.KnownSourceFacts) (transcoding.ComplexityMetrics, error) {
 	metrics := transcoding.ComplexityMetrics{}
 	if filePath == "" {
 		return metrics, fmt.Errorf("complexity classifier: empty filePath")
 	}
 
-	// Probe the source for bitrate + resolution. ffprobe is fast (<200ms)
-	// and we need this even when the frame sample fails.
-	bitrateKbps, w, h, err := c.probeSource(ctx, filePath)
+	// Probe the source for bitrate + resolution, unless the caller already knows
+	// both - the scan establishes them, so on the normal path this fork is pure
+	// duplication. ffprobe stays the fallback for whatever the caller could not
+	// supply (a file scanned before the bitrate column was populated).
+	var bitrateKbps int64
+	var w, h int
+	var err error
+	if known.Complete() {
+		bitrateKbps, w, h = known.BitrateBps/1000, known.Width, known.Height
+	} else {
+		bitrateKbps, w, h, err = c.probeSource(ctx, filePath)
+	}
 	if err != nil {
 		// Don't fail the whole classification on a probe error - the
 		// metrics struct still carries useful YDEV / scenecut info from

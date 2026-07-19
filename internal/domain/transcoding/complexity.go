@@ -6,6 +6,19 @@ import "context"
 // classify time. Stored alongside the class so the admin can reproduce or
 // override the decision after the fact, and so a future classifier rev
 // can be backfilled without re-running ffmpeg on the source.
+// KnownSourceFacts are the source properties a caller may already have, passed
+// in so the classifier can skip its ffprobe pre-probe. Partial values are fine -
+// the classifier probes only when something it needs is missing.
+type KnownSourceFacts struct {
+	BitrateBps int64
+	Width      int
+	Height     int
+}
+
+func (k KnownSourceFacts) Complete() bool {
+	return k.BitrateBps > 0 && k.Width > 0 && k.Height > 0
+}
+
 type ComplexityMetrics struct {
 	// MotionMean averages ffmpeg signalstats `YDIF` - frame-to-frame
 	// luminance differences - across the sampled frames. Proxy for
@@ -124,5 +137,9 @@ type Classifier interface {
 	// ffmpeg crash); a partial result with FramesSampled > 0 still gets
 	// returned alongside a nil error so the admin gets visibility on
 	// degenerate cases (3-second sample because the file is short, etc.).
-	Classify(ctx context.Context, filePath string, durationSec float64) (ComplexityMetrics, error)
+	// known carries the facts the caller already holds. Every field it fills is
+	// one ffprobe fork the classifier does not have to pay: the probe exists
+	// only to recover bitrate + resolution, both of which the scan already
+	// established. A zero field means "unknown, go and probe".
+	Classify(ctx context.Context, filePath string, durationSec float64, known KnownSourceFacts) (ComplexityMetrics, error)
 }

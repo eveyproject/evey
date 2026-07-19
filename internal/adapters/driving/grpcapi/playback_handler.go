@@ -292,11 +292,8 @@ func sourceBitrateBps(item *library.MediaItem) int64 {
 	if item == nil || item.File == nil {
 		return 0
 	}
-	if item.File.Bitrate > 0 {
-		return item.File.Bitrate
-	}
-	if item.File.Size > 0 && item.File.Duration.Seconds() > 0 {
-		return int64(float64(item.File.Size) * 8 / item.File.Duration.Seconds())
+	if bps := item.File.BitrateBps(); bps > 0 {
+		return bps
 	}
 	return 0
 }

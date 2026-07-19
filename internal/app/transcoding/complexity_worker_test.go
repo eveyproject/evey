@@ -74,7 +74,7 @@ type fakeClassifier struct {
 	err error
 }
 
-func (f *fakeClassifier) Classify(_ context.Context, _ string, _ float64) (domaintranscoding.ComplexityMetrics, error) {
+func (f *fakeClassifier) Classify(_ context.Context, _ string, _ float64, _ domaintranscoding.KnownSourceFacts) (domaintranscoding.ComplexityMetrics, error) {
 	return f.out, f.err
 }
 

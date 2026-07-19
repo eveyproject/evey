@@ -203,6 +203,28 @@ type MediaClassification struct {
 // about the on-disk artefact backing a MediaItem. Modelled as a
 // sub-aggregate so non-file callers (catalog metadata, ratings) don't
 // have to thread file fields they never touch.
+// BitrateBps is the container's overall bitrate in bits per second: the stored
+// value when the probe supplied one, otherwise derived from size and duration.
+//
+// The derivation is not an approximation of a different quantity - ffprobe's
+// format-level bit_rate IS total bytes over total time, which is exactly what
+// this computes. It exists because nothing ever populated MediaFile.Bitrate:
+// the probers report per-TRACK bitrates (a Matroska BPS tag many files simply
+// lack - 19% coverage on a real library), never a container-level one, so the
+// column sat at 0 for every row.
+func (f *MediaFile) BitrateBps() int64 {
+	if f == nil {
+		return 0
+	}
+	if f.Bitrate > 0 {
+		return f.Bitrate
+	}
+	if secs := f.Duration.Seconds(); f.Size > 0 && secs > 0 {
+		return int64(float64(f.Size) * 8 / secs)
+	}
+	return 0
+}
+
 type MediaFile struct {
 	Path            string
 	Size            int64

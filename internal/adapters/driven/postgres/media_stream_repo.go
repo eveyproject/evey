@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -583,3 +584,28 @@ func (r *MediaStreamRepository) ListVideoFrameRateStale(ctx context.Context, lim
 }
 
 var _ library.MediaStreamRepository = (*MediaStreamRepository)(nil)
+
+// VideoDims returns the item's video resolution, or (0,0) when it has no video
+// stream. Serves the complexity worker, which passes it to the classifier so
+// that ffprobe is not forked purely to re-read a number the scan already stored.
+func (r *MediaStreamRepository) VideoDims(ctx context.Context, mediaItemID shared.MediaItemID) (int, int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.VideoDims")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var w, h sql.NullInt64
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`SELECT width, height FROM media_streams
+		  WHERE media_item_id = $1 AND stream_type = 'video'
+		    AND width IS NOT NULL AND height IS NOT NULL
+		  ORDER BY stream_index
+		  LIMIT 1`, string(mediaItemID)).Scan(&w, &h)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, nil
+	}
+	if err != nil {
+		span.RecordError(err)
+		return 0, 0, err
+	}
+	return int(w.Int64), int(h.Int64), nil
+}

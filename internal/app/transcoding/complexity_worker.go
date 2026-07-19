@@ -21,6 +21,14 @@ type MediaItemReader interface {
 	GetByID(ctx context.Context, id shared.MediaItemID) (*domainlibrary.MediaItem, error)
 }
 
+// VideoDimsReader hands back the item's video resolution. Narrow on purpose:
+// the worker only needs it to spare the classifier an ffprobe fork, and the
+// resolution is one of the few source facts the scan reliably persists.
+// Optional - a nil reader simply leaves the classifier to probe.
+type VideoDimsReader interface {
+	VideoDims(ctx context.Context, mediaItemID shared.MediaItemID) (width, height int, err error)
+}
+
 // ComplexityWorker classifies media items in the background, one at a
 // time, paced so it never crowds the playback path. Each tick pulls a
 // small batch of unclassified IDs from the repo, runs ffmpeg signalstats
@@ -32,6 +40,7 @@ type ComplexityWorker struct {
 	repo         domaintranscoding.ComplexityRepo
 	classifier   domaintranscoding.Classifier
 	items        MediaItemReader
+	dims         VideoDimsReader // optional
 	logger       *slog.Logger
 	batchSize    int
 	idleInterval time.Duration
@@ -42,6 +51,13 @@ type ComplexityWorker struct {
 
 	startOnce sync.Once // Start spawns the run goroutine at most once.
 	stopOnce  sync.Once // Stop closes the stop channel at most once.
+}
+
+// WithVideoDims installs the resolution reader that lets the classifier skip
+// its ffprobe pre-probe.
+func (w *ComplexityWorker) WithVideoDims(d VideoDimsReader) *ComplexityWorker {
+	w.dims = d
+	return w
 }
 
 // ComplexityWorkerOpts tunes the worker pacing.
@@ -188,7 +204,17 @@ func (w *ComplexityWorker) classifyOne(ctx context.Context, mediaItemID string) 
 		return
 	}
 
-	metrics, err := w.classifier.Classify(ctx, item.File.Path, durationSec)
+	// Everything the classifier would otherwise fork ffprobe for. Bitrate comes
+	// off the item (persisted at scan, derived from size/duration when the probe
+	// gave none); the resolution needs the one extra read below.
+	known := domaintranscoding.KnownSourceFacts{BitrateBps: item.File.BitrateBps()}
+	if w.dims != nil {
+		if wd, ht, dErr := w.dims.VideoDims(ctx, shared.MediaItemID(mediaItemID)); dErr == nil {
+			known.Width, known.Height = wd, ht
+		}
+	}
+
+	metrics, err := w.classifier.Classify(ctx, item.File.Path, durationSec, known)
 	if err != nil && metrics.FramesSampled == 0 {
 		w.logger.Warn("complexity: classify failed",
 			slog.String("media_id", mediaItemID),

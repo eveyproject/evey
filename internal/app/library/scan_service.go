@@ -651,6 +651,9 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 	if !dur.IsZero() {
 		item.File.Duration = dur
 	}
+	// Persisted once the duration is known: the column was never written by any
+	// prober, so every consumer had to re-derive it (or fork ffprobe for it).
+	item.File.Bitrate = item.File.BitrateBps()
 	if container != "" {
 		item.File.ContainerFormat = container
 	}
@@ -748,6 +751,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	if !dur.IsZero() {
 		existing.File.Duration = dur
 	}
+	existing.File.Bitrate = existing.File.BitrateBps()
 	if container != "" {
 		existing.File.ContainerFormat = container
 	}
@@ -793,6 +797,7 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 		if !dur.IsZero() {
 			item.File.Duration = dur
 		}
+		item.File.Bitrate = item.File.BitrateBps()
 		if container != "" {
 			item.File.ContainerFormat = container
 		}

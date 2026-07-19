@@ -1023,7 +1023,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}),
 		apptranscoding.ComplexityWorkerOpts{},
 		slog.Default(),
-	)
+	).WithVideoDims(r.MediaStream)
 	complexityWorker.Start(ctx)
 
 	// Level backfill: re-probe existing media to fill media_streams.level. The

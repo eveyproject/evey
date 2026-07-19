@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 func TestLibraryTypeConstants(t *testing.T) {
@@ -550,5 +551,36 @@ func TestUserRating_Values(t *testing.T) {
 				t.Errorf("Value = %d, want %d", r.Value, c.value)
 			}
 		})
+	}
+}
+
+// media_files.bitrate sat at 0 on every row for the whole life of the column:
+// probers report per-TRACK bitrates (a Matroska BPS tag ~80% of a real library
+// lacks), never a container-level one. Consumers therefore re-derived it - or
+// forked ffprobe for it. This is that derivation, in one place.
+func mustDur(ms int64) shared.Duration {
+	d, err := shared.NewDurationMs(ms)
+	if err != nil {
+		panic(err)
+	}
+	return d
+}
+
+func TestMediaFile_BitrateBps(t *testing.T) {
+	cases := []struct {
+		name  string
+		file  *library.MediaFile
+		want  int64
+	}{
+		{"a stored value wins", &library.MediaFile{Bitrate: 5_000_000, Size: 1, Duration: mustDur(1000)}, 5_000_000},
+		{"derived from size and duration", &library.MediaFile{Size: 1_000_000, Duration: mustDur(8000)}, 1_000_000},
+		{"no duration, no guess", &library.MediaFile{Size: 1_000_000}, 0},
+		{"no size, no guess", &library.MediaFile{Duration: mustDur(8000)}, 0},
+		{"nil file is zero, never a panic", nil, 0},
+	}
+	for _, c := range cases {
+		if got := c.file.BitrateBps(); got != c.want {
+			t.Errorf("%s: BitrateBps() = %d, want %d", c.name, got, c.want)
+		}
 	}
 }
