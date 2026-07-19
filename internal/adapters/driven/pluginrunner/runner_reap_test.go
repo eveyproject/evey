@@ -119,3 +119,31 @@ func TestReapStaleProcesses_SparesUnrelatedAndOwnedProcesses(t *testing.T) {
 		t.Errorf("owned (registered) plugin process %d was killed by the reap", owned.Process.Pid)
 	}
 }
+
+// The delayed SIGKILL used to check only that SOMETHING held the pid. Across
+// the grace period the victim normally dies and Linux may hand its pid to an
+// unrelated process - which then got SIGKILLed. This is the guard: identity,
+// not liveness. (It also made TestReapStaleProcesses_Spares... flaky, since
+// tests spawn processes fast enough to recycle pids.)
+func TestStillReapable_RejectsARecycledPid(t *testing.T) {
+	dir := t.TempDir()
+	r := NewRunner(dir)
+
+	// A live process that is NOT a plugin under our dir: exactly what a pid
+	// recycled to a stranger looks like.
+	stranger := spawnFakeStalePlugin(t, t.TempDir())
+	if r.stillReapable(stranger.Process.Pid, syscall.Getuid()) {
+		t.Error("a live pid that is not one of our plugins must never be escalated to SIGKILL")
+	}
+
+	// A real one still under our dir stays reapable.
+	ours := spawnFakeStalePlugin(t, dir)
+	if !r.stillReapable(ours.Process.Pid, syscall.Getuid()) {
+		t.Error("a plugin still running under our dir must remain reapable")
+	}
+
+	// A pid nobody holds is not reapable either.
+	if r.stillReapable(1 <<30, syscall.Getuid()) {
+		t.Error("a dead/absent pid must not be reapable")
+	}
+}

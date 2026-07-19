@@ -76,6 +76,15 @@ func (r *Runner) ReapStaleProcesses() int {
 		go func(pids []int) {
 			time.Sleep(killTimeout)
 			for _, pid := range pids {
+				// Liveness alone is NOT identity. Across the grace period the
+				// victim usually dies, and Linux is free to hand its pid to any
+				// new process - kill(pid,0) then succeeds for a stranger, and we
+				// SIGKILL it. Re-run the same two checks that made it a victim,
+				// so an escalation only ever lands on a process that is STILL a
+				// plugin of ours.
+				if !r.stillReapable(pid, myUID) {
+					continue
+				}
 				if syscall.Kill(pid, 0) == nil {
 					if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil {
 						if killErr := syscall.Kill(pid, syscall.SIGKILL); killErr != nil && killErr != syscall.ESRCH {
@@ -106,6 +115,17 @@ func (r *Runner) cmdlineUnderPluginDir(pid int) bool {
 		}
 	}
 	return false
+}
+
+// stillReapable re-confirms that pid is the same kind of process the reap
+// selected: a plugin under one of our dirs, owned by us. Used before the
+// delayed SIGKILL, where a recycled pid would otherwise be killed blind.
+func (r *Runner) stillReapable(pid, myUID int) bool {
+	if !r.cmdlineUnderPluginDir(pid) {
+		return false
+	}
+	uid, err := procUID(pid)
+	return err == nil && (uid == myUID || uid == pluginUID)
 }
 
 // procUID returns the real uid of pid from /proc/<pid>/status.
