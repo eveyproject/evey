@@ -527,6 +527,14 @@ func (r *MediaStreamRepository) ReclassifyFrameRateMode(ctx context.Context, med
 // classification only ever rode along a keyframe write, so a row whose
 // keyframes are already indexed would stay unclassified forever.
 //
+// SCOPED to copy-eligible sources, mirroring ListVideoKeyframesMissing's gates.
+// The verdict has exactly ONE consumer, CopyRungEligible: on a source that can
+// never be served as copy it changes no decision, so analyzing it is pure cost -
+// and the cost is a full-file walk of tens of seconds. Excluding a row is safe
+// because the gates are themselves self-healing: an item still missing its level
+// stays at version 0 and becomes a candidate as soon as the level backfill fills
+// it in.
+//
 // Like the other backfill queries this is the drain's resumability mechanism -
 // it shrinks as rows get stamped, so an interrupted run simply resumes.
 func (r *MediaStreamRepository) ListVideoFrameRateStale(ctx context.Context, limit int, algoVersion int16, exclude []string) ([]string, error) {
@@ -542,6 +550,11 @@ func (r *MediaStreamRepository) ListVideoFrameRateStale(ctx context.Context, lim
 		`SELECT DISTINCT media_item_id FROM media_streams
 		 WHERE stream_type = 'video'
 		   AND frame_rate_algo_version < $1
+		   AND level IS NOT NULL
+		   AND (lower(codec) = 'h264'
+		     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND color_transfer IS NOT NULL
+		         AND (dovi_profile IS NULL
+		           OR (dovi_profile = 8 AND dovi_bl_compat IN (1, 2, 4)))))
 		   AND NOT (media_item_id = ANY($2))
 		 ORDER BY media_item_id
 		 LIMIT $3`, algoVersion, pq.Array(exclude), limit)

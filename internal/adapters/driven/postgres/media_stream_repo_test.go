@@ -534,10 +534,23 @@ func TestMediaStreamRepo_FrameRateStale_IncludesNeverClassified(t *testing.T) {
 		},
 	}))
 
+	// No level yet ⇒ not copy-eligible ⇒ analyzing it would change no decision.
 	stale, err := streamRepo.ListVideoFrameRateStale(ctx, 10, 1, nil)
 	require.NoError(t, err)
+	assert.NotContains(t, stale, string(item.ID),
+		"a source that cannot be served as copy is not worth a full-file walk")
+
+	// The level backfill fills it in; the row becomes a candidate on its own,
+	// which is why excluding it above loses nothing.
+	_, err = streamRepo.SetVideoLevels(ctx, item.ID, []*library.MediaStream{
+		{StreamType: "video", StreamIndex: 0, Codec: "h264", Level: new(40)},
+	})
+	require.NoError(t, err)
+
+	stale, err = streamRepo.ListVideoFrameRateStale(ctx, 10, 1, nil)
+	require.NoError(t, err)
 	assert.Contains(t, stale, string(item.ID),
-		"a never-classified row (frame_rate_mode = '') is a candidate, not out of scope")
+		"a never-classified row (frame_rate_mode = '') is a candidate once copy-eligible")
 
 	n, err := streamRepo.ReclassifyFrameRateMode(ctx, item.ID, "vfr", 1)
 	require.NoError(t, err)
