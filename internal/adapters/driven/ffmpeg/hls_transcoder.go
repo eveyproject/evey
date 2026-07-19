@@ -383,6 +383,24 @@ func parseAspect(s string) (num, den int, ok bool) {
 // HW encoders ignore CRF (rate-control differs), so this is the software path only.
 const softwareCRF = "20"
 
+// maxrateHeadroomPct sizes the -maxrate ceiling above the rung's advertised
+// bitrate. The two are different jobs: the rung bitrate is the manifest's
+// BANDWIDTH (what ABR budgets), the ceiling should only clip outliers. Pinned
+// together, CRF 20 was strangled on re-encodes of already-lossy sources (old
+// XviD .avi), whose grain is expensive to reproduce. Raising the rung bitrate
+// instead would push constrained viewers down a whole rung.
+//
+// Not part of the DecisionFingerprint (like softwareCRF): existing segments
+// keep the ceiling they were encoded with until the cache is purged.
+const maxrateHeadroomPct = 160
+
+// cappedCRFRateArgs returns the -maxrate/-bufsize pair for a rung advertised
+// at kbps. bufsize keeps a 2x-of-ceiling VBV window.
+func cappedCRFRateArgs(kbps int64) (maxrate, bufsize string) {
+	ceiling := kbps * maxrateHeadroomPct / 100
+	return fmt.Sprintf("%dk", ceiling), fmt.Sprintf("%dk", ceiling*2)
+}
+
 // svtAV1Preset is the libsvtav1 numeric speed/quality preset (0-13, higher =
 // faster). 10 leans fast for the weak-NAS software-AV1 path; tune here.
 const svtAV1Preset = "10"
@@ -813,9 +831,9 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 		// Capped CRF (see softwareCRF): quality-targeted with the rung bitrate as a
 		// hard ceiling, instead of a plain -b:v average.
 		"-crf", softwareCRF,
-		"-maxrate", fmt.Sprintf("%dk", p.VideoBitrate),
-		"-bufsize", fmt.Sprintf("%dk", p.VideoBitrate*2),
 	)
+	maxrate, bufsize := cappedCRFRateArgs(p.VideoBitrate)
+	args = append(args, "-maxrate", maxrate, "-bufsize", bufsize)
 	args = append(args, svtAV1PresetArgs(enc)...)
 	args = append(args, "-pix_fmt", "yuv420p")
 	args = append(args, hlsForceKeyframesArgs...)
@@ -919,8 +937,11 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 			// Capped CRF per rung (see softwareCRF): quality-targeted, rung bitrate
 			// as the hard ceiling, instead of a plain -b:v average.
 			fmt.Sprintf("-crf:v:%d", i), softwareCRF,
-			fmt.Sprintf("-maxrate:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate),
-			fmt.Sprintf("-bufsize:v:%d", i), fmt.Sprintf("%dk", p.VideoBitrate*2),
+		)
+		maxrate, bufsize := cappedCRFRateArgs(p.VideoBitrate)
+		args = append(args,
+			fmt.Sprintf("-maxrate:v:%d", i), maxrate,
+			fmt.Sprintf("-bufsize:v:%d", i), bufsize,
 		)
 		args = append(args, svtAV1PresetArgs(vcodec)...)
 		args = append(args, "-pix_fmt", "yuv420p")
