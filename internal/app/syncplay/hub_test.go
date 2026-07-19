@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1614,5 +1615,57 @@ func TestHub_DisconnectMember_DoubleTab_MemberStays(t *testing.T) {
 	}
 	if got := len(otherSender.Received()); got != 1 {
 		t.Errorf("broadcast via remaining connection: user-2 got %d messages, want 1", got)
+	}
+}
+
+// The Hub is shared state driven by one goroutine per WebSocket connection, but
+// unlike DeviceRegistry it had no concurrency test at all - so the repo's -race
+// runs never actually exercised concurrent Hub access. This drives connect /
+// command / broadcast / disconnect from many goroutines at once against the same
+// room, which is exactly the real shape: N members of one room acting together.
+func TestHub_ConcurrentMembersOnOneRoom(t *testing.T) {
+	repo := newFakeRoomRepo()
+	h := NewHub(repo)
+	ctx := context.Background()
+
+	room, err := h.CreateRoom(ctx, "host-1", "media-1", "Room")
+	if err != nil {
+		t.Fatalf("CreateRoom: %v", err)
+	}
+
+	const workers = 12
+	const iters = 60
+	// Guard against a vacuous pass: if every ConnectMember errored, the loop
+	// below would skip all the interesting work and the test would still be
+	// green while exercising nothing.
+	var connected atomic.Int64
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for w := range workers {
+		go func(w int) {
+			defer wg.Done()
+			// Worker 0 acts as the host so the host-only command paths are
+			// exercised concurrently with everyone else's rejected attempts.
+			userID := "host-1"
+			if w != 0 {
+				userID = "member-" + string(rune('A'+w))
+			}
+			for range iters {
+				sender := fakes.NewFakeMessageSender()
+				if _, cErr := h.ConnectMember(ctx, room.ID, userID, "U", sender); cErr != nil {
+					continue
+				}
+				connected.Add(1)
+				_, _ = h.HandleCommand(ctx, room.ID, userID, "U", syncplay.SyncCommand{Type: "play"})
+				_, _ = h.HandleCommand(ctx, room.ID, userID, "U", syncplay.SyncCommand{Type: "seek", PositionMs: 12_000})
+				_, _ = h.GetRoom(ctx, room.ID)
+				_ = h.DisconnectMember(ctx, room.ID, userID)
+			}
+		}(w)
+	}
+	wg.Wait()
+
+	if got := connected.Load(); got < workers {
+		t.Fatalf("only %d successful connects across %d workers - the test never exercised concurrent hub access", got, workers)
 	}
 }
