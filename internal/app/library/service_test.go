@@ -900,3 +900,40 @@ func TestScanLibrary_ItemsRemovedCountInEvent(t *testing.T) {
 	require.NotNil(t, scanCompleted)
 	assert.Equal(t, 2, scanCompleted.ItemsRemoved)
 }
+
+// A probe that finds streams but reports no duration used to leave
+// ContainerFormat unwritten: the persist was gated on `!dur.IsZero() ||
+// !probedOK`, and a successful probe never sets StreamProbeAttempts, so
+// NeedsReprobe stayed false and the unchanged-file fast path skipped the item
+// forever. The field feeds direct-play eligibility, so a permanently blank
+// container means needless transcoding.
+func TestScan_PersistsContainerFormatWhenProbeHasNoDuration(t *testing.T) {
+	t.Parallel()
+	prober := libfakes.NewFakeStreamProber()
+	prober.Results["/movies/film.mkv"] = &library.ProbeResult{
+		// Zero duration, but real streams and a known container.
+		Container: "matroska,webm",
+		Streams: []*library.MediaStream{
+			{ID: "ps1", StreamType: "video", Codec: "h264"},
+		},
+	}
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvcWith(&cmdSvcDeps{prober: prober})
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"},
+	})
+	scanner.Results["/movies"] = []library.ScannedFile{
+		{Path: "/movies/film.mkv", Size: 100, Title: "Film", Type: library.MovieItem},
+	}
+
+	_, _, err := svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+
+	// Assert on the Update CALL, not on the stored struct: the fake keeps the
+	// caller's pointer, so the in-memory mutation would look persisted either way.
+	assert.NotEmpty(t, mediaRepo.UpdatedIDs,
+		"a successful probe must persist the container even when the duration is unknown")
+	items := mediaRepo.All()
+	require.Len(t, items, 1)
+	assert.Equal(t, "matroska,webm", items[0].File.ContainerFormat)
+}

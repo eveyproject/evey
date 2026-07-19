@@ -5,6 +5,7 @@ package fakes
 
 import (
 	"context"
+	"maps"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/mediarequest"
@@ -194,9 +195,7 @@ func (f *FakeAccess) ListOverrides(context.Context) (map[string]bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	out := make(map[string]bool, len(f.Overrides))
-	for k, v := range f.Overrides {
-		out[k] = v
-	}
+	maps.Copy(out, f.Overrides)
 	return out, nil
 }
 

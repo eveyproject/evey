@@ -11,6 +11,11 @@ import (
 type FakeMediaItemCommandRepo struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
+	// UpdatedIDs records every Update call, in order. Needed because Create
+	// stores the CALLER'S pointer: a service that mutates the item in memory
+	// is visible through items[] whether or not it ever persisted, so
+	// asserting on the stored struct cannot prove a write happened.
+	UpdatedIDs []string
 	// Per-method error injection; zero value = no error (backward compatible)
 	ErrCreate                error
 	ErrUpdate                error
@@ -44,6 +49,7 @@ func (r *FakeMediaItemCommandRepo) Update(_ context.Context, item *library.Media
 		return ErrNotFound
 	}
 	r.items[string(item.ID)] = item
+	r.UpdatedIDs = append(r.UpdatedIDs, string(item.ID))
 	return nil
 }
 

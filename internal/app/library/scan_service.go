@@ -657,7 +657,14 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 	if container != "" {
 		item.File.ContainerFormat = container
 	}
-	if !dur.IsZero() || !probedOK {
+	// Persist whenever the probe taught us anything - container included. Gating
+	// only on duration silently dropped ContainerFormat for a file whose probe
+	// succeeded but reported no duration: a successful probe leaves
+	// StreamProbeAttempts at 0, so NeedsReprobe stays false and the
+	// unchanged-file fast path never revisits it. The column then stays empty
+	// forever, and an empty container reads as "incompatible" in the playback
+	// decision, forcing a remux that the source never needed.
+	if !dur.IsZero() || container != "" || !probedOK {
 		if err := s.mediaItems.Update(ctx, item); err != nil {
 			slog.Warn("update media item after probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 		}
