@@ -53,6 +53,32 @@ func (r *FakeLibraryAccessRepository) GrantMany(_ context.Context, userID shared
 	return nil
 }
 
+// ReplaceAccess atomically swaps userID's whole grant set for libraryIDs.
+// Err is checked before any mutation, so a simulated repo failure leaves the
+// existing grants completely untouched - the fail-closed contract the real
+// transactional adapter provides via a single tx.
+func (r *FakeLibraryAccessRepository) ReplaceAccess(_ context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return r.Err
+	}
+	if len(libraryIDs) == 0 {
+		delete(r.items, userID)
+		return nil
+	}
+	now := time.Now()
+	next := make(map[shared.LibraryID]time.Time, len(libraryIDs))
+	for _, id := range libraryIDs {
+		next[id] = now
+	}
+	r.items[userID] = next
+	return nil
+}
+
 func (r *FakeLibraryAccessRepository) Revoke(_ context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
 	if r.Err != nil {
 		return r.Err

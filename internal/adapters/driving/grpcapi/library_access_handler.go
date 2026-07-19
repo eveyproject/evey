@@ -40,22 +40,17 @@ func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *ev
 func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *eveyv1.SetUserLibraryAccessRequest) (*eveyv1.SetUserLibraryAccessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.library_access.SetUserLibraryAccess")
 	defer span.End()
-	// Fail closed on read/revoke errors: swallowing them left `existing` nil, so
-	// the revoke loop no-opped and the new grants were added on top of the old
-	// ones - narrowing a user's access silently widened it, reported as success.
-	existing, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
-	if err != nil {
-		return nil, internalError("set library access: read existing", err)
-	}
-	for _, id := range existing {
-		if err := h.userAccess.RevokeLibraryAccess(ctx, req.UserId, id); err != nil {
-			return nil, internalError("set library access: revoke", err)
-		}
-	}
-	for _, id := range req.LibraryIds {
-		if err := h.userAccess.GrantLibraryAccess(ctx, req.UserId, id); err != nil {
-			return nil, internalError("grant library access", err)
-		}
+	// Fail closed: this used to be a revoke-everything loop followed by a
+	// grant-the-new-set loop. Swallowing a read/revoke error there left
+	// `existing` nil, so the revoke loop no-opped and the new grants were
+	// added on top of the old ones - narrowing a user's access silently
+	// widened it instead. Beyond that, the two-loop shape had a real
+	// atomicity gap: a crash or error between the loops left the user
+	// revoked from everything and re-granted nothing. ReplaceLibraryAccess
+	// does the swap in one transaction, so a failure here leaves the user's
+	// PRIOR access untouched rather than at zero.
+	if err := h.userAccess.ReplaceLibraryAccess(ctx, req.UserId, req.LibraryIds); err != nil {
+		return nil, internalError("set library access", err)
 	}
 	return &eveyv1.SetUserLibraryAccessResponse{}, nil
 }
@@ -63,16 +58,13 @@ func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *ev
 func (h *libraryAccessHandler) RevokeAllUserLibraryAccess(ctx context.Context, req *eveyv1.RevokeAllUserLibraryAccessRequest) (*eveyv1.RevokeAllUserLibraryAccessResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.library_access.RevokeAllUserLibraryAccess")
 	defer span.End()
-	// Fail closed: a swallowed read/revoke error meant "revoke all" could revoke
-	// nothing yet report success, leaving the user with full access.
-	existing, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
-	if err != nil {
-		return nil, internalError("revoke all library access: read existing", err)
-	}
-	for _, id := range existing {
-		if err := h.userAccess.RevokeLibraryAccess(ctx, req.UserId, id); err != nil {
-			return nil, internalError("revoke all library access: revoke", err)
-		}
+	// Fail closed: this used to be a read-then-revoke-in-a-loop; a swallowed
+	// read/revoke error meant "revoke all" could revoke nothing yet report
+	// success, leaving the user with full access. RevokeAllLibraryAccess is a
+	// single DELETE, so it either revokes everything or reports the error -
+	// no partial-loop state to reason about.
+	if err := h.userAccess.RevokeAllLibraryAccess(ctx, req.UserId); err != nil {
+		return nil, internalError("revoke all library access", err)
 	}
 	return &eveyv1.RevokeAllUserLibraryAccessResponse{}, nil
 }

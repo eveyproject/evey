@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"log/slog"
 
 	"github.com/lib/pq"
 
@@ -54,6 +56,64 @@ func (r *LibraryAccessRepository) GrantMany(ctx context.Context, userID shared.U
 		 SELECT $1, unnest($2::text[])
 		 ON CONFLICT DO NOTHING`,
 		string(userID), pq.Array(ids))
+	return err
+}
+
+// ReplaceAccess atomically swaps every grant for userID for exactly
+// libraryIDs: delete-then-insert in a single transaction, so a crash or an
+// error mid-operation cannot leave the user revoked-from-everything with the
+// new set never granted (the window a revoke-loop-then-grant-loop had).
+// Opens its own tx rather than binding to an ambient one via txFromCtx: the
+// two statements below must commit or roll back together regardless of what
+// the caller is doing.
+func (r *LibraryAccessRepository) ReplaceAccess(ctx context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.ReplaceAccess")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("LibraryAccessRepository.ReplaceAccess begin tx: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+				slog.Warn("LibraryAccessRepository.ReplaceAccess rollback failed", slog.Any("err", rbErr))
+			}
+		}
+	}()
+	if _, err = tx.ExecContext(ctx, `DELETE FROM library_access WHERE user_id = $1`, string(userID)); err != nil {
+		return fmt.Errorf("replace access: delete existing: %w", err)
+	}
+	if len(libraryIDs) > 0 {
+		ids := make([]string, len(libraryIDs))
+		for i, id := range libraryIDs {
+			ids[i] = string(id)
+		}
+		if _, err = tx.ExecContext(ctx,
+			`INSERT INTO library_access (user_id, library_id)
+			 SELECT $1, unnest($2::text[])
+			 ON CONFLICT DO NOTHING`,
+			string(userID), pq.Array(ids)); err != nil {
+			return fmt.Errorf("replace access: insert: %w", err)
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("replace access: commit: %w", err)
+	}
+	return nil
+}
+
+// DeleteByUserID atomically revokes every grant for userID in a single
+// statement, replacing the per-library revoke loop that used to back
+// RevokeAllUserLibraryAccess.
+func (r *LibraryAccessRepository) DeleteByUserID(ctx context.Context, userID shared.UserID) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.DeleteByUserID")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM library_access WHERE user_id = $1`, string(userID))
 	return err
 }
 

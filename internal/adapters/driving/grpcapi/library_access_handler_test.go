@@ -112,3 +112,27 @@ func TestLibraryAccessHandler_RevokeAllUserLibraryAccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, resp.LibraryIds)
 }
+
+// The core atomicity guarantee: a repo failure during SetUserLibraryAccess
+// must not leave the user at zero access. The former implementation revoked
+// every existing grant in one loop, then granted the new set in a second
+// loop - an error between the two loops (or a process death) left the user
+// revoked from everything with nothing re-granted. The atomic replace must
+// fail closed onto the PRIOR set instead.
+func TestLibraryAccessHandler_SetUserLibraryAccess_RepoError_DoesNotZeroOutAccess(t *testing.T) {
+	h, accessRepo, _ := newTestLibraryAccessHandler()
+
+	_ = accessRepo.Grant(context.Background(), "user-1", "lib-old")
+
+	accessRepo.Err = assert.AnError
+	_, err := h.SetUserLibraryAccess(context.Background(), &eveyv1.SetUserLibraryAccessRequest{
+		UserId:     "user-1",
+		LibraryIds: []string{"lib-1", "lib-2"},
+	})
+	require.Error(t, err)
+
+	accessRepo.Err = nil
+	resp, err := h.GetUserLibraryAccess(context.Background(), &eveyv1.GetUserLibraryAccessRequest{UserId: "user-1"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lib-old"}, resp.LibraryIds, "a failed replace must leave the prior grants untouched, not zero them out")
+}

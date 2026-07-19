@@ -105,3 +105,82 @@ func TestAccessService_GetLibraryAccessByUserID_RepoError(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "db down")
 }
+
+// ReplaceLibraryAccess swaps the whole grant set in one call: old grants not
+// present in the new set are gone, new ones are present.
+func TestAccessService_ReplaceLibraryAccess_SwapsSet(t *testing.T) {
+	t.Parallel()
+	svc, _ := newAccessSvcWithLibraryAccess()
+	ctx := context.Background()
+
+	require.NoError(t, svc.GrantLibraryAccess(ctx, "u4", "lib-old"))
+
+	require.NoError(t, svc.ReplaceLibraryAccess(ctx, "u4", []string{"lib-1", "lib-2"}))
+
+	ids, err := svc.GetLibraryAccessByUserID(ctx, "u4")
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"lib-1", "lib-2"}, ids)
+}
+
+// ReplaceLibraryAccess with an empty list clears every grant, restoring
+// unrestricted access (same convention as zero grants elsewhere).
+func TestAccessService_ReplaceLibraryAccess_Empty_ClearsGrants(t *testing.T) {
+	t.Parallel()
+	svc, _ := newAccessSvcWithLibraryAccess()
+	ctx := context.Background()
+
+	require.NoError(t, svc.GrantLibraryAccess(ctx, "u5", "lib-1"))
+	require.NoError(t, svc.ReplaceLibraryAccess(ctx, "u5", []string{}))
+
+	ok, err := svc.HasLibraryAccess(ctx, "u5", "any-lib")
+	require.NoError(t, err)
+	assert.True(t, ok, "clearing all grants restores unrestricted access")
+}
+
+// A repo error during ReplaceLibraryAccess must not mutate the existing
+// grant set: the whole point of the atomic replace is that a failure leaves
+// the user with their PRIOR access, never zero. FakeLibraryAccessRepository
+// checks Err before touching its map, exercising exactly that fail-closed
+// contract at the layer the fake can prove.
+func TestAccessService_ReplaceLibraryAccess_RepoError_LeavesExistingAccessIntact(t *testing.T) {
+	t.Parallel()
+	svc, la := newAccessSvcWithLibraryAccess()
+	ctx := context.Background()
+
+	require.NoError(t, svc.GrantLibraryAccess(ctx, "u6", "lib-old"))
+
+	la.Err = errors.New("db down")
+	err := svc.ReplaceLibraryAccess(ctx, "u6", []string{"lib-new"})
+	require.Error(t, err)
+
+	la.Err = nil
+	ids, err := svc.GetLibraryAccessByUserID(ctx, "u6")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lib-old"}, ids, "failed replace must not have revoked the old grant")
+}
+
+// RevokeAllLibraryAccess clears every grant for the user in one call.
+func TestAccessService_RevokeAllLibraryAccess(t *testing.T) {
+	t.Parallel()
+	svc, _ := newAccessSvcWithLibraryAccess()
+	ctx := context.Background()
+
+	require.NoError(t, svc.GrantLibraryAccess(ctx, "u7", "lib-1"))
+	require.NoError(t, svc.GrantLibraryAccess(ctx, "u7", "lib-2"))
+
+	require.NoError(t, svc.RevokeAllLibraryAccess(ctx, "u7"))
+
+	ok, err := svc.HasLibraryAccess(ctx, "u7", "any-lib")
+	require.NoError(t, err)
+	assert.True(t, ok, "clearing all grants restores unrestricted access")
+}
+
+// Repo error on RevokeAllLibraryAccess propagates.
+func TestAccessService_RevokeAllLibraryAccess_RepoError(t *testing.T) {
+	t.Parallel()
+	svc, la := newAccessSvcWithLibraryAccess()
+	la.Err = errors.New("db down")
+	err := svc.RevokeAllLibraryAccess(context.Background(), "u8")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "db down")
+}

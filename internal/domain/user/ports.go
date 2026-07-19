@@ -112,6 +112,16 @@ type LibraryAccessRepository interface {
 	Grant(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error
 	GrantMany(ctx context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error
 	Revoke(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error
+	// ReplaceAccess atomically swaps every grant for userID for exactly
+	// libraryIDs (delete-then-insert in one transaction). Callers that used to
+	// revoke every existing grant in a loop then grant the new set in a second
+	// loop had a real window where a crash or error between the two loops left
+	// the user revoked from everything and re-granted nothing.
+	ReplaceAccess(ctx context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error
+	// DeleteByUserID atomically revokes every grant for userID in a single
+	// statement, replacing a per-library revoke loop that a mid-loop failure
+	// could leave partially applied.
+	DeleteByUserID(ctx context.Context, userID shared.UserID) error
 	GetByUserID(ctx context.Context, userID shared.UserID) ([]shared.LibraryID, error)
 	HasAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error)
 	ListUsersWithRestrictions(ctx context.Context) (map[shared.UserID][]shared.LibraryID, error)

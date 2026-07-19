@@ -325,3 +325,24 @@ func (s *AccessService) RevokeLibraryAccess(ctx context.Context, userID, library
 	defer span.End()
 	return s.libraryAccess.Revoke(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
 }
+
+// ReplaceLibraryAccess atomically swaps userID's whole library grant set for
+// libraryIDs. Backs SetUserLibraryAccess so the operation can never leave the
+// user revoked-from-everything with the new set never granted.
+func (s *AccessService) ReplaceLibraryAccess(ctx context.Context, userID string, libraryIDs []string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.ReplaceLibraryAccess")
+	defer span.End()
+	ids := make([]shared.LibraryID, len(libraryIDs))
+	for i, id := range libraryIDs {
+		ids[i] = shared.LibraryID(id)
+	}
+	return s.libraryAccess.ReplaceAccess(ctx, shared.UserID(userID), ids)
+}
+
+// RevokeAllLibraryAccess atomically clears every library grant for userID in
+// a single statement, backing RevokeAllUserLibraryAccess.
+func (s *AccessService) RevokeAllLibraryAccess(ctx context.Context, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.user.RevokeAllLibraryAccess")
+	defer span.End()
+	return s.libraryAccess.DeleteByUserID(ctx, shared.UserID(userID))
+}
