@@ -1756,3 +1756,48 @@ func TestUpsertMediaFile_ExistingChanged_UpdatesParentID(t *testing.T) {
 	item, _ := h.mediaItems.GetByID(context.Background(), "item-1")
 	assert.Empty(t, item.ParentID, "movie scan passes empty parentID")
 }
+
+// Deleting a media item left its document in the search index: the row vanished
+// from the DB but the title stayed findable until ReconcileSearchIndex noticed
+// the count mismatch (15 min ticker) and rebuilt. The music path
+// (music/command_service.go DeleteTrack) and the orphan pruner both remove from
+// the index straight away - only the admin delete didn't.
+func TestDeleteMediaItem_RemovesFromSearchIndex(t *testing.T) {
+	t.Parallel()
+	svc, _, _, mediaRepo, _, _, search, _ := newCmdSvcWithSearch()
+	ctx := context.Background()
+
+	item := &library.MediaItem{
+		ID: "item-to-delete", LibraryID: "lib-1", Title: "Findable",
+		File: &library.MediaFile{Path: "/movies/film.mkv"},
+	}
+	require.NoError(t, mediaRepo.Create(ctx, item))
+	require.NoError(t, search.IndexMediaItem(ctx, item, nil))
+	if _, ok := search.Get("item-to-delete"); !ok {
+		t.Fatal("precondition: the item should be indexed before deletion")
+	}
+
+	require.NoError(t, svc.DeleteMediaItem(ctx, "item-to-delete"))
+
+	if _, ok := search.Get("item-to-delete"); ok {
+		t.Error("the deleted item is still searchable")
+	}
+}
+
+// A search backend outage must not fail the delete: the DB row is already gone
+// and the resilient adapter queues the removal for replay.
+func TestDeleteMediaItem_SearchFailureDoesNotFailTheDelete(t *testing.T) {
+	t.Parallel()
+	svc, _, _, mediaRepo, _, _, search, _ := newCmdSvcWithSearch()
+	ctx := context.Background()
+
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: "item-2", LibraryID: "lib-1",
+		File: &library.MediaFile{Path: "/movies/f.mkv"},
+	}))
+	search.Err = errors.New("meili down")
+
+	require.NoError(t, svc.DeleteMediaItem(ctx, "item-2"))
+	_, err := mediaRepo.GetByID(ctx, "item-2")
+	require.ErrorIs(t, err, shared.ErrNotFound)
+}

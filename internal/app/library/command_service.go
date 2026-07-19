@@ -305,5 +305,16 @@ func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
 	if err := s.mediaItems.Delete(ctx, shared.MediaItemID(id)); err != nil {
 		return fmt.Errorf("CommandService.DeleteMediaItem: %w", err)
 	}
+	// Drop the search document too, or the title stays findable until the
+	// 15-minute reconcile notices the count drift and rebuilds. Best-effort and
+	// after the DB delete: the row is already gone, and the resilient search
+	// adapter queues the removal for replay when the backend is down, so
+	// failing here would only refuse a delete that already happened.
+	if s.search != nil {
+		if idxErr := s.search.RemoveMediaItem(ctx, id); idxErr != nil {
+			slog.Warn("library: search index remove failed",
+				slog.String("mediaItemID", id), slog.Any("err", idxErr))
+		}
+	}
 	return nil
 }
