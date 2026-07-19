@@ -17,6 +17,20 @@
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* Categorical chart palette. Declared here so a theme can override any slot;
+   --chart-1 tracks the theme accent, the rest are fixed hues chosen for
+   separation (a categorical scale cannot derive them all from one accent). */
+:root {
+  --chart-1: var(--accent, #6366f1);
+  --chart-2: #f59e0b;
+  --chart-3: #10b981;
+  --chart-4: #ef4444;
+  --chart-5: #8b5cf6;
+  --chart-6: #ec4899;
+  --chart-7: #14b8a6;
+  --chart-8: #f97316;
+}
+
 /* Z-index scale - single source of truth */
 :root {
   --z-raised: 10;
