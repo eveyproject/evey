@@ -319,16 +319,51 @@ func (d *adminSystemHandler) videoSessionPools() []*eveyv1.VideoPool {
 	return pools
 }
 
+// GetServerConfig / UpdateServerConfig are the map-shaped view of the SAME
+// server_config store ServerConfigService serves per key. Both used to be
+// stubs: Get returned an empty map and Update echoed the request back without
+// writing anything, so a caller got a 200 and believed a setting had been
+// saved. The mobile admin panel is wired here (the web uses the per-key
+// service), so its "Basic" section reported success and persisted nothing.
+//
+// A missing serverCfgSvc now returns Unimplemented rather than a fake success:
+// an endpoint that lies is worse than one that admits it cannot serve.
 func (d *adminSystemHandler) GetServerConfig(ctx context.Context, _ *eveyv1.GetServerConfigRequest) (*eveyv1.ServerConfig, error) {
-	_, span := tracing.StartSpan(ctx, "grpc.admin.GetServerConfig")
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GetServerConfig")
 	defer span.End()
-	return &eveyv1.ServerConfig{Values: map[string]string{}}, nil
+	if d.serverCfgSvc == nil {
+		return nil, status.Error(codes.Unimplemented, "server config service not wired")
+	}
+	entries, err := d.serverCfgSvc.List(ctx)
+	if err != nil {
+		span.RecordError(err)
+		return nil, internalError("get server config", err)
+	}
+	values := make(map[string]string, len(entries))
+	for _, e := range entries {
+		values[e.Key] = e.Value
+	}
+	return &eveyv1.ServerConfig{Values: values}, nil
 }
 
 func (d *adminSystemHandler) UpdateServerConfig(ctx context.Context, req *eveyv1.UpdateServerConfigRequest) (*eveyv1.ServerConfig, error) {
-	_, span := tracing.StartSpan(ctx, "grpc.admin.UpdateServerConfig")
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.UpdateServerConfig")
 	defer span.End()
-	return &eveyv1.ServerConfig{Values: req.Values}, nil
+	if d.serverCfgSvc == nil {
+		return nil, status.Error(codes.Unimplemented, "server config service not wired")
+	}
+	for k, v := range req.Values {
+		if k == "" {
+			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
+		}
+		if err := d.serverCfgSvc.Set(ctx, k, v); err != nil {
+			span.RecordError(err)
+			return nil, internalError("update server config", err)
+		}
+	}
+	// Read back rather than echo: the response now describes what the store
+	// actually holds, which is exactly the confusion the echo created.
+	return d.GetServerConfig(ctx, &eveyv1.GetServerConfigRequest{})
 }
 
 func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupWizardRequest) (*eveyv1.SetupWizardResponse, error) {

@@ -10,6 +10,7 @@ import (
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	transcodingfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
@@ -361,26 +362,77 @@ func TestAdminGetSystemInfo_VideoSessions_NoPassingSample_FailSafe(t *testing.T)
 	}
 }
 
-func TestAdminGetServerConfig(t *testing.T) {
+// memServerConfigRepo is the smallest store that can tell a real write from an
+// echo - which is exactly what the previous tests could not do.
+type memServerConfigRepo struct{ m map[string]string }
+
+func (r *memServerConfigRepo) Get(_ context.Context, key string) (*shared.ServerConfigEntry, error) {
+	v, ok := r.m[key]
+	if !ok {
+		return nil, shared.ErrNotFound
+	}
+	return &shared.ServerConfigEntry{Key: key, Value: v}, nil
+}
+
+func (r *memServerConfigRepo) Set(_ context.Context, key, value string) error {
+	r.m[key] = value
+	return nil
+}
+
+func (r *memServerConfigRepo) Delete(_ context.Context, key string) error {
+	delete(r.m, key)
+	return nil
+}
+
+func (r *memServerConfigRepo) List(_ context.Context) ([]*shared.ServerConfigEntry, error) {
+	out := make([]*shared.ServerConfigEntry, 0, len(r.m))
+	for k, v := range r.m {
+		out = append(out, &shared.ServerConfigEntry{Key: k, Value: v})
+	}
+	return out, nil
+}
+
+// Both endpoints were stubs: Get returned an empty map, Update echoed the
+// request back without writing. The old tests asserted the echo, so they passed
+// on a handler that persisted nothing - the mobile admin panel showed "Config
+// saved" over a no-op. These assert the STORE, which an echo cannot fake.
+func TestAdminServerConfig_UpdateActuallyPersists(t *testing.T) {
+	repo := &memServerConfigRepo{m: map[string]string{}}
 	d := newTestSystemHandler()
-	resp, err := d.GetServerConfig(context.Background(), &eveyv1.GetServerConfigRequest{})
+	d.serverCfgSvc = appconfig.NewService(repo)
+	ctx := context.Background()
+
+	if _, err := d.UpdateServerConfig(ctx, &eveyv1.UpdateServerConfigRequest{
+		Values: map[string]string{"transcoding.keyframe_backfill": "off"},
+	}); err != nil {
+		t.Fatalf("UpdateServerConfig: %v", err)
+	}
+	if got := repo.m["transcoding.keyframe_backfill"]; got != "off" {
+		t.Errorf("the store holds %q, want %q - the write never reached it", got, "off")
+	}
+
+	resp, err := d.GetServerConfig(ctx, &eveyv1.GetServerConfigRequest{})
 	if err != nil {
 		t.Fatalf("GetServerConfig: %v", err)
 	}
-	if resp.Values == nil {
-		t.Error("expected non-nil values map")
+	if resp.Values["transcoding.keyframe_backfill"] != "off" {
+		t.Errorf("Get returned %v, want the persisted value", resp.Values)
 	}
 }
 
-func TestAdminUpdateServerConfig(t *testing.T) {
+// Without a wired service the endpoint must REFUSE, not report success: a
+// silent no-op is what made the original bug invisible for so long.
+func TestAdminServerConfig_UnwiredRefusesRatherThanLying(t *testing.T) {
 	d := newTestSystemHandler()
-	vals := map[string]string{"key": "value"}
-	resp, err := d.UpdateServerConfig(context.Background(), &eveyv1.UpdateServerConfigRequest{Values: vals})
-	if err != nil {
-		t.Fatalf("UpdateServerConfig: %v", err)
+	d.serverCfgSvc = nil
+
+	if _, err := d.UpdateServerConfig(context.Background(), &eveyv1.UpdateServerConfigRequest{
+		Values: map[string]string{"k": "v"},
+	}); status.Code(err) != codes.Unimplemented {
+		t.Errorf("got %v, want Unimplemented - a fake success is worse than an error", err)
 	}
-	if resp.Values["key"] != "value" {
-		t.Errorf("expected value 'value', got %q", resp.Values["key"])
+	if _, err := d.GetServerConfig(context.Background(), &eveyv1.GetServerConfigRequest{}); status.Code(err) != codes.Unimplemented {
+		t.Errorf("got %v, want Unimplemented", err)
 	}
 }
 
