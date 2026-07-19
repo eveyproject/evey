@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"os"
 	"path/filepath"
 	"strings"
@@ -685,5 +687,35 @@ func TestServeExternalSubtitle_SRT_InProcessWebVTT(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("WebVTT body missing %q; got:\n%s", want, body)
 		}
+	}
+}
+
+// The subtitle provider is reached on the operator's API key and its download
+// quota is capped per day, so search/download must be rate-limited while the
+// purely local list route stays unthrottled.
+func TestRegisterSubtitleRoutes_ProviderRoutesAreRateLimited(t *testing.T) {
+	rl := ratelimit.NewWithBurst(1, 1.0)
+	defer rl.Stop()
+	mux := http.NewServeMux()
+	registerSubtitleRoutes(mux, nil, &fakeTokenVerifier{}, &fakeMediaItemGetter{}, nil, rl)
+
+	status := func(method, path string) int {
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, httptest.NewRequest(method, path, nil))
+		return rec.Code
+	}
+
+	// Burst of 1: the first search is admitted (whatever it then answers), the
+	// second is rejected by the limiter before any provider call happens.
+	_ = status(http.MethodGet, "/api/v1/media/mi-1/subtitles/search")
+	if got := status(http.MethodGet, "/api/v1/media/mi-1/subtitles/search"); got != http.StatusTooManyRequests {
+		t.Errorf("second search = %d, want %d", got, http.StatusTooManyRequests)
+	}
+	if got := status(http.MethodPost, "/api/v1/media/mi-1/subtitles/download"); got != http.StatusTooManyRequests {
+		t.Errorf("download shares the provider budget, = %d, want %d", got, http.StatusTooManyRequests)
+	}
+	// The local list route spends no provider quota and must stay open.
+	if got := status(http.MethodGet, "/api/v1/media/mi-1/subtitles"); got == http.StatusTooManyRequests {
+		t.Error("list is a local read and must not be rate-limited")
 	}
 }

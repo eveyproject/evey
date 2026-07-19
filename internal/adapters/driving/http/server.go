@@ -180,8 +180,8 @@ type HTTPServer struct {
 	FavoriteSvc    *appfavorite.Service
 
 	// Music
-	MusicSvc         *appmusic.Service
-	MusicNowPlaying  *appmusic.NowPlayingRegistry // "En cours de lecture" heartbeat registry
+	MusicSvc        *appmusic.Service
+	MusicNowPlaying *appmusic.NowPlayingRegistry // "En cours de lecture" heartbeat registry
 
 	// Rating
 	UserRatingRepo domainlibrary.UserRatingRepository
@@ -271,6 +271,11 @@ type HTTPServer struct {
 	// SnapshotRL caps the frame-extraction route - each request spawns an
 	// ffmpeg, so it must not ride the generous global limiter.
 	SnapshotRL *ratelimit.Limiter
+
+	// SubtitleProviderRL caps the subtitle search/download routes, which call
+	// out to the subtitle provider on the operator's API key and spend its
+	// finite per-day download quota.
+	SubtitleProviderRL *ratelimit.Limiter
 	// PlayerEventRL caps the playback-error beacon: a decode-error storm on a
 	// broken stream can fire dozens of client events per minute, and each
 	// accepted one becomes a log line. The client throttles itself too; this
@@ -609,7 +614,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	if s.SubtitleSvc != nil {
-		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo)
+		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.SubtitleProviderRL)
 	}
 
 	if s.PluginRepo != nil && s.PluginDir != "" {

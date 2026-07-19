@@ -28,6 +28,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -358,10 +359,21 @@ type subtitleRoutes struct {
 	libraryAccess LibraryAccessChecker
 }
 
-func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen TokenVerifier, mediaGetter MediaItemGetter, libraryAccess LibraryAccessChecker) {
+// providerRL rate-limits the two routes that reach the subtitle provider on the
+// operator's own API key. Unlike the local list/delete routes, these spend a
+// finite third-party budget - OpenSubtitles caps downloads per key per day - so
+// an authenticated user could otherwise drain the whole allowance for everyone
+// on the server. nil leaves the routes unlimited (tests).
+func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen TokenVerifier, mediaGetter MediaItemGetter, libraryAccess LibraryAccessChecker, providerRL *ratelimit.Limiter) {
 	h := &subtitleRoutes{subtitleSvc: subtitleSvc, tokens: tokenGen, mediaGetter: mediaGetter, libraryAccess: libraryAccess}
-	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", h.search)
-	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", h.download)
+	limited := func(next http.HandlerFunc) http.HandlerFunc {
+		if providerRL == nil {
+			return next
+		}
+		return ratelimit.MiddlewareFunc(providerRL, next)
+	}
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitles/search", limited(h.search))
+	mux.HandleFunc("POST /api/v1/media/{id}/subtitles/download", limited(h.download))
 	mux.HandleFunc("GET /api/v1/media/{id}/subtitles", h.list)
 	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", h.delete)
 }

@@ -40,6 +40,11 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	// Snapshot/frame extraction spawns one ffmpeg per request: burst covers an
 	// admin thumbnail grid, the 1/s refill caps sustained spawn abuse.
 	snapshotRL := ratelimit.NewWithBurst(30, 60.0)
+	// Subtitle search/download call the provider on the operator's API key and
+	// spend its per-day download quota, so this is tighter than the CPU-bound
+	// limits above: a burst covers picking through a few candidates for one
+	// episode, the slow refill stops one account draining the whole allowance.
+	subtitleProviderRL := ratelimit.NewWithBurst(12, 12.0)
 	// Playback-error beacon: each accepted event is one log line. Burst covers
 	// a genuine error storm's first wave; the refill caps a hostile or looping
 	// client at a rate the log files shrug off.
@@ -54,6 +59,7 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		passwordResetRL.Stop()
 		oidcLoginRL.Stop()
 		snapshotRL.Stop()
+		subtitleProviderRL.Stop()
 	}()
 
 	audioNormalizeGetter := func(ctx context.Context) bool {
@@ -167,12 +173,13 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 			}
 			return deps.loadTestRunner.Status().Running
 		},
-		AdminHeavyRL:    adminHeavyRL,
-		SnapshotRL:      snapshotRL,
-		PlayerEventRL:   playerEventRL,
-		AdminWriteRL:    adminWriteRL,
-		PasswordResetRL: passwordResetRL,
-		OIDCLoginRL:     oidcLoginRL,
+		AdminHeavyRL:       adminHeavyRL,
+		SnapshotRL:         snapshotRL,
+		SubtitleProviderRL: subtitleProviderRL,
+		PlayerEventRL:      playerEventRL,
+		AdminWriteRL:       adminWriteRL,
+		PasswordResetRL:    passwordResetRL,
+		OIDCLoginRL:        oidcLoginRL,
 
 		Translator:             deps.translator,
 		AudioNormalizeGetter:   audioNormalizeGetter,
