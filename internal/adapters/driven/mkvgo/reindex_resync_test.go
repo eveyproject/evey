@@ -69,13 +69,3 @@ func TestReindexResyncIntegration(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, has, "the repaired file carries a Cues index")
 }
-
-// Resync forces a backup and reports ranges even when wired through the port
-// options - a light guard that the option threads correctly (no ffmpeg).
-func TestReindexResync_OptionThreads(t *testing.T) {
-	opts := mkv.ReindexOptions{Resync: true}
-	assert.True(t, opts.Resync)
-	var d mkv.DamagedRange
-	d.ApproxStartMs = 1000
-	assert.Equal(t, int64(1000), d.ApproxStartMs)
-}
