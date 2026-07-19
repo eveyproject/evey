@@ -629,3 +629,51 @@ func dialWS(url, origin, token string) (*wsDialConn, *http.Response, error) {
 type wsDialConn struct{ *websocket.Conn }
 
 func (c *wsDialConn) Close() { _ = c.Conn.Close() }
+
+// A SyncPlay command is a tiny JSON control message, but the read loop used
+// x/net/websocket's default 32MB frame cap: any connected member or guest
+// could push oversized frames at the server, each one costing a decode.
+// The connection must refuse the frame rather than buffer it.
+func TestSyncPlayWS_RejectsOversizedFrame(t *testing.T) {
+	tokenGen := newTestJWTGen(t)
+	repo := newFakeSyncPlayRepo()
+	hub := appsyncplay.NewHub(repo)
+	mediaGetter := newFakeMediaGetter()
+	mediaGetter.items["media-1"] = &domainlibrary.MediaItem{ID: "media-1", LibraryID: "lib-1"}
+	mux := http.NewServeMux()
+	registerSyncPlayRoutes(mux, hub, tokenGen, mediaGetter, allowAll(), fakeGuestTokens{})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	claims := domainuser.Claims{UserID: "host-big", Username: "Host"}
+	token, err := tokenGen.GenerateAccessToken(claims)
+	if err != nil {
+		t.Fatalf("GenerateAccessToken: %v", err)
+	}
+	room := createTestRoom(t, hub, "host-big", "media-1")
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/syncplay/rooms/" + room.ID + "/ws"
+	ws, _, err := dialWS(wsURL, srv.URL, token)
+	if err != nil {
+		t.Fatalf("ws dial: %v", err)
+	}
+	defer ws.Close()
+
+	var raw string
+	if err := websocket.Message.Receive(ws.Conn, &raw); err != nil {
+		t.Fatalf("receive state msg: %v", err)
+	}
+
+	// Well past any legitimate command, well under the 32MB default.
+	huge := `{"type":"play","x":"` + strings.Repeat("a", syncPlayMaxFrameBytes*2) + `"}`
+	if err := websocket.Message.Send(ws.Conn, huge); err != nil {
+		// The server may already have torn the connection down - that is a pass.
+		return
+	}
+	// The server must have closed the connection rather than processed it.
+	_ = ws.Conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	var after string
+	if err := websocket.Message.Receive(ws.Conn, &after); err == nil {
+		t.Error("server kept serving after an oversized frame; the payload cap is not applied")
+	}
+}

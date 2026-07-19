@@ -130,6 +130,11 @@ func extractWSToken(r *http.Request) string {
 	return ""
 }
 
+// syncPlayMaxFrameBytes caps one inbound WebSocket frame. SyncPlay commands are
+// short JSON control messages (type, position, index), so 8 KiB is generous
+// while keeping a hostile client from making us buffer megabytes per message.
+const syncPlayMaxFrameBytes = 8 << 10
+
 // wsSender adapts a websocket.Conn to the MessageSender port.
 type wsSender struct {
 	ws *websocket.Conn
@@ -272,6 +277,11 @@ func (s *syncplayHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Reques
 		}()
 
 		const readDeadline = 60 * time.Second
+		// A SyncCommand is a small JSON control message; x/net/websocket
+		// otherwise allows a 32MB frame, so any connected member or guest could
+		// make the server buffer and decode oversized payloads at will. The
+		// read deadline bounds idle time, not size.
+		ws.MaxPayloadBytes = syncPlayMaxFrameBytes
 		for {
 			if rdErr := ws.SetReadDeadline(time.Now().Add(readDeadline)); rdErr != nil {
 				break
