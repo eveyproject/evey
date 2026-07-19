@@ -607,10 +607,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	registerMusicRoutes(mux, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.LibQuerySvc, s.GlobalRL, s.LibQuerySvc, s.ImageConverter, s.MusicNowPlaying)
 	if s.CollectionSvc != nil {
-		registerCollectionRoutes(mux, s.CollectionSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo, s.BaseURL(), s.GlobalRL)
+		registerCollectionRoutes(mux, s.CollectionSvc, s.LibQuerySvc, s.TokenGen, s.LibraryAccessRepo, parentalChk, s.BaseURL(), s.GlobalRL)
 	}
 	if s.PlaylistSvc != nil && s.PlaylistGenSvc != nil {
-		registerPlaylistRoutes(mux, s.PlaylistSvc, s.PlaylistGenSvc, s.LibQuerySvc, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, s.BaseURL(), s.GlobalRL)
+		registerPlaylistRoutes(mux, s.PlaylistSvc, s.PlaylistGenSvc, s.LibQuerySvc, s.MusicSvc, s.TokenGen, s.LibraryAccessRepo, parentalChk, s.BaseURL(), s.GlobalRL)
 	}
 
 	if s.SubtitleSvc != nil {

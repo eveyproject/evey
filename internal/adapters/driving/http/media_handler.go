@@ -177,9 +177,9 @@ func downloadHandler(libSvc MediaArchiveSource, baseURL string, libraryAccess Li
 		// episodes, a series packs every episode under per-season folders.
 		switch item.Type {
 		case library.Season:
-			serveSeasonArchive(w, r, libSvc, item, baseURL, mediaRoots(r.Context(), libSvc))
+			serveSeasonArchive(w, r, libSvc, item, baseURL, mediaRoots(r.Context(), libSvc), parentalAllowFunc(r.Context(), claims, parental))
 		case library.Series:
-			serveSeriesArchive(w, r, libSvc, item, baseURL, mediaRoots(r.Context(), libSvc))
+			serveSeriesArchive(w, r, libSvc, item, baseURL, mediaRoots(r.Context(), libSvc), parentalAllowFunc(r.Context(), claims, parental))
 		default:
 			span.SetStatus(codes.Error, "no downloadable file")
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
@@ -231,11 +231,13 @@ type archiveEntry struct {
 }
 
 // serveSeasonArchive streams a ZIP of every episode file of a season, flat.
-func serveSeasonArchive(w http.ResponseWriter, r *http.Request, libSvc MediaArchiveSource, season *library.MediaItem, baseURL string, roots []string) {
+func serveSeasonArchive(w http.ResponseWriter, r *http.Request, libSvc MediaArchiveSource, season *library.MediaItem, baseURL string, roots []string, allowParental func(*library.MediaItem) bool) {
 	episodes := sortedChildren(r.Context(), libSvc, string(season.ID), season.LibraryID)
 	var entries []archiveEntry
 	for _, ep := range episodes {
-		if !archivableFile(ep, roots) {
+		// Per episode: clearing the season container does not vouch for the
+		// episodes inside it, each carries its own rating.
+		if !archivableFile(ep, roots) || !allowParental(ep) {
 			continue
 		}
 		entries = append(entries, archiveEntry{path: ep.File.Path, name: episodeEntryName(ep)})
@@ -245,13 +247,16 @@ func serveSeasonArchive(w http.ResponseWriter, r *http.Request, libSvc MediaArch
 
 // serveSeriesArchive streams a ZIP of every episode of every season, nested
 // under per-season folders ("Season 01/E01 - Title.mkv").
-func serveSeriesArchive(w http.ResponseWriter, r *http.Request, libSvc MediaArchiveSource, series *library.MediaItem, baseURL string, roots []string) {
+func serveSeriesArchive(w http.ResponseWriter, r *http.Request, libSvc MediaArchiveSource, series *library.MediaItem, baseURL string, roots []string, allowParental func(*library.MediaItem) bool) {
 	seasons := sortedChildren(r.Context(), libSvc, string(series.ID), series.LibraryID)
 	var entries []archiveEntry
 	for _, season := range seasons {
+		if !allowParental(season) {
+			continue
+		}
 		folder := seasonFolderName(season)
 		for _, ep := range sortedChildren(r.Context(), libSvc, string(season.ID), series.LibraryID) {
-			if !archivableFile(ep, roots) {
+			if !archivableFile(ep, roots) || !allowParental(ep) {
 				continue
 			}
 			entries = append(entries, archiveEntry{path: ep.File.Path, name: folder + "/" + episodeEntryName(ep)})
@@ -422,10 +427,16 @@ func addFileToZip(zw *zip.Writer, path, name string) error {
 // movies/episodes/tracks, and a per-title folder of episodes for series
 // (nested by season) and seasons. Items the caller can't access, or whose file
 // sits outside the library roots, are dropped.
-func buildMediaArchiveEntries(ctx context.Context, libSvc MediaArchiveSource, items []*library.MediaItem, canAccess func(shared.LibraryID) bool, roots []string) []archiveEntry {
+// buildMediaArchiveEntries flattens items into ZIP entries, dropping anything
+// the caller may not have. allowParental is applied per item AND per episode:
+// the streaming routes answer 404 for a parentally-blocked title, so the
+// archive routes must not hand the same file over in a bundle. A season or
+// series container that passes the gate does not vouch for its episodes -
+// each one is rated on its own.
+func buildMediaArchiveEntries(ctx context.Context, libSvc MediaArchiveSource, items []*library.MediaItem, canAccess func(shared.LibraryID) bool, allowParental func(*library.MediaItem) bool, roots []string) []archiveEntry {
 	var entries []archiveEntry
 	for _, it := range items {
-		if it == nil || !canAccess(it.LibraryID) {
+		if it == nil || !canAccess(it.LibraryID) || !allowParental(it) {
 			continue
 		}
 		switch {
@@ -437,9 +448,12 @@ func buildMediaArchiveEntries(ctx context.Context, libSvc MediaArchiveSource, it
 		case it.Type == library.Series:
 			folder := sanitizeFilename(it.Title)
 			for _, season := range sortedChildren(ctx, libSvc, string(it.ID), it.LibraryID) {
+				if !allowParental(season) {
+					continue
+				}
 				sub := folder + "/" + seasonFolderName(season)
 				for _, ep := range sortedChildren(ctx, libSvc, string(season.ID), it.LibraryID) {
-					if !archivableFile(ep, roots) {
+					if !archivableFile(ep, roots) || !allowParental(ep) {
 						continue
 					}
 					entries = append(entries, archiveEntry{path: ep.File.Path, name: sub + "/" + episodeEntryName(ep)})
@@ -448,7 +462,7 @@ func buildMediaArchiveEntries(ctx context.Context, libSvc MediaArchiveSource, it
 		case it.Type == library.Season:
 			folder := sanitizeFilename(it.Title)
 			for _, ep := range sortedChildren(ctx, libSvc, string(it.ID), it.LibraryID) {
-				if !archivableFile(ep, roots) {
+				if !archivableFile(ep, roots) || !allowParental(ep) {
 					continue
 				}
 				entries = append(entries, archiveEntry{path: ep.File.Path, name: folder + "/" + episodeEntryName(ep)})
@@ -456,6 +470,24 @@ func buildMediaArchiveEntries(ctx context.Context, libSvc MediaArchiveSource, it
 		}
 	}
 	return entries
+}
+
+// parentalAllowFunc mirrors libraryAccessFunc for the parental gate: a
+// per-item predicate for the archive paths, which must silently drop what they
+// may not include rather than fail the whole download. Admins and an unwired
+// checker short-circuit to "allow", exactly like checkParental.
+//
+// The checker reloads the profile per call. That is one small query per archive
+// member, next to reading and streaming the media files themselves - not worth
+// a memoisation layer here, and correctness on a security gate comes first.
+func parentalAllowFunc(ctx context.Context, claims *domainuser.Claims, pc ParentalChecker) func(*library.MediaItem) bool {
+	if pc == nil || claims == nil || claims.IsAdmin {
+		return func(*library.MediaItem) bool { return true }
+	}
+	profileID := claims.ProfileID
+	return func(it *library.MediaItem) bool {
+		return !pc.BlockedByParental(ctx, profileID, it)
+	}
 }
 
 func singleFileEntryName(it *library.MediaItem) string {

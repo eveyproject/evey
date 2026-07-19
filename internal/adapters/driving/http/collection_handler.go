@@ -29,12 +29,13 @@ type collectionHandler struct {
 	collSvc    collectionSource
 	libSvc     MediaArchiveSource
 	libChecker LibraryAccessChecker
+	parental   ParentalChecker
 	baseURL    string
 }
 
-func registerCollectionRoutes(mux *http.ServeMux, collSvc *appcollection.Service, libSvc MediaArchiveSource, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, baseURL string, rl *ratelimit.Limiter) {
+func registerCollectionRoutes(mux *http.ServeMux, collSvc *appcollection.Service, libSvc MediaArchiveSource, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, parental ParentalChecker, baseURL string, rl *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
-	h := &collectionHandler{collSvc: collSvc, libSvc: libSvc, libChecker: libChecker, baseURL: baseURL}
+	h := &collectionHandler{collSvc: collSvc, libSvc: libSvc, libChecker: libChecker, parental: parental, baseURL: baseURL}
 	// A collection ZIP can fan out to many large files, so it's a heavier
 	// amplification vector than a single-file download - rate-limit it.
 	mux.HandleFunc("GET /api/v1/collections/{id}/download", ratelimit.MiddlewareFunc(rl, authMw(h.downloadCollection)))
@@ -72,6 +73,6 @@ func (h *collectionHandler) downloadCollection(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	entries := buildMediaArchiveEntries(r.Context(), h.libSvc, items, libraryAccessFunc(r.Context(), claims, h.libChecker), mediaRoots(r.Context(), h.libSvc))
+	entries := buildMediaArchiveEntries(r.Context(), h.libSvc, items, libraryAccessFunc(r.Context(), claims, h.libChecker), parentalAllowFunc(r.Context(), claims, h.parental), mediaRoots(r.Context(), h.libSvc))
 	serveMediaArchive(w, r, col.Name, entries, h.baseURL)
 }

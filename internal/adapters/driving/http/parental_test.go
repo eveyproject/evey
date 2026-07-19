@@ -184,3 +184,54 @@ func TestDownloadHandler_ParentalBlocked_NotFound(t *testing.T) {
 		t.Errorf("expected 404 from parental gate (existence hidden), got %d", w.Code)
 	}
 }
+
+// blockAllParental blocks every item for a non-empty profile.
+type blockAllParental struct{ calls int }
+
+func (b *blockAllParental) BlockedByParental(_ context.Context, profileID string, item *domainlibrary.MediaItem) bool {
+	if profileID == "" || item == nil {
+		return false
+	}
+	b.calls++
+	return true
+}
+
+// The ZIP paths (collection / playlist / season / series) used to filter only
+// on library access, so a parentally-restricted profile could download exactly
+// the media the streaming route answers 404 for. The archive builder must apply
+// the same gate, per item AND per episode inside a season/series container.
+func TestBuildMediaArchiveEntries_AppliesParentalPerItem(t *testing.T) {
+	pc := &blockAllParental{}
+	allow := parentalAllowFunc(context.Background(), &domainuser.Claims{UserID: "usr-1", ProfileID: "prf-kid"}, pc)
+
+	items := []*domainlibrary.MediaItem{
+		{ID: "mi-1", LibraryID: "lib-1", Title: "Adult Movie", Type: domainlibrary.MovieItem,
+			File: &domainlibrary.MediaFile{Path: "/movies/adult.mkv"}},
+	}
+	entries := buildMediaArchiveEntries(context.Background(), nil, items,
+		func(shared.LibraryID) bool { return true }, allow, []string{"/movies"})
+
+	if len(entries) != 0 {
+		t.Fatalf("a parentally-blocked item must not land in the archive, got %d entries", len(entries))
+	}
+	if pc.calls == 0 {
+		t.Error("the parental checker was never consulted")
+	}
+}
+
+func TestBuildMediaArchiveEntries_AdminKeepsEverything(t *testing.T) {
+	pc := &blockAllParental{}
+	// Admins bypass the gate upstream, exactly like checkParental does.
+	allow := parentalAllowFunc(context.Background(), &domainuser.Claims{UserID: "usr-1", ProfileID: "prf-admin", IsAdmin: true}, pc)
+
+	items := []*domainlibrary.MediaItem{
+		{ID: "mi-1", LibraryID: "lib-1", Title: "Adult Movie", Type: domainlibrary.MovieItem,
+			File: &domainlibrary.MediaFile{Path: "/movies/adult.mkv"}},
+	}
+	entries := buildMediaArchiveEntries(context.Background(), nil, items,
+		func(shared.LibraryID) bool { return true }, allow, []string{"/movies"})
+
+	if len(entries) != 1 {
+		t.Fatalf("an admin must still get the file, got %d entries", len(entries))
+	}
+}

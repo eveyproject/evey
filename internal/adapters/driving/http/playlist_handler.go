@@ -46,12 +46,13 @@ type playlistHandler struct {
 	libSvc     MediaArchiveSource
 	music      musicTrackResolver
 	libChecker LibraryAccessChecker
+	parental   ParentalChecker
 	baseURL    string
 }
 
-func registerPlaylistRoutes(mux *http.ServeMux, plSvc *appplaylist.Service, gen playlistGenerator, libSvc MediaArchiveSource, musicSvc musicTrackResolver, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, baseURL string, rl *ratelimit.Limiter) {
+func registerPlaylistRoutes(mux *http.ServeMux, plSvc *appplaylist.Service, gen playlistGenerator, libSvc MediaArchiveSource, musicSvc musicTrackResolver, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, parental ParentalChecker, baseURL string, rl *ratelimit.Limiter) {
 	authMw := httpAuthMiddleware(tokenGen)
-	h := &playlistHandler{plSvc: plSvc, gen: gen, libSvc: libSvc, music: musicSvc, libChecker: libChecker, baseURL: baseURL}
+	h := &playlistHandler{plSvc: plSvc, gen: gen, libSvc: libSvc, music: musicSvc, libChecker: libChecker, parental: parental, baseURL: baseURL}
 	// Like a collection ZIP, a playlist can fan out to many large files - a
 	// heavier amplification vector than a single-file download, so rate-limit it.
 	mux.HandleFunc("GET /api/v1/playlists/{id}/download", ratelimit.MiddlewareFunc(rl, authMw(h.downloadPlaylist)))
@@ -148,13 +149,14 @@ func (h *playlistHandler) downloadPlaylist(w http.ResponseWriter, r *http.Reques
 	}
 
 	canAccess := libraryAccessFunc(r.Context(), claims, h.libChecker)
+	allowParental := parentalAllowFunc(r.Context(), claims, h.parental)
 	roots := mediaRoots(r.Context(), h.libSvc)
 
 	// Smart playlists hydrate to media items directly; manual playlists return
 	// raw items (music tracks and/or media items) we resolve per type.
 	var entries []archiveEntry
-	entries = append(entries, buildMediaArchiveEntries(r.Context(), h.libSvc, mediaItems, canAccess, roots)...)
-	entries = append(entries, h.manualPlaylistEntries(r.Context(), plItems, canAccess, roots)...)
+	entries = append(entries, buildMediaArchiveEntries(r.Context(), h.libSvc, mediaItems, canAccess, allowParental, roots)...)
+	entries = append(entries, h.manualPlaylistEntries(r.Context(), plItems, canAccess, allowParental, roots)...)
 
 	serveMediaArchive(w, r, pl.Name, entries, h.baseURL)
 }
@@ -163,7 +165,7 @@ func (h *playlistHandler) downloadPlaylist(w http.ResponseWriter, r *http.Reques
 // music tracks (resolved from music_tracks) become single files; everything
 // else is looked up in media_items and archived (movie/episode file, or a
 // series/season folder). Inaccessible or out-of-root files are dropped.
-func (h *playlistHandler) manualPlaylistEntries(ctx context.Context, plItems []*playlist.PlaylistItem, canAccess func(shared.LibraryID) bool, roots []string) []archiveEntry {
+func (h *playlistHandler) manualPlaylistEntries(ctx context.Context, plItems []*playlist.PlaylistItem, canAccess func(shared.LibraryID) bool, allowParental func(*library.MediaItem) bool, roots []string) []archiveEntry {
 	var mediaIDs []string
 	var musicEntries []archiveEntry
 	for _, it := range plItems {
@@ -197,6 +199,6 @@ func (h *playlistHandler) manualPlaylistEntries(ctx context.Context, plItems []*
 			mediaItems = items
 		}
 	}
-	entries := buildMediaArchiveEntries(ctx, h.libSvc, mediaItems, canAccess, roots)
+	entries := buildMediaArchiveEntries(ctx, h.libSvc, mediaItems, canAccess, allowParental, roots)
 	return append(entries, musicEntries...)
 }
