@@ -7,71 +7,12 @@ import (
 
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
 	"github.com/evey-project/evey/internal/domain/mediarequest"
+	mrfakes "github.com/evey-project/evey/internal/domain/mediarequest/fakes"
 	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 // --- fakes ---
-
-type fakeRepo struct {
-	created []*mediarequest.Request
-	updated []*mediarequest.Request
-	byID    map[string]*mediarequest.Request
-	hasOpen bool
-	hasErr  error
-}
-
-func newFakeRepo() *fakeRepo { return &fakeRepo{byID: map[string]*mediarequest.Request{}} }
-
-func (f *fakeRepo) Create(_ context.Context, r *mediarequest.Request) error {
-	f.created = append(f.created, r)
-	f.byID[r.ID] = r
-	return nil
-}
-func (f *fakeRepo) GetByID(_ context.Context, id string) (*mediarequest.Request, error) {
-	if r, ok := f.byID[id]; ok {
-		return r, nil
-	}
-	return nil, mediarequest.ErrNotFound
-}
-func (f *fakeRepo) Update(_ context.Context, r *mediarequest.Request) error {
-	f.updated = append(f.updated, r)
-	return nil
-}
-func (f *fakeRepo) Delete(context.Context, string) error { return nil }
-func (f *fakeRepo) ListByProfile(context.Context, string, int, int) ([]*mediarequest.Request, error) {
-	return nil, nil
-}
-func (f *fakeRepo) ListAll(context.Context, []mediarequest.Status, int, int) ([]*mediarequest.Request, error) {
-	return nil, nil
-}
-func (f *fakeRepo) HasOpenRequest(context.Context, string, mediarequest.MediaType, string) (bool, error) {
-	return f.hasOpen, f.hasErr
-}
-
-type fakeAccess struct {
-	global    bool
-	overrides map[string]bool
-}
-
-func (f *fakeAccess) GlobalDefault(context.Context) (bool, error) { return f.global, nil }
-func (f *fakeAccess) SetGlobalDefault(_ context.Context, v bool) error {
-	f.global = v
-	return nil
-}
-func (f *fakeAccess) Override(_ context.Context, userID string) (bool, bool, error) {
-	v, ok := f.overrides[userID]
-	return v, ok, nil
-}
-func (f *fakeAccess) SetOverride(_ context.Context, userID string, v bool) error {
-	f.overrides[userID] = v
-	return nil
-}
-func (f *fakeAccess) ClearOverride(_ context.Context, userID string) error {
-	delete(f.overrides, userID)
-	return nil
-}
-func (f *fakeAccess) ListOverrides(context.Context) (map[string]bool, error) { return f.overrides, nil }
 
 type fakeBus struct{ published []shared.Event }
 
@@ -82,16 +23,22 @@ func (f *fakeBus) Publish(_ context.Context, e shared.Event) error {
 func (f *fakeBus) Subscribe(string, func(context.Context, shared.Event)) string { return "" }
 func (f *fakeBus) Unsubscribe(string)                                           {}
 
-func newService(repo *fakeRepo, access *fakeAccess, bus *fakeBus) *appmediarequest.Service {
+// withOverride seeds one explicit per-user policy override inline.
+func withOverride(a *mrfakes.FakeAccess, userID string, v bool) *mrfakes.FakeAccess {
+	a.Overrides[userID] = v
+	return a
+}
+
+func newService(repo *mrfakes.FakeRepository, access *mrfakes.FakeAccess, bus *fakeBus) *appmediarequest.Service {
 	return appmediarequest.NewService(repo, access, nil, bus)
 }
 
 // --- tests ---
 
 func TestCreateRequest_FailsClosedWhenDisabled(t *testing.T) {
-	repo := newFakeRepo()
+	repo := mrfakes.NewFakeRepository()
 	bus := &fakeBus{}
-	access := &fakeAccess{global: false, overrides: map[string]bool{}}
+	access := mrfakes.NewFakeAccess(false)
 	svc := newService(repo, access, bus)
 
 	_, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
@@ -100,7 +47,7 @@ func TestCreateRequest_FailsClosedWhenDisabled(t *testing.T) {
 	if !errors.Is(err, mediarequest.ErrDisabled) {
 		t.Fatalf("err = %v, want ErrDisabled", err)
 	}
-	if len(repo.created) != 0 {
+	if len(repo.Created) != 0 {
 		t.Error("request was persisted despite disabled policy")
 	}
 	if len(bus.published) != 0 {
@@ -109,10 +56,10 @@ func TestCreateRequest_FailsClosedWhenDisabled(t *testing.T) {
 }
 
 func TestCreateRequest_OverrideBeatsGlobalDefault(t *testing.T) {
-	repo := newFakeRepo()
+	repo := mrfakes.NewFakeRepository()
 	bus := &fakeBus{}
 	// Global default OFF, but this user is explicitly enabled.
-	access := &fakeAccess{global: false, overrides: map[string]bool{"usr-1": true}}
+	access := withOverride(mrfakes.NewFakeAccess(false), "usr-1", true)
 	svc := newService(repo, access, bus)
 
 	req, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
@@ -121,7 +68,7 @@ func TestCreateRequest_OverrideBeatsGlobalDefault(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateRequest: %v", err)
 	}
-	if len(repo.created) != 1 || req.Status != mediarequest.StatusPending {
+	if len(repo.Created) != 1 || req.Status != mediarequest.StatusPending {
 		t.Error("request not persisted as pending")
 	}
 	if len(bus.published) != 1 {
@@ -133,10 +80,10 @@ func TestCreateRequest_OverrideBeatsGlobalDefault(t *testing.T) {
 }
 
 func TestCreateRequest_RejectsDuplicate(t *testing.T) {
-	repo := newFakeRepo()
-	repo.hasOpen = true
+	repo := mrfakes.NewFakeRepository()
+	repo.HasOpen = true
 	bus := &fakeBus{}
-	access := &fakeAccess{global: true, overrides: map[string]bool{}}
+	access := mrfakes.NewFakeAccess(true)
 	svc := newService(repo, access, bus)
 
 	_, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
@@ -145,7 +92,7 @@ func TestCreateRequest_RejectsDuplicate(t *testing.T) {
 	if !errors.Is(err, mediarequest.ErrDuplicate) {
 		t.Fatalf("err = %v, want ErrDuplicate", err)
 	}
-	if len(repo.created) != 0 {
+	if len(repo.Created) != 0 {
 		t.Error("duplicate request was persisted")
 	}
 }
@@ -166,8 +113,8 @@ func (f *fakeProvider) GetByProviderID(_ context.Context, _ string, _ string) (*
 
 func TestSearchTitles_DeniedUserNeverReachesProvider(t *testing.T) {
 	prov := &fakeProvider{}
-	access := &fakeAccess{global: true, overrides: map[string]bool{"usr-blocked": false}}
-	svc := appmediarequest.NewService(newFakeRepo(), access, []metadata.MetadataProvider{prov}, &fakeBus{})
+	access := withOverride(mrfakes.NewFakeAccess(true), "usr-blocked", false)
+	svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), access, []metadata.MetadataProvider{prov}, &fakeBus{})
 
 	_, err := svc.SearchTitles(context.Background(), "usr-blocked", mediarequest.MediaTypeMovie, "Dune", nil)
 	if !errors.Is(err, mediarequest.ErrDisabled) {
@@ -180,8 +127,8 @@ func TestSearchTitles_DeniedUserNeverReachesProvider(t *testing.T) {
 
 func TestSearchTitles_AllowedUserReachesProvider(t *testing.T) {
 	prov := &fakeProvider{}
-	access := &fakeAccess{global: true, overrides: map[string]bool{}}
-	svc := appmediarequest.NewService(newFakeRepo(), access, []metadata.MetadataProvider{prov}, &fakeBus{})
+	access := mrfakes.NewFakeAccess(true)
+	svc := appmediarequest.NewService(mrfakes.NewFakeRepository(), access, []metadata.MetadataProvider{prov}, &fakeBus{})
 
 	if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Dune", nil); err != nil {
 		t.Fatalf("SearchTitles: %v", err)
@@ -192,8 +139,8 @@ func TestSearchTitles_AllowedUserReachesProvider(t *testing.T) {
 }
 
 func TestCanRequest_OverridePrecedence(t *testing.T) {
-	access := &fakeAccess{global: true, overrides: map[string]bool{"usr-blocked": false}}
-	svc := newService(newFakeRepo(), access, &fakeBus{})
+	access := withOverride(mrfakes.NewFakeAccess(true), "usr-blocked", false)
+	svc := newService(mrfakes.NewFakeRepository(), access, &fakeBus{})
 
 	if ok, _ := svc.CanRequest(context.Background(), "usr-blocked"); ok {
 		t.Error("explicit disable override should win over enabled default")
@@ -204,9 +151,9 @@ func TestCanRequest_OverridePrecedence(t *testing.T) {
 }
 
 func TestAnswer_PersistsAndPublishes(t *testing.T) {
-	repo := newFakeRepo()
+	repo := mrfakes.NewFakeRepository()
 	bus := &fakeBus{}
-	access := &fakeAccess{global: true, overrides: map[string]bool{}}
+	access := mrfakes.NewFakeAccess(true)
 	svc := newService(repo, access, bus)
 
 	created, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
@@ -224,7 +171,7 @@ func TestAnswer_PersistsAndPublishes(t *testing.T) {
 	if answered.Status != mediarequest.StatusApproved || answered.AdminNote != "queued" {
 		t.Error("answer not applied")
 	}
-	if len(repo.updated) != 1 {
+	if len(repo.Updated) != 1 {
 		t.Error("update not persisted")
 	}
 	if len(bus.published) != 1 {
@@ -236,7 +183,7 @@ func TestAnswer_PersistsAndPublishes(t *testing.T) {
 }
 
 func TestAnswer_RejectsNonAnswerStatus(t *testing.T) {
-	svc := newService(newFakeRepo(), &fakeAccess{global: true, overrides: map[string]bool{}}, &fakeBus{})
+	svc := newService(mrfakes.NewFakeRepository(), mrfakes.NewFakeAccess(true), &fakeBus{})
 	if _, err := svc.Answer(context.Background(), "req-x", mediarequest.StatusPending, "", "prf-admin"); err == nil {
 		t.Error("expected error answering with a non-answer status")
 	}
