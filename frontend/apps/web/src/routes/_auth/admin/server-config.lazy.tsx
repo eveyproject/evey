@@ -399,16 +399,25 @@ function BackgroundJobsCard({ entries }: { entries: ConfigEntry[] | undefined })
   }
 
   function handleSaveRates() {
+    // The writes are async, so the form must not clear its dirty flag until
+    // they all land: clearing up front reported success even when every write
+    // failed, and dropped the edits the operator would need to retry.
+    // Per-write feedback already comes from useSetConfigEntry/useDeleteConfigEntry.
+    let remaining = BG_RATE_FIELDS.length;
+    let hasError = false;
+    const settle = () => {
+      remaining -= 1;
+      if (remaining === 0 && !hasError) setRateDirty(false);
+    };
     for (const field of BG_RATE_FIELDS) {
       const value = (rateDrafts[field.key] ?? "").trim();
+      const callbacks = { onSuccess: settle, onError: () => { hasError = true; } };
       if (value) {
-        setEntry.mutate({ key: field.key, value });
+        setEntry.mutate({ key: field.key, value }, callbacks);
       } else {
-        deleteEntry.mutate(field.key);
+        deleteEntry.mutate(field.key, callbacks);
       }
     }
-    setRateDirty(false);
-    toast.success(t("admin.serverConfig.configUpdated"));
   }
 
   return (
