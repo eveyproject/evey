@@ -274,7 +274,16 @@ export function LogsExplorer() {
     return () => ctrl.abort();
   }, [live, filters]);
 
-  const searchEntries = useMemo(() => data?.pages.flatMap((p) => p.entries) ?? [], [data]);
+  // Search pages are append-only, so page+row position IS a stable identity
+  // here - unlike the live list, where prepending shifts every index. Server
+  // entries carry no uid of their own, so one is stamped on at flatten time.
+  const searchEntries = useMemo(
+    () =>
+      data?.pages.flatMap((p, pageIdx) =>
+        p.entries.map((e, rowIdx) => (e.uid ? e : { ...e, uid: `page-${pageIdx}-${rowIdx}` })),
+      ) ?? [],
+    [data],
+  );
   const entries = live ? liveEntries : searchEntries;
   const total = live ? liveEntries.length : (data?.pages[0]?.total ?? 0);
   const truncated = !live && (data?.pages[0]?.truncated ?? false);
@@ -392,7 +401,7 @@ export function LogsExplorer() {
         ) : entries.length === 0 ? (
           <EmptyState icon={<Search size={40} strokeWidth={1.5} />} title={t("admin.logs.empty")} />
         ) : (
-          entries.map((e, i) => <LogRow key={`${e.time}-${i}-${e.raw.length}`} entry={e} />)
+          entries.map((e) => <LogRow key={e.uid} entry={e} />)
         )}
       </div>
 

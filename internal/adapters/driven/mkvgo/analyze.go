@@ -3,6 +3,8 @@ package mkvgo
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 
@@ -24,8 +26,13 @@ import (
 // localised index; this is a different, far heavier operation. Never call it
 // on a request path.
 //
-// No error is returned for a non-EBML container - "unknown" is a legitimate,
-// expected outcome for those, not a failure the caller should log or retry.
+// No error is returned for a non-EBML container, NOR for a structurally
+// unreadable one - "unknown" is a legitimate, expected outcome for both, not a
+// failure the caller should log or retry. Only a file we could not even open is
+// reported as an error, because that alone might succeed on a later pass (a
+// briefly unavailable mount, a permission being fixed). The distinction is what
+// stops a permanently broken file from being re-walked on every sweep: the
+// caller stamps an "unknown" and moves on, whereas an error is left to retry.
 func (a *Adapter) AnalyzeFrameRateMode(ctx context.Context, path string) (string, error) {
 	ctx, span := tracing.StartSpan(ctx, "mkvgo.AnalyzeFrameRateMode")
 	defer span.End()
@@ -34,9 +41,21 @@ func (a *Adapter) AnalyzeFrameRateMode(ctx context.Context, path string) (string
 		return "", nil
 	}
 
+	// Probed BEFORE the walk so an unreadable-vs-unavailable verdict rests on
+	// the filesystem rather than on parsing mkvgo's error strings.
+	if _, statErr := os.Stat(path); statErr != nil {
+		return "", fmt.Errorf("mkvgo analyze: source unavailable: %w", statErr)
+	}
+
 	report, err := ops.Analyze(ctx, path)
 	if err != nil {
-		return "", fmt.Errorf("mkvgo analyze: %w", err)
+		// The file is there and mkvgo cannot make sense of it (truncated,
+		// corrupt VINT, damaged clusters). Re-walking it next sweep would fail
+		// identically and cost another full-file pass, so report "unknown" and
+		// let the caller record that the question has been settled.
+		slog.Debug("mkvgo: frame-rate analysis gave up on an unreadable source",
+			slog.String("path", path), slog.Any("err", err))
+		return "", nil
 	}
 	for _, t := range report.Tracks {
 		if t.Type == "video" {

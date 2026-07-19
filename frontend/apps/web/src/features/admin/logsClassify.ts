@@ -4,6 +4,11 @@
 // which streams raw slog JSON lines. Keep the two taxonomies in sync.
 
 export interface LogEntry {
+  // Stable identity, assigned once when the line is parsed. React keys MUST use
+  // this and never the array index: live tail prepends each new line, which
+  // shifts every index, changes every key, and remounts every row - collapsing
+  // any entry the operator had expanded to read.
+  uid: string;
   time: string;
   level: string;
   msg: string;
@@ -124,6 +129,9 @@ const PROMOTED = new Set(["time", "level", "msg", "component", "request_id", "tr
 
 // parseLogLine turns a raw slog JSON line into a classified LogEntry, mirroring
 // the Go parseLogLine. Returns null for non-JSON lines.
+// Monotonic per session: only uniqueness matters, not the value.
+let logEntrySeq = 0;
+
 export function parseLogLine(line: string): LogEntry | null {
   let rec: Record<string, unknown>;
   try {
@@ -139,7 +147,9 @@ export function parseLogLine(line: string): LogEntry | null {
   for (const [k, v] of Object.entries(rec)) {
     if (!PROMOTED.has(k)) fields[k] = v;
   }
+  logEntrySeq += 1;
   return {
+    uid: `live-${logEntrySeq}`,
     time: str(rec, "time"),
     level: str(rec, "level").toUpperCase(),
     msg,

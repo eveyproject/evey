@@ -46,3 +46,18 @@ describe("parseLogLine", () => {
     expect(parseLogLine("panic: not json")).toBeNull();
   });
 });
+
+describe("parseLogLine uid", () => {
+  // The expanded-row-collapses bug: rows were keyed by array index, and live
+  // tail PREPENDS each new line, so every existing row's key changed on every
+  // tick and React remounted it - throwing away the open state of whatever the
+  // operator was reading. Identity has to come from the entry, not its slot.
+  it("gives every parsed entry a distinct stable id", () => {
+    const line = '{"time":"2026-07-19T18:01:03Z","level":"WARN","msg":"same"}';
+    const a = parseLogLine(line);
+    const b = parseLogLine(line);
+    expect(a?.uid).toBeTruthy();
+    expect(b?.uid).toBeTruthy();
+    expect(a?.uid).not.toBe(b?.uid);
+  });
+});

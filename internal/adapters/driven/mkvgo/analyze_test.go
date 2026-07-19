@@ -92,3 +92,34 @@ func TestAnalyzeFrameRateModeIntegration_CFRAndVFR(t *testing.T) {
 		t.Errorf("vfr source classified as %q, want %q", mode, "vfr")
 	}
 }
+
+// A structurally broken file must settle as "unknown", NOT as an error: the
+// caller stamps unknowns and stops asking, whereas an error is retried on every
+// sweep - which is how a handful of corrupt files produced a permanent stream
+// of "analysis failed" warnings and a full-file walk each time.
+func TestAnalyzeFrameRateMode_UnreadableSourceIsUnknownNotAnError(t *testing.T) {
+	dir := t.TempDir()
+	broken := filepath.Join(dir, "broken.mkv")
+	// Valid EBML magic so it gets past the container sniff, garbage after it.
+	if err := os.WriteFile(broken, []byte{0x1A, 0x45, 0xDF, 0xA3, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF}, 0o644); err != nil {
+		t.Fatalf("write broken fixture: %v", err)
+	}
+
+	a := mkvgoadapter.New()
+	mode, err := a.AnalyzeFrameRateMode(context.Background(), broken)
+	if err != nil {
+		t.Fatalf("a broken file must not surface as an error to retry: %v", err)
+	}
+	if mode != "" {
+		t.Errorf("mode = %q, want \"\" (unknown)", mode)
+	}
+}
+
+// A file we cannot even open IS an error: that can succeed later (a mount that
+// came back, a permission that got fixed), so it must stay retryable.
+func TestAnalyzeFrameRateMode_MissingSourceStaysAnError(t *testing.T) {
+	a := mkvgoadapter.New()
+	if _, err := a.AnalyzeFrameRateMode(context.Background(), filepath.Join(t.TempDir(), "nope.mkv")); err == nil {
+		t.Error("an unavailable source must remain retryable, not be settled as unknown")
+	}
+}
