@@ -62,7 +62,7 @@ func doCast(h http.HandlerFunc, method, target, body string) *httptest.ResponseR
 
 func TestCastDevicesHandler_Success(t *testing.T) {
 	fc := &fakeCastClient{devices: []appcast.Device{{UUID: "u1", Name: "living"}}}
-	w := doCast(castDevicesHandler(nil, fc), http.MethodGet, "/cast/devices", "")
+	w := doCast(castDevicesHandler(fc), http.MethodGet, "/cast/devices", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("code=%d body=%s", w.Code, w.Body.String())
 	}
@@ -73,7 +73,7 @@ func TestCastDevicesHandler_Success(t *testing.T) {
 
 func TestCastDevicesHandler_NilReturnsEmptyArray(t *testing.T) {
 	fc := &fakeCastClient{devices: nil}
-	w := doCast(castDevicesHandler(nil, fc), http.MethodGet, "/cast/devices", "")
+	w := doCast(castDevicesHandler(fc), http.MethodGet, "/cast/devices", "")
 	body := strings.TrimSpace(w.Body.String())
 	if body != "[]" {
 		t.Errorf("want [], got %q", body)
@@ -82,7 +82,7 @@ func TestCastDevicesHandler_NilReturnsEmptyArray(t *testing.T) {
 
 func TestCastDevicesHandler_Error(t *testing.T) {
 	fc := &fakeCastClient{err: errors.New("boom")}
-	w := doCast(castDevicesHandler(nil, fc), http.MethodGet, "/cast/devices", "")
+	w := doCast(castDevicesHandler(fc), http.MethodGet, "/cast/devices", "")
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -93,7 +93,7 @@ func TestCastDevicesHandler_Error(t *testing.T) {
 func TestCastPlayHandler_Success(t *testing.T) {
 	fc := &fakeCastClient{}
 	body := `{"deviceUuid":"u1","mediaUrl":"http://x/m.mp4","title":"T","contentType":"video/mp4"}`
-	w := doCast(castPlayHandler(nil, fc), http.MethodPost, "/cast/play", body)
+	w := doCast(castPlayHandler(fc), http.MethodPost, "/cast/play", body)
 	if w.Code != http.StatusOK {
 		t.Fatalf("code=%d body=%s", w.Code, w.Body.String())
 	}
@@ -104,7 +104,7 @@ func TestCastPlayHandler_Success(t *testing.T) {
 
 func TestCastPlayHandler_BadJSON(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castPlayHandler(nil, fc), http.MethodPost, "/cast/play", `{bad`)
+	w := doCast(castPlayHandler(fc), http.MethodPost, "/cast/play", `{bad`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -112,7 +112,7 @@ func TestCastPlayHandler_BadJSON(t *testing.T) {
 
 func TestCastPlayHandler_MissingFields(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castPlayHandler(nil, fc), http.MethodPost, "/cast/play", `{"deviceUuid":"u1"}`)
+	w := doCast(castPlayHandler(fc), http.MethodPost, "/cast/play", `{"deviceUuid":"u1"}`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -121,7 +121,7 @@ func TestCastPlayHandler_MissingFields(t *testing.T) {
 func TestCastPlayHandler_ServiceError(t *testing.T) {
 	fc := &fakeCastClient{err: errors.New("boom")}
 	body := `{"deviceUuid":"u1","mediaUrl":"http://x"}`
-	w := doCast(castPlayHandler(nil, fc), http.MethodPost, "/cast/play", body)
+	w := doCast(castPlayHandler(fc), http.MethodPost, "/cast/play", body)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -131,7 +131,7 @@ func TestCastPlayHandler_ServiceError(t *testing.T) {
 
 func TestCastStopHandler_Success(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castStopHandler(nil, fc), http.MethodPost, "/cast/stop", `{"deviceUuid":"u1"}`)
+	w := doCast(castStopHandler(fc), http.MethodPost, "/cast/stop", `{"deviceUuid":"u1"}`)
 	if w.Code != http.StatusOK || !fc.stopped {
 		t.Errorf("code=%d stopped=%v", w.Code, fc.stopped)
 	}
@@ -139,7 +139,7 @@ func TestCastStopHandler_Success(t *testing.T) {
 
 func TestCastStopHandler_BadJSON(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castStopHandler(nil, fc), http.MethodPost, "/cast/stop", `{bad`)
+	w := doCast(castStopHandler(fc), http.MethodPost, "/cast/stop", `{bad`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -147,7 +147,7 @@ func TestCastStopHandler_BadJSON(t *testing.T) {
 
 func TestCastStopHandler_MissingUUID(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castStopHandler(nil, fc), http.MethodPost, "/cast/stop", `{}`)
+	w := doCast(castStopHandler(fc), http.MethodPost, "/cast/stop", `{}`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -155,7 +155,7 @@ func TestCastStopHandler_MissingUUID(t *testing.T) {
 
 func TestCastStopHandler_ServiceError(t *testing.T) {
 	fc := &fakeCastClient{err: errors.New("boom")}
-	w := doCast(castStopHandler(nil, fc), http.MethodPost, "/cast/stop", `{"deviceUuid":"u1"}`)
+	w := doCast(castStopHandler(fc), http.MethodPost, "/cast/stop", `{"deviceUuid":"u1"}`)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -165,7 +165,7 @@ func TestCastStopHandler_ServiceError(t *testing.T) {
 
 func TestCastPauseHandler_Success(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castPauseHandler(nil, fc), http.MethodPost, "/cast/pause", `{"deviceUuid":"u1"}`)
+	w := doCast(castPauseHandler(fc), http.MethodPost, "/cast/pause", `{"deviceUuid":"u1"}`)
 	if w.Code != http.StatusOK || !fc.paused {
 		t.Errorf("code=%d paused=%v", w.Code, fc.paused)
 	}
@@ -173,7 +173,7 @@ func TestCastPauseHandler_Success(t *testing.T) {
 
 func TestCastPauseHandler_BadJSON(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castPauseHandler(nil, fc), http.MethodPost, "/cast/pause", `{bad`)
+	w := doCast(castPauseHandler(fc), http.MethodPost, "/cast/pause", `{bad`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -181,7 +181,7 @@ func TestCastPauseHandler_BadJSON(t *testing.T) {
 
 func TestCastPauseHandler_MissingUUID(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castPauseHandler(nil, fc), http.MethodPost, "/cast/pause", `{}`)
+	w := doCast(castPauseHandler(fc), http.MethodPost, "/cast/pause", `{}`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -189,7 +189,7 @@ func TestCastPauseHandler_MissingUUID(t *testing.T) {
 
 func TestCastPauseHandler_ServiceError(t *testing.T) {
 	fc := &fakeCastClient{err: errors.New("boom")}
-	w := doCast(castPauseHandler(nil, fc), http.MethodPost, "/cast/pause", `{"deviceUuid":"u1"}`)
+	w := doCast(castPauseHandler(fc), http.MethodPost, "/cast/pause", `{"deviceUuid":"u1"}`)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -199,7 +199,7 @@ func TestCastPauseHandler_ServiceError(t *testing.T) {
 
 func TestCastSeekHandler_Success(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castSeekHandler(nil, fc), http.MethodPost, "/cast/seek", `{"deviceUuid":"u1","positionSec":42}`)
+	w := doCast(castSeekHandler(fc), http.MethodPost, "/cast/seek", `{"deviceUuid":"u1","positionSec":42}`)
 	if w.Code != http.StatusOK || !fc.seeked || fc.lastPosition != 42 {
 		t.Errorf("code=%d seeked=%v pos=%d", w.Code, fc.seeked, fc.lastPosition)
 	}
@@ -207,7 +207,7 @@ func TestCastSeekHandler_Success(t *testing.T) {
 
 func TestCastSeekHandler_BadJSON(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castSeekHandler(nil, fc), http.MethodPost, "/cast/seek", `{bad`)
+	w := doCast(castSeekHandler(fc), http.MethodPost, "/cast/seek", `{bad`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -215,7 +215,7 @@ func TestCastSeekHandler_BadJSON(t *testing.T) {
 
 func TestCastSeekHandler_MissingUUID(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castSeekHandler(nil, fc), http.MethodPost, "/cast/seek", `{"positionSec":1}`)
+	w := doCast(castSeekHandler(fc), http.MethodPost, "/cast/seek", `{"positionSec":1}`)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -223,7 +223,7 @@ func TestCastSeekHandler_MissingUUID(t *testing.T) {
 
 func TestCastSeekHandler_ServiceError(t *testing.T) {
 	fc := &fakeCastClient{err: errors.New("boom")}
-	w := doCast(castSeekHandler(nil, fc), http.MethodPost, "/cast/seek", `{"deviceUuid":"u1","positionSec":1}`)
+	w := doCast(castSeekHandler(fc), http.MethodPost, "/cast/seek", `{"deviceUuid":"u1","positionSec":1}`)
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -233,7 +233,7 @@ func TestCastSeekHandler_ServiceError(t *testing.T) {
 
 func TestCastStatusHandler_Success(t *testing.T) {
 	fc := &fakeCastClient{status: map[string]interface{}{"state": "PLAYING"}}
-	w := doCast(castStatusHandler(nil, fc), http.MethodGet, "/cast/status?deviceUuid=u1", "")
+	w := doCast(castStatusHandler(fc), http.MethodGet, "/cast/status?deviceUuid=u1", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("code=%d", w.Code)
 	}
@@ -247,7 +247,7 @@ func TestCastStatusHandler_Success(t *testing.T) {
 
 func TestCastStatusHandler_MissingUUID(t *testing.T) {
 	fc := &fakeCastClient{}
-	w := doCast(castStatusHandler(nil, fc), http.MethodGet, "/cast/status", "")
+	w := doCast(castStatusHandler(fc), http.MethodGet, "/cast/status", "")
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("code=%d", w.Code)
 	}
@@ -255,7 +255,7 @@ func TestCastStatusHandler_MissingUUID(t *testing.T) {
 
 func TestCastStatusHandler_ServiceError(t *testing.T) {
 	fc := &fakeCastClient{err: errors.New("boom")}
-	w := doCast(castStatusHandler(nil, fc), http.MethodGet, "/cast/status?deviceUuid=u1", "")
+	w := doCast(castStatusHandler(fc), http.MethodGet, "/cast/status?deviceUuid=u1", "")
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("code=%d", w.Code)
 	}

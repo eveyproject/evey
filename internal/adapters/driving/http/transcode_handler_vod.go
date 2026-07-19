@@ -27,7 +27,6 @@ import (
 )
 
 type hlsVODServe struct {
-	tokens               TokenVerifier
 	libSvc               MediaStreamsGetter
 	libraryAccess        LibraryAccessChecker
 	parental             ParentalChecker

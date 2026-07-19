@@ -26,7 +26,6 @@ import (
 // --- mediaHandler: stream + download ---
 
 type mediaServe struct {
-	tokens        TokenVerifier
 	libSvc        MediaItemGetter
 	artworkRepo   ArtworkReader
 	artworkWriter ArtworkWebPWriter
@@ -64,8 +63,8 @@ func withLibraryLister(ll LibraryLister) mediaServeOption {
 	return func(h *mediaServe) { h.libLister = ll }
 }
 
-func mediaHandler(tokens TokenVerifier, libSvc MediaItemGetter, artworkRepo ArtworkReader, baseURL string, libraryAccess LibraryAccessChecker, opts ...mediaServeOption) http.HandlerFunc {
-	h := &mediaServe{tokens: tokens, libSvc: libSvc, artworkRepo: artworkRepo, baseURL: baseURL, libraryAccess: libraryAccess}
+func mediaHandler(libSvc MediaItemGetter, artworkRepo ArtworkReader, baseURL string, libraryAccess LibraryAccessChecker, opts ...mediaServeOption) http.HandlerFunc {
+	h := &mediaServe{libSvc: libSvc, artworkRepo: artworkRepo, baseURL: baseURL, libraryAccess: libraryAccess}
 	for _, o := range opts {
 		o(h)
 	}
@@ -128,7 +127,7 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, item.File.Path)
 }
 
-func downloadHandler(tokens TokenVerifier, libSvc MediaArchiveSource, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker) http.HandlerFunc {
+func downloadHandler(libSvc MediaArchiveSource, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.media.Download")
 		defer span.End()

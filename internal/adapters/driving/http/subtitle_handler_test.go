@@ -423,7 +423,6 @@ func TestSubtitleHandler_TrackOutOfRange_404(t *testing.T) {
 		File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
 	}
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeMediaStreamsGetter{item: item, streams: []*domainlibrary.MediaStream{
 			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},
 		}},
@@ -449,7 +448,6 @@ func TestSubtitleHandler_StreamsError_500(t *testing.T) {
 		File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
 	}
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeMediaStreamsGetter{item: item, sErr: errTest},
 		"http://localhost", allowAll(), allowAllParental{},
 	)
@@ -472,7 +470,6 @@ func TestSubtitleHandler_ImageSubtitle_422(t *testing.T) {
 		File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"},
 	}
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeMediaStreamsGetter{item: item, streams: []*domainlibrary.MediaStream{
 			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "hdmv_pgs_subtitle"},
 		}},
@@ -498,7 +495,6 @@ func TestSubtitleHandler_ParentalBlocked_NotFound(t *testing.T) {
 		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
 	}
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{item: item},
 		"http://localhost",
 		allowAll(),
@@ -522,7 +518,6 @@ func TestSubtitleHandler_ParentalAdmin_NotBlocked(t *testing.T) {
 		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
 	}
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeMediaStreamsGetter{item: item},
 		"http://localhost",
 		allowAll(),
@@ -583,7 +578,6 @@ func TestSubtitleHandler_MKV_TextSub_MkVgoFallback(t *testing.T) {
 		File: &domainlibrary.MediaFile{Path: "/tmp/nonexistent-subtitle-test.mkv"},
 	}
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeMediaStreamsGetter{item: item, streams: []*domainlibrary.MediaStream{
 			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},
 		}},
@@ -618,7 +612,6 @@ func TestSubtitleHandler_MP4_TextSub_MkvgoFallback(t *testing.T) {
 		File: &domainlibrary.MediaFile{Path: "/tmp/nonexistent-subtitle-test.mp4"},
 	}
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeMediaStreamsGetter{item: item, streams: []*domainlibrary.MediaStream{
 			// tx3g scanned via the mkvgo mp4 fast path stores "subrip" (srt→FFprobeCodecName).
 			{StreamType: domainlibrary.StreamTypeSubtitle, Codec: "subrip"},

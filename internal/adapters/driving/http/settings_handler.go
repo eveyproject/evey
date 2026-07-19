@@ -92,7 +92,6 @@ func registerServerSettingsRoutes(
 	store remoteAccessPersister,
 	tokenGen TokenVerifier,
 	transcodingSvc *apptranscoding.Service,
-	hlsMgr *apptranscoding.SegmentOrchestrator,
 	hwMode hwModeController,
 	loginRL *ratelimit.Limiter,
 	globalRL *ratelimit.Limiter,
@@ -249,14 +248,9 @@ func registerServerSettingsRoutes(
 					if transcodingSvc != nil {
 						transcodingSvc.SetMaxConcurrent(*body.MaxConcurrentTranscodes)
 					}
-					// SegmentOrchestrator doesn't yet take a runtime cap on
-					// concurrent rafales (the legacy HLSManager exposed
-					// SetMaxConcurrent - gone with the rest of the manager).
-					// transcodingSvc.SetMaxConcurrent above still bounds the
-					// background transcode jobs, which is the primary use case
-					// for this setting. A per-orchestrator cap can be added in
-					// Phase 5 if needed.
-					_ = hlsMgr
+					// The orchestrator takes no runtime cap on concurrent
+					// rafales; SetMaxConcurrent above bounds the background
+					// transcode jobs, which is the primary use of this setting.
 				}},
 			{cfgKey: cfgKeyTranscodeHWAccel,
 				apply: func() string {

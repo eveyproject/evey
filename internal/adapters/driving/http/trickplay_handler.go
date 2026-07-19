@@ -47,7 +47,7 @@ func spriteCredential(r *http.Request, store *appmedia.StreamTokenStore, claims 
 		store.CreateWithTTL(claims.UserID, claims.ProfileID, mediaID, appmedia.CastStreamTokenTTL))
 }
 
-func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker, tokenStore *appmedia.StreamTokenStore) http.HandlerFunc {
+func trickplayManifestHandler(libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker, tokenStore *appmedia.StreamTokenStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.trickplay.Manifest")
 		defer span.End()
@@ -218,7 +218,7 @@ func formatVTTTimeMs(totalMs int64) string {
 	return fmt.Sprintf("%02d:%02d:%02d.%03d", h, m, s, ms)
 }
 
-func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker) http.HandlerFunc {
+func trickplayImageHandler(libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.trickplay.Image")
 		defer span.End()
@@ -291,7 +291,7 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 	}
 }
 
-func trickplayGenerateHandler(tokenGen TokenVerifier, libSvc TrickplayGenerator, serverCtx context.Context) http.HandlerFunc {
+func trickplayGenerateHandler(libSvc TrickplayGenerator, serverCtx context.Context) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, span := tracing.StartSpan(r.Context(), "http.trickplay.Generate")
 		defer span.End()
@@ -317,7 +317,7 @@ func trickplayGenerateHandler(tokenGen TokenVerifier, libSvc TrickplayGenerator,
 	}
 }
 
-func trickplayGenerateAllHandler(tokenGen TokenVerifier, libSvc AllTrickplayGenerator) http.HandlerFunc {
+func trickplayGenerateAllHandler(libSvc AllTrickplayGenerator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.trickplay.GenerateAll")
 		defer span.End()

@@ -37,9 +37,8 @@ func TestToPlaybackInfoDTO_PreservesWireContract(t *testing.T) {
 	}
 }
 
-func newTranscodeServe(tv TokenVerifier, libSvc MediaStreamsGetter, la LibraryAccessChecker) http.HandlerFunc {
+func newTranscodeServe(libSvc MediaStreamsGetter, la LibraryAccessChecker) http.HandlerFunc {
 	return transcodeHandler(transcodeServe{
-		tokens:        tv,
 		libSvc:        libSvc,
 		baseURL:       "http://localhost",
 		libraryAccess: la,
@@ -49,7 +48,7 @@ func newTranscodeServe(tv TokenVerifier, libSvc MediaStreamsGetter, la LibraryAc
 
 func TestTranscodeServe_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
-	inner := newTranscodeServe(verifier, &fakeMediaStreamsGetter{}, allowAll())
+	inner := newTranscodeServe(&fakeMediaStreamsGetter{}, allowAll())
 	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
@@ -62,7 +61,7 @@ func TestTranscodeServe_NoAuth_401(t *testing.T) {
 
 func TestTranscodeServe_InvalidToken_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
-	inner := newTranscodeServe(verifier, &fakeMediaStreamsGetter{}, allowAll())
+	inner := newTranscodeServe(&fakeMediaStreamsGetter{}, allowAll())
 	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
@@ -76,7 +75,6 @@ func TestTranscodeServe_InvalidToken_401(t *testing.T) {
 
 func TestTranscodeHandler_MediaNotFound_404(t *testing.T) {
 	h := newTranscodeServe(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		allowAll(),
 	)
@@ -92,7 +90,6 @@ func TestTranscodeHandler_MediaNotFound_404(t *testing.T) {
 
 func TestTranscodeHandler_IDOR_Forbidden(t *testing.T) {
 	h := newTranscodeServe(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "restricted", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		denyAll(),
 	)
@@ -108,7 +105,7 @@ func TestTranscodeHandler_IDOR_Forbidden(t *testing.T) {
 
 func TestPlaybackInfoHandler_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
-	inner := playbackInfoHandler(verifier, &fakeMediaStreamsGetter{}, allowAll(), nil, nil)
+	inner := playbackInfoHandler(&fakeMediaStreamsGetter{}, allowAll(), nil, nil)
 	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/playback-info", nil)
 	req.SetPathValue("id", "m1")
@@ -121,7 +118,6 @@ func TestPlaybackInfoHandler_NoAuth_401(t *testing.T) {
 
 func TestPlaybackInfoHandler_MediaNotFound_404(t *testing.T) {
 	h := playbackInfoHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		allowAll(),
 		nil, nil)

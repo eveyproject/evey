@@ -101,7 +101,6 @@ func (f *fakeRemoteAccessStore) Set(_ context.Context, key, value string) error 
 func TestMediaStream_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(mediaHandler(
-		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		nil, "http://localhost",
 		allowAll(),
@@ -118,7 +117,6 @@ func TestMediaStream_NoAuth_401(t *testing.T) {
 func TestMediaStream_InvalidToken_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(mediaHandler(
-		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		nil, "http://localhost",
 		allowAll(),
@@ -135,7 +133,6 @@ func TestMediaStream_InvalidToken_401(t *testing.T) {
 
 func TestMediaStream_NotFound_404(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{err: errTest},
 		nil, "http://localhost",
 		allowAll(),
@@ -152,7 +149,6 @@ func TestMediaStream_NotFound_404(t *testing.T) {
 
 func TestMediaStream_IDOR_403(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: testMediaItem("lib-restricted")},
 		nil, "http://localhost",
 		denyAll(),
@@ -169,7 +165,6 @@ func TestMediaStream_IDOR_403(t *testing.T) {
 
 func TestMediaStream_TokenFromQueryParam(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/nonexistent"}}},
 		nil, "http://localhost",
 		allowAll(),
@@ -188,7 +183,6 @@ func TestMediaStream_TokenFromQueryParam(t *testing.T) {
 func TestMediaArtwork_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(mediaHandler(
-		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
 		"http://localhost",
@@ -209,7 +203,6 @@ func TestMediaArtwork_NoAuth_401(t *testing.T) {
 // error for every posterless card. See writeNoArtwork in artwork_handler.go.
 func TestMediaArtwork_NoRecords_204(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
 		"http://localhost",
@@ -228,7 +221,6 @@ func TestMediaArtwork_NoRecords_204(t *testing.T) {
 
 func TestMediaArtwork_IDOR_403(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: testMediaItem("lib-restricted")},
 		&fakeArtworkRepo{},
 		"http://localhost",
@@ -247,7 +239,6 @@ func TestMediaArtwork_IDOR_403(t *testing.T) {
 
 func TestMediaArtwork_StreamToken_WrongMediaID_403(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
 		"http://localhost",
@@ -274,7 +265,6 @@ func TestMediaArtwork_StreamToken_WrongMediaID_403(t *testing.T) {
 func TestChaptersHandler_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(chaptersHandler(
-		verifier,
 		&fakeChaptersGetter{},
 		"http://localhost",
 		allowAll(),
@@ -293,7 +283,6 @@ func TestChaptersHandler_NoAuth_401(t *testing.T) {
 func TestChaptersHandler_InvalidToken_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(chaptersHandler(
-		verifier,
 		&fakeChaptersGetter{},
 		"http://localhost",
 		allowAll(),
@@ -312,7 +301,6 @@ func TestChaptersHandler_InvalidToken_401(t *testing.T) {
 
 func TestChaptersHandler_NotFound_404(t *testing.T) {
 	h := chaptersHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeChaptersGetter{},
 		"http://localhost",
 		allowAll(),
@@ -331,7 +319,6 @@ func TestChaptersHandler_NotFound_404(t *testing.T) {
 
 func TestChaptersHandler_IDOR_403(t *testing.T) {
 	h := chaptersHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeChaptersGetter{},
 		"http://localhost",
 		denyAll(),
@@ -350,7 +337,6 @@ func TestChaptersHandler_IDOR_403(t *testing.T) {
 
 func TestChaptersHandler_OK(t *testing.T) {
 	h := chaptersHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeChaptersGetter{chapters: []*domainlibrary.Chapter{
 			{Title: "Ch1", StartTimeMs: 0, EndTimeMs: 60000},
 		}},
@@ -374,7 +360,6 @@ func TestChaptersHandler_OK(t *testing.T) {
 
 func TestChaptersHandler_ServiceError_500(t *testing.T) {
 	h := chaptersHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeChaptersGetter{err: errTest},
 		"http://localhost",
 		allowAll(),
@@ -396,7 +381,6 @@ func TestChaptersHandler_ServiceError_500(t *testing.T) {
 func TestPlaybackInfo_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(playbackInfoHandler(
-		verifier,
 		&fakeMediaStreamsGetter{},
 		allowAll(),
 		nil, nil))
@@ -412,7 +396,6 @@ func TestPlaybackInfo_NoAuth_401(t *testing.T) {
 func TestPlaybackInfo_InvalidToken_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(playbackInfoHandler(
-		verifier,
 		&fakeMediaStreamsGetter{},
 		allowAll(),
 		nil, nil))
@@ -428,7 +411,6 @@ func TestPlaybackInfo_InvalidToken_401(t *testing.T) {
 
 func TestPlaybackInfo_NotFound_404(t *testing.T) {
 	h := playbackInfoHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		allowAll(),
 		nil, nil)
@@ -445,7 +427,6 @@ func TestPlaybackInfo_NotFound_404(t *testing.T) {
 
 func TestPlaybackInfo_IDOR_403(t *testing.T) {
 	h := playbackInfoHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		denyAll(),
 		nil, nil)
@@ -464,7 +445,6 @@ func TestPlaybackInfo_OK(t *testing.T) {
 	w1 := 1920
 	h1 := 1080
 	h := playbackInfoHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{
 			item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a.mkv", ContainerFormat: "matroska"}},
 			streams: []*domainlibrary.MediaStream{
@@ -487,7 +467,6 @@ func TestPlaybackInfo_OK(t *testing.T) {
 
 func TestPlaybackInfo_StreamsError_500(t *testing.T) {
 	h := playbackInfoHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{
 			item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a.mkv"}},
 			sErr: errTest,
@@ -510,7 +489,6 @@ func TestPlaybackInfo_StreamsError_500(t *testing.T) {
 func TestSelectArtwork_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAdminMiddleware(verifier)(selectArtworkHandler(
-		verifier,
 		&fakeArtworkRepo{},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
@@ -528,7 +506,6 @@ func TestSelectArtwork_NoAuth_401(t *testing.T) {
 func TestSelectArtwork_NonAdmin_403(t *testing.T) {
 	verifier := &fakeTokenVerifier{claims: testClaims(false)}
 	h := httpAdminMiddleware(verifier)(selectArtworkHandler(
-		verifier,
 		&fakeArtworkRepo{},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
@@ -546,7 +523,6 @@ func TestSelectArtwork_NonAdmin_403(t *testing.T) {
 
 func TestSelectArtwork_MediaNotFound_404(t *testing.T) {
 	h := selectArtworkHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeArtworkRepo{},
 		&fakeMediaItemGetter{err: errTest},
 		allowAll(),
@@ -564,7 +540,6 @@ func TestSelectArtwork_MediaNotFound_404(t *testing.T) {
 
 func TestSelectArtwork_NoRecords_404(t *testing.T) {
 	h := selectArtworkHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		allowAll(),
@@ -582,7 +557,6 @@ func TestSelectArtwork_NoRecords_404(t *testing.T) {
 
 func TestSelectArtwork_ArtworkIDNotFound_404(t *testing.T) {
 	h := selectArtworkHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "other-art", MediaItemID: "m1", Type: "poster", SortOrder: 0}},
 		}},
@@ -602,7 +576,6 @@ func TestSelectArtwork_ArtworkIDNotFound_404(t *testing.T) {
 
 func TestSelectArtwork_OK(t *testing.T) {
 	h := selectArtworkHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {
 				{ID: "art1", MediaItemID: "m1", Type: "poster", SortOrder: 1},
@@ -628,7 +601,6 @@ func TestSelectArtwork_OK(t *testing.T) {
 func TestDownloadHandler_InvalidToken_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(downloadHandler(
-		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		allowAll(), nil))
@@ -644,7 +616,6 @@ func TestDownloadHandler_InvalidToken_401(t *testing.T) {
 
 func TestDownloadHandler_StreamTokenContext(t *testing.T) {
 	h := downloadHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/nonexistent"}}},
 		"http://localhost",
 		allowAll(), nil)
@@ -665,7 +636,6 @@ func TestDownloadHandler_StreamTokenContext(t *testing.T) {
 
 func TestDownloadHandler_EmptyFilePath_404(t *testing.T) {
 	h := downloadHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		"http://localhost",
 		allowAll(), nil)
@@ -1099,7 +1069,7 @@ func TestApiCacheMiddleware_LibrariesCacheHeader(t *testing.T) {
 // =====================================
 
 func TestBrowseDirs_ValidMediaPath_OK(t *testing.T) {
-	handler := browseDirsHandler(validUserValidator(true))
+	handler := browseDirsHandler()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/browse?path=/media", nil)
 	req.Header.Set("Authorization", "Bearer token")
 	w := httptest.NewRecorder()
@@ -1270,7 +1240,6 @@ func TestNewServerConfigStore(t *testing.T) {
 func TestLibraryStatsHandler_InvalidToken_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(libraryStatsHandler(
-		verifier,
 		&fakeLibraryLister{},
 		nil,
 	))
@@ -1285,7 +1254,6 @@ func TestLibraryStatsHandler_InvalidToken_401(t *testing.T) {
 
 func TestLibraryStatsHandler_ServiceError_500(t *testing.T) {
 	h := libraryStatsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeLibraryLister{err: errTest},
 		nil,
 	)
@@ -1299,7 +1267,6 @@ func TestLibraryStatsHandler_ServiceError_500(t *testing.T) {
 
 func TestLibraryStatsHandler_QueryToken(t *testing.T) {
 	h := libraryStatsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeLibraryLister{},
 		nil,
 	)
@@ -1373,7 +1340,6 @@ func TestSecurityHeadersMiddleware_Coverage(t *testing.T) {
 func TestSubtitleHandler_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(subtitleHandler(
-		verifier,
 		&fakeMediaStreamsGetter{},
 		"http://localhost",
 		allowAll(),
@@ -1392,7 +1358,6 @@ func TestSubtitleHandler_NoAuth_401(t *testing.T) {
 func TestSubtitleHandler_InvalidToken_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(subtitleHandler(
-		verifier,
 		&fakeMediaStreamsGetter{},
 		"http://localhost",
 		allowAll(),
@@ -1411,7 +1376,6 @@ func TestSubtitleHandler_InvalidToken_401(t *testing.T) {
 
 func TestSubtitleHandler_NotFound_404(t *testing.T) {
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		"http://localhost",
 		allowAll(),
@@ -1430,7 +1394,6 @@ func TestSubtitleHandler_NotFound_404(t *testing.T) {
 
 func TestSubtitleHandler_IDOR_403(t *testing.T) {
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "restricted", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		"http://localhost",
 		denyAll(),
@@ -1449,7 +1412,6 @@ func TestSubtitleHandler_IDOR_403(t *testing.T) {
 
 func TestSubtitleHandler_QueryToken(t *testing.T) {
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		"http://localhost",
 		allowAll(),

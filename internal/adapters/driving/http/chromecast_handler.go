@@ -27,7 +27,7 @@ type castClient interface {
 	Status(ctx context.Context, uuid string) (map[string]any, error)
 }
 
-func castDevicesHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
+func castDevicesHandler(castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Devices")
 		defer span.End()
@@ -50,7 +50,7 @@ func castDevicesHandler(tokenGen TokenVerifier, castSvc castClient) http.Handler
 	}
 }
 
-func castPlayHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
+func castPlayHandler(castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Play")
 		defer span.End()
@@ -85,7 +85,7 @@ func castPlayHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFun
 	}
 }
 
-func castStopHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
+func castStopHandler(castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Stop")
 		defer span.End()
@@ -117,7 +117,7 @@ func castStopHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFun
 	}
 }
 
-func castPauseHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
+func castPauseHandler(castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Pause")
 		defer span.End()
@@ -149,7 +149,7 @@ func castPauseHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFu
 	}
 }
 
-func castSeekHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
+func castSeekHandler(castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Seek")
 		defer span.End()
@@ -182,7 +182,7 @@ func castSeekHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFun
 	}
 }
 
-func castStatusHandler(tokenGen TokenVerifier, castSvc castClient) http.HandlerFunc {
+func castStatusHandler(castSvc castClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.chromecast.Status")
 		defer span.End()

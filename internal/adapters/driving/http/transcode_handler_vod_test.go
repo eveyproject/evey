@@ -105,7 +105,6 @@ func buildVODHandler(t *testing.T, libSvc MediaStreamsGetter, libAccess LibraryA
 	t.Cleanup(func() { orch.Close() })
 
 	h := &hlsVODServe{
-		tokens:               &fakeTokenVerifier{claims: testClaims(false)},
 		libSvc:               libSvc,
 		libraryAccess:        libAccess,
 		parental:             parental,

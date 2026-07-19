@@ -338,7 +338,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// Swagger UI linked from the API keys page.
 	mux.HandleFunc("GET /api/v1/openapi.json", auth(openAPIPublicHandler()))
 
-	mux.HandleFunc("GET /api/v1/admin/fs/browse", admin(browseDirsHandler(s.TokenGen)))
+	mux.HandleFunc("GET /api/v1/admin/fs/browse", admin(browseDirsHandler()))
 
 	// parentalChk gates the raw byte/decision/token stream handlers so a kids
 	// profile that knows an adult media-id out of band can't bypass the gRPC
@@ -350,7 +350,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.ImageConverter != nil {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}
-	mh := mediaHandler(s.TokenGen, s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), s.LibraryAccessRepo, mhOpts...)
+	mh := mediaHandler(s.LibQuerySvc, s.ArtworkRepo, s.BaseURL(), s.LibraryAccessRepo, mhOpts...)
 	mux.HandleFunc("GET /api/v1/media/{id}/stream", streamAuth(s.StreamMeter.Middleware(mh)))
 	// Progressive fast-start MP4 remux of a browser-incompatible EBML source
 	// (copy, no re-encode), cached once and served with Range support. Same auth
@@ -368,8 +368,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	if s.PlayerEventRL != nil {
 		mux.HandleFunc("POST /api/v1/media/{id}/player-event", auth(ratelimit.MiddlewareFunc(s.PlayerEventRL, playerEventHandler(slog.Default()))))
 	}
-	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.TokenGen, s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
-	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
+	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo)))
+	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))
 	// Public share download: no auth - the uuid token is the capability.
 	// Admin-only to CREATE (RBAC), but the resulting link must resolve without
 	// a login. Rate-limited per-IP as defence-in-depth (the uuid entropy is the
@@ -381,27 +381,27 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", streamAuth(transcodeHandler(transcodeServe{
-		tokens: s.TokenGen, libSvc: s.LibQuerySvc, baseURL: s.BaseURL(),
+		libSvc: s.LibQuerySvc, baseURL: s.BaseURL(),
 		libraryAccess: s.LibraryAccessRepo, throttle: transcodeThrottle, userMaxStreams: s.UserMaxStreams,
 		parental: parentalChk,
 	})))
-	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", streamAuth(subtitleHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))
-	mux.HandleFunc("GET /api/v1/media/{id}/chapters", streamAuth(chaptersHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
-	mux.HandleFunc("GET /api/v1/media/{id}/segments", streamAuth(segmentsHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, func() bool { return s.Cfg.EffectiveSkipPreviewEnabled() }, parentalChk)))
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", streamAuth(subtitleHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))
+	mux.HandleFunc("GET /api/v1/media/{id}/chapters", streamAuth(chaptersHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
+	mux.HandleFunc("GET /api/v1/media/{id}/segments", streamAuth(segmentsHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, func() bool { return s.Cfg.EffectiveSkipPreviewEnabled() }, parentalChk)))
 	// Trickplay (manifest + sprite images) is NOT public: the sprites are frames
 	// of the film. It was mounted bare on the "non-sensitive" assumption, which
 	// let anyone fetch a storyboard of any media id. streamAuth like its
 	// siblings: a JWT, or the ?token= stream token a watch-together guest holds
 	// (the handlers reject a token whose media id doesn't match the path).
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", streamAuth(trickplayManifestHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk, s.StreamTokenStore)))
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", streamAuth(trickplayImageHandler(s.TokenGen, s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
-	snapshotH := snapshotHandler(s.TokenGen, s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL(), parentalChk)
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", streamAuth(trickplayManifestHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk, s.StreamTokenStore)))
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", streamAuth(trickplayImageHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
+	snapshotH := snapshotHandler(s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL(), parentalChk)
 	if s.SnapshotRL != nil {
 		snapshotH = ratelimit.MiddlewareFunc(s.SnapshotRL, snapshotH)
 	}
 	mux.HandleFunc("GET /api/v1/media/{id}/snapshot", streamAuth(snapshotH))
-	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.TokenGen, s.LibCmdSvc, s.ServerCtx))))
-	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.TokenGen, s.LibCmdSvc))))
+	mux.HandleFunc("POST /api/v1/admin/media/{id}/trickplay/generate", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateHandler(s.LibCmdSvc, s.ServerCtx))))
+	mux.HandleFunc("POST /api/v1/admin/trickplay/generate-all", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, trickplayGenerateAllHandler(s.LibCmdSvc))))
 	mux.HandleFunc("POST /api/v1/admin/search/reindex", admin(ratelimit.MiddlewareFunc(s.AdminHeavyRL, searchReindexHandler(s.LibCmdSvc, s.ServerCtx))))
 
 	// Encode calibration: read the current capability + force a rebench
@@ -426,7 +426,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("DELETE /api/v1/admin/media/{id}/segments", deleteSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 		mux.HandleFunc("POST /api/v1/admin/media/{id}/segments/propagate", propagateSegmentHandler(s.TokenGen, s.IntroDetector, s.LibraryAccessRepo, s.LibQuerySvc))
 	}
-	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
+	mux.HandleFunc("GET /api/v1/media/{id}/playback-info", streamAuth(playbackInfoHandler(s.LibQuerySvc, s.LibraryAccessRepo, s.ProfilePrefs, parentalChk)))
 	hlsAccessCache := NewCachedLibraryAccessChecker(s.LibraryAccessRepo)
 
 	// VOD-style HLS pipeline: manifest precomputed in Go from durationMs,
@@ -478,24 +478,24 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			mux.HandleFunc("POST /api/v1/media/{id}/prewarm-next", auth(ratelimit.MiddlewareFunc(s.AdminHeavyRL, vodHandler.servePrewarmNext)))
 		}
 	}
-	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.TokenGen, s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))
+	mux.HandleFunc("GET /api/v1/admin/library-stats", admin(libraryStatsHandler(s.LibQuerySvc, NewLibraryItemCounter(s.LibQuerySvc, s.MusicSvc, s.PhotoSvc))))
 
 	// DLNA
 	if s.DLNASvc != nil {
-		mux.HandleFunc("GET /api/v1/dlna/renderers", auth(dlnaRenderersHandler(s.TokenGen, s.DLNASvc)))
-		mux.HandleFunc("POST /api/v1/dlna/play", auth(dlnaPlayHandler(s.TokenGen, s.DLNASvc)))
-		mux.HandleFunc("POST /api/v1/dlna/stop", auth(dlnaStopHandler(s.TokenGen, s.DLNASvc)))
-		mux.HandleFunc("POST /api/v1/dlna/pause", auth(dlnaPauseHandler(s.TokenGen, s.DLNASvc)))
+		mux.HandleFunc("GET /api/v1/dlna/renderers", auth(dlnaRenderersHandler(s.DLNASvc)))
+		mux.HandleFunc("POST /api/v1/dlna/play", auth(dlnaPlayHandler(s.DLNASvc)))
+		mux.HandleFunc("POST /api/v1/dlna/stop", auth(dlnaStopHandler(s.DLNASvc)))
+		mux.HandleFunc("POST /api/v1/dlna/pause", auth(dlnaPauseHandler(s.DLNASvc)))
 	}
 
 	// Chromecast
 	if s.CastSvc != nil {
-		mux.HandleFunc("GET /api/v1/cast/devices", auth(castDevicesHandler(s.TokenGen, s.CastSvc)))
-		mux.HandleFunc("POST /api/v1/cast/play", auth(castPlayHandler(s.TokenGen, s.CastSvc)))
-		mux.HandleFunc("POST /api/v1/cast/stop", auth(castStopHandler(s.TokenGen, s.CastSvc)))
-		mux.HandleFunc("POST /api/v1/cast/pause", auth(castPauseHandler(s.TokenGen, s.CastSvc)))
-		mux.HandleFunc("POST /api/v1/cast/seek", auth(castSeekHandler(s.TokenGen, s.CastSvc)))
-		mux.HandleFunc("GET /api/v1/cast/status", auth(castStatusHandler(s.TokenGen, s.CastSvc)))
+		mux.HandleFunc("GET /api/v1/cast/devices", auth(castDevicesHandler(s.CastSvc)))
+		mux.HandleFunc("POST /api/v1/cast/play", auth(castPlayHandler(s.CastSvc)))
+		mux.HandleFunc("POST /api/v1/cast/stop", auth(castStopHandler(s.CastSvc)))
+		mux.HandleFunc("POST /api/v1/cast/pause", auth(castPauseHandler(s.CastSvc)))
+		mux.HandleFunc("POST /api/v1/cast/seek", auth(castSeekHandler(s.CastSvc)))
+		mux.HandleFunc("GET /api/v1/cast/status", auth(castStatusHandler(s.CastSvc)))
 	}
 
 	if gwMux != nil {
@@ -562,7 +562,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	registerDeviceRoutes(mux, s.DeviceRegistry, s.TokenGen)                            // Play On: WebSocket + REST
 	registerBackupRoutes(mux, s.BackupSvc, s.TokenGen, s.AdminHeavyRL, s.AdminWriteRL) // binary: download/restore
 	registerRemoteAccessRoutes(mux, s.Cfg, s.TokenGen, s.CfgStore, s.AdminWriteRL)
-	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, s.HLSVODOrch, hwModeControllerOf(s.CalibrationSvc), s.LoginRL, s.GlobalRL, s.AdminWriteRL)
+	registerServerSettingsRoutes(mux, s.Cfg, s.CfgStore, s.TokenGen, s.TranscodingSvc, hwModeControllerOf(s.CalibrationSvc), s.LoginRL, s.GlobalRL, s.AdminWriteRL)
 	registerBackgroundTasksRoute(mux, s.TokenGen)
 	registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL)
 	registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen)

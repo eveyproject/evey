@@ -145,7 +145,6 @@ func TestMediaStream_ParentalBlocked_NotFound(t *testing.T) {
 	}
 	build := func(pc ParentalChecker) http.HandlerFunc {
 		return mediaHandler(
-			&fakeTokenVerifier{claims: testClaims(false)},
 			&fakeMediaItemGetter{item: item},
 			nil, // artworkRepo: unused on the stream path
 			"http://localhost",
@@ -171,7 +170,6 @@ func TestMediaStream_ParentalBlocked_NotFound(t *testing.T) {
 
 func TestDownloadHandler_ParentalBlocked_NotFound(t *testing.T) {
 	h := downloadHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: shared.LibraryID("lib1"), File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"}}},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true}, // library access granted…

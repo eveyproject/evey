@@ -26,7 +26,6 @@ func artworkHandlerWithConverter(t *testing.T, conv ImageConverter) (http.Handle
 	}
 	localPath := imgPath
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
@@ -47,7 +46,6 @@ func TestArtwork_LocalFile_200(t *testing.T) {
 
 	localPath := imgPath
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
@@ -74,7 +72,6 @@ func TestArtwork_LocalFile_200(t *testing.T) {
 func TestArtwork_SourceURL_Redirect(t *testing.T) {
 	srcURL := "https://image.tmdb.org/t/p/original/poster.jpg"
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", SourceURL: &srcURL}},
@@ -106,7 +103,6 @@ func TestArtwork_StaleLocalPath_FallsBackToSourceURL(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "gone.jpg") // never written
 	srcURL := "https://image.tmdb.org/t/p/original/poster.jpg"
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &missing, SourceURL: &srcURL}},
@@ -132,7 +128,6 @@ func TestArtwork_StaleLocalPath_FallsBackToSourceURL(t *testing.T) {
 
 func TestArtwork_MediaNotFound_404(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{err: errTest},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}},
 		"http://localhost",
@@ -160,7 +155,6 @@ func TestArtwork_StreamToken_OK(t *testing.T) {
 
 	localPath := imgPath
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
@@ -196,7 +190,6 @@ func TestArtwork_Public_NoAuth_200(t *testing.T) {
 	}
 	localPath := imgPath
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
@@ -219,7 +212,6 @@ func TestArtwork_Public_NoAuth_200(t *testing.T) {
 
 func TestArtwork_IDOR_403(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}},
 		&fakeArtworkRepo{},
 		"http://localhost",
@@ -243,7 +235,6 @@ func TestArtwork_IDOR_403(t *testing.T) {
 // response instead of hanging. The test completing at all is the assertion.
 func TestArtwork_ParentCycle_Terminates(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		// ParentID points back at the item itself; GetMediaItem always returns
 		// it, so an unbounded walk would loop forever.
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-1", ParentID: "m1"}},
@@ -270,7 +261,6 @@ func TestArtwork_ParentCycle_Terminates(t *testing.T) {
 // fails silently and the client renders its own placeholder.
 func TestArtwork_NoRecords_204_NoConsoleError(t *testing.T) {
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{}}, // item exists, no artwork
 		"http://localhost",

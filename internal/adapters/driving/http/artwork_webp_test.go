@@ -60,7 +60,6 @@ func TestArtwork_WebP_AcceptHeader_ServesWebP(t *testing.T) {
 	writer := &fakeArtworkWriter{}
 
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
@@ -111,7 +110,6 @@ func TestArtwork_WebP_ExistingWebPPath(t *testing.T) {
 	conv := &fakeImageConverter{}
 
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath, WebPPath: &wp}},
@@ -158,7 +156,6 @@ func TestArtwork_WebP_ZeroByteVariant_Regenerated(t *testing.T) {
 	conv := &fakeImageConverter{}
 
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
@@ -201,7 +198,6 @@ func TestArtwork_NoAcceptWebP_ServesOriginal(t *testing.T) {
 	conv := &fakeImageConverter{}
 
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},
@@ -241,7 +237,6 @@ func TestArtwork_WebP_StreamToken(t *testing.T) {
 	conv := &fakeImageConverter{}
 
 	h := mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}},
 		&fakeArtworkRepo{records: map[string][]*domainmeta.ArtworkRecord{
 			"m1": {{ID: "a1", MediaItemID: "m1", Type: "poster", LocalPath: &localPath}},

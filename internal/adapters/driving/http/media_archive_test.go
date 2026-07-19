@@ -41,7 +41,6 @@ func zipEntryNames(t *testing.T, body []byte) []string {
 func runArchiveDownload(t *testing.T, getter *fakeMediaItemGetter, id string) *httptest.ResponseRecorder {
 	t.Helper()
 	h := downloadHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		getter,
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true}, nil)

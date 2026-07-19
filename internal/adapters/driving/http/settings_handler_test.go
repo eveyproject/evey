@@ -117,7 +117,7 @@ func newSettingsTestEnv(t *testing.T, verifier TokenVerifier) *settingsTestEnv {
 		globalRL: ratelimit.New(300),
 		writeRL:  ratelimit.New(1000),
 	}
-	registerServerSettingsRoutes(env.mux, env.cfg, env.store, verifier, nil, nil, env.hwMode, env.loginRL, env.globalRL, env.writeRL)
+	registerServerSettingsRoutes(env.mux, env.cfg, env.store, verifier, nil, env.hwMode, env.loginRL, env.globalRL, env.writeRL)
 	t.Cleanup(env.cleanup)
 	return env
 }

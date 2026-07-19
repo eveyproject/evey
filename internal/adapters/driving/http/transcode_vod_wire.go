@@ -130,7 +130,6 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		mediaLookup:          mediaLookup,
 		classLookup:          classLookup,
 		prefsLookup:          prefsLookup,
-		tokens:               s.TokenGen,
 		libSvc:               libSvc,
 		libraryAccess:        libAccess,
 		parental:             parental,

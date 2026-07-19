@@ -279,7 +279,7 @@ func (h *mediaServe) resolveWebP(ctx context.Context, rec *domainmeta.ArtworkRec
 	return webpPath
 }
 
-func selectArtworkHandler(tokens TokenVerifier, artworkRepo ArtworkRepo, libSvc MediaItemGetter, libraryAccess LibraryAccessChecker) http.HandlerFunc {
+func selectArtworkHandler(artworkRepo ArtworkRepo, libSvc MediaItemGetter, libraryAccess LibraryAccessChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.artwork.Select")
 		defer span.End()

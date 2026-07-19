@@ -23,7 +23,7 @@ type dlnaClient interface {
 	Pause(ctx context.Context, rendererID string) error
 }
 
-func dlnaRenderersHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFunc {
+func dlnaRenderersHandler(dlnaSvc dlnaClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.dlna.Renderers")
 		defer span.End()
@@ -46,7 +46,7 @@ func dlnaRenderersHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.Handl
 	}
 }
 
-func dlnaPlayHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFunc {
+func dlnaPlayHandler(dlnaSvc dlnaClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.dlna.Play")
 		defer span.End()
@@ -80,7 +80,7 @@ func dlnaPlayHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFun
 	}
 }
 
-func dlnaStopHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFunc {
+func dlnaStopHandler(dlnaSvc dlnaClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.dlna.Stop")
 		defer span.End()
@@ -112,7 +112,7 @@ func dlnaStopHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFun
 	}
 }
 
-func dlnaPauseHandler(tokenGen TokenVerifier, dlnaSvc dlnaClient) http.HandlerFunc {
+func dlnaPauseHandler(dlnaSvc dlnaClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.dlna.Pause")
 		defer span.End()

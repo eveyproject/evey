@@ -394,7 +394,6 @@ func (f *fakeTrickplayGenerator) GenerateTrickplay(_ context.Context, _ string) 
 
 func TestTrickplayGenerate_OK(t *testing.T) {
 	h := trickplayGenerateHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeTrickplayGenerator{},
 		context.Background(),
 	)
@@ -410,7 +409,7 @@ func TestTrickplayGenerate_OK(t *testing.T) {
 
 func TestTrickplayGenerate_NonAdmin_403(t *testing.T) {
 	v := &fakeTokenVerifier{claims: testClaims(false)}
-	h := httpAdminMiddleware(v)(trickplayGenerateHandler(v, &fakeTrickplayGenerator{}, context.Background()))
+	h := httpAdminMiddleware(v)(trickplayGenerateHandler(&fakeTrickplayGenerator{}, context.Background()))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/trickplay/generate", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer tok")
@@ -423,7 +422,7 @@ func TestTrickplayGenerate_NonAdmin_403(t *testing.T) {
 
 func TestTrickplayGenerate_NoAuth_403(t *testing.T) {
 	v := &fakeTokenVerifier{err: errTest}
-	h := httpAdminMiddleware(v)(trickplayGenerateHandler(v, &fakeTrickplayGenerator{}, context.Background()))
+	h := httpAdminMiddleware(v)(trickplayGenerateHandler(&fakeTrickplayGenerator{}, context.Background()))
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/m1/trickplay/generate", nil)
 	req.SetPathValue("id", "m1")
 	req.Header.Set("Authorization", "Bearer bad")
@@ -436,7 +435,6 @@ func TestTrickplayGenerate_NoAuth_403(t *testing.T) {
 
 func TestTrickplayGenerate_QueryToken(t *testing.T) {
 	h := trickplayGenerateHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeTrickplayGenerator{},
 		context.Background(),
 	)
@@ -1278,7 +1276,7 @@ func TestSubtitleDelete_OK(t *testing.T) {
 func TestTranscodeHandler_NoAuth_401(t *testing.T) {
 	v := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(v)(transcodeHandler(transcodeServe{
-		tokens: v, libSvc: &fakeMediaStreamsGetter{}, baseURL: "http://localhost", libraryAccess: allowAll(),
+		libSvc: &fakeMediaStreamsGetter{}, baseURL: "http://localhost", libraryAccess: allowAll(),
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
@@ -1292,7 +1290,7 @@ func TestTranscodeHandler_NoAuth_401(t *testing.T) {
 func TestTranscodeHandler_InvalidToken_401(t *testing.T) {
 	v := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(v)(transcodeHandler(transcodeServe{
-		tokens: v, libSvc: &fakeMediaStreamsGetter{}, baseURL: "http://localhost", libraryAccess: allowAll(),
+		libSvc: &fakeMediaStreamsGetter{}, baseURL: "http://localhost", libraryAccess: allowAll(),
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/transcode", nil)
 	req.SetPathValue("id", "m1")
@@ -1306,7 +1304,6 @@ func TestTranscodeHandler_InvalidToken_401(t *testing.T) {
 
 func TestTranscodeHandler_NotFound_404(t *testing.T) {
 	h := transcodeHandler(transcodeServe{
-		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
 		libSvc:        &fakeMediaStreamsGetter{itemErr: errTest},
 		baseURL:       "http://localhost",
 		libraryAccess: allowAll(),
@@ -1323,7 +1320,6 @@ func TestTranscodeHandler_NotFound_404(t *testing.T) {
 
 func TestTranscodeHandler_IDOR_403(t *testing.T) {
 	h := transcodeHandler(transcodeServe{
-		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
 		libSvc:        &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-x", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		baseURL:       "http://localhost",
 		libraryAccess: denyAll(),
@@ -1340,7 +1336,6 @@ func TestTranscodeHandler_IDOR_403(t *testing.T) {
 
 func TestTranscodeHandler_QueryToken(t *testing.T) {
 	h := transcodeHandler(transcodeServe{
-		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
 		libSvc:        &fakeMediaStreamsGetter{itemErr: errTest},
 		baseURL:       "http://localhost",
 		libraryAccess: allowAll(),
@@ -1361,7 +1356,6 @@ func TestTranscodeHandler_MaxStreams_429(t *testing.T) {
 	fakeMaxStreams := &fakeUserMaxStreams{max: &maxStreams}
 	throttle.Acquire("u1", 0) // occupy one slot
 	h := transcodeHandler(transcodeServe{
-		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
 		libSvc:        &fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		baseURL:       "http://localhost",
 		libraryAccess: allowAll(), throttle: throttle, userMaxStreams: fakeMaxStreams,
@@ -1538,7 +1532,6 @@ func TestGetBackup_AfterCreate(t *testing.T) {
 func TestSubtitleFileHandler_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(subtitleHandler(
-		verifier,
 		&fakeMediaStreamsGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		allowAll(),
@@ -1557,7 +1550,6 @@ func TestSubtitleFileHandler_NoAuth_401(t *testing.T) {
 func TestSubtitleFileHandler_InvalidToken_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(subtitleHandler(
-		verifier,
 		&fakeMediaStreamsGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		allowAll(),
@@ -1576,7 +1568,6 @@ func TestSubtitleFileHandler_InvalidToken_401(t *testing.T) {
 
 func TestSubtitleFileHandler_NotFound_404(t *testing.T) {
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		"http://localhost",
 		allowAll(),
@@ -1595,7 +1586,6 @@ func TestSubtitleFileHandler_NotFound_404(t *testing.T) {
 
 func TestSubtitleFileHandler_IDOR_403(t *testing.T) {
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted", File: &domainlibrary.MediaFile{Path: "/a"}}},
 		"http://localhost",
 		denyAll(),
@@ -1614,7 +1604,6 @@ func TestSubtitleFileHandler_IDOR_403(t *testing.T) {
 
 func TestSubtitleFileHandler_QueryToken(t *testing.T) {
 	h := subtitleHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaStreamsGetter{itemErr: errTest},
 		"http://localhost",
 		allowAll(),

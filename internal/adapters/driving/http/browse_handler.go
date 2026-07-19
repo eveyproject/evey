@@ -18,7 +18,7 @@ type browseEntry struct {
 	Path string `json:"path"`
 }
 
-func browseDirsHandler(tokens TokenVerifier) http.HandlerFunc {
+func browseDirsHandler() http.HandlerFunc {
 	h := &browseHandler{
 		skip: map[string]bool{"cdrom": true, "floppy": true, "usb": true, "sr0": true, "proc": true, "sys": true, "dev": true},
 	}

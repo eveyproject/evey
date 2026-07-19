@@ -90,7 +90,6 @@ func testMediaItem(libraryID string) *domainlibrary.MediaItem {
 func TestDownloadHandler_Unauthenticated(t *testing.T) {
 	verifier := &fakeTokenVerifier{claims: testClaims(false)}
 	inner := downloadHandler(
-		verifier,
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true}, nil)
@@ -108,7 +107,6 @@ func TestDownloadHandler_Unauthenticated(t *testing.T) {
 
 func TestDownloadHandler_IDOR_Forbidden(t *testing.T) {
 	h := downloadHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: false}, nil)
@@ -125,7 +123,6 @@ func TestDownloadHandler_IDOR_Forbidden(t *testing.T) {
 
 func TestDownloadHandler_Allowed_FileNotFound(t *testing.T) {
 	h := downloadHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/nonexistent_file_xyz.mkv"}}},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true}, nil)
@@ -145,7 +142,7 @@ func TestDownloadHandler_Allowed_FileNotFound(t *testing.T) {
 
 func TestLibraryStatsHandler_Unauthenticated(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
-	inner := libraryStatsHandler(verifier, &fakeLibraryLister{}, nil)
+	inner := libraryStatsHandler(&fakeLibraryLister{}, nil)
 	h := httpAdminMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/library-stats", nil)
 	w := httptest.NewRecorder()
@@ -158,7 +155,6 @@ func TestLibraryStatsHandler_Unauthenticated(t *testing.T) {
 func TestLibraryStatsHandler_OK(t *testing.T) {
 	now := time.Now()
 	h := libraryStatsHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeLibraryLister{libs: []*domainlibrary.Library{
 			{ID: "lib1", LastScannedAt: &now},
 		}},
@@ -313,7 +309,6 @@ func newStreamConfinementHandler(t *testing.T, mediaPath string, roots []string)
 		libs = []*domainlibrary.Library{{ID: "lib1", Paths: roots}}
 	}
 	return mediaHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeMediaItemGetter{item: item},
 		&fakeArtworkRepo{},
 		"http://localhost",

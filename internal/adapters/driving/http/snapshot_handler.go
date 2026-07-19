@@ -13,7 +13,7 @@ import (
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-func snapshotHandler(tokenGen TokenVerifier, frameExt FrameExtractor, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, baseURL string, parental ParentalChecker) http.HandlerFunc {
+func snapshotHandler(frameExt FrameExtractor, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, baseURL string, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		spanCtx, span := tracing.StartSpan(r.Context(), "http.snapshot.Capture")
 		defer span.End()

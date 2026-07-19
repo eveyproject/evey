@@ -60,7 +60,7 @@ func (c *libraryItemCounter) CountByLibrary(ctx context.Context, libraryID share
 	}
 }
 
-func chaptersHandler(tokenGen TokenVerifier, libSvc ChaptersGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker) http.HandlerFunc {
+func chaptersHandler(libSvc ChaptersGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker) http.HandlerFunc {
 	type chapterJSON struct {
 		Title       string `json:"title"`
 		StartTimeMs int64  `json:"startTimeMs"`
@@ -124,7 +124,7 @@ type LibraryItemCounter interface {
 	CountByLibrary(ctx context.Context, libraryID shared.LibraryID, libType string) (int, error)
 }
 
-func libraryStatsHandler(tokenGen TokenVerifier, libSvc LibraryLister, counter LibraryItemCounter) http.HandlerFunc {
+func libraryStatsHandler(libSvc LibraryLister, counter LibraryItemCounter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.transcode.LibraryStats")
 		defer span.End()
@@ -168,15 +168,14 @@ func libraryStatsHandler(tokenGen TokenVerifier, libSvc LibraryLister, counter L
 // --- playbackInfoHandler ---
 
 type playbackServe struct {
-	tokens        TokenVerifier
 	libSvc        MediaStreamsGetter
 	libraryAccess LibraryAccessChecker
 	profilePrefs  ProfilePrefsGetter
 	parental      ParentalChecker
 }
 
-func playbackInfoHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker, profilePrefs ProfilePrefsGetter, parental ParentalChecker) http.HandlerFunc {
-	h := &playbackServe{tokens: tokenGen, libSvc: libSvc, libraryAccess: libraryAccess, profilePrefs: profilePrefs, parental: parental}
+func playbackInfoHandler(libSvc MediaStreamsGetter, libraryAccess LibraryAccessChecker, profilePrefs ProfilePrefsGetter, parental ParentalChecker) http.HandlerFunc {
+	h := &playbackServe{libSvc: libSvc, libraryAccess: libraryAccess, profilePrefs: profilePrefs, parental: parental}
 	return h.serveHTTP
 }
 
@@ -328,7 +327,6 @@ func (h *playbackServe) parseClientProfile(r *http.Request) domaintranscoding.Cl
 // --- transcodeHandler ---
 
 type transcodeServe struct {
-	tokens         TokenVerifier
 	libSvc         MediaStreamsGetter
 	baseURL        string
 	libraryAccess  LibraryAccessChecker

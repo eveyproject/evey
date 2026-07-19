@@ -176,7 +176,6 @@ func TestNewLibraryItemCounter_NotNil(t *testing.T) {
 
 func TestChaptersHandler_StreamToken_WrongMediaID_403(t *testing.T) {
 	h := chaptersHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeChaptersGetter{},
 		"http://localhost",
 		allowAll(),
@@ -205,7 +204,6 @@ func TestChaptersHandler_ParentalBlocked_NotFound(t *testing.T) {
 		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
 	}
 	h := chaptersHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeChaptersGetter{},
 		"http://localhost",
 		allowAll(),
@@ -229,7 +227,6 @@ func TestChaptersHandler_ParentalAdmin_OK(t *testing.T) {
 		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
 	}
 	h := chaptersHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeChaptersGetter{},
 		"http://localhost",
 		allowAll(),
@@ -248,7 +245,6 @@ func TestChaptersHandler_ParentalAdmin_OK(t *testing.T) {
 
 func TestTranscodeHandler_StreamToken_WrongMediaID_403(t *testing.T) {
 	h := transcodeHandler(transcodeServe{
-		tokens:        &fakeTokenVerifier{claims: testClaims(false)},
 		libSvc:        &fakeMediaStreamsGetter{item: testMediaItem("lib1")},
 		baseURL:       "http://localhost",
 		libraryAccess: allowAll(),

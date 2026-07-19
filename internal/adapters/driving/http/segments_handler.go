@@ -15,7 +15,7 @@ import (
 // previewEnabled reports whether "preview" (next-episode preview reel)
 // segments should be served. Read live per request so the admin toggle takes
 // effect without a restart; nil is treated as disabled.
-func segmentsHandler(tokenGen TokenVerifier, svc SegmentsGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, previewEnabled func() bool, parental ParentalChecker) http.HandlerFunc {
+func segmentsHandler(svc SegmentsGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, previewEnabled func() bool, parental ParentalChecker) http.HandlerFunc {
 	type segmentJSON struct {
 		Type       string  `json:"type"`
 		StartMs    int64   `json:"startMs"`

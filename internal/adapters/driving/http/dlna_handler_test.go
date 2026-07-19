@@ -46,7 +46,7 @@ func (f *fakeDLNAClient) Pause(_ context.Context, rendererID string) error {
 
 func TestDLNARenderersHandler_OK(t *testing.T) {
 	fake := &fakeDLNAClient{renderers: []appdlna.Renderer{{ID: "r1", Name: "Living Room"}}}
-	h := dlnaRenderersHandler(nil, fake)
+	h := dlnaRenderersHandler(fake)
 
 	req := httptest.NewRequest(http.MethodGet, "/dlna/renderers", nil)
 	w := httptest.NewRecorder()
@@ -62,7 +62,7 @@ func TestDLNARenderersHandler_OK(t *testing.T) {
 
 func TestDLNARenderersHandler_NilReturnsEmptyArray(t *testing.T) {
 	fake := &fakeDLNAClient{renderers: nil}
-	h := dlnaRenderersHandler(nil, fake)
+	h := dlnaRenderersHandler(fake)
 
 	req := httptest.NewRequest(http.MethodGet, "/dlna/renderers", nil)
 	w := httptest.NewRecorder()
@@ -79,7 +79,7 @@ func TestDLNARenderersHandler_NilReturnsEmptyArray(t *testing.T) {
 
 func TestDLNARenderersHandler_Error(t *testing.T) {
 	fake := &fakeDLNAClient{discoverErr: errors.New("boom")}
-	h := dlnaRenderersHandler(nil, fake)
+	h := dlnaRenderersHandler(fake)
 
 	req := httptest.NewRequest(http.MethodGet, "/dlna/renderers", nil)
 	w := httptest.NewRecorder()
@@ -92,7 +92,7 @@ func TestDLNARenderersHandler_Error(t *testing.T) {
 
 func TestDLNAPlayHandler_OK(t *testing.T) {
 	fake := &fakeDLNAClient{}
-	h := dlnaPlayHandler(nil, fake)
+	h := dlnaPlayHandler(fake)
 
 	body := strings.NewReader(`{"rendererId":"r1","mediaUrl":"http://x/y.mp4","title":"T"}`)
 	req := httptest.NewRequest(http.MethodPost, "/dlna/play", body)
@@ -109,7 +109,7 @@ func TestDLNAPlayHandler_OK(t *testing.T) {
 
 func TestDLNAPlayHandler_BadJSON(t *testing.T) {
 	fake := &fakeDLNAClient{}
-	h := dlnaPlayHandler(nil, fake)
+	h := dlnaPlayHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/play", strings.NewReader(`not-json`))
 	w := httptest.NewRecorder()
@@ -122,7 +122,7 @@ func TestDLNAPlayHandler_BadJSON(t *testing.T) {
 
 func TestDLNAPlayHandler_MissingFields(t *testing.T) {
 	fake := &fakeDLNAClient{}
-	h := dlnaPlayHandler(nil, fake)
+	h := dlnaPlayHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/play", strings.NewReader(`{"rendererId":"r1"}`))
 	w := httptest.NewRecorder()
@@ -135,7 +135,7 @@ func TestDLNAPlayHandler_MissingFields(t *testing.T) {
 
 func TestDLNAPlayHandler_ServiceError(t *testing.T) {
 	fake := &fakeDLNAClient{playErr: errors.New("boom")}
-	h := dlnaPlayHandler(nil, fake)
+	h := dlnaPlayHandler(fake)
 
 	body := strings.NewReader(`{"rendererId":"r1","mediaUrl":"http://x/y.mp4"}`)
 	req := httptest.NewRequest(http.MethodPost, "/dlna/play", body)
@@ -149,7 +149,7 @@ func TestDLNAPlayHandler_ServiceError(t *testing.T) {
 
 func TestDLNAStopHandler_OK(t *testing.T) {
 	fake := &fakeDLNAClient{}
-	h := dlnaStopHandler(nil, fake)
+	h := dlnaStopHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/stop", strings.NewReader(`{"rendererId":"r1"}`))
 	w := httptest.NewRecorder()
@@ -165,7 +165,7 @@ func TestDLNAStopHandler_OK(t *testing.T) {
 
 func TestDLNAStopHandler_BadJSON(t *testing.T) {
 	fake := &fakeDLNAClient{}
-	h := dlnaStopHandler(nil, fake)
+	h := dlnaStopHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/stop", strings.NewReader(`{`))
 	w := httptest.NewRecorder()
@@ -178,7 +178,7 @@ func TestDLNAStopHandler_BadJSON(t *testing.T) {
 
 func TestDLNAStopHandler_MissingRendererID(t *testing.T) {
 	fake := &fakeDLNAClient{}
-	h := dlnaStopHandler(nil, fake)
+	h := dlnaStopHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/stop", strings.NewReader(`{}`))
 	w := httptest.NewRecorder()
@@ -191,7 +191,7 @@ func TestDLNAStopHandler_MissingRendererID(t *testing.T) {
 
 func TestDLNAStopHandler_ServiceError(t *testing.T) {
 	fake := &fakeDLNAClient{stopErr: errors.New("boom")}
-	h := dlnaStopHandler(nil, fake)
+	h := dlnaStopHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/stop", strings.NewReader(`{"rendererId":"r1"}`))
 	w := httptest.NewRecorder()
@@ -204,7 +204,7 @@ func TestDLNAStopHandler_ServiceError(t *testing.T) {
 
 func TestDLNAPauseHandler_OK(t *testing.T) {
 	fake := &fakeDLNAClient{}
-	h := dlnaPauseHandler(nil, fake)
+	h := dlnaPauseHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/pause", strings.NewReader(`{"rendererId":"r1"}`))
 	w := httptest.NewRecorder()
@@ -220,7 +220,7 @@ func TestDLNAPauseHandler_OK(t *testing.T) {
 
 func TestDLNAPauseHandler_BadJSON(t *testing.T) {
 	fake := &fakeDLNAClient{}
-	h := dlnaPauseHandler(nil, fake)
+	h := dlnaPauseHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/pause", strings.NewReader(`{`))
 	w := httptest.NewRecorder()
@@ -233,7 +233,7 @@ func TestDLNAPauseHandler_BadJSON(t *testing.T) {
 
 func TestDLNAPauseHandler_MissingRendererID(t *testing.T) {
 	fake := &fakeDLNAClient{}
-	h := dlnaPauseHandler(nil, fake)
+	h := dlnaPauseHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/pause", strings.NewReader(`{}`))
 	w := httptest.NewRecorder()
@@ -246,7 +246,7 @@ func TestDLNAPauseHandler_MissingRendererID(t *testing.T) {
 
 func TestDLNAPauseHandler_ServiceError(t *testing.T) {
 	fake := &fakeDLNAClient{pauseErr: errors.New("boom")}
-	h := dlnaPauseHandler(nil, fake)
+	h := dlnaPauseHandler(fake)
 
 	req := httptest.NewRequest(http.MethodPost, "/dlna/pause", strings.NewReader(`{"rendererId":"r1"}`))
 	w := httptest.NewRecorder()

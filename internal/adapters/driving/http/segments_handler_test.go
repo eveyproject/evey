@@ -28,7 +28,6 @@ func (f *fakeSegmentsGetter) GetSegments(_ context.Context, _ string) ([]*domain
 func TestSegmentsHandler_NoAuth_401(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	h := httpAuthMiddleware(verifier)(segmentsHandler(
-		verifier,
 		&fakeSegmentsGetter{},
 		"http://localhost",
 		allowAll(),
@@ -47,7 +46,6 @@ func TestSegmentsHandler_NoAuth_401(t *testing.T) {
 
 func TestSegmentsHandler_NotFound_404(t *testing.T) {
 	h := segmentsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeSegmentsGetter{},
 		"http://localhost",
 		allowAll(),
@@ -67,7 +65,6 @@ func TestSegmentsHandler_NotFound_404(t *testing.T) {
 
 func TestSegmentsHandler_IDOR_403(t *testing.T) {
 	h := segmentsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeSegmentsGetter{},
 		"http://localhost",
 		denyAll(),
@@ -87,7 +84,6 @@ func TestSegmentsHandler_IDOR_403(t *testing.T) {
 
 func TestSegmentsHandler_StreamTokenMismatch_403(t *testing.T) {
 	h := segmentsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeSegmentsGetter{},
 		"http://localhost",
 		allowAll(),
@@ -114,7 +110,6 @@ func TestSegmentsHandler_OK(t *testing.T) {
 		{ID: "s2", MediaItemID: "m1", Type: "outro", StartMs: 1800000, EndMs: 1860000, Confidence: 0.88, Source: "phash"},
 	}
 	h := segmentsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeSegmentsGetter{segments: segs},
 		"http://localhost",
 		allowAll(),
@@ -153,7 +148,6 @@ func TestSegmentsHandler_TypeFilter(t *testing.T) {
 		{ID: "s3", MediaItemID: "m1", Type: "recap", StartMs: 0, EndMs: 30000, Source: "manual"},
 	}
 	h := segmentsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeSegmentsGetter{segments: segs},
 		"http://localhost",
 		allowAll(),
@@ -187,7 +181,6 @@ func TestSegmentsHandler_PreviewGating(t *testing.T) {
 	}
 	run := func(previewEnabled bool) string {
 		h := segmentsHandler(
-			&fakeTokenVerifier{claims: testClaims(false)},
 			&fakeSegmentsGetter{segments: segs},
 			"http://localhost",
 			allowAll(),
@@ -230,7 +223,6 @@ func TestSegmentsHandler_ParentalBlocked_NotFound(t *testing.T) {
 		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
 	}
 	h := segmentsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeSegmentsGetter{segments: segs},
 		"http://localhost",
 		allowAll(),
@@ -257,7 +249,6 @@ func TestSegmentsHandler_ParentalAdmin_OK(t *testing.T) {
 		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
 	}
 	h := segmentsHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeSegmentsGetter{segments: segs},
 		"http://localhost",
 		allowAll(),
@@ -277,7 +268,6 @@ func TestSegmentsHandler_ParentalAdmin_OK(t *testing.T) {
 
 func TestSegmentsHandler_GetError_500(t *testing.T) {
 	h := segmentsHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeSegmentsGetter{err: errTest},
 		"http://localhost",
 		allowAll(),

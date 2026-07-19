@@ -39,7 +39,7 @@ type subtitleService interface {
 	Delete(ctx context.Context, subtitleID string) error
 }
 
-func subtitleHandler(tokenGen TokenVerifier, libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker) http.HandlerFunc {
+func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.subtitle.Serve")
 		defer span.End()

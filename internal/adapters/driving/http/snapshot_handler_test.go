@@ -40,7 +40,6 @@ func newSnapshotReq(t *testing.T, mediaID, query string) *http.Request {
 
 func TestSnapshot_ParentalBlocked_NotFound(t *testing.T) {
 	h := snapshotHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeFrameExt{data: []byte("jpeg-data")},
 		allowAll(), // library access granted…
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x/video.mkv"}}},
@@ -62,7 +61,6 @@ func TestSnapshot_ParentalBlocked_NotFound(t *testing.T) {
 // a leaked token (pentest 2026-05-26).
 func TestSnapshot_StreamTokenMediaMismatch_Forbidden(t *testing.T) {
 	h := snapshotHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeFrameExt{data: []byte("x")},
 		allowAll(),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m2", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
@@ -83,7 +81,6 @@ func TestSnapshot_StreamTokenMediaMismatch_Forbidden(t *testing.T) {
 func TestSnapshot_Success(t *testing.T) {
 	fe := &fakeFrameExt{data: []byte("jpeg-data")}
 	h := snapshotHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		fe,
 		allowAll(),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x/video.mkv"}}},
@@ -117,7 +114,6 @@ func TestSnapshot_Success(t *testing.T) {
 func TestSnapshot_NegativePositionClampedToZero(t *testing.T) {
 	fe := &fakeFrameExt{data: []byte("x")}
 	h := snapshotHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		fe,
 		allowAll(),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
@@ -138,7 +134,6 @@ func TestSnapshot_NegativePositionClampedToZero(t *testing.T) {
 
 func TestSnapshot_MediaNotFound(t *testing.T) {
 	h := snapshotHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeFrameExt{},
 		allowAll(),
 		&fakeMediaItemGetter{err: errors.New("not found")},
@@ -156,7 +151,6 @@ func TestSnapshot_MediaNotFound(t *testing.T) {
 
 func TestSnapshot_LibraryAccessDenied(t *testing.T) {
 	h := snapshotHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeFrameExt{data: []byte("x")},
 		denyAll(),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-private", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},
@@ -175,7 +169,6 @@ func TestSnapshot_LibraryAccessDenied(t *testing.T) {
 
 func TestSnapshot_ExtractError(t *testing.T) {
 	h := snapshotHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeFrameExt{err: errors.New("ffmpeg boom")},
 		allowAll(),
 		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/x.mkv"}}},

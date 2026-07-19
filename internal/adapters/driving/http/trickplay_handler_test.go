@@ -39,7 +39,6 @@ func TestFormatVTTTimeMs(t *testing.T) {
 func TestTrickplayManifestHandler_Unauthenticated(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	inner := trickplayManifestHandler(
-		verifier,
 		&fakeTrickplayGetter{},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
@@ -59,7 +58,6 @@ func TestTrickplayManifestHandler_Unauthenticated(t *testing.T) {
 
 func TestTrickplayManifestHandler_IDOR_Forbidden(t *testing.T) {
 	h := trickplayManifestHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeTrickplayGetter{},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: false},
@@ -88,7 +86,6 @@ func TestTrickplayManifestHandler_OK(t *testing.T) {
 		ImagePath:   "/tmp",
 	}
 	h := trickplayManifestHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeTrickplayGetter{manifest: manifest},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
@@ -112,7 +109,6 @@ func TestTrickplayManifestHandler_OK(t *testing.T) {
 func TestTrickplayImageHandler_Unauthenticated(t *testing.T) {
 	verifier := &fakeTokenVerifier{err: errTest}
 	inner := trickplayImageHandler(
-		verifier,
 		&fakeTrickplayGetter{},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
@@ -132,7 +128,6 @@ func TestTrickplayImageHandler_Unauthenticated(t *testing.T) {
 
 func TestTrickplayImageHandler_IDOR_Forbidden(t *testing.T) {
 	h := trickplayImageHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeTrickplayGetter{},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: false},
@@ -156,7 +151,6 @@ func TestTrickplayManifestHandler_ParentalBlocked_NotFound(t *testing.T) {
 		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
 	}
 	h := trickplayManifestHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeTrickplayGetter{},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
@@ -181,7 +175,6 @@ func TestTrickplayManifestHandler_ParentalAdmin_OK(t *testing.T) {
 	}
 	// getter returns error so the handler emits empty WEBVTT and returns 200
 	h := trickplayManifestHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeTrickplayGetter{err: errTest},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
@@ -206,7 +199,6 @@ func TestTrickplayImageHandler_ParentalBlocked_NotFound(t *testing.T) {
 		Classification: &domainlibrary.MediaClassification{OfficialRating: "R"},
 	}
 	h := trickplayImageHandler(
-		&fakeTokenVerifier{claims: testClaims(false)},
 		&fakeTrickplayGetter{},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
@@ -231,7 +223,6 @@ func TestTrickplayImageHandler_ParentalAdmin_OK(t *testing.T) {
 	}
 	// getter returns error → handler emits 404 (not 403)
 	h := trickplayImageHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeTrickplayGetter{err: errTest},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
@@ -252,7 +243,7 @@ func TestTrickplayImageHandler_ParentalAdmin_OK(t *testing.T) {
 
 func TestTrickplayGenerateAllHandler_Forbidden(t *testing.T) {
 	verifier := &fakeTokenVerifier{claims: testClaims(false)}
-	inner := trickplayGenerateAllHandler(verifier, &fakeTrickplayAllGenerator{count: 5})
+	inner := trickplayGenerateAllHandler(&fakeTrickplayAllGenerator{count: 5})
 	h := httpAdminMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/trickplay/generate-all", nil)
 	req.Header.Set("Authorization", "Bearer token")
@@ -274,7 +265,6 @@ func (f *fakeTrickplayAllGenerator) GenerateAllMissingTrickplays(_ context.Conte
 
 func TestTrickplayGenerateAllHandler_AdminOK(t *testing.T) {
 	h := trickplayGenerateAllHandler(
-		&fakeTokenVerifier{claims: testClaims(true)},
 		&fakeTrickplayAllGenerator{count: 3},
 	)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/trickplay/generate-all", nil)
@@ -298,7 +288,6 @@ func TestTrickplayGenerateAllHandler_AdminOK(t *testing.T) {
 // dropped the parental gate.
 func TestTrickplayManifestHandler_AnonymousMustNotBeServed(t *testing.T) {
 	h := trickplayManifestHandler(
-		&fakeTokenVerifier{err: errTest},
 		&fakeTrickplayGetter{err: errTest},
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: false}, // caller has no right to this library
@@ -322,7 +311,6 @@ func TestTrickplayManifestHandler_AnonymousMustNotBeServed(t *testing.T) {
 func TestTrickplayImageHandler_AnonymousMustNotBeServed(t *testing.T) {
 	access := &fakeLibraryAccessChecker{allowed: false}
 	h := trickplayImageHandler(
-		&fakeTokenVerifier{err: errTest},
 		&fakeTrickplayGetter{err: errTest},
 		"http://localhost",
 		access,
