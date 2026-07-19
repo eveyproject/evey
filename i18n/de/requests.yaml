@@ -24,3 +24,5 @@ adminNote: "Hinweis: {{note}}"
 disabledTitle: Anfragen sind deaktiviert
 disabledDesc: Der Administrator hat Medienanfragen für dein Konto deaktiviert.
 year: "({{year}})"
+inLibrary: "Bereits verfügbar"
+watchNow: "Jetzt ansehen"

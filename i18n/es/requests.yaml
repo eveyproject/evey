@@ -24,3 +24,5 @@ adminNote: "Nota: {{note}}"
 disabledTitle: Las solicitudes están desactivadas
 disabledDesc: El administrador ha desactivado las solicitudes de contenido para tu cuenta.
 year: "({{year}})"
+inLibrary: "Ya disponible"
+watchNow: "Ver ahora"

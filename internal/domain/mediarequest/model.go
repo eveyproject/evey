@@ -67,6 +67,10 @@ var (
 	ErrNotOwner  = errors.New("media request not owned by caller")
 	ErrDisabled  = errors.New("media requests are disabled for this user")
 	ErrDuplicate = errors.New("an open request already exists for this title")
+	// ErrAlreadyHeld guards the pointless request: the server already holds this
+	// exact title. Enforced here, not just greyed out in the UI - the client is
+	// not the authority on what the library contains.
+	ErrAlreadyHeld = errors.New("this title is already in the library")
 )
 
 // Request is a single user-submitted media request.

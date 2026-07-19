@@ -25,7 +25,24 @@ type Candidate struct {
 	Year       *int
 	PosterURL  string
 	Overview   string
+	// InLibrary is set when this exact title is already on the server, matched
+	// by provider id. MediaItemID then points at it so the client can send the
+	// user to the media instead of offering a pointless request.
+	InLibrary   bool
+	MediaItemID string
 }
+
+// LibraryLookup answers "which of these provider ids do we already have?".
+// Optional: a nil lookup leaves every candidate reporting InLibrary=false,
+// which is the pre-feature behaviour rather than a wrong answer.
+type LibraryLookup interface {
+	// FindByProviderIDs maps "<provider>:<id>" to the media item id holding it,
+	// restricted to mediaType ("movie" or "tv"). Absent keys mean "not held".
+	FindByProviderIDs(ctx context.Context, mediaType string, keys []string) (map[string]string, error)
+}
+
+// ProviderKey is the lookup key shared by the service and its adapters.
+func ProviderKey(provider, id string) string { return provider + ":" + id }
 
 // CreateInput carries the picked title into CreateRequest.
 type CreateInput struct {
@@ -43,6 +60,13 @@ type Service struct {
 	access    mediarequest.Access
 	providers []metadata.MetadataProvider // movie/tv (TMDB/OMDb/IMDb) + music (MusicBrainz)
 	events    shared.EventBus
+	library   LibraryLookup // optional
+}
+
+// WithLibraryLookup enables the "already on the server" resolution.
+func (s *Service) WithLibraryLookup(l LibraryLookup) *Service {
+	s.library = l
+	return s
 }
 
 // NewService builds the media request service.
@@ -86,7 +110,41 @@ func (s *Service) SearchTitles(ctx context.Context, mediaType mediarequest.Media
 			out = append(out, toCandidate(p.Name(), r))
 		}
 	}
+	s.markInLibrary(ctx, mediaType, out)
 	return out, nil
+}
+
+// markInLibrary flags the candidates already held by the server. Best-effort by
+// design: a lookup failure leaves every candidate unflagged (the request stays
+// possible) rather than sinking a search that is otherwise perfectly usable.
+// Music is skipped outright - music_tracks carries no MusicBrainz id, so the
+// only join available would be on the album title, and a wrong "you already
+// have this" is worse than no badge at all.
+func (s *Service) markInLibrary(ctx context.Context, mediaType mediarequest.MediaType, cands []Candidate) {
+	if s.library == nil || len(cands) == 0 || mediaType == mediarequest.MediaTypeMusic {
+		return
+	}
+	keys := make([]string, 0, len(cands))
+	for _, c := range cands {
+		if c.ProviderID != "" {
+			keys = append(keys, ProviderKey(c.Provider, c.ProviderID))
+		}
+	}
+	if len(keys) == 0 {
+		return
+	}
+	held, err := s.library.FindByProviderIDs(ctx, string(mediaType), keys)
+	if err != nil {
+		slog.Warn("media request: library lookup failed, candidates left unflagged",
+			slog.Any("err", err))
+		return
+	}
+	for i := range cands {
+		if id, ok := held[ProviderKey(cands[i].Provider, cands[i].ProviderID)]; ok {
+			cands[i].InLibrary = true
+			cands[i].MediaItemID = id
+		}
+	}
 }
 
 // toCandidate maps a provider result to a UI-facing candidate, picking the
@@ -118,6 +176,22 @@ func toCandidate(providerName string, r metadata.MetadataResult) Candidate {
 	return c
 }
 
+// heldInLibrary reports whether the server already holds this provider id.
+// Fails OPEN on a lookup error: refusing a legitimate request because a
+// database hiccup is worse than accepting a duplicate the admin can reject.
+func (s *Service) heldInLibrary(ctx context.Context, mt mediarequest.MediaType, provider, providerID string) bool {
+	if s.library == nil || mt == mediarequest.MediaTypeMusic {
+		return false
+	}
+	held, err := s.library.FindByProviderIDs(ctx, string(mt), []string{ProviderKey(provider, providerID)})
+	if err != nil {
+		slog.Warn("media request: library lookup failed on create, allowing", slog.Any("err", err))
+		return false
+	}
+	_, ok := held[ProviderKey(provider, providerID)]
+	return ok
+}
+
 // CreateRequest submits a request for the given profile/user. Fails closed with
 // ErrDisabled when the policy denies it, and ErrDuplicate when an open request
 // for the same title already exists.
@@ -140,6 +214,12 @@ func (s *Service) CreateRequest(ctx context.Context, profileID shared.ProfileID,
 		}
 		if dupe {
 			return nil, mediarequest.ErrDuplicate
+		}
+		// Re-resolved server-side: the UI hides the button for a held title, but
+		// a crafted call must not slip a request for something already on the
+		// server past it.
+		if s.heldInLibrary(ctx, in.MediaType, in.Provider, in.ProviderID) {
+			return nil, mediarequest.ErrAlreadyHeld
 		}
 	}
 

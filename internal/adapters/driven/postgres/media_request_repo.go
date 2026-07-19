@@ -3,8 +3,10 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
 
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
@@ -397,3 +399,105 @@ func (r *MediaRequestAccessRepository) ListOverrides(ctx context.Context) (map[s
 }
 
 var _ mediarequest.Access = (*MediaRequestAccessRepository)(nil)
+
+// LibraryLookupRepository answers the media-request search's "do we already
+// hold this?" question against the catalogue's provider ids.
+type LibraryLookupRepository struct{ db *sql.DB }
+
+func NewLibraryLookupRepository(db *sql.DB) *LibraryLookupRepository {
+	return &LibraryLookupRepository{db: db}
+}
+
+// itemTypeForRequest maps the request vocabulary onto media_items.type. "tv"
+// resolves to the SERIES row, never an episode: a request is for the show.
+func itemTypeForRequest(mediaType string) (string, bool) {
+	switch mediaType {
+	case "movie":
+		return "movie", true
+	case "tv":
+		return "series", true
+	default:
+		return "", false // music has no provider id to match on
+	}
+}
+
+// FindByProviderIDs returns the subset of "<provider>:<id>" keys the server
+// already holds, mapped to their media item id.
+//
+// Matching is on the provider id alone - never the title. A title match would
+// flag remakes and same-name releases as already-held and silently block a
+// legitimate request, which is exactly the kind of wrong answer that is worse
+// than no answer.
+func (r *LibraryLookupRepository) FindByProviderIDs(ctx context.Context, mediaType string, keys []string) (map[string]string, error) {
+	itemType, ok := itemTypeForRequest(mediaType)
+	if !ok || len(keys) == 0 {
+		return nil, nil
+	}
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_request.FindByProviderIDs")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	// One jsonb containment probe per key, matched by the jsonb_path_ops GIN
+	// index (migration 000138). Sending them as an array keeps this a single
+	// round trip whatever the result count.
+	probes := make([]string, 0, len(keys))
+	for _, k := range keys {
+		provider, id, found := strings.Cut(k, ":")
+		if !found || provider == "" || id == "" {
+			continue
+		}
+		b, err := json.Marshal(map[string]string{provider: id})
+		if err != nil {
+			continue
+		}
+		probes = append(probes, string(b))
+	}
+	if len(probes) == 0 {
+		return nil, nil
+	}
+
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT mi.id, mc.provider_ids
+		   FROM media_catalog mc
+		   JOIN media_items mi ON mi.id = mc.media_item_id
+		  WHERE mi.type = $1
+		    AND mc.provider_ids @> ANY($2::jsonb[])`,
+		itemType, pq.Array(probes))
+	if err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	wanted := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		wanted[k] = struct{}{}
+	}
+	out := make(map[string]string)
+	for rows.Next() {
+		var itemID string
+		var raw []byte
+		if err := rows.Scan(&itemID, &raw); err != nil {
+			span.RecordError(err)
+			return nil, err
+		}
+		var ids map[string]string
+		if err := json.Unmarshal(raw, &ids); err != nil {
+			continue
+		}
+		// A row can carry several provider ids; credit only the ones asked for,
+		// so an unrelated id on the same item never flags a different candidate.
+		for provider, id := range ids {
+			k := provider + ":" + id
+			if _, ok := wanted[k]; ok {
+				out[k] = itemID
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	return out, nil
+}

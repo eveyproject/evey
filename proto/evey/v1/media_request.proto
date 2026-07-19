@@ -113,6 +113,16 @@ message TitleCandidate {
   int32 year = 4;
   string poster_url = 5;
   string overview = 6;
+  // in_library reports that this exact title is ALREADY on the server, matched
+  // by provider id (never by title, which would produce false positives on
+  // remakes and same-name releases). Requesting it is refused server-side, and
+  // media_item_id lets the client offer "go watch it" instead.
+  //
+  // Only movies and series are resolved: music lives in music_tracks, which
+  // stores no MusicBrainz id, so a music candidate always reports false rather
+  // than guess from the album title.
+  bool in_library = 7;
+  string media_item_id = 8;
 }
 
 message SearchTitlesRequest {

@@ -24,3 +24,5 @@ adminNote: "Note: {{note}}"
 disabledTitle: Requests are disabled
 disabledDesc: The administrator has disabled media requests for your account.
 year: "({{year}})"
+inLibrary: "Already available"
+watchNow: "Watch now"

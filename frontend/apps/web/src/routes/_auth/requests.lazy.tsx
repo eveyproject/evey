@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { createLazyFileRoute } from "@tanstack/react-router";
+import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { Inbox, Film, Tv, Music } from "lucide-react";
+import { Inbox, Film, Tv, Music, Check } from "lucide-react";
 import {
   useMediaRequestServiceGetRequestPolicy,
   useMediaRequestServiceSearchTitles,
@@ -198,6 +198,16 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
                   style={{ backgroundColor: "var(--surface-raised)" }}
                 >
                   <RequestPoster posterUrl={r.posterUrl} title={r.title} mediaType={r.requestType} />
+                  {r.inLibrary && (
+                    <span
+                      className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-medium"
+                      style={{ backgroundColor: "var(--overlay-bg)", color: "var(--text)" }}
+                      data-testid="candidate-in-library"
+                    >
+                      <Check size={11} aria-hidden="true" />
+                      {t("requests.inLibrary")}
+                    </span>
+                  )}
                   {scope === "video" && (
                     <span
                       className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-medium"
@@ -215,15 +225,25 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
                       <span className="text-[var(--text-muted)]"> {t("requests.year", { year: r.year })}</span>
                     )}
                   </p>
-                  <Button
-                    type="button"
-                    variant={alreadyRequested ? "secondary" : "primary"}
-                    disabled={alreadyRequested || createRequest.isPending}
-                    onClick={() => handleRequest(r)}
-                    className="w-full"
-                  >
-                    {alreadyRequested ? t("requests.requested") : t("requests.request")}
-                  </Button>
+                  {r.inLibrary && r.mediaItemId ? (
+                    // Already on the server: requesting it is refused server-side
+                    // anyway, so offer the only useful action - go watch it.
+                    <Link to="/media/$mediaId" params={{ mediaId: r.mediaItemId }} className="w-full">
+                      <Button type="button" variant="secondary" className="w-full">
+                        {t("requests.watchNow")}
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant={alreadyRequested ? "secondary" : "primary"}
+                      disabled={alreadyRequested || createRequest.isPending}
+                      onClick={() => handleRequest(r)}
+                      className="w-full"
+                    >
+                      {alreadyRequested ? t("requests.requested") : t("requests.request")}
+                    </Button>
+                  )}
                 </div>
               </li>
             );

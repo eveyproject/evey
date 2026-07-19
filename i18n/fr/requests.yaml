@@ -24,3 +24,5 @@ adminNote: "Note : {{note}}"
 disabledTitle: Les demandes sont désactivées
 disabledDesc: "L'administrateur a désactivé les demandes de média pour votre compte."
 year: "({{year}})"
+inLibrary: "Déjà disponible"
+watchNow: "Regarder"

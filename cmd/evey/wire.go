@@ -646,7 +646,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// music via MusicBrainz (decorated with the same retry+cache wrapper).
 	mediaRequestProviders := append([]metadata.MetadataProvider{}, metaProviders...)
 	mediaRequestProviders = append(mediaRequestProviders, decorate(metadataadapter.NewMusicBrainzProvider()))
-	mediaRequestSvc := appmediarequest.NewService(r.MediaRequest, r.MediaRequestAccess, mediaRequestProviders, bus)
+	mediaRequestSvc := appmediarequest.NewService(r.MediaRequest, r.MediaRequestAccess, mediaRequestProviders, bus).
+		WithLibraryLookup(postgres.NewLibraryLookupRepository(db))
 	photoScanner := filesystem.NewPhotoScanner()
 	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
 	starRatingSvc := apprating.NewService(r.UserRating)

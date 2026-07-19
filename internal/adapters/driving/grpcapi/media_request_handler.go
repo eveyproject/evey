@@ -44,11 +44,13 @@ func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.Sear
 	resp := &eveyv1.SearchTitlesResponse{}
 	for _, c := range candidates {
 		tc := &eveyv1.TitleCandidate{
-			Provider:   c.Provider,
-			ProviderId: c.ProviderID,
-			Title:      c.Title,
-			PosterUrl:  c.PosterURL,
-			Overview:   c.Overview,
+			Provider:    c.Provider,
+			ProviderId:  c.ProviderID,
+			Title:       c.Title,
+			PosterUrl:   c.PosterURL,
+			Overview:    c.Overview,
+			InLibrary:   c.InLibrary,
+			MediaItemId: c.MediaItemID,
 		}
 		if c.Year != nil {
 			tc.Year = int32(*c.Year)
@@ -268,6 +270,8 @@ func mapMediaRequestError(op string, err error) error {
 		return status.Error(codes.PermissionDenied, "media requests are disabled for your account")
 	case errors.Is(err, mediarequest.ErrDuplicate):
 		return status.Error(codes.AlreadyExists, "you already have an open request for this title")
+	case errors.Is(err, mediarequest.ErrAlreadyHeld):
+		return status.Error(codes.AlreadyExists, "this title is already in the library")
 	case errors.Is(err, mediarequest.ErrNotFound):
 		return status.Error(codes.NotFound, "request not found")
 	default:
