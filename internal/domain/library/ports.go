@@ -419,7 +419,11 @@ type TrickplayResult struct {
 }
 
 type TrickplayGenerator interface {
-	Generate(ctx context.Context, filePath string, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int) (*TrickplayResult, error)
+	// knownDurationMs is the duration the scan already established for this
+	// file; 0 means unknown. A positive value lets the generator skip its
+	// readability pre-flight - the scan producing a duration IS the proof that
+	// the file opens - which is one less ffprobe fork per generated trickplay.
+	Generate(ctx context.Context, filePath string, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int, knownDurationMs int64) (*TrickplayResult, error)
 }
 
 // MediaItemTranslationQueryRepo is the read-only subset of

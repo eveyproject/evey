@@ -159,7 +159,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 
 	adaptive := s.isAdaptiveCPU(ctx)
 	workers := cpuutil.TrickplayWorkers(adaptive)
-	result, err := s.trickplayGen.Generate(ctx, item.File.Path, outputDir, interval, width, tileWidth, tileHeight, workers)
+	result, err := s.trickplayGen.Generate(ctx, item.File.Path, outputDir, interval, width, tileWidth, tileHeight, workers, item.File.Duration.Milliseconds())
 	if err != nil {
 		return fmt.Errorf("generate trickplay: %w", err)
 	}

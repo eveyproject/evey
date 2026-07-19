@@ -65,7 +65,7 @@ func TestTrickplayGenerator_Generate_Success(t *testing.T) {
 	outputDir := t.TempDir()
 
 	g := NewTrickplayGenerator(ffmpeg, probe)
-	result, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1)
+	result, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1, 0)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -79,7 +79,7 @@ func TestTrickplayGenerator_Generate_InvalidBinary(t *testing.T) {
 	g := NewTrickplayGenerator("/nonexistent/ffmpeg-trickplay", probe)
 	outputDir := t.TempDir()
 
-	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1)
+	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1, 0)
 
 	require.Error(t, err)
 }
@@ -89,7 +89,7 @@ func TestTrickplayGenerator_Generate_InvalidProbe(t *testing.T) {
 	g := NewTrickplayGenerator("/nonexistent/ffmpeg", "/nonexistent/ffprobe")
 	outputDir := t.TempDir()
 
-	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1)
+	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1, 0)
 
 	require.Error(t, err)
 }
@@ -102,7 +102,7 @@ func TestTrickplayGenerator_Generate_CreatesOutputDir(t *testing.T) {
 	outputDir := filepath.Join(base, "nested", "trickplay")
 
 	g := NewTrickplayGenerator(ffmpeg, probe)
-	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1)
+	_, err := g.Generate(context.Background(), "/fake/video.mkv", outputDir, 10, 160, 5, 5, 1, 0)
 
 	require.NoError(t, err)
 	info, statErr := os.Stat(outputDir)

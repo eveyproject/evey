@@ -48,7 +48,7 @@ type countingGen struct {
 	delay     time.Duration
 }
 
-func (g *countingGen) Generate(_ context.Context, filePath, outputDir string, _, _, _, _, _ int) (*library.TrickplayResult, error) {
+func (g *countingGen) Generate(_ context.Context, filePath, outputDir string, _, _, _, _, _ int, _ int64) (*library.TrickplayResult, error) {
 	atomic.AddInt32(&g.callCount, 1)
 	g.mu.Lock()
 	g.calls = append(g.calls, filePath)

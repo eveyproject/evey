@@ -80,17 +80,22 @@ func (g *TrickplayGenerator) probeDuration(ctx context.Context, filePath string)
 //
 // maxWorkers now caps ffmpeg's internal decode/encode thread count
 // (0 → use the CPU-budget default; adaptive stays gentle at ~25% of budget).
-func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int) (*library.TrickplayResult, error) {
+func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir string, interval, width, tileWidth, tileHeight, maxWorkers int, knownDurationMs int64) (*library.TrickplayResult, error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.trickplay.Generate")
 	defer span.End()
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return nil, fmt.Errorf("create trickplay dir: %w", err)
 	}
 
-	// Validate file duration is readable; also lets us short-circuit on
-	// unprobeable inputs before spending ffmpeg startup cost.
-	if _, err := g.probeDuration(ctx, filePath); err != nil {
-		return nil, err
+	// Readability pre-flight, to short-circuit unprobeable inputs before paying
+	// ffmpeg's startup cost. The RESULT was always discarded - this only ever
+	// asked "does this file open?" - so a duration the scan already established
+	// answers it just as well, without a fork. Only a file we know nothing about
+	// still pays for ffprobe here.
+	if knownDurationMs <= 0 {
+		if _, err := g.probeDuration(ctx, filePath); err != nil {
+			return nil, err
+		}
 	}
 
 	if interval <= 0 {
