@@ -224,6 +224,58 @@ func TestPlaylistRepo_ReorderItems(t *testing.T) {
 	assert.Equal(t, 2, items[2].SortOrder)
 }
 
+// GetByPlaylistIDs is the batch form of GetByPlaylistID (fixes the playlist
+// generator's N+1 de-duplication scan) - a single ANY($1) query must group
+// rows correctly per playlist, and a playlist with no items must simply be
+// absent from the result rather than an empty-slice entry.
+func TestPlaylistItemRepo_GetByPlaylistIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	plRepo := postgres.NewPlaylistRepository(db)
+	plItemRepo := postgres.NewPlaylistItemRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("plu6")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("plp6", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("pllib3")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	mi1 := newTestMediaItem("plmi6", lib.ID)
+	mi2 := newTestMediaItem("plmi7", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, mi1))
+	require.NoError(t, itemRepo.Create(ctx, mi2))
+
+	plA := newTestPlaylist("pl6a", string(p.ID))
+	plB := newTestPlaylist("pl6b", string(p.ID))
+	plEmpty := newTestPlaylist("pl6empty", string(p.ID))
+	require.NoError(t, plRepo.Create(ctx, plA))
+	require.NoError(t, plRepo.Create(ctx, plB))
+	require.NoError(t, plRepo.Create(ctx, plEmpty))
+
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: plA.ID, MediaItemID: mi1.ID, SortOrder: 0, AddedAt: now}))
+	require.NoError(t, plItemRepo.Add(ctx, &domainplaylist.PlaylistItem{PlaylistID: plB.ID, MediaItemID: mi2.ID, SortOrder: 0, AddedAt: now}))
+
+	got, err := plItemRepo.GetByPlaylistIDs(ctx, []string{plA.ID, plB.ID, plEmpty.ID})
+	require.NoError(t, err)
+	require.Len(t, got[plA.ID], 1)
+	assert.Equal(t, mi1.ID, got[plA.ID][0].MediaItemID)
+	require.Len(t, got[plB.ID], 1)
+	assert.Equal(t, mi2.ID, got[plB.ID][0].MediaItemID)
+	_, hasEmpty := got[plEmpty.ID]
+	assert.False(t, hasEmpty, "a playlist with no items must be absent from the map")
+
+	empty, err := plItemRepo.GetByPlaylistIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, empty)
+}
+
 func TestSmartPlaylistQuerier_Query_NullParentID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

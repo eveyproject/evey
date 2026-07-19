@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -160,24 +161,49 @@ func upsertMediaClassification(ctx context.Context, tx *sql.Tx, item *library.Me
 	return nil
 }
 
-// replaceMediaTrailers deletes-then-reinserts so the in-memory slice is
-// the source of truth, matching how the previous JSONB array column
-// behaved. Cheap because trailers per item is typically <10.
-func replaceMediaTrailers(ctx context.Context, tx *sql.Tx, mediaItemID string, trailers []library.Trailer) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM media_trailers WHERE media_item_id = $1`, mediaItemID); err != nil {
-		return fmt.Errorf("delete media_trailers: %w", err)
+const trailerInsertCols = 10
+
+// buildTrailerInsert folds every trailer into a single multi-row INSERT
+// (one query for the whole item instead of one per trailer - it matters on a
+// full library scan). Returns ("", nil) for an empty list: Postgres rejects
+// INSERT ... VALUES with zero rows, so the caller must skip the exec entirely.
+func buildTrailerInsert(mediaItemID string, trailers []library.Trailer) (string, []any) {
+	if len(trailers) == 0 {
+		return "", nil
 	}
+	values := make([]string, len(trailers))
+	args := make([]any, 0, len(trailers)*trailerInsertCols)
 	for i, t := range trailers {
-		_, err := tx.ExecContext(ctx,
-			`INSERT INTO media_trailers (id, media_item_id, position, site, key, language, official, type, use_subtitles, subtitle_language)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		base := i * trailerInsertCols
+		placeholders := make([]string, trailerInsertCols)
+		for j := range trailerInsertCols {
+			placeholders[j] = fmt.Sprintf("$%d", base+j+1)
+		}
+		values[i] = "(" + strings.Join(placeholders, ",") + ")"
+		args = append(args,
 			fmt.Sprintf("tlr-%s-%d", mediaItemID, i),
 			mediaItemID, i, t.Site, t.Key, t.Language, t.Official, t.Type,
 			t.UseSubtitles, t.SubtitleLanguage,
 		)
-		if err != nil {
-			return fmt.Errorf("insert media_trailers: %w", err)
-		}
+	}
+	query := `INSERT INTO media_trailers (id, media_item_id, position, site, key, language, official, type, use_subtitles, subtitle_language)
+		 VALUES ` + strings.Join(values, ",")
+	return query, args
+}
+
+// replaceMediaTrailers deletes-then-reinserts so the in-memory slice is
+// the source of truth, matching how the previous JSONB array column
+// behaved.
+func replaceMediaTrailers(ctx context.Context, tx *sql.Tx, mediaItemID string, trailers []library.Trailer) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM media_trailers WHERE media_item_id = $1`, mediaItemID); err != nil {
+		return fmt.Errorf("delete media_trailers: %w", err)
+	}
+	query, args := buildTrailerInsert(mediaItemID, trailers)
+	if query == "" {
+		return nil
+	}
+	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
+		return fmt.Errorf("insert media_trailers: %w", err)
 	}
 	return nil
 }

@@ -65,7 +65,9 @@ type GenPlaylistStore interface {
 // GenItemStore is the narrow slice of the playlist-item repo the generator needs.
 type GenItemStore interface {
 	Add(ctx context.Context, item *playlist.PlaylistItem) error
-	GetByPlaylistID(ctx context.Context, playlistID string) ([]*playlist.PlaylistItem, error)
+	// GetByPlaylistIDs batches the de-duplication lookup across every profile
+	// playlist into one call instead of one per playlist.
+	GetByPlaylistIDs(ctx context.Context, playlistIDs []string) (map[string][]*playlist.PlaylistItem, error)
 }
 
 // GeneratorService builds a taste-weighted music playlist from a profile's
@@ -183,11 +185,19 @@ func (g *GeneratorService) alreadyInPlaylists(ctx context.Context, profileID str
 		slog.Warn("generate playlist: list profile playlists", slog.Any("err", err))
 		return set
 	}
-	for _, p := range pls {
-		items, itErr := g.items.GetByPlaylistID(ctx, p.ID)
-		if itErr != nil {
-			continue
-		}
+	if len(pls) == 0 {
+		return set
+	}
+	ids := make([]string, len(pls))
+	for i, p := range pls {
+		ids[i] = p.ID
+	}
+	byPlaylist, err := g.items.GetByPlaylistIDs(ctx, ids)
+	if err != nil {
+		slog.Warn("generate playlist: batch lookup playlist items", slog.Any("err", err))
+		return set
+	}
+	for _, items := range byPlaylist {
 		for _, it := range items {
 			set[string(it.MediaItemID)] = true
 		}

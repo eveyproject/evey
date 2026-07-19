@@ -85,6 +85,28 @@ func (r *FakePlaylistItemRepository) GetByPlaylistID(_ context.Context, playlist
 	return result, nil
 }
 
+func (r *FakePlaylistItemRepository) GetByPlaylistIDs(_ context.Context, playlistIDs []string) (map[string][]*playlist.PlaylistItem, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	result := make(map[string][]*playlist.PlaylistItem, len(playlistIDs))
+	for _, playlistID := range playlistIDs {
+		items := r.items[playlistID]
+		if len(items) == 0 {
+			continue
+		}
+		got := make([]*playlist.PlaylistItem, len(items))
+		copy(got, items)
+		sort.Slice(got, func(i, j int) bool {
+			return got[i].SortOrder < got[j].SortOrder
+		})
+		result[playlistID] = got
+	}
+	return result, nil
+}
+
 func (r *FakePlaylistItemRepository) Reorder(_ context.Context, playlistID string, mediaItemIDs []string) error {
 	if r.Err != nil {
 		return r.Err

@@ -20,5 +20,10 @@ type PlaylistItemRepository interface {
 	AddNextOrder(ctx context.Context, item *PlaylistItem) error
 	Remove(ctx context.Context, playlistID, mediaItemID string) error
 	GetByPlaylistID(ctx context.Context, playlistID string) ([]*PlaylistItem, error)
+	// GetByPlaylistIDs is the batch form of GetByPlaylistID - one query for
+	// every playlist instead of one query per playlist (N+1 in the playlist
+	// generator's de-duplication scan). Playlists with no items are simply
+	// absent from the returned map.
+	GetByPlaylistIDs(ctx context.Context, playlistIDs []string) (map[string][]*PlaylistItem, error)
 	Reorder(ctx context.Context, playlistID string, mediaItemIDs []string) error
 }

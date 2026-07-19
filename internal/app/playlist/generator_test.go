@@ -59,9 +59,11 @@ func (f *genFakePlaylists) Delete(_ context.Context, id string) error {
 }
 
 type genFakeItems struct {
-	added   []*playlist.PlaylistItem
-	byPlist map[string][]*playlist.PlaylistItem
-	addErr  error
+	added         []*playlist.PlaylistItem
+	byPlist       map[string][]*playlist.PlaylistItem
+	addErr        error
+	getBatchErr   error
+	getBatchCalls int // proves the N+1 fix: one call per Generate, not one per playlist
 }
 
 func (f *genFakeItems) Add(_ context.Context, it *playlist.PlaylistItem) error {
@@ -72,8 +74,18 @@ func (f *genFakeItems) Add(_ context.Context, it *playlist.PlaylistItem) error {
 	return nil
 }
 
-func (f *genFakeItems) GetByPlaylistID(_ context.Context, plID string) ([]*playlist.PlaylistItem, error) {
-	return f.byPlist[plID], nil
+func (f *genFakeItems) GetByPlaylistIDs(_ context.Context, plIDs []string) (map[string][]*playlist.PlaylistItem, error) {
+	f.getBatchCalls++
+	if f.getBatchErr != nil {
+		return nil, f.getBatchErr
+	}
+	result := make(map[string][]*playlist.PlaylistItem, len(plIDs))
+	for _, id := range plIDs {
+		if items, ok := f.byPlist[id]; ok {
+			result[id] = items
+		}
+	}
+	return result, nil
 }
 
 func track(id, genre string) music.Track {
@@ -191,6 +203,53 @@ func TestGenerate_TracksError(t *testing.T) {
 	g := newGen(&genFakeTracks{err: errors.New("boom")}, &genFakePlays{}, &genFakePlaylists{}, &genFakeItems{})
 	if _, err := g.Generate(context.Background(), "p1", "lib1", 10, "Mix"); err == nil {
 		t.Error("expected error when listing tracks fails")
+	}
+}
+
+// alreadyInPlaylists used to call GetByPlaylistID once per profile playlist
+// (N+1). It must now batch every profile playlist into a single
+// GetByPlaylistIDs call, however many playlists the profile has.
+func TestGenerate_AlreadyInPlaylists_BatchesLookup(t *testing.T) {
+	tracks := &genFakeTracks{tracks: []music.Track{track("a", "rock"), track("b", "jazz"), track("c", "pop")}}
+	pls := &genFakePlaylists{byUser: []*playlist.Playlist{
+		{ID: "pl1"}, {ID: "pl2"}, {ID: "pl3"},
+	}}
+	items := &genFakeItems{byPlist: map[string][]*playlist.PlaylistItem{
+		"pl1": {{MediaItemID: "a"}},
+		"pl2": {{MediaItemID: "b"}},
+		"pl3": {{MediaItemID: "c"}},
+	}}
+	g := newGen(tracks, &genFakePlays{}, pls, items)
+
+	if _, err := g.Generate(context.Background(), "p1", "lib1", 10, "Mix"); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if items.getBatchCalls != 1 {
+		t.Errorf("GetByPlaylistIDs calls = %d, want 1 (batched across all %d profile playlists)", items.getBatchCalls, len(pls.byUser))
+	}
+}
+
+// A batch lookup failure must degrade to an empty de-duplication set (soft
+// penalty simply doesn't apply) rather than failing the generation.
+func TestGenerate_AlreadyInPlaylists_BatchErrorDegradesGracefully(t *testing.T) {
+	tracks := &genFakeTracks{tracks: []music.Track{track("a", "rock"), track("b", "jazz")}}
+	pls := &genFakePlaylists{byUser: []*playlist.Playlist{{ID: "pl1"}}}
+	items := &genFakeItems{
+		byPlist:     map[string][]*playlist.PlaylistItem{"pl1": {{MediaItemID: "a"}}},
+		getBatchErr: errors.New("db down"),
+	}
+	g := newGen(tracks, &genFakePlays{}, pls, items)
+
+	pl, err := g.Generate(context.Background(), "p1", "lib1", 10, "Mix")
+	if err != nil {
+		t.Fatalf("Generate must not fail when the de-duplication lookup errors: %v", err)
+	}
+	if pl == nil {
+		t.Fatal("expected a playlist despite the lookup error")
+	}
+	got := addedIDs(items)
+	if !got["a"] || !got["b"] {
+		t.Errorf("expected both tracks included (no de-dup penalty applied), got %v", got)
 	}
 }
 

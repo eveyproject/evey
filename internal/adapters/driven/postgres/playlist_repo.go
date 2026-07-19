@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -283,6 +284,47 @@ func (r *PlaylistItemRepository) GetByPlaylistID(ctx context.Context, playlistID
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistID rows: %w", err)
+	}
+	return result, nil
+}
+
+// GetByPlaylistIDs batches the per-playlist lookup into one query - the
+// playlist generator's de-duplication scan used to call GetByPlaylistID once
+// per profile playlist (N+1 round trips per generation).
+func (r *PlaylistItemRepository) GetByPlaylistIDs(ctx context.Context, playlistIDs []string) (map[string][]*playlist.PlaylistItem, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.GetByPlaylistIDs")
+	defer span.End()
+	span.SetAttributes(attribute.Int("playlist.count", len(playlistIDs)))
+	if len(playlistIDs) == 0 {
+		return map[string][]*playlist.PlaylistItem{}, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT playlist_id, media_item_id, sort_order, added_at, media_type
+		 FROM playlist_items WHERE playlist_id = ANY($1) ORDER BY playlist_id, sort_order`, pq.Array(playlistIDs),
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistIDs: %w", err)
+	}
+	defer rows.Close()
+
+	result := make(map[string][]*playlist.PlaylistItem)
+	for rows.Next() {
+		item := &playlist.PlaylistItem{}
+		if err := rows.Scan(&item.PlaylistID, &item.MediaItemID, &item.SortOrder, &item.AddedAt, &item.MediaType); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistIDs scan: %w", err)
+		}
+		result[item.PlaylistID] = append(result[item.PlaylistID], item)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("PlaylistItemRepo.GetByPlaylistIDs rows: %w", err)
 	}
 	return result, nil
 }
