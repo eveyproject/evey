@@ -641,11 +641,14 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 			}
 		}
 	}
+	dropped := 0
 	for _, hit := range hits {
 		if allowedIDs != nil && !slices.Contains(allowedIDs, string(hit.LibraryID)) {
+			dropped++
 			continue
 		}
 		if parentalBlocked != nil && parentalBlocked[hit.ID] {
+			dropped++
 			continue
 		}
 		mi := &eveyv1.MediaItem{
@@ -657,6 +660,15 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 			mi.Year = int32(*hit.Year)
 		}
 		resp.Items = append(resp.Items, mi)
+	}
+	// TotalHits is the backend's unfiltered tally, so on its own it announces
+	// matches in libraries the caller cannot see (or that parental blocks):
+	// the item list came back empty while the count said "3 results". That is
+	// the existence oracle the stream routes avoid by answering 404, not 403.
+	// Only correct it when something was actually dropped - otherwise keep the
+	// backend total, which legitimately exceeds the returned page.
+	if dropped > 0 {
+		resp.TotalHits = int32(len(resp.Items))
 	}
 	return resp, nil
 }

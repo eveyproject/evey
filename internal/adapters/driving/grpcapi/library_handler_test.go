@@ -604,6 +604,11 @@ func TestLibraryHandler_SearchMedia_IDOR_FiltersAccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, resp.Items, 1)
 	assert.Equal(t, "mi-1", resp.Items[0].Id)
+	// TotalHits came straight from the backend count, so it still announced the
+	// hit in lib-secret: the item list was filtered but the tally told the user
+	// something matched in a library they cannot see. Same existence oracle the
+	// stream routes avoid by answering 404 rather than 403.
+	assert.EqualValues(t, 1, resp.TotalHits, "the tally must not count hits the caller may not see")
 }
 
 // The search index carries no per-country certifications (and often no rating
