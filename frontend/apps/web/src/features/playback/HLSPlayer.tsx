@@ -116,9 +116,6 @@ export function HLSPlayer({
 }: HLSPlayerProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  // Tracked as state (not just the ref) so the Remote Playback hook re-runs
-  // when the element mounts - Chrome Android's only cast path lives on it.
-  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
   const controlsToggleRef = useRef<(() => void) | null>(null);
@@ -264,57 +261,45 @@ export function HLSPlayer({
     castSdkReady, connected: castConnected, deviceName: castDeviceName,
     castPlayback, startCast, stopCast, castPlayPause, castSeek, castReload, castSetVolume, castSetMuted,
   } = useCasting();
-  // Chrome Android can't run the Cast SDK, so on mobile the ONLY cast path is
-  // the Remote Playback API on the <video> element. Expose it as a second
-  // source of a cast button. Desktop keeps the SDK (remote availability never
-  // fires there); mobile gets the native path. Both discover each USER's own
-  // devices on THEIR LAN - the server-side cast/DLNA path (the operator's LAN,
-  // empty from a Docker bridge) still never gates the button.
-  const remotePlayback = useRemotePlayback(videoEl);
-  const castAvailable = castSdkReady || remotePlayback.available;
+  // Chrome Android can't run the Cast SDK. Its only web cast path is the
+  // Remote Playback API, which flings a source URL to the receiver - but the
+  // local player is MSE (hls.js), which has no flingable URL. So casting rides
+  // a DEDICATED hidden <video> whose src is the castable HLS/direct URL; the
+  // hook watches IT for device availability and prompts on IT. Desktop keeps
+  // the Cast SDK (this API never reports availability there).
+  const castVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [castVideoEl, setCastVideoEl] = useState<HTMLVideoElement | null>(null);
+  const remotePlayback = useRemotePlayback(castVideoEl);
+  // Gate on `supported` (the API exists = Chrome Android), not `available`
+  // (watchAvailability): the availability signal on a preload=none element is
+  // not guaranteed to fire, and the priority is that the button reliably
+  // appears - the OS picker then does device discovery on tap. the owner's
+  // original bug was NO button at all; a button that opens an empty native
+  // picker is strictly better and matches how most apps behave.
+  const castAvailable = castSdkReady || remotePlayback.available || remotePlayback.supported;
 
-  // disableRemotePlayback removes the browser's native cast of the raw <video>.
-  // Set it ONLY when the Cast SDK is the working path (desktop), where the
-  // native button would be a confusing duplicate. On mobile the SDK is dead and
-  // the native path is all we have, so leaving it enabled is what lets
-  // useRemotePlayback see devices at all - the 2026-07-18 unconditional version
-  // left Android users with no cast at all (SDK absent + native suppressed).
-  useEffect(() => {
-    if (videoEl) videoEl.disableRemotePlayback = castSdkReady;
-  }, [videoEl, castSdkReady]);
-
-  const handleCastToggle = useCallback(async () => {
-    if (castConnected) {
-      stopCast();
-      return;
-    }
-    // Build a URL the Chromecast can fetch independently (absolute, with token)
+  // Builds a URL the receiver can fetch on its own (absolute, cast token,
+  // resumed at the current position). Shared by the desktop Cast SDK and the
+  // Chrome-Android Remote Playback path, so both hand the device the exact
+  // same media. Resume: transcode bakes the offset into the HLS (castStartSec);
+  // direct play carries it on the LoadRequest (castResumeSec) since nothing
+  // else seeks the receiver.
+  const buildCastUrl = useCallback(async (): Promise<{ url: string; castStartSec: number; castResumeSec: number }> => {
     let url: string;
-    // Resume the cast at the local player's current ABSOLUTE position rather
-    // than restarting from 0. Transcode: the server bakes the offset into the
-    // HLS stream (castStartSec, the receiver's timeline then starts there).
-    // Direct play: the receiver gets the whole file and owns the absolute
-    // timeline, so the resume must ride the LoadRequest (castResumeSec) -
-    // nothing else ever seeks it, and omitting it restarted every
-    // direct-play cast at 0.
     let castStartSec = 0;
     let castResumeSec = 0;
     const resumeAtSec = positionRef.current > 0 ? Math.floor(positionRef.current) : 0;
     if (streamInfo.directPlayUrl) {
-      // Direct play - append token if not already present
       const hasToken = streamInfo.directPlayUrl.includes("token=");
       url = hasToken ? streamInfo.directPlayUrl : `${streamInfo.directPlayUrl}${streamInfo.directPlayUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(streamTokenRef.current)}`;
       castResumeSec = resumeAtSec;
     } else {
-      // Transcode - HLS master playlist, started at the current position.
       castStartSec = resumeAtSec;
       url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, castStartSec, 0, gapless);
     }
-    // Swap in a long-lived cast token. The Chromecast fetches segments on
-    // its own and buffers minutes ahead, then goes quiet - the regular
-    // 5-minute sliding token expires during those quiet stretches and the
-    // cast drops mid-film. The local player dodges this via xhrSetup; the
-    // device can't, so it needs a token that outlives the whole session.
+    // Swap in a long-lived cast token: the receiver buffers minutes ahead then
+    // goes quiet, and the 5-minute sliding token would expire mid-film. The
+    // local player dodges this via xhrSetup; the receiver can't.
     if (onCastTokenRequest) {
       try {
         const castTok = await onCastTokenRequest();
@@ -325,15 +310,33 @@ export function HLSPlayer({
         console.warn("[Cast] cast token request failed, using session token:", err);
       }
     }
-    if (import.meta.env.DEV) console.log("[Cast] handleCastToggle - url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
-    // Remember the exact negotiated URL so handleCastSeek can reload at a
-    // new startSec without reconstructing it (the server picks /transcode
-    // vs /hls/master.m3u8 + codec params during negotiation - rebuilding
-    // by hand would diverge).
+    return { url, castStartSec, castResumeSec };
+  }, [streamInfo.directPlayUrl, mediaId, currentTrackIndex, onCastTokenRequest, gapless]);
+
+  const handleCastToggle = useCallback(async () => {
+    if (castConnected) {
+      stopCast();
+      return;
+    }
+    const { url, castStartSec, castResumeSec } = await buildCastUrl();
+    if (import.meta.env.DEV) console.log("[Cast] SDK cast url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
+    // Remember the negotiated URL so handleCastSeek can reload at a new
+    // startSec without reconstructing it.
     castBaseUrlRef.current = url;
     castTranscodeOffsetRef.current = castStartSec;
     startCast(url, title, castResumeSec);
-  }, [castConnected, stopCast, startCast, streamInfo.directPlayUrl, title, mediaId, currentTrackIndex, onCastTokenRequest, gapless]);
+  }, [castConnected, stopCast, startCast, buildCastUrl, streamInfo.directPlayUrl, title]);
+
+  // Chrome Android: the Cast SDK is dead, so cast by FLINGING the HLS/direct
+  // URL through the Remote Playback API on a dedicated hidden <video>. The
+  // receiver fetches and decodes the URL itself (it reads HLS natively), so
+  // it doesn't matter that Chrome Android can't decode HLS locally. The local
+  // MSE player is paused - the film moves to the TV.
+  const handleMobileCast = useCallback(async () => {
+    const { url } = await buildCastUrl();
+    await remotePlayback.promptForUrl(url);
+    try { videoRef.current?.pause(); } catch { /* element released */ }
+  }, [buildCastUrl, remotePlayback]);
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const anyPanelOpenRef = useRef(false);
@@ -396,6 +399,25 @@ export function HLSPlayer({
   streamTokenRef.current = streamToken;
   const onStreamTokenRefreshRef = useRef(onStreamTokenRefresh);
   onStreamTokenRefreshRef.current = onStreamTokenRefresh;
+
+  // Give the hidden cast <video> a flingable source URL so Remote Playback can
+  // compute device availability (an MSE element never can). A base URL with the
+  // session token is enough to advertise the source; the click path rebuilds it
+  // with the long-lived cast token + current position via buildCastUrl.
+  const castAvailabilitySrc = useMemo(() => {
+    if (!streamTokenRef.current) return undefined;
+    if (streamInfo.directPlayUrl) {
+      const dp = streamInfo.directPlayUrl;
+      return dp.includes("token=") ? dp : `${dp}${dp.includes("?") ? "&" : "?"}token=${encodeURIComponent(streamTokenRef.current)}`;
+    }
+    return buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, 0, 0, gapless);
+    // streamToken lands via streamInfo negotiation; key on it so this recomputes once the token is ready.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streamInfo, mediaId, currentTrackIndex, gapless]);
+
+  useEffect(() => {
+    if (castVideoEl && castAvailabilitySrc) castVideoEl.src = castAvailabilitySrc;
+  }, [castVideoEl, castAvailabilitySrc]);
   const { data: playbackSettings } = usePlaybackSettings();
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
   const skipBwd = playbackSettings?.skipBackwardSeconds ?? 30;
@@ -815,11 +837,17 @@ export function HLSPlayer({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* disableRemotePlayback is set in an effect above, gated on the Cast
-          SDK being the active path (desktop). On mobile it stays enabled so
-          the Remote Playback API - Chrome Android's only cast path - can see
-          devices; the cast button then routes through it. */}
-      <video ref={(el) => { videoRef.current = el; setVideoEl(el); onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
+      {/* The local player suppresses its own native cast button
+          (disableRemotePlayback): casting is driven either by the Cast SDK
+          (desktop) or by the dedicated hidden cast <video> below (Android). */}
+      <video ref={(el) => { videoRef.current = el; if (el) el.disableRemotePlayback = true; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
+
+      {/* Dedicated cast surface for Chrome Android's Remote Playback API. Kept
+          in the DOM (some UAs mishandle prompt() on a never-rendered element)
+          but visually gone. It carries a real HLS/direct source URL - the only
+          thing that can be flung to a Chromecast - while the main player stays
+          on MSE. muted+playsInline so it never makes noise if the UA autoplays. */}
+      <video ref={(el) => { castVideoRef.current = el; setCastVideoEl(el); }} preload="none" muted playsInline aria-hidden="true" tabIndex={-1} style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} />
 
       {/* Top-right cluster: Watch together, then the cast icon to its right.
           Fades with the control bars (auto-hide) so it doesn't stay pinned
@@ -842,7 +870,7 @@ export function HLSPlayer({
           )}
           {castAvailable && (
             <button
-              onClick={castSdkReady ? handleCastToggle : remotePlayback.prompt}
+              onClick={castSdkReady ? handleCastToggle : handleMobileCast}
               aria-label={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
               title={castConnected && castDeviceName ? castDeviceName : undefined}
               className={`flex items-center justify-center w-10 h-10 rounded-full text-white transition-opacity-fast hover:opacity-80 ${castConnected ? "text-[var(--accent)]" : ""}`}

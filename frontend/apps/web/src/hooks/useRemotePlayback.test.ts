@@ -48,6 +48,25 @@ describe("useRemotePlayback", () => {
     expect(remote.prompt).toHaveBeenCalledTimes(1);
   });
 
+  it("promptForUrl sets the element src to the castable URL, THEN prompts", async () => {
+    // This is how HLS casts on Android: the receiver flings the URL we put on
+    // the element. The order matters - src must be set before prompt() so the
+    // picker offers to load THAT media.
+    const { video, remote } = fakeVideoWithRemote();
+    const order: string[] = [];
+    Object.defineProperty(video, "src", {
+      configurable: true,
+      set: () => order.push("set-src"),
+      get: () => "",
+    });
+    remote.prompt.mockImplementation(async () => { order.push("prompt"); });
+
+    const { result } = renderHook(() => useRemotePlayback(video));
+    await act(async () => { await result.current.promptForUrl("https://x/master.m3u8?token=t"); });
+
+    expect(order).toEqual(["set-src", "prompt"]);
+  });
+
   it("cancels the availability watch on unmount", async () => {
     const { video, remote } = fakeVideoWithRemote();
     const { unmount } = renderHook(() => useRemotePlayback(video));

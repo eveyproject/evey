@@ -31,6 +31,10 @@ function remoteOf(video: HTMLVideoElement | null): RemotePlayback | null {
 
 export function useRemotePlayback(video: HTMLVideoElement | null) {
   const [available, setAvailable] = useState(false);
+  // Whether the element exposes the Remote Playback API at all. True on
+  // Chrome Android (the cast surface), false on desktop where the Cast SDK
+  // drives casting. A safety net for gating when watchAvailability is slow.
+  const supported = remoteOf(video) != null;
 
   useEffect(() => {
     const remote = remoteOf(video);
@@ -74,5 +78,22 @@ export function useRemotePlayback(video: HTMLVideoElement | null) {
     }
   }, [video]);
 
-  return { available, prompt };
+  // Casts an arbitrary URL by putting it on the element first, then prompting.
+  // This is how HLS reaches a Chromecast on Chrome Android: the receiver flings
+  // the element's source URL and decodes the HLS itself (it doesn't need the
+  // local element to decode it). The element here is a dedicated, hidden cast
+  // <video> - never the MSE-fed local player, which has no flingable URL.
+  const promptForUrl = useCallback(async (url: string) => {
+    if (!video) return;
+    const remote = remoteOf(video);
+    if (!remote) return;
+    video.src = url;
+    try {
+      await remote.prompt();
+    } catch {
+      // User dismissed the picker, or no device accepted - nothing to do.
+    }
+  }, [video]);
+
+  return { available, supported, prompt, promptForUrl };
 }
