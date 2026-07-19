@@ -347,8 +347,11 @@ func TestBuildFFmpegArgs_SoftwareUsesCappedCRF(t *testing.T) {
 		t.Errorf("single software video must not use a plain -b:v average: %q", single)
 	}
 	multi := strings.Join(BuildFFmpegArgs(sampleHWOpts(transcoding.None, "", 3)), " ")
-	// maxrate ceiling per rung = the rung's bitrate (1080p rung = 5000k, bufsize 2x).
-	for _, want := range []string{"-crf:v:0", "-maxrate:v:2 5000k", "-bufsize:v:2 10000k"} {
+	// maxrate ceiling per rung = the rung's bitrate x maxrateHeadroomPct, bufsize
+	// 2x the ceiling (1080p rung = 5000k -> 8000k / 16000k). The literals are
+	// spelled out rather than computed from the constant so that retuning the
+	// headroom has to restate the resulting encoder contract here, on purpose.
+	for _, want := range []string{"-crf:v:0", "-maxrate:v:2 8000k", "-bufsize:v:2 16000k"} {
 		if !strings.Contains(multi, want) {
 			t.Errorf("multi-variant software path must contain %q: %q", want, multi)
 		}
