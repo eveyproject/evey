@@ -26,6 +26,14 @@ const (
 	// FailureHWDeviceMemory: out of VRAM / device memory. Usually transient
 	// (contention) → fall back for this job, do NOT permanently demote.
 	FailureHWDeviceMemory FailureClass = "hw_device_memory"
+	// FailureHWCorruptOutput: the encoder exits 0 at healthy speed but the
+	// decoded pixels do not depict the source (green/purple frames,
+	// mishandled 10-bit, driver/GPU combos of the Linux long tail). By
+	// definition invisible to the stderr classifier - the verdict comes from
+	// calibration's decode-back gate, which compares decoded output frames
+	// against the software-decoded source via perceptual hash. Deterministic
+	// → this codec's HW path serves garbage; drop it, no HW retry.
+	FailureHWCorruptOutput FailureClass = "hw_corrupt_output"
 	// FailureTransient: not HW-related and likely retryable (I/O, broken
 	// pipe). Don't downgrade HW.
 	FailureTransient FailureClass = "transient"
@@ -42,7 +50,7 @@ const (
 func (c FailureClass) IsHWCapability() bool {
 	switch c {
 	case FailureHWUnsupportedOption, FailureHWEncoderMissing,
-		FailureHWInit, FailureHWDeviceMemory:
+		FailureHWInit, FailureHWDeviceMemory, FailureHWCorruptOutput:
 		return true
 	}
 	return false
@@ -53,7 +61,8 @@ func (c FailureClass) IsHWCapability() bool {
 // transient / resource causes that may clear on their own.
 func (c FailureClass) Deterministic() bool {
 	switch c {
-	case FailureHWUnsupportedOption, FailureHWEncoderMissing, FailureHWInit:
+	case FailureHWUnsupportedOption, FailureHWEncoderMissing, FailureHWInit,
+		FailureHWCorruptOutput:
 		return true
 	}
 	return false
@@ -110,7 +119,10 @@ func PlanDemotion(cap EncodeCapability, class FailureClass, codec string) Demoti
 		d.HWFeatures = nil
 		return Demotion{RetryTier: TierHWMinimal, Capability: d, Persist: true, Changed: changed}
 
-	case FailureHWEncoderMissing:
+	case FailureHWEncoderMissing, FailureHWCorruptOutput:
+		// Corrupt output shares the missing-encoder blast radius: whether the
+		// encoder is absent or silently produces garbage, this codec cannot be
+		// served from HW on this host. Software retry, persisted, no HW retry.
 		d := cap
 		changed := removeHWCodec(&d, codec)
 		return Demotion{RetryTier: TierSoftware, Capability: d, Persist: true, Changed: changed}

@@ -813,7 +813,8 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		}
 
 		// First measure the production zero-copy path: HW decode → scale → encode.
-		best, samples := runLadder(hwInputArgs(dev.Type), "")
+		usedInput, usedChain := hwInputArgs(dev.Type), ""
+		best, samples := runLadder(usedInput, usedChain)
 		// If nothing passed, the GPU may simply be unable to HW-DECODE the sample
 		// codec while still being able to ENCODE - pre-Skylake Intel iGPUs decode
 		// H.264 but NOT HEVC, and our sample is HEVC, so `-hwaccel vaapi` fails with
@@ -822,10 +823,33 @@ func (r *BenchmarkRunner) benchHardware(ctx context.Context, sample string, fall
 		// VAAPI/QSV only - NVENC HW-decodes every codec, so it never needs this.
 		if best == 0 {
 			if up := hwUploadChain(encoder); up != "" {
-				best, samples = runLadder(hwDecoupledInputArgs(dev.Type), up)
+				usedInput, usedChain = hwDecoupledInputArgs(dev.Type), up
+				best, samples = runLadder(usedInput, usedChain)
 			}
 		}
 		if best > 0 {
+			// Speed alone doesn't certify a path: a buggy driver/GPU combo can
+			// exit 0 at full FPS while producing garbage pixels. Decode a few
+			// frames back and compare against the software-decoded source
+			// before certifying (see hw_output_validation.go). Only a MEASURED
+			// divergence refuses the path - an inconclusive gate never bricks
+			// working hardware on a fluke of the gate itself.
+			verdict, verr := r.validateHWVisualOutput(ctx, sample, fallback, encoder, usedInput, usedChain)
+			switch {
+			case verr != nil:
+				r.logger.Warn("benchmark: hw visual validation inconclusive - certifying on speed alone",
+					slog.String("backend", dev.Type),
+					slog.String("encoder", encoder),
+					slog.Any("err", verr))
+			case !verdict.OK:
+				r.logger.Warn("benchmark: hardware encoder output is visually corrupt - backend NOT certified",
+					slog.String("backend", dev.Type),
+					slog.String("encoder", encoder),
+					slog.Int("worst_hamming", verdict.WorstHamming),
+					slog.Int("threshold", hwCorruptHammingThreshold),
+					slog.String("failure_class", string(transcoding.FailureHWCorruptOutput)))
+				continue // next device; none left ⇒ software-only, the universal floor
+			}
 			return best, dev.Type, hwDomainCodecs(dev.SupportedCodecs), hwDevicePath(dev.Type), samples
 		}
 	}

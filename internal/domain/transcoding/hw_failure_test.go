@@ -8,7 +8,7 @@ import (
 func TestFailureClass_IsHWCapability(t *testing.T) {
 	hw := []FailureClass{
 		FailureHWUnsupportedOption, FailureHWEncoderMissing,
-		FailureHWInit, FailureHWDeviceMemory,
+		FailureHWInit, FailureHWDeviceMemory, FailureHWCorruptOutput,
 	}
 	notHW := []FailureClass{
 		FailureNone, FailureTransient, FailureCancelled, FailureUnknown,
@@ -26,7 +26,7 @@ func TestFailureClass_IsHWCapability(t *testing.T) {
 }
 
 func TestFailureClass_Deterministic(t *testing.T) {
-	det := []FailureClass{FailureHWUnsupportedOption, FailureHWEncoderMissing, FailureHWInit}
+	det := []FailureClass{FailureHWUnsupportedOption, FailureHWEncoderMissing, FailureHWInit, FailureHWCorruptOutput}
 	nondet := []FailureClass{FailureHWDeviceMemory, FailureTransient, FailureCancelled, FailureUnknown, FailureNone}
 	for _, c := range det {
 		if !c.Deterministic() {
@@ -82,6 +82,28 @@ func TestPlanDemotion(t *testing.T) {
 		{
 			name:  "encoder missing removes that codec, keeps others + HW",
 			class: FailureHWEncoderMissing, codec: "hevc",
+			wantTier: TierSoftware, wantPersist: true, wantChanged: true,
+			check: func(t *testing.T, d EncodeCapability) {
+				if slices.Contains(d.HWCodecs, "hevc") {
+					t.Errorf("hevc should be removed, got %v", d.HWCodecs)
+				}
+				if !slices.Contains(d.HWCodecs, "h264") {
+					t.Errorf("h264 should survive, got %v", d.HWCodecs)
+				}
+				if d.HWBackend != "nvenc" {
+					t.Errorf("backend should survive while a codec remains, got %q", d.HWBackend)
+				}
+			},
+		},
+		{
+			// The encoder EXISTS and exits 0, but the decoded pixels do not
+			// depict the source (green/purple frames, mishandled 10-bit).
+			// Exit-code-blind, so no stderr class can catch it - the verdict
+			// comes from calibration's decode-back gate. Same blast radius as
+			// a missing encoder: this codec's HW path serves garbage, drop it
+			// and retry in software, WITHOUT a HW retry (deterministic).
+			name:  "corrupt output removes that codec from HW, no HW retry",
+			class: FailureHWCorruptOutput, codec: "hevc",
 			wantTier: TierSoftware, wantPersist: true, wantChanged: true,
 			check: func(t *testing.T, d EncodeCapability) {
 				if slices.Contains(d.HWCodecs, "hevc") {
