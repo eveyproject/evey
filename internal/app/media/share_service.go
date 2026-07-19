@@ -72,6 +72,30 @@ func (s *ShareService) GetByID(ctx context.Context, id string) (*shared.ShareLin
 	return s.repo.GetByID(ctx, id)
 }
 
+// Peek resolves a share link without spending a view. It applies the same
+// expiry and view-limit gates as Validate, so it never exposes a link that is
+// already dead - it just doesn't consume the allowance.
+//
+// Validate is for the act of collecting the share (the download); Peek is for
+// merely describing it. They used to be the same call, which meant any
+// authenticated user hitting the ValidateShareLink RPC burned a view off a
+// link addressed to someone else.
+func (s *ShareService) Peek(ctx context.Context, token string) (*shared.ShareLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.share.Peek")
+	defer span.End()
+	link, err := s.repo.GetByToken(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("share link not found: %w", err)
+	}
+	if link.IsExpired() {
+		return nil, ErrShareExpired
+	}
+	if link.IsViewLimitReached() {
+		return nil, ErrShareViewLimit
+	}
+	return link, nil
+}
+
 func (s *ShareService) Validate(ctx context.Context, token string) (*shared.ShareLink, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.share.Validate")
 	defer span.End()

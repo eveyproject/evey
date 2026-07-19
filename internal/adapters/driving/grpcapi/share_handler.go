@@ -146,7 +146,11 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 func (h *shareHandler) ValidateShareLink(ctx context.Context, req *eveyv1.ValidateShareLinkRequest) (*eveyv1.ValidateShareLinkResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.share.ValidateShareLink")
 	defer span.End()
-	link, err := h.svc.Validate(ctx, req.Token)
+	// Peek, not Validate: this RPC only describes the link (the RBAC table
+	// classifies it as harmless metadata, callable by any authenticated user).
+	// Spending a view here let anyone exhaust a maxViews=1 link before its
+	// recipient opened it. The view is consumed by the download route alone.
+	link, err := h.svc.Peek(ctx, req.Token)
 	if err != nil {
 		if errors.Is(err, appmedia.ErrShareExpired) || errors.Is(err, appmedia.ErrShareViewLimit) {
 			return nil, status.Error(codes.Unavailable, "link expired or view limit reached")

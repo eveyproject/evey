@@ -254,3 +254,49 @@ func TestShareService_CleanupExpired(t *testing.T) {
 	all, _ := svc.ListAll(ctx)
 	assert.Len(t, all, 1)
 }
+
+// ValidateShareLink (gRPC) is reachable by any authenticated user and is
+// documented in the RBAC table as "harmless metadata". It shared Validate with
+// the real download path, so a peek consumed a view: on a maxViews=1 link, any
+// logged-in user could burn the single view before the intended recipient - who
+// needs no account at all - ever opened the download URL.
+func TestShareService_Peek_DoesNotConsumeAView(t *testing.T) {
+	repo := &fakeShareLinkRepo{}
+	svc := media.NewShareService(repo)
+	ctx := context.Background()
+
+	maxViews := 1
+	link, _ := svc.Create(ctx, "media-1", "admin-1", 24*time.Hour, &maxViews)
+
+	// Peeking repeatedly must not spend the allowance.
+	for range 3 {
+		peeked, err := svc.Peek(ctx, link.Token)
+		require.NoError(t, err)
+		assert.Equal(t, link.Token, peeked.Token)
+	}
+
+	// The real download still gets its one view.
+	_, err := svc.Validate(ctx, link.Token)
+	require.NoError(t, err, "the recipient's single view must survive any number of peeks")
+
+	// ...and only one.
+	_, err = svc.Validate(ctx, link.Token)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "view limit")
+}
+
+func TestShareService_Peek_StillRejectsExpiredAndExhausted(t *testing.T) {
+	repo := &fakeShareLinkRepo{}
+	svc := media.NewShareService(repo)
+	ctx := context.Background()
+
+	maxViews := 1
+	link, _ := svc.Create(ctx, "media-1", "admin-1", 24*time.Hour, &maxViews)
+	_, err := svc.Validate(ctx, link.Token)
+	require.NoError(t, err)
+
+	// A peek must not become a way to read an exhausted link either.
+	_, err = svc.Peek(ctx, link.Token)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "view limit")
+}
