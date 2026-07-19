@@ -7,6 +7,7 @@ import (
 
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
 	"github.com/evey-project/evey/internal/domain/mediarequest"
+	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
 )
 
@@ -146,6 +147,47 @@ func TestCreateRequest_RejectsDuplicate(t *testing.T) {
 	}
 	if len(repo.created) != 0 {
 		t.Error("duplicate request was persisted")
+	}
+}
+
+// fakeProvider records whether the upstream metadata provider was reached.
+// Searching burns the operator's own API key/quota, so a user who is denied
+// request access must never get that far.
+type fakeProvider struct{ searched int }
+
+func (f *fakeProvider) Name() string { return "fake" }
+func (f *fakeProvider) Search(_ context.Context, _ string, _ *int, _ string) ([]metadata.MetadataResult, error) {
+	f.searched++
+	return nil, nil
+}
+func (f *fakeProvider) GetByProviderID(_ context.Context, _ string, _ string) (*metadata.MetadataResult, error) {
+	return nil, nil
+}
+
+func TestSearchTitles_DeniedUserNeverReachesProvider(t *testing.T) {
+	prov := &fakeProvider{}
+	access := &fakeAccess{global: true, overrides: map[string]bool{"usr-blocked": false}}
+	svc := appmediarequest.NewService(newFakeRepo(), access, []metadata.MetadataProvider{prov}, &fakeBus{})
+
+	_, err := svc.SearchTitles(context.Background(), "usr-blocked", mediarequest.MediaTypeMovie, "Dune", nil)
+	if !errors.Is(err, mediarequest.ErrDisabled) {
+		t.Fatalf("err = %v, want ErrDisabled", err)
+	}
+	if prov.searched != 0 {
+		t.Errorf("provider was queried %d times for a denied user; the operator's API quota must not be reachable", prov.searched)
+	}
+}
+
+func TestSearchTitles_AllowedUserReachesProvider(t *testing.T) {
+	prov := &fakeProvider{}
+	access := &fakeAccess{global: true, overrides: map[string]bool{}}
+	svc := appmediarequest.NewService(newFakeRepo(), access, []metadata.MetadataProvider{prov}, &fakeBus{})
+
+	if _, err := svc.SearchTitles(context.Background(), "usr-1", mediarequest.MediaTypeMovie, "Dune", nil); err != nil {
+		t.Fatalf("SearchTitles: %v", err)
+	}
+	if prov.searched != 1 {
+		t.Errorf("provider queried %d times, want 1", prov.searched)
 	}
 }
 

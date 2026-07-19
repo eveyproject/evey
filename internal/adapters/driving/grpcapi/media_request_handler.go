@@ -25,7 +25,8 @@ type mediaRequestHandler struct {
 func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.SearchTitlesRequest) (*eveyv1.SearchTitlesResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.mediarequest.SearchTitles")
 	defer span.End()
-	if _, err := requireClaims(ctx); err != nil {
+	claims, err := requireClaims(ctx)
+	if err != nil {
 		return nil, err
 	}
 	mediaType := mediarequest.MediaType(req.MediaType)
@@ -37,9 +38,9 @@ func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.Sear
 		y := int(req.Year)
 		year = &y
 	}
-	candidates, err := h.svc.SearchTitles(ctx, mediaType, req.Query, year)
+	candidates, err := h.svc.SearchTitles(ctx, claims.UserID, mediaType, req.Query, year)
 	if err != nil {
-		return nil, internalError("search titles", err)
+		return nil, mapMediaRequestError("search titles", err)
 	}
 	resp := &eveyv1.SearchTitlesResponse{}
 	for _, c := range candidates {

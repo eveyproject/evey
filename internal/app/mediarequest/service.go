@@ -90,9 +90,20 @@ func (s *Service) CanRequest(ctx context.Context, userID string) (bool, error) {
 // SearchTitles resolves candidate titles for a media type across the providers.
 // Provider errors (e.g. TMDB rejecting a music query) are ignored so one bad
 // provider never sinks the search.
-func (s *Service) SearchTitles(ctx context.Context, mediaType mediarequest.MediaType, query string, year *int) ([]Candidate, error) {
+func (s *Service) SearchTitles(ctx context.Context, userID string, mediaType mediarequest.MediaType, query string, year *int) ([]Candidate, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.mediarequest.SearchTitles")
 	defer span.End()
+	// Same policy gate as CreateRequest: search only exists to feed a request,
+	// and every call spends the operator's own provider quota. Authentication
+	// alone is not enough - a user explicitly denied request access could
+	// otherwise still drive unbounded upstream searches through their API key.
+	allowed, err := s.CanRequest(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !allowed {
+		return nil, mediarequest.ErrDisabled
+	}
 	if !mediaType.IsValid() {
 		return nil, errors.New("invalid media type")
 	}
