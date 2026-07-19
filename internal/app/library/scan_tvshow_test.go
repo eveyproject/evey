@@ -410,7 +410,7 @@ func TestScanTVShow_BlankSeriesTitle_SkippedNotPersisted(t *testing.T) {
 	})
 
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/tv/blank/S01/e01.mkv", Size: 100, Title: "   ", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/blank/S01/e01.mkv", Size: 100, Title: "   ", Season: new(1), Episode: new(1), Type: library.Episode},
 	}
 
 	added, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
@@ -431,7 +431,7 @@ func TestScanTVShow_SeriesTitleTrimmed(t *testing.T) {
 	})
 
 	scanner.Results["/tv"] = []library.ScannedFile{
-		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "  Show  ", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "  Show  ", Season: new(1), Episode: new(1), Type: library.Episode},
 	}
 
 	added, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
