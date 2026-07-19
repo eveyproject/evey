@@ -92,6 +92,24 @@ const readyCallbacks: Array<() => void> = [];
 // __onGCastApiAvailable(false), so no UA gate is needed for them.
 const isIOSBrowser = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+// The server-side Cast/DLNA fallback (/api/v1/cast/devices, /api/v1/dlna/
+// renderers) discovers devices on the SERVER's LAN via mDNS/SSDP. That only
+// overlaps the user's own network when Evey is reached DIRECTLY by a bare LAN
+// IP (e.g. http://192.168.1.50:9091) - then the server is on the same wire as
+// the user's Chromecast. Behind a domain, the server sits on a Docker bridge /
+// remote host whose LAN is not the user's, so the fallback can only ever return
+// [] and the "no devices on the server's network" toast is actively misleading
+// (a user on Android Chrome whose Cast SDK didn't open a session lands here and
+// is told, wrongly, that the SERVER has no devices). Gate the whole fallback on
+// a bare-IP/loopback host. `.local` mDNS names are treated as domains: the ask
+// was "just an IP", and a truly LAN-only deployment is always reachable by IP.
+export function isDirectLanHost(hostname: string): boolean {
+  const h = hostname.toLowerCase();
+  if (h === "localhost") return true;
+  if (h.includes(":")) return true; // IPv6 literal (loopback / link-local / ULA)
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(h); // bare IPv4
+}
+
 function ensureCastSdk() {
   if (sdkLoaded) return;
   sdkLoaded = true;
@@ -349,7 +367,23 @@ export function useCasting() {
       }
     }
 
-    // Server-side Cast (Chromecast via backend) + DLNA fallback
+    // Server-side Cast (Chromecast via backend) + DLNA fallback - ONLY when
+    // Evey is reached directly by a LAN IP, where the server shares the user's
+    // network. Behind a domain (reverse proxy) it never can, so skip the whole
+    // server round-trip and give an honest client-side message instead of the
+    // misleading "no devices on the server's network" toast. Applies to admins
+    // too: an admin on a domain has the same non-overlapping-LAN problem.
+    let castHost = window.location.hostname;
+    try {
+      castHost = new URL(absoluteUrl).hostname;
+    } catch {
+      /* absoluteUrl always absolute here; fall back to the page host */
+    }
+    if (!isDirectLanHost(castHost)) {
+      toast.error(i18n.t("player.cast.notFound"));
+      return;
+    }
+
     try {
       const castDevices = (await eveyFetch<CastDevice[]>({
         url: "/api/v1/cast/devices",
