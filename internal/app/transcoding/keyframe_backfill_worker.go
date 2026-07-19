@@ -43,10 +43,28 @@ type FrameRateAnalyzer interface {
 // worker-only need.
 type FrameRateStore interface {
 	// SetFrameRateMode stores the item's video stream(s) cfr/vfr classification
-	// ("" for unknown is a legitimate write, unlike SetKeyframes). Returns rows
+	// ("" for unknown is a legitimate write, unlike SetKeyframes), stamped with
+	// the classifier version. Never overwrites an existing verdict. Returns rows
 	// updated.
-	SetFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string) (int, error)
+	SetFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string, algoVersion int16) (int, error)
+	// ListVideoFrameRateStale returns items whose verdict predates algoVersion.
+	ListVideoFrameRateStale(ctx context.Context, limit int, algoVersion int16, exclude []string) ([]string, error)
+	// ReclassifyFrameRateMode overwrites a verdict older than algoVersion.
+	ReclassifyFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string, algoVersion int16) (int, error)
 }
+
+// FrameRateAlgoVersion identifies the classifier behind a stored cfr/vfr
+// verdict. BUMP IT whenever the classification can change for the same bytes -
+// that is the supported way to force a library-wide re-analysis, with no DB
+// surgery and no admin action: rows stamped below the current version are
+// picked up by the backfill worker's re-classification drain and restamped.
+//
+// 1 (mkvgo v0.25.1): first versioned classifier. Everything before it reads
+// back as 0 and gets re-analyzed, because the older variance test mistook a
+// B-frame decode-order artifact for a frame-duration outlier and labelled
+// ms-quantised CFR sources 'vfr' - which gates the copy rung off and forces a
+// pointless transcode (see CopyRungEligible).
+const FrameRateAlgoVersion int16 = 1
 
 // KeyframeBackfillWorker re-probes copy-eligible existing media to fill the
 // keyframe index (media_streams.keyframes_ms) the scan never extracts - the
@@ -89,6 +107,11 @@ type KeyframeBackfillWorker struct {
 	activePlayback func() int
 
 	attempted map[string]struct{} // in-run skip-set (single-goroutine, no lock)
+	// frAttempted is the re-classification drain's OWN skip-set. Kept apart from
+	// `attempted` so a file whose keyframe probe failed is still re-classified
+	// (and vice versa) - the two passes read the same file but answer different
+	// questions, and one failing says nothing about the other.
+	frAttempted map[string]struct{}
 
 	stop  chan struct{}
 	done  chan struct{}
@@ -141,6 +164,7 @@ func NewKeyframeBackfillWorker(
 		idleInterval: opts.IdleInterval,
 		itemPause:    opts.ItemPause,
 		attempted:    make(map[string]struct{}),
+		frAttempted:  make(map[string]struct{}),
 		stop:         make(chan struct{}),
 		done:         make(chan struct{}),
 		nudge:        make(chan struct{}, 1),
@@ -240,7 +264,17 @@ func (w *KeyframeBackfillWorker) pause() time.Duration {
 	return w.itemPause
 }
 
+// processBatch drains the keyframe queue first and only falls through to the
+// frame-rate re-classification once it is empty, so the sweep's priority order
+// is explicit rather than emergent.
 func (w *KeyframeBackfillWorker) processBatch(ctx context.Context) int {
+	if n := w.processKeyframeBatch(ctx); n > 0 {
+		return n
+	}
+	return w.processFrameRateBatch(ctx)
+}
+
+func (w *KeyframeBackfillWorker) processKeyframeBatch(ctx context.Context) int {
 	ids, err := w.store.ListVideoKeyframesMissing(ctx, w.batchSize, w.excluded())
 	if err != nil {
 		w.logger.Warn("keyframe backfill: list candidates failed", slog.Any("err", err))
@@ -332,18 +366,106 @@ func (w *KeyframeBackfillWorker) backfillFrameRateMode(ctx context.Context, medi
 			slog.String("media_id", mediaItemID), slog.Any("err", err))
 		return
 	}
-	if _, err := w.frameRateStore.SetFrameRateMode(ctx, shared.MediaItemID(mediaItemID), mode); err != nil {
+	if _, err := w.frameRateStore.SetFrameRateMode(ctx, shared.MediaItemID(mediaItemID), mode, FrameRateAlgoVersion); err != nil {
 		w.logger.Warn("keyframe backfill: frame-rate persist failed",
 			slog.String("media_id", mediaItemID), slog.Any("err", err))
 	}
 }
 
+// processFrameRateBatch re-analyzes items whose cfr/vfr verdict predates
+// FrameRateAlgoVersion. It runs only once the keyframe queue is drained,
+// because a missing keyframe index blocks the copy rung outright while a stale
+// verdict merely mis-gates it - the cheaper wrong answer waits its turn.
+//
+// Returns the number of items handled so run() keeps looping while there is
+// work and falls into its idle sleep when there is not.
+func (w *KeyframeBackfillWorker) processFrameRateBatch(ctx context.Context) int {
+	if w.frameRate == nil || w.frameRateStore == nil {
+		return 0
+	}
+	ids, err := w.frameRateStore.ListVideoFrameRateStale(ctx, w.batchSize, FrameRateAlgoVersion, w.frExcluded())
+	if err != nil {
+		w.logger.Warn("frame-rate reclassify: list candidates failed", slog.Any("err", err))
+		return 0
+	}
+	for i, id := range ids {
+		select {
+		case <-w.stop:
+			return i
+		case <-ctx.Done():
+			return i
+		default:
+		}
+		if !w.reclassifyOne(ctx, id) {
+			w.frAttempted[id] = struct{}{}
+		}
+		select {
+		case <-time.After(w.pause()):
+		case <-w.stop:
+			return i + 1
+		case <-ctx.Done():
+			return i + 1
+		}
+	}
+	return len(ids)
+}
+
+// reclassifyOne re-runs the analyzer on one item and restamps its verdict.
+// Reports whether the item can be considered handled; false puts it in the
+// drain's skip-set so a permanently unreadable file is retried at most once
+// per run instead of pinning the queue.
+func (w *KeyframeBackfillWorker) reclassifyOne(ctx context.Context, mediaItemID string) bool {
+	item, err := w.items.GetByID(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil || item == nil {
+		w.logger.Warn("frame-rate reclassify: load item failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+		return false
+	}
+	mode, err := w.frameRate.AnalyzeFrameRateMode(ctx, item.File.Path)
+	if err != nil {
+		w.logger.Warn("frame-rate reclassify: analysis failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+		return false
+	}
+	if mode == "" {
+		// The analyzer cannot speak for this container (non-EBML, too few
+		// frames). Restamping to "" would DROP a verdict that may well be
+		// right, so leave the row alone and skip it for this run. Logged: this
+		// row stays stale forever otherwise, and silence would make a whole
+		// library of them indistinguishable from "nothing to do".
+		w.logger.Debug("frame-rate reclassify: analyzer returned unknown, verdict left as-is",
+			slog.String("media_id", mediaItemID))
+		return false
+	}
+	n, err := w.frameRateStore.ReclassifyFrameRateMode(ctx, shared.MediaItemID(mediaItemID), mode, FrameRateAlgoVersion)
+	if err != nil {
+		w.logger.Warn("frame-rate reclassify: persist failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+		return false
+	}
+	if n > 0 {
+		w.logger.Info("frame-rate reclassified",
+			slog.String("media_id", mediaItemID),
+			slog.String("title", item.Title),
+			slog.String("frame_rate_mode", mode))
+	}
+	return true
+}
+
 func (w *KeyframeBackfillWorker) excluded() []string {
-	if len(w.attempted) == 0 {
+	return keysOf(w.attempted)
+}
+
+func (w *KeyframeBackfillWorker) frExcluded() []string {
+	return keysOf(w.frAttempted)
+}
+
+func keysOf(m map[string]struct{}) []string {
+	if len(m) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(w.attempted))
-	for id := range w.attempted {
+	out := make([]string, 0, len(m))
+	for id := range m {
 		out = append(out, id)
 	}
 	return out

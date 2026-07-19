@@ -265,7 +265,7 @@ func (k *KeyframeOnDemand) classifyFrameRate(ctx context.Context, mediaID, fileP
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return
 	}
-	if _, err := k.frStore.SetFrameRateMode(ctx, shared.MediaItemID(mediaID), mode); err != nil {
+	if _, err := k.frStore.SetFrameRateMode(ctx, shared.MediaItemID(mediaID), mode, FrameRateAlgoVersion); err != nil {
 		k.logger.Warn("keyframe on-demand: frame-rate persist failed",
 			slog.String("media_id", mediaID), slog.Any("err", err))
 	}

@@ -453,16 +453,21 @@ func (r *MediaStreamRepository) SetKeyframes(ctx context.Context, mediaItemID sh
 // writes only where frame_rate_mode is still ” (never overwrites a prior
 // classification), mirroring SetKeyframes' NULL-guard idempotency. Returns
 // the number of rows updated.
-func (r *MediaStreamRepository) SetFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string) (int, error) {
+//
+// algoVersion stamps WHICH classifier produced the verdict, so a later
+// improvement can find and re-analyze it (ReclassifyFrameRateMode). Writing it
+// here matters as much as on the reclassify path: without the stamp a freshly
+// classified row would read back as stale on the very next drain.
+func (r *MediaStreamRepository) SetFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string, algoVersion int16) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.SetFrameRateMode")
 	defer span.End()
 	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)), attribute.String("frame_rate_mode", mode))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE media_streams SET frame_rate_mode = $1
-		 WHERE media_item_id = $2 AND stream_type = 'video' AND frame_rate_mode = ''`,
-		mode, string(mediaItemID))
+		`UPDATE media_streams SET frame_rate_mode = $1, frame_rate_algo_version = $2
+		 WHERE media_item_id = $3 AND stream_type = 'video' AND frame_rate_mode = ''`,
+		mode, algoVersion, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -470,6 +475,83 @@ func (r *MediaStreamRepository) SetFrameRateMode(ctx context.Context, mediaItemI
 	}
 	n, _ := res.RowsAffected()
 	return int(n), nil
+}
+
+// ReclassifyFrameRateMode OVERWRITES an existing cfr/vfr verdict, which is
+// exactly what SetFrameRateMode refuses to do. It is the only write that can
+// undo a stale classification: a row keeps whatever the classifier of its day
+// decided, so the pre-v0.25.1 false 'vfr' verdicts (a B-frame decode-order
+// artifact read as a frame-duration outlier) would otherwise pin those titles
+// to a forced transcode forever.
+//
+// Guarded on algo_version < the caller's, so it is idempotent and cannot walk
+// a verdict backwards if two drains overlap.
+func (r *MediaStreamRepository) ReclassifyFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string, algoVersion int16) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.ReclassifyFrameRateMode")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)), attribute.String("frame_rate_mode", mode))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE media_streams SET frame_rate_mode = $1, frame_rate_algo_version = $2
+		 WHERE media_item_id = $3 AND stream_type = 'video' AND frame_rate_algo_version < $2`,
+		mode, algoVersion, string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// ListVideoFrameRateStale returns media item IDs whose video stream carries a
+// cfr/vfr verdict from a classifier older than algoVersion, skipping `exclude`.
+// Rows with no verdict at all (frame_rate_mode = '') are deliberately out of
+// scope: they are the keyframe backfill's job, and "" fails open at the copy
+// gate anyway, so re-walking them would buy nothing.
+//
+// Like the other backfill queries this is the drain's resumability mechanism -
+// it shrinks as verdicts get restamped, so an interrupted run simply resumes.
+func (r *MediaStreamRepository) ListVideoFrameRateStale(ctx context.Context, limit int, algoVersion int16, exclude []string) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.ListVideoFrameRateStale")
+	defer span.End()
+	span.SetAttributes(attribute.Int("limit", limit), attribute.Int("exclude.count", len(exclude)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	if exclude == nil {
+		exclude = []string{}
+	}
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT DISTINCT media_item_id FROM media_streams
+		 WHERE stream_type = 'video'
+		   AND frame_rate_mode <> ''
+		   AND frame_rate_algo_version < $1
+		   AND NOT (media_item_id = ANY($2))
+		 ORDER BY media_item_id
+		 LIMIT $3`, algoVersion, pq.Array(exclude), limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return ids, nil
 }
 
 var _ library.MediaStreamRepository = (*MediaStreamRepository)(nil)

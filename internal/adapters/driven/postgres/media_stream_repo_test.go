@@ -440,7 +440,9 @@ func TestMediaStreamRepo_FrameRateMode_RoundTrip(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Empty(t, got[0].FrameRateMode, "unanalyzed rows default to '' (unknown)")
 
-	n, err := streamRepo.SetFrameRateMode(ctx, item.ID, "vfr")
+	// Stamped at version 0: what every row written before the classifier was
+	// versioned looks like, i.e. the rows carrying the false 'vfr' verdicts.
+	n, err := streamRepo.SetFrameRateMode(ctx, item.ID, "vfr", 0)
 	require.NoError(t, err)
 	assert.Equal(t, 1, n)
 
@@ -451,14 +453,46 @@ func TestMediaStreamRepo_FrameRateMode_RoundTrip(t *testing.T) {
 
 	// Never overwrite: a later probe (e.g. a race with a background re-run)
 	// must not clobber the persisted classification.
-	n2, err := streamRepo.SetFrameRateMode(ctx, item.ID, "cfr")
+	n2, err := streamRepo.SetFrameRateMode(ctx, item.ID, "cfr", 1)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n2, "an already-classified stream is not overwritten")
 
 	got, err = streamRepo.GetByMediaItemID(ctx, item.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "vfr", got[0].FrameRateMode, "the original classification is preserved")
+
+	// The stale-verdict drain finds it, because its stamp predates version 1.
+	stale, err := streamRepo.ListVideoFrameRateStale(ctx, 10, 1, nil)
+	require.NoError(t, err)
+	assert.Contains(t, stale, string(item.ID), "a verdict from an older classifier is listed as stale")
+
+	excluded, err := streamRepo.ListVideoFrameRateStale(ctx, 10, 1, []string{string(item.ID)})
+	require.NoError(t, err)
+	assert.NotContains(t, excluded, string(item.ID),
+		"the exclude list keeps a failed item from pinning the queue")
+
+	// Reclassify is the ONLY write that may overwrite a verdict - this is the
+	// whole point: SetFrameRateMode above refused the very same correction.
+	n3, err := streamRepo.ReclassifyFrameRateMode(ctx, item.ID, "cfr", 1)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n3)
+
+	got, err = streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "cfr", got[0].FrameRateMode, "the stale verdict is corrected")
+
+	// Restamped at the current version, so the drain is self-limiting: the item
+	// disappears from the candidate set instead of being re-analyzed forever.
+	stale, err = streamRepo.ListVideoFrameRateStale(ctx, 10, 1, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, stale, string(item.ID), "a restamped row is no longer stale")
+
+	// Idempotent: a second drain at the same version cannot walk it backwards.
+	n4, err := streamRepo.ReclassifyFrameRateMode(ctx, item.ID, "vfr", 1)
+	require.NoError(t, err)
+	assert.Equal(t, 0, n4, "an up-to-date verdict is not rewritten")
 }
+
 
 func TestMediaStreamRepo_DeleteByMediaItemID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)

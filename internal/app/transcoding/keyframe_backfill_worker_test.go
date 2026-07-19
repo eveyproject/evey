@@ -26,6 +26,27 @@ type fakeKeyframeStore struct {
 	frameRateCalls []string // media IDs SetFrameRateMode was called for
 	frameRateModes []string // the mode arg on each call, index-aligned
 	frameRateErr   error
+
+	frameRateVersions []int16 // algoVersion arg on each SetFrameRateMode call
+
+	staleQueue       [][]string // successive ListVideoFrameRateStale returns
+	staleListCalls   []fakeStaleListCall
+	staleListErr     error
+	reclassifyCalls  []fakeReclassifyCall
+	reclassifyReturn int
+	reclassifyErr    error
+}
+
+type fakeStaleListCall struct {
+	limit   int
+	version int16
+	exclude []string
+}
+
+type fakeReclassifyCall struct {
+	id      string
+	mode    string
+	version int16
 }
 
 func (s *fakeKeyframeStore) ListVideoKeyframesMissing(_ context.Context, limit int, exclude []string) ([]string, error) {
@@ -47,12 +68,46 @@ func (s *fakeKeyframeStore) SetKeyframes(_ context.Context, id shared.MediaItemI
 	return s.setReturn, s.setErr
 }
 
-func (s *fakeKeyframeStore) SetFrameRateMode(_ context.Context, id shared.MediaItemID, mode string) (int, error) {
+func (s *fakeKeyframeStore) SetFrameRateMode(_ context.Context, id shared.MediaItemID, mode string, v int16) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.frameRateCalls = append(s.frameRateCalls, string(id))
 	s.frameRateModes = append(s.frameRateModes, mode)
+	s.frameRateVersions = append(s.frameRateVersions, v)
 	return 1, s.frameRateErr
+}
+
+func (s *fakeKeyframeStore) ListVideoFrameRateStale(_ context.Context, limit int, v int16, exclude []string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.staleListCalls = append(s.staleListCalls, fakeStaleListCall{
+		limit: limit, version: v, exclude: append([]string(nil), exclude...),
+	})
+	if len(s.staleQueue) == 0 {
+		return nil, s.staleListErr
+	}
+	out := s.staleQueue[0]
+	s.staleQueue = s.staleQueue[1:]
+	return out, nil
+}
+
+func (s *fakeKeyframeStore) ReclassifyFrameRateMode(_ context.Context, id shared.MediaItemID, mode string, v int16) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.reclassifyCalls = append(s.reclassifyCalls, fakeReclassifyCall{id: string(id), mode: mode, version: v})
+	return s.reclassifyReturn, s.reclassifyErr
+}
+
+func (s *fakeKeyframeStore) reclassified() []fakeReclassifyCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]fakeReclassifyCall(nil), s.reclassifyCalls...)
+}
+
+func (s *fakeKeyframeStore) staleCalls() []fakeStaleListCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]fakeStaleListCall(nil), s.staleListCalls...)
 }
 
 func (s *fakeKeyframeStore) setTargets() []string {
@@ -248,4 +303,63 @@ func TestKeyframeBackfill_PolitePauseWhilePlaying(t *testing.T) {
 	assert.Equal(t, 200*time.Millisecond, w.pause(), "quiet server → assertive pace")
 	active = 1
 	assert.Equal(t, politeItemPause, w.pause(), "someone is watching → polite pace")
+}
+
+// The re-classification drain is what makes a classifier improvement reach the
+// EXISTING library: without it, mkvgo v0.25.1's fix would only ever apply to
+// newly scanned files, and every title the old classifier mislabelled 'vfr'
+// would stay pinned to a forced transcode.
+func TestFrameRateReclassify_RestampsStaleVerdicts(t *testing.T) {
+	store := &fakeKeyframeStore{staleQueue: [][]string{{"m1"}}, reclassifyReturn: 1}
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{}).
+		WithFrameRateAnalyzer(&fakeFrameRateAnalyzer{mode: "cfr"}, store)
+
+	assert.Equal(t, 1, w.processBatch(context.Background()))
+	require.Len(t, store.reclassified(), 1)
+	assert.Equal(t, fakeReclassifyCall{id: "m1", mode: "cfr", version: FrameRateAlgoVersion},
+		store.reclassified()[0], "the fresh verdict is written at the CURRENT version")
+	assert.Equal(t, FrameRateAlgoVersion, store.staleCalls()[0].version,
+		"candidates are asked for against the current version")
+}
+
+// Priority is explicit: a pending keyframe index blocks the copy rung outright,
+// a stale verdict only mis-gates it, so the drain waits its turn.
+func TestFrameRateReclassify_YieldsToPendingKeyframeWork(t *testing.T) {
+	store := &fakeKeyframeStore{
+		queue:      [][]string{{"m1"}},
+		setReturn:  1,
+		staleQueue: [][]string{{"m2"}},
+	}
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{kf: []int64{0, 3253}}).
+		WithFrameRateAnalyzer(&fakeFrameRateAnalyzer{mode: "cfr"}, store)
+
+	assert.Equal(t, 1, w.processBatch(context.Background()))
+	assert.Empty(t, store.reclassified(), "the keyframe queue drains first")
+	assert.Empty(t, store.staleCalls(), "stale candidates are not even queried while keyframes are pending")
+}
+
+// An "unknown" answer must not DROP a verdict that may well be correct: the
+// analyzer simply cannot speak for this container (non-EBML, too few frames).
+func TestFrameRateReclassify_UnknownLeavesTheVerdictAlone(t *testing.T) {
+	store := &fakeKeyframeStore{staleQueue: [][]string{{"m1"}}}
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{}).
+		WithFrameRateAnalyzer(&fakeFrameRateAnalyzer{mode: ""}, store)
+
+	w.processBatch(context.Background())
+	assert.Empty(t, store.reclassified(), "an unknown answer never overwrites a stored verdict")
+	_, skipped := w.frAttempted["m1"]
+	assert.True(t, skipped, "and the item is skipped for the rest of the run instead of looping")
+}
+
+// A failing analysis must not pin the queue, and must not poison the keyframe
+// pass: the two skip-sets are deliberately separate.
+func TestFrameRateReclassify_FailureSkipsWithoutTouchingKeyframeSkipSet(t *testing.T) {
+	store := &fakeKeyframeStore{staleQueue: [][]string{{"m1"}}}
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{}).
+		WithFrameRateAnalyzer(&fakeFrameRateAnalyzer{err: errors.New("boom")}, store)
+
+	w.processBatch(context.Background())
+	_, skipped := w.frAttempted["m1"]
+	assert.True(t, skipped, "a failed analysis is skipped for the rest of the run")
+	assert.False(t, w.attemptedHas("m1"), "and the keyframe pass is left free to retry the same file")
 }
