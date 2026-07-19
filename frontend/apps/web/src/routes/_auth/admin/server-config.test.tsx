@@ -293,15 +293,15 @@ describe("ServerConfigPage", () => {
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
 
-    const pause = (await screen.findByLabelText(/Pause background jobs during playback/i)) as HTMLInputElement;
-    const level = screen.getByLabelText(/^H\.264\/HEVC level backfill$/i) as HTMLInputElement;
-    const keyframe = screen.getByLabelText(/^Keyframe index backfill$/i) as HTMLInputElement;
-    const fastpath = screen.getByLabelText(/Timeline thumbnail fast path/i) as HTMLInputElement;
+    const pause = await screen.findByLabelText(/Pause background jobs during playback/i);
+    const level = screen.getByLabelText(/^H\.264\/HEVC level backfill$/i);
+    const keyframe = screen.getByLabelText(/^Keyframe index backfill$/i);
+    const fastpath = screen.getByLabelText(/Timeline thumbnail fast path/i);
 
-    expect(pause.checked).toBe(true);
-    expect(level.checked).toBe(true);
-    expect(keyframe.checked).toBe(true);
-    expect(fastpath.checked).toBe(true);
+    expect(pause).toHaveAttribute("aria-checked", "true");
+    expect(level).toHaveAttribute("aria-checked", "true");
+    expect(keyframe).toHaveAttribute("aria-checked", "true");
+    expect(fastpath).toHaveAttribute("aria-checked", "true");
   });
 
   it("unchecking a toggle writes the key with value 'off'", async () => {
@@ -326,8 +326,8 @@ describe("ServerConfigPage", () => {
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
-    const keyframe = (await screen.findByLabelText(/^Keyframe index backfill$/i)) as HTMLInputElement;
-    expect(keyframe.checked).toBe(false);
+    const keyframe = await screen.findByLabelText(/^Keyframe index backfill$/i);
+    expect(keyframe).toHaveAttribute("aria-checked", "false");
   });
 
   it("re-checking an off toggle deletes the key to revert to the server default", async () => {

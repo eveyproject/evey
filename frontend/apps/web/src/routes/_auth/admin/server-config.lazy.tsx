@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { Switch } from "@/components/ui/Switch";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { FeedConfigCard } from "@/features/admin/FeedConfigCard";
@@ -431,13 +432,16 @@ function BackgroundJobsCard({ entries }: { entries: ConfigEntry[] | undefined })
       <div className="flex flex-col gap-3">
         {BG_TOGGLE_FIELDS.map((field) => (
           <div key={field.key} className="flex flex-col gap-1">
-            <Checkbox
-              label={t(field.labelKey)}
-              checked={isEnabled(field.key)}
-              onChange={(v) => handleToggle(field.key, v)}
-              disabled={setEntry.isPending || deleteEntry.isPending}
-            />
-            <p className="text-xs text-[var(--text-muted)] pl-6">{t(field.descKey)}</p>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-[var(--text)]">{t(field.labelKey)}</span>
+              <Switch
+                label={t(field.labelKey)}
+                checked={isEnabled(field.key)}
+                onChange={() => handleToggle(field.key, !isEnabled(field.key))}
+                disabled={setEntry.isPending || deleteEntry.isPending}
+              />
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">{t(field.descKey)}</p>
           </div>
         ))}
       </div>
@@ -1143,10 +1147,12 @@ function ServerSettingsCard() {
               <label className="text-sm font-medium text-[var(--text)]">
                 {t("admin.serverSettings.libraryWatcher")} <span className="text-xs text-[var(--text-muted)]">{t("admin.serverSettings.restartHint")}</span>
               </label>
-              <button type="button" role="switch" aria-checked={libraryWatcher} aria-label={t("admin.serverSettings.libraryWatcher")} data-testid="library-watcher-toggle" onClick={() => { setLibraryWatcher(!libraryWatcher); setDirty(true); }}
-                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors" style={{ backgroundColor: libraryWatcher ? "var(--accent)" : "var(--border)" }}>
-                <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform" style={{ transform: libraryWatcher ? "translateX(1.375rem)" : "translateX(0.25rem)" }} />
-              </button>
+              <Switch
+                checked={libraryWatcher}
+                onChange={() => { setLibraryWatcher(!libraryWatcher); setDirty(true); }}
+                label={t("admin.serverSettings.libraryWatcher")}
+                data-testid="library-watcher-toggle"
+              />
             </div>
             <ResetBtn setting={data.libraryWatcherEnabled} field="libraryWatcherEnabled" />
           </div>
@@ -1160,10 +1166,12 @@ function ServerSettingsCard() {
               <InfoTooltip label={t("admin.serverSettings.skipPreview")}>
                 {t("admin.serverSettings.skipPreviewInfo")}
               </InfoTooltip>
-              <button type="button" role="switch" aria-checked={skipPreview} aria-label={t("admin.serverSettings.skipPreview")} data-testid="skip-preview-toggle" onClick={() => { setSkipPreview(!skipPreview); setDirty(true); }}
-                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors" style={{ backgroundColor: skipPreview ? "var(--accent)" : "var(--border)" }}>
-                <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform" style={{ transform: skipPreview ? "translateX(1.375rem)" : "translateX(0.25rem)" }} />
-              </button>
+              <Switch
+                checked={skipPreview}
+                onChange={() => { setSkipPreview(!skipPreview); setDirty(true); }}
+                label={t("admin.serverSettings.skipPreview")}
+                data-testid="skip-preview-toggle"
+              />
             </div>
             <ResetBtn setting={data.skipPreviewEnabled} field="skipPreviewEnabled" />
           </div>

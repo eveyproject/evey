@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Switch } from "@/components/ui/Switch";
 
 export const Route = createLazyFileRoute("/_auth/admin/remote-access")({
   component: RemoteAccessPage,
@@ -89,29 +90,16 @@ function RemoteAccessPage() {
                 <label className="text-sm font-medium text-[var(--text)]">
                   {t("admin.remoteAccess.enableRemoteAccess")}
                 </label>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={enabled}
-                  aria-label={t("admin.remoteAccess.enableRemoteAccess")}
-                  onClick={() => {
+                <Switch
+                  checked={enabled}
+                  onChange={() => {
                     const next = !enabled;
                     setEnabled(next);
                     if (!next) setExternalUrl("");
                     setDirty(true);
                   }}
-                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors-fast"
-                  style={{
-                    backgroundColor: enabled ? "var(--accent)" : "var(--border)",
-                  }}
-                >
-                  <span
-                    className="inline-block h-4 w-4 rounded-full bg-white transition-transform-fast"
-                    style={{
-                      transform: enabled ? "translateX(1.375rem)" : "translateX(0.25rem)",
-                    }}
-                  />
-                </button>
+                  label={t("admin.remoteAccess.enableRemoteAccess")}
+                />
               </div>
 
               <Input

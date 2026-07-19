@@ -18,6 +18,7 @@ import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { Switch } from "@/components/ui/Switch";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { Spinner } from "@/components/ui/Spinner";
 import { EncodeCalibrationCard } from "@/features/admin/EncodeCalibrationCard";
@@ -869,19 +870,12 @@ function ConcurrencyCard() {
         <label className="text-sm font-medium text-[var(--text)]">
           {t("admin.transcoding.concurrencyAuto", "Detect automatically")}
         </label>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={auto}
-          aria-label={t("admin.transcoding.concurrencyAuto", "Detect automatically")}
+        <Switch
+          checked={auto}
+          onChange={() => setAuto((v) => !v)}
+          label={t("admin.transcoding.concurrencyAuto", "Detect automatically")}
           data-testid="max-concurrent-auto-toggle"
-          onClick={() => setAuto((v) => !v)}
-          className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-          style={{ backgroundColor: auto ? "var(--accent)" : "var(--border)" }}
-        >
-          <span className="inline-block h-4 w-4 rounded-full bg-white transition-transform"
-            style={{ transform: auto ? "translateX(1.375rem)" : "translateX(0.25rem)" }} />
-        </button>
+        />
         <span className="text-xs text-[var(--text-muted)]">
           {auto
             ? t("admin.transcoding.concurrencyAutoHint", "Server default ({{n}})", { n: defaultVal })
