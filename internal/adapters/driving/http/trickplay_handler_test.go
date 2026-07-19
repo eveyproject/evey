@@ -45,6 +45,7 @@ func TestTrickplayManifestHandler_Unauthenticated(t *testing.T) {
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
 		nil,
+		nil,
 	)
 	h := httpAuthMiddleware(verifier)(inner)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
@@ -63,6 +64,7 @@ func TestTrickplayManifestHandler_IDOR_Forbidden(t *testing.T) {
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: false},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
@@ -91,6 +93,7 @@ func TestTrickplayManifestHandler_OK(t *testing.T) {
 		"http://localhost",
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
 		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay.vtt", nil)
@@ -159,6 +162,7 @@ func TestTrickplayManifestHandler_ParentalBlocked_NotFound(t *testing.T) {
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: item},
 		alwaysBlockChecker{},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay", nil)
 	req.SetPathValue("id", "m1")
@@ -183,6 +187,7 @@ func TestTrickplayManifestHandler_ParentalAdmin_OK(t *testing.T) {
 		&fakeLibraryAccessChecker{allowed: true},
 		&fakeMediaItemGetter{item: item},
 		alwaysBlockChecker{},
+		nil,
 	)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay", nil)
 	req.SetPathValue("id", "m1")
@@ -281,5 +286,86 @@ func TestTrickplayGenerateAllHandler_AdminOK(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "3") {
 		t.Error("expected count in response body")
+	}
+}
+
+// The pre-existing *_Unauthenticated tests wrap the handler in httpAuthMiddleware
+// THEMSELVES - but server.go mounted these two routes with no middleware at all,
+// so those tests asserted a configuration production never ran. These reproduce
+// the real anonymous request: no middleware, no claims. Trickplay sprites are
+// frames of the film, so serving them unauthenticated leaks the content itself,
+// and the handler's "skip library access check when no auth claims" branch also
+// dropped the parental gate.
+func TestTrickplayManifestHandler_AnonymousMustNotBeServed(t *testing.T) {
+	h := trickplayManifestHandler(
+		&fakeTokenVerifier{err: errTest},
+		&fakeTrickplayGetter{err: errTest},
+		"http://localhost",
+		&fakeLibraryAccessChecker{allowed: false}, // caller has no right to this library
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
+		nil,
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay", nil)
+	req.SetPathValue("id", "m1")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req) // no claims in context: an anonymous caller
+
+	// 401, not 404: the gate short-circuits on absent claims before it even
+	// reaches the repository, which is the correct answer for an anonymous
+	// caller. Before the fix this returned 200 with a full storyboard.
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("got %d, want 401 for an anonymous caller", w.Code)
+	}
+}
+
+func TestTrickplayImageHandler_AnonymousMustNotBeServed(t *testing.T) {
+	access := &fakeLibraryAccessChecker{allowed: false}
+	h := trickplayImageHandler(
+		&fakeTokenVerifier{err: errTest},
+		&fakeTrickplayGetter{err: errTest},
+		"http://localhost",
+		access,
+		&fakeMediaItemGetter{item: testMediaItem("lib1")},
+		nil,
+	)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay/0.webp", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("image", "0.webp")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+
+	// 401 discriminates properly: before the fix this handler skipped the gate
+	// and fell through to a 404 (missing manifest), so asserting "not 200" alone
+	// would have passed on the vulnerable code.
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("got %d, want 401 for an anonymous caller", w.Code)
+	}
+	if access.called {
+		t.Error("the repository was queried for a caller with no identity")
+	}
+}
+
+// The sprite URLs in the manifest must carry a credential: <img> tags cannot
+// send an Authorization header, which is precisely why these routes used to be
+// left open. This is the guard that keeps the fix from silently regressing into
+// "secure the route, break every thumbnail".
+func TestSpriteCredential_PropagatesAGuestTokenRatherThanMintingANewOne(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay", nil)
+	req = req.WithContext(context.WithValue(req.Context(), rawTokenCtxKey, "guest-token-abc"))
+
+	// A watch-together guest holds a token scoped to the ONE media it was
+	// invited to. Re-using it keeps that scope; minting a fresh one off its
+	// synthesized claims would widen what the guest can reach.
+	got := spriteCredential(req, nil, nil, "m1")
+	if got != "?token=guest-token-abc" {
+		t.Errorf("got %q, want the caller's own token propagated", got)
+	}
+}
+
+func TestSpriteCredential_NoCredentialWithoutAnIdentity(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/trickplay", nil)
+	if got := spriteCredential(req, nil, nil, "m1"); got != "" {
+		t.Errorf("got %q, want empty: nothing may be handed to an anonymous caller", got)
 	}
 }

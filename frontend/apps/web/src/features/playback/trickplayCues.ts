@@ -3,8 +3,10 @@ import { eveyFetchRaw } from "@evey/api";
 
 // Shared trickplay-cue access: the sprite-sheet WebVTT (one cue per interval,
 // each carrying a `#xywh=` tile rect) that the player scrubber and the admin
-// thumbnails both crop from. Trickplay assets are public (no auth), so a plain
-// <img> can display a tile without a token.
+// thumbnails both crop from. Sprites are film frames, so the routes are
+// authenticated: the server embeds a media-scoped ?token= in each sprite URL it
+// emits, which is what lets a plain <img> (no Authorization header) load a tile.
+// Use the cue url verbatim - stripping its query would 401 the image.
 export interface TrickplayCue {
   startTime: number;
   endTime: number;

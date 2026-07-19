@@ -9,6 +9,7 @@ import (
 	_ "image/png"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,11 +19,35 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	_ "golang.org/x/image/webp"
 
+	appmedia "github.com/evey-project/evey/internal/app/media"
 	"github.com/evey-project/evey/internal/domain/shared"
+	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
-func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker) http.HandlerFunc {
+// spriteCredential returns the ?token= suffix the manifest must put on each
+// sprite URL. The sprites are loaded by plain <img> tags, which can attach
+// neither an Authorization header nor a cookie the auth layer would read, so
+// the URL has to carry the credential itself - the same reason <video src> and
+// hls.js use stream tokens. Reusing the caller's own token when it has one
+// keeps a watch-together guest inside the single media item it was granted;
+// otherwise a fresh media-scoped token is minted for the authenticated caller.
+//
+// The long TTL mirrors the cast/native case: the manifest is fetched once per
+// page load while sprites keep being pulled as the user scrubs, so a 5-minute
+// token would expire mid-session with no way to re-issue it.
+func spriteCredential(r *http.Request, store *appmedia.StreamTokenStore, claims *domainuser.Claims, mediaID string) string {
+	if raw := RawTokenFromContext(r.Context()); raw != "" {
+		return "?token=" + url.QueryEscape(raw)
+	}
+	if store == nil || claims == nil {
+		return ""
+	}
+	return "?token=" + url.QueryEscape(
+		store.CreateWithTTL(claims.UserID, claims.ProfileID, mediaID, appmedia.CastStreamTokenTTL))
+}
+
+func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker, tokenStore *appmedia.StreamTokenStore) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.trickplay.Manifest")
 		defer span.End()
@@ -46,8 +71,14 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		// Trickplay is public: skip library access check when no auth claims.
-		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		// Trickplay sprites are FRAMES OF THE FILM, so this gate is the same one
+		// every sibling media route applies - it used to be skipped whenever
+		// claims were nil, which combined with the route being mounted without
+		// auth meant any anonymous caller got a storyboard of any media id, past
+		// both library access and the parental gate (checkParental also passes on
+		// nil claims). The watch-together guest is served by the stream token
+		// checked above, which is scoped to its one media item.
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			span.SetStatus(otelcodes.Error, "library access denied")
 			return
 		}
@@ -55,6 +86,10 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 			span.SetStatus(otelcodes.Error, "parental restricted")
 			return
 		}
+
+		// Minted AFTER the access + parental gates above, so an unauthorised
+		// caller never obtains a usable sprite credential.
+		spriteCred := spriteCredential(r, tokenStore, claims, mediaID)
 
 		manifest, err := libSvc.GetTrickplayManifest(r.Context(), mediaID)
 		if err != nil {
@@ -146,7 +181,7 @@ func trickplayManifestHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, ba
 				manifest.Width, tileH,
 			)
 			imageFile := fmt.Sprintf("trickplay_%03d%s", imageIdx+1, spriteExt)
-			imageURL := fmt.Sprintf("/api/v1/media/%s/trickplay/%s", mediaID, imageFile)
+			imageURL := fmt.Sprintf("/api/v1/media/%s/trickplay/%s%s", mediaID, imageFile, spriteCred)
 			fmt.Fprintf(w, "%s --> %s\n%s#xywh=%s\n\n",
 				formatVTTTimeMs(cueStart), formatVTTTimeMs(cueEnd),
 				imageURL, xywh,
@@ -211,8 +246,9 @@ func trickplayImageHandler(tokenGen TokenVerifier, libSvc TrickplayGetter, baseU
 			http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 			return
 		}
-		// Trickplay image is public: skip library access check when no auth claims.
-		if claims != nil && !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
+		// Same gate as the manifest above, and for the same reason: a sprite is
+		// film content, not metadata.
+		if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, libraryAccess) {
 			span.SetStatus(otelcodes.Error, "library access denied")
 			return
 		}

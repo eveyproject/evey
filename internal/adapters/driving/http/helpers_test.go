@@ -41,9 +41,15 @@ func invalidValidator() *fakeTokenValidator {
 type fakeLibraryAccessChecker struct {
 	allowed bool
 	err     error
+	// called records that the gate was actually consulted. A handler that
+	// SKIPS the check (as the trickplay ones did for anonymous callers) is
+	// indistinguishable from one that passes it when you only look at the
+	// status code, so some tests assert on this instead.
+	called bool
 }
 
 func (f *fakeLibraryAccessChecker) HasAccess(_ context.Context, _ shared.UserID, _ shared.LibraryID) (bool, error) {
+	f.called = true
 	return f.allowed, f.err
 }
 
