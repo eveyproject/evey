@@ -276,4 +276,91 @@ describe("ServerConfigPage", () => {
     );
   });
 
+  it("renders Background jobs card with the restart warning visible", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    expect(screen.getByText(/Background jobs/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+    expect(
+      await screen.findByText(/read once at server startup/i),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the 4 background job toggles, checked by default (no stored entry)", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+
+    const pause = (await screen.findByLabelText(/Pause background jobs during playback/i)) as HTMLInputElement;
+    const level = screen.getByLabelText(/^H\.264\/HEVC level backfill$/i) as HTMLInputElement;
+    const keyframe = screen.getByLabelText(/^Keyframe index backfill$/i) as HTMLInputElement;
+    const fastpath = screen.getByLabelText(/Timeline thumbnail fast path/i) as HTMLInputElement;
+
+    expect(pause.checked).toBe(true);
+    expect(level.checked).toBe(true);
+    expect(keyframe.checked).toBe(true);
+    expect(fastpath.checked).toBe(true);
+  });
+
+  it("unchecking a toggle writes the key with value 'off'", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const mutate = vi.fn();
+    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+
+    const keyframe = await screen.findByLabelText(/^Keyframe index backfill$/i);
+    fireEvent.click(keyframe);
+
+    expect(mutate).toHaveBeenCalledWith({ key: "transcoding.keyframe_backfill", value: "off" });
+  });
+
+  it("shows a toggle as off when the stored value is 'off'", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [{ key: "transcoding.keyframe_backfill", value: "off", updatedAt: "2024-01-15T10:00:00Z" }],
+      isLoading: false,
+    });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+    const keyframe = (await screen.findByLabelText(/^Keyframe index backfill$/i)) as HTMLInputElement;
+    expect(keyframe.checked).toBe(false);
+  });
+
+  it("re-checking an off toggle deletes the key to revert to the server default", async () => {
+    mockUseQuery.mockReturnValue({
+      data: [{ key: "transcoding.level_backfill", value: "off", updatedAt: "2024-01-15T10:00:00Z" }],
+      isLoading: false,
+    });
+    const mutate = vi.fn();
+    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+
+    const level = await screen.findByLabelText(/^H\.264\/HEVC level backfill$/i);
+    fireEvent.click(level);
+
+    expect(mutate).toHaveBeenCalledWith("transcoding.level_backfill");
+  });
+
+  it("saves the pacing fields on Save, one entry per non-empty field", async () => {
+    mockUseQuery.mockReturnValue({ data: [], isLoading: false });
+    const mutate = vi.fn();
+    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const ServerConfigPage = await getServerConfigPage();
+    render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
+    fireEvent.click(screen.getByRole("button", { name: /Background jobs/i }));
+
+    const batch = await screen.findByLabelText(/Keyframe backfill batch size/i);
+    fireEvent.change(batch, { target: { value: "50" } });
+
+    const saveButtons = screen.getAllByRole("button", { name: /^Save$/i });
+    fireEvent.click(saveButtons[saveButtons.length - 1]);
+
+    expect(mutate).toHaveBeenCalledWith({ key: "transcoding.keyframe_backfill_batch", value: "50" });
+  });
 });
