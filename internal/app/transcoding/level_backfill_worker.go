@@ -82,6 +82,12 @@ type LevelBackfillWorker struct {
 	// lock is needed.
 	attempted map[string]struct{}
 
+	// activePlayback reports live playback sessions; while > 0 the worker
+	// yields entirely. A header probe is far lighter than a full-file walk,
+	// but on the weak-NAS target every competing disk read counts, and the
+	// backfill is never urgent. Optional (nil = no gating).
+	activePlayback func() int
+
 	stop chan struct{}
 	done chan struct{}
 
@@ -128,6 +134,14 @@ func NewLevelBackfillWorker(
 		stop:         make(chan struct{}),
 		done:         make(chan struct{}),
 	}
+}
+
+// WithActivePlayback wires the live-session counter (same signal as the
+// keyframe worker's, see wire.go). While it reports > 0 the worker suspends
+// instead of probing alongside a viewer.
+func (w *LevelBackfillWorker) WithActivePlayback(fn func() int) *LevelBackfillWorker {
+	w.activePlayback = fn
+	return w
 }
 
 // Start kicks off the loop in a goroutine. Stop with Stop(). Idempotent: a
@@ -180,6 +194,12 @@ func (w *LevelBackfillWorker) run(ctx context.Context) {
 // backfills each. Returns the count of items pulled (0 ⇒ nothing fresh left,
 // sleep deeper).
 func (w *LevelBackfillWorker) processBatch(ctx context.Context) int {
+	// SUSPEND while anyone is watching (2026-07-19 starvation incident family:
+	// this worker used to keep forking probes during playback). The backfill
+	// is never urgent; a viewer always is.
+	if w.activePlayback != nil && w.activePlayback() > 0 {
+		return 0
+	}
 	ids, err := w.store.ListVideoLevelMissing(ctx, w.batchSize, w.excluded())
 	if err != nil {
 		w.logger.Warn("level backfill: list candidates failed", slog.Any("err", err))
@@ -192,6 +212,11 @@ func (w *LevelBackfillWorker) processBatch(ctx context.Context) int {
 		case <-ctx.Done():
 			return i
 		default:
+		}
+		// Re-check between items so a viewer arriving mid-batch waits for at
+		// most the probe already in flight, not the batch remainder.
+		if w.activePlayback != nil && w.activePlayback() > 0 {
+			return i
 		}
 		if !w.backfillOne(ctx, id) {
 			// Failed, or resolved no new level - mark so it isn't re-queried this

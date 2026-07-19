@@ -389,3 +389,31 @@ func TestFrameRateReclassify_SuspendedWhilePlaybackActive(t *testing.T) {
 	assert.Equal(t, 1, w.processBatch(context.Background()), "the server is quiet again: the drain resumes")
 	assert.Len(t, store.reclassified(), 1)
 }
+
+// The suspension must hold WITHIN a batch, not only at its start. A batch is
+// up to batchSize whole-file walks (~20s each): with a start-only check, a
+// viewer who presses play right after the batch begins competes with the
+// drain for the entire remainder - the 2026-07-19 starvation all over again,
+// merely shifted past one check. Bailing between items bounds the contention
+// to the single analysis already in flight.
+func TestFrameRateReclassify_BailsOutMidBatchWhenPlaybackStarts(t *testing.T) {
+	store := &fakeKeyframeStore{staleQueue: [][]string{{"m1", "m2", "m3"}}, reclassifyReturn: 1}
+	reader := &fakeMediaReader{items: map[string]*domainlibrary.MediaItem{
+		"m1": {ID: "m1", File: &domainlibrary.MediaFile{Path: "/media/m1.mkv"}},
+		"m2": {ID: "m2", File: &domainlibrary.MediaFile{Path: "/media/m2.mkv"}},
+		"m3": {ID: "m3", File: &domainlibrary.MediaFile{Path: "/media/m3.mkv"}},
+	}}
+	w := newKeyframeWorker(store, reader, &fakeKeyframeProber{}).
+		WithFrameRateAnalyzer(&fakeFrameRateAnalyzer{mode: "cfr"}, store)
+	// A viewer shows up right after the first analysis completes.
+	w.WithActivePlayback(func() int {
+		if len(store.reclassified()) >= 1 {
+			return 1
+		}
+		return 0
+	})
+
+	handled := w.processBatch(context.Background())
+	assert.Len(t, store.reclassified(), 1, "the drain must yield after the in-flight item, not finish the batch")
+	assert.LessOrEqual(t, handled, 1)
+}

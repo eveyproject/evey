@@ -147,6 +147,25 @@ func TestLevelBackfill_FillsLevelAndDoesNotMark(t *testing.T) {
 	assert.False(t, w.attemptedHas("m1"), "a successful fill must NOT be marked (it drops out of the query naturally)")
 }
 
+// This worker had NO active-playback guard at all (found 2026-07-19 while
+// auditing the starvation-incident fix): it kept forking header probes every
+// few seconds while someone was watching. A header probe is far lighter than
+// a full-file walk, but on the weak-NAS target every competing disk read
+// counts - and the backfill is never urgent, a viewer always is.
+func TestLevelBackfill_SuspendedWhilePlaybackActive(t *testing.T) {
+	store := &fakeLevelStore{queue: [][]string{{"m1"}}, setReturn: 1}
+	active := 1
+	w := newLevelWorker(store, oneItemReader("m1", "/media/m1.mp4"), &fakeLevelProber{result: videoProbe(40)}).
+		WithActivePlayback(func() int { return active })
+
+	assert.Equal(t, 0, w.processBatch(context.Background()), "a viewer is watching: the backfill yields entirely")
+	assert.Empty(t, store.listCalls, "candidates are not even queried while playback is active")
+
+	active = 0
+	assert.Equal(t, 1, w.processBatch(context.Background()), "the server is quiet again: the backfill resumes")
+	assert.Equal(t, []string{"m1"}, store.setTargets())
+}
+
 func TestLevelBackfill_ProbeErrorSkipsAndMarks(t *testing.T) {
 	store := &fakeLevelStore{queue: [][]string{{"m1"}}, setReturn: 1}
 	w := newLevelWorker(store, oneItemReader("m1", "/media/m1.mp4"), &fakeLevelProber{err: errors.New("ffprobe exited 1")})

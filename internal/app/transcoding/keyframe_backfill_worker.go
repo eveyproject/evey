@@ -428,6 +428,14 @@ func (w *KeyframeBackfillWorker) processFrameRateBatch(ctx context.Context) int 
 			return i
 		default:
 		}
+		// Re-check between items: the start-of-batch check alone would let a
+		// batch of whole-file walks (batchSize × ~20s) run to completion after
+		// a viewer arrives - the same starvation, merely shifted past one
+		// check. Bailing here bounds the contention to the single analysis
+		// already in flight.
+		if w.activePlayback != nil && w.activePlayback() > 0 {
+			return i
+		}
 		if !w.reclassifyOne(ctx, id) {
 			w.frAttempted[id] = struct{}{}
 		}

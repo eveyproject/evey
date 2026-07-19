@@ -1060,6 +1060,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			levelOpts,
 			slog.Default(),
 		)
+		// Same live-session signal as the keyframe worker below: yield to
+		// viewers instead of probing alongside them (2026-07-19 incident family).
+		levelBackfillWorker.WithActivePlayback(hlsVODRemover.ActiveSessionCount)
 		levelBackfillWorker.Start(ctx)
 	}
 
