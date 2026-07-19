@@ -741,6 +741,12 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.DeleteProfile: %w", err)
 	}
+	// Same gate as CreateProfile: managing profiles is an adult action. Owning
+	// the account is not enough - a kids profile could otherwise delete its
+	// siblings, including the gated adult profile.
+	if gateErr := h.refuseFromRestrictedProfile(ctx, span, claims); gateErr != nil {
+		return nil, gateErr
+	}
 	if !claims.IsAdmin {
 		existing, gerr := h.query.GetProfileByID(ctx, req.Id)
 		if gerr != nil || existing == nil || string(existing.UserID) != claims.UserID {

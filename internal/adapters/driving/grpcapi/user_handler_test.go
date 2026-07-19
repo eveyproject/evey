@@ -766,6 +766,8 @@ func TestDeleteProfile_Success(t *testing.T) {
 
 func TestDeleteProfile_OtherProfileDenied(t *testing.T) {
 	env := setupUserHandler()
+	// The caller's active profile must resolve: the kids gate fails closed.
+	seedAdultProfile(t, env, "prf-1", "usr-1")
 	ctx := userCtx("usr-1", "prf-1")
 	_, err := env.handler.DeleteProfile(ctx, &eveyv1.DeleteProfileRequest{Id: "prf-other"})
 	assertCode(t, err, codes.PermissionDenied)
@@ -989,4 +991,27 @@ func TestCreateProfile_FromAdultProfileStillAllowed(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("an unrestricted profile must still be able to create profiles: %v", err)
 	}
+}
+
+// Same class as CreateProfile: profile management is an adult action. Deleting
+// a sibling grants a kid no escape (the switch gate still holds), but letting a
+// kids profile wipe the family's profiles is plainly not intended, and the
+// ownership check alone allows it.
+func TestDeleteProfile_FromKidsProfileDenied(t *testing.T) {
+	env := setupUserHandler()
+	ctx := context.Background()
+
+	kid, err := user.NewProfile("prf-kid-del", "usr-1", "Kid", user.WithProfileIsKids(true))
+	if err != nil {
+		t.Fatalf("NewProfile: %v", err)
+	}
+	if cErr := env.profileRepo.Create(ctx, kid); cErr != nil {
+		t.Fatalf("seed kid profile: %v", cErr)
+	}
+	sibling := seedAdultProfile(t, env, "prf-sibling", "usr-1")
+
+	_, err = env.handler.DeleteProfile(userCtx("usr-1", string(kid.ID)), &eveyv1.DeleteProfileRequest{
+		Id: string(sibling.ID),
+	})
+	assertCode(t, err, codes.PermissionDenied)
 }
