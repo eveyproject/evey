@@ -579,3 +579,36 @@ entrypoint: ./plugin
 	_, err := parser.Parse(zipPath)
 	assert.ErrorContains(t, err, "kind is required")
 }
+
+// The "hostnames only, no bare IPs" rule stripped dots and checked for digits,
+// which catches 127.0.0.1 but sails past every IPv6 literal. The SSRF dialer
+// still refuses to connect to loopback/reserved ranges, so this was never an
+// escape - but the manifest gate should mean what it says rather than lean on
+// the layer below.
+func TestValidateExternalFetch_RejectsIPLiterals(t *testing.T) {
+	for _, entry := range []string{
+		"127.0.0.1",
+		"192.168.1.10",
+		"::1",
+		"[::1]",
+		"https://[::1]/x",
+		"2001:db8::1",
+		"https://[2001:db8::1]/",
+	} {
+		if err := validateExternalFetch([]string{entry}); err == nil {
+			t.Errorf("external_fetch %q is an IP literal and must be rejected", entry)
+		}
+	}
+}
+
+func TestValidateExternalFetch_KeepsAcceptingHostnames(t *testing.T) {
+	for _, entry := range []string{
+		"api.tmdb.org",
+		"https://api.themoviedb.org",
+		"example.co.uk",
+	} {
+		if err := validateExternalFetch([]string{entry}); err != nil {
+			t.Errorf("external_fetch %q is a legitimate hostname, got %v", entry, err)
+		}
+	}
+}

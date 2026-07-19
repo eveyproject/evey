@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -188,8 +189,14 @@ func validateExternalFetch(entries []string) error {
 		if host == "" {
 			return fmt.Errorf("manifest: external_fetch entry %q has no resolvable hostname", entry)
 		}
-		// reject plain IP addresses - hostnames only
-		if net := strings.ReplaceAll(host, ".", ""); strings.Trim(net, "0123456789") == "" {
+		// Reject plain IP addresses - hostnames only. ParseIP covers both
+		// families: the previous "strip dots, expect digits" test only ever
+		// matched IPv4, so every IPv6 literal ("::1", "2001:db8::1", and the
+		// bracketed URL forms) passed a gate that claims to allow no IPs.
+		// The SSRF dialer refuses to connect to loopback/reserved addresses
+		// regardless, so this is the declaration matching its own promise
+		// rather than the last line of defence.
+		if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
 			return fmt.Errorf("manifest: external_fetch entry %q must be a hostname, not an IP address", entry)
 		}
 	}
