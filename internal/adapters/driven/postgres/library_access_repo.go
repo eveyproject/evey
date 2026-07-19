@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -77,7 +78,7 @@ func (r *LibraryAccessRepository) ReplaceAccess(ctx context.Context, userID shar
 	}
 	defer func() {
 		if err != nil {
-			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
+			if rbErr := tx.Rollback(); rbErr != nil && !errors.Is(rbErr, sql.ErrTxDone) {
 				slog.Warn("LibraryAccessRepository.ReplaceAccess rollback failed", slog.Any("err", rbErr))
 			}
 		}
