@@ -128,15 +128,29 @@ ci-fast-build:
 	@echo "→ go build ./..."
 	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go build ./...'
 
-# ci-fast-unit: the plain (no -race) unit suite. It is here because vet, build
-# and lint all pass on a test that asserts the WRONG value: the capped-CRF
-# headroom shipped green through this gate and broke CI, because the only
-# transcode check that ran was the path-triggered copy-pipeline itest, a
-# different test entirely. Go caches by package, so this costs ~1s when nothing
-# changed and only re-runs what the push actually touched.
+# ci-fast-unit: the CI `correctness` unit step, same package selection and same
+# -race. It is here because vet, build and lint all pass on a test that asserts
+# the WRONG value: the capped-CRF headroom shipped green through this gate and
+# broke CI, since the only transcode check that ran was the path-triggered
+# copy-pipeline itest, a different test entirely. -race matters as much as the
+# suite itself - it is what surfaced the reap test's fork-vs-exec race.
+#
+# Deliberately NOT -count=1 (CI uses it, we don't): Go keys its cache on package
+# AND flags, so keeping it costs nothing in fidelity and makes an unchanged push
+# ~1s instead of minutes. Postgres is excluded exactly as in CI - it runs
+# without -race, via repo-itest-gate.
 ci-fast-unit:
-	@echo "→ go test ./... (unit, no -race)"
-	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go test ./...'
+	@echo "→ go test (unit, -race, excl. postgres+gen)"
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go test $$(go list ./... | grep -v "adapters/driven/postgres" | grep -v /gen/) -timeout=600s -race'
+
+# ci-fast-frontend: mirror of the CI `frontend` job, which gates the docker
+# build just like the backend jobs do - yet nothing frontend-side ran in
+# pre-push before, so a broken typecheck was only ever found on GitHub. Runs in
+# evey-web (the host's pnpm/turbo hit root-owned .turbo dirs). Turbo caches, so
+# an unchanged push is ~1s; a cold frontend build is ~16s.
+ci-fast-frontend:
+	@echo "→ frontend typecheck + lint + build (evey-web)"
+	@docker exec -w /app evey-web sh -c 'pnpm run typecheck && pnpm run lint && pnpm run build'
 
 ci-fast-sec:
 	@# Mirror du ratchet CI : --new-from-rev=<base> ne flag QUE les findings
@@ -164,12 +178,14 @@ ci-local-frontend:
 	@echo "→ frontend typecheck (pnpm --filter web)"
 	@cd frontend && npx pnpm --filter web run typecheck
 
-# pre-push: exact mirror of the CI "Backend - quality & security" job (vet +
-# govulncheck + build + gosec ratchet + general lint), run by the git pre-push
-# hook so a red `quality` pipeline never surprises you again. No -race tests
-# here (that's the separate `correctness` job - use `make ci-local` for those).
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-sec ci-local-lint ci-arch repo-itest-gate transcode-itest-gate
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit + gosec + lint + arch guards + repo suite + transcode contract)."
+# pre-push: mirror of the three CI jobs that gate the docker build - `quality`
+# (vet + govulncheck + build + gosec ratchet + lint), `correctness` (unit -race,
+# postgres via repo-itest-gate) and `frontend` - run by the git pre-push hook so
+# a red pipeline never surprises you 10 minutes after the push. Everything here
+# is cache-backed (Go per package+flags, turbo per task), so an unchanged push
+# costs seconds; only what you actually touched is recomputed.
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch repo-itest-gate transcode-itest-gate
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + repo suite + transcode contract)."
 
 # ci-arch: the static architecture guards (TxUnit bypass, etc.) that need NO DB -
 # they only regex the source tree, so they run in milliseconds. Their sibling
