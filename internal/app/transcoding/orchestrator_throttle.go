@@ -51,6 +51,9 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 		handle := s.handle
 		useFMP4 := s.useFMP4
 		variantIdx := s.variantIdx
+		lastProduced := s.producedHighWater
+		startSeg := s.startSeg
+		endSeg := s.endSeg
 		s.mu.Unlock()
 
 		if handle == nil {
@@ -61,11 +64,21 @@ func (o *SegmentOrchestrator) evaluateThrottle() {
 		// writes stream_<variantIdx>_*, so listing variant 0 would always find
 		// nothing and never throttle it (CPU/disk waste). In the default
 		// multi-variant mode stream_0 tracks the shared session, so variantIdx==0.
-		idxs, err := o.cache.ListReady(hash, variantIdx, useFMP4)
-		if err != nil || len(idxs) == 0 {
+		//
+		// Resuming from the previous tick's high-water keeps this O(segments
+		// produced since last tick) - normally 0-2 stats - instead of the
+		// os.ReadDir + full-directory parse ListReady used to pay every second,
+		// per session, on the same disk the player is streaming from.
+		produced := o.cache.HighestReadyFrom(hash, variantIdx, useFMP4, lastProduced+1, endSeg)
+		if produced < startSeg {
+			// Nothing has landed yet for this rafale: no buffer to reason about.
 			continue
 		}
-		produced := idxs[len(idxs)-1]
+		if produced != lastProduced {
+			s.mu.Lock()
+			s.producedHighWater = produced
+			s.mu.Unlock()
+		}
 		buffer := produced - client
 
 		switch {

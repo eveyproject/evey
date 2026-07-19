@@ -3,6 +3,7 @@ package transcoding
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -394,6 +395,70 @@ func TestSegmentCache_ListReady_OrdersAndFilters(t *testing.T) {
 	idxs, err := c.ListReady(hash, 0, true)
 	require.NoError(t, err)
 	assert.Equal(t, []int{0, 2, 5}, idxs)
+}
+
+// ============================================================================
+// SegmentCache.HighestReadyFrom
+// ============================================================================
+
+// writeSegs lays down ready fMP4 media segments for variant `variant` at each
+// of `idxs`, under the hash directory.
+func writeSegs(t *testing.T, c *SegmentCache, hash string, variant int, idxs ...int) {
+	t.Helper()
+	dir, err := c.DirFor(hash)
+	require.NoError(t, err)
+	for _, i := range idxs {
+		name := fmt.Sprintf("stream_%d_%03d.m4s", variant, i)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), fmp4Seg(), 0o644))
+	}
+}
+
+func TestSegmentCache_HighestReadyFrom_NothingReady(t *testing.T) {
+	c, _ := newTestCache(t)
+	// from-1 is the "nothing produced yet" sentinel, so a caller can feed the
+	// result straight back as the next `from` without special-casing.
+	assert.Equal(t, 4, c.HighestReadyFrom("never-existed", 0, true, 5, 100))
+}
+
+func TestSegmentCache_HighestReadyFrom_AdvancesOverContiguousRun(t *testing.T) {
+	c, _ := newTestCache(t)
+	writeSegs(t, c, "abcd", 0, 0, 1, 2, 3)
+	assert.Equal(t, 3, c.HighestReadyFrom("abcd", 0, true, 0, 100))
+}
+
+func TestSegmentCache_HighestReadyFrom_StopsAtFirstGap(t *testing.T) {
+	c, _ := newTestCache(t)
+	// 4 exists but 2 does not. The throttle measures how far the client can
+	// actually play ahead, and a hole at 2 stalls it there - counting 4 would
+	// overstate the buffer and pause ffmpeg on a starved client.
+	writeSegs(t, c, "abcd", 0, 0, 1, 3, 4)
+	assert.Equal(t, 1, c.HighestReadyFrom("abcd", 0, true, 0, 100))
+}
+
+func TestSegmentCache_HighestReadyFrom_ClampsToUntil(t *testing.T) {
+	c, _ := newTestCache(t)
+	writeSegs(t, c, "abcd", 0, 0, 1, 2, 3, 4, 5)
+	// A rafale never produces past endSeg, so the probe must not walk beyond it.
+	assert.Equal(t, 2, c.HighestReadyFrom("abcd", 0, true, 0, 2))
+}
+
+func TestSegmentCache_HighestReadyFrom_IgnoresOtherVariants(t *testing.T) {
+	c, _ := newTestCache(t)
+	writeSegs(t, c, "abcd", 1, 0, 1, 2)
+	// Variant 0 has produced nothing even though variant 1 is well ahead.
+	assert.Equal(t, -1, c.HighestReadyFrom("abcd", 0, true, 0, 100))
+	assert.Equal(t, 2, c.HighestReadyFrom("abcd", 1, true, 0, 100))
+}
+
+func TestSegmentCache_HighestReadyFrom_RejectsIncompleteSegment(t *testing.T) {
+	c, _ := newTestCache(t)
+	writeSegs(t, c, "abcd", 0, 0)
+	dir, err := c.DirFor("abcd")
+	require.NoError(t, err)
+	// A styp-only segment is the aborted-mux case IsReady already rejects; the
+	// forward probe must inherit that judgement, not just test for existence.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "stream_0_001.m4s"), stypOnlySeg(), 0o644))
+	assert.Equal(t, 0, c.HighestReadyFrom("abcd", 0, true, 0, 100))
 }
 
 // ============================================================================

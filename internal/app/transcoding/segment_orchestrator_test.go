@@ -408,12 +408,15 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	require.Equal(t, 1, o.ActiveCount())
 
 	// Simulate ffmpeg producing 10 segments while the client is still at 0.
-	// useFMP4=true (matches minimalFingerprint) → .m4s.
+	// useFMP4=true (matches minimalFingerprint) → .m4s. These must be real
+	// segments: the throttle now measures the buffer with IsReady, so a
+	// name-only stub counts as not-yet-produced (which is the point - a
+	// truncated or styp-only file gives the player nothing to decode).
 	hashDir := filepath.Join(dir, "segments", fp.Hash())
 	require.NoError(t, os.MkdirAll(hashDir, 0o755))
 	for i := range 10 {
 		name := filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s"))
-		require.NoError(t, os.WriteFile(name, []byte("xx"), 0o644))
+		require.NoError(t, os.WriteFile(name, fmp4Seg(), 0o644))
 	}
 
 	// Reach into the session to retrieve the handle for assertion.
@@ -460,7 +463,7 @@ func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 	hashDir := filepath.Join(dir, "segments", fp.Hash())
 	require.NoError(t, os.MkdirAll(hashDir, 0o755))
 	for i := range 8 {
-		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), []byte("x"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), fmp4Seg(), 0o644))
 	}
 	o.mu.Lock()
 	sessList := o.sessions[fp.Hash()]
@@ -571,7 +574,7 @@ func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 	hashDir := filepath.Join(dir, "segments", fp.Hash())
 	require.NoError(t, os.MkdirAll(hashDir, 0o755))
 	for i := range 5 {
-		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), []byte("x"), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), fmp4Seg(), 0o644))
 	}
 
 	o.mu.Lock()

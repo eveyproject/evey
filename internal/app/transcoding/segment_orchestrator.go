@@ -142,8 +142,14 @@ type orchestratorSession struct {
 	// currently SIGSTOPped; useFMP4 is captured at spawn so the throttle loop
 	// can query the cache without the fingerprint.
 	clientHighWater int
-	paused          bool
-	useFMP4         bool
+	// producedHighWater is the last segment index the throttle observed on
+	// disk for this rafale, or startSeg-1 before anything lands. It is a
+	// resume point for SegmentCache.HighestReadyFrom, which is why the
+	// throttle no longer lists the whole hash directory every tick: ffmpeg
+	// only ever appends, so each tick stats forward from here.
+	producedHighWater int
+	paused            bool
+	useFMP4           bool
 	// lastResumeAt rate-limits NotifyClientHint's SIGCONT path.
 	// A malicious / buggy client could forge `bs=1` at 1000/sec and
 	// keep us hammering the kernel with SIGCONT syscalls - idempotent
@@ -574,6 +580,7 @@ func (o *SegmentOrchestrator) spawnSession(
 		cancelCtx:         cancel,
 		done:              make(chan struct{}),
 		clientHighWater:   startSegIdx,
+		producedHighWater: startSegIdx - 1,
 		useFMP4:           fp.UseFMP4,
 		variantIdx:        variantIdx,
 		videoSlotAcquired: videoSlotAcquired,

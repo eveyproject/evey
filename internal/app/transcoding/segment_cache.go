@@ -702,6 +702,35 @@ func (c *SegmentCache) ListReady(decisionHash string, variantIdx int, useFMP4 bo
 	return idxs, nil
 }
 
+// HighestReadyFrom returns the highest segment index in [from, until] that is
+// ready AND reachable from `from` without a gap, or from-1 when `from` itself
+// is not ready. Callers feed the previous result back as the next `from`, which
+// is what makes it cheap: it stats only the segments produced since the last
+// call (normally 0-2) instead of listing the whole hash directory.
+//
+// Why not ListReady: the throttle loop asked for every ready index once per
+// second per session purely to read the last one, so each tick paid an
+// os.ReadDir plus a parse of every entry in a directory that holds a full
+// title's segments. That cost grows with the cache, not with the work, and it
+// lands on the disk the player is streaming from - the exact I/O the weak-NAS
+// target cannot spare.
+//
+// Stopping at the first gap is deliberate and is what the throttle actually
+// wants to know: production is sequential, so a hole means the client stalls
+// there, and counting a later island would overstate the buffer and SIGSTOP
+// ffmpeg while the client is starved.
+func (c *SegmentCache) HighestReadyFrom(decisionHash string, variantIdx int, useFMP4 bool, from, until int) int {
+	highest := from - 1
+	for idx := from; idx <= until; idx++ {
+		k := SegmentKey{DecisionHash: decisionHash, VariantIdx: variantIdx, SegmentIdx: idx}
+		if !c.IsReady(k, useFMP4) {
+			break
+		}
+		highest = idx
+	}
+	return highest
+}
+
 // cancelChIfNotNil yields a never-fires channel when has=false so the select in
 // Wait doesn't have to special-case the no-session-registered path. A nil
 // receive in select blocks forever, which is exactly what we want here.
