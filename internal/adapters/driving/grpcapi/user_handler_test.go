@@ -953,8 +953,8 @@ func TestCreateProfile_FromKidsProfileDenied(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewProfile: %v", err)
 	}
-	if err := env.profileRepo.Create(ctx, kid); err != nil {
-		t.Fatalf("seed kid profile: %v", err)
+	if cErr := env.profileRepo.Create(ctx, kid); cErr != nil {
+		t.Fatalf("seed kid profile: %v", cErr)
 	}
 
 	kidPIN := "0000"

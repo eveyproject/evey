@@ -451,8 +451,8 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	// profile's PIN" - which does not hold for a profile the kid just created.
 	// That defeated parental control account-wide without the parent's PIN.
 	// Same signal as enforceParentalUpdateGate: the active PROFILE, not admin.
-	if err := h.refuseFromRestrictedProfile(ctx, span, claims); err != nil {
-		return nil, err
+	if gateErr := h.refuseFromRestrictedProfile(ctx, span, claims); gateErr != nil {
+		return nil, gateErr
 	}
 	opts := []user.ProfileOption{
 		user.WithProfilePreferences(req.Preferences),
