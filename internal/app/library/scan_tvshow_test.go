@@ -394,6 +394,56 @@ func TestScanTVShow_SeasonIndexNumber(t *testing.T) {
 	assert.Equal(t, 3, *seasons[0].IndexNumber)
 }
 
+// Regression: scanTVShowFiles used to build the series/season MediaItem via a
+// bare struct literal, bypassing the NewMediaItem invariants entirely. A show
+// parsed with a blank title (e.g. a malformed filename) would silently
+// persist as an unnamed series row instead of being rejected. Routing through
+// NewMediaItem enforces ErrEmptyTitle like every other item type, and per the
+// scan's per-item error policy the file is skipped rather than aborting the
+// whole library scan.
+func TestScanTVShow_BlankSeriesTitle_SkippedNotPersisted(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/blank/S01/e01.mkv", Size: 100, Title: "   ", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	added, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err, "an invalid item must be skipped, not fail the whole scan")
+	assert.Equal(t, 0, added)
+	assert.Empty(t, mediaRepo.All(), "blank-titled series/season/episode must not be persisted")
+}
+
+// Regression: the bare struct literal set Title/ScanTitle to the raw,
+// untrimmed filename-derived value. NewMediaItem trims the title as part of
+// its invariants; the scan path must not bypass that.
+func TestScanTVShow_SeriesTitleTrimmed(t *testing.T) {
+	t.Parallel()
+	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()
+
+	libQueryRepo.Seed(&library.Library{
+		ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"},
+	})
+
+	scanner.Results["/tv"] = []library.ScannedFile{
+		{Path: "/tv/Show/S01/e01.mkv", Size: 100, Title: "  Show  ", Season: intPtr(1), Episode: intPtr(1), Type: library.Episode},
+	}
+
+	added, _, err := svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+	assert.Equal(t, 3, added)
+
+	series := itemsByType(mediaRepo, "series")
+	require.Len(t, series, 1)
+	assert.Equal(t, "Show", series[0].Title)
+	assert.Equal(t, "Show", series[0].ScanTitle)
+}
+
 func TestScanTVShow_EpisodeIndexNumber(t *testing.T) {
 	t.Parallel()
 	svc, _, libQueryRepo, mediaRepo, scanner, _ := newCmdSvc()

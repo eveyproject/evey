@@ -100,16 +100,20 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 		seriesID, ok := seriesIDs[showKey]
 		if !ok {
 			fp := fmt.Sprintf("series:%s:%s", libraryID, showKey)
-			seriesItem, created, createErr := lookupOrCreate(&library.MediaItem{
-				ID:        shared.MediaItemID(uuid.New().String()),
-				LibraryID: shared.LibraryID(libraryID),
-				Type:      library.Series,
-				Title:     showTitle,
-				ScanTitle: showTitle,
-				File:      &library.MediaFile{Fingerprint: fp},
-				AddedAt:   time.Now(),
-				UpdatedAt: time.Now(),
-			})
+			// Build through the canonical constructor so a blank/whitespace-only
+			// title parsed from a malformed filename is rejected (ErrEmptyTitle)
+			// instead of silently persisting as an unnamed series row. Mirrors
+			// the movie/episode path in createMediaFile (scan_service.go).
+			newSeries, buildErr := library.NewMediaItem(shared.LibraryID(libraryID), library.Series, showTitle,
+				library.WithMediaItemID(shared.MediaItemID(uuid.New().String())),
+				library.WithMediaItemFile(&library.MediaFile{Fingerprint: fp}),
+			)
+			if buildErr != nil {
+				slog.Warn("scan: skipping series that fails domain invariants",
+					slog.String("path", f.Path), slog.Any("err", buildErr))
+				continue
+			}
+			seriesItem, created, createErr := lookupOrCreate(newSeries)
 			if createErr != nil {
 				return 0, 0, fmt.Errorf("create series %q: %w", showTitle, createErr)
 			}
@@ -139,18 +143,18 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			// new row just because enrichment renamed "Season 1" →
 			// "Saison 1".
 			scanSeasonTitle := fmt.Sprintf("Season %d", seasonNum)
-			seasonItem, created, createErr := lookupOrCreate(&library.MediaItem{
-				ID:          shared.MediaItemID(uuid.New().String()),
-				LibraryID:   shared.LibraryID(libraryID),
-				ParentID:    seriesID,
-				Type:        library.Season,
-				Title:       scanSeasonTitle,
-				ScanTitle:   scanSeasonTitle,
-				File:        &library.MediaFile{Fingerprint: fp},
-				IndexNumber: &n,
-				AddedAt:     time.Now(),
-				UpdatedAt:   time.Now(),
-			})
+			newSeason, buildErr := library.NewMediaItem(shared.LibraryID(libraryID), library.Season, scanSeasonTitle,
+				library.WithMediaItemID(shared.MediaItemID(uuid.New().String())),
+				library.WithMediaItemParent(seriesID),
+				library.WithMediaItemFile(&library.MediaFile{Fingerprint: fp}),
+				library.WithMediaItemIndexNumber(n),
+			)
+			if buildErr != nil {
+				slog.Warn("scan: skipping season that fails domain invariants",
+					slog.String("path", f.Path), slog.Any("err", buildErr))
+				continue
+			}
+			seasonItem, created, createErr := lookupOrCreate(newSeason)
 			if createErr != nil {
 				return 0, 0, fmt.Errorf("create season %d for %q: %w", seasonNum, showTitle, createErr)
 			}
