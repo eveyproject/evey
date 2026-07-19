@@ -128,6 +128,16 @@ ci-fast-build:
 	@echo "→ go build ./..."
 	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go build ./...'
 
+# ci-fast-unit: the plain (no -race) unit suite. It is here because vet, build
+# and lint all pass on a test that asserts the WRONG value: the capped-CRF
+# headroom shipped green through this gate and broke CI, because the only
+# transcode check that ran was the path-triggered copy-pipeline itest, a
+# different test entirely. Go caches by package, so this costs ~1s when nothing
+# changed and only re-runs what the push actually touched.
+ci-fast-unit:
+	@echo "→ go test ./... (unit, no -race)"
+	@docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c 'go test ./...'
+
 ci-fast-sec:
 	@# Mirror du ratchet CI : --new-from-rev=<base> ne flag QUE les findings
 	@# introduits par les commits non encore poussés. Sans ce flag, les
@@ -158,8 +168,8 @@ ci-local-frontend:
 # govulncheck + build + gosec ratchet + general lint), run by the git pre-push
 # hook so a red `quality` pipeline never surprises you again. No -race tests
 # here (that's the separate `correctness` job - use `make ci-local` for those).
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec ci-local-lint ci-arch repo-itest-gate transcode-itest-gate
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + gosec + lint + arch guards + repo suite + transcode contract)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-sec ci-local-lint ci-arch repo-itest-gate transcode-itest-gate
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit + gosec + lint + arch guards + repo suite + transcode contract)."
 
 # ci-arch: the static architecture guards (TxUnit bypass, etc.) that need NO DB -
 # they only regex the source tree, so they run in milliseconds. Their sibling
