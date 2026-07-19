@@ -96,8 +96,6 @@ export interface PlaySessionResult {
   shedReason: ShedReason;
   stopSession: () => void;
   restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
-  restartAtPosition: (positionSec: number) => void;
-  transcodeOffset: number;
   progress: V1WatchProgress | null;
 }
 
@@ -134,7 +132,6 @@ export function buildStreamUrl(
   mediaId: string,
   streamInfo: V1StreamInfo,
   token: string,
-  startSec?: number,
 ): string {
   if (streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
     return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/stream?token=${token}`;
@@ -145,9 +142,11 @@ export function buildStreamUrl(
     return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/transcode?${p.toString()}`;
   }
   const params = new URLSearchParams({ token });
-  if (startSec && startSec > 0) params.set("startSec", String(Math.floor(startSec)));
   appendCodecParams(params);
-  // Server publishes a complete VOD manifest from t=0 (no live-edge snap).
+  // Server publishes a complete VOD manifest from t=0 (no live-edge snap), so
+  // there is no start offset to declare: the player seeks natively on the
+  // absolute timeline. A startSec param used to be sent here, but no handler
+  // ever parsed it - it only tricked the client into offsetting its clock.
   return `${serverUrl}/api/v1/media/${encodeURIComponent(mediaId)}/hls/master.m3u8?${params.toString()}`;
 }
 
@@ -160,7 +159,6 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
   const [shedReason, setShedReason] = useState<ShedReason>(null);
-  const [transcodeOffset, setTranscodeOffset] = useState(0);
   const sessionIdRef = useRef<string | null>(null);
   const startedRef = useRef(false);
   const prevMediaIdRef = useRef(mediaId);
@@ -174,7 +172,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
   const streamInfoRef = useRef<V1StreamInfo | null>(null);
 
   const startStream = useCallback(
-    async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number, startSec?: number) => {
+    async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number) => {
       try {
         const serverUrl = serverUrlRef.current || ((await getServerUrl()) ?? "");
         serverUrlRef.current = serverUrl;
@@ -212,7 +210,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           tokenRef.current = token;
         }
         setStreamToken(token);
-        const url = buildStreamUrl(serverUrl, mediaId, info, token, startSec);
+        const url = buildStreamUrl(serverUrl, mediaId, info, token);
 
         // Direct play streams the original file with no orchestrator involved,
         // so it cannot be shed - only probe the transcode/HLS paths.
@@ -224,7 +222,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           }
         }
 
-        const startPosMs = startSec ? String(Math.floor(startSec * 1000)) : (wp?.positionMs && !wp.played ? wp.positionMs : "0");
+        const startPosMs = wp?.positionMs && !wp.played ? wp.positionMs : "0";
         const session = await playbackServiceStartStream({
           mediaItemId: mediaId,
           playMethod: info.playMethod ?? "PLAY_METHOD_TRANSCODE",
@@ -240,7 +238,6 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
           streamInfoRef.current = info;
           setStreamInfo(info);
           setStreamUrl(url);
-          setTranscodeOffset(startSec ?? 0);
           if (session.id) {
             sessionIdRef.current = session.id;
             setSessionId(session.id);
@@ -292,29 +289,14 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     [startStream],
   );
 
-  const restartAtPosition = useCallback(
-    (positionSec: number) => {
-      if (streamInfoRef.current?.playMethod === "PLAY_METHOD_DIRECT_PLAY") return;
-      const sid = sessionIdRef.current;
-      if (sid) {
-        playbackServiceStopStream({ sessionId: sid }).catch((err) =>
-          console.warn("stop before seek restart failed:", err),
-        );
-        sessionIdRef.current = null;
-      }
-      stoppedRef.current = false;
-      setStreamUrl(null);
-      setIsError(false);
-      setShedReason(null);
-      setIsLoading(true);
-      startStream(undefined, undefined, undefined, positionSec);
-    },
-    [startStream],
-  );
+  // restartAtPosition used to live here: a transcode seek tore the session down
+  // and restarted it at the target. It is gone because the VOD manifest covers
+  // the whole timeline - the player seeks natively (see seekTo/seekBy), which is
+  // both instant and free of the offset bookkeeping that reported doubled positions.
 
   useEffect(() => {
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress };
+  return { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress };
 }

@@ -119,7 +119,7 @@ export default function PlayerScreen() {
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
-  const { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
+  const { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(sessionMediaId);
 
   const { data: chapters = [] } = useChapters(mediaId);
@@ -177,6 +177,17 @@ export default function PlayerScreen() {
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
+  // A fatal native failure (decoder error, 401 on a segment, broken manifest)
+  // surfaces ONLY through the player's statusChange event - isError from
+  // usePlaySession covers just the session-start network call. Ignoring it
+  // left a black screen with live controls.
+  const [nativeError, setNativeError] = useState<string | null>(null);
+  // Whether the NEXT player instance should start playing. Changing tracks or
+  // quality recreates the native player, whose setup used to call play()
+  // unconditionally - a paused screen sprang back to life on every track
+  // change. Handlers snapshot the playing state right before restarting;
+  // defaults to true so first entry (and next-episode remounts) autoplay.
+  const resumeAfterRestartRef = useRef(true);
   // While the user scrubs the timeline, freeze the live timeUpdate: otherwise it
   // overwrites the scrubbed position ~4×/s and the thumb jumps between the finger
   // and the real playback position (the "wobbly" seek).
@@ -231,7 +242,7 @@ export default function PlayerScreen() {
     if (resumePositionSec > 0) {
       p.currentTime = resumePositionSec;
     }
-    p.play();
+    if (resumeAfterRestartRef.current) p.play();
   });
 
   useEffect(() => { syncPlayRef.current = { player }; }, [player]);
@@ -241,12 +252,16 @@ export default function PlayerScreen() {
     const timeSub = player.addListener("timeUpdate", (ev) => {
       if (!mountedRef.current) return;
       if (seekingRef.current) return; // frozen while scrubbing - see seekingRef
-      setCurrentTime(ev.currentTime + transcodeOffset);
+      setCurrentTime(ev.currentTime);
       try { setDuration(player.duration); } catch (err) { console.warn("released", err); }
     });
-    const statusSub = player.addListener("statusChange", () => {
+    const statusSub = player.addListener("statusChange", (ev) => {
       if (!mountedRef.current) return;
       try { setIsPlaying(player.playing); setDuration(player.duration); } catch (err) { console.warn("released", err); }
+      if (ev.status === "error") {
+        console.warn("[player] native playback error:", ev.error?.message);
+        setNativeError(ev.error?.message ?? "playback error");
+      }
     });
     const playSub = player.addListener("playingChange", () => {
       if (!mountedRef.current) return;
@@ -257,10 +272,7 @@ export default function PlayerScreen() {
       statusSub.remove();
       playSub.remove();
     };
-    // transcodeOffset MUST be a dep: after a transcode seek it changes, and a
-    // stale closure here would keep adding the old offset (0) - the position
-    // snaps back to the start even though the server restarted at the seek point.
-  }, [player, transcodeOffset]);
+  }, [player]);
 
   const { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, handleCast } = useCastSession({
     player,
@@ -362,8 +374,6 @@ export default function PlayerScreen() {
       markAsWatchedMut.mutate({ mediaItemId: mediaId, params: { profileId } });
     }
   }, [currentTime, effectiveDuration, progress?.played, profileId, mediaId, markAsWatchedMut]);
-
-  const isTranscode = streamInfo?.playMethod === "PLAY_METHOD_TRANSCODE";
 
   const { data: playbackSettings } = usePlaybackSettings();
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
@@ -492,8 +502,8 @@ export default function PlayerScreen() {
 
   const getPositionMs = useCallback(() => {
     if (!mountedRef.current) return 0;
-    try { return ((player?.currentTime ?? 0) + transcodeOffset) * 1000; } catch { return 0; }
-  }, [player, transcodeOffset]);
+    try { return (player?.currentTime ?? 0) * 1000; } catch { return 0; }
+  }, [player]);
 
   const getIsPaused = useCallback(() => {
     if (!mountedRef.current) return true;
@@ -521,46 +531,50 @@ export default function PlayerScreen() {
   const handleAudioSelect = useCallback(
     (index: number) => {
       setSelectedAudioIndex(index);
+      resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(index, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
     },
-    [restartWithTracks, selectedSubtitleIndex, selectedQuality],
+    [player, restartWithTracks, selectedSubtitleIndex, selectedQuality],
   );
 
   const handleSubtitleSelect = useCallback(
     (index: number | null) => {
       setSelectedSubtitleIndex(index);
+      resumeAfterRestartRef.current = player?.playing ?? true;
       if (index === null) {
         restartWithTracks(selectedAudioIndex, undefined, selectedQuality || undefined);
       } else {
         restartWithTracks(selectedAudioIndex, index, selectedQuality || undefined);
       }
     },
-    [restartWithTracks, selectedAudioIndex, selectedQuality],
+    [player, restartWithTracks, selectedAudioIndex, selectedQuality],
   );
 
   const handleQualitySelect = useCallback(
     (quality: number) => {
       setSelectedQuality(quality);
+      resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(
         selectedAudioIndex,
         selectedSubtitleIndex ?? undefined,
         quality || undefined,
       );
     },
-    [restartWithTracks, selectedAudioIndex, selectedSubtitleIndex],
+    [player, restartWithTracks, selectedAudioIndex, selectedSubtitleIndex],
   );
 
   const handleChapterSeek = useCallback(
     (timeSec: number) => {
-      // timeSec is absolute; on transcode it must restart the session (see seekBy).
-      if (isTranscode) {
-        restartAtPosition(timeSec);
-      } else if (player) {
+      // timeSec is absolute. Native seek on the 0-based VOD timeline, transcode
+      // included - same path as seekTo/seekBy. This used to restart the whole
+      // session on transcode, which replayed from 0 while the UI added an offset
+      // on top, so a chapter jump reported roughly twice the real position.
+      if (player) {
         player.currentTime = timeSec;
       }
       resetHideTimer();
     },
-    [player, isTranscode, restartAtPosition, resetHideTimer],
+    [player, resetHideTimer],
   );
 
   const handleSkipIntro = useCallback(
@@ -604,7 +618,11 @@ export default function PlayerScreen() {
     return (
       <ShedScreen
         shedReason={shedReason}
-        onRetry={() => restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined)}
+        onRetry={() => {
+          // Retrying after a shed means the user wants playback back - always autoplay.
+          resumeAfterRestartRef.current = true;
+          restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+        }}
         onBack={handleBack}
       />
     );
@@ -612,8 +630,10 @@ export default function PlayerScreen() {
 
   // A local download plays regardless of the play-session network state -
   // don't gate on isError/isLoading/streamUrl when we already have bytes on
-  // disk (see the videoSource useMemo above for the same rationale).
-  if (isError && !localFilePath) {
+  // disk (see the videoSource useMemo above for the same rationale). A native
+  // error is different: it means THIS playback died (network or local file),
+  // so it always surfaces.
+  if (nativeError || (isError && !localFilePath)) {
     return <ErrorScreen onBack={handleBack} />;
   }
 

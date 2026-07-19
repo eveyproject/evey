@@ -15,17 +15,37 @@ vi.mock("react-native", () => ({
 }));
 
 // --- expo-video mock ---------------------------------------------------------
+// Mirrors the real hook's contract where the tests depend on it: the player is
+// recreated (and the setup callback re-runs) only when the source identity
+// changes, not on every render - that recreation is exactly what the
+// track-change tests below exercise. Listeners are captured so a test can
+// deliver native events (statusChange with an error payload) to the screen.
 const playMock = vi.fn();
 const pauseMock = vi.fn();
+const playerListeners = new Map<string, (payload?: unknown) => void>();
+const playerMock = {
+  addListener: (name: string, cb: (payload?: unknown) => void) => {
+    playerListeners.set(name, cb);
+    return { remove: () => {} };
+  },
+  play: (...args: unknown[]) => playMock(...args),
+  pause: (...args: unknown[]) => pauseMock(...args),
+  playing: false,
+  currentTime: 0,
+  duration: 0,
+  timeUpdateEventInterval: 0,
+  seekBy: vi.fn(),
+};
+let lastSourceUri: string | null = null;
 vi.mock("expo-video", () => ({
-  useVideoPlayer: () => ({
-    addListener: () => ({ remove: () => {} }),
-    play: (...args: unknown[]) => playMock(...args),
-    pause: (...args: unknown[]) => pauseMock(...args),
-    playing: false,
-    currentTime: 0,
-    duration: 0,
-  }),
+  useVideoPlayer: (source: { uri?: string } | null, setup?: (p: unknown) => void) => {
+    const uri = source?.uri ?? null;
+    if (uri !== lastSourceUri) {
+      lastSourceUri = uri;
+      setup?.(playerMock);
+    }
+    return playerMock;
+  },
   VideoView: () => React.createElement("div", { "data-testid": "video-view" }),
 }));
 
@@ -80,18 +100,24 @@ vi.mock("@evey/api", () => ({
 }));
 
 // --- usePlaySession mock -----------------------------------------------------------
+// streamUrl is mutable so a test can drive a track-change restart: the real
+// restartWithTracks tears the session down and comes back with a fresh URL,
+// which recreates the native player. The mock mutates the URL; the test then
+// rerenders to observe the recreated player's behavior.
 const stopSessionMock = vi.fn();
+const sessionState = { streamUrl: "http://srv.test/stream.m3u8" };
+const restartWithTracksMock = vi.fn(() => {
+  sessionState.streamUrl = "http://srv.test/stream.m3u8?restarted=1";
+});
 vi.mock("../../../src/hooks/usePlaySession", () => ({
   usePlaySession: () => ({
-    streamUrl: "http://srv.test/stream.m3u8",
+    streamUrl: sessionState.streamUrl,
     sessionId: "sess-1",
     streamInfo: { mediaStreams: [] },
     isLoading: false,
     isError: false,
     stopSession: stopSessionMock,
-    restartWithTracks: vi.fn(),
-    restartAtPosition: vi.fn(),
-    transcodeOffset: 0,
+    restartWithTracks: restartWithTracksMock,
     progress: null,
   }),
 }));
@@ -117,7 +143,12 @@ vi.mock("../../../src/hooks/useNextEpisode", () => ({
 }));
 
 // --- trivial component mocks --------------------------------------------------------
-vi.mock("../../../src/components/QualityPicker", () => ({ QualityPicker: () => null }));
+// QualityPicker exposes its onSelect so tests can drive a real track-change
+// restart through the screen's own handler (visible-gating is irrelevant here).
+vi.mock("../../../src/components/QualityPicker", () => ({
+  QualityPicker: ({ onSelect }: { onSelect: (q: number) => void }) =>
+    React.createElement("button", { "aria-label": "pick-quality", onClick: () => onSelect(720) }, "720p"),
+}));
 vi.mock("../../../src/components/AudioTrackPicker", () => ({ AudioTrackPicker: () => null }));
 vi.mock("../../../src/components/SubtitlePicker", () => ({ SubtitlePicker: () => null }));
 vi.mock("../../../src/components/TrackOptionsMenu", () => ({ TrackOptionsMenu: () => null }));
@@ -150,6 +181,13 @@ import PlayerScreen from "./[id]";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  playerListeners.clear();
+  playerMock.playing = false;
+  lastSourceUri = null;
+  sessionState.streamUrl = "http://srv.test/stream.m3u8";
+  restartWithTracksMock.mockImplementation(() => {
+    sessionState.streamUrl = "http://srv.test/stream.m3u8?restarted=1";
+  });
   capturedOnNavigate = null;
   needsPinMock.mockImplementation(() => false);
   localSearchParamsMock.mockReturnValue({ id: "ep-1" });
@@ -252,5 +290,52 @@ describe("player entry gate", () => {
     needsPinMock.mockImplementation(() => false);
     render(<PlayerScreen />);
     expect(screen.queryByTestId("pin-modal")).toBeNull();
+  });
+});
+
+// A native playback failure (decoder error, 401 on a segment, broken manifest)
+// arrives through statusChange - NOT through usePlaySession's isError, which
+// only covers the session-start network call. Swallowing it left a black
+// screen with live controls and no way to know playback was dead.
+describe("native player errors (TV)", () => {
+  it("shows the error screen when the native player reports a fatal error", () => {
+    render(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "error", error: { message: "decoder died" } });
+    });
+    expect(screen.getByText("Failed to load stream")).toBeTruthy();
+  });
+
+  it("ignores non-error status transitions", () => {
+    render(<PlayerScreen />);
+    act(() => {
+      playerListeners.get("statusChange")?.({ status: "readyToPlay", oldStatus: "loading" });
+    });
+    expect(screen.queryByText("Failed to load stream")).toBeNull();
+  });
+});
+
+// Changing quality/audio/subtitles tears the session down and brings up a new
+// native player, whose setup used to call play() unconditionally - a paused
+// screen sprang back to life on every track change.
+describe("track change keeps the pause state (TV)", () => {
+  it("does not auto-play after a track restart while paused", () => {
+    const { rerender } = render(<PlayerScreen />);
+    expect(playMock).toHaveBeenCalledTimes(1); // initial entry autoplays
+
+    playerMock.playing = false; // user paused before changing quality
+    fireEvent.click(screen.getByLabelText("pick-quality"));
+    rerender(<PlayerScreen />); // new streamUrl -> player recreated -> setup re-runs
+
+    expect(restartWithTracksMock).toHaveBeenCalled();
+    expect(playMock).toHaveBeenCalledTimes(1); // still paused: no second play()
+  });
+
+  it("resumes after a track restart while playing", () => {
+    const { rerender } = render(<PlayerScreen />);
+    playerMock.playing = true;
+    fireEvent.click(screen.getByLabelText("pick-quality"));
+    rerender(<PlayerScreen />);
+    expect(playMock).toHaveBeenCalledTimes(2);
   });
 });

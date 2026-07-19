@@ -74,18 +74,17 @@ describe("buildStreamUrl", () => {
     expect(decodeURIComponent(url)).toContain("containers=mp4,mkv,webm,hls");
   });
 
-  it("includes startSec when > 0 on HLS URL", async () => {
+  // startSec was dead on arrival: no HLS handler parses it. The transcode path
+  // reads only maxWidth/maxHeight/maxBitrate/videoCodecs/audioCodecs/containers/
+  // hdr/fp (transcode_handler.go:298-322) and audioTrack/subtitleTrack. The
+  // server always publishes the VOD manifest from t=0, so emitting startSec made
+  // the client believe the timeline was shifted: it set transcodeOffset=startSec
+  // and added it to every timeUpdate, over a playlist that still began at 0.
+  // Result: position displayed and reported at roughly twice the real value.
+  it("never emits startSec - the server ignores it and it doubled the reported position", async () => {
     const { buildStreamUrl } = await import("./usePlaySession");
     const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 42.7);
-    expect(url).toContain("startSec=42");
-  });
-
-  it("omits startSec when 0 or undefined", async () => {
-    const { buildStreamUrl } = await import("./usePlaySession");
-    const a = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok", 0);
-    const b = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
-    expect(a).not.toContain("startSec");
-    expect(b).not.toContain("startSec");
+    expect(url).not.toContain("startSec");
   });
 
   it("falls back to HLS URL for unknown play method", async () => {

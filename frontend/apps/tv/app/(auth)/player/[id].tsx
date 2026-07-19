@@ -47,7 +47,7 @@ export default function PlayerScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   const { data: media } = useLibraryServiceGetMediaItem(mediaId);
-  const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, restartAtPosition, transcodeOffset, progress } =
+  const { streamUrl, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(mediaId);
 
   const [showControls, setShowControls] = useState(true);
@@ -62,7 +62,18 @@ export default function PlayerScreen() {
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  // A fatal native failure (decoder error, 401 on a segment, broken manifest)
+  // surfaces ONLY through the player's statusChange event - isError from
+  // usePlaySession covers just the session-start network call. Ignoring it
+  // left a black screen with live controls.
+  const [nativeError, setNativeError] = useState<string | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Whether the NEXT player instance should start playing. Changing tracks or
+  // quality recreates the native player, whose setup used to call play()
+  // unconditionally - a paused screen sprang back to life on every track
+  // change. Handlers snapshot the playing state right before restarting;
+  // defaults to true so first entry (and next-episode remounts) autoplay.
+  const resumeAfterRestartRef = useRef(true);
 
   const audioStreams: AudioStream[] = useMemo(
     () =>
@@ -123,18 +134,22 @@ export default function PlayerScreen() {
     if (resumePositionSec > 0) {
       p.currentTime = resumePositionSec;
     }
-    p.play();
+    if (resumeAfterRestartRef.current) p.play();
   });
 
   useEffect(() => {
     if (!player) return;
     const timeSub = player.addListener("timeUpdate", (ev) => {
-      setCurrentTime(ev.currentTime + transcodeOffset);
-      setDuration(player.duration + transcodeOffset);
+      setCurrentTime(ev.currentTime);
+      setDuration(player.duration);
     });
-    const statusSub = player.addListener("statusChange", () => {
+    const statusSub = player.addListener("statusChange", (ev) => {
       setIsPlaying(player.playing);
-      setDuration(player.duration + transcodeOffset);
+      setDuration(player.duration);
+      if (ev.status === "error") {
+        console.warn("[player] native playback error:", ev.error?.message);
+        setNativeError(ev.error?.message ?? "playback error");
+      }
     });
     const playSub = player.addListener("playingChange", () => {
       setIsPlaying(player.playing);
@@ -144,7 +159,7 @@ export default function PlayerScreen() {
       statusSub.remove();
       playSub.remove();
     };
-  }, [player, transcodeOffset]);
+  }, [player]);
 
   useEffect(() => {
     return () => stopSession();
@@ -194,8 +209,6 @@ export default function PlayerScreen() {
     resetHideTimer();
   }, [player, resetHideTimer]);
 
-  const isTranscode = streamInfo?.playMethod === "PLAY_METHOD_TRANSCODE";
-
   const { data: playbackSettings } = usePlaybackSettings();
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
   const skipBwd = playbackSettings?.skipBackwardSeconds ?? 30;
@@ -203,15 +216,14 @@ export default function PlayerScreen() {
   const seekBy = useCallback(
     (seconds: number) => {
       if (!player) return;
-      if (isTranscode) {
-        const newPos = transcodeOffset + (player.currentTime ?? 0) + seconds;
-        restartAtPosition(Math.max(0, newPos));
-      } else {
-        player.seekBy(seconds);
-      }
+      // Native relative seek on the 0-based VOD timeline, transcode included.
+      // This used to tear down and restart the session on transcode, which
+      // replayed from 0 while the UI added an offset on top - every skip
+      // reported roughly twice the real position and inflated the duration.
+      player.seekBy(seconds);
       resetHideTimer();
     },
-    [player, resetHideTimer, isTranscode, transcodeOffset, restartAtPosition],
+    [player, resetHideTimer],
   );
 
   const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
@@ -228,25 +240,28 @@ export default function PlayerScreen() {
   const handleQualitySelect = useCallback(
     (quality: number) => {
       setSelectedQuality(quality);
+      resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, quality || undefined);
     },
-    [restartWithTracks, selectedAudioIndex, selectedSubtitleIndex],
+    [player, restartWithTracks, selectedAudioIndex, selectedSubtitleIndex],
   );
 
   const handleAudioSelect = useCallback(
     (index: number) => {
       setSelectedAudioIndex(index);
+      resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(index, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
     },
-    [restartWithTracks, selectedSubtitleIndex, selectedQuality],
+    [player, restartWithTracks, selectedSubtitleIndex, selectedQuality],
   );
 
   const handleSubtitleSelect = useCallback(
     (index: number | null) => {
       setSelectedSubtitleIndex(index);
+      resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(selectedAudioIndex, index ?? undefined, selectedQuality || undefined);
     },
-    [restartWithTracks, selectedAudioIndex, selectedQuality],
+    [player, restartWithTracks, selectedAudioIndex, selectedQuality],
   );
 
   const handleSkipIntro = useCallback(
@@ -372,8 +387,8 @@ export default function PlayerScreen() {
   });
 
   const getPositionMs = useCallback(() => {
-    return (transcodeOffset + (player?.currentTime ?? 0)) * 1000;
-  }, [player, transcodeOffset]);
+    return (player?.currentTime ?? 0) * 1000;
+  }, [player]);
 
   const getIsPaused = useCallback(() => {
     try {
@@ -425,7 +440,11 @@ export default function PlayerScreen() {
           {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.body" : "player.shed.tooManyStreams.body")}
         </Text>
         <Pressable
-          onPress={() => restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined)}
+          onPress={() => {
+            // Retrying after a shed means the user wants playback back - always autoplay.
+            resumeAfterRestartRef.current = true;
+            restartWithTracks(selectedAudioIndex, selectedSubtitleIndex ?? undefined, selectedQuality || undefined);
+          }}
           style={{ marginTop: 28 }}
         >
           <Text style={{ color: theme.colors.accent, fontSize: 22, fontWeight: "600" }}>{t("player.retry")}</Text>
@@ -437,7 +456,7 @@ export default function PlayerScreen() {
     );
   }
 
-  if (isError) {
+  if (isError || nativeError) {
     return (
       <View style={[styles.container, { backgroundColor: "#000" }]}>
         <Text style={{ color: "#fff", fontSize: 24 }}>Failed to load stream</Text>

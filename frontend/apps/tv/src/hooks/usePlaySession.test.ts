@@ -105,6 +105,20 @@ describe("usePlaySession resume", () => {
 // free-text error message, so usePlaySession probes the manifest URL itself
 // before handing it to the player - this is the only place that can read the
 // server's structured shed code.
+describe("buildStreamUrl", () => {
+  // startSec was dead on arrival: no HLS handler parses it (transcode_handler.go
+  // reads only maxWidth/maxHeight/maxBitrate/videoCodecs/audioCodecs/containers/
+  // hdr/fp). The server always publishes the VOD manifest from t=0, so emitting
+  // it made the client believe the timeline was shifted: it set
+  // transcodeOffset=startSec and added that to every timeUpdate - and on TV to
+  // the reported duration as well - over a playlist that still began at 0.
+  it("never emits startSec - the server ignores it and it doubled the reported position", async () => {
+    const { buildStreamUrl } = await import("./usePlaySession");
+    const url = buildStreamUrl("http://srv", "m1", { playMethod: "PLAY_METHOD_TRANSCODE" }, "tok");
+    expect(url).not.toContain("startSec");
+  });
+});
+
 describe("usePlaySession: server load-shed (503)", () => {
   const realFetch = global.fetch;
   const fetchMock = vi.fn();
