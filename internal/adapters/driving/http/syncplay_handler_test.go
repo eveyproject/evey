@@ -671,7 +671,7 @@ func TestSyncPlayWS_RejectsOversizedFrame(t *testing.T) {
 		return
 	}
 	// The server must have closed the connection rather than processed it.
-	_ = ws.Conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = ws.SetReadDeadline(time.Now().Add(3 * time.Second))
 	var after string
 	if err := websocket.Message.Receive(ws.Conn, &after); err == nil {
 		t.Error("server kept serving after an oversized frame; the payload cap is not applied")
