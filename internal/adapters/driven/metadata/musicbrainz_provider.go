@@ -145,6 +145,13 @@ func mapMusicBrainzReleaseGroup(rg musicbrainzReleaseGroup) domain.MetadataResul
 	}
 
 	if rg.ID != "" {
+		// UNVERIFIED by construction: the Cover Art Archive addresses artwork by
+		// release-group id, so the URL can be built without a lookup - but plenty
+		// of release-groups have no cover at all and answer 404/500. Confirming
+		// here would mean one rate-limited round trip PER search result, on the
+		// search path; the client renders a placeholder on image error instead
+		// (web: features/requests/RequestPoster.tsx). Treat this as a best-effort
+		// hint, never as a URL known to resolve.
 		result.Artwork = []domain.ArtworkResult{{
 			Type:     domain.ArtworkTypePoster,
 			URL:      "https://coverartarchive.org/release-group/" + rg.ID + "/front-250",

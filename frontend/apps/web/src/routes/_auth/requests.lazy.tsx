@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { RequestPoster } from "@/features/requests/RequestPoster";
 
 export const Route = createLazyFileRoute("/_auth/requests")({
   component: RequestsPage,
@@ -196,11 +197,7 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
                   className="relative aspect-[2/3] rounded-[var(--radius-md)] overflow-hidden flex items-center justify-center text-xs text-[var(--text-muted)]"
                   style={{ backgroundColor: "var(--surface-raised)" }}
                 >
-                  {r.posterUrl ? (
-                    <img src={r.posterUrl} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    "-"
-                  )}
+                  <RequestPoster posterUrl={r.posterUrl} title={r.title} mediaType={r.requestType} />
                   {scope === "video" && (
                     <span
                       className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-medium"
@@ -261,14 +258,9 @@ function MineTab({ requests, isLoading }: { requests: V1MediaRequestProto[]; isL
     <ul className="flex flex-col gap-2">
       {requests.map((r) => (
         <Card key={r.id} className="flex gap-3 items-start">
-          {r.posterUrl ? (
-            <img
-              src={r.posterUrl}
-              alt=""
-              className="w-12 h-18 object-cover rounded-[var(--radius-sm)] flex-shrink-0"
-              style={{ backgroundColor: "var(--surface-raised)" }}
-            />
-          ) : null}
+          <div className="w-12 h-18 rounded-[var(--radius-sm)] overflow-hidden flex-shrink-0">
+            <RequestPoster posterUrl={r.posterUrl} title={r.title} mediaType={r.mediaType} />
+          </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-medium text-[var(--text)]">{r.title}</span>

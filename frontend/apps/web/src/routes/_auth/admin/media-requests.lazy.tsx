@@ -24,6 +24,7 @@ import { Select } from "@/components/ui/Select";
 import { Switch } from "@/components/ui/Switch";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { RequestPoster } from "@/features/requests/RequestPoster";
 
 export const Route = createLazyFileRoute("/_auth/admin/media-requests")({
   component: AdminMediaRequestsPage,
@@ -70,14 +71,9 @@ function RequestRow({ request }: { request: V1MediaRequestProto }) {
 
   return (
     <Card className="flex gap-3 items-start">
-      {request.posterUrl ? (
-        <img
-          src={request.posterUrl}
-          alt=""
-          className="w-12 h-18 object-cover rounded-[var(--radius-sm)] flex-shrink-0"
-          style={{ backgroundColor: "var(--surface-raised)" }}
-        />
-      ) : null}
+      <div className="w-12 h-18 rounded-[var(--radius-sm)] overflow-hidden flex-shrink-0">
+        <RequestPoster posterUrl={request.posterUrl} title={request.title} mediaType={request.mediaType} />
+      </div>
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-[var(--text)]">{request.title}</span>
