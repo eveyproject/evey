@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -38,7 +40,27 @@ func spawnFakeStalePlugin(t *testing.T, dir string) *exec.Cmd {
 	t.Cleanup(func() {
 		syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	})
+	// Start() returns at fork, BEFORE the child has exec'd: until it does,
+	// /proc/<pid>/cmdline still holds the test binary's argv, so the reap's
+	// cmdline match finds nothing and the test sees zero victims. Cheap under
+	// no load, which is why this raced only under -race and on CI.
+	waitCmdline(t, cmd.Process.Pid, script)
 	return cmd
+}
+
+// waitCmdline blocks until pid's /proc cmdline advertises want, i.e. the exec
+// has landed and the process is matchable by the reap.
+func waitCmdline(t *testing.T, pid int, want string) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/cmdline")
+		if err == nil && strings.Contains(string(data), want) {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("process %d never exec'd with %q in its cmdline", pid, want)
 }
 
 func waitDead(pid int, timeout time.Duration) bool {
