@@ -368,3 +368,24 @@ func TestFrameRateReclassify_FailureSkipsWithoutTouchingKeyframeSkipSet(t *testi
 	assert.True(t, skipped, "a failed analysis is skipped for the rest of the run")
 	assert.False(t, w.attemptedHas("m1"), "and the keyframe pass is left free to retry the same file")
 }
+
+// The frame-rate drain must SUSPEND while anyone is watching, not merely slow
+// down. One analysis walks the whole file for tens of seconds, so the per-item
+// polite pause leaves the disk busy ~90% of the time - enough to starve HLS
+// segment production. This regressed a live playback session in production on
+// 2026-07-19 (stalled client + perpetually buffering Chromecast).
+func TestFrameRateReclassify_SuspendedWhilePlaybackActive(t *testing.T) {
+	store := &fakeKeyframeStore{staleQueue: [][]string{{"m1"}}, reclassifyReturn: 1}
+	active := 1
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{}).
+		WithFrameRateAnalyzer(&fakeFrameRateAnalyzer{mode: "cfr"}, store).
+		WithActivePlayback(func() int { return active })
+
+	assert.Equal(t, 0, w.processBatch(context.Background()), "a viewer is watching: the drain yields entirely")
+	assert.Empty(t, store.staleCalls(), "candidates are not even queried while playback is active")
+	assert.Empty(t, store.reclassified(), "and nothing is analyzed")
+
+	active = 0
+	assert.Equal(t, 1, w.processBatch(context.Background()), "the server is quiet again: the drain resumes")
+	assert.Len(t, store.reclassified(), 1)
+}

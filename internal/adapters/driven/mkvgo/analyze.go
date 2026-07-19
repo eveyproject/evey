@@ -13,10 +13,16 @@ import (
 // frame rate ("cfr" / "vfr"), or "" when unknown - a non-EBML container (MP4
 // keeps its current probing paths), a container with fewer than 2 video
 // frames, or one whose classification mkvgo could not derive. The walk is
-// ops.Analyze's structural, HEAD-ONLY pass over block headers (cost
-// proportional to block count, never to media volume): the same class of
-// cost the keyframe backfill already pays per file, so calling this
-// alongside it does not add a scan over the library.
+// ops.Analyze's structural pass over block headers (proportional to block
+// count, never to decoded volume - no sample is ever decoded).
+//
+// COST: seconds, not milliseconds - do not confuse this with the seek-index
+// probe. "Head-only" is mkvgo's term for discarding block PAYLOADS; the walk
+// itself still visits every block in the file, start to EOF, so wall time
+// tracks the block count and therefore the runtime (~20s measured on a 2h 4K
+// MKV). The millisecond-class probe is the Cues/stss read, which is a small
+// localised index; this is a different, far heavier operation. Never call it
+// on a request path.
 //
 // No error is returned for a non-EBML container - "unknown" is a legitimate,
 // expected outcome for those, not a failure the caller should log or retry.

@@ -384,6 +384,17 @@ func (w *KeyframeBackfillWorker) processFrameRateBatch(ctx context.Context) int 
 	if w.frameRate == nil || w.frameRateStore == nil {
 		return 0
 	}
+	// SUSPEND while anyone is watching. Unlike the keyframe probe (a localised
+	// Cues/stss read), one frame-rate analysis walks the WHOLE file - tens of
+	// seconds of near-continuous disk reads. The per-item polite pause cannot
+	// help: 20s of I/O for a 2s gap still leaves the disk ~90% busy, which
+	// starves HLS segment production. Observed in production 2026-07-19: a
+	// library-wide drain ran alongside playback and pushed copy-rung segments
+	// past their deadline, stalling one client and leaving a Chromecast
+	// buffering. The backfill is never urgent; a viewer always is.
+	if w.activePlayback != nil && w.activePlayback() > 0 {
+		return 0
+	}
 	ids, err := w.frameRateStore.ListVideoFrameRateStale(ctx, w.batchSize, FrameRateAlgoVersion, w.frExcluded())
 	if err != nil {
 		w.logger.Warn("frame-rate reclassify: list candidates failed", slog.Any("err", err))
