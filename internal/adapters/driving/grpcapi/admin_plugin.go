@@ -419,6 +419,14 @@ func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetP
 	if d.logDir == "" || req.PluginId == "" {
 		return &eveyv1.GetPluginLogsResponse{}, nil
 	}
+	// Plugin ids are server-generated ("plg-<hex>", see id.New) and never carry
+	// a separator, so anything that does is a traversal attempt: the id used to
+	// go straight into the join, letting an admin read any *.log on the host.
+	// The plugin ASSET handler already rejects exactly these - this is its twin.
+	if strings.ContainsAny(req.PluginId, `/\`) || strings.Contains(req.PluginId, "..") {
+		span.SetStatus(otelcodes.Error, "invalid plugin id")
+		return nil, status.Error(codes.InvalidArgument, "invalid plugin id")
+	}
 	logPath := filepath.Join(d.logDir, "plugins", req.PluginId+".log")
 	f, err := os.Open(logPath) //nolint:gosec
 	if err != nil {

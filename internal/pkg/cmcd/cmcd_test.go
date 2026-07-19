@@ -138,3 +138,21 @@ func httpReq(target string) *http.Request {
 	}
 	return r
 }
+
+// maxRawKeys bounds how MANY keys land in the JSONB column, but nothing bounded
+// how LONG each value was: a player could push a single ~1MB value (the only
+// real ceiling being Go's default request limit) on every segment request, a
+// few times a second, for the whole session. Same intent as maxRawKeys, other
+// dimension.
+func TestFromRequest_OversizedValue_Truncated(t *testing.T) {
+	huge := strings.Repeat("A", 64*1024)
+	r := httpReq("/hls/x/y?CMCD=" + url.QueryEscape(`br=2400,sid="`+huge+`"`))
+
+	p, ok := FromRequest(r)
+	require.True(t, ok)
+	assert.Equal(t, 2400, p.EncodedKbps, "a real key alongside must still parse")
+	assert.LessOrEqual(t, len(p.SessionID), maxValueLen, "the typed field must be bounded")
+	for k, v := range p.Raw {
+		assert.LessOrEqual(t, len(v), maxValueLen, "Raw value %q must be bounded", k)
+	}
+}

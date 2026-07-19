@@ -97,6 +97,13 @@ func FromRequest(r *http.Request) (Payload, bool) {
 // healthy margin for vendor extensions; beyond that, drop.
 const maxRawKeys = 50
 
+// maxValueLen bounds a single CTA-5004 value. maxRawKeys caps how many keys we
+// persist; without this, one key could still carry a payload as large as the
+// request allows, on every segment request of a long session. Every standard
+// key is far shorter (a session id is a UUID, ~36 bytes), so 256 truncates only
+// what was never meaningful.
+const maxValueLen = 256
+
 func parse(s string) Payload {
 	p := Payload{Raw: make(map[string]string, 12)}
 
@@ -111,6 +118,9 @@ func parse(s string) Payload {
 		// (the strongly-typed Payload fields drive the QoE dashboard).
 		// Only the unstructured Raw map respects the cap so JSONB
 		// storage stays bounded.
+		if len(v) > maxValueLen {
+			v = v[:maxValueLen]
+		}
 		if len(p.Raw) < maxRawKeys {
 			p.Raw[k] = v
 		}

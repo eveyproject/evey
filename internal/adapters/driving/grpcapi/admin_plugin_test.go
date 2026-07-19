@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
@@ -380,4 +383,40 @@ func TestApplyPluginUpdate_NotFound(t *testing.T) {
 	if code := status.Code(err); code != codes.NotFound {
 		t.Fatalf("code = %v, want NotFound", code)
 	}
+}
+
+// GetPluginLogs joined the caller-supplied plugin id straight into a path, so
+// an admin could walk out of the plugin log directory and read any *.log on the
+// host. Plugin ids are server-generated ("plg-<hex>") and never contain a
+// separator, so anything that does is a traversal attempt. The plugin ASSET
+// handler already rejects these - this was the same check missing on its twin.
+func TestGetPluginLogs_RejectsTraversal(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "plugins"), 0o755))
+	// A file the traversal would reach if the id were not validated.
+	outside := filepath.Join(dir, "secret.log")
+	require.NoError(t, os.WriteFile(outside,
+		[]byte(`{"time":"2026-07-20T00:00:00Z","level":"INFO","msg":"leaked"}`+"\n"), 0o644))
+
+	h := &adminPluginHandler{logDir: dir}
+
+	for _, id := range []string{"../secret", "../../etc/passwd", "sub/dir", `..\secret`} {
+		resp, err := h.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: id})
+		if err == nil && resp != nil && len(resp.Entries) > 0 {
+			t.Errorf("plugin id %q escaped the log directory and returned %d entries", id, len(resp.Entries))
+		}
+	}
+}
+
+func TestGetPluginLogs_StillReadsARealPluginLog(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "plugins"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "plugins", "plg-abc123.log"),
+		[]byte(`{"time":"2026-07-20T00:00:00Z","level":"INFO","msg":"hello"}`+"\n"), 0o644))
+
+	h := &adminPluginHandler{logDir: dir}
+	resp, err := h.GetPluginLogs(context.Background(), &eveyv1.GetPluginLogsRequest{PluginId: "plg-abc123"})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.NotEmpty(t, resp.Entries, "a legitimate plugin id must still return its log")
 }
