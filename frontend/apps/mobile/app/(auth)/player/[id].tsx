@@ -23,12 +23,11 @@ import {
   useLibraryServiceListMediaItems,
   usePlaybackServiceMarkAsWatched,
 } from "@evey/api";
-import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
-import { useNextEpisode, COUNTDOWN_SEC } from "../../../src/hooks/useNextEpisode";
+import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
 import { useChapters } from "../../../src/hooks/useChapters";
 import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
@@ -59,7 +58,6 @@ const WATCHED_THRESHOLD = 0.9;
 
 export default function PlayerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const theme = useTheme();
   const { t } = useTranslation();
   const { width: screenW, height: screenH } = useWindowDimensions();
   const insets = useSafeAreaInsets();

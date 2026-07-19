@@ -9,7 +9,7 @@ import {
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
 } from "@evey/api";
-import type { V1MediaItem, V1MediaPerson } from "@evey/api";
+import type { V1MediaPerson } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -349,7 +349,7 @@ export default function MediaDetailScreen() {
       {(isSeries || isSeason) && episodes.length > 0 && (
         <View style={{ marginTop: 24 }}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.episodes")}</Text>
-          {episodes.map((ep, index) => (
+          {episodes.map((ep, _index) => (
             <FocusableCard
               key={ep.id}
               onPress={() => router.push(`/(auth)/media/${ep.id}`)}

@@ -105,8 +105,8 @@ function HistoryItem({
   theme,
   isFirst,
   onPress,
-  onRemove,
-  isPending,
+  onRemove: _onRemove,
+  isPending: _isPending,
 }: {
   item: V1WatchProgress;
   theme: ReturnType<typeof useTheme>;

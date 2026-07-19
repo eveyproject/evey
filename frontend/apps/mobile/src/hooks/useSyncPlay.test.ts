@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
 // Mock WebSocket with a controllable fake - seam is globalThis.WebSocket
@@ -117,7 +117,9 @@ describe("useSyncPlay - message dispatch", () => {
     const onPlay = vi.fn();
     const { result } = renderHook(() => useSyncPlay({ onPlay }));
 
-    act(() => { result.current.createRoom; }); // ensure hook is live
+    // The assertion below used to be a bare `result.current.createRoom;` expression
+    // statement (no-op, tested nothing despite the "ensure hook is live" comment).
+    expect(result.current.createRoom).toBeInstanceOf(Function);
     // Manually call connect via createRoom mock
     mockFetch.mockResolvedValueOnce({ id: "room-1", code: "12345" });
 

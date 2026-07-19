@@ -57,7 +57,7 @@ vi.mock("@tanstack/react-query", async (importActual) => {
 
 // lucide-react is used by the Select component (ChevronDown icon)
 vi.mock("lucide-react", () => {
-  const Icon = ({ size, ...props }: { size?: number; [k: string]: unknown }) => (
+  const Icon = ({ size: _size, ...props }: { size?: number; [k: string]: unknown }) => (
     <span {...props} />
   );
   return { ChevronDown: Icon };

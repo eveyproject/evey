@@ -13,7 +13,7 @@ vi.mock("@evey/api", () => ({
 }));
 
 vi.mock("./MediaCard", () => ({
-  MediaCard: ({ item, lite }: { item: { id: string; title?: string }; lite?: boolean }) => (
+  MediaCard: ({ item }: { item: { id: string; title?: string }; lite?: boolean }) => (
     <div data-testid={`card-${item.id}`}>{item.title}</div>
   ),
 }));

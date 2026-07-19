@@ -68,7 +68,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
       queryClient.invalidateQueries({ queryKey: [`/api/v1/metadata/${mediaItemId}/artwork`] });
       queryClient.invalidateQueries({ queryKey: [`/api/v1/media/${mediaItemId}`] });
       toast.success(t("media.detail.artworkUpdated"));
-    } catch (err) {
+    } catch {
       toast.error(t("media.detail.artworkFailed"));
     } finally {
       setSelecting(null);

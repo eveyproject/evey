@@ -43,6 +43,9 @@ class MockHls {
   });
   constructor(config: MockHlsConfig = {}) {
     this.config = config;
+    // Tests need a handle on the constructed mock instance to fire captured
+    // event listeners later.
+    // oxlint-disable-next-line no-this-alias
     lastHlsInstance = this;
   }
 }

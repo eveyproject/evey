@@ -213,7 +213,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
   if (request.authToken) {
     const h: Record<string, string> = {
       ...extraHeaders,
-      ...(request.headers ?? {}),
+      ...request.headers,
       Authorization: `Bearer ${request.authToken}`,
     };
     const loc = getLocale?.();
@@ -232,7 +232,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
   }
 
   const token = await _ensureFreshToken(request.url);
-  const headers: Record<string, string> = { ...extraHeaders, ...(request.headers ?? {}) };
+  const headers: Record<string, string> = { ...extraHeaders, ...request.headers };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const locale = getLocale?.();
   if (locale) headers["Accept-Language"] = locale;
@@ -256,7 +256,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
 
 export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   const token = await _ensureFreshToken(request.url);
-  const headers: Record<string, string> = { ...extraHeaders, ...(request.headers ?? {}) };
+  const headers: Record<string, string> = { ...extraHeaders, ...request.headers };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const locale = getLocale?.();
   if (locale) headers["Accept-Language"] = locale;

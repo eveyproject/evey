@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { useMusicPlayerStore, type MusicTrack, type MusicSource } from "./musicPlayer";
 
 function makeTrack(id: string, overrides: Partial<MusicTrack> = {}): MusicTrack {

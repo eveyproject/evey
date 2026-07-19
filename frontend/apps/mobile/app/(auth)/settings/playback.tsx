@@ -126,7 +126,7 @@ export default function PlaybackSettingsScreen() {
         headers: { "Content-Type": "application/json" },
         data: {
           preferences: {
-            ...(defaultProfile?.preferences ?? {}),
+            ...defaultProfile?.preferences,
             ...patch,
           },
         },

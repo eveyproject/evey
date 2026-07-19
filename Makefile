@@ -149,8 +149,12 @@ ci-fast-unit:
 # evey-web (the host's pnpm/turbo hit root-owned .turbo dirs). Turbo caches, so
 # an unchanged push is ~1s; a cold frontend build is ~16s.
 ci-fast-frontend:
-	@echo "→ frontend typecheck + lint + build (evey-web)"
-	@docker exec -w /app evey-web sh -c 'pnpm run typecheck && pnpm run lint && pnpm run build'
+	@echo "→ frontend typecheck (evey-web)"
+	@docker exec -w /app evey-web sh -c 'pnpm run typecheck'
+	@echo "→ frontend lint (oxlint, warnings are errors)"
+	@docker exec -w /app evey-web sh -c 'pnpm run lint'
+	@echo "→ frontend build (evey-web)"
+	@docker exec -w /app evey-web sh -c 'pnpm run build'
 
 ci-fast-sec:
 	@# Mirror du ratchet CI : --new-from-rev=<base> ne flag QUE les findings

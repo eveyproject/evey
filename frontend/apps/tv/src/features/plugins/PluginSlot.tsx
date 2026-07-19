@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View, ActivityIndicator, Text, StyleSheet, InteractionManager } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
-import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch, eveyFetchRaw, adminPluginServiceIssuePluginToken } from "@evey/api";

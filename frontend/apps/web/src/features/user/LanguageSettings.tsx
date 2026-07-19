@@ -45,7 +45,7 @@ export function LanguageSettings() {
   // stale render snapshot - otherwise the second write would drop the first.
   const prefsRef = useRef<Record<string, string>>({});
   useEffect(() => {
-    prefsRef.current = { ...(activeProfile?.preferences ?? {}) };
+    prefsRef.current = { ...activeProfile?.preferences };
   }, [activeProfile?.preferences]);
 
   const uiLangOptions = supportedLanguages.map((l) => ({

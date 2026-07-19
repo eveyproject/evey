@@ -13,7 +13,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("lucide-react", () => {
-  const Icon = ({ size, ...props }: { size?: number; [k: string]: unknown }) => <span {...props} />;
+  const Icon = ({ size: _size, ...props }: { size?: number; [k: string]: unknown }) => <span {...props} />;
   return {
     LayoutDashboard: Icon,
     PlayCircle: Icon,

@@ -57,7 +57,7 @@ export default function AdminMediaSegmentsScreen() {
   const { t } = useTranslation();
 
   const { data: mediaItem, isLoading: itemLoading } = useLibraryServiceGetMediaItem(id ?? "");
-  const { data: serverSegments, isLoading: segLoading, refetch } = useAdminMediaSegments(id);
+  const { data: serverSegments, isLoading: segLoading } = useAdminMediaSegments(id);
 
   const setSegment = useSetSegment(id ?? "");
   const deleteSegment = useDeleteSegment(id ?? "");
