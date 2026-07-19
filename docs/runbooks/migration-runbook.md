@@ -113,6 +113,13 @@ Guidelines:
 - **DROP COLUMN** → only metadata, but the column cannot be restored without a backup. Never drop the same release a new version of the code is rolled out - prefer a two-step: stop reading the column, deploy, then drop in the next release.
 - **FK on big tables** → `ADD CONSTRAINT ... NOT VALID` then `VALIDATE CONSTRAINT` in a follow-up migration. Avoid a single blocking `ADD CONSTRAINT ... FOREIGN KEY ...`.
 - **Batch UPDATE / backfill** → never in a single migration on a big table. Ship a no-op schema migration + a background job.
+- **Column replacement (expand → migrate → contract)** → do not fold `ADD COLUMN` + backfill + `SET NOT NULL` + `DROP COLUMN` of the old one into a single migration. That shape only works because Evey runs single-instance today, with migrations applied synchronously at boot: during the window, old code reading the dropped column and new code reading the new one cannot coexist, so a rolling or multi-replica deploy would serve errors from whichever half is behind.
+  Known migrations written this way, kept as-is because they have already shipped: `000077` and `000098_playlists_profile_id.up.sql` (adds `profile_id`, backfills, sets `NOT NULL`, drops `user_id`).
+  For a new one, split across three releases:
+  1. **expand** - add the new column nullable, write to *both* columns, keep reading the old one;
+  2. **migrate** - backfill the new column (background job, not the migration), then switch reads to it;
+  3. **contract** - once no deployed code touches the old column, `SET NOT NULL` and drop it.
+  Each step is independently deployable and reversible, which the one-file version is not.
 
 ## Post-migration checks
 
