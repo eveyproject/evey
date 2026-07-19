@@ -6,7 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // inner records whether it ran and the claims it observed, so the middleware
@@ -85,6 +88,44 @@ func TestHTTPAuthMiddleware_NoToken_401(t *testing.T) {
 
 	if w.Code != http.StatusUnauthorized || ran {
 		t.Fatalf("no token must be 401: got %d ran=%v", w.Code, ran)
+	}
+}
+
+// A rejected authentication used to vanish: 401 with no log line and no
+// metric, so a credential-stuffing run against the API (unlike the login
+// form, which logs per attempt) was invisible to operators. The counter is
+// the alerting surface; the reason label separates probing without any
+// credential from a presented-but-invalid token.
+func TestHTTPAuthMiddleware_CountsRejections(t *testing.T) {
+	verifier := &fakeTokenVerifier{err: errTest}
+	var ran bool
+	var uid string
+	var admin bool
+	h := httpAuthMiddleware(verifier)(recordingHandler(&ran, &uid, &admin))
+
+	missingBefore := testutil.ToFloat64(metrics.AuthFailuresTotal.WithLabelValues("missing_bearer"))
+	invalidBefore := testutil.ToFloat64(metrics.AuthFailuresTotal.WithLabelValues("invalid_token"))
+
+	// Probe with no credential at all.
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/profiles", nil))
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", w.Code)
+	}
+	if got := testutil.ToFloat64(metrics.AuthFailuresTotal.WithLabelValues("missing_bearer")) - missingBefore; got != 1 {
+		t.Errorf("missing_bearer counter delta = %v, want 1", got)
+	}
+
+	// A presented but invalid token.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/profiles", nil)
+	req.Header.Set("Authorization", "Bearer forged.jwt.value")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", w.Code)
+	}
+	if got := testutil.ToFloat64(metrics.AuthFailuresTotal.WithLabelValues("invalid_token")) - invalidBefore; got != 1 {
+		t.Errorf("invalid_token counter delta = %v, want 1", got)
 	}
 }
 

@@ -33,6 +33,17 @@ var (
 		Buckets: prometheus.DefBuckets,
 	}, []string{"method", "path"})
 
+	// AuthFailuresTotal counts rejected authentications on the generic API
+	// routes. The login form logs per attempt (user/command_service.go), but a
+	// credential-stuffing run replaying stolen bearers against the API was
+	// invisible: 401 with no trace. reason: "missing_bearer" (probing without
+	// any credential) vs "invalid_token" (a credential was presented and
+	// rejected - the security-relevant bucket to alert on).
+	AuthFailuresTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_auth_failures_total",
+		Help: "Rejected authentications on generic API routes.",
+	}, []string{"reason"})
+
 	DBConnectionsOpen = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "evey_db_connections_open",
 		Help: "Number of open DB connections.",
@@ -236,7 +247,7 @@ var (
 func init() {
 	prometheus.MustRegister(
 		HLSSessionsGauge, TranscodesActive,
-		HTTPRequestsTotal, HTTPRequestDuration,
+		HTTPRequestsTotal, HTTPRequestDuration, AuthFailuresTotal,
 		DBConnectionsOpen, DBConnectionsIdle, DBConnectionsInUse,
 		MediaItemsTotal,
 		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,

@@ -3,9 +3,11 @@ package httpapi
 import (
 	"context"
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
 
 	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 type httpClaimsCtxKey struct{}
@@ -29,11 +31,24 @@ func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Hand
 		return func(w http.ResponseWriter, r *http.Request) {
 			token := extractBearerToken(r)
 			if token == "" {
+				// Routine on expired sessions (a tab waking up 401s once
+				// before the refresh) - counted for the ops dashboard, logged
+				// at debug only so default logs stay quiet.
+				metrics.AuthFailuresTotal.WithLabelValues("missing_bearer").Inc()
+				slog.Debug("auth rejected", slog.String("reason", "missing_bearer"),
+					slog.String("method", r.Method), slog.String("path", r.URL.Path))
 				http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 				return
 			}
 			claims, err := verifier.ValidateAccessToken(token)
 			if err != nil {
+				// A credential was PRESENTED and rejected - the bucket a
+				// stuffing run with stolen bearers lands in, mirroring the
+				// per-attempt login log in user/command_service.go. Never log
+				// the token itself.
+				metrics.AuthFailuresTotal.WithLabelValues("invalid_token").Inc()
+				slog.Warn("auth rejected", slog.String("reason", "invalid_token"),
+					slog.String("method", r.Method), slog.String("path", r.URL.Path))
 				http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 				return
 			}
