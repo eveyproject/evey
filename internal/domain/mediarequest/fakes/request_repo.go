@@ -6,6 +6,7 @@ package fakes
 import (
 	"context"
 	"maps"
+	"slices"
 	"sync"
 
 	"github.com/evey-project/evey/internal/domain/mediarequest"
@@ -126,8 +127,8 @@ func (f *FakeRepository) All() []*mediarequest.Request {
 // tick - so insertion order is the deterministic stand-in for "newest".
 func (f *FakeRepository) newestFirstLocked() []*mediarequest.Request {
 	out := make([]*mediarequest.Request, 0, len(f.order))
-	for i := len(f.order) - 1; i >= 0; i-- {
-		if r, ok := f.byID[f.order[i]]; ok {
+	for _, id := range slices.Backward(f.order) {
+		if r, ok := f.byID[id]; ok {
 			out = append(out, r)
 		}
 	}
