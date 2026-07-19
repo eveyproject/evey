@@ -364,3 +364,22 @@ func TestStream_NoRootsKnown_FailsOpen(t *testing.T) {
 		t.Fatalf("want 200 when roots unknown, got %d", w.Code)
 	}
 }
+
+// libraryAccessFunc is handed the same checker as checkLibraryAccess, which
+// denies (rather than panics) when the checker is unwired. The per-item
+// variant used by the archive/ZIP paths must fail closed the same way: a nil
+// checker there used to dereference straight into a panic mid-response.
+func TestLibraryAccessFunc_NilCheckerDeniesInsteadOfPanicking(t *testing.T) {
+	allow := libraryAccessFunc(context.Background(), &domainuser.Claims{UserID: "usr-1"}, nil)
+	if allow("lib-1") {
+		t.Error("a nil checker must deny, not grant")
+	}
+}
+
+func TestLibraryAccessFunc_NilCheckerStillGrantsAdmin(t *testing.T) {
+	// Admins short-circuit before the checker is consulted at all.
+	allow := libraryAccessFunc(context.Background(), &domainuser.Claims{UserID: "usr-1", IsAdmin: true}, nil)
+	if !allow("lib-1") {
+		t.Error("admin must keep full access")
+	}
+}

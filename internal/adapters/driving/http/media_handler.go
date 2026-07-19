@@ -476,7 +476,10 @@ func libraryAccessFunc(ctx context.Context, claims *domainuser.Claims, checker L
 		if isAdmin {
 			return true
 		}
-		if claims == nil {
+		// Mirror checkLibraryAccess: an unwired checker denies rather than
+		// dereferencing nil. This one runs per archive member mid-response, so
+		// a panic here would tear down an in-flight ZIP instead of returning.
+		if claims == nil || checker == nil {
 			return false
 		}
 		if v, ok := cache[lib]; ok {
