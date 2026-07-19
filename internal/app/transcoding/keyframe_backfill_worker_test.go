@@ -338,17 +338,22 @@ func TestFrameRateReclassify_YieldsToPendingKeyframeWork(t *testing.T) {
 	assert.Empty(t, store.staleCalls(), "stale candidates are not even queried while keyframes are pending")
 }
 
-// An "unknown" answer must not DROP a verdict that may well be correct: the
-// analyzer simply cannot speak for this container (non-EBML, too few frames).
-func TestFrameRateReclassify_UnknownLeavesTheVerdictAlone(t *testing.T) {
-	store := &fakeKeyframeStore{staleQueue: [][]string{{"m1"}}}
-	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mkv"), &fakeKeyframeProber{}).
+// An "unknown" answer must still be PERSISTED (as a version stamp), or the row
+// stays below the current version and comes back as a candidate on every
+// drain - a library of non-EBML containers would be re-analyzed forever. The
+// store is what protects the stored verdict from being overwritten by "";
+// the worker's job is simply not to skip the write.
+func TestFrameRateReclassify_UnknownStillStampsSoTheDrainConverges(t *testing.T) {
+	store := &fakeKeyframeStore{staleQueue: [][]string{{"m1"}}, reclassifyReturn: 1}
+	w := newKeyframeWorker(store, oneItemReader("m1", "/media/m1.mp4"), &fakeKeyframeProber{}).
 		WithFrameRateAnalyzer(&fakeFrameRateAnalyzer{mode: ""}, store)
 
 	w.processBatch(context.Background())
-	assert.Empty(t, store.reclassified(), "an unknown answer never overwrites a stored verdict")
+	require.Len(t, store.reclassified(), 1, "an unknown answer is still persisted, as a stamp")
+	assert.Equal(t, fakeReclassifyCall{id: "m1", mode: "", version: FrameRateAlgoVersion},
+		store.reclassified()[0])
 	_, skipped := w.frAttempted["m1"]
-	assert.True(t, skipped, "and the item is skipped for the rest of the run instead of looping")
+	assert.False(t, skipped, "it is not a failure: the row leaves the candidate set via its stamp")
 }
 
 // A failing analysis must not pin the queue, and must not poison the keyframe

@@ -491,6 +491,61 @@ func TestMediaStreamRepo_FrameRateMode_RoundTrip(t *testing.T) {
 	n4, err := streamRepo.ReclassifyFrameRateMode(ctx, item.ID, "vfr", 1)
 	require.NoError(t, err)
 	assert.Equal(t, 0, n4, "an up-to-date verdict is not rewritten")
+
+	// An "unknown" answer from a NEWER classifier stamps the version but must
+	// not drop the verdict - the analyzer failing to speak is not evidence that
+	// the stored answer was wrong.
+	n5, err := streamRepo.ReclassifyFrameRateMode(ctx, item.ID, "", 2)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n5)
+
+	got, err = streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "cfr", got[0].FrameRateMode, "an unknown answer never erases a stored verdict")
+
+	// ...but it DID stamp, so the row converges instead of being re-listed on
+	// every drain forever.
+	stale, err = streamRepo.ListVideoFrameRateStale(ctx, 10, 2, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, stale, string(item.ID), "the stamp takes it out of the candidate set")
+}
+
+// A row that was NEVER classified is a candidate too: '' fails open at the copy
+// gate, so a genuinely VFR source sitting there is served as copy and drifts
+// A/V - and it never self-heals, because classification only ever rode along a
+// keyframe write.
+func TestMediaStreamRepo_FrameRateStale_IncludesNeverClassified(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("frlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("frmi", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{
+			ID: "frs1", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video",
+			Codec: "h264", Language: "und",
+		},
+	}))
+
+	stale, err := streamRepo.ListVideoFrameRateStale(ctx, 10, 1, nil)
+	require.NoError(t, err)
+	assert.Contains(t, stale, string(item.ID),
+		"a never-classified row (frame_rate_mode = '') is a candidate, not out of scope")
+
+	n, err := streamRepo.ReclassifyFrameRateMode(ctx, item.ID, "vfr", 1)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	got, err := streamRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "vfr", got[0].FrameRateMode, "the first real verdict lands on a '' row")
 }
 
 

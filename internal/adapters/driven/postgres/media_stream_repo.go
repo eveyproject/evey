@@ -484,6 +484,14 @@ func (r *MediaStreamRepository) SetFrameRateMode(ctx context.Context, mediaItemI
 // artifact read as a frame-duration outlier) would otherwise pin those titles
 // to a forced transcode forever.
 //
+// An "" mode (the analyzer cannot speak for this container - non-EBML, too few
+// frames) stamps the version WITHOUT touching the verdict. Both halves matter:
+// dropping a possibly-correct verdict would be a regression, but skipping the
+// stamp would leave the row below the current version and re-listed as a
+// candidate on every single drain, so an MP4 library would be re-walked
+// forever. The stamp records "the current classifier looked and had nothing to
+// add".
+//
 // Guarded on algo_version < the caller's, so it is idempotent and cannot walk
 // a verdict backwards if two drains overlap.
 func (r *MediaStreamRepository) ReclassifyFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string, algoVersion int16) (int, error) {
@@ -493,7 +501,9 @@ func (r *MediaStreamRepository) ReclassifyFrameRateMode(ctx context.Context, med
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE media_streams SET frame_rate_mode = $1, frame_rate_algo_version = $2
+		`UPDATE media_streams
+		 SET frame_rate_mode = CASE WHEN $1 <> '' THEN $1 ELSE frame_rate_mode END,
+		     frame_rate_algo_version = $2
 		 WHERE media_item_id = $3 AND stream_type = 'video' AND frame_rate_algo_version < $2`,
 		mode, algoVersion, string(mediaItemID))
 	if err != nil {
@@ -505,14 +515,20 @@ func (r *MediaStreamRepository) ReclassifyFrameRateMode(ctx context.Context, med
 	return int(n), nil
 }
 
-// ListVideoFrameRateStale returns media item IDs whose video stream carries a
-// cfr/vfr verdict from a classifier older than algoVersion, skipping `exclude`.
-// Rows with no verdict at all (frame_rate_mode = '') are deliberately out of
-// scope: they are the keyframe backfill's job, and "" fails open at the copy
-// gate anyway, so re-walking them would buy nothing.
+// ListVideoFrameRateStale returns media item IDs whose video stream carries no
+// verdict from the CURRENT classifier, skipping `exclude`. That covers both a
+// stale cfr/vfr verdict AND a row never classified at all: the predicate is the
+// version, not the mode.
+//
+// Rows sitting at frame_rate_mode = '' are NOT harmless, which is why they are
+// in scope. '' fails OPEN at the copy gate (CopyRungEligible only blocks a
+// confirmed 'vfr'), so a genuinely variable-rate source that was never analyzed
+// is served as a -c:v copy and drifts A/V. They also never self-heal: the
+// classification only ever rode along a keyframe write, so a row whose
+// keyframes are already indexed would stay unclassified forever.
 //
 // Like the other backfill queries this is the drain's resumability mechanism -
-// it shrinks as verdicts get restamped, so an interrupted run simply resumes.
+// it shrinks as rows get stamped, so an interrupted run simply resumes.
 func (r *MediaStreamRepository) ListVideoFrameRateStale(ctx context.Context, limit int, algoVersion int16, exclude []string) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.ListVideoFrameRateStale")
 	defer span.End()
@@ -525,7 +541,6 @@ func (r *MediaStreamRepository) ListVideoFrameRateStale(ctx context.Context, lim
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT DISTINCT media_item_id FROM media_streams
 		 WHERE stream_type = 'video'
-		   AND frame_rate_mode <> ''
 		   AND frame_rate_algo_version < $1
 		   AND NOT (media_item_id = ANY($2))
 		 ORDER BY media_item_id

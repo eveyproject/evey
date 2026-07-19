@@ -53,11 +53,12 @@ type FrameRateStore interface {
 	ReclassifyFrameRateMode(ctx context.Context, mediaItemID shared.MediaItemID, mode string, algoVersion int16) (int, error)
 }
 
-// FrameRateAlgoVersion identifies the classifier behind a stored cfr/vfr
-// verdict. BUMP IT whenever the classification can change for the same bytes -
-// that is the supported way to force a library-wide re-analysis, with no DB
-// surgery and no admin action: rows stamped below the current version are
-// picked up by the backfill worker's re-classification drain and restamped.
+// FrameRateAlgoVersion identifies the classifier that last looked at a row -
+// whether it produced a verdict or came back "unknown". BUMP IT whenever the
+// classification can change for the same bytes: that is the supported way to
+// force a library-wide re-analysis, with no DB surgery and no admin action.
+// Rows stamped below the current version are picked up by the backfill
+// worker's re-classification drain and restamped.
 //
 // 1 (mkvgo v0.25.1): first versioned classifier. Everything before it reads
 // back as 0 and gets re-analyzed, because the older variance test mistook a
@@ -427,27 +428,28 @@ func (w *KeyframeBackfillWorker) reclassifyOne(ctx context.Context, mediaItemID 
 			slog.String("media_id", mediaItemID), slog.Any("err", err))
 		return false
 	}
-	if mode == "" {
-		// The analyzer cannot speak for this container (non-EBML, too few
-		// frames). Restamping to "" would DROP a verdict that may well be
-		// right, so leave the row alone and skip it for this run. Logged: this
-		// row stays stale forever otherwise, and silence would make a whole
-		// library of them indistinguishable from "nothing to do".
-		w.logger.Debug("frame-rate reclassify: analyzer returned unknown, verdict left as-is",
-			slog.String("media_id", mediaItemID))
-		return false
-	}
+	// An "" mode is still persisted: the store stamps the version without
+	// touching the verdict (see ReclassifyFrameRateMode). Returning early here
+	// instead would leave the row below the current version, so it would come
+	// back as a candidate on every drain - an MP4-heavy library would be
+	// re-analyzed forever.
 	n, err := w.frameRateStore.ReclassifyFrameRateMode(ctx, shared.MediaItemID(mediaItemID), mode, FrameRateAlgoVersion)
 	if err != nil {
 		w.logger.Warn("frame-rate reclassify: persist failed",
 			slog.String("media_id", mediaItemID), slog.Any("err", err))
 		return false
 	}
-	if n > 0 {
+	switch {
+	case n > 0 && mode != "":
 		w.logger.Info("frame-rate reclassified",
 			slog.String("media_id", mediaItemID),
 			slog.String("title", item.Title),
 			slog.String("frame_rate_mode", mode))
+	case n > 0:
+		// Stamped only. Debug, not Info: on a library of non-EBML containers
+		// this is the common outcome and would drown the useful line above.
+		w.logger.Debug("frame-rate: analyzer had nothing to add, version stamped",
+			slog.String("media_id", mediaItemID))
 	}
 	return true
 }
