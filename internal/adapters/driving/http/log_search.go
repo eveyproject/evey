@@ -233,7 +233,7 @@ func parseLogLine(line string) (logSearchEntry, bool) {
 	e.SessionID = firstField(rec, "session_id", "sessionID")
 	e.UserID = firstField(rec, "user_id", "userID")
 
-	e.Where, e.Source = classifyLog(e.Component, e.Msg)
+	e.Where, e.Source = classifyLog(e.Component, e.Msg, strField(rec, "engine"))
 
 	// Remaining attrs (everything that is not a promoted top-level field) go
 	// into Fields so the UI can render the full record without us enumerating

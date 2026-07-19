@@ -26,16 +26,22 @@ const (
 	sourceMkvgo  = "mkvgo"
 	sourceQoE    = "qoe"
 	sourceGRPC   = "grpc"
+	sourceClient = "client"
 	sourceOther  = "other"
 )
 
 // ffmpegComponents / mkvgoComponents drive the ffmpeg vs mkvgo split. The big
 // ffmpeg adapter sets no component and is matched by msg prefix instead.
+//
+// keyframe_backfill_worker is deliberately ABSENT: it is a MIXED component -
+// its frame-rate pass is pure mkvgo (an in-process structural walk that never
+// forks) while its keyframe pass picks mkvgo or ffprobe at runtime. Badging it
+// wholesale as ffmpeg was plainly wrong; those lines carry an `engine` field
+// instead, which classifySource trusts over any guess.
 var ffmpegComponents = map[string]bool{
 	"software_producer":          true,
 	"segment_orchestrator":       true,
 	"audio_segment_orchestrator": true,
-	"keyframe_backfill_worker":   true,
 	"level_backfill_worker":      true,
 	"complexity_worker":          true,
 }
@@ -47,11 +53,19 @@ var mkvgoComponents = map[string]bool{
 
 // classifyLog derives (where, source) from a record's component + msg. It is
 // deterministic and order-sensitive: component rules win over msg-prefix rules.
-func classifyLog(component, msg string) (where, source string) {
-	return classifyWhere(component, msg), classifySource(component, msg)
+func classifyLog(component, msg, engine string) (where, source string) {
+	return classifyWhere(component, msg), classifySource(component, msg, engine)
 }
 
-func classifySource(component, msg string) string {
+// classifySource names the engine behind a line. An `engine` stamped by the
+// server is the AUTHORITY: only the code that ran knows whether mkvgo's fast
+// path or the ffprobe fallback served the call, and no component-name heuristic
+// can recover that after the fact.
+func classifySource(component, msg, engine string) string {
+	switch engine {
+	case sourceMkvgo, sourceFFmpeg:
+		return engine
+	}
 	if ffmpegComponents[component] {
 		return sourceFFmpeg
 	}
@@ -63,6 +77,11 @@ func classifySource(component, msg string) string {
 		return sourceQoE
 	case "grpc":
 		return sourceGRPC
+	case "player_client":
+		// Reported BY the browser player, not produced by a server engine.
+		// It was landing in "other", which hid a whole class of client-side
+		// playback errors behind the catch-all bucket.
+		return sourceClient
 	}
 	m := strings.ToLower(msg)
 	switch {

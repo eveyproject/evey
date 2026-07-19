@@ -38,7 +38,7 @@ func TestClassifyLog(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			where, source := classifyLog(c.component, c.msg)
+			where, source := classifyLog(c.component, c.msg, "")
 			if where != c.where {
 				t.Errorf("where: want %q, got %q", c.where, where)
 			}

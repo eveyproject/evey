@@ -324,7 +324,7 @@ func (w *KeyframeBackfillWorker) backfillOne(ctx context.Context, mediaItemID st
 		return false
 	}
 
-	kf, err := w.prober.ProbeKeyframes(ctx, item.File.Path)
+	kf, engine, err := w.probeKeyframes(ctx, item.File.Path)
 	if err != nil || len(kf) == 0 {
 		w.logger.Warn("keyframe backfill: probe failed or empty",
 			slog.String("media_id", mediaItemID),
@@ -345,10 +345,30 @@ func (w *KeyframeBackfillWorker) backfillOne(ctx context.Context, mediaItemID st
 	w.logger.Info("keyframe backfill: indexed",
 		slog.String("media_id", mediaItemID),
 		slog.String("title", item.Title),
-		slog.Int("keyframes", len(kf)))
+		slog.Int("keyframes", len(kf)),
+		slog.String("engine", engine))
 
 	w.backfillFrameRateMode(ctx, mediaItemID, item.File.Path)
 	return true
+}
+
+// keyframeEngineReporter is the optional half of KeyframeProber: an
+// implementation that picks between engines at runtime can name the one that
+// served the call, so the log says what actually ran instead of leaving the
+// admin badge to guess from the component name.
+type keyframeEngineReporter interface {
+	ProbeKeyframesWithEngine(ctx context.Context, filePath string) ([]int64, string, error)
+}
+
+// probeKeyframes prefers the engine-reporting call when the wired prober offers
+// it, and degrades to the plain port (with an empty engine) otherwise - a test
+// fake or the bare ffprobe prober has nothing to report.
+func (w *KeyframeBackfillWorker) probeKeyframes(ctx context.Context, path string) ([]int64, string, error) {
+	if r, ok := w.prober.(keyframeEngineReporter); ok {
+		return r.ProbeKeyframesWithEngine(ctx, path)
+	}
+	kf, err := w.prober.ProbeKeyframes(ctx, path)
+	return kf, "", err
 }
 
 // backfillFrameRateMode classifies item.File.Path's cfr/vfr mode and persists
@@ -455,7 +475,10 @@ func (w *KeyframeBackfillWorker) reclassifyOne(ctx context.Context, mediaItemID 
 		w.logger.Info("frame-rate reclassified",
 			slog.String("media_id", mediaItemID),
 			slog.String("title", item.Title),
-			slog.String("frame_rate_mode", mode))
+			slog.String("frame_rate_mode", mode),
+			// Always mkvgo: ops.Analyze is an in-process structural walk, it
+			// never forks ffmpeg. Stated rather than inferred.
+			slog.String("engine", "mkvgo"))
 	case n > 0:
 		// Stamped only. Debug, not Info: on a library of non-EBML containers
 		// this is the common outcome and would drown the useful line above.

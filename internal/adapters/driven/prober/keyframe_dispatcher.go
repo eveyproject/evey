@@ -85,3 +85,31 @@ func (d *KeyframeDispatcher) mkvgoKeyframes(ctx context.Context, filePath string
 	}
 	return nil
 }
+
+// Engine names reported by ProbeKeyframesWithEngine. They are what the admin
+// log badge shows, so they must name the thing that actually did the work.
+const (
+	EngineMkvgo   = "mkvgo"
+	EngineFFprobe = "ffmpeg"
+)
+
+// ProbeKeyframesWithEngine is ProbeKeyframes plus the name of the engine that
+// actually served the call. The dispatcher is the only layer that knows - it
+// picks the fast path or the fallback at runtime - and without this the caller
+// could only guess from its own component name, which is exactly how the admin
+// log ended up badging pure-mkvgo work as "ffmpeg".
+//
+// Kept as a SEPARATE method rather than widening KeyframeProber: the port has
+// other implementations (the raw ffprobe prober, test fakes) that have nothing
+// to report, and a caller can simply type-assert for this.
+func (d *KeyframeDispatcher) ProbeKeyframesWithEngine(ctx context.Context, filePath string) ([]int64, string, error) {
+	ctx, span := tracing.StartSpan(ctx, "prober.keyframe.dispatch")
+	defer span.End()
+	if kf := d.mkvgoKeyframes(ctx, filePath); len(kf) > 0 {
+		span.AddEvent("keyframes-fastpath")
+		return kf, EngineMkvgo, nil
+	}
+	span.AddEvent("keyframes-ffprobe-fallback")
+	kf, err := d.fallback.ProbeKeyframes(ctx, filePath)
+	return kf, EngineFFprobe, err
+}

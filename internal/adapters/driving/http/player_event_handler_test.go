@@ -99,7 +99,7 @@ func TestPlayerEvent_RejectsAndClamps(t *testing.T) {
 // The admin log search must file these under where=player: that is where an
 // operator investigating a playback incident already looks.
 func TestClassify_PlayerClientComponentIsPlayer(t *testing.T) {
-	where, _ := classifyLog("player_client", "player-client: playback error reported")
+	where, _ := classifyLog("player_client", "player-client: playback error reported", "")
 	if where != wherePlayer {
 		t.Fatalf("where = %q, want %q", where, wherePlayer)
 	}

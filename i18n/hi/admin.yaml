@@ -78,6 +78,7 @@ logs:
     mkvgo: "mkvgo"
     qoe: "QoE (क्लाइंट)"
     grpc: "gRPC"
+    client: क्लाइंट (प्लेयर)
     other: "अन्य"
 
 artworks:

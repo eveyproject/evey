@@ -78,6 +78,7 @@ logs:
     mkvgo: "mkvgo"
     qoe: "QoE（客户端）"
     grpc: "gRPC"
+    client: 客户端（播放器）
     other: "其他"
 
 artworks:

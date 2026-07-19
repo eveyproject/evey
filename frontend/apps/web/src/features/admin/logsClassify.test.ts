@@ -61,3 +61,20 @@ describe("parseLogLine uid", () => {
     expect(a?.uid).not.toBe(b?.uid);
   });
 });
+
+describe("classifySource engine authority", () => {
+  // Mirrors the Go classifier (log_classify.go): live tail classifies in the
+  // browser, search classifies on the server, and the badge must agree.
+  it("trusts the server-stamped engine over the component guess", () => {
+    expect(classifySource("keyframe_backfill_worker", "frame-rate reclassified", "mkvgo")).toBe("mkvgo");
+    expect(classifySource("keyframe_backfill_worker", "keyframe backfill: indexed", "ffmpeg")).toBe("ffmpeg");
+  });
+
+  it("does not badge a mixed component as ffmpeg when no engine is stated", () => {
+    expect(classifySource("keyframe_backfill_worker", "some line")).toBe("other");
+  });
+
+  it("keeps genuinely ffmpeg components as ffmpeg", () => {
+    expect(classifySource("software_producer", "started")).toBe("ffmpeg");
+  });
+});

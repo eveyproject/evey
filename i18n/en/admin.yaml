@@ -78,6 +78,7 @@ logs:
     mkvgo: mkvgo
     qoe: QoE (client)
     grpc: gRPC
+    client: Client (player)
     other: Other
 
 artworks:

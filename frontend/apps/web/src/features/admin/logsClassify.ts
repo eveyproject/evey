@@ -47,13 +47,17 @@ export const WHERE_VALUES = [
   "other",
 ] as const;
 
-export const SOURCE_VALUES = ["ffmpeg", "mkvgo", "qoe", "grpc", "other"] as const;
+export const SOURCE_VALUES = ["ffmpeg", "mkvgo", "qoe", "grpc", "client", "other"] as const;
 
+// Components whose work really is ffmpeg end to end. keyframe_backfill_worker
+// is deliberately ABSENT: it is a MIXED component - its frame-rate pass is pure
+// mkvgo (an in-process structural walk, no fork) and its keyframe pass picks
+// mkvgo or ffprobe at runtime. Blanket-badging it "ffmpeg" was simply wrong, so
+// it now relies on the `engine` field the server stamps on those lines.
 const FFMPEG_COMPONENTS = new Set([
   "software_producer",
   "segment_orchestrator",
   "audio_segment_orchestrator",
-  "keyframe_backfill_worker",
   "level_backfill_worker",
   "complexity_worker",
 ]);
@@ -63,11 +67,20 @@ function hasAnyPrefix(s: string, ...prefixes: string[]): boolean {
   return prefixes.some((p) => s.startsWith(p));
 }
 
-export function classifySource(component: string, msg: string): string {
+// classifySource names the engine behind a line. `engine`, when the server
+// stamped it, is the AUTHORITY: only the code that ran knows whether mkvgo's
+// fast path or the ffprobe fallback served the call, and no amount of guessing
+// from component names can recover that. The heuristics below are the fallback
+// for the lines that do not carry it yet.
+export function classifySource(component: string, msg: string, engine?: string): string {
+  if (engine === "mkvgo" || engine === "ffmpeg") return engine;
   if (FFMPEG_COMPONENTS.has(component)) return "ffmpeg";
   if (MKVGO_COMPONENTS.has(component)) return "mkvgo";
   if (component === "qoe_sink") return "qoe";
   if (component === "grpc") return "grpc";
+  // Reported BY the browser player, not produced by a server engine. It was
+  // landing in "other", hiding a whole class of client-side playback errors.
+  if (component === "player_client") return "client";
   const m = msg.toLowerCase();
   if (hasAnyPrefix(m, "hls:", "software:", "transcode:", "transcoder", "ffmpeg", "hwdetect:", "benchmark:", "av1 decoder probe", "no av1 decoder")) return "ffmpeg";
   if (m.includes("mkvgo") || m.startsWith("seek-index")) return "mkvgo";
@@ -125,7 +138,7 @@ function first(rec: Record<string, unknown>, ...keys: string[]): string {
   return "";
 }
 
-const PROMOTED = new Set(["time", "level", "msg", "component", "request_id", "trace_id"]);
+const PROMOTED = new Set(["time", "level", "msg", "component", "request_id", "trace_id", "engine"]);
 
 // parseLogLine turns a raw slog JSON line into a classified LogEntry, mirroring
 // the Go parseLogLine. Returns null for non-JSON lines.
@@ -155,7 +168,7 @@ export function parseLogLine(line: string): LogEntry | null {
     msg,
     component: component || undefined,
     where: classifyWhere(component, msg),
-    source: classifySource(component, msg),
+    source: classifySource(component, msg, str(rec, "engine")),
     origin: "server",
     requestId: str(rec, "request_id") || undefined,
     traceId: str(rec, "trace_id") || undefined,
