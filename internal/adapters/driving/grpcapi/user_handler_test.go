@@ -11,6 +11,7 @@ import (
 	appuser "github.com/evey-project/evey/internal/app/user"
 	"github.com/evey-project/evey/internal/config"
 	activityfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
+	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
@@ -337,10 +338,27 @@ func TestListUsers_Success(t *testing.T) {
 	}
 }
 
+// seedAdultProfile stores an unrestricted profile so handlers gated on the
+// caller's active profile can resolve it.
+func seedAdultProfile(t *testing.T, env *testUserEnv, profileID shared.ProfileID, userID shared.UserID) *user.Profile {
+	t.Helper()
+	p, err := user.NewProfile(profileID, userID, "Owner")
+	if err != nil {
+		t.Fatalf("NewProfile: %v", err)
+	}
+	if err := env.profileRepo.Create(context.Background(), p); err != nil {
+		t.Fatalf("seed profile: %v", err)
+	}
+	return p
+}
+
 // --- CreateProfile tests ---
 
 func TestCreateProfile_Success(t *testing.T) {
 	env := setupUserHandler()
+	// The caller's active profile must exist: the kids gate fails closed when it
+	// cannot confirm the caller is on an unrestricted profile.
+	seedAdultProfile(t, env, "prf-1", "usr-1")
 	ctx := userCtx("usr-1", "prf-1")
 
 	resp, err := env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{
@@ -914,4 +932,61 @@ func TestRevokeAPIKey_NonOwnerDenied(t *testing.T) {
 	ctxOther := userCtx("usr-2", "prf-2")
 	_, err := env.handler.RevokeAPIKey(ctxOther, &eveyv1.RevokeAPIKeyRequest{Id: created.Id})
 	assertCode(t, err, codes.PermissionDenied)
+}
+
+// A kids profile must not be able to create profiles. UpdateProfile already
+// refuses parental changes from a kids profile (enforceParentalUpdateGate),
+// and its comment states the intended escape hatch: "switch to a non-kids
+// profile, which already requires the parental PIN". RefreshToken's switch
+// gate rests on the same assumption - "a kid cannot know the adult profile's
+// PIN".
+//
+// CreateProfile had no such gate, which broke both assumptions at once: the
+// kid creates a fresh non-kids profile WITH A PIN IT CHOOSES, proves that PIN,
+// and switches onto an unrestricted profile. Parental control is neutralised
+// on the whole account without ever knowing the parent's PIN.
+func TestCreateProfile_FromKidsProfileDenied(t *testing.T) {
+	env := setupUserHandler()
+	ctx := context.Background()
+
+	kid, err := user.NewProfile("prf-kid", "usr-1", "Kid", user.WithProfileIsKids(true))
+	if err != nil {
+		t.Fatalf("NewProfile: %v", err)
+	}
+	if err := env.profileRepo.Create(ctx, kid); err != nil {
+		t.Fatalf("seed kid profile: %v", err)
+	}
+
+	kidPIN := "0000"
+	_, err = env.handler.CreateProfile(userCtx("usr-1", string(kid.ID)), &eveyv1.CreateProfileRequest{
+		UserId: "usr-1",
+		Name:   "Free",
+		IsKids: false,
+		Pin:    &kidPIN,
+	})
+	assertCode(t, err, codes.PermissionDenied)
+}
+
+func TestCreateProfile_FromAdultProfileStillAllowed(t *testing.T) {
+	env := setupUserHandler()
+	ctx := context.Background()
+
+	// The sibling invariant requires a non-kids profile to carry a PIN once a
+	// kids profile exists, so give the parent one up front.
+	adult, err := user.NewProfile("prf-adult", "usr-1", "Parent",
+		user.WithProfileParental(&user.ParentalSettings{PINHash: "hashed"}))
+	if err != nil {
+		t.Fatalf("NewProfile: %v", err)
+	}
+	if err := env.profileRepo.Create(ctx, adult); err != nil {
+		t.Fatalf("seed adult profile: %v", err)
+	}
+
+	if _, err := env.handler.CreateProfile(userCtx("usr-1", string(adult.ID)), &eveyv1.CreateProfileRequest{
+		UserId: "usr-1",
+		Name:   "Kids",
+		IsKids: true,
+	}); err != nil {
+		t.Fatalf("an unrestricted profile must still be able to create profiles: %v", err)
+	}
 }

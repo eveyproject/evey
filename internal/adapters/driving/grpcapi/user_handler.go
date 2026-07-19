@@ -444,6 +444,16 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		span.SetStatus(otelcodes.Error, "cannot create profile for other")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_create_profile_other")
 	}
+	// Profile management is an adult action. Without this, a kids profile could
+	// create a fresh non-kids profile WITH A PIN OF ITS OWN CHOOSING and then
+	// switch onto it: RefreshToken's switch gate accepts the target's own PIN as
+	// proof, on the stated assumption that "a kid cannot know the adult
+	// profile's PIN" - which does not hold for a profile the kid just created.
+	// That defeated parental control account-wide without the parent's PIN.
+	// Same signal as enforceParentalUpdateGate: the active PROFILE, not admin.
+	if err := h.refuseFromRestrictedProfile(ctx, span, claims); err != nil {
+		return nil, err
+	}
 	opts := []user.ProfileOption{
 		user.WithProfilePreferences(req.Preferences),
 		user.WithProfileIsKids(req.IsKids),
@@ -542,6 +552,25 @@ func (h *userHandler) loadProfileForUpdate(ctx context.Context, span trace.Span,
 // the kid uses the admin account's kid profile, so admin-status is the wrong
 // signal - the active PROFILE is. No-op when the request touches no parental
 // field.
+// refuseFromRestrictedProfile blocks an action when the caller's ACTIVE profile
+// is a kids profile, regardless of account ownership or admin status. Fails
+// closed: if the caller's profile cannot be loaded we cannot confirm it is
+// unrestricted, so we refuse.
+func (h *userHandler) refuseFromRestrictedProfile(ctx context.Context, span trace.Span, claims *user.Claims) error {
+	if claims.ProfileID == "" {
+		return nil
+	}
+	cp, err := h.query.GetProfileByID(ctx, claims.ProfileID)
+	if err != nil || cp == nil {
+		return internalError("parental gate: load caller profile", err)
+	}
+	if cp.IsKids {
+		span.SetStatus(otelcodes.Error, "profile management from kids profile")
+		return status.Error(codes.PermissionDenied, "switch to a non-kids profile to manage profiles")
+	}
+	return nil
+}
+
 func (h *userHandler) enforceParentalUpdateGate(ctx context.Context, span trace.Span, req *eveyv1.UpdateProfileRequest, claims *user.Claims, p *user.Profile) error {
 	if req.IsKids == nil && req.MaxAge == nil && req.Pin == nil {
 		return nil
