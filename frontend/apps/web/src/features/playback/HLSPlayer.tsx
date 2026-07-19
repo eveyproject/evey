@@ -40,6 +40,7 @@ import { usePlayerKeyboard } from "./hooks/usePlayerKeyboard";
 import { useTouchGestures } from "./hooks/useTouchGestures";
 import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
+import { useRemotePlayback } from "@/hooks/useRemotePlayback";
 
 export type { AudioStream, SubtitleStream };
 
@@ -115,6 +116,9 @@ export function HLSPlayer({
 }: HLSPlayerProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Tracked as state (not just the ref) so the Remote Playback hook re-runs
+  // when the element mounts - Chrome Android's only cast path lives on it.
+  const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const hlsRef = useRef<InstanceType<typeof Hls> | null>(null);
   const controlsToggleRef = useRef<(() => void) | null>(null);
@@ -260,13 +264,24 @@ export function HLSPlayer({
     castSdkReady, connected: castConnected, deviceName: castDeviceName,
     castPlayback, startCast, stopCast, castPlayPause, castSeek, castReload, castSetVolume, castSetMuted,
   } = useCasting();
-  // Cast button visibility: native Google Cast SDK only. Casting targets
-  // each USER's own devices, discovered by THEIR browser on THEIR LAN -
-  // which only the SDK can do. The server-side cast/DLNA path discovers
-  // the *server's* LAN instead (the operator's living room, and usually
-  // nothing at all from a Docker bridge), so it never gates the button:
-  // showing it on that basis just yields a confusing empty device list.
-  const castAvailable = castSdkReady;
+  // Chrome Android can't run the Cast SDK, so on mobile the ONLY cast path is
+  // the Remote Playback API on the <video> element. Expose it as a second
+  // source of a cast button. Desktop keeps the SDK (remote availability never
+  // fires there); mobile gets the native path. Both discover each USER's own
+  // devices on THEIR LAN - the server-side cast/DLNA path (the operator's LAN,
+  // empty from a Docker bridge) still never gates the button.
+  const remotePlayback = useRemotePlayback(videoEl);
+  const castAvailable = castSdkReady || remotePlayback.available;
+
+  // disableRemotePlayback removes the browser's native cast of the raw <video>.
+  // Set it ONLY when the Cast SDK is the working path (desktop), where the
+  // native button would be a confusing duplicate. On mobile the SDK is dead and
+  // the native path is all we have, so leaving it enabled is what lets
+  // useRemotePlayback see devices at all - the 2026-07-18 unconditional version
+  // left Android users with no cast at all (SDK absent + native suppressed).
+  useEffect(() => {
+    if (videoEl) videoEl.disableRemotePlayback = castSdkReady;
+  }, [videoEl, castSdkReady]);
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {
@@ -800,12 +815,11 @@ export function HLSPlayer({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* disableRemotePlayback kills the browser's built-in cast of the raw
-          <video> (on Android Chrome it hijacks the tap into a Google page
-          while the film keeps playing locally, and it can't cast an MSE
-          stream anyway). All casting goes through Evey's own button, which
-          hands the receiver a URL it can fetch itself. */}
-      <video ref={(el) => { videoRef.current = el; if (el) el.disableRemotePlayback = true; onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
+      {/* disableRemotePlayback is set in an effect above, gated on the Cast
+          SDK being the active path (desktop). On mobile it stays enabled so
+          the Remote Playback API - Chrome Android's only cast path - can see
+          devices; the cast button then routes through it. */}
+      <video ref={(el) => { videoRef.current = el; setVideoEl(el); onVideoRef?.(el); }} className="w-full h-full" playsInline style={brightness !== 1 ? { filter: `brightness(${brightness})` } : undefined} />
 
       {/* Top-right cluster: Watch together, then the cast icon to its right.
           Fades with the control bars (auto-hide) so it doesn't stay pinned
@@ -828,7 +842,7 @@ export function HLSPlayer({
           )}
           {castAvailable && (
             <button
-              onClick={handleCastToggle}
+              onClick={castSdkReady ? handleCastToggle : remotePlayback.prompt}
               aria-label={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
               title={castConnected && castDeviceName ? castDeviceName : undefined}
               className={`flex items-center justify-center w-10 h-10 rounded-full text-white transition-opacity-fast hover:opacity-80 ${castConnected ? "text-[var(--accent)]" : ""}`}
