@@ -140,10 +140,25 @@ streamInfo:
   language: भाषा
   sampleRate: नमूना दर
   transcodeReasons: ट्रांसकोड कारण
+  decisionCopy: कॉपी किया गया
+  decisionTranscode: ट्रांसकोड किया गया
+  decisionWasm: क्लाइंट पर डिकोड किया गया
+  reason:
+    video_codec_unsupported: वीडियो कोडेक जिसे यह प्लेयर डिकोड नहीं कर सकता
+    audio_codec_unsupported: ऑडियो कोडेक जिसे यह प्लेयर डिकोड नहीं कर सकता
+    hdr_tonemapping_needed: HDR को SDR में बदला गया (टोन-मैपिंग)
+    container_incompatible: कंटेनर सीधे चलने योग्य नहीं (HLS में री-पैक किया गया)
+    resolution_exceeded: रिज़ॉल्यूशन प्लेयर की सीमा से अधिक
+    bitrate_exceeded: बिटरेट अनुमत सीमा से अधिक
+    audio_channels_exceeded: इस प्लेयर के समर्थन से अधिक ऑडियो चैनल
+    subtitle_burn_in: उपशीर्षक चित्र में स्थायी रूप से जोड़े गए
+    audio_resync_requested: ऑडियो पुनः-सिंक का अनुरोध किया गया
+    decision_pinned: इस सत्र के लिए चुनाव स्थिर किया गया
 jumpToChapter: "अध्याय पर जाएं: {{chapter}}"
 cast:
   noDevices: सर्वर के नेटवर्क पर कोई कास्ट डिवाइस नहीं मिला।
   loadFailed: "कास्ट डिवाइस पर प्लेबैक शुरू नहीं किया जा सका।"
+  notFound: "कोई Chromecast नहीं मिला। सुनिश्चित करें कि वह चालू है और इस डिवाइस के समान Wi-Fi से जुड़ा है।"
 playOn:
   button: किसी अन्य डिवाइस पर चलाएं
   title: इस पर चलाएं

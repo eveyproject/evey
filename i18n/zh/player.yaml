@@ -140,10 +140,25 @@ streamInfo:
   language: 语言
   sampleRate: 采样率
   transcodeReasons: 转码原因
+  decisionCopy: 直接复制
+  decisionTranscode: 已转码
+  decisionWasm: 客户端解码
+  reason:
+    video_codec_unsupported: 此播放器无法解码的视频编码
+    audio_codec_unsupported: 此播放器无法解码的音频编码
+    hdr_tonemapping_needed: HDR 已转换为 SDR（色调映射）
+    container_incompatible: 容器无法直接播放（已重新封装为 HLS）
+    resolution_exceeded: 分辨率超出播放器上限
+    bitrate_exceeded: 码率超出允许上限
+    audio_channels_exceeded: 音频声道数超出此播放器支持范围
+    subtitle_burn_in: 字幕已烧录进画面
+    audio_resync_requested: 已请求音频重新同步
+    decision_pinned: 本次会话已固定该选择
 jumpToChapter: "跳转到章节：{{chapter}}"
 cast:
   noDevices: 在服务器网络中未找到投屏设备。
   loadFailed: "无法在投屏设备上开始播放。"
+  notFound: "未找到 Chromecast。请确保它已开启并与本设备连接到同一 Wi-Fi。"
 playOn:
   button: 在其他设备上播放
   title: 播放到

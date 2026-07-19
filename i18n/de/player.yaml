@@ -140,10 +140,25 @@ streamInfo:
   language: Sprache
   sampleRate: Abtastrate
   transcodeReasons: Transcodierungsgründe
+  decisionCopy: kopiert
+  decisionTranscode: transkodiert
+  decisionWasm: clientseitig dekodiert
+  reason:
+    video_codec_unsupported: Videocodec, den dieser Player nicht dekodieren kann
+    audio_codec_unsupported: Audiocodec, den dieser Player nicht dekodieren kann
+    hdr_tonemapping_needed: HDR nach SDR konvertiert (Tone-Mapping)
+    container_incompatible: Container nicht direkt abspielbar (zu HLS umverpackt)
+    resolution_exceeded: Auflösung über dem Limit des Players
+    bitrate_exceeded: Bitrate über dem erlaubten Limit
+    audio_channels_exceeded: Mehr Audiokanäle, als dieser Player unterstützt
+    subtitle_burn_in: Untertitel ins Bild eingebrannt
+    audio_resync_requested: Audio-Resynchronisation angefordert
+    decision_pinned: Auswahl für diese Sitzung fixiert
 jumpToChapter: "Zum Kapitel springen: {{chapter}}"
 cast:
   noDevices: Keine Cast-Geräte im Netzwerk des Servers gefunden.
   loadFailed: "Wiedergabe auf dem Cast-Gerät konnte nicht gestartet werden."
+  notFound: "Kein Chromecast gefunden. Stellen Sie sicher, dass er eingeschaltet und mit demselben WLAN wie dieses Gerät verbunden ist."
 playOn:
   button: Auf einem anderen Gerät abspielen
   title: Abspielen auf

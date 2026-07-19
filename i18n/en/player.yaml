@@ -157,6 +157,7 @@ streamInfo:
 cast:
   noDevices: No cast devices found on the server's network.
   loadFailed: "Could not start playback on the cast device."
+  notFound: "No Chromecast found. Make sure it's on and connected to the same Wi-Fi as this device."
 jumpToChapter: "Jump to chapter: {{chapter}}"
 playOn:
   button: Play on another device

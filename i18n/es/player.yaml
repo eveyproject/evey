@@ -140,10 +140,25 @@ streamInfo:
   language: Idioma
   sampleRate: Frecuencia de muestreo
   transcodeReasons: Razones de transcodificación
+  decisionCopy: copiado
+  decisionTranscode: transcodificado
+  decisionWasm: descodificado en el cliente
+  reason:
+    video_codec_unsupported: Códec de vídeo que este reproductor no puede descodificar
+    audio_codec_unsupported: Códec de audio que este reproductor no puede descodificar
+    hdr_tonemapping_needed: HDR convertido a SDR (tone-mapping)
+    container_incompatible: Contenedor no reproducible tal cual (reempaquetado a HLS)
+    resolution_exceeded: Resolución por encima del límite del reproductor
+    bitrate_exceeded: Tasa de bits por encima del límite permitido
+    audio_channels_exceeded: Más canales de audio de los que admite este reproductor
+    subtitle_burn_in: Subtítulos incrustados en la imagen
+    audio_resync_requested: Resincronización de audio solicitada
+    decision_pinned: Elección fijada para esta sesión
 jumpToChapter: "Ir al capítulo: {{chapter}}"
 cast:
   noDevices: No se encontraron dispositivos de cast en la red del servidor.
   loadFailed: "No se pudo iniciar la reproducción en el dispositivo de cast."
+  notFound: "No se encontró ningún Chromecast. Asegúrate de que esté encendido y conectado al mismo Wi-Fi que este dispositivo."
 playOn:
   button: Reproducir en otro dispositivo
   title: Reproducir en
