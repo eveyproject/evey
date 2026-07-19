@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Cast, Users, Clock } from "lucide-react";
 import Hls from "hls.js";
@@ -278,6 +278,24 @@ export function HLSPlayer({
   // picker is strictly better and matches how most apps behave.
   const castAvailable = castSdkReady || remotePlayback.available || remotePlayback.supported;
 
+  // Prefetch the long-lived cast token as soon as the mobile cast surface is
+  // active: remote.prompt() must run inside the tap's transient user
+  // activation (a few seconds in Chrome), and a network round-trip between
+  // tap and prompt could outlive it on a slow link. With the token already in
+  // hand the tap path reaches the picker without waiting on the network. The
+  // token is media-scoped with a long TTL, so one fetch per media is enough.
+  // Desktop (SDK) keeps the on-demand fetch - requestSession has no such race.
+  const castTokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    castTokenRef.current = null; // new media -> new token
+    if (!remotePlayback.supported || !onCastTokenRequest) return;
+    let stale = false;
+    onCastTokenRequest()
+      .then((t) => { if (!stale) castTokenRef.current = t; })
+      .catch(() => { /* click path falls back to fetching on demand */ });
+    return () => { stale = true; };
+  }, [remotePlayback.supported, onCastTokenRequest, mediaId]);
+
   // Builds a URL the receiver can fetch on its own (absolute, cast token,
   // resumed at the current position). Shared by the desktop Cast SDK and the
   // Chrome-Android Remote Playback path, so both hand the device the exact
@@ -299,16 +317,20 @@ export function HLSPlayer({
     }
     // Swap in a long-lived cast token: the receiver buffers minutes ahead then
     // goes quiet, and the 5-minute sliding token would expire mid-film. The
-    // local player dodges this via xhrSetup; the receiver can't.
-    if (onCastTokenRequest) {
+    // local player dodges this via xhrSetup; the receiver can't. Prefetched
+    // above on the mobile path so the tap doesn't wait on the network.
+    let castTok = castTokenRef.current;
+    if (!castTok && onCastTokenRequest) {
       try {
-        const castTok = await onCastTokenRequest();
-        const u = new URL(url, window.location.origin);
-        u.searchParams.set("token", castTok);
-        url = `${u.pathname}?${u.searchParams.toString()}`;
+        castTok = await onCastTokenRequest();
       } catch (err) {
         console.warn("[Cast] cast token request failed, using session token:", err);
       }
+    }
+    if (castTok) {
+      const u = new URL(url, window.location.origin);
+      u.searchParams.set("token", castTok);
+      url = `${u.pathname}?${u.searchParams.toString()}`;
     }
     return { url, castStartSec, castResumeSec };
   }, [streamInfo.directPlayUrl, mediaId, currentTrackIndex, onCastTokenRequest, gapless]);
@@ -333,10 +355,34 @@ export function HLSPlayer({
   // it doesn't matter that Chrome Android can't decode HLS locally. The local
   // MSE player is paused - the film moves to the TV.
   const handleMobileCast = useCallback(async () => {
-    const { url } = await buildCastUrl();
-    await remotePlayback.promptForUrl(url);
-    try { videoRef.current?.pause(); } catch { /* element released */ }
-  }, [buildCastUrl, remotePlayback]);
+    const { url, castStartSec, castResumeSec } = await buildCastUrl();
+    const el = castVideoRef.current;
+    if (!el) return;
+    // Honour the same cast_base_url override as the SDK path: the receiver
+    // fetches the URL itself, so it must be absolute against the address the
+    // operator says devices can reach.
+    const origin = localStorage.getItem("cast_base_url") || window.location.origin;
+    const absoluteUrl = url.startsWith("http") ? url : `${origin}${url}`;
+    // Resume where the phone was: the Remote Playback session mirrors the
+    // element's state to the receiver, so position and mute must be right on
+    // the ELEMENT before the handoff (there is no LoadRequest to carry them).
+    // One of castStartSec/castResumeSec holds the position, the other is 0.
+    const resumeAt = castStartSec + castResumeSec;
+    el.muted = false;
+    const outcome = await remotePlayback.promptForUrl(absoluteUrl);
+    if (outcome === "connected") {
+      // Pause the local player only on a REAL handoff - a dismissed picker
+      // must leave the film exactly as it was.
+      try { videoRef.current?.pause(); } catch { /* element released */ }
+      if (resumeAt > 0) { try { el.currentTime = resumeAt; } catch { /* not seekable yet */ } }
+      // Drive the remoted element: while connected, play() is forwarded to
+      // the device (the SDK path gets autoplay from its LoadRequest; this
+      // path has to ask).
+      el.play().catch(() => { /* receiver may auto-start on its own */ });
+    } else if (outcome === "error") {
+      toast.error(t("player.cast.loadFailed"));
+    }
+  }, [buildCastUrl, remotePlayback, t]);
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const anyPanelOpenRef = useRef(false);
@@ -416,8 +462,34 @@ export function HLSPlayer({
   }, [streamInfo, mediaId, currentTrackIndex, gapless]);
 
   useEffect(() => {
+    // NEVER touch the element while a remote session is live: reassigning src
+    // mid-cast (token refresh, audio-track change re-render) would yank the
+    // receiver back to zero on a short-lived token.
+    if (remotePlayback.connected) return;
     if (castVideoEl && castAvailabilitySrc) castVideoEl.src = castAvailabilitySrc;
-  }, [castVideoEl, castAvailabilitySrc]);
+  }, [castVideoEl, castAvailabilitySrc, remotePlayback.connected]);
+
+  // While a Remote Playback session is live, the local player must stand down
+  // exactly like during an SDK cast: pause it, and re-pause it if anything
+  // (media keys, MediaSession, autoplay) wakes it - two simultaneous
+  // playbacks of the same film is the bug this guards against. On disconnect,
+  // pick the film up locally where the TV left it: the remoted element's
+  // currentTime tracked the device.
+  const remoteConnected = remotePlayback.connected;
+  useEffect(() => {
+    const local = videoRef.current;
+    if (!remoteConnected || !local) return;
+    const repause = () => { try { local.pause(); } catch { /* released */ } };
+    repause();
+    local.addEventListener("play", repause);
+    return () => {
+      local.removeEventListener("play", repause);
+      const remotePos = castVideoRef.current?.currentTime ?? 0;
+      if (remotePos > 0) {
+        try { local.currentTime = remotePos; } catch { /* released */ }
+      }
+    };
+  }, [remoteConnected]);
   const { data: playbackSettings } = usePlaybackSettings();
   const skipFwd = playbackSettings?.skipForwardSeconds ?? 30;
   const skipBwd = playbackSettings?.skipBackwardSeconds ?? 30;
@@ -870,10 +942,20 @@ export function HLSPlayer({
           )}
           {castAvailable && (
             <button
-              onClick={castSdkReady ? handleCastToggle : handleMobileCast}
-              aria-label={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
+              onClick={
+                // A live session always wins the click: SDK sessions stop via
+                // handleCastToggle, Remote Playback ones via the hook's stop()
+                // (re-prompting mid-session would reload the receiver instead
+                // of stopping it). Otherwise route by capability: SDK when
+                // initialized (desktop), native fling elsewhere (Android).
+                castConnected ? handleCastToggle
+                : remoteConnected ? remotePlayback.stop
+                : castSdkReady ? handleCastToggle
+                : handleMobileCast
+              }
+              aria-label={castConnected || remoteConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
               title={castConnected && castDeviceName ? castDeviceName : undefined}
-              className={`flex items-center justify-center w-10 h-10 rounded-full text-white transition-opacity-fast hover:opacity-80 ${castConnected ? "text-[var(--accent)]" : ""}`}
+              className={`flex items-center justify-center w-10 h-10 rounded-full text-white transition-opacity-fast hover:opacity-80 ${castConnected || remoteConnected ? "text-[var(--accent)]" : ""}`}
               style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
             >
               <Cast size={18} aria-hidden="true" />

@@ -85,11 +85,12 @@ let sdkLoaded = false;
 let sdkReady = false;
 const readyCallbacks: Array<() => void> = [];
 
-// Only iOS is a hard no for the Cast sender SDK (WebKit-only, no Cast
-// surface). Android Chrome supports it fully - skipping all mobile here is
-// what used to leave Android users with no cast button. Every other
-// non-Chromium browser (desktop or Android Firefox) self-reports through
-// __onGCastApiAvailable(false), so no UA gate is needed for them.
+// iOS is a hard no for the Cast sender SDK (WebKit-only, no Cast surface), so
+// don't even inject the script there. Everywhere else the script self-reports:
+// desktop Chromium initializes it; Chrome for ANDROID does NOT (the sender SDK
+// is de-facto desktop-only - chrome.cast never materializes and
+// __onGCastApiAvailable never fires there, see useRemotePlayback for the
+// Android path); other browsers report __onGCastApiAvailable(false).
 const isIOSBrowser = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // The server-side Cast/DLNA fallback (/api/v1/cast/devices, /api/v1/dlna/

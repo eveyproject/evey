@@ -6,9 +6,19 @@ import { useRemotePlayback } from "./useRemotePlayback";
 // A minimal stand-in for HTMLMediaElement.remote (the Remote Playback API).
 // watchAvailability resolves to a callback id and invokes the callback with
 // the current availability; the test drives it to flip availability later.
-function fakeVideoWithRemote() {
+// Connection events are delivered through addEventListener like the real API.
+function fakeVideoWithRemote(state = "disconnected") {
   let availabilityCb: ((available: boolean) => void) | null = null;
+  const listeners = new Map<string, Set<() => void>>();
   const remote = {
+    state,
+    addEventListener: (name: string, cb: () => void) => {
+      if (!listeners.has(name)) listeners.set(name, new Set());
+      listeners.get(name)!.add(cb);
+    },
+    removeEventListener: (name: string, cb: () => void) => {
+      listeners.get(name)?.delete(cb);
+    },
     watchAvailability: vi.fn(async (cb: (a: boolean) => void) => {
       availabilityCb = cb;
       cb(false); // no device yet
@@ -18,7 +28,8 @@ function fakeVideoWithRemote() {
     prompt: vi.fn(async () => {}),
   };
   const video = { remote } as unknown as HTMLVideoElement;
-  return { video, remote, flip: (a: boolean) => availabilityCb?.(a) };
+  const fire = (name: string) => listeners.get(name)?.forEach((cb) => cb());
+  return { video, remote, flip: (a: boolean) => availabilityCb?.(a), fire };
 }
 
 describe("useRemotePlayback", () => {
@@ -28,6 +39,7 @@ describe("useRemotePlayback", () => {
     const video = {} as HTMLVideoElement; // no `remote`
     const { result } = renderHook(() => useRemotePlayback(video));
     expect(result.current.available).toBe(false);
+    expect(result.current.supported).toBe(false);
   });
 
   it("is unavailable until watchAvailability reports a device, then flips", async () => {
@@ -41,11 +53,28 @@ describe("useRemotePlayback", () => {
     await waitFor(() => expect(result.current.available).toBe(false));
   });
 
-  it("prompt() opens the native picker via the element's remote", async () => {
+  it("cancels the availability watch on unmount", async () => {
     const { video, remote } = fakeVideoWithRemote();
+    const { unmount } = renderHook(() => useRemotePlayback(video));
+    await waitFor(() => expect(remote.watchAvailability).toHaveBeenCalled());
+    unmount();
+    await waitFor(() => expect(remote.cancelWatchAvailability).toHaveBeenCalledWith(7));
+  });
+
+  it("swallows a watchAvailability rejection (disableRemotePlayback set)", async () => {
+    const remote = {
+      state: "disconnected",
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      watchAvailability: vi.fn(async () => { throw new Error("InvalidStateError"); }),
+      cancelWatchAvailability: vi.fn(),
+      prompt: vi.fn(),
+    };
+    const video = { remote } as unknown as HTMLVideoElement;
     const { result } = renderHook(() => useRemotePlayback(video));
-    await act(async () => { await result.current.prompt(); });
-    expect(remote.prompt).toHaveBeenCalledTimes(1);
+    // No throw, stays unavailable.
+    await waitFor(() => expect(remote.watchAvailability).toHaveBeenCalled());
+    expect(result.current.available).toBe(false);
   });
 
   it("promptForUrl sets the element src to the castable URL, THEN prompts", async () => {
@@ -67,24 +96,55 @@ describe("useRemotePlayback", () => {
     expect(order).toEqual(["set-src", "prompt"]);
   });
 
-  it("cancels the availability watch on unmount", async () => {
+  it("promptForUrl distinguishes handoff, dismissal, and real failure", async () => {
+    // The caller pauses the local player only on a REAL handoff, stays silent
+    // on a dismissal, and surfaces an error toast on anything else - a picker
+    // cancel must not pause the film, and a genuine failure must not be mute.
     const { video, remote } = fakeVideoWithRemote();
-    const { unmount } = renderHook(() => useRemotePlayback(video));
-    await waitFor(() => expect(remote.watchAvailability).toHaveBeenCalled());
-    unmount();
-    await waitFor(() => expect(remote.cancelWatchAvailability).toHaveBeenCalledWith(7));
+    const { result } = renderHook(() => useRemotePlayback(video));
+
+    await act(async () => {
+      await expect(result.current.promptForUrl("https://x/m.m3u8")).resolves.toBe("connected");
+    });
+
+    const dismissed = new DOMException("dismissed", "NotAllowedError");
+    remote.prompt.mockRejectedValueOnce(dismissed);
+    await act(async () => {
+      await expect(result.current.promptForUrl("https://x/m.m3u8")).resolves.toBe("dismissed");
+    });
+
+    remote.prompt.mockRejectedValueOnce(new DOMException("boom", "InvalidStateError"));
+    await act(async () => {
+      await expect(result.current.promptForUrl("https://x/m.m3u8")).resolves.toBe("error");
+    });
   });
 
-  it("swallows a watchAvailability rejection (disableRemotePlayback set)", async () => {
-    const remote = {
-      watchAvailability: vi.fn(async () => { throw new Error("InvalidStateError"); }),
-      cancelWatchAvailability: vi.fn(),
-      prompt: vi.fn(),
-    };
-    const video = { remote } as unknown as HTMLVideoElement;
+  it("tracks the connection through connect/disconnect events", async () => {
+    const { video, remote, fire } = fakeVideoWithRemote();
     const { result } = renderHook(() => useRemotePlayback(video));
-    // No throw, stays unavailable.
-    await waitFor(() => expect(remote.watchAvailability).toHaveBeenCalled());
-    expect(result.current.available).toBe(false);
+    expect(result.current.connected).toBe(false);
+
+    remote.state = "connected";
+    act(() => fire("connect"));
+    await waitFor(() => expect(result.current.connected).toBe(true));
+
+    remote.state = "disconnected";
+    act(() => fire("disconnect"));
+    await waitFor(() => expect(result.current.connected).toBe(false));
+  });
+
+  it("stop() disconnects by toggling disableRemotePlayback", async () => {
+    // The spec exposes no disconnect() - flipping disableRemotePlayback runs
+    // the "disable remote playback steps", which tears the connection down.
+    const { video } = fakeVideoWithRemote("connected");
+    const flags: boolean[] = [];
+    Object.defineProperty(video, "disableRemotePlayback", {
+      configurable: true,
+      set: (v: boolean) => flags.push(v),
+      get: () => flags[flags.length - 1] ?? false,
+    });
+    const { result } = renderHook(() => useRemotePlayback(video));
+    await act(async () => { await result.current.stop(); });
+    expect(flags).toEqual([true, false]);
   });
 });
