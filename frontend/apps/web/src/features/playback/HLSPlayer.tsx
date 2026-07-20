@@ -41,6 +41,7 @@ import { useTouchGestures } from "./hooks/useTouchGestures";
 import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
 import { useRemotePlayback } from "@/hooks/useRemotePlayback";
+import { createPlayerEventReporter } from "./playerEventReporter";
 
 export type { AudioStream, SubtitleStream };
 
@@ -269,7 +270,12 @@ export function HLSPlayer({
   // the Cast SDK (this API never reports availability there).
   const castVideoRef = useRef<HTMLVideoElement | null>(null);
   const [castVideoEl, setCastVideoEl] = useState<HTMLVideoElement | null>(null);
-  const remotePlayback = useRemotePlayback(castVideoEl);
+  // A cast failure leaves no server-side trace at all (the fling never reaches
+  // us), so the cast path reports through the player beacon. Its OWN reporter,
+  // deliberately: the transcode one shares a 20-event budget that a stall storm
+  // drains in seconds, and the cast attempt is exactly what we must not lose.
+  const reportCastEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
+  const remotePlayback = useRemotePlayback(castVideoEl, reportCastEvent);
   // Gate on `supported` (the API exists = Chrome Android), not `available`
   // (watchAvailability): the availability signal on a preload=none element is
   // not guaranteed to fire, and the priority is that the button reliably
@@ -325,6 +331,9 @@ export function HLSPlayer({
         castTok = await onCastTokenRequest();
       } catch (err) {
         console.warn("[Cast] cast token request failed, using session token:", err);
+        // Falling back to the 5-minute session token means the receiver loses
+        // the stream mid-film - a silent console.warn hid that from the logs.
+        reportCastEvent({ type: "cast_token_failed", details: String((err as Error)?.name ?? "unknown"), fatal: true });
       }
     }
     if (castTok) {
@@ -333,7 +342,7 @@ export function HLSPlayer({
       url = `${u.pathname}?${u.searchParams.toString()}`;
     }
     return { url, castStartSec, castResumeSec };
-  }, [streamInfo.directPlayUrl, mediaId, currentTrackIndex, onCastTokenRequest, gapless]);
+  }, [streamInfo.directPlayUrl, mediaId, currentTrackIndex, onCastTokenRequest, gapless, reportCastEvent]);
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {

@@ -133,6 +133,91 @@ describe("useRemotePlayback", () => {
     await waitFor(() => expect(result.current.connected).toBe(false));
   });
 
+  // Telemetry. A cast that fails on the phone leaves ZERO server-side trace:
+  // the fling is phone-to-TV, and if the picker never yields a device the
+  // server sees nothing at all. Diagnosing the 2026-07-20 reports meant
+  // reading tea leaves. These tests pin the beacon that makes an attempt and
+  // its outcome show up in the admin logs.
+  describe("cast telemetry", () => {
+    it("reports the attempt with the availability the phone actually saw", async () => {
+      const { video, flip } = fakeVideoWithRemote();
+      const report = vi.fn();
+      const { result } = renderHook(() => useRemotePlayback(video, report));
+
+      act(() => flip(true));
+      await waitFor(() => expect(result.current.available).toBe(true));
+      await act(async () => { await result.current.promptForUrl("https://x/m.m3u8?token=secret"); });
+
+      const attempt = report.mock.calls.map((c) => c[0]).find((e) => e.type === "cast_prompt");
+      expect(attempt).toBeDefined();
+      // "did his TV show up?" - the single fact no log could answer before.
+      expect(attempt.details).toContain("available=true");
+      expect(attempt.details).toContain("supported=true");
+    });
+
+    it("reports available=false when no device was ever seen", async () => {
+      const { video } = fakeVideoWithRemote(); // watchAvailability reports false
+      const report = vi.fn();
+      const { result } = renderHook(() => useRemotePlayback(video, report));
+      await act(async () => { await result.current.promptForUrl("https://x/m.m3u8"); });
+
+      const attempt = report.mock.calls.map((c) => c[0]).find((e) => e.type === "cast_prompt");
+      expect(attempt.details).toContain("available=false");
+    });
+
+    it("reports the outcome: handoff, dismissal, and the real error name", async () => {
+      const { video, remote } = fakeVideoWithRemote();
+      const report = vi.fn();
+      const { result } = renderHook(() => useRemotePlayback(video, report));
+      const outcomes = () =>
+        report.mock.calls.map((c) => c[0]).filter((e) => e.type === "cast_prompt_result");
+
+      await act(async () => { await result.current.promptForUrl("https://x/m.m3u8"); });
+      expect(outcomes().at(-1).details).toBe("connected");
+
+      remote.prompt.mockRejectedValueOnce(new DOMException("dismissed", "NotAllowedError"));
+      await act(async () => { await result.current.promptForUrl("https://x/m.m3u8"); });
+      expect(outcomes().at(-1).details).toBe("dismissed");
+
+      // The DOMException NAME is the diagnostic payload: NotSupportedError
+      // (source not flingable) and NotFoundError (no device took it) are
+      // completely different bugs, and the old empty catch erased both.
+      remote.prompt.mockRejectedValueOnce(new DOMException("boom", "NotSupportedError"));
+      await act(async () => { await result.current.promptForUrl("https://x/m.m3u8"); });
+      expect(outcomes().at(-1).details).toBe("error:NotSupportedError");
+      expect(outcomes().at(-1).fatal).toBe(true);
+    });
+
+    it("NEVER puts the cast URL or its token in the telemetry", async () => {
+      // The cast token is a 12-hour bearer credential for the media. Beacons
+      // land in the admin logs, which are read and pasted around - a token in
+      // there is a leak, not a diagnostic.
+      const { video, remote } = fakeVideoWithRemote();
+      const report = vi.fn();
+      const { result } = renderHook(() => useRemotePlayback(video, report));
+      remote.prompt.mockRejectedValueOnce(new DOMException("boom", "InvalidStateError"));
+      await act(async () => {
+        await result.current.promptForUrl("https://evey.example.net/hls/master.m3u8?token=SEKRIT-9f2a");
+      });
+
+      // Guard the guard: without this the assertions below pass vacuously
+      // when nothing is reported at all, and the test proves nothing.
+      expect(report).toHaveBeenCalled();
+      const blob = JSON.stringify(report.mock.calls);
+      expect(blob).not.toContain("SEKRIT-9f2a");
+      expect(blob).not.toContain("token=");
+      expect(blob).not.toContain("master.m3u8");
+    });
+
+    it("works without a reporter (telemetry is optional, never required)", async () => {
+      const { video } = fakeVideoWithRemote();
+      const { result } = renderHook(() => useRemotePlayback(video));
+      await act(async () => {
+        await expect(result.current.promptForUrl("https://x/m.m3u8")).resolves.toBe("connected");
+      });
+    });
+  });
+
   it("stop() disconnects by toggling disableRemotePlayback", async () => {
     // The spec exposes no disconnect() - flipping disableRemotePlayback runs
     // the "disable remote playback steps", which tears the connection down.
