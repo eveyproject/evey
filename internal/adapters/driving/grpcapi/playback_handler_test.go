@@ -392,7 +392,11 @@ func TestPlaybackHandler_GetStreamInfo_ParentalBlocked_NotFound(t *testing.T) {
 		Classification: &library.MediaClassification{OfficialRating: "R"},
 	})
 
-	ctx := pbAdminCtx()
+	// Non-admin on purpose: an admin is exempt from the parental gate
+	// (resolveParentalFilterFromUserQuery), so an admin ctx here would assert
+	// the opposite of the intended rule. The rule under test is "a KIDS
+	// profile is blocked".
+	ctx := pbUserCtx("user-1", "profile-1")
 	_, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-r"})
 
 	require.Error(t, err)
@@ -419,7 +423,11 @@ func TestPlaybackHandler_StartStream_ParentalBlocked(t *testing.T) {
 		Classification: &library.MediaClassification{OfficialRating: "R"},
 	})
 
-	ctx := pbAdminCtx()
+	// Non-admin on purpose: an admin is exempt from the parental gate
+	// (resolveParentalFilterFromUserQuery), so an admin ctx here would assert
+	// the opposite of the intended rule. The rule under test is "a KIDS
+	// profile is blocked".
+	ctx := pbUserCtx("user-1", "profile-1")
 	_, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
 		MediaItemId: "mi-r",
 		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
@@ -457,7 +465,11 @@ func TestPlaybackHandler_StartStream_ParentalBlocked_ForeignCertOnly(t *testing.
 		},
 	})
 
-	ctx := pbAdminCtx()
+	// Non-admin on purpose: an admin is exempt from the parental gate
+	// (resolveParentalFilterFromUserQuery), so an admin ctx here would assert
+	// the opposite of the intended rule. The rule under test is "a KIDS
+	// profile is blocked".
+	ctx := pbUserCtx("user-1", "profile-1")
 	_, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
 		MediaItemId: "mi-foreign",
 		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,
@@ -548,7 +560,11 @@ func TestPlaybackHandler_StartStream_ParentalBlockedTag(t *testing.T) {
 		Catalog: &library.MediaCatalog{Tags: []string{"Violence", "Action"}},
 	})
 
-	ctx := pbAdminCtx()
+	// Non-admin on purpose: an admin is exempt from the parental gate
+	// (resolveParentalFilterFromUserQuery), so an admin ctx here would assert
+	// the opposite of the intended rule. The rule under test is "a KIDS
+	// profile is blocked".
+	ctx := pbUserCtx("user-1", "profile-1")
 	_, err := h.StartStream(ctx, &eveyv1.StartStreamRequest{
 		MediaItemId: "mi-v",
 		PlayMethod:  eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY,

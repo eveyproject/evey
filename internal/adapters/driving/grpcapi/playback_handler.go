@@ -18,12 +18,10 @@ import (
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/playback"
-	"github.com/evey-project/evey/internal/domain/ratings"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/id"
-	"github.com/evey-project/evey/internal/pkg/region"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -1054,15 +1052,23 @@ func normalizeNetworkType(raw string) string {
 	return "wifi"
 }
 
-func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, mediaItemID string) (bool, string) {
-	profile, err := h.userQuery.GetProfileByID(ctx, profileID)
-	if err != nil || profile == nil {
-		// Fail closed: the restriction lives on the profile we failed to load;
-		// a transient lookup error must not let a kids profile start playback.
-		return true, "parental status unavailable"
-	}
-	ps := profile.EffectiveParental()
-	if ps == nil {
+func (h *playbackHandler) isBlockedByParental(ctx context.Context, _ string, mediaItemID string) (bool, string) {
+	// Delegate to the ONE resolver the browse/feed paths use instead of
+	// rebuilding the filter here. This used to be a hand-copied pipeline
+	// (profile lookup, MaxAge, region.Resolve, allowedRatings), and the copy
+	// silently missed the admin exemption: b3ad4ac43 added it to
+	// resolveParentalFilterFromUserQuery and never crossed over, so an admin
+	// whose profile carries IsKids=true could browse the library but was
+	// refused playback of everything in it.
+	//
+	// The resolver reads the caller's claims from ctx; both call sites pass the
+	// caller's own profile (resolveProfileID refuses any other), so nothing
+	// changes for a normal profile. It stays fail-closed on a failed profile
+	// lookup, and keeps using the worst-case mediaItemBlockedByParental rather
+	// than the permissive single-country check - otherwise a title hidden from
+	// browse could still be played directly by media_item_id.
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	if !pf.enforced() {
 		return false, ""
 	}
 	item, err := h.librarySvc.GetMediaItem(ctx, mediaItemID)
@@ -1070,23 +1076,6 @@ func (h *playbackHandler) isBlockedByParental(ctx context.Context, profileID, me
 		// Parental enforcement is active for this profile and we cannot rate
 		// the item - fail closed rather than play unrated content.
 		return true, "parental status unavailable"
-	}
-	age := -1
-	if ps.MaxAge != nil {
-		age = *ps.MaxAge
-	}
-	// Use the SAME worst-case, fail-closed check as the browse/feed gate
-	// (mediaItemBlockedByParental) rather than the single-country permissive
-	// ratings.IsAllowedByAge. Otherwise a title hidden from browse (e.g. only a
-	// foreign cert that doesn't resolve in the profile's region, or no resolvable
-	// rating at all) could still be played directly by media_item_id, bypassing
-	// the parental control.
-	pf := parentalFilter{
-		allowedRatings: ratings.AllowedRatingsForAge(age),
-		maxAge:         age,
-		region:         region.Resolve(profile.Region, "", profile.Locale),
-		locale:         profile.Locale,
-		blockedTags:    ps.BlockedTags,
 	}
 	if mediaItemBlockedByParental(pf, item) {
 		return true, "content blocked by parental controls"

@@ -65,3 +65,43 @@ func TestResolveParentalFilter_AdminBypass(t *testing.T) {
 // Ensures the bypass keys off claims.IsAdmin, not off the profile owner -
 // the function takes a context-derived claim, not the profile.UserID.
 var _ shared.ProfileID = user.Profile{}.ID
+
+// The twin of TestResolveParentalFilter_AdminBypass, on the playback side.
+//
+// b3ad4ac43 ("fix(library): admins bypass parental filter") fixed the browse
+// path and added the test above - but never crossed over to playback, whose
+// isBlockedByParental rebuilt the same filter by hand and simply never looked
+// at claims.IsAdmin. Result: an admin whose profile carries IsKids=true can
+// BROWSE the whole library and then be refused playback of every title in it.
+// Not a security hole - a functional lockout, and the same
+// fixed-one-path-forgot-the-twin shape as the three parental bugs found on
+// 2026-07-20.
+func TestPlaybackParentalGate_AdminBypass(t *testing.T) {
+	maxAge := 6
+	profile := &user.Profile{
+		ID:     "prf-admin-pb",
+		UserID: "usr-admin-pb",
+		IsKids: true,
+		Parental: &user.ParentalSettings{
+			Enabled: true,
+			MaxAge:  &maxAge,
+		},
+	}
+	profiles := userfakes.NewFakeProfileRepository()
+	require.NoError(t, profiles.Create(context.Background(), profile))
+
+	uq := appuser.NewQueryService(
+		userfakes.NewFakeUserRepository(), profiles,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+	)
+	h := &playbackHandler{userQuery: uq}
+
+	ctxAdmin := interceptors.ContextWithClaims(context.Background(), &user.Claims{
+		UserID:    "usr-admin-pb",
+		IsAdmin:   true,
+		ProfileID: string(profile.ID),
+	})
+	blocked, reason := h.isBlockedByParental(ctxAdmin, string(profile.ID), "mi-anything")
+	assert.False(t, blocked, "an admin must never be parental-blocked on playback (reason=%q)", reason)
+}
