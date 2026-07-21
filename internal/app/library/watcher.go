@@ -41,6 +41,10 @@ type WatcherService struct {
 	// tests unbearably slow, and a test that cancels the context instead would
 	// exercise the SHUTDOWN branch rather than the dead-watch one.
 	probeWait time.Duration
+	// networkFS reports whether a path sits on a filesystem the local kernel
+	// cannot see remote writes on. Injected (adapter concern) and optional:
+	// nil means "assume everything is local", i.e. the prior behaviour.
+	networkFS func(path string) (string, bool)
 	cancel    context.CancelFunc
 	ctx       context.Context
 }
@@ -302,4 +306,12 @@ func WatcherWithProbeTimeout(d time.Duration) WatcherOption {
 			ws.probeWait = d
 		}
 	}
+}
+
+// WatcherWithNetworkFSDetector wires network-share detection. A library on
+// NFS/SMB gets a PASSING probe for the wrong reason - the server's own write
+// raises the local event, while another client's writes never do - so the
+// prober must refuse to vouch for it rather than trust that green.
+func WatcherWithNetworkFSDetector(fn func(path string) (string, bool)) WatcherOption {
+	return func(ws *WatcherService) { ws.networkFS = fn }
 }

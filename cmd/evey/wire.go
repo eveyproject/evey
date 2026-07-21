@@ -1698,6 +1698,7 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus shared.EventBus, 
 	}
 	watcherSvc := applibrary.NewWatcherService(fsWatcher, libraryRepo, libCmdSvc, eveylogger.NewWith(rootLog, "watcher"),
 		applibrary.WatcherWithEventBus(bus),
+		applibrary.WatcherWithNetworkFSDetector(filesystem.IsNetworkMount),
 	)
 	if err := watcherSvc.Start(ctx); err != nil {
 		rootLog.Warn("watcher start failed", slog.Any("err", err))

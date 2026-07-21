@@ -217,3 +217,87 @@ func TestSafeProbeRound_ContainsPanic(t *testing.T) {
 	// And the prober must still be usable afterwards.
 	ws.safeProbeRound(context.Background())
 }
+
+// A network share must NEVER be credited with a passing probe. The probe is
+// written by this server, so the local kernel raises the event and the probe
+// passes - while writes from any other client on that share raise nothing at
+// all. Trusting that green would grant the library the spaced-out backstop
+// cadence and leave remotely-added media undiscovered for up to an hour.
+func TestProbeRound_NetworkShareIsNeverVouchedFor(t *testing.T) {
+	dir := t.TempDir()
+	ws := &WatcherService{
+		log:       slog.Default(),
+		probes:    newProbeState(),
+		pathToLib: map[string]string{dir: "lib-nas"},
+		probeWait: 50 * time.Millisecond,
+		networkFS: func(string) (string, bool) { return "cifs", true },
+	}
+	metrics.WatcherProbeTotal.Reset()
+	metrics.WatcherAlive.Reset()
+
+	// Answer the probe immediately, the way a local kernel would on a share.
+	go func() {
+		deadline := time.Now().Add(time.Second)
+		for time.Now().Before(deadline) {
+			entries, _ := os.ReadDir(dir)
+			for _, e := range entries {
+				if strings.HasPrefix(e.Name(), library.ProbeFilePrefix) {
+					ws.probes.deliver(filepath.Join(dir, e.Name()))
+					return
+				}
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	ws.probeRound(context.Background())
+
+	if !ws.probes.UnhealthyLibraries()["lib-nas"] {
+		t.Fatal("a network share must not be vouched for, even when its probe would pass")
+	}
+	if got := testutil.ToFloat64(metrics.WatcherProbeTotal.WithLabelValues("lib-nas", "network_fs")); got != 1 {
+		t.Fatalf("a network share must be counted distinctly from a dead watch, got %v", got)
+	}
+	if got := testutil.ToFloat64(metrics.WatcherProbeTotal.WithLabelValues("lib-nas", "alive")); got != 0 {
+		t.Fatalf("a network share must never count as alive, got %v", got)
+	}
+	// No probe file may be written at all on a share - we decline before writing.
+	assertNoProbeFiles(t, dir)
+}
+
+// A local filesystem must still be probed normally - the detector must not
+// become a blanket opt-out.
+func TestProbeRound_LocalFSStillProbed(t *testing.T) {
+	dir := t.TempDir()
+	ws := &WatcherService{
+		log:       slog.Default(),
+		probes:    newProbeState(),
+		pathToLib: map[string]string{dir: "lib-local"},
+		probeWait: 50 * time.Millisecond,
+		networkFS: func(string) (string, bool) { return "ext4", false },
+	}
+	metrics.WatcherProbeTotal.Reset()
+
+	go func() {
+		deadline := time.Now().Add(time.Second)
+		for time.Now().Before(deadline) {
+			entries, _ := os.ReadDir(dir)
+			for _, e := range entries {
+				if strings.HasPrefix(e.Name(), library.ProbeFilePrefix) {
+					ws.probes.deliver(filepath.Join(dir, e.Name()))
+					return
+				}
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}()
+
+	ws.probeRound(context.Background())
+
+	if ws.probes.UnhealthyLibraries()["lib-local"] {
+		t.Fatal("a local filesystem whose probe answered must be vouched for")
+	}
+	if got := testutil.ToFloat64(metrics.WatcherProbeTotal.WithLabelValues("lib-local", "alive")); got != 1 {
+		t.Fatalf("a local probe must still be counted alive, got %v", got)
+	}
+}

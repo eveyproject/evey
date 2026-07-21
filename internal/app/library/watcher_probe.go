@@ -235,6 +235,21 @@ func (ws *WatcherService) probeRound(ctx context.Context) {
 	}
 
 	for libID, dir := range perLib {
+		// A network share defeats the probe by construction: our own write
+		// raises the local event, so the probe passes while writes from any
+		// other client stay invisible. Don't even write the file - just decline
+		// to vouch, so this library keeps the frequent scan cadence.
+		if ws.networkFS != nil {
+			if fsType, isNet := ws.networkFS(dir); isNet {
+				ws.probes.setHealth(libID, false)
+				metrics.WatcherProbeTotal.WithLabelValues(libID, "network_fs").Inc()
+				metrics.WatcherAlive.WithLabelValues(libID).Set(0)
+				ws.log.Debug("watcher probe: network share - inotify cannot see other clients' writes, keeping periodic scans",
+					slog.String("library_id", libID), slog.String("dir", dir), slog.String("fs_type", fsType))
+				continue
+			}
+		}
+
 		started := time.Now()
 		err := ws.probeOnce(ctx, dir)
 		elapsed := time.Since(started)
