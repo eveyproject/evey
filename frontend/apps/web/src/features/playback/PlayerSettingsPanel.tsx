@@ -181,7 +181,7 @@ function OffsetStepper({ label, valueMs, onChange, disabled, hint, testId }: {
           +
         </button>
       </div>
-      {hint && <p className="mt-1 text-[10px] leading-tight text-[var(--text-muted)]">{hint}</p>}
+      {hint && <p className="mt-1 text-xs leading-tight text-[var(--text-muted)]">{hint}</p>}
     </div>
   );
 }

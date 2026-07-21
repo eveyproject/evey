@@ -5,6 +5,7 @@ import { Shield, AlertTriangle, XCircle, Clock, ChevronDown, ChevronUp, CheckCir
 import { eveyFetch } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
+import { ICON } from "@/constants/iconSizes";
 
 interface SecurityFinding {
   category: string;
@@ -162,12 +163,12 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
           {snap.signature && (
             snap.signature.verified ? (
               <Badge variant="success">
-                <CheckCircle size={10} className="mr-1" />
+                <CheckCircle size={ICON.xs} className="mr-1" />
                 {t("admin.plugins.security.signed")}
               </Badge>
             ) : (
               <Badge variant="warning">
-                <ShieldOff size={10} className="mr-1" />
+                <ShieldOff size={ICON.xs} className="mr-1" />
                 {t("admin.plugins.security.unsigned")}
               </Badge>
             )
@@ -176,7 +177,7 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
             <Badge variant="error">{t("admin.plugins.security.errorBadge")}</Badge>
           )}
           {(hasFindings || hasError) ? (
-            expanded ? <ChevronUp size={14} className="text-[var(--text-muted)]" /> : <ChevronDown size={14} className="text-[var(--text-muted)]" />
+            expanded ? <ChevronUp size={ICON.sm} className="text-[var(--text-muted)]" /> : <ChevronDown size={ICON.sm} className="text-[var(--text-muted)]" />
           ) : null}
         </div>
       </button>
@@ -191,9 +192,9 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
               {snap.findings.map((f, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs">
                   {f.severity === "critical" ? (
-                    <XCircle size={12} className="text-[var(--badge-error-text,#fca5a5)] shrink-0 mt-0.5" />
+                    <XCircle size={ICON.xs} className="text-[var(--badge-error-text,#fca5a5)] shrink-0 mt-0.5" />
                   ) : (
-                    <AlertTriangle size={12} className="text-[var(--badge-warning-text,#fde047)] shrink-0 mt-0.5" />
+                    <AlertTriangle size={ICON.xs} className="text-[var(--badge-warning-text,#fde047)] shrink-0 mt-0.5" />
                   )}
                   <span
                     className={
@@ -220,7 +221,7 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
 
           {hasError && snap.lastError && (
             <div className="flex items-start gap-2 text-xs p-3 rounded-[var(--radius-sm)] bg-[var(--badge-error-bg,#7f1d1d)] border border-[var(--badge-error-text,#fca5a5)]/30">
-              <Clock size={12} className="text-[var(--badge-error-text,#fca5a5)] shrink-0 mt-0.5" />
+              <Clock size={ICON.xs} className="text-[var(--badge-error-text,#fca5a5)] shrink-0 mt-0.5" />
               <div className="min-w-0">
                 <span className="font-semibold text-[var(--badge-error-text,#fca5a5)]">
                   {t("admin.plugins.security.lastError")}
@@ -258,7 +259,7 @@ export function PluginSecurityDashboard() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <Shield size={16} className="text-[var(--text-muted)]" />
+        <Shield size={ICON.md} className="text-[var(--text-muted)]" />
         <h3 className="text-base font-semibold text-[var(--text)]">
           {t("admin.plugins.security.title")}
         </h3>

@@ -358,7 +358,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
             {plugin.sourceHash && (
               <button
                 type="button"
-                className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] transition-colors-fast cursor-pointer"
+                className="font-mono text-xs px-1.5 py-0.5 rounded bg-[var(--surface-raised)] hover:bg-[var(--surface-hover)] transition-colors-fast cursor-pointer"
                 title={plugin.sourceHash}
                 aria-label={t("admin.plugin.hashCopied", "Copy hash")}
                 onClick={async () => {

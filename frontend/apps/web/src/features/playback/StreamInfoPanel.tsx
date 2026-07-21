@@ -77,7 +77,7 @@ function DecisionBadge({ decision }: { decision?: string }) {
   const isWasm = decision === "wasm";
   return (
     <span
-      className="ml-2 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[10px] font-semibold uppercase tracking-normal"
+      className="ml-2 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-semibold uppercase tracking-normal"
       style={{
         backgroundColor: isWasm ? "var(--accent)" : isCopy ? "var(--success)" : "var(--warning)",
         color: "var(--bg)",

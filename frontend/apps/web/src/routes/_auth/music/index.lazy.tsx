@@ -23,6 +23,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Music, X, Plus, Trash2, ArrowLeft, Download, Shuffle, Sparkles } from "lucide-react";
 import { useGeneratePlaylist } from "@/features/playlist/api";
+import { ICON } from "@/constants/iconSizes";
 
 export const Route = createLazyFileRoute("/_auth/music/")({
   component: MusicPage,
@@ -222,7 +223,7 @@ function DownloadTrackButton({ trackID }: { trackID: string }) {
       title={t("media.music.downloadTrack")}
       className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--accent)] p-1 rounded mr-1"
     >
-      <Download size={18} />
+      <Download size={ICON.lg} />
     </button>
   );
 }
@@ -299,7 +300,7 @@ function AddToPlaylistButton({ trackID }: { trackID: string }) {
         title={t("media.music.addToPlaylist")}
         className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--accent)] p-1 rounded"
       >
-        <Plus size={18} />
+        <Plus size={ICON.lg} />
       </button>
       {open && (
         <div
@@ -429,7 +430,7 @@ function MusicPage() {
             data-testid="music-shuffle-play"
             className="sm:ml-auto inline-flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer"
           >
-            <Shuffle size={16} aria-hidden="true" />
+            <Shuffle size={ICON.md} aria-hidden="true" />
             {t("media.music.playRandom")}
           </button>
         )}
@@ -585,7 +586,7 @@ function PlaylistsTab({
             className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--accent)] p-1 rounded"
             aria-label={t("common.back")}
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={ICON.lg} />
           </button>
           <h2 className="text-lg font-semibold text-[var(--text)]">{selectedPlaylist?.name ?? ""}</h2>
           {playlistTracks.length > 0 && (
@@ -594,7 +595,7 @@ function PlaylistsTab({
               onClick={() => { const shuffled = shuffleTracks(playlistTracks); onPlay(shuffled[0], shuffled, playlistSource); }}
               className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius-sm)] bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer"
             >
-              <Shuffle size={14} />
+              <Shuffle size={ICON.sm} />
               {t("media.music.shuffle")}
             </button>
           )}
@@ -606,7 +607,7 @@ function PlaylistsTab({
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-raised)] transition-colors-fast ${playlistTracks.length > 0 ? "" : "ml-auto"}`}
               title={t("media.playlist.download")}
             >
-              <Download size={14} />
+              <Download size={ICON.sm} />
               {t("media.playlist.download")}
             </a>
           )}
@@ -640,7 +641,7 @@ function PlaylistsTab({
                   aria-label={t("common.delete")}
                   className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--color-danger)] p-1 rounded"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={ICON.md} />
                 </button>
               </div>
             ))}
@@ -664,7 +665,7 @@ function PlaylistsTab({
             data-testid="generate-playlist-btn"
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-[var(--radius-sm)] text-sm font-medium bg-[var(--accent)] text-[var(--filter-active-text)] border-none cursor-pointer disabled:opacity-50 disabled:cursor-default"
           >
-            <Sparkles size={16} aria-hidden="true" />
+            <Sparkles size={ICON.md} aria-hidden="true" />
             {generate.isPending ? t("media.playlist.generating") : t("media.playlist.generate")}
           </button>
         </div>
@@ -693,7 +694,7 @@ function PlaylistsTab({
             aria-label={t("common.delete")}
             className="bg-transparent border-none cursor-pointer text-[var(--text-muted)] hover:text-[var(--color-danger)] p-1 rounded"
           >
-            <Trash2 size={16} />
+            <Trash2 size={ICON.md} />
           </button>
         </div>
       ))}
@@ -805,7 +806,7 @@ function TracksTab({
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs bg-[var(--accent)] text-[var(--filter-active-text)] cursor-pointer border-none"
             title={t("common.clear")}
           >
-            {t("media.music.albums")}: {albumLabel || albumFilter} <X size={12} />
+            {t("media.music.albums")}: {albumLabel || albumFilter} <X size={ICON.xs} />
           </button>
         )}
         {artistFilter && (
@@ -814,7 +815,7 @@ function TracksTab({
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs bg-[var(--accent)] text-[var(--filter-active-text)] cursor-pointer border-none"
             title={t("common.clear")}
           >
-            {t("media.music.artists")}: {artistFilter} <X size={12} />
+            {t("media.music.artists")}: {artistFilter} <X size={ICON.xs} />
           </button>
         )}
       </div>
@@ -964,7 +965,7 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
               }}
             >
               {!a.CoverArtURL && (
-                <Music size={32} className="opacity-30 text-[var(--text-muted)]" />
+                <Music size={ICON["2xl"]} className="opacity-30 text-[var(--text-muted)]" />
               )}
             </div>
             <div className="p-2">
@@ -983,7 +984,7 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
             title={t("media.music.downloadAlbum")}
             className="absolute top-2 right-2 p-1.5 rounded-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity-fast"
           >
-            <Download size={14} />
+            <Download size={ICON.sm} />
           </button>
         </div>
       ))}
@@ -1023,7 +1024,7 @@ function ArtistsTab({ artists, loading, onArtistClick }: { artists: Artist[]; lo
                 className="w-12 h-12 rounded-full bg-cover bg-center bg-[var(--surface)] flex items-center justify-center flex-shrink-0"
                 style={{ backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined }}
               >
-                {!a.CoverArtURL && <Music size={20} className="opacity-30 text-[var(--text-muted)]" />}
+                {!a.CoverArtURL && <Music size={ICON.lg} className="opacity-30 text-[var(--text-muted)]" />}
               </div>
               <span className="font-medium text-[var(--text)] truncate">{a.Name}</span>
             </div>

@@ -115,7 +115,7 @@ export function MediaDetailActions({
       <aside className="lg:col-start-2 space-y-4 lg:border-l lg:border-[var(--border)] lg:pl-6">
       {directors.length > 0 && (
         <p className="text-sm text-[var(--text-muted)]">
-          <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.director")}</span>
+          <span className="text-xs uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.director")}</span>
           {directors.map((d, i) => (
             <span key={d.id ?? d.name}>
               {i > 0 && ", "}
@@ -129,7 +129,7 @@ export function MediaDetailActions({
 
       {writers.length > 0 && (
         <p className="text-sm text-[var(--text-muted)]">
-          <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.writer")}</span>
+          <span className="text-xs uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.writer")}</span>
           {writers.map((w, i) => (
             <span key={w.id ?? w.name}>
               {i > 0 && ", "}
@@ -143,7 +143,7 @@ export function MediaDetailActions({
 
       {item.studios && item.studios.length > 0 && (
         <p className="text-sm text-[var(--text-muted)]">
-          <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.studio")}</span>
+          <span className="text-xs uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.studio")}</span>
           {item.studios.join(", ")}
         </p>
       )}

@@ -13,6 +13,7 @@ import { usePlayerContext, usePlayerTimeRef } from "./PlayerContext";
 import { LiveProgressBar, LiveTimeLabel, LiveChaptersPanel, useActiveChapterIndex } from "./PlayerLiveControls";
 import { useDocumentPiP } from "./hooks/useDocumentPiP";
 import type { V1StreamInfo } from "@evey/api";
+import { ICON } from "@/constants/iconSizes";
 
 export type { EpisodeNavItem, SeasonNavItem };
 
@@ -447,12 +448,12 @@ function PlayerControlsInner({
           aria-label={t("common.back")}
           className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
         >
-          <ArrowLeft size={24}  aria-hidden="true" />
+          <ArrowLeft size={ICON.xl}  aria-hidden="true" />
         </button>
         {title && <span className="text-[var(--overlay-text)] text-sm font-medium truncate">{title}</span>}
         {isCasting && castDeviceName && (
           <span className="ml-auto flex items-center gap-1.5 text-[var(--accent)] text-xs font-medium">
-            <Cast size={14} />
+            <Cast size={ICON.sm} />
             {castDeviceName}
           </span>
         )}
@@ -492,7 +493,7 @@ function PlayerControlsInner({
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
               title={prevEpisode.title ? `E${prevEpisode.indexNumber} - ${prevEpisode.title}` : undefined}
             >
-              <SkipBack size={22} fill="currentColor"  aria-hidden="true" />
+              <SkipBack size={ICON.xl} fill="currentColor"  aria-hidden="true" />
             </button>
           )}
 
@@ -503,7 +504,7 @@ function PlayerControlsInner({
               aria-label={t("player.controls.chapters")}
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
             >
-              <ChevronFirst size={22}  aria-hidden="true" />
+              <ChevronFirst size={ICON.xl}  aria-hidden="true" />
             </button>
           )}
 
@@ -528,9 +529,9 @@ function PlayerControlsInner({
             className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
           >
             {playing ? (
-              <Pause size={28} fill="currentColor"  aria-hidden="true" />
+              <Pause size={ICON["2xl"]} fill="currentColor"  aria-hidden="true" />
             ) : (
-              <Play size={28} fill="currentColor"  aria-hidden="true" />
+              <Play size={ICON["2xl"]} fill="currentColor"  aria-hidden="true" />
             )}
           </button>
 
@@ -554,7 +555,7 @@ function PlayerControlsInner({
               aria-label={t("player.controls.chapters")}
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
             >
-              <ChevronLast size={22}  aria-hidden="true" />
+              <ChevronLast size={ICON.xl}  aria-hidden="true" />
             </button>
           )}
 
@@ -570,7 +571,7 @@ function PlayerControlsInner({
                 className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
                 title={next.title ? `E${next.indexNumber} - ${next.title}` : undefined}
               >
-                <SkipForward size={22} fill="currentColor"  aria-hidden="true" />
+                <SkipForward size={ICON.xl} fill="currentColor"  aria-hidden="true" />
               </button>
             );
           })()}
@@ -588,7 +589,7 @@ function PlayerControlsInner({
 
           {/* Discrete buffering indicator shown only during playback stalls */}
           {isBuffering && isPlaying && (
-            <Loader size={16} className="animate-spin text-white/70 shrink-0" aria-hidden="true" />
+            <Loader size={ICON.md} className="animate-spin text-white/70 shrink-0" aria-hidden="true" />
           )}
 
           <div className="flex-1" />
@@ -601,7 +602,7 @@ function PlayerControlsInner({
             aria-expanded={overflowOpen}
             className="sm:hidden text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
           >
-            <MoreHorizontal size={20} aria-hidden="true" />
+            <MoreHorizontal size={ICON.lg} aria-hidden="true" />
           </button>
 
           {/* Secondary controls. Below sm they live behind the ⋯ toggle as a
@@ -702,9 +703,9 @@ function PlayerControlsInner({
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
             >
               {docPiP.isOpen || isPip ? (
-                <PictureInPicture2 size={20}  aria-hidden="true" />
+                <PictureInPicture2 size={ICON.lg}  aria-hidden="true" />
               ) : (
-                <PictureInPicture size={20}  aria-hidden="true" />
+                <PictureInPicture size={ICON.lg}  aria-hidden="true" />
               )}
             </button>
           )}
@@ -717,9 +718,9 @@ function PlayerControlsInner({
             className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
           >
             {fullscreen ? (
-              <Minimize size={20}  aria-hidden="true" />
+              <Minimize size={ICON.lg}  aria-hidden="true" />
             ) : (
-              <Maximize size={20}  aria-hidden="true" />
+              <Maximize size={ICON.lg}  aria-hidden="true" />
             )}
           </button>
           </div>

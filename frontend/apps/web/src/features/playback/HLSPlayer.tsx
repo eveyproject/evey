@@ -13,6 +13,7 @@ import { PlayerProvider } from "./PlayerContext";
 import { nominalQualityTier } from "./playerUtils";
 import { ProgressReporter } from "./ProgressReporter";
 import { AutoMarkWatched } from "./AutoMarkWatched";
+import { ICON } from "@/constants/iconSizes";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 import { SkipIntroButton } from "./SkipIntroButton";
 import { KeyboardShortcutsOverlay } from "./KeyboardShortcutsOverlay";
@@ -955,7 +956,7 @@ export function HLSPlayer({
               className="flex items-center gap-2 px-3 py-2 rounded-full text-white text-sm font-medium transition-opacity-fast hover:opacity-80"
               style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
             >
-              <Users size={16} aria-hidden="true" />
+              <Users size={ICON.md} aria-hidden="true" />
               {t("player.watchTogether")}
             </button>
           )}
@@ -977,7 +978,7 @@ export function HLSPlayer({
               className={`flex items-center justify-center w-10 h-10 rounded-full text-white transition-opacity-fast hover:opacity-80 ${castConnected || remoteConnected ? "text-[var(--accent)]" : ""}`}
               style={{ backgroundColor: "var(--overlay-bg)", border: "1px solid var(--overlay-btn-bg)" }}
             >
-              <Cast size={18} aria-hidden="true" />
+              <Cast size={ICON.lg} aria-hidden="true" />
             </button>
           )}
         </div>
@@ -985,14 +986,14 @@ export function HLSPlayer({
       {seekFlash === "left" && (
         <div className="absolute left-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none z-[6]">
           <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
-            <RotateCcw size={32} className="text-white" />
+            <RotateCcw size={ICON["2xl"]} className="text-white" />
           </div>
         </div>
       )}
       {seekFlash === "right" && (
         <div className="absolute right-0 top-0 bottom-0 w-1/2 flex items-center justify-center pointer-events-none z-[6]">
           <div className="rounded-full bg-white/20 w-16 h-16 flex items-center justify-center">
-            <RotateCw size={32} className="text-white" />
+            <RotateCw size={ICON["2xl"]} className="text-white" />
           </div>
         </div>
       )}
@@ -1001,7 +1002,7 @@ export function HLSPlayer({
           className={`absolute top-0 bottom-0 w-16 flex items-center justify-center pointer-events-none z-[6] ${swipeIndicator.type === "volume" ? "right-4" : "left-4"}`}
         >
           <div className="flex flex-col items-center gap-2 rounded-xl bg-black/60 px-3 py-4 backdrop-blur-sm">
-            {swipeIndicator.type === "volume" ? <Volume2 size={20} className="text-white" /> : <Sun size={20} className="text-white" />}
+            {swipeIndicator.type === "volume" ? <Volume2 size={ICON.lg} className="text-white" /> : <Sun size={ICON.lg} className="text-white" />}
             <div className="w-1 h-24 rounded-full bg-white/20 relative overflow-hidden">
               <div
                 className="absolute bottom-0 left-0 right-0 rounded-full bg-white"
@@ -1016,9 +1017,9 @@ export function HLSPlayer({
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[6]">
           <div className="rounded-full bg-black/40 w-16 h-16 flex items-center justify-center animate-ping-once">
             {actionFlash === "play" ? (
-              <Play size={32} className="text-white ml-1" fill="currentColor" />
+              <Play size={ICON["2xl"]} className="text-white ml-1" fill="currentColor" />
             ) : (
-              <Pause size={32} className="text-white" fill="currentColor" />
+              <Pause size={ICON["2xl"]} className="text-white" fill="currentColor" />
             )}
           </div>
         </div>
@@ -1026,7 +1027,7 @@ export function HLSPlayer({
       {isBuffering && !isPlaying && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[5]">
           <div className="flex flex-col items-center gap-2">
-            <Loader size={40} className="animate-spin text-white/80" />
+            <Loader size={ICON["3xl"]} className="animate-spin text-white/80" />
             <span className="text-white/80 text-sm font-medium">{t("player.buffering")}</span>
           </div>
         </div>
@@ -1034,7 +1035,7 @@ export function HLSPlayer({
       {fatalError && (
         <div className="absolute inset-0 flex items-center justify-center z-[10] bg-[var(--overlay-bg-strong)]">
           <div className="flex flex-col items-center gap-4 text-white">
-            <TriangleAlert size={48} className="text-[var(--color-danger)]" strokeWidth={1.5} />
+            <TriangleAlert size={ICON["4xl"]} className="text-[var(--color-danger)]" strokeWidth={1.5} />
             <p className="text-lg font-medium">{t("player.playbackFailed")}</p>
             <p className="text-sm text-[var(--overlay-text-muted)]">{t("player.unableToPlayAnyQuality")}</p>
             <div className="flex items-center gap-2">
@@ -1061,7 +1062,7 @@ export function HLSPlayer({
       {shedReason && !fatalError && (
         <div className="absolute inset-0 flex items-center justify-center z-[10] bg-[var(--overlay-bg-strong)]">
           <div className="flex flex-col items-center gap-4 text-white text-center px-6">
-            <Clock size={48} className="text-white/80" strokeWidth={1.5} />
+            <Clock size={ICON["4xl"]} className="text-white/80" strokeWidth={1.5} />
             <p className="text-lg font-medium">
               {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.title" : "player.shed.tooManyStreams.title")}
             </p>

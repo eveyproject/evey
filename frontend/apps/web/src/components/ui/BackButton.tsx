@@ -22,7 +22,7 @@ export function BackButton({ fallback = "/home", className = "" }: BackButtonPro
   return (
     <button
       onClick={handleBack}
-      className={`flex items-center gap-1 text-[20px] text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast ${className}`}
+      className={`flex items-center gap-1 text-xl text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast ${className}`}
     >
       <ChevronLeft size={20} />
       {t("common.back")}

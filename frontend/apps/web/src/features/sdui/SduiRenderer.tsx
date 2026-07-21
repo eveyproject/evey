@@ -55,7 +55,7 @@ function SduiNodeView({ node, nav }: { node: SduiNode; nav: Nav }) {
     case "table":
       return (
         <div className="flex flex-col">
-          <div className="flex gap-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
+          <div className="flex gap-3 px-3 py-1.5 text-xs uppercase tracking-wide text-[var(--text-muted)] border-b border-[var(--border)]">
             {node.columns.map((c, i) => (
               <span key={i} className={i === node.columns.length - 1 ? "ml-auto" : ""}>{c}</span>
             ))}

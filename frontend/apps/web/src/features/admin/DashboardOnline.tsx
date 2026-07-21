@@ -3,6 +3,7 @@ import { Radio, Shield, Monitor, Smartphone, Tv } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePresenceServiceListOnline } from "@evey/api";
 import type { V1OnlineUser } from "@evey/api";
+import { ICON } from "@/constants/iconSizes";
 
 const REFRESH_INTERVAL = 5_000;
 
@@ -54,7 +55,7 @@ export function OnlineNow() {
     <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)] overflow-hidden flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
         <h3 className="text-sm font-semibold text-[var(--text)] flex items-center gap-2">
-          <Radio size={15} className="text-[var(--accent)]" />
+          <Radio size={ICON.md} className="text-[var(--accent)]" />
           {t("admin.online.title")}
         </h3>
         <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)]">
@@ -80,11 +81,11 @@ export function OnlineNow() {
                   <div className="flex items-center gap-1.5">
                     <span className="font-medium text-sm text-[var(--text)] truncate">{u.username || u.userId}</span>
                     {u.isAdmin && (
-                      <Shield size={11} className="shrink-0 text-[var(--accent)]" aria-label={t("admin.online.adminBadge")} />
+                      <Shield size={ICON.xs} className="shrink-0 text-[var(--accent)]" aria-label={t("admin.online.adminBadge")} />
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)] min-w-0">
-                    <Icon size={12} className="shrink-0" />
+                    <Icon size={ICON.xs} className="shrink-0" />
                     <span className="truncate">
                       {dev}
                       {u.clientIp ? ` · ${u.clientIp}` : ""}

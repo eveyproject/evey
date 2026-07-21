@@ -43,7 +43,7 @@ export function PlayActivityChart() {
   return (
     <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)] min-w-0">
       <div className="flex items-center justify-between mb-3 gap-2">
-        <h3 className="text-sm font-semibold text-[var(--text)] whitespace-nowrap">
+        <h3 className="text-sm font-semibold text-[var(--text)] truncate min-w-0">
           {t("admin.dashboardStats.playActivity")}
         </h3>
         <div className="flex rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden text-xs shrink-0">

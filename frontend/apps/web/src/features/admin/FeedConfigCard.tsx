@@ -285,7 +285,7 @@ export function FeedConfigCard() {
             >
               {label}
               {plugin && (
-                <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-[var(--radius-sm)] bg-[var(--accent-subtle)] text-[var(--accent)]">
+                <span className="text-xs uppercase tracking-wider px-1.5 py-0.5 rounded-[var(--radius-sm)] bg-[var(--accent-subtle)] text-[var(--accent)]">
                   {t("admin.serverConfig.feedConfig.pluginBadge", "Plugin")}
                 </span>
               )}

@@ -15,6 +15,7 @@ import { CardContextMenu } from "./MediaCardContextMenu";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { artworkUrl } from "./artworkUrl";
 import { PosterPlaceholder } from "./PosterPlaceholder";
+import { ICON } from "@/constants/iconSizes";
 
 const WATCHED_THRESHOLD_PCT = 95;
 
@@ -306,7 +307,7 @@ export const MediaCard = memo(function MediaCard({
               borderRadius: "var(--radius-sm)",
             }}
           >
-            <Star size={10} fill="currentColor" />
+            <Star size={ICON.xs} fill="currentColor" />
             {item.communityRating.toFixed(1)}
           </span>
         )}
@@ -356,7 +357,7 @@ export const MediaCard = memo(function MediaCard({
             }}
           >
             {selected && (
-              <Check size={12} className="text-[var(--filter-active-text)]" strokeWidth={3}  aria-hidden="true" />
+              <Check size={ICON.xs} className="text-[var(--filter-active-text)]" strokeWidth={3}  aria-hidden="true" />
             )}
           </button>
         ) : (item.id && !lite) ? (
@@ -402,7 +403,7 @@ export const MediaCard = memo(function MediaCard({
             aria-label={t("common.play")}
             className="w-12 h-12 rounded-full flex items-center justify-center [@media(hover:hover)]:backdrop-blur-sm transition-transform duration-200 group-hover:scale-110 group-focus-within:scale-110 bg-[var(--glass-bg)] border border-[var(--glass-border)]"
           >
-            <Play size={20} className="text-[var(--overlay-text)] ml-0.5" fill="currentColor" aria-hidden="true" />
+            <Play size={ICON.lg} className="text-[var(--overlay-text)] ml-0.5" fill="currentColor" aria-hidden="true" />
           </div>
           <p className="absolute bottom-2 left-2 right-2 text-xs font-medium text-[var(--overlay-text)] truncate text-center">
             {item.title}
@@ -459,7 +460,7 @@ export const MediaCard = memo(function MediaCard({
           else markWatched.mutate({ mediaItemId: item.id!, params: { profileId } });
         }}
       >
-        <Check size={14} strokeWidth={3}  aria-hidden="true" />
+        <Check size={ICON.sm} strokeWidth={3}  aria-hidden="true" />
       </button>
     )}
     </div>

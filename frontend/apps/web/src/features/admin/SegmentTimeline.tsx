@@ -1,6 +1,7 @@
 import { Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { MediaSegment } from "@/hooks/useAdminSegments";
+import { ICON } from "@/constants/iconSizes";
 
 export type { MediaSegment };
 
@@ -67,7 +68,7 @@ function SegmentBlock({
     >
       {manual && (
         <Lock
-          size={10}
+          size={ICON.xs}
           className="absolute top-0.5 right-0.5 text-white"
           aria-label={t("admin.segments.locked")}
           data-testid="lock-icon"
@@ -105,7 +106,7 @@ function SegmentEditor({ segment, durationMs, onStartChange, onEndChange }: Segm
             className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-[var(--accent-subtle)] text-[var(--accent)]"
             title={t("admin.segments.lockedHint")}
           >
-            <Lock size={10} />
+            <Lock size={ICON.xs} />
             {t("admin.segments.locked")}
           </span>
         )}
@@ -212,7 +213,7 @@ export function SegmentTimeline({
             >
               <span className={`w-2.5 h-2.5 rounded-sm inline-block ${color}`} />
               <span className="capitalize">{seg.type.replace(/_/g, " ")}</span>
-              {manual && <Lock size={10} className="text-[var(--accent)]" />}
+              {manual && <Lock size={ICON.xs} className="text-[var(--accent)]" />}
             </button>
           );
         })}

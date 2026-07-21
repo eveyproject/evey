@@ -10,6 +10,7 @@ import { FilterChip } from "@/components/ui/FilterChip";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { ICON } from "@/constants/iconSizes";
 import {
   type LogEntry,
   type LogSearchResponse,
@@ -122,7 +123,7 @@ const LogRow = memo(function LogRow({ entry }: { entry: LogEntry }) {
         aria-expanded={open}
       >
         <ChevronRight
-          size={14}
+          size={ICON.sm}
           className="mt-0.5 shrink-0 text-[var(--text-muted)] transition-transform-fast"
           style={{ transform: open ? "rotate(90deg)" : "none" }}
           aria-hidden="true"
@@ -174,7 +175,7 @@ const LogRow = memo(function LogRow({ entry }: { entry: LogEntry }) {
             onClick={copy}
             className="self-start flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text)] transition-colors-fast"
           >
-            <Copy size={12} aria-hidden="true" />
+            <Copy size={ICON.xs} aria-hidden="true" />
             {t("admin.logs.copyRaw")}
           </button>
         </div>
@@ -321,7 +322,7 @@ export function LogsExplorer() {
       <div className="flex flex-col gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="relative min-w-[200px] flex-1">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
+            <Search size={ICON.md} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" aria-hidden="true" />
             <input
               value={qInput}
               onChange={(e) => setQInput(e.target.value)}
@@ -347,7 +348,7 @@ export function LogsExplorer() {
             }}
             aria-pressed={live}
           >
-            <Radio size={14} className={live ? "animate-pulse" : ""} aria-hidden="true" />
+            <Radio size={ICON.sm} className={live ? "animate-pulse" : ""} aria-hidden="true" />
             {t("admin.logs.live")}
           </button>
         </div>
@@ -397,9 +398,9 @@ export function LogsExplorer() {
             <Spinner size="lg" />
           </div>
         ) : isError && !live ? (
-          <EmptyState icon={<AlertTriangle size={40} strokeWidth={1.5} />} title={t("admin.logs.error")} />
+          <EmptyState icon={<AlertTriangle size={ICON["3xl"]} strokeWidth={1.5} />} title={t("admin.logs.error")} />
         ) : entries.length === 0 ? (
-          <EmptyState icon={<Search size={40} strokeWidth={1.5} />} title={t("admin.logs.empty")} />
+          <EmptyState icon={<Search size={ICON["3xl"]} strokeWidth={1.5} />} title={t("admin.logs.empty")} />
         ) : (
           entries.map((e) => <LogRow key={e.uid} entry={e} />)
         )}

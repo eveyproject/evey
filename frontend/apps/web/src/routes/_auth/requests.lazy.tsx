@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
+import { ICON } from "@/constants/iconSizes";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { RequestPoster } from "@/features/requests/RequestPoster";
 
@@ -32,8 +33,8 @@ type SearchScope = "video" | "music";
 type Tab = "search" | "mine";
 
 const SCOPES: { key: SearchScope; labelKey: string; icon: React.ReactNode }[] = [
-  { key: "video", labelKey: "requests.typeVideo", icon: <Film size={15} /> },
-  { key: "music", labelKey: "requests.typeMusic", icon: <Music size={15} /> },
+  { key: "video", labelKey: "requests.typeVideo", icon: <Film size={ICON.md} /> },
+  { key: "music", labelKey: "requests.typeMusic", icon: <Music size={ICON.md} /> },
 ];
 
 // A search candidate tagged with the concrete request type it will be
@@ -200,20 +201,20 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
                   <RequestPoster posterUrl={r.posterUrl} title={r.title} mediaType={r.requestType} />
                   {r.inLibrary && (
                     <span
-                      className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-medium"
+                      className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium"
                       style={{ backgroundColor: "var(--overlay-bg)", color: "var(--text)" }}
                       data-testid="candidate-in-library"
                     >
-                      <Check size={11} aria-hidden="true" />
+                      <Check size={ICON.xs} aria-hidden="true" />
                       {t("requests.inLibrary")}
                     </span>
                   )}
                   {scope === "video" && (
                     <span
-                      className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-[11px] font-medium"
+                      className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium"
                       style={{ backgroundColor: "var(--overlay-bg)", color: "var(--text)" }}
                     >
-                      {r.requestType === "tv" ? <Tv size={11} aria-hidden="true" /> : <Film size={11} aria-hidden="true" />}
+                      {r.requestType === "tv" ? <Tv size={ICON.xs} aria-hidden="true" /> : <Film size={ICON.xs} aria-hidden="true" />}
                       {t(r.requestType === "tv" ? "requests.typeSeries" : "requests.typeMovie")}
                     </span>
                   )}
@@ -268,7 +269,7 @@ function MineTab({ requests, isLoading }: { requests: V1MediaRequestProto[]; isL
   if (requests.length === 0) {
     return (
       <EmptyState
-        icon={<Inbox size={48} strokeWidth={1.5} />}
+        icon={<Inbox size={ICON["4xl"]} strokeWidth={1.5} />}
         title={t("requests.noRequests")}
       />
     );
@@ -328,7 +329,7 @@ function RequestsPage() {
   if (!policy?.canRequest) {
     return (
       <EmptyState
-        icon={<Inbox size={48} strokeWidth={1.5} />}
+        icon={<Inbox size={ICON["4xl"]} strokeWidth={1.5} />}
         title={t("requests.disabledTitle")}
         description={t("requests.disabledDesc")}
       />
