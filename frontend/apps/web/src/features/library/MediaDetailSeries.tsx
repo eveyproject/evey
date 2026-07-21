@@ -1,44 +1,14 @@
-import { useState } from "react";
 import { Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
 import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "@evey/api";
 import { Button } from "@/components/ui/Button";
-import { Switch } from "@/components/ui/Switch";
-import { getSeriesTrackPrefs, setSeriesTrackPrefs } from "@/hooks/usePlaybackPrefs";
 import { formatDuration } from "./mediaDetailUtils";
 import { artworkUrl } from "./artworkUrl";
 import { useAuthStore } from "@evey/store";
 import { DownloadButton } from "@/features/playback/DownloadButton";
 import { useStreamToken } from "@/hooks/useStreamToken";
-
-// GaplessToggle: "lecture enchaînée" - request the server's concatenated,
-// multi-episode HLS session instead of reloading the player at each episode
-// boundary. Per-series (localStorage), opt-in, off by default. The actual
-// packaging (and its own eligibility/compatibility checks) happens server-side
-// per playback session - this toggle only records the user's intent.
-function GaplessToggle({ seriesId }: { seriesId: string }) {
-  const { t } = useTranslation();
-  const [gapless, setGapless] = useState(() => !!getSeriesTrackPrefs(seriesId)?.gapless);
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm text-[var(--text-muted)]">{t("media.detail.gaplessPlayback")}</span>
-      <Switch
-        checked={gapless}
-        data-testid="gapless-toggle"
-        label={t("media.detail.gaplessPlayback")}
-        onChange={() => {
-          const next = !gapless;
-          setGapless(next);
-          const cur = getSeriesTrackPrefs(seriesId) ?? {};
-          setSeriesTrackPrefs(seriesId, { ...cur, gapless: next });
-        }}
-      />
-    </div>
-  );
-}
 
 function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
   return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
@@ -199,8 +169,8 @@ export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPla
   if (!firstEpisode?.id) return null;
 
   return (
-    <Button variant="primary" onClick={() => onPlay(firstEpisode.id!)}>
-      <Play size={16} fill="currentColor" />
+    <Button variant="primary" size="lg" onClick={() => onPlay(firstEpisode.id!)}>
+      <Play size={20} fill="currentColor" />
       {t("media.detail.play")}
     </Button>
   );
@@ -215,8 +185,8 @@ export function PlaySeasonButton({ seasonId, onPlay }: { seasonId: string; onPla
   if (!firstEpisode?.id) return null;
 
   return (
-    <Button variant="primary" data-testid="play-button" onClick={() => onPlay(firstEpisode.id!)}>
-      <Play size={16} fill="currentColor" />
+    <Button variant="primary" size="lg" data-testid="play-button" onClick={() => onPlay(firstEpisode.id!)}>
+      <Play size={20} fill="currentColor" />
       {t("media.detail.play")}
     </Button>
   );
@@ -230,14 +200,11 @@ export function SeriesSection({ item }: { item: V1MediaItem }) {
 
   return (
     <div className="mt-10">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--text-secondary)]">{t("media.detail.seasons")}</h2>
-          <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{t("media.detail.seasonCount", { count: seasons.length })}</span>
-        </div>
-        {item.id && <GaplessToggle seriesId={item.id} />}
+      <div className="flex items-center gap-3 mb-4">
+        <h2 className="text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--text-secondary)]">{t("media.detail.seasons")}</h2>
+        <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{t("media.detail.seasonCount", { count: seasons.length })}</span>
       </div>
-      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(182px,1fr))]">
+      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
         {seasons.map((s) => (s.id ? <SeasonCard key={s.id} seasonId={s.id} /> : null))}
       </div>
     </div>
