@@ -1122,3 +1122,27 @@ func TestPrewarmNext_NotEpisode_NoContent(t *testing.T) {
 	w := doPrewarmRequest(h, "mov-1")
 	assert.Equal(t, http.StatusNoContent, w.Code)
 }
+
+// The route patterns already match `\d+`, so the only way this parse fails is
+// OVERFLOW - stream_99999999999999999999.m3u8. Every call site used to discard
+// strconv's range error, and Atoi returns 0 alongside it, so an overflowing
+// index silently became index 0: the bounds check passed and the server served
+// rendition 0 instead of answering 404.
+func TestAtoiIndex(t *testing.T) {
+	cases := []struct {
+		in   string
+		want int
+	}{
+		{"0", 0},
+		{"7", 7},
+		// Overflows int64 - must NOT collapse to 0.
+		{"99999999999999999999", -1},
+		{"", -1},
+		{"abc", -1},
+	}
+	for _, tc := range cases {
+		if got := atoiIndex(tc.in); got != tc.want {
+			t.Errorf("atoiIndex(%q) = %d, want %d", tc.in, got, tc.want)
+		}
+	}
+}

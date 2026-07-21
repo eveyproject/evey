@@ -293,13 +293,23 @@ func (s *AccessService) HasLibraryAccess(ctx context.Context, userID, libraryID 
 	return s.libraryAccess.HasAccess(ctx, shared.UserID(userID), shared.LibraryID(libraryID))
 }
 
-// GetLibraryAccessByUserID returns the list of library IDs the user may
-// see. Empty slice (non-nil) means "user has zero granted libraries" -
-// callers rely on the nil-vs-empty distinction to short-circuit admin /
-// unrestricted paths (nil = unrestricted, empty = access to nothing).
-// Returning nil here silently promoted users with zero grants to
-// admin-level visibility across every gRPC handler that filters via
-// this method (feed, playback, collection, favorite, notification, …).
+// GetLibraryAccessByUserID returns the list of library IDs the user may see.
+// Empty slice (non-nil) means "user has zero granted libraries"; nil means
+// "unrestricted".
+//
+// ⚠️ This method preserves that distinction, but EVERY caller deliberately
+// collapses it again: playback_handler.go:1041, library_handler.go:952,
+// collection_handler.go:354, notification_handler.go:262, playlist_handler.go:48,
+// feed_handler.go:75 and music_handler.go:46 all treat an empty result as
+// "unrestricted", because the product rule is opt-out - a user with no explicit
+// grants sees everything.
+//
+// The comment that used to sit here warned that returning nil "silently
+// promoted users with zero grants to admin-level visibility". That warning is
+// now FALSE as written: the promotion is the intended behaviour and is applied
+// uniformly by all seven callers. It is kept as this note rather than deleted,
+// because a future reader who "restores the invariant" here would change the
+// visibility rules of seven handlers at once without touching any of them.
 func (s *AccessService) GetLibraryAccessByUserID(ctx context.Context, userID string) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.GetLibraryAccessByUserID")
 	defer span.End()

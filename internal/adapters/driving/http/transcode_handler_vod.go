@@ -338,7 +338,7 @@ func (h *hlsVODServe) dispatchAudioPlaylist(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	m := audioPlaylistNameRE.FindStringSubmatch(file)
-	trackIdx, _ := strconv.Atoi(m[1])
+	trackIdx := atoiIndex(m[1])
 	h.audio.servePlaylistFile(w, r, mediaID, trackIdx)
 }
 
@@ -349,13 +349,13 @@ func (h *hlsVODServe) dispatchAudioSegment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	m := audioSegmentNameRE.FindStringSubmatch(file)
-	trackIdx, _ := strconv.Atoi(m[1])
+	trackIdx := atoiIndex(m[1])
 	if m[2] == "" {
 		// _init.mp4
 		h.audio.serveInitFile(w, r, mediaID, trackIdx)
 		return
 	}
-	segIdx, _ := strconv.Atoi(m[2])
+	segIdx := atoiIndex(m[2])
 	h.audio.serveSegmentFile(w, r, mediaID, trackIdx, segIdx)
 }
 
@@ -529,9 +529,26 @@ func (h *hlsVODServe) refuseStaleFP(w http.ResponseWriter, r *http.Request, curr
 	return true
 }
 
+// atoiIndex parses a numeric URL segment that has already matched a `\d+`
+// route pattern, so the only way it can fail is OVERFLOW - a caller sending
+// stream_99999999999999999999.m3u8. strconv.Atoi returns its range error along
+// with 0, and every call site here used to discard it, so an overflowing index
+// silently became index 0: the bounds check downstream passed and the server
+// served rendition 0 instead of answering 404.
+//
+// Returns -1 on failure so a bounds check rejects it, whatever the caller's
+// upper limit is.
+func atoiIndex(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return -1
+	}
+	return n
+}
+
 func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
 	m := vodVariantNameRE.FindStringSubmatch(file)
-	profileIdx, _ := strconv.Atoi(m[1])
+	profileIdx := atoiIndex(m[1])
 
 	// Catches CMCD on variant playlist fetches (typical when the player ABR
 	// switches renditions). Helps the dashboard count switch frequency.
@@ -645,11 +662,11 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 
 func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {
 	m := vodSegmentNameRE.FindStringSubmatch(file)
-	variantIdx, _ := strconv.Atoi(m[1])
+	variantIdx := atoiIndex(m[1])
 	isInit := m[2] == ""
 	var segmentIdx int
 	if !isInit {
-		segmentIdx, _ = strconv.Atoi(m[2])
+		segmentIdx = atoiIndex(m[2])
 	}
 
 	// Resolve the playback plan ONCE, fingerprint included, BEFORE resolving
