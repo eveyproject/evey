@@ -35,7 +35,8 @@ func (r *FakeMediaItemCommandRepo) Create(_ context.Context, item *library.Media
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.items[string(item.ID)] = item
+	stored := *item
+	r.items[string(item.ID)] = &stored
 	return nil
 }
 
@@ -48,7 +49,8 @@ func (r *FakeMediaItemCommandRepo) Update(_ context.Context, item *library.Media
 	if _, ok := r.items[string(item.ID)]; !ok {
 		return ErrNotFound
 	}
-	r.items[string(item.ID)] = item
+	stored := *item
+	r.items[string(item.ID)] = &stored
 	r.UpdatedIDs = append(r.UpdatedIDs, string(item.ID))
 	return nil
 }

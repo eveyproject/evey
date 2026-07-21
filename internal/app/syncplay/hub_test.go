@@ -1633,6 +1633,23 @@ func TestHub_ConcurrentMembersOnOneRoom(t *testing.T) {
 		t.Fatalf("CreateRoom: %v", err)
 	}
 
+	// Anchor connection, held for the whole test: DisconnectMember deletes the
+	// room once the LAST member leaves, and the workers below connect and
+	// disconnect in a tight loop. Without an anchor the first worker to find
+	// itself alone destroys the room, every later ConnectMember fails with
+	// "room not found", and the test measures nothing.
+	//
+	// That was not hypothetical - it is what happened. The test only passed
+	// under `-race`, whose scheduling overhead kept the workers overlapping by
+	// luck; a plain `go test` tripped the vacuous-pass guard below. A
+	// concurrency test whose coverage depends on the race detector's timing
+	// isn't testing concurrency, so the room lifetime is now explicit.
+	anchor := fakes.NewFakeMessageSender()
+	if _, aErr := h.ConnectMember(ctx, room.ID, "anchor", "Anchor", anchor); aErr != nil {
+		t.Fatalf("anchor ConnectMember: %v", aErr)
+	}
+	defer func() { _ = h.DisconnectMember(ctx, room.ID, "anchor") }()
+
 	const workers = 12
 	const iters = 60
 	// Guard against a vacuous pass: if every ConnectMember errored, the loop
