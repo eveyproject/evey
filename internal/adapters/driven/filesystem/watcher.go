@@ -57,6 +57,16 @@ func (fw *FSWatcher) loop() {
 					continue
 				}
 			}
+			// Liveness-probe files are an internal protocol between the app's
+			// prober and this adapter. They deliberately carry no media
+			// extension (so the scanner ignores them), which means the filter
+			// below would drop them - and every probe would time out, marking
+			// healthy watches dead and sending the server into constant full
+			// scans. Forward them before filtering.
+			if library.IsProbeFile(ev.Name) {
+				fw.events <- library.FileEvent{Path: ev.Name, Op: op}
+				continue
+			}
 			ext := strings.ToLower(filepath.Ext(ev.Name))
 			if !videoExtensions[ext] {
 				continue

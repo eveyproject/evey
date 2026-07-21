@@ -11,6 +11,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
@@ -23,11 +24,11 @@ func TestIsProbePath(t *testing.T) {
 		path string
 		want bool
 	}{
-		{"/media/tv/" + probeFilePrefix + "1730000000", true},
+		{"/media/tv/" + library.ProbeFilePrefix + "1730000000", true},
 		{"/media/movies/Inception (2010).mkv", false},
 		{"/media/movies/.hidden.mkv", false},
 		// A user file that merely CONTAINS the prefix mid-name is not ours.
-		{"/media/movies/my" + probeFilePrefix + "notes.txt", false},
+		{"/media/movies/my" + library.ProbeFilePrefix + "notes.txt", false},
 	}
 	for _, tc := range cases {
 		if got := isProbePath(tc.path); got != tc.want {
@@ -48,7 +49,7 @@ func TestProbeOnce_EventDelivered_LeavesNoFile(t *testing.T) {
 		for time.Now().Before(deadline) {
 			entries, _ := os.ReadDir(dir)
 			for _, e := range entries {
-				if strings.HasPrefix(e.Name(), probeFilePrefix) {
+				if strings.HasPrefix(e.Name(), library.ProbeFilePrefix) {
 					ws.probes.deliver(filepath.Join(dir, e.Name()))
 					return
 				}
@@ -140,7 +141,7 @@ func assertNoProbeFiles(t *testing.T, dir string) {
 		t.Fatalf("read dir: %v", err)
 	}
 	for _, e := range entries {
-		if strings.HasPrefix(e.Name(), probeFilePrefix) {
+		if strings.HasPrefix(e.Name(), library.ProbeFilePrefix) {
 			t.Fatalf("probe file left behind: %s", e.Name())
 		}
 	}

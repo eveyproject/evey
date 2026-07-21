@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
@@ -36,11 +37,6 @@ import (
 // the periodic full scan stays as a backstop rather than being replaced.
 
 const (
-	// probeFilePrefix marks the probe file. Dot-prefixed so it is hidden, and
-	// with no media extension so the scanner ignores it even in the window
-	// before it is deleted.
-	probeFilePrefix = ".evey-watch-probe-"
-
 	// probeTimeout is how long to wait for our own event. Generous: a busy
 	// server can take a moment to drain the event channel, and a false
 	// "unhealthy" verdict costs a full library scan.
@@ -55,7 +51,7 @@ const (
 // timer, so treating it as a real change would make the server scan its whole
 // library every probeInterval - the opposite of the point.
 func isProbePath(path string) bool {
-	return strings.HasPrefix(filepath.Base(path), probeFilePrefix)
+	return library.IsProbeFile(path)
 }
 
 // probeState tracks, per library, whether the watch is answering.
@@ -131,7 +127,7 @@ func (p *probeState) UnhealthyLibraries() map[string]bool {
 // The file is removed on EVERY path, including timeout and write failure, so a
 // deaf watcher cannot accumulate droppings in someone's media library.
 func (ws *WatcherService) probeOnce(ctx context.Context, dir string) error {
-	name := fmt.Sprintf("%s%d", probeFilePrefix, time.Now().UnixNano())
+	name := fmt.Sprintf("%s%d", library.ProbeFilePrefix, time.Now().UnixNano())
 	path := filepath.Join(dir, name)
 
 	ch := ws.probes.arm(path)
@@ -289,4 +285,11 @@ func (ws *WatcherService) probeRound(ctx context.Context) {
 			}
 		}
 	}
+}
+
+// ProbeRoundForTest runs one probe round synchronously. Exported for the
+// real-kernel integration test, which must drive a round without waiting out
+// the production interval.
+func (ws *WatcherService) ProbeRoundForTest(ctx context.Context) {
+	ws.safeProbeRound(ctx)
 }

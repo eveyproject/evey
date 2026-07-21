@@ -2,6 +2,8 @@ package library
 
 import (
 	"context"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -524,4 +526,20 @@ type IntroAudioFingerprintCacheRepository interface {
 	Upsert(ctx context.Context, entry *IntroAudioFingerprintCacheEntry) error
 	Delete(ctx context.Context, mediaItemID string) error
 	DeleteByAlgoVersionBelow(ctx context.Context, version int16) (int64, error)
+}
+
+// ProbeFilePrefix marks the watcher's own inotify liveness-probe files.
+//
+// It lives in the domain because BOTH sides of the watcher port need it: the
+// app layer writes these files and waits for their events, and the filesystem
+// adapter must forward them past its video-extension filter - a probe file
+// deliberately has no media extension, so without an explicit exemption the
+// adapter drops the event and every probe times out, declaring healthy watches
+// dead. That failure was real and was caught only by a test against the actual
+// kernel; keep the two sides sharing this one constant.
+const ProbeFilePrefix = ".evey-watch-probe-"
+
+// IsProbeFile reports whether a path is a watcher liveness-probe file.
+func IsProbeFile(path string) bool {
+	return strings.HasPrefix(filepath.Base(path), ProbeFilePrefix)
 }
