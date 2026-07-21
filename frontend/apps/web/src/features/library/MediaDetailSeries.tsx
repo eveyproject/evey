@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { ICON } from "@/constants/iconSizes";
 import { Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
@@ -57,7 +58,7 @@ function EpisodeRow({ ep, difficulty }: { ep: V1MediaItem; difficulty?: Playback
           />
         )}
         <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity-fast">
-          <Play size={28} fill="currentColor" className="text-white" />
+          <Play size={ICON["2xl"]} fill="currentColor" className="text-white" />
         </span>
       </Link>
 
@@ -66,7 +67,7 @@ function EpisodeRow({ ep, difficulty }: { ep: V1MediaItem; difficulty?: Playback
           <span className="text-base flex-shrink-0 font-mono font-medium text-[var(--accent)]">
             E{ep.indexNumber ?? "?"}
           </span>
-          <span className="text-[17px] font-medium truncate">{ep.title}</span>
+          <span className="text-base font-medium truncate">{ep.title}</span>
           {/* Sits with the duration, before playback starts: the whole point is
               that someone sees "heavy" and can choose to download instead of
               streaming it. */}
@@ -76,7 +77,7 @@ function EpisodeRow({ ep, difficulty }: { ep: V1MediaItem; difficulty?: Playback
           )}
         </div>
         {ep.overview && (
-          <p className="mt-2 text-[15px] leading-relaxed line-clamp-3 text-[var(--text-secondary)]">{ep.overview}</p>
+          <p className="mt-2 text-sm leading-relaxed line-clamp-3 text-[var(--text-secondary)]">{ep.overview}</p>
         )}
       </div>
 
@@ -144,7 +145,7 @@ function SeasonCard({ seasonId }: { seasonId: string }) {
           title={t("media.detail.play")}
           className="absolute inset-x-0 top-0 aspect-[2/3] flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity-fast rounded-[var(--radius-md)]"
         >
-          <Play size={32} fill="currentColor" className="text-white" />
+          <Play size={ICON["2xl"]} fill="currentColor" className="text-white" />
         </Link>
       )}
       <Link
@@ -178,7 +179,7 @@ export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPla
 
   return (
     <Button variant="primary" size="lg" onClick={() => onPlay(firstEpisode.id!)}>
-      <Play size={20} fill="currentColor" />
+      <Play size={ICON.lg} fill="currentColor" />
       {t("media.detail.play")}
     </Button>
   );
@@ -194,7 +195,7 @@ export function PlaySeasonButton({ seasonId, onPlay }: { seasonId: string; onPla
 
   return (
     <Button variant="primary" size="lg" data-testid="play-button" onClick={() => onPlay(firstEpisode.id!)}>
-      <Play size={20} fill="currentColor" />
+      <Play size={ICON.lg} fill="currentColor" />
       {t("media.detail.play")}
     </Button>
   );
@@ -209,8 +210,8 @@ export function SeriesSection({ item }: { item: V1MediaItem }) {
   return (
     <div className="mt-10">
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--text-secondary)]">{t("media.detail.seasons")}</h2>
-        <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{t("media.detail.seasonCount", { count: seasons.length })}</span>
+        <h2 className="text-xs uppercase tracking-[0.18em] font-semibold text-[var(--text-secondary)]">{t("media.detail.seasons")}</h2>
+        <span className="text-xs tabular-nums text-[var(--text-muted)]">{t("media.detail.seasonCount", { count: seasons.length })}</span>
       </div>
       <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(200px,1fr))]">
         {seasons.map((s) => (s.id ? <SeasonCard key={s.id} seasonId={s.id} /> : null))}
@@ -236,8 +237,8 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
   return (
     <div className="mt-10">
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--text-secondary)]">{t("media.detail.episodes")}</h2>
-        <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{t("media.detail.episodeCount", { count: episodes.length })}</span>
+        <h2 className="text-xs uppercase tracking-[0.18em] font-semibold text-[var(--text-secondary)]">{t("media.detail.episodes")}</h2>
+        <span className="text-xs tabular-nums text-[var(--text-muted)]">{t("media.detail.episodeCount", { count: episodes.length })}</span>
       </div>
       {/* Bounded width: a row stretched across the whole page left the synopsis
           running for 150+ characters and the download button marooned far from
