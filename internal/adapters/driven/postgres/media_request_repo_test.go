@@ -2,7 +2,9 @@ package postgres_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -10,6 +12,8 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/evey-project/evey/internal/domain/mediarequest"
+	"github.com/evey-project/evey/internal/domain/shared"
 )
 
 // The media-request search must flag titles the server already holds, matched
@@ -51,4 +55,78 @@ func TestLibraryLookupRepo_FindByProviderIDs(t *testing.T) {
 	got, err = lookup.FindByProviderIDs(ctx, "music", []string{"musicbrainz:abc"})
 	require.NoError(t, err)
 	assert.Empty(t, got)
+}
+
+// seedRequestOwner creates the user + profile the media_requests foreign keys
+// require, and returns the repo under test.
+func seedRequestOwner(t *testing.T, db *sql.DB, suffix string) (*postgres.MediaRequestRepository, shared.UserID, shared.ProfileID) {
+	t.Helper()
+	ctx := context.Background()
+	u := newTestUser("mru" + suffix)
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("mrp"+suffix, u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	return postgres.NewMediaRequestRepository(db), u.ID, p.ID
+}
+
+func newTestRequest(id, providerID string, status mediarequest.Status, userID shared.UserID, profileID shared.ProfileID) *mediarequest.Request {
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	return &mediarequest.Request{
+		ID:         id,
+		ProfileID:  profileID,
+		UserID:     string(userID),
+		MediaType:  mediarequest.MediaTypeMovie,
+		Provider:   "tmdb",
+		ProviderID: providerID,
+		Title:      "Inception",
+		Status:     status,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+}
+
+// The duplicate guard used to be a plain (non-unique) index, with the service
+// doing a read-then-write around it and nothing in between. Two concurrent
+// calls - a double-click, a client retry - both passed the check and both
+// inserted, leaving two identical open requests in the operator's moderation
+// queue. This proves the database now refuses the second one, and that the
+// loser gets the domain error rather than a raw driver failure.
+func TestMediaRequestRepo_DuplicateOpenRequestIsRejected(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	repo, uid, pid := seedRequestOwner(t, db, "dupe")
+
+	require.NoError(t, repo.Create(ctx, newTestRequest("req-1", "27205", mediarequest.StatusPending, uid, pid)))
+
+	err := repo.Create(ctx, newTestRequest("req-2", "27205", mediarequest.StatusPending, uid, pid))
+	require.ErrorIs(t, err, mediarequest.ErrDuplicate)
+}
+
+// A rejected request must not block asking again - that is what "open" means in
+// HasOpenRequest, and the partial index has to agree with it or the two
+// disagree about the same rule.
+func TestMediaRequestRepo_RejectedDoesNotBlockReRequest(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	repo, uid, pid := seedRequestOwner(t, db, "rej")
+
+	require.NoError(t, repo.Create(ctx, newTestRequest("req-1", "27205", mediarequest.StatusRejected, uid, pid)))
+	require.NoError(t, repo.Create(ctx, newTestRequest("req-2", "27205", mediarequest.StatusPending, uid, pid)),
+		"a previously rejected title must be requestable again")
+}
+
+// Free-text requests carry no provider id, so they have no identity to
+// deduplicate on. Constraining them would stop a user filing two different
+// hand-typed requests.
+func TestMediaRequestRepo_EmptyProviderIDIsNotDeduplicated(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	repo, uid, pid := seedRequestOwner(t, db, "free")
+
+	require.NoError(t, repo.Create(ctx, newTestRequest("req-1", "", mediarequest.StatusPending, uid, pid)))
+	require.NoError(t, repo.Create(ctx, newTestRequest("req-2", "", mediarequest.StatusPending, uid, pid)),
+		"free-text requests have no identity to deduplicate on")
 }

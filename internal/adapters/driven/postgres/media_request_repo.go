@@ -48,6 +48,16 @@ func (r *MediaRequestRepository) Create(ctx context.Context, req *mediarequest.R
 		req.CreatedAt, req.UpdatedAt, req.AnsweredAt,
 	)
 	if err != nil {
+		// The service checks for an existing open request before calling here,
+		// but that check and this write are not atomic - two concurrent calls
+		// (a double-click, a client retry) both pass it. The partial unique
+		// index added in 000140 is what actually enforces the rule; translate
+		// its violation into the domain error so the loser of the race gets the
+		// same answer as someone who simply asked twice, rather than a 500.
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return mediarequest.ErrDuplicate
+		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
