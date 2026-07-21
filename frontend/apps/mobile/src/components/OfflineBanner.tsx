@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "../providers/ThemeProvider";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 /**
  * Persistent banner that shows when the device loses internet
@@ -35,7 +36,7 @@ function OfflineBannerImpl() {
       accessibilityLiveRegion="polite"
       accessibilityLabel={t("common.offline.title", "Offline")}
     >
-      <Ionicons name="cloud-offline-outline" size={14} color="#fff" />
+      <Ionicons name="cloud-offline-outline" size={ICON_SIZE.sm} color="#fff" />
       <Text style={styles.text}>{t("common.offline.title", "Offline")}</Text>
     </View>
   );
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
   },
   text: {
     color: "#fff",
-    fontSize: 12,
+    fontSize: FONT_SIZE.xs,
     fontWeight: "600",
   },
 });

@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList, useAddToPlaylist } from "../api/playlists";
 import { FocusableCard } from "./FocusableCard";
+import { FONT_SIZE } from "@evey/theme";
 
 interface Props {
   visible: boolean;
@@ -74,7 +75,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
                     <Text style={[styles.playlistName, { color: theme.colors.text }]} numberOfLines={1}>
                       {item.name}
                     </Text>
-                    <Text style={{ color: added ? theme.colors.accent : theme.colors.textMuted, fontSize: 20 }}>
+                    <Text style={{ color: added ? theme.colors.accent : theme.colors.textMuted, fontSize: FONT_SIZE.xl }}>
                       {added ? t("common.added", "Added") : "+"}
                     </Text>
                   </FocusableCard>
@@ -99,8 +100,8 @@ export function AddToPlaylistSheet({ visible, mediaItemId, onClose }: Props) {
 const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: "center", alignItems: "center" },
   sheet: { width: 500, padding: 32 },
-  title: { fontSize: 28, fontWeight: "700", marginBottom: 16 },
-  empty: { fontSize: 20, textAlign: "center", marginTop: 24 },
+  title: { fontSize: FONT_SIZE["3xl"], fontWeight: "700", marginBottom: 16 },
+  empty: { fontSize: FONT_SIZE.xl, textAlign: "center", marginTop: 24 },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -109,8 +110,8 @@ const styles = StyleSheet.create({
     gap: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  icon: { fontSize: 22, width: 32, textAlign: "center" },
-  playlistName: { flex: 1, fontSize: 20, fontWeight: "500" },
+  icon: { fontSize: FONT_SIZE.xl, width: 32, textAlign: "center" },
+  playlistName: { flex: 1, fontSize: FONT_SIZE.xl, fontWeight: "500" },
   closeBtn: { marginTop: 20, paddingVertical: 16, alignItems: "center", borderRadius: 8 },
-  closeBtnText: { fontSize: 20, fontWeight: "600" },
+  closeBtnText: { fontSize: FONT_SIZE.xl, fontWeight: "600" },
 });

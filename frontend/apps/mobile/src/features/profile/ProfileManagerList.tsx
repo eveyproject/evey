@@ -14,6 +14,7 @@ import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { EditProfileDialog } from "./EditProfileDialog";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface Props {
   userId: string;
@@ -120,7 +121,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
                   {setDefPending ? (
                     <ActivityIndicator color={theme.colors.accent} size="small" />
                   ) : (
-                    <Ionicons name="star-outline" size={18} color={theme.colors.textMuted} />
+                    <Ionicons name="star-outline" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
                   )}
                 </Pressable>
               )}
@@ -131,7 +132,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
                 accessibilityRole="button"
                 accessibilityLabel={t("common.edit", "Edit")}
               >
-                <Ionicons name="pencil-outline" size={18} color={theme.colors.textMuted} />
+                <Ionicons name="pencil-outline" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
               </Pressable>
 
               <Pressable
@@ -141,7 +142,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
                 accessibilityRole="button"
                 accessibilityLabel={t("common.delete", "Delete")}
               >
-                <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
+                <Ionicons name="trash-outline" size={ICON_SIZE.lg} color={theme.colors.error} />
               </Pressable>
             </View>
           );
@@ -220,11 +221,11 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       overflow: "hidden",
     },
     avatarText: {
-      fontSize: 16,
+      fontSize: FONT_SIZE.base,
       fontWeight: "700",
     },
     name: {
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
       fontWeight: "500",
     },
     badges: {
@@ -238,7 +239,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderRadius: 4,
     },
     badgeText: {
-      fontSize: 10,
+      fontSize: FONT_SIZE.xs,
       fontWeight: "700",
       textTransform: "uppercase",
     },
@@ -257,12 +258,12 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       padding: t.spacing.lg,
     },
     title: {
-      fontSize: 18,
+      fontSize: FONT_SIZE.lg,
       fontWeight: "700",
       marginBottom: t.spacing.sm,
     },
     desc: {
-      fontSize: 14,
+      fontSize: FONT_SIZE.sm,
       marginBottom: t.spacing.lg,
     },
     buttons: {
@@ -277,6 +278,6 @@ const styles = (t: ReturnType<typeof useTheme>) =>
     },
     btnText: {
       fontWeight: "600",
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
     },
   });

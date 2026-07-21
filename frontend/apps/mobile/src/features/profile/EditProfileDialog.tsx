@@ -9,6 +9,7 @@ import {
 import type { V1Profile } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
+import { FONT_SIZE } from "@evey/theme";
 
 interface Props {
   open: boolean;
@@ -164,7 +165,7 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
                         accessibilityState={{ selected: active }}
                         accessibilityLabel={label}
                       >
-                        <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "500" }}>
+                        <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs, fontWeight: "500" }}>
                           {label}
                         </Text>
                       </Pressable>
@@ -243,12 +244,12 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       padding: t.spacing.lg,
     },
     title: {
-      fontSize: 18,
+      fontSize: FONT_SIZE.lg,
       fontWeight: "700",
       marginBottom: t.spacing.md,
     },
     label: {
-      fontSize: 12,
+      fontSize: FONT_SIZE.xs,
       fontWeight: "600",
       textTransform: "uppercase",
       marginBottom: 6,
@@ -257,15 +258,15 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderWidth: 1,
       paddingHorizontal: 12,
       paddingVertical: 10,
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
     },
     row: {
       flexDirection: "row",
       alignItems: "center",
       gap: t.spacing.md,
     },
-    rowLabel: { fontSize: 15, fontWeight: "500" },
-    rowHelp: { fontSize: 12, marginTop: 2 },
+    rowLabel: { fontSize: FONT_SIZE.sm, fontWeight: "500" },
+    rowHelp: { fontSize: FONT_SIZE.xs, marginTop: 2 },
     chipsRow: {
       flexDirection: "row",
       flexWrap: "wrap",
@@ -276,7 +277,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       paddingHorizontal: 12,
       borderWidth: 1,
     },
-    error: { fontSize: 13 },
+    error: { fontSize: FONT_SIZE.xs },
     buttons: {
       flexDirection: "row",
       gap: t.spacing.sm,
@@ -288,5 +289,5 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "center",
     },
-    btnText: { fontWeight: "600", fontSize: 15 },
+    btnText: { fontWeight: "600", fontSize: FONT_SIZE.sm },
   });

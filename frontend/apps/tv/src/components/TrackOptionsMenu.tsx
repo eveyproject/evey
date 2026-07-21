@@ -2,6 +2,7 @@ import { View, Text, Modal, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
+import { FONT_SIZE } from "@evey/theme";
 
 interface TrackOptionsMenuProps {
   visible: boolean;
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
     maxWidth: 480,
   },
   title: {
-    fontSize: 20,
+    fontSize: FONT_SIZE.xl,
     fontWeight: "600",
     textAlign: "center",
     marginBottom: 16,
@@ -92,6 +93,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   label: {
-    fontSize: 16,
+    fontSize: FONT_SIZE.base,
   },
 });

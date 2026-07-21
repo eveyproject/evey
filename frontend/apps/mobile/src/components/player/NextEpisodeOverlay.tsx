@@ -2,6 +2,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useNextEpisode, COUNTDOWN_SEC } from "../../hooks/useNextEpisode";
+import { FONT_SIZE } from "@evey/theme";
 
 interface NextEpisodeOverlayProps {
   nextEp: ReturnType<typeof useNextEpisode>;
@@ -60,14 +61,14 @@ const styles = StyleSheet.create({
   },
   nextEpLabel: {
     color: "rgba(255,255,255,0.6)",
-    fontSize: 11,
+    fontSize: FONT_SIZE.xs,
     textTransform: "uppercase",
     letterSpacing: 1,
     marginBottom: 4,
   },
   nextEpTitle: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: FONT_SIZE.sm,
     fontWeight: "600",
     marginBottom: 10,
   },
@@ -82,7 +83,7 @@ const styles = StyleSheet.create({
   },
   nextEpPlayText: {
     color: "#000",
-    fontSize: 13,
+    fontSize: FONT_SIZE.xs,
     fontWeight: "600",
   },
   nextEpCancelBtn: {
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
   },
   nextEpCancelText: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: FONT_SIZE.xs,
     fontWeight: "600",
   },
   nextEpProgressBg: {

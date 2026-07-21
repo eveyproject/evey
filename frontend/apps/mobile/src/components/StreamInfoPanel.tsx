@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { BottomSheet } from "./BottomSheet";
 import type { V1StreamInfo, V1MediaStream } from "@evey/api";
+import { FONT_SIZE } from "@evey/theme";
 
 interface StreamInfoPanelProps {
   visible: boolean;
@@ -137,7 +138,7 @@ export function StreamInfoPanel({ visible, onClose, streamInfo }: StreamInfoPane
 
 const styles = StyleSheet.create({
   section: {
-    fontSize: 13,
+    fontSize: FONT_SIZE.xs,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 0.5,
@@ -152,17 +153,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   label: {
-    fontSize: 14,
+    fontSize: FONT_SIZE.sm,
   },
   value: {
-    fontSize: 14,
+    fontSize: FONT_SIZE.sm,
     fontWeight: "500",
     textAlign: "right",
     flexShrink: 1,
     marginLeft: 12,
   },
   reasons: {
-    fontSize: 13,
+    fontSize: FONT_SIZE.xs,
     paddingVertical: 6,
   },
 });

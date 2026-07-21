@@ -10,6 +10,7 @@ import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { PLUGIN_BRIDGE_SCRIPT } from "./pluginBridge";
+import { FONT_SIZE } from "@evey/theme";
 
 // Persistent cache for plugin bundles. The Weather plugin bundle is 1.3 MB
 // (it ships react-three/fiber + postprocessing + three for the animated 3D
@@ -482,7 +483,7 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
   if (error) {
     return (
       <View style={styles.error} onLayout={handleLayout}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>
           {t("admin.plugin.frontLoadError", "Failed to load plugin")}
         </Text>
       </View>

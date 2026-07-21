@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { CastButtonNative } from "../../hooks/useChromecast";
 import { formatTime } from "../../lib/formatTime";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface CastControllerScreenProps {
   title: string;
@@ -36,10 +37,10 @@ export function CastControllerScreen({
       <StatusBar hidden />
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 40 }}>
         <Ionicons name="tv" size={64} color={theme.colors.accent} />
-        <Text style={{ color: "#fff", fontSize: 20, fontWeight: "700", marginTop: 20 }}>
+        <Text style={{ color: "#fff", fontSize: FONT_SIZE.xl, fontWeight: "700", marginTop: 20 }}>
           {t("player.controls.castingTo", "Casting to")}
         </Text>
-        <Text style={{ color: theme.colors.accent, fontSize: 16, marginTop: 4 }}>
+        <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, marginTop: 4 }}>
           {title}
         </Text>
 
@@ -49,23 +50,23 @@ export function CastControllerScreen({
             <View style={{ height: "100%", borderRadius: 2, backgroundColor: theme.colors.accent, width: `${Math.min(100, castProgress * 100)}%` }} />
           </View>
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
-            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatTime(currentTime)}</Text>
-            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{formatTime(duration)}</Text>
+            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: FONT_SIZE.xs }}>{formatTime(currentTime)}</Text>
+            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: FONT_SIZE.xs }}>{formatTime(duration)}</Text>
           </View>
         </View>
 
         {/* Controls */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 32, marginTop: 24 }}>
           <Pressable onPress={() => onSeekToPosition(Math.max(0, currentTime - skipBwd))} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })}>
-            <Ionicons name="play-back" size={32} color="#fff" />
+            <Ionicons name="play-back" size={ICON_SIZE["2xl"]} color="#fff" />
           </Pressable>
           <Pressable onPress={() => {
             onPlayPause();
           }} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")}>
-            <Ionicons name={isPlaying ? "pause" : "play"} size={48} color="#fff" />
+            <Ionicons name={isPlaying ? "pause" : "play"} size={ICON_SIZE["4xl"]} color="#fff" />
           </Pressable>
           <Pressable onPress={() => onSeekToPosition(currentTime + skipFwd)} hitSlop={12} accessible accessibilityRole="button" accessibilityLabel={t("player.controls.forward", { seconds: skipFwd })}>
-            <Ionicons name="play-forward" size={32} color="#fff" />
+            <Ionicons name="play-forward" size={ICON_SIZE["2xl"]} color="#fff" />
           </Pressable>
         </View>
         {CastButtonNative && (
@@ -74,7 +75,7 @@ export function CastControllerScreen({
           </View>
         )}
         <Pressable onPress={onBack} style={{ marginTop: 24 }}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>{t("player.goBack")}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm }}>{t("player.goBack")}</Text>
         </Pressable>
       </View>
     </View>

@@ -2,6 +2,7 @@ import { Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { BottomSheet } from "./BottomSheet";
 import { useTheme } from "../providers/ThemeProvider";
+import { FONT_SIZE } from "@evey/theme";
 
 export interface QualityOption {
   label: string;
@@ -72,11 +73,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   label: {
-    fontSize: 15,
+    fontSize: FONT_SIZE.sm,
     flex: 1,
   },
   check: {
-    fontSize: 18,
+    fontSize: FONT_SIZE.lg,
     fontWeight: "600",
     marginLeft: 12,
   },

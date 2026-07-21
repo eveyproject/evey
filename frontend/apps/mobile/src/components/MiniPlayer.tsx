@@ -8,6 +8,7 @@ import { usePlayerStore } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../hooks/useServerUrl";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 function MiniPlayerImpl() {
   const { t } = useTranslation();
@@ -41,7 +42,7 @@ function MiniPlayerImpl() {
         />
       ) : (
         <View style={[styles.artwork, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
-          <Ionicons name="musical-notes" size={18} color={theme.colors.textMuted} />
+          <Ionicons name="musical-notes" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
         </View>
       )}
       <View style={styles.info}>
@@ -50,7 +51,7 @@ function MiniPlayerImpl() {
         </Text>
       </View>
       <Pressable onPress={stop} hitSlop={12} style={styles.closeBtn} accessible={true} accessibilityLabel={t("player.stop", "Stop playback")} accessibilityRole="button">
-        <Ionicons name="close" size={20} color={theme.colors.textMuted} />
+        <Ionicons name="close" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
       </Pressable>
     </Pressable>
   );
@@ -76,6 +77,6 @@ const styles = StyleSheet.create({
   },
   artwork: { width: 40, height: 40, marginRight: 10 },
   info: { flex: 1 },
-  title: { fontSize: 14, fontWeight: "600" },
+  title: { fontSize: FONT_SIZE.sm, fontWeight: "600" },
   closeBtn: { padding: 8 },
 });

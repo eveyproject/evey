@@ -15,6 +15,7 @@ import { useAuthStore } from "@evey/store";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 function MusicMiniPlayerImpl() {
   const theme = useTheme();
@@ -108,17 +109,17 @@ function MusicMiniPlayerImpl() {
           {artUri ? (
             <Image source={{ uri: artUri }} style={{ width: 40, height: 40, borderRadius: 4 }} contentFit="cover" />
           ) : (
-            <Ionicons name="musical-notes" size={20} color={theme.colors.textMuted} />
+            <Ionicons name="musical-notes" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
           )}
         </View>
         <View style={{ flex: 1, marginLeft: 10, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 13, fontWeight: "600" }}>{track.title || "-"}</Text>
-          <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: FONT_SIZE.xs, fontWeight: "600" }}>{track.title || "-"}</Text>
+          <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>
             {[track.artist, track.album].filter(Boolean).join(" · ") || "-"}
           </Text>
         </View>
         <Pressable onPress={previous} hitSlop={8} accessibilityLabel="Previous track" accessibilityRole="button">
-          <Ionicons name="play-skip-back" size={22} color={theme.colors.text} />
+          <Ionicons name="play-skip-back" size={ICON_SIZE.xl} color={theme.colors.text} />
         </Pressable>
         <Pressable
           onPress={togglePlay}
@@ -127,13 +128,13 @@ function MusicMiniPlayerImpl() {
           accessibilityRole="button"
           style={{ marginHorizontal: 10 }}
         >
-          <Ionicons name={isPlayingState ? "pause" : "play"} size={26} color={theme.colors.text} />
+          <Ionicons name={isPlayingState ? "pause" : "play"} size={ICON_SIZE.xl} color={theme.colors.text} />
         </Pressable>
         <Pressable onPress={next} hitSlop={8} accessibilityLabel="Next track" accessibilityRole="button">
-          <Ionicons name="play-skip-forward" size={22} color={theme.colors.text} />
+          <Ionicons name="play-skip-forward" size={ICON_SIZE.xl} color={theme.colors.text} />
         </Pressable>
         <Pressable onPress={onClose} hitSlop={8} accessibilityLabel="Close player" accessibilityRole="button" style={{ marginLeft: 10 }}>
-          <Ionicons name="close" size={20} color={theme.colors.textMuted} />
+          <Ionicons name="close" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
         </Pressable>
       </View>
     </View>

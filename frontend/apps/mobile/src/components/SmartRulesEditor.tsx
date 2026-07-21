@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, ScrollView, Modal, StyleSheet } from 
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 type RuleField = "genre" | "year" | "type" | "library_id";
 type Operator = "eq" | "gte" | "lte" | "gt" | "lt";
@@ -101,7 +102,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                     onPress={() => updateRule(idx, defaultRule(f))}
                     style={[styles.chip, { backgroundColor: rule.field === f ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
                   >
-                    <Text style={{ color: rule.field === f ? theme.colors.onAccent : theme.colors.text, fontSize: 12 }}>{FIELD_LABELS[f]}</Text>
+                    <Text style={{ color: rule.field === f ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{FIELD_LABELS[f]}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -116,7 +117,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                         onPress={() => updateRule(idx, { ...rule, operator: op.value })}
                         style={[styles.chip, { backgroundColor: rule.operator === op.value ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
                       >
-                        <Text style={{ color: rule.operator === op.value ? theme.colors.onAccent : theme.colors.text, fontSize: 12 }}>{op.label}</Text>
+                        <Text style={{ color: rule.operator === op.value ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{op.label}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -141,7 +142,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                         onPress={() => updateRule(idx, { ...rule, value: mt.value })}
                         style={[styles.chip, { backgroundColor: rule.value === mt.value ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
                       >
-                        <Text style={{ color: rule.value === mt.value ? theme.colors.onAccent : theme.colors.text, fontSize: 12 }}>{mt.label}</Text>
+                        <Text style={{ color: rule.value === mt.value ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{mt.label}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -153,7 +154,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                         onPress={() => updateRule(idx, { ...rule, value: g })}
                         style={[styles.chip, { backgroundColor: rule.value === g ? theme.colors.accent : theme.colors.surfaceRaised, borderRadius: theme.radii.sm }]}
                       >
-                        <Text style={{ color: rule.value === g ? theme.colors.onAccent : theme.colors.text, fontSize: 12 }}>{g}</Text>
+                        <Text style={{ color: rule.value === g ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{g}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -174,24 +175,24 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
                   accessibilityRole="button"
                   accessibilityLabel={t("common.remove", "Remove")}
                 >
-                  <Ionicons name="close-circle" size={20} color={theme.colors.error} />
+                  <Ionicons name="close-circle" size={ICON_SIZE.lg} color={theme.colors.error} />
                 </Pressable>
               </View>
             </View>
           ))}
 
           <Pressable onPress={addRule} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 12 }}>
-            <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
-            <Text style={{ color: theme.colors.accent, fontSize: 14, fontWeight: "500" }}>Add Rule</Text>
+            <Ionicons name="add-circle-outline" size={ICON_SIZE.lg} color={theme.colors.accent} />
+            <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.sm, fontWeight: "500" }}>Add Rule</Text>
           </Pressable>
         </ScrollView>
 
         <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
           <Pressable onPress={handleSave} style={[styles.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, flex: 1 }]}>
-            <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("common.save")}</Text>
+            <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: FONT_SIZE.sm }}>{t("common.save")}</Text>
           </Pressable>
           <Pressable onPress={onClose} style={[styles.cancelBtn, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.md, flex: 1 }]}>
-            <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: 15 }}>{t("common.cancel")}</Text>
+            <Text style={{ color: theme.colors.text, fontWeight: "500", fontSize: FONT_SIZE.sm }}>{t("common.cancel")}</Text>
           </Pressable>
         </View>
       </View>
@@ -202,10 +203,10 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave }: Props) {
 const styles = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject },
   sheet: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 20, paddingBottom: 32 },
-  title: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
+  title: { fontSize: FONT_SIZE.lg, fontWeight: "700", marginBottom: 16 },
   ruleRow: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   chip: { paddingHorizontal: 10, paddingVertical: 5, marginRight: 6 },
-  input: { paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
+  input: { paddingHorizontal: 10, paddingVertical: 8, fontSize: FONT_SIZE.sm },
   saveBtn: { paddingVertical: 12, alignItems: "center" },
   cancelBtn: { paddingVertical: 12, alignItems: "center" },
 });

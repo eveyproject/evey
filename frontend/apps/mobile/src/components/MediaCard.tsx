@@ -7,6 +7,7 @@ import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useAuthenticatedImage } from "../hooks/useAuthenticatedImage";
 import { ProgressBar } from "./ProgressBar";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface MediaCardProps {
   item: V1MediaItem;
@@ -84,18 +85,18 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
             alignItems: "center",
             justifyContent: "center",
           }}>
-            <Ionicons name="checkmark" size={14} color="#fff" />
+            <Ionicons name="checkmark" size={ICON_SIZE.sm} color="#fff" />
           </View>
         )}
       </View>
       <Text
         numberOfLines={1}
-        style={{ color: theme.colors.text, fontSize: 13, marginTop: 4 }}
+        style={{ color: theme.colors.text, fontSize: FONT_SIZE.xs, marginTop: 4 }}
       >
         {item.title}
       </Text>
       {item.year != null && (
-        <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.year}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>{item.year}</Text>
       )}
     </Pressable>
   );

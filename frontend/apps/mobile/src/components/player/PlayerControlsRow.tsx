@@ -5,6 +5,7 @@ import { useTheme } from "../../providers/ThemeProvider";
 import { CastButtonNative } from "../../hooks/useChromecast";
 import type { SleepTimerState } from "../../hooks/useSleepTimer";
 import { formatTime } from "../../lib/formatTime";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 export type SheetName = "audio" | "subtitle" | "quality" | "chapters" | "streamInfo" | "sleepTimer" | "syncPlay";
 
@@ -64,13 +65,13 @@ export function PlayerControlsRow({
   return (
     <View style={[styles.controlsRow, { marginTop: 4 }]}>
       <Pressable onPress={() => onSeekBy(-skipBwd)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })} accessibilityRole="button">
-        <Ionicons name="play-back" size={20} color="#fff" />
+        <Ionicons name="play-back" size={ICON_SIZE.lg} color="#fff" />
       </Pressable>
       <Pressable onPress={onTogglePlayPause} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={isPlaying ? t("player.controls.pause") : t("player.controls.play")} accessibilityRole="button">
-        <Ionicons name={isPlaying ? "pause" : "play"} size={24} color="#fff" />
+        <Ionicons name={isPlaying ? "pause" : "play"} size={ICON_SIZE.xl} color="#fff" />
       </Pressable>
       <Pressable onPress={() => onSeekBy(skipFwd)} hitSlop={12} style={styles.controlBtn} accessible={true} accessibilityLabel={t("player.controls.forward", { seconds: skipFwd })} accessibilityRole="button">
-        <Ionicons name="play-forward" size={20} color="#fff" />
+        <Ionicons name="play-forward" size={ICON_SIZE.lg} color="#fff" />
       </Pressable>
       <Text style={styles.timeText}>{formatTime(currentTime)} / {formatTime(effectiveDuration)}</Text>
       <View style={{ flex: 1 }} />
@@ -83,7 +84,7 @@ export function PlayerControlsRow({
           accessibilityLabel={t("player.controls.chapters")}
           accessibilityRole="button"
         >
-          <Ionicons name="book-outline" size={18} color="#fff" />
+          <Ionicons name="book-outline" size={ICON_SIZE.lg} color="#fff" />
         </Pressable>
       )}
       {audioTrackCount > 1 && (
@@ -95,7 +96,7 @@ export function PlayerControlsRow({
           accessibilityLabel={t("player.settings.audio")}
           accessibilityRole="button"
         >
-          <Ionicons name="volume-high" size={18} color="#fff" />
+          <Ionicons name="volume-high" size={ICON_SIZE.lg} color="#fff" />
         </Pressable>
       )}
       {subtitleTrackCount > 0 && (
@@ -107,7 +108,7 @@ export function PlayerControlsRow({
           accessibilityLabel={t("player.settings.subtitles")}
           accessibilityRole="button"
         >
-          <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
+          <Ionicons name="chatbubble-ellipses" size={ICON_SIZE.lg} color="#fff" />
         </Pressable>
       )}
       <Pressable
@@ -118,7 +119,7 @@ export function PlayerControlsRow({
         accessibilityLabel={t("player.streamInfo.title", "Stream Info")}
         accessibilityRole="button"
       >
-        <Ionicons name="information-circle-outline" size={18} color="#fff" />
+        <Ionicons name="information-circle-outline" size={ICON_SIZE.lg} color="#fff" />
       </Pressable>
       <Pressable
         onPress={onCycleSpeed}
@@ -140,7 +141,7 @@ export function PlayerControlsRow({
       >
         <Ionicons
           name={sleepTimerState ? "moon" : "moon-outline"}
-          size={18}
+          size={ICON_SIZE.lg}
           color={sleepTimerState ? theme.colors.accent : "#fff"}
         />
         {sleepTimerState?.kind === "minutes" && sleepTimerState.minutesLeft !== null && (
@@ -157,7 +158,7 @@ export function PlayerControlsRow({
         accessibilityLabel={t("player.settings.quality")}
         accessibilityRole="button"
       >
-        <Ionicons name="settings-sharp" size={18} color="#fff" />
+        <Ionicons name="settings-sharp" size={ICON_SIZE.lg} color="#fff" />
       </Pressable>
       {pipSupported && (
         <Pressable
@@ -168,7 +169,7 @@ export function PlayerControlsRow({
           accessibilityLabel={t("player.controls.pip")}
           accessibilityRole="button"
         >
-          <Ionicons name="albums-outline" size={18} color="#fff" />
+          <Ionicons name="albums-outline" size={ICON_SIZE.lg} color="#fff" />
         </Pressable>
       )}
       <Pressable
@@ -179,7 +180,7 @@ export function PlayerControlsRow({
         accessibilityLabel={syncConnected ? t("media.syncplay.leave", "Leave") : t("media.syncplay.title", "Watch Together")}
         accessibilityRole="button"
       >
-        <Ionicons name="people" size={18} color={syncConnected ? theme.colors.accent : "#fff"} />
+        <Ionicons name="people" size={ICON_SIZE.lg} color={syncConnected ? theme.colors.accent : "#fff"} />
       </Pressable>
       {castAvailable && (
         <>
@@ -192,7 +193,7 @@ export function PlayerControlsRow({
             accessibilityLabel={castConnected ? t("player.controls.stopCast") : t("player.controls.cast")}
             accessibilityRole="button"
           >
-            <Ionicons name="tv-outline" size={18} color={castConnected ? theme.colors.accent : "#fff"} />
+            <Ionicons name="tv-outline" size={ICON_SIZE.lg} color={castConnected ? theme.colors.accent : "#fff"} />
           </Pressable>
         </>
       )}
@@ -204,7 +205,7 @@ export function PlayerControlsRow({
         accessibilityLabel={isFullscreen ? t("player.controls.exitFullscreen", "Exit fullscreen") : t("player.controls.fullscreen", "Fullscreen")}
         accessibilityRole="button"
       >
-        <Ionicons name={isFullscreen ? "contract-outline" : "expand-outline"} size={18} color="#fff" />
+        <Ionicons name={isFullscreen ? "contract-outline" : "expand-outline"} size={ICON_SIZE.lg} color="#fff" />
       </Pressable>
     </View>
   );
@@ -223,7 +224,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     color: "#fff",
-    fontSize: 13,
+    fontSize: FONT_SIZE.xs,
     fontVariant: ["tabular-nums"],
     minWidth: 50,
     textAlign: "center",
@@ -238,7 +239,7 @@ const styles = StyleSheet.create({
   },
   speedButtonText: {
     color: "#fff",
-    fontSize: 12,
+    fontSize: FONT_SIZE.xs,
     fontWeight: "700",
   },
 });

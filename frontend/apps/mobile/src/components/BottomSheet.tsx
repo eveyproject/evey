@@ -11,6 +11,7 @@ import {
   Dimensions,
 } from "react-native";
 import { useTheme } from "../providers/ThemeProvider";
+import { FONT_SIZE } from "@evey/theme";
 
 const SCREEN_HEIGHT = Dimensions.get("screen").height;
 
@@ -82,7 +83,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   title: {
-    fontSize: 16,
+    fontSize: FONT_SIZE.base,
     fontWeight: "600",
     textAlign: "center",
     paddingBottom: 12,

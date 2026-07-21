@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { BottomSheet } from "./BottomSheet";
 import { useTheme } from "../providers/ThemeProvider";
 import type { SleepTimerState } from "../hooks/useSleepTimer";
+import { FONT_SIZE } from "@evey/theme";
 
 const PRESETS_MIN = [15, 30, 45, 60, 90] as const;
 
@@ -74,11 +75,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   label: {
-    fontSize: 15,
+    fontSize: FONT_SIZE.sm,
     flex: 1,
   },
   check: {
-    fontSize: 18,
+    fontSize: FONT_SIZE.lg,
     fontWeight: "600",
     marginLeft: 12,
   },

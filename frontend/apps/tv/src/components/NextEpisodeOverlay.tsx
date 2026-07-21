@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
+import { FONT_SIZE } from "@evey/theme";
 
 interface NextEpisodeOverlayProps {
   visible: boolean;
@@ -69,13 +70,13 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   heading: {
-    fontSize: 14,
+    fontSize: FONT_SIZE.sm,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 1,
   },
   title: {
-    fontSize: 20,
+    fontSize: FONT_SIZE.xl,
     fontWeight: "700",
     marginTop: 4,
     marginBottom: 16,
@@ -93,10 +94,10 @@ const styles = StyleSheet.create({
   playText: {
     color: "#fff",
     fontWeight: "700",
-    fontSize: 16,
+    fontSize: FONT_SIZE.base,
   },
   cancelText: {
     fontWeight: "600",
-    fontSize: 16,
+    fontSize: FONT_SIZE.base,
   },
 });

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { BottomSheet } from "./BottomSheet";
 import { useTheme } from "../providers/ThemeProvider";
 import type { Chapter } from "../hooks/useChapters";
+import { FONT_SIZE } from "@evey/theme";
 
 interface ChaptersPickerProps {
   visible: boolean;
@@ -74,16 +75,16 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   timestamp: {
-    fontSize: 12,
+    fontSize: FONT_SIZE.xs,
     fontVariant: ["tabular-nums"],
     width: 52,
   },
   label: {
-    fontSize: 15,
+    fontSize: FONT_SIZE.sm,
     flex: 1,
   },
   check: {
-    fontSize: 18,
+    fontSize: FONT_SIZE.lg,
     fontWeight: "600",
     marginLeft: 12,
   },

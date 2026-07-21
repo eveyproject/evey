@@ -2,6 +2,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { BottomSheet } from "./BottomSheet";
+import { FONT_SIZE } from "@evey/theme";
 
 export interface SubtitleStream {
   index: number;
@@ -113,7 +114,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   label: {
-    fontSize: 15,
+    fontSize: FONT_SIZE.sm,
   },
   badges: {
     flexDirection: "row",
@@ -130,11 +131,11 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: FONT_SIZE.xs,
     fontWeight: "500",
   },
   check: {
-    fontSize: 18,
+    fontSize: FONT_SIZE.lg,
     fontWeight: "600",
     marginLeft: 12,
   },
