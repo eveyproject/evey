@@ -8,6 +8,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
+
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // A probe event must never look like a real change. The probe fires on a timer,
@@ -64,12 +68,9 @@ func TestProbeOnce_EventDelivered_LeavesNoFile(t *testing.T) {
 // week would otherwise have littered the user's media library.
 func TestProbeOnce_NoEvent_FailsAndCleansUp(t *testing.T) {
 	dir := t.TempDir()
-	ws := &WatcherService{log: slog.Default(), probes: newProbeState()}
+	ws := &WatcherService{log: slog.Default(), probes: newProbeState(), probeWait: 50 * time.Millisecond}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
-	defer cancel()
-
-	err := ws.probeOnce(ctx, dir)
+	err := ws.probeOnce(context.Background(), dir)
 	if err == nil {
 		t.Fatal("a probe whose event never arrives must fail")
 	}
@@ -143,4 +144,75 @@ func assertNoProbeFiles(t *testing.T, dir string) {
 			t.Fatalf("probe file left behind: %s", e.Name())
 		}
 	}
+}
+
+// Observability is a feature: these are the signals someone debugging a
+// production "my new media does not appear" report has to work with, so they
+// are asserted rather than assumed.
+func TestProbeRound_EmitsMetricsForEachOutcome(t *testing.T) {
+	dir := t.TempDir()
+	ws := &WatcherService{
+		log:       slog.Default(),
+		probes:    newProbeState(),
+		pathToLib: map[string]string{dir: "lib-dead"},
+		probeWait: 50 * time.Millisecond,
+	}
+	metrics.WatcherProbeTotal.Reset()
+	metrics.WatcherAlive.Reset()
+
+	// Nobody answers → the round must record a dead watch, not stay silent.
+	// The probe must time out on ITS OWN deadline, not on a cancelled context:
+	// a cancelled context means the server is shutting down, and marking every
+	// library dead on the way out would trigger a stampede of recovery scans on
+	// the next boot.
+	ws.probeRound(context.Background())
+
+	if got := testutil.ToFloat64(metrics.WatcherProbeTotal.WithLabelValues("lib-dead", "dead")); got != 1 {
+		t.Fatalf("a failed probe must be counted, got %v", got)
+	}
+	if got := testutil.ToFloat64(metrics.WatcherAlive.WithLabelValues("lib-dead")); got != 0 {
+		t.Fatalf("a failed probe must drive the alive gauge to 0, got %v", got)
+	}
+}
+
+// A read-only root must be counted as INCONCLUSIVE, never as a dead watch:
+// conflating them would make a legitimate setup look like an outage and pin
+// that library to permanent full scans.
+func TestProbeRound_UnwritableRootCountsInconclusive(t *testing.T) {
+	ws := &WatcherService{
+		log:       slog.Default(),
+		probes:    newProbeState(),
+		pathToLib: map[string]string{filepath.Join(t.TempDir(), "missing"): "lib-ro"},
+		probeWait: 50 * time.Millisecond,
+	}
+	metrics.WatcherProbeTotal.Reset()
+
+	ws.probeRound(context.Background())
+
+	if got := testutil.ToFloat64(metrics.WatcherProbeTotal.WithLabelValues("lib-ro", "inconclusive")); got != 1 {
+		t.Fatalf("an unwritable root must count as inconclusive, got %v", got)
+	}
+	if got := testutil.ToFloat64(metrics.WatcherProbeTotal.WithLabelValues("lib-ro", "dead")); got != 0 {
+		t.Fatalf("an unwritable root must NOT be reported as a dead watch, got %v", got)
+	}
+}
+
+// A panicking round must cost ONE round, not the prober. The goroutine-level
+// recover alone would swallow the panic and return, leaving every library
+// frozen on its last known health for the rest of the process lifetime - and
+// nothing would say so.
+func TestSafeProbeRound_ContainsPanic(t *testing.T) {
+	ws := &WatcherService{
+		log:       slog.Default(),
+		probes:    newProbeState(),
+		pathToLib: map[string]string{t.TempDir(): "lib-x"},
+		probeWait: 10 * time.Millisecond,
+		// scanner is nil: the dead-probe path will try a recovery scan.
+	}
+
+	// Must not panic out of the round.
+	ws.safeProbeRound(context.Background())
+
+	// And the prober must still be usable afterwards.
+	ws.safeProbeRound(context.Background())
 }

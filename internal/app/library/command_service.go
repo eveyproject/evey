@@ -12,6 +12,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/mkv"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -188,8 +189,12 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 		// the server was stopped stay invisible for a whole interval. That was
 		// tolerable at a 2-minute cadence and is not once the fallback is
 		// spaced out.
+		slog.Info("library scan: startup pass beginning (inotify cannot see changes made while the server was down)")
 		s.runScanPass(ctx, libQueries, targetSet, "startup")
 		lastScan = time.Now()
+		slog.Info("library scan: startup pass complete",
+			slog.Duration("next_periodic_in", interval),
+			slog.Duration("watched_backstop_interval", watchedScanInterval))
 		for {
 			select {
 			case <-ctx.Done():
@@ -237,8 +242,20 @@ func (s *CommandService) runScanPass(ctx context.Context, libQueries library.Lib
 			continue
 		}
 		if unwatched != nil && !unwatched[string(lib.ID)] && !s.dueForWatchedScan(string(lib.ID)) {
+			// THE question someone will ask in production is "why is my library
+			// not being scanned". Answer it here, with the reason and when the
+			// backstop is next due - a silent skip is undebuggable remotely.
+			slog.Debug("scan pass: skipped, watch is alive and the backstop is not due",
+				slog.String("library", lib.Name), slog.String("library_id", string(lib.ID)),
+				slog.Duration("since_last_walk", s.sinceWatchedScan(string(lib.ID))),
+				slog.Duration("backstop_interval", watchedScanInterval))
 			continue
 		}
+		scanReason := reason
+		if reason == "periodic" && unwatched != nil && !unwatched[string(lib.ID)] {
+			scanReason = "watched_backstop"
+		}
+		metrics.LibraryScanTotal.WithLabelValues(string(lib.ID), scanReason).Inc()
 		added, scanErr := func() (a int, err error) {
 			defer func() {
 				if r := recover(); r != nil {
@@ -253,10 +270,29 @@ func (s *CommandService) runScanPass(ctx context.Context, libQueries library.Lib
 			slog.Debug("scan pass: skip", slog.String("library", lib.Name), slog.String("reason", reason), slog.Any("err", scanErr))
 			continue
 		}
+		// Always log the walk, not only when it found something: "the scan ran
+		// and found nothing" and "the scan never ran" are different diagnoses
+		// and used to look identical from the outside.
 		if added > 0 {
-			slog.Info("scan pass", slog.String("library", lib.Name), slog.String("reason", reason), slog.Int("new", added))
+			slog.Info("scan pass: new media found",
+				slog.String("library", lib.Name), slog.String("reason", scanReason), slog.Int("new", added))
+		} else {
+			slog.Debug("scan pass: completed, nothing new",
+				slog.String("library", lib.Name), slog.String("reason", scanReason))
 		}
 	}
+}
+
+// sinceWatchedScan is how long since this library's last backstop walk, for
+// logging. Zero when it has never run in this process.
+func (s *CommandService) sinceWatchedScan(libID string) time.Duration {
+	s.watchedScanMu.Lock()
+	defer s.watchedScanMu.Unlock()
+	last, ok := s.lastWatchedScan[libID]
+	if !ok {
+		return 0
+	}
+	return time.Since(last)
 }
 
 // dueForWatchedScan reports whether a library with a proven-alive watch is due

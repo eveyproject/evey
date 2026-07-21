@@ -80,6 +80,40 @@ var (
 		Help: "Number of files enqueued for library scan processing.",
 	}, []string{"library_id"})
 
+	// WatcherProbeTotal counts inotify liveness probe outcomes per library.
+	// The probe writes a file into a watched directory and waits for its own
+	// event; result is "alive", "dead" or "inconclusive" (could not write - a
+	// read-only root, which is a legitimate setup, not a broken watch).
+	//
+	// This is the metric to look at first when someone reports "new media does
+	// not appear": a rising "dead" count means real-time monitoring is down and
+	// the server is relying on the periodic walk alone.
+	WatcherProbeTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_watcher_probe_total",
+		Help: "inotify liveness probe outcomes (alive|dead|inconclusive) per library.",
+	}, []string{"library_id", "result"})
+
+	// WatcherAlive is 1 when a library's watch answered its last probe, 0 when
+	// it did not. Unlike the counter above this survives as a current-state
+	// signal, so a dashboard can show which libraries are being watched right
+	// now versus which are falling back to periodic scanning.
+	WatcherAlive = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "evey_watcher_alive",
+		Help: "1 if the library's inotify watch answered its last liveness probe, 0 otherwise.",
+	}, []string{"library_id"})
+
+	// LibraryScanTotal counts full library walks by why they ran: "startup",
+	// "periodic" (the watch could not be vouched for), "watched_backstop" (the
+	// watch is alive, this is the spaced-out safety net) or "probe_recovery"
+	// (a probe just failed, catching up on what the dead watch missed).
+	//
+	// A library whose scans are all "periodic" is one whose watch never works -
+	// exactly the diagnosis that used to require guessing.
+	LibraryScanTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "evey_library_scan_total",
+		Help: "Full library scans by trigger reason.",
+	}, []string{"library_id", "reason"})
+
 	// TranscodeQueueDepth counts transcode requests blocked waiting for
 	// a semaphore slot (all maxConcurrent slots taken). > 0 for any extended
 	// period = the server is under-provisioned on HLS concurrency.
@@ -251,6 +285,7 @@ func init() {
 		DBConnectionsOpen, DBConnectionsIdle, DBConnectionsInUse,
 		MediaItemsTotal,
 		AuthLatency, ScanQueueDepth, TranscodeQueueDepth,
+		WatcherProbeTotal, WatcherAlive, LibraryScanTotal,
 		TranscodeDuration,
 		HLSVODSessions, HLSVODRafaleSpawned, HLSVODSessionsKilled, HLSVODSessionsCompleted, HLSVODSessionsRejected,
 		HLSVODCopyTimelineDrift, HLSVODTranscodeSeekTimelineDrift,

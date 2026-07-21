@@ -36,8 +36,13 @@ type WatcherService struct {
 	pathToLib  map[string]string // watched path → library ID
 	failedLibs map[string]bool   // library IDs where inotify failed → need periodic scan
 	probes     *probeState       // liveness of each library's watch (watcher_probe.go)
-	cancel     context.CancelFunc
-	ctx        context.Context
+	// probeTimeout is how long a probe waits for its own event. Injectable for
+	// the same reason debounceDelay is: the real 30 s makes the failure-path
+	// tests unbearably slow, and a test that cancels the context instead would
+	// exercise the SHUTDOWN branch rather than the dead-watch one.
+	probeWait time.Duration
+	cancel    context.CancelFunc
+	ctx       context.Context
 }
 
 type WatcherOption func(*WatcherService)
@@ -71,6 +76,7 @@ func NewWatcherService(
 		pathToLib:     make(map[string]string),
 		failedLibs:    make(map[string]bool),
 		probes:        newProbeState(),
+		probeWait:     probeTimeout,
 		debounceDelay: defaultDebounceDelay,
 	}
 	for _, opt := range opts {
@@ -258,6 +264,9 @@ func (ws *WatcherService) resolveLibrary(filePath string) string {
 }
 
 func (ws *WatcherService) triggerScan(ctx context.Context, libraryID string) error {
+	if ws.scanner == nil {
+		return errors.New("watcher: no scanner wired")
+	}
 	ws.log.Info("watcher: triggering scan", slog.String("library_id", libraryID))
 	added, updated, err := ws.scanner.ScanLibrary(ctx, libraryID)
 	if err != nil {
@@ -283,4 +292,14 @@ func (ws *WatcherService) UnwatchedLibraries() map[string]bool {
 	}
 	ws.mu.Unlock()
 	return out
+}
+
+// WatcherWithProbeTimeout overrides how long a liveness probe waits for its own
+// event. Tests use a tiny value; production keeps probeTimeout.
+func WatcherWithProbeTimeout(d time.Duration) WatcherOption {
+	return func(ws *WatcherService) {
+		if d > 0 {
+			ws.probeWait = d
+		}
+	}
 }

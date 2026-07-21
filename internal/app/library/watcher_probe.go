@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/evey-project/evey/internal/pkg/metrics"
 )
 
 // watcher_probe.go - active liveness probe for the inotify watcher.
@@ -151,11 +153,15 @@ func (ws *WatcherService) probeOnce(ctx context.Context, dir string) error {
 		}
 	}()
 
+	wait := ws.probeWait
+	if wait <= 0 {
+		wait = probeTimeout
+	}
 	select {
 	case <-ch:
 		return nil
-	case <-time.After(probeTimeout):
-		return fmt.Errorf("no inotify event for probe within %s", probeTimeout)
+	case <-time.After(wait):
+		return fmt.Errorf("no inotify event for probe within %s", wait)
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -176,17 +182,39 @@ func (ws *WatcherService) StartProbe(ctx context.Context, interval time.Duration
 				ws.log.Error("watcher probe: panic recovered", slog.Any("panic", r))
 			}
 		}()
+		// Say so at startup. Without this line a silent log is ambiguous: you
+		// cannot tell a probe that is passing from a probe that never ran.
+		ws.log.Info("watcher probe: inotify liveness probe started",
+			slog.Duration("interval", interval), slog.Duration("timeout", ws.probeWait))
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
+				ws.log.Info("watcher probe: stopped")
 				return
 			case <-ticker.C:
-				ws.probeRound(ctx)
+				ws.safeProbeRound(ctx)
 			}
 		}
 	}()
+}
+
+// safeProbeRound runs one round, containing a panic to THAT round.
+//
+// The goroutine-level recover below is not enough on its own: it would catch
+// the panic and then return, killing the prober for the rest of the process
+// lifetime - silently, since nothing else reports on it. Every library would
+// keep its last known health forever. Recovering per round means a bad round
+// costs one round.
+func (ws *WatcherService) safeProbeRound(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			ws.log.Error("watcher probe: round panicked, continuing with the next one",
+				slog.Any("panic", r))
+		}
+	}()
+	ws.probeRound(ctx)
 }
 
 // probeRound probes one directory per watched library.
@@ -202,30 +230,62 @@ func (ws *WatcherService) probeRound(ctx context.Context) {
 	}
 	ws.mu.Unlock()
 
+	if len(perLib) == 0 {
+		// Nothing watched at all. Distinct from "probe passing" and worth
+		// saying: it means real-time monitoring is off everywhere and the
+		// periodic walk is the ONLY discovery path.
+		ws.log.Warn("watcher probe: no watched paths - real-time monitoring is not active on any library")
+		return
+	}
+
 	for libID, dir := range perLib {
+		started := time.Now()
 		err := ws.probeOnce(ctx, dir)
+		elapsed := time.Since(started)
 		switch {
 		case err == nil:
-			if ws.probes.UnhealthyLibraries()[libID] {
-				ws.log.Info("watcher probe: watch is answering again, real-time monitoring restored",
-					slog.String("library_id", libID))
-			}
+			wasDead := ws.probes.UnhealthyLibraries()[libID]
 			ws.probes.setHealth(libID, true)
+			metrics.WatcherProbeTotal.WithLabelValues(libID, "alive").Inc()
+			metrics.WatcherAlive.WithLabelValues(libID).Set(1)
+			if wasDead {
+				// Recovery is a state CHANGE - worth an Info even in a quiet log.
+				ws.log.Info("watcher probe: watch is answering again, real-time monitoring restored",
+					slog.String("library_id", libID), slog.Duration("rtt", elapsed))
+				continue
+			}
+			// Steady-state success stays at Debug (it fires every round, per
+			// library) but it MUST be emitted: without it there is no way to
+			// tell a healthy probe from one that never started.
+			ws.log.Debug("watcher probe: watch is alive",
+				slog.String("library_id", libID), slog.String("dir", dir), slog.Duration("rtt", elapsed))
 		case ctx.Err() != nil:
 			return
 		case strings.Contains(err.Error(), "probe write"):
 			// Could not write (read-only mount, permissions). Inconclusive:
 			// leave the previous verdict alone rather than guessing.
-			ws.log.Debug("watcher probe: skipped, cannot write probe file",
+			//
+			// Warn, not Debug: this means the probe is permanently unable to
+			// vouch for this library, and an operator debugging "my new files
+			// do not show up" needs to see that the health signal is blind
+			// rather than green.
+			metrics.WatcherProbeTotal.WithLabelValues(libID, "inconclusive").Inc()
+			ws.log.Warn("watcher probe: cannot write a probe file, watch health is UNKNOWN for this library (read-only root?)",
 				slog.String("library_id", libID), slog.String("dir", dir), slog.Any("err", err))
 		default:
+			metrics.WatcherProbeTotal.WithLabelValues(libID, "dead").Inc()
+			metrics.WatcherAlive.WithLabelValues(libID).Set(0)
 			ws.log.Warn("watcher probe: no event came back - treating this library as unwatched, falling back to scanning",
-				slog.String("library_id", libID), slog.String("dir", dir), slog.Any("err", err))
+				slog.String("library_id", libID), slog.String("dir", dir),
+				slog.Duration("waited", elapsed), slog.Any("err", err))
 			ws.probes.setHealth(libID, false)
 			// Changes may already have been missed while the watch was dead.
 			if scanErr := ws.triggerScan(ctx, libID); scanErr != nil {
-				ws.log.Debug("watcher probe: recovery scan skipped",
+				ws.log.Warn("watcher probe: recovery scan could not start - this library may stay stale until the next pass",
 					slog.String("library_id", libID), slog.Any("err", scanErr))
+			} else {
+				ws.log.Info("watcher probe: recovery scan started after a failed probe",
+					slog.String("library_id", libID))
 			}
 		}
 	}
