@@ -16,7 +16,7 @@ type mediaItemCounter interface {
 	Count(ctx context.Context, filter domainlibrary.ListMediaItemsFilter) (int, error)
 }
 
-func startMetricsCollector(ctx context.Context, db *sql.DB, hlsOrch *apptranscoding.SegmentOrchestrator, mediaItemRepo mediaItemCounter) {
+func startMetricsCollector(ctx context.Context, db *sql.DB, hlsSessions *apptranscoding.ProducerSelector, mediaItemRepo mediaItemCounter) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -29,7 +29,13 @@ func startMetricsCollector(ctx context.Context, db *sql.DB, hlsOrch *apptranscod
 			// Keep the legacy gauge name so existing Prometheus dashboards
 			// keep working - the VOD orchestrator's per-event metrics
 			// (evey_hlsvod_*) sit alongside.
-			eveymetrics.HLSSessionsGauge.Set(float64(hlsOrch.ActiveSessionCount()))
+			//
+			// Fed by the SELECTOR, not the hardware orchestrator: the latter
+			// knows only about GPU sessions, so on a software-only server -
+			// the project's target, a weak NAS with hw_accel off - this gauge
+			// sat at 0 forever while ffmpeg transcoded, telling an operator
+			// their box was idle. The selector sums software + hardware.
+			eveymetrics.HLSSessionsGauge.Set(float64(hlsSessions.ActiveSessionCount()))
 			select {
 			case <-ctx.Done():
 				return

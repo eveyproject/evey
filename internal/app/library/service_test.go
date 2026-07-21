@@ -399,7 +399,7 @@ type fakeStreamChecker struct {
 	count int
 }
 
-func (f *fakeStreamChecker) ActiveSessionCount() int {
+func (f *fakeStreamChecker) ActivePlaybackCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.count

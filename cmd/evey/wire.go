@@ -848,7 +848,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Scan-time serving-plan precomputation (Phase 2, mkvgo ops.Ingest),
 	// gated by library.ingest_serving_plan (off | plan | plan+repair).
 	libCmdSvc.WithIngestPlanning(r.ServerCfg, infra.mkvAdapter, r.ServingPlan, infra.mkvAdapter)
-	libCmdSvc.WithIngestActivePlayback(hlsVODRemover.ActiveSessionCount)
+	libCmdSvc.WithIngestActivePlayback(hlsVODRemover.ActivePlaybackCount)
 	// Trickplay generation throttles while any stream is live - feed it the
 	// fan-out selector so SOFTWARE streams also hold it off, not just HW ones (a
 	// weak NAS must not burn CPU on trickplay during an SW transcode).
@@ -938,14 +938,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// trickplay uses: a manual recalibration run while transcodes are active
 	// measures contended throughput and would pin the cap a rung too low. First-boot
 	// EnsureCalibrated below is unaffected (it bypasses Recalibrate; no streams at boot).
-	calibrationSvc.SetActiveStreamChecker(hlsVODRemover.ActiveSessionCount)
+	calibrationSvc.SetActiveStreamChecker(hlsVODRemover.ActivePlaybackCount)
 	// Yield ALL background analysis ffmpeg (intro detection, complexity sampling,
 	// chromaprint) to real work: each SIGSTOPs itself while a playback/transcode
 	// session is live OR a recalibration is running, and resumes when the box is
 	// idle - CPU/memory-bandwidth/I/O go to what matters, the decode keeps its
 	// progress (no re-run).
 	isBusy := func() bool {
-		return hlsVODRemover.ActiveSessionCount() > 0 || calibrationSvc.IsBenchmarking()
+		return hlsVODRemover.ActivePlaybackCount() > 0 || calibrationSvc.IsBenchmarking()
 	}
 	if infra.introDetector != nil {
 		infra.introDetector.WithBusyChecker(isBusy)
@@ -1071,7 +1071,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		)
 		// Same live-session signal as the keyframe worker below: yield to
 		// viewers instead of probing alongside them (2026-07-19 incident family).
-		levelBackfillWorker.WithActivePlayback(hlsVODRemover.ActiveSessionCount)
+		levelBackfillWorker.WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
 		levelBackfillWorker.Start(ctx)
 	}
 
@@ -1101,7 +1101,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// - a file the fast-path can't index stays on the worker's slow path.
 	keyframeOnDemand := apptranscoding.NewKeyframeOnDemand(r.MediaStream, kfProber, slog.Default()).
 		WithFrameRateAnalyzer(infra.mkvAdapter, r.MediaStream).
-		WithActivePlayback(hlsVODRemover.ActiveSessionCount)
+		WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
 	// First-play fast path (Phase 2 consumption): a fresh file whose serving
 	// plan says direct-play/remux gets its keyframe index warmed right at scan
 	// time through the bounded on-demand walker, so the copy rung is live on
@@ -1185,7 +1185,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			}
 			return out, nil
 		}),
-		hlsVODRemover.ActiveSessionCount,
+		hlsVODRemover.ActivePlaybackCount,
 		slog.Default(),
 	)
 
@@ -1214,7 +1214,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			kfProber,
 			kfOpts,
 			slog.Default(),
-		).WithActivePlayback(hlsVODRemover.ActiveSessionCount).
+		).WithActivePlayback(hlsVODRemover.ActivePlaybackCount).
 			// Same paced pass as the keyframe walk: classify CFR/VFR via
 			// mkvgo ops.Analyze and persist it, so the decision engine can
 			// gate the copy rung off VFR sources (HLS copy segments drift
@@ -1252,7 +1252,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		cfg.Transcoding.TrickplayCacheDir,
 	)
 	introDetectionSvc.WithShutdownCtx(ctx)
-	introDetectionSvc.WithActivePlayback(hlsVODRemover.ActiveSessionCount)
+	introDetectionSvc.WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
 	introDetectionSvc.WithFingerprintCache(r.IntroFingerprintCache)
 	introDetectionSvc.WithAudioFingerprintCache(r.IntroAudioFingerprintCache)
 	introDetectionSvc.WithChapterRepo(r.Chapter)

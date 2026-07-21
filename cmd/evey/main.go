@@ -145,7 +145,7 @@ func run() error {
 		return err
 	}
 
-	startMetricsCollector(ctx, db, deps.media.hlsVODOrch, deps.repos.mediaItemRepo)
+	startMetricsCollector(ctx, db, deps.media.hlsVODRemover, deps.repos.mediaItemRepo)
 
 	qcHub := quickconnecthub.New()
 	grpcSrv := buildGRPCServer(deps, cfg, rootLog, logCfg.Dir, ctx, qcHub)

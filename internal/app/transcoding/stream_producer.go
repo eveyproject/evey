@@ -122,19 +122,20 @@ type ProducerSelector struct {
 	// routing stay consistent.
 	hwUsableForContent func(decision transcoding.PlaybackDecision, src SourceDims) bool
 
-	// onDemand counts playbacks served by the mkvgo packager, which spawn no
-	// ffmpeg session and are therefore invisible to both producers. Folded in
-	// here rather than at each call site because every anti-starvation guard in
-	// the server reads its "is someone watching" answer from this one method -
-	// wiring it anywhere else would fix some guards and leave the rest blind.
-	// nil = no on-demand path wired (reads as zero).
-	onDemand *PlaybackActivity
+	// playback counts reads served WITHOUT an ffmpeg session (the mkvgo
+	// on-demand packager, direct play), which are invisible to both producers.
+	// Folded in here rather than at each call site because every
+	// anti-starvation guard in the server asks this one object whether someone
+	// is watching - wiring it anywhere else would fix some guards and leave the
+	// rest blind. nil = not wired (reads as zero).
+	playback *PlaybackActivity
 }
 
-// WithPlaybackActivity wires the mkvgo playback tracker into the aggregate
-// count. Chainable; leaving it unset preserves the ffmpeg-only behaviour.
+// WithPlaybackActivity wires the non-ffmpeg playback tracker, which
+// ActivePlaybackCount folds in. Chainable; leaving it unset makes
+// ActivePlaybackCount equal ActiveSessionCount (the prior behaviour).
 func (s *ProducerSelector) WithPlaybackActivity(a *PlaybackActivity) *ProducerSelector {
-	s.onDemand = a
+	s.playback = a
 	return s
 }
 
@@ -180,14 +181,14 @@ func (s *ProducerSelector) Close() {
 	}
 }
 
-// ActiveSessionCount sums live playbacks across every serving path - both
-// ffmpeg producers AND the on-demand packager - so the ActiveStreamChecker
-// contract (one ActiveSessionCount() reader) keeps seeing the whole picture
-// regardless of which machinery is active.
+// ActiveSessionCount sums live FFMPEG sessions across both producers. This is
+// the "how much encoding work is running" number: it feeds the admin
+// dashboard's ActiveTranscodes and the evey_active_hls_sessions gauge, so it
+// must stay ffmpeg-only. A direct-play read is not a transcode, and neither is
+// an mkvgo copy - counting them here would inflate both readouts.
 //
-// The on-demand term is not optional trimming: a copy-eligible source is served
-// entirely by mkvgo, so for that playback the two producer terms are both zero
-// and this method IS the only signal that anyone is watching.
+// For "is anyone reading the disk right now", which is a different and wider
+// question, use ActivePlaybackCount.
 func (s *ProducerSelector) ActiveSessionCount() int {
 	n := 0
 	if s.software != nil {
@@ -196,7 +197,21 @@ func (s *ProducerSelector) ActiveSessionCount() int {
 	if s.hardware != nil {
 		n += s.hardware.ActiveSessionCount()
 	}
-	return n + s.onDemand.ActiveSessionCount()
+	return n
+}
+
+// ActivePlaybackCount reports how many media are being read right now across
+// EVERY serving path - ffmpeg sessions plus the paths that spawn none (the
+// mkvgo on-demand packager, direct play).
+//
+// This is the anti-starvation signal: every background worker that yields under
+// live playback asks this question, and the answer must not depend on which
+// machinery happens to serve the viewer. A copy-eligible source is served
+// entirely by mkvgo and a direct-play by a bare ServeFile, so for those the
+// ffmpeg terms are both zero and the non-ffmpeg term is the ONLY evidence that
+// anyone is watching.
+func (s *ProducerSelector) ActivePlaybackCount() int {
+	return s.ActiveSessionCount() + s.playback.ActiveSessionCount()
 }
 
 // RemoveSession fans the kill out to both producers - a media item could have

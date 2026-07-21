@@ -85,11 +85,11 @@ func TestProducerSelector_ActiveSessionCount_SumsBoth(t *testing.T) {
 	}
 }
 
-// THE bug this file's counter had: both producers only know about ffmpeg
-// sessions, so a playback served entirely by the mkvgo on-demand packager read
-// as an idle server and every background worker (drain, trickplay, intro
-// detection, calibration) kept competing for the NAS disk under a live viewer.
-func TestProducerSelector_ActiveSessionCount_CountsOnDemandPlayback(t *testing.T) {
+// THE bug the guards had: both producers only know about ffmpeg sessions, so a
+// playback served entirely by mkvgo (or by direct play) read as an idle server
+// and every background worker - drain, trickplay, intro detection, calibration
+// - kept competing for the NAS disk under a live viewer.
+func TestProducerSelector_ActivePlaybackCount_CountsNonFFmpegPlayback(t *testing.T) {
 	sw := &fakeProducer{name: "sw", active: 0}
 	hw := &fakeProducer{name: "hw", active: 0}
 	sel := NewProducerSelector(sw, hw, nil)
@@ -98,12 +98,12 @@ func TestProducerSelector_ActiveSessionCount_CountsOnDemandPlayback(t *testing.T
 	sel.WithPlaybackActivity(act)
 	act.Touch("mi-1")
 
-	if got := sel.ActiveSessionCount(); got != 1 {
-		t.Fatalf("an mkvgo-served playback must count as active, got %d", got)
+	if got := sel.ActivePlaybackCount(); got != 1 {
+		t.Fatalf("a non-ffmpeg playback must count as active, got %d", got)
 	}
 }
 
-func TestProducerSelector_ActiveSessionCount_SumsOnDemandWithProducers(t *testing.T) {
+func TestProducerSelector_ActivePlaybackCount_SumsWithProducers(t *testing.T) {
 	sw := &fakeProducer{name: "sw", active: 3}
 	hw := &fakeProducer{name: "hw", active: 2}
 	sel := NewProducerSelector(sw, hw, nil)
@@ -112,8 +112,40 @@ func TestProducerSelector_ActiveSessionCount_SumsOnDemandWithProducers(t *testin
 	sel.WithPlaybackActivity(act)
 	act.Touch("mi-1")
 
-	if got := sel.ActiveSessionCount(); got != 6 {
-		t.Fatalf("on-demand playback must add to the ffmpeg counts, got %d", got)
+	if got := sel.ActivePlaybackCount(); got != 6 {
+		t.Fatalf("non-ffmpeg playback must add to the ffmpeg counts, got %d", got)
+	}
+}
+
+// The two counts answer DIFFERENT questions and must not be conflated. This is
+// the regression guard: ActiveSessionCount feeds the admin dashboard's
+// "active transcodes" and the evey_active_hls_sessions gauge, so folding a
+// direct-play or an mkvgo copy into it would report encoding work that is not
+// happening.
+func TestProducerSelector_ActiveSessionCount_ExcludesNonFFmpegPlayback(t *testing.T) {
+	sw := &fakeProducer{name: "sw", active: 2}
+	hw := &fakeProducer{name: "hw", active: 0}
+	sel := NewProducerSelector(sw, hw, nil)
+
+	act := NewPlaybackActivity(time.Minute)
+	sel.WithPlaybackActivity(act)
+	act.Touch("mi-1")
+	act.Touch("mi-2")
+
+	if got := sel.ActiveSessionCount(); got != 2 {
+		t.Fatalf("ActiveSessionCount must stay ffmpeg-only, got %d", got)
+	}
+	if got := sel.ActivePlaybackCount(); got != 4 {
+		t.Fatalf("ActivePlaybackCount must see everything, got %d", got)
+	}
+}
+
+// Unwired tracker: the wider count must degrade to the ffmpeg count, never
+// panic - that is the "feature not wired" contract the test handlers rely on.
+func TestProducerSelector_ActivePlaybackCount_NilTrackerEqualsSessions(t *testing.T) {
+	sel := NewProducerSelector(&fakeProducer{active: 3}, &fakeProducer{active: 1}, nil)
+	if got := sel.ActivePlaybackCount(); got != 4 {
+		t.Fatalf("nil tracker must degrade to the ffmpeg count, got %d", got)
 	}
 }
 

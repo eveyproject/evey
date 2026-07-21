@@ -18,9 +18,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// ActiveStreamChecker reports whether any transcode/playback is active.
+// ActiveStreamChecker reports whether ANY playback is currently reading the
+// disk, whatever machinery serves it. Deliberately not ActiveSessionCount: that
+// one counts ffmpeg sessions only, and trickplay generation must also hold off
+// for a direct-play or mkvgo-served viewer it would otherwise compete with.
 type ActiveStreamChecker interface {
-	ActiveSessionCount() int
+	ActivePlaybackCount() int
 }
 
 type TrickplayService struct {
@@ -89,7 +92,7 @@ func (s *TrickplayService) waitForIdleStreams(ctx context.Context) {
 	if s.activeStreams == nil {
 		return
 	}
-	for s.activeStreams.ActiveSessionCount() > 0 {
+	for s.activeStreams.ActivePlaybackCount() > 0 {
 		select {
 		case <-ctx.Done():
 			return
