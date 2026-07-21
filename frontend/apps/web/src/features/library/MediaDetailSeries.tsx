@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
 import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "@evey/api";
-import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
 import { getSeriesTrackPrefs, setSeriesTrackPrefs } from "@/hooks/usePlaybackPrefs";
@@ -233,8 +232,8 @@ export function SeriesSection({ item }: { item: V1MediaItem }) {
     <div className="mt-10">
       <div className="flex items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
-          <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.detail.seasons")}</h2>
-          <Badge variant="info">{t("media.detail.seasonCount", { count: seasons.length })}</Badge>
+          <h2 className="text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--text-secondary)]">{t("media.detail.seasons")}</h2>
+          <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{t("media.detail.seasonCount", { count: seasons.length })}</span>
         </div>
         {item.id && <GaplessToggle seriesId={item.id} />}
       </div>
@@ -254,8 +253,8 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
   return (
     <div className="mt-10">
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.detail.episodes")}</h2>
-        <Badge variant="info">{t("media.detail.episodeCount", { count: episodes.length })}</Badge>
+        <h2 className="text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--text-secondary)]">{t("media.detail.episodes")}</h2>
+        <span className="text-[11px] tabular-nums text-[var(--text-muted)]">{t("media.detail.episodeCount", { count: episodes.length })}</span>
       </div>
       {/* Bounded width: a row stretched across the whole page left the synopsis
           running for 150+ characters and the download button marooned far from

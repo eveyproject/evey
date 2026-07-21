@@ -94,25 +94,24 @@ export function MediaDetailActions({
 
   return (
     <div className="flex-1 space-y-4 min-w-0">
-      {/* Synopsis as a contained block rather than a full-width paragraph.
-          Running text across a 1400px page gives lines of 200+ characters,
-          which the eye loses track of between lines. The cap is set to line up
-          with the action row directly below it, so the two read as one column
-          rather than two ragged edges. */}
+      {/* Synopsis: no box. A bordered grey card gives the text the same visual
+          weight as a form field, which is what made the page read as an admin
+          panel. A hairline rule and a reading measure do the same containment
+          job while letting the type carry itself. */}
       {(item.tagline || item.overview) && (
-        <div className="max-w-4xl rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--border)] p-4 space-y-2">
+        <div className="max-w-[62ch] border-l border-[var(--border)] pl-5 py-0.5 space-y-3">
           {item.tagline && (
-            <p className="text-lg italic text-[var(--text-secondary)]">{item.tagline}</p>
+            <p className="text-lg sm:text-xl italic leading-snug text-[var(--text-secondary)] text-balance">{item.tagline}</p>
           )}
           {item.overview && (
-            <p className="text-base leading-relaxed text-[var(--text-muted)]" data-testid="media-overview">{item.overview}</p>
+            <p className="text-[15px] leading-[1.75] text-[var(--text-muted)]" data-testid="media-overview">{item.overview}</p>
           )}
         </div>
       )}
 
       {directors.length > 0 && (
         <p className="text-sm text-[var(--text-muted)]">
-          <span className="font-medium text-[var(--text)]">{t("media.detail.director")}</span>
+          <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.director")}</span>
           {directors.map((d, i) => (
             <span key={d.id ?? d.name}>
               {i > 0 && ", "}
@@ -126,7 +125,7 @@ export function MediaDetailActions({
 
       {writers.length > 0 && (
         <p className="text-sm text-[var(--text-muted)]">
-          <span className="font-medium text-[var(--text)]">{t("media.detail.writer")}</span>
+          <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.writer")}</span>
           {writers.map((w, i) => (
             <span key={w.id ?? w.name}>
               {i > 0 && ", "}
@@ -140,7 +139,7 @@ export function MediaDetailActions({
 
       {item.studios && item.studios.length > 0 && (
         <p className="text-sm text-[var(--text-muted)]">
-          <span className="font-medium text-[var(--text)]">{t("media.detail.studio")}</span>
+          <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.studio")}</span>
           {item.studios.join(", ")}
         </p>
       )}

@@ -76,7 +76,9 @@ describe("SeriesSection", () => {
     expect(container.innerHTML).toBe("");
   });
 
-  it("renders season count badge", () => {
+  // The count is plain micro-caps text now, not a filled Badge: a coloured pill
+  // gave a passive number the same visual weight as an action.
+  it("renders the season count", () => {
     mockListMediaItems.mockReturnValue({
       data: {
         items: [
@@ -90,8 +92,13 @@ describe("SeriesSection", () => {
       <SeriesSection item={{ id: "s1", type: "MEDIA_ITEM_TYPE_SERIES" } as any} />,
       { wrapper: Wrapper },
     );
-    const badges = screen.getAllByTestId("badge");
-    expect(badges.length).toBeGreaterThanOrEqual(1);
+    // The i18n stub returns an empty string for interpolated keys, so assert on
+    // the element that carries the count rather than on its text.
+    const { container } = render(
+      <SeriesSection item={{ id: "s1", type: "MEDIA_ITEM_TYPE_SERIES" } as any} />,
+      { wrapper: Wrapper },
+    );
+    expect(container.querySelector(".tabular-nums")).toBeTruthy();
   });
 });
 

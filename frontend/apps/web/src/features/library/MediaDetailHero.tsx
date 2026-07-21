@@ -78,25 +78,25 @@ export function MediaDetailHero({
           just below, pulled up over this artwork) never sits on top of the
           title. */}
       <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-6 pb-4 sm:pb-6 md:pl-[22rem]">
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <div className="flex items-center gap-x-3 gap-y-2 mb-3 flex-wrap [&>*+*]:before:content-[''] [&>*+*]:before:hidden">
           {certInfo && (
             <span
-              className="text-xs font-bold px-2 py-0.5 border text-[var(--overlay-text-bright)] border-[var(--overlay-dot-inactive)] rounded-[var(--radius-sm)]"
+              className="text-[11px] font-semibold tracking-[0.08em] px-2 py-0.5 border border-white/30 text-white/80 rounded-[var(--radius-sm)]"
               title={`${t(`media.certBody.${certInfo.country}`, { defaultValue: certInfo.country })} ${certInfo.rating}`}
             >
               {t(`media.certBody.${certInfo.country}`, { defaultValue: certInfo.country })} {certInfo.rating}
             </span>
           )}
           {duration && (
-            <span className="text-sm text-[var(--overlay-text-muted)]">{duration}</span>
+            <span className="text-sm tabular-nums text-white/70">{duration}</span>
           )}
           {item.year && (
-            <span className="text-sm text-[var(--overlay-text-muted)]">{item.year}</span>
+            <span className="text-sm tabular-nums text-white/70">{item.year}</span>
           )}
           {item.communityRating !== undefined && item.communityRating > 0 && (
             <span className="flex items-center gap-1.5">
               <Stars rating={item.communityRating} />
-              <span className="text-sm text-[var(--overlay-text-muted)]">{item.communityRating.toFixed(1)}</span>
+              <span className="text-sm tabular-nums text-white/70">{item.communityRating.toFixed(1)}</span>
             </span>
           )}
           {(item.ratings ?? [])
@@ -139,8 +139,11 @@ export function MediaDetailHero({
             <span className="text-sm mx-1 text-[var(--overlay-dot-inactive)]">&rsaquo;</span>
           </div>
         )}
-        <div className="flex items-center gap-3 mb-2">
-          <h1 className="text-2xl sm:text-4xl font-bold text-white drop-shadow-lg" data-testid="media-title">{item.title}</h1>
+        <div className="flex items-end gap-3 mb-3 max-w-[24ch]">
+          <h1
+            className="text-3xl sm:text-5xl lg:text-6xl font-medium tracking-[-0.035em] leading-[0.95] text-white text-balance [text-shadow:0_2px_24px_rgb(0_0_0/0.55)]"
+            data-testid="media-title"
+          >{item.title}</h1>
           {item.id && (
             <button
               onClick={onEditToggle}
@@ -158,7 +161,7 @@ export function MediaDetailHero({
             {item.genres.map((g) => (
               <span
                 key={g}
-                className="text-xs px-2.5 py-1 font-medium bg-[var(--overlay-btn-bg)] text-[var(--overlay-text-bright)] rounded-full backdrop-blur-[4px]"
+                className="text-[11px] uppercase tracking-[0.14em] font-medium px-2.5 py-1 border border-white/25 text-white/75 rounded-full"
               >
                 {g}
               </span>

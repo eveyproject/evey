@@ -62,7 +62,7 @@ export function CastCarousel({ people, title }: { people: V1MediaPerson[]; title
   return (
     <div className="mt-10">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-[var(--text)]">{title}</h2>
+        <h2 className="text-[11px] uppercase tracking-[0.18em] font-semibold text-[var(--text-secondary)]">{title}</h2>
         {people.length > 6 && (
           <div className="flex gap-1">
             <button onClick={() => scroll("left")} aria-label={t("common.scrollLeft")} className="p-1.5 rounded-full hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text-muted)]">
