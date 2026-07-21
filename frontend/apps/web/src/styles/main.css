@@ -183,6 +183,23 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
   inset: 0 !important;
 }
 
+/* Media detail hero geometry.
+   The backdrop keeps its own 16:9 shape (bounded so it never eats the screen)
+   instead of a fixed band - see MediaDetailHero for why cropping a fixed band
+   was wrong. The height lives here as a variable because the poster + title
+   row is positioned FROM it: the row is pushed down to the backdrop's bottom,
+   then pulled back up by --media-hero-overlap so it sits in slight
+   superimposition over the artwork. Deriving both from one value is what keeps
+   the overlap honest - hardcoding the lift separately is how it silently
+   breaks when the backdrop height changes. */
+.evey-media-hero {
+  --media-hero-h: max(220px, min(56.25vw, 86vh));
+  /* 5.5rem matches the overlap the poster had before, plus 16% of the backdrop
+     height so the whole assembly rides that much higher over the image. */
+  --media-hero-overlap: calc(5.5rem + 0.16 * var(--media-hero-h));
+  --media-hero-content-top: calc(var(--media-hero-h) - var(--media-hero-overlap));
+}
+
 /* Hero overlay gradients */
 .gradient-hero-scrim {
   background: linear-gradient(to bottom, var(--overlay-scrim) 0%, var(--overlay-chip-bg) 60%, transparent 100%);

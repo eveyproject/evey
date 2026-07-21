@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import {
@@ -16,7 +16,6 @@ import { SeriesSection, SeasonEpisodesSection } from "./MediaDetailSeries";
 import { SimilarSection } from "./MediaDetailSimilar";
 import { MediaDetailFileInfo } from "./MediaDetailFileInfo";
 import { artworkUrl } from "./artworkUrl";
-import { PosterPlaceholder } from "./PosterPlaceholder";
 
 interface MediaDetailProps {
   item: V1MediaItem;
@@ -59,15 +58,6 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const backdropUrl = item.id ? artworkUrl(item.id, "backdrop", item, accessToken || undefined) : undefined;
   const posterUrl = item.id ? artworkUrl(item.id, "poster", item, accessToken || undefined) : undefined;
 
-  const posterSrcSet = useMemo(() => {
-    if (!posterUrl) return undefined;
-    const sep = posterUrl.includes("?") ? "&" : "?";
-    // Use the widths the server actually has (185/342/500): w=300 and w=400
-    // both snapped to 342, so the third entry was a duplicate and a retina
-    // poster never got a sharper file.
-    return `${posterUrl}${sep}w=185 185w, ${posterUrl}${sep}w=342 342w, ${posterUrl}${sep}w=500 500w`;
-  }, [posterUrl]);
-
   const { data: seriesAggregate } = useLibraryServiceGetSeriesAggregate(
     item.id ?? "",
     { query: { enabled: isSeries && !!item.id } } as never,
@@ -90,52 +80,11 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
         duration={duration}
         parentItem={parentItem}
         onEditToggle={() => setEditing((v) => !v)}
-      />
-
-      {/* The poster is pulled UP so it overlaps the backdrop instead of sitting
-          in a separate band below it - the layout Jellyfin uses, and the reason
-          its detail page reads as one composition rather than an image with a
-          form underneath. The hero reserves matching space on its left
-          (md:pl-[22rem]) so the title never collides with it.
-
-          The negative margin is desktop-only: on a narrow screen there is no
-          room beside the poster, so the sections stay stacked. */}
-      <div className="flex gap-8 mt-6 items-start">
-        <div className="flex-shrink-0 w-80 hidden md:block md:-mt-28 relative z-raised">
-          <div
-            className="evey-poster relative w-80 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)] shadow-[var(--shadow-lg)] ring-1 ring-[var(--border)]"
-          >
-            {posterUrl ? (
-              <img
-                src={posterUrl}
-                srcSet={posterSrcSet}
-                sizes="320px"
-                alt={item.title ?? ""}
-                fetchPriority="high"
-                className="w-full h-full object-cover"
-                data-testid="media-poster"
-                onError={(e) => {
-                  const t = e.currentTarget as HTMLImageElement;
-                  t.style.display = "none";
-                  const fb = t.nextElementSibling as HTMLElement | null;
-                  if (fb) fb.style.display = "flex";
-                }}
-              />
-            ) : null}
-            <PosterPlaceholder
-              title={item.title}
-              type={item.type}
-              iconSize={36}
-              className="absolute inset-0"
-              style={{ display: posterUrl ? "none" : "flex" }}
-            />
-          </div>
-        </div>
-
-        {/* Pushed down to clear the backdrop the poster now overlaps, so the
-            synopsis and actions start below the artwork rather than on top of
-            it. */}
-        <div className="flex-1 min-w-0">
+      >
+        {/* Rendered inside the hero's right column: the poster, the title and
+            the actions belong to one flex row, so the poster's height is part
+            of the row and the sections below clear it without a hand-tuned
+            margin. */}
         <MediaDetailActions
           item={item}
           isSeries={isSeries}
@@ -147,8 +96,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
           onMetadataUpdated={onMetadataUpdated}
           streamToken={streamToken}
         />
-        </div>
-      </div>
+      </MediaDetailHero>
 
       <MediaDetailFileInfo item={item} />
 
