@@ -166,8 +166,8 @@ func TestServePlanResource_MarksPlaybackActive(t *testing.T) {
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{
 		resources: map[string][]byte{"master.m3u8": []byte("#EXTM3U\n")},
 	}}
-	act := apptranscoding.NewOnDemandActivity(time.Minute)
-	h.onDemandActivity = act
+	act := apptranscoding.NewPlaybackActivity(time.Minute)
+	h.playbackActivity = act
 
 	assert.Equal(t, 0, act.ActiveSessionCount(), "nothing served yet")
 
@@ -183,8 +183,8 @@ func TestServePlanResource_MarksPlaybackActive(t *testing.T) {
 func TestServePlanResource_NoActivityOnFallthrough(t *testing.T) {
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{err: fmt.Errorf("no Cues index")}
-	act := apptranscoding.NewOnDemandActivity(time.Minute)
-	h.onDemandActivity = act
+	act := apptranscoding.NewPlaybackActivity(time.Minute)
+	h.playbackActivity = act
 
 	served := h.tryServePlanMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), noopSpan())
 

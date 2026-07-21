@@ -835,9 +835,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// intro/complexity SIGSTOP, level backfill, calibration and load-test gates)
 	// - they all read that one method, so wiring it anywhere else would have
 	// fixed some and left the others blind.
-	onDemandActivity := apptranscoding.NewOnDemandActivity(apptranscoding.OnDemandActivityTTL)
+	playbackActivity := apptranscoding.NewPlaybackActivity(apptranscoding.PlaybackActivityTTL)
 	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch, nil).
-		WithOnDemandActivity(onDemandActivity)
+		WithPlaybackActivity(playbackActivity)
 
 	// mkvgo Playability shadow (Phase 3, log-only): compares every playback
 	// decision against ops.Playability when transcoding.playability_shadow=on
@@ -1469,7 +1469,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		frameExtractor:         snapshotFrameExtractor(ctx, r.ServerCfg, infra),
 		copySeekProber:         infra.prober,
 		onDemandPackager:       infra.onDemandPackager,
-		onDemandActivity:       onDemandActivity,
+		playbackActivity:       playbackActivity,
 		onDemandConcatPackager: infra.onDemandConcatPackager,
 		hlsAESSecret:           infra.hlsAESSecret,
 	}, nil

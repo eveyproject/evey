@@ -138,12 +138,12 @@ type HTTPServer struct {
 	// copy/transcode pipeline is unchanged).
 	OnDemandPackager apptranscoding.OnDemandPackager
 
-	// OnDemandActivity is the "someone is watching" tracker the on-demand path
+	// PlaybackActivity is the "someone is watching" tracker the on-demand path
 	// feeds. The packager spawns no ffmpeg session, so it is the ONLY way a
 	// playback served by mkvgo becomes visible to ActiveSessionCount - and
 	// through it to every background worker that yields under live playback.
 	// nil-safe (unwired → the counter stays ffmpeg-only, as before).
-	OnDemandActivity *apptranscoding.OnDemandActivity
+	PlaybackActivity *apptranscoding.PlaybackActivity
 
 	// OnDemandConcatPackager serves a gapless multi-episode HLS session
 	// (mkvgo's mp4.PlanConcat) when a request opts in with ?gapless=1. Off by
@@ -358,7 +358,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// (which creates the session) transitively protects the segment handler.
 	parentalChk := NewParentalChecker(s.UserQuerySvc)
 
-	mhOpts := []mediaServeOption{withParental(parentalChk), withLibraryLister(s.LibQuerySvc)}
+	// Unconditional, unlike the on-demand rung's tracker: direct play has no
+	// feature flag to pair with - it is always a possible serving path.
+	mhOpts := []mediaServeOption{withParental(parentalChk), withLibraryLister(s.LibQuerySvc), withPlaybackActivity(s.PlaybackActivity)}
 	if s.ImageConverter != nil {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}

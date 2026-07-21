@@ -165,6 +165,7 @@ func wasmAudioRequested(r *http.Request) bool {
 //     else the ffmpeg AC-3 copy rendition (audio_{k}.m3u8?wasmAudio=1);
 //   - video: mkvgo's copy playlist (od_playlist.m3u8) when copy-eligible, else
 //     the ffmpeg video-only ladder (stream_N, made audio-free by the fingerprint).
+//
 // Returns true once it has written a response; false to fall through to the
 // normal master paths (feature not applicable, or the selected track isn't AC-3).
 func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) bool {
@@ -327,7 +328,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	// segments), so one touch here is the whole "is this media playing" signal
 	// for the on-demand path. Touch before the write, not after: a client that
 	// aborts mid-segment is still a client that is watching.
-	h.onDemandActivity.Touch(mediaID)
+	h.playbackActivity.Touch(mediaID)
 
 	data, contentType, err := plan.Resource(r.Context(), name)
 	if err != nil {

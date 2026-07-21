@@ -38,7 +38,9 @@ func TestProfilesForDecision_FrozenLadder_ImmuneToMidStreamDrift(t *testing.T) {
 
 	var overrideH int // the mutable mid-stream input the test flips
 	h := &hlsVODServe{
-		capability:            func() domaintranscoding.EncodeCapability { return domaintranscoding.EncodeCapability{SoftwareMaxHeight: 2160} },
+		capability: func() domaintranscoding.EncodeCapability {
+			return domaintranscoding.EncodeCapability{SoftwareMaxHeight: 2160}
+		},
 		admissionRoute:        admissionRouteOf(shaper),
 		admissionPinnedClass:  pinnedClassOf(shaper),
 		admissionFrozenLadder: frozenLadderOf(shaper),
@@ -83,7 +85,9 @@ func TestProfilesForDecision_NoShaper_StillReDerivesEachCall(t *testing.T) {
 
 	var overrideH int
 	h := &hlsVODServe{
-		capability: func() domaintranscoding.EncodeCapability { return domaintranscoding.EncodeCapability{SoftwareMaxHeight: 2160} },
+		capability: func() domaintranscoding.EncodeCapability {
+			return domaintranscoding.EncodeCapability{SoftwareMaxHeight: 2160}
+		},
 		capOverride: func(string, int) (domaintranscoding.CapOverride, bool) {
 			if overrideH > 0 {
 				return domaintranscoding.CapOverride{MaxHeight: overrideH}, true

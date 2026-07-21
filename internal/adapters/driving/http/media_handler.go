@@ -17,6 +17,7 @@ import (
 
 	"go.opentelemetry.io/otel/codes"
 
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
@@ -34,6 +35,11 @@ type mediaServe struct {
 	libraryAccess LibraryAccessChecker
 	parental      ParentalChecker
 	libLister     LibraryLister // optional: confines streamed paths to library roots
+	// activity reports direct-play reads to the anti-starvation guards. Direct
+	// play is a bare ServeFile - no ffmpeg session exists for the producer
+	// counters to see - so without this a direct-play viewer reads as an idle
+	// server. nil = not wired (no behaviour change).
+	activity *apptranscoding.PlaybackActivity
 }
 
 // ArtworkWebPWriter updates the WebP path on an artwork record.
@@ -59,6 +65,12 @@ func withParental(pc ParentalChecker) mediaServeOption {
 // withLibraryLister wires library-root path confinement onto the stream
 // handler (the same defense-in-depth serveDownload applies): a poisoned DB
 // path must not turn the stream endpoint into an arbitrary-file read.
+// withPlaybackActivity wires the direct-play read into the "someone is
+// watching" signal every background worker yields on.
+func withPlaybackActivity(a *apptranscoding.PlaybackActivity) mediaServeOption {
+	return func(h *mediaServe) { h.activity = a }
+}
+
 func withLibraryLister(ll LibraryLister) mediaServeOption {
 	return func(h *mediaServe) { h.libLister = ll }
 }
@@ -124,6 +136,16 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setCORSHeaders(w, r, h.baseURL)
+	// Begin, not Touch: ServeFile can block for the whole film on a single
+	// request, so the media must count as active for as long as this call runs,
+	// not for a TTL measured from its start. Placed after every access gate so a
+	// refused request never registers as playback.
+	//
+	// Streaming only, deliberately - serveDownload is NOT tracked. The guards
+	// exist so a viewer doesn't stutter; a download doesn't stutter, and a 40 GB
+	// remux would otherwise hold every background worker off the disk for the
+	// hour it takes to transfer.
+	defer h.activity.Begin(mediaID)()
 	http.ServeFile(w, r, item.File.Path)
 }
 

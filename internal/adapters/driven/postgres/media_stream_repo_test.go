@@ -510,7 +510,7 @@ func TestMediaStreamRepo_FrameRateMode_RoundTrip(t *testing.T) {
 	assert.NotContains(t, stale, string(item.ID), "the stamp takes it out of the candidate set")
 }
 
-// A row that was NEVER classified is a candidate too: '' fails open at the copy
+// A row that was NEVER classified is a candidate too: ” fails open at the copy
 // gate, so a genuinely VFR source sitting there is served as copy and drifts
 // A/V - and it never self-heals, because classification only ever rode along a
 // keyframe write.
@@ -560,7 +560,6 @@ func TestMediaStreamRepo_FrameRateStale_IncludesNeverClassified(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "vfr", got[0].FrameRateMode, "the first real verdict lands on a '' row")
 }
-
 
 func TestMediaStreamRepo_DeleteByMediaItemID(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)

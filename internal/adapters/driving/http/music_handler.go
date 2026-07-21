@@ -28,8 +28,8 @@ import (
 type musicHandler struct {
 	svc          *appmusic.Service
 	libChecker   LibraryAccessChecker
-	libLister    MediaArchiveSource // may be nil; used for path confinement (fail-open)
-	imgConverter ImageConverter     // may be nil; ?w= resize is skipped when unset
+	libLister    MediaArchiveSource           // may be nil; used for path confinement (fail-open)
+	imgConverter ImageConverter               // may be nil; ?w= resize is skipped when unset
 	nowPlaying   *appmusic.NowPlayingRegistry // may be nil; "En cours de lecture" heartbeat
 }
 

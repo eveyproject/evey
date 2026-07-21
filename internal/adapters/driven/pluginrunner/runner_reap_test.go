@@ -143,7 +143,7 @@ func TestStillReapable_RejectsARecycledPid(t *testing.T) {
 	}
 
 	// A pid nobody holds is not reapable either.
-	if r.stillReapable(1 <<30, syscall.Getuid()) {
+	if r.stillReapable(1<<30, syscall.Getuid()) {
 		t.Error("a dead/absent pid must not be reapable")
 	}
 }

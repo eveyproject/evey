@@ -192,7 +192,7 @@ func TestBackupShortfalls(t *testing.T) {
 func TestBackupShortfalls_Boundary(t *testing.T) {
 	free := int64(1<<30) + volumeHeadroomBytes
 	short := backupShortfalls([]SeekVolume{
-		{Root: "/exact", FreeBytes: free, MissingBytes: 1 << 30, MissingFiles: 1},     // sum == free: fits, not short
+		{Root: "/exact", FreeBytes: free, MissingBytes: 1 << 30, MissingFiles: 1},      // sum == free: fits, not short
 		{Root: "/over", FreeBytes: free, MissingBytes: (1 << 30) + 1, MissingFiles: 1}, // sum == free+1: short
 	})
 	require.Len(t, short, 1)

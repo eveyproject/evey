@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
@@ -324,6 +325,67 @@ func streamRequest(h http.HandlerFunc) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
 	h(w, req)
 	return w
+}
+
+// Direct play is a bare ServeFile with no ffmpeg session behind it, so without
+// this wiring a direct-play viewer reads as an idle server and every background
+// worker keeps competing with them for the same disk.
+func TestStream_DirectPlayMarksPlaybackActive(t *testing.T) {
+	root := t.TempDir()
+	media := filepath.Join(root, "movie.mkv")
+	if err := os.WriteFile(media, []byte("mkv-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	act := apptranscoding.NewPlaybackActivity(time.Minute)
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{Path: media},
+	}
+	h := mediaHandler(
+		&fakeMediaItemGetter{item: item}, &fakeArtworkRepo{}, "http://localhost", allowAll(),
+		withLibraryLister(&fakeLibraryLister{libs: []*domainlibrary.Library{{ID: "lib1", Paths: []string{root}}}}),
+		withPlaybackActivity(act),
+	)
+
+	if got := act.ActiveSessionCount(); got != 0 {
+		t.Fatalf("nothing streamed yet, got %d", got)
+	}
+	if w := streamRequest(h); w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d", w.Code)
+	}
+	// The request has returned, so the in-flight count is back to zero and the
+	// TTL window is what keeps it counted - exactly the gap-covering behaviour a
+	// client making successive range requests depends on.
+	if got := act.ActiveSessionCount(); got != 1 {
+		t.Fatalf("a direct-play read must register as active playback, got %d", got)
+	}
+}
+
+// A refused request is not playback: the touch sits after every access gate, so
+// a path-confinement 404 must leave the counter alone. Otherwise a poisoned row
+// could hold background work off the disk without serving anyone.
+func TestStream_RefusedRequestDoesNotCountAsPlayback(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	act := apptranscoding.NewPlaybackActivity(time.Minute)
+	item := &domainlibrary.MediaItem{
+		ID: "m1", LibraryID: "lib1",
+		File: &domainlibrary.MediaFile{Path: outside},
+	}
+	h := mediaHandler(
+		&fakeMediaItemGetter{item: item}, &fakeArtworkRepo{}, "http://localhost", allowAll(),
+		withLibraryLister(&fakeLibraryLister{libs: []*domainlibrary.Library{{ID: "lib1", Paths: []string{t.TempDir()}}}}),
+		withPlaybackActivity(act),
+	)
+
+	if w := streamRequest(h); w.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d", w.Code)
+	}
+	if got := act.ActiveSessionCount(); got != 0 {
+		t.Fatalf("a refused request must not count as playback, got %d", got)
+	}
 }
 
 // A DB path outside every configured library root must 404 instead of being

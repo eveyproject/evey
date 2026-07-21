@@ -120,27 +120,27 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	classLookup, _ := pkgcache.NewWithMaxSize[domaintranscoding.ContentClass](0, mediaLookupMax)
 	prefsLookup, _ := pkgcache.NewWithMaxSize[apptranscoding.TranscodingPreferences](0, mediaLookupMax)
 	h := &hlsVODServe{
-		keyframeWarmer:       s.KeyframeWarmer,
-		videoAdmission:       videoAdmissionOf(s.VideoLimiter),
+		keyframeWarmer:        s.KeyframeWarmer,
+		videoAdmission:        videoAdmissionOf(s.VideoLimiter),
 		admissionRoute:        admissionRouteOf(s.VideoAdmissionShaper),
 		admissionPinnedClass:  pinnedClassOf(s.VideoAdmissionShaper),
 		admissionBind:         admissionBindOf(s.VideoAdmissionShaper),
 		admissionFrozenLadder: frozenLadderOf(s.VideoAdmissionShaper),
 		admissionFreezeLadder: freezeLadderOf(s.VideoAdmissionShaper),
-		mediaLookup:          mediaLookup,
-		classLookup:          classLookup,
-		prefsLookup:          prefsLookup,
-		libSvc:               libSvc,
-		libraryAccess:        libAccess,
-		parental:             parental,
-		profilePrefs:         s.ProfilePrefs,
-		audioNormalizeGetter: s.AudioNormalizeGetter,
-		userMaxStreams:       s.UserMaxStreams,
-		manifestGen:          apptranscoding.NewManifestGenerator(),
-		cache:                cache,
-		orchestrator:         orch,
-		qoeSink:              s.QoESink,
-		complexityRepo:       s.ComplexityRepo,
+		mediaLookup:           mediaLookup,
+		classLookup:           classLookup,
+		prefsLookup:           prefsLookup,
+		libSvc:                libSvc,
+		libraryAccess:         libAccess,
+		parental:              parental,
+		profilePrefs:          s.ProfilePrefs,
+		audioNormalizeGetter:  s.AudioNormalizeGetter,
+		userMaxStreams:        s.UserMaxStreams,
+		manifestGen:           apptranscoding.NewManifestGenerator(),
+		cache:                 cache,
+		orchestrator:          orch,
+		qoeSink:               s.QoESink,
+		complexityRepo:        s.ComplexityRepo,
 		capability: func() domaintranscoding.EncodeCapability {
 			if s.CalibrationSvc == nil {
 				return domaintranscoding.SafeFallback()
@@ -266,7 +266,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		// Paired with the packager on purpose: the tracker only has meaning
 		// while this rung can serve, and leaving it wired with the rung off
 		// would report playbacks that no longer take this path.
-		h.onDemandActivity = s.OnDemandActivity
+		h.playbackActivity = s.PlaybackActivity
 		slog.Default().Info("hls vod: on-demand copy rung enabled (mp4.PlanHLS, default; disable with server_config transcoding.hls_ondemand=off or EVEY_HLS_ONDEMAND=off)")
 
 		// AES-128 encryption of the on-demand segments (HLS-only, no DASH).

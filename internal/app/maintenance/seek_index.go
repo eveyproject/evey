@@ -141,15 +141,15 @@ type SeekStatus struct {
 
 // ScanResult bundles the per-file statuses with rollup counts.
 type ScanResult struct {
-	Items        []SeekStatus
-	Total        int
-	MissingIndex int
-	WithBackup   int
-	AudioDelayed int // count with AudioDelaySec > AudioDelayFlagSec
-	Truncated    int // count that are incomplete downloads (re-acquire, not repair)
-	Damaged      int // count with mid-file corruption (resync-repairable)
+	Items          []SeekStatus
+	Total          int
+	MissingIndex   int
+	WithBackup     int
+	AudioDelayed   int // count with AudioDelaySec > AudioDelayFlagSec
+	Truncated      int // count that are incomplete downloads (re-acquire, not repair)
+	Damaged        int // count with mid-file corruption (resync-repairable)
 	WrongContainer int // count that are MP4/MOV mislabelled .mkv (rename/remux, not reindex)
-	TrailingJunk int // count carrying surplus bytes past the Segment end (harmless, a rewrite drops them)
+	TrailingJunk   int // count carrying surplus bytes past the Segment end (harmless, a rewrite drops them)
 }
 
 // Failure records one file a batch job could not process.

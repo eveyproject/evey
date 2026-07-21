@@ -521,8 +521,8 @@ func (r *MediaStreamRepository) ReclassifyFrameRateMode(ctx context.Context, med
 // stale cfr/vfr verdict AND a row never classified at all: the predicate is the
 // version, not the mode.
 //
-// Rows sitting at frame_rate_mode = '' are NOT harmless, which is why they are
-// in scope. '' fails OPEN at the copy gate (CopyRungEligible only blocks a
+// Rows sitting at frame_rate_mode = ” are NOT harmless, which is why they are
+// in scope. ” fails OPEN at the copy gate (CopyRungEligible only blocks a
 // confirmed 'vfr'), so a genuinely variable-rate source that was never analyzed
 // is served as a -c:v copy and drifts A/V. They also never self-heal: the
 // classification only ever rode along a keyframe write, so a row whose

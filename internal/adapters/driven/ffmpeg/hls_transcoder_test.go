@@ -996,8 +996,8 @@ func TestBuildFFmpegAudioOnlyArgs_CopyPassthrough(t *testing.T) {
 		OutputDir:        "/tmp/audio",
 		SourceTrackIdx:   0,
 		AudioCodec:       "copy",
-		AudioBitrate:     192, // must be ignored on a copy
-		MaxAudioChannels: 6,   // must be ignored on a copy
+		AudioBitrate:     192,  // must be ignored on a copy
+		MaxAudioChannels: 6,    // must be ignored on a copy
 		AudioNormalize:   true, // loudnorm cannot run on a copy
 	}
 	args := ffmpeg.BuildFFmpegAudioOnlyArgs(opts)

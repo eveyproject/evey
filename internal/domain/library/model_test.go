@@ -568,9 +568,9 @@ func mustDur(ms int64) shared.Duration {
 
 func TestMediaFile_BitrateBps(t *testing.T) {
 	cases := []struct {
-		name  string
-		file  *library.MediaFile
-		want  int64
+		name string
+		file *library.MediaFile
+		want int64
 	}{
 		{"a stored value wins", &library.MediaFile{Bitrate: 5_000_000, Size: 1, Duration: mustDur(1000)}, 5_000_000},
 		{"derived from size and duration", &library.MediaFile{Size: 1_000_000, Duration: mustDur(8000)}, 1_000_000},

@@ -94,8 +94,8 @@ func TestProducerSelector_ActiveSessionCount_CountsOnDemandPlayback(t *testing.T
 	hw := &fakeProducer{name: "hw", active: 0}
 	sel := NewProducerSelector(sw, hw, nil)
 
-	act := NewOnDemandActivity(time.Minute)
-	sel.WithOnDemandActivity(act)
+	act := NewPlaybackActivity(time.Minute)
+	sel.WithPlaybackActivity(act)
 	act.Touch("mi-1")
 
 	if got := sel.ActiveSessionCount(); got != 1 {
@@ -108,8 +108,8 @@ func TestProducerSelector_ActiveSessionCount_SumsOnDemandWithProducers(t *testin
 	hw := &fakeProducer{name: "hw", active: 2}
 	sel := NewProducerSelector(sw, hw, nil)
 
-	act := NewOnDemandActivity(time.Minute)
-	sel.WithOnDemandActivity(act)
+	act := NewPlaybackActivity(time.Minute)
+	sel.WithPlaybackActivity(act)
 	act.Touch("mi-1")
 
 	if got := sel.ActiveSessionCount(); got != 6 {

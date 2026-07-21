@@ -128,12 +128,12 @@ type ProducerSelector struct {
 	// the server reads its "is someone watching" answer from this one method -
 	// wiring it anywhere else would fix some guards and leave the rest blind.
 	// nil = no on-demand path wired (reads as zero).
-	onDemand *OnDemandActivity
+	onDemand *PlaybackActivity
 }
 
-// WithOnDemandActivity wires the mkvgo playback tracker into the aggregate
+// WithPlaybackActivity wires the mkvgo playback tracker into the aggregate
 // count. Chainable; leaving it unset preserves the ffmpeg-only behaviour.
-func (s *ProducerSelector) WithOnDemandActivity(a *OnDemandActivity) *ProducerSelector {
+func (s *ProducerSelector) WithPlaybackActivity(a *PlaybackActivity) *ProducerSelector {
 	s.onDemand = a
 	return s
 }
