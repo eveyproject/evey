@@ -11,6 +11,13 @@ vi.mock("./StreamList", () => ({
   ),
 }));
 
+// MediaTechSummary issues a GetStreamInfo RPC (the playback-difficulty badge is
+// decided server-side, per device). Stub it here so this file keeps testing the
+// disclosure alone; the summary has its own test.
+vi.mock("./MediaTechSummary", () => ({
+  MediaTechSummary: () => <div data-testid="media-tech-summary" />,
+}));
+
 function makeItem(overrides: Partial<V1MediaItem> = {}): V1MediaItem {
   return {
     id: "m-1",

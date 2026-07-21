@@ -508,6 +508,7 @@ search:
   yearNewest: Année (plus récent)
   dateAdded: "Date d'ajout"
 streams:
+  video: "Vidéo"
   audio: Audio
   subtitles: Sous-titres
   default: Par défaut
@@ -537,3 +538,14 @@ genres:
   thriller: Thriller
   war: Guerre
   western: Western
+playback:
+  level:
+    easy: "Léger"
+    moderate: "Modéré"
+    demanding: "Lourd"
+    hard: "Très lourd"
+  hint:
+    easy: "Diffusé tel quel. Aucune conversion, aucun effort pour le serveur."
+    moderate: "Seul le son est converti. Effort négligeable pour le serveur."
+    demanding: "La vidéo doit être convertie pour votre appareil. Demande de la puissance."
+    hard: "Une vidéo très volumineuse doit être convertie. Risque de saccades sur un petit serveur."

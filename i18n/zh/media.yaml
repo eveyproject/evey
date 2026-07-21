@@ -508,6 +508,7 @@ search:
   yearNewest: 年份（最新）
   dateAdded: 添加日期
 streams:
+  video: "视频"
   audio: 音频
   subtitles: 字幕
   default: 默认
@@ -537,3 +538,14 @@ genres:
   thriller: 惊悚
   war: 战争
   western: 西部
+playback:
+  level:
+    easy: "轻量"
+    moderate: "中等"
+    demanding: "较重"
+    hard: "很重"
+  hint:
+    easy: "原样传输。无需转换，服务器毫无压力。"
+    moderate: "仅转换声音。服务器压力极小。"
+    demanding: "需要为你的设备转换视频，会占用实际算力。"
+    hard: "需要转换一个非常大的视频。在配置较低的服务器上可能卡顿。"

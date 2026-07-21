@@ -6,6 +6,9 @@ interface BadgeProps {
   variant?: BadgeVariant;
   children: ReactNode;
   className?: string;
+  /** Native tooltip - used to spell out why a playback badge says what it says. */
+  title?: string;
+  "data-testid"?: string;
 }
 
 const variantClasses: Record<BadgeVariant, string> = {
@@ -16,9 +19,11 @@ const variantClasses: Record<BadgeVariant, string> = {
   info: "bg-[var(--badge-info-bg,#1e3a5f)] text-[var(--badge-info-text,#93c5fd)]",
 };
 
-export function Badge({ variant = "default", children, className = "" }: BadgeProps) {
+export function Badge({ variant = "default", children, className = "", title, ...rest }: BadgeProps) {
   return (
     <span
+      {...rest}
+      title={title}
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${variantClasses[variant]} ${className}`}
     >
       {children}

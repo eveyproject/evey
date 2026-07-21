@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { StreamList } from "./StreamList";
+import { MediaTechSummary } from "./MediaTechSummary";
 import { formatDuration, formatFileSize } from "./mediaDetailUtils";
 
 export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
@@ -36,6 +37,13 @@ export function MediaDetailFileInfo({ item }: { item: V1MediaItem }) {
 
   return (
     <div className="mt-10">
+      {/* The technical summary is always visible: it was the whole point of the
+          disclosure for most viewers, and keeping it collapsed meant nobody knew
+          what they were about to play. The exhaustive per-track list stays
+          behind the toggle. */}
+      <div className="mb-3">
+        <MediaTechSummary item={item} />
+      </div>
       <button
         className="flex items-center gap-2 text-sm font-semibold mb-3 text-[var(--text-muted)]"
         onClick={() => setFileInfoOpen((v) => !v)}
