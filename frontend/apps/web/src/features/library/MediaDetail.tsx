@@ -4,10 +4,8 @@ import type { V1MediaItem } from "@evey/api";
 import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceGetSeriesAggregate,
-  useLibraryServiceListLibraries,
 } from "@evey/api";
 import { useAuthStore } from "@evey/store";
-import { slugify } from "@/utils/slugify";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useStreamToken } from "@/hooks/useStreamToken";
 import { formatDuration, formatSeriesRuntime, hasMediaFile } from "./mediaDetailUtils";
@@ -51,15 +49,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
     { query: { enabled: !!item.parentId && (item.type === "MEDIA_ITEM_TYPE_SEASON" || isEpisode) } } as never,
   );
 
-  const { data: grandParentItem } = useLibraryServiceGetMediaItem(
-    parentItem?.parentId ?? "",
-    { query: { enabled: !!parentItem?.parentId && isEpisode } } as never,
-  );
-
   const accessToken = useAuthStore((s) => s.accessToken);
-  const { data: librariesData } = useLibraryServiceListLibraries();
-  const library = librariesData?.libraries?.find((l) => l.id === item.libraryId);
-  const librarySlug = library ? slugify(library.name ?? "") : null;
 
   // Always route through backend endpoint - see MediaCard for the ORB rationale.
   // The raw item.artwork[].url is the external provider URL (Amazon CDN for
@@ -91,28 +81,6 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const producers = item.people?.filter((p) => p.type === "PERSON_TYPE_PRODUCER") ?? [];
   const crew = [...directors, ...writers, ...producers];
 
-  const breadcrumbItems = (() => {
-    const crumbs: Array<{ label: string; to?: string }> = [{ label: t("common.nav.home"), to: "/home" }];
-    if (librarySlug && library) {
-      crumbs.push({ label: library.name ?? t("media.home.library"), to: `/library/${librarySlug}` });
-    }
-    if (isEpisode && grandParentItem) {
-      crumbs.push({ label: grandParentItem.title ?? t("media.library.series"), to: `/media/${grandParentItem.id}` });
-      if (parentItem) {
-        const seasonLabel = parentItem.indexNumber != null ? t("media.season", { number: parentItem.indexNumber }) : (parentItem.title ?? t("media.season", { number: "" }));
-        crumbs.push({ label: seasonLabel, to: `/media/${parentItem.id}` });
-      }
-      crumbs.push({ label: item.title ?? "" });
-    } else if (isSeason && parentItem) {
-      crumbs.push({ label: parentItem.title ?? t("media.library.series"), to: `/media/${parentItem.id}` });
-      const seasonLabel = item.indexNumber != null ? t("media.season", { number: item.indexNumber }) : (item.title ?? t("media.season", { number: "" }));
-      crumbs.push({ label: seasonLabel });
-    } else {
-      crumbs.push({ label: item.title ?? "" });
-    }
-    return crumbs;
-  })();
-
   return (
     <div className="evey-media-detail" data-testid="media-detail">
       <MediaDetailHero
@@ -120,15 +88,22 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
         backdropUrl={backdropUrl}
         posterUrl={posterUrl}
         duration={duration}
-        breadcrumbItems={breadcrumbItems}
         parentItem={parentItem}
         onEditToggle={() => setEditing((v) => !v)}
       />
 
-      <div className="flex gap-6 mt-6">
+      {/* The poster is pulled UP so it overlaps the backdrop instead of sitting
+          in a separate band below it - the layout Jellyfin uses, and the reason
+          its detail page reads as one composition rather than an image with a
+          form underneath. The hero reserves matching space on its left
+          (md:pl-[22rem]) so the title never collides with it.
+
+          The negative margin is desktop-only: on a narrow screen there is no
+          room beside the poster, so the sections stay stacked. */}
+      <div className="flex gap-6 mt-6 md:-mt-28 relative z-raised">
         <div className="flex-shrink-0 w-80 hidden md:block">
           <div
-            className="evey-poster relative w-80 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)]"
+            className="evey-poster relative w-80 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)] shadow-[var(--shadow-lg)] ring-1 ring-[var(--border)]"
           >
             {posterUrl ? (
               <img
@@ -157,6 +132,10 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
           </div>
         </div>
 
+        {/* Pushed down to clear the backdrop the poster now overlaps, so the
+            synopsis and actions start below the artwork rather than on top of
+            it. */}
+        <div className="flex-1 min-w-0 md:pt-28">
         <MediaDetailActions
           item={item}
           isSeries={isSeries}
@@ -168,6 +147,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
           onMetadataUpdated={onMetadataUpdated}
           streamToken={streamToken}
         />
+        </div>
       </div>
 
       <MediaDetailFileInfo item={item} />

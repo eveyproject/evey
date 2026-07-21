@@ -5,7 +5,6 @@ import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/
 import { useTranslation } from "react-i18next";
 import { Pencil } from "lucide-react";
 import { BackButton } from "@/components/ui/BackButton";
-import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
 import { Stars } from "./MediaDetailStars";
 import { certInfoForLocale } from "@/utils/certifications";
 
@@ -27,7 +26,6 @@ interface MediaDetailHeroProps {
   backdropUrl?: string;
   posterUrl?: string;
   duration: string;
-  breadcrumbItems: Array<{ label: string; to?: string }>;
   parentItem?: V1MediaItem;
   onEditToggle: () => void;
 }
@@ -36,7 +34,6 @@ export function MediaDetailHero({
   item,
   backdropUrl,
   duration,
-  breadcrumbItems,
   parentItem,
   onEditToggle,
 }: MediaDetailHeroProps) {
@@ -64,9 +61,11 @@ export function MediaDetailHero({
     // keep the source aspect ratio (bounded, so it never eats the whole screen)
     // means there is little left to crop.
     <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0 aspect-[16/9] max-h-[min(70vh,620px)] min-h-[220px]">
+      {/* Back button only. The breadcrumb repeated the hierarchy the title and
+          the parent link already carry, and cost a line of chrome over the
+          artwork on every media page. */}
       <div className="absolute top-0 left-0 right-0 z-raised px-4 sm:px-6 pt-4 sm:pt-5 gradient-hero-scrim">
-        <BackButton fallback="/library" className="mb-1 !text-white hover:!text-white/80" />
-        <Breadcrumbs items={breadcrumbItems} />
+        <BackButton fallback="/library" className="!text-white hover:!text-white/80" />
       </div>
       {backdropUrl ? (
         <img src={backdropUrl} srcSet={backdropSrcSet} sizes="100vw" alt={item.title ?? ""} className="w-full h-full object-cover object-[center_28%]" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
@@ -75,7 +74,10 @@ export function MediaDetailHero({
       )}
       <div className="absolute inset-0 gradient-hero-fade" />
       <div className="absolute inset-0 gradient-hero-overlay" />
-      <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-6 pb-4 sm:pb-6">
+      {/* Indented on desktop so the overlapping poster (rendered by MediaDetail
+          just below, pulled up over this artwork) never sits on top of the
+          title. */}
+      <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-6 pb-4 sm:pb-6 md:pl-[22rem]">
         <div className="flex items-center gap-2 mb-2 flex-wrap">
           {certInfo && (
             <span
