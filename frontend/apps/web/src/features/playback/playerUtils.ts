@@ -20,3 +20,21 @@ export function nominalQualityTier(height: number): number {
     Math.abs(tier - height) < Math.abs(best - height) ? tier : best,
   );
 }
+
+// playerCloseTarget picks the media page the player's back control returns to.
+//
+// It is deliberately NOT router.history.back(). With autoplay chaining, every
+// episode pushes its own history entry, so "back" landed on the PREVIOUS
+// EPISODE - leaving a binge walked backwards through the season one episode at
+// a time. history.back() was also a no-op on a deep link or a hard refresh,
+// where the SPA history is empty.
+//
+// An episode returns to its SEASON, because that is the page that lists it.
+// Anything else (a film, a one-off) returns to its own page.
+export function playerCloseTarget(
+  mediaId: string,
+  item?: { type?: string; parentId?: string },
+): string {
+  if (item?.type === "MEDIA_ITEM_TYPE_EPISODE" && item.parentId) return item.parentId;
+  return mediaId;
+}

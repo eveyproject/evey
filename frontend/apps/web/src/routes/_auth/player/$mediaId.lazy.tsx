@@ -7,6 +7,7 @@ import { libraryServiceGetMediaItem, libraryServiceListMediaItems } from "@evey/
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
+import { playerCloseTarget } from "@/features/playback/playerUtils";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import type { AudioStream, SubtitleStream } from "@/features/playback/HLSPlayer";
@@ -181,17 +182,21 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
 
   const handleClose = useCallback(() => {
     usePlayerStore.getState().stop();
-    // router.history.back() is a no-op when the player was reached via a
-    // deep link, a hard refresh, or any path that left the SPA history
-    // empty - which is exactly when users complain "back does nothing".
-    // Fall back to the media detail page of whatever is playing so the
-    // close button always lands somewhere sane.
-    if (router.history.canGoBack()) {
-      router.history.back();
-    } else {
-      void router.navigate({ to: "/media/$mediaId", params: { mediaId } });
-    }
-  }, [router, mediaId]);
+    // ALWAYS the media page, never router.history.back().
+    //
+    // Back looks right until autoplay chains episodes: each one pushes a
+    // history entry, so the previous entry is the PREVIOUS EPISODE. Leaving a
+    // binge then walked backwards through the season one episode at a time
+    // instead of returning to the season. history.back() was also a no-op on a
+    // deep link or hard refresh, where the SPA history is empty.
+    //
+    // An episode goes to its SEASON (that is the page listing it); anything
+    // else goes to its own page.
+    void router.navigate({
+      to: "/media/$mediaId",
+      params: { mediaId: playerCloseTarget(mediaId, mediaItem) },
+    });
+  }, [router, mediaId, mediaItem?.type, mediaItem?.parentId]);
 
   // Memoise so these arrays keep a stable identity across re-renders driven by
   // unrelated state (share dialog, syncplay ws, season selection): they flow

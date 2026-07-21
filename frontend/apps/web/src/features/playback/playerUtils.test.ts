@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatTime, nominalQualityTier } from "./playerUtils";
+import { formatTime, nominalQualityTier, playerCloseTarget } from "./playerUtils";
 
 describe("nominalQualityTier", () => {
   it("rounds a widescreen height to the nearest standard tier", () => {
@@ -41,5 +41,22 @@ describe("formatTime", () => {
 
   it("truncates fractional seconds", () => {
     expect(formatTime(61.7)).toBe("1:01");
+  });
+});
+
+describe("playerCloseTarget", () => {
+  it("sends an episode back to its season, not to the episode itself", () => {
+    expect(
+      playerCloseTarget("ep-9", { type: "MEDIA_ITEM_TYPE_EPISODE", parentId: "season-2" }),
+    ).toBe("season-2");
+  });
+
+  it("sends a film back to its own page", () => {
+    expect(playerCloseTarget("movie-1", { type: "MEDIA_ITEM_TYPE_MOVIE" })).toBe("movie-1");
+  });
+
+  it("falls back to the played id when the item is unknown or has no parent", () => {
+    expect(playerCloseTarget("ep-9", undefined)).toBe("ep-9");
+    expect(playerCloseTarget("ep-9", { type: "MEDIA_ITEM_TYPE_EPISODE" })).toBe("ep-9");
   });
 });
