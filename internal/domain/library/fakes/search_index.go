@@ -34,7 +34,7 @@ func (s *FakeSearchIndex) IndexMediaItem(_ context.Context, item *library.MediaI
 	if s.Err != nil {
 		return s.Err
 	}
-	s.items[string(item.ID)] = item
+	s.items[string(item.ID)] = cloneMediaItem(item)
 	return nil
 }
 
@@ -45,7 +45,7 @@ func (s *FakeSearchIndex) IndexMediaItemsBatch(_ context.Context, items []*libra
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, item := range items {
-		s.items[string(item.ID)] = item
+		s.items[string(item.ID)] = cloneMediaItem(item)
 	}
 	return nil
 }

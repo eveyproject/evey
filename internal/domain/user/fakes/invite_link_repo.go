@@ -27,7 +27,8 @@ func (r *FakeInviteLinkRepository) Create(_ context.Context, link *user.InviteLi
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[link.ID] = link
+	stored := *link
+	r.items[link.ID] = &stored
 	return nil
 }
 

@@ -27,7 +27,8 @@ func (r *FakeTrickplayRepository) Create(_ context.Context, m *library.Trickplay
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[string(m.MediaItemID)] = m
+	stored := *m
+	r.items[string(m.MediaItemID)] = &stored
 	return nil
 }
 
@@ -59,7 +60,8 @@ func (r *FakeTrickplayRepository) GetByMediaItemIDs(_ context.Context, mediaItem
 	result := make(map[shared.MediaItemID]*library.TrickplayManifest, len(mediaItemIDs))
 	for _, id := range mediaItemIDs {
 		if m, ok := r.items[string(id)]; ok {
-			result[id] = m
+			cp := *m
+			result[id] = &cp
 		}
 	}
 	return result, nil

@@ -38,7 +38,11 @@ func (s *FakeBackupStore) Create(_ context.Context, m *backup.BackupManifest, da
 		return err
 	}
 	m.Size = int64(len(b))
-	s.manifests[m.ID] = m
+	// Store a copy, not the caller's pointer: a service that mutates the
+	// manifest afterwards without persisting again would otherwise be
+	// indistinguishable from one that did.
+	stored := *m
+	s.manifests[m.ID] = &stored
 	s.data[m.ID] = b
 	return nil
 }
