@@ -148,7 +148,11 @@ describe("SeasonEpisodesSection", () => {
     expect(screen.getByText("1h 32m")).toBeInTheDocument();
   });
 
-  it("links the episode row to its media page", () => {
+  // The episode row deliberately no longer navigates to a per-episode detail
+  // page: the synopsis and the actions now live on the row itself, so that page
+  // held nothing an episode needs and sat between the viewer and playback.
+  // Every link on the row goes straight to the player.
+  it("does not send the episode row to a per-episode detail page", () => {
     mockListMediaItems.mockReturnValue({
       data: {
         items: [{ id: "ep1", indexNumber: 1, title: "Pilot" }],
@@ -158,7 +162,22 @@ describe("SeasonEpisodesSection", () => {
       <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
       { wrapper: Wrapper },
     );
-    expect(screen.getByText("Pilot").closest("a")).toHaveAttribute("href", "/media/ep1");
+    const detailLinks = screen.getAllByRole("link").filter((l) => l.getAttribute("href")?.startsWith("/media/"));
+    expect(detailLinks).toHaveLength(0);
+    expect(screen.getByText("Pilot")).toBeInTheDocument();
+  });
+
+  it("shows the episode synopsis on the row", () => {
+    mockListMediaItems.mockReturnValue({
+      data: {
+        items: [{ id: "ep1", indexNumber: 1, title: "Pilot", overview: "Carmy comes home." }],
+      },
+    });
+    render(
+      <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
+      { wrapper: Wrapper },
+    );
+    expect(screen.getByText("Carmy comes home.")).toBeInTheDocument();
   });
 
   it("exposes a play link to the player for each episode", () => {
@@ -189,9 +208,9 @@ describe("SeasonEpisodesSection", () => {
       <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
       { wrapper: Wrapper },
     );
-    const links = screen.getAllByRole("link").filter((l) => l.getAttribute("href")?.startsWith("/media/"));
-    expect(links[0]).toHaveTextContent("First");
-    expect(links[1]).toHaveTextContent("Second");
-    expect(links[2]).toHaveTextContent("Third");
+    // Ordering is now read off the player links, one per episode, since the
+    // rows no longer carry a /media/ link.
+    const links = screen.getAllByRole("link").filter((l) => l.getAttribute("href")?.startsWith("/player/"));
+    expect(links.map((l) => l.getAttribute("href"))).toEqual(["/player/ep1", "/player/ep2", "/player/ep3"]);
   });
 });

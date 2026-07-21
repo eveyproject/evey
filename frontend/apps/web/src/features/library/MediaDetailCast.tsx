@@ -10,9 +10,9 @@ function CastCard({ person }: { person: V1MediaPerson }) {
   const roleLabel = personType.charAt(0) + personType.slice(1).toLowerCase();
 
   return (
-    <Link to="/person/$personId" params={{ personId: person.id ?? "" }} className="flex-shrink-0 w-28 text-center group">
+    <Link to="/person/$personId" params={{ personId: person.id ?? "" }} className="flex-shrink-0 w-40 text-center group">
       <div
-        className="w-20 h-20 rounded-full mx-auto overflow-hidden flex items-center justify-center mb-2 transition-transform-fast group-hover:scale-105 bg-[var(--surface-raised)]"
+        className="w-40 h-40 rounded-full mx-auto overflow-hidden flex items-center justify-center mb-2 transition-transform-fast group-hover:scale-105 bg-[var(--surface-raised)]"
       >
         {person.thumbUrl ? (
           <img
@@ -35,7 +35,7 @@ function CastCard({ person }: { person: V1MediaPerson }) {
           {initial}
         </span>
       </div>
-      <p className="text-xs font-medium truncate group-hover:underline text-[var(--text)]">
+      <p className="text-sm font-medium truncate group-hover:underline text-[var(--text)]">
         {person.name}
       </p>
       {person.role ? (

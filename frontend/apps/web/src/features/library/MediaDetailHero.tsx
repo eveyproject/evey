@@ -49,17 +49,27 @@ export function MediaDetailHero({
   const backdropSrcSet = useMemo(() => {
     if (!backdropUrl) return undefined;
     const sep = backdropUrl.includes("?") ? "&" : "?";
-    return `${backdropUrl}${sep}w=800 800w, ${backdropUrl}${sep}w=1280 1280w, ${backdropUrl}${sep}w=1920 1920w`;
+    // These widths must EXIST server-side: /artwork snaps ?w= to the nearest
+    // allowed variant, so before 1280/1920 were added every entry here
+    // collapsed onto the same 780px file and the browser stretched it across
+    // the full viewport. That was the "pixelated backdrop".
+    return `${backdropUrl}${sep}w=780 780w, ${backdropUrl}${sep}w=1280 1280w, ${backdropUrl}${sep}w=1920 1920w`;
   }, [backdropUrl]);
 
   return (
-    <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0 h-[clamp(200px,50vw,420px)] sm:h-[clamp(260px,50vw,420px)]">
+    // Height follows the backdrop's own 16:9 shape instead of a fixed band.
+    // The old clamp capped at 420px while the image spans the full width, so on
+    // a wide viewport object-cover had to crop ~40% of the frame vertically -
+    // taking the top and bottom of the composition with it. Letting the box
+    // keep the source aspect ratio (bounded, so it never eats the whole screen)
+    // means there is little left to crop.
+    <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0 aspect-[16/9] max-h-[min(70vh,620px)] min-h-[220px]">
       <div className="absolute top-0 left-0 right-0 z-raised px-4 sm:px-6 pt-4 sm:pt-5 gradient-hero-scrim">
         <BackButton fallback="/library" className="mb-1 !text-white hover:!text-white/80" />
         <Breadcrumbs items={breadcrumbItems} />
       </div>
       {backdropUrl ? (
-        <img src={backdropUrl} srcSet={backdropSrcSet} sizes="100vw" alt={item.title ?? ""} className="w-full h-full object-cover" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+        <img src={backdropUrl} srcSet={backdropSrcSet} sizes="100vw" alt={item.title ?? ""} className="w-full h-full object-cover object-[center_28%]" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
       ) : (
         <div className="w-full h-full bg-[var(--surface)]" />
       )}

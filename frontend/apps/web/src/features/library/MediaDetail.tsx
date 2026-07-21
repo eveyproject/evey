@@ -72,7 +72,10 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
   const posterSrcSet = useMemo(() => {
     if (!posterUrl) return undefined;
     const sep = posterUrl.includes("?") ? "&" : "?";
-    return `${posterUrl}${sep}w=200 200w, ${posterUrl}${sep}w=300 300w, ${posterUrl}${sep}w=400 400w`;
+    // Use the widths the server actually has (185/342/500): w=300 and w=400
+    // both snapped to 342, so the third entry was a duplicate and a retina
+    // poster never got a sharper file.
+    return `${posterUrl}${sep}w=185 185w, ${posterUrl}${sep}w=342 342w, ${posterUrl}${sep}w=500 500w`;
   }, [posterUrl]);
 
   const { data: seriesAggregate } = useLibraryServiceGetSeriesAggregate(
@@ -123,15 +126,15 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
       />
 
       <div className="flex gap-6 mt-6">
-        <div className="flex-shrink-0 w-48 hidden md:block">
+        <div className="flex-shrink-0 w-80 hidden md:block">
           <div
-            className="evey-poster relative w-48 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)]"
+            className="evey-poster relative w-80 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)]"
           >
             {posterUrl ? (
               <img
                 src={posterUrl}
                 srcSet={posterSrcSet}
-                sizes="192px"
+                sizes="320px"
                 alt={item.title ?? ""}
                 fetchPriority="high"
                 className="w-full h-full object-cover"
@@ -169,11 +172,14 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
       <MediaDetailFileInfo item={item} />
 
-      <div data-testid="cast-section"><CastCarousel people={actors} title={t("media.detail.cast")} /></div>
-      {crew.length > 0 && <CastCarousel people={crew} title={t("media.detail.crew")} />}
-
+      {/* Seasons and episodes come BEFORE the cast: on a series page they are
+          what the viewer came for, and burying them under a cast carousel meant
+          scrolling past people to reach the thing you want to watch. */}
       {isSeries && <div data-testid="seasons-section"><SeriesSection item={item} /></div>}
       {isSeason && <SeasonEpisodesSection item={item} />}
+
+      <div data-testid="cast-section"><CastCarousel people={actors} title={t("media.detail.cast")} /></div>
+      {crew.length > 0 && <CastCarousel people={crew} title={t("media.detail.crew")} />}
 
       {item.id && !isSeason && <SimilarSection item={item} />}
 

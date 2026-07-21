@@ -1,0 +1,14 @@
+import { chromium } from '@playwright/test';
+const OUT = process.argv[2];
+const URL = process.argv[3];
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 1440, height: 1200 } });
+await p.goto('http://localhost:5173/login', { waitUntil: 'domcontentloaded' });
+await p.fill('input[name="username"], input[type="text"]', 'gravity').catch(()=>{});
+await p.fill('input[type="password"]', '***REMOVED***').catch(()=>{});
+await p.click('button[type="submit"]').catch(()=>{});
+await p.waitForTimeout(4000);
+await p.goto(URL, { waitUntil: 'networkidle' }).catch(()=>{});
+await p.waitForTimeout(3000);
+await p.screenshot({ path: OUT, fullPage: true });
+await b.close();

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
@@ -9,6 +9,10 @@ import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
 import { getSeriesTrackPrefs, setSeriesTrackPrefs } from "@/hooks/usePlaybackPrefs";
 import { formatDuration } from "./mediaDetailUtils";
+import { artworkUrl } from "./artworkUrl";
+import { useAuthStore } from "@evey/store";
+import { DownloadButton } from "@/features/playback/DownloadButton";
+import { useStreamToken } from "@/hooks/useStreamToken";
 
 // GaplessToggle: "lecture enchaînée" - request the server's concatenated,
 // multi-episode HLS session instead of reloading the player at each episode
@@ -41,43 +45,89 @@ function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
   return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
 }
 
-// EpisodeRow links the row to the episode's media page and exposes a separate
-// play control that jumps straight to the player.
+// EpisodeRow shows the episode as a card: still, number + title, synopsis, a
+// play control layered on the image, and a download on the right.
+//
+// The row deliberately no longer links to a per-episode detail page. That page
+// existed but had nothing an episode needs that isn't already here - the
+// synopsis and the actions now live on the row itself - so it was one click of
+// dead weight between the viewer and playback. Seasons keep their own page.
 function EpisodeRow({ ep }: { ep: V1MediaItem }) {
   const { t } = useTranslation();
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const { fetchStreamToken } = useStreamToken();
+  const stillUrl = ep.id ? artworkUrl(ep.id, "backdrop", ep, accessToken || undefined) : undefined;
+  const stillSrcSet = stillUrl
+    ? `${stillUrl}${stillUrl.includes("?") ? "&" : "?"}w=342 342w, ${stillUrl}${stillUrl.includes("?") ? "&" : "?"}w=500 500w`
+    : undefined;
+
   return (
-    <div className="flex items-center hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]">
-      <Link
-        to="/media/$mediaId"
-        params={{ mediaId: ep.id ?? "" }}
-        className="flex items-center gap-3 px-4 py-2 flex-1 min-w-0"
-      >
-        <span className="text-sm w-10 flex-shrink-0 font-mono font-medium text-[var(--accent)]">
-          E{ep.indexNumber ?? "?"}
-        </span>
-        <span className="text-sm flex-1 truncate">{ep.title}</span>
-        {ep.durationMs && (
-          <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">{formatDuration(ep.durationMs)}</span>
-        )}
-      </Link>
+    <div className="flex gap-4 p-3 hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]">
+      {/* Still + play overlay. The whole thumbnail is the play target: it is the
+          biggest, most obvious hit area and it is what the viewer wants. */}
       <Link
         to="/player/$mediaId"
         params={{ mediaId: ep.id ?? "" }}
         aria-label={t("media.detail.play")}
         title={t("media.detail.play")}
-        className="flex items-center justify-center px-4 py-2 flex-shrink-0 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors-fast"
+        className="relative flex-shrink-0 w-52 sm:w-64 aspect-video rounded-[var(--radius-sm)] overflow-hidden bg-[var(--surface-raised)] group"
       >
-        <Play size={16} fill="currentColor" />
+        {stillUrl && (
+          <img
+            src={stillUrl}
+            srcSet={stillSrcSet}
+            sizes="256px"
+            alt=""
+            loading="lazy"
+            className="w-full h-full object-cover"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        )}
+        <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity-fast">
+          <Play size={28} fill="currentColor" className="text-white" />
+        </span>
       </Link>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2">
+          <span className="text-base flex-shrink-0 font-mono font-medium text-[var(--accent)]">
+            E{ep.indexNumber ?? "?"}
+          </span>
+          <span className="text-base font-medium truncate">{ep.title}</span>
+          {ep.durationMs && (
+            <span className="text-sm flex-shrink-0 ml-auto text-[var(--text-muted)]">{formatDuration(ep.durationMs)}</span>
+          )}
+        </div>
+        {ep.overview && (
+          <p className="mt-1.5 text-sm leading-relaxed line-clamp-3 text-[var(--text-secondary)]">{ep.overview}</p>
+        )}
+      </div>
+
+      <div className="flex-shrink-0 self-center">
+        {/* Mints its own media-scoped token at click time, like the season and
+            series ZIP buttons: the account JWT must never ride in a URL. */}
+        <DownloadButton
+          mediaId={ep.id ?? ""}
+          title={`${ep.title ?? "episode"}`}
+          mintToken={() => fetchStreamToken(ep.id ?? "")}
+          label=""
+        />
+      </div>
     </div>
   );
 }
 
-function SeasonRow({ seasonId }: { seasonId: string }) {
+// SeasonCard is a poster tile per season rather than a text accordion row.
+//
+// The accordion made every season look the same - a line of text - and hid the
+// episodes one click deep. A season has its own artwork, so use it: the grid is
+// scannable at a glance and the tile navigates to the season page, which is
+// where the episode list now lives.
+function SeasonCard({ seasonId }: { seasonId: string }) {
   const { t } = useTranslation();
+  const accessToken = useAuthStore((s) => s.accessToken);
   const { data: season } = useLibraryServiceGetMediaItem(seasonId);
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId });
-  const [open, setOpen] = useState(false);
   const episodes = sortByIndex(episodesData?.items ?? []);
   const firstEpisode = episodes[0];
 
@@ -85,44 +135,51 @@ function SeasonRow({ seasonId }: { seasonId: string }) {
     ? t("media.season", { number: season.indexNumber })
     : (season?.title ?? t("media.season", { number: "" }));
 
+  const posterUrl = artworkUrl(seasonId, "poster", season, accessToken || undefined);
+  const posterSrcSet = posterUrl
+    ? `${posterUrl}${posterUrl.includes("?") ? "&" : "?"}w=185 185w, ${posterUrl}${posterUrl.includes("?") ? "&" : "?"}w=342 342w`
+    : undefined;
+
   return (
-    <div className="mb-2 border border-[var(--border)] rounded-[var(--radius-md)]">
-      <div className="w-full flex items-center justify-between gap-2 px-4 py-3 bg-[var(--surface)] rounded-[var(--radius-md)]">
+    <div className="group relative">
+      <Link
+        to="/media/$mediaId"
+        params={{ mediaId: seasonId }}
+        className="block rounded-[var(--radius-md)] overflow-hidden bg-[var(--surface-raised)] aspect-[2/3] border border-[var(--border)]"
+      >
+        {posterUrl && (
+          <img
+            src={posterUrl}
+            srcSet={posterSrcSet}
+            sizes="234px"
+            alt=""
+            loading="lazy"
+            className="w-full h-full object-cover transition-transform-fast group-hover:scale-105"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+          />
+        )}
+      </Link>
+      {firstEpisode?.id && (
         <Link
-          to="/media/$mediaId"
-          params={{ mediaId: seasonId }}
-          className="font-medium text-[var(--text)] hover:text-[var(--accent)] transition-colors-fast truncate min-w-0 flex-1"
+          to="/player/$mediaId"
+          params={{ mediaId: firstEpisode.id }}
+          aria-label={t("media.detail.play")}
+          title={t("media.detail.play")}
+          className="absolute inset-x-0 top-0 aspect-[2/3] flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity-fast rounded-[var(--radius-md)]"
         >
-          {seasonLabel}
+          <Play size={32} fill="currentColor" className="text-white" />
         </Link>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {firstEpisode?.id && (
-            <Link
-              to="/player/$mediaId"
-              params={{ mediaId: firstEpisode.id }}
-              aria-label={t("media.detail.play")}
-              title={t("media.detail.play")}
-              className="flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors-fast"
-            >
-              <Play size={16} fill="currentColor" />
-            </Link>
-          )}
-          <button
-            onClick={() => setOpen((v) => !v)}
-            className="flex items-center gap-1 text-sm text-[var(--text-muted)] bg-transparent border-none cursor-pointer"
-            aria-expanded={open}
-            aria-label={t("media.detail.episodes")}
-          >
-            {t("media.detail.ep", { count: episodes.length })}
-            <ChevronDown className="transition-transform-fast" size={16} style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }} />
-          </button>
-        </div>
-      </div>
-      {open && (
-        <div className="divide-y max-h-96 overflow-y-auto divide-[var(--border)]">
-          {episodes.map((ep) => (ep.id ? <EpisodeRow key={ep.id} ep={ep} /> : null))}
-        </div>
       )}
+      <Link
+        to="/media/$mediaId"
+        params={{ mediaId: seasonId }}
+        className="block mt-2 text-base font-medium truncate text-[var(--text)] hover:text-[var(--accent)] transition-colors-fast"
+      >
+        {seasonLabel}
+      </Link>
+      <p className="text-sm text-[var(--text-muted)]">
+        {t("media.detail.ep", { count: episodes.length })}
+      </p>
     </div>
   );
 }
@@ -181,7 +238,9 @@ export function SeriesSection({ item }: { item: V1MediaItem }) {
         </div>
         {item.id && <GaplessToggle seriesId={item.id} />}
       </div>
-      {seasons.map((s) => (s.id ? <SeasonRow key={s.id} seasonId={s.id} /> : null))}
+      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(182px,1fr))]">
+        {seasons.map((s) => (s.id ? <SeasonCard key={s.id} seasonId={s.id} /> : null))}
+      </div>
     </div>
   );
 }
@@ -198,7 +257,11 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
         <h2 className="text-lg font-semibold text-[var(--text)]">{t("media.detail.episodes")}</h2>
         <Badge variant="info">{t("media.detail.episodeCount", { count: episodes.length })}</Badge>
       </div>
-      <div className="divide-y border border-[var(--border)] rounded-[var(--radius-md)]">
+      {/* Bounded width: a row stretched across the whole page left the synopsis
+          running for 150+ characters and the download button marooned far from
+          the content it acts on. Capped, the still, the text and the action read
+          as one object. */}
+      <div className="max-w-3xl divide-y border border-[var(--border)] rounded-[var(--radius-md)]">
         {episodes.map((ep) => (ep.id ? <EpisodeRow key={ep.id} ep={ep} /> : null))}
       </div>
     </div>

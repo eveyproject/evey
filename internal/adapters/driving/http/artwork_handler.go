@@ -24,7 +24,13 @@ const artworkResizeTimeout = 10 * time.Second
 
 // allowedWidths caps variant creation to a fixed set so the cache stays bounded.
 // 0 is the sentinel for "no resize".
-var allowedWidths = []int{185, 342, 500, 780}
+//
+// The upper end matters: a request is SNAPPED to the nearest entry, so before
+// 1280/1920 existed the detail-page hero asked for w=1920 and silently got the
+// 780px variant stretched across a viewport up to 1920px wide - the whole
+// srcSet resolved to one blurry file. Poster sizes (185/342/500) are unchanged;
+// only backdrop-scale entries were missing.
+var allowedWidths = []int{185, 342, 500, 780, 1280, 1920}
 
 // parseRequestedWidth reads ?w= from the request and snaps it to the nearest
 // allowed width. Returns 0 when the parameter is absent or unparseable.

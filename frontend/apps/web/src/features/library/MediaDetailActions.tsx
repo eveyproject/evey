@@ -94,11 +94,20 @@ export function MediaDetailActions({
 
   return (
     <div className="flex-1 space-y-4 min-w-0">
-      {item.tagline && (
-        <p className="text-base italic text-[var(--text-muted)]">{item.tagline}</p>
-      )}
-      {item.overview && (
-        <p className="text-sm leading-relaxed text-[var(--text-muted)]" data-testid="media-overview">{item.overview}</p>
+      {/* Synopsis as a contained block rather than a full-width paragraph.
+          Running text across a 1400px page gives lines of 200+ characters,
+          which the eye loses track of between lines. The cap is set to line up
+          with the action row directly below it, so the two read as one column
+          rather than two ragged edges. */}
+      {(item.tagline || item.overview) && (
+        <div className="max-w-4xl rounded-[var(--radius-md)] bg-[var(--surface)] border border-[var(--border)] p-4 space-y-2">
+          {item.tagline && (
+            <p className="text-lg italic text-[var(--text-secondary)]">{item.tagline}</p>
+          )}
+          {item.overview && (
+            <p className="text-base leading-relaxed text-[var(--text-muted)]" data-testid="media-overview">{item.overview}</p>
+          )}
+        </div>
       )}
 
       {directors.length > 0 && (

@@ -313,7 +313,7 @@ func TestArtwork_Width_400_ServeResized(t *testing.T) {
 }
 
 func TestArtwork_Width_999_SnapsToNearest(t *testing.T) {
-	// 999 snaps to 780 (nearest allowed width).
+	// 999 snaps to 780; 1280/1920 are exact matches for the hero's srcSet.
 	conv := &fakeImageConverter{}
 	h, _ := artworkHandlerWithConverter(t, conv)
 
@@ -347,6 +347,13 @@ func TestParseRequestedWidth_Snap(t *testing.T) {
 		{"300", 342}, // nearest to 342 (diff=42) vs 185 (diff=115)
 		{"400", 342}, // 400-342=58 < 500-400=100
 		{"999", 780},
+		// Backdrop-scale entries. Before these existed, the detail hero's
+		// srcSet (800/1280/1920) collapsed onto the single 780px variant, so a
+		// wide viewport stretched one blurry file across the whole page.
+		{"1280", 1280},
+		{"1920", 1920},
+		{"1500", 1280}, // 1500-1280=220 < 1920-1500=420
+		{"3000", 1920}, // anything larger still snaps to the ceiling
 	}
 	for _, tc := range cases {
 		url := "/test"
