@@ -436,7 +436,7 @@ function MusicPage() {
         )}
       </div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         {(["albums", "tracks", "artists", "playlists"] as Tab[]).map((tabKey) => (
           <button key={tabKey} className={tabClass(tab === tabKey)} onClick={() => setTab(tabKey)}>
             {t(`media.music.${tabKey}`)}

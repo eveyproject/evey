@@ -380,7 +380,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
             )}
           </span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Badge variant={stateBadgeVariant(plugin.state)}>{t(stateKey)}</Badge>
           {plugin.enabled ? (
             <Badge variant="success">{t("admin.plugin.enabled")}</Badge>

@@ -157,7 +157,7 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
         ))}
       </div>
 
-      <div className="flex gap-2 items-end">
+      <div className="flex flex-wrap gap-2 items-end">
         <div className="flex-1">
           <Input
             value={query}

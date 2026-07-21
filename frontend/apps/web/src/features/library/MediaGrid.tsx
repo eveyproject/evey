@@ -36,7 +36,15 @@ function SkeletonCard() {
   );
 }
 
-const GRID_CLASS = "evey-media-grid grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4";
+// Auto-fill tracks rather than a fixed column count per breakpoint.
+//
+// MediaCard has a FIXED width (w-40 sm:w-48). With fixed counts the cell width
+// is (viewport / count), which at some widths lands NARROWER than the card -
+// e.g. 4 columns at 844px gives 171px cells for a 192px card, and the card
+// overflowed its own cell. Deriving the count from the card width instead makes
+// that impossible by construction, whatever the card grows to next.
+const GRID_CLASS =
+  "evey-media-grid grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-4 justify-items-start";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const gridComponents: any = {
