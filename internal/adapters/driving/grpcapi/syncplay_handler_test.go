@@ -17,6 +17,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	syncfakes "github.com/evey-project/evey/internal/domain/syncplay/fakes"
+	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,7 @@ type syncplayTestEnv struct {
 	libAccessRepo *userfakes.FakeLibraryAccessRepository
 	playlistRepo  *plfakes.FakePlaylistRepository
 	playlistItems *plfakes.FakePlaylistItemRepository
+	profiles      *userfakes.FakeProfileRepository
 }
 
 func newSyncplayTestEnv() *syncplayTestEnv {
@@ -60,10 +62,24 @@ func newSyncplayTestEnv() *syncplayTestEnv {
 	smart := plfakes.NewFakeSmartPlaylistQuerier()
 	playlistSvc := appplaylist.NewService(playlistRepo, playlistItems, smart, mediaItemRepo)
 
+	profiles := userfakes.NewFakeProfileRepository()
+	// Seed the plain profiles the tests authenticate as. Real claims always name
+	// a profile that exists; the parental resolver fails CLOSED on one it can't
+	// load, so an unseeded repo would block every room for the wrong reason.
+	for _, p := range []struct{ id, user string }{{"p-1", "u-1"}, {"p-2", "u-2"}, {"p-3", "u-3"}} {
+		_ = profiles.Create(context.Background(), &user.Profile{ID: shared.ProfileID(p.id), UserID: shared.UserID(p.user), Name: p.id})
+	}
+	userQuery := appuser.NewQueryService(
+		userfakes.NewFakeUserRepository(), profiles,
+		userfakes.NewFakeAPIKeyRepository(), userfakes.NewFakeInviteLinkRepository(),
+		userfakes.NewFakeQuickConnectRepository(),
+	)
+
 	h := &syncplayHandler{
 		hub:         hub,
 		libQuery:    libQuery,
 		userAccess:  userAccess,
+		userQuery:   userQuery,
 		playlistSvc: playlistSvc,
 	}
 	return &syncplayTestEnv{
@@ -73,6 +89,7 @@ func newSyncplayTestEnv() *syncplayTestEnv {
 		libAccessRepo: libAccessRepo,
 		playlistRepo:  playlistRepo,
 		playlistItems: playlistItems,
+		profiles:      profiles,
 	}
 }
 
@@ -497,4 +514,30 @@ func TestCreateRoom_FromPlaylist_NotOwner(t *testing.T) {
 	assert.Nil(t, resp)
 	require.Error(t, err)
 	assert.Equal(t, codes.NotFound, status.Code(err))
+}
+
+// A kids profile must not be able to open a SyncPlay room on media its own
+// parental settings forbid. Without this gate the room becomes a laundering
+// step: the public join-code route mints a 24 h guest token that carries NO
+// profile, and a guest token with an empty profile makes the parental gate
+// no-op on every stream route - so the restricted media becomes watchable, by
+// the child and by anyone they hand the code to.
+func TestCreateRoom_ParentalBlocked(t *testing.T) {
+	t.Parallel()
+	env := newSyncplayTestEnv()
+	env.mediaItemRepo.Seed(&library.MediaItem{
+		ID: "media-x", LibraryID: "lib-1", Title: "Scary",
+		Catalog: &library.MediaCatalog{Tags: []string{"horror"}},
+	})
+	env.grantAccess("u-1", "lib-1")
+	_ = env.profiles.Create(context.Background(), &user.Profile{
+		ID: "p-kid", UserID: "u-1", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{Enabled: true, BlockedTags: []string{"horror"}},
+	})
+
+	ctx := ctxWithClaims("u-1", "p-kid", false)
+	_, err := env.handler.CreateRoom(ctx, &eveyv1.CreateSyncPlayRoomRequest{MediaId: "media-x"})
+
+	assert.Equal(t, codes.NotFound, status.Code(err),
+		"a kids profile must not open a room on media its parental settings block")
 }

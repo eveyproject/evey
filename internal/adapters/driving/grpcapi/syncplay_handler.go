@@ -21,9 +21,14 @@ import (
 
 type syncplayHandler struct {
 	eveyv1.UnimplementedSyncPlayServiceServer
-	hub         *appsyncplay.Hub
-	libQuery    *applibrary.QueryService
-	userAccess  *appuser.AccessService
+	hub        *appsyncplay.Hub
+	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
+	// userQuery resolves the caller profile's parental settings. Without it a
+	// restricted profile could open a room on media it may not watch, and the
+	// room's public join code then launders that media into a profile-less
+	// guest token the parental gate cannot see.
+	userQuery   *appuser.QueryService
 	musicSvc    *appmusic.Service
 	playlistSvc *appplaylist.Service
 }
@@ -62,6 +67,17 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 	}
 	ok, _ := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(item.LibraryID))
 	if !ok {
+		return status.Error(codes.NotFound, "media not found")
+	}
+	// Parental gate, same opaque NotFound as the access denial above so the
+	// caller can't tell "forbidden" from "absent".
+	//
+	// Library access is per USER, parental is per PROFILE - so a kids profile on
+	// a household account clears the check above for the whole library. Skipping
+	// this made a room a laundering step: the join-code route is public and
+	// mints a media-scoped guest token carrying NO profile, and the parental
+	// gate no-ops on an empty profile, so the blocked media became streamable.
+	if mediaItemBlockedByParental(resolveParentalFilterFromUserQuery(ctx, h.userQuery), item) {
 		return status.Error(codes.NotFound, "media not found")
 	}
 	return nil

@@ -43,14 +43,38 @@ var mediaCarryingMessages = map[string]bool{
 	"PopularMediaItem": true,
 }
 
-// mediaRefField is the structural tell: a response that points at a media item
-// carries its id. That is far harder to sidestep by accident than a name, since
-// any new shape describing media needs the id to be useful to a client.
-const mediaRefField = "media_item_id"
+// mediaRefFields are the structural tell: a response that points at a media
+// item carries its id. That is far harder to sidestep by accident than a name,
+// since any new shape describing media needs the id to be useful to a client.
+//
+// The set is deliberately wider than one spelling. Matching only
+// "media_item_id" left SyncPlay (media_id), Collections (media_item_ids) and
+// Share (media_id) structurally INVISIBLE to this guard - and that blind spot
+// is exactly how a full parental bypass shipped through SyncPlay: the RPC was
+// never presented for a decision, so nobody declined to gate it. A guard that
+// silently skips what it was built to catch is worse than no guard.
+var mediaRefFields = map[string]bool{
+	"media_item_id":  true,
+	"media_item_ids": true,
+	"media_id":       true,
+	"media_ids":      true,
+}
 
 // parentalGated lists RPCs that DO apply a parental gate, with the mechanism
 // used. The value is documentation, not assertion - see the caveat above.
 var parentalGated = map[string]string{
+	// SyncPlay: all three go through requireMediaAccess, which applies the same
+	// resolved parental filter as the library handlers. Added 2026-07-21 after
+	// an audit found the gate missing entirely: library access is per USER but
+	// parental is per PROFILE, so a kids profile cleared the access check for
+	// the whole household library. Worse, a room laundered the media - the
+	// public join-code route mints a media-scoped guest token carrying NO
+	// profile, and the parental gate no-ops on an empty profile.
+	"/evey.v1.SyncPlayService/CreateRoom":           "requireMediaAccess -> mediaItemBlockedByParental",
+	"/evey.v1.SyncPlayService/JoinByCode":           "requireMediaAccess -> mediaItemBlockedByParental",
+	"/evey.v1.SyncPlayService/GetRoom":              "requireMediaAccess -> mediaItemBlockedByParental",
+	"/evey.v1.CollectionService/GetCollectionItems": "per-item mediaItemBlockedByParental with total recounted",
+
 	// Browse / detail: the SQL pre-filter plus a strict post-pagination check.
 	"/evey.v1.LibraryService/GetMediaItem":         "loadGatedMediaItem -> isBlockedByParental",
 	"/evey.v1.LibraryService/ListMediaItems":       "parentalFilter SQL pre-filter + strict post-filter",
@@ -87,6 +111,8 @@ var parentalExempt = map[string]string{
 	"/evey.v1.TranscodingService/ListActiveTranscodes":    "RoleAdmin",
 	"/evey.v1.ShareService/ListShareLinks":                "RoleAdmin",
 	"/evey.v1.NotificationService/ListAdminNotifications": "RoleAdmin",
+	"/evey.v1.ShareService/CreateShareLink":               "RoleAdmin",
+	"/evey.v1.AdminMediaService/ScanSeekIndex":            "RoleAdmin",
 	"/evey.v1.AdminSessionService/ListActiveSessions":     "RoleAdmin",
 	"/evey.v1.ActivityService/GetServerStats":             "RoleAdmin",
 	"/evey.v1.ActivityService/GetAnalytics":               "admin enforced in the handler (PermissionDenied for non-admin)",
@@ -121,6 +147,7 @@ var parentalKnownGap = map[string]string{
 	"/evey.v1.ActivityService/GetUserStats":     "own stats; MostPlayedItems titles unfiltered",
 	"/evey.v1.PlaylistService/GetPlaylistItems": "own playlists; library access only, unlike ListFavorites",
 	"/evey.v1.MediaRequestService/SearchTitles": "searches the external provider, not the library; the InLibrary flag can reveal that a title is held. Gated on the request policy (CanRequest) since 2026-07-20",
+	"/evey.v1.ShareService/ValidateShareLink":   "describes a link the caller already holds the opaque token for; Peek only, no view spent. The link itself was minted by an admin (CreateShareLink is RoleAdmin), so a restricted profile cannot mint one - it can only describe a token someone handed it, which is the point of a share link",
 }
 
 // containsMedia reports whether msg transitively holds a media-carrying
@@ -136,7 +163,7 @@ func containsMedia(msg protoreflect.MessageDescriptor, seen map[protoreflect.Ful
 	fields := msg.Fields()
 	for i := range fields.Len() {
 		f := fields.Get(i)
-		if string(f.Name()) == mediaRefField {
+		if mediaRefFields[string(f.Name())] {
 			return true
 		}
 		if f.Kind() != protoreflect.MessageKind && f.Kind() != protoreflect.GroupKind {
