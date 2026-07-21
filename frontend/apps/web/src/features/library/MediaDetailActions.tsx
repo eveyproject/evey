@@ -234,7 +234,7 @@ export function MediaDetailActions({
         />
       )}
       {item.id && (
-        <Modal open={editing} onClose={() => setEditing(false)} title={t("media.detail.editMetadata")} size="2xl">
+        <Modal open={editing} onClose={() => setEditing(false)} title={t("media.detail.editMetadata")} size="4xl">
           <div className="overflow-y-auto max-h-[76vh]">
             <MetadataEditPanel
               item={item}

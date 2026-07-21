@@ -149,7 +149,7 @@ export function MetadataEditPanel({
     year: item.year ? String(item.year) : "",
     overview: item.overview ?? "",
     genres: item.genres?.join(", ") ?? "",
-    communityRating: item.communityRating ? String(item.communityRating) : "",
+    communityRating: item.communityRating ? String(Math.round(item.communityRating * 100) / 100) : "",
     imdbId: origImdbId,
     tmdbId: origTmdbId,
   };
@@ -334,7 +334,7 @@ export function MetadataEditPanel({
         ) : formKey === "year" ? (
           <Input label={label} type="number" value={form[formKey]} onChange={set(formKey)} placeholder="2024" />
         ) : formKey === "communityRating" ? (
-          <Input label={label} type="number" step="0.1" min="0" max="10" value={form[formKey]} onChange={set(formKey)} placeholder="7.5" />
+          <Input label={label} type="number" step="0.01" min="0" max="10" value={form[formKey]} onChange={set(formKey)} placeholder="7.5" />
         ) : formKey === "genres" ? (
           <Input label={label} value={form[formKey]} onChange={set(formKey)} placeholder="Action, Drama" />
         ) : formKey === "title" ? (
