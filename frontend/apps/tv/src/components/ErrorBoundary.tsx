@@ -2,6 +2,7 @@ import React, { Component } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTheme } from "../providers/ThemeProvider";
 import type { ThemeTokens } from "@evey/theme";
+import { FONT_SIZE } from "@evey/theme";
 
 interface Props {
   children?: React.ReactNode;
@@ -58,8 +59,8 @@ export function ErrorBoundary({ children }: { children: React.ReactNode }) {
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", alignItems: "center", padding: 80 },
   icon: { fontSize: 64, fontWeight: "bold", marginBottom: 16 },
-  title: { fontSize: 32, fontWeight: "700", marginTop: 16 },
-  message: { fontSize: 20, textAlign: "center", marginTop: 12, maxWidth: 500 },
+  title: { fontSize: FONT_SIZE["4xl"], fontWeight: "700", marginTop: 16 },
+  message: { fontSize: FONT_SIZE.xl, textAlign: "center", marginTop: 12, maxWidth: 500 },
   retryBtn: { marginTop: 32, paddingVertical: 14, paddingHorizontal: 36 },
-  retryText: { fontWeight: "600", fontSize: 22 },
+  retryText: { fontWeight: "600", fontSize: FONT_SIZE.xl },
 });

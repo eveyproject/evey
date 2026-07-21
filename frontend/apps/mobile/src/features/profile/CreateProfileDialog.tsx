@@ -8,6 +8,7 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
+import { FONT_SIZE } from "@evey/theme";
 
 interface Props {
   open: boolean;
@@ -157,7 +158,7 @@ export function CreateProfileDialog({ open, onClose, userId, hasKidsProfile }: P
                         accessibilityState={{ selected: active }}
                         accessibilityLabel={label}
                       >
-                        <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: 13, fontWeight: "500" }}>
+                        <Text style={{ color: active ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs, fontWeight: "500" }}>
                           {label}
                         </Text>
                       </Pressable>
@@ -239,12 +240,12 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       padding: t.spacing.lg,
     },
     title: {
-      fontSize: 18,
+      fontSize: FONT_SIZE.lg,
       fontWeight: "700",
       marginBottom: t.spacing.md,
     },
     label: {
-      fontSize: 12,
+      fontSize: FONT_SIZE.xs,
       fontWeight: "600",
       textTransform: "uppercase",
       marginBottom: 6,
@@ -253,7 +254,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderWidth: 1,
       paddingHorizontal: 12,
       paddingVertical: 10,
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
     },
     row: {
       flexDirection: "row",
@@ -261,11 +262,11 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       gap: t.spacing.md,
     },
     rowLabel: {
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
       fontWeight: "500",
     },
     rowHelp: {
-      fontSize: 12,
+      fontSize: FONT_SIZE.xs,
       marginTop: 2,
     },
     chipsRow: {
@@ -279,7 +280,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderWidth: 1,
     },
     error: {
-      fontSize: 13,
+      fontSize: FONT_SIZE.xs,
     },
     buttons: {
       flexDirection: "row",
@@ -294,6 +295,6 @@ const styles = (t: ReturnType<typeof useTheme>) =>
     },
     btnText: {
       fontWeight: "600",
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
     },
   });

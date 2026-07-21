@@ -21,6 +21,7 @@ const getItemLayout = (_: unknown, index: number) => ({
 });
 
 import React from "react";
+import { FONT_SIZE } from "@evey/theme";
 
 export const CollectionRow = React.memo(function CollectionRow({ title, collections }: CollectionRowProps) {
   const theme = useTheme();
@@ -81,7 +82,7 @@ export const CollectionRow = React.memo(function CollectionRow({ title, collecti
               <Text
                 style={{
                   color: theme.colors.textMuted,
-                  fontSize: 28,
+                  fontSize: FONT_SIZE["3xl"],
                   fontWeight: "700",
                 }}
               >
@@ -91,7 +92,7 @@ export const CollectionRow = React.memo(function CollectionRow({ title, collecti
           </View>
           <Text
             numberOfLines={1}
-            style={{ color: theme.colors.text, fontSize: 13, marginTop: 4 }}
+            style={{ color: theme.colors.text, fontSize: FONT_SIZE.xs, marginTop: 4 }}
           >
             {item.name}
           </Text>
@@ -127,5 +128,5 @@ function keyExtractor(item: Collection) {
 }
 
 const styles = StyleSheet.create({
-  rowTitle: { fontSize: 18, fontWeight: "600" },
+  rowTitle: { fontSize: FONT_SIZE.lg, fontWeight: "600" },
 });

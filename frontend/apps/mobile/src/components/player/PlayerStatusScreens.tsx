@@ -2,6 +2,7 @@ import { View, Text, Pressable, ActivityIndicator, StatusBar, StyleSheet } from 
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 // usePlaySession's ShedReason type isn't exported (usePlaySession.ts is out of
 // scope for this refactor) - mirrored here for the non-null variant this
@@ -20,21 +21,21 @@ export function ShedScreen({ shedReason, onRetry, onBack }: ShedScreenProps) {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <StatusBar hidden />
-      <Ionicons name="time-outline" size={40} color={theme.colors.textMuted} />
-      <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600", marginTop: 16, textAlign: "center", paddingHorizontal: 24 }}>
+      <Ionicons name="time-outline" size={ICON_SIZE["3xl"]} color={theme.colors.textMuted} />
+      <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.lg, fontWeight: "600", marginTop: 16, textAlign: "center", paddingHorizontal: 24 }}>
         {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.title" : "player.shed.tooManyStreams.title")}
       </Text>
-      <Text style={{ color: theme.colors.textMuted, fontSize: 14, marginTop: 8, textAlign: "center", paddingHorizontal: 32 }}>
+      <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm, marginTop: 8, textAlign: "center", paddingHorizontal: 32 }}>
         {t(shedReason === "file_not_ready" ? "player.shed.fileNotReady.body" : "player.shed.tooManyStreams.body")}
       </Text>
       <Pressable
         onPress={onRetry}
         style={{ marginTop: 20 }}
       >
-        <Text style={{ color: theme.colors.accent, fontSize: 16, fontWeight: "600" }}>{t("player.retry")}</Text>
+        <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, fontWeight: "600" }}>{t("player.retry")}</Text>
       </Pressable>
       <Pressable onPress={onBack} style={{ marginTop: 16 }}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 14 }}>{t("player.goBack")}</Text>
+        <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm }}>{t("player.goBack")}</Text>
       </Pressable>
     </View>
   );
@@ -50,9 +51,9 @@ export function ErrorScreen({ onBack }: ErrorScreenProps) {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <StatusBar hidden />
-      <Text style={{ color: theme.colors.text, fontSize: 16 }}>{t("player.failedToLoadStream")}</Text>
+      <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.base }}>{t("player.failedToLoadStream")}</Text>
       <Pressable onPress={onBack} style={{ marginTop: 16 }}>
-        <Text style={{ color: theme.colors.accent, fontSize: 16 }}>{t("player.goBack")}</Text>
+        <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base }}>{t("player.goBack")}</Text>
       </Pressable>
     </View>
   );

@@ -5,6 +5,7 @@ import { eveyFetch } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { markUnlocked } from "../hooks/useParentalGate";
 import { FocusableCard } from "./FocusableCard";
+import { FONT_SIZE } from "@evey/theme";
 
 interface ParentalPINModalProps {
   visible: boolean;
@@ -164,13 +165,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontSize: 22,
+    fontSize: FONT_SIZE.xl,
     fontWeight: "700",
     marginBottom: 8,
     textAlign: "center",
   },
   desc: {
-    fontSize: 16,
+    fontSize: FONT_SIZE.base,
     marginBottom: 20,
     textAlign: "center",
   },
@@ -190,7 +191,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   error: {
-    fontSize: 14,
+    fontSize: FONT_SIZE.sm,
     textAlign: "center",
     marginBottom: 8,
     height: 20,
@@ -211,7 +212,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   keyText: {
-    fontSize: 22,
+    fontSize: FONT_SIZE.xl,
     fontWeight: "600",
   },
   cancelBtn: {
@@ -222,6 +223,6 @@ const styles = StyleSheet.create({
   },
   cancelText: {
     fontWeight: "600",
-    fontSize: 16,
+    fontSize: FONT_SIZE.base,
   },
 });

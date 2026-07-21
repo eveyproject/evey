@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { parentalServiceVerifyPin } from "@evey/api";
 import type { V1Profile } from "@evey/api";
 import { useTheme } from "../../providers/ThemeProvider";
+import { FONT_SIZE } from "@evey/theme";
 
 interface Props {
   target: V1Profile;
@@ -146,19 +147,19 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       padding: t.spacing.lg,
     },
     title: {
-      fontSize: 18,
+      fontSize: FONT_SIZE.lg,
       fontWeight: "700",
       marginBottom: t.spacing.sm,
       textAlign: "center",
     },
     desc: {
-      fontSize: 14,
+      fontSize: FONT_SIZE.sm,
       marginBottom: t.spacing.lg,
       textAlign: "center",
     },
     pinInput: {
       textAlign: "center",
-      fontSize: 28,
+      fontSize: FONT_SIZE["3xl"],
       fontFamily: "monospace",
       letterSpacing: 12,
       paddingVertical: 12,
@@ -167,7 +168,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       marginBottom: t.spacing.sm,
     },
     error: {
-      fontSize: 13,
+      fontSize: FONT_SIZE.xs,
       textAlign: "center",
       marginBottom: t.spacing.sm,
     },
@@ -184,6 +185,6 @@ const styles = (t: ReturnType<typeof useTheme>) =>
     },
     btnText: {
       fontWeight: "600",
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
     },
   });

@@ -11,6 +11,7 @@ import { useDebounce } from "../hooks/useDebounce";
 import { useAuthHeaders } from "../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useMusicQueueStore } from "../stores/musicQueue";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 export function HeaderSearch() {
   const theme = useTheme();
@@ -69,7 +70,7 @@ export function HeaderSearch() {
   return (
     <View style={styles.wrapper}>
       <View style={[styles.inputRow, { backgroundColor: theme.colors.surfaceRaised, borderColor: focused ? theme.colors.accent : theme.colors.border }]}>
-        <Ionicons name="search-outline" size={15} color={theme.colors.textMuted} style={{ marginRight: 6 }} />
+        <Ionicons name="search-outline" size={ICON_SIZE.md} color={theme.colors.textMuted} style={{ marginRight: 6 }} />
         <TextInput
           ref={inputRef}
           value={query}
@@ -86,7 +87,7 @@ export function HeaderSearch() {
         />
         {query.length > 0 && (
           <Pressable onPress={() => { setQuery(""); inputRef.current?.focus(); }} accessible accessibilityLabel={t("common.clear", "Clear")} accessibilityRole="button">
-            <Ionicons name="close-circle" size={16} color={theme.colors.textMuted} />
+            <Ionicons name="close-circle" size={ICON_SIZE.md} color={theme.colors.textMuted} />
           </Pressable>
         )}
       </View>
@@ -102,7 +103,7 @@ export function HeaderSearch() {
                 style={[styles.scopeChip, { backgroundColor: kind === k ? theme.colors.accent : "transparent" }]}
                 accessibilityRole="button"
               >
-                <Text style={{ color: kind === k ? "#fff" : theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>
+                <Text style={{ color: kind === k ? "#fff" : theme.colors.textMuted, fontSize: FONT_SIZE.xs, fontWeight: "600" }}>
                   {k === "media" ? t("media.search.sectionMedia") : t("media.search.sectionMusic")}
                 </Text>
               </Pressable>
@@ -112,7 +113,7 @@ export function HeaderSearch() {
           {kind === "music" ? (
             musicResults.length === 0 ? (
               <View style={styles.emptyRow}>
-                <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("media.search.noResults", "No results")}</Text>
+                <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>{t("media.search.noResults", "No results")}</Text>
               </View>
             ) : (
               <>
@@ -126,21 +127,21 @@ export function HeaderSearch() {
                         <Image source={{ uri: cover, headers: authHeaders }} style={styles.musicCover} contentFit="cover" />
                       ) : (
                         <View style={[styles.musicCover, { alignItems: "center", justifyContent: "center", backgroundColor: theme.colors.surface }]}>
-                          <Ionicons name="musical-notes" size={16} color={theme.colors.textMuted} />
+                          <Ionicons name="musical-notes" size={ICON_SIZE.md} color={theme.colors.textMuted} />
                         </View>
                       )}
                       <View style={{ flex: 1 }}>
                         <Text style={[styles.resultTitle, { color: theme.colors.text }]} numberOfLines={1}>{tr.title}</Text>
-                        <Text style={{ color: theme.colors.textMuted, fontSize: 11 }} numberOfLines={1}>
+                        <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }} numberOfLines={1}>
                           {[tr.artist, tr.album].filter(Boolean).join(" · ")}
                         </Text>
                       </View>
-                      <Ionicons name="play" size={14} color={theme.colors.accent} />
+                      <Ionicons name="play" size={ICON_SIZE.sm} color={theme.colors.accent} />
                     </Pressable>
                   );
                 })}
                 <Pressable onPress={handleSubmit} style={[styles.seeAllRow, { borderTopColor: theme.colors.border }]}>
-                  <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "500" }}>
+                  <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.xs, fontWeight: "500" }}>
                     {t("common.seeAll", "See all results for")} "{query}"
                   </Text>
                 </Pressable>
@@ -148,7 +149,7 @@ export function HeaderSearch() {
             )
           ) : results.length === 0 ? (
             <View style={styles.emptyRow}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("media.search.noResults", "No results")}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>{t("media.search.noResults", "No results")}</Text>
             </View>
           ) : (
             <>
@@ -163,17 +164,17 @@ export function HeaderSearch() {
                     />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.resultTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.title}</Text>
-                      <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
+                      <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.xs }}>
                         {item.type?.replace("MEDIA_ITEM_TYPE_", "").toLowerCase()}
                         {item.year ? ` · ${item.year}` : ""}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={14} color={theme.colors.textMuted} />
+                    <Ionicons name="chevron-forward" size={ICON_SIZE.sm} color={theme.colors.textMuted} />
                   </Pressable>
                 );
               })}
               <Pressable onPress={handleSubmit} style={[styles.seeAllRow, { borderTopColor: theme.colors.border }]}>
-                <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "500" }}>
+                <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.xs, fontWeight: "500" }}>
                   {t("common.seeAll", "See all results for")} "{query}"
                 </Text>
               </Pressable>
@@ -201,7 +202,7 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 14,
+    fontSize: FONT_SIZE.sm,
     padding: 0,
     margin: 0,
   },
@@ -253,7 +254,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   resultTitle: {
-    fontSize: 14,
+    fontSize: FONT_SIZE.sm,
     fontWeight: "500",
   },
   seeAllRow: {

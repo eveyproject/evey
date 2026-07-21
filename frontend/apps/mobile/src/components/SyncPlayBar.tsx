@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import type { SyncPlayMember } from "../hooks/useSyncPlay";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface Props {
   roomCode: string | null;
@@ -55,7 +56,7 @@ export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave, que
             style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised, opacity: idx <= 0 ? 0.4 : 1 }]}
             accessibilityLabel={t("common.previous", "Previous")}
           >
-            <Ionicons name="play-skip-back" size={14} color={theme.colors.text} />
+            <Ionicons name="play-skip-back" size={ICON_SIZE.sm} color={theme.colors.text} />
           </Pressable>
           <Text style={[styles.chipText, { color: theme.colors.text }]}>{idx + 1}/{total}</Text>
           <Pressable
@@ -64,7 +65,7 @@ export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave, que
             style={[styles.chip, { backgroundColor: theme.colors.surfaceRaised, opacity: idx >= total - 1 ? 0.4 : 1 }]}
             accessibilityLabel={t("common.next", "Next")}
           >
-            <Ionicons name="play-skip-forward" size={14} color={theme.colors.text} />
+            <Ionicons name="play-skip-forward" size={ICON_SIZE.sm} color={theme.colors.text} />
           </Pressable>
         </>
       )}
@@ -77,7 +78,7 @@ export function SyncPlayBar({ roomCode, isHost, members, connected, onLeave, que
         </Pressable>
       )}
       <Pressable onPress={onLeave} style={[styles.chip, { backgroundColor: theme.colors.error + "4D" }]}>
-        <Ionicons name="exit-outline" size={14} color={theme.colors.text} />
+        <Ionicons name="exit-outline" size={ICON_SIZE.sm} color={theme.colors.text} />
         <Text style={[styles.chipText, { color: theme.colors.text }]}>{t("media.syncplay.leave", "Leave")}</Text>
       </Pressable>
     </View>
@@ -93,7 +94,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  label: { flex: 1, fontSize: 12 },
+  label: { flex: 1, fontSize: FONT_SIZE.xs },
   chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 },
-  chipText: { fontSize: 11, fontWeight: "600" },
+  chipText: { fontSize: FONT_SIZE.xs, fontWeight: "600" },
 });

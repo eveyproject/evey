@@ -6,6 +6,7 @@ import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useWatchedMap } from "../hooks/useWatchedMap";
 import { MediaCard } from "./MediaCard";
+import { FONT_SIZE } from "@evey/theme";
 
 const CARD_WIDTH = Dimensions.get("window").width * 0.35;
 const CARD_TOTAL_WIDTH = CARD_WIDTH + 8; // card width + marginRight (theme.spacing.sm ~8)
@@ -59,7 +60,7 @@ export const MediaRow = memo(function MediaRow({ title, seeAllHref, items, onIte
         <Text style={[styles.rowTitle, titleStyle]}>{title}</Text>
         {seeAllHref && (
           <Pressable onPress={() => router.push(seeAllHref as never)} style={{ paddingHorizontal: theme.spacing.md }} accessible={true} accessibilityLabel={t("common.seeAll", "See all")} accessibilityRole="button">
-            <Text style={{ color: theme.colors.accent, fontSize: 13 }}>{t("common.seeAll", "See all")}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.xs }}>{t("common.seeAll", "See all")}</Text>
           </Pressable>
         )}
       </View>
@@ -85,5 +86,5 @@ function keyExtractor(item: V1MediaItem) {
 
 const styles = StyleSheet.create({
   rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  rowTitle: { fontSize: 18, fontWeight: "600" },
+  rowTitle: { fontSize: FONT_SIZE.lg, fontWeight: "600" },
 });

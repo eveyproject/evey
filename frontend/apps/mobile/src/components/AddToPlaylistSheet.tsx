@@ -14,6 +14,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { usePlaylistList, useAddToPlaylist, useCreatePlaylist } from "../api/playlists";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface Props {
   visible: boolean;
@@ -98,14 +99,14 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
                     onPress={() => !added && handleAdd(item.id)}
                     disabled={added || addTo.isPending}
                   >
-                    <Ionicons name="list" size={18} color={theme.colors.accent} />
+                    <Ionicons name="list" size={ICON_SIZE.lg} color={theme.colors.accent} />
                     <Text style={[styles.playlistName, { color: theme.colors.text }]} numberOfLines={1}>
                       {item.name}
                     </Text>
                     {added ? (
-                      <Ionicons name="checkmark-circle" size={20} color={theme.colors.accent} />
+                      <Ionicons name="checkmark-circle" size={ICON_SIZE.lg} color={theme.colors.accent} />
                     ) : (
-                      <Ionicons name="add-circle-outline" size={20} color={theme.colors.textMuted} />
+                      <Ionicons name="add-circle-outline" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
                     )}
                   </TouchableOpacity>
                 );
@@ -138,7 +139,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
                 {createPl.isPending ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Ionicons name="checkmark" size={20} color="#fff" />
+                  <Ionicons name="checkmark" size={ICON_SIZE.lg} color="#fff" />
                 )}
               </TouchableOpacity>
             </View>
@@ -148,7 +149,7 @@ export function AddToPlaylistSheet({ visible, mediaItemId, mediaType, onClose }:
               style={[styles.newPlaylistRow, { borderTopColor: theme.colors.border }]}
               activeOpacity={0.7}
             >
-              <Ionicons name="add-circle" size={18} color={theme.colors.accent} />
+              <Ionicons name="add-circle" size={ICON_SIZE.lg} color={theme.colors.accent} />
               <Text style={[styles.newPlaylistText, { color: theme.colors.accent }]}>
                 {t("media.music.newPlaylist")}
               </Text>
@@ -172,15 +173,15 @@ const styles = StyleSheet.create({
   sheet: { paddingBottom: 34, paddingHorizontal: 16 },
   handle: { alignItems: "center", paddingVertical: 10 },
   handleBar: { width: 40, height: 4, borderRadius: 2, opacity: 0.4 },
-  title: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
-  empty: { fontSize: 14, textAlign: "center", marginTop: 24 },
+  title: { fontSize: FONT_SIZE.lg, fontWeight: "700", marginBottom: 12 },
+  empty: { fontSize: FONT_SIZE.sm, textAlign: "center", marginTop: 24 },
   row: { flexDirection: "row", alignItems: "center", paddingVertical: 14, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  playlistName: { flex: 1, fontSize: 15, fontWeight: "500" },
+  playlistName: { flex: 1, fontSize: FONT_SIZE.sm, fontWeight: "500" },
   newPlaylistRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth, marginTop: 4 },
-  newPlaylistText: { fontSize: 15, fontWeight: "600" },
+  newPlaylistText: { fontSize: FONT_SIZE.sm, fontWeight: "600" },
   createRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 12 },
-  input: { flex: 1, borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
+  input: { flex: 1, borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: FONT_SIZE.sm },
   createBtn: { width: 44, height: 44, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   closeBtn: { marginTop: 16, paddingVertical: 12, alignItems: "center" },
-  closeBtnText: { fontSize: 15, fontWeight: "600" },
+  closeBtnText: { fontSize: FONT_SIZE.sm, fontWeight: "600" },
 });

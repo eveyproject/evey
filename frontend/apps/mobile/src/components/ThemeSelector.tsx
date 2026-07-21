@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
 import { useThemeStore } from "@evey/store";
-import { themes } from "@evey/theme";
+import { themes, FONT_SIZE } from "@evey/theme";
 import { useTheme } from "../providers/ThemeProvider";
 
 const PLUGIN_PREFIX = "plugin:";
@@ -136,7 +136,7 @@ function makeStyles(tk: ReturnType<typeof useTheme>) {
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: "rgba(255,255,255,0.25)",
     },
-    pillText: { color: tk.colors.text, fontSize: 14, fontWeight: "500" },
+    pillText: { color: tk.colors.text, fontSize: FONT_SIZE.sm, fontWeight: "500" },
     pillTextActive: { color: tk.colors.onAccent, fontWeight: "600" },
   });
 }

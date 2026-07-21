@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useTheme } from "../../providers/ThemeProvider";
+import { FONT_SIZE } from "@evey/theme";
 
 interface GestureIndicatorsProps {
   seekFlash: "left" | "right" | null;
@@ -85,7 +86,7 @@ const styles = StyleSheet.create({
   },
   seekFlashText: {
     color: "#fff",
-    fontSize: 24,
+    fontSize: FONT_SIZE["2xl"],
     fontWeight: "700",
   },
   brightnessIndicator: {
@@ -114,7 +115,7 @@ const styles = StyleSheet.create({
   },
   volumeIcon: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: FONT_SIZE.base,
     marginBottom: 6,
   },
   volumeBarBg: {
@@ -132,7 +133,7 @@ const styles = StyleSheet.create({
   },
   volumeText: {
     color: "#fff",
-    fontSize: 11,
+    fontSize: FONT_SIZE.xs,
     marginTop: 4,
     fontWeight: "600",
   },

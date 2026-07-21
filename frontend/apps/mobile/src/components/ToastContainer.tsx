@@ -10,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useToastStore, type Toast, type ToastType } from "@evey/store";
 import { useTheme } from "../providers/ThemeProvider";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 const ICON_MAP: Record<ToastType, keyof typeof Ionicons.glyphMap> = {
   success: "checkmark-circle",
@@ -66,12 +67,12 @@ const ToastItem = memo(function ToastItem({ toast }: { toast: Toast }) {
         },
       ]}
     >
-      <Ionicons name={ICON_MAP[toast.type]} size={20} color={color} style={styles.icon} />
+      <Ionicons name={ICON_MAP[toast.type]} size={ICON_SIZE.lg} color={color} style={styles.icon} />
       <Text style={[styles.message, { color: theme.colors.text }]} numberOfLines={2}>
         {toast.message}
       </Text>
       <Pressable onPress={() => remove(toast.id)} hitSlop={8} accessible accessibilityLabel={t("common.aria.dismiss", "Dismiss")} accessibilityRole="button">
-        <Ionicons name="close" size={18} color={theme.colors.textMuted} />
+        <Ionicons name="close" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
       </Pressable>
     </Animated.View>
   );
@@ -118,5 +119,5 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   icon: { marginRight: 10 },
-  message: { flex: 1, fontSize: 14 },
+  message: { flex: 1, fontSize: FONT_SIZE.sm },
 });

@@ -11,6 +11,7 @@ import { useAuthStore } from "@evey/store";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 function FocusCtrl({
   name,
@@ -127,19 +128,19 @@ function TVMusicPlayerImpl() {
           {artUri ? (
             <Image source={{ uri: artUri }} style={{ width: 56, height: 56, borderRadius: 6 }} resizeMode="cover" />
           ) : (
-            <Ionicons name="musical-notes" size={26} color={theme.colors.textMuted} />
+            <Ionicons name="musical-notes" size={ICON_SIZE.xl} color={theme.colors.textMuted} />
           )}
         </View>
         <View style={{ flex: 1, marginLeft: 16, minWidth: 0 }}>
-          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }}>{track.title || "-"}</Text>
-          <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: 14 }}>
+          <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: FONT_SIZE.lg, fontWeight: "600" }}>{track.title || "-"}</Text>
+          <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm }}>
             {[track.artist, track.album].filter(Boolean).join(" · ") || "-"}
           </Text>
         </View>
-        <FocusCtrl name="play-skip-back" size={26} onPress={previous} label={t("common.previous")} />
-        <FocusCtrl name={isPlayingState ? "pause" : "play"} size={32} onPress={togglePlay} label={isPlayingState ? t("common.pause") : t("common.play")} hasTVPreferredFocus />
-        <FocusCtrl name="play-skip-forward" size={26} onPress={next} label={t("common.next")} />
-        <FocusCtrl name="close" size={24} onPress={onClose} label={t("common.close")} />
+        <FocusCtrl name="play-skip-back" size={ICON_SIZE.xl} onPress={previous} label={t("common.previous")} />
+        <FocusCtrl name={isPlayingState ? "pause" : "play"} size={ICON_SIZE["2xl"]} onPress={togglePlay} label={isPlayingState ? t("common.pause") : t("common.play")} hasTVPreferredFocus />
+        <FocusCtrl name="play-skip-forward" size={ICON_SIZE.xl} onPress={next} label={t("common.next")} />
+        <FocusCtrl name="close" size={ICON_SIZE.xl} onPress={onClose} label={t("common.close")} />
       </View>
     </View>
   );

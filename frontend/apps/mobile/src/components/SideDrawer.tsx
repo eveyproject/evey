@@ -6,6 +6,7 @@ import { useAuthStore } from "@evey/store";
 import { useMediaRequestServiceGetRequestPolicy } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useDrawer } from "../providers/DrawerProvider";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 const DRAWER_WIDTH = 260;
 
@@ -89,7 +90,7 @@ export function SideDrawer() {
               >
                 <Ionicons
                   name={active ? item.activeIcon : item.icon}
-                  size={18}
+                  size={ICON_SIZE.lg}
                   color={active ? theme.colors.accent : theme.colors.textMuted}
                 />
                 <Text style={[styles.navLabel, { color: active ? theme.colors.accent : theme.colors.text }]}>
@@ -114,7 +115,7 @@ export function SideDrawer() {
             >
               <Ionicons
                 name={pathname.startsWith("/admin") ? "settings" : "settings-outline"}
-                size={18}
+                size={ICON_SIZE.lg}
                 color={pathname.startsWith("/admin") ? theme.colors.accent : theme.colors.textMuted}
               />
               <Text style={[styles.navLabel, { color: pathname.startsWith("/admin") ? theme.colors.accent : theme.colors.text }]}>
@@ -146,7 +147,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   logo: {
-    fontSize: 22,
+    fontSize: FONT_SIZE.xl,
     fontWeight: "800",
     letterSpacing: -0.5,
   },
@@ -168,7 +169,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   navLabel: {
-    fontSize: 14,
+    fontSize: FONT_SIZE.sm,
     fontWeight: "500",
   },
 });

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import type { ThemeTokens } from "@evey/theme";
 import type { TFunction } from "i18next";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface Props {
   children?: React.ReactNode;
@@ -32,7 +33,7 @@ class ErrorBoundaryInner extends Component<Props, State> {
       const { theme, t } = this.props;
       return (
         <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
-          <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
+          <Ionicons name="alert-circle-outline" size={ICON_SIZE["4xl"]} color={theme.colors.error} />
           <Text style={[styles.title, { color: theme.colors.text }]}>{t("common.somethingWentWrong", "Something went wrong")}</Text>
           <Text style={[styles.message, { color: theme.colors.textMuted }]} numberOfLines={3}>
             {this.state.error?.message ?? t("common.unknownError", "Unknown error")}
@@ -59,8 +60,8 @@ export function ErrorBoundary({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
-  title: { fontSize: 18, fontWeight: "700", marginTop: 16 },
-  message: { fontSize: 13, textAlign: "center", marginTop: 8, maxWidth: 280 },
+  title: { fontSize: FONT_SIZE.lg, fontWeight: "700", marginTop: 16 },
+  message: { fontSize: FONT_SIZE.xs, textAlign: "center", marginTop: 8, maxWidth: 280 },
   retryBtn: { marginTop: 20, paddingVertical: 10, paddingHorizontal: 24 },
-  retryText: { fontWeight: "600", fontSize: 15 },
+  retryText: { fontWeight: "600", fontSize: FONT_SIZE.sm },
 });

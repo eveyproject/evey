@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { markUnlocked } from "../hooks/useParentalGate";
+import { FONT_SIZE } from "@evey/theme";
 
 interface ParentalPINModalProps {
   visible: boolean;
@@ -142,19 +143,19 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   title: {
-    fontSize: 18,
+    fontSize: FONT_SIZE.lg,
     fontWeight: "700",
     marginBottom: 8,
     textAlign: "center",
   },
   desc: {
-    fontSize: 14,
+    fontSize: FONT_SIZE.sm,
     marginBottom: 20,
     textAlign: "center",
   },
   pinInput: {
     textAlign: "center",
-    fontSize: 28,
+    fontSize: FONT_SIZE["3xl"],
     fontFamily: "monospace",
     letterSpacing: 12,
     paddingVertical: 12,
@@ -163,7 +164,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   error: {
-    fontSize: 13,
+    fontSize: FONT_SIZE.xs,
     textAlign: "center",
     marginBottom: 8,
   },
@@ -180,6 +181,6 @@ const styles = StyleSheet.create({
   },
   btnText: {
     fontWeight: "600",
-    fontSize: 15,
+    fontSize: FONT_SIZE.sm,
   },
 });

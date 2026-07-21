@@ -22,6 +22,7 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { ProfileManagerList } from "../profile/ProfileManagerList";
 import { CreateProfileDialog } from "../profile/CreateProfileDialog";
+import { FONT_SIZE } from "@evey/theme";
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_.-]{1,64}$/;
 
@@ -392,7 +393,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
     },
     field: { gap: 6 },
     label: {
-      fontSize: 12,
+      fontSize: FONT_SIZE.xs,
       fontWeight: "600",
       textTransform: "uppercase",
     },
@@ -400,9 +401,9 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderWidth: 1,
       paddingHorizontal: 12,
       paddingVertical: 10,
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
     },
-    help: { fontSize: 12, marginTop: 2 },
+    help: { fontSize: FONT_SIZE.xs, marginTop: 2 },
     row: {
       flexDirection: "row",
       alignItems: "center",
@@ -410,8 +411,8 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       paddingVertical: 12,
       gap: t.spacing.md,
     },
-    rowLabel: { fontSize: 15, fontWeight: "500" },
-    error: { fontSize: 13 },
+    rowLabel: { fontSize: FONT_SIZE.sm, fontWeight: "500" },
+    error: { fontSize: FONT_SIZE.xs },
     divider: {
       borderTopWidth: StyleSheet.hairlineWidth,
       marginVertical: t.spacing.sm,
@@ -421,8 +422,8 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "space-between",
     },
-    sectionTitle: { fontSize: 15, fontWeight: "700" },
-    addLink: { fontSize: 14, fontWeight: "500" },
+    sectionTitle: { fontSize: FONT_SIZE.sm, fontWeight: "700" },
+    addLink: { fontSize: FONT_SIZE.sm, fontWeight: "500" },
     footer: {
       flexDirection: "row",
       gap: t.spacing.sm,
@@ -436,5 +437,5 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
     },
     btnPrimary: {},
-    btnText: { fontWeight: "600", fontSize: 15 },
+    btnText: { fontWeight: "600", fontSize: FONT_SIZE.sm },
   });

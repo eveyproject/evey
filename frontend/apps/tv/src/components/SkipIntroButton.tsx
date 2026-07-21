@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { useMediaSegments } from "../hooks/useMediaSegments";
 import { FocusableCard } from "./FocusableCard";
+import { FONT_SIZE } from "@evey/theme";
 
 // Segment types the button can skip, with their i18n label. The label is
 // chosen from whichever segment the playhead is currently inside, so the
@@ -78,7 +79,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   text: {
-    fontSize: 18,
+    fontSize: FONT_SIZE.lg,
     fontWeight: "600",
   },
 });

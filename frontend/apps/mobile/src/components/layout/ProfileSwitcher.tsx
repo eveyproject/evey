@@ -13,6 +13,7 @@ import { useAuthStore, toast } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { PinPromptDialog } from "../../features/profile/PinPromptDialog";
+import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 const LAST_PROFILE_KEY = "evey:last_profile_id";
 
@@ -141,7 +142,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
                 accessibilityRole="button"
                 accessibilityLabel={t("common.nav.switchProfile", "Switch profile")}
               >
-                <Ionicons name="swap-horizontal-outline" size={16} color={theme.colors.textMuted} />
+                <Ionicons name="swap-horizontal-outline" size={ICON_SIZE.md} color={theme.colors.textMuted} />
                 <Text style={[s.menuLabel, { color: theme.colors.text }]}>
                   {t("common.nav.switchProfile", "Switch profile")}
                 </Text>
@@ -156,7 +157,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
             accessibilityRole="button"
             accessibilityLabel={t("common.nav.manageProfiles", "Manage Profiles")}
           >
-            <Ionicons name="people-outline" size={16} color={theme.colors.textMuted} />
+            <Ionicons name="people-outline" size={ICON_SIZE.md} color={theme.colors.textMuted} />
             <Text style={[s.menuLabel, { color: theme.colors.text }]}>
               {t("common.nav.manageProfiles", "Manage Profiles")}
             </Text>
@@ -172,7 +173,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
               accessibilityRole="button"
               accessibilityLabel={item.label}
             >
-              <Ionicons name={item.icon} size={16} color={theme.colors.textMuted} />
+              <Ionicons name={item.icon} size={ICON_SIZE.md} color={theme.colors.textMuted} />
               <Text style={[s.menuLabel, { color: theme.colors.text }]}>{item.label}</Text>
             </Pressable>
           ))}
@@ -184,7 +185,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
             accessibilityRole="button"
             accessibilityLabel={t("common.nav.signOut", "Sign out")}
           >
-            <Ionicons name="log-out-outline" size={16} color={theme.colors.error} />
+            <Ionicons name="log-out-outline" size={ICON_SIZE.md} color={theme.colors.error} />
             <Text style={[s.menuLabel, { color: theme.colors.error }]}>
               {t("common.nav.signOut", "Sign out")}
             </Text>
@@ -220,7 +221,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
                       {avatarUrl ? (
                         <Image source={{ uri: avatarUrl }} style={{ width: 36, height: 36, borderRadius: 18 }} contentFit="cover" />
                       ) : (
-                        <Text style={{ color: theme.colors.onAccent, fontSize: 14, fontWeight: "600" }}>{itemInitial}</Text>
+                        <Text style={{ color: theme.colors.onAccent, fontSize: FONT_SIZE.sm, fontWeight: "600" }}>{itemInitial}</Text>
                       )}
                     </View>
                     <Text style={[s.itemName, { color: theme.colors.text }]} numberOfLines={1}>
@@ -234,7 +235,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
                       </View>
                     )}
                     {isActive && (
-                      <Ionicons name="checkmark" size={18} color={theme.colors.accent} />
+                      <Ionicons name="checkmark" size={ICON_SIZE.lg} color={theme.colors.accent} />
                     )}
                     {switching === p.id && (
                       <ActivityIndicator size="small" color={theme.colors.accent} />
@@ -300,7 +301,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       paddingVertical: 11,
     },
     menuLabel: {
-      fontSize: 14,
+      fontSize: FONT_SIZE.sm,
       fontWeight: "500",
     },
     divider: {
@@ -320,7 +321,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       gap: t.spacing.md,
     },
     sheetTitle: {
-      fontSize: 16,
+      fontSize: FONT_SIZE.base,
       fontWeight: "700",
       marginBottom: 4,
     },
@@ -341,7 +342,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
     },
     itemName: {
       flex: 1,
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
     },
     kidsBadge: {
       paddingHorizontal: 6,
@@ -349,7 +350,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       borderRadius: 4,
     },
     kidsBadgeText: {
-      fontSize: 9,
+      fontSize: FONT_SIZE.xs,
       fontWeight: "700",
       textTransform: "uppercase",
     },
@@ -359,7 +360,7 @@ const styles = (t: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
     },
     closeBtnText: {
-      fontSize: 15,
+      fontSize: FONT_SIZE.sm,
       fontWeight: "600",
     },
   });
