@@ -547,5 +547,5 @@ playback:
   hint:
     easy: "Se envía tal cual. Sin conversión, sin esfuerzo para el servidor."
     moderate: "Solo se convierte el sonido. Esfuerzo mínimo para el servidor."
-    demanding: "El vídeo debe convertirse para su dispositivo. Requiere potencia real."
-    hard: "Hay que convertir un vídeo muy pesado. Puede entrecortarse en un servidor modesto."
+    demanding: "El vídeo debe convertirse para su dispositivo. Descargarlo lo evita."
+    hard: "Hay que convertir un vídeo muy pesado y puede entrecortarse. Descargarlo lo evita."
