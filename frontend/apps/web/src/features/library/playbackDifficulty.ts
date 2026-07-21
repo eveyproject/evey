@@ -124,10 +124,37 @@ function withDifficulty(level: PlaybackLevel, reasons: string[]): PlaybackDiffic
   return { level, difficulty: DIFFICULTY_OF[level], reasons };
 }
 
+/** The decision plus the two source facts the grading needs. A list response
+    carries these flat (the bulk endpoint sends them); a detail response carries
+    them inside `streams`. One rule set reads both. */
+export interface PlaybackFacts {
+  playMethod?: string;
+  videoDecision?: string;
+  audioDecision?: string;
+  transcodeReasons?: string[];
+  videoHeight?: number;
+  audioCodec?: string;
+}
+
 export function classifyPlayback(
   info: Pick<V1StreamInfo, "playMethod" | "videoDecision" | "audioDecision" | "transcodeReasons"> | undefined,
   streams?: V1MediaStream[],
   /** True when this browser routes AC-3/E-AC-3 through the ac3go wasm decoder. */
+  wasmAudio = false,
+): PlaybackDifficulty | null {
+  if (!info) return null;
+  return classifyPlaybackFacts(
+    {
+      ...info,
+      videoHeight: videoStream(streams)?.height,
+      audioCodec: selectedAudioStream(streams)?.codec,
+    },
+    wasmAudio,
+  );
+}
+
+export function classifyPlaybackFacts(
+  info: PlaybackFacts | undefined,
   wasmAudio = false,
 ): PlaybackDifficulty | null {
   if (!info?.playMethod) return null;
@@ -140,7 +167,7 @@ export function classifyPlayback(
   // Transcoding. Video is what actually costs - an audio-only re-encode is
   // cheap enough that lumping it with a 4K tonemap would make the badge useless.
   if (info.videoDecision === "transcode") {
-    const height = videoStream(streams)?.height ?? 0;
+    const height = info.videoHeight ?? 0;
     // Tone mapping is expensive whatever the size, and without a GPU tonemap it
     // forces the software-hdr ladder class - the costliest route there is.
     if (raw.includes("hdr_tonemapping_needed") || height >= HEAVY_HEIGHT) {
@@ -158,7 +185,7 @@ export function classifyPlayback(
   // track is served as a COPIED out-of-band rendition that ac3go decodes in the
   // browser, so nothing is re-encoded server-side - counting it as an audio
   // transcode overstated the cost.
-  const audioViaWasm = wasmAudio && isWasmDecodableAudioCodec(selectedAudioStream(streams)?.codec);
+  const audioViaWasm = wasmAudio && isWasmDecodableAudioCodec(info.audioCodec);
   // Only the codec reason is annulled: a channel-target or resync request is
   // real work the wasm path does not absorb.
   const reasons = audioViaWasm ? raw.filter((r) => r !== "audio_codec_unsupported") : raw;
