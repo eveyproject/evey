@@ -343,6 +343,99 @@ func TestParentalVerifyPIN_RateLimitExhaustion(t *testing.T) {
 	}
 }
 
+// newKidsCallerMux wires the parental routes over a repo holding BOTH a kids
+// profile and a normal one, all owned by user-1 - so the caller and the target
+// can be the same restricted profile, which is the escalation shape the gRPC
+// gate blocks and the hand-written HTTP twin did not.
+func newKidsCallerMux(t *testing.T) (*http.ServeMux, *auth.JWTGenerator, string) {
+	t.Helper()
+	gen, _, _ := genTokens(t)
+	profileRepo := userfakes.NewFakeProfileRepository()
+	maxAge := 10
+	_ = profileRepo.Create(context.Background(), &domainuser.Profile{
+		ID: "prof-kid", UserID: "user-1", Name: "Kid", IsKids: true,
+		Parental: &domainuser.ParentalSettings{Enabled: true, MaxAge: &maxAge, BlockedTags: []string{"horror"}},
+	})
+	_ = profileRepo.Create(context.Background(), &domainuser.Profile{
+		ID: "prof-1", UserID: "user-1", Name: "Parent",
+	})
+	hasher := userfakes.NewFakePasswordHasher()
+	userRepo := userfakes.NewFakeUserRepository()
+	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "user-1", Username: "u1", PasswordHash: "hashed:secret"})
+	mux := http.NewServeMux()
+	registerParentalRoutes(mux, profileRepo, userRepo, hasher, gen)
+	return mux, gen, "prof-kid"
+}
+
+// A kids profile must not be able to lift its OWN age cap. This is the same
+// "forgotten twin" shape as the profile-creation escape: UpdateProfile over
+// gRPC refuses parental changes made from a restricted profile
+// (enforceParentalUpdateGate), but the hand-written HTTP route that mutates the
+// very same fields had no equivalent gate - so one PUT neutralised the control
+// on the whole catalogue, with no PIN and no profile switch.
+func TestParentalUpdateSettings_FromKidsProfile_Refused(t *testing.T) {
+	mux, gen, kidsID := newKidsCallerMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: kidsID, IsAdmin: false})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/"+kidsID+"/parental", strings.NewReader(`{"maxAge":99}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("a kids profile must not raise its own max age: want 403, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// Clearing the blocked-tag list is the same escalation by another field.
+func TestParentalUpdateSettings_FromKidsProfile_RefusesBlockedTagsWipe(t *testing.T) {
+	mux, gen, kidsID := newKidsCallerMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: kidsID, IsAdmin: false})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/"+kidsID+"/parental", strings.NewReader(`{"blockedTags":[]}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("a kids profile must not clear its own blocked tags: want 403, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// A kids profile must not be able to turn its own protection off either - and
+// that path is NOT covered by the PIN reauth gate, which only fires when a PIN
+// already exists.
+func TestParentalUpdateSettings_FromKidsProfile_RefusesDisable(t *testing.T) {
+	mux, gen, kidsID := newKidsCallerMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: kidsID, IsAdmin: false})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/"+kidsID+"/parental", strings.NewReader(`{"enabled":false}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("a kids profile must not disable its own protection: want 403, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
+// The gate must not break the legitimate case: a parent on a NON-kids profile
+// still manages the child's settings. Without this the fix would be a
+// regression dressed as a security fix.
+func TestParentalUpdateSettings_FromAdultProfile_StillAllowed(t *testing.T) {
+	mux, gen, kidsID := newKidsCallerMux(t)
+	token, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "user-1", ProfileID: "prof-1", IsAdmin: false})
+
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/profiles/"+kidsID+"/parental", strings.NewReader(`{"maxAge":12}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("a parent on a non-kids profile must still manage the child: want 200, got %d body=%s", w.Code, w.Body.String())
+	}
+}
+
 func TestParentalUpdateSettings_CrossProfileIDOR(t *testing.T) {
 	mux, gen := newParentalMux(t)
 	// user-1 tries to update parental on foreign profile

@@ -242,6 +242,17 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// The caller must not be sitting on a restricted profile. Ownership alone is
+	// not enough here: a kids profile OWNS itself, so loadOwnedProfileForUpdate
+	// happily let it raise its own MaxAge, wipe its blocked tags, or switch
+	// protection off - neutralising the control on the whole catalogue with one
+	// request, no PIN and no profile switch. The gRPC twin of this mutation
+	// (enforceParentalUpdateGate) has always refused that; this route is the
+	// hand-written sibling that never got the gate.
+	if !h.refuseFromKidsProfile(w, r, span, claims, profile) {
+		return
+	}
+
 	if !validateNewPINFormat(w, span, body.PIN) {
 		return
 	}
@@ -305,6 +316,40 @@ func (h *parentalHandler) loadOwnedProfileForUpdate(w http.ResponseWriter, r *ht
 		return nil, false
 	}
 	return profile, true
+}
+
+// refuseFromKidsProfile blocks any parental mutation made while the CALLER is
+// on a kids profile, whatever profile is being edited. Mirrors the gRPC
+// enforceParentalUpdateGate so the two routes onto the same fields can't
+// disagree.
+//
+// Deliberately not admin-exempt: the question is not "is this account
+// privileged" but "is this device currently driven by a restricted profile" -
+// an admin who switched to a kids profile is, for the duration, restricted.
+// Same stance as the profile-management gate.
+//
+// Fails CLOSED: if the caller's profile can't be loaded we refuse, because the
+// only thing worse than a false refusal here is a silent bypass.
+func (h *parentalHandler) refuseFromKidsProfile(w http.ResponseWriter, r *http.Request, span trace.Span, claims *domainuser.Claims, target *domainuser.Profile) bool {
+	if claims == nil || claims.ProfileID == "" {
+		return true // no profile context (service/stream tokens): nothing to restrict
+	}
+	callerIsKids := target.IsKids && claims.ProfileID == string(target.ID)
+	if !callerIsKids && claims.ProfileID != string(target.ID) {
+		caller, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(claims.ProfileID))
+		if err != nil || caller == nil {
+			span.SetStatus(codes.Error, "parental gate: caller profile unreadable")
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return false
+		}
+		callerIsKids = caller.IsKids
+	}
+	if callerIsKids {
+		span.SetStatus(codes.Error, "parental change from kids profile")
+		http.Error(w, `{"message":"switch to a non-kids profile to change parental settings"}`, http.StatusForbidden)
+		return false
+	}
+	return true
 }
 
 // validateNewPINFormat rejects a proposed PIN that isn't 4 digits. An empty
