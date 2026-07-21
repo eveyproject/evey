@@ -46,6 +46,26 @@ type InMemoryEventBus struct {
 	wg     sync.WaitGroup
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	// stopped + sendMu make close(queue) safe against a concurrent send.
+	//
+	// The ctx.Done() guard in enqueue and the send onto queue are two separate
+	// selects, so a publisher could pass the guard, lose the scheduler, and
+	// come back to send on a channel Stop had since closed - an unrecovered
+	// `send on closed channel` that takes the whole process down. Reproduced
+	// under -race.
+	//
+	// It is reachable in production, not just in a test: Stop() runs BEFORE the
+	// gRPC server stops accepting requests, background workers are still
+	// publishing (they only check ctx cooperatively), and the admin panel's
+	// restart button makes the process SIGTERM itself - so clicking restart
+	// could crash the server instead of stopping it cleanly.
+	//
+	// Same shape as the fix already in app/qoe/sink.go: a lock-free fast path,
+	// then a re-check under the read lock, with close() taken under the write
+	// lock so no send can be in flight when the channel closes.
+	stopped atomic.Bool
+	sendMu  sync.RWMutex
 }
 
 type Option func(*options)
@@ -112,8 +132,16 @@ func (b *InMemoryEventBus) worker() {
 }
 
 func (b *InMemoryEventBus) Stop() {
+	// Idempotent: a second Stop must not close an already-closed channel.
+	if !b.stopped.CompareAndSwap(false, true) {
+		return
+	}
 	b.cancel()
+	// Take the write lock so any in-flight enqueue send completes first.
+	// stopped is already true, so no new send can start past the re-check.
+	b.sendMu.Lock()
 	close(b.queue)
+	b.sendMu.Unlock()
 	b.wg.Wait()
 	queueDepthGauge.Set(0)
 }
@@ -203,6 +231,19 @@ func (b *InMemoryEventBus) enqueue(ctx context.Context, s subscription, event sh
 		eventsDroppedTotal.WithLabelValues(event.EventName()).Inc()
 		return
 	default:
+	}
+
+	if b.stopped.Load() {
+		eventsDroppedTotal.WithLabelValues(event.EventName()).Inc()
+		return
+	}
+	b.sendMu.RLock()
+	defer b.sendMu.RUnlock()
+	if b.stopped.Load() {
+		// Stop ran between the lock-free check and acquiring the RLock: the
+		// queue is closed or about to be. Drop, don't send.
+		eventsDroppedTotal.WithLabelValues(event.EventName()).Inc()
+		return
 	}
 
 	select {
