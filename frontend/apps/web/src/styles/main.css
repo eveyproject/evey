@@ -45,6 +45,23 @@
 
 /* Design tokens bridged from active theme */
 @theme {
+  /* Type scale, defined in ONE place.
+     The app leaned almost entirely on two steps - 510 `text-sm` and 508
+     `text-xs` against 16 `text-base` - which is why everything read as small
+     and why every page needed its own ad-hoc `text-[15px]` to escape. Nudging
+     the two dominant steps up by 1px lifts the whole app at once and stays
+     revertible here, instead of editing a thousand call sites.
+     Anything that needs a size not on this ladder is a bug in the design, not
+     a reason for an arbitrary value. */
+  --text-xs: 0.8125rem;   /* 13px - was 12 */
+  --text-sm: 0.9375rem;   /* 15px - was 14 */
+  --text-base: 1rem;      /* 16px */
+  --text-lg: 1.125rem;    /* 18px */
+  --text-xl: 1.25rem;     /* 20px */
+  --text-2xl: 1.5rem;     /* 24px */
+  --text-3xl: 1.875rem;   /* 30px */
+  --text-4xl: 2.25rem;    /* 36px */
+
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-raised: var(--surface-raised);
