@@ -95,10 +95,15 @@ var parentalGated = map[string]string{
 	"/evey.v1.ActivityService/GetPopularMedia": "per-item mediaItemBlockedByParental",
 
 	// Playback: the paths that actually hand over a stream.
-	"/evey.v1.PlaybackService/GetStreamInfo":  "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
-	"/evey.v1.PlaybackService/StartStream":    "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
-	"/evey.v1.PlaybackService/GetNextUp":      "per-item mediaItemBlockedByParental",
-	"/evey.v1.PlaybackService/GetResumeItems": "per-item mediaItemBlockedByParental",
+	"/evey.v1.PlaybackService/GetStreamInfo": "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
+	// Bulk sibling of GetStreamInfo. Same resolver, but it OMITS a blocked item
+	// from the response instead of erroring: a per-id error would still confirm
+	// the item exists. Covered by
+	// TestGetPlaybackDifficulties_ParentalBlockedItemIsAbsent.
+	"/evey.v1.PlaybackService/GetPlaybackDifficulties": "isBlockedByParental -> shared resolver, blocked items omitted from the batch",
+	"/evey.v1.PlaybackService/StartStream":             "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
+	"/evey.v1.PlaybackService/GetNextUp":               "per-item mediaItemBlockedByParental",
+	"/evey.v1.PlaybackService/GetResumeItems":          "per-item mediaItemBlockedByParental",
 }
 
 // parentalExempt lists media-returning RPCs that legitimately need no gate,
