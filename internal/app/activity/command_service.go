@@ -16,6 +16,16 @@ type CommandService struct {
 	metrics      activity.ServerMetricRepository
 	auditLog     activity.AuditLogRepository
 	events       shared.EventBus
+	// qoeEvents bounds the CMCD table. Optional (nil = no sweep) because it
+	// belongs to another context and only retention is shared.
+	qoeEvents activity.QoEEventPurger
+}
+
+// WithQoEEventPurger wires the CMCD retention sweep. Chainable; leaving it
+// unset keeps the previous behaviour (no QoE purge).
+func (s *CommandService) WithQoEEventPurger(p activity.QoEEventPurger) *CommandService {
+	s.qoeEvents = p
+	return s
 }
 
 func NewCommandService(
@@ -74,7 +84,7 @@ func (s *CommandService) PurgeOldAuditLogs(ctx context.Context, before time.Time
 // runRetention performs one purge pass for whichever tables have a positive
 // retention window (days <= 0 = keep forever). Failures are logged, never
 // fatal - a single bad pass must not kill the daily loop.
-func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDays int) {
+func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDays, qoeDays int) {
 	// "Never fatal" covers panics too, not just errors: the caller runs this in a
 	// detached daily goroutine, so an unrecovered panic (e.g. a nil repo or a
 	// malformed row) would take down the whole process AND stop every future
@@ -97,15 +107,22 @@ func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDay
 			slog.Warn("server-metric retention purge failed", slog.Any("err", err))
 		}
 	}
+	if qoeDays > 0 && s.qoeEvents != nil {
+		if n, err := s.qoeEvents.Purge(ctx, now.AddDate(0, 0, -qoeDays)); err != nil {
+			slog.Warn("qoe retention purge failed", slog.Any("err", err))
+		} else if n > 0 {
+			slog.Info("qoe retention purge", slog.Int64("removed", n), slog.Int("retention_days", qoeDays))
+		}
+	}
 }
 
 // StartRetentionPurge spawns a daily background sweep that trims audit-log
 // and server-metric rows past their retention window. A retention of <= 0
 // disables that table; when both are disabled this is a no-op (no goroutine).
 // It runs one pass at startup, then every 24h, and exits when ctx is done.
-func (s *CommandService) StartRetentionPurge(ctx context.Context, auditDays, metricsDays int) {
-	if auditDays <= 0 && metricsDays <= 0 {
-		slog.Info("retention purge disabled", slog.Int("audit_days", auditDays), slog.Int("metrics_days", metricsDays))
+func (s *CommandService) StartRetentionPurge(ctx context.Context, auditDays, metricsDays, qoeDays int) {
+	if auditDays <= 0 && metricsDays <= 0 && qoeDays <= 0 {
+		slog.Info("retention purge disabled", slog.Int("audit_days", auditDays), slog.Int("metrics_days", metricsDays), slog.Int("qoe_days", qoeDays))
 		return
 	}
 	go func() {
@@ -114,7 +131,7 @@ func (s *CommandService) StartRetentionPurge(ctx context.Context, auditDays, met
 				slog.Error("retention purge panic recovered", slog.Any("panic", r))
 			}
 		}()
-		s.runRetention(ctx, auditDays, metricsDays)
+		s.runRetention(ctx, auditDays, metricsDays, qoeDays)
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 		for {
@@ -122,7 +139,7 @@ func (s *CommandService) StartRetentionPurge(ctx context.Context, auditDays, met
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				s.runRetention(ctx, auditDays, metricsDays)
+				s.runRetention(ctx, auditDays, metricsDays, qoeDays)
 			}
 		}
 	}()

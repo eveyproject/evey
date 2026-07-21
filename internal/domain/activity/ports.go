@@ -90,3 +90,13 @@ type PlayHistoryRepository interface {
 type AnalyticsReader interface {
 	GetAnalytics(ctx context.Context) (*AnalyticsData, error)
 }
+
+// QoEEventPurger bounds the playback_qoe_events table. Kept as its own
+// single-method port rather than folded into an existing repository: QoE is
+// another bounded context, and retention is the ONLY thing this service needs
+// from it. Optional - a nil purger disables the sweep.
+type QoEEventPurger interface {
+	// Purge deletes events strictly older than before, returning the row count
+	// so the retention runner can log its work.
+	Purge(ctx context.Context, before time.Time) (int64, error)
+}

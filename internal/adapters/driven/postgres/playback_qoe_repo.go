@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
+
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
@@ -111,4 +114,30 @@ func nullIfEmpty(s string) any {
 		return nil
 	}
 	return s
+}
+
+// Purge deletes CMCD events recorded before the cutoff, returning how many rows
+// went. This table is the busiest write path in the server - one row per
+// CMCD-carrying segment request, unsampled, each with a JSONB payload and four
+// indexes - and it is append-only otherwise, so this sweep is the ONLY thing
+// bounding its growth.
+//
+// Deletes by ts, which idx_qoe_ts covers. Migration 000103 sized its indexes
+// for a 30-day window and said so in a
+// comment; the sweep that comment assumed was never written, so the table grew
+// without limit from day one.
+func (r *PlaybackQoERepo) Purge(ctx context.Context, before time.Time) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.qoe.Purge")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM playback_qoe_events WHERE ts < $1`, before)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }

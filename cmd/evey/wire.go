@@ -1236,7 +1236,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// here; the buffered worker drains into playback_qoe_events. Phase 1 is
 	// pure observation - no feedback loop yet - so the only failure path we
 	// care about is "buffer full" which surfaces via metrics + warn logs.
-	qoeStorage := qoeStorageAdapter{repo: postgres.NewPlaybackQoERepo(db)}
+	qoeRepo := postgres.NewPlaybackQoERepo(db)
+	qoeStorage := qoeStorageAdapter{repo: qoeRepo}
+	// Retention for this table lives on the activity service's daily sweep (the
+	// one that already bounds audit_log and server_metrics) rather than in a
+	// second loop. Wired here because that service is built long before the
+	// repo exists.
+	activityCmdSvc.WithQoEEventPurger(qoeRepo)
 	qoeSink := appqoe.NewBufferedSink(qoeStorage, appqoe.SinkOptions{
 		BufferSize: 2048, // ~30 min of segments for a busy 5-user evening
 		DropMetric: eveymetrics.QoEIngestDrops,

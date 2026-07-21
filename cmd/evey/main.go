@@ -187,11 +187,13 @@ func run() error {
 	// Sweep syncplay rooms whose host created them but never opened the ws (or
 	// orphans the leave path missed); rooms with a live member are untouched.
 	go deps.media.syncPlayHub.StartJanitor(ctx, 10*time.Minute, time.Hour)
-	// Daily retention sweep for the audit_log + server_metric tables.
-	// audit_log is opt-in (EVEY_AUDIT_LOG_RETENTION_DAYS, default 0 = keep
-	// forever) so an existing deployment never silently loses history;
-	// server_metric rides its long-standing EVEY_METRICS_RETENTION_DAYS.
-	deps.engagement.activityCmdSvc.StartRetentionPurge(ctx, cfg.Log.AuditRetentionDays, cfg.Metrics.RetentionDays)
+	// Daily retention sweep for the audit_log + server_metric + playback_qoe
+	// tables. audit_log is opt-in (EVEY_AUDIT_LOG_RETENTION_DAYS, default 0 =
+	// keep forever) so an existing deployment never silently loses history;
+	// server_metric rides its long-standing EVEY_METRICS_RETENTION_DAYS; QoE
+	// defaults to the 30 days its migration always assumed but never enforced.
+	deps.engagement.activityCmdSvc.StartRetentionPurge(ctx,
+		cfg.Log.AuditRetentionDays, cfg.Metrics.RetentionDays, cfg.Metrics.QoERetentionDays)
 	// Minute-grained server-metric samples (CPU/RAM, streams, measured
 	// streaming bandwidth) - feeds the dashboard rate + the activity stats'
 	// consumed-bandwidth integral.

@@ -401,6 +401,12 @@ type OIDCConfig struct {
 type MetricsConfig struct {
 	RetentionDays     int
 	SampleIntervalSec int
+	// QoERetentionDays bounds playback_qoe_events. Defaults to the 30 days
+	// migration 000103 sized its indexes for; that sweep was never written, so
+	// the table grew unbounded on the server's busiest write path (one row per
+	// CMCD-carrying segment request, JSONB payload, four indexes).
+	// 0 = keep forever.
+	QoERetentionDays int
 	// ScrapeToken, when set, is an alternate static bearer accepted on the
 	// GET /metrics endpoint in addition to the admin JWT. Lets a Prometheus
 	// or Grafana datasource scrape without refreshing a ~15-min JWT every
@@ -676,6 +682,7 @@ func Load() (*Config, error) {
 		Metrics: MetricsConfig{
 			RetentionDays:     envInt("EVEY_METRICS_RETENTION_DAYS", 90),
 			SampleIntervalSec: envInt("EVEY_METRICS_SAMPLE_INTERVAL_SEC", 60),
+			QoERetentionDays:  envInt("EVEY_QOE_RETENTION_DAYS", 30),
 			ScrapeToken:       envStr("EVEY_METRICS_SCRAPE_TOKEN", ""),
 		},
 		Library: LibraryConfig{

@@ -154,7 +154,7 @@ func TestStartRetentionPurge_DisabledIsNoop(t *testing.T) {
 
 	ctx := t.Context()
 	// Both retentions disabled (<= 0) → no goroutine, nothing purged.
-	cmdSvc.StartRetentionPurge(ctx, 0, 0)
+	cmdSvc.StartRetentionPurge(ctx, 0, 0, 0)
 
 	got, err := querySvc.GetAuditLog(context.Background(), activity.AuditLogFilter{})
 	require.NoError(t, err)
@@ -489,7 +489,7 @@ func TestStartRetentionPurge_RecoversPanicInPass(t *testing.T) {
 	// t.Context() is cancelled when the test ends, stopping the purge goroutine.
 	ctx := t.Context()
 	// metricsDays > 0 → the startup pass calls metrics.Purge, which panics.
-	svc.StartRetentionPurge(ctx, 0, 7)
+	svc.StartRetentionPurge(ctx, 0, 7, 0)
 
 	select {
 	case <-pm.called:
@@ -499,4 +499,70 @@ func TestStartRetentionPurge_RecoversPanicInPass(t *testing.T) {
 	// Grace for the deferred recover to unwind - an unrecovered panic would have
 	// aborted the process before this returns.
 	time.Sleep(100 * time.Millisecond)
+}
+
+// fakeQoEPurger signals each Purge call so a test can await the startup pass
+// without sleeping.
+type fakeQoEPurger struct {
+	called chan time.Time
+	err    error
+}
+
+func newFakeQoEPurger() *fakeQoEPurger {
+	return &fakeQoEPurger{called: make(chan time.Time, 4)}
+}
+
+func (f *fakeQoEPurger) Purge(_ context.Context, before time.Time) (int64, error) {
+	f.called <- before
+	return 7, f.err
+}
+
+// playback_qoe_events is the busiest write path in the server and is otherwise
+// append-only: without this sweep it grew unbounded from day one, despite
+// migration 000103 sizing its indexes for a 30-day window it never enforced.
+func TestStartRetentionPurge_PurgesQoEEvents(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, _, _, _, _, _ := newTestServices()
+	purger := newFakeQoEPurger()
+	cmdSvc.WithQoEEventPurger(purger)
+
+	cmdSvc.StartRetentionPurge(t.Context(), 0, 0, 30)
+
+	select {
+	case before := <-purger.called:
+		age := time.Since(before)
+		if age < 29*24*time.Hour || age > 31*24*time.Hour {
+			t.Fatalf("cutoff must be ~30 days back, got %v", age)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("qoe retention sweep never ran")
+	}
+}
+
+// A retention of 0 means "keep forever" for this table, exactly as it does for
+// audit_log - an operator must be able to opt out of one without losing the
+// others. With all three disabled no goroutine is even spawned.
+func TestStartRetentionPurge_QoEDisabledKeepsForever(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, _, _, _, _, _ := newTestServices()
+	purger := newFakeQoEPurger()
+	cmdSvc.WithQoEEventPurger(purger)
+
+	cmdSvc.StartRetentionPurge(t.Context(), 0, 0, 0)
+
+	select {
+	case <-purger.called:
+		t.Fatal("qoe retention 0 must keep forever, but a purge ran")
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+// An unwired purger must not panic the daily sweep: it runs in a detached
+// goroutine, so a nil deref there would take the whole process down and stop
+// every future purge, not just this one.
+func TestStartRetentionPurge_NilQoEPurgerIsSafe(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, _, _, _, _, _ := newTestServices()
+	cmdSvc.StartRetentionPurge(t.Context(), 0, 0, 30)
+	time.Sleep(200 * time.Millisecond)
 }
