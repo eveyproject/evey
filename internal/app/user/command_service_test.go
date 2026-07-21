@@ -440,19 +440,23 @@ func TestLogin_FallbackToFirstProfile(t *testing.T) {
 	}
 }
 
-func TestLogin_ProfileRepoError_NonFatal(t *testing.T) {
+// Was TestLogin_ProfileRepoError_NonFatal, which asserted the OPPOSITE: that a
+// profile-repo error still issued a token, with an empty ProfileID. That
+// expectation was written for availability, but an empty ProfileID is exactly
+// what every parental gate reads as "no restriction" - so the tolerated
+// degradation was a silent, complete parental bypass for the token's lifetime.
+// A DB fault that blocks login is recoverable and visible; an unrestricted
+// token is neither.
+func TestLogin_ProfileRepoError_FailsClosed(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()
 	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
 	d.profiles.Err = errors.New("profiles down")
 
 	access, _, err := d.svc.Login(ctx, "alice", "pw")
-	if err != nil {
-		t.Fatalf("profile error should be non-fatal, got %v", err)
-	}
-	claims, _ := d.tokens.ValidateAccessToken(access)
-	if claims.ProfileID != "" {
-		t.Fatalf("expected empty profile ID, got %s", claims.ProfileID)
+	if err == nil {
+		claims, _ := d.tokens.ValidateAccessToken(access)
+		t.Fatalf("a profile lookup failure must refuse login, got a token with ProfileID=%q", claims.ProfileID)
 	}
 }
 
@@ -1100,19 +1104,19 @@ func TestGenerateTokensForUser_AccessTokenError(t *testing.T) {
 	}
 }
 
-func TestGenerateTokensForUser_ProfileError_NonFatal(t *testing.T) {
+// Same inversion as TestLogin_ProfileRepoError_FailsClosed: this path mints
+// tokens too (QuickConnect, OIDC, impersonation), so a swallowed profile error
+// here is the same parental bypass by another door.
+func TestGenerateTokensForUser_ProfileError_FailsClosed(t *testing.T) {
 	d := newAuthTestDeps()
 	ctx := context.Background()
 	seedAuthUser(t, d, "u1", "alice", "pw", false, true)
 	d.profiles.Err = errors.New("profiles down")
 
 	access, _, err := d.svc.GenerateTokensForUser(ctx, "u1")
-	if err != nil {
-		t.Fatalf("profile error should be non-fatal, got %v", err)
-	}
-	claims, _ := d.tokens.ValidateAccessToken(access)
-	if claims.ProfileID != "" {
-		t.Fatalf("expected empty profile, got %s", claims.ProfileID)
+	if err == nil {
+		claims, _ := d.tokens.ValidateAccessToken(access)
+		t.Fatalf("a profile lookup failure must refuse token generation, got ProfileID=%q", claims.ProfileID)
 	}
 }
 

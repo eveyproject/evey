@@ -755,3 +755,35 @@ func TestSetup_ProfileEventPublishError_StillReturnsUser(t *testing.T) {
 
 // silence import if needed
 var _ = shared.ErrNotFound
+
+// A failed profile lookup must NOT mint a token with an empty ProfileID. An
+// empty profile is read as "no parental restriction" by every gate in the
+// server (parental.go's checker and the gRPC filter resolver both short-circuit
+// on it), so swallowing the error here turns a transient DB fault into a silent,
+// complete parental bypass lasting the whole access-token TTL.
+//
+// Fail closed: refusing the refresh logs the user out, which is recoverable.
+// Minting an unrestricted token is not.
+func TestRefreshToken_ProfileLookupFails_RefusesRatherThanDroppingProfile(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthUser(t, d, "u1", "alice", "pw", false, true) // non-admin: admins are parental-exempt by design
+	kid := shared.ProfileID("p-kid")
+	_ = d.profiles.Create(ctx, &user.Profile{ID: kid, UserID: "u1", Name: "Kid", IsKids: true, IsDefault: true})
+
+	raw := "refresh-proflookup-tok"
+	h := sha256.Sum256([]byte(raw))
+	_ = d.refreshTkns.Create(ctx, &user.RefreshToken{
+		ID: "rt-pl", UserID: "u1", TokenHash: hex.EncodeToString(h[:]),
+		ExpiresAt: time.Now().Add(time.Hour), ProfileID: &kid,
+	})
+
+	d.profiles.Err = errors.New("connection reset by peer")
+
+	access, _, err := d.svc.RefreshToken(ctx, raw, "", "")
+	if err == nil {
+		claims, _ := d.tokens.ValidateAccessToken(access)
+		t.Fatalf("a failed profile lookup must refuse the refresh, got a token with ProfileID=%q", claims.ProfileID)
+	}
+	t.Logf("refused with: %v", err)
+}

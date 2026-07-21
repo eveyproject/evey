@@ -300,16 +300,23 @@ func (s *CommandService) Login(ctx context.Context, username, password string, t
 	perms := s.collectPermissions(ctx, u.ID)
 
 	var defaultProfileID string
-	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
-		for _, p := range profs {
-			if p.IsDefault {
-				defaultProfileID = string(p.ID)
-				break
-			}
+	// Fail CLOSED on a lookup error. An empty ProfileID is read as "no parental
+	// restriction" by every gate in the server, so continuing past this fault
+	// would issue an unrestricted token. Same reasoning as RefreshToken.
+	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
+	if pErr != nil {
+		slog.Warn("profile lookup failed, refusing rather than issuing a profile-less token",
+			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
+		return "", "", fmt.Errorf("load profiles: %w", pErr)
+	}
+	for _, p := range profs {
+		if p.IsDefault {
+			defaultProfileID = string(p.ID)
+			break
 		}
-		if defaultProfileID == "" && len(profs) > 0 {
-			defaultProfileID = string(profs[0].ID)
-		}
+	}
+	if defaultProfileID == "" && len(profs) > 0 {
+		defaultProfileID = string(profs[0].ID)
 	}
 	var profileLocale string
 	if defaultProfileID != "" {
@@ -359,16 +366,23 @@ func (s *CommandService) GenerateTokensForUser(ctx context.Context, userID strin
 	perms := s.collectPermissions(ctx, u.ID)
 
 	var defaultProfileID string
-	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
-		for _, p := range profs {
-			if p.IsDefault {
-				defaultProfileID = string(p.ID)
-				break
-			}
+	// Fail CLOSED on a lookup error. An empty ProfileID is read as "no parental
+	// restriction" by every gate in the server, so continuing past this fault
+	// would issue an unrestricted token. Same reasoning as RefreshToken.
+	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
+	if pErr != nil {
+		slog.Warn("profile lookup failed, refusing rather than issuing a profile-less token",
+			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
+		return "", "", fmt.Errorf("load profiles: %w", pErr)
+	}
+	for _, p := range profs {
+		if p.IsDefault {
+			defaultProfileID = string(p.ID)
+			break
 		}
-		if defaultProfileID == "" && len(profs) > 0 {
-			defaultProfileID = string(profs[0].ID)
-		}
+	}
+	if defaultProfileID == "" && len(profs) > 0 {
+		defaultProfileID = string(profs[0].ID)
 	}
 	var profileLocale string
 	if defaultProfileID != "" {
@@ -465,7 +479,19 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 
 	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
 	if pErr != nil {
-		slog.Warn("get profiles by user failed", slog.String("userID", string(u.ID)), slog.Any("err", pErr))
+		// Fail CLOSED. Continuing with a nil slice makes resolveActiveProfileID
+		// return ("", true) - a token carrying NO profile - and an empty
+		// ProfileID is read as "no parental restriction" by every gate in the
+		// server (the HTTP checker and the gRPC filter resolver both
+		// short-circuit on it). So swallowing this turned a transient DB fault
+		// into a silent, complete parental bypass for the whole token TTL, and
+		// a permanently unscannable profile row into a permanent one.
+		//
+		// Refusing logs the user out, which is recoverable. Handing out an
+		// unrestricted token is not.
+		slog.Warn("refresh: profile lookup failed, refusing rather than dropping the profile binding",
+			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
+		return "", "", fmt.Errorf("refresh: load profiles: %w", pErr)
 	}
 	// A silent refresh (empty requestedProfileID) must PRESERVE the profile this
 	// token was issued for - not silently fall back to the default profile,
