@@ -14,13 +14,27 @@ import (
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 )
 
+// fakeProfileGetter keys on the requested ID rather than returning the same
+// profile whatever it is asked for.
+//
+// The permissive version hid an entire bug class: evaluating one profile's
+// request against ANOTHER profile's parental settings was invisible to the
+// suite. Mutation-proved - pointing the checker at a hardcoded foreign profile
+// ID left the whole http package green. Now an unknown ID returns nil, and the
+// checker fails closed on it, so the mutation trips a test.
 type fakeProfileGetter struct {
 	profile *domainuser.Profile
 	err     error
 }
 
-func (f *fakeProfileGetter) GetProfileByID(_ context.Context, _ string) (*domainuser.Profile, error) {
-	return f.profile, f.err
+func (f *fakeProfileGetter) GetProfileByID(_ context.Context, id string) (*domainuser.Profile, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.profile == nil || string(f.profile.ID) != id {
+		return nil, nil
+	}
+	return f.profile, nil
 }
 
 func kidProfile(maxAge int) *domainuser.Profile {

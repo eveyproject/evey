@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -1043,8 +1044,20 @@ func TestNotificationService_BackupFailed_WrongEventType(t *testing.T) {
 		OccurredAt:  time.Now(),
 	})
 
-	// backup.failed handler should ignore MediaItemAdded events - this is tested
-	// implicitly by the fact that backup handler only processes backup.BackupFailed
+	// Assert it, don't infer it. "Tested implicitly by the fact that the handler
+	// only processes backup.BackupFailed" is a claim about the code, not a test:
+	// if the backup handler DID start reacting to MediaItemAdded, this test
+	// stayed green. Only a backup notification would be wrong here - the
+	// media-added handler legitimately produces its own.
+	got, err := repo.ListByProfile(ctx, "p1", false, 100, 0)
+	if err != nil {
+		t.Fatalf("list notifications: %v", err)
+	}
+	for _, n := range got {
+		if strings.Contains(strings.ToLower(string(n.Type)), "backup") {
+			t.Fatalf("the backup handler must ignore MediaItemAdded, got a %q notification", n.Type)
+		}
+	}
 }
 
 func TestNotificationService_StartStop(t *testing.T) {
