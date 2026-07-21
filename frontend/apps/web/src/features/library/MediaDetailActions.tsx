@@ -93,7 +93,7 @@ export function MediaDetailActions({
   });
 
   return (
-    <div className="flex-1 space-y-4 min-w-0">
+    <div className="flex-1 min-w-0 grid gap-x-12 gap-y-5 lg:grid-cols-[minmax(0,62ch)_minmax(180px,1fr)] items-start">
       {/* Synopsis: no box. A bordered grey card gives the text the same visual
           weight as a form field, which is what made the page read as an admin
           panel. A hairline rule and a reading measure do the same containment
@@ -109,6 +109,10 @@ export function MediaDetailActions({
         </div>
       )}
 
+      {/* Reference column. Credits are looked UP, not read through - stacking
+          them beside the synopsis fills the dead right-hand third and stops the
+          narrative column from being interrupted by data. */}
+      <aside className="lg:row-span-3 lg:col-start-2 space-y-4 lg:border-l lg:border-[var(--border)] lg:pl-6">
       {directors.length > 0 && (
         <p className="text-sm text-[var(--text-muted)]">
           <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-secondary)] mr-2">{t("media.detail.director")}</span>
@@ -144,9 +148,11 @@ export function MediaDetailActions({
         </p>
       )}
 
+      </aside>
+
       <TrailerSection trailers={item.trailers} />
 
-      <div className="flex gap-3 flex-wrap pt-2" data-testid="media-actions">
+      <div className="flex gap-3 flex-wrap pt-2 lg:col-span-2" data-testid="media-actions">
         {item.id && isSeries && (
           <PlaySeriesButton seriesId={item.id} onPlay={handlePlay} />
         )}

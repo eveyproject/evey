@@ -131,15 +131,20 @@ export function MediaDetailHero({
             </a>
           )}
         </div>
+        {/* The parent title reads as an eyebrow, not as a breadcrumb: no
+            chevron, no trail. It says WHAT this belongs to, which the season
+            title alone cannot, without rebuilding the navigation chrome the
+            back button already covers. */}
         {parentItem && (
-          <div className="mb-1">
-            <Link to="/media/$mediaId" params={{ mediaId: item.parentId! }} className="text-sm font-medium hover:underline text-[var(--overlay-text-muted)]">
-              {parentItem.title}
-            </Link>
-            <span className="text-sm mx-1 text-[var(--overlay-dot-inactive)]">&rsaquo;</span>
-          </div>
+          <Link
+            to="/media/$mediaId"
+            params={{ mediaId: item.parentId! }}
+            className="block mb-2 text-[11px] uppercase tracking-[0.18em] font-semibold text-white/60 hover:text-white transition-colors-fast no-underline"
+          >
+            {parentItem.title}
+          </Link>
         )}
-        <div className="flex items-end gap-3 mb-3 max-w-[24ch]">
+        <div className="flex items-end gap-3 mb-3 max-w-[min(100%,20ch)] sm:max-w-[min(85%,30ch)] lg:max-w-[min(62%,46ch)]">
           <h1
             className="text-3xl sm:text-5xl lg:text-6xl font-medium tracking-[-0.035em] leading-[0.95] text-white text-balance [text-shadow:0_2px_24px_rgb(0_0_0/0.55)]"
             data-testid="media-title"
