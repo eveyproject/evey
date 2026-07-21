@@ -174,7 +174,7 @@ export const MediaCard = memo(function MediaCard({
     <Link
       to={linkTo}
       params={linkParams as never}
-      className={`evey-media-card group block flex-shrink-0 w-36 sm:w-44 relative${selected ? " ring-2 ring-[var(--accent)] rounded-[var(--radius-md)]" : ""}`}
+      className={`evey-media-card group block flex-shrink-0 w-40 sm:w-48 relative${selected ? " ring-2 ring-[var(--accent)] rounded-[var(--radius-md)]" : ""}`}
       data-evey="media-card"
       data-testid="media-card"
       onMouseEnter={() => {

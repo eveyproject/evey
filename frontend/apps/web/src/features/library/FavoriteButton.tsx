@@ -4,7 +4,7 @@ import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
 
 interface FavoriteButtonProps {
   mediaId: string;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
   className?: string;
 }
 
@@ -13,8 +13,8 @@ export function FavoriteButton({ mediaId, size = "md", className = "" }: Favorit
   const { data: isFav } = useIsFavorite(mediaId);
   const toggle = useToggleFavorite(mediaId);
 
-  const iconPixels = size === "sm" ? 16 : 20;
-  const padding = size === "sm" ? "p-1" : "p-1.5";
+  const iconPixels = size === "sm" ? 16 : size === "lg" ? 24 : 20;
+  const padding = size === "sm" ? "p-1" : size === "lg" ? "p-2" : "p-1.5";
 
   return (
     <button

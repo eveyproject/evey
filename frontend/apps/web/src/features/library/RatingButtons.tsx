@@ -16,7 +16,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
   };
 
   const btnClass = (active: boolean, activeBg: string) =>
-    `p-1.5 rounded-full border-none cursor-pointer flex items-center justify-center backdrop-blur-[4px] transition-[transform,background-color] duration-150 ${
+    `p-2 rounded-full border-none cursor-pointer flex items-center justify-center backdrop-blur-[4px] transition-[transform,background-color] duration-150 ${
       active
         ? `${activeBg} text-[var(--overlay-text)]`
         : "bg-[var(--btn-overlay-inactive-bg)] text-[var(--overlay-text-muted)]"
@@ -31,7 +31,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         title={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
         aria-label={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
       >
-        <ThumbsUp size={20} aria-hidden="true" />
+        <ThumbsUp size={24} aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -40,7 +40,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         title={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
         aria-label={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
       >
-        <ThumbsDown size={20} aria-hidden="true" />
+        <ThumbsDown size={24} aria-hidden="true" />
       </button>
     </div>
   );

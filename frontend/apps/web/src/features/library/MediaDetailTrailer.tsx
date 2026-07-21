@@ -54,12 +54,12 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-colors-fast bg-[var(--overlay-border-subtle)] text-[var(--text)] border border-[var(--border)]"
+        className="flex items-center gap-2.5 px-5 py-2.5 rounded text-lg font-medium transition-colors-fast bg-[var(--overlay-border-subtle)] text-[var(--text)] border border-[var(--border)]"
       >
-        <Play size={16} fill="currentColor" />
+        <Play size={20} fill="currentColor" />
         {t("media.detail.trailer")}
         {needsSubtitles && (
-          <span className="text-xs px-1 rounded bg-[var(--overlay-btn-bg)] text-[var(--text-muted)]">
+          <span className="text-sm px-1 rounded bg-[var(--overlay-btn-bg)] text-[var(--text-muted)]">
             CC
           </span>
         )}

@@ -32,10 +32,11 @@ export function ShareLinkButton({ mediaId }: { mediaId: string }) {
   return (
     <Button
       variant="secondary"
+      size="lg"
       loading={createLink.isPending}
       onClick={() => createLink.mutate({ mediaItemId: mediaId, data: { durationHours: 48 } })}
     >
-      <Share2 size={16} />
+      <Share2 size={20} />
       {t("media.library.shareLink")}
     </Button>
   );

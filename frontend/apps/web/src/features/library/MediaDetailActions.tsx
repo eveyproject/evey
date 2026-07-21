@@ -93,18 +93,18 @@ export function MediaDetailActions({
   });
 
   return (
-    <div className="flex-1 min-w-0 grid gap-x-12 gap-y-5 lg:grid-cols-[minmax(0,62ch)_minmax(180px,1fr)] items-start content-start">
+    <div className="flex-1 min-w-0 grid gap-x-10 gap-y-5 lg:grid-cols-[minmax(0,92ch)_minmax(190px,1fr)] items-start content-start">
       {/* Synopsis: no box. A bordered grey card gives the text the same visual
           weight as a form field, which is what made the page read as an admin
           panel. A hairline rule and a reading measure do the same containment
           job while letting the type carry itself. */}
       {(item.tagline || item.overview) && (
-        <div className="max-w-[62ch] border-l border-[var(--border)] pl-5 py-0.5 space-y-3">
+        <div className="max-w-[92ch] border-l border-[var(--border)] pl-6 py-0.5 space-y-4">
           {item.tagline && (
-            <p className="text-lg sm:text-xl italic leading-snug text-[var(--text-secondary)] text-balance">{item.tagline}</p>
+            <p className="text-2xl sm:text-3xl italic leading-snug text-[var(--text-secondary)] text-balance">{item.tagline}</p>
           )}
           {item.overview && (
-            <p className="text-[15px] leading-[1.75] text-[var(--text-muted)]" data-testid="media-overview">{item.overview}</p>
+            <p className="text-lg leading-[1.7] text-[var(--text-muted)]" data-testid="media-overview">{item.overview}</p>
           )}
         </div>
       )}
@@ -162,28 +162,29 @@ export function MediaDetailActions({
         {item.id && !isSeries && !isSeason && (
           <Button
             variant="primary"
+            size="lg"
             data-testid="play-button"
             onClick={() => handlePlay(item.id!)}
           >
-            <Play size={16} fill="currentColor" />
+            <Play size={20} fill="currentColor" />
             {t("media.detail.play")}
           </Button>
         )}
         {item.id && (
           watched ? (
-            <Button variant="secondary" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-unwatched-btn">
-              <EyeOff size={16} />
+            <Button variant="secondary" size="lg" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-unwatched-btn">
+              <EyeOff size={20} />
               {t("media.detail.markUnwatched")}
             </Button>
           ) : (
-            <Button variant="secondary" loading={markWatched.isPending} onClick={() => { if (profileId) markWatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-watched-btn">
-              <Eye size={16} />
+            <Button variant="secondary" size="lg" loading={markWatched.isPending} onClick={() => { if (profileId) markWatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-watched-btn">
+              <Eye size={20} />
               {t("media.detail.markWatched")}
             </Button>
           )
         )}
         {item.id && hasMediaFile(item) && streamToken && (
-          <DownloadButton mediaId={item.id} title={item.title} token={streamToken} />
+          <DownloadButton mediaId={item.id} title={item.title} token={streamToken} size="lg" />
         )}
         {item.id && isSeason && (
           <DownloadButton
@@ -191,6 +192,7 @@ export function MediaDetailActions({
             title={`${item.title ?? "season"}.zip`}
             mintToken={() => fetchStreamToken(item.id!)}
             label={t("media.detail.downloadSeason")}
+            size="lg"
           />
         )}
         {item.id && isSeries && (
@@ -199,14 +201,15 @@ export function MediaDetailActions({
             title={`${item.title ?? "series"}.zip`}
             mintToken={() => fetchStreamToken(item.id!)}
             label={t("media.detail.downloadSeries")}
+            size="lg"
           />
         )}
         {item.id && item.filePath && isAdmin && <ShareLinkButton mediaId={item.id} />}
-        {item.id && <FavoriteButton mediaId={item.id} size="md" />}
+        {item.id && <FavoriteButton mediaId={item.id} size="lg" />}
         {item.id && <RatingButtons mediaId={item.id} />}
         {item.id && (
-          <Button variant="secondary" onClick={() => setPlaylistModalOpen(true)}>
-            <Plus size={16} />
+          <Button variant="secondary" size="lg" onClick={() => setPlaylistModalOpen(true)}>
+            <Plus size={20} />
             {t("media.detail.addToPlaylist")}
           </Button>
         )}
