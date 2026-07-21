@@ -9,7 +9,9 @@ export interface PlayerVolumeControlProps {
   onVolumeChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
-const TRACK = "rgba(255,255,255,0.25)";
+// Unfilled track: the overlay family is the one themed for player chrome over
+// dark video, and "inactive indicator" is exactly this slot's semantic.
+const TRACK = "var(--overlay-dot-inactive)";
 const ACCENT = "var(--accent)";
 const BOOST = "var(--warning)"; // the >100% boost zone (semantic token, was hardcoded amber-500)
 
