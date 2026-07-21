@@ -31,7 +31,7 @@ func (r *FakeMediaItemRepository) Create(_ context.Context, item *library.MediaI
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.items[string(item.ID)] = item
+	r.items[string(item.ID)] = cloneMediaItem(item)
 	return nil
 }
 
@@ -45,7 +45,7 @@ func (r *FakeMediaItemRepository) GetByID(_ context.Context, id shared.MediaItem
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return item, nil
+	return cloneMediaItem(item), nil
 }
 
 func (r *FakeMediaItemRepository) List(_ context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
@@ -96,7 +96,7 @@ func (r *FakeMediaItemRepository) Update(_ context.Context, item *library.MediaI
 	if _, ok := r.items[string(item.ID)]; !ok {
 		return ErrNotFound
 	}
-	r.items[string(item.ID)] = item
+	r.items[string(item.ID)] = cloneMediaItem(item)
 	return nil
 }
 
@@ -118,7 +118,7 @@ func (r *FakeMediaItemRepository) GetByFilePath(_ context.Context, path string) 
 	defer r.mu.RUnlock()
 	for _, item := range r.items {
 		if item.File != nil && item.File.Path == path {
-			return item, nil
+			return cloneMediaItem(item), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -132,7 +132,7 @@ func (r *FakeMediaItemRepository) GetByFileFingerprint(_ context.Context, finger
 	}
 	for _, item := range r.items {
 		if item.File != nil && item.File.Fingerprint == fingerprint {
-			return item, nil
+			return cloneMediaItem(item), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -219,8 +219,33 @@ func (r *FakeMediaItemRepository) GetByLibraryTypeTitle(_ context.Context, libra
 	for _, item := range r.items {
 		if item.LibraryID == libraryID && string(item.Type) == itemType && item.Title == title &&
 			(parentID == "" || item.ParentID == parentID) {
-			return item, nil
+			return cloneMediaItem(item), nil
 		}
 	}
 	return nil, ErrNotFound
+}
+
+// cloneMediaItem detaches the stored record from the caller's pointer. A fake
+// that hands back the same pointer it stores makes persistence untestable: a
+// service that loads an item, mutates it and never calls Update is
+// indistinguishable from one that persists. A real repository serialises, so
+// the fake must too.
+//
+// Shallow at the top level plus the mutable sub-structs services actually
+// reach into (File, Catalog) - deep enough to break the aliasing that hid the
+// bug, without pretending to be a full deep copy.
+func cloneMediaItem(item *library.MediaItem) *library.MediaItem {
+	if item == nil {
+		return nil
+	}
+	cp := *item
+	if item.File != nil {
+		f := *item.File
+		cp.File = &f
+	}
+	if item.Catalog != nil {
+		c := *item.Catalog
+		cp.Catalog = &c
+	}
+	return &cp
 }

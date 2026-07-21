@@ -30,7 +30,7 @@ func NewFakeMediaItemQueryRepo() *FakeMediaItemQueryRepo {
 func (r *FakeMediaItemQueryRepo) Add(item *library.MediaItem) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.items[string(item.ID)] = item
+	r.items[string(item.ID)] = cloneMediaItem(item)
 }
 
 func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
@@ -46,7 +46,7 @@ func (r *FakeMediaItemQueryRepo) GetByID(_ context.Context, id shared.MediaItemI
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return item, nil
+	return cloneMediaItem(item), nil
 }
 
 func (r *FakeMediaItemQueryRepo) GetByFilePath(_ context.Context, path string) (*library.MediaItem, error) {
@@ -57,7 +57,7 @@ func (r *FakeMediaItemQueryRepo) GetByFilePath(_ context.Context, path string) (
 	defer r.mu.RUnlock()
 	for _, item := range r.items {
 		if item.File != nil && item.File.Path == path {
-			return item, nil
+			return cloneMediaItem(item), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -458,7 +458,7 @@ func (r *FakeMediaItemQueryRepo) NextEpisodeOf(_ context.Context, _ shared.Media
 func (r *FakeMediaItemQueryRepo) Seed(item *library.MediaItem) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.items[string(item.ID)] = item
+	r.items[string(item.ID)] = cloneMediaItem(item)
 }
 
 // SeedCast sets cast for a media item.

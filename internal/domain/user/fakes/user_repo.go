@@ -31,7 +31,7 @@ func (r *FakeUserRepository) Create(_ context.Context, u *user.User) error {
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[string(u.ID)] = u
+	r.items[string(u.ID)] = cloneUser(u)
 	return nil
 }
 
@@ -110,7 +110,7 @@ func (r *FakeUserRepository) GetByID(_ context.Context, id shared.UserID) (*user
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return u, nil
+	return cloneUser(u), nil
 }
 
 func (r *FakeUserRepository) GetByUsername(_ context.Context, username string) (*user.User, error) {
@@ -124,7 +124,7 @@ func (r *FakeUserRepository) GetByUsername(_ context.Context, username string) (
 	}
 	for _, u := range r.items {
 		if u.Username == username {
-			return u, nil
+			return cloneUser(u), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -158,7 +158,7 @@ func (r *FakeUserRepository) Update(_ context.Context, u *user.User) error {
 	if _, ok := r.items[string(u.ID)]; !ok {
 		return ErrNotFound
 	}
-	r.items[string(u.ID)] = u
+	r.items[string(u.ID)] = cloneUser(u)
 	return nil
 }
 
@@ -199,7 +199,7 @@ func (r *FakeUserRepository) GetByEmail(_ context.Context, email string) (*user.
 	defer r.mu.RUnlock()
 	for _, u := range r.items {
 		if u.Email == email {
-			return u, nil
+			return cloneUser(u), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -213,7 +213,7 @@ func (r *FakeUserRepository) GetByOIDCSubject(_ context.Context, issuer, subject
 	defer r.mu.RUnlock()
 	for _, u := range r.items {
 		if u.OIDCIssuer != nil && *u.OIDCIssuer == issuer && u.OIDCSubject != nil && *u.OIDCSubject == subject {
-			return u, nil
+			return cloneUser(u), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -253,4 +253,24 @@ func (r *FakeUserRepository) CountEnabledAdmins(_ context.Context) (int, error) 
 		}
 	}
 	return count, nil
+}
+
+// cloneUser detaches the stored record from the caller's pointer.
+//
+// A fake that hands back the SAME pointer it stores makes persistence
+// untestable: a service that loads a user, mutates it in memory and never calls
+// Update is indistinguishable from one that persists correctly, because the
+// test reads back the very object the service mutated. Mutation testing proved
+// this concretely - deleting the Update call from ChangePassword, DisableUser,
+// EnableUser and SetUserBitrateLimit left the entire suite green.
+//
+// A real repository serialises, so the fake must too. Shallow copy: User holds
+// no mutable reference fields today, and a shallow copy already breaks the
+// aliasing that hid the bug.
+func cloneUser(u *user.User) *user.User {
+	if u == nil {
+		return nil
+	}
+	cp := *u
+	return &cp
 }

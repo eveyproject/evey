@@ -27,7 +27,7 @@ func (r *FakeProfileRepository) Create(_ context.Context, p *user.Profile) error
 	if r.Err != nil {
 		return r.Err
 	}
-	r.items[string(p.ID)] = p
+	r.items[string(p.ID)] = cloneProfile(p)
 	return nil
 }
 
@@ -53,7 +53,7 @@ func (r *FakeProfileRepository) CreateWithinCap(_ context.Context, p *user.Profi
 			return user.ErrProfileCapReached
 		}
 	}
-	r.items[string(p.ID)] = p
+	r.items[string(p.ID)] = cloneProfile(p)
 	return nil
 }
 
@@ -70,7 +70,7 @@ func (r *FakeProfileRepository) GetByID(_ context.Context, id shared.ProfileID) 
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return p, nil
+	return cloneProfile(p), nil
 }
 
 func (r *FakeProfileRepository) GetByUserID(_ context.Context, userID shared.UserID) ([]*user.Profile, error) {
@@ -85,7 +85,7 @@ func (r *FakeProfileRepository) GetByUserID(_ context.Context, userID shared.Use
 	var result []*user.Profile
 	for _, p := range r.items {
 		if p.UserID == userID {
-			result = append(result, p)
+			result = append(result, cloneProfile(p))
 		}
 	}
 	return result, nil
@@ -103,7 +103,7 @@ func (r *FakeProfileRepository) Update(_ context.Context, p *user.Profile) error
 	if _, ok := r.items[string(p.ID)]; !ok {
 		return ErrNotFound
 	}
-	r.items[string(p.ID)] = p
+	r.items[string(p.ID)] = cloneProfile(p)
 	return nil
 }
 
@@ -159,4 +159,19 @@ func (r *FakeProfileRepository) Delete(_ context.Context, id shared.ProfileID) e
 	}
 	delete(r.items, string(id))
 	return nil
+}
+
+// cloneProfile detaches the stored record from the caller's pointer, so a
+// service that mutates a profile in memory without persisting it is
+// distinguishable from one that does. See cloneUser for the full rationale.
+func cloneProfile(p *user.Profile) *user.Profile {
+	if p == nil {
+		return nil
+	}
+	cp := *p
+	if p.Parental != nil {
+		par := *p.Parental
+		cp.Parental = &par
+	}
+	return &cp
 }

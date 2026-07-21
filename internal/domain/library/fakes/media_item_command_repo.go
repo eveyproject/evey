@@ -11,10 +11,12 @@ import (
 type FakeMediaItemCommandRepo struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
-	// UpdatedIDs records every Update call, in order. Needed because Create
-	// stores the CALLER'S pointer: a service that mutates the item in memory
-	// is visible through items[] whether or not it ever persisted, so
-	// asserting on the stored struct cannot prove a write happened.
+	// UpdatedIDs records every Update call, in order. Originally a workaround
+	// for Create storing the CALLER'S pointer, which made an in-memory mutation
+	// indistinguishable from a persisted one. That aliasing is gone (the fake
+	// clones on store AND on read), so asserting on the stored struct is now
+	// meaningful - but asserting on the CALL stays useful when a test cares that
+	// a write happened at all rather than what it wrote.
 	UpdatedIDs []string
 	// Per-method error injection; zero value = no error (backward compatible)
 	ErrCreate                error
@@ -35,8 +37,7 @@ func (r *FakeMediaItemCommandRepo) Create(_ context.Context, item *library.Media
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	stored := *item
-	r.items[string(item.ID)] = &stored
+	r.items[string(item.ID)] = cloneMediaItem(item)
 	return nil
 }
 
@@ -49,8 +50,7 @@ func (r *FakeMediaItemCommandRepo) Update(_ context.Context, item *library.Media
 	if _, ok := r.items[string(item.ID)]; !ok {
 		return ErrNotFound
 	}
-	stored := *item
-	r.items[string(item.ID)] = &stored
+	r.items[string(item.ID)] = cloneMediaItem(item)
 	r.UpdatedIDs = append(r.UpdatedIDs, string(item.ID))
 	return nil
 }
@@ -85,7 +85,7 @@ func (r *FakeMediaItemCommandRepo) GetByFilePath(_ context.Context, path string)
 	defer r.mu.RUnlock()
 	for _, item := range r.items {
 		if item.File != nil && item.File.Path == path {
-			return item, nil
+			return cloneMediaItem(item), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -99,7 +99,7 @@ func (r *FakeMediaItemCommandRepo) GetByFileFingerprint(_ context.Context, finge
 	}
 	for _, item := range r.items {
 		if item.File != nil && item.File.Fingerprint == fingerprint {
-			return item, nil
+			return cloneMediaItem(item), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -114,7 +114,7 @@ func (r *FakeMediaItemCommandRepo) GetByLibraryTypeTitle(_ context.Context, libr
 	for _, item := range r.items {
 		if item.LibraryID == libraryID && string(item.Type) == itemType && item.Title == title &&
 			(parentID == "" || item.ParentID == parentID) {
-			return item, nil
+			return cloneMediaItem(item), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -128,7 +128,7 @@ func (r *FakeMediaItemCommandRepo) GetByID(_ context.Context, id shared.MediaIte
 	if !ok {
 		return nil, ErrNotFound
 	}
-	return item, nil
+	return cloneMediaItem(item), nil
 }
 
 func (r *FakeMediaItemCommandRepo) ListFilePaths(_ context.Context, libraryID shared.LibraryID) (map[string]string, error) {
