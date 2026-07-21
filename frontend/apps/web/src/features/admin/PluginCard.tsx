@@ -348,12 +348,19 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
 
   return (
     <Card className="flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-col gap-0.5 min-w-0">
+      {/* Wraps on a narrow card: the badge column is shrink-0 and carries up to
+          three badges, which left the name/version column ~51px on a phone and
+          clipped the source-hash chip out of the card. The text column now
+          claims the space it needs and the badges drop to their own line. */}
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex flex-col gap-0.5 min-w-0 flex-1 basis-[14rem]">
           <span className="font-semibold truncate text-[var(--text)]">
             {plugin.name}
           </span>
-          <span className="text-xs text-[var(--text-muted)] flex items-center gap-1.5">
+          {/* Wraps: the version, the language and the source-hash chip sat on one
+              unbreakable line, so on a narrow screen the hash was clipped out of
+              the card entirely instead of moving under it. */}
+          <span className="text-xs text-[var(--text-muted)] flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
             v{plugin.version} - {plugin.language}
             {plugin.sourceHash && (
               <button
