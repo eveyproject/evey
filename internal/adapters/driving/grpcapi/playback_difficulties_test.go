@@ -28,8 +28,8 @@ func seedDifficultyItem(t *testing.T, mediaQuery interface {
 		File:  &library.MediaFile{ContainerFormat: "mp4"},
 	})
 	err := streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{MediaItemID: shared.MediaItemID(id), StreamType: "video", Codec: videoCodec, Width: intPtr(height * 16 / 9), Height: intPtr(height), IsDefault: true},
-		{MediaItemID: shared.MediaItemID(id), StreamType: "audio", Codec: audioCodec, Channels: intPtr(6), IsDefault: true},
+		{MediaItemID: shared.MediaItemID(id), StreamType: "video", Codec: videoCodec, Width: new(height * 16 / 9), Height: new(height), IsDefault: true},
+		{MediaItemID: shared.MediaItemID(id), StreamType: "audio", Codec: audioCodec, Channels: new(6), IsDefault: true},
 	})
 	require.NoError(t, err)
 }
@@ -82,7 +82,7 @@ func TestGetPlaybackDifficulties_ParentalBlockedItemIsAbsent(t *testing.T) {
 		Name:   "Kid",
 		IsKids: true,
 		Parental: &user.ParentalSettings{
-			MaxAge:  intPtr(10),
+			MaxAge:  new(10),
 			Enabled: true,
 		},
 	})
@@ -174,13 +174,13 @@ func TestSelectedAudioCodecOf_PrefersTheTrackThatWouldActuallyPlay(t *testing.T)
 	}
 	assert.Equal(t, "ac3", selectedAudioCodecOf(streams))
 
-	assert.Equal(t, "", selectedAudioCodecOf([]*library.MediaStream{{StreamType: "video", Codec: "h264"}}))
+	assert.Empty(t, selectedAudioCodecOf([]*library.MediaStream{{StreamType: "video", Codec: "h264"}}))
 }
 
 func TestVideoHeightOf(t *testing.T) {
 	assert.Equal(t, 1080, videoHeightOf([]*library.MediaStream{
 		{StreamType: "audio", Codec: "aac"},
-		{StreamType: "video", Codec: "h264", Height: intPtr(1080)},
+		{StreamType: "video", Codec: "h264", Height: new(1080)},
 	}))
 	assert.Equal(t, 0, videoHeightOf([]*library.MediaStream{{StreamType: "audio", Codec: "aac"}}))
 }
