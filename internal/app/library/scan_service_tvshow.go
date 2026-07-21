@@ -28,6 +28,15 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 	if err != nil {
 		return 0, 0, fmt.Errorf("preload containers: %w", err)
 	}
+	// Path index over the library we just loaded, so the per-episode upsert
+	// below resolves in memory instead of issuing one SELECT per episode on
+	// every scan pass.
+	byPath := make(map[string]*library.MediaItem, len(existing))
+	for _, m := range existing {
+		if m != nil && m.File != nil && m.File.Path != "" {
+			byPath[m.File.Path] = m
+		}
+	}
 	byFingerprint := make(map[string]*library.MediaItem, len(existing))
 	// Dedup by scan_title (stable FS-derived) instead of Title. Title gets
 	// overwritten by metadata enrichment after creation, so a subsequent
@@ -189,7 +198,7 @@ func (s *ScanService) scanTVShowFiles(ctx context.Context, libraryID string, fil
 			}
 			episodeFile.Title = fmt.Sprintf("S%02dE%02d", se, *f.Episode)
 		}
-		a, u, episodeErr := s.upsertMediaFile(ctx, libraryID, seasonID, episodeFile, showTitle)
+		a, u, episodeErr := s.upsertMediaFileWithIndex(ctx, libraryID, seasonID, episodeFile, byPath, showTitle)
 		if episodeErr != nil {
 			// Skip this episode and keep scanning the rest - a single transient
 			// failure must not abort the whole library scan (the movie path

@@ -3,6 +3,7 @@ package library_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -1800,4 +1801,41 @@ func TestDeleteMediaItem_SearchFailureDoesNotFailTheDelete(t *testing.T) {
 	require.NoError(t, svc.DeleteMediaItem(ctx, "item-2"))
 	_, err := mediaRepo.GetByID(ctx, "item-2")
 	require.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+// A rescan where nothing changed must not re-query the DB once per episode.
+// The TV path preloads the whole library to resolve show/season containers, and
+// then used to look each episode up again by path - one SELECT per episode, per
+// pass, every couple of minutes. On a large series library that is thousands of
+// pointless queries against a Postgres colocated on the same weak NAS.
+func TestScanTVShow_RescanResolvesFromPreloadedIndex(t *testing.T) {
+	t.Parallel()
+	h := newHarness()
+	lib := &library.Library{ID: "lib-tv", Name: "TV", Type: "tvshow", Paths: []string{"/tv"}}
+	h.libQuery.Seed(lib)
+	h.libCmd.Seed(lib)
+
+	const episodes = 12
+	files := make([]library.ScannedFile, 0, episodes)
+	for i := 1; i <= episodes; i++ {
+		s1, ep := 1, i
+		files = append(files, library.ScannedFile{
+			Path: fmt.Sprintf("/tv/show/s01e%02d.mkv", i), Size: int64(100 + i),
+			Title: "My Show", Season: &s1, Episode: &ep, Type: library.Episode,
+		})
+	}
+	h.scanner.Results["/tv"] = files
+
+	// First pass creates everything - lookups here are expected.
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	// Second pass: nothing changed on disk. Every episode is already in the
+	// preloaded snapshot, so no per-file lookup should be needed.
+	h.mediaItems.GetByFilePathCalls.Store(0)
+	_, _, err = h.svc.ScanLibrary(context.Background(), "lib-tv")
+	require.NoError(t, err)
+
+	assert.Zero(t, h.mediaItems.GetByFilePathCalls.Load(),
+		"an unchanged rescan must resolve every episode from the preloaded index, not from the DB")
 }

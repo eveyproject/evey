@@ -521,11 +521,18 @@ func (s *ScanService) finalizeScan(ctx context.Context, lib *library.Library, li
 }
 
 func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID string, f library.ScannedFile, seriesTitle ...string) (added, updated int, err error) {
+	return s.upsertMediaFileWithIndex(ctx, libraryID, parentID, f, nil, seriesTitle...)
+}
+
+// upsertMediaFileWithIndex is upsertMediaFile with the caller's preloaded
+// path index, letting a scan that has already read the whole library skip a
+// per-file SELECT. Passing nil is exactly the old behaviour.
+func (s *ScanService) upsertMediaFileWithIndex(ctx context.Context, libraryID, parentID string, f library.ScannedFile, byPath map[string]*library.MediaItem, seriesTitle ...string) (added, updated int, err error) {
 	showTitle := ""
 	if len(seriesTitle) > 0 {
 		showTitle = seriesTitle[0]
 	}
-	existing, err := s.findExistingMediaFile(ctx, libraryID, f)
+	existing, err := s.findExistingMediaFile(ctx, libraryID, f, byPath)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -556,7 +563,21 @@ func (s *ScanService) upsertMediaFile(ctx context.Context, libraryID, parentID s
 // NOTE: a same-library size+mtime collision (e.g. `cp -p` of a distinct file)
 // can still mis-resolve via the fingerprint fallback; a content-derived
 // fingerprint is the full fix (deferred - changing the format forces a rescan).
-func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID string, f library.ScannedFile) (*library.MediaItem, error) {
+func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID string, f library.ScannedFile, byPath map[string]*library.MediaItem) (*library.MediaItem, error) {
+	// byPath is the caller's already-loaded snapshot of this library. The TV
+	// path preloads the whole library anyway (to resolve show/season
+	// containers), so hitting the DB again per episode was one SELECT per
+	// episode per scan pass - ~5000 queries every couple of minutes on a large
+	// series library, all of them re-fetching rows already in memory.
+	//
+	// A hit here is authoritative. A MISS is not: the file may exist under a
+	// different path (a move/rename), which is exactly what the fingerprint
+	// fallback below resolves - so a miss still falls through to the DB.
+	if byPath != nil {
+		if hit, ok := byPath[f.Path]; ok {
+			return hit, nil
+		}
+	}
 	existing, getErr := s.mediaItems.GetByFilePath(ctx, f.Path)
 	if getErr == nil {
 		return existing, nil
@@ -917,6 +938,16 @@ func scanWorkerCount() int {
 // whole evening of viewing would delay discovery until everyone stopped
 // watching. 15 minutes keeps the fallback alive at a fraction of the I/O.
 const playbackScanBackoff = 15 * time.Minute
+
+// watchedScanInterval is how often a library whose watch is PROVEN alive still
+// gets a full walk. inotify handles the real-time path; this is only a backstop
+// for what inotify cannot see even when healthy - most importantly a network
+// share written by another host, where the local watch is alive and blind.
+//
+// An hour rather than the old two minutes: that is ~97% of the passes removed,
+// while keeping a bounded worst case for the blind spots. Libraries whose watch
+// is NOT proven alive keep the operator's configured interval.
+const watchedScanInterval = time.Hour
 
 // shouldScanNow decides whether this tick pays for a full library walk.
 // Exported behaviour is the same as before when no playback gate is wired.

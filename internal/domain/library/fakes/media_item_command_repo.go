@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -18,6 +19,9 @@ type FakeMediaItemCommandRepo struct {
 	// meaningful - but asserting on the CALL stays useful when a test cares that
 	// a write happened at all rather than what it wrote.
 	UpdatedIDs []string
+	// GetByFilePathCalls counts per-file lookups, so a test can assert a scan
+	// pass resolves from its preloaded snapshot instead of one query per file.
+	GetByFilePathCalls atomic.Int64
 	// Per-method error injection; zero value = no error (backward compatible)
 	ErrCreate                error
 	ErrUpdate                error
@@ -81,6 +85,7 @@ func (r *FakeMediaItemCommandRepo) DeleteByIDs(_ context.Context, ids []string) 
 }
 
 func (r *FakeMediaItemCommandRepo) GetByFilePath(_ context.Context, path string) (*library.MediaItem, error) {
+	r.GetByFilePathCalls.Add(1)
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	for _, item := range r.items {

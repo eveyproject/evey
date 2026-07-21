@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -12,10 +13,13 @@ type FakeMediaItemRepository struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
 	// Per-method error injection; zero value = no error (backward compatible)
-	ErrCreate                error
-	ErrGetByID               error
-	ErrList                  error
-	ErrUpdate                error
+	ErrCreate  error
+	ErrGetByID error
+	ErrList    error
+	ErrUpdate  error
+	// GetByFilePathCalls counts lookups so a test can assert that a scan pass
+	// resolves from its preloaded index instead of one query per file.
+	GetByFilePathCalls       atomic.Int64
 	ErrDelete                error
 	GetByFileFingerprintErr  error
 	GetByLibraryTypeTitleErr error
