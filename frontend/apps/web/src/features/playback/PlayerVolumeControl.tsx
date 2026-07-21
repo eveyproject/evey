@@ -1,5 +1,6 @@
 import { VolumeX, Volume1, Volume2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ICON } from "@/constants/iconSizes";
 
 export interface PlayerVolumeControlProps {
   /** Continuous 0-2 level: 0-1 is native volume, 1-2 is amplification. */
@@ -38,11 +39,11 @@ export function PlayerVolumeControl({ volume, muted, onToggleMute, onVolumeChang
         className="text-white hover:text-[var(--accent)] transition-colors-fast p-1"
       >
         {muted || volume === 0 ? (
-          <VolumeX size={18} aria-hidden="true" />
+          <VolumeX size={ICON.lg} aria-hidden="true" />
         ) : level < 0.5 ? (
-          <Volume1 size={18} aria-hidden="true" />
+          <Volume1 size={ICON.lg} aria-hidden="true" />
         ) : (
-          <Volume2 size={18} aria-hidden="true" />
+          <Volume2 size={ICON.lg} aria-hidden="true" />
         )}
       </button>
       <input
@@ -65,7 +66,7 @@ export function PlayerVolumeControl({ volume, muted, onToggleMute, onVolumeChang
       {/* % readout - amber once past 100% to flag the amplification. */}
       <span
         className={[
-          "hidden sm:block tabular-nums text-[11px] w-9 text-right select-none",
+          "hidden sm:block tabular-nums text-xs w-9 text-right select-none",
           boosted ? "text-[var(--warning)] font-medium" : "text-[var(--text-muted)]",
         ].join(" ")}
         aria-hidden="true"

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Tv, Smartphone, MonitorSpeaker, Loader } from "lucide-react";
 import { toast } from "@evey/store";
 import { usePlayOnDevices, usePlayOnCommand, type PlayOnDevice } from "@/hooks/usePlayOnDevices";
+import { ICON } from "@/constants/iconSizes";
 
 interface PlayOnPickerProps {
   mediaId: string;
@@ -78,7 +79,7 @@ export function PlayOnPicker({ mediaId, getPositionMs }: PlayOnPickerProps) {
         aria-expanded={open}
         className="transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded text-[var(--overlay-text)] hover:text-[var(--accent)]"
       >
-        <Tv size={20} aria-hidden="true" />
+        <Tv size={ICON.xl} aria-hidden="true" />
       </button>
       {open && (
         <div
@@ -90,7 +91,7 @@ export function PlayOnPicker({ mediaId, getPositionMs }: PlayOnPickerProps) {
           </div>
           {isLoading ? (
             <div className="flex items-center justify-center py-4">
-              <Loader size={16} className="animate-spin text-[var(--overlay-text)]" />
+              <Loader size={ICON.md} className="animate-spin text-[var(--overlay-text)]" />
             </div>
           ) : hasDevices ? (
             <ul className="py-1">
@@ -103,7 +104,7 @@ export function PlayOnPicker({ mediaId, getPositionMs }: PlayOnPickerProps) {
                       disabled={sendCommand.isPending}
                       className="w-full flex items-center gap-3 px-3 py-2 text-left text-sm text-[var(--overlay-text)] hover:bg-[var(--surface-raised)] disabled:opacity-50"
                     >
-                      <Icon size={18} aria-hidden="true" />
+                      <Icon size={ICON.lg} aria-hidden="true" />
                       <span className="truncate">{d.name}</span>
                     </button>
                   </li>

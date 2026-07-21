@@ -23,6 +23,7 @@ import { QuickConnectSettings } from "@/features/user/QuickConnectSettings";
 import { ProfileManagerList } from "@/features/profile/ProfileManagerList";
 import { CreateProfileDialog } from "@/features/profile/CreateProfileDialog";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
+import { ICON } from "@/constants/iconSizes";
 
 export const Route = createLazyFileRoute("/_auth/profile/settings")({
   component: SettingsPage,
@@ -31,12 +32,12 @@ export const Route = createLazyFileRoute("/_auth/profile/settings")({
 type Tab = "appearance" | "profiles" | "notifications" | "parental" | "devices" | "quick-connect";
 
 const TABS: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
-  { key: "appearance", labelKey: "auth.settings.tabs.appearance", icon: <Palette size={16} strokeWidth={1.5} /> },
-  { key: "profiles", labelKey: "auth.settings.tabs.profiles", icon: <Users size={16} strokeWidth={1.5} /> },
-  { key: "notifications", labelKey: "auth.settings.tabs.notifications", icon: <Bell size={16} strokeWidth={1.5} /> },
-  { key: "parental", labelKey: "auth.settings.tabs.parental", icon: <Shield size={16} strokeWidth={1.5} /> },
-  { key: "devices", labelKey: "auth.settings.tabs.devices", icon: <Smartphone size={16} strokeWidth={1.5} /> },
-  { key: "quick-connect", labelKey: "auth.settings.tabs.quickConnect", icon: <QrCode size={16} strokeWidth={1.5} /> },
+  { key: "appearance", labelKey: "auth.settings.tabs.appearance", icon: <Palette size={ICON.md} strokeWidth={1.5} /> },
+  { key: "profiles", labelKey: "auth.settings.tabs.profiles", icon: <Users size={ICON.md} strokeWidth={1.5} /> },
+  { key: "notifications", labelKey: "auth.settings.tabs.notifications", icon: <Bell size={ICON.md} strokeWidth={1.5} /> },
+  { key: "parental", labelKey: "auth.settings.tabs.parental", icon: <Shield size={ICON.md} strokeWidth={1.5} /> },
+  { key: "devices", labelKey: "auth.settings.tabs.devices", icon: <Smartphone size={ICON.md} strokeWidth={1.5} /> },
+  { key: "quick-connect", labelKey: "auth.settings.tabs.quickConnect", icon: <QrCode size={ICON.md} strokeWidth={1.5} /> },
 ];
 
 function ProfileCard() {
@@ -140,7 +141,7 @@ function ProfileCard() {
               initial
             )}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Pencil size={16} className="text-white"  aria-hidden="true" />
+              <Pencil size={ICON.md} className="text-white"  aria-hidden="true" />
             </div>
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
@@ -159,7 +160,7 @@ function ProfileCard() {
             className="p-2 rounded-[var(--radius-sm)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--surface-raised)] transition-colors-fast"
             aria-label={editing ? t("common.cancel") : t("auth.profile.editProfile")}
           >
-            {editing ? <X size={18}  aria-hidden="true" /> : <Pencil size={18}  aria-hidden="true" />}
+            {editing ? <X size={ICON.lg}  aria-hidden="true" /> : <Pencil size={ICON.lg}  aria-hidden="true" />}
           </button>
         </div>
 
@@ -211,9 +212,9 @@ function SettingsPage() {
       {requestPolicy?.canRequest && (
         <Link to="/requests" className="block">
           <Card className="flex items-center gap-3 hover:bg-[var(--surface-raised)] transition-colors-fast">
-            <Inbox size={18} className="text-[var(--text-muted)]" />
+            <Inbox size={ICON.lg} className="text-[var(--text-muted)]" />
             <span className="flex-1 text-sm font-medium text-[var(--text)]">{t("common.nav.requests")}</span>
-            <ChevronRight size={16} className="text-[var(--text-muted)]" />
+            <ChevronRight size={ICON.md} className="text-[var(--text-muted)]" />
           </Card>
         </Link>
       )}
@@ -298,7 +299,7 @@ function ProfilesSection() {
           onClick={() => setCreating(true)}
           data-testid="profile-settings-create-profile-btn"
         >
-          <Plus size={16} aria-hidden="true" />
+          <Plus size={ICON.md} aria-hidden="true" />
           {t("auth.profile.manage.createProfile", "Create Profile")}
         </Button>
       </div>

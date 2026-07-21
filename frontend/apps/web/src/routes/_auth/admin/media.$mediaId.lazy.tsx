@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { ICON } from "@/constants/iconSizes";
 import { SegmentTimeline } from "@/features/admin/SegmentTimeline";
 import {
   useAdminMediaSegments,
@@ -236,7 +237,7 @@ function AdminMediaSegmentsPage() {
             to="/admin"
             className="flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)] transition-colors"
           >
-            <ChevronLeft size={14} />
+            <ChevronLeft size={ICON.sm} />
             {t("common.nav.admin")}
           </Link>
         }
@@ -340,7 +341,7 @@ function AdminMediaSegmentsPage() {
                     onClick={() => addSegment(type)}
                     className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-[var(--border)] bg-[var(--surface-raised)] text-[var(--text)] hover:bg-[var(--border)] transition-colors"
                   >
-                    <Plus size={10} />
+                    <Plus size={ICON.xs} />
                     {type.replace(/_/g, " ")}
                   </button>
                 ))}
@@ -359,7 +360,7 @@ function AdminMediaSegmentsPage() {
                 loading={setSegment.isPending}
                 disabled={!isDirtyAny}
               >
-                <Save size={14} />
+                <Save size={ICON.sm} />
                 {t("admin.segments.save")}
               </Button>
 
@@ -368,7 +369,7 @@ function AdminMediaSegmentsPage() {
                 onClick={handleRedetect}
                 loading={triggerDetect.isPending}
               >
-                <RefreshCw size={14} />
+                <RefreshCw size={ICON.sm} />
                 {t("admin.segments.redetect")}
               </Button>
 
@@ -378,7 +379,7 @@ function AdminMediaSegmentsPage() {
                   onClick={() => handleDelete(selectedType)}
                   loading={deleteSegment.isPending}
                 >
-                  <Trash2 size={14} />
+                  <Trash2 size={ICON.sm} />
                   {t("admin.segments.delete")}
                 </Button>
               )}
@@ -394,7 +395,7 @@ function AdminMediaSegmentsPage() {
             </div>
 
             <p className="mt-3 flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-              <Lock size={11} />
+              <Lock size={ICON.xs} />
               {t("admin.segments.lockedHint")}
             </p>
           </Card>

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
 import { FilterChip } from "@/components/ui/FilterChip";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
+import { ICON } from "@/constants/iconSizes";
 
 // Resolution bands derived from stream height
 function getResolutionLabel(height: number): string {
@@ -159,7 +160,7 @@ function CheckboxGroup({
                 }}
               >
                 {checked && (
-                  <Check size={10} className="text-[var(--filter-active-text)]" strokeWidth={3} />
+                  <Check size={ICON.xs} className="text-[var(--filter-active-text)]" strokeWidth={3} />
                 )}
               </span>
               <span className="text-sm group-hover:text-[var(--text)] transition-colors-fast text-[var(--text-muted)]">
@@ -249,7 +250,7 @@ function RatingFilter({
               className="p-0.5 transition-colors-fast"
               style={{ color: active ? "var(--accent)" : "var(--border)" }}
             >
-              <Star size={20} fill="currentColor"  aria-hidden="true" />
+              <Star size={ICON.lg} fill="currentColor"  aria-hidden="true" />
             </button>
           );
         })}
@@ -409,7 +410,7 @@ export function LibraryFilterToggle({
         aria-label={t("media.library.filters")}
         data-testid="filter-toggle"
       >
-        <Filter size={16}  aria-hidden="true" />
+        <Filter size={ICON.md}  aria-hidden="true" />
         {t("media.library.filters")}
         {count > 0 && (
           <span

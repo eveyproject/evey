@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Card } from "./Card";
 import { InfoTooltip } from "./InfoTooltip";
+import { ICON } from "@/constants/iconSizes";
 
 interface CollapsibleCardProps {
   title: string;
@@ -56,7 +57,7 @@ export function CollapsibleCard({
       >
         {!alwaysOpen && (
           <span aria-hidden="true" className="text-[var(--text-muted)] shrink-0">
-            {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+            {isOpen ? <ChevronDown size={ICON.lg} /> : <ChevronRight size={ICON.lg} />}
           </span>
         )}
         {icon && (

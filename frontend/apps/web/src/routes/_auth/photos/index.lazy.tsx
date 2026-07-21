@@ -12,6 +12,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Images, ChevronLeft, ChevronRight, X, RotateCcw, RotateCw } from "lucide-react";
 import { Blurhash } from "react-blurhash";
+import { ICON } from "@/constants/iconSizes";
 
 export const Route = createLazyFileRoute("/_auth/photos/")({
   component: PhotosPage,
@@ -160,7 +161,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
           aria-label={t("common.rotateLeft")}
           title={`${t("common.rotateLeft")} (Shift+R)`}
         >
-          <RotateCcw size={22} />
+          <RotateCcw size={ICON.xl} />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); setRotation((r) => (r + 90) % 360); }}
@@ -168,14 +169,14 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
           aria-label={t("common.rotateRight")}
           title={`${t("common.rotateRight")} (R)`}
         >
-          <RotateCw size={22} />
+          <RotateCw size={ICON.xl} />
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onClose(); }}
           className="transition-colors-fast text-[var(--overlay-text)]"
           aria-label={t("common.aria.close")}
         >
-          <X size={28}  aria-hidden="true" />
+          <X size={ICON["2xl"]}  aria-hidden="true" />
         </button>
       </div>
 
@@ -185,7 +186,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
           className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-3 sm:p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
           aria-label={t("common.previous")}
         >
-          <ChevronLeft size={28}  aria-hidden="true" />
+          <ChevronLeft size={ICON["2xl"]}  aria-hidden="true" />
         </button>
       )}
 
@@ -195,7 +196,7 @@ function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
           className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 transition-colors-fast z-raised p-3 sm:p-2 rounded-full bg-black/40 hover:bg-black/60 text-[var(--overlay-text)]"
           aria-label={t("common.next")}
         >
-          <ChevronRight size={28}  aria-hidden="true" />
+          <ChevronRight size={ICON["2xl"]}  aria-hidden="true" />
         </button>
       )}
 

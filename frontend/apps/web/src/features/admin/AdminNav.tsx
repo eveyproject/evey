@@ -26,6 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
+import { ICON } from "@/constants/iconSizes";
 
 interface NavLink {
   href: string;
@@ -135,7 +136,7 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                   {sectionTitle}
                 </span>
                 <ChevronDown
-                  size={12}
+                  size={ICON.xs}
                   className="transition-transform-fast"
                   style={{
                     transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
@@ -161,8 +162,8 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                       }}
                       title={collapsed ? label : undefined}
                     >
-                      <Icon size={15} />
-                      {!collapsed && <span className="whitespace-nowrap">{label}</span>}
+                      <Icon size={ICON.md} className="shrink-0" />
+                      {!collapsed && <span className="min-w-0 flex-1">{label}</span>}
                     </Link>
                   );
                 })}
@@ -192,8 +193,8 @@ export function AdminNav({ collapsed = false, onNavigate }: AdminNavProps) {
                 }}
                 title={collapsed ? entry.name : undefined}
               >
-                <Puzzle size={15} />
-                {!collapsed && <span className="whitespace-nowrap">{entry.name}</span>}
+                <Puzzle size={ICON.md} className="shrink-0" />
+                {!collapsed && <span className="min-w-0 flex-1">{entry.name}</span>}
               </Link>
             );
           })}

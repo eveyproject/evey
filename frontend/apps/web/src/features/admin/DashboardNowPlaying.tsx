@@ -1,6 +1,7 @@
 import { Avatar } from "@/components/ui/Avatar";
 import { useState } from "react";
 import { Cast, Film, Music, Play, Pause, Square, MessageSquare, Send } from "lucide-react";
+import { ICON } from "@/constants/iconSizes";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -145,7 +146,7 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             title={session.isPaused ? t("common.play") : t("common.pause")}
             aria-label={session.isPaused ? t("common.play") : t("common.pause")}
           >
-            {session.isPaused ? <Play size={18} fill="currentColor"  aria-hidden="true" /> : <Pause size={18}  aria-hidden="true" />}
+            {session.isPaused ? <Play size={ICON.lg} fill="currentColor"  aria-hidden="true" /> : <Pause size={ICON.lg}  aria-hidden="true" />}
           </button>
           <button
             className="p-2 rounded-full hover:bg-[var(--danger-hover,#b91c1c)] transition-colors text-[var(--danger-bg,#dc2626)]"
@@ -262,7 +263,7 @@ export function NowPlaying() {
     <div>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Play size={18} strokeWidth={2} className="text-[var(--accent)]" />
+          <Play size={ICON.lg} strokeWidth={2} className="text-[var(--accent)]" />
           <h3 className="text-sm font-semibold text-[var(--text)]">
             {t("admin.dashboardStats.nowPlaying")}
           </h3>

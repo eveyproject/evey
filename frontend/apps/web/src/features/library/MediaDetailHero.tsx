@@ -148,7 +148,7 @@ export function MediaDetailHero({
         <div className="flex items-center gap-x-3 gap-y-2 mb-3 flex-wrap [&>*+*]:before:content-[''] [&>*+*]:before:hidden">
           {certInfo && (
             <span
-              className="text-[11px] font-semibold tracking-[0.08em] px-2 py-0.5 border border-white/30 text-white/80 rounded-[var(--radius-sm)]"
+              className="text-xs font-semibold tracking-[0.08em] px-2 py-0.5 border border-white/30 text-white/80 rounded-[var(--radius-sm)]"
               title={`${t(`media.certBody.${certInfo.country}`, { defaultValue: certInfo.country })} ${certInfo.rating}`}
             >
               {t(`media.certBody.${certInfo.country}`, { defaultValue: certInfo.country })} {certInfo.rating}
@@ -206,7 +206,7 @@ export function MediaDetailHero({
           <Link
             to="/media/$mediaId"
             params={{ mediaId: item.parentId! }}
-            className="block mb-2 text-[11px] uppercase tracking-[0.18em] font-semibold text-white/60 hover:text-white transition-colors-fast no-underline"
+            className="block mb-2 text-xs uppercase tracking-[0.18em] font-semibold text-white/60 hover:text-white transition-colors-fast no-underline"
           >
             {parentItem.title}
           </Link>

@@ -13,6 +13,7 @@ import { X, GripVertical, RotateCcw } from "lucide-react";
 import { FEED_LABEL_KEYS, isKnownFeedType, isPluginFeedType, pluginIdFromFeedType, pluginFeedType } from "./feedTypes";
 import { Switch } from "@/components/ui/Switch";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
+import { ICON } from "@/constants/iconSizes";
 
 interface HomePlugin {
   id: string;
@@ -265,7 +266,7 @@ export function CustomizePanel({ open, onClose }: { open: boolean; onClose: () =
             {t("common.feeds.customizeTitle")}
           </h2>
           <button onClick={onClose} className="p-1 rounded hover:opacity-80 text-[var(--text-muted)]" aria-label={t("common.aria.close")}>
-            <X size={18}  aria-hidden="true" />
+            <X size={ICON.lg}  aria-hidden="true" />
           </button>
         </div>
 

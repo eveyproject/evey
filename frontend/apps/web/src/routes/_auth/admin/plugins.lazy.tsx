@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { TriangleAlert, Upload } from "lucide-react";
+import { ICON } from "@/constants/iconSizes";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -71,7 +72,7 @@ function SubprocessWarning() {
       className="flex items-start gap-3 p-4 rounded-[var(--radius-md)] bg-[var(--badge-warning-bg,#713f12)] border border-[var(--badge-warning-text,#fde047)]"
     >
       <TriangleAlert
-        size={20}
+        size={ICON.xl}
         className="shrink-0 mt-0.5 text-[var(--badge-warning-text,#fde047)]"
       />
       <div>
@@ -374,7 +375,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
           }}
         >
           <div className="flex items-start gap-2">
-            <TriangleAlert size={18} className="shrink-0 mt-0.5" style={{ color: "var(--badge-warning-text, #fde047)" }} />
+            <TriangleAlert size={ICON.lg} className="shrink-0 mt-0.5" style={{ color: "var(--badge-warning-text, #fde047)" }} />
             <div className="flex flex-col gap-1">
               <p className="text-sm font-semibold" style={{ color: "var(--badge-warning-text, #fde047)" }}>
                 {t("admin.plugins.permissionEscalation.title")}
@@ -433,7 +434,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
                 border: "1px dashed var(--border)",
               }}
             >
-              <Upload size={16} className="shrink-0" />
+              <Upload size={ICON.md} className="shrink-0" />
               {selectedFileName || t("admin.plugins.chooseFile")}
             </button>
           </div>
@@ -463,7 +464,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
                 border: "1px dashed var(--border)",
               }}
             >
-              <Upload size={16} className="shrink-0" />
+              <Upload size={ICON.md} className="shrink-0" />
               {selectedSigFileName || t("admin.plugins.chooseFile")}
             </button>
           </div>

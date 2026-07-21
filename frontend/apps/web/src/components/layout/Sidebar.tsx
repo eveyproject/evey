@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { AdminNav } from "@/features/admin/AdminNav";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
+import { ICON } from "@/constants/iconSizes";
 
 const COLLAPSED_KEY = "evey-sidebar-collapsed";
 
@@ -103,7 +104,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               className={`flex items-center gap-2.5 px-2 py-1.5 text-sm rounded-[var(--radius-sm)] transition-colors-fast text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)] ${isCollapsed ? "justify-center" : ""}`}
               title={isCollapsed ? t("common.nav.backToApp") : undefined}
             >
-              <ArrowLeft size={15} />
+              <ArrowLeft size={ICON.md} />
               {!isCollapsed && <span>{t("common.nav.backToApp")}</span>}
             </Link>
             <div className="border-b border-[var(--border)] mt-2" />
@@ -133,7 +134,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   }`}
                   title={isCollapsed ? label : undefined}
                 >
-                  <Icon size={18} />
+                  <Icon size={ICON.lg} />
                   {!isCollapsed && <span className="whitespace-nowrap">{label}</span>}
                 </Link>
               </li>
@@ -152,7 +153,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 }`}
                 title={isCollapsed ? t("common.nav.admin") : undefined}
               >
-                <Settings size={18} />
+                <Settings size={ICON.lg} />
                 {!isCollapsed && <span className="whitespace-nowrap">{t("common.nav.admin")}</span>}
               </Link>
             </li>

@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { eveyFetchRaw } from "@evey/api";
 import { toast, useAuthStore, useMusicPlayerStore } from "@evey/store";
 import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX, Shuffle } from "lucide-react";
+import { ICON } from "@/constants/iconSizes";
 
 function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
@@ -317,16 +318,16 @@ export function GlobalAudioPlayer() {
             aria-pressed={shuffle}
             title={t("media.music.shuffle")}
           >
-            <Shuffle size={16} aria-hidden="true" />
+            <Shuffle size={ICON.md} aria-hidden="true" />
           </button>
           <button onClick={prev} disabled={!shuffle && currentIndex <= 0} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer min-h-11 min-w-11 flex items-center justify-center" aria-label={t("common.previous")}>
-            <SkipBack size={18} aria-hidden="true" />
+            <SkipBack size={ICON.lg} aria-hidden="true" />
           </button>
           <button onClick={togglePlay} className="bg-[var(--accent)] border-none cursor-pointer text-[var(--filter-active-text)] rounded-full min-w-11 min-h-11 flex items-center justify-center" aria-label={isPlaying ? t("common.aria.pause") : t("common.aria.play")}>
-            {isPlaying ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+            {isPlaying ? <Pause size={ICON.md} aria-hidden="true" /> : <Play size={ICON.md} aria-hidden="true" />}
           </button>
           <button onClick={next} disabled={!shuffle && currentIndex >= queue.length - 1} className="bg-transparent border-none text-[var(--text)] disabled:opacity-30 disabled:cursor-default cursor-pointer min-h-11 min-w-11 flex items-center justify-center" aria-label={t("common.next")}>
-            <SkipForward size={18} aria-hidden="true" />
+            <SkipForward size={ICON.lg} aria-hidden="true" />
           </button>
         </div>
         <div className="flex items-center gap-2 w-full max-w-[200px] sm:max-w-[400px]">
@@ -343,12 +344,12 @@ export function GlobalAudioPlayer() {
           aria-pressed={muted}
           title={muted ? t("media.music.unmute") : t("media.music.mute")}
         >
-          {muted || volume === 0 ? <VolumeX size={16} aria-hidden="true" /> : <Volume2 size={16} aria-hidden="true" />}
+          {muted || volume === 0 ? <VolumeX size={ICON.md} aria-hidden="true" /> : <Volume2 size={ICON.md} aria-hidden="true" />}
         </button>
         <input type="range" min={0} max={1} step={0.02} value={volume} onChange={(e) => setVolume(Number(e.target.value))} aria-label={t("media.music.volume")} className="w-[72px] accent-[var(--accent)]" />
       </div>
       <button onClick={close} className="tap-target flex items-center justify-center text-[var(--text-muted)] bg-transparent border-none cursor-pointer" aria-label={t("common.aria.close")} title={t("common.aria.close")}>
-        <X size={18} aria-hidden="true" />
+        <X size={ICON.lg} aria-hidden="true" />
       </button>
     </div>
   );

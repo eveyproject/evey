@@ -8,6 +8,7 @@ import { toast } from "@evey/store";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
+import { ICON } from "@/constants/iconSizes";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -146,7 +147,7 @@ function SearchPage() {
     <div>
       <div className="mb-6">
         <div className="relative max-w-xl">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]" size={20} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]" size={ICON.xl} />
           <input
             ref={inputRef}
             type="search"
@@ -172,7 +173,7 @@ function SearchPage() {
               className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center hover:bg-[var(--surface-raised)] transition-colors-fast cursor-pointer text-[var(--text-muted)]"
               aria-label={t("media.search.clearSearch")}
             >
-              <X size={16}  aria-hidden="true" />
+              <X size={ICON.md}  aria-hidden="true" />
             </button>
           )}
         </div>
@@ -210,7 +211,7 @@ function SearchPage() {
               active={showFilters}
               onClick={() => setShowFilters((v) => !v)}
               size="md"
-              icon={<ListFilter size={14} />}
+              icon={<ListFilter size={ICON.sm} />}
             >
               {t("media.search.filters")}
               {hasActiveFilters && !showFilters && (
@@ -319,7 +320,7 @@ function SearchPage() {
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
-            icon={<Search size={48} strokeWidth={1.5} />}
+            icon={<Search size={ICON["4xl"]} strokeWidth={1.5} />}
             title={t("media.search.noResultsFor", { query: debouncedQuery })}
             description={t("media.search.noResultsDesc")}
           />
@@ -354,7 +355,7 @@ function SearchPage() {
                   className="ml-1 cursor-pointer transition-colors-fast hover:opacity-80 text-[var(--text-muted)]"
                   aria-label={t("common.removeItem", { item: r })}
                 >
-                  <X size={12}  aria-hidden="true" />
+                  <X size={ICON.xs}  aria-hidden="true" />
                 </button>
               </div>
             ))}
@@ -367,7 +368,7 @@ function SearchPage() {
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
-            icon={<Search size={48} strokeWidth={1.5} />}
+            icon={<Search size={ICON["4xl"]} strokeWidth={1.5} />}
             title={t("media.search.searchLibrary")}
             description={t("media.search.searchLibraryDesc")}
           />
@@ -392,7 +393,7 @@ function SearchPage() {
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
-            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+            icon={<TriangleAlert size={ICON["4xl"]} strokeWidth={1.5} />}
             title={t("common.errorBoundary.title")}
             description={t("common.errorBoundary.description")}
           />
@@ -404,7 +405,7 @@ function SearchPage() {
           className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]"
         >
           <EmptyState
-            icon={<TriangleAlert size={48} strokeWidth={1.5} />}
+            icon={<TriangleAlert size={ICON["4xl"]} strokeWidth={1.5} />}
             title={t("common.errorBoundary.title")}
             description={t("common.errorBoundary.description")}
           />
@@ -428,7 +429,7 @@ function SearchPage() {
                     {track.coverArtUrl ? (
                       <img src={track.coverArtUrl} alt="" aria-hidden="true" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = "none"; }} />
                     ) : (
-                      <Music size={18} className="text-[var(--text-muted)]" aria-hidden="true" />
+                      <Music size={ICON.lg} className="text-[var(--text-muted)]" aria-hidden="true" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
