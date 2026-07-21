@@ -35,6 +35,7 @@ type WatcherService struct {
 	mu         sync.Mutex
 	pathToLib  map[string]string // watched path → library ID
 	failedLibs map[string]bool   // library IDs where inotify failed → need periodic scan
+	probes     *probeState       // liveness of each library's watch (watcher_probe.go)
 	cancel     context.CancelFunc
 	ctx        context.Context
 }
@@ -69,6 +70,7 @@ func NewWatcherService(
 		log:           log,
 		pathToLib:     make(map[string]string),
 		failedLibs:    make(map[string]bool),
+		probes:        newProbeState(),
 		debounceDelay: defaultDebounceDelay,
 	}
 	for _, opt := range opts {
@@ -187,6 +189,16 @@ func (ws *WatcherService) processEvents(ctx context.Context) {
 			if !ok {
 				return
 			}
+			// Our own liveness probe: deliver it to whoever is waiting and stop
+			// there. It must never reach the debounce below - the probe fires on
+			// a timer, so scanning on it would walk the whole library every
+			// probe round, which is precisely what this machinery exists to
+			// avoid.
+			if isProbePath(ev.Path) {
+				ws.probes.deliver(ev.Path)
+				continue
+			}
+
 			libID := ws.resolveLibrary(ev.Path)
 			if libID == "" {
 				continue
@@ -254,4 +266,21 @@ func (ws *WatcherService) triggerScan(ctx context.Context, libraryID string) err
 	}
 	ws.log.Info("watcher: scan complete", slog.String("library_id", libraryID), slog.Int("added", added), slog.Int("updated", updated))
 	return nil
+}
+
+// UnwatchedLibraries reports the libraries the periodic scan must still walk
+// frequently: those whose watches all failed to establish, plus those whose
+// liveness probe went unanswered. Safe to call from another goroutine.
+//
+// An empty result does NOT mean "no scanning needed" - a watch can be alive and
+// still blind (a network share written by another host), so the caller keeps a
+// spaced-out full scan as a backstop. See watcher_probe.go.
+func (ws *WatcherService) UnwatchedLibraries() map[string]bool {
+	out := ws.probes.UnhealthyLibraries()
+	ws.mu.Lock()
+	for id := range ws.failedLibs {
+		out[id] = true
+	}
+	ws.mu.Unlock()
+	return out
 }

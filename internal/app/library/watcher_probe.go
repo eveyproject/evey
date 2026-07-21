@@ -1,0 +1,232 @@
+package library
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+)
+
+// watcher_probe.go - active liveness probe for the inotify watcher.
+//
+// The watcher had no way to know it had gone deaf. A watch can be lost long
+// after it was successfully established: the kernel's max_user_watches limit is
+// hit as the library grows, a filesystem is unmounted and remounted (the kernel
+// invalidates the watches and nothing here re-arms them), the event queue
+// overflows, or the watcher goroutine dies. In every one of those cases the
+// server keeps reporting healthy real-time monitoring while silently seeing
+// nothing, and new media only appears at the next full scan.
+//
+// So instead of trusting the watch, we test it: drop a small file in a watched
+// directory, wait for our own event to come back, delete it. An event that does
+// not return within the deadline means this library is not being watched, and
+// the periodic scan must cover it until the probe succeeds again.
+//
+// ⚠️ KNOWN BLIND SPOT - do not read a passing probe as "real-time works".
+// On a network mount (NFS/SMB/CIFS) the probe is written by THIS host, so the
+// local kernel raises the event and the probe passes - while writes made by any
+// OTHER client on that share remain completely invisible to inotify. The probe
+// proves the watch is alive, not that it sees everything. That is exactly why
+// the periodic full scan stays as a backstop rather than being replaced.
+
+const (
+	// probeFilePrefix marks the probe file. Dot-prefixed so it is hidden, and
+	// with no media extension so the scanner ignores it even in the window
+	// before it is deleted.
+	probeFilePrefix = ".evey-watch-probe-"
+
+	// probeTimeout is how long to wait for our own event. Generous: a busy
+	// server can take a moment to drain the event channel, and a false
+	// "unhealthy" verdict costs a full library scan.
+	probeTimeout = 30 * time.Second
+
+	// probeInterval is how often each library is probed.
+	probeInterval = 5 * time.Minute
+)
+
+// isProbePath reports whether a path is one of our own probe files. Those
+// events must never reach the debounce/scan machinery: the probe writes on a
+// timer, so treating it as a real change would make the server scan its whole
+// library every probeInterval - the opposite of the point.
+func isProbePath(path string) bool {
+	return strings.HasPrefix(filepath.Base(path), probeFilePrefix)
+}
+
+// probeState tracks, per library, whether the watch is answering.
+type probeState struct {
+	mu sync.Mutex
+	// waiting maps an in-flight probe file path to the channel its event is
+	// delivered on.
+	waiting map[string]chan struct{}
+	// unhealthy holds the libraries whose last probe went unanswered.
+	unhealthy map[string]bool
+}
+
+func newProbeState() *probeState {
+	return &probeState{
+		waiting:   make(map[string]chan struct{}),
+		unhealthy: make(map[string]bool),
+	}
+}
+
+// deliver wakes the probe waiting on this path, if any. Called from the watcher
+// event loop.
+func (p *probeState) deliver(path string) {
+	p.mu.Lock()
+	ch, ok := p.waiting[path]
+	if ok {
+		delete(p.waiting, path)
+	}
+	p.mu.Unlock()
+	if ok {
+		close(ch)
+	}
+}
+
+func (p *probeState) arm(path string) chan struct{} {
+	ch := make(chan struct{})
+	p.mu.Lock()
+	p.waiting[path] = ch
+	p.mu.Unlock()
+	return ch
+}
+
+func (p *probeState) disarm(path string) {
+	p.mu.Lock()
+	delete(p.waiting, path)
+	p.mu.Unlock()
+}
+
+func (p *probeState) setHealth(libID string, healthy bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if healthy {
+		delete(p.unhealthy, libID)
+		return
+	}
+	p.unhealthy[libID] = true
+}
+
+// UnhealthyLibraries returns the IDs whose watch failed its last probe. The
+// scan loop uses it to decide which libraries still need frequent walking.
+func (p *probeState) UnhealthyLibraries() map[string]bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make(map[string]bool, len(p.unhealthy))
+	for id := range p.unhealthy {
+		out[id] = true
+	}
+	return out
+}
+
+// probeOnce writes a probe file into dir, waits for the watcher to report it,
+// and removes it. Returns nil when the event came back in time.
+//
+// The file is removed on EVERY path, including timeout and write failure, so a
+// deaf watcher cannot accumulate droppings in someone's media library.
+func (ws *WatcherService) probeOnce(ctx context.Context, dir string) error {
+	name := fmt.Sprintf("%s%d", probeFilePrefix, time.Now().UnixNano())
+	path := filepath.Join(dir, name)
+
+	ch := ws.probes.arm(path)
+	defer ws.probes.disarm(path)
+
+	// O_EXCL: never clobber something that is already there.
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		// A read-only library root is a legitimate setup, not a broken watch.
+		// Report it as inconclusive rather than unhealthy - marking it deaf
+		// would pin that library to permanent full scans for no reason.
+		return fmt.Errorf("probe write: %w", err)
+	}
+	_ = f.Close()
+	defer func() {
+		if rmErr := os.Remove(path); rmErr != nil && !os.IsNotExist(rmErr) {
+			ws.log.Warn("watcher probe: could not remove probe file - it may linger",
+				slog.String("path", path), slog.Any("err", rmErr))
+		}
+	}()
+
+	select {
+	case <-ch:
+		return nil
+	case <-time.After(probeTimeout):
+		return fmt.Errorf("no inotify event for probe within %s", probeTimeout)
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// StartProbe runs the liveness probe until ctx is done. Each round probes every
+// watched library once and updates its health.
+//
+// A library that turns unhealthy is scanned immediately: the whole reason we
+// care is that changes may already have been missed while the watch was dead.
+func (ws *WatcherService) StartProbe(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = probeInterval
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ws.log.Error("watcher probe: panic recovered", slog.Any("panic", r))
+			}
+		}()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				ws.probeRound(ctx)
+			}
+		}
+	}()
+}
+
+// probeRound probes one directory per watched library.
+func (ws *WatcherService) probeRound(ctx context.Context) {
+	ws.mu.Lock()
+	// One representative path per library is enough: a library whose watches
+	// were dropped loses them together (same inotify instance, same limit).
+	perLib := make(map[string]string, len(ws.pathToLib))
+	for path, libID := range ws.pathToLib {
+		if _, seen := perLib[libID]; !seen {
+			perLib[libID] = path
+		}
+	}
+	ws.mu.Unlock()
+
+	for libID, dir := range perLib {
+		err := ws.probeOnce(ctx, dir)
+		switch {
+		case err == nil:
+			if ws.probes.UnhealthyLibraries()[libID] {
+				ws.log.Info("watcher probe: watch is answering again, real-time monitoring restored",
+					slog.String("library_id", libID))
+			}
+			ws.probes.setHealth(libID, true)
+		case ctx.Err() != nil:
+			return
+		case strings.Contains(err.Error(), "probe write"):
+			// Could not write (read-only mount, permissions). Inconclusive:
+			// leave the previous verdict alone rather than guessing.
+			ws.log.Debug("watcher probe: skipped, cannot write probe file",
+				slog.String("library_id", libID), slog.String("dir", dir), slog.Any("err", err))
+		default:
+			ws.log.Warn("watcher probe: no event came back - treating this library as unwatched, falling back to scanning",
+				slog.String("library_id", libID), slog.String("dir", dir), slog.Any("err", err))
+			ws.probes.setHealth(libID, false)
+			// Changes may already have been missed while the watch was dead.
+			if scanErr := ws.triggerScan(ctx, libID); scanErr != nil {
+				ws.log.Debug("watcher probe: recovery scan skipped",
+					slog.String("library_id", libID), slog.Any("err", scanErr))
+			}
+		}
+	}
+}

@@ -1500,9 +1500,16 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 	loadOverride(ctx, deps.cfgStore, "library.watcher_enabled", parseBool, &cfg.Library.WatcherEnabled)
 	loadOverride(ctx, deps.cfgStore, "library.periodic_scan_interval", parseDuration, &cfg.Library.PeriodicScanInterval)
 
-	startWatcher(ctx, cfg, bus, r.Library, deps.library.cmdSvc, rootLog)
+	watcherSvc := startWatcher(ctx, cfg, bus, r.Library, deps.library.cmdSvc, rootLog)
 
 	rootLog.Info("periodic scan started for all libraries", slog.Duration("interval", cfg.Library.PeriodicScanInterval))
+	// The periodic walk is now a BACKSTOP, not the primary discovery path:
+	// libraries whose watch answers the liveness probe are only walked every
+	// watchedScanInterval, the rest keep this configured cadence. A startup pass
+	// runs regardless - inotify is blind to whatever happened while we were down.
+	if watcherSvc != nil {
+		deps.library.cmdSvc.WithWatchHealth(watcherSvc.UnwatchedLibraries)
+	}
 	deps.library.cmdSvc.StartPeriodicScan(ctx, r.Library, cfg.Library.PeriodicScanInterval, nil)
 
 	// One-shot async backfill of media_items.sort_title for rows scanned
@@ -1697,6 +1704,12 @@ func startWatcher(ctx context.Context, cfg *config.Config, bus shared.EventBus, 
 		return nil
 	}
 	rootLog.Info("filesystem watcher started")
+	// Active liveness probe: a watch can be established and then silently die
+	// (max_user_watches hit as the library grows, an unmount/remount the kernel
+	// invalidates and nothing re-arms, queue overflow). The probe writes a
+	// hidden file into a watched directory, waits for its own event, deletes it
+	// - and on failure marks the library so the periodic scan keeps covering it.
+	watcherSvc.StartProbe(ctx, 0)
 	go func() {
 		<-ctx.Done()
 		watcherSvc.Stop()

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/library"
@@ -29,9 +30,14 @@ type CommandService struct {
 	mediaItems library.MediaItemCommandRepo
 	events     shared.EventBus
 
-	scan      *ScanService
-	trickplay *TrickplayService
-	metadata  *MetadataExtractionService
+	scan *ScanService
+	// unwatchedLibs reports which libraries the watcher cannot vouch for. See
+	// WithWatchHealth.
+	unwatchedLibs   func() map[string]bool
+	watchedScanMu   sync.Mutex
+	lastWatchedScan map[string]time.Time
+	trickplay       *TrickplayService
+	metadata        *MetadataExtractionService
 
 	// search reindex is a WRITE (rebuilds the search index), so it lives on the
 	// command side. mediaQuery reads the rows to index; both are nil unless
@@ -175,6 +181,15 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		var lastScan time.Time
+
+		// Boot scan, before the first tick. inotify is structurally blind to
+		// anything that happened while the process was down, and the ticker
+		// does not fire until T+interval - so without this, files added while
+		// the server was stopped stay invisible for a whole interval. That was
+		// tolerable at a 2-minute cadence and is not once the fallback is
+		// spaced out.
+		s.runScanPass(ctx, libQueries, targetSet, "startup")
+		lastScan = time.Now()
 		for {
 			select {
 			case <-ctx.Done():
@@ -186,36 +201,78 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 					continue
 				}
 				lastScan = now
-				libs, err := libQueries.List(ctx, library.ListLibrariesFilter{})
-				if err != nil {
-					slog.Warn("periodic scan: list libraries", slog.Any("err", err))
-					continue
-				}
-				for _, lib := range libs {
-					if len(targetSet) > 0 && !targetSet[string(lib.ID)] {
-						continue
-					}
-					added, scanErr := func() (a int, err error) {
-						defer func() {
-							if r := recover(); r != nil {
-								slog.Error("periodic scan: panic recovered", slog.String("library", lib.Name), slog.Any("panic", r))
-								err = fmt.Errorf("panic: %v", r)
-							}
-						}()
-						a, _, err = s.ScanLibrary(ctx, string(lib.ID))
-						return
-					}()
-					if scanErr != nil {
-						slog.Debug("periodic scan: skip", slog.String("library", lib.Name), slog.Any("err", scanErr))
-						continue
-					}
-					if added > 0 {
-						slog.Info("periodic scan", slog.String("library", lib.Name), slog.Int("new", added))
-					}
-				}
+				s.runScanPass(ctx, libQueries, targetSet, "periodic")
 			}
 		}
 	}()
+}
+
+// WithWatchHealth wires the watcher's liveness verdict. Libraries whose watch
+// is PROVEN alive are walked only every watchedScanInterval; the rest keep the
+// operator's configured cadence. Optional - unset means "trust nothing", i.e.
+// the previous behaviour of scanning everything on every tick.
+func (s *CommandService) WithWatchHealth(unwatched func() map[string]bool) *CommandService {
+	s.unwatchedLibs = unwatched
+	return s
+}
+
+// runScanPass scans every targeted library once. Shared by the startup pass and
+// the periodic ticker so the two can never drift apart. A per-library panic or
+// error is contained: one bad library must not abort the others, nor kill the
+// loop that will retry them.
+func (s *CommandService) runScanPass(ctx context.Context, libQueries library.LibraryQueryRepo, targetSet map[string]bool, reason string) {
+	libs, err := libQueries.List(ctx, library.ListLibrariesFilter{})
+	if err != nil {
+		slog.Warn("scan pass: list libraries", slog.String("reason", reason), slog.Any("err", err))
+		return
+	}
+	// Snapshot once per pass: a library whose watch is answering does not need
+	// walking on every tick.
+	var unwatched map[string]bool
+	if s.unwatchedLibs != nil && reason == "periodic" {
+		unwatched = s.unwatchedLibs()
+	}
+	for _, lib := range libs {
+		if len(targetSet) > 0 && !targetSet[string(lib.ID)] {
+			continue
+		}
+		if unwatched != nil && !unwatched[string(lib.ID)] && !s.dueForWatchedScan(string(lib.ID)) {
+			continue
+		}
+		added, scanErr := func() (a int, err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("scan pass: panic recovered", slog.String("library", lib.Name), slog.Any("panic", r))
+					err = fmt.Errorf("panic: %v", r)
+				}
+			}()
+			a, _, err = s.ScanLibrary(ctx, string(lib.ID))
+			return
+		}()
+		if scanErr != nil {
+			slog.Debug("scan pass: skip", slog.String("library", lib.Name), slog.String("reason", reason), slog.Any("err", scanErr))
+			continue
+		}
+		if added > 0 {
+			slog.Info("scan pass", slog.String("library", lib.Name), slog.String("reason", reason), slog.Int("new", added))
+		}
+	}
+}
+
+// dueForWatchedScan reports whether a library with a proven-alive watch is due
+// for its hourly backstop walk, and records the pass when it is.
+func (s *CommandService) dueForWatchedScan(libID string) bool {
+	s.watchedScanMu.Lock()
+	defer s.watchedScanMu.Unlock()
+	if s.lastWatchedScan == nil {
+		s.lastWatchedScan = make(map[string]time.Time)
+	}
+	last, seen := s.lastWatchedScan[libID]
+	if seen && time.Since(last) < watchedScanInterval {
+		return false
+	}
+	s.lastWatchedScan[libID] = time.Now()
+	return true
 }
 
 // --- Delegated to TrickplayService ---
