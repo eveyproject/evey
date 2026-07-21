@@ -35,7 +35,7 @@ function EpisodeRow({ ep, difficulty }: { ep: V1MediaItem; difficulty?: Playback
     : undefined;
 
   return (
-    <div className="flex gap-5 p-4 hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]">
+    <div className="flex min-w-0 gap-3 sm:gap-5 p-3 sm:p-4 hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]">
       {/* Still + play overlay. The whole thumbnail is the play target: it is the
           biggest, most obvious hit area and it is what the viewer wants. */}
       <Link
@@ -43,13 +43,13 @@ function EpisodeRow({ ep, difficulty }: { ep: V1MediaItem; difficulty?: Playback
         params={{ mediaId: ep.id ?? "" }}
         aria-label={t("media.detail.play")}
         title={t("media.detail.play")}
-        className="relative flex-shrink-0 w-60 sm:w-72 aspect-video rounded-[var(--radius-sm)] overflow-hidden bg-[var(--surface-raised)] group"
+        className="relative flex-shrink-0 w-32 sm:w-60 lg:w-72 aspect-video rounded-[var(--radius-sm)] overflow-hidden bg-[var(--surface-raised)] group"
       >
         {stillUrl && (
           <img
             src={stillUrl}
             srcSet={stillSrcSet}
-            sizes="288px"
+            sizes="(min-width: 1024px) 288px, (min-width: 640px) 240px, 128px"
             alt=""
             loading="lazy"
             className="w-full h-full object-cover"
@@ -62,7 +62,7 @@ function EpisodeRow({ ep, difficulty }: { ep: V1MediaItem; difficulty?: Playback
       </Link>
 
       <div className="flex-1 min-w-0">
-        <div className="flex items-baseline gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <span className="text-base flex-shrink-0 font-mono font-medium text-[var(--accent)]">
             E{ep.indexNumber ?? "?"}
           </span>
