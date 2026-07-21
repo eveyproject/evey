@@ -16,6 +16,8 @@ import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { artworkUrl } from "./artworkUrl";
 import { PosterPlaceholder } from "./PosterPlaceholder";
 import { ICON } from "@/constants/iconSizes";
+import { PlaybackDifficultyBadge } from "./PlaybackDifficultyBadge";
+import { isHeavyToStream, type PlaybackDifficulty } from "./playbackDifficulty";
 
 const WATCHED_THRESHOLD_PCT = 95;
 
@@ -54,6 +56,10 @@ export interface MediaCardProps {
   isWatched?: boolean;
   resolution?: string;
   isHdr?: boolean;
+  /** Server verdict for THIS device, supplied by the list that fetched the
+      whole page in one call. Only a warning is shown - a badge on every card
+      would be noise, and the point is to flag the ones worth downloading. */
+  difficulty?: PlaybackDifficulty;
   selected?: boolean;
   selectionMode?: boolean;
   onSelect?: (id: string, selected: boolean) => void;
@@ -77,6 +83,7 @@ export const MediaCard = memo(function MediaCard({
   isWatched,
   resolution,
   isHdr,
+  difficulty,
   selected = false,
   selectionMode = false,
   onSelect,
@@ -312,7 +319,7 @@ export const MediaCard = memo(function MediaCard({
           </span>
         )}
 
-        {(resolution || isHdr) && (
+        {(resolution || isHdr || isHeavyToStream(difficulty)) && (
           <div
             className="absolute z-badge flex items-center gap-1"
             style={{ bottom: hasProgressBar ? "0.75rem" : "0.5rem", left: "0.5rem" }}
@@ -342,6 +349,9 @@ export const MediaCard = memo(function MediaCard({
               >
                 HDR
               </span>
+            )}
+            {isHeavyToStream(difficulty) && (
+              <PlaybackDifficultyBadge difficulty={difficulty!} className="font-bold leading-none" />
             )}
           </div>
         )}

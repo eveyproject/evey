@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
+import { usePlaybackDifficulties } from "@/hooks/usePlaybackDifficulties";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import {
   LibraryFilterToggle,
@@ -394,6 +395,15 @@ function LibraryPage() {
   const displayItems = hasLocalFilters ? localFiltered : items;
   const displayCount = hasLocalFilters ? localFiltered.length : totalItems;
 
+  // One batched call per 100 loaded items, so a card can warn that a title is
+  // heavy to stream before anyone starts it. The hook chunks and caches per
+  // slice, so scrolling costs one request per new page, not one per card.
+  const difficultyIds = useMemo(
+    () => displayItems.map((i) => i.id).filter((id): id is string => !!id),
+    [displayItems],
+  );
+  const difficulties = usePlaybackDifficulties(difficultyIds);
+
   // Proactive fetch-until-filled: when client-side facets (resolution, codec,
   // audio/sub lang…) are active the filtered list can be short - not tall
   // enough to reach the scroll bottom and trigger onEndReached. We therefore
@@ -674,6 +684,7 @@ function LibraryPage() {
                 <MediaCard
                   key={item.id}
                   item={item}
+                  difficulty={difficulties.get(item.id ?? "")}
                   selected={selectedIds.has(item.id ?? "")}
                   selectionMode={bulkMode}
                   onSelect={bulkMode ? handleSelect : undefined}

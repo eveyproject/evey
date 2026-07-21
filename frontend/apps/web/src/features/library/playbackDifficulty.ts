@@ -200,3 +200,10 @@ export function classifyPlaybackFacts(
   if (encodesLeft.length === 0) return withDifficulty(audioViaWasm ? "wasmAudio" : "remux", raw);
   return withDifficulty("audioOnly", encodesLeft);
 }
+
+/** Worth flagging on a poster tile. A grid badges only the titles that will
+    make the server work hard - marking the easy ones too would turn a warning
+    into wallpaper. */
+export function isHeavyToStream(d?: PlaybackDifficulty | null): boolean {
+  return d?.difficulty === "demanding" || d?.difficulty === "hard";
+}
