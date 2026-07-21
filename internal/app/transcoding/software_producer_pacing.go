@@ -233,8 +233,22 @@ func (p *SoftwareProducer) sweepKillPaused() {
 	}
 	cutoff := time.Now().Add(-p.opts.KillPausedAfter)
 
+	// Two phases, deliberately. hasResumeCushion stats and reads segment files,
+	// and p.mu is the SAME lock every segment request takes in
+	// EnsureSegmentRange - so evaluating the cushion while holding it made a
+	// cold-disk sweep block every viewer on the server at once. Snapshot the
+	// candidates under the lock, do the I/O outside it. Same shape as sweepIdle
+	// and sweepPause above.
+	type pausedCandidate struct {
+		sess       *swSession
+		hash       string
+		variantIdx int
+		frontier   int
+		useFMP4    bool
+	}
+
 	p.mu.Lock()
-	var toKill, toBuild []*swSession
+	var candidates []pausedCandidate
 	for _, list := range p.sessions {
 		for _, s := range list {
 			s.mu.Lock()
@@ -244,14 +258,19 @@ func (p *SoftwareProducer) sweepKillPaused() {
 			if !eligible {
 				continue
 			}
-			if p.hasResumeCushion(hash, variantIdx, frontier, useFMP4) {
-				toKill = append(toKill, s)
-			} else {
-				toBuild = append(toBuild, s)
-			}
+			candidates = append(candidates, pausedCandidate{s, hash, variantIdx, frontier, useFMP4})
 		}
 	}
 	p.mu.Unlock()
+
+	var toKill, toBuild []*swSession
+	for _, c := range candidates {
+		if p.hasResumeCushion(c.hash, c.variantIdx, c.frontier, c.useFMP4) {
+			toKill = append(toKill, c.sess)
+		} else {
+			toBuild = append(toBuild, c.sess)
+		}
+	}
 
 	for _, s := range toKill {
 		p.logger.Info("software: killing long-paused session, disk cache preserved for instant resume",
