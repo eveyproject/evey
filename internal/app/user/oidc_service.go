@@ -246,16 +246,24 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 	}
 
 	var defaultProfileID string
-	if profs, pErr := s.profiles.GetByUserID(ctx, u.ID); pErr == nil {
-		for _, p := range profs {
-			if p.IsDefault {
-				defaultProfileID = string(p.ID)
-				break
-			}
+	// Fail CLOSED, same as the password and token-generation paths: an empty
+	// ProfileID is what every parental gate reads as "no restriction", so
+	// completing an SSO login past this fault would hand out an unrestricted
+	// token. An SSO callback that errors is visible and retryable.
+	profs, pErr := s.profiles.GetByUserID(ctx, u.ID)
+	if pErr != nil {
+		slog.Warn("oidc: profile lookup failed, refusing rather than issuing a profile-less token",
+			slog.String("userID", string(u.ID)), slog.Any("err", pErr))
+		return "", "", "", fmt.Errorf("oidc: load profiles: %w", pErr)
+	}
+	for _, p := range profs {
+		if p.IsDefault {
+			defaultProfileID = string(p.ID)
+			break
 		}
-		if defaultProfileID == "" && len(profs) > 0 {
-			defaultProfileID = string(profs[0].ID)
-		}
+	}
+	if defaultProfileID == "" && len(profs) > 0 {
+		defaultProfileID = string(profs[0].ID)
 	}
 
 	var oidcLocale string

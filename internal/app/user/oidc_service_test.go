@@ -969,8 +969,12 @@ func TestHandleCallback_RolesRepoError_ContinuesWithoutRoles(t *testing.T) {
 	}
 }
 
-// L203: profiles.GetByUserID errors -> default profile stays empty, callback continues
-func TestHandleCallback_ProfilesGetByUserIDError_ContinuesEmpty(t *testing.T) {
+// Was ..._ContinuesEmpty, asserting the callback completed with an empty
+// default profile. That tolerated degradation WAS a parental bypass: an empty
+// ProfileID is what every gate reads as "no restriction", so an SSO login
+// during a profile-repo fault handed out an unrestricted token. Fails closed
+// now, like the password and token-generation paths.
+func TestHandleCallback_ProfilesGetByUserIDError_FailsClosed(t *testing.T) {
 	sub := "sub-puserr"
 	svc, oidcSrv := setupCallbackSvc(t, map[string]any{
 		"sub":                sub,
@@ -992,11 +996,11 @@ func TestHandleCallback_ProfilesGetByUserIDError_ContinuesEmpty(t *testing.T) {
 	}
 
 	accessTk, _, _, err := svc.HandleCallback(context.Background(), "auth-code", "")
-	if err != nil {
-		t.Fatalf("expected success, got %v", err)
+	if err == nil {
+		t.Fatalf("a profile lookup failure must refuse the callback, got token %q", accessTk)
 	}
-	if accessTk == "" {
-		t.Error("expected access token")
+	if accessTk != "" {
+		t.Errorf("no token may be issued when the profile lookup failed, got %q", accessTk)
 	}
 }
 
