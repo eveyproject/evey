@@ -36,6 +36,45 @@ type EvictionPolicy struct {
 	// (with hits in the last sweep window) is never evicted out from under
 	// the player. Default 4.
 	ProtectRecent int
+
+	// ActivePlayback reports how many media are being read right now, across
+	// every serving path (see ProducerSelector.ActivePlaybackCount). When it is
+	// > 0 the sweeper backs off to PlaybackSweepInterval.
+	//
+	// Backing off rather than pausing outright is deliberate: eviction is the
+	// only thing holding the cache under its cap, and a session WRITES segments
+	// as it plays, so a sweeper that stopped for a whole film could let the disk
+	// fill. Optional; nil keeps the old fixed cadence.
+	ActivePlayback func() int
+
+	// PlaybackSweepInterval is the cadence used while playback is active.
+	// Default 5 min, against 30 s idle.
+	//
+	// What this avoids is the sweep's FULL WALK of the cache root - one lstat
+	// per file, tens of thousands of them at the 50 GB default cap - which runs
+	// on every tick whatever the fill level, because the total is only known
+	// once the walk is done. On a weak NAS whose cache shares a spindle with the
+	// media, that is the same disk the viewer is reading from.
+	PlaybackSweepInterval time.Duration
+}
+
+// shouldSweep decides whether this tick pays for a full cache walk.
+//
+// While playback is active the sweeper drops to PlaybackSweepInterval, because
+// the walk lstats every file under the cache root on EVERY tick regardless of
+// fill (the total is only known once the walk finishes) - background disk work
+// in contention with the viewer's own reads.
+//
+// The first tick always sweeps (lastSweep zero): a server that boots already
+// over its cap must not stay unbounded just because someone is watching.
+func (p EvictionPolicy) shouldSweep(now, lastSweep time.Time) bool {
+	if p.ActivePlayback == nil || p.ActivePlayback() == 0 {
+		return true
+	}
+	if lastSweep.IsZero() {
+		return true
+	}
+	return now.Sub(lastSweep) >= p.PlaybackSweepInterval
 }
 
 func (p EvictionPolicy) withDefaults() EvictionPolicy {
@@ -48,6 +87,9 @@ func (p EvictionPolicy) withDefaults() EvictionPolicy {
 	}
 	if out.ProtectRecent <= 0 {
 		out.ProtectRecent = 4
+	}
+	if out.PlaybackSweepInterval <= 0 {
+		out.PlaybackSweepInterval = 5 * time.Minute
 	}
 	return out
 }
@@ -84,11 +126,16 @@ func (c *SegmentCache) evictionLoop(ctx context.Context, p EvictionPolicy, logge
 	logger = logger.With("component", "segment_cache_evict")
 	ticker := time.NewTicker(p.SweepInterval)
 	defer ticker.Stop()
+	var lastSweep time.Time
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case now := <-ticker.C:
+			if !p.shouldSweep(now, lastSweep) {
+				continue
+			}
+			lastSweep = now
 			c.sweepOnce(p, logger)
 		}
 	}

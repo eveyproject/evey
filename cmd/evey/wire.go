@@ -705,12 +705,6 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	if err != nil {
 		return nil, fmt.Errorf("hls vod cache: %w", err)
 	}
-	// LRU sweep on the on-disk segment cache. Cleanup token dropped: the
-	// orchestrator runs for the process lifetime, so the cache sweeper is
-	// stopped implicitly when the binary exits.
-	_ = hlsVODCache.StartEviction(apptranscoding.EvictionPolicy{
-		MaxBytes: int64(cfg.Transcoding.CacheMaxGB) * 1024 * 1024 * 1024,
-	}, slog.Default())
 	// Bound the sibling fast-start MP4 remux cache (<CacheDir>/remux) on its own
 	// budget. Source-fingerprint keying orphans the old file on every re-scan, so
 	// without this it grows without bound. Same lifetime/stop semantics as above.
@@ -838,6 +832,20 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	playbackActivity := apptranscoding.NewPlaybackActivity(apptranscoding.PlaybackActivityTTL)
 	hlsVODRemover := apptranscoding.NewProducerSelector(hlsVODSoftware, hlsVODOrch, nil).
 		WithPlaybackActivity(playbackActivity)
+
+	// LRU sweep on the on-disk segment cache. Cleanup token dropped: the
+	// orchestrator runs for the process lifetime, so the cache sweeper is
+	// stopped implicitly when the binary exits.
+	//
+	// Started HERE, after the selector exists, rather than next to the cache
+	// construction: the sweep walks the whole cache root (one lstat per file,
+	// tens of thousands at the default 50 GB cap) on EVERY tick whatever the
+	// fill level, so it must be able to back off while someone is watching. On a
+	// weak NAS the cache shares a spindle with the media being read.
+	_ = hlsVODCache.StartEviction(apptranscoding.EvictionPolicy{
+		MaxBytes:       int64(cfg.Transcoding.CacheMaxGB) * 1024 * 1024 * 1024,
+		ActivePlayback: hlsVODRemover.ActivePlaybackCount,
+	}, slog.Default())
 
 	// mkvgo Playability shadow (Phase 3, log-only): compares every playback
 	// decision against ops.Playability when transcoding.playability_shadow=on

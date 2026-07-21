@@ -222,3 +222,50 @@ func backdateHash(t *testing.T, c *SegmentCache, hash string, offset time.Durati
 		require.NoError(t, os.Chtimes(filepath.Join(dir, e.Name()), target, target))
 	}
 }
+
+// The sweep walks the ENTIRE cache root - one lstat per file - on every tick,
+// whatever the fill level, because the total is only known once the walk is
+// done. Doing that every 30 s while someone is watching puts a background
+// worker in contention with the viewer for the same spindle, which is the
+// starvation class this server keeps hitting on weak NAS hardware.
+func TestEvictionPolicy_ShouldSweep(t *testing.T) {
+	base := time.Unix(1000, 0)
+	playing := func(n int) func() int { return func() int { return n } }
+
+	cases := []struct {
+		name      string
+		active    func() int
+		lastSweep time.Time
+		now       time.Time
+		want      bool
+	}{
+		{"idle keeps the tight cadence", playing(0), base, base.Add(30 * time.Second), true},
+		{"unwired gate keeps the old behaviour", nil, base, base.Add(30 * time.Second), true},
+		{"playing, inside the backoff window", playing(1), base, base.Add(30 * time.Second), false},
+		{"playing, past the backoff window", playing(1), base, base.Add(6 * time.Minute), true},
+		{"playing, first ever tick still sweeps", playing(1), time.Time{}, base, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := EvictionPolicy{
+				MaxBytes:       1,
+				ActivePlayback: tc.active,
+			}.withDefaults()
+			if got := p.shouldSweep(tc.now, tc.lastSweep); got != tc.want {
+				t.Fatalf("shouldSweep = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// The backoff is a playback concession, not a general slowdown of the disk-cap
+// safety valve: a boot already over cap must be corrected even mid-viewing.
+func TestEvictionPolicy_PlaybackBackoffDefaultsToFiveMinutes(t *testing.T) {
+	p := EvictionPolicy{MaxBytes: 1}.withDefaults()
+	if p.PlaybackSweepInterval != 5*time.Minute {
+		t.Fatalf("default playback sweep interval = %v, want 5m", p.PlaybackSweepInterval)
+	}
+	if p.SweepInterval != 30*time.Second {
+		t.Fatalf("idle cadence must stay 30s, got %v", p.SweepInterval)
+	}
+}
