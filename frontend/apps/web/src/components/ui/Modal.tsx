@@ -2,13 +2,16 @@ import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
-type ModalSize = "sm" | "md" | "lg" | "xl";
+type ModalSize = "sm" | "md" | "lg" | "xl" | "2xl";
 
 const sizeClasses: Record<ModalSize, string> = {
   sm: "max-w-sm",
   md: "max-w-md",
   lg: "max-w-lg",
   xl: "max-w-xl",
+  // For panels whose content is images rather than fields - the metadata
+  // editor picks artwork, and you cannot choose what you cannot see.
+  "2xl": "max-w-2xl",
 };
 
 interface ModalProps {

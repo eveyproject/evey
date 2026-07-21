@@ -60,7 +60,7 @@ export function MediaDetailHero({
     // taking the top and bottom of the composition with it. Letting the box
     // keep the source aspect ratio (bounded, so it never eats the whole screen)
     // means there is little left to crop.
-    <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0 aspect-[16/9] max-h-[min(70vh,620px)] min-h-[220px]">
+    <div className="relative w-full overflow-hidden -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-0 aspect-[16/9] max-h-[86vh] min-h-[220px]">
       {/* Back button only. The breadcrumb repeated the hierarchy the title and
           the parent link already carry, and cost a line of chrome over the
           artwork on every media page. */}
@@ -68,7 +68,7 @@ export function MediaDetailHero({
         <BackButton fallback="/library" className="!text-white hover:!text-white/80" />
       </div>
       {backdropUrl ? (
-        <img src={backdropUrl} srcSet={backdropSrcSet} sizes="100vw" alt={item.title ?? ""} className="w-full h-full object-cover object-[center_28%]" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+        <img src={backdropUrl} srcSet={backdropSrcSet} sizes="100vw" alt={item.title ?? ""} className="w-full h-full object-cover object-center" data-testid="media-backdrop" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
       ) : (
         <div className="w-full h-full bg-[var(--surface)]" />
       )}

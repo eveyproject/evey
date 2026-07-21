@@ -91,7 +91,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
                 aria-label={t("media.detail.poster") + ` ${i + 1}`}
                 className="flex-shrink-0 rounded overflow-hidden transition-all"
                 style={{
-                  width: 72,
+                  width: 150,
                   aspectRatio: "2/3",
                   border: i === 0 ? "2px solid var(--accent)" : "2px solid transparent",
                   opacity: selecting === a.id ? 0.5 : 1,
@@ -115,7 +115,7 @@ function ArtworkPicker({ mediaItemId }: { mediaItemId: string }) {
                 aria-label={t("media.detail.backdrop") + ` ${i + 1}`}
                 className="flex-shrink-0 rounded overflow-hidden transition-all"
                 style={{
-                  width: 128,
+                  width: 288,
                   aspectRatio: "16/9",
                   border: i === 0 ? "2px solid var(--accent)" : "2px solid transparent",
                   opacity: selecting === a.id ? 0.5 : 1,
