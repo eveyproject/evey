@@ -604,6 +604,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	webhookSender := webhooksender.New()
 	webhookSvc := appwebhook.NewService(r.Webhook, r.WebhookDelivery, webhookSender, webhookLog, bus)
+	// The delivery log is append-only and purely diagnostic; without a sweep it
+	// grew for the lifetime of the deployment. Rides the same daily retention
+	// loop as audit_log and the QoE events.
+	activityCmdSvc.WithWebhookDeliveryPurger(r.WebhookDelivery)
 
 	var notifOpts []appnotification.Option
 	vapidPub, vapidPriv := resolveVAPIDKeys(ctx, r.ServerCfg, cfg)

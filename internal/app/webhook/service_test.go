@@ -861,3 +861,5 @@ func TestHandleAny_DeliveryIDHeaderStableAcrossRetries(t *testing.T) {
 		t.Fatalf("stored delivery id %q != sent header %q", storedID, first)
 	}
 }
+
+func (f *fakeDeliveryRepo) Purge(_ context.Context, _ time.Time) (int64, error) { return 0, nil }

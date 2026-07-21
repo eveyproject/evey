@@ -19,6 +19,16 @@ type CommandService struct {
 	// qoeEvents bounds the CMCD table. Optional (nil = no sweep) because it
 	// belongs to another context and only retention is shared.
 	qoeEvents activity.QoEEventPurger
+	// webhookDeliveries bounds the webhook delivery log. Optional (nil = no
+	// sweep), same contract as qoeEvents.
+	webhookDeliveries activity.WebhookDeliveryPurger
+}
+
+// WithWebhookDeliveryPurger wires the webhook delivery retention sweep.
+// Chainable; leaving it unset keeps the previous behaviour (no purge).
+func (s *CommandService) WithWebhookDeliveryPurger(p activity.WebhookDeliveryPurger) *CommandService {
+	s.webhookDeliveries = p
+	return s
 }
 
 // WithQoEEventPurger wires the CMCD retention sweep. Chainable; leaving it
@@ -84,6 +94,10 @@ func (s *CommandService) PurgeOldAuditLogs(ctx context.Context, before time.Time
 // runRetention performs one purge pass for whichever tables have a positive
 // retention window (days <= 0 = keep forever). Failures are logged, never
 // fatal - a single bad pass must not kill the daily loop.
+// defaultWebhookDeliveryRetentionDays bounds the delivery log when no audit
+// retention is configured. The table is a diagnostic, never evidence.
+const defaultWebhookDeliveryRetentionDays = 30
+
 func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDays, qoeDays int) {
 	// "Never fatal" covers panics too, not just errors: the caller runs this in a
 	// detached daily goroutine, so an unrecovered panic (e.g. a nil repo or a
@@ -107,6 +121,21 @@ func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDay
 			slog.Warn("server-metric retention purge failed", slog.Any("err", err))
 		}
 	}
+	// Webhook deliveries ride the audit-log retention window: both are operator
+	// diagnostics with the same "keep enough to investigate, not forever" shape.
+	// Defaults to 30 days when audit retention is disabled, because unlike
+	// audit_log this table has no compliance argument for keeping it.
+	if s.webhookDeliveries != nil {
+		days := auditDays
+		if days <= 0 {
+			days = defaultWebhookDeliveryRetentionDays
+		}
+		if n, err := s.webhookDeliveries.Purge(ctx, now.AddDate(0, 0, -days)); err != nil {
+			slog.Warn("webhook-delivery retention purge failed", slog.Any("err", err))
+		} else if n > 0 {
+			slog.Info("webhook-delivery retention purge", slog.Int64("removed", n), slog.Int("retention_days", days))
+		}
+	}
 	if qoeDays > 0 && s.qoeEvents != nil {
 		if n, err := s.qoeEvents.Purge(ctx, now.AddDate(0, 0, -qoeDays)); err != nil {
 			slog.Warn("qoe retention purge failed", slog.Any("err", err))
@@ -121,7 +150,7 @@ func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDay
 // disables that table; when both are disabled this is a no-op (no goroutine).
 // It runs one pass at startup, then every 24h, and exits when ctx is done.
 func (s *CommandService) StartRetentionPurge(ctx context.Context, auditDays, metricsDays, qoeDays int) {
-	if auditDays <= 0 && metricsDays <= 0 && qoeDays <= 0 {
+	if auditDays <= 0 && metricsDays <= 0 && qoeDays <= 0 && s.webhookDeliveries == nil {
 		slog.Info("retention purge disabled", slog.Int("audit_days", auditDays), slog.Int("metrics_days", metricsDays), slog.Int("qoe_days", qoeDays))
 		return
 	}

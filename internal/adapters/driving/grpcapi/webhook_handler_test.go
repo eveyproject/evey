@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
@@ -214,3 +215,5 @@ func TestListWebhookDeliveries_Success(t *testing.T) {
 		t.Fatalf("got event %q, want library.scanned", resp.Deliveries[0].Event)
 	}
 }
+
+func (f *fakeDeliveryRepo) Purge(_ context.Context, _ time.Time) (int64, error) { return 0, nil }

@@ -95,6 +95,13 @@ type AnalyticsReader interface {
 // single-method port rather than folded into an existing repository: QoE is
 // another bounded context, and retention is the ONLY thing this service needs
 // from it. Optional - a nil purger disables the sweep.
+// WebhookDeliveryPurger bounds the webhook delivery log. Same shape and same
+// reasoning as QoEEventPurger: another context's table whose only cross-context
+// need is retention.
+type WebhookDeliveryPurger interface {
+	Purge(ctx context.Context, before time.Time) (int64, error)
+}
+
 type QoEEventPurger interface {
 	// Purge deletes events strictly older than before, returning the row count
 	// so the retention runner can log its work.

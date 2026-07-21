@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log/slog"
+	"time"
 
 	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
@@ -231,3 +232,24 @@ func scanDeliveries(rows *sql.Rows) ([]*webhook.Delivery, error) {
 
 var _ webhook.Repository = (*WebhookRepository)(nil)
 var _ webhook.DeliveryRepository = (*WebhookDeliveryRepository)(nil)
+
+// Purge deletes delivery rows older than before. Uses the composite
+// (webhook_id, sent_at) index added in 000141 only incidentally - this is a
+// full-table range delete on sent_at, cheap because the table is small once the
+// sweep has run at least once.
+func (r *WebhookDeliveryRepository) Purge(ctx context.Context, before time.Time) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.webhook.PurgeDeliveries")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM webhook_deliveries WHERE sent_at < $1`, before)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}

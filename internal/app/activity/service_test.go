@@ -566,3 +566,56 @@ func TestStartRetentionPurge_NilQoEPurgerIsSafe(t *testing.T) {
 	cmdSvc.StartRetentionPurge(t.Context(), 0, 0, 30)
 	time.Sleep(200 * time.Millisecond)
 }
+
+type fakeWebhookPurger struct{ called chan time.Time }
+
+func (f *fakeWebhookPurger) Purge(_ context.Context, before time.Time) (int64, error) {
+	f.called <- before
+	return 4, nil
+}
+
+// The webhook delivery log is append-only and purely diagnostic - one row per
+// delivery attempt, kept for the lifetime of the deployment because nothing
+// ever deleted one.
+func TestStartRetentionPurge_PurgesWebhookDeliveries(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, _, _, _, _, _ := newTestServices()
+	purger := &fakeWebhookPurger{called: make(chan time.Time, 4)}
+	cmdSvc.WithWebhookDeliveryPurger(purger)
+
+	// Every other retention disabled: the webhook sweep must still run, or an
+	// operator who keeps audit logs forever silently keeps deliveries forever
+	// too.
+	cmdSvc.StartRetentionPurge(t.Context(), 0, 0, 0)
+
+	select {
+	case before := <-purger.called:
+		age := time.Since(before)
+		if age < 29*24*time.Hour || age > 31*24*time.Hour {
+			t.Fatalf("with audit retention off the default 30-day window applies, got %v", age)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("webhook delivery sweep never ran")
+	}
+}
+
+// When the operator HAS set an audit window, deliveries follow it rather than
+// the default - the two are the same class of diagnostic.
+func TestStartRetentionPurge_WebhookFollowsAuditWindow(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, _, _, _, _, _ := newTestServices()
+	purger := &fakeWebhookPurger{called: make(chan time.Time, 4)}
+	cmdSvc.WithWebhookDeliveryPurger(purger)
+
+	cmdSvc.StartRetentionPurge(t.Context(), 7, 0, 0)
+
+	select {
+	case before := <-purger.called:
+		age := time.Since(before)
+		if age < 6*24*time.Hour || age > 8*24*time.Hour {
+			t.Fatalf("must follow the configured 7-day audit window, got %v", age)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("webhook delivery sweep never ran")
+	}
+}
