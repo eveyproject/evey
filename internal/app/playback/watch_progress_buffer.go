@@ -152,10 +152,29 @@ func (b *WatchProgressBuffer) Start(ctx context.Context) {
 			case <-b.stopCh:
 				return
 			case <-ticker.C:
-				b.Flush(ctx)
+				b.safeFlush(ctx)
 			}
 		}
 	}()
+}
+
+// safeFlush contains a panic to THAT flush.
+//
+// The goroutine-level recover above is not enough on its own: it catches the
+// panic and then falls into the deferred final-flush-and-close, ending the
+// loop for the rest of the process lifetime. Nothing else reports on it, so
+// the visible result would be watch progress silently never being persisted
+// again - for every profile - while b.pending grows without bound, and Stop()
+// still returning cleanly because doneCh is already closed. One bad flush must
+// cost one flush.
+func (b *WatchProgressBuffer) safeFlush(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("watch progress flush panicked, continuing with the next tick",
+				slog.Any("panic", r))
+		}
+	}()
+	b.Flush(ctx)
 }
 
 // Stop signals the flush loop to exit and waits for the final drain.

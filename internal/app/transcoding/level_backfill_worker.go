@@ -176,7 +176,7 @@ func (w *LevelBackfillWorker) run(ctx context.Context) {
 		default:
 		}
 
-		processed := w.processBatch(ctx)
+		processed := w.safeProcessBatch(ctx)
 		if processed == 0 {
 			// Nothing fresh to do - sleep longer.
 			select {
@@ -361,4 +361,22 @@ func hasVideoStream(streams []*library.MediaStream) bool {
 		}
 	}
 	return false
+}
+
+// safeProcessBatch contains a panic to THAT batch.
+//
+// The goroutine-level recover wrapping the loop is not enough: it catches the
+// panic and then returns, ending the worker for the rest of the process
+// lifetime, silently. Whatever this worker is responsible for simply stops
+// happening, with one log line as the only trace. One bad batch must cost one
+// batch. Same reasoning as WatchProgressBuffer.safeFlush and
+// WatcherService.safeProbeRound.
+func (w *LevelBackfillWorker) safeProcessBatch(ctx context.Context) (n int) {
+	defer func() {
+		if r := recover(); r != nil {
+			w.logger.Error("batch panicked, continuing with the next one", slog.Any("panic", r))
+			n = 0
+		}
+	}()
+	return w.processBatch(ctx)
 }
