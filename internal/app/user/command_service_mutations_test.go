@@ -787,3 +787,52 @@ func TestRefreshToken_ProfileLookupFails_RefusesRatherThanDroppingProfile(t *tes
 	}
 	t.Logf("refused with: %v", err)
 }
+
+// stubLoginAttempts records PurgeStale calls.
+type stubLoginAttempts struct {
+	purged chan time.Duration
+}
+
+func (s *stubLoginAttempts) IsLocked(context.Context, string) (bool, error) { return false, nil }
+func (s *stubLoginAttempts) Record(context.Context, string, int, time.Duration) error {
+	return nil
+}
+func (s *stubLoginAttempts) Reset(context.Context, string) error { return nil }
+func (s *stubLoginAttempts) PurgeStale(_ context.Context, staleFor time.Duration) (int64, error) {
+	select {
+	case s.purged <- staleFor:
+	default:
+	}
+	return 3, nil
+}
+
+// login_attempts takes UNAUTHENTICATED writes on purpose: the unknown-user path
+// records an attempt so a missing account costs the same as a wrong password.
+// The price is one permanent row per distinct username an attacker tries, so
+// without this sweep a credential-stuffing dictionary is stored forever. The
+// in-memory limiter this table replaced had both a TTL and a size cap.
+func TestStartLoginAttemptCleanup_SweepsOnStart(t *testing.T) {
+	d := newAuthTestDeps()
+	stub := &stubLoginAttempts{purged: make(chan time.Duration, 4)}
+	WithLoginAttemptRepository(stub)(d.svc)
+
+	d.svc.StartLoginAttemptCleanup(t.Context())
+
+	select {
+	case staleFor := <-stub.purged:
+		// Must be comfortably past any rate-limit window, so a row is only
+		// dropped once it can no longer influence a decision.
+		if staleFor < time.Hour {
+			t.Fatalf("stale threshold %v is too aggressive - it could drop a row still inside its window", staleFor)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the cleanup must sweep immediately on start, not only after the first tick")
+	}
+}
+
+// An unwired repository must not spawn a goroutine that nil-derefs.
+func TestStartLoginAttemptCleanup_NilRepoIsSafe(t *testing.T) {
+	svc := &CommandService{}
+	svc.StartLoginAttemptCleanup(t.Context())
+	time.Sleep(100 * time.Millisecond)
+}

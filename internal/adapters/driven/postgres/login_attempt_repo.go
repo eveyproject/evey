@@ -130,3 +130,26 @@ func (r *LoginAttemptRepository) Reset(ctx context.Context, username string) err
 }
 
 var _ user.LoginAttemptRepository = (*LoginAttemptRepository)(nil)
+
+// PurgeStale removes settled rows: the window has expired long ago AND no lock
+// is outstanding. A locked row is kept whatever its age - dropping it would
+// hand the attacker a fresh budget, which is the one thing this table exists to
+// deny.
+func (r *LoginAttemptRepository) PurgeStale(ctx context.Context, staleFor time.Duration) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.login_attempt.PurgeStale")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `
+DELETE FROM login_attempts
+WHERE updated_at < NOW() - ($1 * interval '1 second')
+  AND (locked_until IS NULL OR locked_until < NOW())`, staleFor.Seconds())
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}

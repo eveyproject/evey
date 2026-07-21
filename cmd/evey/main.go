@@ -192,6 +192,11 @@ func run() error {
 	// keep forever) so an existing deployment never silently loses history;
 	// server_metric rides its long-standing EVEY_METRICS_RETENTION_DAYS; QoE
 	// defaults to the 30 days its migration always assumed but never enforced.
+	// Hourly sweep of settled login-attempt rows. This table takes
+	// UNAUTHENTICATED writes by design (the unknown-user path records an
+	// attempt so a missing account cannot be found by timing), so without a
+	// sweep a credential-stuffing dictionary is stored permanently.
+	deps.user.authSvc.StartLoginAttemptCleanup(ctx)
 	deps.engagement.activityCmdSvc.StartRetentionPurge(ctx,
 		cfg.Log.AuditRetentionDays, cfg.Metrics.RetentionDays, cfg.Metrics.QoERetentionDays)
 	// Minute-grained server-metric samples (CPU/RAM, streams, measured
