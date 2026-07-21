@@ -97,6 +97,13 @@ type hlsVODServe struct {
 	// pipeline unchanged. nil = feature off, no behaviour change.
 	onDemand apptranscoding.OnDemandPackager
 
+	// onDemandActivity is how this stateless path reports "someone is watching".
+	// The packager spawns no ffmpeg session, so without a touch on every served
+	// resource the server's whole anti-starvation machinery reads an mkvgo
+	// viewer as an idle box and lets background workers fight them for the disk.
+	// nil = not wired (no behaviour change).
+	onDemandActivity *apptranscoding.OnDemandActivity
+
 	// onDemandEncrypt AES-128-encrypts the on-demand rung's media segments
 	// (behind transcoding.hls_ondemand_encrypt). Off by default; requires
 	// hlsAESSecret. When on, no DASH manifest is emitted (AES-128 is HLS-only).

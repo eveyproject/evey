@@ -85,6 +85,38 @@ func TestProducerSelector_ActiveSessionCount_SumsBoth(t *testing.T) {
 	}
 }
 
+// THE bug this file's counter had: both producers only know about ffmpeg
+// sessions, so a playback served entirely by the mkvgo on-demand packager read
+// as an idle server and every background worker (drain, trickplay, intro
+// detection, calibration) kept competing for the NAS disk under a live viewer.
+func TestProducerSelector_ActiveSessionCount_CountsOnDemandPlayback(t *testing.T) {
+	sw := &fakeProducer{name: "sw", active: 0}
+	hw := &fakeProducer{name: "hw", active: 0}
+	sel := NewProducerSelector(sw, hw, nil)
+
+	act := NewOnDemandActivity(time.Minute)
+	sel.WithOnDemandActivity(act)
+	act.Touch("mi-1")
+
+	if got := sel.ActiveSessionCount(); got != 1 {
+		t.Fatalf("an mkvgo-served playback must count as active, got %d", got)
+	}
+}
+
+func TestProducerSelector_ActiveSessionCount_SumsOnDemandWithProducers(t *testing.T) {
+	sw := &fakeProducer{name: "sw", active: 3}
+	hw := &fakeProducer{name: "hw", active: 2}
+	sel := NewProducerSelector(sw, hw, nil)
+
+	act := NewOnDemandActivity(time.Minute)
+	sel.WithOnDemandActivity(act)
+	act.Touch("mi-1")
+
+	if got := sel.ActiveSessionCount(); got != 6 {
+		t.Fatalf("on-demand playback must add to the ffmpeg counts, got %d", got)
+	}
+}
+
 func TestProducerSelector_Close_ClosesBoth(t *testing.T) {
 	sw := &fakeProducer{name: "sw"}
 	hw := &fakeProducer{name: "hw"}

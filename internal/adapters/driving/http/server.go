@@ -138,6 +138,13 @@ type HTTPServer struct {
 	// copy/transcode pipeline is unchanged).
 	OnDemandPackager apptranscoding.OnDemandPackager
 
+	// OnDemandActivity is the "someone is watching" tracker the on-demand path
+	// feeds. The packager spawns no ffmpeg session, so it is the ONLY way a
+	// playback served by mkvgo becomes visible to ActiveSessionCount - and
+	// through it to every background worker that yields under live playback.
+	// nil-safe (unwired → the counter stays ffmpeg-only, as before).
+	OnDemandActivity *apptranscoding.OnDemandActivity
+
 	// OnDemandConcatPackager serves a gapless multi-episode HLS session
 	// (mkvgo's mp4.PlanConcat) when a request opts in with ?gapless=1. Off by
 	// default, opt-in via transcoding.hls_ondemand_concat=on; nil-safe

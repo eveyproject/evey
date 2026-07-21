@@ -90,7 +90,7 @@ func (h *hlsVODServe) tryServePlanMaster(w http.ResponseWriter, r *http.Request,
 
 	if h.audioAllCopyEligible(r.Context(), decision, streams) {
 		// Full packager presentation (video + audio + subtitles).
-		h.servePlanResourceData(w, r, plan, "master.m3u8", span)
+		h.servePlanResourceData(w, r, mediaID, plan, "master.m3u8", span)
 		return true
 	}
 
@@ -300,7 +300,7 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	h.servePlanResourceData(w, r, plan, name, span)
+	h.servePlanResourceData(w, r, mediaID, plan, name, span)
 }
 
 // packagerVersion is the mkvgo version that produced these bytes, read from the
@@ -322,7 +322,13 @@ var packagerVersion = sync.OnceValue(func() string {
 // servePlanResourceData writes one plan resource (name is canonical). Playlists
 // are no-cache (a re-scan can change them); segments and inits are immutable for
 // a year, keyed by packager version.
-func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Request, plan apptranscoding.OnDemandPlan, name string, span trace.Span) {
+func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Request, mediaID string, plan apptranscoding.OnDemandPlan, name string, span trace.Span) {
+	// Single chokepoint for everything mkvgo serves (master, playlists, inits,
+	// segments), so one touch here is the whole "is this media playing" signal
+	// for the on-demand path. Touch before the write, not after: a client that
+	// aborts mid-segment is still a client that is watching.
+	h.onDemandActivity.Touch(mediaID)
+
 	data, contentType, err := plan.Resource(r.Context(), name)
 	if err != nil {
 		span.RecordError(err)

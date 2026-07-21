@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -154,6 +155,41 @@ func TestTryServePlanMaster_ServesPlan(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), "od_playlist.m3u8")
 	assert.Equal(t, 1, pkg.calls)
+}
+
+// The wiring that closes the blind spot: serving from the packager must make
+// the media count as active playback. Without it the anti-starvation guards see
+// an idle server (no ffmpeg session exists on this path) and let background
+// workers compete with the viewer for the same disk.
+func TestServePlanResource_MarksPlaybackActive(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{
+		resources: map[string][]byte{"master.m3u8": []byte("#EXTM3U\n")},
+	}}
+	act := apptranscoding.NewOnDemandActivity(time.Minute)
+	h.onDemandActivity = act
+
+	assert.Equal(t, 0, act.ActiveSessionCount(), "nothing served yet")
+
+	served := h.tryServePlanMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), noopSpan())
+
+	assert.True(t, served)
+	assert.Equal(t, 1, act.ActiveSessionCount(), "an mkvgo-served playback must register as active")
+}
+
+// A fallthrough to ffmpeg must NOT register on-demand activity: that playback
+// spawns a real session, which the producer counters already see. Counting it
+// here too would double it.
+func TestServePlanResource_NoActivityOnFallthrough(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{err: fmt.Errorf("no Cues index")}
+	act := apptranscoding.NewOnDemandActivity(time.Minute)
+	h.onDemandActivity = act
+
+	served := h.tryServePlanMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), noopSpan())
+
+	assert.False(t, served)
+	assert.Equal(t, 0, act.ActiveSessionCount(), "a plan that never served must not count as playback")
 }
 
 func TestTryServePlanMaster_FallsBackOnBuildError(t *testing.T) {

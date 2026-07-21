@@ -121,6 +121,21 @@ type ProducerSelector struct {
 	// cache fingerprint (which keys HW vs SW segments interchangeably) and the
 	// routing stay consistent.
 	hwUsableForContent func(decision transcoding.PlaybackDecision, src SourceDims) bool
+
+	// onDemand counts playbacks served by the mkvgo packager, which spawn no
+	// ffmpeg session and are therefore invisible to both producers. Folded in
+	// here rather than at each call site because every anti-starvation guard in
+	// the server reads its "is someone watching" answer from this one method -
+	// wiring it anywhere else would fix some guards and leave the rest blind.
+	// nil = no on-demand path wired (reads as zero).
+	onDemand *OnDemandActivity
+}
+
+// WithOnDemandActivity wires the mkvgo playback tracker into the aggregate
+// count. Chainable; leaving it unset preserves the ffmpeg-only behaviour.
+func (s *ProducerSelector) WithOnDemandActivity(a *OnDemandActivity) *ProducerSelector {
+	s.onDemand = a
+	return s
 }
 
 // NewProducerSelector wires the two producers and the usability predicate.
@@ -165,9 +180,14 @@ func (s *ProducerSelector) Close() {
 	}
 }
 
-// ActiveSessionCount sums live sessions across both producers so the trickplay
-// ActiveStreamChecker contract (one ActiveSessionCount() reader) keeps seeing
-// the whole picture regardless of which path is active.
+// ActiveSessionCount sums live playbacks across every serving path - both
+// ffmpeg producers AND the on-demand packager - so the ActiveStreamChecker
+// contract (one ActiveSessionCount() reader) keeps seeing the whole picture
+// regardless of which machinery is active.
+//
+// The on-demand term is not optional trimming: a copy-eligible source is served
+// entirely by mkvgo, so for that playback the two producer terms are both zero
+// and this method IS the only signal that anyone is watching.
 func (s *ProducerSelector) ActiveSessionCount() int {
 	n := 0
 	if s.software != nil {
@@ -176,7 +196,7 @@ func (s *ProducerSelector) ActiveSessionCount() int {
 	if s.hardware != nil {
 		n += s.hardware.ActiveSessionCount()
 	}
-	return n
+	return n + s.onDemand.ActiveSessionCount()
 }
 
 // RemoveSession fans the kill out to both producers - a media item could have

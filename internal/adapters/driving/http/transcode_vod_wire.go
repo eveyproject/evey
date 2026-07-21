@@ -263,6 +263,10 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 	if s.OnDemandPackager != nil &&
 		serverFlagEnabled(s.ServerCfgRepo, "transcoding.hls_ondemand", "EVEY_HLS_ONDEMAND", true) {
 		h.onDemand = s.OnDemandPackager
+		// Paired with the packager on purpose: the tracker only has meaning
+		// while this rung can serve, and leaving it wired with the rung off
+		// would report playbacks that no longer take this path.
+		h.onDemandActivity = s.OnDemandActivity
 		slog.Default().Info("hls vod: on-demand copy rung enabled (mp4.PlanHLS, default; disable with server_config transcoding.hls_ondemand=off or EVEY_HLS_ONDEMAND=off)")
 
 		// AES-128 encryption of the on-demand segments (HLS-only, no DASH).
