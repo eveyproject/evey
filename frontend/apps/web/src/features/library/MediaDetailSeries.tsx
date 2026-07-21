@@ -61,7 +61,7 @@ function EpisodeRow({ ep }: { ep: V1MediaItem }) {
     : undefined;
 
   return (
-    <div className="flex gap-4 p-3 hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]">
+    <div className="flex gap-5 p-4 hover:bg-[var(--surface-raised)] transition-colors-fast text-[var(--text)]">
       {/* Still + play overlay. The whole thumbnail is the play target: it is the
           biggest, most obvious hit area and it is what the viewer wants. */}
       <Link
@@ -69,13 +69,13 @@ function EpisodeRow({ ep }: { ep: V1MediaItem }) {
         params={{ mediaId: ep.id ?? "" }}
         aria-label={t("media.detail.play")}
         title={t("media.detail.play")}
-        className="relative flex-shrink-0 w-52 sm:w-64 aspect-video rounded-[var(--radius-sm)] overflow-hidden bg-[var(--surface-raised)] group"
+        className="relative flex-shrink-0 w-60 sm:w-72 aspect-video rounded-[var(--radius-sm)] overflow-hidden bg-[var(--surface-raised)] group"
       >
         {stillUrl && (
           <img
             src={stillUrl}
             srcSet={stillSrcSet}
-            sizes="256px"
+            sizes="288px"
             alt=""
             loading="lazy"
             className="w-full h-full object-cover"
@@ -92,13 +92,13 @@ function EpisodeRow({ ep }: { ep: V1MediaItem }) {
           <span className="text-base flex-shrink-0 font-mono font-medium text-[var(--accent)]">
             E{ep.indexNumber ?? "?"}
           </span>
-          <span className="text-base font-medium truncate">{ep.title}</span>
+          <span className="text-[17px] font-medium truncate">{ep.title}</span>
           {ep.durationMs && (
             <span className="text-sm flex-shrink-0 ml-auto text-[var(--text-muted)]">{formatDuration(ep.durationMs)}</span>
           )}
         </div>
         {ep.overview && (
-          <p className="mt-1.5 text-sm leading-relaxed line-clamp-3 text-[var(--text-secondary)]">{ep.overview}</p>
+          <p className="mt-2 text-[15px] leading-relaxed line-clamp-3 text-[var(--text-secondary)]">{ep.overview}</p>
         )}
       </div>
 
@@ -260,7 +260,7 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
           running for 150+ characters and the download button marooned far from
           the content it acts on. Capped, the still, the text and the action read
           as one object. */}
-      <div className="max-w-3xl divide-y border border-[var(--border)] rounded-[var(--radius-md)]">
+      <div className="grid xl:grid-cols-2 gap-x-6 [&>*]:border-b [&>*]:border-[var(--border)] border-t border-[var(--border)]">
         {episodes.map((ep) => (ep.id ? <EpisodeRow key={ep.id} ep={ep} /> : null))}
       </div>
     </div>

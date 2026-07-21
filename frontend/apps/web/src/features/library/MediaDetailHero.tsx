@@ -77,7 +77,7 @@ export function MediaDetailHero({
       {/* Indented on desktop so the overlapping poster (rendered by MediaDetail
           just below, pulled up over this artwork) never sits on top of the
           title. */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 sm:px-6 pb-4 sm:pb-6 md:pl-[22rem]">
+      <div className="absolute bottom-0 left-0 right-0 z-raised px-4 sm:px-6 pb-5 sm:pb-7 md:pl-[25rem]">
         <div className="flex items-center gap-x-3 gap-y-2 mb-3 flex-wrap [&>*+*]:before:content-[''] [&>*+*]:before:hidden">
           {certInfo && (
             <span

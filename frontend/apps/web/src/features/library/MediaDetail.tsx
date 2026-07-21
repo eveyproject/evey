@@ -100,8 +100,8 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
 
           The negative margin is desktop-only: on a narrow screen there is no
           room beside the poster, so the sections stay stacked. */}
-      <div className="flex gap-6 mt-6 md:-mt-28 relative z-raised">
-        <div className="flex-shrink-0 w-80 hidden md:block">
+      <div className="flex gap-8 mt-6 items-start">
+        <div className="flex-shrink-0 w-80 hidden md:block md:-mt-28 relative z-raised">
           <div
             className="evey-poster relative w-80 overflow-hidden rounded-[var(--radius-md)] aspect-[2/3] bg-[var(--surface-raised)] shadow-[var(--shadow-lg)] ring-1 ring-[var(--border)]"
           >
@@ -135,7 +135,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
         {/* Pushed down to clear the backdrop the poster now overlaps, so the
             synopsis and actions start below the artwork rather than on top of
             it. */}
-        <div className="flex-1 min-w-0 md:pt-28">
+        <div className="flex-1 min-w-0">
         <MediaDetailActions
           item={item}
           isSeries={isSeries}
