@@ -7,15 +7,11 @@
 // Steps are paired with the type scale so an icon sits right next to its label:
 //   ICON.xs  next to text-xs      ICON.md next to text-base
 //   ICON.sm  next to text-sm      ICON.lg next to text-lg / buttons
-export const ICON = {
-  xs: 12,
-  sm: 14,
-  md: 16,
-  lg: 20,
-  xl: 24,
-  "2xl": 32,
-  "3xl": 40,
-  "4xl": 48,
-} as const;
+// Re-exported from @evey/theme rather than restated: mobile and TV read the
+// same ladder, and two hand-kept copies of a number scale drift the moment one
+// of them gains a step.
+import { ICON_SIZE } from "@evey/theme";
+
+export const ICON = ICON_SIZE;
 
 export type IconSize = (typeof ICON)[keyof typeof ICON];

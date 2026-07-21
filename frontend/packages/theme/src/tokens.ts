@@ -43,6 +43,42 @@ const MOBILE_ERROR: Record<ThemeCSSName, string> = {
 // CSS vars), identical across themes.
 const SPACING = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
 
+// Type and icon scales, in px, shared by web / mobile / TV.
+//
+// These MIRROR the web ladder declared in apps/web/src/styles/main.css's
+// @theme block (--text-xs … --text-4xl) and apps/web/src/constants/iconSizes.ts.
+// Web reads its own copy because Tailwind needs the values at build time; the
+// numbers here are what mobile and TV consume, and the two must stay equal -
+// that is the whole point of writing them down once.
+//
+// They exist because the native clients had no ladder at all: the mobile app
+// carried 137 hardcoded `fontSize:` values across 12 distinct sizes, which is
+// how a "small" label ended up being 11, 12 or 13 depending on the screen.
+export const FONT_SIZE = {
+  xs: 13,
+  sm: 15,
+  base: 16,
+  lg: 18,
+  xl: 20,
+  "2xl": 24,
+  "3xl": 30,
+  "4xl": 36,
+} as const;
+
+export const ICON_SIZE = {
+  xs: 12,
+  sm: 14,
+  md: 16,
+  lg: 20,
+  xl: 24,
+  "2xl": 32,
+  "3xl": 40,
+  "4xl": 48,
+} as const;
+
+export type FontSizeStep = keyof typeof FONT_SIZE;
+export type IconSizeStep = keyof typeof ICON_SIZE;
+
 // resolveVar unwraps a `var(--x)` reference to its concrete value (RN can't
 // resolve CSS variables). --danger/--success/--warning alias the --color-*
 // tokens in every theme.
