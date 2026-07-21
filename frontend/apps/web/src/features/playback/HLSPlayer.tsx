@@ -937,6 +937,16 @@ export function HLSPlayer({
         <div
           className={`absolute top-4 right-4 z-[11] flex items-center gap-2 transition-opacity-fast duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}
           onMouseMove={() => revealControlsRef.current?.()}
+          // Reveal on focus, exactly as PlayerControls does for the bottom bar.
+          // opacity-0 hides these buttons but leaves them in the tab order, and
+          // pointer-events-none does not block the keyboard - so without this a
+          // keyboard user tabbing after the controls auto-hide lands on "Watch
+          // together" and cast with no focus ring and nothing on screen, and
+          // Enter still fires them. They start or stop a cast blind.
+          //
+          // Revealing rather than removing them from the tab order: hiding them
+          // from the keyboard would make casting unreachable without a mouse.
+          onFocus={() => revealControlsRef.current?.()}
         >
           {showWatchTogether && onWatchTogether && (
             <button
