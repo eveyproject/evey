@@ -1135,3 +1135,68 @@ func TestStartBulkDownload_CanceledServerCtx_NoDeadlock(t *testing.T) {
 		return job != nil && job.Done.Load()
 	}, 2*time.Second, 10*time.Millisecond, "bulk download must finish on cancelled ctx, not deadlock")
 }
+
+// A reset that half-completes must SAY so. Every one of these four writes used
+// to be logged and swallowed, and ResetItemMetadata returned nil regardless -
+// so an admin whose overrides survived the "reset" was told it worked, and the
+// next enrichment quietly re-applied exactly what they asked to remove.
+func TestResetItemMetadata_ReportsFailureInsteadOfClaimingSuccess(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	artworkRepo := metafakes.NewFakeArtworkRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		overrideRepo, artworkRepo, metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(), nil,
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	item := &library.MediaItem{
+		ID: "m1", Type: library.MovieItem, Title: "Old Title",
+		File:     &library.MediaFile{Path: "/media/Inception (2010).mkv"},
+		Overview: "some overview",
+	}
+	require.NoError(t, mediaRepo.Create(ctx, item))
+
+	// The final write fails. Everything before it succeeded, so this is exactly
+	// the half-state the old code reported as success.
+	mediaRepo.ErrUpdate = errors.New("connection reset by peer")
+
+	err := cmdSvc.ResetItemMetadata(ctx, "m1")
+	require.Error(t, err, "a failed write must surface, not be logged and swallowed")
+	assert.Contains(t, err.Error(), "connection reset by peer")
+}
+
+// Overrides are dropped BEFORE the item's fields are cleared, so a failure
+// between the two fails safe: fields still populated + overrides gone
+// re-converges on the reset state at the next enrichment, whereas the reverse
+// order silently reinstates the removed overrides.
+func TestResetItemMetadata_DropsOverridesBeforeClearingFields(t *testing.T) {
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	cmdSvc := appmetadata.NewCommandService(
+		overrideRepo, metafakes.NewFakeArtworkRepository(), metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(), nil,
+	)
+	mediaRepo := libfakes.NewFakeMediaItemRepository()
+	appmetadata.WithEnricher(&fakeTranslationsEnricher{}, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	item := &library.MediaItem{
+		ID: "m1", Type: library.MovieItem, Title: "Old Title",
+		File:     &library.MediaFile{Path: "/media/Inception (2010).mkv"},
+		Overview: "some overview",
+	}
+	require.NoError(t, mediaRepo.Create(ctx, item))
+	require.NoError(t, overrideRepo.Set(ctx, &metadata.MetadataOverride{
+		ID: "ov-1", MediaItemID: "m1", FieldName: "title", CustomValue: "x",
+	}))
+	mediaRepo.ErrUpdate = errors.New("db down")
+
+	require.Error(t, cmdSvc.ResetItemMetadata(ctx, "m1"))
+
+	// The override must be gone even though the run aborted: that is the safe
+	// half-state.
+	remaining, err := overrideRepo.GetByMediaItem(ctx, "m1")
+	require.NoError(t, err)
+	assert.Empty(t, remaining, "overrides must be dropped before the item write can fail")
+}

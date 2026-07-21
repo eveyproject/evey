@@ -222,11 +222,19 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 	}
 
 	// Reset the item itself
-	s.resetSingleItem(ctx, item)
+	if err := s.resetSingleItem(ctx, item); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return fmt.Errorf("reset item: %w", err)
+	}
 
 	// Cascade to children (series → seasons + episodes, season → episodes)
 	if item.Type == library.Series || item.Type == library.Season {
-		s.resetChildren(ctx, string(item.ID))
+		if err := s.resetChildren(ctx, string(item.ID)); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return fmt.Errorf("reset children: %w", err)
+		}
 	}
 
 	// Trigger re-enrichment with background context (request ctx may be done)
@@ -246,8 +254,10 @@ func (s *CommandService) ResetItemMetadata(ctx context.Context, mediaItemID stri
 	return nil
 }
 
-// resetSingleItem clears enriched metadata fields, artwork, overrides, and cast for one item.
-func (s *CommandService) resetSingleItem(ctx context.Context, item *library.MediaItem) {
+// resetSingleItem clears enriched metadata fields, artwork, overrides, and cast
+// for one item. Errors propagate: they used to be logged and swallowed, so a
+// half-completed reset still answered "ok" to the admin who asked for it.
+func (s *CommandService) resetSingleItem(ctx context.Context, item *library.MediaItem) error {
 	// Derive title from file path or directory name
 	filePath := ""
 	if item.File != nil {
@@ -261,6 +271,28 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 		}
 	}
 
+	// Order matters, because these four writes are NOT in one transaction and a
+	// failure can land between any two of them. Overrides go FIRST.
+	//
+	// The other way round - clearing the item's fields before dropping its
+	// overrides - has a genuinely bad half-state: a failure after the update
+	// leaves the fields blank while the overrides survive, so the next
+	// enrichment re-applies exactly what the admin asked to remove. The reset
+	// silently undoes itself. Dropping overrides first fails safe instead: the
+	// fields are still populated, and re-enrichment converges on the reset
+	// state anyway.
+	if err := s.overrides.DeleteByMediaItemID(ctx, string(item.ID)); err != nil {
+		return fmt.Errorf("delete overrides: %w", err)
+	}
+	if err := s.artwork.DeleteByMediaItemID(ctx, string(item.ID)); err != nil {
+		return fmt.Errorf("delete artwork: %w", err)
+	}
+	if s.mediaPersons != nil {
+		if err := s.mediaPersons.DeleteByMediaItemID(ctx, item.ID); err != nil {
+			return fmt.Errorf("delete media persons: %w", err)
+		}
+	}
+
 	item.Overview = ""
 	item.Tagline = ""
 	item.OriginalTitle = ""
@@ -270,33 +302,30 @@ func (s *CommandService) resetSingleItem(ctx context.Context, item *library.Medi
 	item.UpdatedAt = time.Now()
 
 	if err := s.mediaItems.Update(ctx, item); err != nil {
-		slog.Warn("reset: update item", slog.String("id", string(item.ID)), slog.Any("err", err))
+		return fmt.Errorf("update item: %w", err)
 	}
-	if err := s.artwork.DeleteByMediaItemID(ctx, string(item.ID)); err != nil {
-		slog.Warn("reset: delete artwork", slog.String("id", string(item.ID)), slog.Any("err", err))
-	}
-	if err := s.overrides.DeleteByMediaItemID(ctx, string(item.ID)); err != nil {
-		slog.Warn("reset: delete overrides", slog.String("id", string(item.ID)), slog.Any("err", err))
-	}
-	if s.mediaPersons != nil {
-		if err := s.mediaPersons.DeleteByMediaItemID(ctx, item.ID); err != nil {
-			slog.Warn("reset: delete media persons", slog.String("id", string(item.ID)), slog.Any("err", err))
-		}
-	}
+	return nil
 }
 
 // resetChildren resets all direct children and their children recursively.
-func (s *CommandService) resetChildren(ctx context.Context, parentID string) {
+// Stops at the first failure and reports it: a series reset that silently gave
+// up halfway is worse than one that says so, because the admin has no way to
+// tell which episodes were actually reset.
+func (s *CommandService) resetChildren(ctx context.Context, parentID string) error {
 	children, err := s.mediaItems.List(ctx, library.ListMediaItemsFilter{ParentID: &parentID})
 	if err != nil {
-		slog.Warn("reset: list children", slog.String("parentID", parentID), slog.Any("err", err))
-		return
+		return fmt.Errorf("list children of %s: %w", parentID, err)
 	}
 	for _, child := range children {
-		s.resetSingleItem(ctx, child)
+		if err := s.resetSingleItem(ctx, child); err != nil {
+			return fmt.Errorf("reset child %s: %w", child.ID, err)
+		}
 		// Recurse (series → seasons → episodes)
 		if child.Type == library.Season {
-			s.resetChildren(ctx, string(child.ID))
+			if err := s.resetChildren(ctx, string(child.ID)); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
