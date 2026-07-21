@@ -72,7 +72,7 @@ function SubprocessWarning() {
       className="flex items-start gap-3 p-4 rounded-[var(--radius-md)] bg-[var(--badge-warning-bg,#713f12)] border border-[var(--badge-warning-text,#fde047)]"
     >
       <TriangleAlert
-        size={ICON.xl}
+        size={ICON.lg}
         className="shrink-0 mt-0.5 text-[var(--badge-warning-text,#fde047)]"
       />
       <div>

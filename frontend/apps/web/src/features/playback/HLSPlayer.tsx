@@ -1002,7 +1002,7 @@ export function HLSPlayer({
           className={`absolute top-0 bottom-0 w-16 flex items-center justify-center pointer-events-none z-[6] ${swipeIndicator.type === "volume" ? "right-4" : "left-4"}`}
         >
           <div className="flex flex-col items-center gap-2 rounded-xl bg-black/60 px-3 py-4 backdrop-blur-sm">
-            {swipeIndicator.type === "volume" ? <Volume2 size={ICON.xl} className="text-white" /> : <Sun size={ICON.xl} className="text-white" />}
+            {swipeIndicator.type === "volume" ? <Volume2 size={ICON.lg} className="text-white" /> : <Sun size={ICON.lg} className="text-white" />}
             <div className="w-1 h-24 rounded-full bg-white/20 relative overflow-hidden">
               <div
                 className="absolute bottom-0 left-0 right-0 rounded-full bg-white"

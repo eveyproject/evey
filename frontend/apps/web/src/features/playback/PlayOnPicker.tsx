@@ -79,7 +79,7 @@ export function PlayOnPicker({ mediaId, getPositionMs }: PlayOnPickerProps) {
         aria-expanded={open}
         className="transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded text-[var(--overlay-text)] hover:text-[var(--accent)]"
       >
-        <Tv size={ICON.xl} aria-hidden="true" />
+        <Tv size={ICON.lg} aria-hidden="true" />
       </button>
       {open && (
         <div

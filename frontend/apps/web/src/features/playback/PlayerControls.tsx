@@ -602,7 +602,7 @@ function PlayerControlsInner({
             aria-expanded={overflowOpen}
             className="sm:hidden text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
           >
-            <MoreHorizontal size={ICON.xl} aria-hidden="true" />
+            <MoreHorizontal size={ICON.lg} aria-hidden="true" />
           </button>
 
           {/* Secondary controls. Below sm they live behind the ⋯ toggle as a
@@ -703,9 +703,9 @@ function PlayerControlsInner({
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
             >
               {docPiP.isOpen || isPip ? (
-                <PictureInPicture2 size={ICON.xl}  aria-hidden="true" />
+                <PictureInPicture2 size={ICON.lg}  aria-hidden="true" />
               ) : (
-                <PictureInPicture size={ICON.xl}  aria-hidden="true" />
+                <PictureInPicture size={ICON.lg}  aria-hidden="true" />
               )}
             </button>
           )}
@@ -718,9 +718,9 @@ function PlayerControlsInner({
             className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
           >
             {fullscreen ? (
-              <Minimize size={ICON.xl}  aria-hidden="true" />
+              <Minimize size={ICON.lg}  aria-hidden="true" />
             ) : (
-              <Maximize size={ICON.xl}  aria-hidden="true" />
+              <Maximize size={ICON.lg}  aria-hidden="true" />
             )}
           </button>
           </div>

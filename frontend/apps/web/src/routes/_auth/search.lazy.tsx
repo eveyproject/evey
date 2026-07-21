@@ -147,7 +147,7 @@ function SearchPage() {
     <div>
       <div className="mb-6">
         <div className="relative max-w-xl">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]" size={ICON.xl} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]" size={ICON.lg} />
           <input
             ref={inputRef}
             type="search"

@@ -1024,7 +1024,7 @@ function ArtistsTab({ artists, loading, onArtistClick }: { artists: Artist[]; lo
                 className="w-12 h-12 rounded-full bg-cover bg-center bg-[var(--surface)] flex items-center justify-center flex-shrink-0"
                 style={{ backgroundImage: a.CoverArtURL ? `url(${a.CoverArtURL}${tokenParam})` : undefined }}
               >
-                {!a.CoverArtURL && <Music size={ICON.xl} className="opacity-30 text-[var(--text-muted)]" />}
+                {!a.CoverArtURL && <Music size={ICON.lg} className="opacity-30 text-[var(--text-muted)]" />}
               </div>
               <span className="font-medium text-[var(--text)] truncate">{a.Name}</span>
             </div>
