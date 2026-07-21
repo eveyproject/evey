@@ -903,3 +903,34 @@ func scanWorkerCount() int {
 	}
 	return sysinfo.CPUBudget()
 }
+
+// playbackScanBackoff is the periodic scan's cadence while playback is active,
+// against its normal interval (2 min by default).
+//
+// The scan walks every library root - filepath.WalkDir, one getdents per
+// directory - on the SAME disk the viewer is streaming from. On a weak NAS a
+// cold pass over a large library is tens of seconds of seeks in direct
+// contention with playback.
+//
+// Backing off rather than skipping outright: this scan is the fallback for
+// libraries whose inotify watcher missed something, so suspending it for a
+// whole evening of viewing would delay discovery until everyone stopped
+// watching. 15 minutes keeps the fallback alive at a fraction of the I/O.
+const playbackScanBackoff = 15 * time.Minute
+
+// shouldScanNow decides whether this tick pays for a full library walk.
+// Exported behaviour is the same as before when no playback gate is wired.
+//
+// The first tick always scans (lastScan zero) so a server that boots with a
+// stale library is not left waiting on the viewer.
+func (s *ScanService) shouldScanNow(now, lastScan time.Time, interval time.Duration) bool {
+	if s.ingestActivePlayback == nil || s.ingestActivePlayback() == 0 {
+		return true
+	}
+	if lastScan.IsZero() {
+		return true
+	}
+	// Never scan MORE often than the operator asked for.
+	backoff := max(playbackScanBackoff, interval)
+	return now.Sub(lastScan) >= backoff
+}

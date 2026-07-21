@@ -174,11 +174,18 @@ func (s *CommandService) StartPeriodicScan(ctx context.Context, libQueries libra
 		}()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		var lastScan time.Time
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
+			case now := <-ticker.C:
+				// The walk below hits the same disk the viewer is reading from;
+				// back off while anything is playing (see playbackScanBackoff).
+				if !s.scan.shouldScanNow(now, lastScan, interval) {
+					continue
+				}
+				lastScan = now
 				libs, err := libQueries.List(ctx, library.ListLibrariesFilter{})
 				if err != nil {
 					slog.Warn("periodic scan: list libraries", slog.Any("err", err))
