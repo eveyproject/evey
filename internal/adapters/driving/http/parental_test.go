@@ -168,20 +168,50 @@ func TestMediaStream_ParentalBlocked_NotFound(t *testing.T) {
 	}
 }
 
+// The 404 must come from the PARENTAL GATE, not from anywhere else that also
+// 404s. The previous version of this test pointed at "/tmp/fake.mkv", a file
+// that does not exist: serveDownload's os.Stat failed and emitted the very same
+// 404, so deleting the gate from downloadHandler left the whole package green.
+// Verified by mutation - the gate could be removed undetected.
+//
+// A real file plus the open-gate control makes the negative real, exactly as
+// TestMediaStream_ParentalBlocked_NotFound above already did.
 func TestDownloadHandler_ParentalBlocked_NotFound(t *testing.T) {
-	h := downloadHandler(
-		&fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: shared.LibraryID("lib1"), File: &domainlibrary.MediaFile{Path: "/tmp/fake.mkv"}}},
-		"http://localhost",
-		&fakeLibraryAccessChecker{allowed: true}, // library access granted…
-		alwaysBlockChecker{},                     // …but parental blocks
-	)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
-	req.SetPathValue("id", "m1")
-	req = withHTTPClaims(req, testClaims(false))
-	w := httptest.NewRecorder()
-	h.ServeHTTP(w, req)
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404 from parental gate (existence hidden), got %d", w.Code)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "movie.mkv")
+	if err := os.WriteFile(path, []byte("mkv-bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	build := func(pc ParentalChecker) http.HandlerFunc {
+		return downloadHandler(
+			&fakeMediaItemGetter{
+				item:      &domainlibrary.MediaItem{ID: "m1", LibraryID: shared.LibraryID("lib1"), File: &domainlibrary.MediaFile{Path: path}},
+				libraries: []*domainlibrary.Library{{ID: "lib1", Paths: []string{dir}}},
+			},
+			"http://localhost",
+			&fakeLibraryAccessChecker{allowed: true}, // library access granted…
+			pc,
+		)
+	}
+	newReq := func() *http.Request {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/download", nil)
+		req.SetPathValue("id", "m1")
+		return withHTTPClaims(req, testClaims(false))
+	}
+
+	// Control: with the gate open the bytes are served. Without this, a 404
+	// below proves nothing - it could come from a missing file or a bad root.
+	wOK := httptest.NewRecorder()
+	build(allowAllParental{}).ServeHTTP(wOK, newReq())
+	if wOK.Code != http.StatusOK {
+		t.Fatalf("control: open parental gate should serve the download, got %d: %s", wOK.Code, wOK.Body.String())
+	}
+
+	// …and with it closed, 404 - hiding the item's existence.
+	wBlocked := httptest.NewRecorder()
+	build(alwaysBlockChecker{}).ServeHTTP(wBlocked, newReq())
+	if wBlocked.Code != http.StatusNotFound {
+		t.Errorf("parental-blocked download must return 404 (existence hidden), got %d", wBlocked.Code)
 	}
 }
 
