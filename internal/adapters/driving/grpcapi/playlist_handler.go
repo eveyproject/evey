@@ -60,7 +60,7 @@ func (h *playlistHandler) ListPlaylists(ctx context.Context, req *eveyv1.ListPla
 	}
 	pls, err := h.svc.List(ctx, claims.ProfileID)
 	if err != nil {
-		return nil, internalError("list playlists", err)
+		return nil, internalError(ctx, "list playlists", err)
 	}
 	resp := &eveyv1.ListPlaylistsResponse{}
 	for _, pl := range pls {
@@ -100,7 +100,7 @@ func (h *playlistHandler) CreatePlaylist(ctx context.Context, req *eveyv1.Create
 	pl.SortBy = req.SortBy
 	pl.SortOrder = req.SortOrder
 	if err := h.svc.Create(ctx, pl); err != nil {
-		return nil, internalError("create playlist", err)
+		return nil, internalError(ctx, "create playlist", err)
 	}
 	return playlistToProto(pl), nil
 }
@@ -127,11 +127,11 @@ func (h *playlistHandler) UpdatePlaylist(ctx context.Context, req *eveyv1.Update
 			// must be indistinguishable from a non-existent one (matches GetPlaylist).
 			return nil, status.Error(codes.NotFound, "playlist not found")
 		}
-		return nil, internalError("update playlist", updateErr)
+		return nil, internalError(ctx, "update playlist", updateErr)
 	}
 	updated, err := h.svc.GetByID(ctx, req.Id, profileID)
 	if err != nil {
-		return nil, internalError("get updated playlist", err)
+		return nil, internalError(ctx, "get updated playlist", err)
 	}
 	return playlistToProto(updated), nil
 }
@@ -149,7 +149,7 @@ func (h *playlistHandler) DeletePlaylist(ctx context.Context, req *eveyv1.Delete
 			// must be indistinguishable from a non-existent one (matches GetPlaylist).
 			return nil, status.Error(codes.NotFound, "playlist not found")
 		}
-		return nil, internalError("delete playlist", err)
+		return nil, internalError(ctx, "delete playlist", err)
 	}
 	return &eveyv1.DeletePlaylistResponse{}, nil
 }
@@ -168,7 +168,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 			// must be indistinguishable from a non-existent one (matches GetPlaylist).
 			return nil, status.Error(codes.NotFound, "playlist not found")
 		}
-		return nil, internalError("get playlist items", err)
+		return nil, internalError(ctx, "get playlist items", err)
 	}
 	mediaByID := make(map[string]*library.MediaItem, len(mediaItems))
 	for _, m := range mediaItems {
@@ -195,7 +195,7 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 	// read-back leak. allowed==nil means full access (admin / no restriction).
 	allowedIDs, err := h.allowedLibraryIDs(ctx)
 	if err != nil {
-		return nil, internalError("resolve library access", err)
+		return nil, internalError(ctx, "resolve library access", err)
 	}
 	accessible := func(m *library.MediaItem) bool {
 		// Unknown media (metadata not resolved) carries no leakable fields, so
@@ -268,7 +268,7 @@ func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPl
 		case errors.Is(err, appplaylist.ErrMaxItems):
 			return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.playlist.limit_reached")
 		default:
-			return nil, internalError("add playlist item", err)
+			return nil, internalError(ctx, "add playlist item", err)
 		}
 	}
 	return &eveyv1.AddPlaylistItemResponse{}, nil
@@ -289,7 +289,7 @@ func (h *playlistHandler) RemovePlaylistItem(ctx context.Context, req *eveyv1.Re
 		} else if errors.Is(err, appplaylist.ErrSmartItems) {
 			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.playlist.cannot_remove_smart")
 		}
-		return nil, internalError("remove playlist item", err)
+		return nil, internalError(ctx, "remove playlist item", err)
 	}
 	return &eveyv1.RemovePlaylistItemResponse{}, nil
 }

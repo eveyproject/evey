@@ -37,7 +37,7 @@ func (h *serverConfigHandler) GetServerConfigEntry(ctx context.Context, req *eve
 		if errors.Is(err, shared.ErrNotFound) {
 			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.config.key_not_found")
 		}
-		return nil, internalError("get config", err)
+		return nil, internalError(ctx, "get config", err)
 	}
 	return &eveyv1.ServerConfigEntryResponse{Key: e.Key, Value: e.Value, UpdatedAt: toTimestamppb(e.UpdatedAt)}, nil
 }
@@ -49,7 +49,7 @@ func (h *serverConfigHandler) SetServerConfigEntry(ctx context.Context, req *eve
 		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
 	}
 	if err := h.svc.Set(ctx, req.Key, req.Value); err != nil {
-		return nil, internalError("set config", err)
+		return nil, internalError(ctx, "set config", err)
 	}
 	return &eveyv1.SetServerConfigEntryResponse{}, nil
 }
@@ -59,7 +59,7 @@ func (h *serverConfigHandler) ListServerConfigEntries(ctx context.Context, _ *ev
 	defer span.End()
 	entries, err := h.svc.List(ctx)
 	if err != nil {
-		return nil, internalError("list config", err)
+		return nil, internalError(ctx, "list config", err)
 	}
 	resp := &eveyv1.ListServerConfigEntriesResponse{}
 	for _, e := range entries {
@@ -75,7 +75,7 @@ func (h *serverConfigHandler) DeleteServerConfigEntry(ctx context.Context, req *
 		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.key_required")
 	}
 	if err := h.svc.Delete(ctx, req.Key); err != nil {
-		return nil, internalError("delete config", err)
+		return nil, internalError(ctx, "delete config", err)
 	}
 	return &eveyv1.DeleteServerConfigEntryResponse{}, nil
 }

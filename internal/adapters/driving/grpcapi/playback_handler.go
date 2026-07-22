@@ -870,7 +870,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get next up", err)
+		return nil, internalError(ctx, "get next up", err)
 	}
 	ids := make([]string, len(progresses))
 	for i, wp := range progresses {

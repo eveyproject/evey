@@ -40,7 +40,7 @@ func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.Sear
 	}
 	candidates, err := h.svc.SearchTitles(ctx, claims.UserID, mediaType, req.Query, year)
 	if err != nil {
-		return nil, mapMediaRequestError("search titles", err)
+		return nil, mapMediaRequestError(ctx, "search titles", err)
 	}
 	resp := &eveyv1.SearchTitlesResponse{}
 	for _, c := range candidates {
@@ -81,7 +81,7 @@ func (h *mediaRequestHandler) CreateRequest(ctx context.Context, req *eveyv1.Cre
 	}
 	created, err := h.svc.CreateRequest(ctx, shared.ProfileID(claims.ProfileID), claims.UserID, in)
 	if err != nil {
-		return nil, mapMediaRequestError("create request", err)
+		return nil, mapMediaRequestError(ctx, "create request", err)
 	}
 	return toMediaRequestProto(created, ""), nil
 }
@@ -96,7 +96,7 @@ func (h *mediaRequestHandler) ListMyRequests(ctx context.Context, req *eveyv1.Li
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 50)
 	reqs, err := h.svc.ListMyRequests(ctx, claims.ProfileID, limit, offset)
 	if err != nil {
-		return nil, internalError("list my requests", err)
+		return nil, internalError(ctx, "list my requests", err)
 	}
 	resp := &eveyv1.ListMyRequestsResponse{}
 	for _, r := range reqs {
@@ -114,7 +114,7 @@ func (h *mediaRequestHandler) GetRequestPolicy(ctx context.Context, _ *eveyv1.Ge
 	}
 	can, err := h.svc.CanRequest(ctx, claims.UserID)
 	if err != nil {
-		return nil, internalError("get request policy", err)
+		return nil, internalError(ctx, "get request policy", err)
 	}
 	return &eveyv1.GetRequestPolicyResponse{CanRequest: can}, nil
 }
@@ -140,7 +140,7 @@ func (h *adminMediaRequestHandler) ListRequests(ctx context.Context, req *eveyv1
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 100)
 	reqs, err := h.svc.ListAll(ctx, statuses, limit, offset)
 	if err != nil {
-		return nil, internalError("list requests", err)
+		return nil, internalError(ctx, "list requests", err)
 	}
 	names := h.requesterNames(ctx, reqs)
 	resp := &eveyv1.AdminListRequestsResponse{}
@@ -181,7 +181,7 @@ func (h *adminMediaRequestHandler) AnswerRequest(ctx context.Context, req *eveyv
 	}
 	answered, err := h.svc.Answer(ctx, req.Id, st, req.Note, shared.ProfileID(claims.ProfileID))
 	if err != nil {
-		return nil, mapMediaRequestError("answer request", err)
+		return nil, mapMediaRequestError(ctx, "answer request", err)
 	}
 	return toMediaRequestProto(answered, ""), nil
 }
@@ -191,7 +191,7 @@ func (h *adminMediaRequestHandler) GetAccessSettings(ctx context.Context, _ *eve
 	defer span.End()
 	settings, err := h.svc.GetAccessSettings(ctx)
 	if err != nil {
-		return nil, internalError("get access settings", err)
+		return nil, internalError(ctx, "get access settings", err)
 	}
 	resp := &eveyv1.GetAccessSettingsResponse{DefaultEnabled: settings.DefaultEnabled}
 	for userID, enabled := range settings.Overrides {
@@ -210,7 +210,7 @@ func (h *adminMediaRequestHandler) SetAccessDefault(ctx context.Context, req *ev
 	ctx, span := tracing.StartSpan(ctx, "grpc.mediarequest.admin.SetAccessDefault")
 	defer span.End()
 	if err := h.svc.SetDefault(ctx, req.Enabled); err != nil {
-		return nil, internalError("set access default", err)
+		return nil, internalError(ctx, "set access default", err)
 	}
 	return &eveyv1.SetAccessDefaultResponse{}, nil
 }
@@ -233,7 +233,7 @@ func (h *adminMediaRequestHandler) SetUserAccess(ctx context.Context, req *eveyv
 		return nil, status.Error(codes.InvalidArgument, "invalid access mode")
 	}
 	if err := h.svc.SetUserAccess(ctx, req.UserId, mode); err != nil {
-		return nil, internalError("set user access", err)
+		return nil, internalError(ctx, "set user access", err)
 	}
 	return &eveyv1.SetUserAccessResponse{}, nil
 }
@@ -265,7 +265,7 @@ func toMediaRequestProto(r *mediarequest.Request, requesterName string) *eveyv1.
 }
 
 // mapMediaRequestError translates domain errors to gRPC status codes.
-func mapMediaRequestError(op string, err error) error {
+func mapMediaRequestError(ctx context.Context, op string, err error) error {
 	switch {
 	case errors.Is(err, mediarequest.ErrDisabled):
 		return status.Error(codes.PermissionDenied, "media requests are disabled for your account")
@@ -276,6 +276,6 @@ func mapMediaRequestError(op string, err error) error {
 	case errors.Is(err, mediarequest.ErrNotFound):
 		return status.Error(codes.NotFound, "request not found")
 	default:
-		return internalError(op, err)
+		return internalError(ctx, op, err)
 	}
 }

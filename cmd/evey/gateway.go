@@ -47,6 +47,14 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 			if ip := ratelimit.ClientIP(r); ip != "" {
 				pairs = append(pairs, "x-real-ip", ip)
 			}
+			// Carry the HTTP leg's request id across to gRPC. Without it the
+			// interceptor mints a fresh one, so the two halves of a single user
+			// action are logged under different ids and cannot be joined - the
+			// id we hand back in the response header would only ever match the
+			// HTTP half.
+			if id := r.Header.Get("X-Request-ID"); id != "" {
+				pairs = append(pairs, "x-request-id", id)
+			}
 			return metadata.Pairs(pairs...)
 		}),
 	)

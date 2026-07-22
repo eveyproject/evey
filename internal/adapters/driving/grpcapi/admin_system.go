@@ -157,7 +157,7 @@ func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSe
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("count admins", err)
+		return nil, internalError(ctx, "count admins", err)
 	}
 	resp := &eveyv1.SetupStatusResponse{SetupComplete: admins > 0}
 	// Public projection of the recovery flag so the logged-out login page can
@@ -337,7 +337,7 @@ func (d *adminSystemHandler) GetServerConfig(ctx context.Context, _ *eveyv1.GetS
 	entries, err := d.serverCfgSvc.List(ctx)
 	if err != nil {
 		span.RecordError(err)
-		return nil, internalError("get server config", err)
+		return nil, internalError(ctx, "get server config", err)
 	}
 	values := make(map[string]string, len(entries))
 	for _, e := range entries {
@@ -358,7 +358,7 @@ func (d *adminSystemHandler) UpdateServerConfig(ctx context.Context, req *eveyv1
 		}
 		if err := d.serverCfgSvc.Set(ctx, k, v); err != nil {
 			span.RecordError(err)
-			return nil, internalError("update server config", err)
+			return nil, internalError(ctx, "update server config", err)
 		}
 	}
 	// Read back rather than echo: the response now describes what the store
@@ -389,7 +389,7 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 			return nil, d.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.setup_already_completed")
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("setup", err)
+		return nil, internalError(ctx, "setup", err)
 	}
 	// Persist language/region AFTER Setup() confirmed this is a fresh install.
 	// server.language also drives metadata provider + future profile defaults.
@@ -409,7 +409,7 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("login after setup", err)
+		return nil, internalError(ctx, "login after setup", err)
 	}
 	return &eveyv1.SetupWizardResponse{
 		AccessToken:  access,
@@ -425,7 +425,7 @@ func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDash
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get server stats", err)
+		return nil, internalError(ctx, "get server stats", err)
 	}
 
 	sys := sysinfo.Collect()

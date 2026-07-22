@@ -59,7 +59,7 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 	if err := h.cmd.CreateLibrary(ctx, lib); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("create library", err)
+		return nil, internalError(ctx, "create library", err)
 	}
 	return libraryToProto(lib), nil
 }
@@ -92,13 +92,13 @@ func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrar
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list libraries", err)
+		return nil, internalError(ctx, "list libraries", err)
 	}
 	libs, err = h.filterLibrariesByAccess(ctx, libs)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("filter libraries", err)
+		return nil, internalError(ctx, "filter libraries", err)
 	}
 	resp := &eveyv1.ListLibrariesResponse{}
 	for _, lib := range libs {
@@ -147,7 +147,7 @@ func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLi
 	if err := h.cmd.UpdateLibrary(ctx, lib); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("update library", err)
+		return nil, internalError(ctx, "update library", err)
 	}
 	return libraryToProto(lib), nil
 }
@@ -182,7 +182,7 @@ func (h *libraryHandler) DeleteLibrary(ctx context.Context, req *eveyv1.DeleteLi
 		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("delete library", err)
+		return nil, internalError(ctx, "delete library", err)
 	}
 	return &eveyv1.DeleteLibraryResponse{}, nil
 }
@@ -198,7 +198,7 @@ func (h *libraryHandler) ScanLibrary(req *eveyv1.ScanLibraryRequest, stream evey
 			return h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.library.scan_in_progress")
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		return internalError("scan library", err)
+		return internalError(ctx, "scan library", err)
 	}
 	if err := stream.Send(&eveyv1.ScanProgress{
 		LibraryId:      req.Id,
@@ -314,7 +314,7 @@ func (h *libraryHandler) GetSeriesAggregate(ctx context.Context, req *eveyv1.Get
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("aggregate series", err)
+		return nil, internalError(ctx, "aggregate series", err)
 	}
 	return &eveyv1.SeriesAggregate{
 		SeriesId:        req.Id,
@@ -510,7 +510,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("count media items", err)
+		return nil, internalError(ctx, "count media items", err)
 	}
 	items, err := h.query.ListMediaItems(ctx, filter)
 	if err != nil {
@@ -520,7 +520,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 			return nil, status.Error(codes.InvalidArgument, "cursor was generated for a different sort field")
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list media items", err)
+		return nil, internalError(ctx, "list media items", err)
 	}
 	// SQL pre-filter is permissive on unknown / empty official_rating and
 	// can't see foreign certifications_by_country, so it lets through items
@@ -601,7 +601,7 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("search media", err)
+		return nil, internalError(ctx, "search media", err)
 	}
 	allowedIDs, _ := h.getAllowedLibraryIDs(ctx)
 	pf := h.resolveParentalFilter(ctx)
@@ -684,7 +684,7 @@ func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonReq
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get person", err)
+		return nil, internalError(ctx, "get person", err)
 	}
 	if person == nil {
 		span.SetStatus(otelcodes.Error, "person not found")
@@ -998,7 +998,7 @@ func (h *libraryHandler) GetLibrarySchedule(ctx context.Context, req *eveyv1.Get
 		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get library schedule", err)
+		return nil, internalError(ctx, "get library schedule", err)
 	}
 	return &eveyv1.GetLibraryScheduleResponse{
 		Schedule: scheduleToProto(sched),
@@ -1035,7 +1035,7 @@ func (h *libraryHandler) SetLibrarySchedule(ctx context.Context, req *eveyv1.Set
 			return nil, status.Error(codes.InvalidArgument, "invalid cron expression")
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("set schedule", err)
+		return nil, internalError(ctx, "set schedule", err)
 	}
 	return scheduleToProto(sched), nil
 }
@@ -1116,13 +1116,13 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("count", err)
+		return nil, internalError(ctx, "count", err)
 	}
 	items, err := h.query.ListMediaItems(ctx, filter)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list", err)
+		return nil, internalError(ctx, "list", err)
 	}
 	items = filterOutParentalBlocked(pf, items)
 	resp := &eveyv1.FilterMediaItemsResponse{Total: int32(total)}
@@ -1153,7 +1153,7 @@ func (h *libraryHandler) ListGenres(ctx context.Context, req *eveyv1.ListGenresR
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list genres", err)
+		return nil, internalError(ctx, "list genres", err)
 	}
 	return &eveyv1.ListGenresResponse{Genres: genres}, nil
 }
@@ -1295,11 +1295,11 @@ func (h *libraryHandler) ListPublicMediaItems(ctx context.Context, req *eveyv1.L
 
 	total, err := h.query.CountMediaItems(ctx, filter)
 	if err != nil {
-		return nil, internalError("count public media items", err)
+		return nil, internalError(ctx, "count public media items", err)
 	}
 	items, err := h.query.ListMediaItems(ctx, filter)
 	if err != nil {
-		return nil, internalError("list public media items", err)
+		return nil, internalError(ctx, "list public media items", err)
 	}
 
 	resp := &eveyv1.ListPublicMediaItemsResponse{Total: int32(total)}

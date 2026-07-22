@@ -103,18 +103,25 @@ func clampPagination(pageSize, page int32, defaultLimit int) (int, int) {
 	return limit, offset
 }
 
-// internalError logs the real error server-side and returns a generic message to the client.
-func internalError(op string, err error) error {
+// internalError logs the real error server-side and returns a generic message to
+// the client.
+//
+// ctx is required, not optional: this helper is the tail of ~200 gRPC failure
+// paths, and logging without it stripped the request_id and trace_id that
+// contextHandler injects. An operator holding a user's request id could match
+// the interceptor's one-line summary and nothing else - every ERROR raised
+// during that request was unreachable from the id that identified it.
+func internalError(ctx context.Context, op string, err error) error {
 	if isClientCanceled(err) {
 		// The client disconnected mid-request, which cancels the context; the DB
 		// driver then surfaces context.Canceled or pg's 57014 "canceling statement
 		// due to user request". That is the caller giving up, not a server fault -
 		// log it at DEBUG so it doesn't pollute the ERROR stream. The return code
 		// is left unchanged (the client is already gone, so it never sees it).
-		slog.Debug(op+": client canceled", slog.Any("err", err))
+		slog.DebugContext(ctx, op+": client canceled", slog.Any("err", err))
 		return status.Error(codes.Internal, "internal error")
 	}
-	slog.Error(op, slog.Any("err", err))
+	slog.ErrorContext(ctx, op, slog.Any("err", err))
 	return status.Error(codes.Internal, "internal error")
 }
 

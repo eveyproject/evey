@@ -52,7 +52,7 @@ func (h *shareHandler) CreateShareLink(ctx context.Context, req *eveyv1.CreateSh
 
 	link, err := h.svc.Create(ctx, req.MediaItemId, claims.UserID, time.Duration(durationHours)*time.Hour, maxViews)
 	if err != nil {
-		return nil, internalError("create share link", err)
+		return nil, internalError(ctx, "create share link", err)
 	}
 
 	resp := &eveyv1.CreateShareLinkResponse{
@@ -90,7 +90,7 @@ func (h *shareHandler) ListShareLinks(ctx context.Context, _ *eveyv1.ListShareLi
 		links, err = h.svc.List(ctx, claims.UserID)
 	}
 	if err != nil {
-		return nil, internalError("list share links", err)
+		return nil, internalError(ctx, "list share links", err)
 	}
 	resp := &eveyv1.ListShareLinksResponse{}
 	for _, l := range links {
@@ -138,7 +138,7 @@ func (h *shareHandler) RevokeShareLink(ctx context.Context, req *eveyv1.RevokeSh
 		if errors.Is(err, shared.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, "share link not found")
 		}
-		return nil, internalError("revoke share link", err)
+		return nil, internalError(ctx, "revoke share link", err)
 	}
 	return &eveyv1.RevokeShareLinkResponse{}, nil
 }

@@ -39,7 +39,7 @@ func (h *photoHandler) checkLibraryAccess(ctx context.Context, libraryID shared.
 	}
 	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, string(libraryID))
 	if err != nil {
-		return internalError("check library access", err)
+		return internalError(ctx, "check library access", err)
 	}
 	if !ok {
 		return status.Error(codes.PermissionDenied, "no access to library")
@@ -76,7 +76,7 @@ func (h *photoHandler) ListPhotos(ctx context.Context, req *eveyv1.ListPhotosReq
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list photos", err)
+		return nil, internalError(ctx, "list photos", err)
 	}
 	resp := &eveyv1.ListPhotosResponse{Total: int32(total)}
 	for _, p := range photos {
@@ -97,7 +97,7 @@ func (h *photoHandler) GetPhoto(ctx context.Context, req *eveyv1.GetPhotoRequest
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get photo", err)
+		return nil, internalError(ctx, "get photo", err)
 	}
 	if p == nil {
 		span.SetStatus(otelcodes.Error, "photo not found")
@@ -132,7 +132,7 @@ func (h *photoHandler) ListPhotoAlbums(ctx context.Context, req *eveyv1.ListPhot
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list photo albums", err)
+		return nil, internalError(ctx, "list photo albums", err)
 	}
 	resp := &eveyv1.ListPhotoAlbumsResponse{}
 	for _, a := range albums {
@@ -171,7 +171,7 @@ func (h *photoHandler) SearchPhotos(ctx context.Context, req *eveyv1.SearchPhoto
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("search photos", err)
+		return nil, internalError(ctx, "search photos", err)
 	}
 	resp := &eveyv1.SearchPhotosResponse{}
 	for _, p := range photos {
@@ -264,7 +264,7 @@ func (h *photoHandler) DeletePhoto(ctx context.Context, req *eveyv1.DeletePhotoR
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get photo", err)
+		return nil, internalError(ctx, "get photo", err)
 	}
 	if p == nil {
 		span.SetStatus(otelcodes.Error, "photo not found")
@@ -280,7 +280,7 @@ func (h *photoHandler) DeletePhoto(ctx context.Context, req *eveyv1.DeletePhotoR
 	if err := h.svc.DeletePhoto(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("delete photo", err)
+		return nil, internalError(ctx, "delete photo", err)
 	}
 	return &emptypb.Empty{}, nil
 }

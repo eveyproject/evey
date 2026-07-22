@@ -19,7 +19,7 @@ func (h *transcodeCacheHandler) GetTranscodeCache(ctx context.Context, _ *eveyv1
 	defer span.End()
 	info, err := h.svc.GetCacheInfo(ctx)
 	if err != nil {
-		return nil, internalError("get cache info", err)
+		return nil, internalError(ctx, "get cache info", err)
 	}
 	resp := &eveyv1.TranscodeCacheInfo{
 		TotalSize: info.TotalSize,
@@ -39,7 +39,7 @@ func (h *transcodeCacheHandler) ClearTranscodeCache(ctx context.Context, _ *evey
 	ctx, span := tracing.StartSpan(ctx, "grpc.transcode_cache.ClearTranscodeCache")
 	defer span.End()
 	if err := h.svc.ClearCache(ctx); err != nil {
-		return nil, internalError("clear cache", err)
+		return nil, internalError(ctx, "clear cache", err)
 	}
 	return &eveyv1.ClearTranscodeCacheResponse{}, nil
 }
@@ -48,7 +48,7 @@ func (h *transcodeCacheHandler) DeleteTranscodeCacheFile(ctx context.Context, re
 	ctx, span := tracing.StartSpan(ctx, "grpc.transcode_cache.DeleteTranscodeCacheFile")
 	defer span.End()
 	if err := h.svc.DeleteCacheFile(ctx, req.Filename); err != nil {
-		return nil, internalError("delete cache file", err)
+		return nil, internalError(ctx, "delete cache file", err)
 	}
 	return &eveyv1.DeleteTranscodeCacheFileResponse{}, nil
 }

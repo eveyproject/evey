@@ -49,13 +49,13 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list collections", err)
+		return nil, internalError(ctx, "list collections", err)
 	}
 	allowed, filterErr := h.allowedLibraryIDs(ctx)
 	if filterErr != nil {
 		span.RecordError(filterErr)
 		span.SetStatus(otelcodes.Error, filterErr.Error())
-		return nil, internalError("check access", filterErr)
+		return nil, internalError(ctx, "check access", filterErr)
 	}
 
 	// Batch-fetch items for all collections in one query instead of one per collection.
@@ -67,7 +67,7 @@ func (h *collectionHandler) ListCollections(ctx context.Context, _ *eveyv1.ListC
 	if batchErr != nil {
 		span.RecordError(batchErr)
 		span.SetStatus(otelcodes.Error, batchErr.Error())
-		return nil, internalError("batch collection items", batchErr)
+		return nil, internalError(ctx, "batch collection items", batchErr)
 	}
 
 	resp := &eveyv1.ListCollectionsResponse{}
@@ -120,13 +120,13 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 	if filterErr != nil {
 		span.RecordError(filterErr)
 		span.SetStatus(otelcodes.Error, filterErr.Error())
-		return nil, internalError("check access", filterErr)
+		return nil, internalError(ctx, "check access", filterErr)
 	}
 	items, _, itemsErr := h.svc.GetItems(ctx, col.ID, 1000, 0)
 	if itemsErr != nil {
 		span.RecordError(itemsErr)
 		span.SetStatus(otelcodes.Error, itemsErr.Error())
-		return nil, internalError("get collection items", itemsErr)
+		return nil, internalError(ctx, "get collection items", itemsErr)
 	}
 	if allowed != nil {
 		visible := false
@@ -166,7 +166,7 @@ func (h *collectionHandler) DeleteCollection(ctx context.Context, req *eveyv1.De
 	if err := h.svc.Delete(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("delete collection", err)
+		return nil, internalError(ctx, "delete collection", err)
 	}
 	return &eveyv1.DeleteCollectionResponse{}, nil
 }
@@ -191,7 +191,7 @@ func (h *collectionHandler) CreateCollection(ctx context.Context, req *eveyv1.Cr
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("create collection", err)
+		return nil, internalError(ctx, "create collection", err)
 	}
 	return &eveyv1.CreateCollectionResponse{Collection: collectionToProto(created)}, nil
 }
@@ -221,20 +221,20 @@ func (h *collectionHandler) UpdateCollection(ctx context.Context, req *eveyv1.Up
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, internalError("update smart collection", err)
+			return nil, internalError(ctx, "update smart collection", err)
 		}
 		return &eveyv1.UpdateCollectionResponse{Collection: collectionToProto(col)}, nil
 	}
 	if err := h.svc.Update(ctx, req.GetId(), req.GetName(), rules, req.GetSortBy()); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("update collection", err)
+		return nil, internalError(ctx, "update collection", err)
 	}
 	col, err := h.svc.GetByID(ctx, req.GetId())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("fetch updated collection", err)
+		return nil, internalError(ctx, "fetch updated collection", err)
 	}
 	return &eveyv1.UpdateCollectionResponse{Collection: collectionToProto(col)}, nil
 }
@@ -253,7 +253,7 @@ func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.A
 	if err := h.svc.LinkMediaItem(ctx, req.GetId(), req.GetMediaItemId(), int(req.GetSortOrder())); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("add collection item", err)
+		return nil, internalError(ctx, "add collection item", err)
 	}
 	return &eveyv1.AddCollectionItemResponse{}, nil
 }
@@ -290,13 +290,13 @@ func (h *collectionHandler) GetCollectionItems(ctx context.Context, req *eveyv1.
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get collection items", err)
+		return nil, internalError(ctx, "get collection items", err)
 	}
 	allowed, filterErr := h.allowedLibraryIDs(ctx)
 	if filterErr != nil {
 		span.RecordError(filterErr)
 		span.SetStatus(otelcodes.Error, filterErr.Error())
-		return nil, internalError("check access", filterErr)
+		return nil, internalError(ctx, "check access", filterErr)
 	}
 	// Apply the active profile's parental filter per item - without this a kid
 	// profile could enumerate adult titles through GetCollectionItems even
@@ -366,7 +366,7 @@ func (h *collectionHandler) allowedLibraryIDs(ctx context.Context) ([]string, er
 func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectionID string) error {
 	allowed, err := h.allowedLibraryIDs(ctx)
 	if err != nil {
-		return internalError("check access", err)
+		return internalError(ctx, "check access", err)
 	}
 	if allowed == nil {
 		// Admin or no access service wired (tests) - defer to RBAC.
@@ -378,7 +378,7 @@ func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectio
 	items, _, itemsErr := h.svc.GetItems(ctx, collectionID, 1000, 0)
 	if itemsErr != nil {
 		slog.Warn("collection access check: get items", slog.String("collection_id", collectionID), slog.Any("err", itemsErr))
-		return internalError("get collection items", itemsErr)
+		return internalError(ctx, "get collection items", itemsErr)
 	}
 	for _, it := range items {
 		if slices.Contains(allowed, string(it.LibraryID)) {

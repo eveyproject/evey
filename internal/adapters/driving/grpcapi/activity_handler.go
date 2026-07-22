@@ -100,13 +100,13 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 	}
 	entries, err := h.svc.GetPlayHistory(ctx, filter)
 	if err != nil {
-		return nil, internalError("get play history", err)
+		return nil, internalError(ctx, "get play history", err)
 	}
 	// Real total across all matching sessions (a COUNT) - was never set, so the
 	// UI always showed "0 entrées au total" despite rendering rows.
 	total, err := h.svc.CountPlayHistory(ctx, filter)
 	if err != nil {
-		return nil, internalError("count play history", err)
+		return nil, internalError(ctx, "count play history", err)
 	}
 	resp := &eveyv1.GetPlayHistoryResponse{Pagination: &eveyv1.PaginationResponse{TotalItems: int32(total)}} //nolint:gosec // count fits int32
 	for _, e := range entries {
@@ -132,7 +132,7 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 	}
 	stats, err := h.svc.GetUserStats(ctx, profileID)
 	if err != nil {
-		return nil, internalError("get user stats", err)
+		return nil, internalError(ctx, "get user stats", err)
 	}
 	totalGenreMs := int64(0)
 	for _, gs := range stats.GenreBreakdown {
@@ -183,7 +183,7 @@ func (h *activityHandler) GetServerStats(ctx context.Context, _ *eveyv1.GetServe
 	defer span.End()
 	stats, err := h.svc.GetServerStats(ctx)
 	if err != nil {
-		return nil, internalError("get server stats", err)
+		return nil, internalError(ctx, "get server stats", err)
 	}
 	out := &eveyv1.ServerStats{
 		TotalUsers:          int32(stats.TotalUsers),
@@ -248,7 +248,7 @@ func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLo
 		entries, err = h.svc.GetLoginHistory(ctx, userID, limit, offset)
 	}
 	if err != nil {
-		return nil, internalError("get login history", err)
+		return nil, internalError(ctx, "get login history", err)
 	}
 	resp := &eveyv1.GetLoginHistoryResponse{Pagination: &eveyv1.PaginationResponse{}}
 	for _, e := range entries {
@@ -274,7 +274,7 @@ func (h *activityHandler) ListServerMetrics(ctx context.Context, req *eveyv1.Lis
 	}
 	metrics, err := h.svc.GetServerMetrics(ctx, from, to)
 	if err != nil {
-		return nil, internalError("get metrics", err)
+		return nil, internalError(ctx, "get metrics", err)
 	}
 	resp := &eveyv1.ListServerMetricsResponse{}
 	for _, m := range metrics {
@@ -298,7 +298,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	}
 	popular, err := h.svc.GetMostPopular(ctx, claims.ProfileID, limit)
 	if err != nil {
-		return nil, internalError("get popular", err)
+		return nil, internalError(ctx, "get popular", err)
 	}
 	ids := make([]string, len(popular))
 	for i, p := range popular {
@@ -321,7 +321,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 		// filter below reads as "unrestricted" → a non-admin would see popular
 		// titles from libraries they can't access.
 		if aErr != nil {
-			return nil, internalError("popular media: library access", aErr)
+			return nil, internalError(ctx, "popular media: library access", aErr)
 		}
 		if len(libIDs) > 0 {
 			allowedLibs = make(map[string]bool, len(libIDs))
@@ -362,7 +362,7 @@ func (h *activityHandler) GetAnalytics(ctx context.Context, _ *eveyv1.GetAnalyti
 	}
 	data, err := h.svc.GetAnalytics(ctx)
 	if err != nil {
-		return nil, internalError("get analytics", err)
+		return nil, internalError(ctx, "get analytics", err)
 	}
 	resp := &eveyv1.GetAnalyticsResponse{
 		TotalPlaysToday:    int32(data.TotalPlaysToday),

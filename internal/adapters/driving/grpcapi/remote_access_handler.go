@@ -88,7 +88,7 @@ func (h *remoteAccessHandler) GetNetworkInfo(ctx context.Context, _ *eveyv1.GetN
 	defer span.End()
 	ifaces, err := network.NetworkInterfaces()
 	if err != nil {
-		return nil, internalError("get network interfaces", err)
+		return nil, internalError(ctx, "get network interfaces", err)
 	}
 	resp := &eveyv1.NetworkInfo{}
 	for _, i := range ifaces {

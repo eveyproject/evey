@@ -82,7 +82,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 		if errors.Is(err, apptranscoding.ErrMaxConcurrent) {
 			return h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.transcode.max_concurrent_reached")
 		}
-		return internalError("start transcode", err)
+		return internalError(ctx, "start transcode", err)
 	}
 	return stream.Send(&eveyv1.TranscodeProgress{
 		JobId:   job.ID,
@@ -98,7 +98,7 @@ func (h *transcodingHandler) StopTranscode(ctx context.Context, req *eveyv1.Stop
 		return nil, err
 	}
 	if err := h.svc.StopTranscode(ctx, req.JobId); err != nil {
-		return nil, internalError("stop transcode", err)
+		return nil, internalError(ctx, "stop transcode", err)
 	}
 	return &eveyv1.StopTranscodeResponse{}, nil
 }
@@ -161,7 +161,7 @@ func (h *transcodingHandler) ListActiveTranscodes(ctx context.Context, _ *eveyv1
 	defer span.End()
 	jobs, err := h.svc.ListActiveTranscodes(ctx)
 	if err != nil {
-		return nil, internalError("list active", err)
+		return nil, internalError(ctx, "list active", err)
 	}
 	resp := &eveyv1.ListActiveTranscodesResponse{}
 	for _, j := range jobs {
@@ -175,7 +175,7 @@ func (h *transcodingHandler) ListTranscodeProfiles(ctx context.Context, _ *eveyv
 	defer span.End()
 	profiles, err := h.svc.ListProfiles(ctx)
 	if err != nil {
-		return nil, internalError("list profiles", err)
+		return nil, internalError(ctx, "list profiles", err)
 	}
 	resp := &eveyv1.ListTranscodeProfilesResponse{}
 	for _, p := range profiles {
@@ -189,7 +189,7 @@ func (h *transcodingHandler) DetectHardware(ctx context.Context, _ *eveyv1.Detec
 	defer span.End()
 	devices, err := h.svc.DetectHardware(ctx)
 	if err != nil {
-		return nil, internalError("detect hardware", err)
+		return nil, internalError(ctx, "detect hardware", err)
 	}
 	resp := &eveyv1.DetectHardwareResponse{}
 	for _, d := range devices {

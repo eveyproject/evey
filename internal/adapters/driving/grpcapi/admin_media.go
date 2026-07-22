@@ -98,7 +98,7 @@ func (d *adminMediaHandler) MatchOrphansInLibrary(ctx context.Context, req *evey
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("match orphans", err)
+		return nil, internalError(ctx, "match orphans", err)
 	}
 	return &eveyv1.MatchOrphansInLibraryResponse{Queued: int32(queued)}, nil
 }
@@ -119,7 +119,7 @@ func (d *adminMediaHandler) GenerateAllTrickplays(ctx context.Context, _ *eveyv1
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("generate all trickplays", err)
+		return nil, internalError(ctx, "generate all trickplays", err)
 	}
 	return &eveyv1.GenerateAllTrickplaysResponse{Generated: int32(n)}, nil
 }
@@ -134,7 +134,7 @@ func (d *adminMediaHandler) DeleteMediaItem(ctx context.Context, req *eveyv1.Del
 	if err := d.libCmd.DeleteMediaItem(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("delete media item", err)
+		return nil, internalError(ctx, "delete media item", err)
 	}
 	return &eveyv1.DeleteMediaItemResponse{}, nil
 }
@@ -169,7 +169,7 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 	case errors.Is(err, shared.ErrNotFound):
 		return status.Error(codes.NotFound, "media item not found")
 	default:
-		return internalError(op, err)
+		return internalError(ctx, op, err)
 	}
 }
 

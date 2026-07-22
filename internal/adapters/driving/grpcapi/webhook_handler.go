@@ -35,7 +35,7 @@ func (h *webhookHandler) CreateWebhook(ctx context.Context, req *eveyv1.CreateWe
 		if errors.Is(err, appwebhook.ErrInvalidConfig) {
 			return nil, status.Error(codes.InvalidArgument, "invalid webhook configuration")
 		}
-		return nil, internalError("create webhook", err)
+		return nil, internalError(ctx, "create webhook", err)
 	}
 	return webhookConfigToProto(cfg), nil
 }
@@ -47,7 +47,7 @@ func (h *webhookHandler) ListWebhooks(ctx context.Context, _ *eveyv1.ListWebhook
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list webhooks", err)
+		return nil, internalError(ctx, "list webhooks", err)
 	}
 	resp := &eveyv1.ListWebhooksResponse{}
 	for _, c := range configs {
@@ -74,7 +74,7 @@ func (h *webhookHandler) UpdateWebhook(ctx context.Context, req *eveyv1.UpdateWe
 		if errors.Is(err, appwebhook.ErrInvalidConfig) {
 			return nil, status.Error(codes.InvalidArgument, "invalid webhook configuration")
 		}
-		return nil, internalError("update webhook", err)
+		return nil, internalError(ctx, "update webhook", err)
 	}
 	return webhookConfigToProto(cfg), nil
 }
@@ -85,7 +85,7 @@ func (h *webhookHandler) DeleteWebhook(ctx context.Context, req *eveyv1.DeleteWe
 	if err := h.svc.Delete(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("delete webhook", err)
+		return nil, internalError(ctx, "delete webhook", err)
 	}
 	return &eveyv1.DeleteWebhookResponse{}, nil
 }
@@ -101,7 +101,7 @@ func (h *webhookHandler) ListWebhookDeliveries(ctx context.Context, req *eveyv1.
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list deliveries", err)
+		return nil, internalError(ctx, "list deliveries", err)
 	}
 	resp := &eveyv1.ListWebhookDeliveriesResponse{}
 	for _, d := range deliveries {

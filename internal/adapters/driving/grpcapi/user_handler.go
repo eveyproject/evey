@@ -208,7 +208,7 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 		default:
 			// Validation already happened above via NewUser; anything left is a
 			// hashing/DB failure - don't mislabel it as PermissionDenied.
-			return nil, internalError("create user", err)
+			return nil, internalError(ctx, "create user", err)
 		}
 	}
 	uidStr := string(u.ID)
@@ -317,7 +317,7 @@ func (h *userHandler) DeleteUser(ctx context.Context, req *eveyv1.DeleteUserRequ
 		case errors.Is(err, shared.ErrNotFound):
 			return nil, status.Error(codes.NotFound, "user not found")
 		default:
-			return nil, internalError("delete user", err)
+			return nil, internalError(ctx, "delete user", err)
 		}
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
@@ -358,7 +358,7 @@ func (h *userHandler) ImpersonateUser(ctx context.Context, req *eveyv1.Impersona
 		case errors.Is(err, appuser.ErrUserDisabled):
 			return nil, status.Error(codes.FailedPrecondition, "user is disabled")
 		default:
-			return nil, internalError("impersonate user", err)
+			return nil, internalError(ctx, "impersonate user", err)
 		}
 	}
 	// Trace WHO acted as WHOM in the admin audit log - impersonation is god-mode
@@ -386,7 +386,7 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 			case errors.Is(err, shared.ErrNotFound):
 				return nil, status.Error(codes.NotFound, "user not found")
 			default:
-				return nil, internalError("disable user", err)
+				return nil, internalError(ctx, "disable user", err)
 			}
 		}
 	} else {
@@ -397,7 +397,7 @@ func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRe
 			if errors.Is(err, shared.ErrNotFound) {
 				return nil, status.Error(codes.NotFound, "user not found")
 			}
-			return nil, internalError("enable user", err)
+			return nil, internalError(ctx, "enable user", err)
 		}
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
@@ -562,7 +562,7 @@ func (h *userHandler) refuseFromRestrictedProfile(ctx context.Context, span trac
 	}
 	cp, err := h.query.GetProfileByID(ctx, claims.ProfileID)
 	if err != nil || cp == nil {
-		return internalError("parental gate: load caller profile", err)
+		return internalError(ctx, "parental gate: load caller profile", err)
 	}
 	if cp.IsKids {
 		span.SetStatus(otelcodes.Error, "profile management from kids profile")
@@ -583,7 +583,7 @@ func (h *userHandler) enforceParentalUpdateGate(ctx context.Context, span trace.
 		cp, cerr := h.query.GetProfileByID(ctx, claims.ProfileID)
 		if cerr != nil || cp == nil {
 			// Fail closed: can't confirm the caller isn't on a kids profile.
-			return internalError("parental gate: load caller profile", cerr)
+			return internalError(ctx, "parental gate: load caller profile", cerr)
 		}
 		callerIsKids = cp.IsKids
 	}

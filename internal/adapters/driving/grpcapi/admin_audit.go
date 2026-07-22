@@ -61,7 +61,7 @@ func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAu
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get audit log", err)
+		return nil, internalError(ctx, "get audit log", err)
 	}
 	// Real total across all matching rows (a COUNT), so the client can paginate
 	// past the first page - Total used to be len(entries), i.e. the page size.
@@ -69,7 +69,7 @@ func (d *adminSessionHandler) GetAuditLog(ctx context.Context, req *eveyv1.GetAu
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("count audit log", err)
+		return nil, internalError(ctx, "count audit log", err)
 	}
 	resp := &eveyv1.GetAuditLogResponse{Total: int32(total)} //nolint:gosec // count fits int32
 	for _, e := range entries {
@@ -85,7 +85,7 @@ func (d *adminSessionHandler) ListActiveSessions(ctx context.Context, _ *eveyv1.
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list active sessions", err)
+		return nil, internalError(ctx, "list active sessions", err)
 	}
 	resp := &eveyv1.ListActiveSessionsResponse{}
 	for _, s := range sessions {
@@ -243,7 +243,7 @@ func (d *adminSessionHandler) SendSessionCommand(ctx context.Context, req *eveyv
 	if err := d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, req.Command); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("send command", err)
+		return nil, internalError(ctx, "send command", err)
 	}
 	return &eveyv1.SendSessionCommandResponse{}, nil
 }

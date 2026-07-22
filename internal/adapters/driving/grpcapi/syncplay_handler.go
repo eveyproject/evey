@@ -151,7 +151,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, internalError("create room", err)
+			return nil, internalError(ctx, "create room", err)
 		}
 		return &eveyv1.CreateSyncPlayRoomResponse{
 			Id:        room.ID,
@@ -201,7 +201,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		if createErr != nil {
 			span.RecordError(createErr)
 			span.SetStatus(otelcodes.Error, createErr.Error())
-			return nil, internalError("create room", createErr)
+			return nil, internalError(ctx, "create room", createErr)
 		}
 		return &eveyv1.CreateSyncPlayRoomResponse{
 			Id:        room.ID,
@@ -241,7 +241,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("create room", err)
+		return nil, internalError(ctx, "create room", err)
 	}
 	return &eveyv1.CreateSyncPlayRoomResponse{
 		Id:        room.ID,

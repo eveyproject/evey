@@ -23,7 +23,7 @@ func (h *backupHandler) CreateBackup(ctx context.Context, _ *eveyv1.CreateBackup
 	defer span.End()
 	m, err := h.svc.CreateBackup(ctx)
 	if err != nil {
-		return nil, internalError("create backup", err)
+		return nil, internalError(ctx, "create backup", err)
 	}
 	return manifestToProto(m), nil
 }
@@ -33,7 +33,7 @@ func (h *backupHandler) ListBackups(ctx context.Context, _ *eveyv1.ListBackupsRe
 	defer span.End()
 	list, err := h.svc.ListBackups(ctx)
 	if err != nil {
-		return nil, internalError("list backups", err)
+		return nil, internalError(ctx, "list backups", err)
 	}
 	resp := &eveyv1.ListBackupsResponse{}
 	for _, m := range list {
@@ -51,7 +51,7 @@ func (h *backupHandler) DeleteBackup(ctx context.Context, req *eveyv1.DeleteBack
 		if errors.Is(err, domainbackup.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, "backup not found")
 		}
-		return nil, internalError("delete backup", err)
+		return nil, internalError(ctx, "delete backup", err)
 	}
 	return &eveyv1.DeleteBackupResponse{}, nil
 }

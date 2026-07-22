@@ -98,7 +98,7 @@ func (d *adminPluginHandler) IssuePluginToken(ctx context.Context, req *eveyv1.I
 			return nil, status.Error(codes.FailedPrecondition, "plugin not enabled")
 		default:
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, internalError("issue plugin token", err)
+			return nil, internalError(ctx, "issue plugin token", err)
 		}
 	}
 	return &eveyv1.IssuePluginTokenResponse{
@@ -115,7 +115,7 @@ func (d *adminPluginHandler) ListPluginRuntimes(ctx context.Context, _ *eveyv1.L
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list runtimes", err)
+		return nil, internalError(ctx, "list runtimes", err)
 	}
 	resp := &eveyv1.ListPluginRuntimesResponse{}
 	for _, rt := range runtimes {
@@ -140,7 +140,7 @@ func (d *adminPluginHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.A
 	if err := d.pluginRuntime.AddRuntime(ctx, rt); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("add runtime", err)
+		return nil, internalError(ctx, "add runtime", err)
 	}
 	return pluginRuntimeToProto(rt), nil
 }
@@ -156,7 +156,7 @@ func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv
 	if err := d.pluginRuntime.RemoveRuntime(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("remove runtime", err)
+		return nil, internalError(ctx, "remove runtime", err)
 	}
 	return &eveyv1.RemovePluginRuntimeResponse{}, nil
 }
@@ -186,7 +186,7 @@ func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.Inst
 		if errors.Is(err, appplugin.ErrPluginPermissionEscalation) {
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		}
-		return nil, internalError("install plugin", err)
+		return nil, internalError(ctx, "install plugin", err)
 	}
 	return pluginToProto(p), nil
 }
@@ -202,7 +202,7 @@ func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.Un
 	if err := d.pluginInstaller.UninstallPlugin(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("uninstall plugin", err)
+		return nil, internalError(ctx, "uninstall plugin", err)
 	}
 	return &eveyv1.UninstallPluginResponse{}, nil
 }
@@ -226,7 +226,7 @@ func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.Enabl
 			return nil, status.Error(codes.FailedPrecondition, "plugin already running")
 		default:
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, internalError("enable plugin", err)
+			return nil, internalError(ctx, "enable plugin", err)
 		}
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: true}, nil
@@ -251,7 +251,7 @@ func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.Disa
 			return nil, status.Error(codes.FailedPrecondition, "plugin not running")
 		default:
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, internalError("disable plugin", err)
+			return nil, internalError(ctx, "disable plugin", err)
 		}
 	}
 	return &eveyv1.Plugin{Id: req.Id, Enabled: false}, nil
@@ -264,7 +264,7 @@ func (d *adminPluginHandler) ListPlugins(ctx context.Context, _ *eveyv1.ListPlug
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list plugins", err)
+		return nil, internalError(ctx, "list plugins", err)
 	}
 	resp := &eveyv1.ListPluginsResponse{}
 	for _, p := range plugins {
@@ -322,7 +322,7 @@ func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1
 	if err := d.pluginRuntime.UpdatePluginConfig(ctx, req.PluginId, cfg); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("update config", err)
+		return nil, internalError(ctx, "update config", err)
 	}
 	return &eveyv1.PluginConfig{
 		PluginId: req.PluginId,
@@ -351,7 +351,7 @@ func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv
 		if errors.Is(err, appplugin.ErrPluginNotFound) {
 			return nil, status.Error(codes.NotFound, "plugin not found")
 		}
-		return nil, internalError("preview update", err)
+		return nil, internalError(ctx, "preview update", err)
 	}
 	resp := &eveyv1.PreviewPluginUpdateResponse{
 		CurrentVersion:       preview.CurrentVersion,
@@ -407,7 +407,7 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 		case errors.Is(err, appplugin.ErrCandidateChanged):
 			return nil, status.Error(codes.Aborted, err.Error())
 		default:
-			return nil, internalError("apply update", err)
+			return nil, internalError(ctx, "apply update", err)
 		}
 	}
 	return pluginToProto(p), nil
@@ -435,7 +435,7 @@ func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetP
 		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("open log", err)
+		return nil, internalError(ctx, "open log", err)
 	}
 	defer f.Close()
 
@@ -556,7 +556,7 @@ func (d *adminPluginHandler) UpdatePluginResourceLimits(ctx context.Context, req
 	for _, u := range updates {
 		if err := d.serverCfg.Set(ctx, u.key, u.val); err != nil {
 			span.RecordError(err)
-			return nil, internalError("persist plugin resource limit", err)
+			return nil, internalError(ctx, "persist plugin resource limit", err)
 		}
 	}
 	// Apply synchronously: the change event is delivered asynchronously, so we

@@ -56,7 +56,7 @@ func (h *pluginUserDataHandler) GetPref(ctx context.Context, req *eveyv1.GetPref
 		if errors.Is(err, shared.ErrNotFound) {
 			return &eveyv1.GetPrefResponse{Found: false}, nil
 		}
-		return nil, internalError("get pref", err)
+		return nil, internalError(ctx, "get pref", err)
 	}
 	return &eveyv1.GetPrefResponse{Value: e.Value, Found: true}, nil
 }
@@ -75,7 +75,7 @@ func (h *pluginUserDataHandler) SetPref(ctx context.Context, req *eveyv1.SetPref
 		return nil, status.Error(codes.Unimplemented, "plugin data store unavailable")
 	}
 	if err := h.data.Set(ctx, pluginID, userID, profileID, req.Key, req.Value); err != nil {
-		return nil, internalError("set pref", err)
+		return nil, internalError(ctx, "set pref", err)
 	}
 	return &eveyv1.SetPrefResponse{}, nil
 }
@@ -91,7 +91,7 @@ func (h *pluginUserDataHandler) DeletePref(ctx context.Context, req *eveyv1.Dele
 		return nil, status.Error(codes.Unimplemented, "plugin data store unavailable")
 	}
 	if err := h.data.Delete(ctx, pluginID, userID, profileID, req.Key); err != nil {
-		return nil, internalError("delete pref", err)
+		return nil, internalError(ctx, "delete pref", err)
 	}
 	return &eveyv1.DeletePrefResponse{}, nil
 }
@@ -108,7 +108,7 @@ func (h *pluginUserDataHandler) ListPrefs(ctx context.Context, _ *eveyv1.ListPre
 	}
 	entries, err := h.data.List(ctx, pluginID, userID, profileID)
 	if err != nil {
-		return nil, internalError("list prefs", err)
+		return nil, internalError(ctx, "list prefs", err)
 	}
 	resp := &eveyv1.ListPrefsResponse{}
 	for _, e := range entries {

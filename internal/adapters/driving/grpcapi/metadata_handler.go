@@ -49,7 +49,7 @@ func (h *metadataHandler) SearchMetadata(ctx context.Context, req *eveyv1.Search
 	mediaType := mediaItemTypeFromProto[req.Type]
 	results, err := h.query.SearchMetadata(ctx, req.Query, mediaType)
 	if err != nil {
-		return nil, internalError("search metadata", err)
+		return nil, internalError(ctx, "search metadata", err)
 	}
 	resp := &eveyv1.SearchMetadataResponse{}
 	limit := int(req.Limit)
@@ -77,7 +77,7 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 	// persisting it; route everything through the enriching entry points.
 	item, err := h.cmd.GetMediaItem(ctx, req.MediaItemId)
 	if err != nil {
-		return internalError("get item", err)
+		return internalError(ctx, "get item", err)
 	}
 	providerIDs := map[string]string{}
 	if item.Catalog != nil {
@@ -95,7 +95,7 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 			return status.Errorf(codes.FailedPrecondition, "no TMDB ID for this item")
 		}
 		if err := h.cmd.RefreshItemMetadata(ctx, req.MediaItemId, tmdbID, mediaType); err != nil {
-			return internalError("refresh metadata", err)
+			return internalError(ctx, "refresh metadata", err)
 		}
 	case "imdb", "omdb", "imdbapi":
 		// omdb/imdbapi are keyed by the IMDB id; the enrich path cross-refs
@@ -105,7 +105,7 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 			return status.Errorf(codes.FailedPrecondition, "no IMDB ID for this item")
 		}
 		if err := h.cmd.RefreshItemMetadataByIMDB(ctx, req.MediaItemId, imdbID, mediaType); err != nil {
-			return internalError("refresh metadata", err)
+			return internalError(ctx, "refresh metadata", err)
 		}
 	default:
 		return status.Errorf(codes.InvalidArgument, "unsupported provider %q", req.PreferredProvider)
@@ -126,7 +126,7 @@ func (h *metadataHandler) GetArtwork(ctx context.Context, req *eveyv1.GetArtwork
 	}
 	records, err := h.query.GetArtwork(ctx, req.MediaItemId)
 	if err != nil {
-		return nil, internalError("get artwork", err)
+		return nil, internalError(ctx, "get artwork", err)
 	}
 	resp := &eveyv1.GetArtworkResponse{}
 	for _, r := range records {
@@ -148,7 +148,7 @@ func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.S
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.cmd.SetOverride(ctx, override); err != nil {
-		return nil, internalError("set override", err)
+		return nil, internalError(ctx, "set override", err)
 	}
 	return metadataOverrideToProto(override), nil
 }
@@ -166,7 +166,7 @@ func (h *metadataHandler) RemoveMetadataOverride(ctx context.Context, req *eveyv
 		return nil, err
 	}
 	if err := h.cmd.RemoveOverride(ctx, req.Id); err != nil {
-		return nil, internalError("remove override", err)
+		return nil, internalError(ctx, "remove override", err)
 	}
 	return &eveyv1.RemoveMetadataOverrideResponse{}, nil
 }
@@ -179,7 +179,7 @@ func (h *metadataHandler) ListMetadataOverrides(ctx context.Context, req *eveyv1
 	}
 	overrides, err := h.query.ListOverrides(ctx, req.MediaItemId)
 	if err != nil {
-		return nil, internalError("list overrides", err)
+		return nil, internalError(ctx, "list overrides", err)
 	}
 	resp := &eveyv1.ListMetadataOverridesResponse{}
 	for _, o := range overrides {
@@ -199,7 +199,7 @@ func (h *metadataHandler) ResearchMetadata(ctx context.Context, req *eveyv1.Rese
 	}
 	res, err := h.cmd.ResearchMetadata(ctx, req.MediaItemId)
 	if err != nil {
-		return nil, internalError("research metadata", err)
+		return nil, internalError(ctx, "research metadata", err)
 	}
 	return &eveyv1.ResearchMetadataResponse{
 		MediaItemId: req.MediaItemId,

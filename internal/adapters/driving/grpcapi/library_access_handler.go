@@ -21,7 +21,7 @@ func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *ev
 	defer span.End()
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, req.UserId)
 	if err != nil {
-		return nil, internalError("get library access", err)
+		return nil, internalError(ctx, "get library access", err)
 	}
 	if ids == nil {
 		ids = []string{}
@@ -50,7 +50,7 @@ func (h *libraryAccessHandler) SetUserLibraryAccess(ctx context.Context, req *ev
 	// does the swap in one transaction, so a failure here leaves the user's
 	// PRIOR access untouched rather than at zero.
 	if err := h.userAccess.ReplaceLibraryAccess(ctx, req.UserId, req.LibraryIds); err != nil {
-		return nil, internalError("set library access", err)
+		return nil, internalError(ctx, "set library access", err)
 	}
 	return &eveyv1.SetUserLibraryAccessResponse{}, nil
 }
@@ -64,7 +64,7 @@ func (h *libraryAccessHandler) RevokeAllUserLibraryAccess(ctx context.Context, r
 	// single DELETE, so it either revokes everything or reports the error -
 	// no partial-loop state to reason about.
 	if err := h.userAccess.RevokeAllLibraryAccess(ctx, req.UserId); err != nil {
-		return nil, internalError("revoke all library access", err)
+		return nil, internalError(ctx, "revoke all library access", err)
 	}
 	return &eveyv1.RevokeAllUserLibraryAccessResponse{}, nil
 }

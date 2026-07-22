@@ -56,7 +56,7 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 50)
 	favs, err := h.svc.List(ctx, profileID, limit, offset)
 	if err != nil {
-		return nil, internalError("list favorites", err)
+		return nil, internalError(ctx, "list favorites", err)
 	}
 	itemByID := make(map[string]*library.MediaItem)
 	if h.libQuery != nil {
@@ -77,7 +77,7 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 		// a non-admin would see the metadata of favorites in libraries they no
 		// longer have access to. Mirror popular-media / activity.
 		if aErr != nil {
-			return nil, internalError("list favorites: library access", aErr)
+			return nil, internalError(ctx, "list favorites: library access", aErr)
 		}
 		// Zero grants = unrestricted (opt-out default): only restrict when the
 		// user has an explicit whitelist.
@@ -142,11 +142,11 @@ func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavori
 	// end state is always "favorited" no matter how many times it's called.
 	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
 	if err != nil {
-		return nil, internalError("check favorite", err)
+		return nil, internalError(ctx, "check favorite", err)
 	}
 	if !isFav {
 		if _, err := h.svc.Toggle(ctx, profileID, req.MediaItemId); err != nil {
-			return nil, internalError("add favorite", err)
+			return nil, internalError(ctx, "add favorite", err)
 		}
 	}
 	return &eveyv1.AddFavoriteResponse{IsFavorite: true}, nil
@@ -168,11 +168,11 @@ func (h *favoriteHandler) RemoveFavorite(ctx context.Context, req *eveyv1.Remove
 	}
 	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
 	if err != nil {
-		return nil, internalError("check favorite", err)
+		return nil, internalError(ctx, "check favorite", err)
 	}
 	if isFav {
 		if _, err := h.svc.Toggle(ctx, profileID, req.MediaItemId); err != nil {
-			return nil, internalError("remove favorite", err)
+			return nil, internalError(ctx, "remove favorite", err)
 		}
 	}
 	return &eveyv1.RemoveFavoriteResponse{}, nil
@@ -194,7 +194,7 @@ func (h *favoriteHandler) IsFavorite(ctx context.Context, req *eveyv1.IsFavorite
 	}
 	isFav, err := h.svc.IsFavorite(ctx, profileID, req.MediaItemId)
 	if err != nil {
-		return nil, internalError("check favorite", err)
+		return nil, internalError(ctx, "check favorite", err)
 	}
 	return &eveyv1.IsFavoriteResponse{IsFavorite: isFav}, nil
 }

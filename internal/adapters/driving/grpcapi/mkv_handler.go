@@ -51,7 +51,7 @@ func (h *mkvHandler) GetContainerInfo(ctx context.Context, req *eveyv1.GetContai
 	defer span.End()
 	c, err := h.svc.GetContainerInfo(ctx, req.Path)
 	if err != nil {
-		return nil, internalError("get container info", err)
+		return nil, internalError(ctx, "get container info", err)
 	}
 	return mkvContainerToProto(c), nil
 }
@@ -61,7 +61,7 @@ func (h *mkvHandler) ListTracks(ctx context.Context, req *eveyv1.ListMkvTracksRe
 	defer span.End()
 	tracks, err := h.svc.ListTracks(ctx, req.Path)
 	if err != nil {
-		return nil, internalError("list tracks", err)
+		return nil, internalError(ctx, "list tracks", err)
 	}
 	resp := &eveyv1.ListMkvTracksResponse{}
 	for _, t := range tracks {
@@ -78,7 +78,7 @@ func (h *mkvHandler) ListChapters(ctx context.Context, req *eveyv1.ListChaptersR
 	}
 	chapters, err := h.svc.ListChapters(ctx, req.Path)
 	if err != nil {
-		return nil, internalError("list chapters", err)
+		return nil, internalError(ctx, "list chapters", err)
 	}
 	resp := &eveyv1.ListChaptersResponse{}
 	for _, ch := range chapters {
@@ -92,7 +92,7 @@ func (h *mkvHandler) ListAttachments(ctx context.Context, req *eveyv1.ListAttach
 	defer span.End()
 	attachments, err := h.svc.ListAttachments(ctx, req.Path)
 	if err != nil {
-		return nil, internalError("list attachments", err)
+		return nil, internalError(ctx, "list attachments", err)
 	}
 	resp := &eveyv1.ListAttachmentsResponse{}
 	for _, a := range attachments {
@@ -102,10 +102,10 @@ func (h *mkvHandler) ListAttachments(ctx context.Context, req *eveyv1.ListAttach
 }
 
 func (h *mkvHandler) ExtractTrack(req *eveyv1.ExtractTrackRequest, stream eveyv1.MKVService_ExtractTrackServer) error {
-	_, span := tracing.StartSpan(stream.Context(), "grpc.mkv.ExtractTrack")
+	ctx, span := tracing.StartSpan(stream.Context(), "grpc.mkv.ExtractTrack")
 	defer span.End()
 	if err := h.svc.ExtractTrack(stream.Context(), req.Path, uint64(req.TrackId), ""); err != nil {
-		return internalError("extract track", err)
+		return internalError(ctx, "extract track", err)
 	}
 	return stream.Send(&eveyv1.ExtractDataChunk{})
 }
@@ -114,7 +114,7 @@ func (h *mkvHandler) ExtractAttachment(ctx context.Context, req *eveyv1.ExtractA
 	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.ExtractAttachment")
 	defer span.End()
 	if err := h.svc.ExtractAttachment(ctx, req.Path, uint64(req.AttachmentId), req.OutputPath); err != nil {
-		return nil, internalError("extract attachment", err)
+		return nil, internalError(ctx, "extract attachment", err)
 	}
 	return &eveyv1.ExtractAttachmentResponse{
 		OutputPath: req.OutputPath,
@@ -122,7 +122,7 @@ func (h *mkvHandler) ExtractAttachment(ctx context.Context, req *eveyv1.ExtractA
 }
 
 func (h *mkvHandler) MuxContainer(req *eveyv1.MuxContainerRequest, stream eveyv1.MKVService_MuxContainerServer) error {
-	_, span := tracing.StartSpan(stream.Context(), "grpc.mkv.MuxContainer")
+	ctx, span := tracing.StartSpan(stream.Context(), "grpc.mkv.MuxContainer")
 	defer span.End()
 	opts := mkv.MuxOptions{
 		OutputPath: req.OutputPath,
@@ -139,13 +139,13 @@ func (h *mkvHandler) MuxContainer(req *eveyv1.MuxContainerRequest, stream eveyv1
 		opts.Chapters = append(opts.Chapters, mkvChapterFromProto(ch))
 	}
 	if err := h.svc.MuxContainer(stream.Context(), opts); err != nil {
-		return internalError("mux container", err)
+		return internalError(ctx, "mux container", err)
 	}
 	return stream.Send(&eveyv1.MuxProgress{Percent: 100, Phase: "complete"})
 }
 
 func (h *mkvHandler) DemuxContainer(req *eveyv1.DemuxContainerRequest, stream eveyv1.MKVService_DemuxContainerServer) error {
-	_, span := tracing.StartSpan(stream.Context(), "grpc.mkv.DemuxContainer")
+	ctx, span := tracing.StartSpan(stream.Context(), "grpc.mkv.DemuxContainer")
 	defer span.End()
 	var trackIDs []uint64
 	for _, id := range req.TrackIds {
@@ -156,7 +156,7 @@ func (h *mkvHandler) DemuxContainer(req *eveyv1.DemuxContainerRequest, stream ev
 		TrackIDs:  trackIDs,
 	}
 	if err := h.svc.DemuxContainer(stream.Context(), req.Path, opts); err != nil {
-		return internalError("demux container", err)
+		return internalError(ctx, "demux container", err)
 	}
 	return stream.Send(&eveyv1.DemuxProgress{Percent: 100})
 }
@@ -171,7 +171,7 @@ func (h *mkvHandler) AddTrack(ctx context.Context, req *eveyv1.AddTrackRequest) 
 		IsDefault:  req.IsDefault,
 	}
 	if err := h.svc.AddTrack(ctx, req.ContainerPath, input); err != nil {
-		return nil, internalError("add track", err)
+		return nil, internalError(ctx, "add track", err)
 	}
 	return &eveyv1.AddTrackResponse{}, nil
 }
@@ -180,7 +180,7 @@ func (h *mkvHandler) RemoveTrack(ctx context.Context, req *eveyv1.RemoveTrackReq
 	ctx, span := tracing.StartSpan(ctx, "grpc.mkv.RemoveTrack")
 	defer span.End()
 	if err := h.svc.RemoveTrack(ctx, req.ContainerPath, uint64(req.TrackId)); err != nil {
-		return nil, internalError("remove track", err)
+		return nil, internalError(ctx, "remove track", err)
 	}
 	return &eveyv1.RemoveTrackResponse{}, nil
 }

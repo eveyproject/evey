@@ -9,6 +9,7 @@ import (
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -29,7 +30,7 @@ func identityAttrs(ctx context.Context, attrs []any) []any {
 
 func LoggingUnary(log *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		ctx = eveylogger.WithRequestID(ctx, newRequestID())
+		ctx = eveylogger.WithRequestID(ctx, requestIDFor(ctx))
 		start := time.Now()
 		resp, err := handler(ctx, req)
 		st, _ := status.FromError(err)
@@ -65,6 +66,32 @@ func LoggingStream(log *slog.Logger) grpc.StreamServerInterceptor {
 		log.InfoContext(ctx, "grpc stream", attrs...)
 		return err
 	}
+}
+
+// requestIDFor reuses the id the HTTP leg already assigned (the gateway
+// forwards it as x-request-id metadata) so both halves of one user action share
+// an id, and mints a fresh one only for calls that arrive straight over gRPC.
+// Inbound values are bounded and filtered to printable ASCII: this ends up in
+// log lines, and an unbounded header is a log-injection vector.
+func requestIDFor(ctx context.Context) string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return newRequestID()
+	}
+	vals := md.Get("x-request-id")
+	if len(vals) == 0 {
+		return newRequestID()
+	}
+	id := vals[0]
+	if id == "" || len(id) > 128 {
+		return newRequestID()
+	}
+	for _, r := range id {
+		if r < 0x20 || r > 0x7e {
+			return newRequestID()
+		}
+	}
+	return id
 }
 
 func newRequestID() string {

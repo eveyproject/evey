@@ -41,7 +41,7 @@ func (h *musicHandler) allowedLibraryIDs(ctx context.Context) (map[string]bool, 
 	}
 	ids, err := h.userAccess.GetLibraryAccessByUserID(ctx, claims.UserID)
 	if err != nil {
-		return nil, internalError("get library access", err)
+		return nil, internalError(ctx, "get library access", err)
 	}
 	if len(ids) == 0 {
 		return nil, nil
@@ -63,7 +63,7 @@ func (h *musicHandler) checkLibraryAccess(ctx context.Context, libraryID string)
 	}
 	ok, err := h.userAccess.HasLibraryAccess(ctx, claims.UserID, libraryID)
 	if err != nil {
-		return internalError("check library access", err)
+		return internalError(ctx, "check library access", err)
 	}
 	if !ok {
 		return status.Error(codes.PermissionDenied, "no access to library")
@@ -96,7 +96,7 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, internalError("list tracks by album id", err)
+			return nil, internalError(ctx, "list tracks by album id", err)
 		}
 		resp := &eveyv1.ListTracksResponse{Total: int32(len(tracks))}
 		for _, t := range tracks {
@@ -114,7 +114,7 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, internalError("search tracks", err)
+			return nil, internalError(ctx, "search tracks", err)
 		}
 		resp := &eveyv1.ListTracksResponse{Total: int32(len(tracks))}
 		for _, t := range tracks {
@@ -127,7 +127,7 @@ func (h *musicHandler) ListTracks(ctx context.Context, req *eveyv1.ListTracksReq
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("list tracks", err)
+		return nil, internalError(ctx, "list tracks", err)
 	}
 	resp := &eveyv1.ListTracksResponse{Total: int32(total)}
 	for _, t := range tracks {
@@ -148,7 +148,7 @@ func (h *musicHandler) GetTrack(ctx context.Context, req *eveyv1.GetTrackRequest
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get track", err)
+		return nil, internalError(ctx, "get track", err)
 	}
 	if track == nil {
 		span.SetStatus(otelcodes.Error, "track not found")
@@ -184,7 +184,7 @@ func (h *musicHandler) GetAlbums(ctx context.Context, req *eveyv1.GetAlbumsReque
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get albums", err)
+		return nil, internalError(ctx, "get albums", err)
 	}
 	resp := &eveyv1.GetAlbumsResponse{}
 	for _, a := range albums {
@@ -218,7 +218,7 @@ func (h *musicHandler) GetArtists(ctx context.Context, req *eveyv1.GetArtistsReq
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get artists", err)
+		return nil, internalError(ctx, "get artists", err)
 	}
 	resp := &eveyv1.GetArtistsResponse{}
 	for _, a := range artists {
@@ -277,7 +277,7 @@ func (h *musicHandler) SearchMusic(ctx context.Context, req *eveyv1.SearchMusicR
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("search music", err)
+		return nil, internalError(ctx, "search music", err)
 	}
 
 	claims := interceptors.ClaimsFromContext(ctx)
@@ -388,7 +388,7 @@ func (h *musicHandler) DeleteTrack(ctx context.Context, req *eveyv1.DeleteTrackR
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("get track", err)
+		return nil, internalError(ctx, "get track", err)
 	}
 	if track == nil {
 		span.SetStatus(otelcodes.Error, "track not found")
@@ -397,7 +397,7 @@ func (h *musicHandler) DeleteTrack(ctx context.Context, req *eveyv1.DeleteTrackR
 	if err := h.svc.DeleteTrack(ctx, req.Id); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError("delete track", err)
+		return nil, internalError(ctx, "delete track", err)
 	}
 	return &emptypb.Empty{}, nil
 }

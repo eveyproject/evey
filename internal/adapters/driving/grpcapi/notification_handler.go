@@ -39,7 +39,7 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	limit, offset := clampLimitOffset(req.Limit, req.Offset, 200)
 	items, err := h.query.List(ctx, profileID, req.UnreadOnly, limit, offset)
 	if err != nil {
-		return nil, internalError("list notifications", err)
+		return nil, internalError(ctx, "list notifications", err)
 	}
 	// Filter notifications by library access for non-admin users. Batch-resolve
 	// the referenced media items' library IDs in one query instead of one
@@ -47,7 +47,7 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	// returning silent partial results if the context timed out mid-loop.
 	allowed, err := h.allowedLibraryIDs(ctx)
 	if err != nil {
-		return nil, internalError("list notifications: library access", err)
+		return nil, internalError(ctx, "list notifications: library access", err)
 	}
 	libByMedia := map[string]string{}
 	if allowed != nil {
@@ -63,7 +63,7 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 		if len(ids) > 0 {
 			mis, miErr := h.libQuery.GetMediaItemsByIDs(ctx, ids)
 			if miErr != nil {
-				return nil, internalError("resolve notification media", miErr)
+				return nil, internalError(ctx, "resolve notification media", miErr)
 			}
 			for _, mi := range mis {
 				libByMedia[string(mi.ID)] = string(mi.LibraryID)
@@ -93,7 +93,7 @@ func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkRead
 		return nil, fmt.Errorf("notificationHandler.MarkRead: %w", err)
 	}
 	if err := h.cmd.MarkRead(ctx, req.Id, claims.ProfileID); err != nil {
-		return nil, internalError("mark read", err)
+		return nil, internalError(ctx, "mark read", err)
 	}
 	return &eveyv1.MarkReadResponse{}, nil
 }
@@ -110,7 +110,7 @@ func (h *notificationHandler) MarkAllRead(ctx context.Context, req *eveyv1.MarkA
 		return nil, fmt.Errorf("notificationHandler.MarkAllRead: %w", err)
 	}
 	if err := h.cmd.MarkAllRead(ctx, profileID); err != nil {
-		return nil, internalError("mark all read", err)
+		return nil, internalError(ctx, "mark all read", err)
 	}
 	return &eveyv1.MarkAllReadResponse{}, nil
 }
@@ -128,7 +128,7 @@ func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.Ge
 	}
 	count, err := h.query.UnreadCount(ctx, profileID)
 	if err != nil {
-		return nil, internalError("unread count", err)
+		return nil, internalError(ctx, "unread count", err)
 	}
 	return &eveyv1.GetUnreadCountResponse{Count: int32(count)}, nil
 }
@@ -145,7 +145,7 @@ func (h *notificationHandler) DeleteAllNotifications(ctx context.Context, req *e
 		return nil, fmt.Errorf("notificationHandler.DeleteAllNotifications: %w", err)
 	}
 	if err := h.cmd.DeleteAll(ctx, profileID); err != nil {
-		return nil, internalError("delete all", err)
+		return nil, internalError(ctx, "delete all", err)
 	}
 	return &eveyv1.DeleteAllNotificationsResponse{}, nil
 }
@@ -163,7 +163,7 @@ func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *
 	}
 	s, err := h.query.GetSettings(ctx, profileID)
 	if err != nil {
-		return nil, internalError("get settings", err)
+		return nil, internalError(ctx, "get settings", err)
 	}
 	return settingsToProto(s), nil
 }
@@ -186,7 +186,7 @@ func (h *notificationHandler) UpdateNotificationSettings(ctx context.Context, re
 		MusicLevel:  levelFromProto(req.MusicLevel),
 	}
 	if err := h.cmd.UpdateSettings(ctx, s); err != nil {
-		return nil, internalError("update settings", err)
+		return nil, internalError(ctx, "update settings", err)
 	}
 	return settingsToProto(s), nil
 }
@@ -209,7 +209,7 @@ func (h *notificationHandler) ListAdminNotifications(ctx context.Context, req *e
 	adminLimit, adminOffset := clampLimitOffset(req.Limit, req.Offset, 200)
 	items, err := h.query.ListAdminOnly(ctx, claims.ProfileID, req.UnreadOnly, adminLimit, adminOffset)
 	if err != nil {
-		return nil, internalError("list admin notifications", err)
+		return nil, internalError(ctx, "list admin notifications", err)
 	}
 	resp := &eveyv1.ListAdminNotificationsResponse{}
 	for _, n := range items {
@@ -223,7 +223,7 @@ func (h *notificationHandler) GetGlobalNotificationSettings(ctx context.Context,
 	defer span.End()
 	s, err := h.query.GetGlobalSettings(ctx)
 	if err != nil {
-		return nil, internalError("get global settings", err)
+		return nil, internalError(ctx, "get global settings", err)
 	}
 	return settingsToProto(s), nil
 }
@@ -238,7 +238,7 @@ func (h *notificationHandler) UpdateGlobalNotificationSettings(ctx context.Conte
 		MusicLevel:  levelFromProto(req.MusicLevel),
 	}
 	if err := h.cmd.UpdateGlobalSettings(ctx, s); err != nil {
-		return nil, internalError("update global settings", err)
+		return nil, internalError(ctx, "update global settings", err)
 	}
 	return settingsToProto(s), nil
 }
