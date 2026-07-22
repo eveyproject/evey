@@ -27,6 +27,7 @@ import { initShootingStar, shootingStar, type ShootingStar } from "../../domain/
 // domain/services/sunModel.ts.
 import moonUrl from "../../assets/moon.jpg";
 import sunAia171 from "../../assets/sun_aia171.jpg";
+import { meanLuma, isUsableSunFrame } from "../../domain/services/sunImage";
 
 const SUN_TEXTURES: Record<string, string> = {
   aia171: sunAia171,
@@ -35,6 +36,25 @@ const DEFAULT_SUN_ID = "aia171";
 
 
 const TIME_WRAP_S = 4096;
+
+// Downsample a decoded image to a tiny 2D canvas and return its RGBA bytes,
+// enough to judge overall brightness. The source is a data: URL, so the canvas
+// is never tainted. On any failure returns an empty buffer, which meanLuma
+// maps to 0 - i.e. "reject", falling back to the always-good bundled skin.
+const LUMA_SAMPLE_PX = 32;
+function sampleRgba(img: HTMLImageElement): Uint8ClampedArray {
+  try {
+    const c = document.createElement("canvas");
+    c.width = LUMA_SAMPLE_PX;
+    c.height = LUMA_SAMPLE_PX;
+    const ctx = c.getContext("2d");
+    if (!ctx) return new Uint8ClampedArray(0);
+    ctx.drawImage(img, 0, 0, LUMA_SAMPLE_PX, LUMA_SAMPLE_PX);
+    return ctx.getImageData(0, 0, LUMA_SAMPLE_PX, LUMA_SAMPLE_PX).data;
+  } catch {
+    return new Uint8ClampedArray(0);
+  }
+}
 
 // Gate to keep the shooting-star check meaningfully rare from a night-sky
 // standpoint: clear-enough, dark-enough, and not on the lowest quality tier
@@ -225,7 +245,19 @@ export class GlRenderer implements SceneRenderer {
     // stays as the placeholder until this resolves, so there's never a blank
     // sun. A later daily model change reloads the bundled default, and the app
     // fetches that day's live image again.
-    if (this.sunTex) this.loadImageInto(this.sunTex, dataUrl);
+    //
+    // Brightness gate: SDO sometimes serves an essentially black frame
+    // (eclipse season, calibration) that the backend cannot detect - it has no
+    // JPEG decoder. Judged here on the decoded pixels; a dark frame is dropped
+    // so the bundled/previous skin keeps showing instead of a black sun disc.
+    if (!this.sunTex) return;
+    const img = new Image();
+    img.onload = () => {
+      if (!this.gl || !this.sunTex) return;
+      if (!isUsableSunFrame(meanLuma(sampleRgba(img)))) return;
+      this.uploadImage(this.sunTex, img);
+    };
+    img.src = dataUrl;
   }
 
   dispose(): void {
@@ -264,15 +296,17 @@ export class GlRenderer implements SceneRenderer {
   private loadImageInto(tex: WebGLTexture | null, url: string): void {
     if (!tex) return;
     const img = new Image();
-    img.onload = () => {
-      const g = this.gl;
-      if (!g || !tex) return;
-      g.bindTexture(g.TEXTURE_2D, tex);
-      g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 1);
-      g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img);
-      g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 0);
-    };
+    img.onload = () => this.uploadImage(tex, img);
     img.src = url;
+  }
+
+  private uploadImage(tex: WebGLTexture, img: HTMLImageElement): void {
+    const g = this.gl;
+    if (!g) return;
+    g.bindTexture(g.TEXTURE_2D, tex);
+    g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 1);
+    g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img);
+    g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 0);
   }
 
   private initGL(): void {

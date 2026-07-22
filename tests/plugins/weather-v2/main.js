@@ -19,6 +19,7 @@ const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
 const path = require("path");
 const fs = require("fs");
+const { prepareSunFrame } = require("./sunFrameGuard");
 
 // ---- Sun image updater ----------------------------------------------------
 
@@ -73,9 +74,21 @@ async function updateSunImage() {
   try {
     const buf = await fetchBuffer(url);
     // Cheap JPEG sanity check (SOI marker) so a captive-portal HTML page or an
-    // error body never gets written as sun-live.
+    // error body is refused before paying for a decode.
     if (buf.length < 1024 || buf[0] !== 0xff || buf[1] !== 0xd8) {
       throw new Error("not a JPEG");
+    }
+    // Authoritative gate + geometry normalization (see sunFrameGuard.js):
+    // dark eclipse/calibration frames are rejected on decoded brightness
+    // (neither file size nor the frontend pixel check - blinded by Firefox
+    // resistFingerprinting - can be trusted), and a good frame is re-cropped
+    // from SDO's full-disc framing to the bundled skin's tight geometry so
+    // the shader's disc mask lines up with the limb (raw full-disc frames
+    // rendered with a nibbled edge). Rejecting keeps the previous GOOD image
+    // on disk for every client.
+    const frame = prepareSunFrame(buf);
+    if (!frame.ok) {
+      throw new Error(`dark or undecodable frame (luma=${frame.luma == null ? "n/a" : frame.luma.toFixed(4)})`);
     }
     fs.mkdirSync(DIST_DIR, { recursive: true });
     // Atomic write: temp then rename, so the asset route never serves a
@@ -83,9 +96,9 @@ async function updateSunImage() {
     // place (stable filename → yesterday's live image is reused).
     const finalPath = path.join(DIST_DIR, `sun-live-${model.id}.jpg`);
     const tmpPath = path.join(DIST_DIR, `.sun-live-${model.id}.jpg.tmp`);
-    fs.writeFileSync(tmpPath, buf);
+    fs.writeFileSync(tmpPath, frame.jpeg);
     fs.renameSync(tmpPath, finalPath);
-    console.error(`weather-v2: sun image updated (${model.id}, ${buf.length} bytes)`);
+    console.error(`weather-v2: sun image updated (${model.id}, ${frame.jpeg.length} bytes)`);
   } catch (e) {
     // Non-fatal: the frontend falls back to the seeded/previous snapshot.
     console.error(`weather-v2: sun image update failed (${model.id}): ${e.message}`);

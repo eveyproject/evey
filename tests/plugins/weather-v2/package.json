@@ -1,6 +1,6 @@
 {
   "name": "evey-plugin-weather-v2",
-  "version": "2.11.0",
+  "version": "2.14.0",
   "private": true,
   "scripts": {
     "build": "esbuild src/index.ts --bundle --format=iife --target=es2019 --minify --outfile=dist/index.js --loader:.jpg=dataurl && esbuild src/settings/index.ts --bundle --format=iife --target=es2019 --minify --outfile=dist/settings.js && cp src/assets/sun_aia171.jpg dist/sun-live-aia171.jpg",
@@ -9,10 +9,12 @@
   },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.4",
-    "@grpc/proto-loader": "^0.8.1"
+    "@grpc/proto-loader": "^0.8.1",
+    "jpeg-js": "^0.4.4"
   },
   "comment": "The front module has ZERO runtime dependencies: raw WebGL + vanilla DOM, bundled by esbuild. Only the nodejs backend stub (main.js) needs runtime deps, so only @grpc ships in node_modules. This keeps the bundle ~25x smaller than v1 (three.js/React) and removes their memory overhead entirely.",
   "devDependencies": {
+    "@types/node": "^26.1.1",
     "esbuild": "0.25.0",
     "typescript": "5.7.3",
     "vitest": "2.1.9"
