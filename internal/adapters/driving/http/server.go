@@ -623,7 +623,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	}
 
 	if s.SubtitleSvc != nil {
-		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.SubtitleProviderRL)
+		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.SubtitleProviderRL, parentalChk)
 	}
 
 	if s.PluginRepo != nil && s.PluginDir != "" {

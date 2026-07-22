@@ -357,6 +357,7 @@ type subtitleRoutes struct {
 	tokens        TokenVerifier
 	mediaGetter   MediaItemGetter
 	libraryAccess LibraryAccessChecker
+	parental      ParentalChecker
 }
 
 // providerRL rate-limits the two routes that reach the subtitle provider on the
@@ -364,8 +365,15 @@ type subtitleRoutes struct {
 // finite third-party budget - OpenSubtitles caps downloads per key per day - so
 // an authenticated user could otherwise drain the whole allowance for everyone
 // on the server. nil leaves the routes unlimited (tests).
-func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen TokenVerifier, mediaGetter MediaItemGetter, libraryAccess LibraryAccessChecker, providerRL *ratelimit.Limiter) {
-	h := &subtitleRoutes{subtitleSvc: subtitleSvc, tokens: tokenGen, mediaGetter: mediaGetter, libraryAccess: libraryAccess}
+// parental is variadic so the many existing call sites (tests included) that
+// predate the parental gate keep compiling unchanged; a nil/absent checker
+// simply leaves checkParental as a no-op, matching prior behaviour.
+func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen TokenVerifier, mediaGetter MediaItemGetter, libraryAccess LibraryAccessChecker, providerRL *ratelimit.Limiter, parental ...ParentalChecker) {
+	var pc ParentalChecker
+	if len(parental) > 0 {
+		pc = parental[0]
+	}
+	h := &subtitleRoutes{subtitleSvc: subtitleSvc, tokens: tokenGen, mediaGetter: mediaGetter, libraryAccess: libraryAccess, parental: pc}
 	limited := func(next http.HandlerFunc) http.HandlerFunc {
 		if providerRL == nil {
 			return next
@@ -410,6 +418,9 @@ func (h *subtitleRoutes) requireMediaAccess(w http.ResponseWriter, r *http.Reque
 		return nil, false
 	}
 	if !checkLibraryAccess(r.Context(), w, claims, item.LibraryID, h.libraryAccess) {
+		return nil, false
+	}
+	if !checkParental(r.Context(), w, claims, item, h.parental) {
 		return nil, false
 	}
 	return claims, true

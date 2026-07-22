@@ -104,10 +104,19 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// Artwork is public: skip library access check when no auth claims.
-	if claims != nil && !checkLibraryAccess(r.Context(), w, claims, artItem.LibraryID, h.libraryAccess) {
-		span.SetStatus(otelcodes.Error, "library access denied")
-		return
+	// Artwork is public: skip library access and parental checks when no auth
+	// claims. checkParental itself also no-ops for nil/admin claims, but the
+	// explicit claims != nil guard here keeps this route's public contract
+	// obvious without depending on that internal detail.
+	if claims != nil {
+		if !checkLibraryAccess(r.Context(), w, claims, artItem.LibraryID, h.libraryAccess) {
+			span.SetStatus(otelcodes.Error, "library access denied")
+			return
+		}
+		if !checkParental(r.Context(), w, claims, artItem, h.parental) {
+			span.SetStatus(otelcodes.Error, "parental restricted")
+			return
+		}
 	}
 
 	records := h.findArtworkRecords(r.Context(), mediaID, artType, artItem.ParentID)
