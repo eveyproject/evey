@@ -7,6 +7,21 @@ name: Nightly - race & deep vuln
 # postgres tests with -race + a verbose govulncheck pass with call traces.
 # A red here is a real race-condition or vuln regression and should block
 # the next push until investigated.
+#
+# ⚠️ VERIFIED NOT RUNNING as of 2026-07-23, for two independent reasons:
+#
+#  1. Both jobs targeted `self-hosted`, which ci.yml disabled on 2026-07-03
+#     ("Self-hosted temporarily disabled - reusing GitHub-hosted runners").
+#     Fixed below by moving back to ubuntu-latest, matching ci.yml.
+#  2. GitHub only schedules `on: schedule` workflows from the DEFAULT branch.
+#     This file lives on beta-0.0.1 and not on master, so the cron above has
+#     never fired - `gh api .../workflows/nightly-race.yml` returns 404 and no
+#     nightly run appears in the history. **Merging this file to master is what
+#     actually turns the schedule on**; changing the runner alone is not enough.
+#
+# Until (2) is done, the postgres layer has NO -race coverage at all: the
+# commit CI deliberately excludes it, and this is the only job that runs it.
+# Use `workflow_dispatch` from a branch to exercise it in the meantime.
 
 on:
   schedule:
@@ -21,8 +36,9 @@ env:
 jobs:
   postgres-race:
     name: Postgres tests with -race
-    # runs-on: ubuntu-latest  # GitHub-hosted - disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
-    runs-on: self-hosted
+    # Back on GitHub-hosted to match ci.yml: the self-hosted workers this used
+    # to target were disabled on 2026-07-03 and nothing has run here since.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
@@ -48,8 +64,9 @@ jobs:
 
   vuln-deep:
     name: govulncheck (deep, call traces)
-    # runs-on: ubuntu-latest  # GitHub-hosted - disabled 2026-06-22 (hit Actions minutes limit); restore when quota resets
-    runs-on: self-hosted
+    # Back on GitHub-hosted to match ci.yml: the self-hosted workers this used
+    # to target were disabled on 2026-07-03 and nothing has run here since.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
