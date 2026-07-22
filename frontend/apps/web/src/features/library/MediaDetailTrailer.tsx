@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
+import { ICON } from "@/constants/iconSizes";
 import { useTranslation } from "react-i18next";
 import { useMusicPlayerStore } from "@evey/store";
 import type { V1Trailer } from "@evey/api";
@@ -54,12 +55,12 @@ function TrailerPlayer({ trailer, userLang }: { trailer: V1Trailer; userLang: st
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2.5 px-5 py-2.5 rounded text-lg font-medium transition-colors-fast bg-[var(--overlay-border-subtle)] text-[var(--text)] border border-[var(--border)]"
+        className="flex items-center gap-2 px-4.5 py-2.5 rounded text-base leading-snug font-medium transition-colors-fast bg-[var(--overlay-border-subtle)] text-[var(--text)] border border-[var(--border)]"
       >
-        <Play size={20} fill="currentColor" />
+        <Play size={ICON.md} fill="currentColor" />
         {t("media.detail.trailer")}
         {needsSubtitles && (
-          <span className="text-sm px-1 rounded bg-[var(--overlay-btn-bg)] text-[var(--text-muted)]">
+          <span className="text-xs px-1 rounded bg-[var(--overlay-btn-bg)] text-[var(--text-muted)]">
             CC
           </span>
         )}

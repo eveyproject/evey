@@ -1,6 +1,8 @@
 import { Heart } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useIsFavorite, useToggleFavorite } from "@/hooks/useFavorite";
+import { ACTION_ICON_BOX } from "@/components/ui/Button";
+import { ICON } from "@/constants/iconSizes";
 
 interface FavoriteButtonProps {
   mediaId: string;
@@ -13,8 +15,11 @@ export function FavoriteButton({ mediaId, size = "md", className = "" }: Favorit
   const { data: isFav } = useIsFavorite(mediaId);
   const toggle = useToggleFavorite(mediaId);
 
-  const iconPixels = size === "sm" ? 16 : size === "lg" ? 24 : 20;
-  const padding = size === "sm" ? "p-1" : size === "lg" ? "p-2" : "p-1.5";
+  const iconPixels = size === "sm" ? ICON.md : size === "lg" ? ICON.xl : ICON.lg;
+  // "lg" (the media action row) takes the shared square box so it renders as a
+  // circle at the row's height; the smaller sizes stay padding-based, sitting
+  // over artwork on cards where there is no row to line up with.
+  const box = size === "sm" ? "p-1" : size === "lg" ? ACTION_ICON_BOX : "p-1.5";
 
   return (
     <button
@@ -24,7 +29,7 @@ export function FavoriteButton({ mediaId, size = "md", className = "" }: Favorit
         e.stopPropagation();
         toggle.mutate(!!isFav);
       }}
-      className={`${padding} rounded-full transition-all duration-200 hover:scale-110 ${className}`}
+      className={`${box} rounded-full transition-all duration-200 hover:scale-110 ${className}`}
       style={{
         backgroundColor: "var(--overlay-bg)",
         color: isFav ? "var(--color-danger)" : "var(--overlay-text-muted)",

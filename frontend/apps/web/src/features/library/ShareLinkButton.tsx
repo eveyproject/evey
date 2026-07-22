@@ -1,4 +1,5 @@
 import { Share2 } from "lucide-react";
+import { ICON } from "@/constants/iconSizes";
 import { useTranslation } from "react-i18next";
 import { useShareServiceCreateShareLink } from "@evey/api";
 import { toast } from "@evey/store";
@@ -36,7 +37,7 @@ export function ShareLinkButton({ mediaId }: { mediaId: string }) {
       loading={createLink.isPending}
       onClick={() => createLink.mutate({ mediaItemId: mediaId, data: { durationHours: 48 } })}
     >
-      <Share2 size={20} />
+      <Share2 size={ICON.md} />
       {t("media.library.shareLink")}
     </Button>
   );

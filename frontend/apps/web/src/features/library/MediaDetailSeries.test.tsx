@@ -31,6 +31,9 @@ vi.mock("@/components/ui/Button", () => ({
   Button: ({ children, ...props }: { children: React.ReactNode; [k: string]: unknown }) => (
     <button {...props}>{children}</button>
   ),
+  // The module also owns the shared icon-button box, which DownloadButton
+  // reads at import time - a stub without it fails the whole suite on load.
+  ACTION_ICON_BOX: "w-10.5 h-10.5 shrink-0 flex items-center justify-center",
 }));
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

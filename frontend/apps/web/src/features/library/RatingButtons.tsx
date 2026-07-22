@@ -1,6 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { useMyRating, useSetRating } from "@/hooks/useRating";
+import { ACTION_ICON_BOX } from "@/components/ui/Button";
+import { ICON } from "@/constants/iconSizes";
 
 interface RatingButtonsProps {
   mediaId: string;
@@ -16,7 +18,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
   };
 
   const btnClass = (active: boolean, activeBg: string) =>
-    `p-2 rounded-full border-none cursor-pointer flex items-center justify-center backdrop-blur-[4px] transition-[transform,background-color] duration-150 ${
+    `${ACTION_ICON_BOX} rounded-full border-none cursor-pointer backdrop-blur-[4px] transition-[transform,background-color] duration-150 ${
       active
         ? `${activeBg} text-[var(--overlay-text)]`
         : "bg-[var(--btn-overlay-inactive-bg)] text-[var(--overlay-text-muted)]"
@@ -31,7 +33,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         title={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
         aria-label={rating === 1 ? t("media.rating.removeLike") : t("media.rating.like")}
       >
-        <ThumbsUp size={24} aria-hidden="true" />
+        <ThumbsUp size={ICON.xl} aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -40,7 +42,7 @@ export function RatingButtons({ mediaId }: RatingButtonsProps) {
         title={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
         aria-label={rating === -1 ? t("media.rating.removeDislike") : t("media.rating.dislike")}
       >
-        <ThumbsDown size={24} aria-hidden="true" />
+        <ThumbsDown size={ICON.xl} aria-hidden="true" />
       </button>
     </div>
   );

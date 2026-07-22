@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 import { Play, EyeOff, Eye, Plus } from "lucide-react";
+import { ICON } from "@/constants/iconSizes";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { V1MediaItem, V1MediaPerson } from "@evey/api";
@@ -152,7 +153,10 @@ export function MediaDetailActions({
 
       <TrailerSection trailers={item.trailers} />
 
-      <div className="flex gap-3 flex-wrap pt-2 lg:col-span-2" data-testid="media-actions">
+      {/* items-center, not the flex default of stretch: the icon-only controls
+          carry their own square box, and stretching them to the row height is
+          what deformed them into ovals. */}
+      <div className="flex items-center gap-3 flex-wrap pt-2 lg:col-span-2" data-testid="media-actions">
         {item.id && isSeries && (
           <PlaySeriesButton seriesId={item.id} onPlay={handlePlay} />
         )}
@@ -166,19 +170,19 @@ export function MediaDetailActions({
             data-testid="play-button"
             onClick={() => handlePlay(item.id!)}
           >
-            <Play size={20} fill="currentColor" />
+            <Play size={ICON.md} fill="currentColor" />
             {t("media.detail.play")}
           </Button>
         )}
         {item.id && (
           watched ? (
             <Button variant="secondary" size="lg" loading={markUnwatched.isPending} onClick={() => { if (profileId) markUnwatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-unwatched-btn">
-              <EyeOff size={20} />
+              <EyeOff size={ICON.md} />
               {t("media.detail.markUnwatched")}
             </Button>
           ) : (
             <Button variant="secondary" size="lg" loading={markWatched.isPending} onClick={() => { if (profileId) markWatched.mutate({ mediaItemId: item.id!, params: { profileId } }); else toast.error(t("media.detail.noProfileSelected")); }} data-testid="mark-watched-btn">
-              <Eye size={20} />
+              <Eye size={ICON.md} />
               {t("media.detail.markWatched")}
             </Button>
           )
@@ -209,7 +213,7 @@ export function MediaDetailActions({
         {item.id && <RatingButtons mediaId={item.id} />}
         {item.id && (
           <Button variant="secondary" size="lg" onClick={() => setPlaylistModalOpen(true)}>
-            <Plus size={20} />
+            <Plus size={ICON.md} />
             {t("media.detail.addToPlaylist")}
           </Button>
         )}

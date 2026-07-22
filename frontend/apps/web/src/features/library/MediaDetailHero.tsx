@@ -4,6 +4,8 @@ import type { V1MediaItem } from "@evey/api";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { useTranslation } from "react-i18next";
 import { Pencil } from "lucide-react";
+import { ACTION_ICON_BOX } from "@/components/ui/Button";
+import { ICON } from "@/constants/iconSizes";
 import { BackButton } from "@/components/ui/BackButton";
 import { PosterPlaceholder } from "./PosterPlaceholder";
 import { Stars } from "./MediaDetailStars";
@@ -225,10 +227,10 @@ export function MediaDetailHero({
               onClick={onEditToggle}
               title={t("media.detail.editMetadata")}
               aria-label={t("media.detail.editMetadata")}
-              className="flex-shrink-0 p-1.5 rounded-full transition-opacity-fast hover:opacity-80 bg-[var(--overlay-chip-bg)] text-[var(--overlay-text-muted)]"
+              className={`${ACTION_ICON_BOX} rounded-full transition-opacity-fast hover:opacity-80 bg-[var(--overlay-chip-bg)] text-[var(--overlay-text-muted)]`}
               data-testid="media-edit-toggle-btn"
             >
-              <Pencil size={16}  aria-hidden="true" />
+              <Pencil size={ICON.xl} aria-hidden="true" />
             </button>
           )}
         </div>

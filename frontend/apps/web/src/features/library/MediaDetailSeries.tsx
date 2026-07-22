@@ -80,7 +80,7 @@ function EpisodeRow({ ep }: { ep: V1MediaItem }) {
           mediaId={ep.id ?? ""}
           title={`${ep.title ?? "episode"}`}
           mintToken={() => fetchStreamToken(ep.id ?? "")}
-          label=""
+          size="icon"
         />
       </div>
     </div>
@@ -175,7 +175,7 @@ export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPla
 
   return (
     <Button variant="primary" size="lg" onClick={() => onPlay(firstEpisode.id!)}>
-      <Play size={ICON.lg} fill="currentColor" />
+      <Play size={ICON.md} fill="currentColor" />
       {t("media.detail.play")}
     </Button>
   );
@@ -191,7 +191,7 @@ export function PlaySeasonButton({ seasonId, onPlay }: { seasonId: string; onPla
 
   return (
     <Button variant="primary" size="lg" data-testid="play-button" onClick={() => onPlay(firstEpisode.id!)}>
-      <Play size={ICON.lg} fill="currentColor" />
+      <Play size={ICON.md} fill="currentColor" />
       {t("media.detail.play")}
     </Button>
   );
