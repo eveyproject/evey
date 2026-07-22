@@ -385,6 +385,12 @@ export function useTranscodePlayback({
           consecutive404++;
           if (consecutive404 >= 2) {
             hls.destroy();
+            // The other two teardowns in this file null the ref alongside
+            // destroy(); this one did not, leaving a destroyed instance
+            // reachable through hlsRef. HLSPlayer reads hlsRef.current and then
+            // hls.levels / hls.currentLevel, so the only thing hiding it today
+            // is the fatal-error overlay sitting in front of those controls.
+            hlsRef.current = null;
             video.removeAttribute("src");
             video.load();
             setFatalError(true);

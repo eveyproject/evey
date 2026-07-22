@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import {
@@ -84,30 +84,51 @@ function SyncPlayPage() {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const programmaticRef = useRef(false);
+  const echoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Suppress the echo of a remotely-driven change: applying a peer's play /
+  // pause / seek fires the same media events a local action would, and the host
+  // would rebroadcast them.
+  //
+  // The window is re-armed, not stacked. Each call used to start its own
+  // untracked timer, so two commands less than 100ms apart - pause+seek, which
+  // the protocol naturally sends together - had the FIRST timer clear the flag
+  // while the second's `seeked` was still in flight (a seeked event is async,
+  // and more so when the buffer has to refill). The host then broadcast a seek
+  // nobody asked for.
+  const suppressEcho = useCallback(() => {
+    programmaticRef.current = true;
+    if (echoTimerRef.current) clearTimeout(echoTimerRef.current);
+    echoTimerRef.current = setTimeout(() => {
+      programmaticRef.current = false;
+      echoTimerRef.current = null;
+    }, 100);
+  }, []);
+
+  useEffect(() => () => {
+    if (echoTimerRef.current) clearTimeout(echoTimerRef.current);
+  }, []);
 
   const [state, controls] = useSyncPlay({
     onPlay: (posMs) => {
       const audio = audioRef.current;
       if (!audio) return;
-      programmaticRef.current = true;
+      suppressEcho();
       audio.currentTime = posMs / 1000;
       void audio.play().catch(() => undefined);
-      setTimeout(() => (programmaticRef.current = false), 100);
     },
     onPause: (posMs) => {
       const audio = audioRef.current;
       if (!audio) return;
-      programmaticRef.current = true;
+      suppressEcho();
       audio.pause();
       audio.currentTime = posMs / 1000;
-      setTimeout(() => (programmaticRef.current = false), 100);
     },
     onSeek: (posMs) => {
       const audio = audioRef.current;
       if (!audio) return;
-      programmaticRef.current = true;
+      suppressEcho();
       audio.currentTime = posMs / 1000;
-      setTimeout(() => (programmaticRef.current = false), 100);
     },
     onTrackChange: (_idx, mediaId) => {
       // Rotate to new track: resolve metadata from the seeded queue map, then
