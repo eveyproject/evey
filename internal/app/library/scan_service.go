@@ -483,7 +483,15 @@ func (s *ScanService) processNewItems(ctx context.Context, libraryID string, toP
 			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("panic recovered in scan worker", "error", r, "stack", string(debug.Stack()))
+					// Without the path this says a worker died, not WHICH file
+					// killed it - and a panic here is almost always one
+					// specific malformed container, so the path is the whole
+					// diagnosis.
+					slog.ErrorContext(ctx, "panic recovered in scan worker",
+						slog.String("library_id", libraryID),
+						slog.String("path", w.file.Path),
+						slog.Any("error", r),
+						slog.String("stack", string(debug.Stack())))
 				}
 			}()
 			workerCtx, cancel := context.WithTimeout(ctx, workerTimeout)

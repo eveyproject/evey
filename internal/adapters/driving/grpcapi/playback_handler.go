@@ -471,7 +471,14 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 			return nil, tErr
 		}
 		span.SetStatus(otelcodes.Error, err.Error())
-		slog.Error("start stream", slog.Any("err", err))
+		// Starting playback is the most user-visible failure a media server
+		// has. Logged bare, it said only that "start stream" failed somewhere,
+		// for someone, on something - unattributable, and unreachable from the
+		// request id the caller was handed back.
+		slog.ErrorContext(ctx, "start stream",
+			slog.String("media_id", req.MediaItemId),
+			slog.String("play_method", req.PlayMethod.String()),
+			slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")
 	}
 	details := map[string]any{"media_id": req.MediaItemId, "method": req.PlayMethod.String()}
