@@ -38,3 +38,19 @@ This sits above the audio *codec* decisions (audio-copy of a source AAC track, m
 - **Positive:** language switching with zero video re-fetch, through standard HLS that native clients drive themselves - a differentiator over dedicated audio-extraction services. No per-switch server cost.
 - **Cost:** a second segment-production path to maintain alongside the muxed one; the manifest generator carries both shapes. Contributors adding audio-codec support (passthrough, TrueHD/Atmos → E-AC-3 JOC) need to understand the rendition-group model, hence this ADR. The flag-off default means the path only exercises in installs that enable it - keep the muxed path as the safe fallback.
 - Web clients without native HLS audio-group switching fall back to the muxed behaviour; the feature targets Safari/AVPlayer/tvOS/cast first.
+
+## Amendment - 2026-07-23: the flag now defaults ON
+
+The decision above was written when the rendition path was new and states it is
+"behind a flag that defaults **off**". That is no longer true, and had not been
+for some time: `internal/config/config.go` reads
+`envBool("EVEY_HLS_AUDIO_RENDITION_ENABLED", true)`, so the split path is the
+default for every install and the muxed pipeline is the opt-out
+(`EVEY_HLS_AUDIO_RENDITION_ENABLED=false`).
+
+This is recorded rather than edited in place: the original reasoning stands, only
+its blast radius changed. Two Consequences above are read differently now - "the
+flag-off default means the path only exercises in installs that enable it" is
+inverted, so the split path is what everyone runs and the muxed path is the one
+at risk of bit-rotting from disuse. The safe-fallback argument now cuts the other
+way, and the muxed path needs deliberate exercise to stay trustworthy.

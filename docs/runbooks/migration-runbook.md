@@ -71,16 +71,26 @@ docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" \
 
 ## Rollback
 
-There is no one-shot `migrate-down` target wired up. To roll back manually you must either:
+Roll back one step with the wired-up target:
 
-- **Redeploy the previous image** whose embedded migrations stop at version N-1, or
-- Apply the `.down.sql` by hand:
-  ```sh
-  docker exec -i evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" \
-    < internal/adapters/driven/postgres/migrations/000NNN_<name>.down.sql
-  docker exec evey-postgres psql -U "$EVEY_DB_USER" -d "$EVEY_DB_NAME" \
-    -c "UPDATE schema_migrations SET version = <N-1>, dirty = false;"
-  ```
+```sh
+make migrate-down     # wraps `evey admin migrate down`, rolls back EXACTLY one step
+make migrate-version  # confirm where you landed
+```
+
+Repeat it once per step to go back further. A pre-migration `pg_dump` is taken
+automatically when `EVEY_BACKUP_DIR` is set.
+
+Alternatively, **redeploy the previous image**, whose embedded migrations stop at
+version N-1.
+
+> Do not hand-edit `schema_migrations`. An earlier revision of this runbook
+> claimed no `migrate-down` target existed and told operators to apply the
+> `.down.sql` with `psql` and then `UPDATE schema_migrations SET version = ...`
+> by hand - in the middle of an incident. It contradicted the "How migrations
+> run" section nine lines above it. The target has always existed
+> (`Makefile:314`). Only reach for manual surgery if the DB is marked `dirty`
+> and `migrate down` refuses to run, and take a dump first.
 
 Always restore from the pre-migration backup if data-destructive changes shipped (DROP COLUMN, type changes) and the backup is fresher than the production traffic divergence.
 
