@@ -278,6 +278,17 @@ type HTTPServer struct {
 	// SnapshotRL caps the frame-extraction route - each request spawns an
 	// ffmpeg, so it must not ride the generous global limiter.
 	SnapshotRL *ratelimit.Limiter
+	// SubtitleRL caps the subtitle-extraction route. mkvgo's fast path handles
+	// most MKV sources without a fork, but any container it can't shortcut
+	// (.avi/.ts/.mov, damaged EBML) falls through to exec.CommandContext'ing
+	// ffmpeg per request - the same fork cost as a snapshot, so it shares the
+	// same ceiling instead of riding the generous global limiter.
+	SubtitleRL *ratelimit.Limiter
+	// TrickplayRL caps the trickplay manifest + sprite-image routes, shared
+	// across both since they're always fetched together (a scrub bar loads
+	// the manifest once then many sprite images). No ffmpeg fork here (disk +
+	// DB reads only), so it is far more permissive than SubtitleRL/SnapshotRL.
+	TrickplayRL *ratelimit.Limiter
 
 	// SubtitleProviderRL caps the subtitle search/download routes, which call
 	// out to the subtitle provider on the operator's API key and spend its
@@ -314,6 +325,34 @@ type HTTPServer struct {
 	// WebDir is the path to the built frontend dist (e.g. /srv).
 	// If set and the directory exists, the server serves the SPA from it.
 	WebDir string
+}
+
+// subtitleRouteHandler builds the subtitle-extraction route handler gated by
+// rl (nil = pass-through, e.g. tests). mkvgo's fast path handles most MKV
+// sources without a fork, but any container it can't shortcut (.avi/.ts/.mov,
+// damaged EBML) falls through to exec.CommandContext'ing ffmpeg per request -
+// the same fork cost as the snapshot route, so it shares its nil-safe gate
+// pattern instead of riding the generous global limiter.
+func subtitleRouteHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess LibraryAccessChecker, parental ParentalChecker, rl *ratelimit.Limiter) http.HandlerFunc {
+	h := subtitleHandler(libSvc, baseURL, libraryAccess, parental)
+	if rl != nil {
+		h = ratelimit.MiddlewareFunc(rl, h)
+	}
+	return h
+}
+
+// trickplayRouteHandlers builds the trickplay manifest + sprite-image route
+// handlers sharing one rl (nil = pass-through). Both only read disk/DB (no
+// ffmpeg fork), so the ceiling is far more permissive than subtitle/snapshot -
+// and shared because a scrub bar loads the manifest once then many sprites.
+func trickplayRouteHandlers(libSvc TrickplayGetter, baseURL string, libraryAccess LibraryAccessChecker, mediaGetter MediaItemGetter, parental ParentalChecker, tokenStore *appmedia.StreamTokenStore, rl *ratelimit.Limiter) (manifest, image http.HandlerFunc) {
+	manifest = trickplayManifestHandler(libSvc, baseURL, libraryAccess, mediaGetter, parental, tokenStore)
+	image = trickplayImageHandler(libSvc, baseURL, libraryAccess, mediaGetter, parental)
+	if rl != nil {
+		manifest = ratelimit.MiddlewareFunc(rl, manifest)
+		image = ratelimit.MiddlewareFunc(rl, image)
+	}
+	return manifest, image
 }
 
 // RegisterRoutes wires all HTTP routes onto mux.
@@ -399,7 +438,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		libraryAccess: s.LibraryAccessRepo, throttle: transcodeThrottle, userMaxStreams: s.UserMaxStreams,
 		parental: parentalChk,
 	})))
-	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", streamAuth(subtitleHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))
+	mux.HandleFunc("GET /api/v1/media/{id}/subtitle/{track}", streamAuth(subtitleRouteHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk, s.SubtitleRL)))
 	mux.HandleFunc("GET /api/v1/media/{id}/chapters", streamAuth(chaptersHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
 	mux.HandleFunc("GET /api/v1/media/{id}/segments", streamAuth(segmentsHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, func() bool { return s.Cfg.EffectiveSkipPreviewEnabled() }, parentalChk)))
 	// Trickplay (manifest + sprite images) is NOT public: the sprites are frames
@@ -407,8 +446,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// let anyone fetch a storyboard of any media id. streamAuth like its
 	// siblings: a JWT, or the ?token= stream token a watch-together guest holds
 	// (the handlers reject a token whose media id doesn't match the path).
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", streamAuth(trickplayManifestHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk, s.StreamTokenStore)))
-	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", streamAuth(trickplayImageHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
+	trickplayManifestH, trickplayImageH := trickplayRouteHandlers(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, s.LibQuerySvc, parentalChk, s.StreamTokenStore, s.TrickplayRL)
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay", streamAuth(trickplayManifestH))
+	mux.HandleFunc("GET /api/v1/media/{id}/trickplay/{image}", streamAuth(trickplayImageH))
 	snapshotH := snapshotHandler(s.FrameExtractor, s.LibraryAccessRepo, s.LibQuerySvc, s.BaseURL(), parentalChk)
 	if s.SnapshotRL != nil {
 		snapshotH = ratelimit.MiddlewareFunc(s.SnapshotRL, snapshotH)

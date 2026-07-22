@@ -40,6 +40,15 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	// Snapshot/frame extraction spawns one ffmpeg per request: burst covers an
 	// admin thumbnail grid, the 1/s refill caps sustained spawn abuse.
 	snapshotRL := ratelimit.NewWithBurst(30, 60.0)
+	// Subtitle extraction falls back to exec.CommandContext'ing ffmpeg whenever
+	// mkvgo's fast path can't shortcut the container (.avi/.ts/.mov, damaged
+	// EBML) - one fork per request, same cost as a snapshot, so it shares the
+	// identical ceiling instead of the generous global limiter.
+	subtitleRL := ratelimit.NewWithBurst(30, 60.0)
+	// Trickplay (manifest + sprite images) only reads disk/DB, no fork - far
+	// cheaper than subtitle/snapshot. Burst of 120 covers loading a full
+	// storyboard sprite sheet while scrubbing; refill still caps a flood.
+	trickplayRL := ratelimit.NewWithBurst(120, 240.0)
 	// Subtitle search/download call the provider on the operator's API key and
 	// spend its per-day download quota, so this is tighter than the CPU-bound
 	// limits above: a burst covers picking through a few candidates for one
@@ -59,6 +68,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		passwordResetRL.Stop()
 		oidcLoginRL.Stop()
 		snapshotRL.Stop()
+		subtitleRL.Stop()
+		trickplayRL.Stop()
 		subtitleProviderRL.Stop()
 	}()
 
@@ -175,6 +186,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		},
 		AdminHeavyRL:       adminHeavyRL,
 		SnapshotRL:         snapshotRL,
+		SubtitleRL:         subtitleRL,
+		TrickplayRL:        trickplayRL,
 		SubtitleProviderRL: subtitleProviderRL,
 		PlayerEventRL:      playerEventRL,
 		AdminWriteRL:       adminWriteRL,
