@@ -12,6 +12,12 @@
 ## Quick Start
 
 ```bash
+# First time only - create your dev environment file. Every compose-driven make
+# target passes --env-file .env.dev, so without it `make dev` aborts before
+# Docker starts. The file is gitignored: it holds your own secrets and paths.
+cp .env.dev.example .env.dev
+# Then edit at least MEDIA_DIR, EVEY_DB_PASSWORD and MEILI_MASTER_KEY.
+
 # First time only - adds evey.test to /etc/hosts
 make setup
 
