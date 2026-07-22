@@ -18,6 +18,10 @@ vi.mock("./MediaCard", () => ({
   ),
 }));
 
+vi.mock("@/hooks/usePlaybackDifficulties", () => ({
+  usePlaybackDifficulties: () => new Map(),
+}));
+
 function makeItem(overrides: Partial<V1MediaItem> = {}): V1MediaItem {
   return { id: "m-1", title: "Test Movie", genres: ["Action"], type: "movie", ...overrides } as V1MediaItem;
 }
