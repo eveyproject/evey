@@ -82,10 +82,18 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
     if (!mediaId || !hasTrickplay || fetchedIds.has(mediaId)) return;
     fetchedIds.add(mediaId);
 
+    // The fetch spans two awaits. If mediaId changes in between (next episode),
+    // a late resolve would setCues the PREVIOUS item's thumbnails - exactly the
+    // invariant the mediaId effect above exists to protect. Today the player
+    // remounts this component with key={mediaId} so it never bites, but that is
+    // one refactor away from breaking silently; the cancelled flag makes the
+    // guarantee local.
+    let cancelled = false;
     (async () => {
       try {
         const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
         const text = await res.text();
+        if (cancelled) return;
         const parsed = parseVTT(text);
         cueCache.set(mediaId, parsed);
         setCues(parsed);
@@ -107,6 +115,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
         fetchedIds.delete(mediaId);
       }
     })();
+    return () => { cancelled = true; };
   }, [mediaId, hasTrickplay]);
 
   if (!hasTrickplay || !loaded || hoverTime === null) return null;

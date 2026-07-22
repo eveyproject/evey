@@ -188,7 +188,12 @@ const queryClient = queryClientRef = new QueryClient({
       staleTime: 5 * 60 * 1000,
       gcTime: 30 * 60 * 1000,
       retry: (count, error) => {
-        if ((error as { httpStatus?: number }).httpStatus === 401) return false;
+        // Don't retry errors a retry cannot fix: 401 (auth, handled by the
+        // refresh flow), 403 (forbidden) and 404 (gone). Retrying a 404 makes a
+        // deleted item sit through two backoffs before the screen can even say
+        // "not found". Only transient failures (5xx, network) are worth a retry.
+        const status = (error as { httpStatus?: number }).httpStatus;
+        if (status === 401 || status === 403 || status === 404) return false;
         return count < 2;
       },
       refetchOnWindowFocus: false,
