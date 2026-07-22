@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, X, ListFilter, Music, TriangleAlert } from "lucide-react";
 import { createLazyFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -9,7 +9,6 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { MediaGridSkeleton } from "@/components/ui/Skeleton";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { ICON } from "@/constants/iconSizes";
-import { usePlaybackDifficulties } from "@/hooks/usePlaybackDifficulties";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { useRecentSearches } from "@/hooks/useRecentSearches";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -124,11 +123,6 @@ function SearchPage() {
   const items = data?.items ?? [];
   const totalHits = data?.totalHits ?? items.length;
 
-  const difficultyIds = useMemo(
-    () => items.map((i) => i.id).filter((id): id is string => !!id),
-    [items],
-  );
-  const difficulties = usePlaybackDifficulties(difficultyIds);
 
   // Music search (separate index, cross-library) - only when the music scope is
   // selected.
@@ -389,7 +383,7 @@ function SearchPage() {
           </p>
           <MediaGrid>
             {items.map((item) => (
-              <MediaCard key={item.id} item={item} difficulty={difficulties.get(item.id ?? "")} showType lite />
+              <MediaCard key={item.id} item={item} showType lite />
             ))}
           </MediaGrid>
         </>

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { V1MediaStream } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
-import { hdrLabel } from "./playbackDifficulty";
+import { hdrLabel } from "./streamLabels";
 
 interface StreamListProps {
   streams?: V1MediaStream[];

@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { ICON } from "@/constants/iconSizes";
 import { Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -11,9 +10,6 @@ import { artworkUrl } from "./artworkUrl";
 import { useAuthStore } from "@evey/store";
 import { DownloadButton } from "@/features/playback/DownloadButton";
 import { useStreamToken } from "@/hooks/useStreamToken";
-import { usePlaybackDifficulties } from "@/hooks/usePlaybackDifficulties";
-import { PlaybackDifficultyBadge } from "./PlaybackDifficultyBadge";
-import type { PlaybackDifficulty } from "./playbackDifficulty";
 
 function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
   return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
@@ -26,7 +22,7 @@ function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
 // existed but had nothing an episode needs that isn't already here - the
 // synopsis and the actions now live on the row itself - so it was one click of
 // dead weight between the viewer and playback. Seasons keep their own page.
-function EpisodeRow({ ep, difficulty }: { ep: V1MediaItem; difficulty?: PlaybackDifficulty }) {
+function EpisodeRow({ ep }: { ep: V1MediaItem }) {
   const { t } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
   const { fetchStreamToken } = useStreamToken();
@@ -68,12 +64,8 @@ function EpisodeRow({ ep, difficulty }: { ep: V1MediaItem; difficulty?: Playback
             E{ep.indexNumber ?? "?"}
           </span>
           <span className="text-base font-medium truncate">{ep.title}</span>
-          {/* Sits with the duration, before playback starts: the whole point is
-              that someone sees "heavy" and can choose to download instead of
-              streaming it. */}
-          {difficulty && <PlaybackDifficultyBadge difficulty={difficulty} className="flex-shrink-0 ml-auto" />}
           {ep.durationMs && (
-            <span className={`text-sm flex-shrink-0 text-[var(--text-muted)]${difficulty ? "" : " ml-auto"}`}>{formatDuration(ep.durationMs)}</span>
+            <span className="text-sm flex-shrink-0 ml-auto text-[var(--text-muted)]">{formatDuration(ep.durationMs)}</span>
           )}
         </div>
         {ep.overview && (
@@ -228,14 +220,6 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "" });
   const episodes = sortByIndex(episodesData?.items ?? []);
-  // ONE request for the whole season. ListMediaItems carries no streams, so the
-  // per-item GetStreamInfo would have meant a round trip per row - which is
-  // exactly why this information never made it onto the list before.
-  const episodeIds = useMemo(
-    () => episodes.map((e) => e.id).filter((id): id is string => !!id),
-    [episodes],
-  );
-  const difficulties = usePlaybackDifficulties(episodeIds);
   if (!episodes.length) return null;
 
   return (
@@ -249,7 +233,7 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
           the content it acts on. Capped, the still, the text and the action read
           as one object. */}
       <div className="grid xl:grid-cols-2 gap-x-6 [&>*]:border-b [&>*]:border-[var(--border)] border-t border-[var(--border)]">
-        {episodes.map((ep) => (ep.id ? <EpisodeRow key={ep.id} ep={ep} difficulty={difficulties.get(ep.id)} /> : null))}
+        {episodes.map((ep) => (ep.id ? <EpisodeRow key={ep.id} ep={ep} /> : null))}
       </div>
     </div>
   );

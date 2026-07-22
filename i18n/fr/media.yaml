@@ -538,14 +538,3 @@ genres:
   thriller: Thriller
   war: Guerre
   western: Western
-playback:
-  level:
-    easy: "Léger"
-    moderate: "Modéré"
-    demanding: "Lourd"
-    hard: "Très lourd"
-  hint:
-    easy: "Diffusé tel quel. Aucune conversion, aucun effort pour le serveur."
-    moderate: "Seul le son est converti. Effort négligeable pour le serveur."
-    demanding: "La vidéo doit être convertie pour votre appareil. La télécharger évite ça."
-    hard: "Une vidéo très volumineuse doit être convertie, avec risque de saccades. La télécharger évite ça."

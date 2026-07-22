@@ -15,22 +15,6 @@ service PlaybackService {
     };
   }
 
-  // GetPlaybackDifficulties answers "how heavy is each of these to stream on my
-  // device?" for a whole list at once - an episode list, a row of cards. The
-  // per-item GetStreamInfo would mean one round trip per row, which is what
-  // kept this information off the lists entirely.
-  //
-  // It is NOT a cheaper GetStreamInfo: it returns no URLs and starts nothing.
-  // Items the caller may not see (library access, parental rating) are omitted
-  // from the response rather than reported, so the endpoint can never be used
-  // to probe for the existence of a blocked title.
-  rpc GetPlaybackDifficulties(GetPlaybackDifficultiesRequest) returns (GetPlaybackDifficultiesResponse) {
-    option (google.api.http) = {
-      post: "/api/v1/playback/difficulties"
-      body: "*"
-    };
-  }
-
   rpc StartStream(StartStreamRequest) returns (PlaySession) {
     option (google.api.http) = {
       post: "/api/v1/playback/start"
@@ -183,37 +167,6 @@ message GetStreamInfoRequest {
   // transcodes regardless (a single bool can't distinguish a DoVi-capable
   // panel from an HDR10-only one).
   bool supports_hdr = 12;
-}
-
-message GetPlaybackDifficultiesRequest {
-  // Capped server-side; a caller asking for more gets the first N.
-  repeated string media_item_ids = 1;
-  // Same client capability set as GetStreamInfoRequest - the answer is only
-  // meaningful for a given device. Deliberately no max_width/max_height: screen
-  // size is not a decode capability, and sending it made the server report a
-  // transcode for titles the device plays natively.
-  repeated string supported_codecs = 2;
-  repeated string supported_containers = 3;
-  repeated string supported_audio_codecs = 4;
-  bool supports_hdr = 5;
-  string network_type = 6;
-}
-
-// PlaybackDifficulty carries only what a difficulty badge needs: the decision,
-// plus the two source facts the client cannot get from a list response
-// (video height, and the codec of the audio track that would actually play).
-message PlaybackDifficulty {
-  string media_item_id = 1;
-  PlayMethod play_method = 2;
-  string video_decision = 3;
-  string audio_decision = 4;
-  repeated string transcode_reasons = 5;
-  int32 video_height = 6;
-  string audio_codec = 7;
-}
-
-message GetPlaybackDifficultiesResponse {
-  repeated PlaybackDifficulty items = 1;
 }
 
 message StartStreamRequest {

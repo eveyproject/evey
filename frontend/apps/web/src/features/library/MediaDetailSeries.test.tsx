@@ -19,12 +19,6 @@ vi.mock("@evey/api", () => ({
   useLibraryServiceGetMediaItem: (...args: unknown[]) => mockGetMediaItem(...args),
 }));
 
-const mockDifficulties = vi.fn(() => new Map());
-
-vi.mock("@/hooks/usePlaybackDifficulties", () => ({
-  usePlaybackDifficulties: (...args: unknown[]) => mockDifficulties(...args),
-}));
-
 vi.mock("@/components/ui/Badge", () => ({
   // Forward the rest of the props: the real Badge passes data-testid through,
   // and a stub that swallows it would hide whether a badge rendered at all.
@@ -201,52 +195,5 @@ describe("SeasonEpisodesSection", () => {
     // rows no longer carry a /media/ link.
     const links = screen.getAllByRole("link").filter((l) => l.getAttribute("href")?.startsWith("/player/"));
     expect(links.map((l) => l.getAttribute("href"))).toEqual(["/player/ep1", "/player/ep2", "/player/ep3"]);
-  });
-});
-
-// The whole reason this uses a bulk hook: ListMediaItems carries no streams, so
-// a per-row GetStreamInfo would have meant one round trip per episode. The
-// section must ask ONCE, for every episode id at a time.
-describe("SeasonEpisodesSection difficulty badges", () => {
-  beforeEach(() => {
-    mockDifficulties.mockClear();
-    mockDifficulties.mockReturnValue(new Map());
-  });
-
-  it("asks for every episode in a single call", () => {
-    mockListMediaItems.mockReturnValue({
-      data: {
-        items: [
-          { id: "ep1", indexNumber: 1, title: "One" },
-          { id: "ep2", indexNumber: 2, title: "Two" },
-          { id: "ep3", indexNumber: 3, title: "Three" },
-        ],
-      },
-    });
-    render(
-      <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
-      { wrapper: Wrapper },
-    );
-    expect(mockDifficulties).toHaveBeenCalledTimes(1);
-    expect(mockDifficulties).toHaveBeenCalledWith(["ep1", "ep2", "ep3"]);
-  });
-
-  it("renders a badge only for the episodes the server graded", () => {
-    mockListMediaItems.mockReturnValue({
-      data: {
-        items: [
-          { id: "ep1", indexNumber: 1, title: "One" },
-          { id: "ep2", indexNumber: 2, title: "Two" },
-        ],
-      },
-    });
-    mockDifficulties.mockReturnValue(
-      new Map([["ep1", { level: "heavy", difficulty: "hard", reasons: [] }]]),
-    );
-    render(
-      <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
-      { wrapper: Wrapper },
-    );
-    expect(screen.getAllByTestId("playback-difficulty")).toHaveLength(1);
   });
 });

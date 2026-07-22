@@ -15,7 +15,6 @@ import { useAuthStore } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { MediaSlider } from "../../features/home/MediaSlider";
 import { MediaCardWithModals as MediaCard } from "../../features/library/MediaCardWithModals";
-import { usePlaybackDifficulties } from "@/hooks/usePlaybackDifficulties";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { slugify } from "@/utils/slugify";
 import { useCollections } from "../../features/collection/api";
@@ -120,15 +119,12 @@ const MediaItemsLibrarySlider = memo(function MediaItemsLibrarySlider({ libraryI
     const all = data?.items ?? [];
     return all.filter((it) => !it.id || !watchedMap.get(it.id)).slice(0, visibleTarget);
   }, [data, watchedMap, visibleTarget]);
-  const difficulties = usePlaybackDifficulties(
-    useMemo(() => items.map((i) => i.id).filter((id): id is string => !!id), [items]),
-  );
   if (!isLoading && items.length === 0) return null;
 
   return (
     <MediaSlider title={name} seeAllHref={`/library/${slugify(name)}`} isLoading={isLoading}>
       {items.map((item) => (
-        <MediaCard key={item.id} item={item} difficulty={difficulties.get(item.id ?? "")} lite />
+        <MediaCard key={item.id} item={item} lite />
       ))}
     </MediaSlider>
   );
@@ -138,10 +134,6 @@ const ResumePlaybackSlider = memo(function ResumePlaybackSlider({ maxItems }: Se
   const { t } = useTranslation();
   const { data, isLoading } = useFeedServiceResumePlayback({ limit: maxItems });
   const items = data?.items ?? [];
-  // One batched call per row. The feed shapes key on mediaItemId, not id.
-  const difficulties = usePlaybackDifficulties(
-    useMemo(() => items.map((i) => i.mediaItemId).filter((id): id is string => !!id), [items]),
-  );
   if (!isLoading && items.length === 0) return null;
 
   return (
@@ -156,7 +148,6 @@ const ResumePlaybackSlider = memo(function ResumePlaybackSlider({ maxItems }: Se
           <MediaCard
             key={item.mediaItemId}
             item={{ id: item.mediaItemId, title, type: item.type }}
-            difficulty={difficulties.get(item.mediaItemId ?? "")}
             posterBlurhash={item.primaryBlurhash}
             showYear={false}
             showProgress={!!item.positionMs}
@@ -172,10 +163,6 @@ const MostPopularSlider = memo(function MostPopularSlider({ maxItems }: SectionP
   const { t } = useTranslation();
   const { data, isLoading } = useMostPopular(maxItems ?? 20);
   const items = data ?? [];
-  // One batched call per row. The feed shapes key on mediaItemId, not id.
-  const difficulties = usePlaybackDifficulties(
-    useMemo(() => items.map((i) => i.mediaItemId).filter((id): id is string => !!id), [items]),
-  );
   if (!isLoading && items.length === 0) return null;
 
   return (
@@ -184,7 +171,6 @@ const MostPopularSlider = memo(function MostPopularSlider({ maxItems }: SectionP
         <MediaCard
           key={item.mediaItemId}
           item={{ id: item.mediaItemId, title: item.title, type: item.type }}
-          difficulty={difficulties.get(item.mediaItemId ?? "")}
           showType
           lite
         />
@@ -197,10 +183,6 @@ const RecommendedSlider = memo(function RecommendedSlider({ maxItems }: SectionP
   const { t } = useTranslation();
   const { data, isLoading } = useFeedServiceRecommended({ limit: maxItems ?? 20 });
   const items = data?.items ?? [];
-  // One batched call per row. The feed shapes key on mediaItemId, not id.
-  const difficulties = usePlaybackDifficulties(
-    useMemo(() => items.map((i) => i.mediaItemId).filter((id): id is string => !!id), [items]),
-  );
   if (!isLoading && items.length === 0) return null;
 
   return (
@@ -210,7 +192,6 @@ const RecommendedSlider = memo(function RecommendedSlider({ maxItems }: SectionP
           key={item.mediaItemId}
           item={{ id: item.mediaItemId, title: item.title, type: item.type }}
           posterBlurhash={item.primaryBlurhash}
-          difficulty={difficulties.get(item.mediaItemId ?? "")}
           showType
           lite
         />

@@ -538,14 +538,3 @@ genres:
   thriller: 惊悚
   war: 战争
   western: 西部
-playback:
-  level:
-    easy: "轻量"
-    moderate: "中等"
-    demanding: "较重"
-    hard: "很重"
-  hint:
-    easy: "原样传输。无需转换，服务器毫无压力。"
-    moderate: "仅转换声音。服务器压力极小。"
-    demanding: "需要为你的设备转换视频。下载后可流畅播放。"
-    hard: "需要转换一个非常大的视频，可能卡顿。下载后可流畅播放。"

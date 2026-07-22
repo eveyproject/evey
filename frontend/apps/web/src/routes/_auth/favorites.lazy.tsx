@@ -4,7 +4,6 @@ import { createLazyFileRoute } from "@tanstack/react-router";
 import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched } from "@evey/api";
 import { useTranslation } from "react-i18next";
 import { useFavoritesList } from "@/hooks/useFavorite";
-import { usePlaybackDifficulties } from "@/hooks/usePlaybackDifficulties";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -163,11 +162,6 @@ function FavoritesPage() {
     return list;
   }, [favorites, sort, typeFilter, search]);
 
-  const difficultyIds = useMemo(
-    () => filtered.map((f) => f.mediaItemId).filter((id): id is string => !!id),
-    [filtered],
-  );
-  const difficulties = usePlaybackDifficulties(difficultyIds);
 
   return (
     <div>
@@ -263,7 +257,6 @@ function FavoritesPage() {
             <MediaCard
               key={fav.mediaItemId}
               item={{ id: fav.mediaItemId, title: fav.title, type: fav.type }}
-              difficulty={difficulties.get(fav.mediaItemId ?? "")}
               selected={isSelected(fav.mediaItemId)}
               selectionMode={bulkMode}
               onSelect={bulkMode ? handleSelect : undefined}

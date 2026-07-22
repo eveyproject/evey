@@ -538,14 +538,3 @@ genres:
   thriller: Thriller
   war: Krieg
   western: Western
-playback:
-  level:
-    easy: "Leicht"
-    moderate: "Mäßig"
-    demanding: "Schwer"
-    hard: "Sehr schwer"
-  hint:
-    easy: "Wird unverändert gestreamt. Keine Umwandlung, keine Last für den Server."
-    moderate: "Nur der Ton wird umgewandelt. Kaum Last für den Server."
-    demanding: "Das Video muss für Ihr Gerät umgewandelt werden. Heruntergeladen läuft es flüssig."
-    hard: "Ein sehr großes Video muss umgewandelt werden und kann ruckeln. Heruntergeladen läuft es flüssig."

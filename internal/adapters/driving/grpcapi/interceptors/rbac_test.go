@@ -379,10 +379,6 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.PhotoService/ScanPhotoDirectory": "admin enforced in handler (PermissionDenied)",
 	// PlaybackService
 	"/evey.v1.PlaybackService/GetStreamInfo": "media-access checked",
-	// Bulk read for list views. Per-id media-access AND parental checks, and a
-	// blocked id is omitted rather than reported, so it hands back nothing the
-	// caller could not already list. Returns no URLs and starts no session.
-	"/evey.v1.PlaybackService/GetPlaybackDifficulties": "media-access + parental checked per id, blocked ids omitted",
 	"/evey.v1.PlaybackService/StartStream":             "media-access + caps checked",
 	"/evey.v1.PlaybackService/StopStream":              "own session",
 	"/evey.v1.PlaybackService/ReportProgress":          "own",

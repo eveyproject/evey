@@ -1,8 +1,6 @@
-import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
 import { useFeedServiceSimilarItems, useLibraryServiceListMediaItems } from "@evey/api";
-import { usePlaybackDifficulties } from "@/hooks/usePlaybackDifficulties";
 import { MediaCardWithModals as MediaCard } from "./MediaCardWithModals";
 
 export function SimilarSection({ item }: { item: V1MediaItem }) {
@@ -26,11 +24,6 @@ export function SimilarSection({ item }: { item: V1MediaItem }) {
     }));
 
   const cards = fromFeed.length ? fromFeed : fromGenre;
-  const difficultyIds = useMemo(
-    () => cards.map((c) => c.id).filter((id): id is string => !!id),
-    [cards],
-  );
-  const difficulties = usePlaybackDifficulties(difficultyIds);
   if (!cards.length) return null;
 
   return (
@@ -38,7 +31,7 @@ export function SimilarSection({ item }: { item: V1MediaItem }) {
       <h2 className="text-lg font-semibold mb-4 text-[var(--text)]">{t("media.detail.similarTitles")}</h2>
       <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
         {cards.map((c) => (
-          <MediaCard key={c.id} item={c} difficulty={difficulties.get(c.id ?? "")} lite />
+          <MediaCard key={c.id} item={c} lite />
         ))}
       </div>
     </div>
