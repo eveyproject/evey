@@ -215,7 +215,11 @@ On first boot the server:
 Then open `http://<your-ip>:9091`. With no admin yet, you land on the **setup
 wizard** (`/setup`): create the first admin account. After that, log in and
 **add a library** (Admin → Libraries), pointing it at a path under `/media`
-(your `MEDIA_DIR`, mounted read-only). The first scan starts automatically.
+(your `MEDIA_DIR`, mounted read-write). The first scan starts automatically.
+
+The compose file above mounts it read-write on purpose: the seek-index repair
+rebuilds files in place, and a `:ro` mount makes those repairs fail. Add `:ro`
+only if you accept losing them.
 
 ## 3. Reverse proxy (HTTPS)
 
@@ -278,7 +282,7 @@ docker compose logs --tail=200 evey     # server logs (migration errors, config 
   docker exec evey-postgres pg_isready -U "$EVEY_DB_USER"
   ```
 - **Search broken / empty.** Check Meilisearch health, then trigger a reindex -
-  from the admin search settings, or `docker exec evey evey admin reindex-search`.
+  from the admin search settings, or `docker exec evey-server evey admin reindex-search`.
   The index is rebuilt from Postgres, so `meili-data` is safe to wipe.
 - **Health endpoint:** `curl -sf http://localhost:9091/healthz && echo OK`.
 

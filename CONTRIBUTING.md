@@ -46,7 +46,7 @@ For proto changes: `make proto-gen`.
 
 - **Unit (most)**: domain + app services against fakes. Fast, no IO.
 - **Integration (some)**: adapter tests against real Postgres / Meilisearch via Docker.
-- **E2E (few)**: user-facing flows. See [memory/e2e.md](memory/e2e.md).
+- **E2E (few)**: user-facing flows, Playwright specs under [`tests/e2e/`](tests/e2e/).
 
 Hexagonal layering means most logic is unit-testable - prefer that layer.
 

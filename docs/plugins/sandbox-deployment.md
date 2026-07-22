@@ -163,10 +163,10 @@ switch back.
 
 ```bash
 # the launcher carries the capability used for uid separation:
-docker exec evey getcap /evey-plugin-launcher        # → cap_setuid=ep
+docker exec evey-server getcap /evey-plugin-launcher        # → cap_setuid=ep
 
 # which user a running plugin runs as (evey = shared with server, evey-plugin = separated):
-docker exec evey ps -o user,pid,args | grep -v grep | grep -iE "node|python"
+docker exec evey-server ps -o user,pid,args | grep -v grep | grep -iE "node|python"
 
 # the sandbox mode actually in force: the Security badge on the Admin → Plugins page.
 ```

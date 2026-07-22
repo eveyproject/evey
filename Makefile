@@ -288,7 +288,7 @@ transcode-itest-gate:
 hooks:
 	@git config core.hooksPath .githooks
 	@echo "✓ git hooks active (core.hooksPath=.githooks) - push runs 'make pre-push' first."
-	@echo "  Bypass one push intentionally: SKIP_PREFLIGHT=1 git push"
+	@echo "  Bypass one push intentionally: git push --no-verify"
 
 clean:
 	rm -rf bin/ gen/
