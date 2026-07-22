@@ -205,13 +205,38 @@ type SeekIndexService struct {
 
 	stateDir string // "" = no persistence (WithStateDir enables it)
 
+	// activeStreams lets a repair batch stand aside while someone is watching.
+	// These jobs rewrite multi-gigabyte files in place on the library disk, so
+	// running them against a live viewer is the shape of the 2026-07-19
+	// incident, where a background rewrite starved playback of I/O. Optional:
+	// nil means never yield (the prior behaviour).
+	activeStreams ActiveStreamChecker
+	// idlePoll is how often the batch re-checks whether playback has stopped.
+	idlePoll time.Duration
+
 	mu          sync.Mutex
 	running     bool
-	cur         JobStatus // valid while running (Last excluded)
+	cancel      context.CancelFunc // non-nil while a job runs; see Cancel
+	cur         JobStatus          // valid while running (Last excluded)
 	curFailures jobFailures
 	last        *JobSummary
 	scans       map[string]cachedScan // scope key ("*" or libraryID) → last completed scan
 }
+
+// ActiveStreamChecker reports whether ANY playback is currently reading the
+// disk, whatever machinery serves it. Deliberately not ActiveSessionCount: that
+// counts ffmpeg sessions only, and a seek-index rewrite must also hold off for
+// a direct-play or mkvgo-served viewer it would otherwise compete with. Same
+// shape as the trickplay generator's checker, so one concrete type satisfies
+// both.
+type ActiveStreamChecker interface {
+	ActivePlaybackCount() int
+}
+
+// defaultIdlePoll matches the trickplay generator's backoff: long enough that
+// waiting costs nothing, short enough that a repair resumes promptly once the
+// last viewer stops.
+const defaultIdlePoll = 30 * time.Second
 
 func NewSeekIndexService(reindexer mkv.Reindexer, catalog MediaCatalog, logger *slog.Logger) *SeekIndexService {
 	if logger == nil {
@@ -222,6 +247,7 @@ func NewSeekIndexService(reindexer mkv.Reindexer, catalog MediaCatalog, logger *
 		catalog:   catalog,
 		logger:    logger.With("component", "seek_index"),
 		scans:     map[string]cachedScan{},
+		idlePoll:  defaultIdlePoll,
 	}
 }
 
@@ -230,6 +256,72 @@ func NewSeekIndexService(reindexer mkv.Reindexer, catalog MediaCatalog, logger *
 // library scan. Optional and chainable; without it the reindex still succeeds,
 // the file is just re-probed later (a transcode window until keyframes
 // backfill).
+// WithActiveStreamChecker makes repair batches yield to live playback. Without
+// it the service walks the library at full speed regardless of who is watching.
+func (s *SeekIndexService) WithActiveStreamChecker(c ActiveStreamChecker) *SeekIndexService {
+	s.activeStreams = c
+	return s
+}
+
+// WithIdlePollInterval overrides how often a paused batch re-checks for idle
+// playback. Mainly a test seam - production has no reason to move off the
+// default.
+func (s *SeekIndexService) WithIdlePollInterval(d time.Duration) *SeekIndexService {
+	if d > 0 {
+		s.idlePoll = d
+	}
+	return s
+}
+
+// Cancel stops the running job at the next file boundary and reports whether
+// there was one to stop. Files are never left half-written: each repair writes
+// to a temp file and swaps atomically, so cancellation lands between files, not
+// inside one.
+//
+// Before this existed, "Repair all" on a large library could not be stopped by
+// anything - not the API, not SIGTERM, which the admin restart path sends. An
+// operator who started a multi-hour rewrite by mistake had to wait it out.
+func (s *SeekIndexService) Cancel() bool {
+	s.mu.Lock()
+	cancel := s.cancel
+	s.mu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
+// jobContext builds the context a background job runs under and publishes its
+// cancel func so Cancel can reach it. Detached from the caller's request (the
+// job outlives it) but cancellable, which context.Background() was not.
+func (s *SeekIndexService) jobContext() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.mu.Lock()
+	s.cancel = cancel
+	s.mu.Unlock()
+	return ctx
+}
+
+// waitForIdlePlayback blocks until nothing is being watched, or until the job
+// is cancelled. No checker wired means never wait.
+func (s *SeekIndexService) waitForIdlePlayback(ctx context.Context) {
+	if s.activeStreams == nil {
+		return
+	}
+	poll := s.idlePoll
+	if poll <= 0 {
+		poll = defaultIdlePoll
+	}
+	for s.activeStreams.ActivePlaybackCount() > 0 {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(poll):
+		}
+	}
+}
+
 func (s *SeekIndexService) WithFileStateRefresher(r FileStateRefresher) *SeekIndexService {
 	s.fileState = r
 	return s
@@ -397,9 +489,9 @@ func (s *SeekIndexService) StartScan(_ context.Context, libraryID string) error 
 	}
 	go func() {
 		defer s.recoverJob()
-		// Fresh context: the job outlives the triggering request - the same
-		// pattern as the enrichment / album-art kickers.
-		bg := context.Background()
+		// Detached from the triggering request (the job outlives it) but
+		// cancellable, so Cancel and shutdown can stop it.
+		bg := s.jobContext()
 		_, err := s.scanAndCache(bg, libraryID)
 		s.finish(err)
 	}()
@@ -655,7 +747,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 	doAudio := includeAudio && s.audioRemux != nil
 	go func() {
 		defer s.recoverJob()
-		bg := context.Background()
+		bg := s.jobContext()
 		scan, _, ok := s.CachedScan(libraryID)
 		if !ok {
 			var err error
@@ -829,7 +921,7 @@ func (s *SeekIndexService) startSingle(ctx context.Context, kind, mediaID string
 	s.setPhase(PhaseProcessing, 1)
 	go func() {
 		defer s.recoverJob()
-		bg := context.Background()
+		bg := s.jobContext()
 		s.processFiles(bg, kind, []string{f.Path}, fn)
 		s.finish(nil)
 	}()
@@ -848,7 +940,7 @@ func (s *SeekIndexService) startBatch(kind, libraryID string, preflight func([]S
 	}
 	go func() {
 		defer s.recoverJob()
-		bg := context.Background()
+		bg := s.jobContext()
 		// Phase 1: reuse the cached scan when one exists - a full re-walk is
 		// minutes of per-file probes and every repair re-checks its own file
 		// anyway (an already-indexed file is Skipped, a vanished one fails
@@ -890,6 +982,20 @@ func (s *SeekIndexService) startBatch(kind, libraryID string, preflight func([]S
 
 func (s *SeekIndexService) processFiles(bg context.Context, op string, paths []string, fn func(context.Context, string) (bool, error)) {
 	for _, p := range paths {
+		// Between files, not inside one: each repair writes a temp file and
+		// swaps atomically, so stopping here can never leave a half-written
+		// container. This loop used to run to completion no matter what - it
+		// ignored cancellation entirely and never looked at whether anyone was
+		// watching, while rewriting multi-GB files on the library disk.
+		if bg.Err() != nil {
+			s.logger.Info("seek-index "+op+" cancelled", slog.Int("remaining", len(paths)))
+			return
+		}
+		s.waitForIdlePlayback(bg)
+		if bg.Err() != nil {
+			s.logger.Info("seek-index "+op+" cancelled while waiting for idle playback")
+			return
+		}
 		s.setCurrent(p)
 		skipped, err := fn(bg, p)
 		if err != nil {
@@ -1149,6 +1255,12 @@ func (s *SeekIndexService) recordFailure(path string, err error) {
 func (s *SeekIndexService) finish(jobErr error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Release the job's context: leaving the CancelFunc live would leak it and
+	// let a late Cancel() apply to whatever job starts next.
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
+	}
 	sum := &JobSummary{
 		Kind:       s.cur.Kind,
 		Scope:      s.cur.Scope,

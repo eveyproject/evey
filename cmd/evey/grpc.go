@@ -71,7 +71,12 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		// Scans survive restarts and batch jobs reuse them as phase 1; a job
 		// killed by a redeploy resurfaces as "interrupted" instead of
 		// vanishing (the operator used to believe the batch had finished).
-		WithStateDir(cfg.Library.SeekIndexStateDir)
+		WithStateDir(cfg.Library.SeekIndexStateDir).
+		// Stand aside while anyone is watching. These jobs rewrite multi-GB
+		// files in place on the library disk, and running them against a live
+		// viewer is what starved playback of I/O on 2026-07-19. Same source as
+		// the trickplay generator and the transcode calibrator use.
+		WithActiveStreamChecker(deps.media.hlsVODRemover)
 
 	grpcDeps := grpcapi.GRPCServerDeps{
 		LibCmd:                 deps.library.cmdSvc,
