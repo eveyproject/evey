@@ -28,6 +28,8 @@ jobs:
   # is ~30-60s per job, far less than what's saved.
   quality:
     name: Backend - quality & security
+    # fetch-depth: 0 below - the proto breaking-change check diffs against the
+    # pre-push SHA, which a depth-1 checkout would not contain.
     # Self-hosted temporarily disabled 2026-07-03 - reusing GitHub-hosted runners
     # for now. Restore the ternary below to route push + same-repo PRs back to the
     # self-hosted workers (fork PRs stayed on GitHub-hosted so untrusted code never
@@ -36,6 +38,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v6
         with:
@@ -53,11 +57,34 @@ jobs:
         run: buf generate
 
       - name: check proto breaking changes
-        if: github.event_name == 'pull_request'
-        # Diff current HEAD against the PR's base branch tip (not HEAD~1, which
-        # silently passes on multi-commit PRs since it only looks at the last
-        # commit). github.base_ref is the target branch name for pull_request.
-        run: buf breaking --against "https://github.com/${{ github.repository }}.git#branch=${{ github.base_ref }}"
+        # Diff current HEAD against the target branch tip (not HEAD~1, which
+        # silently passes on multi-commit pushes since it only looks at the last
+        # commit).
+        #
+        # This step used to be gated on `if: github.event_name == 'pull_request'`
+        # and therefore never ran once: this project merges locally and pushes
+        # branches straight to the remote, so no pull request is ever opened. A
+        # proto break would have reached already-deployed mobile and TV clients
+        # with the only guard against it structurally unreachable.
+        #
+        # On a push the target is the pre-push SHA, not the default branch. The
+        # contract that matters is whatever the clients are currently running,
+        # and for a release branch that is its own previous tip - diffing a long
+        # lived branch against master instead reports every deliberate removal
+        # it has ever accumulated, which would leave the gate permanently red
+        # and get it switched off again. A branch's first push has no `before`
+        # commit (all zeroes), so there is nothing to compare and we skip.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            against="https://github.com/${{ github.repository }}.git#branch=${{ github.base_ref }}"
+          elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            echo "new branch, no previous tip to compare against - skipping"
+            exit 0
+          else
+            against=".git#ref=${{ github.event.before }}"
+          fi
+          echo "buf breaking against: ${against}"
+          buf breaking --against "${against}"
 
       - name: vet
         run: go vet $(go list ./... | grep -v /gen/)
