@@ -611,6 +611,27 @@ audit:
   entries: "{{count}} Einträge"
 
 serverConfig:
+  backgroundJobs:
+    title: "Hintergrundaufgaben"
+    subtitle: "Betreiber-Einstellungen für die Hintergrund-Worker der Transkodierung - Pausenverhalten, Nachtrag-Durchläufe und deren Rhythmus."
+    restartWarning: "Diese Einstellungen werden nur einmal beim Serverstart gelesen. Eine hier gespeicherte Änderung wirkt sich nicht auf den laufenden Server aus - er muss neu gestartet werden, damit der neue Wert greift."
+    pauseBgOnPlaybackLabel: "Hintergrundaufgaben während der Wiedergabe anhalten"
+    pauseBgOnPlaybackDesc: "Hält transkodierungsbezogene Hintergrundaufgaben an, solange ein Stream läuft, damit sie nicht mit der Wiedergabe um Festplatten-I/O und CPU konkurrieren."
+    levelBackfillLabel: "H.264/HEVC-Level nachtragen"
+    levelBackfillDesc: "Hintergrunddurchlauf, der fehlende H.264/HEVC-Level-Metadaten bei bereits gescannten Dateien ergänzt."
+    keyframeBackfillLabel: "Keyframe-Index nachtragen"
+    keyframeBackfillDesc: "Hintergrunddurchlauf, der Keyframes indiziert und Dateien als CFR/VFR einstuft. Kann bei großen Bibliotheken I/O-intensiv sein."
+    snapshotFastpathLabel: "Schnellpfad für Timeline-Vorschaubilder"
+    snapshotFastpathDesc: "Nutzt den schnellen mkvgo-Decoder für die Vorschaubilder der Timeline. Deaktiviert wird ausschließlich der exakte ffmpeg-Decoder verwendet."
+    paceTitle: "Rhythmus"
+    paceDesc: "Taktung der obigen Nachtrag-Durchläufe. Leer lassen, um den Serverstandard zu verwenden. Stapelgröße und Leerlaufintervall müssen größer als 0 sein, um zu greifen; die Pause akzeptiert 0."
+    paceDefaultPlaceholder: "Serverstandard"
+    levelBackfillBatchLabel: "Stapelgröße Level-Nachtrag"
+    levelBackfillPauseMsLabel: "Pause Level-Nachtrag (ms)"
+    levelBackfillIdleSecLabel: "Leerlaufintervall Level-Nachtrag (s)"
+    keyframeBackfillBatchLabel: "Stapelgröße Keyframe-Nachtrag"
+    keyframeBackfillPauseMsLabel: "Pause Keyframe-Nachtrag (ms)"
+    keyframeBackfillIdleSecLabel: "Leerlaufintervall Keyframe-Nachtrag (s)"
   feedConfig:
     pluginBadge: "Plugin"
     title: "Startseiten-Feeds"

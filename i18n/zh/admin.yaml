@@ -611,6 +611,27 @@ audit:
   entries: "{{count}} 条记录"
 
 serverConfig:
+  backgroundJobs:
+    title: "后台任务"
+    subtitle: "转码后台工作进程的运维设置——播放时的暂停行为、补齐任务及其节奏。"
+    restartWarning: "这些设置仅在服务器启动时读取一次。在此保存的更改不会影响正在运行的服务器，必须重启后新值才会生效。"
+    pauseBgOnPlaybackLabel: "播放期间暂停后台任务"
+    pauseBgOnPlaybackDesc: "在有播放进行时挂起与转码相关的后台任务，避免它们与播放争抢磁盘 I/O 和 CPU。"
+    levelBackfillLabel: "H.264/HEVC 级别补齐"
+    levelBackfillDesc: "后台任务，为已扫描文件补上缺失的 H.264/HEVC 级别元数据。"
+    keyframeBackfillLabel: "关键帧索引补齐"
+    keyframeBackfillDesc: "后台任务，索引关键帧并将文件判定为 CFR/VFR。在大型媒体库上可能造成较高的 I/O 负载。"
+    snapshotFastpathLabel: "时间轴缩略图快速通道"
+    snapshotFastpathDesc: "使用 mkvgo 快速解码器生成时间轴预览缩略图。关闭后仅使用精确的 ffmpeg 解码器。"
+    paceTitle: "节奏"
+    paceDesc: "上述补齐任务的节奏。留空则使用服务器内置默认值。批大小与空闲间隔必须大于 0 才会生效；暂停可为 0。"
+    paceDefaultPlaceholder: "服务器默认值"
+    levelBackfillBatchLabel: "级别补齐批大小"
+    levelBackfillPauseMsLabel: "级别补齐暂停（毫秒）"
+    levelBackfillIdleSecLabel: "级别补齐空闲间隔（秒）"
+    keyframeBackfillBatchLabel: "关键帧补齐批大小"
+    keyframeBackfillPauseMsLabel: "关键帧补齐暂停（毫秒）"
+    keyframeBackfillIdleSecLabel: "关键帧补齐空闲间隔（秒）"
   feedConfig:
     pluginBadge: "插件"
     title: "主页信息流"

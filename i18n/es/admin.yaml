@@ -611,6 +611,27 @@ audit:
   entries: "{{count}} registros"
 
 serverConfig:
+  backgroundJobs:
+    title: "Tareas en segundo plano"
+    subtitle: "Ajustes de operador para los procesos en segundo plano de la transcodificación: comportamiento de pausa, pasadas de relleno y su ritmo."
+    restartWarning: "Estos ajustes se leen una sola vez, al arrancar el servidor. Guardar un cambio aquí no afecta al servidor en ejecución: hay que reiniciarlo para que el nuevo valor surta efecto."
+    pauseBgOnPlaybackLabel: "Pausar las tareas en segundo plano durante la reproducción"
+    pauseBgOnPlaybackDesc: "Suspende las tareas en segundo plano relacionadas con la transcodificación mientras hay una reproducción activa, para que no compitan con ella por la E/S de disco y la CPU."
+    levelBackfillLabel: "Relleno del nivel H.264/HEVC"
+    levelBackfillDesc: "Pasada en segundo plano que completa los metadatos de nivel H.264/HEVC que faltan en archivos ya escaneados."
+    keyframeBackfillLabel: "Relleno del índice de fotogramas clave"
+    keyframeBackfillDesc: "Pasada en segundo plano que indexa los fotogramas clave y clasifica los archivos como CFR/VFR. Puede exigir mucha E/S en bibliotecas grandes."
+    snapshotFastpathLabel: "Vía rápida de miniaturas de la línea de tiempo"
+    snapshotFastpathDesc: "Usa el decodificador rápido mkvgo para las miniaturas de vista previa de la línea de tiempo. Desactivado, solo se usa el decodificador exacto de ffmpeg."
+    paceTitle: "Ritmo"
+    paceDesc: "Cadencia de las pasadas de relleno anteriores. Déjalo en blanco para usar el valor predeterminado del servidor. El tamaño de lote y el intervalo de inactividad deben ser mayores que 0 para surtir efecto; la pausa admite 0."
+    paceDefaultPlaceholder: "predeterminado del servidor"
+    levelBackfillBatchLabel: "Tamaño de lote del relleno de nivel"
+    levelBackfillPauseMsLabel: "Pausa del relleno de nivel (ms)"
+    levelBackfillIdleSecLabel: "Intervalo de inactividad del relleno de nivel (s)"
+    keyframeBackfillBatchLabel: "Tamaño de lote del relleno de fotogramas clave"
+    keyframeBackfillPauseMsLabel: "Pausa del relleno de fotogramas clave (ms)"
+    keyframeBackfillIdleSecLabel: "Intervalo de inactividad del relleno de fotogramas clave (s)"
   feedConfig:
     pluginBadge: "Plugin"
     title: "Feeds de inicio"
