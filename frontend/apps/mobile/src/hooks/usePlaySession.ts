@@ -83,6 +83,10 @@ async function detectShed(url: string): Promise<ShedReason> {
 
 export interface PlaySessionResult {
   streamUrl: string | null;
+  // The resolved server base URL, exposed so the cast path can rebuild a
+  // receiver-negotiated URL (buildCastStreamUrl) from the same origin the
+  // session used.
+  serverUrl: string | null;
   // The opaque stream token, exposed so the native player can also send it as an
   // Authorization: Bearer header on the source (segment auth without the token
   // riding in every URL) - the server accepts cookie/Bearer/query alike.
@@ -152,6 +156,7 @@ export function buildStreamUrl(
 
 export function usePlaySession(mediaId: string): PlaySessionResult {
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [streamToken, setStreamToken] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [streamInfo, setStreamInfo] = useState<V1StreamInfo | null>(null);
@@ -176,6 +181,7 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
       try {
         const serverUrl = serverUrlRef.current || ((await getServerUrl()) ?? "");
         serverUrlRef.current = serverUrl;
+        setServerUrl(serverUrl);
         // Screen size is NOT a decode capability: the display downscales high-res
         // content for free. Sending the screen dims made the server flag
         // resolution_exceeded and transcode/downscale a 1080p/4K title the device
@@ -298,5 +304,5 @@ export function usePlaySession(mediaId: string): PlaySessionResult {
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress };
+  return { streamUrl, serverUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress };
 }

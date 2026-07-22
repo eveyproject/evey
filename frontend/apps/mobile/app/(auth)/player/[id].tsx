@@ -37,8 +37,9 @@ import { QualityPicker } from "../../../src/components/QualityPicker";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
 import { SkipIntroOverlay } from "../../../src/components/SkipIntroOverlay";
-import { CastContext } from "../../../src/hooks/useChromecast";
+import { CastContext, useCastDeviceHook } from "../../../src/hooks/useChromecast";
 import { useCastSession } from "../../../src/hooks/useCastSession";
+import { buildCastStreamUrl, receiverSupportsUhd } from "../../../src/lib/castUrl";
 import { useSyncPlay } from "../../../src/hooks/useSyncPlay";
 import { SyncPlayBar } from "../../../src/components/SyncPlayBar";
 import { SyncPlayModal } from "../../../src/components/SyncPlayModal";
@@ -119,7 +120,7 @@ export default function PlayerScreen() {
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
-  const { streamUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
+  const { streamUrl, serverUrl, streamToken, sessionId, streamInfo, isLoading, isError, shedReason, stopSession, restartWithTracks, progress } =
     usePlaySession(sessionMediaId);
 
   const { data: chapters = [] } = useChapters(mediaId);
@@ -274,10 +275,26 @@ export default function PlayerScreen() {
     };
   }, [player]);
 
+  // The URL handed to the Chromecast is NOT the local streamUrl: that one is
+  // negotiated with this phone's MediaCaps (hevc/hdr/mkv), which the receiver
+  // may not decode. Rebuild it against the receiver profile - derived from the
+  // connected device's model name, the only capability signal the SDK gives -
+  // and the server then picks copy or transcode per track for the RECEIVER.
+  // The device lands with (or right after) the CONNECTED state; if an Ultra's
+  // model resolves after a floor URL was already loaded, the auto-load effect
+  // (keyed on the URL) reloads with the upgraded one. Falls back to streamUrl
+  // until the session pieces are resolved.
+  const castDevice = useCastDeviceHook();
+  const castUhd = receiverSupportsUhd(castDevice?.modelName);
+  const castStreamUrl = useMemo(() => {
+    if (!serverUrl || !streamInfo || !streamToken) return streamUrl;
+    return buildCastStreamUrl(serverUrl, mediaId, streamInfo, streamToken, castUhd);
+  }, [serverUrl, streamInfo, streamToken, castUhd, mediaId, streamUrl]);
+
   const { castConnected, castClient, castCurrentTime, castDuration, castIsPlaying, handleCast } = useCastSession({
     player,
     volume,
-    streamUrl,
+    streamUrl: castStreamUrl,
     mediaId,
     title: media?.title,
     currentTime,
