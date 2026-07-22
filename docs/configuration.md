@@ -1,6 +1,19 @@
 # Configuration
 
-All configuration is in `.env`. Copy `.env.example` to `.env` and edit.
+`.env` holds only what must exist **before the server boots**: secrets,
+container wiring (ports, paths, image tag) and reverse-proxy facts. Copy
+`.env.example` to `.env` and edit.
+
+**Everything an operator tunes afterwards - log level, language, transcoding
+limits, hardware acceleration, library watcher, plugin sandbox and quotas -
+lives in the admin panel (Admin > Server config), not here.** Those settings are
+stored in the database, survive a container recreate, and most apply without a
+restart. Setting them as env vars only seeds a first boot.
+
+That split is why this page does not list every `EVEY_*` variable the binary
+recognises: the rest are first-boot seeds and escape hatches, and configuring a
+running server through them is the wrong path. `internal/config/config.go` is
+the exhaustive reference if you need one.
 
 ## Must Set
 
@@ -66,7 +79,7 @@ EVEY_SERVER_BASE_URL=https://media.example.com  # your public URL
 EVEY_TMDB_API_KEY=<your-tmdb-key>               # better metadata (free at themoviedb.org)
 ```
 
-## All Variables
+## Variables you may need to set
 
 ### Server
 ```env
@@ -78,6 +91,8 @@ EVEY_VERSION=latest                    # Docker image tag (latest, v0.1.0-beta.1
 
 ### Database
 ```env
+EVEY_DB_HOST=postgres                 # DB hostname; the bundled compose service is `postgres`
+EVEY_DB_PORT=5432
 EVEY_DB_USER=evey
 EVEY_DB_PASSWORD=changeme
 EVEY_DB_NAME=evey
