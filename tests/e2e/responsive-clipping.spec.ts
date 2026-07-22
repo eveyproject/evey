@@ -1,89 +1,106 @@
 import { test, expect } from "./fixtures/auth";
 import { gotoRandomSeries } from "./scenarios/shared/helpers";
 
-// Responsive regression guard.
+// Responsive regression guard for phone widths.
 //
-// The layout fixes this pins were all found the same way: an element wider than
-// its parent, inside a parent that does NOT scroll. That combination is worse
-// than a horizontal scrollbar - the content is simply unreachable. The episode
-// list was the worst case: a 712px row inside a 374px column, so the synopsis
-// and the download button sat off-screen with no way to reach them.
+// The assertion is deliberately blunt: on a phone, the main content panel must
+// not scroll sideways. Anything wider than the panel is content the reader has
+// to go hunting for, and on a touch device there is no visible scrollbar to
+// hint that it exists.
 //
-// A plain "document doesn't scroll horizontally" assertion does NOT catch that,
-// because the overflow is clipped rather than scrolled. Hence the DOM walk.
+// Two weaker checks were tried first and both guarded nothing:
+//
+//  - "the DOCUMENT has no horizontal scrollbar" (what
+//    scenarios/media/responsive.spec.ts asserts) stays green here, because the
+//    overflow happens INSIDE <main>, not on <html>.
+//  - "an element is wider than its parent and no ancestor scrolls" also stays
+//    green, because <main> carries overflow-y-auto and CSS forces the other
+//    axis to `auto` when one axis is not `visible` - so <main> technically
+//    scrolls sideways and every element looks reachable.
+//
+// This version was verified by putting the original bug back (a 545px episode
+// row inside a 358px column) and watching it go red.
 
 const PHONE = { width: 390, height: 844 };
 
-/** Elements sticking out of a parent that offers no way to scroll to them. */
-async function clippedElements(page: import("@playwright/test").Page): Promise<string[]> {
+async function mainOverflow(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
-    const out: string[] = [];
-    for (const el of Array.from(document.querySelectorAll("body *"))) {
-      const parent = el.parentElement;
-      if (!parent) continue;
-      const b = el.getBoundingClientRect();
-      const pb = parent.getBoundingClientRect();
-      // Ignore slivers: sub-40px boxes are icons and separators whose rounding
-      // noise would make this flaky.
-      if (b.width < 40 || pb.width < 40) continue;
+    const main = document.querySelector("main");
+    if (!main) return { overflow: 0, worst: null as string | null };
+    const overflow = main.scrollWidth - main.clientWidth;
+    if (overflow <= 2) return { overflow: 0, worst: null as string | null };
+    // Name the widest offender so a failure says what to fix, not just that
+    // something is too wide.
+    let worst: Element | null = null;
+    let worstW = 0;
+    for (const el of Array.from(main.querySelectorAll("*"))) {
       const cs = getComputedStyle(el);
-      // Absolutely positioned boxes resolve against a different containing
-      // block, and a hover zoom (scale-105) inflates the measured rect by 5%
-      // without any real overflow. Neither proves anything here.
       if (cs.position === "fixed" || cs.position === "absolute") continue;
       if (cs.transform !== "none") continue;
-      if (b.right <= pb.right + 4) continue;
-
-      // An ancestor declaring overflow-x auto/scroll makes the content
-      // reachable, full stop. Do NOT additionally require
-      // scrollWidth > clientWidth: that is a snapshot of layout at one instant
-      // (a carousel still measuring, a chart not yet drawn) and it made this
-      // check report reachable content as clipped.
-      let ancestor: HTMLElement | null = parent;
-      let scrollable = false;
-      while (ancestor && ancestor !== document.body) {
-        const s = getComputedStyle(ancestor);
-        if (s.overflowX === "auto" || s.overflowX === "scroll") {
-          scrollable = true;
-          break;
-        }
-        ancestor = ancestor.parentElement;
+      const w = el.getBoundingClientRect().width;
+      if (w > worstW && w > main.clientWidth) {
+        worstW = w;
+        worst = el;
       }
-      if (scrollable) continue;
-
-      const cls = (el.className || "").toString().replace(/\s+/g, " ").slice(0, 60);
-      out.push(`${el.tagName}.${cls} [${Math.round(b.width)}px in ${Math.round(pb.width)}px]`);
     }
-    return Array.from(new Set(out));
+    return {
+      overflow,
+      worst: worst
+        ? `${worst.tagName}.${(worst.className || "").toString().replace(/\s+/g, " ").slice(0, 60)} (${Math.round(worstW)}px in ${main.clientWidth}px)`
+        : null,
+    };
   });
 }
 
-test.describe("Responsive - nothing clipped out of reach on a phone", () => {
+test.describe("Responsive - the main panel never scrolls sideways on a phone", () => {
   test.use({ viewport: PHONE });
 
-  for (const path of ["/home", "/library", "/search", "/favorites", "/playlists", "/admin", "/admin/plugins"]) {
-    test(`${path} keeps its content reachable`, async ({ page }) => {
+  for (const path of [
+    "/home",
+    "/library",
+    "/search",
+    "/favorites",
+    "/playlists",
+    "/collections",
+    "/admin",
+    "/admin/plugins",
+    "/admin/users",
+    "/profile/settings",
+  ]) {
+    test(`${path} fits the screen`, async ({ page }) => {
       await page.goto(path, { waitUntil: "domcontentloaded" });
-      // Poll rather than sleep a fixed amount. Under a parallel run the dev
-      // server is slow enough that a page is still mid-layout at any constant
-      // delay, and a half-laid-out row looks exactly like a clipped one. A real
-      // clip never resolves, so polling cannot hide one - it only removes the
-      // flake.
-      await expect.poll(() => clippedElements(page), { timeout: 15_000 }).toEqual([]);
+      // Poll rather than sleep: under a parallel run a page can still be
+      // mid-layout at any fixed delay, and a half-laid-out row measures wide.
+      // A real overflow never resolves, so this cannot hide one.
+      await expect
+        .poll(async () => (await mainOverflow(page)).overflow, { timeout: 15_000 })
+        .toBe(0);
     });
   }
 
-  // The regression that motivated this file. A season page renders the episode
-  // rows, which carry a fixed-width still plus text plus a download control.
+  // The regression that motivated this file. Episode rows carry a fixed-width
+  // still plus text plus a download control, and they live on a SEASON page -
+  // a series page only lists seasons, so this has to go one level deeper or it
+  // guards nothing.
   test("a season's episode rows fit the screen", async ({ page }) => {
-    const id = await gotoRandomSeries(page);
-    test.skip(!id, "No series found");
+    const seriesId = await gotoRandomSeries(page);
+    test.skip(!seriesId, "No series found");
     await page.waitForSelector('[data-testid="media-detail"]', { timeout: 15_000 });
-    await page.waitForTimeout(1500);
 
-    const rows = page.locator('[data-testid="media-detail"] .flex.min-w-0');
-    if ((await rows.count()) === 0) test.skip(true, "Series page shows seasons, not episodes");
+    const seasonLink = page.locator('[data-testid="seasons-section"] a[href^="/media/"]').first();
+    test.skip((await seasonLink.count()) === 0, "Series has no season tiles");
+    // Follow the href rather than clicking: the tile has a hover zoom
+    // (group-hover:scale-105), so Playwright's stability check never settles on
+    // an element that starts animating the moment it is hovered.
+    const href = await seasonLink.getAttribute("href");
+    test.skip(!href, "Season tile has no href");
+    await page.goto(href!, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector('[data-testid="media-detail"]', { timeout: 15_000 });
 
-    await expect.poll(() => clippedElements(page), { timeout: 15_000 }).toEqual([]);
+    const episodeRows = page.locator('[data-testid="download-btn"]');
+    await expect.poll(() => episodeRows.count(), { timeout: 15_000 }).toBeGreaterThan(0);
+
+    const result = await mainOverflow(page);
+    expect(result.overflow, `widest offender: ${result.worst}`).toBe(0);
   });
 });
