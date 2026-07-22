@@ -1,8 +1,11 @@
 package library_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -735,14 +738,27 @@ func TestStartPeriodicScan_WithSpecificLibraryIDs(t *testing.T) {
 }
 
 func TestStartPeriodicScan_DefaultInterval(t *testing.T) {
-	t.Parallel()
+	// Deliberately NOT t.Parallel(): swaps the package-global slog default to
+	// capture output, which would race any other test logging concurrently.
 	svc, _, libQueryRepo, _, _, _ := newCmdSvc()
+
+	// The resolved interval isn't exposed by any return value or repo side
+	// effect - the only externally observable trace of interval<=0 -> 2min is
+	// the "interval=" field StartPeriodicScan logs on startup. Capture it
+	// instead of asserting on a smoke-test side effect that can't fail.
+	var buf bytes.Buffer
+	prevLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	defer slog.SetDefault(prevLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	// interval <= 0 should default to 2min
 	svc.StartPeriodicScan(ctx, libQueryRepo, 0, nil)
 	time.Sleep(50 * time.Millisecond)
+
+	if !strings.Contains(buf.String(), "interval=2m0s") {
+		t.Errorf("expected StartPeriodicScan(interval=0) to log the 2min default, got log output: %s", buf.String())
+	}
 }
 
 func TestStartBackgroundGeneration_CancelledCtx(t *testing.T) {

@@ -58,8 +58,9 @@ func (f *fakeMediaQuerier) Count(_ context.Context, filter library.ListMediaItem
 }
 
 type fakeConfigStore struct {
-	plugins   map[string]*plugindomain.Plugin
-	updateErr error
+	plugins     map[string]*plugindomain.Plugin
+	updateErr   error
+	updateCalls int
 }
 
 func (f *fakeConfigStore) GetByID(_ context.Context, id string) (*plugindomain.Plugin, error) {
@@ -67,15 +68,36 @@ func (f *fakeConfigStore) GetByID(_ context.Context, id string) (*plugindomain.P
 	if !ok {
 		return nil, shared.ErrNotFound
 	}
-	return p, nil
+	return clonePlugin(p), nil
 }
 
 func (f *fakeConfigStore) Update(_ context.Context, p *plugindomain.Plugin) error {
+	f.updateCalls++
 	if f.updateErr != nil {
 		return f.updateErr
 	}
-	f.plugins[p.ID] = p
+	f.plugins[p.ID] = clonePlugin(p)
 	return nil
+}
+
+// clonePlugin detaches the stored record from the caller's pointer (see
+// cloneProfile in internal/domain/user/fakes/profile_repo.go for the same
+// rationale): SetConfig mutates the plugin it gets back from GetByID
+// in-place before persisting, so without this clone a test can't tell an
+// in-memory mutation from an actually-saved one - dropping the Update call
+// in production would still leave GetConfig reading the mutated pointer.
+func clonePlugin(p *plugindomain.Plugin) *plugindomain.Plugin {
+	if p == nil {
+		return nil
+	}
+	cp := *p
+	if p.Config != nil {
+		cp.Config = make(map[string]any, len(p.Config))
+		for k, v := range p.Config {
+			cp.Config[k] = v
+		}
+	}
+	return &cp
 }
 
 type fakeEventBus struct {
@@ -410,11 +432,20 @@ func TestHostGetConfig_PluginNotFound(t *testing.T) {
 // --- SetConfig ---
 
 func TestHostSetConfig(t *testing.T) {
-	h := newTestHostServer()
+	store := &fakeConfigStore{plugins: map[string]*plugindomain.Plugin{
+		"plg-1": {ID: "plg-1", Config: map[string]any{"key1": "val1"}},
+	}}
+	h := NewHostServer(&fakeMediaQuerier{items: map[string]*library.MediaItem{}}, store, &fakeEventBus{}, &fakePluginLogger{}, nil)
 	ctx := ctxWithPluginID("plg-1")
 
 	_, err := h.SetConfig(ctx, &pluginv1.SetConfigRequest{Key: "newkey", Value: "newval"})
 	require.NoError(t, err)
+
+	// The store, not just the response, must have been asked to persist:
+	// GetByID/Update in the fake return/store deep copies, so a handler that
+	// mutates its in-memory plugin without calling Update can't fake this.
+	assert.Equal(t, 1, store.updateCalls, "SetConfig must persist through Update")
+	assert.Equal(t, "newval", store.plugins["plg-1"].Config["newkey"], "the stored plugin must reflect the new key")
 
 	resp, err := h.GetConfig(ctx, &pluginv1.GetConfigRequest{Key: "newkey"})
 	require.NoError(t, err)

@@ -189,6 +189,14 @@ func TestCacheThrashSim_Concurrent(t *testing.T) {
 		r := runThrashSim(t, fmt.Sprintf("%d concurrent viewers", n),
 			watchTicks+n, EvictionPolicy{MaxBytes: int64(cacheGB * float64(simGiB))}, sessions, false)
 		logSimResult(t, r)
+		// The one invariant that always matters: while the concurrent working
+		// set fits under the cache cap, the sweeper must never evict a title
+		// someone is still watching. Above the cap, thrash is the documented,
+		// expected regime this test exists to measure - not asserted here.
+		if float64(n)*sizeGB <= cacheGB && r.evictUnderViewer != 0 {
+			t.Errorf("%d concurrent viewers (%.0fGB workload fits %.0fGB cache): expected 0 evictions under an active viewer, got %d",
+				n, float64(n)*sizeGB, cacheGB, r.evictUnderViewer)
+		}
 	}
 }
 
@@ -205,6 +213,14 @@ func TestCacheThrashSim_CacheSizeSweep(t *testing.T) {
 		r := runThrashSim(t, fmt.Sprintf("cache=%.0fGB", cacheGB),
 			watchTicks+n, EvictionPolicy{MaxBytes: int64(cacheGB * float64(simGiB))}, sessions, false)
 		logSimResult(t, r)
+		// Same invariant as TestCacheThrashSim_Concurrent: once the cache is
+		// provisioned for the full 5-viewer working set (n*sizeGB), no active
+		// title may be evicted. Below that line the workload doesn't fit and
+		// thrash is the point being measured, not a bug.
+		if cacheGB >= float64(n)*sizeGB && r.evictUnderViewer != 0 {
+			t.Errorf("cache=%.0fGB (workload=%.0fGB): expected 0 evictions under an active viewer, got %d",
+				cacheGB, float64(n)*sizeGB, r.evictUnderViewer)
+		}
 	}
 }
 
@@ -230,6 +246,15 @@ func TestCacheThrashSim_Zapping(t *testing.T) {
 	t.Logf("Zapping (whole-file muxed per open, even for seconds watched):")
 	logSimResult(t, r)
 	t.Logf("  -> %.0fGB written to serve ~%d minutes of actual viewing", r.volumeMuxedGB, titles)
+	// Caveat: evictUnderViewer is only incremented when a session gets
+	// re-materialised WHILE still active, but a 1-tick zap session is never
+	// active again after its own tick - so this can't detect an eviction of
+	// the just-materialised title within the same tick it's watched. Kept
+	// for consistency with the other sims and because a regression that
+	// evicts the same title across ticks would still show up here.
+	if r.evictUnderViewer != 0 {
+		t.Errorf("zapping: expected 0 evictions under an active viewer, got %d", r.evictUnderViewer)
+	}
 }
 
 // TestCacheThrashSim_FixB_LongViewerVsArrivals isolates what fix (b) corrects: a
@@ -289,4 +314,13 @@ func TestCacheThrashSim_SoloSequential(t *testing.T) {
 		EvictionPolicy{MaxBytes: int64(cacheGB * float64(simGiB))}, sessions, false)
 	t.Logf("Solo sequential baseline:")
 	logSimResult(t, r)
+	// One viewer, one active title at a time, workload (5*8=40GB) fits the
+	// 40GB cap exactly: no re-mux from eviction, and the active title is
+	// never the one evicted.
+	if r.evictUnderViewer != 0 {
+		t.Errorf("solo sequential: expected 0 evictions under an active viewer, got %d", r.evictUnderViewer)
+	}
+	if r.amplification != 1.0 {
+		t.Errorf("solo sequential: expected amplification 1.0 (no rewatch, no waste), got %.2f", r.amplification)
+	}
 }

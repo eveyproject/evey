@@ -20,84 +20,70 @@ func fixtureRoot() string {
 
 // TestAnalyzerDetectsMaliciousFixtures asserts that each fixture under
 // tests/fixtures/plugins/malicious/ triggers at least one Critical finding.
-//
-// Fixtures that depend on new patterns being added by Worker A (analyzer
-// hardening) will fail until that branch is merged. This is intentional:
-// the test acts as a regression guard - a future change that silently
-// removes detection will turn the test red.
+// Every case fails hard (t.Fatalf) on a miss - a security-detection regression
+// must never be able to degrade into a skipped test.
 func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 	cases := []struct {
-		dir           string
-		workerANeeded bool // true = expected to fail until Worker A merges
-		expectedCat   string
+		dir         string
+		expectedCat string
 	}{
 		// php-string-concat-rce: "sys" . "tem" reassembles system() via PHP dot
 		// concat. Detected by alias pre-pass: $f = "system" → $f($cmd) → system($cmd).
 		{
-			dir:           "php-string-concat-rce",
-			workerANeeded: false,
-			expectedCat:   "shell_exec",
+			dir:         "php-string-concat-rce",
+			expectedCat: "shell_exec",
 		},
 		// python-fstring-eval: outer eval( is plaintext - detected today.
 		{
-			dir:           "python-fstring-eval",
-			workerANeeded: false,
-			expectedCat:   "obfuscation",
+			dir:         "python-fstring-eval",
+			expectedCat: "obfuscation",
 		},
 		// js-constructor-escape: Function.constructor used to escape sandbox.
 		{
-			dir:           "js-constructor-escape",
-			workerANeeded: false,
-			expectedCat:   "sandbox_escape",
+			dir:         "js-constructor-escape",
+			expectedCat: "sandbox_escape",
 		},
 		// python-os-alias: os aliased to _o then m = _o; m.system() called.
 		// Detected by alias pre-pass: m.system() → os.system() after chain resolution.
 		{
-			dir:           "python-os-alias",
-			workerANeeded: false,
-			expectedCat:   "shell_exec",
+			dir:         "python-os-alias",
+			expectedCat: "shell_exec",
 		},
 		// python-getattr-builtin: getattr(__builtins__, ...) - detected today.
 		{
-			dir:           "python-getattr-builtin",
-			workerANeeded: false,
-			expectedCat:   "dynamic_import",
+			dir:         "python-getattr-builtin",
+			expectedCat: "dynamic_import",
 		},
 		// go-raw-syscall: syscall.Syscall(59,...) = raw execve, no stdlib wrapper.
 		{
-			dir:           "go-raw-syscall",
-			workerANeeded: false,
-			expectedCat:   "native_code",
+			dir:         "go-raw-syscall",
+			expectedCat: "native_code",
 		},
 		// php-combo-realistic: multi-vector - same dot-concat fold as #1 needed.
 		{
-			dir:           "php-combo-realistic",
-			workerANeeded: false,
-			expectedCat:   "", // any critical finding is sufficient
+			dir:         "php-combo-realistic",
+			expectedCat: "", // any critical finding is sufficient
 		},
 		// === adversarial variants (class-level coverage, not token-level) ===
 		// php-string-concat-rce-v2: intermediate vars before concat. Detected by
 		// fixed-point alias resolution: $x and $y resolve to literals, $f resolves
 		// to "system", $f($cmd) → system($cmd).
 		{
-			dir:           "php-string-concat-rce-v2",
-			workerANeeded: false,
-			expectedCat:   "shell_exec",
+			dir:         "php-string-concat-rce-v2",
+			expectedCat: "shell_exec",
 		},
 		// python-builtins-dict-access: __builtins__.__dict__[name] indexing.
 		// Detected by literal dict-bracket pattern (after f-string fold inlines
 		// the var, or directly if literal).
 		{
-			dir:           "python-builtins-dict-access",
-			workerANeeded: false,
-			expectedCat:   "dynamic_import",
+			dir:         "python-builtins-dict-access",
+			expectedCat: "dynamic_import",
 		},
 		// js-constructor-stored: const F = (fn).constructor; F(code). Detected
 		// by stored-constructor tracking: F( is rewritten to .constructor(.
 		{
-			dir:           "js-constructor-stored",
-			workerANeeded: false,
-			expectedCat:   "sandbox_escape",
+			dir:         "js-constructor-stored",
+			expectedCat: "sandbox_escape",
 		},
 	}
 
@@ -123,12 +109,11 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 				}
 			}
 
+			// A missed detection is a security regression, never a reason to
+			// skip: t.Skipf here would let a sandbox-escape/RCE fixture go
+			// undetected without failing CI. Always fail hard.
 			if !hasCritical {
-				if c.workerANeeded {
-					t.Skipf("no Critical finding for %q - payload not yet detected (extends Worker A patterns; tracked in backlog C1)", c.dir)
-				} else {
-					t.Fatalf("no Critical finding for %q - analyzer regression", c.dir)
-				}
+				t.Fatalf("no Critical finding for %q - analyzer regression", c.dir)
 			}
 
 			if c.expectedCat != "" && !categoryMatch {
@@ -138,11 +123,7 @@ func TestAnalyzerDetectsMaliciousFixtures(t *testing.T) {
 						categories = append(categories, f.Category)
 					}
 				}
-				if c.workerANeeded {
-					t.Skipf("Critical finding present but wrong category for %q: got %v, want %q (extends Worker A patterns; tracked in backlog C1)", c.dir, categories, c.expectedCat)
-				} else {
-					t.Fatalf("Critical finding present but wrong category for %q: got %v, want %q", c.dir, categories, c.expectedCat)
-				}
+				t.Fatalf("Critical finding present but wrong category for %q: got %v, want %q", c.dir, categories, c.expectedCat)
 			}
 		})
 	}

@@ -85,18 +85,18 @@ func (r *fakeDeliveryRepo) ListByWebhook(_ context.Context, webhookID string, li
 	return out, nil
 }
 
-func setupWebhookHandler() (*webhookHandler, *fakeDeliveryRepo) {
+func setupWebhookHandler() (*webhookHandler, *fakeWebhookRepo, *fakeDeliveryRepo) {
 	repo := newFakeWebhookRepo()
 	deliveries := newFakeDeliveryRepo()
 	events := sharedfakes.NewFakeEventBus()
 	svc := appwebhook.NewService(repo, deliveries, &noopSender{}, slog.Default(), events)
 	svc.SetURLValidator(func(string) error { return nil })
 
-	return &webhookHandler{svc: svc}, deliveries
+	return &webhookHandler{svc: svc}, repo, deliveries
 }
 
 func TestCreateWebhook_Success(t *testing.T) {
-	h, _ := setupWebhookHandler()
+	h, _, _ := setupWebhookHandler()
 	resp, err := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
 		Name:    "test-hook",
 		Url:     "https://example.com/hook",
@@ -115,7 +115,7 @@ func TestCreateWebhook_Success(t *testing.T) {
 }
 
 func TestCreateWebhook_InvalidConfig_InvalidArgument(t *testing.T) {
-	h, _ := setupWebhookHandler()
+	h, _, _ := setupWebhookHandler()
 	// No events subscribed → Config.Validate fails → must surface as
 	// InvalidArgument, not a generic Internal error.
 	_, err := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
@@ -133,7 +133,7 @@ func TestCreateWebhook_InvalidConfig_InvalidArgument(t *testing.T) {
 }
 
 func TestListWebhooks_ReturnsItems(t *testing.T) {
-	h, _ := setupWebhookHandler()
+	h, _, _ := setupWebhookHandler()
 	_, _ = h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
 		Name: "hook1", Url: "https://a.com", Events: []string{"*"}, Enabled: true,
 	})
@@ -151,7 +151,7 @@ func TestListWebhooks_ReturnsItems(t *testing.T) {
 }
 
 func TestUpdateWebhook_Success(t *testing.T) {
-	h, _ := setupWebhookHandler()
+	h, repo, _ := setupWebhookHandler()
 	created, _ := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
 		Name: "original", Url: "https://a.com", Events: []string{"*"}, Enabled: true,
 	})
@@ -172,10 +172,27 @@ func TestUpdateWebhook_Success(t *testing.T) {
 	if resp.Enabled {
 		t.Fatal("expected disabled after update")
 	}
+
+	// resp is built straight from the request-derived cfg the handler just
+	// constructed, so it round-trips even if the service never called
+	// repo.Update. Read the repo directly to prove the write actually landed.
+	stored, ok := repo.items[created.Id]
+	if !ok {
+		t.Fatal("expected webhook to still exist in repo after update")
+	}
+	if stored.Name != "updated" {
+		t.Fatalf("repo has name %q, want updated", stored.Name)
+	}
+	if stored.URL != "https://b.com" {
+		t.Fatalf("repo has url %q, want https://b.com", stored.URL)
+	}
+	if stored.Enabled {
+		t.Fatal("repo should have the webhook disabled after update")
+	}
 }
 
 func TestDeleteWebhook_Success(t *testing.T) {
-	h, _ := setupWebhookHandler()
+	h, _, _ := setupWebhookHandler()
 	created, _ := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
 		Name: "todelete", Url: "https://a.com", Events: []string{"*"}, Enabled: true,
 	})
@@ -192,7 +209,7 @@ func TestDeleteWebhook_Success(t *testing.T) {
 }
 
 func TestListWebhookDeliveries_Success(t *testing.T) {
-	h, deliveryRepo := setupWebhookHandler()
+	h, _, deliveryRepo := setupWebhookHandler()
 	created, _ := h.CreateWebhook(context.Background(), &eveyv1.CreateWebhookRequest{
 		Name: "hook", Url: "https://a.com", Events: []string{"*"}, Enabled: true,
 	})
