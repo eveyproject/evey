@@ -318,7 +318,7 @@ func (h *playbackServe) parseClientProfile(r *http.Request) domaintranscoding.Cl
 	if v := r.URL.Query().Get("containers"); v != "" {
 		client.Containers = strings.Split(v, ",")
 	}
-	if r.URL.Query().Get("hdr") == "true" {
+	if hdrQuerySupported(r) {
 		client.SupportsHDR = true
 	}
 	return client
@@ -386,7 +386,7 @@ func (h *transcodeServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	defer h.throttle.Release(userID)
 
 	params := h.parseParams(r)
-	clientSupportsHDR := r.URL.Query().Get("hdr") == "true"
+	clientSupportsHDR := hdrQuerySupported(r)
 	client := parseClientCapabilities(r, clientSupportsHDR)
 	analysis := h.analyzeStreams(r.Context(), mediaID, params.remuxOnly, client, params.subtitleTrack)
 	params.audioTrack = clampAudioTrack(params.audioTrack, analysis.streams)

@@ -131,6 +131,15 @@ func (h *transcodeServe) analyzeStreams(ctx context.Context, mediaID string, rem
 	return a
 }
 
+// hdrQuerySupported reports whether the client advertised an HDR-capable
+// display. Web and mobile send hdr=1; hdr=true is the older spelling some
+// callers used - accepting only one of the two silently strips the capability
+// and forces a tonemap for clients that decode HDR natively.
+func hdrQuerySupported(r *http.Request) bool {
+	v := r.URL.Query().Get("hdr")
+	return v == "1" || v == "true"
+}
+
 func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscoding.ClientProfile {
 	client := domaintranscoding.DefaultWebProfile
 	if v := r.URL.Query().Get("videoCodecs"); v != "" {

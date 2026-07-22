@@ -1045,6 +1045,29 @@ func TestParseClientProfile_AllParams(t *testing.T) {
 	}
 }
 
+// The web and mobile clients send hdr=1 (the exact form the VOD path parses);
+// this endpoint only accepted hdr=true, so every real client was treated as
+// SDR here - a remux/playback-info decision then forced a tonemap for clients
+// that decode HDR natively, contradicting the GetStreamInfo decision that had
+// picked direct-stream for them.
+func TestParseClientProfile_HDRNumericForm(t *testing.T) {
+	h := &playbackServe{}
+	req := httptest.NewRequest(http.MethodGet, "/test?hdr=1", nil)
+	if p := h.parseClientProfile(req); !p.SupportsHDR {
+		t.Error("hdr=1 (the form web/mobile actually send) must set SupportsHDR")
+	}
+}
+
+func TestHDRQuerySupported_AcceptsBothClientForms(t *testing.T) {
+	cases := map[string]bool{"/t?hdr=1": true, "/t?hdr=true": true, "/t?hdr=0": false, "/t?hdr=false": false, "/t": false}
+	for target, want := range cases {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		if got := hdrQuerySupported(req); got != want {
+			t.Errorf("hdrQuerySupported(%q) = %v, want %v", target, got, want)
+		}
+	}
+}
+
 func TestParseClientProfile_InvalidValues(t *testing.T) {
 	h := &playbackServe{}
 	req := httptest.NewRequest(http.MethodGet, "/test?maxWidth=abc&maxHeight=-1&maxBitrate=bad", nil)
