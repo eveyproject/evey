@@ -125,7 +125,12 @@ beforeEach(() => {
   issuePluginTokenMock.mockResolvedValue({ token: "PLUGIN-TOKEN" });
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue({ ok: true, text: async () => PLUGIN_BUNDLE }),
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ etag: '"bundle-v1"' }),
+      text: async () => PLUGIN_BUNDLE,
+    }),
   );
 });
 
@@ -178,6 +183,74 @@ describe("PluginSlot assets.read bridge", () => {
 
     const traversalCall = eveyFetchRawMock.mock.calls.find(([r]) => (r as { url: string }).url.includes("etc/passwd"));
     expect(traversalCall).toBeFalsy();
+  });
+});
+
+// A plugin update keeps its plg-… id, so the disk cache key can never
+// invalidate a stale bundle by itself: every cache hit must revalidate
+// against the server's ETag (stale-while-revalidate).
+describe("PluginSlot bundle cache revalidation", () => {
+  const cachePath = "file:///cache/evey-plugins/plg-test1_index.js";
+
+  async function primeCache(code: string, etag: string) {
+    const FS = await import("expo-file-system");
+    vi.mocked(FS.getInfoAsync).mockResolvedValue({ exists: true } as never);
+    vi.mocked(FS.readAsStringAsync).mockImplementation(async (p: string) =>
+      p === cachePath + ".etag" ? etag : code,
+    );
+    return FS;
+  }
+
+  it("revalidates a cache hit with If-None-Match and swaps in an updated bundle", async () => {
+    const FS = await primeCache("console.log('stale');", '"bundle-v0"');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ etag: '"bundle-v1"' }),
+      text: async () => PLUGIN_BUNDLE,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mountPluginWebView();
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/v1/plugins/plg-test1/assets/index.js"),
+        expect.objectContaining({
+          headers: expect.objectContaining({ "If-None-Match": '"bundle-v0"' }),
+        }),
+      );
+      // Updated bundle + its ETag are persisted for the next launch.
+      expect(vi.mocked(FS.writeAsStringAsync)).toHaveBeenCalledWith(cachePath, PLUGIN_BUNDLE);
+      expect(vi.mocked(FS.writeAsStringAsync)).toHaveBeenCalledWith(cachePath + ".etag", '"bundle-v1"');
+    });
+  });
+
+  it("keeps the cached bundle on 304 without rewriting the cache", async () => {
+    const FS = await primeCache(PLUGIN_BUNDLE, '"bundle-v1"');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 304,
+      headers: new Headers(),
+      text: async () => "",
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await mountPluginWebView();
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(vi.mocked(FS.writeAsStringAsync)).not.toHaveBeenCalled();
+  });
+
+  it("does not blank an already-rendered cached bundle when revalidation fails", async () => {
+    await primeCache(PLUGIN_BUNDLE, '"bundle-v1"');
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+
+    // The WebView mounts from cache despite the network failure...
+    await mountPluginWebView();
+    // ...and stays mounted (no "Failed to load plugin" fallback).
+    const { screen } = await import("@testing-library/react");
+    expect(screen.queryByText(/failed to load plugin/i)).toBeNull();
   });
 });
 

@@ -15,33 +15,60 @@ import { FONT_SIZE } from "@evey/theme";
 // Persistent cache for plugin bundles. The Weather plugin bundle is 1.3 MB
 // (it ships react-three/fiber + postprocessing + three for the animated 3D
 // background). Without a cache the user pays that download on every cold
-// start. The cache key includes the plugin id (which changes on update) so
-// new bundles invalidate cleanly.
+// start.
+//
+// A plugin UPDATE keeps its id (in-place update preserves plg-… and config),
+// so the cache key alone can never invalidate a stale bundle. The server's
+// ETag is stored next to the bundle and every cache hit is revalidated in the
+// background (stale-while-revalidate): the cached copy renders instantly, a
+// conditional GET answers 304 when unchanged, and a changed bundle both
+// refreshes the cache and swaps into the just-mounted widget.
 const CACHE_DIR =
   ((FileSystem as unknown as { cacheDirectory?: string }).cacheDirectory ?? "") + "evey-plugins/";
 
-async function readBundleCache(pluginId: string, entryPath: string): Promise<string | null> {
+function bundleCachePath(pluginId: string, entryPath: string): string {
+  return `${CACHE_DIR}${pluginId}_${entryPath.replace(/\//g, "_")}`;
+}
+
+async function readBundleCache(
+  pluginId: string,
+  entryPath: string,
+): Promise<{ code: string; etag: string | null } | null> {
   if (!CACHE_DIR.startsWith("file:")) return null;
-  const path = `${CACHE_DIR}${pluginId}_${entryPath.replace(/\//g, "_")}`;
+  const path = bundleCachePath(pluginId, entryPath);
   try {
     const info = await FileSystem.getInfoAsync(path);
     if (!info.exists) return null;
-    return await FileSystem.readAsStringAsync(path);
+    const code = await FileSystem.readAsStringAsync(path);
+    let etag: string | null = null;
+    try {
+      const etagInfo = await FileSystem.getInfoAsync(path + ".etag");
+      if (etagInfo.exists) etag = await FileSystem.readAsStringAsync(path + ".etag");
+    } catch {
+      // no stored ETag - revalidation will fetch the full body
+    }
+    return { code, etag };
   } catch {
     return null;
   }
 }
 
-async function writeBundleCache(pluginId: string, entryPath: string, code: string): Promise<void> {
+async function writeBundleCache(
+  pluginId: string,
+  entryPath: string,
+  code: string,
+  etag: string | null,
+): Promise<void> {
   if (!CACHE_DIR.startsWith("file:")) return;
   try {
     await FileSystem.makeDirectoryAsync(CACHE_DIR, { intermediates: true });
   } catch {
     // already exists, fine
   }
-  const path = `${CACHE_DIR}${pluginId}_${entryPath.replace(/\//g, "_")}`;
+  const path = bundleCachePath(pluginId, entryPath);
   try {
     await FileSystem.writeAsStringAsync(path, code);
+    if (etag) await FileSystem.writeAsStringAsync(path + ".etag", etag);
   } catch {
     // disk full / cache evicted - non-fatal, just means slower next launch
   }
@@ -345,26 +372,33 @@ function PluginWebView({ pluginId, entryPath, externalFetch, context }: PluginWe
       // 1. Try cache - instant on warm starts.
       const cached = await readBundleCache(pluginId, entryPath);
       if (cancelled) return;
-      if (cached) {
-        setBundleCode(cached);
-        return;
-      }
-      // 2. Cache miss - download and persist for next time.
+      if (cached) setBundleCode(cached.code);
+      // 2. Cache miss: blocking download. Cache hit: background revalidation
+      // (If-None-Match) - 304 means the cached copy is current; 200 means the
+      // plugin was updated in place (same id!), so refresh both the cache and
+      // the widget.
       try {
         const url = `${serverUrl}/api/v1/plugins/${encodeURIComponent(pluginId)}/assets/${entryPath}`;
-        const res = await fetch(url, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-          signal: controller.signal,
-        });
+        const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
+        if (cached?.etag) headers["If-None-Match"] = cached.etag;
+        const res = await fetch(url, { headers, signal: controller.signal });
+        if (res.status === 304) return; // cached copy confirmed current
         if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
         const text = await res.text();
         if (cancelled) return;
         setBundleCode(text);
-        // Best-effort write - don't await, don't fail the render path.
-        void writeBundleCache(pluginId, entryPath, text);
+        // Best-effort persist - cache bookkeeping (ETag extraction included)
+        // must never undo a bundle that just rendered successfully.
+        try {
+          void writeBundleCache(pluginId, entryPath, text, res.headers.get("etag"));
+        } catch {
+          // cache is optional - just means a full download next launch
+        }
       } catch (err: unknown) {
         if (err instanceof Error && err.name === "AbortError") return;
-        if (!cancelled) setError(true);
+        // With a cached bundle already rendering, a failed revalidation
+        // (offline, server restart) must not blank the widget.
+        if (!cancelled && !cached) setError(true);
       }
     })();
     return () => { cancelled = true; controller.abort(); };
