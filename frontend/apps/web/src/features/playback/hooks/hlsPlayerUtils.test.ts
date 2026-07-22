@@ -17,6 +17,8 @@ vi.mock("@/utils/codec", () => ({
 import {
   getSelectedBurnInTrack,
   buildTranscodeHlsUrl,
+  castSafeDirectPlay,
+  planCastUrl,
   resolveDefaultAudio,
   resolveDefaultSubtitle,
   shouldRestartTranscodeSeek,
@@ -165,6 +167,185 @@ describe("buildTranscodeHlsUrl", () => {
   it("omits gapless=1 when explicitly false", () => {
     const url = buildTranscodeHlsUrl("m1", "tok", 0, null, 0, 0, false);
     expect(url).not.toContain("gapless");
+  });
+
+  it("advertises a caps override instead of the browser caps when one is given", () => {
+    mockCaps.videoCodecs = ["h264", "hevc"];
+    mockCaps.hdr = true;
+    try {
+      const url = buildTranscodeHlsUrl("m1", "tok", 0, null, 0, 0, false, false, {
+        videoCodecs: ["h264"],
+        audioCodecs: ["aac", "mp3"],
+        containers: ["mp4"],
+        hdr: false,
+      });
+      expect(url).toContain("videoCodecs=h264");
+      expect(url).not.toContain("hevc");
+      expect(url).toContain("audioCodecs=aac%2Cmp3");
+      expect(url).toContain("containers=mp4");
+      expect(url).not.toContain("hdr=");
+    } finally {
+      mockCaps.videoCodecs = ["h264"];
+      mockCaps.hdr = false;
+    }
+  });
+});
+
+// --- Cast copy-vs-transcode -------------------------------------------------
+// A cast URL is decoded by the RECEIVER, not by the browser that builds it.
+// The copy/transcode decision must therefore be negotiated with a Chromecast
+// capability floor, never with getBrowserCapabilities(): a phone that decodes
+// HEVC+HDR would otherwise make the server COPY an HEVC stream to a receiver
+// that can only decode H.264 - black screen on the TV, fine on the phone.
+
+const h264Video = { type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264", bitDepth: 8 };
+const aacAudio = { type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", isDefault: true };
+
+describe("castSafeDirectPlay", () => {
+  const safe = {
+    playMethod: "PLAY_METHOD_DIRECT_PLAY",
+    container: "mp4",
+    mediaStreams: [h264Video, aacAudio],
+  };
+
+  it("accepts an mp4 with 8-bit H.264 and AAC", () => {
+    expect(castSafeDirectPlay(safe)).toBe(true);
+  });
+
+  it("refuses anything that is not a DIRECT_PLAY session", () => {
+    expect(castSafeDirectPlay({ ...safe, playMethod: "PLAY_METHOD_TRANSCODE" })).toBe(false);
+    expect(castSafeDirectPlay({ ...safe, playMethod: "PLAY_METHOD_DIRECT_STREAM" })).toBe(false);
+    expect(castSafeDirectPlay({ ...safe, playMethod: undefined })).toBe(false);
+  });
+
+  it("refuses a non-mp4 container even with safe codecs", () => {
+    expect(castSafeDirectPlay({ ...safe, container: "mkv" })).toBe(false);
+    expect(castSafeDirectPlay({ ...safe, container: "matroska" })).toBe(false);
+    expect(castSafeDirectPlay({ ...safe, container: "webm" })).toBe(false);
+    expect(castSafeDirectPlay({ ...safe, container: undefined })).toBe(false);
+  });
+
+  it("refuses HEVC video", () => {
+    expect(castSafeDirectPlay({
+      ...safe,
+      mediaStreams: [{ ...h264Video, codec: "hevc" }, aacAudio],
+    })).toBe(false);
+  });
+
+  it("refuses 10-bit H.264", () => {
+    expect(castSafeDirectPlay({
+      ...safe,
+      mediaStreams: [{ ...h264Video, bitDepth: 10 }, aacAudio],
+    })).toBe(false);
+  });
+
+  it("refuses HDR transfers (PQ / HLG)", () => {
+    for (const colorTransfer of ["smpte2084", "arib-std-b67"]) {
+      expect(castSafeDirectPlay({
+        ...safe,
+        mediaStreams: [{ ...h264Video, colorTransfer }, aacAudio],
+      })).toBe(false);
+    }
+    expect(castSafeDirectPlay({
+      ...safe,
+      mediaStreams: [{ ...h264Video, colorTransfer: "bt709" }, aacAudio],
+    })).toBe(true);
+  });
+
+  it("refuses a Dolby/DTS default audio track", () => {
+    for (const codec of ["ac3", "eac3", "dts", "truehd"]) {
+      expect(castSafeDirectPlay({
+        ...safe,
+        mediaStreams: [h264Video, { ...aacAudio, codec }],
+      })).toBe(false);
+    }
+  });
+
+  it("judges the DEFAULT audio track - the one the receiver will play", () => {
+    // aac default + dts secondary: the receiver plays the default track.
+    expect(castSafeDirectPlay({
+      ...safe,
+      mediaStreams: [
+        h264Video,
+        aacAudio,
+        { type: "MEDIA_STREAM_TYPE_AUDIO", codec: "dts", isDefault: false },
+      ],
+    })).toBe(true);
+  });
+
+  it("refuses when no video stream metadata is available", () => {
+    expect(castSafeDirectPlay({ ...safe, mediaStreams: [aacAudio] })).toBe(false);
+    expect(castSafeDirectPlay({ ...safe, mediaStreams: undefined })).toBe(false);
+  });
+});
+
+describe("planCastUrl", () => {
+  it("re-negotiates a transcode/HLS session with the cast receiver caps, not the sender's", () => {
+    // usePlaySession poses directPlayUrl for EVERY play method - for a
+    // transcode session it holds the local player's master URL, negotiated
+    // with the BROWSER caps. The cast plan must rebuild it for the receiver.
+    mockCaps.videoCodecs = ["h264", "hevc"];
+    mockCaps.hdr = true;
+    try {
+      const plan = planCastUrl(
+        {
+          playMethod: "PLAY_METHOD_TRANSCODE",
+          container: "mkv",
+          mediaStreams: [{ ...h264Video, codec: "hevc" }, aacAudio],
+          directPlayUrl: "/api/v1/media/m1/hls/master.m3u8?token=tok&videoCodecs=h264%2Chevc&hdr=1",
+        },
+        "m1", "tok", 2, false,
+      );
+      expect(plan.direct).toBe(false);
+      expect(plan.url).toContain("/api/v1/media/m1/hls/master.m3u8");
+      expect(plan.url).toContain("videoCodecs=h264");
+      expect(plan.url).not.toContain("hevc");
+      expect(plan.url).not.toContain("hdr=");
+      expect(plan.url).toContain("audioTrack=2");
+      expect(plan.url).toContain("token=tok");
+    } finally {
+      mockCaps.videoCodecs = ["h264"];
+      mockCaps.hdr = false;
+    }
+  });
+
+  it("flings the raw file only when it is receiver-safe", () => {
+    const plan = planCastUrl(
+      {
+        playMethod: "PLAY_METHOD_DIRECT_PLAY",
+        container: "mp4",
+        mediaStreams: [h264Video, aacAudio],
+        directPlayUrl: "/api/v1/media/m1/stream?token=tok",
+      },
+      "m1", "tok", 0, false,
+    );
+    expect(plan.direct).toBe(true);
+    expect(plan.url).toBe("/api/v1/media/m1/stream?token=tok");
+  });
+
+  it("routes a direct-play the receiver cannot decode through HLS with cast caps", () => {
+    // HEVC mp4 direct-plays on Safari/Edge; a Chromecast floor profile can't
+    // decode it - the cast must go through the server decision instead.
+    const plan = planCastUrl(
+      {
+        playMethod: "PLAY_METHOD_DIRECT_PLAY",
+        container: "mp4",
+        mediaStreams: [{ ...h264Video, codec: "hevc" }, aacAudio],
+        directPlayUrl: "/api/v1/media/m1/stream?token=tok",
+      },
+      "m1", "tok", 0, false,
+    );
+    expect(plan.direct).toBe(false);
+    expect(plan.url).toContain("/api/v1/media/m1/hls/master.m3u8");
+    expect(plan.url).toContain("videoCodecs=h264");
+  });
+
+  it("never carries the wasmAudio flag (the receiver cannot run the wasm decoder)", () => {
+    const plan = planCastUrl(
+      { playMethod: "PLAY_METHOD_TRANSCODE", mediaStreams: [], directPlayUrl: "/x" },
+      "m1", "tok", 0, false,
+    );
+    expect(plan.url).not.toContain("wasmAudio");
   });
 });
 

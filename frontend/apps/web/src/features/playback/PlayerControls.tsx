@@ -45,10 +45,6 @@ interface PlayerControlsProps {
   castConnected?: boolean;
   castDeviceName?: string | null;
   castPlayback?: { playerState: string | null; currentTime: number; duration: number; isPaused: boolean; isMediaLoaded: boolean; volume: number; isMuted: boolean };
-  // Absolute offset the current cast HLS stream was built at (startSec).
-  // The device reports currentTime local to that stream, so the absolute
-  // position is castTranscodeOffset + castPlayback.currentTime.
-  castTranscodeOffset?: number;
   onCastPlayPause?: () => void;
   onCastSeek?: (timeSec: number) => boolean;
   onCastSetVolume?: (level: number) => void;
@@ -85,7 +81,6 @@ function PlayerControlsInner({
   castConnected,
   castDeviceName,
   castPlayback,
-  castTranscodeOffset = 0,
   onCastPlayPause,
   onCastSeek,
   onCastSetVolume,
@@ -111,9 +106,8 @@ function PlayerControlsInner({
   } = ctx;
 
   // When casting, use cast playback state instead of local video state.
-  // The device's currentTime is local to the HLS stream it was handed
-  // (built at startSec=castTranscodeOffset), so add the offset back to
-  // get the absolute position the seek bar / time display expect.
+  // The cast stream is a complete file / VOD manifest from t=0, so the
+  // device's currentTime is already the absolute media position.
   const isCasting = castConnected && castPlayback?.isMediaLoaded;
   const playing = isCasting ? !castPlayback.isPaused : localPlaying;
   const effectiveDuration = localDuration;
@@ -128,9 +122,9 @@ function PlayerControlsInner({
   // bar stops re-rendering 4×/sec. When casting it comes from the device prop;
   // pass that down to the leaves as castTimeSec. Handlers read the *current*
   // position at call time via the ref, never from render state.
-  const castTimeSec = isCasting ? castTranscodeOffset + castPlayback.currentTime : undefined;
+  const castTimeSec = isCasting ? castPlayback.currentTime : undefined;
   const currentAbsoluteTime = () =>
-    isCasting ? castTranscodeOffset + castPlayback.currentTime : timeRef.current.absoluteTime;
+    isCasting ? castPlayback.currentTime : timeRef.current.absoluteTime;
   const currentChapterIndex = useActiveChapterIndex(chapters, videoRef, transcodeOffset, castTimeSec);
 
   const [visible, setVisible] = useState(true);

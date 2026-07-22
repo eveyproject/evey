@@ -1,6 +1,7 @@
 import Hls from "hls.js";
 import type { SubtitleStream } from "../SubtitleSelector";
-import { getBrowserCapabilities } from "@/utils/codec";
+import { getBrowserCapabilities, type BrowserCapabilities } from "@/utils/codec";
+import type { V1StreamInfo } from "@evey/api";
 
 // computeNativeHLSPreference is the pure decision behind prefersNativeHLS,
 // factored out so every browser can be exercised in a unit test without a real
@@ -55,8 +56,10 @@ export function getSelectedBurnInTrack(
   return sub?.burnIn ? currentSubtitle : null;
 }
 
-export function appendCodecParams(params: URLSearchParams): void {
-  const caps = getBrowserCapabilities();
+export function appendCodecParams(
+  params: URLSearchParams,
+  caps: BrowserCapabilities = getBrowserCapabilities(),
+): void {
   if (caps.videoCodecs.length > 0) params.set("videoCodecs", caps.videoCodecs.join(","));
   if (caps.audioCodecs.length > 0) params.set("audioCodecs", caps.audioCodecs.join(","));
   if (caps.containers.length > 0) params.set("containers", caps.containers.join(","));
@@ -76,6 +79,7 @@ export function buildTranscodeHlsUrl(
   audioOffsetMs = 0,
   gapless = false,
   wasmAudio = false,
+  caps?: BrowserCapabilities,
 ): string {
   const params = new URLSearchParams();
   if (token) params.set("token", token);
@@ -95,12 +99,83 @@ export function buildTranscodeHlsUrl(
   // server-side fallback to today's per-episode master when the feature is
   // off / the next episode isn't eligible - never a hard failure client-side.
   if (gapless) params.set("gapless", "1");
-  appendCodecParams(params);
+  appendCodecParams(params, caps);
   // VOD pipeline: server precomputes the manifest from the known media
   // duration so hls.js sees a complete VOD stream from t=0 and never
   // live-edge-snaps. startSec is harmless here - server ignores it and the
   // client seeks via video.currentTime.
   return `/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
+}
+
+// CAST_RECEIVER_CAPABILITIES is the capability profile advertised on every URL
+// handed to a cast device. A cast stream is decoded by the RECEIVER, not by the
+// browser that builds the URL, and neither the Cast SDK nor the Remote Playback
+// fling tells us which Chromecast generation took the stream. So this is the
+// decode floor every generation shares: H.264 8-bit SDR in fMP4, AAC/MP3 audio.
+// HEVC/VP9/AV1 and HDR are Ultra/Google-TV-only - advertising them because the
+// SENDER decodes them turns the server's copy rung into a black screen on a
+// gen 1-3 receiver. AC-3/E-AC-3 are TV-passthrough-dependent, same story.
+// The cost of the floor is a tonemap/transcode for HDR titles on receivers
+// that could have taken the copy; reliability on an unknowable device wins.
+export const CAST_RECEIVER_CAPABILITIES: BrowserCapabilities = {
+  videoCodecs: ["h264"],
+  audioCodecs: ["aac", "mp3"],
+  containers: ["mp4"],
+  hdr: false,
+};
+
+type CastStreamInfo = Pick<V1StreamInfo, "playMethod" | "container" | "mediaStreams" | "directPlayUrl">;
+
+// castSafeDirectPlay reports whether the raw file behind a DIRECT_PLAY session
+// can be flung to a cast receiver as-is: mp4 container, 8-bit SDR H.264, and a
+// default audio track the receiver decodes itself (AAC/MP3). Everything else -
+// HEVC/10-bit/HDR that the SENDER happens to decode, Dolby/DTS audio, non-mp4
+// containers - must go through the server decision with the receiver caps
+// instead, where it becomes a copy rung or a transcode as appropriate.
+export function castSafeDirectPlay(info: CastStreamInfo): boolean {
+  if (info.playMethod !== "PLAY_METHOD_DIRECT_PLAY") return false;
+  if ((info.container ?? "").toLowerCase() !== "mp4") return false;
+  const streams = info.mediaStreams ?? [];
+  const video = streams.find((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
+  if (!video || (video.codec ?? "").toLowerCase() !== "h264") return false;
+  if ((video.bitDepth ?? 8) > 8) return false;
+  const transfer = (video.colorTransfer ?? "").toLowerCase();
+  if (transfer === "smpte2084" || transfer === "arib-std-b67") return false;
+  // The receiver plays the container's DEFAULT audio track; secondary tracks
+  // it can't decode are irrelevant to the fling.
+  const audios = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
+  const audio = audios.find((s) => s.isDefault) ?? audios[0];
+  if (audio) {
+    const codec = (audio.codec ?? "").toLowerCase();
+    if (codec !== "aac" && codec !== "mp3") return false;
+  }
+  return true;
+}
+
+// planCastUrl picks the URL a cast receiver is handed: the raw file when it is
+// receiver-safe, otherwise the HLS master re-negotiated with the receiver caps.
+// Deliberately NOT streamInfo.directPlayUrl in the general case: usePlaySession
+// poses that field for every play method, and for a transcode session it holds
+// the LOCAL player's master URL - negotiated with the browser caps, so a
+// hevc/hdr-capable sender would make the server copy a stream the receiver
+// cannot decode. wasmAudio stays off: the receiver can't run the wasm decoder
+// (and its absence is what tells a receiver fetch from a browser fetch in the
+// server logs). Token handling (session-token append, cast-token swap) stays
+// with the caller.
+export function planCastUrl(
+  info: CastStreamInfo,
+  mediaId: string,
+  token: string,
+  audioTrack: number,
+  gapless: boolean,
+): { url: string; direct: boolean } {
+  if (info.directPlayUrl && castSafeDirectPlay(info)) {
+    return { url: info.directPlayUrl, direct: true };
+  }
+  return {
+    url: buildTranscodeHlsUrl(mediaId, token, audioTrack, null, 0, 0, gapless, false, CAST_RECEIVER_CAPABILITIES),
+    direct: false,
+  };
 }
 
 // shouldRestartTranscodeSeek decides whether a seek in transcode mode can be
