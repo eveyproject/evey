@@ -121,11 +121,20 @@ MONKEY_RUNS=100 npx playwright test scenarios/monkey-testing.spec.ts --timeout=4
 
 ## Pre-push Checklist
 
+One command. `make pre-push` is what the git hook runs and what mirrors CI -
+vet, govulncheck, build, unit tests with `-race`, the frontend suite, the gosec
+ratchet, lint, the architecture guards, the Postgres suite and the transcode
+contract:
+
 ```bash
-go vet $(go list ./... | grep -v /gen/)
-cd frontend && pnpm run typecheck
-go build -o /tmp/evey-check ./cmd/evey
+make pre-push
 ```
+
+Enable the hook once with `make hooks` so this runs on every push. To bypass it
+deliberately: `git push --no-verify`.
+
+Hand-rolled subsets of the above are how a red pipeline gets discovered ten
+minutes after the push instead of before it.
 
 ## Protobuf Workflow
 

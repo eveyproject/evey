@@ -26,12 +26,14 @@ Keep messages concise. Sacrifice grammar for clarity.
 Run locally before every push:
 
 ```sh
-go vet ./...
-go build ./...
-pnpm -r typecheck
-make test
-make lint
+make pre-push
 ```
+
+That is the single gate: vet, govulncheck, build, unit tests with `-race`, the
+frontend suite, the gosec ratchet, lint, the architecture guards, the Postgres
+suite and the transcode contract. It mirrors CI, so a green run here means a
+green pipeline. `make hooks` wires it to `git push`; bypass one push
+deliberately with `git push --no-verify`.
 
 For proto changes: `make proto-gen`.
 
