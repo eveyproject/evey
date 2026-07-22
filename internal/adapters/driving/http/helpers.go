@@ -333,7 +333,17 @@ func securityHeadersMiddleware(httpsOnly bool, next http.Handler) http.Handler {
 		// instead of inlined; until then the iframe's sandbox="allow-scripts"
 		// (no allow-same-origin) is what bounds the plugin: opaque origin, no
 		// access to the parent DOM, storage or cookies.
-		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss:")
+		// media-src and worker-src must both allow blob:. hls.js attaches the
+		// MediaSource through a blob: URL and demuxes in a blob: worker, and
+		// both directives fall back to default-src 'self' when absent - which
+		// does not match blob:, so playback dies. This went unnoticed because
+		// the shipped Caddy strips this header and curates a complete policy of
+		// its own; deployments behind Nginx Proxy Manager or Traefik pass the
+		// app header straight through, exactly as docs/reverse-proxy.md tells
+		// them to, and got a silently broken player. Keep this policy correct
+		// standalone - the proxy is not there to repair it.
+		// frame-src is the Cast SDK's own iframe, script-src alone is not enough.
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; media-src 'self' blob:; worker-src 'self' blob:; font-src 'self' data:; connect-src 'self' https: wss:; frame-src https://www.gstatic.com")
 		if httpsOnly || r.TLS != nil {
 			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		}

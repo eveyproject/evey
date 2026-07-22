@@ -89,6 +89,43 @@ func TestSecurityHeadersMiddleware_CSPAllowsWasmAndCastSDK(t *testing.T) {
 	}
 }
 
+// hls.js attaches the MediaSource through a blob: URL and runs its demuxer in a
+// blob: worker. Neither directive was present, so both fell back to
+// `default-src 'self'`, which does not match blob: - MSE playback dies.
+//
+// It looked fine only because the shipped Caddy strips this header and emits a
+// complete policy of its own (docker/Caddyfile). Anyone behind Nginx Proxy
+// Manager or Traefik passing the app header through - which docs/reverse-proxy.md
+// explicitly tells them is enough - got a silently broken player. The app must
+// emit a policy that is correct on its own.
+func TestSecurityHeadersMiddleware_CSPAllowsBlobMediaAndWorker(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
+	h := securityHeadersMiddleware(false, next)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	csp := w.Header().Get("Content-Security-Policy")
+
+	directive := func(name string) string {
+		for d := range strings.SplitSeq(csp, ";") {
+			if t := strings.TrimSpace(d); strings.HasPrefix(t, name+" ") {
+				return t
+			}
+		}
+		return ""
+	}
+	for _, name := range []string{"media-src", "worker-src"} {
+		got := directive(name)
+		if got == "" {
+			t.Errorf("CSP has no %s directive, so it falls back to default-src 'self' and blocks blob: - full CSP %q", name, csp)
+			continue
+		}
+		if !strings.Contains(got, "blob:") {
+			t.Errorf("%s must allow blob:, got %q", name, got)
+		}
+	}
+}
+
 func TestApiCacheMiddleware_DefaultNoStore(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 	h := apiCacheMiddleware(next)

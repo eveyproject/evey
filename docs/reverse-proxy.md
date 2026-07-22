@@ -29,10 +29,19 @@ All the example configs below already handle this. If you write your own, don't 
 
 ## Security headers & CSP - read this if your proxy sets its own
 
-Evey already emits a Content-Security-Policy. If your proxy passes it through,
-you're done. Many setups instead strip it (`header_down -Content-Security-Policy`
-in Caddy) and curate their own - that's fine, but then **your** policy must keep
-these tokens or features break silently:
+Evey emits a complete Content-Security-Policy. If your proxy passes it through,
+you're done.
+
+> Until 2026-07-23 that sentence was wrong: the app's policy was missing
+> `media-src` and `worker-src`, so `blob:` fell back to `default-src 'self'` and
+> MSE playback broke for anyone who passed it through. It went unnoticed because
+> the bundled Caddy config strips the app header and curates its own. If you run
+> a version older than that behind Nginx Proxy Manager or Traefik and your player
+> fails to start, this is why - curate the policy below at the proxy, or upgrade.
+
+Many setups instead strip it (`header_down -Content-Security-Policy` in Caddy)
+and curate their own - that's fine, but then **your** policy must keep these
+tokens or features break silently:
 
 | Token | Directive | Breaks without it |
 | --- | --- | --- |

@@ -140,7 +140,10 @@ make proto-gen
 
 ```bash
 docker build -t evey .
-# 4 stages: protogen -> frontend -> backend -> runtime (alpine + ffmpeg)
+# 7 stages: gomod -> protogen -> wasmbuild -> frontend -> builder
+#           -> sandbox-glibc -> runtime
+# The runtime is debian:trixie-slim (not alpine): use apt, not apk, when
+# debugging inside it. Only the build stages are alpine-based.
 # Single image serves both API and frontend SPA
 ```
 
