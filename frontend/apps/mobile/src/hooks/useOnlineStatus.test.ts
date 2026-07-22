@@ -1,68 +1,31 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
-import * as Network from "expo-network";
+import { describe, it, expect, afterEach } from "vitest";
+import { renderHook, act } from "@testing-library/react";
+import { onlineManager } from "@tanstack/react-query";
 import { useOnlineStatus } from "./useOnlineStatus";
 
-vi.mock("expo-network", () => ({
-  NetworkStateType: { WIFI: "WIFI", CELLULAR: "CELLULAR" },
-  getNetworkStateAsync: vi.fn(),
-}));
-
-vi.mock("react-native", async () => {
-  const actual = await vi.importActual<typeof import("react-native")>("react-native");
-  return {
-    ...actual,
-    AppState: {
-      addEventListener: vi.fn(() => ({ remove: vi.fn() })),
-      currentState: "active",
-    },
-  };
+afterEach(() => {
+  onlineManager.setOnline(true);
 });
 
-beforeEach(() => {
-  vi.clearAllMocks();
-});
-
-const mockNetwork = vi.mocked(Network.getNetworkStateAsync);
-
+// The hook is now a view onto React Query's onlineManager rather than its own
+// poller. What the OS state MEANS (captive portal, cold-start throw) is tested
+// where that logic lives, in src/lib/online-manager.test.ts; what matters here
+// is that the UI and the query layer can no longer disagree.
 describe("useOnlineStatus", () => {
-  it("reports online when both isConnected and isInternetReachable are true", async () => {
-    mockNetwork.mockResolvedValue({
-      type: Network.NetworkStateType.WIFI,
-      isConnected: true,
-      isInternetReachable: true,
-    });
-
+  it("reflects the shared online state", () => {
+    onlineManager.setOnline(true);
     const { result } = renderHook(() => useOnlineStatus());
-    await waitFor(() => expect(result.current).toBe(true));
+    expect(result.current).toBe(true);
   });
 
-  it("reports offline when not connected", async () => {
-    mockNetwork.mockResolvedValue({
-      type: Network.NetworkStateType.WIFI,
-      isConnected: false,
-      isInternetReachable: false,
-    });
-
+  it("re-renders when connectivity changes", () => {
+    onlineManager.setOnline(true);
     const { result } = renderHook(() => useOnlineStatus());
-    await waitFor(() => expect(result.current).toBe(false));
-  });
 
-  it("reports offline on captive portal (connected but no internet)", async () => {
-    mockNetwork.mockResolvedValue({
-      type: Network.NetworkStateType.WIFI,
-      isConnected: true,
-      isInternetReachable: false,
-    });
+    act(() => onlineManager.setOnline(false));
+    expect(result.current).toBe(false);
 
-    const { result } = renderHook(() => useOnlineStatus());
-    await waitFor(() => expect(result.current).toBe(false));
-  });
-
-  it("falls back to true when expo-network throws", async () => {
-    mockNetwork.mockRejectedValue(new Error("native module not ready"));
-    const { result } = renderHook(() => useOnlineStatus());
-    // Initial state is true; throw shouldn't flip it.
-    await waitFor(() => expect(result.current).toBe(true));
+    act(() => onlineManager.setOnline(true));
+    expect(result.current).toBe(true);
   });
 });
