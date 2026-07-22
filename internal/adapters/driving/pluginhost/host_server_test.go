@@ -3,6 +3,7 @@ package pluginhost
 import (
 	"context"
 	"errors"
+	"maps"
 	"strings"
 	"sync"
 	"testing"
@@ -92,10 +93,7 @@ func clonePlugin(p *plugindomain.Plugin) *plugindomain.Plugin {
 	}
 	cp := *p
 	if p.Config != nil {
-		cp.Config = make(map[string]any, len(p.Config))
-		for k, v := range p.Config {
-			cp.Config[k] = v
-		}
+		cp.Config = maps.Clone(p.Config)
 	}
 	return &cp
 }
