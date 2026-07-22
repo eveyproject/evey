@@ -161,7 +161,7 @@ jobs:
         run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=600s
 
   frontend:
-    name: Frontend - typecheck & build
+    name: Frontend - typecheck, test & build
     # Self-hosted temporarily disabled 2026-07-03 - reusing GitHub-hosted runners
     # for now. Restore the ternary below to route push + same-repo PRs back to the
     # self-hosted workers (fork PRs stayed on GitHub-hosted so untrusted code never
@@ -206,6 +206,13 @@ jobs:
       - name: lint
         working-directory: frontend
         run: pnpm run lint
+
+      # Runs every vitest project at once (web, mobile, tv, store, api). Until
+      # 2026-07-23 this job was typecheck+lint+build only, so the whole frontend
+      # suite gated nothing despite being the larger half of the project's tests.
+      - name: unit tests
+        working-directory: frontend
+        run: pnpm run test
 
       - name: build
         working-directory: frontend

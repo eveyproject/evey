@@ -148,11 +148,19 @@ ci-fast-unit:
 # pre-push before, so a broken typecheck was only ever found on GitHub. Runs in
 # evey-web (the host's pnpm/turbo hit root-owned .turbo dirs). Turbo caches, so
 # an unchanged push is ~1s; a cold frontend build is ~16s.
+#
+# The `test` step was missing until 2026-07-23: 269 test files and ~33k lines
+# of frontend tests existed but no gate anywhere - not turbo, not CI, not this
+# target - ever ran them, so they could have been red for weeks unnoticed. The
+# root `vitest run` covers every project at once (web, mobile, tv, store, api)
+# in ~40s, which is why it is a single step rather than a per-app fan-out.
 ci-fast-frontend:
 	@echo "→ frontend typecheck (evey-web)"
 	@docker exec -w /app evey-web sh -c 'pnpm run typecheck'
 	@echo "→ frontend lint (oxlint, warnings are errors)"
 	@docker exec -w /app evey-web sh -c 'pnpm run lint'
+	@echo "→ frontend unit tests (vitest, all projects)"
+	@docker exec -w /app evey-web sh -c 'pnpm run test'
 	@echo "→ frontend build (evey-web)"
 	@docker exec -w /app evey-web sh -c 'pnpm run build'
 
