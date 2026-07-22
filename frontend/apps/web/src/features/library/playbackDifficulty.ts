@@ -1,4 +1,4 @@
-import type { V1MediaStream, V1StreamInfo } from "@evey/api";
+import type { V1MediaStream } from "@evey/api";
 import { isWasmDecodableAudioCodec } from "@/utils/codec";
 
 // Playback difficulty, derived from the server's OWN decision for THIS device.
@@ -113,13 +113,6 @@ export function channelLabel(channels?: number): string | null {
   }
 }
 
-/** The track the server would actually play - mirrors selectedAudioSpec's
-    default-then-first ordering (commentary flags aren't in the proto). */
-export function selectedAudioStream(streams?: V1MediaStream[]): V1MediaStream | undefined {
-  const audio = streams?.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO") ?? [];
-  return audio.find((s) => s.isDefault) ?? audio[0];
-}
-
 function withDifficulty(level: PlaybackLevel, reasons: string[]): PlaybackDifficulty {
   return { level, difficulty: DIFFICULTY_OF[level], reasons };
 }
@@ -134,23 +127,6 @@ export interface PlaybackFacts {
   transcodeReasons?: string[];
   videoHeight?: number;
   audioCodec?: string;
-}
-
-export function classifyPlayback(
-  info: Pick<V1StreamInfo, "playMethod" | "videoDecision" | "audioDecision" | "transcodeReasons"> | undefined,
-  streams?: V1MediaStream[],
-  /** True when this browser routes AC-3/E-AC-3 through the ac3go wasm decoder. */
-  wasmAudio = false,
-): PlaybackDifficulty | null {
-  if (!info) return null;
-  return classifyPlaybackFacts(
-    {
-      ...info,
-      videoHeight: videoStream(streams)?.height,
-      audioCodec: selectedAudioStream(streams)?.codec,
-    },
-    wasmAudio,
-  );
 }
 
 export function classifyPlaybackFacts(

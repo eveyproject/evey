@@ -1,40 +1,34 @@
 import { useMemo } from "react";
 import type { V1MediaItem } from "@evey/api";
-import { usePlaybackServiceGetStreamInfo } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { PlaybackDifficultyBadge } from "./PlaybackDifficultyBadge";
-import { getBrowserCapabilities, canWasmDecodeAC3 } from "@/utils/codec";
+import { usePlaybackDifficulties } from "@/hooks/usePlaybackDifficulties";
 import { formatFileSize, hasMediaFile } from "./mediaDetailUtils";
 import {
-  classifyPlayback,
   channelLabel,
   hdrLabel,
   resolutionLabel,
   videoStream,
 } from "./playbackDifficulty";
 
-// MediaDifficultyBadge asks the server what IT would do with this ONE file for
-// THIS browser. List views must not use it - they have the bulk hook
-// (usePlaybackDifficulties), which answers for a whole page in one request.
+// MediaDifficultyBadge goes through the SAME bulk endpoint the lists use, with
+// a single id, rather than through GetStreamInfo. Two reasons:
+//
+//  - One rule set. GetStreamInfo returns no source audio codec, so this had to
+//    re-pick the played audio track client-side - and it could not match the
+//    server, which skips commentary tracks (the proto carries no commentary
+//    flag). A default commentary track would have flipped the AC-3 wasm
+//    exemption and mis-graded the title.
+//  - No side effect. GetStreamInfo runs keyframeOnDemand.TryIndex, a disk probe
+//    meant for a file about to play. Firing it just to draw a badge made every
+//    visit to a media page pay for an indexing attempt.
 function MediaDifficultyBadge({ item }: { item: V1MediaItem }) {
-  const caps = useMemo(() => getBrowserCapabilities(), []);
-  // No maxWidth/maxHeight, deliberately: screen size is not a decode
-  // capability, and sending it makes the server flag resolution_exceeded and
-  // report a transcode for a title the device plays natively. Same reasoning as
-  // usePlaySession - keep the call sites in agreement or the badge will
-  // contradict what actually happens at play time.
-  const { data: info } = usePlaybackServiceGetStreamInfo(
-    item.id ?? "",
-    {
-      supportedCodecs: caps.videoCodecs,
-      supportedAudioCodecs: caps.audioCodecs,
-      supportedContainers: caps.containers,
-      supportsHdr: caps.hdr,
-    },
-    { query: { enabled: !!item.id && hasMediaFile(item), retry: false } } as never,
+  const ids = useMemo(
+    () => (item.id && hasMediaFile(item) ? [item.id] : []),
+    [item.id, item],
   );
-
-  const d = classifyPlayback(info, item.streams, canWasmDecodeAC3());
+  const difficulties = usePlaybackDifficulties(ids);
+  const d = item.id ? difficulties.get(item.id) : undefined;
   if (!d) return null;
   return <PlaybackDifficultyBadge difficulty={d} />;
 }

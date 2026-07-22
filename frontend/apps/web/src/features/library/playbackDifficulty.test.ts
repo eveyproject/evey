@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
-  classifyPlayback,
+  classifyPlaybackFacts,
   hdrLabel,
   resolutionLabel,
   channelLabel,
   videoStream,
+  isHeavyToStream,
 } from "./playbackDifficulty";
 
 const video = (over: Record<string, unknown> = {}) =>
@@ -12,100 +13,90 @@ const video = (over: Record<string, unknown> = {}) =>
 const audio = (over: Record<string, unknown> = {}) =>
   ({ type: "MEDIA_STREAM_TYPE_AUDIO", codec: "ac3", channels: 6, ...over }) as never;
 
-describe("classifyPlayback", () => {
+describe("classifyPlaybackFacts", () => {
   it("returns null without a decision (nothing to claim yet)", () => {
-    expect(classifyPlayback(undefined, [video()])).toBeNull();
-    expect(classifyPlayback({ playMethod: undefined }, [video()])).toBeNull();
+    expect(classifyPlaybackFacts(undefined)).toBeNull();
+    expect(classifyPlaybackFacts({ playMethod: undefined })).toBeNull();
   });
 
   it("direct play", () => {
-    const d = classifyPlayback({ playMethod: "PLAY_METHOD_DIRECT_PLAY", transcodeReasons: [] }, [video()]);
-    expect(d?.level).toBe("direct");
+    expect(
+      classifyPlaybackFacts({ playMethod: "PLAY_METHOD_DIRECT_PLAY", transcodeReasons: [] })?.level,
+    ).toBe("direct");
   });
 
   it("direct stream is a remux, not a transcode", () => {
-    const d = classifyPlayback(
-      { playMethod: "PLAY_METHOD_DIRECT_STREAM", transcodeReasons: ["container_incompatible"] },
-      [video()],
-    );
+    const d = classifyPlaybackFacts({
+      playMethod: "PLAY_METHOD_DIRECT_STREAM",
+      transcodeReasons: ["container_incompatible"],
+    });
     expect(d?.level).toBe("remux");
+    expect(d?.difficulty).toBe("easy");
   });
 
   it("transcode with the video copied is audio-only", () => {
-    const d = classifyPlayback(
-      {
-        playMethod: "PLAY_METHOD_TRANSCODE",
-        videoDecision: "copy",
-        audioDecision: "transcode",
-        transcodeReasons: ["audio_codec_unsupported"],
-      },
-      [video({ height: 1080 }), audio()],
-    );
+    const d = classifyPlaybackFacts({
+      playMethod: "PLAY_METHOD_TRANSCODE",
+      videoDecision: "copy",
+      audioDecision: "transcode",
+      transcodeReasons: ["audio_codec_unsupported"],
+      videoHeight: 1080,
+      audioCodec: "dts",
+    });
     expect(d?.level).toBe("audioOnly");
+    expect(d?.difficulty).toBe("moderate");
   });
 
-  it("1080p video transcode is 'video', not 'heavy'", () => {
-    const d = classifyPlayback(
-      {
-        playMethod: "PLAY_METHOD_TRANSCODE",
-        videoDecision: "transcode",
-        transcodeReasons: ["video_codec_unsupported"],
-      },
-      [video({ width: 1920, height: 1080 })],
-    );
-    expect(d?.level).toBe("video");
-  });
-
-  // The real file: an old DivX, MPEG-4 ASP 720x404 + MP3 in AVI. Everything is
-  // re-encoded, but re-encoding 404 lines is not a demanding job - grading only
-  // on "is the video re-encoded?" put this in the same bucket as 1080p.
+  // The real file behind the complaint: an old DivX, MPEG-4 ASP 720x404 + MP3
+  // in AVI. Everything is re-encoded, but re-encoding 404 lines is not a
+  // demanding job - grading only on "is the video re-encoded?" put this in the
+  // same bucket as 1080p.
   it("grades an old SD DivX as light, not demanding", () => {
-    const d = classifyPlayback(
-      {
-        playMethod: "PLAY_METHOD_TRANSCODE",
-        videoDecision: "transcode",
-        audioDecision: "transcode",
-        transcodeReasons: ["video_codec_unsupported", "audio_codec_unsupported", "container_incompatible"],
-      },
-      [video({ codec: "mpeg4", width: 720, height: 404 }), audio({ codec: "mp3", channels: 2 })],
-    );
+    const d = classifyPlaybackFacts({
+      playMethod: "PLAY_METHOD_TRANSCODE",
+      videoDecision: "transcode",
+      audioDecision: "transcode",
+      transcodeReasons: ["video_codec_unsupported", "audio_codec_unsupported", "container_incompatible"],
+      videoHeight: 404,
+      audioCodec: "mp3",
+    });
     expect(d?.level).toBe("videoSd");
     expect(d?.difficulty).toBe("moderate");
   });
 
   it("treats 576p as the top of SD and 720p as demanding", () => {
-    const info = { playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "transcode", transcodeReasons: [] };
-    expect(classifyPlayback(info, [video({ height: 576 })])?.difficulty).toBe("moderate");
-    expect(classifyPlayback(info, [video({ height: 720 })])?.difficulty).toBe("demanding");
+    const base = { playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "transcode", transcodeReasons: [] };
+    expect(classifyPlaybackFacts({ ...base, videoHeight: 576 })?.difficulty).toBe("moderate");
+    expect(classifyPlaybackFacts({ ...base, videoHeight: 720 })?.difficulty).toBe("demanding");
   });
 
   it("assumes HD when the row carries no dimensions", () => {
-    const info = { playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "transcode", transcodeReasons: [] };
-    expect(classifyPlayback(info, [video({ width: 0, height: 0 })])?.difficulty).toBe("demanding");
-  });
-
-  it("4K video transcode is heavy", () => {
-    const d = classifyPlayback(
-      {
+    expect(
+      classifyPlaybackFacts({
         playMethod: "PLAY_METHOD_TRANSCODE",
         videoDecision: "transcode",
-        transcodeReasons: ["video_codec_unsupported"],
-      },
-      [video({ height: 2160 })],
-    );
-    expect(d?.level).toBe("heavy");
+        transcodeReasons: [],
+        videoHeight: 0,
+      })?.difficulty,
+    ).toBe("demanding");
+  });
+
+  it("1440p and above is heavy", () => {
+    const base = { playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "transcode", transcodeReasons: [] };
+    expect(classifyPlaybackFacts({ ...base, videoHeight: 1080 })?.difficulty).toBe("demanding");
+    expect(classifyPlaybackFacts({ ...base, videoHeight: 1440 })?.difficulty).toBe("hard");
+    expect(classifyPlaybackFacts({ ...base, videoHeight: 2160 })?.level).toBe("heavy");
   });
 
   it("HDR tonemapping is heavy even at 1080p", () => {
-    const d = classifyPlayback(
-      {
-        playMethod: "PLAY_METHOD_TRANSCODE",
-        videoDecision: "transcode",
-        transcodeReasons: ["hdr_tonemapping_needed"],
-      },
-      [video({ height: 1080 })],
-    );
+    const d = classifyPlaybackFacts({
+      playMethod: "PLAY_METHOD_TRANSCODE",
+      videoDecision: "transcode",
+      transcodeReasons: ["hdr_tonemapping_needed"],
+      videoHeight: 1080,
+    });
     expect(d?.level).toBe("heavy");
+    expect(d?.difficulty).toBe("hard");
   });
 
   it("does not call AC-3 an audio transcode when the browser decodes it in wasm", () => {
@@ -114,89 +105,106 @@ describe("classifyPlayback", () => {
       videoDecision: "copy",
       audioDecision: "transcode",
       transcodeReasons: ["audio_codec_unsupported"],
+      videoHeight: 1080,
+      audioCodec: "eac3",
     };
-    const streams = [video({ codec: "h264", width: 1920, height: 1080 }), audio({ codec: "eac3", isDefault: true })];
-
-    // Without the wasm path (Safari decodes AC-3 natively, so it never gets here)
-    expect(classifyPlayback(info, streams, false)?.level).toBe("audioOnly");
-    expect(classifyPlayback(info, streams, false)?.difficulty).toBe("moderate");
-
-    // With it: the track is copied out-of-band, nothing is re-encoded.
-    expect(classifyPlayback(info, streams, true)?.level).toBe("wasmAudio");
-    expect(classifyPlayback(info, streams, true)?.difficulty).toBe("easy");
+    // Safari decodes AC-3 natively and never takes the wasm path.
+    expect(classifyPlaybackFacts(info, false)?.level).toBe("audioOnly");
+    expect(classifyPlaybackFacts(info, false)?.difficulty).toBe("moderate");
+    // With wasm the track is copied out-of-band: nothing is re-encoded.
+    expect(classifyPlaybackFacts(info, true)?.level).toBe("wasmAudio");
+    expect(classifyPlaybackFacts(info, true)?.difficulty).toBe("easy");
   });
 
-  // The real response from the server for an MKV + E-AC-3 title on Chrome. Both
-  // reasons come back together; neither is an encode once wasm handles the audio.
+  // The real server response for an MKV + E-AC-3 title on Chrome: BOTH reasons
+  // come back together, and neither is an encode once wasm handles the audio.
   it("handles the real MKV + E-AC-3 Chrome case as easy", () => {
-    const info = {
-      playMethod: "PLAY_METHOD_TRANSCODE",
-      videoDecision: "copy",
-      audioDecision: "transcode",
-      transcodeReasons: ["audio_codec_unsupported", "container_incompatible"],
-    };
-    const streams = [video({ codec: "h264", width: 1920, height: 1080 }), audio({ codec: "eac3", isDefault: true })];
-    const d = classifyPlayback(info, streams, true);
+    const d = classifyPlaybackFacts(
+      {
+        playMethod: "PLAY_METHOD_TRANSCODE",
+        videoDecision: "copy",
+        audioDecision: "transcode",
+        transcodeReasons: ["audio_codec_unsupported", "container_incompatible"],
+        videoHeight: 1080,
+        audioCodec: "eac3",
+      },
+      true,
+    );
     expect(d?.level).toBe("wasmAudio");
     expect(d?.difficulty).toBe("easy");
   });
 
-  it("a container mismatch alone is a repackage, never an audio transcode", () => {
-    const info = {
-      playMethod: "PLAY_METHOD_TRANSCODE",
-      videoDecision: "copy",
-      audioDecision: "copy",
-      transcodeReasons: ["container_incompatible"],
-    };
-    const d = classifyPlayback(info, [video({ height: 1080 }), audio({ codec: "aac" })], false);
-    expect(d?.level).toBe("remux");
-    expect(d?.difficulty).toBe("easy");
-  });
-
   it("keeps the wasm exemption to AC-3 only", () => {
-    const info = {
-      playMethod: "PLAY_METHOD_TRANSCODE",
-      videoDecision: "copy",
-      audioDecision: "transcode",
-      transcodeReasons: ["audio_codec_unsupported"],
-    };
-    const streams = [video({ height: 1080 }), audio({ codec: "truehd", isDefault: true })];
-    expect(classifyPlayback(info, streams, true)?.level).toBe("audioOnly");
+    const d = classifyPlaybackFacts(
+      {
+        playMethod: "PLAY_METHOD_TRANSCODE",
+        videoDecision: "copy",
+        audioDecision: "transcode",
+        transcodeReasons: ["audio_codec_unsupported"],
+        videoHeight: 1080,
+        audioCodec: "truehd",
+      },
+      true,
+    );
+    expect(d?.level).toBe("audioOnly");
   });
 
   it("still reports work the wasm path does not absorb", () => {
-    const info = {
-      playMethod: "PLAY_METHOD_TRANSCODE",
-      videoDecision: "copy",
-      audioDecision: "transcode",
-      transcodeReasons: ["audio_codec_unsupported", "audio_channels_exceeded"],
-    };
-    const streams = [video({ height: 1080 }), audio({ codec: "eac3", isDefault: true })];
-    const d = classifyPlayback(info, streams, true);
+    const d = classifyPlaybackFacts(
+      {
+        playMethod: "PLAY_METHOD_TRANSCODE",
+        videoDecision: "copy",
+        audioDecision: "transcode",
+        transcodeReasons: ["audio_codec_unsupported", "audio_channels_exceeded"],
+        videoHeight: 1080,
+        audioCodec: "eac3",
+      },
+      true,
+    );
     expect(d?.level).toBe("audioOnly");
     expect(d?.reasons).toEqual(["audio_channels_exceeded"]);
   });
 
-  it("maps every level onto a difficulty", () => {
-    const at = (over: Record<string, unknown>, streams: unknown[]) =>
-      classifyPlayback(over as never, streams as never, false)?.difficulty;
-    expect(at({ playMethod: "PLAY_METHOD_DIRECT_PLAY" }, [video()])).toBe("easy");
-    expect(at({ playMethod: "PLAY_METHOD_DIRECT_STREAM" }, [video()])).toBe("easy");
-    expect(at({ playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "transcode", transcodeReasons: [] }, [video({ height: 480 })])).toBe("moderate");
-    expect(at({ playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "transcode", transcodeReasons: [] }, [video({ height: 1080 })])).toBe("demanding");
-    expect(at({ playMethod: "PLAY_METHOD_TRANSCODE", videoDecision: "transcode", transcodeReasons: [] }, [video({ height: 2160 })])).toBe("hard");
+  it("a container mismatch alone is a repackage, never an audio transcode", () => {
+    const d = classifyPlaybackFacts({
+      playMethod: "PLAY_METHOD_TRANSCODE",
+      videoDecision: "copy",
+      audioDecision: "copy",
+      transcodeReasons: ["container_incompatible"],
+      videoHeight: 1080,
+      audioCodec: "aac",
+    });
+    expect(d?.level).toBe("remux");
+    expect(d?.difficulty).toBe("easy");
   });
 
   it("carries the server reasons through for the tooltip", () => {
-    const d = classifyPlayback(
-      {
-        playMethod: "PLAY_METHOD_TRANSCODE",
-        videoDecision: "transcode",
-        transcodeReasons: ["video_codec_unsupported", "audio_channels_exceeded"],
-      },
-      [video()],
-    );
+    const d = classifyPlaybackFacts({
+      playMethod: "PLAY_METHOD_TRANSCODE",
+      videoDecision: "transcode",
+      transcodeReasons: ["video_codec_unsupported", "audio_channels_exceeded"],
+      videoHeight: 2160,
+    });
     expect(d?.reasons).toEqual(["video_codec_unsupported", "audio_channels_exceeded"]);
+  });
+
+  it("treats an unknown play method as a transcode rather than claiming it is light", () => {
+    const d = classifyPlaybackFacts({
+      playMethod: "PLAY_METHOD_SOMETHING_NEW",
+      videoDecision: "transcode",
+      videoHeight: 1080,
+    });
+    expect(d?.difficulty).toBe("demanding");
+  });
+});
+
+describe("isHeavyToStream", () => {
+  it("flags only the levels worth warning about", () => {
+    expect(isHeavyToStream({ level: "heavy", difficulty: "hard", reasons: [] })).toBe(true);
+    expect(isHeavyToStream({ level: "video", difficulty: "demanding", reasons: [] })).toBe(true);
+    expect(isHeavyToStream({ level: "audioOnly", difficulty: "moderate", reasons: [] })).toBe(false);
+    expect(isHeavyToStream({ level: "direct", difficulty: "easy", reasons: [] })).toBe(false);
+    expect(isHeavyToStream(undefined)).toBe(false);
   });
 });
 

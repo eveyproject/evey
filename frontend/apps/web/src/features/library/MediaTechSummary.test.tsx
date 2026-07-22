@@ -3,24 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { V1MediaItem } from "@evey/api";
 import { MediaTechSummary } from "./MediaTechSummary";
 
-const mockStreamInfo = vi.fn();
+const mockDifficulties = vi.fn();
 
-vi.mock("@evey/api", async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  usePlaybackServiceGetStreamInfo: (...args: unknown[]) => mockStreamInfo(...args),
-}));
-
-const mockWasm = vi.fn(() => false);
-
-vi.mock("@/utils/codec", async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  getBrowserCapabilities: () => ({
-    videoCodecs: ["h264"],
-    audioCodecs: ["aac"],
-    containers: ["mp4"],
-    hdr: false,
-  }),
-  canWasmDecodeAC3: () => mockWasm(),
+// The summary asks the SAME bulk hook the lists use, with a single id, rather
+// than GetStreamInfo - so the badge cannot diverge from what a list shows, and
+// visiting a media page no longer triggers the keyframe on-demand disk probe.
+vi.mock("@/hooks/usePlaybackDifficulties", () => ({
+  usePlaybackDifficulties: (...args: unknown[]) => mockDifficulties(...args),
 }));
 
 function makeItem(overrides: Partial<V1MediaItem> = {}): V1MediaItem {
@@ -39,7 +28,7 @@ function makeItem(overrides: Partial<V1MediaItem> = {}): V1MediaItem {
 describe("MediaTechSummary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockStreamInfo.mockReturnValue({ data: undefined });
+    mockDifficulties.mockReturnValue(new Map());
   });
 
   it("shows only what a viewer reads: size of picture, HDR, sound, weight", () => {
@@ -48,63 +37,6 @@ describe("MediaTechSummary", () => {
     expect(screen.getByText("HDR10")).toBeInTheDocument();
     expect(screen.getByText("5.1")).toBeInTheDocument();
     expect(screen.getByText("1.0 GB")).toBeInTheDocument();
-  });
-
-  it("renders no difficulty badge until the server has decided", () => {
-    render(<MediaTechSummary item={makeItem()} />);
-    expect(screen.queryByTestId("playback-difficulty")).not.toBeInTheDocument();
-  });
-
-  it("reports a heavy transcode for 4K HDR that the device can't take", () => {
-    mockStreamInfo.mockReturnValue({
-      data: {
-        playMethod: "PLAY_METHOD_TRANSCODE",
-        videoDecision: "transcode",
-        audioDecision: "transcode",
-        transcodeReasons: ["hdr_tonemapping_needed"],
-      },
-    });
-    render(<MediaTechSummary item={makeItem()} />);
-    expect(screen.getByText("Very heavy")).toBeInTheDocument();
-  });
-
-  it("reports direct play when the server asks for nothing", () => {
-    mockStreamInfo.mockReturnValue({
-      data: { playMethod: "PLAY_METHOD_DIRECT_PLAY", transcodeReasons: [] },
-    });
-    render(<MediaTechSummary item={makeItem()} />);
-    expect(screen.getByText("Light")).toBeInTheDocument();
-  });
-
-  it("does not query for a container that has no file of its own", () => {
-    render(<MediaTechSummary item={{ id: "s-1", fileSize: "0" } as V1MediaItem} />);
-    const opts = mockStreamInfo.mock.calls[0]?.[2] as { query?: { enabled?: boolean } };
-    expect(opts?.query?.enabled).toBe(false);
-  });
-
-  it("never sends screen dimensions as a decode capability", () => {
-    render(<MediaTechSummary item={makeItem()} />);
-    const params = mockStreamInfo.mock.calls[0]?.[1] as Record<string, unknown>;
-    expect(params).not.toHaveProperty("maxWidth");
-    expect(params).not.toHaveProperty("maxHeight");
-    expect(params.supportsHdr).toBe(false);
-  });
-
-  it("does not bill AC-3 as a transcode when the browser decodes it in wasm", () => {
-    mockWasm.mockReturnValue(true);
-    mockStreamInfo.mockReturnValue({
-      data: {
-        playMethod: "PLAY_METHOD_TRANSCODE",
-        videoDecision: "copy",
-        audioDecision: "transcode",
-        transcodeReasons: ["audio_codec_unsupported"],
-      },
-    });
-    render(<MediaTechSummary item={makeItem({ streams: [
-      { index: 0, type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264", width: 1920, height: 1080 },
-      { index: 1, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "eac3", channels: 6, isDefault: true },
-    ] } as Partial<V1MediaItem>)} />);
-    expect(screen.getByText("Light")).toBeInTheDocument();
   });
 
   // Codec and container names were the bulk of the jargon and say nothing to
@@ -116,21 +48,40 @@ describe("MediaTechSummary", () => {
     expect(screen.queryByText(/MKV|MATROSKA/)).not.toBeInTheDocument();
   });
 
+  it("renders no difficulty badge until the server has decided", () => {
+    render(<MediaTechSummary item={makeItem()} />);
+    expect(screen.queryByTestId("playback-difficulty")).not.toBeInTheDocument();
+  });
+
+  it("shows the verdict the server returned for this item", () => {
+    mockDifficulties.mockReturnValue(
+      new Map([["m-1", { level: "heavy", difficulty: "hard", reasons: [] }]]),
+    );
+    render(<MediaTechSummary item={makeItem()} />);
+    expect(screen.getByText("Very heavy")).toBeInTheDocument();
+  });
+
   it("explains the badge in one plain sentence, not in reason codes", () => {
-    mockStreamInfo.mockReturnValue({
-      data: {
-        playMethod: "PLAY_METHOD_TRANSCODE",
-        videoDecision: "transcode",
-        transcodeReasons: ["hdr_tonemapping_needed"],
-      },
-    });
+    mockDifficulties.mockReturnValue(
+      new Map([["m-1", { level: "heavy", difficulty: "hard", reasons: ["hdr_tonemapping_needed"] }]]),
+    );
     render(<MediaTechSummary item={makeItem()} />);
     const badge = screen.getByTestId("playback-difficulty");
-    expect(badge).toHaveAttribute("title", expect.stringContaining("converted"));
+    expect(badge.getAttribute("title")).toContain("converted");
     expect(badge.getAttribute("title")).not.toContain("hdr_tonemapping_needed");
   });
 
-  it("counts the extra audio tracks", () => {
+  it("does not query for a container that has no file of its own", () => {
+    render(<MediaTechSummary item={{ id: "s-1", fileSize: "0" } as V1MediaItem} />);
+    expect(mockDifficulties).toHaveBeenCalledWith([]);
+  });
+
+  it("asks for exactly the one id it is showing", () => {
+    render(<MediaTechSummary item={makeItem()} />);
+    expect(mockDifficulties).toHaveBeenCalledWith(["m-1"]);
+  });
+
+  it("reads the channel count of the default audio track", () => {
     const item = makeItem({
       streams: [
         { index: 0, type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264", width: 1920, height: 1080 },
@@ -140,5 +91,6 @@ describe("MediaTechSummary", () => {
     } as Partial<V1MediaItem>);
     render(<MediaTechSummary item={item} />);
     expect(screen.getByText("2.0")).toBeInTheDocument();
+    expect(screen.getByText("1080p")).toBeInTheDocument();
   });
 });
