@@ -7,7 +7,7 @@ import { libraryServiceGetMediaItem, libraryServiceListMediaItems } from "@evey/
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
-import { playerCloseTarget } from "@/features/playback/playerUtils";
+import { playerExit } from "@/features/playback/playerUtils";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import type { AudioStream, SubtitleStream } from "@/features/playback/HLSPlayer";
@@ -182,19 +182,19 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
 
   const handleClose = useCallback(() => {
     usePlayerStore.getState().stop();
-    // ALWAYS the media page, never router.history.back().
-    //
-    // Back looks right until autoplay chains episodes: each one pushes a
-    // history entry, so the previous entry is the PREVIOUS EPISODE. Leaving a
-    // binge then walked backwards through the season one episode at a time
-    // instead of returning to the season. history.back() was also a no-op on a
-    // deep link or hard refresh, where the SPA history is empty.
-    //
-    // An episode goes to its SEASON (that is the page listing it); anything
-    // else goes to its own page.
+    // Closing POPS the player's entry. Navigating forward to the media page
+    // instead left the player in the back stack, and the media page's own
+    // "Retour" then walked right back into it and started the episode again.
+    // See playerExit for why back() is safe here (episode changes replace).
+    const exit = playerExit(router.history.canGoBack(), mediaId, mediaItem);
+    if (exit.action === "back") {
+      router.history.back();
+      return;
+    }
     void router.navigate({
       to: "/media/$mediaId",
-      params: { mediaId: playerCloseTarget(mediaId, mediaItem) },
+      params: { mediaId: exit.mediaId },
+      replace: true,
     });
   }, [router, mediaId, mediaItem?.type, mediaItem?.parentId]);
 
@@ -287,7 +287,11 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
   const handleEpisodeChange = useCallback(
     (episodeId: string) => {
       usePlayerStore.getState().stop();
-      void router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId } });
+      // REPLACE, never push: this is both the autoplay chain and the episode
+      // picker, and one entry per episode is what made "back" walk a binge
+      // backwards through the season. Replacing keeps exactly one player entry,
+      // which is also the invariant playerExit's back() relies on.
+      void router.navigate({ to: "/player/$mediaId", params: { mediaId: episodeId }, replace: true });
     },
     [router],
   );

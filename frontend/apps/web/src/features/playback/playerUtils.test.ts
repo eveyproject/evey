@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatTime, nominalQualityTier, playerCloseTarget } from "./playerUtils";
+import { formatTime, nominalQualityTier, playerCloseTarget, playerExit } from "./playerUtils";
 
 describe("nominalQualityTier", () => {
   it("rounds a widescreen height to the nearest standard tier", () => {
@@ -41,6 +41,36 @@ describe("formatTime", () => {
 
   it("truncates fractional seconds", () => {
     expect(formatTime(61.7)).toBe("1:01");
+  });
+});
+
+// Regression: closing the player NAVIGATED FORWARD to the media page, which
+// left the player's own entry sitting in the back stack. The media page's own
+// "Retour" button then walked straight back into it and autoplayed the episode
+// again (reported on a season page after watching episode 2).
+describe("playerExit", () => {
+  const episode = { type: "MEDIA_ITEM_TYPE_EPISODE", parentId: "season-2" };
+
+  it("pops the player's own entry when there is one, instead of pushing a page on top of it", () => {
+    expect(playerExit(true, "ep-9", episode)).toEqual({ action: "back" });
+  });
+
+  it("navigates to the season - REPLACING the player entry - on a deep link with nothing to pop", () => {
+    expect(playerExit(false, "ep-9", episode)).toEqual({ action: "replace", mediaId: "season-2" });
+  });
+
+  it("sends a film with no history back to its own page", () => {
+    expect(playerExit(false, "movie-1", { type: "MEDIA_ITEM_TYPE_MOVIE" })).toEqual({
+      action: "replace",
+      mediaId: "movie-1",
+    });
+  });
+
+  it("never answers with a plain forward navigation - that is the bug it exists to prevent", () => {
+    for (const canGoBack of [true, false]) {
+      const exit = playerExit(canGoBack, "ep-9", episode);
+      expect(exit.action === "back" || exit.action === "replace").toBe(true);
+    }
   });
 });
 
