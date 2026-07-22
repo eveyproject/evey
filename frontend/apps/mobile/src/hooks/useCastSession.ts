@@ -79,10 +79,14 @@ export function useCastSession({
     if (castConnected && castClient) {
       await castLoadMedia(castClient);
     } else {
-      muteLocalPlayer();
+      // Deliberately NOT muting here. Silencing the local player before the
+      // picker opens leaves it paused at volume 0 when the user dismisses the
+      // picker: dismissing changes no cast state, so no effect re-runs and
+      // nothing undoes it. castLoadMedia mutes at the point the receiver
+      // actually takes over, which is the only moment it is safe to.
       CastContext.showCastDialog?.();
     }
-  }, [castConnected, castClient, castLoadMedia, muteLocalPlayer]);
+  }, [castConnected, castClient, castLoadMedia]);
 
   // Auto-load when cast client becomes available after dialog
   const castLoadedForMedia = useRef<string | null>(null);
