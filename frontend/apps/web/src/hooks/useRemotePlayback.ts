@@ -58,12 +58,23 @@ export function useRemotePlayback(
   const reportRef = useRef(report);
   reportRef.current = report;
 
-  // The one fact no server log could ever answer: did the phone see a device
-  // at the moment the user tapped?
+  // The facts no server log could ever answer, captured at the instant of the
+  // tap. `activation` is the one that separates the two causes hiding behind a
+  // NotAllowedError: false means the tap's transient user activation was spent
+  // (an await between the tap and prompt()), true means the browser refused for
+  // its own reasons. `src`/`state` say whether the element even had something
+  // flingable to offer.
   const reportAttempt = useCallback(() => {
+    const remote = remoteOf(video);
+    const activation = typeof navigator !== "undefined" && "userActivation" in navigator
+      ? (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation?.isActive
+      : undefined;
     reportRef.current({
       type: "cast_prompt",
-      details: `available=${availableRef.current} supported=${remoteOf(video) != null}`,
+      details: `available=${availableRef.current} supported=${remote != null}`
+        + ` activation=${activation ?? "n/a"}`
+        + ` src=${video?.currentSrc ? "yes" : video?.src ? "set" : "none"}`
+        + ` state=${(remote as { state?: string } | null)?.state ?? "n/a"}`,
     });
   }, [video]);
 
@@ -73,7 +84,11 @@ export function useRemotePlayback(
       // The DOMException name is the whole diagnosis: NotSupportedError (the
       // source is not flingable) and NotFoundError (no device took it) are
       // different bugs, and an empty catch erased both.
-      details: outcome === "error" ? `error:${errName ?? "unknown"}` : outcome,
+      // ALWAYS carry the exception name, including on a "dismissal":
+      // NotAllowedError covers both a user closing the picker and a browser
+      // refusing outright, and collapsing them to "dismissed" is exactly what
+      // made a real failure look like a user cancelling for weeks.
+      details: errName ? `${outcome}:${errName}` : outcome,
       fatal: outcome === "error",
     });
   }, []);

@@ -327,7 +327,15 @@ export function useCasting(report?: CastReporter) {
   // refused the media, and handing it the same URL another way changes nothing.
   const startCast = useCallback(async (streamUrl: string, title?: string, startAtSec = 0): Promise<CastAttempt> => {
     log(TAG, "startCast - url:", streamUrl, "title:", title, "startAtSec:", startAtSec);
-    reportRef.current?.({ type: "cast_prompt", details: `sdk=${chromecastReady.current}` });
+    // Same diagnostic payload as the fling path: whether the tap's activation
+    // was still alive tells a browser refusal apart from a user cancelling.
+    const activation = typeof navigator !== "undefined" && "userActivation" in navigator
+      ? (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation?.isActive
+      : undefined;
+    reportRef.current?.({
+      type: "cast_prompt",
+      details: `sdk=${chromecastReady.current} activation=${activation ?? "n/a"}`,
+    });
 
     const origin = localStorage.getItem("cast_base_url") || window.location.origin;
     const absoluteUrl = streamUrl.startsWith("http")

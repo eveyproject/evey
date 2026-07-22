@@ -211,9 +211,13 @@ describe("useRemotePlayback", () => {
       await act(async () => { await result.current.promptForUrl("https://x/m.m3u8"); });
       expect(outcomes().at(-1).details).toBe("connected");
 
+      // A dismissal now carries its exception name too: NotAllowedError means
+      // EITHER the user closed the picker OR the browser refused (spent user
+      // activation). Collapsing both to "dismissed" is what hid a real failure
+      // behind a harmless-looking label for weeks.
       remote.prompt.mockRejectedValueOnce(new DOMException("dismissed", "NotAllowedError"));
       await act(async () => { await result.current.promptForUrl("https://x/m.m3u8"); });
-      expect(outcomes().at(-1).details).toBe("dismissed");
+      expect(outcomes().at(-1).details).toBe("dismissed:NotAllowedError");
 
       // The DOMException NAME is the diagnostic payload: NotSupportedError
       // (source not flingable) and NotFoundError (no device took it) are
