@@ -64,6 +64,28 @@ func NewMetricsSampler(
 	}
 }
 
+// minSampleInterval floors the operator-configured cadence. Below this the
+// sampler would write server_metric rows faster than the dashboard can use
+// them, on the same database the players are hitting - so a fat-fingered
+// value falls back to the default instead of being obeyed literally.
+const minSampleInterval = time.Second
+
+// WithSampleInterval applies the operator's EVEY_METRICS_SAMPLE_INTERVAL_SEC.
+// Chainable. A non-positive value means "unset" (envInt yields 0 when the
+// variable is absent) and anything under minSampleInterval is refused: both
+// keep the built-in default. Until this existed the setting was parsed into
+// config and never read, so setting it did nothing and said nothing.
+func (s *MetricsSampler) WithSampleInterval(d time.Duration) *MetricsSampler {
+	if d >= minSampleInterval {
+		s.interval = d
+	}
+	return s
+}
+
+// SampleInterval exposes the cadence actually in force - the operator-set one
+// or the default.
+func (s *MetricsSampler) SampleInterval() time.Duration { return s.interval }
+
 // Run samples on a fixed interval until ctx is done. Errors are logged and
 // the loop continues - a DB blip must not stop the history.
 func (s *MetricsSampler) Run(ctx context.Context) {

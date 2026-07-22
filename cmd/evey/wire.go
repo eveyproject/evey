@@ -536,7 +536,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		func() appactivity.SysSample {
 			s := sysinfo.Collect()
 			return appactivity.SysSample{CPUPercent: s.CPUPercent, MemUsedBytes: s.MemUsedBytes, MemTotalBytes: s.MemTotalBytes}
-		}, rootLog)
+		}, rootLog).
+		// Honour EVEY_METRICS_SAMPLE_INTERVAL_SEC: it was parsed into config and
+		// then dropped on the floor, so an operator changing it saw no effect.
+		WithSampleInterval(time.Duration(cfg.Metrics.SampleIntervalSec) * time.Second)
 
 	permChecker := appplugin.NewPermissionChecker(r.Plugin)
 	pluginFS := filesystem.NewPluginFileSystem()

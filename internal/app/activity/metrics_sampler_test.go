@@ -68,3 +68,26 @@ func TestMetricsSampler_NilSourcesAreZero(t *testing.T) {
 	assert.Zero(t, rows[0].CPUPercent)
 	assert.Zero(t, rows[0].BandwidthBps)
 }
+
+// EVEY_METRICS_SAMPLE_INTERVAL_SEC was parsed into config and then never read:
+// the sampler hardcoded its interval, so an operator who set the variable was
+// ignored without a word. A setting that silently does nothing is worse than
+// no setting - it sends its user looking for the effect somewhere else.
+func TestNewMetricsSampler_HonoursTheConfiguredInterval(t *testing.T) {
+	s := NewMetricsSampler(nil, nil, nil, nil, nil).WithSampleInterval(15 * time.Second)
+	if got := s.SampleInterval(); got != 15*time.Second {
+		t.Fatalf("interval: want 15s, got %v", got)
+	}
+}
+
+// A non-positive value means "unset" (envInt yields 0 when absent), and an
+// absurdly small one would hammer the database once a tick; both fall back to
+// the built-in default rather than being applied literally.
+func TestNewMetricsSampler_RejectsNonPositiveAndTooSmallIntervals(t *testing.T) {
+	for _, d := range []time.Duration{0, -time.Minute, 500 * time.Millisecond} {
+		s := NewMetricsSampler(nil, nil, nil, nil, nil).WithSampleInterval(d)
+		if got := s.SampleInterval(); got != defaultSampleInterval {
+			t.Errorf("interval for %v: want the default %v, got %v", d, defaultSampleInterval, got)
+		}
+	}
+}
