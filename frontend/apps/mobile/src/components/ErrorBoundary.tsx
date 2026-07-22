@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
+import { queryClient } from "../lib/query-client";
 import type { ThemeTokens } from "@evey/theme";
 import type { TFunction } from "i18next";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
@@ -16,34 +17,60 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  attempts: number;
 }
+
+// After this many failed retries, a crash is very likely deterministic
+// (bad code, not stale data) - offering "Try Again" again would just loop
+// the user through the same crash, so we tell them to restart instead.
+const MAX_RETRIES = 2;
 
 class ErrorBoundaryInner extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, attempts: 0 };
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Pick<State, "hasError" | "error"> {
     return { hasError: true, error };
   }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // componentStack names the component that actually crashed - without this,
+    // a render crash left zero trace anywhere, in dev or prod.
+    console.error("[ErrorBoundary] render crash:", error, errorInfo.componentStack);
+    this.setState((prev) => ({ attempts: prev.attempts + 1 }));
+  }
+
+  handleRetry = () => {
+    // A crash is often triggered by a corrupted React Query cache entry;
+    // clearing it before re-rendering keeps that same data from
+    // re-triggering the identical crash immediately.
+    queryClient.clear();
+    this.setState({ hasError: false, error: null });
+  };
 
   render() {
     if (this.state.hasError) {
       const { theme, t } = this.props;
+      const exhausted = this.state.attempts > MAX_RETRIES;
       return (
         <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
           <Ionicons name="alert-circle-outline" size={ICON_SIZE["4xl"]} color={theme.colors.error} />
           <Text style={[styles.title, { color: theme.colors.text }]}>{t("common.somethingWentWrong", "Something went wrong")}</Text>
           <Text style={[styles.message, { color: theme.colors.textMuted }]} numberOfLines={3}>
-            {this.state.error?.message ?? t("common.unknownError", "Unknown error")}
+            {exhausted
+              ? t("common.restartRequired", "This keeps happening. Please restart the app.")
+              : (this.state.error?.message ?? t("common.unknownError", "Unknown error"))}
           </Text>
-          <Pressable
-            onPress={() => this.setState({ hasError: false, error: null })}
-            style={[styles.retryBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
-          >
-            <Text style={[styles.retryText, { color: theme.colors.text }]}>{t("common.tryAgain", "Try Again")}</Text>
-          </Pressable>
+          {!exhausted && (
+            <Pressable
+              onPress={this.handleRetry}
+              style={[styles.retryBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md }]}
+            >
+              <Text style={[styles.retryText, { color: theme.colors.text }]}>{t("common.tryAgain", "Try Again")}</Text>
+            </Pressable>
+          )}
         </View>
       );
     }

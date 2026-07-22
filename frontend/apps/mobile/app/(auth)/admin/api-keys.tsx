@@ -58,6 +58,10 @@ export default function AdminAPIKeysScreen() {
         toast.success(t("auth.apiKeys.keyRevoked"));
         await qc.invalidateQueries({ queryKey: getUserServiceListAPIKeysQueryKey() });
       },
+      // handleRevoke fires this via mutate() (fire-and-forget) with no local
+      // try/catch, so without onError a failed revoke left the key looking
+      // still active with zero feedback to the admin.
+      onError: () => toast.error(t("auth.apiKeys.revokeError", "Failed to revoke key")),
     },
   });
 

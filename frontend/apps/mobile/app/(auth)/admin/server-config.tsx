@@ -71,7 +71,11 @@ export default function AdminServerConfigScreen() {
   const handleSaveBasic = useCallback(async () => {
     try {
       await updateConfig.mutateAsync({ data: { values: { server_name: serverName.trim(), base_url: baseUrl.trim() } } });
-    } catch {}
+    } catch {
+      // Not silent: updateConfig's mutation.onError above already surfaces a
+      // toast. This just swallows the rejection mutateAsync re-throws so it
+      // doesn't also warn as an unhandled promise.
+    }
   }, [serverName, baseUrl, updateConfig]);
 
   const { data: settings, isLoading: settingsLoading, refetch } = useQuery<ServerSettings>({
@@ -128,7 +132,11 @@ export default function AdminServerConfigScreen() {
       if (loginRate) body.loginRateLimit = parseInt(loginRate, 10);
       if (globalRate) body.globalRateLimit = parseInt(globalRate, 10);
       await saveMutation.mutateAsync(body);
-    } catch {}
+    } catch {
+      // Not silent: saveMutation.onError above already surfaces a toast.
+      // This just swallows the rejection mutateAsync re-throws so it doesn't
+      // also warn as an unhandled promise.
+    }
   }, [maxTranscodes, hwAccel, loginRate, globalRate, saveMutation]);
 
   const { data: configEntries, refetch: refetchEntries } = useQuery<ConfigEntry[]>({

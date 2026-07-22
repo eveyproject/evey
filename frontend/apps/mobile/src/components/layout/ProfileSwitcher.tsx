@@ -93,10 +93,16 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
     // Best-effort revoke server-side; never block the UI on it.
     void userServiceLogout({}).catch(() => {});
     // Drop the persisted refresh token so the bootstrap refresh on cold
-    // start doesn't silently re-authenticate the user.
-    void clearRefreshToken().catch(() => {});
+    // start doesn't silently re-authenticate the user. On a shared device a
+    // failure here means the token survives on disk after the user believes
+    // they signed out, so it must never be swallowed silently: log it and
+    // tell the user their sign-out may be incomplete.
+    void clearRefreshToken().catch((err) => {
+      console.warn("failed to clear refresh token on logout", err);
+      toast.error(t("auth.profile.logoutIncomplete", "Sign-out may be incomplete on this device. Restart the app to finish clearing your session."));
+    });
     setTimeout(() => router.replace("/login"), 50);
-  }, [qc, logout]);
+  }, [qc, logout, t]);
 
   if (!active) return null;
 
