@@ -287,3 +287,29 @@ func TestGetOrConnect_DistinctDevicesRunInParallel(t *testing.T) {
 	}
 	close(fac.release)
 }
+
+// mDNS answers arrive once per interface, so the same Chromecast is seen
+// several times. Deduping on the UUID alone had a second failure mode: an
+// entry whose TXT record carries no id= yields an EMPTY uuid, and every
+// further such device collided on that same empty key - silently dropping
+// real, distinct devices from the picker.
+func TestDedupeDevices_SameUUIDCollapsed(t *testing.T) {
+	out := dedupeDevices([]Device{
+		{UUID: "abc", Name: "Salon", Addr: "192.168.1.20", Port: 8009},
+		{UUID: "abc", Name: "Salon", Addr: "192.168.1.20", Port: 8009},
+	})
+	if len(out) != 1 {
+		t.Fatalf("want 1, got %d", len(out))
+	}
+}
+
+func TestDedupeDevices_EmptyUUIDKeepsDistinctDevices(t *testing.T) {
+	out := dedupeDevices([]Device{
+		{UUID: "", Name: "Salon", Addr: "192.168.1.20", Port: 8009},
+		{UUID: "", Name: "Bedroom", Addr: "192.168.1.21", Port: 8009},
+		{UUID: "", Name: "Salon", Addr: "192.168.1.20", Port: 8009},
+	})
+	if len(out) != 2 {
+		t.Fatalf("two addresses must survive an empty uuid, got %d: %+v", len(out), out)
+	}
+}

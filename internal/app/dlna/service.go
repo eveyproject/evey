@@ -27,10 +27,40 @@ const (
 )
 
 type Renderer struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// UDN is the UPnP Unique Device Name ("uuid:..."), the device's stable
+	// identity. It is what distinguishes ONE renderer answering from several
+	// LOCATIONs from two distinct renderers - see dedupeRenderers.
+	UDN        string `json:"udn,omitempty"`
 	Location   string `json:"location"`
 	ControlURL string `json:"controlUrl"`
+}
+
+// dedupeRenderers collapses the several answers one renderer gives to a single
+// M-SEARCH. SSDP devices repeat their reply (UDP is lossy by design) and a
+// multi-homed box answers from more than one interface, each with its own
+// LOCATION URL - which is why deduping on LOCATION alone still showed the same
+// TV twice in the picker. Key on the UDN when the description carries one.
+//
+// The fallback stays LOCATION, deliberately NOT the name: two identical TVs
+// ship with the same default friendly name, and merging them would hide a real
+// device instead of a duplicate.
+func dedupeRenderers(in []Renderer) []Renderer {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]Renderer, 0, len(in))
+	for _, r := range in {
+		key := r.UDN
+		if key == "" {
+			key = r.Location
+		}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, r)
+	}
+	return out
 }
 
 type Service struct {
@@ -124,6 +154,7 @@ func (s *Service) discover(ctx context.Context) ([]Renderer, error) {
 		}
 		renderers = append(renderers, *r)
 	}
+	renderers = dedupeRenderers(renderers)
 	slog.Info("dlna: discovery complete", slog.Int("count", len(renderers)))
 	return renderers, nil
 }
@@ -145,6 +176,7 @@ type deviceRoot struct {
 
 type device struct {
 	FriendlyName string      `xml:"friendlyName"`
+	UDN          string      `xml:"UDN"`
 	ServiceList  serviceList `xml:"serviceList"`
 }
 
@@ -200,9 +232,18 @@ func fetchDeviceDescription(ctx context.Context, location string) (*Renderer, er
 		name = location
 	}
 
+	udn := strings.TrimSpace(root.Device.UDN)
+	// ID keeps the UDN when there is one: it survives a DHCP lease change or a
+	// reboot that moves the description port, so a cast target picked earlier
+	// still resolves to the same device.
+	id := udn
+	if id == "" {
+		id = location
+	}
 	return &Renderer{
-		ID:         location,
+		ID:         id,
 		Name:       name,
+		UDN:        udn,
 		Location:   location,
 		ControlURL: controlURL,
 	}, nil

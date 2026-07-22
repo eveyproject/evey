@@ -127,3 +127,45 @@ func searchString(s, sub string) bool {
 	}
 	return false
 }
+
+// A single renderer answers M-SEARCH several times, and often from more than
+// one LOCATION (multi-homed box, IPv4 + a second interface, or a description
+// URL that differs only by a trailing path). Keying the dedup on LOCATION let
+// the SAME physical device show up twice in the picker under the same name -
+// reported by the user on their network. The UPnP identity is the UDN.
+func TestDedupeRenderers_SameUDNTwoLocations(t *testing.T) {
+	in := []Renderer{
+		{ID: "uuid:abc", UDN: "uuid:abc", Name: "Salon", Location: "http://192.168.1.20:8060/dd.xml", ControlURL: "http://192.168.1.20:8060/ctrl"},
+		{ID: "uuid:abc", UDN: "uuid:abc", Name: "Salon", Location: "http://192.168.1.20:1900/description.xml", ControlURL: "http://192.168.1.20:1900/ctrl"},
+	}
+	out := dedupeRenderers(in)
+	if len(out) != 1 {
+		t.Fatalf("want 1 renderer, got %d: %+v", len(out), out)
+	}
+	if out[0].Location != in[0].Location {
+		t.Errorf("first LOCATION seen must win, got %q", out[0].Location)
+	}
+}
+
+func TestDedupeRenderers_DistinctDevicesKept(t *testing.T) {
+	in := []Renderer{
+		{ID: "uuid:abc", UDN: "uuid:abc", Name: "Salon", Location: "http://192.168.1.20:8060/dd.xml"},
+		{ID: "uuid:def", UDN: "uuid:def", Name: "Bedroom", Location: "http://192.168.1.21:8060/dd.xml"},
+	}
+	if got := len(dedupeRenderers(in)); got != 2 {
+		t.Fatalf("two different UDNs must both survive, got %d", got)
+	}
+}
+
+// Some renderers omit the UDN. Falling back to the name would merge two real
+// TVs that ship with the same default name, so the fallback keeps LOCATION.
+func TestDedupeRenderers_NoUDNFallsBackToLocation(t *testing.T) {
+	in := []Renderer{
+		{ID: "http://a/dd.xml", Name: "DMR", Location: "http://a/dd.xml"},
+		{ID: "http://b/dd.xml", Name: "DMR", Location: "http://b/dd.xml"},
+		{ID: "http://a/dd.xml", Name: "DMR", Location: "http://a/dd.xml"},
+	}
+	if got := len(dedupeRenderers(in)); got != 2 {
+		t.Fatalf("want 2 (a and b, the repeat of a dropped), got %d", got)
+	}
+}

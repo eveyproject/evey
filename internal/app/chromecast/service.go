@@ -93,6 +93,31 @@ func (s *Service) Discover(ctx context.Context) ([]Device, error) {
 	return devices, nil
 }
 
+// dedupeDevices collapses the repeated mDNS answers one Chromecast gives (one
+// per interface the query went out on) down to a single entry.
+//
+// The key is the UUID, but ONLY when there is one: an entry whose TXT record
+// carries no id= yields an empty UUID, and keying on that made every such
+// device collide on the same empty string - so a second, genuinely different
+// device silently vanished from the picker instead of a duplicate being
+// removed. Address+port is the fallback identity.
+func dedupeDevices(in []Device) []Device {
+	seen := make(map[string]struct{}, len(in))
+	out := make([]Device, 0, len(in))
+	for _, d := range in {
+		key := d.UUID
+		if key == "" {
+			key = fmt.Sprintf("%s:%d", d.Addr, d.Port)
+		}
+		if _, dup := seen[key]; dup {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, d)
+	}
+	return out
+}
+
 func (s *Service) findDevice(uuid string) (*Device, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -337,12 +362,7 @@ func (mdnsDiscoverer) Discover(ctx context.Context) ([]domaincast.Device, error)
 	}
 
 	var devices []domaincast.Device
-	seen := make(map[string]struct{})
 	for entry := range entryChan {
-		if _, ok := seen[entry.GetUUID()]; ok {
-			continue
-		}
-		seen[entry.GetUUID()] = struct{}{}
 		devices = append(devices, domaincast.Device{
 			UUID: entry.GetUUID(),
 			Name: entry.GetName(),
@@ -350,6 +370,7 @@ func (mdnsDiscoverer) Discover(ctx context.Context) ([]domaincast.Device, error)
 			Port: entry.GetPort(),
 		})
 	}
+	devices = dedupeDevices(devices)
 	slog.Info("chromecast: discovery complete", slog.Int("count", len(devices)))
 	return devices, nil
 }
