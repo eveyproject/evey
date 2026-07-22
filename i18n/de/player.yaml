@@ -20,6 +20,7 @@ controls:
   previousEpisode: Vorherige Folge
   nextEpisode: Nächste Folge
   seek: Suchen
+  seekPosition: "Wiedergabeposition, {{current}} von {{total}}"
   volume: Lautstärke
 settings:
   quality: Qualität

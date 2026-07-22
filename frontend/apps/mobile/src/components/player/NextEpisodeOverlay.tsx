@@ -14,7 +14,14 @@ export function NextEpisodeOverlay({ nextEp }: NextEpisodeOverlayProps) {
   if (!nextEp.nextEpisode) return null;
   return (
     <View style={styles.nextEpOverlay}>
-      <Text style={styles.nextEpLabel}>
+      <Text
+        style={styles.nextEpLabel}
+        // Assertive: this counts down to an action that happens WITHOUT the
+        // user, so a screen reader must interrupt to give them a chance to
+        // cancel rather than queue the announcement behind whatever it was
+        // reading.
+        accessibilityLiveRegion={nextEp.ended ? "assertive" : "polite"}
+      >
         {nextEp.ended
           ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(nextEp.countdown, 0) })
           : t("player.nextEpisodeOverlay.upNext")}
@@ -26,10 +33,23 @@ export function NextEpisodeOverlay({ nextEp }: NextEpisodeOverlayProps) {
         {nextEp.nextEpisode.title ? ` - ${nextEp.nextEpisode.title}` : ""}
       </Text>
       <View style={styles.nextEpButtons}>
-        <Pressable onPress={nextEp.playNow} style={[styles.nextEpPlayBtn, { backgroundColor: theme.colors.accent }]}>
+        <Pressable
+          onPress={nextEp.playNow}
+          accessibilityRole="button"
+          accessibilityLabel={t("player.nextEpisodeOverlay.playNow")}
+          style={[styles.nextEpPlayBtn, { backgroundColor: theme.colors.accent }]}
+        >
           <Text style={styles.nextEpPlayText}>{t("player.nextEpisodeOverlay.playNow")}</Text>
         </Pressable>
-        <Pressable onPress={nextEp.cancel} style={styles.nextEpCancelBtn}>
+        <Pressable
+          onPress={nextEp.cancel}
+          accessibilityRole="button"
+          // The cancel button has a 5s countdown behind it. Without an explicit
+          // role a screen reader announces its child Text as static content, so
+          // a TalkBack user cannot find and activate it before autoplay fires.
+          accessibilityLabel={t("common.cancel")}
+          style={styles.nextEpCancelBtn}
+        >
           <Text style={styles.nextEpCancelText}>{t("common.cancel")}</Text>
         </Pressable>
       </View>

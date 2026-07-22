@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { TrickplayPreview } from "../TrickplayPreview";
 import type { Chapter } from "../../hooks/useChapters";
+import { formatTime } from "../../lib/formatTime";
 
 interface PlayerSeekBarProps {
   mediaId: string;
@@ -52,6 +53,31 @@ export function PlayerSeekBar({
       accessible={true}
       accessibilityRole="adjustable"
       accessibilityLabel={t("player.controls.seek")}
+      // An "adjustable" role without a value and without an action handler
+      // announces a control the screen reader cannot read or move: TalkBack
+      // offers swipe up/down and nothing happens. The value is expressed as a
+      // percentage because that is what the gesture path already works in, and
+      // the text form reads as a position rather than a bare number.
+      accessibilityValue={{
+        min: 0,
+        max: 100,
+        now: Math.round(progress * 100),
+        text: t("player.controls.seekPosition", {
+          current: formatTime(currentTime),
+          total: formatTime(effectiveDuration),
+        }),
+      }}
+      onAccessibilityAction={(e) => {
+        // One step = 10s, the same granularity as the skip buttons.
+        const stepPct = effectiveDuration > 0 ? 10 / effectiveDuration : 0;
+        if (stepPct <= 0) return;
+        const next =
+          e.nativeEvent.actionName === "increment"
+            ? Math.min(1, progress + stepPct)
+            : Math.max(0, progress - stepPct);
+        onCommit(next);
+      }}
+      accessibilityActions={[{ name: "increment" }, { name: "decrement" }]}
       onLayout={(e) => { seekBarWidthRef.current = e.nativeEvent.layout.width; }}
       onStartShouldSetResponder={() => true}
       onMoveShouldSetResponder={() => true}

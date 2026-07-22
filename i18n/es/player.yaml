@@ -20,6 +20,7 @@ controls:
   previousEpisode: Episodio anterior
   nextEpisode: Siguiente episodio
   seek: Buscar
+  seekPosition: "Posición de reproducción, {{current}} de {{total}}"
   volume: Volumen
 settings:
   quality: Calidad

@@ -20,6 +20,7 @@ controls:
   previousEpisode: "上一集"
   nextEpisode: "下一集"
   seek: "进度"
+  seekPosition: "播放位置，{{total}} 中的 {{current}}"
   volume: "音量"
 settings:
   quality: "画质"
