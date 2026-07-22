@@ -9,6 +9,7 @@ interface BadgeProps {
   /** Native tooltip - used to spell out why a playback badge says what it says. */
   title?: string;
   "data-testid"?: string;
+  "aria-label"?: string;
 }
 
 const variantClasses: Record<BadgeVariant, string> = {

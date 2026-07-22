@@ -26,14 +26,19 @@ export function PlaybackDifficultyBadge({
   className?: string;
 }) {
   const { t } = useTranslation();
+  const label = t(`media.playback.level.${difficulty.difficulty}`);
+  const hint = t(`media.playback.hint.${difficulty.difficulty}`);
   return (
     <Badge
       variant={DIFFICULTY_VARIANT[difficulty.difficulty]}
       className={`cursor-help ${className}`}
-      title={t(`media.playback.hint.${difficulty.difficulty}`)}
+      title={hint}
+      // A bare `title` is announced inconsistently, and on a poster tile the
+      // word alone ("Lourd") says nothing without the sentence behind it.
+      aria-label={`${label} - ${hint}`}
       data-testid="playback-difficulty"
     >
-      {t(`media.playback.level.${difficulty.difficulty}`)}
+      {label}
     </Badge>
   );
 }
