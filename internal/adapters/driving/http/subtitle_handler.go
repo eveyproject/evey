@@ -365,15 +365,13 @@ type subtitleRoutes struct {
 // finite third-party budget - OpenSubtitles caps downloads per key per day - so
 // an authenticated user could otherwise drain the whole allowance for everyone
 // on the server. nil leaves the routes unlimited (tests).
-// parental is variadic so the many existing call sites (tests included) that
-// predate the parental gate keep compiling unchanged; a nil/absent checker
-// simply leaves checkParental as a no-op, matching prior behaviour.
-func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen TokenVerifier, mediaGetter MediaItemGetter, libraryAccess LibraryAccessChecker, providerRL *ratelimit.Limiter, parental ...ParentalChecker) {
-	var pc ParentalChecker
-	if len(parental) > 0 {
-		pc = parental[0]
-	}
-	h := &subtitleRoutes{subtitleSvc: subtitleSvc, tokens: tokenGen, mediaGetter: mediaGetter, libraryAccess: libraryAccess, parental: pc}
+// parental is a required positional parameter on purpose. Making it variadic
+// would let a future call site omit it and silently serve an ungated route -
+// which is precisely the forgotten-twin failure this gate exists to close, and
+// it has already bitten this package more than once. A caller with no checker
+// must pass nil explicitly, so the omission is a deliberate, visible choice.
+func registerSubtitleRoutes(mux *http.ServeMux, subtitleSvc *appsubtitle.Service, tokenGen TokenVerifier, mediaGetter MediaItemGetter, libraryAccess LibraryAccessChecker, providerRL *ratelimit.Limiter, parental ParentalChecker) {
+	h := &subtitleRoutes{subtitleSvc: subtitleSvc, tokens: tokenGen, mediaGetter: mediaGetter, libraryAccess: libraryAccess, parental: parental}
 	limited := func(next http.HandlerFunc) http.HandlerFunc {
 		if providerRL == nil {
 			return next

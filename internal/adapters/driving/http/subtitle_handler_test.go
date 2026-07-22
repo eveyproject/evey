@@ -697,7 +697,7 @@ func TestRegisterSubtitleRoutes_ProviderRoutesAreRateLimited(t *testing.T) {
 	rl := ratelimit.NewWithBurst(1, 1.0)
 	defer rl.Stop()
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, nil, &fakeTokenVerifier{}, &fakeMediaItemGetter{}, nil, rl)
+	registerSubtitleRoutes(mux, nil, &fakeTokenVerifier{}, &fakeMediaItemGetter{}, nil, rl, nil)
 
 	status := func(method, path string) int {
 		rec := httptest.NewRecorder()

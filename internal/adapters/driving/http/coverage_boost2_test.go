@@ -67,7 +67,7 @@ func newSubtitleTestMux(t *testing.T) (*http.ServeMux, string) {
 	httpMediaGetter := &fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/tmp/movie.mkv"}}}
 
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil)
+	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil, nil)
 	return mux, userToken
 }
 
@@ -104,7 +104,7 @@ func TestSubtitleSearch_InvalidToken_403(t *testing.T) {
 	svc := appsubtitle.NewService(repo, provider, subMediaGetter)
 	httpMediaGetter := &fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}}
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil)
+	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles/search", nil)
 	req.Header.Set("Authorization", "Bearer bad-token")
@@ -125,7 +125,7 @@ func TestSubtitleSearch_IDOR_403(t *testing.T) {
 	svc := appsubtitle.NewService(repo, provider, subMediaGetter)
 	httpMediaGetter := &fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib-restricted"}}
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, denyAll(), nil)
+	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, denyAll(), nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles/search", nil)
 	req.Header.Set("Authorization", "Bearer "+userToken)
@@ -203,7 +203,7 @@ func TestSubtitleSearch_MediaNotFound_404(t *testing.T) {
 	svc := appsubtitle.NewService(repo, provider, subMediaGetter)
 	httpMediaGetter := &fakeMediaItemGetter{err: errTest}
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil)
+	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/subtitles/search", nil)
 	req.Header.Set("Authorization", "Bearer "+userToken)
@@ -1257,7 +1257,7 @@ func TestSubtitleDelete_OK(t *testing.T) {
 	svc := appsubtitle.NewService(repo, provider, subMediaGetter)
 	httpMediaGetter := &fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}}
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil)
+	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil, nil)
 
 	// download first to create a subtitle
 	dlBody := `{"fileId":42,"language":"en","format":"srt"}`
@@ -1776,7 +1776,7 @@ func TestSubtitleList_WithItems(t *testing.T) {
 	svc := appsubtitle.NewService(repo, provider, subMediaGetter)
 	httpMediaGetter := &fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}}
 	mux := http.NewServeMux()
-	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil)
+	registerSubtitleRoutes(mux, svc, gen, httpMediaGetter, allowAll(), nil, nil)
 
 	// download first
 	dlBody := `{"fileId":42,"language":"en","format":"srt"}`
