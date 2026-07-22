@@ -97,7 +97,7 @@ export function UserStats() {
     return <EmptyState icon={<BarChart3 size={48} strokeWidth={1.5} />} title={t("common.userStats.noData")} />;
   }
 
-  const accent = useCssVar("--accent", "#6366f1");
+  const accent = useCssVar("--accent", "#4f46e5");
   const textMuted = useCssVar("--text-muted");
   const lang = i18n.language;
 

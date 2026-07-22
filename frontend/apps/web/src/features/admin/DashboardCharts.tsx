@@ -22,7 +22,7 @@ export function PlayActivityChart() {
   });
   const daily = data?.dailyPlays ?? [];
   // Hooks must run on every render - keep them above the early return below.
-  const accent = useCssVar("--accent", "#6366f1");
+  const accent = useCssVar("--accent", "#4f46e5");
   const textMuted = useCssVar("--text-muted");
 
   useEffect(() => { scrollToEnd(); }, [daily.length, scrollToEnd]);
@@ -153,7 +153,7 @@ export function PeakHours() {
   });
   const hourly = data?.hourlyPlays ?? [];
   // Hooks must run on every render - keep them above the early return below.
-  const accent = useCssVar("--accent", "#6366f1");
+  const accent = useCssVar("--accent", "#4f46e5");
   const textMuted = useCssVar("--text-muted");
 
   const allHours = useMemo(() => Array.from({ length: 24 }, (_, i) => {

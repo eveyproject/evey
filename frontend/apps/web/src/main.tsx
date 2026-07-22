@@ -214,7 +214,10 @@ function RouterErrorFallback({ error, reset }: { error: Error; reset: () => void
       </pre>
       <button
         onClick={() => { reset(); window.location.reload(); }}
-        style={{ padding: "8px 16px", background: "var(--accent, #3b82f6)", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer" }}
+        // --filter-active-text is the on-accent foreground token: hardcoding
+        // #fff here made the only escape hatch from a crashed app unreadable on
+        // every theme whose accent is light (default, amoled, dark-red).
+        style={{ padding: "8px 16px", background: "var(--accent, #1d4ed8)", color: "var(--filter-active-text, #fff)", border: "none", borderRadius: 4, cursor: "pointer" }}
       >
         Reload
       </button>

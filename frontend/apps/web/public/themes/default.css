@@ -5,7 +5,7 @@
   --surface-raised: #1e293b;
   --surface-hover: #2a384f;
   --accent: #818cf8;
-  --accent-hover: #6366f1;
+  --accent-hover: #a5b4fc;
   --accent-subtle: rgba(129,140,248,0.12);
   --text: #f1f5f9;
   --text-secondary: #94a3b8;
@@ -63,7 +63,7 @@
   --btn-overlay-inactive-bg: rgba(0,0,0,0.5);
   --log-hover-bg: rgba(255,255,255,0.05);
   --error-bg-subtle: rgba(239,68,68,0.15);
-  --filter-active-text: #ffffff;
+  --filter-active-text: #0a0a0a;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.35);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.45);
