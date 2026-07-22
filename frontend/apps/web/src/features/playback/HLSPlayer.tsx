@@ -285,6 +285,17 @@ export function HLSPlayer({
   // picker is strictly better and matches how most apps behave.
   const castAvailable = castSdkReady || remotePlayback.available || remotePlayback.supported;
 
+  // Which cast path to TRY FIRST. On Android the answer is the fling, on the
+  // evidence: it is the path validated on a real device (2026-07-20, cast from
+  // Chrome Android worked and kept playing with the browser closed), while the
+  // Cast SDK - which Google documents as supported on Android and which does
+  // report ready there - opens a picker that lists the TV and then fails to
+  // associate, reported repeatedly by one user. Desktop keeps the SDK first:
+  // the Remote Playback API is a no-op there.
+  // Whichever runs first, the other is tried on failure (see the handlers), so
+  // this is an ordering, not an exclusion.
+  const preferFling = remotePlayback.supported && /Android/i.test(navigator.userAgent);
+
   // Prefetch the long-lived cast token as soon as the mobile cast surface is
   // active: remote.prompt() must run inside the tap's transient user
   // activation (a few seconds in Chrome), and a network round-trip between
@@ -376,9 +387,20 @@ export function HLSPlayer({
       // path has to ask).
       el.play().catch(() => { /* receiver may auto-start on its own */ });
     } else if (outcome === "error") {
+      // The fling could not hand the source over. On a browser that ALSO has a
+      // working Cast SDK, that is not a dead end - try the other path before
+      // telling the user anything failed. (The reverse fallback lives in
+      // handleCastToggle; between them, every device tries both.)
+      if (castSdkReady) {
+        const { url: sdkUrl, castStartSec: sdkStart, castResumeSec: sdkResume } = await buildCastUrl();
+        castBaseUrlRef.current = sdkUrl;
+        castTranscodeOffsetRef.current = sdkStart;
+        const sdkOutcome = await startCast(sdkUrl, title, sdkResume);
+        if (sdkOutcome === "connected" || sdkOutcome === "dismissed") return;
+      }
       toast.error(t("player.cast.loadFailed"));
     }
-  }, [buildCastUrl, remotePlayback, t]);
+  }, [buildCastUrl, remotePlayback, t, castSdkReady, startCast, title]);
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {
@@ -979,10 +1001,11 @@ export function HLSPlayer({
                 // A live session always wins the click: SDK sessions stop via
                 // handleCastToggle, Remote Playback ones via the hook's stop()
                 // (re-prompting mid-session would reload the receiver instead
-                // of stopping it). Otherwise route by capability: SDK when
-                // initialized (desktop), native fling elsewhere (Android).
+                // of stopping it). Otherwise start with the path that works on
+                // this platform (preferFling), each falling back to the other.
                 castConnected ? handleCastToggle
                 : remoteConnected ? remotePlayback.stop
+                : preferFling ? handleMobileCast
                 : castSdkReady ? handleCastToggle
                 : handleMobileCast
               }
