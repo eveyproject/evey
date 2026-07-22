@@ -17,6 +17,7 @@ vi.mock("@/utils/codec", () => ({
 import {
   getSelectedBurnInTrack,
   buildTranscodeHlsUrl,
+  castReceiverCapabilities,
   castSafeDirectPlay,
   planCastUrl,
   resolveDefaultAudio,
@@ -346,6 +347,72 @@ describe("planCastUrl", () => {
       "m1", "tok", 0, false,
     );
     expect(plan.url).not.toContain("wasmAudio");
+  });
+});
+
+// The UHD profile exists for callers that DO know the receiver: the mobile
+// app derives it from the device model the native Cast SDK reports. The web
+// sender has no such signal (no model on the web SDK, nothing on the fling),
+// so web plans always use the default floor - never a question to the user.
+describe("castReceiverCapabilities (UHD)", () => {
+  it("defaults to the floor profile: H.264 only, SDR", () => {
+    const caps = castReceiverCapabilities(false);
+    expect(caps.videoCodecs).toEqual(["h264"]);
+    expect(caps.hdr).toBe(false);
+  });
+
+  it("UHD adds HEVC + HDR but keeps the audio/container floor", () => {
+    const caps = castReceiverCapabilities(true);
+    expect(caps.videoCodecs).toContain("hevc");
+    expect(caps.hdr).toBe(true);
+    // AC-3/E-AC-3 stay out even on Ultra: decode is TV-passthrough-dependent.
+    expect(caps.audioCodecs).toEqual(["aac", "mp3"]);
+    expect(caps.containers).toEqual(["mp4"]);
+  });
+
+  it("planCastUrl with UHD caps advertises hevc + hdr=1 so the server keeps the copy rung", () => {
+    const plan = planCastUrl(
+      { playMethod: "PLAY_METHOD_TRANSCODE", mediaStreams: [], directPlayUrl: "/x" },
+      "m1", "tok", 0, false, castReceiverCapabilities(true),
+    );
+    expect(plan.url).toContain("hevc");
+    expect(plan.url).toContain("hdr=1");
+  });
+
+  it("UHD caps accept an HEVC 10-bit HDR mp4 for direct fling", () => {
+    const info = {
+      playMethod: "PLAY_METHOD_DIRECT_PLAY",
+      container: "mp4",
+      mediaStreams: [
+        { type: "MEDIA_STREAM_TYPE_VIDEO", codec: "hevc", bitDepth: 10, colorTransfer: "smpte2084" },
+        { type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", isDefault: true },
+      ],
+    };
+    expect(castSafeDirectPlay(info, castReceiverCapabilities(true))).toBe(true);
+    // The floor profile still refuses the same file.
+    expect(castSafeDirectPlay(info)).toBe(false);
+  });
+
+  it("UHD caps still refuse 10-bit H.264 (no receiver decodes it)", () => {
+    expect(castSafeDirectPlay({
+      playMethod: "PLAY_METHOD_DIRECT_PLAY",
+      container: "mp4",
+      mediaStreams: [
+        { type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264", bitDepth: 10 },
+        { type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", isDefault: true },
+      ],
+    }, castReceiverCapabilities(true))).toBe(false);
+  });
+
+  it("UHD caps still refuse Dolby default audio on a fling", () => {
+    expect(castSafeDirectPlay({
+      playMethod: "PLAY_METHOD_DIRECT_PLAY",
+      container: "mp4",
+      mediaStreams: [
+        { type: "MEDIA_STREAM_TYPE_VIDEO", codec: "hevc", bitDepth: 10 },
+        { type: "MEDIA_STREAM_TYPE_AUDIO", codec: "eac3", isDefault: true },
+      ],
+    }, castReceiverCapabilities(true))).toBe(false);
   });
 });
 

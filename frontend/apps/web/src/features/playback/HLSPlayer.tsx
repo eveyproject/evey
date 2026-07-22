@@ -313,6 +313,9 @@ export function HLSPlayer({
   // el.currentTime on the fling); there is no server-side offset.
   const buildCastUrl = useCallback(async (): Promise<{ url: string; castResumeSec: number }> => {
     const castResumeSec = positionRef.current > 0 ? Math.floor(positionRef.current) : 0;
+    // Web has no receiver-capability signal (the web SDK exposes no model, the
+    // fling exposes nothing at all), so the plan stays on the floor profile.
+    // The mobile app upgrades via the device model the native SDK reports.
     const plan = planCastUrl(streamInfo, mediaId, streamTokenRef.current, currentTrackIndex, gapless);
     let url = plan.url;
     if (plan.direct && !url.includes("token=")) {

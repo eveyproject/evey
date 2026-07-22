@@ -107,48 +107,59 @@ export function buildTranscodeHlsUrl(
   return `/api/v1/media/${mediaId}/hls/master.m3u8?${params.toString()}`;
 }
 
-// CAST_RECEIVER_CAPABILITIES is the capability profile advertised on every URL
+// castReceiverCapabilities is the capability profile advertised on every URL
 // handed to a cast device. A cast stream is decoded by the RECEIVER, not by the
 // browser that builds the URL, and neither the Cast SDK nor the Remote Playback
-// fling tells us which Chromecast generation took the stream. So this is the
-// decode floor every generation shares: H.264 8-bit SDR in fMP4, AAC/MP3 audio.
-// HEVC/VP9/AV1 and HDR are Ultra/Google-TV-only - advertising them because the
-// SENDER decodes them turns the server's copy rung into a black screen on a
-// gen 1-3 receiver. AC-3/E-AC-3 are TV-passthrough-dependent, same story.
-// The cost of the floor is a tonemap/transcode for HDR titles on receivers
-// that could have taken the copy; reliability on an unknowable device wins.
-export const CAST_RECEIVER_CAPABILITIES: BrowserCapabilities = {
-  videoCodecs: ["h264"],
-  audioCodecs: ["aac", "mp3"],
-  containers: ["mp4"],
-  hdr: false,
-};
+// fling tells us which Chromecast generation took the stream. The default is
+// therefore the decode floor every generation shares: H.264 8-bit SDR in fMP4,
+// AAC/MP3 audio. HEVC/HDR are Ultra/Google-TV-only - advertising them because
+// the SENDER decodes them turns the server's copy rung into a black screen on
+// a gen 1-3 receiver.
+//
+// `uhd` upgrades the profile to HEVC (incl. Main 10) + HDR so 4K HDR titles
+// keep the copy rung instead of paying a tonemap transcode. Only callers that
+// KNOW the receiver may set it: the mobile app derives it from the device
+// model its native Cast SDK reports (receiverSupportsUhd in the mobile twin);
+// the web sender has no such signal and always stays on the floor - the user
+// is never asked what generation their dongle is. AC-3/E-AC-3 stay out even
+// in UHD: receiver decode is TV-passthrough-dependent, and audio transcode
+// is cheap.
+export function castReceiverCapabilities(uhd: boolean): BrowserCapabilities {
+  return {
+    videoCodecs: uhd ? ["h264", "hevc"] : ["h264"],
+    audioCodecs: ["aac", "mp3"],
+    containers: ["mp4"],
+    hdr: uhd,
+  };
+}
 
 type CastStreamInfo = Pick<V1StreamInfo, "playMethod" | "container" | "mediaStreams" | "directPlayUrl">;
 
 // castSafeDirectPlay reports whether the raw file behind a DIRECT_PLAY session
-// can be flung to a cast receiver as-is: mp4 container, 8-bit SDR H.264, and a
-// default audio track the receiver decodes itself (AAC/MP3). Everything else -
-// HEVC/10-bit/HDR that the SENDER happens to decode, Dolby/DTS audio, non-mp4
-// containers - must go through the server decision with the receiver caps
-// instead, where it becomes a copy rung or a transcode as appropriate.
-export function castSafeDirectPlay(info: CastStreamInfo): boolean {
+// can be flung to a cast receiver as-is: mp4 container, a video stream the
+// receiver profile decodes (8-bit SDR H.264 on the floor; +HEVC/10-bit/HDR
+// when the user declared a UHD receiver), and a default audio track it decodes
+// itself (AAC/MP3). Everything else must go through the server decision with
+// the receiver caps instead, where it becomes a copy rung or a transcode.
+export function castSafeDirectPlay(
+  info: CastStreamInfo,
+  caps: BrowserCapabilities = castReceiverCapabilities(false),
+): boolean {
   if (info.playMethod !== "PLAY_METHOD_DIRECT_PLAY") return false;
   if ((info.container ?? "").toLowerCase() !== "mp4") return false;
   const streams = info.mediaStreams ?? [];
   const video = streams.find((s) => s.type === "MEDIA_STREAM_TYPE_VIDEO");
-  if (!video || (video.codec ?? "").toLowerCase() !== "h264") return false;
-  if ((video.bitDepth ?? 8) > 8) return false;
+  const videoCodec = (video?.codec ?? "").toLowerCase();
+  if (!video || !caps.videoCodecs.includes(videoCodec)) return false;
+  // 10-bit is an HEVC Main 10 story; 10-bit H.264 has no receiver decode.
+  if ((video.bitDepth ?? 8) > 8 && videoCodec !== "hevc") return false;
   const transfer = (video.colorTransfer ?? "").toLowerCase();
-  if (transfer === "smpte2084" || transfer === "arib-std-b67") return false;
+  if (!caps.hdr && (transfer === "smpte2084" || transfer === "arib-std-b67")) return false;
   // The receiver plays the container's DEFAULT audio track; secondary tracks
   // it can't decode are irrelevant to the fling.
   const audios = streams.filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
   const audio = audios.find((s) => s.isDefault) ?? audios[0];
-  if (audio) {
-    const codec = (audio.codec ?? "").toLowerCase();
-    if (codec !== "aac" && codec !== "mp3") return false;
-  }
+  if (audio && !caps.audioCodecs.includes((audio.codec ?? "").toLowerCase())) return false;
   return true;
 }
 
@@ -168,12 +179,13 @@ export function planCastUrl(
   token: string,
   audioTrack: number,
   gapless: boolean,
+  caps: BrowserCapabilities = castReceiverCapabilities(false),
 ): { url: string; direct: boolean } {
-  if (info.directPlayUrl && castSafeDirectPlay(info)) {
+  if (info.directPlayUrl && castSafeDirectPlay(info, caps)) {
     return { url: info.directPlayUrl, direct: true };
   }
   return {
-    url: buildTranscodeHlsUrl(mediaId, token, audioTrack, null, 0, 0, gapless, false, CAST_RECEIVER_CAPABILITIES),
+    url: buildTranscodeHlsUrl(mediaId, token, audioTrack, null, 0, 0, gapless, false, caps),
     direct: false,
   };
 }
