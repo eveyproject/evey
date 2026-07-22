@@ -285,6 +285,22 @@ export function HLSPlayer({
   // picker is strictly better and matches how most apps behave.
   const castAvailable = castSdkReady || remotePlayback.available || remotePlayback.supported;
 
+  // Which cast path to TRY FIRST - and the user-agent test is not a guess about
+  // the hardware, it mirrors the switch Chrome itself gates the Cast SDK on.
+  // Measured on ONE phone, 28 seconds apart (prod telemetry, 2026-07-22):
+  //   UA "Android 10; K ... Mobile"  -> sdk=true, then session error:unknown
+  //   UA "X11; Linux x86_64" (same    -> sdk=true, then CONNECTED
+  //      phone, "Desktop site" on)
+  // So Chrome for Android reports the SDK as ready in both modes but only
+  // completes a session in desktop mode. In mobile mode the SDK is a trap and
+  // the Remote Playback fling is the working path; desktop (and desktop-site)
+  // keep the SDK, which is proven to connect.
+  //
+  // Whichever path runs, it runs ALONE: chaining the other one after a failure
+  // puts it outside the tap's user activation, where the browser refuses to
+  // open a picker at all (InvalidAccessError, also measured).
+  const preferFling = remotePlayback.supported && /Android/i.test(navigator.userAgent);
+
   // Prefetch the long-lived cast token as soon as the mobile cast surface is
   // active: remote.prompt() must run inside the tap's transient user
   // activation (a few seconds in Chrome), and a network round-trip between
@@ -377,6 +393,11 @@ export function HLSPlayer({
       // to ask).
       el.play().catch(() => { /* receiver may auto-start on its own */ });
     } else if (outcome === "error") {
+      // Deliberately NO fallback to the Cast SDK here. Chaining a second cast
+      // path after a failed one costs awaits, and the tap's user activation is
+      // already spent by then: production showed the chained attempt rejected
+      // with InvalidAccessError ("not triggered by user activation"), i.e. a
+      // picker that can never open. One tap, one path, inside the activation.
       toast.error(t("player.cast.loadFailed"));
     }
   }, [remotePlayback, t]);
@@ -394,18 +415,13 @@ export function HLSPlayer({
     castTranscodeOffsetRef.current = castStartSec;
     const outcome = await startCast(url, title, castResumeSec);
     if (outcome !== "session-failed") return;
-    // The SDK picker listed the device and the session did not come up. That
-    // is recoverable: Chrome for Android now reports the Cast SDK as ready
-    // while this path routinely fails there, and the Remote Playback fling is
-    // the path that works on that browser. Trying it costs a second picker at
-    // worst and is strictly better than the dead end this used to be - the
-    // user was told "no Chromecast found" about a device they had just picked.
-    if (remotePlayback.supported) {
-      await handleMobileCast();
-      return;
-    }
+    // No chained fallback to the fling here either: it would run after this
+    // failure, outside the tap's user activation, and the browser refuses to
+    // open a picker then (InvalidAccessError, observed in production). The
+    // platform routing above already picks the path that works here; if it
+    // failed, say so honestly instead of opening a door that cannot open.
     toast.error(t("player.cast.connectFailed"));
-  }, [castConnected, stopCast, startCast, buildCastUrl, streamInfo.directPlayUrl, title, remotePlayback.supported, handleMobileCast, t]);
+  }, [castConnected, stopCast, startCast, buildCastUrl, streamInfo.directPlayUrl, title, t]);
 
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -999,10 +1015,11 @@ export function HLSPlayer({
                 // A live session always wins the click: SDK sessions stop via
                 // handleCastToggle, Remote Playback ones via the hook's stop()
                 // (re-prompting mid-session would reload the receiver instead
-                // of stopping it). Otherwise route by capability: SDK when
-                // initialized (desktop), native fling elsewhere (Android).
+                // of stopping it). Otherwise start with the path that works on
+                // this platform (preferFling), each falling back to the other.
                 castConnected ? handleCastToggle
                 : remoteConnected ? remotePlayback.stop
+                : preferFling ? handleMobileCast
                 : castSdkReady ? handleCastToggle
                 : handleMobileCast
               }

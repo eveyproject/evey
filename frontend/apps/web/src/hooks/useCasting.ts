@@ -86,11 +86,18 @@ let sdkReady = false;
 const readyCallbacks: Array<() => void> = [];
 
 // iOS is a hard no for the Cast sender SDK (WebKit-only, no Cast surface), so
-// don't even inject the script there. Everywhere else the script self-reports:
-// desktop Chromium initializes it; Chrome for ANDROID does NOT (the sender SDK
-// is de-facto desktop-only - chrome.cast never materializes and
-// __onGCastApiAvailable never fires there, see useRemotePlayback for the
-// Android path); other browsers report __onGCastApiAvailable(false).
+// don't even inject the script there. Everywhere else the script self-reports.
+//
+// ⚠️ Chrome for ANDROID DOES initialize it - a comment here used to claim the
+// opposite ("chrome.cast never materializes"), and the whole cast routing was
+// built on that belief. Production telemetry (2026-07-22) says otherwise: every
+// tap from an Android phone reported sdk=true. Worse, the session it then opens
+// FAILS in mobile mode and only completes with "Desktop site" on - so a phone
+// silently took the SDK path and hit a dead end, while the Remote Playback
+// fling that works there was never reached. Route on the platform, not on this
+// flag alone (see preferFling in HLSPlayer).
+//
+// Other browsers report __onGCastApiAvailable(false).
 const isIOSBrowser = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // The server-side Cast/DLNA fallback (/api/v1/cast/devices, /api/v1/dlna/
@@ -394,9 +401,14 @@ export function useCasting(report?: CastReporter) {
       } catch (err: unknown) {
         const e = err as { code?: string; description?: string };
         error(TAG, "Chromecast session failed:", e.code, e.description);
+        // The SDK does not always throw a chrome.cast.Error: an object with no
+        // `code` produced a useless "error:unknown" in production. Fall back to
+        // the exception's name and message so the next failure is readable.
+        const err2 = err as { code?: string; description?: string; name?: string; message?: string };
+        const label = err2.code ?? err2.name ?? err2.message ?? "unknown";
         reportRef.current?.({
           type: "cast_prompt_result",
-          details: `error:${e.code ?? "unknown"}${e.description ? `: ${e.description}` : ""}`,
+          details: `error:${label}${err2.description ? `: ${err2.description}` : ""}`,
           fatal: e.code !== "cancel",
         });
         // A cancel just aborts - the user closed the picker.
