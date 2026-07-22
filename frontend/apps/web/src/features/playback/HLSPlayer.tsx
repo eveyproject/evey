@@ -293,13 +293,17 @@ export function HLSPlayer({
   // token is media-scoped with a long TTL, so one fetch per media is enough.
   // Desktop (SDK) keeps the on-demand fetch - requestSession has no such race.
   const castTokenRef = useRef<string | null>(null);
+  // State, not just a ref: the hidden cast element's src is rebuilt when the
+  // token lands, so the tap has nothing left to fetch (see castAvailabilitySrc).
+  const [castToken, setCastToken] = useState<string | null>(null);
   useEffect(() => {
     castTokenRef.current = null; // new media -> new token
+    setCastToken(null);
     if (!remotePlayback.supported || !onCastTokenRequest) return;
     let stale = false;
     onCastTokenRequest()
-      .then((t) => { if (!stale) castTokenRef.current = t; })
-      .catch(() => { /* click path falls back to fetching on demand */ });
+      .then((t) => { if (!stale) { castTokenRef.current = t; setCastToken(t); } })
+      .catch(() => { /* SDK path falls back to fetching on demand */ });
     return () => { stale = true; };
   }, [remotePlayback.supported, onCastTokenRequest, mediaId]);
 
@@ -351,34 +355,31 @@ export function HLSPlayer({
   // it doesn't matter that Chrome Android can't decode HLS locally. The local
   // MSE player is paused - the film moves to the TV.
   const handleMobileCast = useCallback(async () => {
-    const { url, castStartSec, castResumeSec } = await buildCastUrl();
     const el = castVideoRef.current;
     if (!el) return;
-    // Honour the same cast_base_url override as the SDK path: the receiver
-    // fetches the URL itself, so it must be absolute against the address the
-    // operator says devices can reach.
-    const origin = localStorage.getItem("cast_base_url") || window.location.origin;
-    const absoluteUrl = url.startsWith("http") ? url : `${origin}${url}`;
-    // Resume where the phone was: the Remote Playback session mirrors the
-    // element's state to the receiver, so position and mute must be right on
-    // the ELEMENT before the handoff (there is no LoadRequest to carry them).
-    // One of castStartSec/castResumeSec holds the position, the other is 0.
-    const resumeAt = castStartSec + castResumeSec;
     el.muted = false;
-    const outcome = await remotePlayback.promptForUrl(absoluteUrl);
+    // NOTHING may be awaited before prompt(). The element already carries the
+    // complete cast URL (castAvailabilitySrc, rebuilt whenever the media, the
+    // track or the cast token changes), so the tap goes straight to the picker.
+    // Building the URL here instead - one token fetch - burned the tap's
+    // transient user activation, and Chrome then rejected every attempt with
+    // NotAllowedError: 13 taps, 13 instant rejections, no picker (measured in
+    // production at 19:38 via the cast beacon).
+    const outcome = await remotePlayback.prompt();
     if (outcome === "connected") {
       // Pause the local player only on a REAL handoff - a dismissed picker
       // must leave the film exactly as it was.
       try { videoRef.current?.pause(); } catch { /* element released */ }
+      const resumeAt = positionRef.current > 0 ? Math.floor(positionRef.current) : 0;
       if (resumeAt > 0) { try { el.currentTime = resumeAt; } catch { /* not seekable yet */ } }
-      // Drive the remoted element: while connected, play() is forwarded to
-      // the device (the SDK path gets autoplay from its LoadRequest; this
-      // path has to ask).
+      // Drive the remoted element: while connected, play() is forwarded to the
+      // device (the SDK path gets autoplay from its LoadRequest; this one has
+      // to ask).
       el.play().catch(() => { /* receiver may auto-start on its own */ });
     } else if (outcome === "error") {
       toast.error(t("player.cast.loadFailed"));
     }
-  }, [buildCastUrl, remotePlayback, t]);
+  }, [remotePlayback, t]);
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {
@@ -474,15 +475,34 @@ export function HLSPlayer({
   // session token is enough to advertise the source; the click path rebuilds it
   // with the long-lived cast token + current position via buildCastUrl.
   const castAvailabilitySrc = useMemo(() => {
-    if (!streamTokenRef.current) return undefined;
+    const sessionTok = streamTokenRef.current;
+    if (!sessionTok) return undefined;
+    // The FULL cast URL, ready to fling: absolute (the receiver fetches it
+    // itself, so it must be the address the operator says devices can reach),
+    // and carrying the long-lived cast token as soon as the prefetch lands -
+    // the 5-minute session token would expire on the receiver mid-film.
+    //
+    // Everything the tap needs is computed HERE, ahead of time, on purpose:
+    // prompt() must run inside the tap's transient user activation, and doing
+    // this work in the click handler burned it (Chrome then rejects with
+    // NotAllowedError and never opens a picker).
+    let url: string;
     if (streamInfo.directPlayUrl) {
       const dp = streamInfo.directPlayUrl;
-      return dp.includes("token=") ? dp : `${dp}${dp.includes("?") ? "&" : "?"}token=${encodeURIComponent(streamTokenRef.current)}`;
+      url = dp.includes("token=") ? dp : `${dp}${dp.includes("?") ? "&" : "?"}token=${encodeURIComponent(sessionTok)}`;
+    } else {
+      url = buildTranscodeHlsUrl(mediaId, sessionTok, currentTrackIndex, null, 0, 0, gapless);
     }
-    return buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, 0, 0, gapless);
+    if (castToken) {
+      const u = new URL(url, window.location.origin);
+      u.searchParams.set("token", castToken);
+      url = `${u.pathname}?${u.searchParams.toString()}`;
+    }
+    const origin = localStorage.getItem("cast_base_url") || window.location.origin;
+    return url.startsWith("http") ? url : `${origin}${url}`;
     // streamToken lands via streamInfo negotiation; key on it so this recomputes once the token is ready.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [streamInfo, mediaId, currentTrackIndex, gapless]);
+  }, [streamInfo, mediaId, currentTrackIndex, gapless, castToken]);
 
   useEffect(() => {
     // NEVER touch the element while a remote session is live: reassigning src

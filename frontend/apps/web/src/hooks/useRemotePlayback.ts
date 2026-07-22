@@ -26,7 +26,7 @@ interface RemotePlayback {
   removeEventListener?: (name: string, cb: () => void) => void;
   watchAvailability(cb: (available: boolean) => void): Promise<number>;
   cancelWatchAvailability(id: number): Promise<void>;
-  prompt(): Promise<void>;
+  prompt(): Promise<RemotePromptOutcome>;
 }
 
 export type RemotePromptOutcome = "connected" | "dismissed" | "error";
@@ -124,17 +124,24 @@ export function useRemotePlayback(
     };
   }, [video]);
 
-  const prompt = useCallback(async () => {
+  // Prompts on whatever source the element already carries. The caller MUST
+  // reach this without awaiting anything first: prompt() consumes the tap's
+  // transient user activation, and a single network round-trip before it makes
+  // Chrome reject with NotAllowedError - no picker, instant rejection. Measured
+  // in production: 13 taps, 13 rejections in the same second, zero pickers.
+  const prompt = useCallback(async (): Promise<RemotePromptOutcome> => {
     const remote = remoteOf(video);
-    if (!remote) return;
+    if (!remote) return "error";
     reportAttempt();
     try {
       await remote.prompt();
       reportOutcome("connected");
+      return "connected";
     } catch (err) {
-      // A dismissal is not a failure; anything else is, and now says so.
       const name = (err as DOMException | null)?.name;
-      reportOutcome(name === "NotAllowedError" ? "dismissed" : "error", name);
+      const outcome: RemotePromptOutcome = name === "NotAllowedError" ? "dismissed" : "error";
+      reportOutcome(outcome, name);
+      return outcome;
     }
   }, [video, reportAttempt, reportOutcome]);
 

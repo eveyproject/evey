@@ -96,6 +96,42 @@ describe("useRemotePlayback", () => {
     expect(order).toEqual(["set-src", "prompt"]);
   });
 
+  // Regression, measured in production: the tap handler awaited a token fetch
+  // before prompting, which burned the tap's transient user activation. Chrome
+  // rejected every attempt with NotAllowedError - 13 taps, 13 instant
+  // rejections, no picker ever shown. prompt() therefore touches NOTHING: the
+  // element already carries the castable URL, so the caller can reach it with
+  // no await in between.
+  it("prompt() goes straight to the picker without touching the element src", async () => {
+    const { video, remote } = fakeVideoWithRemote();
+    const order: string[] = [];
+    Object.defineProperty(video, "src", {
+      configurable: true,
+      set: () => order.push("set-src"),
+      get: () => "https://x/master.m3u8?token=cast",
+    });
+    remote.prompt.mockImplementation(async () => { order.push("prompt"); });
+
+    const { result } = renderHook(() => useRemotePlayback(video));
+    await act(async () => { await result.current.prompt(); });
+
+    expect(order).toEqual(["prompt"]);
+  });
+
+  it("prompt() hands the outcome back so the caller can react honestly", async () => {
+    const { video, remote } = fakeVideoWithRemote();
+    const { result } = renderHook(() => useRemotePlayback(video));
+
+    remote.prompt.mockResolvedValueOnce(undefined);
+    await act(async () => { expect(await result.current.prompt()).toBe("connected"); });
+
+    remote.prompt.mockRejectedValueOnce(Object.assign(new Error("x"), { name: "NotAllowedError" }));
+    await act(async () => { expect(await result.current.prompt()).toBe("dismissed"); });
+
+    remote.prompt.mockRejectedValueOnce(Object.assign(new Error("x"), { name: "NotFoundError" }));
+    await act(async () => { expect(await result.current.prompt()).toBe("error"); });
+  });
+
   it("promptForUrl distinguishes handoff, dismissal, and real failure", async () => {
     // The caller pauses the local player only on a REAL handoff, stays silent
     // on a dismissal, and surfaces an error toast on anything else - a picker
