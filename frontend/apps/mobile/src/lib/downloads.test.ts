@@ -168,6 +168,17 @@ describe("startDownload", () => {
     handlers.error?.({ id: "m5", error: "network broke" });
     await expect(pending).rejects.toThrow("network broke");
   });
+
+  it("deletes the partial file on the disk when the native task errors", async () => {
+    const pending = startDownload("m6", "Movie 6");
+    const handlers = await waitForTask("m6");
+    handlers.error?.({ id: "m6", error: "network broke" });
+    await expect(pending).rejects.toThrow("network broke");
+    expect(fsMock.deleteAsync).toHaveBeenCalledWith(
+      expect.stringContaining("evey-m6.mp4"),
+      { idempotent: true },
+    );
+  });
 });
 
 describe("rehydrateBackgroundDownloads", () => {
@@ -203,6 +214,53 @@ describe("rehydrateBackgroundDownloads", () => {
   it("returns quietly when the native lookup fails", async () => {
     getExistingDownloadTasksMock.mockRejectedValueOnce(new Error("not ready"));
     await expect(rehydrateBackgroundDownloads()).resolves.toBeUndefined();
+  });
+
+  it("deletes the partial file on disk when a rehydrated task errors", async () => {
+    existingTasks.push({ id: "m10", metadata: { title: "Movie 10" } });
+    const taskHandlers: TaskHandlers = {};
+    const fakeTask = {
+      id: "m10",
+      metadata: { title: "Movie 10" },
+      progress: vi.fn((cb: TaskHandlers["progress"]) => { taskHandlers.progress = cb; return fakeTask; }),
+      done: vi.fn((cb: TaskHandlers["done"]) => { taskHandlers.done = cb; return fakeTask; }),
+      error: vi.fn((cb: TaskHandlers["error"]) => { taskHandlers.error = cb; return fakeTask; }),
+    };
+    getExistingDownloadTasksMock.mockResolvedValueOnce([fakeTask]);
+
+    await rehydrateBackgroundDownloads();
+    taskHandlers.error?.({ id: "m10", error: "network broke" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(fsMock.deleteAsync).toHaveBeenCalledWith(
+      expect.stringContaining("evey-m10.mp4"),
+      { idempotent: true },
+    );
+  });
+
+  it("reads the real file size from disk when done fires with no prior progress", async () => {
+    existingTasks.push({ id: "m11", metadata: { title: "Movie 11" } });
+    const taskHandlers: TaskHandlers = {};
+    const fakeTask = {
+      id: "m11",
+      metadata: { title: "Movie 11" },
+      progress: vi.fn((cb: TaskHandlers["progress"]) => { taskHandlers.progress = cb; return fakeTask; }),
+      done: vi.fn((cb: TaskHandlers["done"]) => { taskHandlers.done = cb; return fakeTask; }),
+      error: vi.fn((cb: TaskHandlers["error"]) => { taskHandlers.error = cb; return fakeTask; }),
+    };
+    getExistingDownloadTasksMock.mockResolvedValueOnce([fakeTask]);
+    fsMock.getInfoAsync.mockResolvedValue({ exists: true, size: 42424 });
+
+    await rehydrateBackgroundDownloads();
+    // done fires with no progress() call at all - totalBytes was never set.
+    taskHandlers.done?.({ id: "m11" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const written = fsMock.writeAsStringAsync.mock.calls.at(-1);
+    expect(written).toBeTruthy();
+    const idx = JSON.parse(written![1]);
+    const entry = idx.find((i: { mediaItemId: string }) => i.mediaItemId === "m11");
+    expect(entry.fileSize).toBe(42424);
   });
 });
 

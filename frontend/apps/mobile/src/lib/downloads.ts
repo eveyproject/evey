@@ -176,10 +176,14 @@ export async function startDownload(
         unsubscribeProgress?.();
         resolve(destPath);
       })
-      .error(({ error }) => {
+      .error(async ({ error }) => {
         inFlight.delete(mediaItemId);
         completeHandler(mediaItemId);
         unsubscribeProgress?.();
+        // A failed download leaves a partial file at destPath that never enters
+        // the index, so deleteDownload can never reach it - clean it up here.
+        // Deletion must never mask the original rejection.
+        try { await FileSystem.deleteAsync(destPath, { idempotent: true }); } catch (err) { console.warn("caught", err); }
         reject(new Error(error || "Download failed"));
       });
 
@@ -221,15 +225,28 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
       })
       .done(async () => {
         const state = inFlight.get(mediaItemId);
+        // The rehydrated task skips begin(), so totalBytes stays 0 if done fires
+        // without any progress() call in between. Fall back to the real size on
+        // disk rather than persisting a 0 that corrupts disk-usage accounting.
+        let totalBytes = state?.totalBytes ?? 0;
+        if (!totalBytes) {
+          try {
+            const info = await FileSystem.getInfoAsync(destPath);
+            if (info.exists && info.size) totalBytes = info.size;
+          } catch { /* silent */ }
+        }
         try {
-          await persistDownloaded(mediaItemId, title, destPath, state?.totalBytes ?? 0);
+          await persistDownloaded(mediaItemId, title, destPath, totalBytes);
         } catch { /* silent */ }
         inFlight.delete(mediaItemId);
         completeHandler(mediaItemId);
       })
-      .error(() => {
+      .error(async () => {
         inFlight.delete(mediaItemId);
         completeHandler(mediaItemId);
+        // Same leak as startDownload's error handler: the partial file never
+        // entered the index, so it's otherwise unreachable by deleteDownload.
+        try { await FileSystem.deleteAsync(destPath, { idempotent: true }); } catch (err) { console.warn("caught", err); }
       });
   }
 }
