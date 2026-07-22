@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Folder, Download } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@evey/store";
 import { useCollection, useDeleteCollection } from "@/features/collection/api";
+import { usePlaybackDifficulties } from "@/hooks/usePlaybackDifficulties";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
 import { Button } from "@/components/ui/Button";
@@ -29,6 +30,12 @@ function CollectionDetailPage() {
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / pageSize);
+
+  const difficultyIds = useMemo(
+    () => items.map((i) => i.id).filter((id): id is string => !!id),
+    [items],
+  );
+  const difficulties = usePlaybackDifficulties(difficultyIds);
 
   const handleDelete = () => {
     if (confirm(t("media.collections.deleteConfirm"))) {
@@ -123,7 +130,7 @@ function CollectionDetailPage() {
         <>
           <MediaGrid>
             {items.map((item) => (
-              <MediaCard key={item.id} item={item} lite />
+              <MediaCard key={item.id} item={item} difficulty={difficulties.get(item.id ?? "")} lite />
             ))}
           </MediaGrid>
           {totalPages > 1 && (
