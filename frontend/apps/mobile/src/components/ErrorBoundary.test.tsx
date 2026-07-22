@@ -71,11 +71,12 @@ describe("ErrorBoundary", () => {
     expect(screen.getByText("Something went wrong")).toBeTruthy();
 
     const loggedCall = consoleErrorSpy.mock.calls.find((call) => call[0] === "[ErrorBoundary] render crash:");
-    expect(loggedCall).toBeTruthy();
-    expect(loggedCall?.[1]).toBeInstanceOf(Error);
-    expect((loggedCall?.[1] as Error).message).toBe("kaboom");
-    expect(typeof loggedCall?.[2]).toBe("string");
-    expect(loggedCall?.[2]).toContain("Boom");
+    expect(loggedCall).toBeDefined();
+    const [, loggedError, loggedStack] = loggedCall as [string, Error, string];
+    expect(loggedError).toBeInstanceOf(Error);
+    expect(loggedError.message).toBe("kaboom");
+    expect(typeof loggedStack).toBe("string");
+    expect(loggedStack).toContain("Boom");
   });
 
   it("clears the query cache and re-renders the tree when Try Again is pressed", () => {
