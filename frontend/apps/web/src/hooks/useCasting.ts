@@ -157,7 +157,16 @@ function ensureCastSdk() {
   document.head.appendChild(script);
 }
 
-export function useCasting() {
+// Reporter shape borrowed from the player beacon (createPlayerEventReporter).
+// The SDK cast path reported NOTHING until now: when a user said "casting is
+// broken", the server logs held zero trace of the attempt, and diagnosing it
+// meant guessing. The fling path has had this since 2026-07-21; this closes
+// the other half.
+type CastReporter = (e: { type: string; details?: string; fatal?: boolean }) => void;
+
+export function useCasting(report?: CastReporter) {
+  const reportRef = useRef<CastReporter | undefined>(report);
+  reportRef.current = report;
   const [state, setState] = useState<CastState>({
     available: true,
     connected: false,
@@ -311,6 +320,7 @@ export function useCasting() {
   // loadChromecastMedia); transcode casts pass 0 (offset baked in the URL).
   const startCast = useCallback(async (streamUrl: string, title?: string, startAtSec = 0) => {
     log(TAG, "startCast - url:", streamUrl, "title:", title, "startAtSec:", startAtSec);
+    reportRef.current?.({ type: "cast_prompt", details: `sdk=${chromecastReady.current}` });
 
     const origin = localStorage.getItem("cast_base_url") || window.location.origin;
     const absoluteUrl = streamUrl.startsWith("http")
@@ -330,6 +340,7 @@ export function useCasting() {
         }
         if (!session) {
           warn(TAG, "No session - user cancelled");
+          reportRef.current?.({ type: "cast_prompt_result", details: "dismissed" });
           return;
         }
 
@@ -346,10 +357,17 @@ export function useCasting() {
           // toast while the film keeps playing locally. Surface the real
           // failure and stop.
           error(TAG, "Chromecast loadMedia failed:", loadErr);
+          const le = loadErr as { code?: string; description?: string };
+          reportRef.current?.({
+            type: "cast_load_failed",
+            details: `${le?.code ?? "unknown"}${le?.description ? `: ${le.description}` : ""}`,
+            fatal: true,
+          });
           toast.error(i18n.t("player.cast.loadFailed"));
           return;
         }
         log(TAG, "Media loaded on Chromecast");
+        reportRef.current?.({ type: "cast_prompt_result", details: "connected" });
 
         setState((prev) => ({
           ...prev,
@@ -361,10 +379,21 @@ export function useCasting() {
       } catch (err: unknown) {
         const e = err as { code?: string; description?: string };
         error(TAG, "Chromecast session failed:", e.code, e.description);
-        // User dismissed the device picker, or a session error before load.
-        // Only a genuine "no native SDK" situation should reach the server-side
-        // fallback below; a cancel just aborts.
+        reportRef.current?.({
+          type: "cast_prompt_result",
+          details: `error:${e.code ?? "unknown"}${e.description ? `: ${e.description}` : ""}`,
+          fatal: e.code !== "cancel",
+        });
+        // A cancel just aborts - the user closed the picker.
         if (e.code === "cancel") return;
+        // Any OTHER session error means the picker DID list the device and the
+        // connection to it failed (receiver_unavailable, session_error,
+        // timeout...). Falling through to the server-side LAN discovery below
+        // then told the user "no Chromecast found on your Wi-Fi" about a device
+        // they had just selected - which sent them hunting a network problem
+        // that did not exist. Say what actually happened and stop.
+        toast.error(i18n.t("player.cast.connectFailed"));
+        return;
       }
     }
 

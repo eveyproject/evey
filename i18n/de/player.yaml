@@ -158,6 +158,7 @@ jumpToChapter: "Zum Kapitel springen: {{chapter}}"
 cast:
   noDevices: Keine Cast-Geräte im Netzwerk des Servers gefunden.
   loadFailed: "Wiedergabe auf dem Cast-Gerät konnte nicht gestartet werden."
+  connectFailed: "Verbindung zum Übertragungsgerät fehlgeschlagen. Es hat geantwortet, aber die Sitzung schlug fehl - prüfen Sie, ob es nicht bereits überträgt, und versuchen Sie es erneut."
   notFound: "Kein Chromecast gefunden. Stellen Sie sicher, dass er eingeschaltet und mit demselben WLAN wie dieses Gerät verbunden ist."
 playOn:
   button: Auf einem anderen Gerät abspielen

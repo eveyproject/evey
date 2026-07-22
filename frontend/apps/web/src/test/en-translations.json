@@ -1726,5 +1726,6 @@
   "player.subtitleStyle.textShadow": "Text shadow",
   "player.subtitleStyle.top": "Top",
   "player.unableToPlayAnyQuality": "Unable to play at any quality level",
-  "player.watchTogether": "Watch Together"
+  "player.watchTogether": "Watch Together",
+  "player.cast.connectFailed": "Could not connect to the cast device. It answered but the session failed - check it is not already casting, then try again."
 }

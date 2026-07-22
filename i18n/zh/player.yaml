@@ -158,6 +158,7 @@ jumpToChapter: "跳转到章节：{{chapter}}"
 cast:
   noDevices: 在服务器网络中未找到投屏设备。
   loadFailed: "无法在投屏设备上开始播放。"
+  connectFailed: "无法连接到投放设备。设备有响应，但会话失败 - 请确认它没有正在投放，然后重试。"
   notFound: "未找到 Chromecast。请确保它已开启并与本设备连接到同一 Wi-Fi。"
 playOn:
   button: 在其他设备上播放

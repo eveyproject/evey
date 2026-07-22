@@ -14,6 +14,4 @@ export const CastButtonNative = safe?.CastButton ?? null;
 export const useCastStateHook = safe?.useCastState ?? (() => null);
 export const useRemoteMediaClientHook = safe?.useRemoteMediaClient ?? (() => null);
 export const useMediaStatusHook = safe?.useMediaStatus ?? (() => null);
-// Connected receiver metadata (modelName drives the cast capability profile).
-export const useCastDeviceHook = safe?.useCastDevice ?? (() => null);
 export const CastStateEnum = safe?.CastState ?? { CONNECTED: "connected" };

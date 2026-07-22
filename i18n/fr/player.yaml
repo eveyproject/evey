@@ -158,6 +158,7 @@ jumpToChapter: "Aller au chapitre : {{chapter}}"
 cast:
   noDevices: Aucun appareil de diffusion trouvé sur le réseau du serveur.
   loadFailed: "Impossible de lancer la lecture sur l'appareil de diffusion."
+  connectFailed: "Connexion à l'appareil de diffusion impossible. Il a répondu mais la session a échoué - vérifiez qu'il ne diffuse pas déjà, puis réessayez."
   notFound: "Aucun Chromecast trouvé. Vérifiez qu'il est allumé et connecté au même Wi-Fi que cet appareil."
 playOn:
   button: Lire sur un autre appareil
