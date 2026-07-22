@@ -19,7 +19,63 @@ evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch i
 evey admin migrate up [--no-backup]          Apply pending migrations.
 evey admin migrate down [--no-backup]        Roll back one migration step.
 evey admin migrate version                   Print current schema version (exit 1 if dirty).
+evey admin list-users                        Print user emails, one per line.
+evey admin version                           Print the binary version.
 ```
+
+### Media maintenance
+
+```
+evey admin reindex-no-cue --root <dir> [--apply] [--limit N] [--resync] [--keep-backup=false]
+                                             Rebuild the seek index (Cues) of MKV/WebM files that
+                                             lack one - the fix for slow seek and slow resume.
+                                             DRY-RUN BY DEFAULT: pass --apply to rewrite. Each
+                                             rewrite is validated, cross-checked, and keeps a
+                                             .mkvgobak backup. --limit N for a cautious first run.
+                                             --resync also repairs files with a corrupted region the
+                                             strict pass refuses (skips the damage, keeps the rest,
+                                             reports the lost bytes).
+                                             LONG: rewrites each file in full, hours on a large
+                                             library. Shows a progress bar while applying.
+evey admin validate-streaming --root <dir> [--errors-only]
+                                             Read-only report of each file's streaming readiness
+                                             (Cues index, keyframe cues, DefaultDuration) - what the
+                                             on-demand HLS rung and seeking rely on.
+evey admin artwork-gc [--root <dir>] [--apply]
+                                             Delete artwork files on disk that no DB row references.
+                                             Dry-run by default. --root defaults to /data/artworks.
+evey admin reclassify <media-id>             Force-recompute the encoding complexity class.
+evey admin reclassify --all                  Wipe and re-queue every classified item.
+```
+
+### Diagnostics and capacity
+
+```
+evey admin doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch (plus
+                                             index drift), media mounts (owned by the server UID?),
+                                             cache dirs, ffmpeg/mkvgo and disk. --repair applies only
+                                             the safe fixes (create + chown missing writable dirs).
+evey admin rollback                          Read-only advisor: prints the running version, schema,
+                                             newest pre-migration backup and the exact HOST commands
+                                             to roll back. The container has no Docker access, by
+                                             design, so it advises rather than acts.
+evey admin load-test [minimal|standard|max] [--scenario <s>] [--max-viewers N] [--duration S]
+                                             Needs a LIVE server (it is an HTTP client of the local
+                                             gateway). Ramps simulated viewers until the box hits its
+                                             ceiling, then reports the sustained count with TTFF and
+                                             segment latencies. Scenarios: transcode, natural, mkvgo,
+                                             light (80/20), balanced (50/50, default), heavy (20/80),
+                                             mkvgo+N. --max-viewers caps the ramp (0 = server default
+                                             12). Short sanity run:
+                                             `load-test --scenario balanced --max-viewers 4`.
+                                             `admission_full` is the ceiling verdict (exit 0), not an
+                                             error.
+```
+
+> The full, always-current list is `evey admin` with no subcommand - it prints
+> usage and exits non-zero. This page documented 5 of the 16 subcommands until
+> 2026-07-23; `reindex-no-cue`, the seek-index repair behind the recurring slow-
+> resume incidents, was among the missing ones.
 
 ## How to invoke
 
