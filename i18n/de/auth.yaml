@@ -94,6 +94,7 @@ register:
   inviteChecking: "Einladung wird geprüft…"
   backToLogin: "Zurück zur Anmeldung"
 profile:
+  logoutIncomplete: "Die Abmeldung ist auf diesem Gerät möglicherweise unvollständig. Starte die App neu, um sie abzuschließen."
   edit: Bearbeiten
   username: Benutzername
   email: E-Mail

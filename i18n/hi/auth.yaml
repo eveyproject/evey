@@ -94,6 +94,7 @@ register:
   inviteChecking: "आपका आमंत्रण जांचा जा रहा है…"
   backToLogin: "लॉगिन पर वापस"
 profile:
+  logoutIncomplete: "इस डिवाइस पर साइन-आउट अधूरा हो सकता है। सत्र पूरी तरह साफ़ करने के लिए ऐप पुनरारंभ करें।"
   edit: "संपादित करें"
   username: "उपयोगकर्ता नाम"
   email: "ईमेल"

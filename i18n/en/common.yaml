@@ -215,6 +215,7 @@ selectedCount: '{{count}} selected'
 somethingWentWrong: Something went wrong
 tryAgain: Try again
 unknownError: Unknown error
+restartRequired: "This keeps happening. Please restart the app."
 shufflePlay: Shuffle play
 shuffleEmpty: Nothing to shuffle here
 shuffleFailed: Couldn't pick something to play

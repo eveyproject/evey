@@ -215,6 +215,7 @@ selectedCount: '{{count}} sélectionné(s)'
 somethingWentWrong: Une erreur est survenue
 tryAgain: Réessayer
 unknownError: Erreur inconnue
+restartRequired: "Le problème persiste. Veuillez redémarrer l'application."
 shufflePlay: Lecture aléatoire
 shuffleEmpty: Rien à lire ici
 shuffleFailed: Impossible de choisir un élément

@@ -215,6 +215,7 @@ selectedCount: 已选 {{count}} 项
 somethingWentWrong: 出了点问题
 tryAgain: 重试
 unknownError: 未知错误
+restartRequired: "问题持续出现。请重启应用。"
 shufflePlay: 随机播放
 shuffleEmpty: 没有可随机播放的内容
 shuffleFailed: 无法选择要播放的内容

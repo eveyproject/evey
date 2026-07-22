@@ -94,6 +94,7 @@ register:
   inviteChecking: "Comprobando tu invitación…"
   backToLogin: "Volver al inicio de sesión"
 profile:
+  logoutIncomplete: "El cierre de sesión puede estar incompleto en este dispositivo. Reinicia la aplicación para completarlo."
   edit: "Editar"
   username: "Nombre de usuario"
   email: "Correo electrónico"

@@ -94,6 +94,7 @@ register:
   inviteChecking: "正在验证你的邀请…"
   backToLogin: "返回登录"
 profile:
+  logoutIncomplete: "此设备上的退出登录可能未完成。请重启应用以彻底清除会话。"
   edit: "编辑"
   username: "用户名"
   email: "邮箱"
