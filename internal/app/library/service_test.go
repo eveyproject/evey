@@ -746,9 +746,14 @@ func TestStartPeriodicScan_DefaultInterval(t *testing.T) {
 	// effect - the only externally observable trace of interval<=0 -> 2min is
 	// the "interval=" field StartPeriodicScan logs on startup. Capture it
 	// instead of asserting on a smoke-test side effect that can't fail.
-	var buf bytes.Buffer
+	// Locked writer, not a bare bytes.Buffer: the scanner logs from its own
+	// goroutine and other tests in this package log concurrently, so an
+	// unsynchronised buffer trips the race detector under `go test -race`.
+	// Stray lines from other tests are harmless here - the assertion is a
+	// substring match, not an equality.
+	buf := &lockedBuffer{}
 	prevLogger := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(buf, nil)))
 	defer slog.SetDefault(prevLogger)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -756,8 +761,8 @@ func TestStartPeriodicScan_DefaultInterval(t *testing.T) {
 	svc.StartPeriodicScan(ctx, libQueryRepo, 0, nil)
 	time.Sleep(50 * time.Millisecond)
 
-	if !strings.Contains(buf.String(), "interval=2m0s") {
-		t.Errorf("expected StartPeriodicScan(interval=0) to log the 2min default, got log output: %s", buf.String())
+	if got := buf.String(); !strings.Contains(got, "interval=2m0s") {
+		t.Errorf("expected StartPeriodicScan(interval=0) to log the 2min default, got log output: %s", got)
 	}
 }
 
@@ -952,4 +957,23 @@ func TestScan_PersistsContainerFormatWhenProbeHasNoDuration(t *testing.T) {
 	items := mediaRepo.All()
 	require.Len(t, items, 1)
 	assert.Equal(t, "matroska,webm", items[0].File.ContainerFormat)
+}
+
+// lockedBuffer is a bytes.Buffer safe for concurrent writes, for tests that
+// capture the package-global slog output while goroutines are still logging.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
