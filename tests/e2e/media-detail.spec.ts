@@ -129,14 +129,18 @@ test.describe("Media Detail - series", () => {
     await expect(detail).toBeVisible({ timeout: 15_000 });
   });
 
-  test("seasons accordion is visible", async ({ page }) => {
+  test("the seasons section lists at least one season", async ({ page }) => {
     const seasons = page.locator('[data-testid="seasons-section"]');
     await expect(seasons).toBeVisible({ timeout: 15_000 });
 
-    // Should contain at least one season row
-    const seasonBtns = seasons.locator("button");
-    const count = await seasonBtns.count();
-    expect(count).toBeGreaterThan(0);
+    // Count season TILES, not buttons. The section stopped being an accordion
+    // of buttons a while back - it is a grid of poster tiles linking to each
+    // season - and the only <button> left in it was the gapless-playback
+    // toggle, since removed. Counting buttons was therefore asserting on a
+    // control that had nothing to do with seasons, and went to zero the day it
+    // was dropped.
+    const tiles = seasons.locator('a[href^="/media/"]');
+    await expect.poll(() => tiles.count(), { timeout: 15_000 }).toBeGreaterThan(0);
   });
 
   test("series has a download button (full-series ZIP)", async ({ page }) => {
