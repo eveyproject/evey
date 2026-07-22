@@ -164,6 +164,8 @@ function ensureCastSdk() {
 // the other half.
 type CastReporter = (e: { type: string; details?: string; fatal?: boolean }) => void;
 
+export type CastAttempt = "connected" | "dismissed" | "session-failed" | "load-failed";
+
 export function useCasting(report?: CastReporter) {
   const reportRef = useRef<CastReporter | undefined>(report);
   reportRef.current = report;
@@ -318,7 +320,12 @@ export function useCasting(report?: CastReporter) {
 
   // startAtSec: initial receiver position for DIRECT PLAY (see
   // loadChromecastMedia); transcode casts pass 0 (offset baked in the URL).
-  const startCast = useCallback(async (streamUrl: string, title?: string, startAtSec = 0) => {
+  // The outcome the caller needs to decide what to do next. "session-failed"
+  // is the interesting one: the picker listed the device and the session did
+  // not come up, which is recoverable by another cast path (the Remote
+  // Playback fling). "load-failed" is not - the receiver took the session and
+  // refused the media, and handing it the same URL another way changes nothing.
+  const startCast = useCallback(async (streamUrl: string, title?: string, startAtSec = 0): Promise<CastAttempt> => {
     log(TAG, "startCast - url:", streamUrl, "title:", title, "startAtSec:", startAtSec);
     reportRef.current?.({ type: "cast_prompt", details: `sdk=${chromecastReady.current}` });
 
@@ -341,7 +348,7 @@ export function useCasting(report?: CastReporter) {
         if (!session) {
           warn(TAG, "No session - user cancelled");
           reportRef.current?.({ type: "cast_prompt_result", details: "dismissed" });
-          return;
+          return "dismissed";
         }
 
         const device = session.getCastDevice();
@@ -364,7 +371,7 @@ export function useCasting(report?: CastReporter) {
             fatal: true,
           });
           toast.error(i18n.t("player.cast.loadFailed"));
-          return;
+          return "load-failed";
         }
         log(TAG, "Media loaded on Chromecast");
         reportRef.current?.({ type: "cast_prompt_result", details: "connected" });
@@ -375,7 +382,7 @@ export function useCasting(report?: CastReporter) {
           deviceName: device?.friendlyName ?? null,
           mode: "chromecast",
         }));
-        return;
+        return "connected";
       } catch (err: unknown) {
         const e = err as { code?: string; description?: string };
         error(TAG, "Chromecast session failed:", e.code, e.description);
@@ -385,15 +392,15 @@ export function useCasting(report?: CastReporter) {
           fatal: e.code !== "cancel",
         });
         // A cancel just aborts - the user closed the picker.
-        if (e.code === "cancel") return;
+        if (e.code === "cancel") return "dismissed";
         // Any OTHER session error means the picker DID list the device and the
         // connection to it failed (receiver_unavailable, session_error,
         // timeout...). Falling through to the server-side LAN discovery below
-        // then told the user "no Chromecast found on your Wi-Fi" about a device
-        // they had just selected - which sent them hunting a network problem
-        // that did not exist. Say what actually happened and stop.
-        toast.error(i18n.t("player.cast.connectFailed"));
-        return;
+        // told the user "no Chromecast found on your Wi-Fi" about a device they
+        // had just selected - which sent them hunting a network problem that
+        // did not exist. Hand the outcome back instead: the caller has a second
+        // cast path to try, and only it knows whether that path exists here.
+        return "session-failed";
       }
     }
 
@@ -410,8 +417,10 @@ export function useCasting(report?: CastReporter) {
       /* absoluteUrl always absolute here; fall back to the page host */
     }
     if (!isDirectLanHost(castHost)) {
-      toast.error(i18n.t("player.cast.notFound"));
-      return;
+      // Behind a domain the server shares no network with the user, so the
+      // LAN discovery below cannot help. Report it as a failed attempt so the
+      // caller can try its own cast path before showing anything.
+      return "session-failed";
     }
 
     try {
@@ -440,7 +449,7 @@ export function useCasting(report?: CastReporter) {
           deviceName: device.name,
           mode: "cast",
         }));
-        return;
+        return "connected";
       }
 
       // DLNA fallback
@@ -454,7 +463,7 @@ export function useCasting(report?: CastReporter) {
         // is the evey container being on a Docker bridge network where
         // mDNS/SSDP multicast can't reach the LAN.
         toast.error(i18n.t("player.cast.noDevices"));
-        return;
+        return "session-failed";
       }
       const renderer = renderers[0];
       await eveyFetch({
@@ -469,9 +478,11 @@ export function useCasting(report?: CastReporter) {
         deviceName: renderer.name,
         mode: "dlna",
       }));
+      return "connected";
     } catch (err) {
       error(TAG, "Cast/DLNA fallback failed:", err);
     }
+    return "session-failed";
   }, []);
 
   const stopCast = useCallback(async () => {

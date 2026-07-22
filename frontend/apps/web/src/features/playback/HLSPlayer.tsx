@@ -345,20 +345,6 @@ export function HLSPlayer({
     return { url, castStartSec, castResumeSec };
   }, [streamInfo.directPlayUrl, mediaId, currentTrackIndex, onCastTokenRequest, gapless, reportCastEvent]);
 
-  const handleCastToggle = useCallback(async () => {
-    if (castConnected) {
-      stopCast();
-      return;
-    }
-    const { url, castStartSec, castResumeSec } = await buildCastUrl();
-    if (import.meta.env.DEV) console.log("[Cast] SDK cast url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
-    // Remember the negotiated URL so handleCastSeek can reload at a new
-    // startSec without reconstructing it.
-    castBaseUrlRef.current = url;
-    castTranscodeOffsetRef.current = castStartSec;
-    startCast(url, title, castResumeSec);
-  }, [castConnected, stopCast, startCast, buildCastUrl, streamInfo.directPlayUrl, title]);
-
   // Chrome Android: the Cast SDK is dead, so cast by FLINGING the HLS/direct
   // URL through the Remote Playback API on a dedicated hidden <video>. The
   // receiver fetches and decodes the URL itself (it reads HLS natively), so
@@ -393,6 +379,33 @@ export function HLSPlayer({
       toast.error(t("player.cast.loadFailed"));
     }
   }, [buildCastUrl, remotePlayback, t]);
+
+  const handleCastToggle = useCallback(async () => {
+    if (castConnected) {
+      stopCast();
+      return;
+    }
+    const { url, castStartSec, castResumeSec } = await buildCastUrl();
+    if (import.meta.env.DEV) console.log("[Cast] SDK cast url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
+    // Remember the negotiated URL so handleCastSeek can reload at a new
+    // startSec without reconstructing it.
+    castBaseUrlRef.current = url;
+    castTranscodeOffsetRef.current = castStartSec;
+    const outcome = await startCast(url, title, castResumeSec);
+    if (outcome !== "session-failed") return;
+    // The SDK picker listed the device and the session did not come up. That
+    // is recoverable: Chrome for Android now reports the Cast SDK as ready
+    // while this path routinely fails there, and the Remote Playback fling is
+    // the path that works on that browser. Trying it costs a second picker at
+    // worst and is strictly better than the dead end this used to be - the
+    // user was told "no Chromecast found" about a device they had just picked.
+    if (remotePlayback.supported) {
+      await handleMobileCast();
+      return;
+    }
+    toast.error(t("player.cast.connectFailed"));
+  }, [castConnected, stopCast, startCast, buildCastUrl, streamInfo.directPlayUrl, title, remotePlayback.supported, handleMobileCast, t]);
+
 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const anyPanelOpenRef = useRef(false);
