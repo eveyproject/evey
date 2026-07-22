@@ -152,6 +152,11 @@ export interface RawFetcherRequest {
   // the caller can branch on res.status/body (e.g. 428 escalation, 403 blocked).
   // 401 still goes through the token-refresh/unauthorized flow.
   raw?: boolean;
+  // cache: forwarded to fetch() as RequestCache. "no-cache" forces conditional
+  // revalidation against stored entries - needed for stable-name resources
+  // (plugin bundles) where an old cache entry may predate the server's
+  // no-cache+ETag policy and would otherwise be served stale without a request.
+  cache?: RequestCache;
 }
 
 async function fetchWithRefresh(
@@ -228,6 +233,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
       headers: h,
       body: request.body,
       signal: request.signal,
+      ...(request.cache ? { cache: request.cache } : {}),
     });
   }
 
@@ -249,6 +255,7 @@ export async function eveyFetchRaw(request: RawFetcherRequest): Promise<Response
       headers: authToken ? { ...headers, Authorization: `Bearer ${authToken}` } : headers,
       body: request.body,
       signal: request.signal,
+      ...(request.cache ? { cache: request.cache } : {}),
     });
 
   return fetchWithRefresh(fullURL, doFetch, token ?? undefined, request.raw ?? false);

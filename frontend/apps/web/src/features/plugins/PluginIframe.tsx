@@ -199,9 +199,15 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
     let cancelled = false;
     (async () => {
       try {
+        // cache: "no-cache" = always revalidate with If-None-Match. The server
+        // answers 304 when unchanged, so the cost is one conditional request -
+        // and it repairs clients whose cache still holds a bundle stored under
+        // the old immutable policy (those entries never revalidate on their
+        // own, not even reliably on a hard refresh for JS-initiated fetches).
         const res = await eveyFetchRaw({
           url: `/api/v1/plugins/${encodeURIComponent(pluginId)}/assets/${src}`,
           method: "GET",
+          cache: "no-cache",
         });
         if (!res.ok) {
           throw new Error(`plugin bundle fetch failed: ${res.status}`);
@@ -265,9 +271,9 @@ export function PluginIframe({ pluginId, src, externalFetch, context }: PluginIf
         return eveyFetchRaw({ url: `/api/v1/media/${enc(String(args.id ?? ""))}/artwork/poster`, method: "GET" });
       case "assets.read": {
         // Reads one of the plugin's OWN web_root assets. Strict path guard
-        // (the server also rejects traversal, this is defense in depth); the
-        // cache-buster forces a fresh copy so a runtime-updated asset is picked
-        // up despite the immutable Cache-Control on plugin assets.
+        // (the server also rejects traversal, this is defense in depth). The
+        // cache-buster predates the server's no-cache+ETag policy; kept as
+        // belt-and-braces for intermediaries that ignore revalidation.
         const p = String(args.path ?? "");
         if (!p || p.length > 256 || p.includes("..") || p.startsWith("/") || p.includes("\\") || !/^[a-zA-Z0-9._/-]+$/.test(p)) {
           return Promise.reject(new Error("invalid asset path"));

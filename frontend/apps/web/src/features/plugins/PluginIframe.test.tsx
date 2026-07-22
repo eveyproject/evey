@@ -78,6 +78,12 @@ describe("PluginIframe", () => {
       // The URL must never carry a ?token= query - eveyFetchRaw attaches the
       // user access token via the Authorization header automatically.
       expect((bundleCall![0] as { url: string }).url).not.toContain("token=");
+      // cache: "no-cache" forces conditional revalidation (If-None-Match) even
+      // on cache entries stored back when the server said immutable - a JS
+      // fetch() is NOT reliably covered by the user's hard refresh, so without
+      // this, browsers that cached a bundle pre-2026-07-22 would keep running
+      // the stale plugin forever.
+      expect((bundleCall![0] as { cache?: string }).cache).toBe("no-cache");
     });
   });
 
