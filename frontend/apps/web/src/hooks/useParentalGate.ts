@@ -86,7 +86,7 @@ export function useParentalGate(
   const profileId = useAuthStore((s) => s.profileId);
   const { data: parental } = useParentalSettings(profileId);
   const { data: user } = useUserServiceGetCurrentUser();
-  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } } as never);
+  const { data: profilesResp } = useUserServiceListProfiles(user?.id ?? "", { query: { enabled: !!user?.id } });
   const profile = profilesResp?.profiles?.find((p) => p.id === profileId);
 
   function needsPin(): boolean {

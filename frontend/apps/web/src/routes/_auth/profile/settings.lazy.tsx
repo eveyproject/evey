@@ -365,7 +365,7 @@ function ParentalSection() {
   const defaultProfile = profiles?.find((p) => p.isDefault) ?? profiles?.[0];
   const profileId = defaultProfile?.id ?? "";
 
-  const { data: parental } = useParentalServiceGetParentalSettings(profileId, { query: { enabled: !!profileId } } as never);
+  const { data: parental } = useParentalServiceGetParentalSettings(profileId, { query: { enabled: !!profileId } });
 
   const [currentPin, setCurrentPin] = useState("");
   const [pin, setPin] = useState("");
