@@ -42,6 +42,17 @@ const playabilityShadowSeenMax = 4096
 // metadata read, no block walk) - generous, since it never blocks a caller.
 const playabilityShadowTimeout = 30 * time.Second
 
+// playabilityShadowGateTTL bounds how stale the cached on/off flag may be.
+// 30s is short enough that an operator flipping the switch sees it take effect
+// while still watching, and long enough that the lookup is negligible next to
+// one-per-segment.
+const playabilityShadowGateTTL = 30 * time.Second
+
+// playabilityShadowGateTimeout bounds the gate lookup itself. It runs inline on
+// the decision path, so it must never be the thing that stalls a segment: if
+// the config store is slow, fail closed and try again after the TTL.
+const playabilityShadowGateTimeout = 2 * time.Second
+
 // PlayabilityTarget is the app-owned mirror of the handful of mkvgo
 // ops.Target fields transcoding.ClientProfile can reliably supply (see
 // mapClientProfileToTarget). Kept as plain primitives here - rather than
@@ -101,6 +112,16 @@ type PlayabilityShadow struct {
 	// wg tracks in-flight Observe goroutines. Only Wait (test-only - production
 	// callers never need this, Observe is deliberately fire-and-forget) reads it.
 	wg sync.WaitGroup
+
+	// gate caches the on/off config lookup. Observe runs once per transcode
+	// decision - once per HLS segment, so ~1200 times an hour per viewer - and
+	// the lookup is an uncached SELECT, so reading it per observation put a
+	// query on the hot path for a feature that is off by default. Its own mutex
+	// rather than mu: shouldLog holds mu on the divergence path and the two
+	// have nothing to do with each other.
+	gateMu        sync.Mutex
+	gateOn        bool
+	gateCheckedAt time.Time
 }
 
 // NewPlayabilityShadow builds a shadow comparer. A nil logger falls back to
@@ -124,6 +145,13 @@ func NewPlayabilityShadow(analyzer PlayabilityAnalyzer, config shared.ServerConf
 // nil decision all no-op) so decision.go's call site never has to guard first.
 func (s *PlayabilityShadow) Observe(ctx context.Context, path string, decision *transcoding.PlaybackDecision, client transcoding.ClientProfile) {
 	if s == nil || s.analyzer == nil || path == "" || decision == nil {
+		return
+	}
+	// Gate BEFORE spawning. This check used to live inside the goroutine, so a
+	// disabled feature still cost one goroutine plus one uncached SELECT for
+	// every segment of every stream. Off is the default, so that was the normal
+	// case, not the edge case.
+	if !s.gateAllows(ctx) {
 		return
 	}
 	// Detached from the request context on purpose (same reasoning as
@@ -161,9 +189,9 @@ func (s *PlayabilityShadow) Wait() {
 // track) is a silent no-op - this feature must never surface as an error to
 // anything downstream.
 func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, decision *transcoding.PlaybackDecision, client transcoding.ClientProfile) {
-	if !s.enabled(ctx) {
-		return
-	}
+	// No gate check here: Observe already refused to spawn us if the feature is
+	// off. Re-reading it would put a second SELECT per segment on the enabled
+	// path, which is the one that matters once an operator turns this on.
 	target := mapClientProfileToTarget(client)
 	report, err := s.analyzer.Playability(ctx, path, target)
 	if err != nil {
@@ -203,6 +231,35 @@ func (s *PlayabilityShadow) observeOnce(ctx context.Context, path string, decisi
 // enabled reads the PlayabilityShadowConfigKey server_config row. Any failure
 // to read it (nil repo, missing row, store error) defaults to off - the same
 // "must never break the caller" posture the rest of this file follows.
+// gateAllows reports whether the shadow is switched on, re-reading the config
+// at most once per playabilityShadowGateTTL. The read is deliberately
+// synchronous: it is one query per TTL rather than one per segment, and doing
+// it inline keeps "operator flips the switch, next observation past the TTL
+// picks it up" true without a second layer of background refresh.
+//
+// The config read is detached from the caller's cancellation: a viewer closing
+// the tab mid-decision must not cache a spurious "off" for the whole TTL.
+func (s *PlayabilityShadow) gateAllows(ctx context.Context) bool {
+	s.gateMu.Lock()
+	defer s.gateMu.Unlock()
+	if !s.gateCheckedAt.IsZero() && time.Since(s.gateCheckedAt) < playabilityShadowGateTTL {
+		return s.gateOn
+	}
+	gateCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), playabilityShadowGateTimeout)
+	defer cancel()
+	s.gateOn = s.enabled(gateCtx)
+	s.gateCheckedAt = time.Now()
+	return s.gateOn
+}
+
+// expireGateCache forces the next gateAllows to re-read the config. Test-only
+// hook so a test does not have to sleep out the TTL.
+func (s *PlayabilityShadow) expireGateCache() {
+	s.gateMu.Lock()
+	s.gateCheckedAt = time.Time{}
+	s.gateMu.Unlock()
+}
+
 func (s *PlayabilityShadow) enabled(ctx context.Context) bool {
 	if s.config == nil {
 		return false

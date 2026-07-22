@@ -71,6 +71,71 @@ func TestPlayabilityShadow_GateOffMeansZeroAnalyzerCalls(t *testing.T) {
 	assert.Equal(t, 0, analyzer.callCount(), "gate off must not reach the analyzer")
 }
 
+// countingConfigRepo counts Get calls so a test can assert the gate is not
+// re-read once per observation.
+type countingConfigRepo struct {
+	shared.ServerConfigRepository
+	mu   sync.Mutex
+	gets int
+}
+
+func (c *countingConfigRepo) Get(ctx context.Context, key string) (*shared.ServerConfigEntry, error) {
+	c.mu.Lock()
+	c.gets++
+	c.mu.Unlock()
+	return c.ServerConfigRepository.Get(ctx, key)
+}
+
+func (c *countingConfigRepo) getCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.gets
+}
+
+// Observe runs once per transcode decision, which is once per HLS segment. With
+// 3s segments that is ~1200 calls per hour per viewer. The gate check used to
+// live inside the spawned goroutine, so a DISABLED feature still cost one
+// goroutine and one uncached SELECT per segment. The gate must be consulted -
+// and cached - before anything is spawned.
+func TestPlayabilityShadow_GateOffDoesNotSpawnOrQueryPerObservation(t *testing.T) {
+	analyzer := &fakePlayabilityAnalyzer{}
+	repo := &countingConfigRepo{ServerConfigRepository: sharedfakes.NewFakeServerConfigRepository()}
+	shadow := NewPlayabilityShadow(analyzer, repo, testLogger())
+
+	const observations = 200
+	for range observations {
+		shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("direct_play", "copy"), domaintranscoding.ClientProfile{})
+	}
+	shadow.Wait()
+
+	assert.Equal(t, 0, analyzer.callCount(), "gate off must not reach the analyzer")
+	assert.LessOrEqual(t, repo.getCount(), 2,
+		"gate off must not re-read server config once per observation (got %d reads for %d observations)",
+		repo.getCount(), observations)
+}
+
+// Caching the gate must not make it permanently off: once an operator turns the
+// shadow on, the next observation past the TTL has to pick it up.
+func TestPlayabilityShadow_GateTurnedOnIsPickedUpAfterTTL(t *testing.T) {
+	analyzer := &fakePlayabilityAnalyzer{report: &PlayabilityReport{
+		OverallVerdict: "direct-play",
+		Tracks:         []PlayabilityTrackVerdict{{Type: "video", Verdict: "direct-play"}},
+	}}
+	repo := sharedfakes.NewFakeServerConfigRepository()
+	shadow := NewPlayabilityShadow(analyzer, repo, testLogger())
+
+	shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("direct_play", "copy"), domaintranscoding.ClientProfile{})
+	shadow.Wait()
+	require.Equal(t, 0, analyzer.callCount(), "precondition: gate starts off")
+
+	enableShadow(t, repo)
+	shadow.expireGateCache()
+
+	shadow.Observe(context.Background(), "/media/movie.mkv", copyDecision("direct_play", "copy"), domaintranscoding.ClientProfile{})
+	shadow.Wait()
+	assert.Equal(t, 1, analyzer.callCount(), "gate turned on must be observed once the cache expires")
+}
+
 func TestPlayabilityShadow_ConvergentDoesNotError(t *testing.T) {
 	analyzer := &fakePlayabilityAnalyzer{report: &PlayabilityReport{
 		OverallVerdict: "direct-play",
