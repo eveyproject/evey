@@ -184,3 +184,60 @@ func TestVideoHeightOf(t *testing.T) {
 	}))
 	assert.Equal(t, 0, videoHeightOf([]*library.MediaStream{{StreamType: "audio", Codec: "aac"}}))
 }
+
+// The whole point of building the bulk endpoint on the SAME helpers as
+// GetStreamInfo is that a badge can never contradict what happens when the
+// title is actually played. This pins that: for identical inputs, both paths
+// must reach the same verdict.
+//
+// If someone later "optimises" GetPlaybackDifficulties by inlining its own
+// client profile or preference resolution, this is what goes red.
+func TestGetPlaybackDifficulties_AgreesWithGetStreamInfo(t *testing.T) {
+	cases := []struct {
+		name                           string
+		videoCodec, audioCodec         string
+		height                         int
+		supportedVideo, supportedAudio []string
+	}{
+		{"direct play", "h264", "aac", 1080, []string{"h264"}, []string{"aac"}},
+		{"video unsupported", "hevc", "aac", 2160, []string{"h264"}, []string{"aac"}},
+		{"audio unsupported", "h264", "eac3", 1080, []string{"h264"}, []string{"aac"}},
+		{"both unsupported", "mpeg4", "mp3", 404, []string{"h264"}, []string{"aac"}},
+		// Deliberately MORE capable than DefaultWebProfile (h264/vp9 + aac/mp3/
+		// opus/flac). Without a case like this the assertion is vacuous: dropping
+		// the client profile entirely still yields the same verdicts, because the
+		// default happens to agree on every codec above. Proven by sabotage.
+		{"client beyond the default profile", "hevc", "eac3", 2160,
+			[]string{"h264", "hevc", "av1"}, []string{"aac", "eac3", "truehd"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+			ctx := pbAdminCtx()
+			seedDifficultyItem(t, mediaQuery, streamRepo, "mi-agree", tc.videoCodec, tc.audioCodec, tc.height)
+
+			single, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+				MediaItemId:          "mi-agree",
+				SupportedCodecs:      tc.supportedVideo,
+				SupportedAudioCodecs: tc.supportedAudio,
+				SupportedContainers:  []string{"mp4"},
+			})
+			require.NoError(t, err)
+
+			bulk, err := h.GetPlaybackDifficulties(ctx, &eveyv1.GetPlaybackDifficultiesRequest{
+				MediaItemIds:         []string{"mi-agree"},
+				SupportedCodecs:      tc.supportedVideo,
+				SupportedAudioCodecs: tc.supportedAudio,
+				SupportedContainers:  []string{"mp4"},
+			})
+			require.NoError(t, err)
+			require.Len(t, bulk.Items, 1)
+
+			assert.Equal(t, single.PlayMethod, bulk.Items[0].PlayMethod, "play method diverged")
+			assert.Equal(t, single.VideoDecision, bulk.Items[0].VideoDecision, "video decision diverged")
+			assert.Equal(t, single.AudioDecision, bulk.Items[0].AudioDecision, "audio decision diverged")
+			assert.ElementsMatch(t, single.TranscodeReasons, bulk.Items[0].TranscodeReasons, "reasons diverged")
+		})
+	}
+}
