@@ -1,7 +1,9 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -260,17 +262,22 @@ func (h *pluginAssetHandler) handlePluginAsset(w http.ResponseWriter, r *http.Re
 	// If a browser navigates directly to a plugin asset URL, constrain what
 	// it can do. 'none' blocks all sub-resources; sandbox adds extra isolation.
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
-	// (6) Cache-Control immutable - Vite/esbuild emits hashed filenames so
-	// the cache key already encodes the content. Same for the entry file.
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	// (6) Cache policy: plugin assets keep STABLE filenames (dist/index.js is
+	// rewritten in place by every plugin update and sun-live-*.jpg at runtime),
+	// so a far-future immutable would pin the OLD bundle in browsers until a
+	// manual hard refresh - a plugin update was invisible client-side
+	// (2026-07-22). no-cache forces revalidation on every use; the content
+	// ETag turns the unchanged case into a bodyless 304 via ServeContent.
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, sha256.Sum256(data)))
 	// (5) CORS for fonts/binary fetch-targets only.
 	if corsRequiredAssetExt[ext] {
 		w.Header().Set("Access-Control-Allow-Origin", "null")
 		w.Header().Set("Access-Control-Allow-Methods", "GET")
 	}
-	if _, writeErr := w.Write(data); writeErr != nil {
-		return
-	}
+	// Name left empty: Content-Type is already pinned above, and ServeContent
+	// must not re-derive it (CSS goes out sanitized, not as on disk).
+	http.ServeContent(w, r, "", stat.ModTime(), bytes.NewReader(data))
 }
 
 func (h *pluginAssetHandler) handleListThemes(w http.ResponseWriter, r *http.Request) {

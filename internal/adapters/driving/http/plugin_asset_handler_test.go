@@ -68,9 +68,51 @@ func TestPluginAsset_HappyJS(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Header().Get("Content-Type"), "javascript")
 	assert.Equal(t, "nosniff", w.Header().Get("X-Content-Type-Options"))
-	assert.Contains(t, w.Header().Get("Cache-Control"), "immutable")
+	assert.Contains(t, w.Header().Get("Cache-Control"), "no-cache")
 	assert.Empty(t, w.Header().Get("Access-Control-Allow-Origin"), "JS does not need CORS - only fonts/binary do")
 	assert.Contains(t, w.Body.String(), "export default")
+}
+
+// Plugin bundles have STABLE, unhashed filenames (dist/index.js), so a
+// far-future immutable Cache-Control means a plugin UPDATE never reaches a
+// browser that already cached the bundle (seen live 2026-07-22: a weather-v2
+// fix stayed invisible until a hard refresh). The route must force
+// revalidation and answer 304 via a content-derived ETag instead.
+func TestPluginAsset_CacheRevalidation(t *testing.T) {
+	mux, token, _, dir := setupPluginAssetTest(t)
+
+	get := func(inm string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", "/api/v1/plugins/p1/assets/index.js", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		if inm != "" {
+			req.Header.Set("If-None-Match", inm)
+		}
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		return w
+	}
+
+	first := get("")
+	assert.Equal(t, http.StatusOK, first.Code)
+	cc := first.Header().Get("Cache-Control")
+	assert.NotContains(t, cc, "immutable", "unhashed plugin assets must never be immutable")
+	assert.Contains(t, cc, "no-cache", "browser must revalidate so plugin updates propagate")
+	etag := first.Header().Get("ETag")
+	require.NotEmpty(t, etag, "revalidation needs a content ETag")
+
+	// Unchanged content revalidates to a bodyless 304.
+	cached := get(etag)
+	assert.Equal(t, http.StatusNotModified, cached.Code)
+	assert.Empty(t, cached.Body.String())
+
+	// A plugin update rewrites the file in place: same path, new bytes must
+	// yield a new ETag and a full 200 even when the stale ETag is presented.
+	require.NoError(t, os.WriteFile(
+		filepath.Join(dir, "p1", "dist", "index.js"), []byte("export default function(){/* v2 */}"), 0o644))
+	updated := get(etag)
+	assert.Equal(t, http.StatusOK, updated.Code)
+	assert.NotEqual(t, etag, updated.Header().Get("ETag"))
+	assert.Contains(t, updated.Body.String(), "v2")
 }
 
 func TestPluginAsset_SecurityHeaders(t *testing.T) {
