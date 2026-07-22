@@ -7,6 +7,9 @@ vi.mock("expo-file-system", () => ({
   writeAsStringAsync: vi.fn(),
   deleteAsync: vi.fn(),
   documentDirectory: "/data/user/0/app/files/",
+  // Free-space reading consulted by the pre-download guard. Generous by
+  // default so existing tests are unaffected; the guard's own tests override it.
+  Paths: { availableDiskSpace: 500 * 1024 * 1024 * 1024 },
   default: {
     getInfoAsync: vi.fn(),
     makeDirectoryAsync: vi.fn(),
@@ -29,6 +32,8 @@ type TaskHandlers = {
 const taskInstances = new Map<string, TaskHandlers>();
 const existingTasks: { id: string; metadata: Record<string, unknown> }[] = [];
 
+const taskStops: string[] = [];
+
 vi.mock("@kesha-antonov/react-native-background-downloader", () => ({
   createDownloadTask: vi.fn(({ id }: { id: string }) => {
     const handlers: TaskHandlers = {};
@@ -39,7 +44,9 @@ vi.mock("@kesha-antonov/react-native-background-downloader", () => ({
       done: vi.fn((cb: TaskHandlers["done"]) => { handlers.done = cb; return task; }),
       error: vi.fn((cb: TaskHandlers["error"]) => { handlers.error = cb; return task; }),
       start: vi.fn(),
-      stop: vi.fn(),
+      // Recorded by id so a test can assert the OS download was actually
+      // stopped, not merely that the promise rejected.
+      stop: vi.fn(() => { taskStops.push(id); }),
     };
     return task;
   }),
@@ -338,5 +345,43 @@ describe("startDownload media-id validation", () => {
     handlers.begin?.({ expectedBytes: 100, headers: {} });
     handlers.done?.({ id: "550e8400-e29b-41d4-a716-446655440000" });
     await expect(pending).resolves.toContain("550e8400-e29b-41d4-a716-446655440000");
+  });
+});
+
+// Downloading a 40GB film onto a phone with 2GB free used to start happily and
+// die deep into the transfer, having filled the disk on the way. The size is
+// only knowable in the begin handler, so that is the last moment to refuse.
+describe("startDownload disk-space guard", () => {
+  it("refuses a download that would not fit, and leaves nothing behind", async () => {
+    (FileSystem as unknown as { Paths: { availableDiskSpace: number } }).Paths = {
+      availableDiskSpace: 2 * 1024 * 1024 * 1024,
+    };
+
+    const pending = startDownload("big", "Huge Film");
+    const handlers = await waitForTask("big");
+
+    // 40GB against 2GB free.
+    handlers.begin?.({ expectedBytes: 40 * 1024 * 1024 * 1024, headers: {} });
+
+    await expect(pending).rejects.toThrow("NOT_ENOUGH_SPACE");
+    expect(taskStops).toContain("big");
+    expect(vi.mocked(FileSystem.deleteAsync)).toHaveBeenCalledWith(
+      expect.stringContaining("evey-big.mp4"),
+      { idempotent: true },
+    );
+  });
+
+  it("allows a download that fits", async () => {
+    (FileSystem as unknown as { Paths: { availableDiskSpace: number } }).Paths = {
+      availableDiskSpace: 50 * 1024 * 1024 * 1024,
+    };
+
+    const pending = startDownload("small", "Small Film");
+    const handlers = await waitForTask("small");
+
+    handlers.begin?.({ expectedBytes: 1024 * 1024 * 1024, headers: {} });
+    handlers.done?.({ id: "small" });
+
+    await expect(pending).resolves.toContain("evey-small.mp4");
   });
 });

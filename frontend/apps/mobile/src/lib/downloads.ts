@@ -117,6 +117,12 @@ async function persistDownloaded(mediaItemId: string, title: string, destPath: s
   await writeIndex(without);
 }
 
+/**
+ * Free space kept in reserve beyond the file itself. A device driven to zero
+ * bytes free fails in ways that have nothing to do with this app.
+ */
+const DISK_HEADROOM_BYTES = 200 * 1024 * 1024;
+
 export async function startDownload(
   mediaItemId: string,
   title: string,
@@ -153,6 +159,26 @@ export async function startDownload(
       .begin(({ expectedBytes }) => {
         const state = inFlight.get(mediaItemId);
         if (state) state.totalBytes = expectedBytes ?? 0;
+        // The size is only knowable here, and this is the last moment before
+        // gigabytes start landing on the device. Without this check a 40GB film
+        // happily starts on a phone with 2GB free and dies deep into the
+        // transfer, having filled the disk on the way.
+        //
+        // The headroom is not politeness: a device with literally zero bytes
+        // free misbehaves well beyond this app.
+        if (expectedBytes && expectedBytes > 0) {
+          // Optional chaining on purpose: Paths is not present on every
+          // platform build, and a missing free-space reading must skip the
+          // check rather than crash the download.
+          const free = FileSystem.Paths?.availableDiskSpace;
+          if (typeof free === "number" && free > 0 && expectedBytes + DISK_HEADROOM_BYTES > free) {
+            task.stop();
+            inFlight.delete(mediaItemId);
+            unsubscribeProgress?.();
+            void FileSystem.deleteAsync(destPath, { idempotent: true }).catch(() => undefined);
+            reject(new Error("NOT_ENOUGH_SPACE"));
+          }
+        }
       })
       .progress(({ bytesDownloaded, bytesTotal }) => {
         const state = inFlight.get(mediaItemId);
