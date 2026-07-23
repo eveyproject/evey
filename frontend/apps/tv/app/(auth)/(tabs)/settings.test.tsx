@@ -86,12 +86,12 @@ beforeEach(() => {
 describe("SettingsScreen (TV) playback entry", () => {
   it("renders a Playback row", () => {
     render(<SettingsScreen />);
-    expect(screen.getByLabelText("auth.settings.playback.bitrateTitle")).toBeTruthy();
+    expect(screen.getByLabelText("auth.settings.tabs.playback")).toBeTruthy();
   });
 
   it("navigates to the playback settings screen on press", () => {
     render(<SettingsScreen />);
-    fireEvent.click(screen.getByLabelText("auth.settings.playback.bitrateTitle"));
+    fireEvent.click(screen.getByLabelText("auth.settings.tabs.playback"));
     expect(pushMock).toHaveBeenCalledWith("/(auth)/settings/playback");
   });
 });

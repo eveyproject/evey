@@ -161,10 +161,10 @@ export default function SettingsScreen() {
           onFocus={() => setFocusedItem("playback")}
           onBlur={() => setFocusedItem(null)}
           accessible={true}
-          accessibilityLabel={t("auth.settings.playback.bitrateTitle")}
+          accessibilityLabel={t("auth.settings.tabs.playback")}
           accessibilityRole="button"
         >
-          <Text style={[styles.label, { color: theme.colors.text }]}>{t("auth.settings.playback.bitrateTitle")}</Text>
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("auth.settings.tabs.playback")}</Text>
         </Pressable>
       </View>
 
