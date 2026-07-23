@@ -182,6 +182,13 @@ export default function PlayerScreen() {
   // usePlaySession covers just the session-start network call. Ignoring it
   // left a black screen with live controls.
   const [nativeError, setNativeError] = useState<string | null>(null);
+  // Clear a stuck native error when the media changes (auto next-episode or a
+  // new navigation reuses this screen). Without this, ONE playback error latched
+  // the ErrorScreen for every subsequent episode of the session, with no retry -
+  // same reset discipline as autoMarkedRef / startedRef below.
+  useEffect(() => {
+    setNativeError(null);
+  }, [mediaId]);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
   // unconditionally - a paused screen sprang back to life on every track

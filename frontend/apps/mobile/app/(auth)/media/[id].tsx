@@ -433,7 +433,7 @@ export default function MediaDetailScreen() {
   const [visibleEpisodeCount, setVisibleEpisodeCount] = useState(EPISODE_PAGE_SIZE);
   useEffect(() => { setVisibleEpisodeCount(EPISODE_PAGE_SIZE); }, [selectedSeason]);
 
-  const { data: media, isLoading } = useLibraryServiceGetMediaItem(id ?? "");
+  const { data: media, isLoading, isError, refetch } = useLibraryServiceGetMediaItem(id ?? "");
 
   const { data: currentUser } = useUserServiceGetCurrentUser();
   const { data: profilesResp } = useUserServiceListProfiles(currentUser?.id ?? "", { query: { enabled: !!currentUser?.id } } as never);
@@ -587,6 +587,21 @@ export default function MediaDetailScreen() {
       setPendingPlayTarget(null);
     }
   }, [pendingPlayTarget]);
+
+  // The React Query client retries twice then gives up (except 401/403/404):
+  // once exhausted, isLoading turns false but media stays undefined. Without an
+  // error branch that left the most-visited screen stuck on the loading skeleton
+  // forever, with no message or retry. Mirrors library/[libraryId].tsx.
+  if (isError && !media) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.bg, justifyContent: "center", alignItems: "center" }}>
+        <Text style={{ color: theme.colors.textMuted, marginBottom: 12 }}>{t("common.loadError")}</Text>
+        <Pressable onPress={() => refetch()}>
+          <Text style={{ color: theme.colors.accent }}>{t("common.retry")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (isLoading || !media) {
     return (
