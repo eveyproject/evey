@@ -29,6 +29,9 @@ type mediaLibraryGetter interface {
 type remoteAccessPersister interface {
 	Get(ctx context.Context, key string) (string, error)
 	Set(ctx context.Context, key, value string) error
+	// Delete removes a persisted override entirely - the settings panel's
+	// Reset must not leave a row that a restart would re-apply.
+	Delete(ctx context.Context, key string) error
 }
 
 // TokenVerifier validates access tokens and returns claims.

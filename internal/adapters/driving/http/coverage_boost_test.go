@@ -94,6 +94,11 @@ func (f *fakeRemoteAccessStore) Set(_ context.Context, key, value string) error 
 	return nil
 }
 
+func (f *fakeRemoteAccessStore) Delete(_ context.Context, key string) error {
+	delete(f.data, key)
+	return nil
+}
+
 // =====================================
 // media_handler.go - stream, artwork, chapters, playbackInfo, selectArtwork
 // =====================================

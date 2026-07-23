@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -94,6 +95,11 @@ type settingDef struct {
 	// apply sets the config, returns the serialized value for persistence
 	apply      func() string
 	sideEffect func()
+	// reset restores the cfg field to defaultVal. Driven by an EXPLICIT null
+	// in the PUT body (the panel's Reset button); nil = not clearable this
+	// way (hw mode: "unset" has no runtime meaning, the operator picks one).
+	reset           func()
+	resetSideEffect func()
 }
 
 func registerServerSettingsRoutes(
@@ -141,30 +147,54 @@ func registerServerSettingsRoutes(
 		// the Effective* accessors take cfg's read lock themselves - calling them
 		// here would recursively RLock, which Go's RWMutex forbids.
 		{jsonKey: "serverName", cfgKey: cfgKeyServerName, defaultVal: "Evey",
-			getter: func() any { return cfg.Server.Name }},
+			getter: func() any { return cfg.Server.Name },
+			reset:  func() { cfg.Server.Name = "Evey" }},
 		{jsonKey: "maxConcurrentTranscodes", cfgKey: cfgKeyTranscodeMaxConc, defaultVal: 2,
-			getter: func() any { return cfg.Transcoding.MaxConcurrent }},
+			getter: func() any { return cfg.Transcoding.MaxConcurrent },
+			reset:  func() { cfg.Transcoding.MaxConcurrent = 2 },
+			resetSideEffect: func() {
+				if transcodingSvc != nil {
+					transcodingSvc.SetMaxConcurrent(2)
+				}
+			}},
 		{jsonKey: "hwAccelEnabled", cfgKey: cfgKeyTranscodeHWAccel, defaultVal: false,
 			getter: func() any { return cfg.Transcoding.HWAccelEnabled }},
 		{jsonKey: "hwMode", cfgKey: cfgKeyTranscodeHWMode, defaultVal: string(domaintranscoding.HWModeAuto),
 			getter: func() any { return string(effectiveHWMode()) }},
 		{jsonKey: "loginRateLimit", cfgKey: cfgKeyRateLimitLogin, defaultVal: 10,
-			getter: func() any { return cfg.Server.LoginRateLimitMax }},
+			getter: func() any { return cfg.Server.LoginRateLimitMax },
+			reset:  func() { cfg.Server.LoginRateLimitMax = 10 },
+			resetSideEffect: func() {
+				if loginRL != nil {
+					loginRL.SetLimit(10)
+				}
+			}},
 		{jsonKey: "globalRateLimit", cfgKey: cfgKeyRateLimitGlobal, defaultVal: 300,
-			getter: func() any { return cfg.Server.GlobalRateLimitMax }},
+			getter: func() any { return cfg.Server.GlobalRateLimitMax },
+			reset:  func() { cfg.Server.GlobalRateLimitMax = 300 },
+			resetSideEffect: func() {
+				if globalRL != nil {
+					globalRL.SetLimit(300)
+				}
+			}},
 		{jsonKey: "logLevel", cfgKey: cfgKeyLogLevel, defaultVal: "info",
-			getter: func() any { return cfg.Log.Level }},
+			getter:          func() any { return cfg.Log.Level },
+			reset:           func() { cfg.Log.Level = "info" },
+			resetSideEffect: func() { logger.SetLevel("info") }},
 		// Library watcher + periodic scan are consumed at boot, so a change here
 		// takes effect on the next restart (no live setter). Surfaced so the
 		// values can be managed from the panel instead of the .env.
 		{jsonKey: "libraryWatcherEnabled", cfgKey: cfgKeyWatcherEnabled, defaultVal: true,
-			getter: func() any { return cfg.Library.WatcherEnabled }},
+			getter: func() any { return cfg.Library.WatcherEnabled },
+			reset:  func() { cfg.Library.WatcherEnabled = true }},
 		{jsonKey: "periodicScanInterval", cfgKey: cfgKeyScanInterval, defaultVal: "2m",
-			getter: func() any { return cfg.Library.PeriodicScanInterval.String() }},
+			getter: func() any { return cfg.Library.PeriodicScanInterval.String() },
+			reset:  func() { cfg.Library.PeriodicScanInterval = 2 * time.Minute }},
 		// Skip-preview is read live by the segments handler, so toggling it
 		// takes effect immediately (no restart).
 		{jsonKey: "skipPreviewEnabled", cfgKey: cfgKeySkipPreview, defaultVal: false,
-			getter: func() any { return cfg.Metadata.SkipPreviewEnabled }},
+			getter: func() any { return cfg.Metadata.SkipPreviewEnabled },
+			reset:  func() { cfg.Metadata.SkipPreviewEnabled = false }},
 		// AV1 software ceiling: 0 = Auto (calibrated; AV1 stays hardware-only when
 		// the bench found software AV1 non-viable). A non-zero value force-enables
 		// AV1 software at that height. Read live from the calibration service.
@@ -174,29 +204,55 @@ func registerServerSettingsRoutes(
 					return hwMode.SoftwareAV1MaxOverride()
 				}
 				return cfg.Transcoding.SoftwareAV1MaxHeightOverride
+			},
+			reset: func() { cfg.Transcoding.SoftwareAV1MaxHeightOverride = 0 },
+			resetSideEffect: func() {
+				if hwMode != nil {
+					hwMode.SetSoftwareAV1MaxOverride(0)
+				}
 			}},
 		// AV1 as a transcode OUTPUT codec. Hardware-only (libsvtav1 starves a weak
 		// CPU), so this is an explicit opt-in surfaced only when HW accel is on.
 		{jsonKey: "av1Enabled", cfgKey: cfgKeyTranscodeAV1En, defaultVal: false,
-			getter: func() any { return cfg.Transcoding.AV1Enabled }},
+			getter: func() any { return cfg.Transcoding.AV1Enabled },
+			reset:  func() { cfg.Transcoding.AV1Enabled = false }},
 		{jsonKey: "av1MaxHeight", cfgKey: cfgKeyTranscodeAV1Max, defaultVal: 0,
-			getter: func() any { return cfg.Transcoding.AV1MaxHeight }},
+			getter: func() any { return cfg.Transcoding.AV1MaxHeight },
+			reset:  func() { cfg.Transcoding.AV1MaxHeight = 0 }},
 		// Retention windows are re-read by their sweeps at every pass, so a
 		// change here applies at the next sweep (<= 24h for the daily ones,
 		// seconds for play_sessions) without a restart. 0 = keep forever.
 		{jsonKey: "auditRetentionDays", cfgKey: cfgKeyAuditRetention, defaultVal: 0,
-			getter: func() any { return cfg.Log.AuditRetentionDays }},
+			getter: func() any { return cfg.Log.AuditRetentionDays },
+			reset:  func() { cfg.Log.AuditRetentionDays = 0 }},
 		{jsonKey: "metricsRetentionDays", cfgKey: cfgKeyMetricsRetention, defaultVal: 90,
-			getter: func() any { return cfg.Metrics.RetentionDays }},
+			getter: func() any { return cfg.Metrics.RetentionDays },
+			reset:  func() { cfg.Metrics.RetentionDays = 90 }},
 		{jsonKey: "qoeRetentionDays", cfgKey: cfgKeyQoERetention, defaultVal: 30,
-			getter: func() any { return cfg.Metrics.QoERetentionDays }},
+			getter: func() any { return cfg.Metrics.QoERetentionDays },
+			reset:  func() { cfg.Metrics.QoERetentionDays = 30 }},
 		{jsonKey: "playSessionRetentionDays", cfgKey: cfgKeySessionRetention, defaultVal: 0,
-			getter: func() any { return cfg.Playback.SessionRetentionDays }},
+			getter: func() any { return cfg.Playback.SessionRetentionDays },
+			reset:  func() { cfg.Playback.SessionRetentionDays = 0 }},
 		// Consumed at boot (the eviction sweep snapshots its budget), so a
 		// change takes effect on the next restart - same contract as the
 		// library watcher settings above.
 		{jsonKey: "transcodeCacheMaxGB", cfgKey: cfgKeyTranscodeCacheGB, defaultVal: 50,
-			getter: func() any { return cfg.Transcoding.CacheMaxGB }},
+			getter: func() any { return cfg.Transcoding.CacheMaxGB },
+			reset:  func() { cfg.Transcoding.CacheMaxGB = 50 }},
+	}
+
+	// Seed `overridden` from the store: after a restart this map started empty
+	// and the panel showed source=default while a DB override was live (main's
+	// loadOverride HAD applied it to cfg). Boot-time and best-effort - a store
+	// read failure just leaves that key displayed as default.
+	if store != nil {
+		seedCtx := context.Background() // registration runs synchronously at boot
+		for _, def := range settings {
+			if v, err := store.Get(seedCtx, def.cfgKey); err == nil && v != "" {
+				overridden[def.cfgKey] = true
+			}
+		}
 	}
 
 	// buildResponse snapshots every setting. The caller must already hold
@@ -251,7 +307,25 @@ func registerServerSettingsRoutes(
 			TranscodeCacheMaxGB     *int    `json:"transcodeCacheMaxGB"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "bad request")
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		if err := json.Unmarshal(bodyBytes, &body); err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, "bad request")
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		// Second decode into raw fields: the typed struct cannot tell "absent"
+		// from "explicit null", and an explicit null is the panel's Reset - it
+		// must clear the override, not be silently ignored (which is what
+		// happened until 2026-07-24: the Reset button was a no-op).
+		var rawFields map[string]json.RawMessage
+		if err := json.Unmarshal(bodyBytes, &rawFields); err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "bad request")
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
@@ -514,6 +588,26 @@ func registerServerSettingsRoutes(
 			}
 			if u.sideEffect != nil {
 				u.sideEffect()
+			}
+		}
+		// Explicit nulls = the panel's Reset: restore the default, drop the DB
+		// row (a surviving row would re-apply the override at next boot) and
+		// flip the source back. Keys without a reset closure (hw mode family)
+		// ignore null, as before.
+		for _, def := range settings {
+			raw, present := rawFields[def.jsonKey]
+			if !present || string(raw) != "null" || def.reset == nil {
+				continue
+			}
+			cfg.ApplyServerSettings(def.reset)
+			overridden[def.cfgKey] = false
+			if store != nil {
+				if err := store.Delete(r.Context(), def.cfgKey); err != nil {
+					slog.Warn("delete server setting override", slog.String("key", def.cfgKey), slog.Any("err", err))
+				}
+			}
+			if def.resetSideEffect != nil {
+				def.resetSideEffect()
 			}
 		}
 		mu.Unlock()

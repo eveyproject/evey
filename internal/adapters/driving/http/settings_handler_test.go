@@ -83,6 +83,13 @@ func (f *fakeSettingsStore) Set(_ context.Context, key, value string) error {
 	return nil
 }
 
+func (f *fakeSettingsStore) Delete(_ context.Context, key string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.sets, key)
+	return nil
+}
+
 type settingsTestEnv struct {
 	mux      *http.ServeMux
 	cfg      *config.Config
@@ -539,4 +546,100 @@ func TestServerSettings_Get_ExposesRetentionAndCache(t *testing.T) {
 			t.Errorf("GET response missing %q", key)
 		}
 	}
+}
+
+// Live-check 2026-07-24: the UI's Reset button PUTs {field: null}, which the
+// handler silently ignored - the override survived in cfg, in the store and
+// in `overridden`. An explicit null must CLEAR: cfg back to the default, the
+// DB row deleted, the source back to "default".
+func TestServerSettings_Put_ExplicitNullClearsOverride(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+
+	set := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"qoeRetentionDays":14,"loginRateLimit":42}`))
+	set.Header.Set("Authorization", "Bearer tok")
+	env.mux.ServeHTTP(httptest.NewRecorder(), set)
+	if env.cfg.Metrics.QoERetentionDays != 14 {
+		t.Fatalf("override PUT did not land")
+	}
+
+	clear := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"qoeRetentionDays":null}`))
+	clear.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, clear)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("clear PUT = %d", rec.Code)
+	}
+
+	if env.cfg.Metrics.QoERetentionDays != 30 {
+		t.Errorf("cfg must return to the default (30), got %d", env.cfg.Metrics.QoERetentionDays)
+	}
+	if _, ok := env.store.sets[cfgKeyQoERetention]; ok {
+		t.Errorf("the DB override row must be deleted on clear")
+	}
+	// The untouched sibling override must survive.
+	if env.cfg.Server.LoginRateLimitMax != 42 {
+		t.Errorf("clearing one key must not touch the others")
+	}
+
+	get := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-settings", nil)
+	get.Header.Set("Authorization", "Bearer tok")
+	grec := httptest.NewRecorder()
+	env.mux.ServeHTTP(grec, get)
+	var resp map[string]settingValue
+	if err := json.Unmarshal(grec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad json: %v", err)
+	}
+	if resp["qoeRetentionDays"].Source != "default" {
+		t.Errorf("source must read default after clear, got %q", resp["qoeRetentionDays"].Source)
+	}
+	if resp["loginRateLimit"].Source != "override" {
+		t.Errorf("sibling must stay override, got %q", resp["loginRateLimit"].Source)
+	}
+}
+
+// After a restart the handler used to show source=default for EVERY setting
+// even when a DB override was live (the `overridden` map started empty): the
+// panel lied about what was in effect. Registration must seed it from the store.
+func TestServerSettings_Get_SeedsOverriddenFromStoreAtBoot(t *testing.T) {
+	store := newFakeSettingsStore()
+	store.sets[cfgKeyQoERetention] = "14"
+	env := newSettingsTestEnvWithStore(t, validUserValidator(true), store)
+
+	get := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-settings", nil)
+	get.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, get)
+	var resp map[string]settingValue
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad json: %v", err)
+	}
+	if resp["qoeRetentionDays"].Source != "override" {
+		t.Errorf("a persisted override must read source=override after a restart, got %q", resp["qoeRetentionDays"].Source)
+	}
+	if resp["serverName"].Source != "default" {
+		t.Errorf("keys without a stored row must stay default, got %q", resp["serverName"].Source)
+	}
+}
+
+func newSettingsTestEnvWithStore(t *testing.T, verifier TokenVerifier, store *fakeSettingsStore) *settingsTestEnv {
+	t.Helper()
+	cfg := &config.Config{}
+	cfg.Server.Name = "Evey"
+	cfg.Server.LoginRateLimitMax = 10
+	cfg.Server.GlobalRateLimitMax = 300
+	cfg.Transcoding.MaxConcurrent = 2
+	env := &settingsTestEnv{
+		mux:      http.NewServeMux(),
+		cfg:      cfg,
+		store:    store,
+		hwMode:   &fakeHWModeController{},
+		loginRL:  ratelimit.New(10),
+		globalRL: ratelimit.New(300),
+		writeRL:  ratelimit.New(1000),
+	}
+	registerServerSettingsRoutes(env.mux, env.cfg, env.store, verifier, nil, env.hwMode, env.loginRL, env.globalRL, env.writeRL)
+	t.Cleanup(env.cleanup)
+	return env
 }

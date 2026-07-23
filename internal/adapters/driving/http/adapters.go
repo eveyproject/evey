@@ -96,6 +96,10 @@ func (s *ServerConfigStore) Set(ctx context.Context, key, value string) error {
 	return s.repo.Set(ctx, key, value)
 }
 
+func (s *ServerConfigStore) Delete(ctx context.Context, key string) error {
+	return s.repo.Delete(ctx, key)
+}
+
 func NewServerConfigStore(repo domainshared.ServerConfigRepository) *ServerConfigStore {
 	return &ServerConfigStore{repo: repo}
 }
