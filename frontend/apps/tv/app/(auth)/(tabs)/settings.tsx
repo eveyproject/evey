@@ -152,6 +152,22 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
+      {/* Playback */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("auth.settings.tabs.playback")}</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        <Pressable
+          style={rowStyle("playback")}
+          onPress={() => router.push("/(auth)/settings/playback")}
+          onFocus={() => setFocusedItem("playback")}
+          onBlur={() => setFocusedItem(null)}
+          accessible={true}
+          accessibilityLabel={t("auth.settings.playback.bitrateTitle")}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("auth.settings.playback.bitrateTitle")}</Text>
+        </Pressable>
+      </View>
+
       {/* Language */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("common.language")}</Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
