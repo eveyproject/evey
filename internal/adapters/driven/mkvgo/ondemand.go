@@ -13,6 +13,7 @@ import (
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 	"github.com/gravity-zero/mkvgo/mp4"
+	"golang.org/x/sync/singleflight"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
@@ -46,13 +47,22 @@ type OnDemandPackager struct {
 	// can resolve KeepAudioTrack's ordinal to a real track ID. Injectable for
 	// tests; production passes reader.OpenMeta.
 	trackList func(ctx context.Context, path string) ([]extmkv.Track, error)
+	// group collapses concurrent cache misses for the SAME key into one build:
+	// plan building can cluster-walk the whole source (SynthesizeIndex), and N
+	// players hitting a cold file at stream start would walk it N times in
+	// parallel - the weak-NAS I/O-starvation shape of the 2026-07-19 incident.
+	group singleflight.Group
+	// build is the uncached plan construction; a field (like audioDelays /
+	// trackList above) so the stampede tests can count builds without a
+	// real source.
+	build func(ctx context.Context, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error)
 }
 
 // NewOnDemandPackager returns a packager with an internal plan cache. Call
 // Close to stop the cache's background janitor.
 func NewOnDemandPackager() *OnDemandPackager {
 	c, stop := pkgcache.NewWithMaxSize[apptranscoding.OnDemandPlan](onDemandCleanup, onDemandPlanMaxSize)
-	return &OnDemandPackager{
+	p := &OnDemandPackager{
 		plans: c, stopper: stop,
 		audioDelays: func(ctx context.Context, path string) (map[uint64]int64, error) {
 			return extmatroska.AudioStartDelays(ctx, path)
@@ -65,6 +75,8 @@ func NewOnDemandPackager() *OnDemandPackager {
 			return c.Tracks, nil
 		},
 	}
+	p.build = p.buildPlan
+	return p
 }
 
 // Close stops the plan cache janitor.
@@ -87,6 +99,35 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 		return pl, nil
 	}
 
+	// Concurrent misses for the same key share ONE build (see p.group). The
+	// winner builds under WithoutCancel so the first caller bailing (seek
+	// away, tab close) can't abort the plan every follower is waiting on -
+	// same contract as the remux singleflight. Errors are shared with the
+	// waiters (they all fall back to ffmpeg together) but never cached, so
+	// the next request retries.
+	v, err, _ := p.group.Do(key, func() (any, error) {
+		// Re-check under the flight: a prior winner may have cached it while
+		// this caller queued.
+		if pl, ok := p.plans.Get(key); ok {
+			return pl, nil
+		}
+		pl, err := p.build(context.WithoutCancel(ctx), srcPath, opts)
+		if err != nil {
+			return nil, err
+		}
+		p.plans.Set(key, pl, onDemandPlanTTL)
+		return pl, nil
+	})
+	if err != nil {
+		span.RecordError(err)
+		return nil, err
+	}
+	return v.(apptranscoding.OnDemandPlan), nil
+}
+
+// buildPlan is the uncached construction Plan's singleflight runs: options
+// assembly, best-effort Matroska probes, then mp4.PlanHLS.
+func (p *OnDemandPackager) buildPlan(ctx context.Context, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
 	// ChapterMarkers is hardcoded on: per mp4.Options docs, it is additive and
 	// byte-identical for a chapterless source (no re-cut, no decode either way),
 	// so there is no reason to gate it behind an option.
@@ -149,7 +190,6 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 
 	hp, err := mp4.PlanHLS(ctx, srcPath, o)
 	if err != nil {
-		span.RecordError(err)
 		return nil, fmt.Errorf("mkvgo PlanHLS %q: %w", srcPath, err)
 	}
 
@@ -159,7 +199,6 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 	if _, _, derr := hp.Resource(ctx, "manifest.mpd"); derr == nil {
 		pl.hasDASH = true
 	}
-	p.plans.Set(key, apptranscoding.OnDemandPlan(pl), onDemandPlanTTL)
 	return pl, nil
 }
 
