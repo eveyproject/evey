@@ -147,9 +147,6 @@ func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 	id := r.PathValue("id")
 	span.SetAttributes(attribute.String("track_id", id))
-	if !requireDownloadTokenBinding(w, r, id) {
-		return
-	}
 	track, err := h.svc.GetTrack(r.Context(), id)
 	if err != nil || track == nil {
 		if err != nil {
@@ -248,6 +245,9 @@ func (h *musicHandler) downloadTrack(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 	id := r.PathValue("id")
 	span.SetAttributes(attribute.String("track_id", id))
+	if !requireDownloadTokenBinding(w, r, id) {
+		return
+	}
 	track, err := h.svc.GetTrack(r.Context(), id)
 	if err != nil || track == nil {
 		if err != nil {

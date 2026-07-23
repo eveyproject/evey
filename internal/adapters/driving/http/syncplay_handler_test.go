@@ -204,6 +204,18 @@ func (r *fakeSyncPlayRepo) DeleteStaleEmptyRooms(_ context.Context, _ time.Time)
 	return 0, nil
 }
 
+func (r *fakeSyncPlayRepo) CountActiveByHost(_ context.Context, hostID string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for _, room := range r.rooms {
+		if string(room.HostID) == hostID {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func newSyncPlayTestMux(t *testing.T) (*http.ServeMux, *appsyncplay.Hub, *fakeSyncPlayRepo) {
 	t.Helper()
 	tokenGen := newTestJWTGen(t)

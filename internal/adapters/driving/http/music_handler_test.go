@@ -601,3 +601,32 @@ func TestGetTrackArt_AccessDenied_403(t *testing.T) {
 		t.Errorf("expected 404, got %d", w.Code)
 	}
 }
+
+// Regression for the 2026-07-24 IDOR: the download-token binding guard was
+// accidentally placed on getTrackArt (JWT-only, a no-op there) instead of
+// downloadTrack (stream-token enabled). A stream token bound to track A must
+// NOT download track B. Inject a mismatched stream token the way the
+// token-redact middleware would, and expect 403.
+func TestDownloadTrack_MismatchedStreamToken_Forbidden(t *testing.T) {
+	dir := t.TempDir()
+	trackPath := writeTempFile(t, dir, "song.mp3", []byte("audiodata"))
+	repo := musicfakes.NewFakeMusicTrackRepository()
+	if _, err := repo.Upsert(context.Background(), domainmusic.Track{
+		ID: "t1", LibraryID: shared.LibraryID("lib-A"), Title: "Song", FilePath: trackPath,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	libLister := &fakeMediaItemGetter{libraries: []*domainlibrary.Library{{ID: "lib-A", Paths: []string{dir}}}}
+	mux, _ := newMusicMuxWithLister(t, repo, allowAll(), libLister)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/music/tracks/t1/download", nil)
+	// A stream token bound to a DIFFERENT track (as the redact middleware
+	// would stash it after resolving ?token=).
+	req = req.WithContext(context.WithValue(req.Context(), streamTokenCtxKey,
+		&shared.StreamToken{UserID: "user-1", MediaItemID: "OTHER-track", Scope: shared.ScopeStream}))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Errorf("a stream token bound to another track must be refused, got %d", w.Code)
+	}
+}
