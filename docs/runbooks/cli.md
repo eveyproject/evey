@@ -20,7 +20,6 @@ evey admin migrate up [--no-backup]          Apply pending migrations.
 evey admin migrate down [--no-backup]        Roll back one migration step.
 evey admin migrate version                   Print current schema version (exit 1 if dirty).
 evey admin list-users                        Print user emails, one per line.
-evey admin version                           Print the binary version.
 ```
 
 ### Media maintenance
