@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -62,8 +63,9 @@ func (f *fakeHWModeController) SetSoftwareAV1MaxOverride(h int) {
 }
 
 type fakeSettingsStore struct {
-	mu   sync.Mutex
-	sets map[string]string
+	mu        sync.Mutex
+	sets      map[string]string
+	deleteErr error
 }
 
 func newFakeSettingsStore() *fakeSettingsStore {
@@ -86,8 +88,38 @@ func (f *fakeSettingsStore) Set(_ context.Context, key, value string) error {
 func (f *fakeSettingsStore) Delete(_ context.Context, key string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	delete(f.sets, key)
 	return nil
+}
+
+// A Delete failure on Reset must leave BOTH the live config and the store row
+// on the override - never a live-vs-persisted divergence that a restart would
+// undo. This pins the delete-first ordering.
+func TestServerSettings_Put_ResetDeleteFailure_KeepsOverride(t *testing.T) {
+	store := newFakeSettingsStore()
+	store.sets[cfgKeyQoERetention] = "14"
+	store.deleteErr = errors.New("db down")
+	env := newSettingsTestEnvWithStore(t, validUserValidator(true), store)
+	env.cfg.Metrics.QoERetentionDays = 14
+
+	clear := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"qoeRetentionDays":null}`))
+	clear.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, clear)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("clear PUT = %d", rec.Code)
+	}
+	// The Delete failed, so the override must survive on BOTH sides.
+	if env.cfg.Metrics.QoERetentionDays != 14 {
+		t.Errorf("cfg must keep the override when the store delete fails, got %d", env.cfg.Metrics.QoERetentionDays)
+	}
+	if env.store.sets[cfgKeyQoERetention] != "14" {
+		t.Errorf("store row must survive a failed delete")
+	}
 }
 
 type settingsTestEnv struct {

@@ -594,18 +594,26 @@ func registerServerSettingsRoutes(
 		// row (a surviving row would re-apply the override at next boot) and
 		// flip the source back. Keys without a reset closure (hw mode family)
 		// ignore null, as before.
+		//
+		// Delete the DB row FIRST, and only touch the live config if it
+		// succeeded. The reverse order diverges live from persisted on a Delete
+		// failure: cfg would read default now but loadOverride re-applies the
+		// surviving row at the next restart, silently undoing the Reset. This
+		// way a failed Delete leaves BOTH sides on the override - honest (the
+		// panel still shows override) and self-consistent across a restart.
 		for _, def := range settings {
 			raw, present := rawFields[def.jsonKey]
 			if !present || string(raw) != "null" || def.reset == nil {
 				continue
 			}
-			cfg.ApplyServerSettings(def.reset)
-			overridden[def.cfgKey] = false
 			if store != nil {
 				if err := store.Delete(r.Context(), def.cfgKey); err != nil {
-					slog.Warn("delete server setting override", slog.String("key", def.cfgKey), slog.Any("err", err))
+					slog.Warn("delete server setting override, keeping current value", slog.String("key", def.cfgKey), slog.Any("err", err))
+					continue
 				}
 			}
+			cfg.ApplyServerSettings(def.reset)
+			overridden[def.cfgKey] = false
 			if def.resetSideEffect != nil {
 				def.resetSideEffect()
 			}
