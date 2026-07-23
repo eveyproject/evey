@@ -260,6 +260,22 @@ repo-itest: test-image
 	  evey-test \
 	  sh -c 'go test ./internal/adapters/driven/postgres/... -count=1 -timeout=600s'
 
+# boot-itest: the cmd/evey composition-root smoke test (build-tagged `boottest`,
+# so it never runs in pre-push). Spins a real Postgres via testcontainers, wires
+# the FULL app (buildServices) and asserts every critical service is non-nil -
+# the net that catches a decomposition dropping a service. Run before touching
+# wire.go / buildAppServices. Needs the Docker socket (testcontainers).
+boot-itest: test-image
+	docker run --rm \
+	  -v $(PWD):/app \
+	  -v /var/run/docker.sock:/var/run/docker.sock \
+	  -v evey-go-mod:/go/pkg/mod \
+	  -v evey-go-build:/root/.cache/go-build \
+	  --add-host=host.docker.internal:host-gateway \
+	  -w /app \
+	  evey-test \
+	  sh -c 'go test -tags boottest -run TestBuildServices_Boot ./cmd/evey/ -count=1 -v -timeout=300s'
+
 TRANSCODE_PATHS := internal/app/transcoding internal/domain/transcoding \
   internal/adapters/driven/ffmpeg \
   internal/adapters/driven/mkvgo \
