@@ -54,7 +54,7 @@ func TestCastProgress_ReportsHighWaterMinusMargin(t *testing.T) {
 	if len(calls) != 1 {
 		t.Fatalf("want 1 report, got %d", len(calls))
 	}
-	want := int64(120_000 - castBufferMarginMs)
+	want := 120_000 - castBufferMarginMs
 	if calls[0].positionMs != want || calls[0].profileID != "p1" || calls[0].mediaItemID != "m1" {
 		t.Fatalf("got %+v, want pos %d for p1/m1", calls[0], want)
 	}
@@ -139,9 +139,7 @@ func TestCastProgress_IdleEntryFinalFlushedAndDropped(t *testing.T) {
 func TestCastProgress_StopFinalFlushes(t *testing.T) {
 	rec := &reportRecorder{}
 	tr := testTracker(rec)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tr.Start(ctx)
+	tr.Start(t.Context())
 
 	tr.ObserveFetch("p1", "m1", 480_000)
 	tr.Stop()
