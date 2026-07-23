@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -77,23 +78,31 @@ func (r *NotificationRepository) ListByProfile(ctx context.Context, profileID st
 	return result, nil
 }
 
-func (r *NotificationRepository) FindRecentByProfileTypeAndSeries(ctx context.Context, profileID string, types []notification.Type, relatedMediaID string, since time.Time) ([]*notification.Notification, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.notification.FindRecentByProfileTypeAndSeries")
+// FindRecentByProfilesTypeAndSeries is the batched form used during episode
+// notification fan-out: one query for every profile in the fan-out instead of
+// one query per profile, which was the O(profiles) round-trip on library scans
+// with many series x many profiles.
+func (r *NotificationRepository) FindRecentByProfilesTypeAndSeries(ctx context.Context, profileIDs []string, types []notification.Type, relatedMediaID string, since time.Time) (map[string][]*notification.Notification, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.notification.FindRecentByProfilesTypeAndSeries")
 	defer span.End()
-	span.SetAttributes(attribute.String("profile.id", profileID))
+	span.SetAttributes(attribute.Int("profile.count", len(profileIDs)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 
+	if len(profileIDs) == 0 {
+		return map[string][]*notification.Notification{}, nil
+	}
+
 	placeholders := make([]string, len(types))
 	args := make([]interface{}, 0, len(types)+3)
-	args = append(args, profileID, relatedMediaID, since)
+	args = append(args, pq.Array(profileIDs), relatedMediaID, since)
 	for i, t := range types {
 		placeholders[i] = fmt.Sprintf("$%d", i+4)
 		args = append(args, string(t))
 	}
 	q := `SELECT id, profile_id, type, title, message, media_item_id, related_media_id, episode_count, level, created_at, expires_at, read_at
 	      FROM notifications
-	      WHERE profile_id = $1
+	      WHERE profile_id = ANY($1)
 	        AND related_media_id = $2
 	        AND created_at >= $3
 	        AND type IN (` + strings.Join(placeholders, ",") + `)`
@@ -111,7 +120,11 @@ func (r *NotificationRepository) FindRecentByProfileTypeAndSeries(ctx context.Co
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
-	return result, nil
+	byProfile := make(map[string][]*notification.Notification, len(profileIDs))
+	for _, n := range result {
+		byProfile[string(n.ProfileID)] = append(byProfile[string(n.ProfileID)], n)
+	}
+	return byProfile, nil
 }
 
 func (r *NotificationRepository) Update(ctx context.Context, n *notification.Notification) error {

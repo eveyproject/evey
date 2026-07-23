@@ -274,6 +274,24 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	since := time.Now().Add(-episodeGroupWindow)
+
+	// Preload dedup candidates for every profile in ONE query instead of one
+	// query per profile inside the loop below (was the N+1: profiles x series
+	// on a library scan). A preload failure fails open: recentByProfile stays
+	// empty and preloadFailed makes shouldSkipEpisodeNotif never skip, so this
+	// batch behaves exactly like the per-profile query erroring used to.
+	var recentByProfile map[string][]*notification.Notification
+	preloadFailed := false
+	if notifType == notification.TypeNewEpisode && seriesKey != "" {
+		dedupTypes := []notification.Type{notification.TypeNewSeries, notification.TypeNewSeason, notification.TypeNewEpisode}
+		var preloadErr error
+		recentByProfile, preloadErr = s.repo.FindRecentByProfilesTypeAndSeries(ctx, profileIDs, dedupTypes, seriesKey, since)
+		if preloadErr != nil {
+			slog.Warn("notification: preload recent series/season/episode notifications failed", slog.Any("err", preloadErr))
+			preloadFailed = true
+		}
+	}
+
 	for _, p := range profiles {
 		cfg := allSettings[string(p.ID)]
 		if cfg == nil {
@@ -287,7 +305,7 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 		// For episode notifications with a series key, check for recent series/season
 		// notifications (skip) or recent episode notification (group/update).
 		if notifType == notification.TypeNewEpisode && seriesKey != "" {
-			if s.shouldSkipEpisodeNotif(ctx, string(p.ID), seriesKey, since, notifTitle, push, p.Locale, initialEpCount) {
+			if s.shouldSkipEpisodeNotif(ctx, string(p.ID), recentByProfile[string(p.ID)], preloadFailed, p.Locale, initialEpCount) {
 				continue
 			}
 		}
@@ -317,27 +335,31 @@ func (s *CommandService) emitNotifications(mediaType, title, seriesTitle, mediaI
 // (an existing grouped episode notif is within the grouping window).
 // When it updates an existing notification, it also returns true so the caller
 // skips creating a new one.
+// recentNotifs is this profile's slice of the batch preloaded once per series
+// flush by the caller (see emitNotifications); preloadFailed signals that the
+// preload query itself errored, in which case we fail open exactly like the
+// old per-profile query did on error: never skip, always create.
 // initialCount is the number of episodes this batch represents (1 for a single
 // episode, N for a pre-batched group). It is used to correctly compute the
 // accumulated count when merging into an existing notification.
-func (s *CommandService) shouldSkipEpisodeNotif(ctx context.Context, profileID, seriesKey string, since time.Time, notifTitle string, push pushSpec, locale string, initialCount int) bool {
-	// Case A/B: series or season notification already sent for this series → skip.
-	parentTypes := []notification.Type{notification.TypeNewSeries, notification.TypeNewSeason}
-	parentNotifs, err := s.repo.FindRecentByProfileTypeAndSeries(ctx, profileID, parentTypes, seriesKey, since)
-	if err != nil {
-		slog.Warn("notification: find recent series/season failed", slog.Any("err", err))
+func (s *CommandService) shouldSkipEpisodeNotif(ctx context.Context, profileID string, recentNotifs []*notification.Notification, preloadFailed bool, locale string, initialCount int) bool {
+	if preloadFailed {
 		return false // fail open: create the notification
 	}
-	if len(parentNotifs) > 0 {
-		return true
+
+	// Case A/B: series or season notification already sent for this series → skip.
+	for _, n := range recentNotifs {
+		if n.Type == notification.TypeNewSeries || n.Type == notification.TypeNewSeason {
+			return true
+		}
 	}
 
 	// Case C: existing grouped episode notification within window → update it.
-	epTypes := []notification.Type{notification.TypeNewEpisode}
-	existingEps, err := s.repo.FindRecentByProfileTypeAndSeries(ctx, profileID, epTypes, seriesKey, since)
-	if err != nil {
-		slog.Warn("notification: find recent episodes failed", slog.Any("err", err))
-		return false
+	var existingEps []*notification.Notification
+	for _, n := range recentNotifs {
+		if n.Type == notification.TypeNewEpisode {
+			existingEps = append(existingEps, n)
+		}
 	}
 	if len(existingEps) == 0 {
 		return false
