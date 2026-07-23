@@ -517,3 +517,29 @@ func TestSyncPlayRoomRepo_DeleteStaleEmptyRooms(t *testing.T) {
 	_, err = repo.Get(ctx, "fresh-empty")
 	require.NoError(t, err, "fresh empty room must be kept")
 }
+
+func TestSyncPlayRoomRepo_CountActiveByHost(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	seedSyncplayDeps(t, db, "cah-host", "cah-user", "cah-lib", "cah-media")
+	repo := postgres.NewSyncPlayRoomRepo(db)
+	ctx := context.Background()
+
+	mk := func(id string) *syncplay.Room {
+		return &syncplay.Room{
+			ID: id, Code: id[:min(5, len(id))], Name: id, HostID: "cah-host", MediaID: "cah-media",
+			State: syncplay.PlaybackState{}, CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+		}
+	}
+	require.NoError(t, repo.Create(ctx, mk("cah1")))
+	require.NoError(t, repo.Create(ctx, mk("cah2")))
+
+	n, err := repo.CountActiveByHost(ctx, "cah-host")
+	require.NoError(t, err)
+	assert.Equal(t, 2, n, "both rooms this host owns must be counted")
+
+	n0, err := repo.CountActiveByHost(ctx, "someone-else")
+	require.NoError(t, err)
+	assert.Equal(t, 0, n0, "a host with no rooms counts zero")
+}

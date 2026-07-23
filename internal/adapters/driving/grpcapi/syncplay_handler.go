@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -83,6 +84,16 @@ func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, media
 	return nil
 }
 
+// createRoomError maps a room-creation failure to a gRPC status: the per-user
+// room cap is a client-actionable limit (ResourceExhausted), everything else
+// is a sanitized internal error.
+func createRoomError(ctx context.Context, err error) error {
+	if errors.Is(err, appsyncplay.ErrTooManyRooms) {
+		return status.Error(codes.ResourceExhausted, "too many active rooms")
+	}
+	return internalError(ctx, "create room", err)
+}
+
 func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSyncPlayRoomRequest) (*eveyv1.CreateSyncPlayRoomResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.syncplay.CreateRoom")
 	defer span.End()
@@ -151,7 +162,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, internalError(ctx, "create room", err)
+			return nil, createRoomError(ctx, err)
 		}
 		return &eveyv1.CreateSyncPlayRoomResponse{
 			Id:        room.ID,
@@ -201,7 +212,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 		if createErr != nil {
 			span.RecordError(createErr)
 			span.SetStatus(otelcodes.Error, createErr.Error())
-			return nil, internalError(ctx, "create room", createErr)
+			return nil, createRoomError(ctx, createErr)
 		}
 		return &eveyv1.CreateSyncPlayRoomResponse{
 			Id:        room.ID,
@@ -241,7 +252,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, internalError(ctx, "create room", err)
+		return nil, createRoomError(ctx, err)
 	}
 	return &eveyv1.CreateSyncPlayRoomResponse{
 		Id:        room.ID,

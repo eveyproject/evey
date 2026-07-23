@@ -21,6 +21,21 @@ func NewSyncPlayRoomRepo(db *sql.DB) *SyncPlayRoomRepo {
 	return &SyncPlayRoomRepo{db: db}
 }
 
+func (r *SyncPlayRoomRepo) CountActiveByHost(ctx context.Context, hostID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.CountActiveByHost")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var n int
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM syncplay_rooms WHERE host_id = $1`, hostID).Scan(&n)
+	if err != nil {
+		span.RecordError(err)
+		return 0, err
+	}
+	return n, nil
+}
+
 func (r *SyncPlayRoomRepo) Create(ctx context.Context, room *syncplay.Room) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.syncplay_room.Create")
 	defer span.End()

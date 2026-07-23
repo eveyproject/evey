@@ -3,6 +3,7 @@ package syncplay
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -19,19 +20,51 @@ type connEntry struct {
 	username string
 }
 
+// defaultMaxRoomsPerHost caps how many rooms one user may host at once. The
+// janitor bounds growth in TIME (empty rooms age out), but a scripted create
+// loop could still spike the table between sweeps - this is the per-user
+// backstop. Generous on purpose: a legitimate host juggling a few watch
+// parties must never hit it, so it is a safety limit, not a tuning knob (no
+// operator-facing config surface, per the project's env-config rule).
+const defaultMaxRoomsPerHost = 20
+
+// ErrTooManyRooms is returned when a user is already at the per-host room cap.
+var ErrTooManyRooms = errors.New("syncplay: too many active rooms for this user")
+
 type Hub struct {
-	repo       syncplay.RoomRepository
-	mu         sync.RWMutex
-	conns      map[string]map[string]*connEntry // roomID → userID → entry (latest sender)
-	connCounts map[string]map[string]int        // roomID → userID → active connection count
+	repo            syncplay.RoomRepository
+	maxRoomsPerHost int
+	mu              sync.RWMutex
+	conns           map[string]map[string]*connEntry // roomID → userID → entry (latest sender)
+	connCounts      map[string]map[string]int        // roomID → userID → active connection count
 }
 
 func NewHub(repo syncplay.RoomRepository) *Hub {
 	return &Hub{
-		repo:       repo,
-		conns:      make(map[string]map[string]*connEntry),
-		connCounts: make(map[string]map[string]int),
+		repo:            repo,
+		maxRoomsPerHost: defaultMaxRoomsPerHost,
+		conns:           make(map[string]map[string]*connEntry),
+		connCounts:      make(map[string]map[string]int),
 	}
+}
+
+// checkRoomQuota refuses room creation once the host is at the cap. Called at
+// the head of every CreateRoom* entry point. A count-then-create race can let
+// a burst of concurrent creates slip a couple over the ceiling; that is
+// acceptable for a backstop whose purpose is bounding a scripted loop, not
+// exact accounting.
+func (h *Hub) checkRoomQuota(ctx context.Context, hostID string) error {
+	if h.maxRoomsPerHost <= 0 {
+		return nil
+	}
+	n, err := h.repo.CountActiveByHost(ctx, hostID)
+	if err != nil {
+		return fmt.Errorf("count host rooms: %w", err)
+	}
+	if n >= h.maxRoomsPerHost {
+		return ErrTooManyRooms
+	}
+	return nil
 }
 
 // StartJanitor sweeps stale empty rooms every interval until ctx is cancelled,
@@ -66,6 +99,9 @@ func (h *Hub) CreateRoom(ctx context.Context, hostID, mediaID, name string) (*sy
 func (h *Hub) CreateRoomTyped(ctx context.Context, hostID, mediaID, name, mediaType string) (*syncplay.Room, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.syncplay.CreateRoomTyped")
 	defer span.End()
+	if err := h.checkRoomQuota(ctx, hostID); err != nil {
+		return nil, err
+	}
 	code, err := syncplay.GenerateCode()
 	if err != nil {
 		return nil, fmt.Errorf("generate room code: %w", err)
@@ -91,6 +127,9 @@ func (h *Hub) CreateRoomFromPlaylist(ctx context.Context, hostID, playlistID, na
 	defer span.End()
 	if len(trackIDs) == 0 {
 		return nil, fmt.Errorf("playlist has no tracks")
+	}
+	if err := h.checkRoomQuota(ctx, hostID); err != nil {
+		return nil, err
 	}
 	code, err := syncplay.GenerateCode()
 	if err != nil {
@@ -123,6 +162,9 @@ func (h *Hub) CreateRoomFromQueue(ctx context.Context, hostID, name string, trac
 	defer span.End()
 	if len(trackIDs) == 0 {
 		return nil, fmt.Errorf("queue has no tracks")
+	}
+	if err := h.checkRoomQuota(ctx, hostID); err != nil {
+		return nil, err
 	}
 	code, err := syncplay.GenerateCode()
 	if err != nil {

@@ -37,6 +37,11 @@ type RoomRepository interface {
 	// live member are never touched, so olderThan only needs to exceed the
 	// create→join window.
 	DeleteStaleEmptyRooms(ctx context.Context, olderThan time.Time) (int64, error)
+	// CountActiveByHost returns how many rooms this user currently hosts. The
+	// Hub uses it to cap per-user room creation: the janitor bounds growth in
+	// time, but a scripted create loop could still spike the table between
+	// sweeps.
+	CountActiveByHost(ctx context.Context, hostID string) (int, error)
 }
 
 type MessageSender interface {

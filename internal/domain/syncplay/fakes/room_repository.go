@@ -31,6 +31,21 @@ func (r *FakeRoomRepository) Create(_ context.Context, room *syncplay.Room) erro
 	return nil
 }
 
+func (r *FakeRoomRepository) CountActiveByHost(_ context.Context, hostID string) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	n := 0
+	for _, room := range r.items {
+		if string(room.HostID) == hostID {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func (r *FakeRoomRepository) Get(_ context.Context, id string) (*syncplay.Room, error) {
 	if r.Err != nil {
 		return nil, r.Err

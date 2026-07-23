@@ -188,6 +188,60 @@ func (r *fakeRoomRepo) DeleteStaleEmptyRooms(_ context.Context, olderThan time.T
 	return n, nil
 }
 
+func (r *fakeRoomRepo) CountActiveByHost(_ context.Context, hostID string) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for _, room := range r.rooms {
+		if string(room.HostID) == hostID {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// TestHub_CreateRoom_PerUserCap proves a single user cannot open unbounded
+// rooms. The janitor only bounds growth in TIME (empty rooms age out); a user
+// scripting CreateRoom in a tight loop could still spike the table between
+// sweeps. The cap refuses past the ceiling with a typed error.
+func TestHub_CreateRoom_PerUserCap(t *testing.T) {
+	t.Parallel()
+	h := NewHub(newFakeRoomRepo())
+	h.maxRoomsPerHost = 3
+	ctx := context.Background()
+
+	for i := range 3 {
+		if _, err := h.CreateRoom(ctx, "host-1", "m1", "r"); err != nil {
+			t.Fatalf("room %d should be allowed: %v", i, err)
+		}
+	}
+	_, err := h.CreateRoom(ctx, "host-1", "m1", "r")
+	if !errors.Is(err, ErrTooManyRooms) {
+		t.Fatalf("the 4th room must be refused with ErrTooManyRooms, got %v", err)
+	}
+	// A DIFFERENT host is unaffected: the cap is per-user.
+	if _, err := h.CreateRoom(ctx, "host-2", "m1", "r"); err != nil {
+		t.Fatalf("another host must still create: %v", err)
+	}
+}
+
+// The cap covers EVERY creation entry point, not just the video one - a music
+// room from a playlist counts against the same ceiling.
+func TestHub_CreateRoomFromQueue_RespectsCap(t *testing.T) {
+	t.Parallel()
+	h := NewHub(newFakeRoomRepo())
+	h.maxRoomsPerHost = 1
+	ctx := context.Background()
+
+	if _, err := h.CreateRoom(ctx, "host-1", "m1", "r"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.CreateRoomFromQueue(ctx, "host-1", "r", []string{"t1"})
+	if !errors.Is(err, ErrTooManyRooms) {
+		t.Fatalf("queue room past the cap must be refused, got %v", err)
+	}
+}
+
 func newTestHub() *Hub {
 	return NewHub(newFakeRoomRepo())
 }
