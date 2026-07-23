@@ -154,6 +154,10 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	grpcSrv := grpcapi.NewGRPCServer(grpcDeps,
 		grpc.MaxRecvMsgSize(16*1024*1024),
 		grpc.ChainUnaryInterceptor(
+			// Request id FIRST: recovery/sanitizer/ratelimit log too, and
+			// before this they did so without a request_id (the id was only
+			// stamped by LoggingUnary, six interceptors deep).
+			interceptors.RequestIDUnary(),
 			interceptors.RecoveryUnary(),
 			interceptors.ErrorSanitizerUnary(),
 			interceptors.LocaleUnary(),
@@ -164,6 +168,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 			authInterceptor.Unary(),
 		),
 		grpc.ChainStreamInterceptor(
+			interceptors.RequestIDStream(),
 			interceptors.RecoveryStream(),
 			interceptors.ErrorSanitizerStream(),
 			interceptors.LocaleStream(),

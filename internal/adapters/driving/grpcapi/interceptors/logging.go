@@ -30,7 +30,14 @@ func identityAttrs(ctx context.Context, attrs []any) []any {
 
 func LoggingUnary(log *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-		ctx = eveylogger.WithRequestID(ctx, requestIDFor(ctx))
+		// RequestIDUnary (first in the chain) normally stamped it already; keep
+		// that id - with no gateway header, requestIDFor MINTS a random one and
+		// a second mint would split this request across two ids in the logs.
+		// Kept as a fallback so hand-built chains without the first interceptor
+		// (tests, embedded uses) still get request-scoped logs.
+		if eveylogger.RequestIDFromCtx(ctx) == "" {
+			ctx = eveylogger.WithRequestID(ctx, requestIDFor(ctx))
+		}
 		start := time.Now()
 		resp, err := handler(ctx, req)
 		st, _ := status.FromError(err)
@@ -52,7 +59,12 @@ func LoggingUnary(log *slog.Logger) grpc.UnaryServerInterceptor {
 
 func LoggingStream(log *slog.Logger) grpc.StreamServerInterceptor {
 	return func(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-		ctx := eveylogger.WithRequestID(ss.Context(), newRequestID())
+		// Same keep-if-stamped rule as LoggingUnary (and reuse the gateway id
+		// via requestIDFor instead of always minting - this path predated it).
+		ctx := ss.Context()
+		if eveylogger.RequestIDFromCtx(ctx) == "" {
+			ctx = eveylogger.WithRequestID(ctx, requestIDFor(ctx))
+		}
 		wrapped := &wrappedStream{ServerStream: ss, ctx: ctx}
 		start := time.Now()
 		err := handler(srv, wrapped)
