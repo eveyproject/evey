@@ -32,7 +32,6 @@ import (
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	applibrary "github.com/evey-project/evey/internal/app/library"
-	appmedia "github.com/evey-project/evey/internal/app/media"
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
@@ -41,7 +40,6 @@ import (
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apprating "github.com/evey-project/evey/internal/app/rating"
-	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
 	appwebhook "github.com/evey-project/evey/internal/app/webhook"
@@ -402,14 +400,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	backupSvc, backupScheduler := buildBackupServices(cfg, infra, rootLog)
 
-	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
-	deviceRegistry := appsyncplay.NewDeviceRegistry()
-	streamTokenStore := appmedia.NewStreamTokenStore(appmedia.DefaultStreamTokenTTL)
+	syncPlayHub, deviceRegistry, streamTokenStore, shareSvc := buildSyncPlayServices(db)
 	// Bind the stream-token purge into the security revoker now that the store
 	// exists: a ban/password-reset cuts the user's live cast/native streams.
 	securityRevoker.purgeStreams = streamTokenStore.RevokeByUser
-	shareLinkRepo := postgres.NewShareLinkRepo(db)
-	shareSvc := appmedia.NewShareService(shareLinkRepo)
 
 	hlsTranscoder := ffmpeg.NewHLSTranscoder()
 	hlsVODCache, err := apptranscoding.NewSegmentCache(cfg.Transcoding.CacheDir)
@@ -733,99 +727,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		calibrationSvc.DemoteCapability(ctx, class, codec)
 	})
 
-	// CMCD-feedback adaptive cap (Phase C). Periodically aggregates
-	// playback_qoe_events to lower the calibration-set ceiling on
-	// source-classes where viewers consistently starve. TTL'd so a
-	// network blip doesn't lock the cap forever.
-	capsOverrideRepo := postgres.NewTranscodeCapsOverrideRepo(db)
-	capsOverrideSvc := apptranscoding.NewCapOverrideService(
-		capsOverrideRepo, apptranscoding.CapOverrideServiceOpts{}, slog.Default(),
-	)
-	capsOverrideSvc.Start(ctx)
-
-	complexityWorker := apptranscoding.NewComplexityWorker(
-		complexityRepo,
-		complexityClassifier,
-		mediaItemReaderFunc(func(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
-			return libQuerySvc.GetMediaItem(ctx, string(id))
-		}),
-		apptranscoding.ComplexityWorkerOpts{},
-		slog.Default(),
-	).WithVideoDims(r.MediaStream)
-	complexityWorker.Start(ctx)
-
-	// Level backfill: re-probe existing media to fill media_streams.level. The
-	// scanner skips unchanged files, so it never back-populates the column the
-	// H.264 video-copy (remux) rung needs. Paced conservatively; the rate is
-	// env-tunable because it MUST be validated on the real (possibly weak) NAS,
-	// not a dev disk. Resolution: server_config DB key wins → env fallback, so an
-	// admin can flip it from /admin/server-config (key transcoding.level_backfill,
-	// or the raw EVEY_LEVEL_BACKFILL) without touching the container env; a
-	// restart is required. transcoding.level_backfill=off disables it entirely.
-	if resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill", "EVEY_LEVEL_BACKFILL") != "off" {
-		levelOpts := apptranscoding.LevelBackfillOpts{}
-		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill_batch", "EVEY_LEVEL_BACKFILL_BATCH"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil && n > 0 {
-				levelOpts.BatchSize = n
-			}
-		}
-		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill_pause_ms", "EVEY_LEVEL_BACKFILL_PAUSE_MS"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-				levelOpts.ItemPause = time.Duration(n) * time.Millisecond
-			}
-		}
-		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill_idle_sec", "EVEY_LEVEL_BACKFILL_IDLE_SEC"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil && n > 0 {
-				levelOpts.IdleInterval = time.Duration(n) * time.Second
-			}
-		}
-		levelBackfillWorker := apptranscoding.NewLevelBackfillWorker(
-			r.MediaStream,
-			mediaItemReaderFunc(func(ctx context.Context, id shared.MediaItemID) (*library.MediaItem, error) {
-				return libQuerySvc.GetMediaItem(ctx, string(id))
-			}),
-			infra.prober,
-			levelOpts,
-			slog.Default(),
-		)
-		// Same live-session signal as the keyframe worker below: yield to
-		// viewers instead of probing alongside them (2026-07-19 incident family).
-		levelBackfillWorker.WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
-		levelBackfillWorker.Start(ctx)
-	}
-
-	// Keyframe backfill: index keyframe times for copy-eligible media so the
-	// byte-range/per-segment copy rung can cut deterministic, keyframe-aligned
-	// segments. ON by default since the mkvgo era (2026-07-08 decision): the
-	// probe reads the container's own seek index in milliseconds and even a
-	// cue-less MKV costs a bounded in-process scan, so the historical
-	// ffprobe-era caution (opt-in + ultra-slow pacing) no longer applies -
-	// out-of-the-box installs get the copy rung. Opt OUT with
-	// transcoding.keyframe_backfill = off (or EVEY_KEYFRAME_BACKFILL=off);
-	// pacing stays tunable via the server_config keys below. Runs after the
-	// level backfill by construction (the candidate query requires a known
-	// level); backs off to the polite pace while playback sessions are active
-	// (WithActivePlayback); a library scan-completed event nudges it after a
-	// 10-min settle so fresh additions are indexed without waiting the idle
-	// cycle. Resolution: server_config DB key wins → env fallback; a restart
-	// is required.
-	// Read the container seek index (mkvgo: MP4 stss / Matroska Cues) head-only
-	// before the multi-minute ffprobe packet scan; falls back to ffprobe when the
-	// container yields no index. Always on, like the metadata prober (nil gates).
-	// Shared by the paced background worker below AND the on-demand inline fill
-	// at playback negotiation.
-	kfProber := proberpkg.NewKeyframeDispatcher(infra.prober, nil, nil)
-	// On-demand keyframe fill at GetStreamInfo: unconditional (unlike the paced
-	// worker) because its budget context caps the attempt at the fast-path cost
-	// - a file the fast-path can't index stays on the worker's slow path.
-	keyframeOnDemand := apptranscoding.NewKeyframeOnDemand(r.MediaStream, kfProber, slog.Default()).
-		WithFrameRateAnalyzer(infra.mkvAdapter, r.MediaStream).
-		WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
-	// First-play fast path (Phase 2 consumption): a fresh file whose serving
-	// plan says direct-play/remux gets its keyframe index warmed right at scan
-	// time through the bounded on-demand walker, so the copy rung is live on
-	// the very first request instead of after the debounced backfill.
-	libCmdSvc.WithIngestKeyframeWarmer(keyframeOnDemand.TryIndex)
+	capsOverrideSvc, keyframeOnDemand, kfProber := startTranscodingWorkers(ctx, db, infra, libCmdSvc, libQuerySvc, complexityRepo, complexityClassifier, hlsVODRemover)
 
 	// Built-in load test: synthetic viewers against this server's OWN stack,
 	// through the loopback (real routing, auth, middleware - not a shortcut).
