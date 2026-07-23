@@ -242,6 +242,21 @@ func TestHub_CreateRoomFromQueue_RespectsCap(t *testing.T) {
 	}
 }
 
+func TestHub_CreateRoomFromPlaylist_RespectsCap(t *testing.T) {
+	t.Parallel()
+	h := NewHub(newFakeRoomRepo())
+	h.maxRoomsPerHost = 1
+	ctx := context.Background()
+
+	if _, err := h.CreateRoom(ctx, "host-1", "m1", "r"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := h.CreateRoomFromPlaylist(ctx, "host-1", "pl-1", "r", []string{"t1"})
+	if !errors.Is(err, ErrTooManyRooms) {
+		t.Fatalf("playlist room past the cap must be refused, got %v", err)
+	}
+}
+
 func newTestHub() *Hub {
 	return NewHub(newFakeRoomRepo())
 }

@@ -85,3 +85,17 @@ func onDemandSegEndMs(name string, totalSegments int, durMs int64) int64 {
 	}
 	return durMs * int64(idx) / int64(totalSegments)
 }
+
+// transcodeSegEndMs estimates the media END time of a transcode-ladder VOD
+// segment. The ladder grid is EXACT (fixed segmentSeconds), so segment K (0
+// based) ends at (K+1) x grid. Capped at durMs so a boundary index never
+// reports past the end (which would auto-complete the item at 90%). durMs <= 0
+// means unknown duration - return the uncapped estimate, the caller only
+// observes indices it already bounded against the media.
+func transcodeSegEndMs(segmentIdx int, segmentSeconds float64, durMs int64) int64 {
+	end := int64(segmentIdx+1) * int64(segmentSeconds*1000)
+	if durMs > 0 && end > durMs {
+		return durMs
+	}
+	return end
+}

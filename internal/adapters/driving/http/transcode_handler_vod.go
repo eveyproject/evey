@@ -720,7 +720,11 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 	// observed here: it cuts on source keyframes with no grid, and grid math
 	// can overshoot the real position by minutes (see cast_observe.go).
 	if !isInit && !rp.IsCopy {
-		observeCastFetch(r, h.castProgress, int64(segmentIdx+1)*int64(apptranscoding.ManifestSegmentSeconds*1000))
+		durMs := int64(0)
+		if item.File != nil {
+			durMs = item.File.Duration.Milliseconds()
+		}
+		observeCastFetch(r, h.castProgress, transcodeSegEndMs(segmentIdx, apptranscoding.ManifestSegmentSeconds, durMs))
 	}
 
 	// CMCD ingest (CTA-5004). Parsed and shipped to the QoE sink before we

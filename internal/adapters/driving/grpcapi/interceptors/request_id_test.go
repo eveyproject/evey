@@ -115,3 +115,45 @@ func TestLoggingUnary_KeepsAnAlreadyStampedID(t *testing.T) {
 		t.Fatalf("logging must keep the stamped id: first=%q second=%q", first, second)
 	}
 }
+
+// ridStream is a minimal grpc.ServerStream carrying an injectable context (the
+// shared fakeServerStream lives in the external interceptors_test package,
+// unreachable from this internal-package test file).
+type ridStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s *ridStream) Context() context.Context { return s.ctx }
+
+// RequestIDStream is the streaming twin: it must stamp the id on the wrapped
+// stream's context before the handler runs, and reuse an inbound gateway id.
+func TestRequestIDStream_StampsWrappedContext(t *testing.T) {
+	interceptor := RequestIDStream()
+	var seen string
+	err := interceptor(nil, &ridStream{ctx: context.Background()}, &grpc.StreamServerInfo{FullMethod: "/x"},
+		func(_ any, ss grpc.ServerStream) error {
+			seen = eveylogger.RequestIDFromCtx(ss.Context())
+			return nil
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seen == "" {
+		t.Fatal("streaming handler must observe a request id on the wrapped stream")
+	}
+}
+
+func TestRequestIDStream_ReusesGatewayHeader(t *testing.T) {
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("x-request-id", "gw-stream-7"))
+	interceptor := RequestIDStream()
+	var seen string
+	_ = interceptor(nil, &ridStream{ctx: ctx}, &grpc.StreamServerInfo{FullMethod: "/x"},
+		func(_ any, ss grpc.ServerStream) error {
+			seen = eveylogger.RequestIDFromCtx(ss.Context())
+			return nil
+		})
+	if seen != "gw-stream-7" {
+		t.Fatalf("stream must reuse the gateway id, got %q", seen)
+	}
+}

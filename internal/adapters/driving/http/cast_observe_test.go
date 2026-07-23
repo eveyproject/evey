@@ -87,3 +87,14 @@ func TestParseRangeStart(t *testing.T) {
 		}
 	}
 }
+
+// The transcode ladder is a fixed grid, so segment K (0-based) ends at
+// (K+1) x grid, capped at the media duration so a boundary fetch never
+// reports past the end (which would wrongly auto-complete the item at 90%).
+func TestTranscodeSegEndMs(t *testing.T) {
+	const grid = 3.0 // ManifestSegmentSeconds
+	assert.Equal(t, int64(3_000), transcodeSegEndMs(0, grid, 600_000), "first segment ends at one grid")
+	assert.Equal(t, int64(30_000), transcodeSegEndMs(9, grid, 600_000), "segment 9 ends at 30s")
+	assert.Equal(t, int64(600_000), transcodeSegEndMs(9999, grid, 600_000), "a boundary index caps at the duration")
+	assert.Equal(t, int64(3_000), transcodeSegEndMs(0, grid, 0), "unknown duration returns the uncapped estimate")
+}
