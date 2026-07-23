@@ -250,6 +250,9 @@ dashboard:
 
 users:
   maxProfilesInvalid: "El máximo de perfiles debe ser un número entero >= 0"
+  maxDevicesInvalid: "El máximo de dispositivos debe ser un número entero >= 0"
+  usernameRequired: "El nombre de usuario es obligatorio"
+  usernameInvalid: "El nombre de usuario debe tener 1-64 caracteres: letras, dígitos, _ . -"
   title: "Usuarios"
   createUser: "Crear usuario"
   username: "Nombre de usuario"
@@ -607,6 +610,7 @@ audit:
     resource: "Recurso"
     details: "Detalles"
     ip: "IP"
+    device: "Dispositivo"
   noEntries: "No se encontraron registros"
   entries: "{{count}} registros"
 

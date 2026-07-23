@@ -250,6 +250,9 @@ dashboard:
 
 users:
   maxProfilesInvalid: "अधिकतम प्रोफ़ाइल एक पूर्ण संख्या >= 0 होनी चाहिए"
+  maxDevicesInvalid: "अधिकतम डिवाइस एक पूर्ण संख्या >= 0 होनी चाहिए"
+  usernameRequired: "उपयोगकर्ता नाम आवश्यक है"
+  usernameInvalid: "उपयोगकर्ता नाम 1-64 वर्णों का होना चाहिए: अक्षर, अंक, _ . -"
   title: "उपयोगकर्ता"
   createUser: "उपयोगकर्ता बनाएं"
   username: "उपयोगकर्ता नाम"
@@ -607,6 +610,7 @@ audit:
     resource: "संसाधन"
     details: "विवरण"
     ip: "IP"
+    device: "डिवाइस"
   noEntries: "कोई प्रविष्टि नहीं मिली"
   entries: "{{count}} प्रविष्टियां"
 

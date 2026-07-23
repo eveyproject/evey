@@ -250,6 +250,9 @@ dashboard:
 
 users:
   maxProfilesInvalid: "Max profiles must be a whole number >= 0"
+  maxDevicesInvalid: "Max devices must be a whole number >= 0"
+  usernameRequired: "Username is required"
+  usernameInvalid: "Username must be 1-64 chars: letters, digits, _ . -"
   title: Users
   createUser: Create User
   username: Username
@@ -607,6 +610,7 @@ audit:
     resource: Resource
     details: Details
     ip: IP
+    device: Device
   noEntries: No entries found
   entries: "{{count}} entries"
 

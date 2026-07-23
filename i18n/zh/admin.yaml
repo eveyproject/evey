@@ -250,6 +250,9 @@ dashboard:
 
 users:
   maxProfilesInvalid: "最大配置文件数必须是大于等于 0 的整数"
+  maxDevicesInvalid: "最大设备数必须是大于等于 0 的整数"
+  usernameRequired: "用户名为必填项"
+  usernameInvalid: "用户名必须为 1-64 个字符：字母、数字、_ . -"
   title: "用户"
   createUser: "创建用户"
   username: "用户名"
@@ -607,6 +610,7 @@ audit:
     resource: "资源"
     details: "详情"
     ip: "IP"
+    device: "设备"
   noEntries: "未找到记录"
   entries: "{{count}} 条记录"
 
