@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { startPlayback, performCastSeek } from "./hlsPlayerUtils";
+import { startPlayback, planCastLoad } from "./hlsPlayerUtils";
 import type { SubtitleStream } from "../SubtitleSelector";
 
 const mockCaps = vi.hoisted(() => ({
@@ -378,37 +378,32 @@ describe("startPlayback", () => {
   });
 });
 
-describe("performCastSeek", () => {
-  function actions() {
-    return {
-      nativeSeek: vi.fn().mockReturnValue(true),
-      setTranscodeOffset: vi.fn(),
-    };
-  }
-
-  it("transcode: seeks natively on the VOD manifest and zeroes the offset (no URL reload)", () => {
-    // The transcode cast plays a COMPLETE VOD manifest; the old path rebuilt the
-    // URL at startSec=target and reloaded, but no server handler parses startSec,
-    // so the receiver silently restarted at 0. A native seek must be used, and
-    // the reported-position offset dropped to 0 (receiver time is now absolute).
-    const a = actions();
-    const ok = performCastSeek(742, /*isDirectPlay*/ false, a);
-    expect(ok).toBe(true);
-    expect(a.nativeSeek).toHaveBeenCalledWith(742);
-    expect(a.setTranscodeOffset).toHaveBeenCalledWith(0);
+describe("planCastLoad", () => {
+  it("transcode: resume rides the load request, never a baked startSec", () => {
+    // No server handler parses startSec, and the transcode manifest is a
+    // complete VOD - a baked startSec silently started the receiver at 0
+    // while the UI added the offset back and believed the resume had landed.
+    const plan = planCastLoad(undefined, "tok", "m1", 0, 742.9, false);
+    expect(plan.url).not.toContain("startSec=");
+    expect(plan.resumeSec).toBe(742);
   });
 
-  it("direct-play: seeks natively and leaves the offset untouched", () => {
-    const a = actions();
-    const ok = performCastSeek(30, /*isDirectPlay*/ true, a);
-    expect(ok).toBe(true);
-    expect(a.nativeSeek).toHaveBeenCalledWith(30);
-    expect(a.setTranscodeOffset).not.toHaveBeenCalled();
+  it("transcode: cold start resumes at 0", () => {
+    const plan = planCastLoad(undefined, "tok", "m1", 1, 0, true);
+    expect(plan.url).toContain("audioTrack=1");
+    expect(plan.url).toContain("gapless=1");
+    expect(plan.resumeSec).toBe(0);
   });
 
-  it("propagates a failed native seek so the caller can fall back to the local player", () => {
-    const a = actions();
-    a.nativeSeek.mockReturnValue(false);
-    expect(performCastSeek(10, false, a)).toBe(false);
+  it("direct play: appends the session token when the URL has none", () => {
+    const plan = planCastLoad("/files/movie.mp4", "tok", "m1", 0, 30, false);
+    expect(plan.url).toBe("/files/movie.mp4?token=tok");
+    expect(plan.resumeSec).toBe(30);
+  });
+
+  it("direct play: keeps a URL that already carries a token", () => {
+    const plan = planCastLoad("/files/movie.mp4?token=abc", "tok", "m1", 0, 12.4, false);
+    expect(plan.url).toBe("/files/movie.mp4?token=abc");
+    expect(plan.resumeSec).toBe(12);
   });
 });

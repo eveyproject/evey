@@ -31,7 +31,7 @@ import {
   setSubtitleStyle,
   type SubtitleStyle,
 } from "@/hooks/usePlaybackPrefs";
-import { buildTranscodeHlsUrl, getSelectedBurnInTrack, performCastSeek, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
+import { buildTranscodeHlsUrl, getSelectedBurnInTrack, planCastLoad, resolveDefaultAudio, resolveDefaultSubtitle } from "./hooks/hlsPlayerUtils";
 import { useDirectPlayback } from "./hooks/useDirectPlayback";
 import { useTranscodePlayback, type ShedReason } from "./hooks/useTranscodePlayback";
 import { useWasmAudioPlayback } from "./wasmaudio/useWasmAudioPlayback";
@@ -323,25 +323,18 @@ export function HLSPlayer({
     return () => { stale = true; };
   }, [remotePlayback.supported, onCastTokenRequest, mediaId]);
 
-  // Builds a URL the receiver can fetch on its own (absolute, cast token,
-  // resumed at the current position). Shared by the desktop Cast SDK and the
-  // Chrome-Android Remote Playback path, so both hand the device the exact
-  // same media. Resume: transcode bakes the offset into the HLS (castStartSec);
-  // direct play carries it on the LoadRequest (castResumeSec) since nothing
-  // else seeks the receiver.
-  const buildCastUrl = useCallback(async (): Promise<{ url: string; castStartSec: number; castResumeSec: number }> => {
-    let url: string;
-    let castStartSec = 0;
-    let castResumeSec = 0;
-    const resumeAtSec = positionRef.current > 0 ? Math.floor(positionRef.current) : 0;
-    if (streamInfo.directPlayUrl) {
-      const hasToken = streamInfo.directPlayUrl.includes("token=");
-      url = hasToken ? streamInfo.directPlayUrl : `${streamInfo.directPlayUrl}${streamInfo.directPlayUrl.includes("?") ? "&" : "?"}token=${encodeURIComponent(streamTokenRef.current)}`;
-      castResumeSec = resumeAtSec;
-    } else {
-      castStartSec = resumeAtSec;
-      url = buildTranscodeHlsUrl(mediaId, streamTokenRef.current, currentTrackIndex, null, castStartSec, 0, gapless);
-    }
+  // Builds a URL the receiver can fetch on its own (absolute, cast token).
+  // Shared by the desktop Cast SDK and the Chrome-Android Remote Playback
+  // path, so both hand the device the exact same media. Resume rides the
+  // LoadRequest's currentTime (castResumeSec) on BOTH paths: direct play and
+  // transcode each hand the receiver a complete absolute timeline (the file /
+  // the precomputed VOD manifest), and baking startSec into the transcode URL
+  // never worked - no server handler parses it (see planCastLoad).
+  const buildCastUrl = useCallback(async (): Promise<{ url: string; castResumeSec: number }> => {
+    const plan = planCastLoad(
+      streamInfo.directPlayUrl, streamTokenRef.current, mediaId, currentTrackIndex, positionRef.current, gapless,
+    );
+    let url = plan.url;
     // Swap in a long-lived cast token: the receiver buffers minutes ahead then
     // goes quiet, and the 5-minute sliding token would expire mid-film. The
     // local player dodges this via xhrSetup; the receiver can't. Prefetched
@@ -362,7 +355,7 @@ export function HLSPlayer({
       u.searchParams.set("token", castTok);
       url = `${u.pathname}?${u.searchParams.toString()}`;
     }
-    return { url, castStartSec, castResumeSec };
+    return { url, castResumeSec: plan.resumeSec };
   }, [streamInfo.directPlayUrl, mediaId, currentTrackIndex, onCastTokenRequest, gapless, reportCastEvent]);
 
   // Chrome Android: the Cast SDK is dead, so cast by FLINGING the HLS/direct
@@ -407,9 +400,8 @@ export function HLSPlayer({
       stopCast();
       return;
     }
-    const { url, castStartSec, castResumeSec } = await buildCastUrl();
+    const { url, castResumeSec } = await buildCastUrl();
     if (import.meta.env.DEV) console.log("[Cast] SDK cast url:", url, "mode:", streamInfo.directPlayUrl ? "direct" : "transcode");
-    castTranscodeOffsetRef.current = castStartSec;
     const outcome = await startCast(url, title, castResumeSec);
     if (outcome !== "session-failed") return;
     // No chained fallback to the fling here either: it would run after this
@@ -554,12 +546,6 @@ export function HLSPlayer({
   const skipBwdRef = useRef(skipBwd);
   skipBwdRef.current = skipBwd;
   const transcodeOffsetRef = useRef(0);
-  // Cast-side mirror of transcodeOffsetRef: an HLS cast plays a manifest
-  // built at startSec=X, so the device's reported currentTime is local to
-  // that stream and the absolute position is castTranscodeOffset + it.
-  const castTranscodeOffsetRef = useRef(0);
-
-  const isDirectPlay = streamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY";
 
   // --- Hooks ---
 
@@ -692,19 +678,6 @@ export function HLSPlayer({
   const seekRef = useRef(handleSeekRequest);
   seekRef.current = handleSeekRequest;
 
-  // Cast seek. Both direct-play and transcode casts play a COMPLETE VOD manifest
-  // (the transcode path precomputes it from the known duration and the server
-  // ignores startSec), so the receiver's timeline is the absolute media timeline
-  // and a native seek lands frame-accurately. The old transcode path rebuilt the
-  // URL at startSec=target and reloaded the device, but no handler parses startSec
-  // so the receiver restarted at 0 while the UI thought the seek landed. See
-  // performCastSeek for the offset reset that keeps position reporting correct.
-  const handleCastSeek = useCallback((absoluteTimeSec: number): boolean =>
-    performCastSeek(absoluteTimeSec, isDirectPlay, {
-      nativeSeek: castSeek,
-      setTranscodeOffset: (v) => { castTranscodeOffsetRef.current = v; },
-    }), [isDirectPlay, castSeek]);
-
   // Canonical subtitle selection - shared by the settings panel picker and the
   // keyboard "c" shortcut. Crucially, when toggling a burn-in track (PGS/VobSub)
   // in transcode mode it restarts the transcode from the current position so the
@@ -772,12 +745,14 @@ export function HLSPlayer({
     videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, onToggleFullscreen: toggleFullscreen, onSingleTap: handleSingleTap,
   });
 
-  // Last known ABSOLUTE cast position (media timeline). Render-time ref
-  // update, same pattern as onCloseRef: castPlayback ticks re-render this
-  // component ~1/s while casting, keeping it fresh for the handoff-back.
+  // Last known ABSOLUTE cast position. The receiver plays a complete timeline
+  // (file / VOD manifest), so its currentTime IS the media position - no
+  // offset. Render-time ref update, same pattern as onCloseRef: castPlayback
+  // ticks re-render this component ~1/s while casting, keeping it fresh for
+  // the handoff-back.
   const lastCastPosRef = useRef(0);
   if (castConnected && castPlayback.isMediaLoaded) {
-    lastCastPosRef.current = castTranscodeOffsetRef.current + castPlayback.currentTime;
+    lastCastPosRef.current = castPlayback.currentTime;
   }
 
   // Auto-pause local player when casting, resume when cast stops - AT THE
@@ -1121,7 +1096,7 @@ export function HLSPlayer({
         onRemoteStop={onClose}
         cast={castConnected && castPlayback.isMediaLoaded ? {
           active: true,
-          positionSec: castTranscodeOffsetRef.current + castPlayback.currentTime,
+          positionSec: castPlayback.currentTime,
           isPaused: castPlayback.isPaused,
           volume: castPlayback.volume,
           isMuted: castPlayback.isMuted,
@@ -1212,9 +1187,8 @@ export function HLSPlayer({
           castConnected={castConnected}
           castDeviceName={castDeviceName}
           castPlayback={castPlayback}
-          castTranscodeOffset={castTranscodeOffsetRef.current}
           onCastPlayPause={castPlayPause}
-          onCastSeek={handleCastSeek}
+          onCastSeek={castSeek}
           onCastSetVolume={castSetVolume}
           onCastSetMuted={castSetMuted}
           isBuffering={isBuffering}

@@ -15,15 +15,13 @@ const warn: typeof console.warn = DEV ? console.warn.bind(console) : () => {};
 const error: typeof console.error = DEV ? console.error.bind(console) : () => {};
 
 // loadChromecastMedia builds a MediaInfo + LoadRequest and hands it to an
-// existing Cast session. Shared by the initial startCast and by castReload
-// (the seek-by-reload path) so the HLS/mp4 content-type handling stays in
-// one place. Exported for tests.
+// existing Cast session. Exported for tests.
 //
-// startAtSec seeks the receiver to that position at load - the DIRECT-PLAY
-// resume path: the receiver owns the file's whole timeline and nobody else
-// will ever seek it, so omitting it restarted every direct-play cast at 0.
-// A transcode cast passes 0: its start offset is baked into the stream
-// server-side (startSec=) and the receiver's timeline begins there already.
+// startAtSec seeks the receiver to that position at load - the resume path
+// for BOTH modes: direct play hands the receiver the complete file, transcode
+// the complete precomputed VOD manifest, so either timeline is absolute and
+// the load request's currentTime is the only thing that ever resumes it
+// (baking startSec into the URL never worked - no server handler parses it).
 export async function loadChromecastMedia(session: cast.framework.CastSession, absoluteUrl: string, title?: string, startAtSec = 0): Promise<void> {
   const chrome = window.chrome;
   const isHls = absoluteUrl.includes("m3u8");
@@ -546,53 +544,6 @@ export function useCasting(report?: CastReporter) {
     controllerRef.current?.playOrPause();
   }, []);
 
-  // castReload swaps the media playing on the *current* cast session to a
-  // new URL. It's the cast-side equivalent of the local player's
-  // setTranscodeStartTime: an HLS cast plays a progressively-generated
-  // manifest, so the only way to reach a position outside that window is
-  // to rebuild the URL at startSec=target and reload. Dispatches by mode -
-  // the Chrome path uses the JS Cast SDK (session.loadMedia), the
-  // server-side path (Firefox, no JS SDK) re-issues /api/v1/cast/play.
-  // Returns false when there's no live session to reload onto.
-  const castReload = useCallback(async (streamUrl: string, title?: string): Promise<boolean> => {
-    const origin = localStorage.getItem("cast_base_url") || window.location.origin;
-    const absoluteUrl = streamUrl.startsWith("http") ? streamUrl : `${origin}${streamUrl}`;
-    if (state.mode === "chromecast") {
-      const ctx = window.cast?.framework?.CastContext?.getInstance();
-      const session = ctx?.getCurrentSession();
-      if (!session) {
-        warn(TAG, "castReload: no chromecast session");
-        return false;
-      }
-      try {
-        await loadChromecastMedia(session, absoluteUrl, title);
-        return true;
-      } catch (err) {
-        error(TAG, "castReload chromecast failed:", err);
-        return false;
-      }
-    }
-    if (state.mode === "cast" && activeRenderer.current) {
-      try {
-        await eveyFetch({
-          url: "/api/v1/cast/play",
-          method: "POST",
-          data: {
-            deviceUuid: activeRenderer.current,
-            mediaUrl: absoluteUrl,
-            title: title ?? "",
-            contentType: absoluteUrl.includes("m3u8") ? "application/x-mpegurl" : "video/mp4",
-          },
-        });
-        return true;
-      } catch (err) {
-        error(TAG, "castReload server-side failed:", err);
-        return false;
-      }
-    }
-    return false;
-  }, [state.mode]);
-
   // Returns true only when the seek was actually handed to a live cast
   // session. A false return lets the caller fall back to the local
   // player - critical when a cast session dies uncleanly (no
@@ -635,7 +586,6 @@ export function useCasting(report?: CastReporter) {
     stopCast,
     castPlayPause,
     castSeek,
-    castReload,
     castSetVolume,
     castSetMuted,
   };
