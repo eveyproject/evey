@@ -55,7 +55,10 @@ func registerPlaylistRoutes(mux *http.ServeMux, plSvc *appplaylist.Service, gen 
 	h := &playlistHandler{plSvc: plSvc, gen: gen, libSvc: libSvc, music: musicSvc, libChecker: libChecker, parental: parental, baseURL: baseURL}
 	// Like a collection ZIP, a playlist can fan out to many large files - a
 	// heavier amplification vector than a single-file download, so rate-limit it.
-	mux.HandleFunc("GET /api/v1/playlists/{id}/download", ratelimit.MiddlewareFunc(rl, authMw(h.downloadPlaylist)))
+	// streamAuth: opaque per-resource download token accepted alongside the
+	// JWT (see download_token.go).
+	streamAuthMw := httpStreamAuthMiddleware(tokenGen)
+	mux.HandleFunc("GET /api/v1/playlists/{id}/download", ratelimit.MiddlewareFunc(rl, streamAuthMw(h.downloadPlaylist)))
 	// Generating scans the whole music library + the user's playlists - also
 	// heavier than a normal call, so it shares the rate limiter.
 	mux.HandleFunc("POST /api/v1/playlists/generate", ratelimit.MiddlewareFunc(rl, authMw(h.generatePlaylist)))
@@ -123,6 +126,9 @@ func (h *playlistHandler) downloadPlaylist(w http.ResponseWriter, r *http.Reques
 	claims := HTTPClaimsFromContext(r.Context())
 	playlistID := r.PathValue("id")
 	span.SetAttributes(attribute.String("playlist_id", playlistID))
+	if !requireDownloadTokenBinding(w, r, playlistID) {
+		return
+	}
 
 	profileID := ""
 	if claims != nil {

@@ -1,0 +1,68 @@
+package httpapi
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+
+	appmedia "github.com/evey-project/evey/internal/app/media"
+	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+)
+
+// The account JWT used to ride in ZIP-download URLs (collections, playlists,
+// music tracks/albums): an <a href> cannot send an Authorization header, so
+// the frontend appended ?token=<JWT> - and reverse-proxy access logs plus
+// browser history then held a replayable session credential. The media
+// download path solved this long ago with media-scoped stream tokens; this
+// file extends the same trade to every other download resource: POST here
+// once (JWT in a header), get a short-lived opaque token bound to ONE
+// resource id, put THAT in the URL.
+//
+// The mint deliberately performs no per-resource ACL: the token only carries
+// the minting user's identity (the download handler re-runs its own access
+// checks on the synthesized claims), and binds to a single id (the guard
+// below refuses it anywhere else). Minting a token for a resource you cannot
+// access yields a token that downloads nothing.
+func downloadTokenHandler(store *appmedia.StreamTokenStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.download.MintToken")
+		defer span.End()
+		r = r.WithContext(ctx)
+		claims := HTTPClaimsFromContext(r.Context())
+		if claims == nil {
+			http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		id := r.PathValue("id")
+		// Same bounds the gRPC request-id filter applies: this value lands in
+		// URLs and logs, an unbounded one is an injection/abuse vector.
+		if id == "" || len(id) > 128 {
+			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		token := store.Create(claims.UserID, claims.ProfileID, id)
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]string{"token": token}); err != nil {
+			slog.WarnContext(r.Context(), "download token encode failed", slog.Any("err", err))
+		}
+	}
+}
+
+// requireDownloadTokenBinding is the download handlers' guard when the
+// request authenticated via an opaque store token: the token must be bound to
+// THIS resource id (a media-scoped stream token must not download an
+// unrelated collection), and a syncplay guest may stream but never download.
+// JWT-authenticated requests (no store token in ctx) pass untouched. Returns
+// false after writing the refusal.
+func requireDownloadTokenBinding(w http.ResponseWriter, r *http.Request, resourceID string) bool {
+	st, ok := StreamTokenFromContext(r.Context())
+	if !ok || st == nil {
+		return true
+	}
+	if st.Scope == shared.ScopeSyncplayGuest || st.MediaItemID != shared.MediaItemID(resourceID) {
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		return false
+	}
+	return true
+}

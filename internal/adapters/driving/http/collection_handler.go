@@ -34,11 +34,14 @@ type collectionHandler struct {
 }
 
 func registerCollectionRoutes(mux *http.ServeMux, collSvc *appcollection.Service, libSvc MediaArchiveSource, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, parental ParentalChecker, baseURL string, rl *ratelimit.Limiter) {
-	authMw := httpAuthMiddleware(tokenGen)
+
 	h := &collectionHandler{collSvc: collSvc, libSvc: libSvc, libChecker: libChecker, parental: parental, baseURL: baseURL}
 	// A collection ZIP can fan out to many large files, so it's a heavier
 	// amplification vector than a single-file download - rate-limit it.
-	mux.HandleFunc("GET /api/v1/collections/{id}/download", ratelimit.MiddlewareFunc(rl, authMw(h.downloadCollection)))
+	// streamAuth: the download URL carries an opaque per-resource token
+	// instead of the account JWT (see download_token.go); JWT stays accepted.
+	streamAuthMw := httpStreamAuthMiddleware(tokenGen)
+	mux.HandleFunc("GET /api/v1/collections/{id}/download", ratelimit.MiddlewareFunc(rl, streamAuthMw(h.downloadCollection)))
 }
 
 // downloadCollection streams a ZIP of every accessible media file in a
@@ -53,6 +56,9 @@ func (h *collectionHandler) downloadCollection(w http.ResponseWriter, r *http.Re
 	claims := HTTPClaimsFromContext(r.Context())
 	collectionID := r.PathValue("id")
 	span.SetAttributes(attribute.String("collection_id", collectionID))
+	if !requireDownloadTokenBinding(w, r, collectionID) {
+		return
+	}
 
 	col, err := h.collSvc.GetByID(r.Context(), collectionID)
 	if err != nil || col == nil {

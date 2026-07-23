@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Folder, Download } from "lucide-react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useAuthStore } from "@evey/store";
+import { useAuthStore, toast } from "@evey/store";
+import { startTokenDownload } from "@/utils/downloadToken";
 import { useCollection, useDeleteCollection } from "@/features/collection/api";
 import { MediaGrid } from "@/features/library/MediaGrid";
 import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWithModals";
@@ -94,15 +95,23 @@ function CollectionDetailPage() {
               {t("common.item", { count: total })}
             </p>
             {total > 0 && accessToken && (
-              <a
-                href={`/api/v1/collections/${collectionId}/download?token=${encodeURIComponent(accessToken)}`}
-                download={`${col.name ?? "collection"}.zip`}
+              <button
+                type="button"
+                onClick={async () => {
+                  // Click-time mint: the account JWT must not ride in the URL
+                  // (proxy logs, history) - see utils/downloadToken.ts.
+                  try {
+                    await startTokenDownload(`/api/v1/collections/${collectionId}/download`, collectionId, `${col.name ?? "collection"}.zip`);
+                  } catch {
+                    toast.error(t("common.error"));
+                  }
+                }}
                 data-testid="collection-download-btn"
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)] transition-colors-fast"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)] transition-colors-fast cursor-pointer"
               >
                 <Download size={16} />
                 {t("media.collections.download")}
-              </a>
+              </button>
             )}
           </div>
         </>

@@ -6,6 +6,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { BackButton } from "@/components/ui/BackButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { toast, useAuthStore } from "@evey/store";
+import { startTokenDownload } from "@/utils/downloadToken";
 import { usePlaylistDetail, useRemoveFromPlaylist, type PlaylistItem } from "@/features/playlist/api";
 import { SmartPlaylistRulesEditor } from "@/features/playlist/SmartPlaylistRulesEditor";
 
@@ -91,15 +92,23 @@ function PlaylistDetail() {
           <Badge variant={playlist.type === "smart" ? "warning" : "info"}>{playlist.type}</Badge>
         </div>
         {items.length > 0 && accessToken && (
-          <a
-            href={`/api/v1/playlists/${playlistId}/download?token=${encodeURIComponent(accessToken)}`}
-            download={`${playlist.name ?? "playlist"}.zip`}
+          <button
+            type="button"
+            onClick={async () => {
+              // Click-time mint: the account JWT must not ride in the URL
+              // (proxy logs, history) - see utils/downloadToken.ts.
+              try {
+                await startTokenDownload(`/api/v1/playlists/${playlistId}/download`, playlistId, `${playlist.name ?? "playlist"}.zip`);
+              } catch {
+                toast.error(t("common.error"));
+              }
+            }}
             data-testid="playlist-download-btn"
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)] transition-colors-fast flex-shrink-0"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-medium bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)] transition-colors-fast flex-shrink-0 cursor-pointer"
           >
             <Download size={16} />
             {t("media.playlist.download")}
-          </a>
+          </button>
         )}
       </div>
       {playlist.description && (

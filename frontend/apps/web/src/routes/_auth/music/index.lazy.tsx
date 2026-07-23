@@ -21,6 +21,7 @@ import {
 import { useAuthStore, useMusicPlayerStore, toast, type MusicSource } from "@evey/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { startTokenDownload } from "@/utils/downloadToken";
 import { Music, X, Plus, Trash2, ArrowLeft, Download, Shuffle, Sparkles } from "lucide-react";
 import { useGeneratePlaylist } from "@/features/playlist/api";
 import { ICON } from "@/constants/iconSizes";
@@ -210,10 +211,14 @@ type Tab = "albums" | "tracks" | "artists" | "playlists";
 
 function DownloadTrackButton({ trackID }: { trackID: string }) {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
-  function download() {
-    const url = `/api/v1/music/tracks/${encodeURIComponent(trackID)}/download${accessToken ? `?token=${encodeURIComponent(accessToken)}` : ""}`;
-    window.location.href = url;
+  async function download() {
+    // Click-time mint: the account JWT must not ride in the URL (proxy logs,
+    // browser history) - see utils/downloadToken.ts.
+    try {
+      await startTokenDownload(`/api/v1/music/tracks/${encodeURIComponent(trackID)}/download`, trackID);
+    } catch {
+      toast.error(t("common.error"));
+    }
   }
   return (
     <button
@@ -601,8 +606,16 @@ function PlaylistsTab({
           )}
           {selected && playlistTracks.length > 0 && accessToken && (
             <a
-              href={`/api/v1/playlists/${selected}/download?token=${encodeURIComponent(accessToken)}`}
-              download={`${selectedPlaylist?.name ?? "playlist"}.zip`}
+              href="#"
+              onClick={async (e) => {
+                e.preventDefault();
+                // Click-time mint - the JWT must not ride in the URL.
+                try {
+                  await startTokenDownload(`/api/v1/playlists/${selected}/download`, selected, `${selectedPlaylist?.name ?? "playlist"}.zip`);
+                } catch {
+                  toast.error(t("common.error"));
+                }
+              }}
               data-testid="playlist-download-btn"
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-raised)] transition-colors-fast ${playlistTracks.length > 0 ? "" : "ml-auto"}`}
               title={t("media.playlist.download")}
@@ -938,10 +951,15 @@ function AlbumsTab({ albums, loading, libraryID, onAlbumClick }: { albums: Album
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   if (!loading && !albums.length) return <p className="text-[var(--text-muted)]">{t("media.music.noAlbums")}</p>;
 
-  function downloadAlbum(a: Album) {
+  async function downloadAlbum(a: Album) {
     if (!libraryID) return;
-    const url = `/api/v1/music/albums/download?albumId=${encodeURIComponent(a.ID)}&libraryId=${encodeURIComponent(libraryID)}${accessToken ? `&token=${encodeURIComponent(accessToken)}` : ""}`;
-    window.location.href = url;
+    // Click-time mint bound to the albumId (the server guard binds on
+    // albumId+album, name empty here) - the JWT must not ride in the URL.
+    try {
+      await startTokenDownload(`/api/v1/music/albums/download?albumId=${encodeURIComponent(a.ID)}&libraryId=${encodeURIComponent(libraryID)}`, a.ID);
+    } catch {
+      toast.error(t("common.error"));
+    }
   }
 
   return (

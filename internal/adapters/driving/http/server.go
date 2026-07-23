@@ -434,6 +434,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		mux.HandleFunc("GET /api/v1/share/{token}/download", ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(shareDownloadHandler(s.ShareSvc, s.LibQuerySvc, s.BaseURL()))))
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/stream-token", auth(streamTokenHandler(s.TokenGen, s.StreamTokenStore, s.LibraryAccessRepo, s.LibQuerySvc, parentalChk)))
+	// Opaque short-lived token for the NON-media download URLs (collection /
+	// playlist / music ZIPs) so the account JWT stops riding in query strings
+	// (proxy logs, browser history). See download_token.go for the model.
+	mux.HandleFunc("POST /api/v1/download-token/{id}", auth(downloadTokenHandler(s.StreamTokenStore)))
 
 	transcodeThrottle := apptranscoding.NewTranscodeThrottle()
 	mux.HandleFunc("GET /api/v1/media/{id}/transcode", streamAuth(transcodeHandler(transcodeServe{

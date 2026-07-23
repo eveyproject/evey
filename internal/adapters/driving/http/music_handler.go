@@ -41,10 +41,13 @@ func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen dom
 	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister, imgConverter: imgConverter, nowPlaying: nowPlaying}
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/art", authMw(h.getTrackArt))
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/stream", authMw(h.streamTrack))
-	mux.HandleFunc("GET /api/v1/music/tracks/{id}/download", authMw(ratelimit.MiddlewareFunc(rl, h.downloadTrack)))
+	// streamAuth on the two download routes: opaque per-resource token
+	// accepted alongside the JWT (see download_token.go).
+	streamAuthMw := httpStreamAuthMiddleware(tokenGen)
+	mux.HandleFunc("GET /api/v1/music/tracks/{id}/download", streamAuthMw(ratelimit.MiddlewareFunc(rl, h.downloadTrack)))
 	mux.HandleFunc("POST /api/v1/music/tracks/{id}/played", authMw(h.recordPlay))
 	mux.HandleFunc("POST /api/v1/music/nowplaying", authMw(h.nowPlayingHeartbeat))
-	mux.HandleFunc("GET /api/v1/music/albums/download", authMw(ratelimit.MiddlewareFunc(rl, h.downloadAlbum)))
+	mux.HandleFunc("GET /api/v1/music/albums/download", streamAuthMw(ratelimit.MiddlewareFunc(rl, h.downloadAlbum)))
 	mux.HandleFunc("GET /api/v1/music/album-art/{hash}", authMw(h.serveAlbumArt))
 	mux.HandleFunc("POST /api/v1/admin/music/fetch-missing-art", adminMw(h.fetchMissingArt))
 }
@@ -144,6 +147,9 @@ func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
 	claims := HTTPClaimsFromContext(r.Context())
 	id := r.PathValue("id")
 	span.SetAttributes(attribute.String("track_id", id))
+	if !requireDownloadTokenBinding(w, r, id) {
+		return
+	}
 	track, err := h.svc.GetTrack(r.Context(), id)
 	if err != nil || track == nil {
 		if err != nil {
@@ -373,6 +379,11 @@ func (h *musicHandler) downloadAlbum(w http.ResponseWriter, r *http.Request) {
 		attribute.String("album_id", albumID),
 		attribute.String("album", album),
 	)
+	// The mint binds on the albumId when present, else the album NAME - the
+	// same two spellings this endpoint accepts.
+	if !requireDownloadTokenBinding(w, r, albumID+album) {
+		return
+	}
 	if libraryID == "" || (albumID == "" && album == "") {
 		span.SetStatus(otelcodes.Error, "libraryId and album/albumId required")
 		http.Error(w, "libraryId and album (or albumId) are required", http.StatusBadRequest)
