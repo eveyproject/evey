@@ -480,6 +480,35 @@ func (c *Config) EffectiveSkipPreviewEnabled() bool {
 	return c.Metadata.SkipPreviewEnabled
 }
 
+// The retention accessors below are read live by the background purge sweeps
+// (activity daily sweep, playback cleanup loop), so an admin change from the
+// panel takes effect at the next sweep without a restart - the reason they go
+// through the lock instead of a boot snapshot.
+
+func (c *Config) EffectiveAuditRetentionDays() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Log.AuditRetentionDays
+}
+
+func (c *Config) EffectiveMetricsRetentionDays() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Metrics.RetentionDays
+}
+
+func (c *Config) EffectiveQoERetentionDays() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Metrics.QoERetentionDays
+}
+
+func (c *Config) EffectiveSessionRetentionDays() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Playback.SessionRetentionDays
+}
+
 // ApplyServerSettings runs fn while holding the write lock that guards the
 // runtime-mutable settings fields. fn must touch only those fields (see the
 // c.mu doc) and must not call back into the Effective* accessors (the lock is

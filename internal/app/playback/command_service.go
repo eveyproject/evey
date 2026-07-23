@@ -59,11 +59,14 @@ type CommandService struct {
 	events         shared.EventBus
 	uow            shared.TransactionalUnit
 	durations      MediaItemDurationGetter
-	// sessionRetentionDays bounds play_sessions: finished sessions older than
-	// this are purged. 0 = keep forever. lastSessionPurge gates the delete to
-	// ~once/day inside the 30s stale-session sweep (single-goroutine, no lock).
-	sessionRetentionDays int
-	lastSessionPurge     time.Time
+	// sessionRetention bounds play_sessions: finished sessions older than the
+	// returned number of days are purged. 0 (or nil getter) = keep forever.
+	// A GETTER rather than a snapshot so the admin panel's change applies at
+	// the next sweep without a restart (it reads config under its lock).
+	// lastSessionPurge gates the delete to ~once/day inside the 30s
+	// stale-session sweep (single-goroutine, no lock).
+	sessionRetention func() int
+	lastSessionPurge time.Time
 }
 
 type CommandServiceOption func(*CommandService)
@@ -87,10 +90,11 @@ func WithWatchProgressBuffer(buf *WatchProgressBuffer) CommandServiceOption {
 // Completed=false on every tick (the historical behaviour - completion
 // still happens via MarkAsWatched or the sticky-true Upsert semantic
 // once any caller has set it).
-// WithSessionRetentionDays enables the daily purge of finished play_sessions
-// older than the given number of days. 0 (default) keeps every session.
-func WithSessionRetentionDays(days int) CommandServiceOption {
-	return func(s *CommandService) { s.sessionRetentionDays = days }
+// WithSessionRetention enables the daily purge of finished play_sessions older
+// than the number of days the getter returns. 0 keeps every session. Re-read
+// at every sweep so a panel change needs no restart.
+func WithSessionRetention(days func() int) CommandServiceOption {
+	return func(s *CommandService) { s.sessionRetention = days }
 }
 
 func WithMediaItemDurationGetter(g MediaItemDurationGetter) CommandServiceOption {
@@ -549,14 +553,19 @@ func (s *CommandService) runCleanup(ctx context.Context, maxAge time.Duration) {
 
 	// Retention purge of finished sessions, gated to ~once/day (the stale sweep
 	// runs every 30s). lastSessionPurge is zero on boot, so the first sweep
-	// purges immediately.
-	if s.sessionRetentionDays > 0 && time.Since(s.lastSessionPurge) >= 24*time.Hour {
+	// purges immediately. The window is re-read here so a panel change applies
+	// on the next sweep, not the next restart.
+	retentionDays := 0
+	if s.sessionRetention != nil {
+		retentionDays = s.sessionRetention()
+	}
+	if retentionDays > 0 && time.Since(s.lastSessionPurge) >= 24*time.Hour {
 		s.lastSessionPurge = time.Now()
-		cutoff := time.Now().AddDate(0, 0, -s.sessionRetentionDays)
+		cutoff := time.Now().AddDate(0, 0, -retentionDays)
 		if n, err := s.sessions.PurgeEndedBefore(ctx, cutoff); err != nil {
 			slog.Warn("play_session retention purge", slog.Any("err", err))
 		} else if n > 0 {
-			slog.Info("purged old play sessions", slog.Int("count", n), slog.Int("retention_days", s.sessionRetentionDays))
+			slog.Info("purged old play sessions", slog.Int("count", n), slog.Int("retention_days", retentionDays))
 		}
 	}
 }

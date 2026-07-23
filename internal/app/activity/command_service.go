@@ -146,12 +146,16 @@ func (s *CommandService) runRetention(ctx context.Context, auditDays, metricsDay
 }
 
 // StartRetentionPurge spawns a daily background sweep that trims audit-log
-// and server-metric rows past their retention window. A retention of <= 0
-// disables that table; when both are disabled this is a no-op (no goroutine).
+// and server-metric rows past their retention window. The windows come from a
+// getter re-read at EVERY pass, so an admin change from the settings panel
+// takes effect at the next sweep without a restart - which is also why the
+// goroutine spawns even when every window is currently <= 0 (disabled): a
+// window enabled at runtime must start purging without a reboot. A retention
+// of <= 0 skips that table for the pass. A nil getter disables the sweep.
 // It runs one pass at startup, then every 24h, and exits when ctx is done.
-func (s *CommandService) StartRetentionPurge(ctx context.Context, auditDays, metricsDays, qoeDays int) {
-	if auditDays <= 0 && metricsDays <= 0 && qoeDays <= 0 && s.webhookDeliveries == nil {
-		slog.Info("retention purge disabled", slog.Int("audit_days", auditDays), slog.Int("metrics_days", metricsDays), slog.Int("qoe_days", qoeDays))
+func (s *CommandService) StartRetentionPurge(ctx context.Context, retention func() (auditDays, metricsDays, qoeDays int)) {
+	if retention == nil {
+		slog.Info("retention purge disabled: no retention getter wired")
 		return
 	}
 	go func() {
@@ -160,7 +164,11 @@ func (s *CommandService) StartRetentionPurge(ctx context.Context, auditDays, met
 				slog.Error("retention purge panic recovered", slog.Any("panic", r))
 			}
 		}()
-		s.runRetention(ctx, auditDays, metricsDays, qoeDays)
+		pass := func() {
+			auditDays, metricsDays, qoeDays := retention()
+			s.runRetention(ctx, auditDays, metricsDays, qoeDays)
+		}
+		pass()
 		ticker := time.NewTicker(24 * time.Hour)
 		defer ticker.Stop()
 		for {
@@ -168,7 +176,7 @@ func (s *CommandService) StartRetentionPurge(ctx context.Context, auditDays, met
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				s.runRetention(ctx, auditDays, metricsDays, qoeDays)
+				pass()
 			}
 		}
 	}()

@@ -131,6 +131,15 @@ func run() error {
 	loadOverride(ctx, cfgStore, "ratelimit.global_max", parseInt, &cfg.Server.GlobalRateLimitMax)
 	loadOverride(ctx, cfgStore, "log.level", parseStr, &cfg.Log.Level)
 	loadOverride(ctx, cfgStore, "intro_providers.skip_preview_enabled", parseBool, &cfg.Metadata.SkipPreviewEnabled)
+	// Retention windows + transcode cache budget: panel-managed since 2026-07-23
+	// (operator settings never live in env-only per the project rule). The
+	// retention ones are ALSO re-read live by their sweeps; loading them here
+	// makes a restart agree with the panel from the first pass.
+	loadOverride(ctx, cfgStore, "log.audit_retention_days", parseInt, &cfg.Log.AuditRetentionDays)
+	loadOverride(ctx, cfgStore, "metrics.retention_days", parseInt, &cfg.Metrics.RetentionDays)
+	loadOverride(ctx, cfgStore, "metrics.qoe_retention_days", parseInt, &cfg.Metrics.QoERetentionDays)
+	loadOverride(ctx, cfgStore, "playback.session_retention_days", parseInt, &cfg.Playback.SessionRetentionDays)
+	loadOverride(ctx, cfgStore, "transcoding.cache_max_gb", parseInt, &cfg.Transcoding.CacheMaxGB)
 	// The admin toggle persists the MODE only (settings_handler flips the gate in
 	// memory and returns the mode string), so derive the gate from the mode here.
 	// Loading the two independently lets them disagree: the panel shows hardware
@@ -197,8 +206,9 @@ func run() error {
 	// attempt so a missing account cannot be found by timing), so without a
 	// sweep a credential-stuffing dictionary is stored permanently.
 	deps.user.authSvc.StartLoginAttemptCleanup(ctx)
-	deps.engagement.activityCmdSvc.StartRetentionPurge(ctx,
-		cfg.Log.AuditRetentionDays, cfg.Metrics.RetentionDays, cfg.Metrics.QoERetentionDays)
+	deps.engagement.activityCmdSvc.StartRetentionPurge(ctx, func() (int, int, int) {
+		return cfg.EffectiveAuditRetentionDays(), cfg.EffectiveMetricsRetentionDays(), cfg.EffectiveQoERetentionDays()
+	})
 	// Minute-grained server-metric samples (CPU/RAM, streams, measured
 	// streaming bandwidth) - feeds the dashboard rate + the activity stats'
 	// consumed-bandwidth integral.

@@ -153,12 +153,16 @@ func TestStartRetentionPurge_DisabledIsNoop(t *testing.T) {
 	_ = auditRepo.Create(context.Background(), &activity.AuditLogEntry{ID: "keep", Action: "login", CreatedAt: time.Now().Add(-1000 * time.Hour)})
 
 	ctx := t.Context()
-	// Both retentions disabled (<= 0) → no goroutine, nothing purged.
-	cmdSvc.StartRetentionPurge(ctx, 0, 0, 0)
+	// All windows disabled (<= 0): the goroutine still spawns (a window can be
+	// enabled from the panel at runtime) but the pass must purge nothing.
+	cmdSvc.StartRetentionPurge(ctx, func() (int, int, int) { return 0, 0, 0 })
 
 	got, err := querySvc.GetAuditLog(context.Background(), activity.AuditLogFilter{})
 	require.NoError(t, err)
 	assert.Len(t, got, 1, "disabled retention must not purge any entry")
+
+	// A nil getter is the true no-op wiring (no goroutine at all).
+	cmdSvc.StartRetentionPurge(ctx, nil)
 }
 
 func TestCreateAuditEntry_GeneratesID(t *testing.T) {
@@ -489,7 +493,7 @@ func TestStartRetentionPurge_RecoversPanicInPass(t *testing.T) {
 	// t.Context() is cancelled when the test ends, stopping the purge goroutine.
 	ctx := t.Context()
 	// metricsDays > 0 → the startup pass calls metrics.Purge, which panics.
-	svc.StartRetentionPurge(ctx, 0, 7, 0)
+	svc.StartRetentionPurge(ctx, func() (int, int, int) { return 0, 7, 0 })
 
 	select {
 	case <-pm.called:
@@ -526,7 +530,7 @@ func TestStartRetentionPurge_PurgesQoEEvents(t *testing.T) {
 	purger := newFakeQoEPurger()
 	cmdSvc.WithQoEEventPurger(purger)
 
-	cmdSvc.StartRetentionPurge(t.Context(), 0, 0, 30)
+	cmdSvc.StartRetentionPurge(t.Context(), func() (int, int, int) { return 0, 0, 30 })
 
 	select {
 	case before := <-purger.called:
@@ -548,7 +552,7 @@ func TestStartRetentionPurge_QoEDisabledKeepsForever(t *testing.T) {
 	purger := newFakeQoEPurger()
 	cmdSvc.WithQoEEventPurger(purger)
 
-	cmdSvc.StartRetentionPurge(t.Context(), 0, 0, 0)
+	cmdSvc.StartRetentionPurge(t.Context(), func() (int, int, int) { return 0, 0, 0 })
 
 	select {
 	case <-purger.called:
@@ -563,7 +567,7 @@ func TestStartRetentionPurge_QoEDisabledKeepsForever(t *testing.T) {
 func TestStartRetentionPurge_NilQoEPurgerIsSafe(t *testing.T) {
 	t.Parallel()
 	cmdSvc, _, _, _, _, _, _ := newTestServices()
-	cmdSvc.StartRetentionPurge(t.Context(), 0, 0, 30)
+	cmdSvc.StartRetentionPurge(t.Context(), func() (int, int, int) { return 0, 0, 30 })
 	time.Sleep(200 * time.Millisecond)
 }
 
@@ -586,7 +590,7 @@ func TestStartRetentionPurge_PurgesWebhookDeliveries(t *testing.T) {
 	// Every other retention disabled: the webhook sweep must still run, or an
 	// operator who keeps audit logs forever silently keeps deliveries forever
 	// too.
-	cmdSvc.StartRetentionPurge(t.Context(), 0, 0, 0)
+	cmdSvc.StartRetentionPurge(t.Context(), func() (int, int, int) { return 0, 0, 0 })
 
 	select {
 	case before := <-purger.called:
@@ -607,7 +611,7 @@ func TestStartRetentionPurge_WebhookFollowsAuditWindow(t *testing.T) {
 	purger := &fakeWebhookPurger{called: make(chan time.Time, 4)}
 	cmdSvc.WithWebhookDeliveryPurger(purger)
 
-	cmdSvc.StartRetentionPurge(t.Context(), 7, 0, 0)
+	cmdSvc.StartRetentionPurge(t.Context(), func() (int, int, int) { return 7, 0, 0 })
 
 	select {
 	case before := <-purger.called:

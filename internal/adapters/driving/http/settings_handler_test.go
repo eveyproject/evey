@@ -460,3 +460,83 @@ func TestServerSettings_ConcurrentReadWrite_NoRace(t *testing.T) {
 	close(stop)
 	live.Wait()
 }
+
+// Retention windows + transcode cache budget joined the panel on 2026-07-23
+// (project rule: operator knobs never live in env-only). The PUT must mutate
+// cfg AND persist; negative day counts and a sub-1GB cache budget are form
+// bugs, not intents, and must be ignored.
+func TestServerSettings_Put_RetentionAndCache_RoundTrip(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"auditRetentionDays":365,"metricsRetentionDays":60,"qoeRetentionDays":14,"playSessionRetentionDays":90,"transcodeCacheMaxGB":20}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if env.cfg.Log.AuditRetentionDays != 365 || env.cfg.Metrics.RetentionDays != 60 ||
+		env.cfg.Metrics.QoERetentionDays != 14 || env.cfg.Playback.SessionRetentionDays != 90 ||
+		env.cfg.Transcoding.CacheMaxGB != 20 {
+		t.Errorf("cfg not updated: audit=%d metrics=%d qoe=%d session=%d cache=%d",
+			env.cfg.Log.AuditRetentionDays, env.cfg.Metrics.RetentionDays,
+			env.cfg.Metrics.QoERetentionDays, env.cfg.Playback.SessionRetentionDays,
+			env.cfg.Transcoding.CacheMaxGB)
+	}
+	for key, want := range map[string]string{
+		cfgKeyAuditRetention:   "365",
+		cfgKeyMetricsRetention: "60",
+		cfgKeyQoERetention:     "14",
+		cfgKeySessionRetention: "90",
+		cfgKeyTranscodeCacheGB: "20",
+	} {
+		if got := env.store.sets[key]; got != want {
+			t.Errorf("store[%s] = %q want %q", key, got, want)
+		}
+	}
+}
+
+func TestServerSettings_Put_RetentionAndCache_RejectsNonsense(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	env.cfg.Metrics.QoERetentionDays = 30
+	env.cfg.Transcoding.CacheMaxGB = 50
+	req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/server-settings",
+		strings.NewReader(`{"qoeRetentionDays":-1,"transcodeCacheMaxGB":0}`))
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if env.cfg.Metrics.QoERetentionDays != 30 {
+		t.Errorf("negative days must be ignored, got %d", env.cfg.Metrics.QoERetentionDays)
+	}
+	if env.cfg.Transcoding.CacheMaxGB != 50 {
+		t.Errorf("cache budget < 1GB must be ignored, got %d", env.cfg.Transcoding.CacheMaxGB)
+	}
+	if _, ok := env.store.sets[cfgKeyQoERetention]; ok {
+		t.Errorf("ignored value must not be persisted")
+	}
+}
+
+// GET must expose the new settings with their real defaults so the panel can
+// render them without hardcoding.
+func TestServerSettings_Get_ExposesRetentionAndCache(t *testing.T) {
+	env := newSettingsTestEnv(t, validUserValidator(true))
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/server-settings", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	rec := httptest.NewRecorder()
+	env.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var resp map[string]settingValue
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad json: %v", err)
+	}
+	for _, key := range []string{"auditRetentionDays", "metricsRetentionDays", "qoeRetentionDays", "playSessionRetentionDays", "transcodeCacheMaxGB"} {
+		if _, ok := resp[key]; !ok {
+			t.Errorf("GET response missing %q", key)
+		}
+	}
+}

@@ -217,7 +217,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appplayback.WithUnitOfWork(postgres.NewTxUnit(db)),
 		appplayback.WithWatchProgressBuffer(progressBuffer),
 		appplayback.WithMediaItemDurationGetter(durationGetter),
-		appplayback.WithSessionRetentionDays(cfg.Playback.SessionRetentionDays),
+		appplayback.WithSessionRetention(cfg.EffectiveSessionRetentionDays),
 	)
 
 	transcodingSvc := apptranscoding.NewService(

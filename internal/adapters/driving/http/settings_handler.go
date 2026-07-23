@@ -33,6 +33,16 @@ const (
 	cfgKeyTranscodeSWAV1   = "transcoding.software_av1_max_height"
 	cfgKeyTranscodeAV1En   = "transcoding.av1_enabled"
 	cfgKeyTranscodeAV1Max  = "transcoding.av1_max_height"
+	// Retention windows (days, 0 = keep forever) + transcode cache budget.
+	// Panel-managed per the project rule that operator knobs never live in
+	// env-only. The retention sweeps re-read their window every pass, so these
+	// apply without a restart; the cache budget is consumed at boot
+	// (StartEviction snapshot) and needs one.
+	cfgKeyAuditRetention   = "log.audit_retention_days"
+	cfgKeyMetricsRetention = "metrics.retention_days"
+	cfgKeyQoERetention     = "metrics.qoe_retention_days"
+	cfgKeySessionRetention = "playback.session_retention_days"
+	cfgKeyTranscodeCacheGB = "transcoding.cache_max_gb"
 )
 
 // validAV1MaxHeights are the AV1 output height caps the panel offers. 0 = no cap
@@ -171,6 +181,22 @@ func registerServerSettingsRoutes(
 			getter: func() any { return cfg.Transcoding.AV1Enabled }},
 		{jsonKey: "av1MaxHeight", cfgKey: cfgKeyTranscodeAV1Max, defaultVal: 0,
 			getter: func() any { return cfg.Transcoding.AV1MaxHeight }},
+		// Retention windows are re-read by their sweeps at every pass, so a
+		// change here applies at the next sweep (<= 24h for the daily ones,
+		// seconds for play_sessions) without a restart. 0 = keep forever.
+		{jsonKey: "auditRetentionDays", cfgKey: cfgKeyAuditRetention, defaultVal: 0,
+			getter: func() any { return cfg.Log.AuditRetentionDays }},
+		{jsonKey: "metricsRetentionDays", cfgKey: cfgKeyMetricsRetention, defaultVal: 90,
+			getter: func() any { return cfg.Metrics.RetentionDays }},
+		{jsonKey: "qoeRetentionDays", cfgKey: cfgKeyQoERetention, defaultVal: 30,
+			getter: func() any { return cfg.Metrics.QoERetentionDays }},
+		{jsonKey: "playSessionRetentionDays", cfgKey: cfgKeySessionRetention, defaultVal: 0,
+			getter: func() any { return cfg.Playback.SessionRetentionDays }},
+		// Consumed at boot (the eviction sweep snapshots its budget), so a
+		// change takes effect on the next restart - same contract as the
+		// library watcher settings above.
+		{jsonKey: "transcodeCacheMaxGB", cfgKey: cfgKeyTranscodeCacheGB, defaultVal: 50,
+			getter: func() any { return cfg.Transcoding.CacheMaxGB }},
 	}
 
 	// buildResponse snapshots every setting. The caller must already hold
@@ -218,6 +244,11 @@ func registerServerSettingsRoutes(
 			SoftwareAV1MaxHeight    *int    `json:"softwareAV1MaxHeight"`
 			AV1Enabled              *bool   `json:"av1Enabled"`
 			AV1MaxHeight            *int    `json:"av1MaxHeight"`
+			AuditRetentionDays      *int    `json:"auditRetentionDays"`
+			MetricsRetentionDays    *int    `json:"metricsRetentionDays"`
+			QoERetentionDays        *int    `json:"qoeRetentionDays"`
+			PlaySessionRetention    *int    `json:"playSessionRetentionDays"`
+			TranscodeCacheMaxGB     *int    `json:"transcodeCacheMaxGB"`
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MiB cap on JSON body
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -413,6 +444,53 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Transcoding.AV1MaxHeight = *body.AV1MaxHeight
 					return strconv.Itoa(*body.AV1MaxHeight)
+				}},
+			// Retention windows: negative values are ignored (0 already means
+			// "keep forever", a negative has no meaning and is likelier a form
+			// bug than an intent). No sideEffect needed - the sweeps re-read
+			// the window from cfg at every pass.
+			{cfgKey: cfgKeyAuditRetention,
+				apply: func() string {
+					if body.AuditRetentionDays == nil || *body.AuditRetentionDays < 0 {
+						return ""
+					}
+					cfg.Log.AuditRetentionDays = *body.AuditRetentionDays
+					return strconv.Itoa(*body.AuditRetentionDays)
+				}},
+			{cfgKey: cfgKeyMetricsRetention,
+				apply: func() string {
+					if body.MetricsRetentionDays == nil || *body.MetricsRetentionDays < 0 {
+						return ""
+					}
+					cfg.Metrics.RetentionDays = *body.MetricsRetentionDays
+					return strconv.Itoa(*body.MetricsRetentionDays)
+				}},
+			{cfgKey: cfgKeyQoERetention,
+				apply: func() string {
+					if body.QoERetentionDays == nil || *body.QoERetentionDays < 0 {
+						return ""
+					}
+					cfg.Metrics.QoERetentionDays = *body.QoERetentionDays
+					return strconv.Itoa(*body.QoERetentionDays)
+				}},
+			{cfgKey: cfgKeySessionRetention,
+				apply: func() string {
+					if body.PlaySessionRetention == nil || *body.PlaySessionRetention < 0 {
+						return ""
+					}
+					cfg.Playback.SessionRetentionDays = *body.PlaySessionRetention
+					return strconv.Itoa(*body.PlaySessionRetention)
+				}},
+			// Cache budget: 0 would mean "evict everything", which is never the
+			// operator's intent from this field - require at least 1 GB. Boot
+			// snapshot consumer, so the new budget applies on the next restart.
+			{cfgKey: cfgKeyTranscodeCacheGB,
+				apply: func() string {
+					if body.TranscodeCacheMaxGB == nil || *body.TranscodeCacheMaxGB < 1 {
+						return ""
+					}
+					cfg.Transcoding.CacheMaxGB = *body.TranscodeCacheMaxGB
+					return strconv.Itoa(*body.TranscodeCacheMaxGB)
 				}},
 		}
 
