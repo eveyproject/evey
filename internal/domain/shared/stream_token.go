@@ -25,7 +25,14 @@ type StreamToken struct {
 	ProfileID   ProfileID
 	MediaItemID MediaItemID
 	Scope       string // "stream" | "share"
-	ExpiresAt   time.Time
+	// Cast marks a token minted for a cast receiver (?purpose=cast). It is the
+	// discriminator the server-side cast progress tracker keys on: the receiver
+	// fetches media on its own with this token, so its fetches are the ONLY
+	// playback signal once the sender's browser closes. The Safari/iOS "native"
+	// token shares the same long TTL but stays false - that player reports its
+	// own progress and must not be double-tracked.
+	Cast      bool
+	ExpiresAt time.Time
 	// TTL is the sliding renewal window for this specific token. Stored
 	// per-token (not just the store default) so a long-lived cast token
 	// doesn't get slid back down to the short default on first validation.

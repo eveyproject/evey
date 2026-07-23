@@ -220,6 +220,15 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appplayback.WithMediaItemDurationGetter(durationGetter),
 		appplayback.WithSessionRetention(cfg.EffectiveSessionRetentionDays),
 	)
+	// Cast progress: once the sender's browser closes, the receiver's fetches
+	// on its cast token are the only playback signal left; the HTTP serving
+	// handlers feed this tracker, which lands derived positions through the
+	// same ReportProgress path the clients use (90% auto-complete included).
+	castProgress := appplayback.NewCastProgressTracker(
+		func(ctx context.Context, profileID, mediaItemID string, positionMs int64) error {
+			return playbackSvc.CommandService().ReportProgress(ctx, profileID, mediaItemID, positionMs, false)
+		})
+	castProgress.Start(ctx)
 
 	transcodingSvc := apptranscoding.NewService(
 		infra.transcoder, infra.hwDetector, r.TranscodeJob, r.TranscodeProfile,
@@ -724,6 +733,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		})
 		slog.Default().Info("keyframe backfill worker enabled (default-on; opt out with server_config transcoding.keyframe_backfill=off)")
 	}
+	// The cast tracker's Stop performs the FINAL flush of derived positions -
+	// the common end of a cast is the user turning everything off, and losing
+	// that last write would defeat the tracker. Registered on the same drain
+	// as the transcode workers (before db.Close).
+	bgStoppers = append(bgStoppers, castProgress.Stop)
 
 	// CMCD (CTA-5004) ingest sink. The HTTP handler parses the CMCD query
 	// param on every segment / master / variant fetch and ships an event
@@ -875,6 +889,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		},
 		media: mediaDeps{
 			playbackSvc:      playbackSvc,
+			castProgress:     castProgress,
 			transcodingSvc:   transcodingSvc,
 			hlsVODOrch:       hlsVODOrch,
 			hlsVODCache:      hlsVODCache,

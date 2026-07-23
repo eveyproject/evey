@@ -301,6 +301,11 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
+	// Cast progress: an od_ segment fetched on a cast token is the receiver
+	// advancing through the film (see cast_observe.go for the estimate).
+	if item != nil && item.File != nil {
+		observeCastFetch(r, h.castProgress, onDemandSegEndMs(name, plan.NumSegments(), item.File.Duration.Milliseconds()))
+	}
 	h.servePlanResourceData(w, r, mediaID, plan, name, span)
 }
 

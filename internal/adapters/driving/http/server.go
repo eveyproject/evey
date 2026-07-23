@@ -78,6 +78,9 @@ type HTTPServer struct {
 	Cfg              *config.Config
 	StreamTokenStore *appmedia.StreamTokenStore
 	ShareSvc         *appmedia.ShareService
+	// CastProgress derives watch progress from a cast receiver's fetches (the
+	// only playback signal once the sender's browser closes). nil = off.
+	CastProgress CastFetchObserver
 
 	// Library
 	LibCmdSvc   *applibrary.CommandService
@@ -399,7 +402,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 
 	// Unconditional, unlike the on-demand rung's tracker: direct play has no
 	// feature flag to pair with - it is always a possible serving path.
-	mhOpts := []mediaServeOption{withParental(parentalChk), withLibraryLister(s.LibQuerySvc), withPlaybackActivity(s.PlaybackActivity)}
+	mhOpts := []mediaServeOption{withParental(parentalChk), withLibraryLister(s.LibQuerySvc), withPlaybackActivity(s.PlaybackActivity), withCastProgress(s.CastProgress)}
 	if s.ImageConverter != nil {
 		mhOpts = append(mhOpts, withImageConverter(s.ImageConverter, s.ArtworkRepo))
 	}

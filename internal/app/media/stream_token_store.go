@@ -80,6 +80,26 @@ func (s *StreamTokenStore) CreateWithTTL(userID, profileID, mediaItemID string, 
 	return token
 }
 
+// CreateCast mints the long-TTL token handed to a cast receiver, marked so the
+// cast progress tracker can key on its fetches (see shared.StreamToken.Cast).
+func (s *StreamTokenStore) CreateCast(userID, profileID, mediaItemID string, ttl time.Duration) string {
+	if ttl <= 0 {
+		ttl = s.ttl
+	}
+	token := uuid.New().String()
+	s.tokens.Store(token, &shared.StreamToken{
+		Token:       token,
+		UserID:      shared.UserID(userID),
+		ProfileID:   shared.ProfileID(profileID),
+		MediaItemID: shared.MediaItemID(mediaItemID),
+		Scope:       shared.ScopeStream,
+		Cast:        true,
+		ExpiresAt:   s.now().Add(ttl),
+		TTL:         ttl,
+	})
+	return token
+}
+
 // CreateGuestToken mints a media-scoped token for an unauthenticated syncplay
 // "watch together" guest (no user, no profile). It carries ScopeSyncplayGuest so
 // the download handler (and any non-streaming endpoint) can refuse it while

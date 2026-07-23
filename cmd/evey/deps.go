@@ -107,6 +107,9 @@ type mediaDeps struct {
 	streamTokenStore *appmedia.StreamTokenStore
 	mediaItemCache   *applibrary.CachedMediaItemQueryRepo
 	shareSvc         *appmedia.ShareService
+	// castProgress derives watch progress from cast receivers' fetches; the
+	// HTTP serving handlers feed it (see internal/app/playback/cast_progress.go).
+	castProgress *appplayback.CastProgressTracker
 }
 
 // contentDeps groups content-organisation services (metadata, collections, ratings).

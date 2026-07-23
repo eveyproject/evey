@@ -104,6 +104,11 @@ type hlsVODServe struct {
 	// nil = not wired (no behaviour change).
 	playbackActivity *apptranscoding.PlaybackActivity
 
+	// castProgress derives watch progress from segments fetched on a CAST
+	// token - the only playback signal once the sender's browser closes
+	// (see cast_observe.go). nil = not wired.
+	castProgress CastFetchObserver
+
 	// onDemandEncrypt AES-128-encrypts the on-demand rung's media segments
 	// (behind transcoding.hls_ondemand_encrypt). Off by default; requires
 	// hlsAESSecret. When on, no DASH manifest is emitted (AES-128 is HLS-only).
@@ -708,6 +713,14 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 				return
 			}
 		}
+	}
+	// Cast progress: a transcode-ladder segment fetched on a cast token is the
+	// receiver advancing through the film. The ladder's grid is EXACT (fixed
+	// 3s segments), so end = (idx+1) x grid. The COPY rung is deliberately NOT
+	// observed here: it cuts on source keyframes with no grid, and grid math
+	// can overshoot the real position by minutes (see cast_observe.go).
+	if !isInit && !rp.IsCopy {
+		observeCastFetch(r, h.castProgress, int64(segmentIdx+1)*int64(apptranscoding.ManifestSegmentSeconds*1000))
 	}
 
 	// CMCD ingest (CTA-5004). Parsed and shipped to the QoE sink before we

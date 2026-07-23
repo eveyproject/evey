@@ -47,7 +47,12 @@ func streamTokenHandler(tokenGen domainuser.TokenGenerator, store *appmedia.Stre
 		// then slides this longer window across the session.
 		var token string
 		switch r.URL.Query().Get("purpose") {
-		case "cast", "native":
+		case "cast":
+			// Cast-marked: the receiver's fetches on this token feed the
+			// server-side cast progress tracker (the only playback signal
+			// once the sender's browser closes).
+			token = store.CreateCast(claims.UserID, claims.ProfileID, mediaID, appmedia.CastStreamTokenTTL)
+		case "native":
 			token = store.CreateWithTTL(claims.UserID, claims.ProfileID, mediaID, appmedia.CastStreamTokenTTL)
 		default:
 			token = store.Create(claims.UserID, claims.ProfileID, mediaID)

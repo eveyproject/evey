@@ -40,6 +40,9 @@ type mediaServe struct {
 	// counters to see - so without this a direct-play viewer reads as an idle
 	// server. nil = not wired (no behaviour change).
 	activity *apptranscoding.PlaybackActivity
+	// castProgress derives watch progress from a cast receiver's Range fetches
+	// of a direct-play file (see cast_observe.go). nil = not wired.
+	castProgress CastFetchObserver
 }
 
 // ArtworkWebPWriter updates the WebP path on an artwork record.
@@ -73,6 +76,12 @@ func withPlaybackActivity(a *apptranscoding.PlaybackActivity) mediaServeOption {
 
 func withLibraryLister(ll LibraryLister) mediaServeOption {
 	return func(h *mediaServe) { h.libLister = ll }
+}
+
+// withCastProgress wires the cast progress tracker onto the direct-play
+// stream handler (see cast_observe.go).
+func withCastProgress(obs CastFetchObserver) mediaServeOption {
+	return func(h *mediaServe) { h.castProgress = obs }
 }
 
 func mediaHandler(libSvc MediaItemGetter, artworkRepo ArtworkReader, baseURL string, libraryAccess LibraryAccessChecker, opts ...mediaServeOption) http.HandlerFunc {
@@ -146,6 +155,16 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 	// remux would otherwise hold every background worker off the disk for the
 	// hour it takes to transfer.
 	defer h.activity.Begin(mediaID)()
+	// Cast progress: a direct-play receiver reads the file progressively with
+	// Range requests, so the byte offset maps to a position by simple ratio.
+	// VBR skews it (dense scenes understate, credits overstate), but a
+	// margin-trimmed estimate beats the zero reporting it replaces once the
+	// sender's browser is gone (see cast_observe.go).
+	if durMs := item.File.Duration.Milliseconds(); durMs > 0 && item.File.Size > 0 {
+		if start, ok := parseRangeStart(r.Header.Get("Range")); ok && start > 0 {
+			observeCastFetch(r, h.castProgress, durMs*start/item.File.Size)
+		}
+	}
 	http.ServeFile(w, r, item.File.Path)
 }
 
