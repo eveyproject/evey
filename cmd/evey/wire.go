@@ -19,37 +19,28 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	"github.com/evey-project/evey/internal/adapters/driven/introproviders"
-	itunesadapter "github.com/evey-project/evey/internal/adapters/driven/itunes"
 	metadataadapter "github.com/evey-project/evey/internal/adapters/driven/metadata"
-	"github.com/evey-project/evey/internal/adapters/driven/opensubtitles"
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	proberpkg "github.com/evey-project/evey/internal/adapters/driven/prober"
 	"github.com/evey-project/evey/internal/adapters/driven/webhooksender"
-	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	"github.com/evey-project/evey/internal/adapters/driving/pluginhost"
 	appactivity "github.com/evey-project/evey/internal/app/activity"
-	appbackup "github.com/evey-project/evey/internal/app/backup"
 	appcollection "github.com/evey-project/evey/internal/app/collection"
 	appconfig "github.com/evey-project/evey/internal/app/config"
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
-	appfeed "github.com/evey-project/evey/internal/app/feed"
 	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmedia "github.com/evey-project/evey/internal/app/media"
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
-	appmusic "github.com/evey-project/evey/internal/app/music"
-	appnotification "github.com/evey-project/evey/internal/app/notification"
 	appphoto "github.com/evey-project/evey/internal/app/photo"
 	appplayback "github.com/evey-project/evey/internal/app/playback"
-	appplaylist "github.com/evey-project/evey/internal/app/playlist"
 	appplugin "github.com/evey-project/evey/internal/app/plugin"
 	appqoe "github.com/evey-project/evey/internal/app/qoe"
 	apprating "github.com/evey-project/evey/internal/app/rating"
-	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	appuser "github.com/evey-project/evey/internal/app/user"
@@ -377,20 +368,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// loop as audit_log and the QoE events.
 	activityCmdSvc.WithWebhookDeliveryPurger(r.WebhookDelivery)
 
-	var notifOpts []appnotification.Option
-	vapidPub, vapidPriv := resolveVAPIDKeys(ctx, r.ServerCfg, cfg)
-	if vapidPub != "" && vapidPriv != "" {
-		wpSender := webpushadapter.NewSender(vapidPub, vapidPriv, cfg.VAPID.Subject)
-		notifOpts = append(notifOpts, appnotification.WithPush(wpSender, r.PushSubscription))
-		rootLog.Info("Web Push (VAPID) notifications enabled")
-	}
-	notifOpts = append(notifOpts, appnotification.WithAdminLister(r.Profile))
-	if infra.translator != nil {
-		notifOpts = append(notifOpts, appnotification.WithTranslator(infra.translator))
-	}
-	notifCmdSvc := appnotification.NewCommandService(r.Notification, r.NotificationSettings, r.WatchHistoryAnalyzer, r.Profile, bus, notifOpts...)
-	notifCmdSvc.Register()
-	notifQuerySvc := appnotification.NewQueryService(r.Notification, r.NotificationSettings, appnotification.WithPushSubs(r.PushSubscription))
+	notifCmdSvc, notifQuerySvc := buildNotificationServices(ctx, cfg, infra, rootLog)
 
 	if smtpConfigured {
 		smtpSender := email.NewSMTPSender(cfg.SMTP.Host, cfg.SMTP.Port, cfg.SMTP.Username, cfg.SMTP.Password, cfg.SMTP.From, cfg.SMTP.TLS)
@@ -400,17 +378,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	}
 	// userAuthSvc already wired with password reset + UoW options above.
 
-	feedCmdSvc := appfeed.NewCommandService(r.FeedConfigCmd, r.FeedConfigQuery, appfeed.CommandWithEventBus(bus))
-	cachedAnalyzer := appfeed.NewCachedAnalyzer(r.WatchHistoryAnalyzer, 5*time.Minute, appfeed.CacheWithEventBus(bus))
-	feedQuerySvc := appfeed.NewQueryService(r.FeedConfigQuery, r.FeedQuerier, cachedAnalyzer)
-
-	if libs, libErr := r.Library.List(ctx, library.ListLibrariesFilter{}); libErr == nil {
-		for _, lib := range libs {
-			if err := feedCmdSvc.EnsureLibraryFeedConfig(ctx, lib.ID, lib.Name); err != nil {
-				slog.Warn("ensure library feed config", slog.String("library", string(lib.ID)), slog.Any("err", err))
-			}
-		}
-	}
+	feedCmdSvc, feedQuerySvc := buildFeedServices(ctx, infra)
 
 	favoriteSvc := appfavorite.NewService(r.Favorite)
 
@@ -423,45 +391,16 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	photoScanner := filesystem.NewPhotoScanner()
 	photoSvc := appphoto.NewService(r.Photo, bus, r.Library, photoScanner)
 	starRatingSvc := apprating.NewService(r.UserRating)
-	musicScanner := filesystem.NewMusicScanner()
-	musicSvc := appmusic.NewService(r.MusicTrack, bus, r.Library, musicScanner)
-	musicSvc.WithPlayRepository(r.MusicPlay)
-	musicNowPlaying := appmusic.NewNowPlayingRegistry()
-	// Same in-process fast-path as the library scan: .m4a (AAC) reads channels /
-	// sample rate / esds bitrate head-only via mkvgo, while .flac/.mp3 (not
-	// ISO-BMFF/EBML) and ALAC (dropped sample entry) fall through to ffprobe. The
-	// dispatcher is stateless, so a fresh instance over the same ffprobe fallback.
-	musicSvc.CommandService().WithProber(proberpkg.New(infra.prober, nil, nil))
-	musicSvc.CommandService().WithAlbumArtFetcher(itunesadapter.NewAlbumArtFetcher(infra.metadataHTTP), cfg.Transcoding.CacheDir)
-	if infra.musicSearch != nil {
-		musicSvc.CommandService().WithSearchIndex(infra.musicSearch)
-		musicSvc.QueryService().WithSearchIndex(infra.musicSearch)
-	}
+	musicSvc, musicNowPlaying := buildMusicServices(cfg, infra)
 	libCmdSvc.WithMusicScanner(musicSvc)
 	libCmdSvc.WithPhotoScanner(photoSvc)
-	playlistSvc := appplaylist.NewService(r.Playlist, r.PlaylistItem, r.SmartPlaylist, r.MediaItemQuery)
-	playlistSvc.WithMusicTrackChecker(musicTrackCheckerAdapter{repo: r.MusicTrack})
-	// AddItem resolves the media item (for its library) and gates it on the
-	// acting profile's library access, so a profile cannot add - and then read
-	// the metadata of - media from a library it has no access to.
-	playlistSvc.WithMediaChecker(mediaItemCheckerAdapter{repo: r.MediaItem})
-	playlistSvc.WithLibraryAccessChecker(playlistLibraryAccessAdapter{profiles: r.Profile, access: r.LibraryAccess})
-	playlistGenSvc := appplaylist.NewGeneratorService(r.MusicTrack, r.MusicPlay, r.Playlist, r.PlaylistItem)
+	playlistSvc, playlistGenSvc := buildPlaylistServices(infra)
 
-	var subtitleSvc *appsubtitle.Service
-	if osAPIKey := resolveAPIKey(ctx, r.ServerCfg, "api.opensubtitles_key", "EVEY_OPENSUBTITLES_API_KEY"); osAPIKey != "" {
-		osClient := opensubtitles.New(osAPIKey, os.Getenv("EVEY_OPENSUBTITLES_USERNAME"), os.Getenv("EVEY_OPENSUBTITLES_PASSWORD"), infra.metadataHTTP)
-		subtitleSvc = appsubtitle.NewService(r.Subtitle, osClient, opensubtitles.NewLibraryMediaGetter(libQuerySvc))
-		rootLog.Info("opensubtitles integration enabled")
-	}
+	subtitleSvc := buildSubtitleService(ctx, infra, libQuerySvc, rootLog)
 
 	serverCfgSvc := appconfig.NewService(r.ServerCfg, appconfig.WithEventBus(bus))
 
-	backupSvc := appbackup.NewService(filesystem.NewBackupStore(cfg.Backup.Dir),
-		postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode),
-		version, appbackup.WithEventBus(bus))
-	backupSchedulerLog := eveylogger.NewWith(rootLog, "backup-scheduler")
-	backupScheduler := appbackup.NewScheduler(r.BackupSchedule, backupSvc, backupSchedulerLog)
+	backupSvc, backupScheduler := buildBackupServices(cfg, infra, rootLog)
 
 	syncPlayHub := appsyncplay.NewHub(postgres.NewSyncPlayRoomRepo(db))
 	deviceRegistry := appsyncplay.NewDeviceRegistry()
