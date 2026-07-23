@@ -1,0 +1,112 @@
+package plugin
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+)
+
+// update.go holds the in-place upgrade surface: applying a previewed update
+// (with the TOCTOU hash re-check) and the permission-escalation guard that an
+// update must pass unless the admin explicitly acknowledged the diff.
+
+// ErrPluginPermissionEscalation is returned when an update would silently
+// grant the plugin new permissions, capabilities, frontend slots, or
+// external_fetch entries that were not present in the installed version.
+// The caller (admin handler) must pass WithAllowPermissionEscalation(ctx)
+// after an explicit admin acknowledgment to proceed.
+var ErrPluginPermissionEscalation = errors.New("plugin update requires permission escalation")
+
+type permEscalationCtxKey struct{}
+
+// WithAllowPermissionEscalation returns a child context that authorizes an
+// update to proceed even when it adds new permissions/capabilities/slots/hosts.
+// Call this only after the admin has explicitly acknowledged the diff.
+func WithAllowPermissionEscalation(ctx context.Context) context.Context {
+	return context.WithValue(ctx, permEscalationCtxKey{}, true)
+}
+
+func allowPermissionEscalation(ctx context.Context) bool {
+	v, _ := ctx.Value(permEscalationCtxKey{}).(bool)
+	return v
+}
+
+// ApplyUpdate applies a previously previewed update. It re-downloads (or re-reads)
+// the candidate and re-computes its hash to verify it matches acknowledged_hash,
+// preventing TOCTOU. After hash verification it delegates to InstallPlugin with
+// WithAllowPermissionEscalation so the admin's explicit ack is honoured.
+func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, acknowledgedHash string) (*plugin.Plugin, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.plugin.ApplyUpdate")
+	defer span.End()
+	// Verify the plugin exists before going further.
+	if _, err := s.plugins.GetByID(ctx, pluginID); err != nil {
+		return nil, ErrPluginNotFound
+	}
+
+	// Re-download/re-read candidate to compute fresh hash (TOCTOU guard).
+	localPath, _, cleanupDL, dlErr := s.downloadIfURL(ctx, source)
+	defer cleanupDL()
+	if dlErr != nil {
+		return nil, fmt.Errorf("resolve plugin source: %w", dlErr)
+	}
+
+	freshHash, hashErr := hashFile(localPath)
+	if hashErr != nil {
+		return nil, fmt.Errorf("hash candidate: %w", hashErr)
+	}
+
+	if freshHash != acknowledgedHash {
+		return nil, fmt.Errorf("%w: expected %s got %s", ErrCandidateChanged, acknowledgedHash, freshHash)
+	}
+
+	// Permission escalation is explicitly authorised because the admin has
+	// reviewed and acknowledged the diff in the preview step.
+	ctx = WithAllowPermissionEscalation(ctx)
+	return s.InstallPlugin(ctx, source)
+}
+
+// checkPermissionEscalation returns ErrPluginPermissionEscalation when the
+// incoming manifest requests permissions, capabilities, frontend slots, or
+// external_fetch entries that are absent from the currently installed plugin.
+// Same-or-reduced sets are allowed without escalation.
+func checkPermissionEscalation(manifest *plugin.PluginManifest, existing *plugin.Plugin) error {
+	existingPerms := sliceToSet(existing.Permissions)
+	existingCaps := sliceToSet(existing.Capabilities)
+	existingHosts := sliceToSet(existing.ExternalFetch)
+
+	existingSlots := make(map[string]struct{}, len(existing.Frontend))
+	for _, f := range existing.Frontend {
+		existingSlots[f.Slot] = struct{}{}
+	}
+
+	var added []string
+	for _, p := range manifest.Permissions {
+		if _, ok := existingPerms[p]; !ok {
+			added = append(added, "permission:"+p)
+		}
+	}
+	for _, c := range manifest.Capabilities {
+		if _, ok := existingCaps[c]; !ok {
+			added = append(added, "capability:"+c)
+		}
+	}
+	for _, h := range manifest.ExternalFetch {
+		if _, ok := existingHosts[h]; !ok {
+			added = append(added, "external_fetch:"+h)
+		}
+	}
+	for _, f := range manifest.Frontend {
+		if _, ok := existingSlots[f.Slot]; !ok {
+			added = append(added, "slot:"+f.Slot)
+		}
+	}
+
+	if len(added) > 0 {
+		return fmt.Errorf("%w: new entries requested: %s", ErrPluginPermissionEscalation, strings.Join(added, ", "))
+	}
+	return nil
+}
