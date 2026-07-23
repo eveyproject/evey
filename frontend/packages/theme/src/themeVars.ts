@@ -9,7 +9,7 @@ export const THEME_NAMES = ["default","amoled","dark-red","light-default","light
 export type ThemeCSSName = (typeof THEME_NAMES)[number];
 
 // The variables in canonical order (identical across all five themes).
-export const VAR_ORDER: readonly string[] = ["--bg","--surface","--surface-raised","--surface-hover","--accent","--accent-hover","--accent-subtle","--text","--text-secondary","--text-muted","--border","--radius-sm","--radius-md","--radius-lg","--badge-success-bg","--badge-success-text","--badge-warning-bg","--badge-warning-text","--badge-error-bg","--badge-error-text","--badge-info-bg","--badge-info-text","--badge-hdr-bg","--badge-hdr-text","--badge-imdb-bg","--badge-imdb-text","--badge-tmdb-bg","--badge-tmdb-text","--toast-success-bg","--toast-success-border","--toast-error-bg","--toast-error-border","--toast-info-bg","--toast-info-border","--toast-warning-bg","--toast-warning-border","--toast-success-icon","--toast-error-icon","--toast-warning-icon","--color-success","--color-warning","--color-danger","--success","--warning","--danger","--danger-bg","--danger-hover","--overlay-gradient","--overlay-bg","--overlay-bg-strong","--overlay-scrim","--overlay-chip-bg","--overlay-border-subtle","--overlay-btn-bg","--overlay-btn-hover-bg","--overlay-text","--overlay-text-bright","--overlay-text-muted","--overlay-dot-inactive","--overlay-chapter-marker","--btn-overlay-inactive-bg","--log-hover-bg","--error-bg-subtle","--filter-active-text","--shadow-sm","--shadow-md","--shadow-lg","--shadow-glow","--transition-fast","--transition-base","--transition-slow","--glass-bg","--glass-border","--glass-blur","--scrollbar-thumb","--scrollbar-track","--bg-gradient-mid","--focus-ring","--font-family"];
+export const VAR_ORDER: readonly string[] = ["--bg","--surface","--surface-raised","--surface-hover","--accent","--accent-hover","--accent-subtle","--text","--text-secondary","--text-muted","--border","--radius-sm","--radius-md","--radius-lg","--badge-success-bg","--badge-success-text","--badge-warning-bg","--badge-warning-text","--badge-error-bg","--badge-error-text","--badge-info-bg","--badge-info-text","--badge-hdr-bg","--badge-hdr-text","--badge-imdb-bg","--badge-imdb-text","--badge-tmdb-bg","--badge-tmdb-text","--toast-success-bg","--toast-success-border","--toast-error-bg","--toast-error-border","--toast-info-bg","--toast-info-border","--toast-warning-bg","--toast-warning-border","--toast-success-icon","--toast-error-icon","--toast-warning-icon","--color-success","--color-warning","--color-danger","--success","--warning","--danger","--danger-bg","--danger-hover","--overlay-gradient","--overlay-bg","--overlay-bg-strong","--overlay-scrim","--overlay-chip-bg","--overlay-border-subtle","--overlay-btn-bg","--overlay-btn-hover-bg","--overlay-text","--overlay-text-bright","--overlay-text-muted","--overlay-dot-inactive","--overlay-chapter-marker","--btn-overlay-inactive-bg","--log-hover-bg","--error-bg-subtle","--filter-active-text","--on-danger","--shadow-sm","--shadow-md","--shadow-lg","--shadow-glow","--transition-fast","--transition-base","--transition-slow","--glass-bg","--glass-border","--glass-blur","--scrollbar-thumb","--scrollbar-track","--bg-gradient-mid","--focus-ring","--font-family"];
 
 export const themeVars: Record<ThemeCSSName, Record<string, string>> = {
   "default": {
@@ -77,6 +77,7 @@ export const themeVars: Record<ThemeCSSName, Record<string, string>> = {
     "--log-hover-bg": "rgba(255,255,255,0.05)",
     "--error-bg-subtle": "rgba(239,68,68,0.15)",
     "--filter-active-text": "#0a0a0a",
+    "--on-danger": "#ffffff",
     "--shadow-sm": "0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2)",
     "--shadow-md": "0 4px 12px rgba(0,0,0,0.35)",
     "--shadow-lg": "0 8px 32px rgba(0,0,0,0.45)",
@@ -158,6 +159,7 @@ export const themeVars: Record<ThemeCSSName, Record<string, string>> = {
     "--log-hover-bg": "rgba(255,255,255,0.05)",
     "--error-bg-subtle": "rgba(239,68,68,0.15)",
     "--filter-active-text": "#0a0a0a",
+    "--on-danger": "#ffffff",
     "--shadow-sm": "0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4)",
     "--shadow-md": "0 4px 12px rgba(0,0,0,0.5)",
     "--shadow-lg": "0 8px 32px rgba(0,0,0,0.6)",
@@ -239,6 +241,7 @@ export const themeVars: Record<ThemeCSSName, Record<string, string>> = {
     "--log-hover-bg": "rgba(255,255,255,0.05)",
     "--error-bg-subtle": "rgba(184,29,36,0.15)",
     "--filter-active-text": "#0a0a0a",
+    "--on-danger": "#ffffff",
     "--shadow-sm": "0 1px 3px rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.4)",
     "--shadow-md": "0 4px 12px rgba(0,0,0,0.6)",
     "--shadow-lg": "0 8px 32px rgba(0,0,0,0.75)",
@@ -320,6 +323,7 @@ export const themeVars: Record<ThemeCSSName, Record<string, string>> = {
     "--log-hover-bg": "rgba(0,0,0,0.04)",
     "--error-bg-subtle": "rgba(239,68,68,0.15)",
     "--filter-active-text": "#ffffff",
+    "--on-danger": "#ffffff",
     "--shadow-sm": "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)",
     "--shadow-md": "0 4px 12px rgba(0,0,0,0.1)",
     "--shadow-lg": "0 8px 32px rgba(0,0,0,0.15)",
@@ -401,6 +405,7 @@ export const themeVars: Record<ThemeCSSName, Record<string, string>> = {
     "--log-hover-bg": "rgba(0,0,0,0.04)",
     "--error-bg-subtle": "rgba(239,68,68,0.15)",
     "--filter-active-text": "#ffffff",
+    "--on-danger": "#ffffff",
     "--shadow-sm": "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)",
     "--shadow-md": "0 4px 12px rgba(0,0,0,0.1)",
     "--shadow-lg": "0 8px 32px rgba(0,0,0,0.15)",

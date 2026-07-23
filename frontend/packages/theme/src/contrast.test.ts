@@ -33,6 +33,9 @@ describe("theme contrast (WCAG AA)", () => {
     const surface = vars["--surface-raised"];
     const onAccent = vars["--filter-active-text"];
     const accentHover = vars["--accent-hover"];
+    const onDanger = vars["--on-danger"];
+    const dangerBg = vars["--danger-bg"];
+    const toastError = vars["--toast-error-icon"];
 
     if (!isHex(accent) || !isHex(bg)) continue;
 
@@ -56,6 +59,24 @@ describe("theme contrast (WCAG AA)", () => {
           // Hovering must not be the moment the label becomes unreadable.
           it("keeps button text legible on the accent hover fill", () => {
             expect(ratio(onAccent, accentHover)).toBeGreaterThanOrEqual(AA);
+          });
+        }
+      }
+
+      // The danger surfaces carry their own foreground (--on-danger), not the
+      // accent one. This was the exact blind spot that let a regression through:
+      // flipping --filter-active-text dark to fix accent contrast silently broke
+      // the delete button and error toast, because nothing asserted their
+      // contrast. Pin them so that can never recur.
+      if (isHex(onDanger)) {
+        if (isHex(dangerBg)) {
+          it("renders text legibly on the danger button fill", () => {
+            expect(ratio(onDanger, dangerBg)).toBeGreaterThanOrEqual(AA);
+          });
+        }
+        if (isHex(toastError)) {
+          it("renders text legibly on the error toast fill", () => {
+            expect(ratio(onDanger, toastError)).toBeGreaterThanOrEqual(AA);
           });
         }
       }

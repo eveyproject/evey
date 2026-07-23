@@ -64,6 +64,7 @@
   --log-hover-bg: rgba(255,255,255,0.05);
   --error-bg-subtle: rgba(239,68,68,0.15);
   --filter-active-text: #0a0a0a;
+  --on-danger: #ffffff;
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.35);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.45);

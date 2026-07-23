@@ -34,7 +34,7 @@ const variantClasses: Record<Variant, string> = {
   primary: "bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--filter-active-text)]",
   secondary: "bg-[var(--surface-raised)] hover:bg-[var(--border)] text-[var(--text)]",
   ghost: "bg-transparent hover:bg-[var(--surface-raised)] text-[var(--text-muted)]",
-  danger: "bg-[var(--danger-bg)] hover:bg-[var(--danger-hover)] text-[var(--filter-active-text)]",
+  danger: "bg-[var(--danger-bg)] hover:bg-[var(--danger-hover)] text-[var(--on-danger)]",
   overlay: "bg-[var(--overlay-btn-bg)] hover:bg-[var(--overlay-btn-hover-bg)] text-white",
   "overlay-accent": "bg-[var(--overlay-btn-hover-bg)] hover:bg-[var(--overlay-btn-bg)] text-white",
 };

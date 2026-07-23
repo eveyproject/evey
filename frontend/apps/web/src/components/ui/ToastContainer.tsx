@@ -18,7 +18,7 @@ const typeStyles: Record<Toast["type"], { bg: string; border: string; icon: stri
   error: {
     bg: "bg-[var(--toast-error-bg)]",
     border: "border-[var(--toast-error-border)]",
-    icon: "bg-[var(--toast-error-icon)] text-[var(--filter-active-text)]",
+    icon: "bg-[var(--toast-error-icon)] text-[var(--on-danger)]",
   },
   info: {
     bg: "bg-[var(--toast-info-bg)]",
