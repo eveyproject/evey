@@ -1,0 +1,87 @@
+package notification
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+
+	"github.com/evey-project/evey/internal/domain/notification"
+	"github.com/evey-project/evey/internal/pkg/tracing"
+)
+
+// push.go holds notification persistence + web-push dispatch and the push
+// subscription management API. persistAndDispatch is the shared "persist +
+// push + publish" primitive used by both the batching path and the event
+// handlers.
+
+func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification.Notification, pushTitle string) {
+	if createErr := s.repo.Create(ctx, n); createErr != nil {
+		slog.Warn("create notification failed", slog.String("profileID", string(n.ProfileID)), slog.Any("err", createErr))
+		return
+	}
+	s.sendPush(ctx, string(n.ProfileID), pushTitle, n.Message)
+	evt := notification.NotificationCreated{
+		NotificationID: n.ID,
+		ProfileID:      n.ProfileID,
+		Type:           n.Type,
+		Title:          n.Title,
+		MediaItemID:    n.MediaItemID,
+		OccurredAt:     n.CreatedAt,
+	}
+	if pubErr := s.events.Publish(ctx, evt); pubErr != nil {
+		slog.Warn("publish notification.created", slog.Any("err", pubErr))
+	}
+}
+
+func (s *CommandService) sendPush(ctx context.Context, profileID, title, message string) {
+	if s.push == nil || s.subs == nil {
+		return
+	}
+	subs, err := s.subs.GetByProfile(ctx, profileID)
+	if err != nil {
+		slog.Warn("webpush: get subscriptions failed", slog.String("profileID", profileID), slog.Any("err", err))
+		return
+	}
+	for _, sub := range subs {
+		sendErr := s.push.Send(ctx, sub, title, message, nil)
+		if sendErr == nil {
+			continue
+		}
+		if errors.Is(sendErr, notification.ErrSubscriptionGone) {
+			// The endpoint is permanently dead (410); prune it so we stop
+			// retrying it on every future notification.
+			if delErr := s.subs.DeleteByEndpoint(ctx, string(sub.UserID), sub.Endpoint); delErr != nil {
+				slog.Warn("webpush: delete gone subscription failed", slog.String("endpoint", sub.Endpoint), slog.Any("err", delErr))
+			}
+			continue
+		}
+		slog.Warn("webpush: send failed", slog.String("profileID", profileID), slog.String("endpoint", sub.Endpoint), slog.Any("err", sendErr))
+	}
+}
+
+func (s *CommandService) UpsertPushSubscription(ctx context.Context, userID, profileID, endpoint, p256dh, auth string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.UpsertPushSubscription")
+	defer span.End()
+	if s.subs == nil {
+		return nil
+	}
+	return s.subs.Upsert(ctx, userID, profileID, endpoint, p256dh, auth)
+}
+
+func (s *CommandService) DeletePushByEndpoint(ctx context.Context, userID, endpoint string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.DeletePushByEndpoint")
+	defer span.End()
+	if s.subs == nil {
+		return nil
+	}
+	return s.subs.DeleteByEndpoint(ctx, userID, endpoint)
+}
+
+func (s *CommandService) DeletePushByUser(ctx context.Context, userID string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.notification.DeletePushByUser")
+	defer span.End()
+	if s.subs == nil {
+		return nil
+	}
+	return s.subs.DeleteByUser(ctx, userID)
+}
