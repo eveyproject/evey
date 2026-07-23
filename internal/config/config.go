@@ -428,6 +428,11 @@ type LibraryConfig struct {
 type PlaybackConfig struct {
 	SkipForwardSeconds  int
 	SkipBackwardSeconds int
+	// SessionRetentionDays bounds the play_sessions table by deleting finished
+	// sessions older than this. 0 = keep forever (default; play_sessions is the
+	// admin session history, so purging is opt-in). Recommended ~90 for a small
+	// self-hosted server that doesn't need deep history.
+	SessionRetentionDays int
 }
 
 func (c *Config) EffectiveBaseURL() string {
@@ -691,8 +696,9 @@ func Load() (*Config, error) {
 			SeekIndexStateDir:    envStr("EVEY_SEEKINDEX_STATE_DIR", "/data/seek-index"),
 		},
 		Playback: PlaybackConfig{
-			SkipForwardSeconds:  envInt("EVEY_PLAYBACK_SKIP_FORWARD", 30),
-			SkipBackwardSeconds: envInt("EVEY_PLAYBACK_SKIP_BACKWARD", 30),
+			SkipForwardSeconds:   envInt("EVEY_PLAYBACK_SKIP_FORWARD", 30),
+			SkipBackwardSeconds:  envInt("EVEY_PLAYBACK_SKIP_BACKWARD", 30),
+			SessionRetentionDays: envInt("EVEY_PLAY_SESSION_RETENTION_DAYS", 0),
 		},
 		Metadata: MetadataConfig{
 			Language:              envStr("EVEY_METADATA_LANGUAGE", "en"),

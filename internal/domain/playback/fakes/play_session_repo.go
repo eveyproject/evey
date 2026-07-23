@@ -187,6 +187,22 @@ func (r *FakePlaySessionRepository) CloseStale(_ context.Context, olderThan time
 	return closed, nil
 }
 
+func (r *FakePlaySessionRepository) PurgeEndedBefore(_ context.Context, cutoff time.Time) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	purged := 0
+	for id, s := range r.items {
+		if s.EndedAt != nil && s.EndedAt.Before(cutoff) {
+			delete(r.items, id)
+			purged++
+		}
+	}
+	return purged, nil
+}
+
 func (r *FakePlaySessionRepository) SetRemoteCommand(_ context.Context, sessionID, command string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

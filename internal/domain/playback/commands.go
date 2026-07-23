@@ -34,6 +34,10 @@ type SessionCommandRepo interface {
 	// the tick is a no-op for the live session, watch-progress still records).
 	UpdateProgress(ctx context.Context, sessionID string, positionMs int64, isPaused bool, castDeviceName string) (bool, error)
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
+	// PurgeEndedBefore deletes finished sessions (ended_at set) whose ended_at
+	// is older than the cutoff, bounding the table's growth. Active sessions
+	// (ended_at NULL) are never touched. Returns the number of rows removed.
+	PurgeEndedBefore(ctx context.Context, cutoff time.Time) (int, error)
 	SetRemoteCommand(ctx context.Context, sessionID, command string) error
 	ConsumeRemoteCommand(ctx context.Context, sessionID string) (string, error)
 	// AcquireUserStreamLock takes a tx-scoped advisory lock keyed by userID

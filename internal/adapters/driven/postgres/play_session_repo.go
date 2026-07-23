@@ -337,6 +337,25 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 	return int(n), nil
 }
 
+func (r *PlaySessionRepository) PurgeEndedBefore(ctx context.Context, cutoff time.Time) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.PurgeEndedBefore")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM play_sessions WHERE ended_at IS NOT NULL AND ended_at < $1`, cutoff)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, fmt.Errorf("PlaySessionRepo.PurgeEndedBefore: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		slog.Warn("rows affected", slog.Any("err", err))
+	}
+	return int(n), nil
+}
+
 func (r *PlaySessionRepository) SetRemoteCommand(ctx context.Context, sessionID, command string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetRemoteCommand")
 	defer span.End()

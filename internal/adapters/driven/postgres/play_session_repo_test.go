@@ -60,6 +60,51 @@ func TestPlaySessionRepo_Create_GetByID(t *testing.T) {
 	assert.Equal(t, session.PlayMethod, got.PlayMethod)
 }
 
+func TestPlaySessionRepo_PurgeEndedBefore(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("psu_purge")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("psp_purge", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("pslib_purge")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("psmi_purge", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	now := time.Now().UTC()
+	mkEnded := func(id string, endedAt time.Time) {
+		s := newTestPlaySession(id, string(p.ID), string(item.ID))
+		s.EndedAt = &endedAt
+		require.NoError(t, sessionRepo.Create(ctx, s))
+	}
+	mkEnded("ps_old_ended", now.Add(-40*24*time.Hour))   // 40 days ago → purged
+	mkEnded("ps_recent_ended", now.Add(-2*24*time.Hour))  // 2 days ago → kept
+	// An active session (ended_at NULL) must never be purged regardless of age.
+	active := newTestPlaySession("ps_active", string(p.ID), string(item.ID))
+	active.StartedAt = now.Add(-100 * 24 * time.Hour)
+	require.NoError(t, sessionRepo.Create(ctx, active))
+
+	n, err := sessionRepo.PurgeEndedBefore(ctx, now.Add(-30*24*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 1, n, "only the 40-day-old FINISHED session should be purged")
+
+	_, err = sessionRepo.GetByID(ctx, "ps_old_ended")
+	require.Error(t, err, "purged session must be gone")
+	_, err = sessionRepo.GetByID(ctx, "ps_recent_ended")
+	require.NoError(t, err, "recently-ended session must remain")
+	_, err = sessionRepo.GetByID(ctx, "ps_active")
+	require.NoError(t, err, "active session must remain even though it is old")
+}
+
 func TestPlaySessionRepo_Update(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

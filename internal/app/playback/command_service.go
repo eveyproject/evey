@@ -59,6 +59,11 @@ type CommandService struct {
 	events         shared.EventBus
 	uow            shared.TransactionalUnit
 	durations      MediaItemDurationGetter
+	// sessionRetentionDays bounds play_sessions: finished sessions older than
+	// this are purged. 0 = keep forever. lastSessionPurge gates the delete to
+	// ~once/day inside the 30s stale-session sweep (single-goroutine, no lock).
+	sessionRetentionDays int
+	lastSessionPurge     time.Time
 }
 
 type CommandServiceOption func(*CommandService)
@@ -82,6 +87,12 @@ func WithWatchProgressBuffer(buf *WatchProgressBuffer) CommandServiceOption {
 // Completed=false on every tick (the historical behaviour - completion
 // still happens via MarkAsWatched or the sticky-true Upsert semantic
 // once any caller has set it).
+// WithSessionRetentionDays enables the daily purge of finished play_sessions
+// older than the given number of days. 0 (default) keeps every session.
+func WithSessionRetentionDays(days int) CommandServiceOption {
+	return func(s *CommandService) { s.sessionRetentionDays = days }
+}
+
 func WithMediaItemDurationGetter(g MediaItemDurationGetter) CommandServiceOption {
 	return func(s *CommandService) { s.durations = g }
 }
@@ -534,6 +545,19 @@ func (s *CommandService) runCleanup(ctx context.Context, maxAge time.Duration) {
 		slog.Warn("stale session cleanup", slog.Any("err", err))
 	} else if n > 0 {
 		slog.Info("cleaned stale sessions", slog.Int("count", n))
+	}
+
+	// Retention purge of finished sessions, gated to ~once/day (the stale sweep
+	// runs every 30s). lastSessionPurge is zero on boot, so the first sweep
+	// purges immediately.
+	if s.sessionRetentionDays > 0 && time.Since(s.lastSessionPurge) >= 24*time.Hour {
+		s.lastSessionPurge = time.Now()
+		cutoff := time.Now().AddDate(0, 0, -s.sessionRetentionDays)
+		if n, err := s.sessions.PurgeEndedBefore(ctx, cutoff); err != nil {
+			slog.Warn("play_session retention purge", slog.Any("err", err))
+		} else if n > 0 {
+			slog.Info("purged old play sessions", slog.Int("count", n), slog.Int("retention_days", s.sessionRetentionDays))
+		}
 	}
 }
 
