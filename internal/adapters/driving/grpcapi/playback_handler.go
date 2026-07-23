@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"slices"
 	"strings"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/transcoding"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/evey-project/evey/internal/pkg/network"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -44,6 +46,13 @@ type playbackHandler struct {
 	// keyframeOnDemand fills a missing keyframe index inline at GetStreamInfo
 	// (bounded fast-path probe; see apptranscoding.KeyframeOnDemand). Optional.
 	keyframeOnDemand *apptranscoding.KeyframeOnDemand
+	// remoteNetDetector + maxRemoteBitrateKbps enforce the operator-wide
+	// remote-access bitrate cap: a session whose real client IP is classified
+	// WAN is clamped to maxRemoteBitrateKbps. Snapshot at boot from
+	// cfg.RemoteAccess (LAN list + cap), same lifetime as the HTTP detector -
+	// changes take effect on restart. Both zero = feature off.
+	remoteNetDetector    *network.Detector
+	maxRemoteBitrateKbps int
 }
 
 func (h *playbackHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {
@@ -152,6 +161,21 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 	if idx := int(req.SubtitleStreamIndex); idx > 0 {
 		if rel, ok := typeRelativeIndex(streams, library.StreamTypeSubtitle, idx); ok {
 			prefs.SubtitleBurnInTrack = rel
+		}
+	}
+
+	// Operator-wide remote-access bitrate cap. Applied LAST so it can only LOWER
+	// the client/profile ceiling, never raise it. Lands only on a client that is
+	// positively PUBLIC (parseable, non-RFC1918) and classified WAN by the LAN
+	// detector - so it never throttles an obviously-local viewer even if the
+	// admin forgot to list a private range in LANNetworks. An unresolved IP fails
+	// open (no cap), so an IP-plumbing hiccup can't wrongly throttle a LAN user.
+	if h.maxRemoteBitrateKbps > 0 && h.remoteNetDetector != nil {
+		if ip := net.ParseIP(interceptors.ClientIPFromCtx(ctx)); ip != nil &&
+			!ip.IsPrivate() && h.remoteNetDetector.DetectIP(ip) == network.WAN {
+			if maxBitrateKbps == 0 || h.maxRemoteBitrateKbps < maxBitrateKbps {
+				maxBitrateKbps = h.maxRemoteBitrateKbps
+			}
 		}
 	}
 	return prefs, maxBitrateKbps

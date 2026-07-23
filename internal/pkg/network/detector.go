@@ -32,7 +32,14 @@ func NewDetector(cidrs []string) *Detector {
 }
 
 func (d *Detector) Detect(r *http.Request) NetworkType {
-	ip := clientIP(r)
+	return d.DetectIP(clientIP(r))
+}
+
+// DetectIP classifies an already-resolved client IP as LAN or WAN. Used where
+// the real client IP is resolved upstream (the gRPC client-info interceptor)
+// rather than from an *http.Request. A nil IP is WAN (unknown = treat as
+// remote), matching Detect.
+func (d *Detector) DetectIP(ip net.IP) NetworkType {
 	if ip == nil {
 		return WAN
 	}

@@ -110,6 +110,14 @@ func ClientIPFromCtx(ctx context.Context) string {
 	return v
 }
 
+// WithClientIP stamps the resolved client IP onto ctx. The client-info
+// interceptor sets it in production; exported so handlers/tests that build a
+// context without going through the interceptor can supply it symmetrically
+// with ClientIPFromCtx.
+func WithClientIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, clientIPKey{}, ip)
+}
+
 func PersistentSessionFromCtx(ctx context.Context) bool {
 	v, _ := ctx.Value(persistentSessionKey{}).(bool)
 	return v
