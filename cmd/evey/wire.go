@@ -42,6 +42,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/metadata"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/evey-project/evey/internal/pkg/coalesce"
 	"github.com/evey-project/evey/internal/pkg/cpuutil"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
@@ -648,10 +649,21 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// runtime HW demotion): admission prices bench samples, and pricing a
 	// demoted GPU with yesterday's table was exactly the dead-snapshot failure
 	// seen live (NVENC init failure -> nothing repriced).
-	calibrationSvc.OnCapabilityChange(func() { applyVideoSessionLimit(ctx) })
-	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(evtCtx context.Context, evt shared.Event) {
+	//
+	// Through a coalesced single-goroutine runner, for two audited reasons:
+	// OnCapabilityChange callbacks run SYNCHRONOUSLY under the calibration
+	// service's demoteMu+currentMu, and applyVideoSessionLimit does a DB read
+	// (ResolveVideoSessionLimit) - inline it serialized HW demotions on a
+	// Postgres round-trip. And two concurrent triggers (demotion + config
+	// change) interleaved read-compute-SetLimit, so a limit computed from the
+	// PRE-demotion capability could apply last and win (lost update). The
+	// runner makes triggers non-blocking and every run read AFTER the
+	// previous one applied.
+	reapplyVideoLimit := coalesce.Start(ctx, applyVideoSessionLimit)
+	calibrationSvc.OnCapabilityChange(reapplyVideoLimit.Trigger)
+	bus.Subscribe(shared.ServerConfigChanged{}.EventName(), func(_ context.Context, evt shared.Event) {
 		if c, ok := evt.(shared.ServerConfigChanged); ok && c.Key == apptranscoding.MaxVideoSessionsConfigKey {
-			applyVideoSessionLimit(evtCtx)
+			reapplyVideoLimit.Trigger()
 		}
 	})
 	// Level-2 HW safety net: a hardware-encode failure demotes the calibrated
