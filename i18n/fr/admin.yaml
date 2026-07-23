@@ -1030,6 +1030,12 @@ serverSettings:
   restartHint: (appliqué au redémarrage)
   skipPreview: "Passer les segments d'aperçu"
   skipPreviewInfo: "Masque l'aperçu du prochain épisode (la courte bande-annonce insérée à la fin de certains shows). Le serveur ignore ces segments même si le client les demanderait."
+  auditRetentionDays: "Rétention du journal d'audit (jours, 0 = conserver toujours)"
+  metricsRetentionDays: "Rétention des métriques serveur (jours)"
+  qoeRetentionDays: "Rétention qualité de lecture (QoE) (jours)"
+  playSessionRetentionDays: "Rétention de l'historique des sessions de lecture (jours, 0 = conserver toujours)"
+  transcodeCacheMaxGB: "Budget du cache de transcodage (Go)"
+  retentionSweepHint: "(appliqué au prochain balayage quotidien)"
   saved: "Paramètres enregistrés"
   usingDefault: "Valeur par défaut :"
   reset: "Réinitialiser"

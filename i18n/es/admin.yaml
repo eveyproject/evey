@@ -861,6 +861,12 @@ serverSettings:
   restartHint: (se aplica al reiniciar)
   skipPreview: Saltar segmentos de avance
   skipPreviewInfo: "Oculta el breve avance del proximo episodio que algunas series insertan al final. Si esta activo, el servidor omite estos segmentos durante la reproduccion aunque el cliente los muestre."
+  auditRetentionDays: "Retencion del registro de auditoria (dias, 0 = conservar siempre)"
+  metricsRetentionDays: "Retencion de metricas del servidor (dias)"
+  qoeRetentionDays: "Retencion de calidad de reproduccion (QoE) (dias)"
+  playSessionRetentionDays: "Retencion del historial de sesiones (dias, 0 = conservar siempre)"
+  transcodeCacheMaxGB: "Presupuesto de cache de transcodificacion (GB)"
+  retentionSweepHint: "(se aplica en el proximo barrido diario)"
   saved: "Configuracion guardada"
   usingDefault: "Valor predeterminado:"
   reset: "Restablecer valor predeterminado"

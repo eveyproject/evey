@@ -1031,6 +1031,12 @@ serverSettings:
   restartHint: (applies on restart)
   skipPreview: Skip preview segments
   skipPreviewInfo: "Hides the short next-episode preview some shows splice in at the end. When enabled, the server omits these segments from playback even if the client would otherwise show them."
+  auditRetentionDays: "Audit log retention (days, 0 = keep forever)"
+  metricsRetentionDays: "Server metrics retention (days)"
+  qoeRetentionDays: "Playback quality (QoE) retention (days)"
+  playSessionRetentionDays: "Play session history retention (days, 0 = keep forever)"
+  transcodeCacheMaxGB: "Transcode cache budget (GB)"
+  retentionSweepHint: "(applies at the next daily sweep)"
   saved: Settings saved
   usingDefault: "Using default:"
   reset: Reset to default

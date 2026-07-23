@@ -1051,6 +1051,11 @@ interface ServerSettings {
   libraryWatcherEnabled: SettingValue<boolean>;
   periodicScanInterval: SettingValue<string>;
   skipPreviewEnabled: SettingValue<boolean>;
+  auditRetentionDays: SettingValue<number>;
+  metricsRetentionDays: SettingValue<number>;
+  qoeRetentionDays: SettingValue<number>;
+  playSessionRetentionDays: SettingValue<number>;
+  transcodeCacheMaxGB: SettingValue<number>;
 }
 const SETTINGS_KEY = ["/api/v1/admin/server-settings"];
 const LOG_LEVELS = ["debug", "info", "warn", "error"];
@@ -1069,6 +1074,11 @@ function ServerSettingsCard() {
   const [libraryWatcher, setLibraryWatcher] = useState(true);
   const [scanInterval, setScanInterval] = useState("");
   const [skipPreview, setSkipPreview] = useState(false);
+  const [auditDays, setAuditDays] = useState("");
+  const [metricsDays, setMetricsDays] = useState("");
+  const [qoeDays, setQoeDays] = useState("");
+  const [sessionDays, setSessionDays] = useState("");
+  const [cacheGB, setCacheGB] = useState("");
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -1080,6 +1090,11 @@ function ServerSettingsCard() {
       setLibraryWatcher(data.libraryWatcherEnabled.value);
       setScanInterval(data.periodicScanInterval.source === "override" ? String(data.periodicScanInterval.value) : "");
       setSkipPreview(data.skipPreviewEnabled.value);
+      setAuditDays(data.auditRetentionDays?.source === "override" ? String(data.auditRetentionDays.value) : "");
+      setMetricsDays(data.metricsRetentionDays?.source === "override" ? String(data.metricsRetentionDays.value) : "");
+      setQoeDays(data.qoeRetentionDays?.source === "override" ? String(data.qoeRetentionDays.value) : "");
+      setSessionDays(data.playSessionRetentionDays?.source === "override" ? String(data.playSessionRetentionDays.value) : "");
+      setCacheGB(data.transcodeCacheMaxGB?.source === "override" ? String(data.transcodeCacheMaxGB.value) : "");
     }
   }, [data]);
 
@@ -1106,6 +1121,11 @@ function ServerSettingsCard() {
     body.libraryWatcherEnabled = libraryWatcher;
     if (scanInterval) body.periodicScanInterval = scanInterval;
     body.skipPreviewEnabled = skipPreview;
+    if (auditDays) body.auditRetentionDays = parseInt(auditDays, 10);
+    if (metricsDays) body.metricsRetentionDays = parseInt(metricsDays, 10);
+    if (qoeDays) body.qoeRetentionDays = parseInt(qoeDays, 10);
+    if (sessionDays) body.playSessionRetentionDays = parseInt(sessionDays, 10);
+    if (cacheGB) body.transcodeCacheMaxGB = parseInt(cacheGB, 10);
     saveMutation.mutate(body);
   }
 
@@ -1174,6 +1194,28 @@ function ServerSettingsCard() {
               />
             </div>
             <ResetBtn setting={data.skipPreviewEnabled} field="skipPreviewEnabled" />
+          </div>
+          {/* Retention windows are re-read by their sweeps at every pass (no
+              restart); the cache budget is a boot snapshot, hence its hint. */}
+          <div className="flex flex-col gap-1">
+            <Input label={`${t("admin.serverSettings.auditRetentionDays")} ${t("admin.serverSettings.retentionSweepHint")}`} type="number" min={0} placeholder={String(data.auditRetentionDays?.default ?? 0)} value={auditDays} onChange={(e) => { setAuditDays(e.target.value); setDirty(true); }} data-testid="audit-retention-input" />
+            {data.auditRetentionDays && <ResetBtn setting={data.auditRetentionDays} field="auditRetentionDays" />}
+          </div>
+          <div className="flex flex-col gap-1">
+            <Input label={`${t("admin.serverSettings.metricsRetentionDays")} ${t("admin.serverSettings.retentionSweepHint")}`} type="number" min={0} placeholder={String(data.metricsRetentionDays?.default ?? 90)} value={metricsDays} onChange={(e) => { setMetricsDays(e.target.value); setDirty(true); }} data-testid="metrics-retention-input" />
+            {data.metricsRetentionDays && <ResetBtn setting={data.metricsRetentionDays} field="metricsRetentionDays" />}
+          </div>
+          <div className="flex flex-col gap-1">
+            <Input label={`${t("admin.serverSettings.qoeRetentionDays")} ${t("admin.serverSettings.retentionSweepHint")}`} type="number" min={0} placeholder={String(data.qoeRetentionDays?.default ?? 30)} value={qoeDays} onChange={(e) => { setQoeDays(e.target.value); setDirty(true); }} data-testid="qoe-retention-input" />
+            {data.qoeRetentionDays && <ResetBtn setting={data.qoeRetentionDays} field="qoeRetentionDays" />}
+          </div>
+          <div className="flex flex-col gap-1">
+            <Input label={`${t("admin.serverSettings.playSessionRetentionDays")} ${t("admin.serverSettings.retentionSweepHint")}`} type="number" min={0} placeholder={String(data.playSessionRetentionDays?.default ?? 0)} value={sessionDays} onChange={(e) => { setSessionDays(e.target.value); setDirty(true); }} data-testid="session-retention-input" />
+            {data.playSessionRetentionDays && <ResetBtn setting={data.playSessionRetentionDays} field="playSessionRetentionDays" />}
+          </div>
+          <div className="flex flex-col gap-1">
+            <Input label={`${t("admin.serverSettings.transcodeCacheMaxGB")} ${t("admin.serverSettings.restartHint")}`} type="number" min={1} placeholder={String(data.transcodeCacheMaxGB?.default ?? 50)} value={cacheGB} onChange={(e) => { setCacheGB(e.target.value); setDirty(true); }} data-testid="cache-budget-input" />
+            {data.transcodeCacheMaxGB && <ResetBtn setting={data.transcodeCacheMaxGB} field="transcodeCacheMaxGB" />}
           </div>
           <div className="flex justify-end pt-2">
             <Button onClick={handleSave} loading={saveMutation.isPending} disabled={!dirty} data-testid="server-config-save-btn">{t("common.save")}</Button>
