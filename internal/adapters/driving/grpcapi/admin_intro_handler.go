@@ -79,7 +79,7 @@ func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eve
 			h.backfillRunning = false
 			h.backfillMu.Unlock()
 			if r := recover(); r != nil {
-				slog.Error("panic recovered in admin intro backfill",
+				slog.ErrorContext(ctx, "panic recovered in admin intro backfill",
 					slog.Any("panic", r),
 					slog.String("stack", string(debug.Stack())))
 			}

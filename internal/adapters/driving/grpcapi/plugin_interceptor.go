@@ -54,7 +54,7 @@ func PluginPermissionInterceptor(checker *appplugin.PermissionChecker) grpc.Unar
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		requiredPerms, known := methodPermissions[info.FullMethod]
 		if !known {
-			slog.Warn("plugin RPC denied: unknown method (missing methodPermissions entry)",
+			slog.WarnContext(ctx, "plugin RPC denied: unknown method (missing methodPermissions entry)",
 				slog.String("method", info.FullMethod))
 			return nil, status.Errorf(codes.PermissionDenied, "method %s not permitted for plugins", info.FullMethod)
 		}
@@ -68,7 +68,7 @@ func PluginPermissionInterceptor(checker *appplugin.PermissionChecker) grpc.Unar
 		}
 
 		if checkErr := checker.CheckAnyPermission(pluginID, requiredPerms...); checkErr != nil {
-			slog.Warn("plugin RPC permission denied",
+			slog.WarnContext(ctx, "plugin RPC permission denied",
 				slog.String("plugin_id", pluginID),
 				slog.String("method", info.FullMethod))
 			return nil, status.Errorf(codes.PermissionDenied,

@@ -30,7 +30,7 @@ func (d *adminTaskHandler) ListScheduledTasks(ctx context.Context, _ *eveyv1.Lis
 	}
 	schedules, err := d.scheduler.ListSchedules(ctx)
 	if err != nil {
-		slog.Error("list scheduled tasks", slog.Any("err", err))
+		slog.ErrorContext(ctx, "list scheduled tasks", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -88,7 +88,7 @@ func (d *adminTaskHandler) UpdateScheduledTask(ctx context.Context, req *eveyv1.
 	}
 	updated, err := d.scheduler.SetSchedule(ctx, req.Id, cron, enabled)
 	if err != nil {
-		slog.Error("update scheduled task", slog.Any("err", err))
+		slog.ErrorContext(ctx, "update scheduled task", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -115,12 +115,12 @@ func (d *adminTaskHandler) RunScheduledTask(ctx context.Context, req *eveyv1.Run
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic in RunScheduledTask", slog.Any("recover", r), slog.String("libraryID", req.Id))
+				slog.ErrorContext(ctx, "panic in RunScheduledTask", slog.Any("recover", r), slog.String("libraryID", req.Id))
 			}
 		}()
 		added, updated, err := d.libScanner.ScanLibrary(d.serverCtx, req.Id)
 		if err != nil {
-			slog.Error("manual scan failed", slog.String("libraryID", req.Id), slog.Any("err", err))
+			slog.ErrorContext(ctx, "manual scan failed", slog.String("libraryID", req.Id), slog.Any("err", err))
 		} else {
 			slog.Info("manual scan done", slog.String("libraryID", req.Id), slog.Int("added", added), slog.Int("updated", updated))
 		}

@@ -408,7 +408,7 @@ func (h *feedHandler) localizeTitles(ctx context.Context, items []*feed.FeedItem
 	}
 	trans, err := h.libQuery.GetMediaItemTranslations(ctx, ids, locale)
 	if err != nil {
-		slog.Warn("feed: localize titles", slog.Any("err", err))
+		slog.WarnContext(ctx, "feed: localize titles", slog.Any("err", err))
 		return items
 	}
 	for _, it := range items {

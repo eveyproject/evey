@@ -65,7 +65,7 @@ func (h *activityHandler) RecordPageView(ctx context.Context, req *eveyv1.Record
 		e.ClientIP = &ip
 	}
 	if err := h.cmd.CreateAuditEntry(ctx, e); err != nil {
-		slog.Warn("record page view", slog.String("path", path), slog.Any("err", err))
+		slog.WarnContext(ctx, "record page view", slog.String("path", path), slog.Any("err", err))
 	}
 	return resp, nil
 }
@@ -308,7 +308,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	if len(ids) > 0 && h.libQuery != nil {
 		mis, merr := h.libQuery.GetMediaItemsByIDs(ctx, ids)
 		if merr != nil {
-			slog.Warn("popular: batch fetch media items", slog.Any("err", merr))
+			slog.WarnContext(ctx, "popular: batch fetch media items", slog.Any("err", merr))
 		}
 		for _, mi := range mis {
 			mediaByID[string(mi.ID)] = mi

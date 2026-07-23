@@ -29,7 +29,7 @@ func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *ev
 	resp := &eveyv1.UserLibraryAccess{UserId: req.UserId, LibraryIds: ids}
 	libs, err := h.libQuery.ListLibraries(ctx)
 	if err != nil {
-		slog.Warn("list libraries for access", slog.Any("err", err))
+		slog.WarnContext(ctx, "list libraries for access", slog.Any("err", err))
 	}
 	for _, l := range libs {
 		resp.Libraries = append(resp.Libraries, &eveyv1.LibraryRef{Id: string(l.ID), Name: l.Name})

@@ -74,7 +74,7 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 	if h.store != nil {
 		if data, err := json.Marshal(snapshot); err == nil {
 			if err := h.store.Set(ctx, remoteAccessCfgKey, string(data)); err != nil {
-				slog.Error("persist remote access config", slog.Any("err", err))
+				slog.ErrorContext(ctx, "persist remote access config", slog.Any("err", err))
 			}
 		}
 	}

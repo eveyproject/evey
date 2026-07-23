@@ -24,7 +24,7 @@ func (h *backupScheduleHandler) GetBackupSchedule(ctx context.Context, _ *eveyv1
 	defer span.End()
 	sched, err := h.scheduler.GetSchedule(ctx)
 	if err != nil {
-		slog.Error("get backup schedule", slog.Any("err", err))
+		slog.ErrorContext(ctx, "get backup schedule", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -39,7 +39,7 @@ func (h *backupScheduleHandler) UpdateBackupSchedule(ctx context.Context, req *e
 	// Load current values as defaults for partial updates.
 	current, err := h.scheduler.GetSchedule(ctx)
 	if err != nil {
-		slog.Error("get backup schedule for update", slog.Any("err", err))
+		slog.ErrorContext(ctx, "get backup schedule for update", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "internal error")
@@ -59,7 +59,7 @@ func (h *backupScheduleHandler) UpdateBackupSchedule(ctx context.Context, req *e
 
 	updated, err := h.scheduler.UpdateSchedule(ctx, cronExpr, enabled, retentionDays)
 	if err != nil {
-		slog.Error("update backup schedule", slog.Any("err", err))
+		slog.ErrorContext(ctx, "update backup schedule", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.InvalidArgument, "invalid schedule: %v", err)
@@ -72,7 +72,7 @@ func (h *backupScheduleHandler) RunBackupNow(ctx context.Context, _ *eveyv1.RunB
 	defer span.End()
 	m, err := h.scheduler.RunNow(ctx)
 	if err != nil {
-		slog.Error("run backup now", slog.Any("err", err))
+		slog.ErrorContext(ctx, "run backup now", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, status.Errorf(codes.Internal, "backup failed: %v", err)

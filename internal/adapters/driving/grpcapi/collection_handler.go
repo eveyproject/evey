@@ -377,7 +377,7 @@ func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectio
 	}
 	items, _, itemsErr := h.svc.GetItems(ctx, collectionID, 1000, 0)
 	if itemsErr != nil {
-		slog.Warn("collection access check: get items", slog.String("collection_id", collectionID), slog.Any("err", itemsErr))
+		slog.WarnContext(ctx, "collection access check: get items", slog.String("collection_id", collectionID), slog.Any("err", itemsErr))
 		return internalError(ctx, "get collection items", itemsErr)
 	}
 	for _, it := range items {

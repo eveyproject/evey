@@ -401,7 +401,7 @@ func (h *syncplayHandler) LeaveRoom(ctx context.Context, req *eveyv1.LeaveSyncPl
 		return nil, fmt.Errorf("syncplayHandler.LeaveRoom: %w", err)
 	}
 	if err := h.hub.LeaveRoom(ctx, req.RoomId, claims.UserID); err != nil {
-		slog.Warn("syncplay leave room failed", slog.String("room_id", req.RoomId), slog.Any("err", err))
+		slog.WarnContext(ctx, "syncplay leave room failed", slog.String("room_id", req.RoomId), slog.Any("err", err))
 		span.RecordError(err)
 	}
 	return &eveyv1.LeaveSyncPlayRoomResponse{}, nil

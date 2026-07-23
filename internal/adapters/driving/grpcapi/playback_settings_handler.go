@@ -40,14 +40,14 @@ func (h *playbackSettingsHandler) initFromDB(ctx context.Context) {
 			h.cfg.Playback.SkipForwardSeconds = v
 		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		slog.Warn("load playback skip_forward from db", "err", err)
+		slog.WarnContext(ctx, "load playback skip_forward from db", "err", err)
 	}
 	if e, err := h.configSvc.Get(ctx, cfgKeySkipBackward); err == nil {
 		if v, err := strconv.Atoi(e.Value); err == nil && v > 0 {
 			h.cfg.Playback.SkipBackwardSeconds = v
 		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		slog.Warn("load playback skip_backward from db", "err", err)
+		slog.WarnContext(ctx, "load playback skip_backward from db", "err", err)
 	}
 }
 
@@ -79,10 +79,10 @@ func (h *playbackSettingsHandler) UpdatePlaybackSettings(ctx context.Context, re
 
 	if h.configSvc != nil {
 		if err := h.configSvc.Set(ctx, cfgKeySkipForward, strconv.Itoa(h.cfg.Playback.SkipForwardSeconds)); err != nil {
-			slog.Error("persist playback skip_forward", "err", err)
+			slog.ErrorContext(ctx, "persist playback skip_forward", "err", err)
 		}
 		if err := h.configSvc.Set(ctx, cfgKeySkipBackward, strconv.Itoa(h.cfg.Playback.SkipBackwardSeconds)); err != nil {
-			slog.Error("persist playback skip_backward", "err", err)
+			slog.ErrorContext(ctx, "persist playback skip_backward", "err", err)
 		}
 	}
 

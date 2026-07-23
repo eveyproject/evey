@@ -356,12 +356,12 @@ func (h *musicHandler) ScanMusicDirectory(ctx context.Context, req *eveyv1.ScanM
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in music scan", slog.Any("error", r))
+				slog.ErrorContext(ctx, "recovered panic in music scan", slog.Any("error", r))
 			}
 		}()
 		count, scanErr := h.svc.ScanDirectory(srvCtx, libraryID, scanDir)
 		if scanErr != nil {
-			slog.Error("music scan", slog.Any("err", scanErr))
+			slog.ErrorContext(ctx, "music scan", slog.Any("err", scanErr))
 		} else {
 			slog.Info("music scan complete", slog.Int("count", count), slog.String("dir", scanDir))
 		}

@@ -238,12 +238,12 @@ func (h *photoHandler) ScanPhotoDirectory(ctx context.Context, req *eveyv1.ScanP
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in photo scan", slog.Any("error", r))
+				slog.ErrorContext(ctx, "recovered panic in photo scan", slog.Any("error", r))
 			}
 		}()
 		n, scanErr := h.svc.ScanDirectory(srvCtx, req.LibraryId, dir)
 		if scanErr != nil {
-			slog.Error("photo scan", slog.Any("err", scanErr))
+			slog.ErrorContext(ctx, "photo scan", slog.Any("err", scanErr))
 		} else {
 			slog.Info("photo scan complete", slog.Int("count", n), slog.String("dir", dir))
 		}

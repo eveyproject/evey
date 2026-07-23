@@ -182,7 +182,7 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 	defer span.End()
 	admins, adminErr := d.userQuery.CountAdmins(ctx)
 	if adminErr != nil {
-		slog.Warn("count admins", slog.Any("err", adminErr))
+		slog.WarnContext(ctx, "count admins", slog.Any("err", adminErr))
 		span.RecordError(adminErr)
 	}
 
@@ -206,7 +206,7 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 	if d.transcodingSvc != nil {
 		devices, err := d.transcodingSvc.DetectHardware(ctx)
 		if err != nil {
-			slog.Warn("detect hardware", slog.Any("err", err))
+			slog.WarnContext(ctx, "detect hardware", slog.Any("err", err))
 		} else {
 			for _, dev := range devices {
 				info.HwDevices = append(info.HwDevices, hwDeviceToProto(dev))
@@ -396,12 +396,12 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 	if d.serverCfgSvc != nil {
 		if req.ServerLanguage != "" {
 			if err := d.serverCfgSvc.Set(ctx, "server.language", req.ServerLanguage); err != nil {
-				slog.Warn("setup: persist server.language", slog.Any("err", err))
+				slog.WarnContext(ctx, "setup: persist server.language", slog.Any("err", err))
 			}
 		}
 		if req.ServerRegion != "" {
 			if err := d.serverCfgSvc.Set(ctx, "server.region", req.ServerRegion); err != nil {
-				slog.Warn("setup: persist server.region", slog.Any("err", err))
+				slog.WarnContext(ctx, "setup: persist server.region", slog.Any("err", err))
 			}
 		}
 	}
@@ -497,7 +497,7 @@ func (d *adminSystemHandler) RestartServer(ctx context.Context, _ *eveyv1.Restar
 	if c := interceptors.ClaimsFromContext(ctx); c != nil && c.Username != "" {
 		who = c.Username
 	}
-	slog.Warn("admin-requested server restart", slog.String("requested_by", who))
+	slog.WarnContext(ctx, "admin-requested server restart", slog.String("requested_by", who))
 	// Delay so the RPC response reaches the client before the drain starts.
 	time.AfterFunc(restartGraceDelay, d.restartFn)
 	return &eveyv1.RestartServerResponse{

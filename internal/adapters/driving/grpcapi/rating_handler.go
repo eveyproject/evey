@@ -74,7 +74,7 @@ func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumb
 	if upsertErr := h.starSvc.UpsertThumb(ctx, r); upsertErr != nil {
 		span.RecordError(upsertErr)
 		span.SetStatus(otelcodes.Error, upsertErr.Error())
-		slog.Error("upsert thumb rating", slog.Any("err", upsertErr))
+		slog.ErrorContext(ctx, "upsert thumb rating", slog.Any("err", upsertErr))
 		return nil, status.Error(codes.Internal, "internal error")
 	}
 	return &eveyv1.PutThumbRatingResponse{Value: req.Value}, nil

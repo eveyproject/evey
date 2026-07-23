@@ -75,11 +75,11 @@ func (d *adminMediaHandler) RefreshAllMetadata(ctx context.Context, req *eveyv1.
 		defer d.releaseHeavyOp()
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("recovered panic in refresh all metadata", slog.Any("error", r))
+				slog.ErrorContext(ctx, "recovered panic in refresh all metadata", slog.Any("error", r))
 			}
 		}()
 		if err := d.metadataCmd.AutoRefreshAllItems(srvCtx, libraryID); err != nil {
-			slog.Error("refresh all metadata", slog.Any("err", err))
+			slog.ErrorContext(ctx, "refresh all metadata", slog.Any("err", err))
 		} else {
 			slog.Info("refresh all metadata complete", slog.String("library_id", libraryID))
 		}

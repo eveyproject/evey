@@ -53,7 +53,7 @@ func (h *webPushHandler) RegisterWebPush(ctx context.Context, req *eveyv1.Regist
 		return nil, status.Error(codes.InvalidArgument, "invalid key encoding")
 	}
 	if err := h.notifCmd.UpsertPushSubscription(ctx, claims.UserID, claims.ProfileID, req.Endpoint, req.Keys.P256Dh, req.Keys.Auth); err != nil {
-		slog.Error("push: register web push", slog.Any("err", err))
+		slog.ErrorContext(ctx, "push: register web push", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, "failed to register")
 	}
 	return &eveyv1.RegisterWebPushResponse{Ok: true}, nil
@@ -70,7 +70,7 @@ func (h *webPushHandler) UnregisterWebPush(ctx context.Context, req *eveyv1.Unre
 		return nil, status.Error(codes.InvalidArgument, "endpoint required")
 	}
 	if err := h.notifCmd.DeletePushByEndpoint(ctx, claims.UserID, req.Endpoint); err != nil {
-		slog.Error("push: unregister web push", slog.Any("err", err))
+		slog.ErrorContext(ctx, "push: unregister web push", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, "failed to unregister")
 	}
 	return &eveyv1.UnregisterWebPushResponse{Ok: true}, nil
@@ -85,7 +85,7 @@ func (h *webPushHandler) ListWebPushSubscriptions(ctx context.Context, _ *eveyv1
 	}
 	subs, err := h.notifQuery.ListPushSubscriptions(ctx, claims.UserID)
 	if err != nil {
-		slog.Error("push: list subscriptions", slog.Any("err", err))
+		slog.ErrorContext(ctx, "push: list subscriptions", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, "failed to list")
 	}
 	out := make([]*eveyv1.WebPushSubscription, 0, len(subs))
@@ -126,7 +126,7 @@ func (h *webPushHandler) DeleteWebPushSubscription(ctx context.Context, req *eve
 		return nil, status.Error(codes.InvalidArgument, "endpoint required")
 	}
 	if err := h.notifCmd.DeletePushByEndpoint(ctx, claims.UserID, req.Endpoint); err != nil {
-		slog.Error("push: delete subscription", slog.Any("err", err))
+		slog.ErrorContext(ctx, "push: delete subscription", slog.Any("err", err))
 		return nil, status.Error(codes.Internal, "failed to delete")
 	}
 	return &eveyv1.DeleteWebPushSubscriptionResponse{Ok: true}, nil
@@ -155,7 +155,7 @@ func (h *webPushHandler) UpdatePushConsent(ctx context.Context, req *eveyv1.Upda
 	}
 	if !req.Consent {
 		if err := h.notifCmd.DeletePushByUser(ctx, claims.UserID); err != nil {
-			slog.Warn("delete push on consent revoke failed", slog.String("user_id", claims.UserID), slog.Any("err", err))
+			slog.WarnContext(ctx, "delete push on consent revoke failed", slog.String("user_id", claims.UserID), slog.Any("err", err))
 		}
 	}
 	return &eveyv1.UpdatePushConsentResponse{Ok: true}, nil

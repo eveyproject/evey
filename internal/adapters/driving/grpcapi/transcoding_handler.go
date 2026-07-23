@@ -111,7 +111,7 @@ func (h *transcodingHandler) GetTranscodeStatus(ctx context.Context, req *eveyv1
 	}
 	progress, err := h.svc.GetProgress(ctx, req.JobId)
 	if err != nil {
-		slog.Warn("grpc GetTranscodeStatus: progress query failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "grpc GetTranscodeStatus: progress query failed", slog.Any("err", err))
 		return nil, status.Error(codes.NotFound, "job not found")
 	}
 	return &eveyv1.TranscodeJob{

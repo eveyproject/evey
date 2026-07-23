@@ -178,7 +178,7 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "session not found")
-		slog.Warn("grpc KillSession: session query failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "grpc KillSession: session query failed", slog.Any("err", err))
 		return nil, status.Error(codes.NotFound, "session not found")
 	}
 	// Send stop command so the player closes gracefully. This stops the
@@ -187,7 +187,7 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	// session) must not sign the user out of the app; banning a user is a
 	// separate action (DisableUser, which bumps the token epoch).
 	if err := d.playbackCmd.SetRemoteCommand(ctx, req.SessionId, "stop"); err != nil {
-		slog.Warn("set remote command failed", slog.String("session_id", req.SessionId), slog.Any("err", err))
+		slog.WarnContext(ctx, "set remote command failed", slog.String("session_id", req.SessionId), slog.Any("err", err))
 	}
 	// Defer the actual kill to give the player time to receive the command
 	mediaItemID := session.MediaItemID
@@ -197,7 +197,7 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("panic in deferred kill-session goroutine",
+				slog.ErrorContext(ctx, "panic in deferred kill-session goroutine",
 					slog.Any("err", r), slog.String("session_id", sessionID))
 			}
 		}()
@@ -208,7 +208,7 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 		killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if err := cmdSvc.StopStream(killCtx, sessionID); err != nil {
-			slog.Warn("stop stream failed", slog.String("session_id", sessionID), slog.Any("err", err))
+			slog.WarnContext(ctx, "stop stream failed", slog.String("session_id", sessionID), slog.Any("err", err))
 		}
 		if hlsMgr != nil {
 			hlsMgr.RemoveSession(string(mediaItemID))

@@ -78,7 +78,7 @@ func (h *playlistHandler) GetPlaylist(ctx context.Context, req *eveyv1.GetPlayli
 	}
 	pl, err := h.svc.GetByID(ctx, req.Id, claims.ProfileID)
 	if err != nil {
-		slog.Warn("grpc GetPlaylist: query failed", slog.Any("err", err))
+		slog.WarnContext(ctx, "grpc GetPlaylist: query failed", slog.Any("err", err))
 		return nil, status.Error(codes.NotFound, "playlist not found")
 	}
 	return playlistToProto(pl), nil
